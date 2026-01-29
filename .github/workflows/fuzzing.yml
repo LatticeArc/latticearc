@@ -23,7 +23,7 @@ jobs:
           - cross_border_fuzz
           - hybrid_kem_fuzz
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
 
@@ -71,7 +71,7 @@ jobs:
           - cross_border_fuzz
           - hybrid_kem_fuzz
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
 
@@ -107,7 +107,7 @@ jobs:
     name: Fuzzing Coverage
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
 

@@ -18,7 +18,7 @@ jobs:
     name: Cryptographic Module Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -54,7 +54,7 @@ jobs:
     name: FIPS Self-Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -87,7 +87,7 @@ jobs:
     name: CAVP Vector Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -135,7 +135,7 @@ jobs:
             test: sha
             standard: "FIPS 180-4/202"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -158,7 +158,7 @@ jobs:
     name: FIPS No Unsafe Code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -189,7 +189,7 @@ jobs:
     needs: [cryptographic-build, fips-self-tests, cavp-validation, fips-algorithm-validation, fips-no-unsafe]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine job statuses
         id: status

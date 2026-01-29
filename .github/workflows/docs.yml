@@ -15,7 +15,7 @@ jobs:
     name: Documentation Build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
 
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: docs
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
