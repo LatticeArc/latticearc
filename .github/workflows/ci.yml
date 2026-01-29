@@ -288,7 +288,7 @@ jobs:
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: fuzz-crash-${{ matrix.fuzz-target }}
         path: arc-fuzz/artifacts/${{ matrix.fuzz-target }}/
@@ -493,7 +493,7 @@ jobs:
       run: cargo test --workspace --target ${{ matrix.target }} --release --all-features
 
     - name: Package and upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: apache-${{ matrix.target }}
         path: |
@@ -544,7 +544,7 @@ jobs:
         echo "- **Telemetry**: Enabled (OpenTelemetry + Prometheus)" >> report.md
 
     - name: Upload pipeline report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: pipeline-report
         path: report.md

@@ -148,7 +148,7 @@ jobs:
           sha256sum sbom.cdx.json sbom.spdx.json > sbom-checksums.txt
           echo "sbom-hash=$(sha256sum sbom.cdx.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sbom
           path: |
@@ -203,7 +203,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: latticearc-${{ matrix.target }}
           path: artifacts/
@@ -269,7 +269,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload signatures
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: signatures
           path: |

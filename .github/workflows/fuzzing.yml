@@ -53,7 +53,7 @@ jobs:
         timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300 || true
 
     - name: Upload fuzz artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: failure()
       with:
         name: fuzz-artifacts-${{ matrix.target }}
@@ -96,7 +96,7 @@ jobs:
         timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600 || true
 
     - name: Upload extended fuzz artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: failure()
       with:
         name: extended-fuzz-artifacts-${{ matrix.target }}
@@ -137,7 +137,7 @@ jobs:
         cargo fuzz coverage encrypt_fuzz -- -max_total_time=120
 
     - name: Upload fuzz coverage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: fuzz-coverage
         path: arc-fuzz/coverage/
