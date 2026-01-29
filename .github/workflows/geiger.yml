@@ -1,0 +1,86 @@
+# cargo-geiger - Unsafe Code Audit
+# Reports unsafe code usage in the dependency tree
+
+name: Unsafe Code Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 5 * * 1'  # Weekly on Monday at 5 AM UTC
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  geiger:
+    name: Unsafe Code Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-geiger-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger
+
+      - name: Run cargo-geiger (full report)
+        run: |
+          cargo geiger --all-features 2>&1 | tee geiger-report.txt
+        continue-on-error: true  # Don't fail on unsafe code in dependencies
+
+      - name: Run cargo-geiger (ratio summary)
+        run: |
+          cargo geiger --all-features --output-format Ratio 2>&1 | tee geiger-ratio.txt
+        continue-on-error: true
+
+      - name: Upload Geiger reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: geiger-reports
+          path: |
+            geiger-report.txt
+            geiger-ratio.txt
+          retention-days: 30
+
+      - name: Generate Geiger summary
+        run: |
+          echo "## Unsafe Code Audit (cargo-geiger)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This report shows unsafe code usage in the dependency tree." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          tail -20 geiger-ratio.txt >> $GITHUB_STEP_SUMMARY || echo "No ratio summary available" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Note: LatticeArc workspace crates use \`#![deny(unsafe_code)]\` to ensure no unsafe code in our codebase." >> $GITHUB_STEP_SUMMARY
+          echo "Unsafe code in dependencies (like aws-lc-rs for FIPS compliance) is expected." >> $GITHUB_STEP_SUMMARY
+
+      - name: Check workspace crates for unsafe
+        run: |
+          echo "Checking that workspace crates have #![deny(unsafe_code)]..."
+          for crate in arc-prelude arc-primitives arc-core arc-hybrid arc-tls arc-validation latticearc; do
+            if [ -f "$crate/src/lib.rs" ]; then
+              if grep -q "deny(unsafe_code)" "$crate/src/lib.rs" || grep -q "forbid(unsafe_code)" "$crate/src/lib.rs"; then
+                echo "✅ $crate: unsafe code denied"
+              else
+                echo "⚠️ $crate: unsafe code not explicitly denied"
+              fi
+            fi
+          done

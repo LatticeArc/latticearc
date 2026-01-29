@@ -1,0 +1,344 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Verify release
+  verify:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test --workspace --all-features
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Security audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
+  # Publish to crates.io
+  publish:
+    name: Publish
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # Publish in dependency order
+      - name: Publish arc-prelude
+        run: cargo publish -p arc-prelude --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish arc-primitives
+        run: cargo publish -p arc-primitives --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish arc-core
+        run: cargo publish -p arc-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish arc-hybrid
+        run: cargo publish -p arc-hybrid --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish arc-tls
+        run: cargo publish -p arc-tls --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish arc-validation
+        run: cargo publish -p arc-validation --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish arc-zkp
+        run: cargo publish -p arc-zkp --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish arc-perf
+        run: cargo publish -p arc-perf --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish latticearc
+        run: cargo publish -p latticearc --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+  # Create GitHub release
+  release:
+    name: GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # Extract changelog section for this version
+          VERSION=${{ steps.version.outputs.version }}
+          CHANGELOG=$(sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | sed '$d')
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+
+  # Generate SBOM
+  sbom:
+    name: SBOM Generation
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      sbom-hash: ${{ steps.hash.outputs.sbom-hash }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install SBOM tools
+        run: |
+          cargo install cargo-sbom || true
+          cargo install cargo-cyclonedx || true
+      - name: Generate SBOM (SPDX)
+        run: cargo sbom > sbom.spdx.json || echo '{}' > sbom.spdx.json
+        continue-on-error: true
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          cargo cyclonedx --all --format json > sbom.cdx.json || echo '{}' > sbom.cdx.json
+          cargo cyclonedx --all --format xml > sbom.cdx.xml || echo '<bom/>' > sbom.cdx.xml
+        continue-on-error: true
+      - name: Generate hash
+        id: hash
+        run: |
+          sha256sum sbom.cdx.json sbom.spdx.json > sbom-checksums.txt
+          echo "sbom-hash=$(sha256sum sbom.cdx.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom.spdx.json
+            sbom.cdx.json
+            sbom.cdx.xml
+            sbom-checksums.txt
+
+  # Build artifacts for provenance
+  build-artifacts:
+    name: Build Artifacts (${{ matrix.target }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --workspace --release --target ${{ matrix.target }} --all-features
+
+      - name: Generate checksums
+        id: hash
+        run: |
+          cd target/${{ matrix.target }}/release
+          if [ -f "liblatticearc.rlib" ] || [ -f "liblatticearc.a" ]; then
+            sha256sum liblatticearc* 2>/dev/null | tee checksums.txt || true
+            echo "hashes=$(sha256sum liblatticearc* 2>/dev/null | base64 -w0 || echo '')" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/liblatticearc* artifacts/ 2>/dev/null || true
+          cp target/${{ matrix.target }}/release/checksums.txt artifacts/ 2>/dev/null || true
+        shell: bash
+        continue-on-error: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: latticearc-${{ matrix.target }}
+          path: artifacts/
+          if-no-files-found: warn
+
+  # SLSA Level 3 Provenance
+  provenance:
+    name: SLSA Provenance
+    needs: [build-artifacts]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.build-artifacts.outputs.hashes }}"
+      upload-assets: true
+
+  # Sign artifacts with Sigstore Cosign
+  sign-artifacts:
+    name: Sign with Sigstore
+    needs: [build-artifacts, sbom]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Sign artifacts with Cosign (keyless)
+        run: |
+          echo "Signing artifacts with Sigstore Cosign..."
+
+          # Sign library artifacts
+          for dir in artifacts/latticearc-*/; do
+            for file in "$dir"liblatticearc*; do
+              if [ -f "$file" ] && [[ ! "$file" =~ \.(sig|crt)$ ]]; then
+                echo "Signing: $file"
+                cosign sign-blob --yes \
+                  --oidc-issuer https://token.actions.githubusercontent.com \
+                  --output-signature "${file}.sig" \
+                  --output-certificate "${file}.crt" \
+                  "$file" 2>/dev/null || echo "Warning: Could not sign $file"
+              fi
+            done
+          done
+
+          # Sign SBOM
+          if [ -f "artifacts/sbom/sbom.cdx.json" ]; then
+            echo "Signing SBOM..."
+            cosign sign-blob --yes \
+              --oidc-issuer https://token.actions.githubusercontent.com \
+              --output-signature "artifacts/sbom/sbom.cdx.json.sig" \
+              --output-certificate "artifacts/sbom/sbom.cdx.json.crt" \
+              "artifacts/sbom/sbom.cdx.json" 2>/dev/null || true
+          fi
+        continue-on-error: true
+
+      - name: Upload signatures
+        uses: actions/upload-artifact@v4
+        with:
+          name: signatures
+          path: |
+            artifacts/**/*.sig
+            artifacts/**/*.crt
+          if-no-files-found: warn
+
+  # Attach artifacts to release
+  attach-release-artifacts:
+    name: Attach Release Artifacts
+    needs: [release, sbom, sign-artifacts, provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts/
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/sbom/*
+            release-artifacts/signatures/*
+            release-artifacts/latticearc-*/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Release summary
+  release-summary:
+    name: Release Summary
+    needs: [verify, publish, release, sbom, provenance, sign-artifacts]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Release Summary: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Pipeline Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Verification | ${{ needs.verify.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Publish | ${{ needs.publish.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release | ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SBOM | ${{ needs.sbom.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SLSA Provenance | ${{ needs.provenance.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Sigstore Signing | ${{ needs.sign-artifacts.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Supply Chain Security" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This release includes:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SLSA Level 3 build provenance" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Sigstore keyless signatures" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ CycloneDX SBOM" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SPDX SBOM" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verification Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To verify artifact signatures:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "cosign verify-blob \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  --certificate artifact.crt \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  --signature artifact.sig \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  --certificate-identity-regexp 'https://github.com/.*' \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  artifact" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

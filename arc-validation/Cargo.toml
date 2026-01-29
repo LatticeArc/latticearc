@@ -1,0 +1,107 @@
+[package]
+name = "arc-validation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Input validation and security checks for LatticeArc"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme.workspace = true
+
+# Inherit all lints from workspace
+[lints]
+workspace = true
+
+[dependencies]
+# Constant-time operations
+subtle = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+parking_lot = { workspace = true }
+lazy_static = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Cryptographic primitives for FIPS validation
+aws-lc-rs = { workspace = true }  # FIPS 140-3 validated crypto (AES-GCM, HKDF, X25519)
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+hmac = { workspace = true }
+ed25519-dalek = { workspace = true }
+x25519-dalek = { workspace = true }  # For CAVP test vector validation (deterministic key generation)
+rand = { workspace = true }
+rand_core = { workspace = true }
+hex = { workspace = true }
+uuid = { workspace = true }
+
+# AEAD ciphers for CAVP test vector validation
+aes-gcm = "0.10.3"
+chacha20poly1305 = { workspace = true }
+
+# Key derivation for CAVP test vector validation
+hkdf = "0.12.4"
+
+# Math library (not in workspace - validation-specific)
+libm = "0.2.8"
+
+# Post-Quantum Cryptography for CAVP validation
+# Note: fips203 uses exact version for CAVP compliance
+fips203 = { version = "=0.4.3", registry = "crates-io" }
+fips204 = { workspace = true }
+fips205 = { workspace = true }
+fn-dsa = { workspace = true }
+
+# Async runtime for CAVP pipeline
+tokio = { workspace = true }
+
+# HTTP client for CAVP vector loading
+reqwest = { workspace = true, features = ["blocking"] }
+
+# Additional utilities (validation-specific)
+tokio-test = "0.4.4"
+num_cpus = "1.16.0"
+
+# FN-DSA sub-crates for proper API access
+fn-dsa-sign = "0.3"
+fn-dsa-vrfy = "0.3"
+
+# Logging
+tracing = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# Test initialization
+ctor = "0.2.9"
+
+arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
+
+# Temporary directories for CAVP vector handling
+tempfile = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+# Wycheproof test vectors for crypto edge cases
+wycheproof = "0.6"
+# Criterion for constant-time benchmarks
+criterion = { version = "0.5", features = ["html_reports"] }
+# dudect for constant-time validation
+dudect-bencher = "0.4"
+
+[features]
+default = []
+
+[lib]
+path = "src/lib.rs"
+
+[[bench]]
+name = "constant_time"
+harness = false

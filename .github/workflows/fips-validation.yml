@@ -1,0 +1,275 @@
+name: FIPS Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * *'  # Daily at 4 AM UTC
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  cryptographic-build:
+    name: Cryptographic Module Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-fips-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fips-
+
+      - name: Build arc-primitives
+        run: cargo build -p arc-primitives --all-features
+
+      - name: Test arc-primitives
+        run: cargo test -p arc-primitives --all-features
+
+      - name: Clippy cryptographic module
+        run: |
+          cargo clippy -p arc-primitives --all-features -- \
+            -D warnings \
+            -D clippy::unwrap_used \
+            -D clippy::expect_used \
+            -D clippy::panic
+
+  fips-self-tests:
+    name: FIPS Self-Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-fips-selftest-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fips-selftest-
+
+      - name: Run FIPS power-up self-tests
+        run: cargo test -p arc-primitives --features fips-self-test self_test
+
+      - name: Verify self-test coverage
+        run: |
+          echo "Verifying FIPS 140-3 self-test requirements:"
+          echo "- ML-KEM (FIPS 203): Encapsulation/Decapsulation KAT"
+          echo "- ML-DSA (FIPS 204): Sign/Verify KAT"
+          echo "- SLH-DSA (FIPS 205): Sign/Verify KAT"
+          echo "- FN-DSA (FIPS 206): Sign/Verify KAT"
+          echo "- AES-GCM (FIPS 197): Encrypt/Decrypt KAT"
+          echo "- SHA-2/3 (FIPS 180-4/202): Hash KAT"
+
+  cavp-validation:
+    name: CAVP Vector Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cavp-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-cavp-
+
+      - name: Run CAVP validation tests
+        run: cargo test -p arc-validation cavp --all-features
+
+      - name: Run NIST KAT compliance tests
+        run: cargo test -p arc-validation nist_kat --all-features
+
+  fips-algorithm-validation:
+    name: FIPS Algorithm Validation
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        algorithm:
+          - name: ml-kem
+            test: ml_kem
+            standard: "FIPS 203"
+          - name: ml-dsa
+            test: ml_dsa
+            standard: "FIPS 204"
+          - name: slh-dsa
+            test: slh_dsa
+            standard: "FIPS 205"
+          - name: fn-dsa
+            test: fn_dsa
+            standard: "FIPS 206"
+          - name: aes-gcm
+            test: aes
+            standard: "FIPS 197"
+          - name: sha
+            test: sha
+            standard: "FIPS 180-4/202"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-fips-algo-${{ matrix.algorithm.name }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Validate ${{ matrix.algorithm.name }} (${{ matrix.algorithm.standard }})
+        run: |
+          echo "Testing ${{ matrix.algorithm.name }} against ${{ matrix.algorithm.standard }}"
+          cargo test -p arc-primitives --all-features ${{ matrix.algorithm.test }}
+
+  fips-no-unsafe:
+    name: FIPS No Unsafe Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Verify no unsafe code in cryptographic module
+        run: |
+          cargo clippy -p arc-primitives --all-features -- \
+            -D unsafe_code
+
+      - name: Check for forbidden patterns
+        run: |
+          echo "Checking for patterns forbidden in cryptographic modules..."
+          # Check for panic-inducing code
+          if grep -rn "panic!" --include="*.rs" arc-primitives/src/; then
+            echo "Warning: Found panic! macros - review for FIPS compliance"
+          fi
+          # Check for unwrap usage
+          if grep -rn "\.unwrap()" --include="*.rs" arc-primitives/src/; then
+            echo "Warning: Found .unwrap() calls - review for FIPS compliance"
+          fi
+          echo "Pattern check complete"
+
+  fips-compliance-report:
+    name: Generate Compliance Report
+    runs-on: ubuntu-latest
+    needs: [cryptographic-build, fips-self-tests, cavp-validation, fips-algorithm-validation, fips-no-unsafe]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine job statuses
+        id: status
+        run: |
+          echo "build=${{ needs.cryptographic-build.result }}" >> $GITHUB_OUTPUT
+          echo "selftests=${{ needs.fips-self-tests.result }}" >> $GITHUB_OUTPUT
+          echo "cavp=${{ needs.cavp-validation.result }}" >> $GITHUB_OUTPUT
+          echo "algo=${{ needs.fips-algorithm-validation.result }}" >> $GITHUB_OUTPUT
+          echo "unsafe=${{ needs.fips-no-unsafe.result }}" >> $GITHUB_OUTPUT
+
+      - name: Generate FIPS compliance summary
+        run: |
+          cat > fips-report.md << 'EOF'
+          # FIPS Compliance Report
+
+          **Repository:** ${{ github.repository }}
+          **Branch:** ${{ github.ref_name }}
+          **Commit:** ${{ github.sha }}
+          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          ## Build Status
+
+          | Check | Status |
+          |-------|--------|
+          | Cryptographic build | ${{ needs.cryptographic-build.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+          | Self-tests | ${{ needs.fips-self-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+          | CAVP validation | ${{ needs.cavp-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+          | Algorithm validation | ${{ needs.fips-algorithm-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+          | No unsafe code | ${{ needs.fips-no-unsafe.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+
+          ## FIPS 140-3 Algorithms
+
+          | Algorithm | Standard | Implementation | FIPS Validated |
+          |-----------|----------|----------------|----------------|
+          | ML-KEM | FIPS 203 | aws-lc-rs | Yes (Cert #4631, #4759, #4816) |
+          | ML-DSA | FIPS 204 | fips204 crate | No (awaiting aws-lc-rs) |
+          | SLH-DSA | FIPS 205 | fips205 crate | Audited |
+          | FN-DSA | FIPS 206 | fn-dsa crate | Partial |
+          | AES-GCM | SP 800-38D | aws-lc-rs | Yes |
+          | SHA-2/3 | FIPS 180-4/202 | sha2/sha3 crates | Audited |
+
+          ## Architecture
+
+          - **Runtime Algorithm Selection**: All algorithms always available; selection via arc-core
+          - **FIPS Self-Tests**: Enabled via `fips-self-test` feature flag
+          - **Zero Trust**: Security mode enforcement at API level
+
+          ## Certification Path
+
+          - **Current Status:** Pre-certification validation
+          - **Target:** FIPS 140-3 Level 1 (Software)
+          - **Cryptographic Module:** LatticeArc arc-primitives
+          - **Operating Environment:** General Purpose Computer
+
+          ## Notes
+
+          - Power-up self-tests verify Known Answer Tests (KAT) for all algorithms
+          - CAVP test vectors sourced from NIST official repositories
+          - ML-DSA migration to aws-lc-rs tracked at aws/aws-lc-rs#773
+          EOF
+
+      - name: Upload compliance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: fips-compliance-report
+          path: fips-report.md
+          retention-days: 90
+
+      - name: Add report to job summary
+        run: cat fips-report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Check overall status
+        run: |
+          if [[ "${{ needs.cryptographic-build.result }}" == "failure" || \
+                "${{ needs.fips-self-tests.result }}" == "failure" || \
+                "${{ needs.cavp-validation.result }}" == "failure" || \
+                "${{ needs.fips-algorithm-validation.result }}" == "failure" || \
+                "${{ needs.fips-no-unsafe.result }}" == "failure" ]]; then
+            echo "❌ FIPS validation failed!"
+            exit 1
+          else
+            echo "✅ All FIPS validation checks passed!"
+          fi

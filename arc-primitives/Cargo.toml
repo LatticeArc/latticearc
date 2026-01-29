@@ -1,0 +1,101 @@
+[package]
+name = "arc-primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Core cryptographic primitives for LatticeArc"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme.workspace = true
+
+# Inherit all lints from workspace
+[lints]
+workspace = true
+
+[features]
+default = []
+# Enable FIPS 140-3 self-test module for power-up and conditional self-tests
+fips-self-test = []
+
+[dependencies]
+arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
+arc-validation = { version = "0.1.0", path = "../arc-validation" }
+
+# Post-Quantum Cryptography - FIPS 140-3 validated via aws-lc-rs
+# ML-KEM (FIPS 203) uses aws-lc-rs for FIPS certification
+aws-lc-rs = { workspace = true }
+
+# Post-quantum signatures - aws-lc-rs doesn't yet expose ML-DSA in Rust API
+# Keep fips204 until aws-lc-rs exposes ML-DSA (see: https://github.com/aws/aws-lc-rs/issues/773)
+fips204 = { workspace = true }  # ML-DSA (FIPS 204)
+fips205 = { workspace = true }  # SLH-DSA (FIPS 205)
+fn-dsa = { workspace = true }   # FN-DSA (FIPS 206)
+
+# Classical Cryptography - Block ciphers (FIPS: AES)
+aes = { workspace = true }
+ctr = { workspace = true }
+
+# Hashing (FIPS: SHA-2, SHA-3)
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+
+# Message Authentication (FIPS: HMAC)
+hmac = { workspace = true }
+
+# AEAD - ChaCha20Poly1305 (RFC 8439)
+chacha20poly1305 = { workspace = true }
+
+# Key Derivation (FIPS: PBKDF2 with HMAC-SHA-2)
+pbkdf2 = { workspace = true }
+
+# Classical Elliptic Curves (Ed25519, secp256k1)
+ed25519-dalek = { workspace = true }
+k256 = { workspace = true }
+ecdsa = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Parallel processing
+rayon = { workspace = true }
+
+# Core cryptographic dependencies
+rand = { workspace = true }
+rand_core = { workspace = true }
+rand_chacha = { workspace = true }
+subtle = { workspace = true }
+zeroize = { workspace = true }
+arrayref = { workspace = true }
+serde = { workspace = true }
+
+# Tracing for performance debugging
+tracing = { workspace = true }
+
+[dev-dependencies]
+rand_chacha = { workspace = true }
+proptest = { workspace = true }
+criterion = { workspace = true }
+libfuzzer-sys = { workspace = true }
+hex = { workspace = true }
+hex-literal = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+
+[[example]]
+name = "crypto_timing"
+path = "examples/crypto_timing.rs"
+
+[[example]]
+name = "comprehensive_benchmark"
+path = "examples/comprehensive_benchmark.rs"
+
+[[example]]
+name = "test_ml_kem"
+path = "examples/test_ml_kem.rs"

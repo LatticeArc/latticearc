@@ -1,0 +1,13 @@
+# Security Advisory Configurations
+# See: https://rustsec.org/
+
+[advisories]
+# List of advisory IDs to ignore
+ignore = []
+
+# Treat informational advisories as warnings
+informational_warnings = ["unmaintained", "unsound"]
+
+[database]
+# Fetch from RustSec
+stale = false

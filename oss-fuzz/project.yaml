@@ -1,0 +1,30 @@
+# OSS-Fuzz project configuration for LatticeArc
+# Submit this to https://github.com/google/oss-fuzz/tree/master/projects/
+
+homepage: "https://github.com/latticearc/latticearc"
+language: rust
+primary_contact: "Security@LatticeArc.com"
+auto_ccs:
+  - "Dev@LatticeArc.com"
+
+# Fuzzing configuration
+fuzzing_engines:
+  - libfuzzer
+  - afl
+  - honggfuzz
+
+sanitizers:
+  - address
+  - memory
+  - undefined
+
+architectures:
+  - x86_64
+
+# Project information
+main_repo: "https://github.com/latticearc/latticearc"
+
+# Build options
+build_options:
+  # Rust-specific flags
+  RUSTFLAGS: "-C debuginfo=1"

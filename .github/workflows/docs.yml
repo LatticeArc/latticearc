@@ -1,0 +1,155 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  docs:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-docs-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Test documentation examples
+      run: |
+        
+        cargo test --workspace --doc --all-features
+
+    - name: Build documentation
+      run: |
+        
+        cargo doc --workspace --all-features --no-deps
+
+    - name: Check documentation links
+      run: |
+        
+        # Install mdbook for additional docs
+        curl -L https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz | tar xz
+        sudo mv mdbook /usr/local/bin/
+
+    - name: Upload documentation artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation
+        path: target/doc/
+        retention-days: 30
+
+  deploy-docs:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Download documentation
+      uses: actions/download-artifact@v4
+      with:
+        name: documentation
+        path: documentation/
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload to GitHub Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: documentation/
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  docs-check:
+    name: Documentation Quality Check
+    runs-on: ubuntu-latest
+    needs: docs
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-readme
+      run: cargo install cargo-readme
+
+    - name: Check README documentation
+      run: |
+        
+        # Ensure all README files are up to date
+        for crate in primitives latticearc-core hybrid validation utils prelude latticearc zkp perf tls; do
+          if [ -f "$crate/README.md" ]; then
+            echo "Checking $crate/README.md..."
+            cargo readme --no-title --no-license-header --project-name $crate --manifest-path $crate/Cargo.toml > temp_readme.md
+            if ! diff -q "$crate/README.md" temp_readme.md; then
+              echo "README.md for $crate is out of sync with Cargo.toml"
+              rm temp_readme.md
+              exit 1
+            fi
+            rm temp_readme.md
+          fi
+        done
+
+    - name: Check documentation coverage
+      run: |
+        
+        # Install cargo-doc-coverage
+        cargo install cargo-doc-coverage
+
+        # Generate documentation coverage report
+        cargo doc --workspace --all-features --no-deps
+        cargo doc-coverage --workspace --all-features
+
+  docs-report:
+    name: Documentation Report
+    runs-on: ubuntu-latest
+    needs: [docs, deploy-docs, docs-check]
+    if: always()
+    steps:
+    - name: Generate documentation summary
+      run: |
+        echo "# Documentation Report Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Documentation Build | ${{ needs.docs.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Documentation Deploy | ${{ needs.deploy-docs.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Documentation Quality | ${{ needs.docs-check.result }} |" >> $GITHUB_STEP_SUMMARY
+
+    - name: Check overall status
+      run: |
+        if [[ "${{ needs.docs.result }}" == "failure" || \
+              "${{ needs.docs-check.result }}" == "failure" ]]; then
+          echo "❌ Documentation checks failed!"
+          exit 1
+        else
+          echo "✅ Documentation checks passed!"
+        fi

@@ -1,0 +1,49 @@
+**/target/
+Cargo.lock
+.DS_Store
+
+# Log files
+*.log
+
+# Backup files - Rust specific
+*.rs.bk
+*.rs.old
+
+# Backup files - General
+*.bak
+*.old
+*.backup
+
+# Temporary files
+*.tmp
+*~
+
+# Editor backup files
+*.swp
+*.swo
+#*#
+
+# IDE directories
+.idea/
+.vscode/
+*.iml
+
+# Coverage and profiling
+*.profraw
+*.profdata
+lcov.info
+coverage/
+tarpaulin-report.html
+
+# Fuzzing artifacts
+fuzz/artifacts/
+fuzz/corpus/
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# OS files
+Thumbs.db
+Desktop.ini

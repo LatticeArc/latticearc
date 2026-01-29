@@ -1,0 +1,257 @@
+# Mutation Testing
+# Validates test suite effectiveness by injecting bugs and checking if tests catch them
+
+name: Mutation Testing
+
+on:
+  schedule:
+    - cron: '0 6 * * 0'  # Weekly on Sunday at 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Packages to test (comma-separated, or "all")'
+        required: false
+        default: 'arc-primitives'
+        type: string
+      timeout:
+        description: 'Timeout per mutant (seconds)'
+        required: false
+        default: '300'
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Mutation testing for core cryptographic crates
+  mutate-primitives:
+    name: Mutate arc-primitives
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-mutation-primitives-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants
+
+      - name: Run mutation testing on arc-primitives
+        run: |
+          cargo mutants -p arc-primitives \
+            --timeout ${{ inputs.timeout || '300' }} \
+            --jobs 2 \
+            --output mutants-primitives \
+            2>&1 | tee mutation-primitives.log
+        continue-on-error: true
+
+      - name: Generate mutation report
+        if: always()
+        run: |
+          echo "## Mutation Testing: arc-primitives" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "mutants-primitives/outcomes.json" ]; then
+            CAUGHT=$(jq '[.outcomes[] | select(.outcome == "Caught")] | length' mutants-primitives/outcomes.json 2>/dev/null || echo "0")
+            MISSED=$(jq '[.outcomes[] | select(.outcome == "Missed")] | length' mutants-primitives/outcomes.json 2>/dev/null || echo "0")
+            TIMEOUT=$(jq '[.outcomes[] | select(.outcome == "Timeout")] | length' mutants-primitives/outcomes.json 2>/dev/null || echo "0")
+            TOTAL=$((CAUGHT + MISSED + TIMEOUT))
+
+            if [ "$TOTAL" -gt 0 ]; then
+              SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
+              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+              echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+              echo "| Mutants Caught | $CAUGHT |" >> $GITHUB_STEP_SUMMARY
+              echo "| Mutants Missed | $MISSED |" >> $GITHUB_STEP_SUMMARY
+              echo "| Timeouts | $TIMEOUT |" >> $GITHUB_STEP_SUMMARY
+              echo "| **Mutation Score** | **${SCORE}%** |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "No mutation results available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload mutation results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-primitives
+          path: |
+            mutants-primitives/
+            mutation-primitives.log
+          retention-days: 30
+
+  mutate-core:
+    name: Mutate arc-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-mutation-core-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants
+
+      - name: Run mutation testing on arc-core
+        run: |
+          cargo mutants -p arc-core \
+            --timeout ${{ inputs.timeout || '300' }} \
+            --jobs 2 \
+            --output mutants-core \
+            2>&1 | tee mutation-core.log
+        continue-on-error: true
+
+      - name: Generate mutation report
+        if: always()
+        run: |
+          echo "## Mutation Testing: arc-core" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "mutants-core/outcomes.json" ]; then
+            CAUGHT=$(jq '[.outcomes[] | select(.outcome == "Caught")] | length' mutants-core/outcomes.json 2>/dev/null || echo "0")
+            MISSED=$(jq '[.outcomes[] | select(.outcome == "Missed")] | length' mutants-core/outcomes.json 2>/dev/null || echo "0")
+            TIMEOUT=$(jq '[.outcomes[] | select(.outcome == "Timeout")] | length' mutants-core/outcomes.json 2>/dev/null || echo "0")
+            TOTAL=$((CAUGHT + MISSED + TIMEOUT))
+
+            if [ "$TOTAL" -gt 0 ]; then
+              SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
+              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+              echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+              echo "| Mutants Caught | $CAUGHT |" >> $GITHUB_STEP_SUMMARY
+              echo "| Mutants Missed | $MISSED |" >> $GITHUB_STEP_SUMMARY
+              echo "| Timeouts | $TIMEOUT |" >> $GITHUB_STEP_SUMMARY
+              echo "| **Mutation Score** | **${SCORE}%** |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "No mutation results available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload mutation results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-core
+          path: |
+            mutants-core/
+            mutation-core.log
+          retention-days: 30
+
+  mutate-hybrid:
+    name: Mutate arc-hybrid
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-mutation-hybrid-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants
+
+      - name: Run mutation testing on arc-hybrid
+        run: |
+          cargo mutants -p arc-hybrid \
+            --timeout ${{ inputs.timeout || '300' }} \
+            --jobs 2 \
+            --output mutants-hybrid \
+            2>&1 | tee mutation-hybrid.log
+        continue-on-error: true
+
+      - name: Generate mutation report
+        if: always()
+        run: |
+          echo "## Mutation Testing: arc-hybrid" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "mutants-hybrid/outcomes.json" ]; then
+            CAUGHT=$(jq '[.outcomes[] | select(.outcome == "Caught")] | length' mutants-hybrid/outcomes.json 2>/dev/null || echo "0")
+            MISSED=$(jq '[.outcomes[] | select(.outcome == "Missed")] | length' mutants-hybrid/outcomes.json 2>/dev/null || echo "0")
+            TIMEOUT=$(jq '[.outcomes[] | select(.outcome == "Timeout")] | length' mutants-hybrid/outcomes.json 2>/dev/null || echo "0")
+            TOTAL=$((CAUGHT + MISSED + TIMEOUT))
+
+            if [ "$TOTAL" -gt 0 ]; then
+              SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
+              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+              echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+              echo "| Mutants Caught | $CAUGHT |" >> $GITHUB_STEP_SUMMARY
+              echo "| Mutants Missed | $MISSED |" >> $GITHUB_STEP_SUMMARY
+              echo "| Timeouts | $TIMEOUT |" >> $GITHUB_STEP_SUMMARY
+              echo "| **Mutation Score** | **${SCORE}%** |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "No mutation results available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload mutation results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-hybrid
+          path: |
+            mutants-hybrid/
+            mutation-hybrid.log
+          retention-days: 30
+
+  # Summary job
+  mutation-summary:
+    name: Mutation Summary
+    runs-on: ubuntu-latest
+    needs: [mutate-primitives, mutate-core, mutate-hybrid]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Mutation Testing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Mutation testing validates test suite effectiveness by:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Introducing small bugs (mutants) into the code" >> $GITHUB_STEP_SUMMARY
+          echo "2. Running tests to see if they catch the bugs" >> $GITHUB_STEP_SUMMARY
+          echo "3. Computing a mutation score (% of mutants caught)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results by Crate" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Crate | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| arc-primitives | ${{ needs.mutate-primitives.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| arc-core | ${{ needs.mutate-core.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| arc-hybrid | ${{ needs.mutate-hybrid.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Target" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Goal**: >70% mutation score for critical crypto code" >> $GITHUB_STEP_SUMMARY
+          echo "- **Interpretation**: Higher scores mean better test coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Missed mutants indicate areas where tests could be improved." >> $GITHUB_STEP_SUMMARY

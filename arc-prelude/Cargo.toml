@@ -1,0 +1,48 @@
+[package]
+name = "arc-prelude"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "LatticeArc Prelude - Re-exports for convenience"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme.workspace = true
+
+# Inherit all lints from workspace
+[lints]
+workspace = true
+
+[dependencies]
+k256 = { workspace = true }
+rand = { workspace = true }
+rand_core = { workspace = true }
+ed25519-dalek = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, optional = true }
+tokio-postgres = { version = "0.7", optional = true }
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+backtrace = { version = "0.3", optional = true }
+getrandom = { workspace = true }
+aws-lc-rs = { workspace = true }  # For FIPS 140-3 validated crypto
+
+[features]
+default = ["std"]
+std = []
+std-backtrace = ["dep:backtrace"]
+async = ["dep:tokio", "dep:tokio-postgres", "dep:rusqlite"]
+database = ["async", "dep:tokio-postgres", "dep:rusqlite"]
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

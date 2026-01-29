@@ -1,0 +1,59 @@
+[package]
+name = "arc-zkp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Basic zero-knowledge proof primitives for LatticeArc"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords = ["cryptography", "zero-knowledge", "zkp", "schnorr", "commitment"]
+categories = ["cryptography", "authentication"]
+
+# Inherit all lints from workspace
+[lints]
+workspace = true
+
+# =============================================================================
+# FEATURES
+# =============================================================================
+# Basic zero-knowledge proof primitives: Schnorr proofs, Pedersen commitments,
+# and Sigma protocols. Advanced ZKP (zk-SNARKs) in arc-enterprise-zkp.
+
+[features]
+default = ["std"]
+
+# -----------------------------------------------------------------------------
+# Standard Library Support
+# -----------------------------------------------------------------------------
+std = []                               # Enable std library (disable for no_std)
+
+# -----------------------------------------------------------------------------
+# Serialization
+# -----------------------------------------------------------------------------
+serde = ["dep:serde", "dep:serde_with"]
+
+[dependencies]
+# Core crypto
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+rand = { workspace = true }
+rand_core = { workspace = true }
+zeroize = { workspace = true }
+
+# Elliptic curves for Schnorr/Pedersen
+k256 = { workspace = true, features = ["sha256"] }
+elliptic-curve = { version = "0.13", features = ["sec1"] }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Optional serialization
+serde = { workspace = true, optional = true }
+serde_with = { version = "3.0", optional = true }
+
+[dev-dependencies]
+rand = { workspace = true }
+hex = { workspace = true }

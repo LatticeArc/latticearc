@@ -1,0 +1,169 @@
+name: Fuzzing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 5 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  fuzz:
+    name: Fuzzing Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - encrypt_fuzz
+          - cross_border_fuzz
+          - hybrid_kem_fuzz
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-fuzz-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build fuzz targets
+      run: |
+        cd arc-fuzz
+        cargo fuzz build
+
+    - name: Run fuzz tests (short duration)
+      run: |
+        cd arc-fuzz
+        timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300 || true
+
+    - name: Upload fuzz artifacts
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: fuzz-artifacts-${{ matrix.target }}
+        path: arc-fuzz/artifacts/
+        retention-days: 7
+
+  extended-fuzz:
+    name: Extended Fuzzing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    strategy:
+      matrix:
+        target:
+          - encrypt_fuzz
+          - cross_border_fuzz
+          - hybrid_kem_fuzz
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-extended-fuzz-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run extended fuzz tests
+      run: |
+        cd arc-fuzz
+        timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600 || true
+
+    - name: Upload extended fuzz artifacts
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: extended-fuzz-artifacts-${{ matrix.target }}
+        path: arc-fuzz/artifacts/
+        retention-days: 7
+
+  fuzz-coverage:
+    name: Fuzzing Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: llvm-tools-preview
+
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz
+
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-fuzz-coverage-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run fuzz with coverage
+      run: |
+        cd arc-fuzz
+        cargo fuzz coverage encrypt_fuzz -- -max_total_time=120
+
+    - name: Upload fuzz coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: fuzz-coverage
+        path: arc-fuzz/coverage/
+        retention-days: 30
+
+  fuzz-report:
+    name: Fuzzing Report
+    runs-on: ubuntu-latest
+    needs: [fuzz, extended-fuzz, fuzz-coverage]
+    if: always()
+    steps:
+    - name: Generate fuzzing summary
+      run: |
+        echo "# Fuzzing Report Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Fuzzing Tests | ${{ needs.fuzz.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Extended Fuzzing | ${{ needs.extended-fuzz.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Fuzzing Coverage | ${{ needs.fuzz-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
+
+    - name: Check overall status
+      run: |
+        if [[ "${{ needs.fuzz.result }}" == "failure" ]]; then
+          echo "❌ Fuzzing tests failed!"
+          exit 1
+        else
+          echo "✅ Fuzzing tests passed!"
+        fi

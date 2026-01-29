@@ -1,0 +1,80 @@
+# Automated benchmarks on standardized GitHub Actions runners
+# Runs on every push to main and weekly for tracking
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'arc-primitives/**'
+      - 'Cargo.toml'
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  benchmark-linux:
+    name: Benchmark (Linux x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System Info
+        run: |
+          echo "=== CPU Info ==="
+          lscpu | grep -E "Model name|CPU\(s\)|MHz"
+          echo ""
+          echo "=== Memory ==="
+          free -h
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Build liboqs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build libssl-dev
+          git clone --depth 1 https://github.com/open-quantum-safe/liboqs /tmp/liboqs
+          cd /tmp/liboqs
+          mkdir build && cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+          ninja
+
+      - name: Run liboqs Benchmarks
+        run: |
+          echo "=== liboqs ML-KEM-768 ===" | tee benchmark_results.txt
+          /tmp/liboqs/build/tests/speed_kem ML-KEM-768 | tee -a benchmark_results.txt
+          echo "" | tee -a benchmark_results.txt
+          echo "=== liboqs ML-DSA-65 ===" | tee -a benchmark_results.txt
+          /tmp/liboqs/build/tests/speed_sig ML-DSA-65 | tee -a benchmark_results.txt
+
+      - name: Run LatticeArc Benchmarks
+        run: |
+          echo "" | tee -a benchmark_results.txt
+          echo "=== LatticeArc ===" | tee -a benchmark_results.txt
+          cargo run --package arc-primitives --example crypto_timing --release 2>/dev/null | tee -a benchmark_results.txt
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-linux
+          path: benchmark_results.txt
+
+      - name: Summary
+        run: |
+          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat benchmark_results.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  benchmark-comparison:
+    name: Generate Comparison
+    needs: benchmark-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: benchmark-results-linux
+
+      - name: Display Results
+        run: cat benchmark_results.txt

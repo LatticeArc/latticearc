@@ -1,0 +1,365 @@
+[workspace]
+members = [
+    "arc-primitives",
+    "arc-core",
+    "latticearc",
+    "arc-hybrid",
+    "arc-tls",
+    "arc-validation",
+    "arc-zkp",
+    "arc-perf",
+    "arc-prelude",
+]
+# Exclude fuzz crate from normal workspace builds (requires nightly + specific setup)
+exclude = ["arc-fuzz"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
+license = "Apache-2.0"
+description = "A comprehensive post-quantum cryptography library providing advanced encryption, digital signatures, and security features for modern applications."
+readme = "README.md"
+homepage = "https://latticearc.com"
+documentation = "https://docs.rs/latticearc/latest/latticearc/"
+repository = "https://github.com/latticearc/latticearc"
+keywords = ["cryptography", "post-quantum", "encryption", "kyber", "dilithium"]
+categories = ["cryptography"]
+
+[workspace.lints.rust]
+# =============================================================================
+# RUST COMPILER LINTS - Strictest Reasonable Settings for Cryptographic Code
+# =============================================================================
+#
+# LINT LEVEL SEMANTICS:
+# - forbid: Cannot be overridden even with #[allow] - use for absolute security rules
+# - deny:   Compile error, but can be overridden with #[allow] + justification
+# - warn:   Warning only - use for gradual improvements or crypto-specific overrides
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SECURITY-CRITICAL (forbid - cannot be overridden under any circumstances)
+# -----------------------------------------------------------------------------
+# Rationale: Unsafe code bypasses Rust's memory safety guarantees, which is
+# unacceptable in cryptographic code where memory safety bugs lead to vulnerabilities
+unsafe_code = "forbid"
+
+# -----------------------------------------------------------------------------
+# FORMAL VERIFICATION SUPPORT
+# -----------------------------------------------------------------------------
+# Allow kani cfg for formal verification (used by Kani verifier)
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
+# -----------------------------------------------------------------------------
+# CODE QUALITY (deny - strict enforcement, override with justification)
+# -----------------------------------------------------------------------------
+# Rationale: Dead/unused code increases attack surface and maintenance burden
+dead_code = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+unused_mut = "deny"
+unreachable_code = "deny"
+unreachable_patterns = "deny"
+
+# -----------------------------------------------------------------------------
+# DOCUMENTATION (deny - production code must have docs)
+# -----------------------------------------------------------------------------
+# Rationale: Crypto code needs documentation for security audits and maintenance
+missing_docs = "deny"
+
+# -----------------------------------------------------------------------------
+# OTHER QUALITY LINTS (warn - encourage clean code)
+# -----------------------------------------------------------------------------
+unused_qualifications = "warn"
+ambiguous_glob_reexports = "warn"
+
+[workspace.lints.clippy]
+# =============================================================================
+# CLIPPY LINTS - Strictest Reasonable Settings for Cryptographic Code
+# =============================================================================
+#
+# These lints are organized by security impact and override-ability.
+# Each section explains why the lint level was chosen.
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SECURITY-CRITICAL (forbid - cannot be overridden)
+# -----------------------------------------------------------------------------
+# Rationale: std::process::exit should never be called in library code
+exit = "forbid"
+
+# -----------------------------------------------------------------------------
+# SECURITY LINTS (deny - compile error, can override with documented justification)
+# -----------------------------------------------------------------------------
+# panic: deny instead of forbid because:
+# - Test macros (assert!, assert_eq!) need to panic on failure
+# - proptest and other test frameworks use panic for test failures
+# - Production code should use Result<T, E> instead
+panic = "deny"
+
+# expect_used: deny instead of forbid because:
+# - Some macro-generated code (tokio::test, proptest) may use expect
+# - Allowed in tests with #[cfg(test)] and documented justification
+# - Production code should use ? operator or explicit error handling
+expect_used = "deny"
+
+# unwrap_used: deny instead of forbid because:
+# - Allowed in tests with #[cfg(test)] and documented justification
+# - Production code should use ? operator or .ok_or(Error)?
+unwrap_used = "deny"
+
+# indexing_slicing: deny instead of forbid because:
+# - Validation code processing NIST test vectors may need direct indexing
+# - Allowed with bounds-checking documentation
+# - Production code should use .get().ok_or(Error)?
+indexing_slicing = "deny"
+
+# -----------------------------------------------------------------------------
+# ARITHMETIC SAFETY (warn - crypto code may need overrides)
+# -----------------------------------------------------------------------------
+# Rationale: Crypto algorithms often require specific arithmetic behavior.
+# These are warn to allow crates to enable deny selectively or use #[allow]
+# with documented justification for specific mathematical operations.
+arithmetic_side_effects = "warn"    # Modular arithmetic may intentionally wrap
+cast_possible_truncation = "warn"   # Some casts are intentional in crypto
+cast_precision_loss = "warn"        # Float-to-int casts may be intentional
+cast_sign_loss = "warn"             # May be intentional for bit manipulation
+
+# Cast safety - these are more severe security risks
+cast_possible_wrap = "deny"         # Sign wrapping can cause security issues
+cast_lossless = "warn"              # Cosmetic - use explicit widening casts
+
+# Error type design - TlsError has large variants by design for comprehensive error info
+result_large_err = "allow"          # Allow large error types (design decision)
+
+# -----------------------------------------------------------------------------
+# MEMORY SAFETY (deny - critical for cryptographic security)
+# -----------------------------------------------------------------------------
+# Rationale: Memory leaks of sensitive data are security vulnerabilities
+mem_forget = "deny"                 # Prevent memory leaks of sensitive data
+
+# -----------------------------------------------------------------------------
+# PANIC PREVENTION (deny - crypto code should never panic)
+# -----------------------------------------------------------------------------
+# Rationale: Panics in crypto code can lead to DoS or state corruption
+manual_assert = "deny"              # Use Result instead of panic! in if-then
+panic_in_result_fn = "deny"         # Functions returning Result should not panic
+unwrap_in_result = "deny"           # Prevent unwrap in functions returning Result
+
+# -----------------------------------------------------------------------------
+# ERROR HANDLING (deny - proper error handling is critical)
+# -----------------------------------------------------------------------------
+# Rationale: Ignoring errors in crypto code can lead to silent failures
+map_err_ignore = "deny"             # Don't ignore error values in map_err
+match_wild_err_arm = "deny"         # Don't ignore error values in match arms
+
+# -----------------------------------------------------------------------------
+# CODE QUALITY (deny - no placeholder code in production)
+# -----------------------------------------------------------------------------
+# Rationale: Production crypto code must be complete and reviewed
+todo = "deny"                       # No TODOs in production crypto code
+unimplemented = "deny"              # No unimplemented! calls
+unreachable = "deny"                # No unreachable! calls
+dbg_macro = "deny"                  # No debug macros in production
+print_stdout = "deny"               # No println! in library code
+print_stderr = "deny"               # No eprintln! in library code
+
+# Dead code detection
+unused_async = "deny"               # Async fn that doesn't await
+unused_self = "warn"                # Unused self parameter (warn for gradual cleanup)
+
+# Stack safety
+large_stack_arrays = "deny"         # Prevent large stack allocations (DoS risk)
+
+# -----------------------------------------------------------------------------
+# DOCUMENTATION (warn - encourage but don't block)
+# -----------------------------------------------------------------------------
+# Rationale: Good documentation is important but shouldn't block development
+missing_errors_doc = "warn"         # Document error conditions
+missing_panics_doc = "warn"         # Document panic conditions
+must_use_candidate = "warn"         # Functions that should be #[must_use]
+return_self_not_must_use = "allow"  # Allow builder methods without must_use
+
+# -----------------------------------------------------------------------------
+# CODE STYLE (warn/allow - encourage idiomatic Rust)
+# -----------------------------------------------------------------------------
+# Rationale: Clean code is easier to audit and maintain
+# Wildcard matches are intentional design patterns for error recovery - new error
+# types should default to "no recovery" until explicitly handled
+wildcard_enum_match_arm = "allow"   # Intentional design for extensibility
+float_cmp = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+lossy_float_literal = "warn"
+redundant_clone = "warn"
+string_add = "warn"
+string_add_assign = "warn"
+unnecessary_cast = "warn"
+cloned_instead_of_copied = "warn"
+flat_map_option = "warn"
+needless_pass_by_value = "allow"   # Allow by-value for small Copy types
+redundant_closure_for_method_calls = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"
+trivially_copy_pass_by_ref = "warn"
+unnested_or_patterns = "warn"
+unused_enumerate_index = "warn"
+useless_vec = "warn"
+
+# Additional code quality
+option_option = "warn"              # Confusing Option<Option<T>>
+verbose_file_reads = "warn"         # Prefer fs::read_to_string
+unnecessary_wraps = "warn"          # Functions that always wrap values
+explicit_iter_loop = "warn"         # Use for x in &collection
+explicit_into_iter_loop = "warn"    # Use for x in collection
+manual_let_else = "warn"            # Use let-else pattern
+
+# API design decisions (allow - these represent intentional API choices)
+should_implement_trait = "allow"    # Allow method names matching std traits
+field_reassign_with_default = "allow" # Allow incremental struct building
+
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+debug = false
+strip = true
+overflow-checks = true  # Enable for crypto safety
+debug-assertions = true  # Keep for crypto validation
+incremental = false     # Reproducible builds
+
+[profile.dev]
+overflow-checks = true  # Enable even in debug for crypto safety
+
+  [workspace.dependencies]
+# Core async runtime - latest stable version for security and performance
+tokio = { version = "1.49.0", features = ["full"] }
+# Serialization - latest stable with derive features
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.140" }
+# Random number generation - latest stable for crypto security
+rand = { version = "0.8.5", features = ["std_rng", "small_rng", "serde1"] }
+rand_core = { version = "0.6" }
+rand_chacha = { version = "0.3.1" }
+# Error handling - latest stable for structured errors
+thiserror = { version = "2.0.17" }
+anyhow = { version = "1.0.100" }
+# Time handling - consistent version across repos
+chrono = { version = "0.4.40", features = ["serde"] }
+# UUID generation - latest stable
+uuid = { version = "1.19.0", features = ["v4", "serde"] }
+# Base64 encoding - latest stable for crypto operations
+base64 = { version = "0.22.1" }
+# Hex encoding - latest stable
+hex = { version = "0.4.3" }
+# HTTP client - latest stable with rustls default (aligns with our TLS stack)
+# Note: rustls is now default in 0.13, "rustls-tls" renamed to "rustls"
+reqwest = { version = "0.13", features = ["json"] }
+# Async traits - latest stable
+async-trait = { version = "0.1.83" }
+# Futures utilities - latest stable
+futures-util = { version = "0.3.31" }
+# Zeroize for secure memory wiping - latest stable
+zeroize = { version = "1.8.2", features = ["derive"] }
+# Tracing for observability - latest stable
+tracing = { version = "0.1.44", features = ["log"] }
+# CPU feature detection - latest stable
+cpufeatures = { version = "0.2.12" }
+# Getrandom for entropy - latest stable
+getrandom = { version = "0.2" }
+# Array reference utilities - latest stable
+# Array reference utilities - latest stable
+arrayref = { version = "0.3" }
+# Subtle constant-time operations - latest stable for crypto
+subtle = { version = "2.6.1" }
+# Cryptographic algorithms - latest stable versions
+chacha20poly1305 = { version = "0.10.1", features = ["alloc"] }
+sha2 = { version = "0.10.9" }
+pbkdf2 = { version = "0.12.2" }
+hmac = { version = "0.12" }
+# Low-level primitives
+aes = { version = "0.8.4" }
+sha3 = { version = "0.10.8" }
+ctr = { version = "0.9" }
+hex-literal = { version = "1.1" }
+libfuzzer-sys = { version = "0.4.8" }
+# Elliptic curve cryptography - latest stable
+ecdsa = { version = "0.16.9", features = ["signing", "verifying"] }
+p256 = { version = "0.13.2", features = ["ecdsa", "ecdh"] }
+k256 = { version = "0.13.4", features = ["ecdsa", "std"] }
+ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+# X25519 needed for CAVP test vector validation (deterministic key generation)
+x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
+# Post-quantum cryptography - FIPS 140-3 validated via aws-lc-rs
+# aws-lc-rs provides ML-KEM with FIPS 140-3 certification (Certificate #4631, #4759, #4816)
+# Note: FIPS mode requires cmake and go build tools
+aws-lc-rs = { version = "1.15", default-features = false, features = ["fips"] }
+
+# Post-quantum signatures - aws-lc-rs doesn't yet expose ML-DSA in Rust API
+# See: https://github.com/aws/aws-lc-rs/issues/773
+fips204 = { version = "0.4.6" }  # ML-DSA (FIPS 204) - keep until aws-lc-rs exposes it
+fips205 = { version = "0.4.1" }  # SLH-DSA (FIPS 205) - not yet in aws-lc-rs
+fn-dsa = { version = "0.3.0" }   # FN-DSA (FIPS 206) - unique implementation
+
+# TLS and networking
+# TLS ecosystem
+rustls = { version = "0.23.36", features = ["tls12", "std", "logging"] }
+rustls-post-quantum = { version = "0.2.4" }
+rustls-pki-types = { version = "1.13" }
+# rustls-pemfile removed - using rustls-pki-types PemObject trait instead (constant-time decoding)
+rustls-native-certs = { version = "0.8" }
+tokio-rustls = { version = "0.26" }
+webpki-roots = { version = "1.0" }
+
+# Development and testing
+proptest = { version = "1.4" }
+criterion = { version = "0.8", features = ["html_reports"] }
+rayon = { version = "1.10" }
+# Standardized testing utilities
+rstest = { version = "0.23" }
+test-case = { version = "3.0" }
+# Hardware and system
+cpuid = { version = "0.1" }
+cryptoki = { version = "0.11" }
+tempfile = { version = "3.24" }
+# Tracing and observability
+tracing-subscriber = { version = "0.3.22" }
+tracing-appender = { version = "0.2" }
+# OpenTelemetry stack - 0.31 has stable Metrics SDK
+tracing-opentelemetry = { version = "0.32.1" }
+opentelemetry = { version = "0.31.0" }
+opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
+
+# Common utilities
+dashmap = { version = "6.1" }
+parking_lot = { version = "0.12.3" }
+lru = { version = "0.13" }
+bitflags = { version = "2.8" }
+smallvec = { version = "1.13" }
+pin-project-lite = { version = "0.2" }
+bytes = { version = "1.9" }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["full"] }
+governor = { version = "0.6" }
+nonzero_ext = { version = "0.3" }
+url = { version = "2.5" }
+mime = { version = "0.3" }
+lazy_static = { version = "1.5" }
+futures = { version = "0.3" }
+crossbeam-utils = { version = "0.8" }
+generic-array = { version = "0.14" }
+blake2 = { version = "0.10" }
+blake3 = { version = "1.5" }
+merkle-light = { version = "0.4" }
+
+[profile.bench]
+ lto = true
+ codegen-units = 1
+ opt-level = 3
+overflow-checks = true

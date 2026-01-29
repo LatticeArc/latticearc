@@ -1,0 +1,99 @@
+[package]
+name = "arc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+license = "Apache-2.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[lints.rust]
+# Forbid unsafe code entirely - critical for cryptographic security
+unsafe_code = "forbid"
+# Treat warnings as errors for enterprise compliance
+warnings = "deny"
+
+[lints.clippy]
+# Security-focused clippy lints
+unwrap_used = "deny"          # Prevent unwrap that could panic
+expect_used = "deny"          # Prevent expect that could panic
+indexing_slicing = "deny"     # Prevent direct indexing that could panic
+panic = "deny"                # Prevent explicit panics
+todo = "deny"                 # No TODOs in production crypto code
+unimplemented = "deny"        # No unimplemented! calls
+# Additional crypto-relevant lints
+arithmetic_side_effects = "warn"  # Warn on potential overflow
+cast_lossless = "warn"            # Warn on potentially lossy casts
+cast_possible_truncation = "warn" # Warn on truncation risks
+cast_possible_wrap = "warn"       # Warn on wrapping casts
+cast_precision_loss = "warn"      # Warn on precision loss
+cast_sign_loss = "warn"           # Warn on sign loss
+float_cmp = "warn"                # Warn on float comparisons (avoid in crypto)
+implicit_clone = "warn"           # Warn on implicit clones
+inefficient_to_string = "warn"    # Warn on inefficient string conversions
+lossy_float_literal = "warn"      # Warn on lossy float literals
+redundant_clone = "warn"          # Warn on redundant clones
+string_add = "warn"               # Warn on string concatenation
+string_add_assign = "warn"        # Warn on string append
+unnecessary_cast = "warn"         # Warn on unnecessary casts
+
+[dependencies]
+libfuzzer-sys = "0.4"
+subtle = "2.6"
+rand = { version = "0.8.5", features = ["std_rng"] }
+
+[dependencies.arc-core]
+path = "../arc-core"
+
+[dependencies.arc-primitives]
+path = "../arc-primitives"
+
+[[bin]]
+name = "fuzz_target_1"
+path = "fuzz_targets/fuzz_target_1.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "encrypt_fuzz"
+path = "fuzz_targets/encrypt_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cross_border_fuzz"
+path = "fuzz_targets/cross_border_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hybrid_sign_fuzz"
+path = "fuzz_targets/hybrid_sign_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hybrid_encrypt_fuzz"
+path = "fuzz_targets/hybrid_encrypt_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hybrid_kem_fuzz"
+path = "fuzz_targets/hybrid_kem_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "constant_time_fuzz"
+path = "fuzz_targets/constant_time_fuzz.rs"
+test = false
+doc = false
+bench = false

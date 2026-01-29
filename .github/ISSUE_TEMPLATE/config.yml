@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/latticearc/latticearc/security/policy
+    about: Please report security vulnerabilities through our security policy, not through public issues.
+  - name: Questions & Discussion
+    url: https://github.com/latticearc/latticearc/discussions
+    about: For questions, help, and general discussion, please use GitHub Discussions.
+  - name: Documentation
+    url: https://docs.rs/latticearc
+    about: Check the documentation for usage examples and API reference.

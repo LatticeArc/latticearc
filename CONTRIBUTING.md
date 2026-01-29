@@ -1,0 +1,325 @@
+# Contributing to LatticeArc
+
+Thank you for your interest in contributing to LatticeArc! This document provides guidelines and instructions for contributing.
+
+## Table of Contents
+
+- [Code of Conduct](#code-of-conduct)
+- [Getting Started](#getting-started)
+- [Development Setup](#development-setup)
+- [Making Changes](#making-changes)
+- [Testing Requirements](#testing-requirements)
+- [Submitting Changes](#submitting-changes)
+- [Code Style](#code-style)
+- [Security](#security)
+
+## Code of Conduct
+
+This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+
+## Getting Started
+
+### Prerequisites
+
+- Rust 1.93+ (2024 edition)
+- Git
+- cargo-deny (`cargo install cargo-deny`)
+- cargo-audit (`cargo install cargo-audit`)
+
+### Fork and Clone
+
+```bash
+git clone https://github.com/YOUR_USERNAME/latticearc.git
+cd latticearc
+```
+
+## Development Setup
+
+### Build
+
+```bash
+# Build all crates
+cargo build --workspace --all-features
+
+# Build specific crate
+cargo build -p arc-core --all-features
+```
+
+### Verify Setup
+
+```bash
+# Run all checks (must pass before submitting PR)
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo audit
+cargo deny check all
+```
+
+## Making Changes
+
+### Branch Strategy
+
+- `main` - stable, release-ready code
+- Feature branches: `feature/description`
+- Bug fixes: `fix/description`
+- Documentation: `docs/description`
+
+### Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+**Types:**
+- `feat` - new feature
+- `fix` - bug fix
+- `docs` - documentation only
+- `test` - adding/updating tests
+- `refactor` - code change that neither fixes a bug nor adds a feature
+- `perf` - performance improvement
+- `chore` - maintenance tasks
+- `security` - security-related changes
+
+**Examples:**
+```
+feat(arc-core): add ML-KEM-1024 support
+fix(arc-primitives): correct HKDF output length validation
+docs: update API documentation for encrypt function
+security(arc-hybrid): fix timing vulnerability in signature verification
+```
+
+### What to Include
+
+Each PR should:
+- Address a single concern
+- Include tests for new functionality
+- Update documentation as needed
+- Update CHANGELOG.md
+- Pass all CI checks
+
+## Testing Requirements
+
+### Coverage Thresholds
+
+- Unit tests: 90%+ line coverage
+- Overall: 80%+ coverage
+- All public APIs must have tests
+
+### Running Tests
+
+```bash
+# All tests
+cargo test --workspace --all-features
+
+# Specific crate
+cargo test -p arc-core --all-features
+
+# With output
+cargo test --workspace --all-features -- --nocapture
+
+# Doc tests only
+cargo test --workspace --doc
+```
+
+### Test Categories
+
+1. **Unit Tests** - inline in source files
+2. **Integration Tests** - in `tests/` directories
+3. **Property Tests** - using proptest for invariants
+4. **Doc Tests** - examples in documentation
+5. **CAVP Vectors** - NIST test vectors in arc-validation
+
+### Adding Tests
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_decrypt_roundtrip() {
+        let key = [0u8; 32];
+        let data = b"test data";
+
+        let encrypted = encrypt_aes_gcm(data, &key).expect("encryption failed");
+        let decrypted = decrypt_aes_gcm(&encrypted, &key).expect("decryption failed");
+
+        assert_eq!(data.as_slice(), decrypted.as_slice());
+    }
+}
+```
+
+### Benchmarks
+
+```bash
+# Run benchmarks
+cargo bench --workspace --all-features
+
+# Specific benchmark
+cargo bench -p arc-perf
+```
+
+## Submitting Changes
+
+### Pull Request Process
+
+1. **Create PR** against `main` branch
+2. **Fill out PR template** completely
+3. **Ensure CI passes** - all checks must be green
+4. **Request review** from maintainers
+5. **Address feedback** promptly
+6. **Squash commits** if requested
+
+### PR Checklist
+
+- [ ] Code compiles without warnings
+- [ ] All tests pass
+- [ ] New code has tests
+- [ ] Documentation updated
+- [ ] CHANGELOG.md updated
+- [ ] No security vulnerabilities introduced
+- [ ] Commit messages follow convention
+
+### Review Process
+
+- PRs require 2 approvals from maintainers
+- Security-sensitive changes require security team review
+- Performance-critical changes require benchmark comparison
+
+## Code Style
+
+### Formatting
+
+- Use `rustfmt` with project config (rustfmt.toml)
+- Max line width: 100 characters
+- Run before committing: `cargo fmt --all`
+
+### Linting
+
+All code must pass strict clippy checks:
+
+```bash
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+### Documentation
+
+- All public items must be documented
+- Use `///` for item documentation
+- Include `# Examples` section for complex APIs
+- Include `# Errors` section for fallible functions
+- Include `# Panics` section if function can panic (should be rare)
+
+**Example:**
+```rust
+/// Encrypts data using AES-256-GCM.
+///
+/// # Arguments
+///
+/// * `data` - The plaintext to encrypt
+/// * `key` - 32-byte encryption key
+///
+/// # Returns
+///
+/// Ciphertext with prepended nonce and appended authentication tag.
+///
+/// # Errors
+///
+/// Returns `CoreError::InvalidKeyLength` if key is not 32 bytes.
+/// Returns `CoreError::EncryptionFailed` if encryption fails.
+///
+/// # Examples
+///
+/// ```
+/// use arc_core::encrypt_aes_gcm;
+///
+/// let key = [0u8; 32];
+/// let encrypted = encrypt_aes_gcm(b"secret", &key)?;
+/// # Ok::<(), arc_core::CoreError>(())
+/// ```
+pub fn encrypt_aes_gcm(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    // ...
+}
+```
+
+### Error Handling
+
+- Never use `unwrap()` or `expect()` in library code
+- Use `?` operator for error propagation
+- Return descriptive error types
+- Test error paths
+
+### Cryptographic Code
+
+- No unsafe code in cryptographic paths
+- Use constant-time operations for secret data
+- Zeroize sensitive data on drop
+- Validate all inputs
+
+## Security
+
+### Reporting Vulnerabilities
+
+**Do not open public issues for security vulnerabilities.**
+
+See [SECURITY.md](SECURITY.md) for reporting instructions.
+
+### Security Requirements
+
+All contributions must:
+- Not introduce timing vulnerabilities
+- Properly zeroize sensitive data
+- Validate all inputs
+- Use approved cryptographic primitives
+- Pass security review for crypto changes
+
+### Prohibited Patterns
+
+```rust
+// FORBIDDEN - panics on failure
+let key = generate_key().unwrap();
+
+// FORBIDDEN - timing leak
+if secret_a == secret_b { ... }
+
+// FORBIDDEN - sensitive data not zeroized
+let key: [u8; 32] = generate_key();
+// key goes out of scope without zeroization
+
+// FORBIDDEN - unsafe code
+unsafe { ... }
+```
+
+### Required Patterns
+
+```rust
+// CORRECT - proper error handling
+let key = generate_key()?;
+
+// CORRECT - constant-time comparison
+use subtle::ConstantTimeEq;
+if secret_a.ct_eq(&secret_b).into() { ... }
+
+// CORRECT - automatic zeroization
+use zeroize::Zeroize;
+let mut key = generate_key()?;
+// ... use key ...
+key.zeroize(); // or use ZeroizeOnDrop derive
+```
+
+## Questions?
+
+- Open a [Discussion](https://github.com/latticearc/latticearc/discussions) for questions
+- Check existing issues before opening new ones
+- Join our community channels (if available)
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
