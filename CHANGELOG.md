@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.1] - 2026-01-30
+
+### Fixed
+
+- **Hybrid Signature Verification**: Fixed bug where hybrid signatures (ML-DSA + Ed25519) failed verification due to incorrect public key storage
+  - `sign()` now stores combined public key (ML-DSA + Ed25519) for hybrid schemes
+  - `verify()` correctly splits combined key for each algorithm
+  - Added missing verify case for `hybrid-ml-dsa-87-ed25519`
+
+### Changed
+
+- **SecurityLevel Redesign**: Simplified security levels to four clear options
+  - `Standard` - NIST Level 1 (128-bit), hybrid mode
+  - `High` - NIST Level 3 (192-bit), hybrid mode (default)
+  - `Maximum` - NIST Level 5 (256-bit), hybrid mode
+  - `Quantum` - NIST Level 5 (256-bit), PQ-only mode (CNSA 2.0)
+  - Removed `Medium` and `Low` levels
+  - Classic TLS now only accessible via use cases (`IoT`, `LegacyIntegration`)
+
+### Documentation
+
+- Updated all README files with new SecurityLevel table
+- Updated `UNIFIED_API_GUIDE.md` with detailed level descriptions
+- Clarified hybrid vs PQ-only mode distinction
+
+---
+
 ## [0.1.0] - 2026-01-29
 
 ### Initial Release
