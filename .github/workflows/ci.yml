@@ -173,7 +173,7 @@ jobs:
       run: cargo deny check all
 
     - name: Run cargo-checksec (binary security analysis)
-      uses: rust-security/checksec-action@main
+      uses: asymmetric-research/checksec-action@d17d6f8da659c9e71a633ab0bd679f72ff3cb0bb # main
 
   # === Testing (Apache-focused) ===
   test:
