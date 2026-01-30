@@ -32,7 +32,7 @@ fn bench_tls_config_creation(c: &mut Criterion) {
 
     c.bench_function("tls_config_creation_classic", |b| {
         b.iter(|| {
-            let config = TlsConfig::new().security_level(SecurityLevel::Low);
+            let config = TlsConfig::new().security_level(SecurityLevel::Standard);
             black_box(config);
         })
     });
@@ -48,7 +48,7 @@ fn bench_tls_config_creation(c: &mut Criterion) {
 /// Benchmark TLS 1.3 configuration conversion
 fn bench_tls13_config_conversion(c: &mut Criterion) {
     let hybrid_config = TlsConfig::new();
-    let classic_config = TlsConfig::new().security_level(SecurityLevel::Low);
+    let classic_config = TlsConfig::new().security_level(SecurityLevel::Standard);
     let pq_config = TlsConfig::new().security_level(SecurityLevel::Maximum);
 
     c.bench_function("tls13_config_conversion_hybrid", |b| {
