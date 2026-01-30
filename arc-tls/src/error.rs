@@ -679,10 +679,12 @@ impl From<std::io::Error> for TlsError {
             _ => (ErrorCode::IoError, ErrorSeverity::Error, RecoveryHint::NoRecovery),
         };
 
-        let mut context = ErrorContext::default();
-        context.code = code;
-        context.severity = severity;
-        context.phase = OperationPhase::ConnectionSetup;
+        let mut context = ErrorContext {
+            code,
+            severity,
+            phase: OperationPhase::ConnectionSetup,
+            ..Default::default()
+        };
         context.extra.insert("io_kind".to_string(), format!("{:?}", err.kind()));
 
         TlsError::Io {
@@ -801,10 +803,7 @@ impl From<rustls::Error> for TlsError {
             ),
         };
 
-        let mut context = ErrorContext::default();
-        context.code = code;
-        context.severity = severity;
-        context.phase = phase;
+        let mut context = ErrorContext { code, severity, phase, ..Default::default() };
         context.extra.insert("rustls_error".to_string(), err.to_string());
 
         TlsError::Tls {
@@ -819,10 +818,12 @@ impl From<rustls::Error> for TlsError {
 // Conversion from HybridKemError
 impl From<arc_hybrid::kem::HybridKemError> for TlsError {
     fn from(err: arc_hybrid::kem::HybridKemError) -> Self {
-        let mut context = ErrorContext::default();
-        context.code = ErrorCode::HybridKemFailed;
-        context.severity = ErrorSeverity::Error;
-        context.phase = OperationPhase::KeyExchange;
+        let mut context = ErrorContext {
+            code: ErrorCode::HybridKemFailed,
+            severity: ErrorSeverity::Error,
+            phase: OperationPhase::KeyExchange,
+            ..Default::default()
+        };
         context.extra.insert("hybrid_kem_error".to_string(), err.to_string());
 
         TlsError::HybridKem {
@@ -871,10 +872,12 @@ mod tests {
 
     #[test]
     fn test_error_fallback_support() {
-        let mut context = ErrorContext::default();
-        context.code = ErrorCode::PqNotAvailable;
-        context.severity = ErrorSeverity::Warning;
-        context.phase = OperationPhase::KeyExchange;
+        let context = ErrorContext {
+            code: ErrorCode::PqNotAvailable,
+            severity: ErrorSeverity::Warning,
+            phase: OperationPhase::KeyExchange,
+            ..Default::default()
+        };
 
         let err = TlsError::PqNotAvailable {
             message: "PQ not available".to_string(),
