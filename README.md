@@ -25,21 +25,26 @@ LatticeArc defaults to **hybrid cryptography** (PQ + classical) as recommended b
 
 ```mermaid
 flowchart LR
-    subgraph Input
-        P[Plaintext]
+    P[/**Plaintext**/]
+
+    subgraph hybrid [" Hybrid Encryption "]
+        direction LR
+        KEM[/**ML-KEM-768**/<br/>quantum-safe]
+        AES[/**AES-256-GCM**/<br/>time-tested]
     end
 
-    subgraph "Hybrid Encryption"
-        P --> KEM[ML-KEM-768<br/>quantum-safe]
-        P --> AES[AES-256-GCM<br/>time-tested]
-        KEM --> C1[PQ Ciphertext]
-        AES --> C2[Classical Ciphertext]
-    end
+    OUT[/**Protected Output**/]
 
-    subgraph Output
-        C1 --> OUT[Combined Output]
-        C2 --> OUT
-    end
+    P --> KEM
+    P --> AES
+    KEM --> OUT
+    AES --> OUT
+
+    style P fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style KEM fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style AES fill:#f59e0b,stroke:#d97706,color:#fff
+    style OUT fill:#10b981,stroke:#059669,color:#fff
+    style hybrid fill:#f1f5f9,stroke:#64748b
 ```
 
 > **Defense in depth**: If *either* algorithm remains secure, your data is protected.
@@ -78,17 +83,42 @@ LatticeArc automatically selects algorithms based on your configuration:
 
 ```mermaid
 flowchart TB
-    CONFIG[CryptoConfig::new] --> UC[.use_case]
-    CONFIG --> SL[.security_level]
-    CONFIG --> DEF[defaults - High]
+    CONFIG[/**CryptoConfig::new**/]
 
-    UC --> ENGINE[CryptoPolicyEngine]
+    subgraph options [" Configuration Options "]
+        UC[.use_case]
+        SL[.security_level]
+        DEF[defaults]
+    end
+
+    ENGINE[/**CryptoPolicyEngine**/]
+
+    subgraph schemes [" Selected Scheme "]
+        LOW[ML-KEM-512 + AES<br/>Low]
+        HIGH[ML-KEM-768 + AES<br/>High]
+        MAX[ML-KEM-1024 + AES<br/>Maximum]
+    end
+
+    CONFIG --> UC
+    CONFIG --> SL
+    CONFIG --> DEF
+    UC --> ENGINE
     SL --> ENGINE
     DEF --> ENGINE
+    ENGINE --> LOW
+    ENGINE --> HIGH
+    ENGINE --> MAX
 
-    ENGINE --> LOW[ML-KEM-512 + AES<br/>Low]
-    ENGINE --> HIGH[ML-KEM-768 + AES<br/>High]
-    ENGINE --> MAX[ML-KEM-1024 + AES<br/>Maximum]
+    style CONFIG fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style ENGINE fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style UC fill:#f1f5f9,stroke:#64748b
+    style SL fill:#f1f5f9,stroke:#64748b
+    style DEF fill:#f1f5f9,stroke:#64748b
+    style LOW fill:#fef3c7,stroke:#d97706
+    style HIGH fill:#d1fae5,stroke:#059669
+    style MAX fill:#10b981,stroke:#059669,color:#fff
+    style options fill:#fff,stroke:#e2e8f0
+    style schemes fill:#fff,stroke:#e2e8f0
 ```
 
 ### By Use Case (Recommended)
@@ -129,22 +159,29 @@ For enterprise security, use verified sessions that enforce authentication befor
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
-    participant V as Verifier
+    box rgb(241, 245, 249) Client Application
+        participant C as Client
+    end
+    box rgb(243, 232, 255) Zero Trust Layer
+        participant V as Verifier
+    end
 
-    Note over C,V: 1. Establish Session
-    V->>C: challenge
-    C->>V: proof
-    V->>V: verify proof
-    V-->>C: VerifiedSession
+    rect rgb(219, 234, 254)
+        Note over C,V: Session Establishment
+        V->>C: challenge
+        C->>V: proof (signed)
+        V->>V: verify proof
+        V-->>C: VerifiedSession ✓
+    end
 
-    Note over C,V: 2. Use Session
-    C->>C: encrypt(data, config.session(&sess))
-    C->>C: Check session valid?
-    alt valid
-        C->>C: Proceed with crypto
-    else expired
-        C-->>C: Error
+    rect rgb(220, 252, 231)
+        Note over C,V: Crypto Operation
+        C->>C: encrypt(data, config.session(&sess))
+        alt Session Valid
+            C->>C: ✓ Proceed
+        else Session Expired
+            C-->>C: ✗ Error
+        end
     end
 ```
 
