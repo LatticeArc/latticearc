@@ -302,7 +302,8 @@ impl CryptoPolicyEngine {
         }
 
         // Priority 2: Context-aware selection
-        let characteristics = Self::analyze_data_characteristics(data);
+        // TODO: Use data characteristics for adaptive algorithm selection
+        let _characteristics = Self::analyze_data_characteristics(data);
 
         match &config.security_level {
             // Quantum: PQ-only (no classical key exchange)

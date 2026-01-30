@@ -20,16 +20,20 @@ fn test_tls_modes() {
     let config = TlsConfig::new();
     assert_eq!(config.mode, TlsMode::Hybrid);
 
-    // Test classic mode via security level
-    let classic = TlsConfig::new().security_level(SecurityLevel::Low);
-    assert_eq!(classic.mode, TlsMode::Classic);
+    // Test Standard mode (still uses Hybrid - all non-Quantum levels use Hybrid)
+    let standard = TlsConfig::new().security_level(SecurityLevel::Standard);
+    assert_eq!(standard.mode, TlsMode::Hybrid);
 
     // Test hybrid mode (default)
     let hybrid = TlsConfig::new();
     assert_eq!(hybrid.mode, TlsMode::Hybrid);
 
-    // Test PQ mode via security level
-    let pq = TlsConfig::new().security_level(SecurityLevel::Maximum);
+    // Test Maximum still uses Hybrid (only Quantum uses PQ-only)
+    let maximum = TlsConfig::new().security_level(SecurityLevel::Maximum);
+    assert_eq!(maximum.mode, TlsMode::Hybrid);
+
+    // Test PQ mode via Quantum security level
+    let pq = TlsConfig::new().security_level(SecurityLevel::Quantum);
     assert_eq!(pq.mode, TlsMode::Pq);
 }
 
@@ -141,10 +145,10 @@ fn test_kex_info_classical() {
 fn test_config_info() {
     use arc_core::SecurityLevel;
 
-    let classic = TlsConfig::new().security_level(SecurityLevel::Low);
-    let info = get_config_info(&classic);
-    assert!(info.contains("Classic"));
-    assert!(info.contains("Not PQ secure"));
+    // Standard uses Hybrid mode (all non-Quantum levels use Hybrid)
+    let standard = TlsConfig::new().security_level(SecurityLevel::Standard);
+    let info = get_config_info(&standard);
+    assert!(info.contains("Hybrid"));
 
     let hybrid = TlsConfig::new();
     let info = get_config_info(&hybrid);
@@ -152,6 +156,11 @@ fn test_config_info() {
 
     let pq = TlsConfig::new().security_level(SecurityLevel::Maximum);
     let info = get_config_info(&pq);
+    assert!(info.contains("Hybrid"));
+
+    // Quantum uses PQ-only mode
+    let quantum = TlsConfig::new().security_level(SecurityLevel::Quantum);
+    let info = get_config_info(&quantum);
     assert!(info.contains("Post-quantum") || info.contains("PQ"));
 }
 
@@ -165,9 +174,10 @@ fn test_tls13_config_from_tls_config() {
     use arc_core::SecurityLevel;
 
     let configs = vec![
-        TlsConfig::new().security_level(SecurityLevel::Low),
+        TlsConfig::new().security_level(SecurityLevel::Standard),
         TlsConfig::new(),
         TlsConfig::new().security_level(SecurityLevel::Maximum),
+        TlsConfig::new().security_level(SecurityLevel::Quantum),
     ];
 
     for config in configs {

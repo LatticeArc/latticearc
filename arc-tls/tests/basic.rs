@@ -125,10 +125,10 @@ mod basic_tests {
     fn test_config_info_all_modes() {
         use arc_core::SecurityLevel;
 
-        let classic_config = TlsConfig::new().security_level(SecurityLevel::Low);
-        let classic_info = get_config_info(&classic_config);
-        assert!(classic_info.contains("Classic"));
-        assert!(classic_info.contains("Not PQ secure"));
+        // Standard still uses Hybrid mode (only use cases like IoT use Classic)
+        let standard_config = TlsConfig::new().security_level(SecurityLevel::Standard);
+        let standard_info = get_config_info(&standard_config);
+        assert!(standard_info.contains("Hybrid"));
 
         let hybrid_config = TlsConfig::new();
         let hybrid_info = get_config_info(&hybrid_config);

@@ -176,12 +176,14 @@ All features are included by default:
 
 ### By Security Level
 
-| Level | Encryption | Signatures |
-|-------|------------|------------|
-| `Maximum` | Hybrid (ML-KEM-1024 + AES-256-GCM) | Hybrid (ML-DSA-87 + Ed25519) |
-| `High` (default) | Hybrid (ML-KEM-768 + AES-256-GCM) | Hybrid (ML-DSA-65 + Ed25519) |
-| `Medium` | Hybrid (ML-KEM-768 + AES-256-GCM) | Hybrid (ML-DSA-65 + Ed25519) |
-| `Low` | Hybrid (ML-KEM-512 + AES-256-GCM) | Hybrid (ML-DSA-44 + Ed25519) |
+| Level | Mode | Encryption | Signatures |
+|-------|------|------------|------------|
+| `Quantum` | PQ-only | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 |
+| `Maximum` | Hybrid | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 |
+| `High` (default) | Hybrid | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 |
+| `Standard` | Hybrid | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 |
+
+> For complete security level documentation, see [docs/UNIFIED_API_GUIDE.md](../docs/UNIFIED_API_GUIDE.md).
 
 ## Security
 

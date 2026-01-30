@@ -102,12 +102,13 @@ The `CryptoPolicyEngine` uses a priority-based selection algorithm:
 │     └─> SecurityLevel::Maximum → hybrid-ml-kem-1024         │
 │     └─> SecurityLevel::High → hybrid-ml-kem-768             │
 │                                                             │
-│  3. Classical fallback (only if ALL conditions met):        │
-│     └─> Security: Medium or Low                             │
-│     └─> Performance: Speed                                  │
-│     └─> Data size: < 4096 bytes                             │
+│  3. PQ-only mode:                                           │
+│     └─> SecurityLevel::Quantum → pq-ml-kem-1024             │
 │                                                             │
-│  4. Default: hybrid-ml-kem-768-aes-256-gcm                  │
+│  4. Lightweight hybrid (for constrained devices):           │
+│     └─> SecurityLevel::Standard → hybrid-ml-kem-512         │
+│                                                             │
+│  5. Default: hybrid-ml-kem-768-aes-256-gcm                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -165,14 +166,14 @@ let forced = CryptoPolicyEngine::force_scheme(CryptoScheme::HybridKem);
 
 ### Security Level Mappings
 
-| SecurityLevel | Encryption Scheme | Signature Scheme |
-|---------------|-------------------|------------------|
-| Maximum | hybrid-ml-kem-1024-aes-256-gcm | ml-dsa-87-ed25519 |
-| High | hybrid-ml-kem-768-aes-256-gcm | ml-dsa-65-ed25519 |
-| Medium | hybrid-ml-kem-768-aes-256-gcm* | ml-dsa-44-ed25519 |
-| Low | hybrid-ml-kem-512-aes-256-gcm* | ml-dsa-44-ed25519 |
+| SecurityLevel | Mode | Encryption Scheme | Signature Scheme |
+|---------------|------|-------------------|------------------|
+| Quantum | PQ-only | pq-ml-kem-1024-aes-256-gcm | ml-dsa-87 |
+| Maximum | Hybrid | hybrid-ml-kem-1024-aes-256-gcm | ml-dsa-87-ed25519 |
+| High (default) | Hybrid | hybrid-ml-kem-768-aes-256-gcm | ml-dsa-65-ed25519 |
+| Standard | Hybrid | hybrid-ml-kem-512-aes-256-gcm | ml-dsa-44-ed25519 |
 
-*May fallback to `aes-256-gcm` if Speed preference + small data
+> **Note:** `Quantum` mode uses PQ-only algorithms for CNSA 2.0 compliance.
 
 ## Zero-Trust Authentication
 

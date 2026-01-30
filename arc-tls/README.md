@@ -145,11 +145,11 @@ let config = TlsConfig::new()
 
 ### Classic Mode
 
-Standard TLS 1.3 with X25519 only (not PQ secure).
+For IoT or legacy systems that need classic TLS (not PQ secure), use a use case:
 
 ```rust
 let config = TlsConfig::new()
-    .security_level(SecurityLevel::Low);
+    .use_case(TlsUseCase::IoT);  // or TlsUseCase::LegacyIntegration
 ```
 
 **Benefits:**
@@ -160,6 +160,8 @@ let config = TlsConfig::new()
 **Trade-offs:**
 - Not PQ secure
 - Vulnerable to quantum computers
+
+> **Note:** All security levels (Standard, High, Maximum) now use Hybrid mode by default for defense-in-depth. Only `SecurityLevel::Quantum` uses PQ-only mode. Use `TlsUseCase::IoT` or `TlsUseCase::LegacyIntegration` for classic TLS.
 
 ### PQ-Only Mode
 
