@@ -148,18 +148,30 @@ impl KeyPair {
 
 /// Security level for cryptographic operations.
 ///
+/// All levels use hybrid encryption (PQ + classical) by default for defense-in-depth
+/// during the post-quantum transition period, except `Quantum` which is PQ-only.
+///
 /// Higher levels provide stronger protection but may impact performance.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum SecurityLevel {
-    /// 128-bit equivalent security. Suitable for low-sensitivity data.
-    Low,
-    /// 128-bit security with additional safeguards.
-    Medium,
-    /// 192-bit equivalent security. Recommended for most applications.
+    /// NIST Level 1 (128-bit equivalent). Hybrid mode.
+    /// Uses ML-KEM-512 + X25519, ML-DSA-44 + Ed25519.
+    /// Suitable for resource-constrained devices and general use.
+    Standard,
+    /// NIST Level 3 (192-bit equivalent). Hybrid mode. [default]
+    /// Uses ML-KEM-768 + X25519, ML-DSA-65 + Ed25519.
+    /// Recommended for most enterprise applications.
     #[default]
     High,
-    /// 256-bit equivalent security. For high-value assets.
+    /// NIST Level 5 (256-bit equivalent). Hybrid mode.
+    /// Uses ML-KEM-1024 + X25519, ML-DSA-87 + Ed25519.
+    /// For high-value assets and long-term security.
     Maximum,
+    /// NIST Level 5 (256-bit equivalent). PQ-only mode.
+    /// Uses ML-KEM-1024, ML-DSA-87 (no classical algorithms).
+    /// For CNSA 2.0 compliance and government use cases.
+    /// Must be explicitly selected - no UseCase defaults to this.
+    Quantum,
 }
 
 /// Performance optimization preference.

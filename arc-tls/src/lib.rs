@@ -767,16 +767,27 @@ mod tests {
     fn test_tls_config_with_security_level_maximum() {
         use arc_core::SecurityLevel;
 
+        // Maximum uses Hybrid for defense-in-depth
         let config = TlsConfig::new().security_level(SecurityLevel::Maximum);
+        assert_eq!(config.mode, TlsMode::Hybrid);
+    }
+
+    #[test]
+    fn test_tls_config_with_security_level_quantum() {
+        use arc_core::SecurityLevel;
+
+        // Quantum is PQ-only (no classical key exchange)
+        let config = TlsConfig::new().security_level(SecurityLevel::Quantum);
         assert_eq!(config.mode, TlsMode::Pq);
     }
 
     #[test]
-    fn test_tls_config_with_security_level_low() {
+    fn test_tls_config_with_security_level_standard() {
         use arc_core::SecurityLevel;
 
-        let config = TlsConfig::new().security_level(SecurityLevel::Low);
-        assert_eq!(config.mode, TlsMode::Classic);
+        // Standard uses Hybrid
+        let config = TlsConfig::new().security_level(SecurityLevel::Standard);
+        assert_eq!(config.mode, TlsMode::Hybrid);
     }
 
     #[test]

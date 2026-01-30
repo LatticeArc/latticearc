@@ -362,15 +362,15 @@ impl TlsPolicyEngine {
     /// |---------------|------|
     /// | Maximum | Pq |
     /// | High | Hybrid |
-    /// | Medium | Hybrid |
-    /// | Low | Classic |
+    /// | Standard | Hybrid |
+    /// | Quantum | Pq |
     #[must_use]
     pub fn select_by_security_level(level: SecurityLevel) -> TlsMode {
         match level {
-            SecurityLevel::Maximum => TlsMode::Pq,
-            SecurityLevel::High => TlsMode::Hybrid,
-            SecurityLevel::Medium => TlsMode::Hybrid,
-            SecurityLevel::Low => TlsMode::Classic,
+            // Quantum: PQ-only (no classical key exchange)
+            SecurityLevel::Quantum => TlsMode::Pq,
+            // All other levels: Hybrid (PQ + classical for defense-in-depth)
+            SecurityLevel::Standard | SecurityLevel::High | SecurityLevel::Maximum => TlsMode::Hybrid,
         }
     }
 
@@ -384,17 +384,15 @@ impl TlsPolicyEngine {
     ///
     /// | Security Level | Scheme |
     /// |---------------|--------|
-    /// | Maximum | pq-ml-kem-1024 |
+    /// | Standard | pq-ml-kem-512 |
     /// | High | pq-ml-kem-768 |
-    /// | Medium | pq-ml-kem-768 |
-    /// | Low | pq-ml-kem-512 |
+    /// | Maximum/Quantum | pq-ml-kem-1024 |
     #[must_use]
     pub fn select_pq_scheme(level: SecurityLevel) -> &'static str {
         match level {
-            SecurityLevel::Maximum => PQ_TLS_1024,
+            SecurityLevel::Standard => PQ_TLS_512,
             SecurityLevel::High => PQ_TLS_768,
-            SecurityLevel::Medium => PQ_TLS_768,
-            SecurityLevel::Low => PQ_TLS_512,
+            SecurityLevel::Maximum | SecurityLevel::Quantum => PQ_TLS_1024,
         }
     }
 
@@ -404,10 +402,9 @@ impl TlsPolicyEngine {
     #[must_use]
     pub fn select_pq_kex(level: SecurityLevel) -> &'static str {
         match level {
-            SecurityLevel::Maximum => "MLKEM1024",
+            SecurityLevel::Standard => "MLKEM512",
             SecurityLevel::High => "MLKEM768",
-            SecurityLevel::Medium => "MLKEM768",
-            SecurityLevel::Low => "MLKEM512",
+            SecurityLevel::Maximum | SecurityLevel::Quantum => "MLKEM1024",
         }
     }
 
@@ -419,17 +416,15 @@ impl TlsPolicyEngine {
     ///
     /// | Security Level | Scheme |
     /// |---------------|--------|
-    /// | Maximum | hybrid-x25519-ml-kem-1024 |
+    /// | Standard | hybrid-x25519-ml-kem-512 |
     /// | High | hybrid-x25519-ml-kem-768 |
-    /// | Medium | hybrid-x25519-ml-kem-768 |
-    /// | Low | hybrid-x25519-ml-kem-512 |
+    /// | Maximum/Quantum | hybrid-x25519-ml-kem-1024 |
     #[must_use]
     pub fn select_hybrid_scheme(level: SecurityLevel) -> &'static str {
         match level {
-            SecurityLevel::Maximum => HYBRID_TLS_1024,
+            SecurityLevel::Standard => HYBRID_TLS_512,
             SecurityLevel::High => HYBRID_TLS_768,
-            SecurityLevel::Medium => HYBRID_TLS_768,
-            SecurityLevel::Low => HYBRID_TLS_512,
+            SecurityLevel::Maximum | SecurityLevel::Quantum => HYBRID_TLS_1024,
         }
     }
 
@@ -439,10 +434,9 @@ impl TlsPolicyEngine {
     #[must_use]
     pub fn select_hybrid_kex(level: SecurityLevel) -> &'static str {
         match level {
-            SecurityLevel::Maximum => "X25519MLKEM1024",
+            SecurityLevel::Standard => "X25519MLKEM512",
             SecurityLevel::High => "X25519MLKEM768",
-            SecurityLevel::Medium => "X25519MLKEM768",
-            SecurityLevel::Low => "X25519MLKEM512",
+            SecurityLevel::Maximum | SecurityLevel::Quantum => "X25519MLKEM1024",
         }
     }
 
@@ -489,13 +483,13 @@ impl TlsPolicyEngine {
     #[must_use]
     pub fn select_balanced(security: SecurityLevel, performance: PerformancePreference) -> TlsMode {
         match (security, performance) {
-            // Maximum security always uses PQ regardless of performance
-            (SecurityLevel::Maximum, _) => TlsMode::Pq,
-            // Low security always uses Classic for best performance
-            (SecurityLevel::Low, _) => TlsMode::Classic,
-            // Speed preference with medium/high security uses Classic
-            (SecurityLevel::Medium, PerformancePreference::Speed) => TlsMode::Classic,
+            // Quantum: always PQ-only (no classical key exchange)
+            (SecurityLevel::Quantum, _) => TlsMode::Pq,
+            // All other levels: Hybrid for defense-in-depth
+            // Speed preference with Standard may prefer smaller keys but still Hybrid
+            (SecurityLevel::Standard, PerformancePreference::Speed) => TlsMode::Hybrid,
             (SecurityLevel::High, PerformancePreference::Speed) => TlsMode::Hybrid,
+            (SecurityLevel::Maximum, PerformancePreference::Speed) => TlsMode::Hybrid,
             // Memory preference uses Hybrid (PQ keys are larger but manageable)
             (_, PerformancePreference::Memory) => TlsMode::Hybrid,
             // Balanced preference defaults to Hybrid for future-proofing
@@ -537,8 +531,8 @@ impl TlsPolicyEngine {
             Self::select_balanced(ctx.security_level.clone(), ctx.performance_preference.clone())
         };
 
-        // Apply security level override for Maximum security
-        if ctx.security_level == SecurityLevel::Maximum && ctx.constraints.allows_pq() {
+        // Apply security level override for Quantum (PQ-only)
+        if ctx.security_level == SecurityLevel::Quantum && ctx.constraints.allows_pq() {
             return TlsMode::Pq;
         }
 
@@ -578,7 +572,7 @@ impl TlsPolicyEngine {
 
         // Apply security-related settings based on level
         match ctx.security_level {
-            SecurityLevel::Maximum => {
+            SecurityLevel::Quantum | SecurityLevel::Maximum => {
                 // Strictest settings
                 config.enable_early_data = false;
                 config.require_secure_renegotiation = true;
@@ -586,8 +580,8 @@ impl TlsPolicyEngine {
             SecurityLevel::High => {
                 config.require_secure_renegotiation = true;
             }
-            SecurityLevel::Medium | SecurityLevel::Low => {
-                // Allow more flexible settings
+            SecurityLevel::Standard => {
+                // Allow more flexible settings for resource-constrained devices
             }
         }
 
@@ -615,28 +609,38 @@ mod tests {
     }
 
     #[test]
+    fn test_select_by_security_level_quantum() {
+        // Quantum is PQ-only
+        assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Quantum), TlsMode::Pq);
+    }
+
+    #[test]
     fn test_select_by_security_level_maximum() {
-        assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum), TlsMode::Pq);
+        // Maximum is Hybrid (not PQ-only) for defense-in-depth
+        assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum), TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_select_by_security_level_low() {
-        assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Low), TlsMode::Classic);
+    fn test_select_by_security_level_standard() {
+        // Standard is Hybrid
+        assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Standard), TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_select_balanced_max_security() {
+    fn test_select_balanced_quantum_security() {
+        // Quantum always uses PQ-only
         assert_eq!(
-            TlsPolicyEngine::select_balanced(SecurityLevel::Maximum, PerformancePreference::Speed),
+            TlsPolicyEngine::select_balanced(SecurityLevel::Quantum, PerformancePreference::Speed),
             TlsMode::Pq
         );
     }
 
     #[test]
-    fn test_select_balanced_low_security() {
+    fn test_select_balanced_standard_security() {
+        // Standard uses Hybrid for defense-in-depth
         assert_eq!(
-            TlsPolicyEngine::select_balanced(SecurityLevel::Low, PerformancePreference::Balanced),
-            TlsMode::Classic
+            TlsPolicyEngine::select_balanced(SecurityLevel::Standard, PerformancePreference::Balanced),
+            TlsMode::Hybrid
         );
     }
 
@@ -677,8 +681,8 @@ mod tests {
     }
 
     #[test]
-    fn test_select_pq_scheme_low() {
-        assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Low), PQ_TLS_512);
+    fn test_select_pq_scheme_standard() {
+        assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Standard), PQ_TLS_512);
     }
 
     #[test]

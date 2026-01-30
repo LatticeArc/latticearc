@@ -117,7 +117,7 @@ impl CoreConfig {
     /// Not suitable for production use.
     #[must_use]
     pub fn for_development() -> Self {
-        Self::default().with_security_level(SecurityLevel::Low).with_strict_validation(false)
+        Self::default().with_security_level(SecurityLevel::Standard).with_strict_validation(false)
     }
 
     /// Create a configuration optimized for production.
@@ -620,7 +620,7 @@ impl UseCaseConfig {
 
             // IoT & Embedded: Resource-constrained
             UseCase::IoTDevice => CoreConfig::new()
-                .with_security_level(SecurityLevel::Medium)
+                .with_security_level(SecurityLevel::Standard)
                 .with_performance_preference(PerformancePreference::Memory),
             UseCase::FirmwareSigning => CoreConfig::new().with_security_level(SecurityLevel::High),
 

@@ -259,9 +259,9 @@ pub fn load_private_key(path: &str) -> Result<PrivateKeyDer<'static>, TlsError> 
 /// // Default: hybrid mode with PQ key exchange
 /// let connector = create_client_connector(&TlsConfig::new())?;
 ///
-/// // Classic mode (no PQ) via security level
-/// let classic_connector = create_client_connector(
-///     &TlsConfig::new().security_level(SecurityLevel::Low)
+/// // Standard security (NIST Level 1, Hybrid mode)
+/// let standard_connector = create_client_connector(
+///     &TlsConfig::new().security_level(SecurityLevel::Standard)
 /// )?;
 ///
 /// // mTLS: client presents certificate
@@ -469,15 +469,17 @@ mod tests {
     use arc_core::SecurityLevel;
 
     #[test]
-    fn test_config_info_classic() {
-        let config = TlsConfig::new().security_level(SecurityLevel::Low);
+    fn test_config_info_standard() {
+        // Standard uses Hybrid mode
+        let config = TlsConfig::new().security_level(SecurityLevel::Standard);
         let info = get_config_info(&config);
-        assert!(info.contains("Classic"));
-        assert!(info.contains("Not PQ secure"));
+        assert!(info.contains("Hybrid"));
+        assert!(info.contains("PQ secure"));
     }
 
     #[test]
     fn test_config_info_hybrid() {
+        // Default (High) uses Hybrid mode
         let config = TlsConfig::new();
         let info = get_config_info(&config);
         assert!(info.contains("Hybrid"));
@@ -486,7 +488,8 @@ mod tests {
 
     #[test]
     fn test_config_info_pq() {
-        let config = TlsConfig::new().security_level(SecurityLevel::Maximum);
+        // Quantum uses PQ-only mode
+        let config = TlsConfig::new().security_level(SecurityLevel::Quantum);
         let info = get_config_info(&config);
         assert!(info.contains("Post-quantum") || info.contains("PQ"));
     }

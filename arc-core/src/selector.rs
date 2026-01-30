@@ -77,14 +77,12 @@
 //!
 //! # Scheme Selection Matrix
 //!
-//! | Security Level | Performance Pref | Small Data (<4KB) | Large Data (≥4KB) |
-//! |----------------|------------------|-------------------|-------------------|
-//! | Maximum        | Any              | hybrid-ml-kem-1024| hybrid-ml-kem-1024|
-//! | High           | Any              | hybrid-ml-kem-1024| hybrid-ml-kem-1024|
-//! | Medium         | Speed            | aes-256-gcm       | hybrid-ml-kem-768 |
-//! | Medium         | Balanced/Security| hybrid-ml-kem-768 | hybrid-ml-kem-768 |
-//! | Low            | Speed            | aes-256-gcm       | hybrid-ml-kem-512 |
-//! | Low            | Balanced/Security| hybrid-ml-kem-512 | hybrid-ml-kem-512 |
+//! | Security Level | Mode      | Encryption               | Signatures              |
+//! |----------------|-----------|--------------------------|-------------------------|
+//! | Standard       | Hybrid    | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519    |
+//! | High           | Hybrid    | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519    |
+//! | Maximum        | Hybrid    | ML-KEM-1024 + AES-256-GCM| ML-DSA-87 + Ed25519    |
+//! | Quantum        | PQ-only   | ML-KEM-1024 + AES-256-GCM| ML-DSA-87              |
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
@@ -252,10 +250,9 @@ impl CryptoPolicyEngine {
     /// for future compatibility with validation logic.
     pub fn select_pq_encryption_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
-            SecurityLevel::Maximum => Ok(PQ_ENCRYPTION_1024.to_string()),
+            SecurityLevel::Standard => Ok(PQ_ENCRYPTION_512.to_string()),
             SecurityLevel::High => Ok(PQ_ENCRYPTION_768.to_string()),
-            SecurityLevel::Medium => Ok(PQ_ENCRYPTION_768.to_string()),
-            SecurityLevel::Low => Ok(PQ_ENCRYPTION_512.to_string()),
+            SecurityLevel::Maximum | SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
         }
     }
 
@@ -267,10 +264,9 @@ impl CryptoPolicyEngine {
     /// for future compatibility with validation logic.
     pub fn select_pq_signature_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
-            SecurityLevel::Maximum => Ok(PQ_SIGNATURE_87.to_string()),
+            SecurityLevel::Standard => Ok(PQ_SIGNATURE_44.to_string()),
             SecurityLevel::High => Ok(PQ_SIGNATURE_65.to_string()),
-            SecurityLevel::Medium => Ok(PQ_SIGNATURE_65.to_string()),
-            SecurityLevel::Low => Ok(PQ_SIGNATURE_44.to_string()),
+            SecurityLevel::Maximum | SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),
         }
     }
 
@@ -308,38 +304,18 @@ impl CryptoPolicyEngine {
         // Priority 2: Context-aware selection
         let characteristics = Self::analyze_data_characteristics(data);
 
-        match (&config.security_level, &config.performance_preference) {
-            // Maximum security: strongest hybrid
-            (SecurityLevel::Maximum, _) => Ok("hybrid-ml-kem-1024-aes-256-gcm".to_string()),
+        match &config.security_level {
+            // Quantum: PQ-only (no classical key exchange)
+            SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
 
-            // High security: standard hybrid
-            (SecurityLevel::High, _) => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
+            // Maximum: strongest hybrid
+            SecurityLevel::Maximum => Ok(HYBRID_ENCRYPTION_1024.to_string()),
 
-            // Medium with explicit speed preference on small data: allow classical
-            // User has explicitly opted for reduced security + speed, so classical is acceptable
-            (SecurityLevel::Medium, PerformancePreference::Speed)
-                if characteristics.size < CLASSICAL_FALLBACK_SIZE_THRESHOLD =>
-            {
-                tracing::debug!(
-                    data_size = characteristics.size,
-                    threshold = CLASSICAL_FALLBACK_SIZE_THRESHOLD,
-                    "Using classical-only encryption for small data with Medium security + Speed preference"
-                );
-                Ok("aes-256-gcm".to_string())
-            }
+            // High: standard hybrid (default)
+            SecurityLevel::High => Ok(HYBRID_ENCRYPTION_768.to_string()),
 
-            // Low with explicit speed preference: allow classical (no size threshold for Low)
-            // User has explicitly chosen lowest security, classical is acceptable
-            (SecurityLevel::Low, PerformancePreference::Speed) => {
-                tracing::debug!(
-                    data_size = characteristics.size,
-                    "Using classical-only encryption for Low security + Speed preference"
-                );
-                Ok("aes-256-gcm".to_string())
-            }
-
-            // Priority 3: Default to hybrid
-            _ => Ok(DEFAULT_ENCRYPTION_SCHEME.to_string()),
+            // Standard: lightweight hybrid for resource-constrained devices
+            SecurityLevel::Standard => Ok(HYBRID_ENCRYPTION_512.to_string()),
         }
     }
 
@@ -350,11 +326,14 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     pub fn select_signature_scheme(config: &CoreConfig) -> Result<String> {
-        match config.security_level.clone() {
-            SecurityLevel::Maximum => Ok("ml-dsa-87-ed25519".to_string()),
-            SecurityLevel::High => Ok("ml-dsa-65-ed25519".to_string()),
-            SecurityLevel::Medium => Ok("ml-dsa-44-ed25519".to_string()),
-            SecurityLevel::Low => Ok("ml-dsa-44-ed25519".to_string()),
+        match &config.security_level {
+            // Quantum: PQ-only signatures (no Ed25519)
+            SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),
+
+            // Hybrid signatures for all other levels
+            SecurityLevel::Maximum => Ok(HYBRID_SIGNATURE_87.to_string()),
+            SecurityLevel::High => Ok(HYBRID_SIGNATURE_65.to_string()),
+            SecurityLevel::Standard => Ok(HYBRID_SIGNATURE_44.to_string()),
         }
     }
 
@@ -372,46 +351,20 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     pub fn select_for_context(data: &[u8], config: &CoreConfig) -> Result<String> {
-        let characteristics = Self::analyze_data_characteristics(data);
+        let _characteristics = Self::analyze_data_characteristics(data);
 
-        match (&config.security_level, &config.performance_preference) {
-            // Maximum security: always use strongest hybrid
-            (SecurityLevel::Maximum, _) => Ok("hybrid-ml-kem-1024-aes-256-gcm".to_string()),
+        match &config.security_level {
+            // Quantum: PQ-only (no classical key exchange)
+            SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
 
-            // High security with speed preference on large data: use 768 variant
-            (SecurityLevel::High, PerformancePreference::Speed)
-                if characteristics.size > 1_048_576 =>
-            {
-                Ok("hybrid-ml-kem-768-aes-256-gcm".to_string())
-            }
-            (SecurityLevel::High, _) => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
+            // Maximum: strongest hybrid
+            SecurityLevel::Maximum => Ok(HYBRID_ENCRYPTION_1024.to_string()),
 
-            // Medium/Low with explicit speed preference on small random data: allow classical
-            (SecurityLevel::Medium, PerformancePreference::Speed)
-                if characteristics.size < CLASSICAL_FALLBACK_SIZE_THRESHOLD
-                    && matches!(characteristics.pattern_type, PatternType::Random) =>
-            {
-                tracing::debug!(
-                    data_size = characteristics.size,
-                    threshold = CLASSICAL_FALLBACK_SIZE_THRESHOLD,
-                    pattern = ?characteristics.pattern_type,
-                    "Context-aware: Using classical-only for small random data with Medium security + Speed"
-                );
-                Ok("aes-256-gcm".to_string())
-            }
-            (SecurityLevel::Low, PerformancePreference::Speed)
-                if characteristics.size < CLASSICAL_FALLBACK_SIZE_THRESHOLD =>
-            {
-                tracing::debug!(
-                    data_size = characteristics.size,
-                    threshold = CLASSICAL_FALLBACK_SIZE_THRESHOLD,
-                    "Context-aware: Using classical-only for small data with Low security + Speed"
-                );
-                Ok("aes-256-gcm".to_string())
-            }
+            // High: standard hybrid
+            SecurityLevel::High => Ok(HYBRID_ENCRYPTION_768.to_string()),
 
-            // Default: hybrid
-            _ => Ok(DEFAULT_ENCRYPTION_SCHEME.to_string()),
+            // Standard: lightweight hybrid
+            SecurityLevel::Standard => Ok(HYBRID_ENCRYPTION_512.to_string()),
         }
     }
 
