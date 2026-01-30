@@ -44,12 +44,16 @@ jobs:
 
       - name: Generate SBOM (JSON)
         run: |
-          cargo cyclonedx --all --format json --output-cdx sbom.cdx.json
+          cd latticearc
+          cargo cyclonedx --format json --override-filename sbom.cdx
+          cp sbom.cdx.json ../sbom.cdx.json
           echo "Generated CycloneDX SBOM (JSON format)"
 
       - name: Generate SBOM (XML)
         run: |
-          cargo cyclonedx --all --format xml --output-cdx sbom.cdx.xml
+          cd latticearc
+          cargo cyclonedx --format xml --override-filename sbom.cdx
+          cp sbom.cdx.xml ../sbom.cdx.xml
           echo "Generated CycloneDX SBOM (XML format)"
 
       - name: Validate SBOM
