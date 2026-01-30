@@ -807,7 +807,12 @@ impl From<rustls::Error> for TlsError {
         context.phase = phase;
         context.extra.insert("rustls_error".to_string(), err.to_string());
 
-        TlsError::Tls { message: err.to_string(), code, context: Box::new(context), recovery: Box::new(recovery) }
+        TlsError::Tls {
+            message: err.to_string(),
+            code,
+            context: Box::new(context),
+            recovery: Box::new(recovery),
+        }
     }
 }
 
@@ -875,7 +880,9 @@ mod tests {
             message: "PQ not available".to_string(),
             code: ErrorCode::PqNotAvailable,
             context: Box::new(context),
-            recovery: Box::new(RecoveryHint::Fallback { description: "Fall back to classical".to_string() }),
+            recovery: Box::new(RecoveryHint::Fallback {
+                description: "Fall back to classical".to_string(),
+            }),
         };
 
         assert!(err.supports_fallback());

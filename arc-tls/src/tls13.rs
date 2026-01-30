@@ -338,7 +338,10 @@ pub fn create_client_config(config: &Tls13Config) -> Result<ClientConfig, TlsErr
             issuer: None,
             code: crate::error::ErrorCode::CertificateParseError,
             context: Box::default(),
-            recovery: Box::new(crate::error::RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 }),
+            recovery: Box::new(crate::error::RecoveryHint::Retry {
+                max_attempts: 3,
+                backoff_ms: 1000,
+            }),
         });
     }
 

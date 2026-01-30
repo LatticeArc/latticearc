@@ -370,7 +370,9 @@ impl TlsPolicyEngine {
             // Quantum: PQ-only (no classical key exchange)
             SecurityLevel::Quantum => TlsMode::Pq,
             // All other levels: Hybrid (PQ + classical for defense-in-depth)
-            SecurityLevel::Standard | SecurityLevel::High | SecurityLevel::Maximum => TlsMode::Hybrid,
+            SecurityLevel::Standard | SecurityLevel::High | SecurityLevel::Maximum => {
+                TlsMode::Hybrid
+            }
         }
     }
 
@@ -617,13 +619,19 @@ mod tests {
     #[test]
     fn test_select_by_security_level_maximum() {
         // Maximum is Hybrid (not PQ-only) for defense-in-depth
-        assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum), TlsMode::Hybrid);
+        assert_eq!(
+            TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum),
+            TlsMode::Hybrid
+        );
     }
 
     #[test]
     fn test_select_by_security_level_standard() {
         // Standard is Hybrid
-        assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Standard), TlsMode::Hybrid);
+        assert_eq!(
+            TlsPolicyEngine::select_by_security_level(SecurityLevel::Standard),
+            TlsMode::Hybrid
+        );
     }
 
     #[test]
@@ -639,7 +647,10 @@ mod tests {
     fn test_select_balanced_standard_security() {
         // Standard uses Hybrid for defense-in-depth
         assert_eq!(
-            TlsPolicyEngine::select_balanced(SecurityLevel::Standard, PerformancePreference::Balanced),
+            TlsPolicyEngine::select_balanced(
+                SecurityLevel::Standard,
+                PerformancePreference::Balanced
+            ),
             TlsMode::Hybrid
         );
     }

@@ -121,7 +121,9 @@ fn test_pq_not_available_with_fallback() {
         message: "PQ not available".to_string(),
         code: ErrorCode::PqNotAvailable,
         context: Box::new(context),
-        recovery: Box::new(RecoveryHint::Fallback { description: "Fall back to classical".to_string() }),
+        recovery: Box::new(RecoveryHint::Fallback {
+            description: "Fall back to classical".to_string(),
+        }),
     };
 
     assert_eq!(err.code(), ErrorCode::PqNotAvailable);
