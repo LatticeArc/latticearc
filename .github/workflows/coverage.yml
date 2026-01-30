@@ -31,7 +31,9 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@20ccfe71ed8b7657e1fdfa52b27fa71015449980 # cargo-llvm-cov
+      uses: taiki-e/install-action@20ccfe71ed8b7657e1fdfa52b27fa71015449980 # main
+      with:
+        tool: cargo-llvm-cov
 
     - name: Install cargo-tarpaulin
       run: cargo install cargo-tarpaulin
@@ -86,7 +88,9 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@20ccfe71ed8b7657e1fdfa52b27fa71015449980 # cargo-llvm-cov
+      uses: taiki-e/install-action@20ccfe71ed8b7657e1fdfa52b27fa71015449980 # main
+      with:
+        tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
