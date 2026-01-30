@@ -59,7 +59,7 @@ jobs:
         cargo fmt --all -- --check
         END_TIME=$(date +%s)
         FMT_DURATION=$((END_TIME - START_TIME))
-        echo "fmt_duration_seconds $FMT_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/fmt
+        echo "fmt_duration_seconds $FMT_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/fmt || true
 
     - name: Enhanced Clippy lints (Rust 2024)
       run: |
@@ -79,7 +79,7 @@ jobs:
           -W clippy::implicit_clone
         END_TIME=$(date +%s)
         CLIPPY_DURATION=$((END_TIME - START_TIME))
-        echo "clippy_duration_seconds $CLIPPY_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/clippy
+        echo "clippy_duration_seconds $CLIPPY_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/clippy || true
 
     - name: Check documentation
       run: |
@@ -87,7 +87,7 @@ jobs:
         cargo doc --workspace --all-features --no-deps --document-private-items
         END_TIME=$(date +%s)
         DOC_DURATION=$((END_TIME - START_TIME))
-        echo "doc_duration_seconds $DOC_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/doc
+        echo "doc_duration_seconds $DOC_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/doc || true
 
   # === Multi-Platform Builds ===
   build:
@@ -132,7 +132,7 @@ jobs:
         cargo build --workspace --target ${{ matrix.target }} --release
         END_TIME=$(date +%s)
         BUILD_DURATION=$((END_TIME - START_TIME))
-        echo "build_duration_seconds $BUILD_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-build/instance/${{ github.run_id }}/target/${{ matrix.target }}/operation/workspace-build
+        echo "build_duration_seconds $BUILD_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-build/instance/${{ github.run_id }}/target/${{ matrix.target }}/operation/workspace-build || true
 
     - name: Test build artifacts
       run: |
@@ -140,7 +140,7 @@ jobs:
         cargo test --workspace --target ${{ matrix.target }} --release --no-run
         END_TIME=$(date +%s)
         ARTIFACT_TEST_DURATION=$((END_TIME - START_TIME))
-        echo "artifact_test_duration_seconds $ARTIFACT_TEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-build/instance/${{ github.run_id }}/target/${{ matrix.target }}/operation/artifact-test
+        echo "artifact_test_duration_seconds $ARTIFACT_TEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-build/instance/${{ github.run_id }}/target/${{ matrix.target }}/operation/artifact-test || true
 
   # === Security Scanning (Enhanced for Rust 2024) ===
   security:
@@ -206,7 +206,7 @@ jobs:
         cargo test --workspace --profile ${{ matrix.profile }} --all-features
         END_TIME=$(date +%s)
         TEST_DURATION=$((END_TIME - START_TIME))
-        echo "unit_test_duration_seconds $TEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/unit-test
+        echo "unit_test_duration_seconds $TEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/unit-test || true
 
     - name: Run integration tests
       run: |
@@ -214,7 +214,7 @@ jobs:
         cargo test --workspace --profile ${{ matrix.profile }} --all-features --test '*'
         END_TIME=$(date +%s)
         INTEGRATION_DURATION=$((END_TIME - START_TIME))
-        echo "integration_test_duration_seconds $INTEGRATION_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/integration-test
+        echo "integration_test_duration_seconds $INTEGRATION_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/integration-test || true
 
     - name: Run property-based tests
       run: |
@@ -222,7 +222,7 @@ jobs:
         cargo test --workspace --profile ${{ matrix.profile }} --all-features
         END_TIME=$(date +%s)
         PROPTEST_DURATION=$((END_TIME - START_TIME))
-        echo "property_test_duration_seconds $PROPTEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/property-test
+        echo "property_test_duration_seconds $PROPTEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/property-test || true
 
     - name: Formal verification (Apache)
       run: |
@@ -231,7 +231,7 @@ jobs:
         cargo kani --workspace --only-codegen
         END_TIME=$(date +%s)
         KANI_DURATION=$((END_TIME - START_TIME))
-        echo "formal_verification_duration_seconds $KANI_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/formal-verification
+        echo "formal_verification_duration_seconds $KANI_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/formal-verification || true
 
     - name: Generate coverage report
       if: matrix.profile == 'debug'
@@ -242,8 +242,8 @@ jobs:
         COVERAGE_DURATION=$((END_TIME - START_TIME))
         # Extract coverage percentage
         COVERAGE=$(grep -o '"covered_percent":[0-9.]*' lcov.info | head -1 | grep -o '[0-9.]*' || echo "0")
-        echo "coverage_generation_duration_seconds $COVERAGE_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/coverage-generation
-        echo "test_coverage_percent $COVERAGE" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/test-coverage
+        echo "coverage_generation_duration_seconds $COVERAGE_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/coverage-generation || true
+        echo "test_coverage_percent $COVERAGE" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/test-coverage || true
 
     - name: Upload coverage to Codecov
       if: matrix.profile == 'debug'
@@ -325,7 +325,7 @@ jobs:
         cargo bench --workspace --all-features
         END_TIME=$(date +%s)
         BENCH_DURATION=$((END_TIME - START_TIME))
-        echo "benchmark_duration_seconds $BENCH_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-performance/instance/${{ github.run_id }}/operation/benchmark-run
+        echo "benchmark_duration_seconds $BENCH_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-performance/instance/${{ github.run_id }}/operation/benchmark-run || true
 
     - name: Performance regression detection
       uses: benchmark-action/github-action-benchmark@v1
@@ -343,7 +343,7 @@ jobs:
         # Extract key performance metrics from benchmark results
         if [ -f target/criterion/reports/index.html ]; then
           # This is a simplified example - in practice you'd parse the HTML/JSON
-          echo "performance_test_completed 1" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-performance/instance/${{ github.run_id }}/operation/performance-metrics
+          echo "performance_test_completed 1" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-performance/instance/${{ github.run_id }}/operation/performance-metrics || true
         fi
 
   # === Documentation & Release ===
