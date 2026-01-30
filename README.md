@@ -119,7 +119,7 @@ let encrypted = encrypt(data, &key, CryptoConfig::new()
 |----------|------------|------------|
 | `FileStorage` | Hybrid (ML-KEM-1024 + AES-256-GCM) | Hybrid (ML-DSA-87 + Ed25519) |
 | `SecureMessaging` | Hybrid (ML-KEM-768 + AES-256-GCM) | Hybrid (ML-DSA-65 + Ed25519) |
-| `FinancialTransactions` | — | Hybrid (ML-DSA-65 + Ed25519) |
+| `FinancialTransactions` | Hybrid (ML-KEM-1024 + AES-256-GCM) | Hybrid (ML-DSA-87 + Ed25519) |
 | `IoTDevice` | Hybrid (ML-KEM-512 + AES-256-GCM) | Hybrid (ML-DSA-44 + Ed25519) |
 
 ### By Security Level
