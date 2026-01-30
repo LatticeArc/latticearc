@@ -16,9 +16,9 @@ readme.workspace = true
 workspace = true
 
 [dependencies]
-arc-primitives = { version = "0.1.0", path = "../arc-primitives" }
-arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
-arc-validation = { version = "0.1.0", path = "../arc-validation" }
+arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
+arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
+arc-validation = { version = "0.1.1", path = "../arc-validation" }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 

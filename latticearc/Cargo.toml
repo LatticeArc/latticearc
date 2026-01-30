@@ -17,13 +17,13 @@ workspace = true
 
 [dependencies]
 # Core crates - all always included
-arc-primitives = { version = "0.1.0", path = "../arc-primitives" }
-arc-core = { version = "0.1.0", path = "../arc-core" }
-arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
-arc-zkp = { version = "0.1.0", path = "../arc-zkp" }
-arc-hybrid = { version = "0.1.0", path = "../arc-hybrid" }
-arc-tls = { version = "0.1.0", path = "../arc-tls" }
-arc-perf = { version = "0.1.0", path = "../arc-perf" }
+arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
+arc-core = { version = "0.1.1", path = "../arc-core" }
+arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
+arc-zkp = { version = "0.1.1", path = "../arc-zkp" }
+arc-hybrid = { version = "0.1.1", path = "../arc-hybrid" }
+arc-tls = { version = "0.1.1", path = "../arc-tls" }
+arc-perf = { version = "0.1.1", path = "../arc-perf" }
 
 # Unified API dependencies
 zeroize = { workspace = true }

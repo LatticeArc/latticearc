@@ -16,9 +16,9 @@ categories = ["cryptography", "network-programming"]
 workspace = true
 
 [dependencies]
-arc-primitives = { path = "../arc-primitives", version = "0.1.0" }
-arc-core = { path = "../arc-core", version = "0.1.0" }
-arc-hybrid = { path = "../arc-hybrid", version = "0.1.0" }
+arc-primitives = { path = "../arc-primitives", version = "0.1.1" }
+arc-core = { path = "../arc-core", version = "0.1.1" }
+arc-hybrid = { path = "../arc-hybrid", version = "0.1.1" }
 rustls = { workspace = true }
 rustls-post-quantum = { workspace = true }
 thiserror = { workspace = true }

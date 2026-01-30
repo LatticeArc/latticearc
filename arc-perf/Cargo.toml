@@ -17,7 +17,7 @@ workspace = true
 
 [dependencies]
 # Core dependencies
-arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
+arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
 
 [dev-dependencies]
 criterion = { workspace = true }

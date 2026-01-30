@@ -21,8 +21,8 @@ default = []
 fips-self-test = []
 
 [dependencies]
-arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
-arc-validation = { version = "0.1.0", path = "../arc-validation" }
+arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
+arc-validation = { version = "0.1.1", path = "../arc-validation" }
 
 # Post-Quantum Cryptography - FIPS 140-3 validated via aws-lc-rs
 # ML-KEM (FIPS 203) uses aws-lc-rs for FIPS certification
