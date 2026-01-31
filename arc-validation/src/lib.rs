@@ -24,6 +24,7 @@ pub mod format;
 pub mod input;
 pub mod kat_tests;
 pub mod nist_functions;
+pub mod nist_kat;
 pub mod nist_sp800_22;
 pub mod output;
 pub mod proptest_crypto;

@@ -279,7 +279,9 @@ pub fn kat_sha256() -> Result<()> {
         0x15, 0xad,
     ];
 
-    let result = sha256(INPUT);
+    let result = sha256(INPUT).map_err(|e| LatticeArcError::ValidationError {
+        message: format!("SHA-256 KAT: hash computation failed: {}", e),
+    })?;
 
     // Constant-time comparison to prevent timing attacks
     if bool::from(result.ct_eq(&EXPECTED)) {
