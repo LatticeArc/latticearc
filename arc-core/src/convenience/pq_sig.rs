@@ -95,9 +95,11 @@ fn verify_pq_ml_dsa_internal(
         CoreError::InvalidInput(format!("Invalid ML-DSA signature: {}", e))
     })?;
 
-    let result = arc_primitives::sig::ml_dsa::verify(&pk, message, &sig, &[])
-        .map(|_| true)
-        .map_err(|_e| CoreError::VerificationFailed);
+    let result = match arc_primitives::sig::ml_dsa::verify(&pk, message, &sig, &[]) {
+        Ok(true) => Ok(true),
+        Ok(false) => Err(CoreError::VerificationFailed),
+        Err(e) => Err(CoreError::InvalidInput(format!("ML-DSA verification error: {}", e))),
+    };
 
     match &result {
         Ok(valid) => {
@@ -164,10 +166,11 @@ fn verify_pq_slh_dsa_internal(
         CoreError::InvalidInput(format!("Invalid SLH-DSA public key: {}", e))
     })?;
 
-    let result = pk
-        .verify(message, signature, Some(b"context"))
-        .map(|_| true)
-        .map_err(|_e| CoreError::VerificationFailed);
+    let result = match pk.verify(message, signature, Some(b"context")) {
+        Ok(true) => Ok(true),
+        Ok(false) => Err(CoreError::VerificationFailed),
+        Err(e) => Err(CoreError::InvalidInput(format!("SLH-DSA verification error: {}", e))),
+    };
 
     match &result {
         Ok(valid) => {
@@ -246,7 +249,11 @@ fn verify_pq_fn_dsa_internal(message: &[u8], signature: &[u8], fn_dsa_pk: &[u8])
         CoreError::InvalidInput(format!("Invalid FN-DSA signature: {}", e))
     })?;
 
-    let result = pk.verify(message, &sig).map(|_| true).map_err(|_e| CoreError::VerificationFailed);
+    let result = match pk.verify(message, &sig) {
+        Ok(true) => Ok(true),
+        Ok(false) => Err(CoreError::VerificationFailed),
+        Err(e) => Err(CoreError::InvalidInput(format!("FN-DSA verification error: {}", e))),
+    };
 
     match &result {
         Ok(valid) => {
