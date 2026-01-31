@@ -351,14 +351,3 @@ pub use arc_tls::{
     TlsConfig, TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, tls_accept,
     tls_connect,
 };
-
-/// Unified API module providing main cryptographic functionality.
-///
-/// All functions in this module use `CryptoConfig` to control algorithm selection
-/// and optional Zero Trust verification.
-pub mod unified_api {
-    pub use super::{
-        CryptoConfig, SecurityLevel, TrustLevel, UseCase, VerifiedSession, decrypt, decrypt_hybrid,
-        derive_key, encrypt, encrypt_hybrid, generate_keypair, hash_data, hmac, sign, verify,
-    };
-}
