@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.93%2B-orange.svg)](https://www.rust-lang.org/)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/LatticeArc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/LatticeArc/latticearc)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11857/badge)](https://www.bestpractices.dev/projects/11857)
 
 LatticeArc is a post-quantum cryptography library for Rust, implementing the NIST FIPS 203-206 standards for quantum-resistant encryption and digital signatures.
 
