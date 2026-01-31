@@ -1,0 +1,17 @@
+# CODEOWNERS - Define code ownership for review requirements
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+* @LatticeArc/maintainers
+
+# Cryptographic code requires security review
+/arc-primitives/ @LatticeArc/security-team
+/arc-core/ @LatticeArc/security-team
+/arc-hybrid/ @LatticeArc/security-team
+
+# Security-sensitive files
+SECURITY.md @LatticeArc/security-team
+/arc-fuzz/ @LatticeArc/security-team
+
+# CI/CD workflows
+/.github/workflows/ @LatticeArc/maintainers
