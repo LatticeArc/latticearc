@@ -1,12 +1,34 @@
 # LatticeArc Architecture
 
-This document describes the architecture of LatticeArc, a post-quantum cryptography library with intelligent scheme selection, zero-trust authentication, and hardware acceleration.
+This document describes the architecture of LatticeArc, a post-quantum cryptography library with intelligent scheme selection and zero-trust authentication framework.
+
+## Open Source vs Enterprise
+
+LatticeArc is available in two editions:
+
+| Feature | Apache (Open Source) | Enterprise |
+|---------|---------------------|------------|
+| Core PQC primitives (ML-KEM, ML-DSA, SLH-DSA, FN-DSA) | ✅ | ✅ |
+| Hybrid encryption (PQ + Classical) | ✅ | ✅ |
+| Post-quantum TLS 1.3 | ✅ | ✅ |
+| Scheme selection by use case | ✅ | ✅ |
+| Zero-trust authentication framework | ✅ | ✅ |
+| Hardware capability detection | ✅ | ✅ |
+| **Adaptive hardware routing** | ❌ | ✅ |
+| **ML-based attack detection** | ❌ | ✅ |
+| **Self-healing security (auto key rotation)** | ❌ | ✅ |
+| **Continuous trust verification** | ❌ | ✅ |
+| **Per-operation policy enforcement** | ❌ | ✅ |
+| **Runtime performance optimization** | ❌ | ✅ |
+| **Graceful degradation system** | ❌ | ✅ |
+
+> **Note**: This document covers the Apache (open source) edition. Enterprise features are marked with 🔒.
 
 ## Design Principles
 
 1. **Security First**: Defense-in-depth with hybrid PQ+classical, constant-time operations, memory safety
-2. **Intelligent Defaults**: Auto-selection based on data, use case, and hardware
-3. **Zero Trust**: Challenge-response authentication with ZKP at every operation
+2. **Hybrid by Default**: All encryption uses PQ + classical algorithms—no classical-only paths exposed
+3. **Zero Trust Framework**: Challenge-response authentication with ZKP support
 4. **Modularity**: Use only what you need, from high-level to low-level APIs
 5. **FIPS Compliance**: NIST FIPS 203-206 compliant implementations
 
@@ -73,44 +95,45 @@ graph TB
 
 ## API Abstraction Levels
 
-LatticeArc provides three abstraction levels:
+LatticeArc provides multiple abstraction levels:
 
 ```mermaid
 graph LR
-    subgraph "Level 1: Simple"
+    subgraph "Level 1: Simple (Apache)"
         L1[encrypt/decrypt<br/>sign/verify]
     end
 
-    subgraph "Level 2: Use Case"
+    subgraph "Level 2: Use Case (Apache)"
         L2[CryptoPolicyEngine<br/>recommend_scheme]
     end
 
-    subgraph "Level 3: Context-Aware"
-        L3[CryptoPolicyEngine<br/>adaptive_selection]
-    end
-
-    subgraph "Level 4: Primitives"
-        L4[ML-KEM/ML-DSA<br/>AES-GCM/Ed25519]
+    subgraph "Level 3: Primitives (Apache)"
+        L3[ML-KEM/ML-DSA<br/>AES-GCM/Ed25519]
     end
 
     L1 -->|"uses"| L2
     L2 -->|"uses"| L3
-    L3 -->|"uses"| L4
 
     classDef simple fill:#4a90d9,stroke:#333,color:#fff
     classDef usecase fill:#50c878,stroke:#333,color:#fff
-    classDef context fill:#f5a623,stroke:#333,color:#fff
     classDef primitive fill:#9b59b6,stroke:#333,color:#fff
 
     class L1 simple
     class L2 usecase
-    class L3 context
-    class L4 primitive
+    class L3 primitive
 ```
+
+| Level | Apache | Enterprise |
+|-------|--------|------------|
+| **Level 1: Simple** | `encrypt()`, `decrypt()`, `sign()`, `verify()` | Same + session-aware variants |
+| **Level 2: Use Case** | `recommend_scheme()` by security level/use case | Same |
+| **Level 3: Primitives** | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-GCM | Same |
+| **Level 4: Adaptive** | ❌ | 🔒 Runtime performance tracking, hardware routing |
+| **Level 5: Self-Healing** | ❌ | 🔒 Attack detection, auto key rotation, graceful degradation |
 
 ## Scheme Selection Flow
 
-The CryptoPolicyEngine analyzes data and configuration to select optimal schemes:
+The CryptoPolicyEngine analyzes configuration to select optimal hybrid schemes:
 
 ```mermaid
 flowchart TD
@@ -118,30 +141,17 @@ flowchart TD
     INPUT --> USECASE{Use case<br/>specified?}
 
     USECASE -->|Yes| RECOMMEND[recommend_scheme<br/>for use case]
-    USECASE -->|No| ANALYZE[analyze_data_characteristics]
+    USECASE -->|No| SECLEVEL{Security Level?}
 
-    ANALYZE --> ENTROPY[Calculate entropy]
-    ANALYZE --> PATTERN[Detect pattern type]
-    ANALYZE --> SIZE[Measure size]
+    SECLEVEL -->|Maximum/Quantum| MAX[hybrid-ml-kem-1024]
+    SECLEVEL -->|High| HIGH[hybrid-ml-kem-768]
+    SECLEVEL -->|Standard| STD[hybrid-ml-kem-512]
+    SECLEVEL -->|Default| DEFAULT[hybrid-ml-kem-768]
 
-    ENTROPY --> CONTEXT{Security Level?}
-    PATTERN --> CONTEXT
-    SIZE --> CONTEXT
-
-    CONTEXT -->|Maximum| MAX[hybrid-ml-kem-1024]
-    CONTEXT -->|High| HIGH[hybrid-ml-kem-768]
-    CONTEXT -->|Medium + Speed| MEDSPEED{Size < 4KB?}
-    CONTEXT -->|Low + Speed| LOWSPEED[aes-256-gcm]
-    CONTEXT -->|Default| DEFAULT[hybrid-ml-kem-768]
-
-    MEDSPEED -->|Yes| CLASSICAL[aes-256-gcm]
-    MEDSPEED -->|No| DEFAULT
-
-    RECOMMEND --> OUTPUT[/"Selected Scheme"/]
+    RECOMMEND --> OUTPUT[/"Selected Hybrid Scheme"/]
     MAX --> OUTPUT
     HIGH --> OUTPUT
-    CLASSICAL --> OUTPUT
-    LOWSPEED --> OUTPUT
+    STD --> OUTPUT
     DEFAULT --> OUTPUT
 
     OUTPUT --> END([End])
@@ -150,14 +160,18 @@ flowchart TD
     classDef process fill:#4a90d9,stroke:#333,color:#fff
     classDef terminal fill:#50c878,stroke:#333,color:#fff
 
-    class USECASE,CONTEXT,MEDSPEED decision
-    class ANALYZE,ENTROPY,PATTERN,SIZE,RECOMMEND,MAX,HIGH,CLASSICAL,LOWSPEED,DEFAULT process
+    class USECASE,SECLEVEL decision
+    class RECOMMEND,MAX,HIGH,STD,DEFAULT process
     class START,END,INPUT,OUTPUT terminal
 ```
 
+> **Note**: All schemes are hybrid (PQ + Classical). Classical-only encryption is not exposed in the public API.
+>
+> 🔒 **Enterprise Feature**: Adaptive scheme selection based on data characteristics, entropy analysis, and runtime performance metrics is available in LatticeArc Enterprise.
+
 ## Zero-Trust Authentication Flow
 
-Challenge-response authentication with zero-knowledge proofs:
+Challenge-response authentication framework with zero-knowledge proofs:
 
 ```mermaid
 sequenceDiagram
@@ -183,19 +197,44 @@ sequenceDiagram
     alt Proof Valid
         S->>S: Update last_verification
         S-->>C: Session established
-
-        Note over C,V: Continuous Verification
-        loop Every verification_interval_ms
-            S->>S: verify_continuously()
-            alt Status == Pending
-                S->>C: Reauthentication required
-                C->>S: New proof
-            end
-        end
     else Proof Invalid
         S-->>C: Authentication failed
     end
 ```
+
+> **Apache Edition**: Provides the zero-trust authentication framework including challenge generation, proof creation, and verification. Applications integrate these primitives into their authentication flows.
+
+🔒 **Enterprise Feature: Continuous Trust Verification**
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    participant P as Policy Engine
+    participant A as Audit Log
+
+    Note over C,A: Per-Operation Enforcement (Enterprise)
+    C->>S: Crypto operation request
+    S->>P: Check operation policy
+    P->>P: Evaluate trust score
+    alt Trust Score Sufficient
+        P-->>S: Approved
+        S->>S: Execute operation
+        S->>A: Log operation
+        S-->>C: Result
+    else Trust Degraded
+        P-->>S: Re-auth required
+        S-->>C: Challenge
+        C->>S: New proof
+        S->>P: Update trust score
+    end
+```
+
+Enterprise edition provides:
+- **Per-operation policy enforcement**: Every crypto operation checked against access policies
+- **Continuous trust verification**: Dynamic trust scoring with automatic reauthentication
+- **W3C DID integration**: Decentralized identity resolution (did:key, did:web)
+- **Cryptographic audit trails**: Compliance-ready operation logging
 
 ## Proof Complexity Levels
 
@@ -230,11 +269,48 @@ graph TD
     class L_OUT,M_OUT,H_OUT output
 ```
 
-## Hardware Detection and Routing
+## Hardware Detection
+
+The Apache edition detects hardware capabilities for informational purposes:
 
 ```mermaid
 flowchart TD
-    subgraph "HardwareRouter"
+    subgraph "HardwareRouter (Apache)"
+        DETECT[detect_hardware]
+        CACHE[(Detection Cache)]
+        CAPS_OUT[Return Capabilities]
+    end
+
+    subgraph "Detected Capabilities"
+        CAPS[HardwareCapabilities]
+        SIMD[simd_support]
+        AESNI[aes_ni]
+        THREADS[thread_count]
+        MEM[memory]
+    end
+
+    DETECT --> CACHE
+    CACHE --> CAPS_OUT
+
+    CAPS --> SIMD
+    CAPS --> AESNI
+    CAPS --> THREADS
+    CAPS --> MEM
+
+    classDef router fill:#4a90d9,stroke:#333,color:#fff
+    classDef caps fill:#f5a623,stroke:#333,color:#fff
+
+    class DETECT,CACHE,CAPS_OUT router
+    class CAPS,SIMD,AESNI,THREADS,MEM caps
+```
+
+> **Apache Edition**: Detects CPU features (SIMD, AES-NI, thread count, memory) but executes all operations on the CPU. Useful for diagnostics and compatibility checks.
+
+🔒 **Enterprise Feature: Adaptive Hardware Routing**
+
+```mermaid
+flowchart TD
+    subgraph "HardwareRouter (Enterprise)"
         DETECT[detect_hardware]
         CACHE[(Detection Cache)]
         SELECT[select_best_accelerator]
@@ -247,14 +323,6 @@ flowchart TD
         FPGA[FpgaAccelerator<br/>Xilinx/Altera]
         TPM[TpmAccelerator<br/>Hardware Keys]
         SGX[SgxAccelerator<br/>Secure Enclave]
-    end
-
-    subgraph "Capabilities"
-        CAPS[HardwareCapabilities]
-        SIMD[simd_support]
-        AESNI[aes_ni]
-        THREADS[thread_count]
-        MEM[memory]
     end
 
     DETECT --> CACHE
@@ -271,21 +339,23 @@ flowchart TD
     TPM --> ROUTE
     SGX --> ROUTE
 
-    CAPS --> SIMD
-    CAPS --> AESNI
-    CAPS --> THREADS
-    CAPS --> MEM
-
     classDef router fill:#4a90d9,stroke:#333,color:#fff
     classDef accel fill:#50c878,stroke:#333,color:#fff
-    classDef caps fill:#f5a623,stroke:#333,color:#fff
+    classDef enterprise fill:#e74c3c,stroke:#333,color:#fff
 
     class DETECT,CACHE,SELECT,ROUTE router
     class CPU,GPU,FPGA,TPM,SGX accel
-    class CAPS,SIMD,AESNI,THREADS,MEM caps
 ```
 
+Enterprise edition dynamically routes cryptographic operations to the optimal hardware accelerator based on:
+- Data size and characteristics
+- Hardware availability and capabilities
+- Runtime performance metrics
+- Security requirements (e.g., HSM for key storage)
+
 ## Encryption Data Flow
+
+All encryption in LatticeArc uses hybrid mode (PQ + Classical) for defense-in-depth:
 
 ```mermaid
 flowchart LR
@@ -297,16 +367,12 @@ flowchart LR
 
     subgraph "Selection"
         SEL[CryptoPolicyEngine]
-        SCHEME{Scheme?}
+        LEVEL{Security<br/>Level?}
     end
 
-    subgraph "Hybrid Path"
+    subgraph "Hybrid Encryption"
         KEM[ML-KEM<br/>Encapsulate]
-        AEAD_H[AES-256-GCM<br/>Encrypt]
-    end
-
-    subgraph "Classical Path"
-        AEAD_C[AES-256-GCM<br/>Encrypt]
+        AEAD[AES-256-GCM<br/>Encrypt]
     end
 
     subgraph "Output"
@@ -317,15 +383,14 @@ flowchart LR
     DATA --> SEL
     KEY --> SEL
     CFG --> SEL
-    SEL --> SCHEME
+    SEL --> LEVEL
 
-    SCHEME -->|Hybrid| KEM
-    KEM --> AEAD_H
-    AEAD_H --> CT
+    LEVEL -->|Maximum| KEM
+    LEVEL -->|High| KEM
+    LEVEL -->|Standard| KEM
 
-    SCHEME -->|Classical| AEAD_C
-    AEAD_C --> CT
-
+    KEM --> AEAD
+    AEAD --> CT
     CT --> META
 
     classDef input fill:#4a90d9,stroke:#333,color:#fff
@@ -334,10 +399,12 @@ flowchart LR
     classDef output fill:#9b59b6,stroke:#333,color:#fff
 
     class DATA,KEY,CFG input
-    class SEL,SCHEME select
-    class KEM,AEAD_H,AEAD_C crypto
+    class SEL,LEVEL select
+    class KEM,AEAD crypto
     class CT,META output
 ```
+
+> **Security Note**: LatticeArc does not expose classical-only encryption. All data is protected by both post-quantum (ML-KEM) and classical (AES-256-GCM) algorithms, ensuring security even if one algorithm is compromised.
 
 ## Crate Descriptions
 
@@ -563,6 +630,113 @@ graph LR
     class COV metric
     class CI ci
 ```
+
+## 🔒 Enterprise Features
+
+LatticeArc Enterprise extends the open source core with advanced security capabilities:
+
+### Self-Healing Cryptographic Security
+
+```mermaid
+flowchart TD
+    subgraph "Detection"
+        MON[Runtime Monitor]
+        ML[ML-based Anomaly Detection<br/>K-Means Clustering]
+        CVE[CVE Database Integration<br/>NVD API]
+    end
+
+    subgraph "Response"
+        ROTATE[Automatic Key Rotation]
+        PATCH[Vulnerability Patching]
+        DEGRADE[Graceful Degradation]
+    end
+
+    subgraph "Levels"
+        FULL[Full Security]
+        DEG[Degraded Mode]
+        EMERG[Emergency Mode]
+    end
+
+    MON --> ML
+    MON --> CVE
+    ML -->|Anomaly| ROTATE
+    CVE -->|Vulnerability| PATCH
+    ROTATE --> DEGRADE
+    PATCH --> DEGRADE
+    DEGRADE --> FULL
+    DEGRADE --> DEG
+    DEGRADE --> EMERG
+
+    classDef detect fill:#4a90d9,stroke:#333,color:#fff
+    classDef respond fill:#e74c3c,stroke:#333,color:#fff
+    classDef level fill:#50c878,stroke:#333,color:#fff
+
+    class MON,ML,CVE detect
+    class ROTATE,PATCH,DEGRADE respond
+    class FULL,DEG,EMERG level
+```
+
+- **Attack Detection**: ML-based anomaly detection using K-Means clustering (< 100ms latency)
+- **Auto-Remediation**: Automatic key rotation and algorithm switching on vulnerability detection
+- **Graceful Degradation**: Multi-level fallback (Full → Degraded → Emergency) with security guarantees
+
+### Adaptive Algorithm Selection
+
+```mermaid
+flowchart LR
+    subgraph "Analysis"
+        DATA[Data Characteristics]
+        HW[Hardware Capabilities]
+        PERF[Runtime Metrics]
+    end
+
+    subgraph "Selection Engine"
+        ENGINE[Adaptive Selector]
+    end
+
+    subgraph "Execution"
+        CPU[CPU<br/>AES-NI/SIMD]
+        GPU[GPU<br/>CUDA/OpenCL]
+        HSM[HSM/TPM<br/>Key Storage]
+    end
+
+    DATA --> ENGINE
+    HW --> ENGINE
+    PERF --> ENGINE
+    ENGINE --> CPU
+    ENGINE --> GPU
+    ENGINE --> HSM
+
+    classDef analysis fill:#4a90d9,stroke:#333,color:#fff
+    classDef engine fill:#f5a623,stroke:#333,color:#fff
+    classDef exec fill:#50c878,stroke:#333,color:#fff
+
+    class DATA,HW,PERF analysis
+    class ENGINE engine
+    class CPU,GPU,HSM exec
+```
+
+- **Data-Aware Selection**: Entropy analysis, pattern detection, size optimization
+- **Hardware Routing**: Automatic dispatch to CPU/GPU/HSM based on capability and availability
+- **Performance Feedback**: Runtime metrics inform future algorithm selection
+
+### Zero-Trust at Operation Level
+
+- **Per-Operation Policy**: Every cryptographic operation evaluated against access policies
+- **W3C DID Integration**: Decentralized identity with did:key, did:web resolution
+- **Continuous Verification**: Dynamic trust scoring with automatic reauthentication triggers
+- **Compliance Audit Trails**: Cryptographic-level logging for regulatory compliance
+
+### Performance Targets
+
+| Metric | Target |
+|--------|--------|
+| Attack detection latency | < 100ms |
+| Vulnerability patching | < 500ms |
+| Threat prediction accuracy | > 85% |
+| Degradation trigger | < 50ms |
+
+For Enterprise licensing, contact: enterprise@latticearc.com
 
 ## References
 
