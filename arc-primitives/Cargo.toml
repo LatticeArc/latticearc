@@ -36,7 +36,6 @@ fn-dsa = { workspace = true }   # FN-DSA (FIPS 206)
 
 # Classical Cryptography - Block ciphers (FIPS: AES)
 aes = { workspace = true }
-ctr = { workspace = true }
 
 # Hashing (FIPS: SHA-2, SHA-3)
 sha2 = { workspace = true }
@@ -61,9 +60,6 @@ chrono = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
-
-# Parallel processing
-rayon = { workspace = true }
 
 # Core cryptographic dependencies
 rand = { workspace = true }
