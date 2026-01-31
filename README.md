@@ -1,10 +1,9 @@
 # LatticeArc
 
-[![Crates.io](https://img.shields.io/crates/v/latticearc.svg)](https://crates.io/crates/latticearc)
-[![Documentation](https://docs.rs/latticearc/badge.svg)](https://docs.rs/latticearc)
+> **Evaluation Phase**: This project is currently in active development and evaluation. APIs may change without notice. Not recommended for production use yet.
+
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.93%2B-orange.svg)](https://www.rust-lang.org/)
-[![Coverage](https://img.shields.io/badge/coverage-62%25-yellow.svg)](docs/TEST_COVERAGE_REPORT.md)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/LatticeArc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/LatticeArc/latticearc)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11857/badge)](https://www.bestpractices.dev/projects/11857)
 
