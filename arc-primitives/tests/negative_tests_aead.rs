@@ -16,7 +16,7 @@
 use arc_primitives::aead::{
     AeadCipher, AeadError,
     aes_gcm::{AesGcm128, AesGcm256},
-    chacha20poly1305::ChaCha20Poly1305,
+    chacha20poly1305::ChaCha20Poly1305Cipher,
 };
 
 // ============================================================================
@@ -33,7 +33,7 @@ fn test_aes_gcm_128_empty_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -47,7 +47,7 @@ fn test_aes_gcm_128_short_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -61,7 +61,7 @@ fn test_aes_gcm_128_15_byte_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -75,7 +75,7 @@ fn test_aes_gcm_128_17_byte_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -99,7 +99,7 @@ fn test_aes_gcm_128_decrypt_corrupted_tag() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error - authentication failure
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -125,7 +125,7 @@ fn test_aes_gcm_128_decrypt_corrupted_ciphertext() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error - authentication failure
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -148,7 +148,7 @@ fn test_aes_gcm_128_decrypt_wrong_nonce() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error - authentication failure
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -172,7 +172,7 @@ fn test_aes_gcm_128_decrypt_empty_ciphertext_corrupted_tag() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -190,7 +190,7 @@ fn test_aes_gcm_256_empty_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -204,7 +204,7 @@ fn test_aes_gcm_256_short_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -218,7 +218,7 @@ fn test_aes_gcm_256_31_byte_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -232,7 +232,7 @@ fn test_aes_gcm_256_33_byte_key() {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
@@ -256,7 +256,7 @@ fn test_aes_gcm_256_decrypt_corrupted_tag() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -280,7 +280,7 @@ fn test_aes_gcm_256_decrypt_all_zeros_tag() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -291,65 +291,65 @@ fn test_aes_gcm_256_decrypt_all_zeros_tag() {
 #[test]
 fn test_chacha20_poly1305_empty_key() {
     let empty_key = [];
-    let result = ChaCha20Poly1305::new(&empty_key);
+    let result = ChaCha20Poly1305Cipher::new(&empty_key);
     assert!(result.is_err(), "Should fail with empty key");
 
     match result {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
 #[test]
 fn test_chacha20_poly1305_short_key() {
     let short_key = [0u8; 16]; // Need 32 bytes
-    let result = ChaCha20Poly1305::new(&short_key);
+    let result = ChaCha20Poly1305Cipher::new(&short_key);
     assert!(result.is_err(), "Should fail with short key");
 
     match result {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
 #[test]
 fn test_chacha20_poly1305_31_byte_key() {
     let key = [0u8; 31]; // One byte short
-    let result = ChaCha20Poly1305::new(&key);
+    let result = ChaCha20Poly1305Cipher::new(&key);
     assert!(result.is_err(), "Should fail with 31-byte key");
 
     match result {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
 #[test]
 fn test_chacha20_poly1305_33_byte_key() {
     let key = [0u8; 33]; // One byte too long
-    let result = ChaCha20Poly1305::new(&key);
+    let result = ChaCha20Poly1305Cipher::new(&key);
     assert!(result.is_err(), "Should fail with 33-byte key");
 
     match result {
         Err(AeadError::InvalidKeyLength) => {
             // Expected error
         }
-        _ => panic!("Expected InvalidKeyLength error, got {:?}", result),
+        _ => panic!("Expected InvalidKeyLength error"),
     }
 }
 
 #[test]
 fn test_chacha20_poly1305_decrypt_corrupted_tag() {
     let key = [0u8; 32];
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
-    let nonce = ChaCha20Poly1305::generate_nonce();
+    let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"secret message";
     let (ciphertext, mut tag) =
         cipher.encrypt(&nonce, plaintext, None).expect("encryption should succeed");
@@ -364,16 +364,16 @@ fn test_chacha20_poly1305_decrypt_corrupted_tag() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
 #[test]
 fn test_chacha20_poly1305_decrypt_corrupted_ciphertext() {
     let key = [0u8; 32];
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
-    let nonce = ChaCha20Poly1305::generate_nonce();
+    let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"secret message with sufficient length";
     let (mut ciphertext, tag) =
         cipher.encrypt(&nonce, plaintext, None).expect("encryption should succeed");
@@ -390,7 +390,7 @@ fn test_chacha20_poly1305_decrypt_corrupted_ciphertext() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -399,10 +399,10 @@ fn test_chacha20_poly1305_decrypt_wrong_key() {
     let key1 = [0x00u8; 32];
     let key2 = [0xFFu8; 32];
 
-    let cipher1 = ChaCha20Poly1305::new(&key1).expect("cipher creation should succeed");
-    let cipher2 = ChaCha20Poly1305::new(&key2).expect("cipher creation should succeed");
+    let cipher1 = ChaCha20Poly1305Cipher::new(&key1).expect("cipher creation should succeed");
+    let cipher2 = ChaCha20Poly1305Cipher::new(&key2).expect("cipher creation should succeed");
 
-    let nonce = ChaCha20Poly1305::generate_nonce();
+    let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"secret message";
     let (ciphertext, tag) =
         cipher1.encrypt(&nonce, plaintext, None).expect("encryption should succeed");
@@ -415,7 +415,7 @@ fn test_chacha20_poly1305_decrypt_wrong_key() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -429,7 +429,8 @@ fn test_aes_128_encrypt_chacha_decrypt() {
     let aes_key = &key[..16];
 
     let aes_cipher = AesGcm128::new(aes_key).expect("AES cipher creation should succeed");
-    let chacha_cipher = ChaCha20Poly1305::new(&key).expect("ChaCha cipher creation should succeed");
+    let chacha_cipher =
+        ChaCha20Poly1305Cipher::new(&key).expect("ChaCha cipher creation should succeed");
 
     let nonce = [0u8; 12]; // Same nonce size
     let plaintext = b"secret message";
@@ -444,7 +445,7 @@ fn test_aes_128_encrypt_chacha_decrypt() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -472,16 +473,16 @@ fn test_aes_gcm_256_decrypt_wrong_aad() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error - AAD mismatch
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
 #[test]
 fn test_chacha20_poly1305_decrypt_missing_aad() {
     let key = [0u8; 32];
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
-    let nonce = ChaCha20Poly1305::generate_nonce();
+    let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"secret message";
     let aad = b"important metadata";
     let (ciphertext, tag) =
@@ -495,7 +496,7 @@ fn test_chacha20_poly1305_decrypt_missing_aad() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -519,7 +520,7 @@ fn test_aes_gcm_128_decrypt_unexpected_aad() {
         Err(AeadError::DecryptionFailed(_)) => {
             // Expected error
         }
-        _ => panic!("Expected DecryptionFailed error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed error"),
     }
 }
 
@@ -552,9 +553,9 @@ fn test_aes_gcm_256_encrypt_empty_plaintext() {
 #[test]
 fn test_chacha20_poly1305_encrypt_single_byte() {
     let key = [0u8; 32];
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
-    let nonce = ChaCha20Poly1305::generate_nonce();
+    let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = [0x42u8];
 
     let (ciphertext, tag) =
