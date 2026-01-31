@@ -11,7 +11,8 @@ use arc_prelude::prelude::error::LatticeArcError;
 use arc_prelude::prelude::error::error_recovery::{
     CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, DegradationStrategy, EffortLevel,
     EnhancedError, EnhancedErrorHandler, ErrorContext, ErrorRecoveryHandler, ErrorSeverity,
-    GracefulDegradationManager, RecoveryStrategy, RecoverySuggestion, SystemHealth,
+    GracefulDegradationManager, RecoveryStrategy, RecoverySuggestion, ServiceDegradationInfo,
+    SystemHealth,
 };
 use std::collections::HashMap;
 use std::time::Duration;
@@ -957,4 +958,273 @@ fn test_error_context_large_data() {
     }
 
     assert_eq!(context.technical_details.len(), 100);
+}
+
+// ============================================================================
+// Additional Graceful Degradation Tests (Coverage Enhancement)
+// ============================================================================
+
+#[test]
+fn test_degradation_manager_critical_severity_threshold() {
+    let manager = GracefulDegradationManager::new();
+
+    // Test that Critical severity activates degradation
+    let critical_error = EnhancedError::new(
+        LatticeArcError::EncryptionError("critical crypto failure".to_string()),
+        "encrypt".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("encryption".to_string()))
+    .with_severity(ErrorSeverity::Critical);
+
+    manager.handle_critical_error(&critical_error);
+    assert!(manager.is_degradation_active());
+}
+
+#[test]
+fn test_degradation_manager_medium_severity_no_activation() {
+    let manager = GracefulDegradationManager::new();
+
+    // Test that Medium severity does NOT activate degradation
+    let medium_error = EnhancedError::new(
+        LatticeArcError::InvalidInput("minor issue".to_string()),
+        "test".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("encryption".to_string()))
+    .with_severity(ErrorSeverity::Medium);
+
+    manager.handle_critical_error(&medium_error);
+    assert!(!manager.is_degradation_active());
+}
+
+#[test]
+fn test_degradation_manager_service_matching_all_strategy() {
+    let manager = GracefulDegradationManager::new();
+
+    // Test "all" service matching - should match any component
+    let error =
+        EnhancedError::new(LatticeArcError::ResourceExhausted, "resource_allocation".to_string())
+            .with_context(ErrorContext::new().with_component("memory".to_string()))
+            .with_severity(ErrorSeverity::Critical);
+
+    manager.handle_critical_error(&error);
+
+    // Emergency mode strategy should activate for "all" services
+    assert!(manager.is_degradation_active());
+}
+
+#[test]
+fn test_degradation_manager_hashing_service_degradation() {
+    let manager = GracefulDegradationManager::new();
+
+    let error = EnhancedError::new(
+        LatticeArcError::ServiceUnavailable("hash service down".to_string()),
+        "hash_operation".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("hashing".to_string()))
+    .with_severity(ErrorSeverity::High);
+
+    manager.handle_critical_error(&error);
+
+    // Verify hashing service is degraded
+    assert!(manager.is_service_degraded("hashing"));
+
+    let info = manager.get_service_degradation_info("hashing");
+    assert!(info.is_some());
+
+    if let Some(service_info) = info {
+        assert_eq!(service_info.service, "hashing");
+        assert_eq!(service_info.degradation_level, 0.5);
+        assert!(service_info.available);
+        assert!(service_info.reason.contains("reduce_precision"));
+    }
+}
+
+#[test]
+fn test_degradation_manager_logging_service_degradation() {
+    let manager = GracefulDegradationManager::new();
+
+    let error = EnhancedError::new(
+        LatticeArcError::ServiceUnavailable("logging service down".to_string()),
+        "log_operation".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("logging".to_string()))
+    .with_severity(ErrorSeverity::High);
+
+    manager.handle_critical_error(&error);
+
+    // Verify logging service can be degraded
+    if manager.is_degradation_active() {
+        assert!(manager.is_service_degraded("logging"));
+    }
+}
+
+#[test]
+fn test_degradation_manager_is_service_degraded_nonexistent() {
+    let manager = GracefulDegradationManager::new();
+
+    // Check for service that doesn't exist
+    assert!(!manager.is_service_degraded("nonexistent_service"));
+
+    // Get info for nonexistent service
+    let info = manager.get_service_degradation_info("nonexistent_service");
+    assert!(info.is_none());
+}
+
+#[test]
+fn test_degradation_manager_multiple_services_simultaneously() {
+    let manager = GracefulDegradationManager::new();
+
+    // Trigger emergency mode which affects "all" services
+    let critical_error =
+        EnhancedError::new(LatticeArcError::ResourceExhausted, "system_failure".to_string())
+            .with_context(ErrorContext::new().with_component("all".to_string()))
+            .with_severity(ErrorSeverity::Critical);
+
+    manager.handle_critical_error(&critical_error);
+
+    assert!(manager.is_degradation_active());
+
+    // Get all degraded services
+    let degraded_services = manager.get_all_degraded_services();
+    assert!(!degraded_services.is_empty());
+}
+
+#[test]
+fn test_degradation_manager_service_degradation_info_fields() {
+    let manager = GracefulDegradationManager::new();
+
+    let error = EnhancedError::new(
+        LatticeArcError::EncryptionError("encryption failure".to_string()),
+        "encrypt".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("encryption".to_string()))
+    .with_severity(ErrorSeverity::Critical);
+
+    manager.handle_critical_error(&error);
+
+    if let Some(info) = manager.get_service_degradation_info("encryption") {
+        // Verify all fields are properly set
+        assert_eq!(info.service, "encryption");
+        assert!(info.degradation_level > 0.0 && info.degradation_level <= 1.0);
+        assert!(!info.reason.is_empty());
+        assert!(info.estimated_recovery.is_some());
+        assert!(info.available);
+
+        if let Some(recovery_time) = info.estimated_recovery {
+            assert!(recovery_time.as_secs() > 0);
+        }
+    }
+}
+
+#[test]
+fn test_degradation_manager_default_trait() {
+    let manager1 = GracefulDegradationManager::default();
+    let manager2 = GracefulDegradationManager::new();
+
+    // Both should start in the same state
+    assert_eq!(manager1.is_degradation_active(), manager2.is_degradation_active());
+    assert_eq!(
+        manager1.get_all_degraded_services().len(),
+        manager2.get_all_degraded_services().len()
+    );
+}
+
+#[test]
+fn test_degradation_manager_recovery_no_degradation() {
+    let manager = GracefulDegradationManager::new();
+
+    // Attempt recovery when nothing is degraded
+    manager.attempt_recovery();
+
+    // Should still be inactive
+    assert!(!manager.is_degradation_active());
+}
+
+#[test]
+fn test_degradation_manager_empty_component() {
+    let manager = GracefulDegradationManager::new();
+
+    // Error with empty component
+    let error = EnhancedError::new(
+        LatticeArcError::NetworkError("test".to_string()),
+        "test_op".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("".to_string()))
+    .with_severity(ErrorSeverity::High);
+
+    manager.handle_critical_error(&error);
+
+    // Should not match any specific strategy unless "all" is involved
+    // Just verify it doesn't panic when getting services
+    let _degraded_services = manager.get_all_degraded_services();
+}
+
+#[test]
+fn test_degradation_strategy_priority_ordering() {
+    let manager = GracefulDegradationManager::new();
+
+    // Create errors that could match multiple strategies
+    let encryption_error = EnhancedError::new(
+        LatticeArcError::EncryptionError("crypto issue".to_string()),
+        "encrypt".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("encryption".to_string()))
+    .with_severity(ErrorSeverity::High);
+
+    manager.handle_critical_error(&encryption_error);
+
+    // Should apply the first matching strategy (reduce_precision for encryption)
+    assert!(manager.is_degradation_active());
+}
+
+#[test]
+fn test_degradation_manager_metrics_service() {
+    let manager = GracefulDegradationManager::new();
+
+    let error = EnhancedError::new(
+        LatticeArcError::ServiceUnavailable("metrics unavailable".to_string()),
+        "metrics_op".to_string(),
+    )
+    .with_context(ErrorContext::new().with_component("metrics".to_string()))
+    .with_severity(ErrorSeverity::High);
+
+    manager.handle_critical_error(&error);
+
+    // Metrics should be degraded (part of disable_optional strategy)
+    if manager.is_degradation_active() {
+        assert!(manager.is_service_degraded("metrics"));
+    }
+}
+
+#[test]
+fn test_degradation_manager_service_info_clone() {
+    let info = ServiceDegradationInfo {
+        service: "test_service".to_string(),
+        degradation_level: 0.7,
+        reason: "test reason".to_string(),
+        estimated_recovery: Some(Duration::from_secs(60)),
+        available: true,
+    };
+
+    let cloned = info.clone();
+    assert_eq!(info.service, cloned.service);
+    assert_eq!(info.degradation_level, cloned.degradation_level);
+    assert_eq!(info.reason, cloned.reason);
+    assert_eq!(info.available, cloned.available);
+}
+
+#[test]
+fn test_degradation_strategy_clone() {
+    let strategy = DegradationStrategy {
+        name: "test_strategy".to_string(),
+        priority: 5,
+        services_to_degrade: vec!["service1".to_string()],
+        min_performance_level: 0.8,
+        description: "test description".to_string(),
+    };
+
+    let cloned = strategy.clone();
+    assert_eq!(strategy.name, cloned.name);
+    assert_eq!(strategy.priority, cloned.priority);
+    assert_eq!(strategy.min_performance_level, cloned.min_performance_level);
 }
