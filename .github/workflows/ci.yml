@@ -507,6 +507,14 @@ jobs:
       with:
         targets: ${{ matrix.target }}
 
+    # Go is required for aws-lc-fips-sys FIPS builds
+    - name: Install Go (macOS)
+      if: runner.os == 'macOS'
+      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+      with:
+        go-version: 'stable'
+        cache: false
+
     - name: Build release artifacts
       run: cargo build --workspace --target ${{ matrix.target }} --release --all-features
 
