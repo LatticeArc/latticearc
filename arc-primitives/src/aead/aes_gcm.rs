@@ -655,4 +655,43 @@ mod tests {
         let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad)).unwrap();
         assert_eq!(plaintext, decrypted.as_slice());
     }
+
+    #[test]
+    fn test_aes_gcm_128_encryption_size_limit() {
+        let key = AesGcm128::generate_key();
+        let cipher = AesGcm128::new(&key).unwrap();
+        let nonce = AesGcm128::generate_nonce();
+
+        // Try to encrypt data exceeding 100MB limit (101MB)
+        let plaintext = vec![0xAB; 101 * 1024 * 1024];
+
+        let result = cipher.encrypt(&nonce, &plaintext, None);
+        assert!(result.is_err(), "Should fail with resource limit exceeded");
+
+        if let Err(AeadError::EncryptionFailed(msg)) = result {
+            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+        } else {
+            panic!("Expected EncryptionFailed error");
+        }
+    }
+
+    #[test]
+    fn test_aes_gcm_256_decryption_size_limit() {
+        let key = AesGcm256::generate_key();
+        let cipher = AesGcm256::new(&key).unwrap();
+        let nonce = AesGcm256::generate_nonce();
+
+        // Try to decrypt data exceeding 100MB limit
+        let ciphertext = vec![0xCD; 101 * 1024 * 1024];
+        let tag = [0u8; TAG_LEN];
+
+        let result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
+        assert!(result.is_err(), "Should fail with resource limit exceeded");
+
+        if let Err(AeadError::DecryptionFailed(msg)) = result {
+            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+        } else {
+            panic!("Expected DecryptionFailed error");
+        }
+    }
 }

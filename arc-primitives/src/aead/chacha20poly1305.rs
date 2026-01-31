@@ -692,4 +692,43 @@ mod tests {
             panic!("Expected DecryptionFailed error");
         }
     }
+
+    #[test]
+    fn test_chacha20_poly1305_encryption_size_limit() {
+        let key = ChaCha20Poly1305Cipher::generate_key();
+        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+
+        // Try to encrypt data exceeding 100MB limit (101MB)
+        let plaintext = vec![0xAB; 101 * 1024 * 1024];
+
+        let result = cipher.encrypt(&nonce, &plaintext, None);
+        assert!(result.is_err(), "Should fail with resource limit exceeded");
+
+        if let Err(AeadError::EncryptionFailed(msg)) = result {
+            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+        } else {
+            panic!("Expected EncryptionFailed error");
+        }
+    }
+
+    #[test]
+    fn test_chacha20_poly1305_decryption_size_limit() {
+        let key = ChaCha20Poly1305Cipher::generate_key();
+        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+
+        // Try to decrypt data exceeding 100MB limit
+        let ciphertext = vec![0xCD; 101 * 1024 * 1024];
+        let tag = [0u8; TAG_LEN];
+
+        let result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
+        assert!(result.is_err(), "Should fail with resource limit exceeded");
+
+        if let Err(AeadError::DecryptionFailed(msg)) = result {
+            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+        } else {
+            panic!("Expected DecryptionFailed error");
+        }
+    }
 }
