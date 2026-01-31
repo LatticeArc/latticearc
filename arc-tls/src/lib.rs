@@ -134,6 +134,13 @@ pub mod session_store;
 pub mod tls13;
 pub mod tracing;
 
+/// Formal verification support for TLS security properties.
+///
+/// This module provides formal verification capabilities using Kani and SAW.
+/// Enable with `--features formal-verification`, `--features kani`, or `--features saw`.
+#[cfg(any(feature = "formal-verification", feature = "kani", feature = "saw"))]
+pub mod formal_verification;
+
 pub use basic_features::{
     create_client_connector, create_server_acceptor, get_config_info, load_certs, load_private_key,
     tls_accept, tls_connect,
