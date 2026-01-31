@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.2] - 2026-01-30
+
+### Removed
+
+- **Dead Code Cleanup**: Removed ~11,500 lines of unreachable code from `latticearc` crate
+  - Deleted `latticearc/src/unified_api/` directory (32 files) which was shadowed by an inline module definition and never compiled
+  - Removed vestigial `unified_api` re-export module from `lib.rs`
+  - This was technical debt from an earlier architecture that was superseded by `arc-core`
+
+### Added
+
+- **Unified API Tests**: Added comprehensive test coverage for the unified encryption API
+  - `test_unified_api_aes_gcm_roundtrip` - AES-GCM symmetric encryption roundtrip
+  - `test_unified_api_rejects_symmetric_key_for_hybrid_schemes` - Validates API correctly rejects 32-byte keys for hybrid PQ schemes
+  - `test_hybrid_encryption_only` - Tests hybrid encryption works (documents aws-lc-rs limitation)
+  - `test_scheme_selection_for_security_levels` - Verifies CryptoPolicyEngine selects correct ML-KEM variant
+  - `test_encrypted_data_contains_scheme_metadata` - Verifies scheme metadata storage
+  - `test_decrypt_honors_scheme_from_encrypted_data` - Confirms decrypt() dispatches based on scheme field
+
+### Changed
+
+- **Documentation**: Clarified Apache vs Enterprise feature scope in DESIGN.md
+  - Added comparison table showing which features are in Apache (open source) vs Enterprise (proprietary)
+  - Clarified that hardware detection is in Apache, but adaptive routing is Enterprise-only
+  - Updated Zero Trust section to distinguish framework (Apache) from enforcement (Enterprise)
+
+### Notes
+
+- The removed `unified_api/` directory contained duplicate implementations that were never used:
+  - Duplicate `encrypt`/`decrypt` functions with a latent bug (decrypt always used AES-GCM)
+  - Duplicate type definitions, traits, and configuration
+  - PHI masking stubs (enterprise feature properly lives in proprietary repo)
+  - DID resolution stubs (enterprise feature properly lives in proprietary repo)
+- All functionality is properly implemented in `arc-core` which is re-exported by `latticearc`
+
+---
+
 ## [0.1.1] - 2026-01-30
 
 ### Fixed
