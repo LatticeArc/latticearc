@@ -13,13 +13,13 @@ pub mod invariants;
 pub mod kani;
 pub mod security_properties;
 
-#[cfg(feature = "formal_verification")]
+#[cfg(feature = "formal-verification")]
 pub mod property_based;
 
 #[cfg(feature = "saw")]
 pub mod saw_proofs;
 
-#[cfg(feature = "formal_verification")]
+#[cfg(feature = "formal-verification")]
 pub use property_based::*;
 
 pub use invariants::*;

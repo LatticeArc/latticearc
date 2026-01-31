@@ -15,6 +15,12 @@ categories = ["cryptography", "network-programming"]
 [lints]
 workspace = true
 
+[features]
+default = []
+formal-verification = []
+kani = []
+saw = []
+
 [dependencies]
 arc-primitives = { path = "../arc-primitives", version = "0.1.1" }
 arc-core = { path = "../arc-core", version = "0.1.1" }
@@ -30,7 +36,6 @@ tempfile = { workspace = true }
 # Additional TLS dependencies
 rustls-pki-types = { workspace = true }
 tokio-rustls = { workspace = true }
-webpki-roots = { workspace = true }
 rustls-native-certs = { workspace = true }
 zeroize = { workspace = true }
 chrono = { workspace = true }
