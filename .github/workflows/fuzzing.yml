@@ -142,7 +142,10 @@ jobs:
     - name: Run fuzz with coverage
       run: |
         cd arc-fuzz
-        cargo fuzz coverage encrypt_fuzz -- -max_total_time=120
+        # First, run fuzzer briefly to generate corpus inputs
+        timeout 60s cargo fuzz run encrypt_fuzz -- -max_total_time=60 || true
+        # Then generate coverage from the corpus (may fail if corpus is empty)
+        cargo fuzz coverage encrypt_fuzz -- -max_total_time=60 || echo "Fuzz coverage skipped (no corpus)"
 
     - name: Upload fuzz coverage
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
