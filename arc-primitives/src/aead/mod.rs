@@ -147,7 +147,24 @@ pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher
 mod tests {
     use super::*;
 
-    // Helper: constant-time tag comparison (available for future tests)
+    /// Performs constant-time comparison of two byte slices.
+    ///
+    /// This test utility function provides timing-safe comparison for authentication tags
+    /// and other sensitive data to prevent timing side-channel attacks. It is intentionally
+    /// marked `#[allow(dead_code)]` as it provides test infrastructure that may be used in
+    /// future cryptographic verification tests.
+    ///
+    /// # Arguments
+    /// * `a` - First byte slice to compare
+    /// * `b` - Second byte slice to compare
+    ///
+    /// # Returns
+    /// `true` if both slices have the same length and content, `false` otherwise
+    ///
+    /// # Security
+    /// This function uses constant-time operations from the `subtle` crate to prevent
+    /// timing side channels. The comparison time is independent of the position of
+    /// any differences between the slices.
     #[allow(dead_code)]
     fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
         use subtle::ConstantTimeEq;

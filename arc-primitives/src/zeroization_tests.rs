@@ -15,11 +15,37 @@ fn verify_non_zero(bytes: &[u8]) -> bool {
     bytes.iter().any(|&b| b != 0)
 }
 
+/// Verifies that all bytes in a slice match a specific pattern.
+///
+/// This is a test utility function for future pattern-based verification tests.
+/// It is intentionally marked `#[allow(dead_code)]` as it provides test infrastructure
+/// that may be used in future test cases.
+///
+/// # Arguments
+/// * `bytes` - The byte slice to verify
+/// * `pattern` - The expected byte pattern
+///
+/// # Returns
+/// `true` if all bytes match the pattern, `false` otherwise
 #[allow(dead_code)] // Available for future tests
 fn verify_pattern(bytes: &[u8], pattern: u8) -> bool {
     bytes.iter().all(|&b| b == pattern)
 }
 
+/// Verifies complete zeroization of any type that can be converted to a byte slice.
+///
+/// This is a generic test utility function for verifying zeroization across different
+/// data types. It is intentionally marked `#[allow(dead_code)]` as it provides test
+/// infrastructure that may be used in future test cases.
+///
+/// # Type Parameters
+/// * `T` - Any type that implements `AsRef<[u8]>`
+///
+/// # Arguments
+/// * `data` - The data to verify for complete zeroization
+///
+/// # Returns
+/// `true` if all bytes are zero, `false` otherwise
 #[allow(dead_code)] // Available for future tests
 fn verify_complete_zeroization<T: AsRef<[u8]>>(data: &T) -> bool {
     data.as_ref().iter().all(|&b| b == 0)
