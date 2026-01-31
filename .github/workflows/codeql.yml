@@ -42,7 +42,7 @@ jobs:
           key: ${{ runner.os }}-codeql-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@ab28d5ce09b08e4700b2296d39d684a7ac71d1e7 # v4
+        uses: github/codeql-action/init@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4
         with:
           languages: rust
           queries: security-extended,security-and-quality
@@ -53,6 +53,6 @@ jobs:
         run: cargo build --workspace --all-features
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@ab28d5ce09b08e4700b2296d39d684a7ac71d1e7 # v4
+        uses: github/codeql-action/analyze@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4
         with:
           category: "/language:rust"
