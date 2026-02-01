@@ -658,3 +658,383 @@ impl UseCaseConfig {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+mod tests {
+    use super::*;
+
+    // CoreConfig tests
+    #[test]
+    fn test_core_config_default() {
+        let config = CoreConfig::new();
+
+        assert_eq!(config.security_level, SecurityLevel::High);
+        assert_eq!(config.performance_preference, PerformancePreference::Balanced);
+        assert!(config.hardware_acceleration);
+        assert!(config.fallback_enabled);
+        assert!(config.strict_validation);
+    }
+
+    #[test]
+    fn test_core_config_for_development() {
+        let config = CoreConfig::for_development();
+
+        assert_eq!(config.security_level, SecurityLevel::Standard);
+        assert!(!config.strict_validation);
+    }
+
+    #[test]
+    fn test_core_config_for_production() {
+        let config = CoreConfig::for_production();
+
+        assert_eq!(config.security_level, SecurityLevel::Maximum);
+        assert!(config.strict_validation);
+    }
+
+    #[test]
+    fn test_core_config_builder_pattern() {
+        let config = CoreConfig::new()
+            .with_security_level(SecurityLevel::Maximum)
+            .with_performance_preference(PerformancePreference::Speed)
+            .with_hardware_acceleration(true)
+            .with_fallback(true)
+            .with_strict_validation(true);
+
+        assert_eq!(config.security_level, SecurityLevel::Maximum);
+        assert_eq!(config.performance_preference, PerformancePreference::Speed);
+        assert!(config.hardware_acceleration);
+        assert!(config.fallback_enabled);
+        assert!(config.strict_validation);
+    }
+
+    #[test]
+    fn test_core_config_validation_success() -> Result<()> {
+        let config = CoreConfig::new()
+            .with_security_level(SecurityLevel::Maximum)
+            .with_hardware_acceleration(true);
+
+        config.validate()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_core_config_validation_maximum_security_requires_hardware() {
+        let config = CoreConfig::new()
+            .with_security_level(SecurityLevel::Maximum)
+            .with_hardware_acceleration(false);
+
+        let result = config.validate();
+        assert!(result.is_err(), "Maximum security without hardware acceleration should fail");
+    }
+
+    #[test]
+    fn test_core_config_validation_speed_preference_requires_fallback() {
+        let config = CoreConfig::new()
+            .with_performance_preference(PerformancePreference::Speed)
+            .with_fallback(false);
+
+        let result = config.validate();
+        assert!(result.is_err(), "Speed preference without fallback should fail");
+    }
+
+    #[test]
+    fn test_core_config_build_success() -> Result<()> {
+        let config = CoreConfig::new()
+            .with_security_level(SecurityLevel::High)
+            .with_hardware_acceleration(true)
+            .build()?;
+
+        assert_eq!(config.security_level, SecurityLevel::High);
+        Ok(())
+    }
+
+    #[test]
+    fn test_core_config_build_validation_failure() {
+        let result = CoreConfig::new()
+            .with_security_level(SecurityLevel::Maximum)
+            .with_hardware_acceleration(false)
+            .build();
+
+        assert!(result.is_err(), "Build should fail with invalid config");
+    }
+
+    // SecurityLevel tests
+    #[test]
+    fn test_security_level_variants() {
+        let _standard = SecurityLevel::Standard;
+        let _high = SecurityLevel::High;
+        let _maximum = SecurityLevel::Maximum;
+        let _quantum = SecurityLevel::Quantum;
+
+        // Verify they can be instantiated
+        assert_eq!(SecurityLevel::default(), SecurityLevel::High);
+    }
+
+    #[test]
+    fn test_security_level_clone() {
+        let level1 = SecurityLevel::Maximum;
+        let level2 = level1.clone();
+
+        assert_eq!(level1, level2);
+    }
+
+    // PerformancePreference tests
+    #[test]
+    fn test_performance_preference_variants() {
+        let _balanced = PerformancePreference::Balanced;
+        let _speed = PerformancePreference::Speed;
+        let _memory = PerformancePreference::Memory;
+
+        assert_eq!(PerformancePreference::default(), PerformancePreference::Balanced);
+    }
+
+    #[test]
+    fn test_performance_preference_clone() {
+        let pref1 = PerformancePreference::Speed;
+        let pref2 = pref1.clone();
+
+        assert_eq!(pref1, pref2);
+    }
+
+    // EncryptionConfig tests
+    #[test]
+    fn test_encryption_config_default() {
+        let config = EncryptionConfig::default();
+
+        assert!(config.preferred_scheme.is_none());
+        assert!(config.compression_enabled);
+        assert!(config.integrity_check);
+    }
+
+    #[test]
+    fn test_encryption_config_builder() {
+        let config = EncryptionConfig::new()
+            .with_scheme(CryptoScheme::Hybrid)
+            .with_compression(false)
+            .with_integrity_check(false);
+
+        assert_eq!(config.preferred_scheme, Some(CryptoScheme::Hybrid));
+        assert!(!config.compression_enabled);
+        assert!(!config.integrity_check);
+    }
+
+    #[test]
+    fn test_encryption_config_validation_success() -> Result<()> {
+        let config = EncryptionConfig::default();
+        config.validate()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_encryption_config_with_all_schemes() {
+        let schemes =
+            vec![CryptoScheme::Hybrid, CryptoScheme::Symmetric, CryptoScheme::PostQuantum];
+
+        for scheme in schemes {
+            let config = EncryptionConfig::new().with_scheme(scheme.clone());
+            assert_eq!(config.preferred_scheme, Some(scheme));
+        }
+    }
+
+    // SignatureConfig tests
+    #[test]
+    fn test_signature_config_default() {
+        let config = SignatureConfig::default();
+
+        assert!(config.preferred_scheme.is_none());
+        assert!(config.timestamp_enabled);
+        assert!(!config.certificate_chain);
+    }
+
+    #[test]
+    fn test_signature_config_builder() {
+        let config = SignatureConfig::new()
+            .with_scheme(CryptoScheme::Hybrid)
+            .with_timestamp(false)
+            .with_certificate_chain(true);
+
+        assert_eq!(config.preferred_scheme, Some(CryptoScheme::Hybrid));
+        assert!(!config.timestamp_enabled);
+        assert!(config.certificate_chain);
+    }
+
+    #[test]
+    fn test_signature_config_validation_success() -> Result<()> {
+        let config = SignatureConfig::default();
+        config.validate()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_signature_config_validation_cert_chain_requires_timestamp() {
+        let config = SignatureConfig::new().with_timestamp(false).with_certificate_chain(true);
+
+        let result = config.validate();
+        assert!(result.is_err(), "Certificate chain without timestamp should fail");
+    }
+
+    // ZeroTrustConfig tests
+    #[test]
+    fn test_zero_trust_config_default() {
+        let config = ZeroTrustConfig::default();
+
+        assert_eq!(config.challenge_timeout_ms, 5000);
+        assert_eq!(config.proof_complexity, ProofComplexity::Medium);
+        assert!(config.continuous_verification);
+        assert_eq!(config.verification_interval_ms, 30000);
+    }
+
+    #[test]
+    fn test_zero_trust_config_builder() {
+        let config = ZeroTrustConfig::new()
+            .with_timeout(10000)
+            .with_complexity(ProofComplexity::High)
+            .with_continuous_verification(false)
+            .with_verification_interval(60000);
+
+        assert_eq!(config.challenge_timeout_ms, 10000);
+        assert_eq!(config.proof_complexity, ProofComplexity::High);
+        assert!(!config.continuous_verification);
+        assert_eq!(config.verification_interval_ms, 60000);
+    }
+
+    #[test]
+    fn test_zero_trust_config_validation_success() -> Result<()> {
+        let config = ZeroTrustConfig::default();
+        config.validate()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_config_validation_zero_timeout() {
+        let config = ZeroTrustConfig::new().with_timeout(0);
+
+        let result = config.validate();
+        assert!(result.is_err(), "Zero challenge timeout should fail");
+    }
+
+    #[test]
+    fn test_zero_trust_config_validation_continuous_verification_zero_interval() {
+        let config =
+            ZeroTrustConfig::new().with_continuous_verification(true).with_verification_interval(0);
+
+        let result = config.validate();
+        assert!(result.is_err(), "Continuous verification with zero interval should fail");
+    }
+
+    #[test]
+    fn test_proof_complexity_variants() {
+        let _low = ProofComplexity::Low;
+        let _medium = ProofComplexity::Medium;
+        let _high = ProofComplexity::High;
+
+        assert_eq!(ProofComplexity::Medium, ProofComplexity::Medium);
+    }
+
+    // HardwareConfig tests
+    #[test]
+    fn test_hardware_config_default() {
+        let config = HardwareConfig::default();
+
+        assert!(config.acceleration_enabled);
+        assert!(config.fallback_enabled);
+        assert_eq!(config.threshold_bytes, 4096);
+        assert!(config.preferred_accelerators.is_empty());
+        assert!(!config.force_cpu);
+    }
+
+    #[test]
+    fn test_hardware_config_builder() {
+        let config = HardwareConfig::new()
+            .with_acceleration(false)
+            .with_fallback(false)
+            .with_threshold(8192)
+            .with_force_cpu(true);
+
+        assert!(!config.acceleration_enabled);
+        assert!(!config.fallback_enabled);
+        assert_eq!(config.threshold_bytes, 8192);
+        assert!(config.force_cpu);
+    }
+
+    #[test]
+    fn test_hardware_config_validation_success() -> Result<()> {
+        let config = HardwareConfig::default();
+        config.validate()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_hardware_config_validation_zero_threshold() {
+        let config = HardwareConfig::new().with_threshold(0);
+
+        let result = config.validate();
+        assert!(result.is_err(), "Zero threshold should fail");
+    }
+
+    #[test]
+    fn test_hardware_config_validation_force_cpu_conflicts_with_acceleration() {
+        let config = HardwareConfig::new().with_acceleration(true).with_force_cpu(true);
+
+        let result = config.validate();
+        assert!(result.is_err(), "Force CPU with acceleration enabled should fail");
+    }
+
+    // UseCaseConfig tests
+    #[test]
+    fn test_use_case_config_financial_transactions() {
+        let config = UseCaseConfig::new(UseCase::FinancialTransactions);
+
+        assert_eq!(config.use_case, UseCase::FinancialTransactions);
+        assert_eq!(config.encryption.base.security_level, SecurityLevel::Maximum);
+        assert_eq!(config.signature.base.security_level, SecurityLevel::Maximum);
+    }
+
+    #[test]
+    fn test_use_case_config_secure_messaging() {
+        let config = UseCaseConfig::new(UseCase::SecureMessaging);
+
+        assert_eq!(config.use_case, UseCase::SecureMessaging);
+        assert_eq!(config.encryption.base.performance_preference, PerformancePreference::Speed);
+    }
+
+    #[test]
+    fn test_use_case_config_iot_device() {
+        let config = UseCaseConfig::new(UseCase::IoTDevice);
+
+        assert_eq!(config.use_case, UseCase::IoTDevice);
+        assert_eq!(config.encryption.base.security_level, SecurityLevel::Standard);
+        assert_eq!(config.encryption.base.performance_preference, PerformancePreference::Memory);
+    }
+
+    #[test]
+    fn test_use_case_config_validation_success() -> Result<()> {
+        let config = UseCaseConfig::new(UseCase::Authentication);
+        config.validate()?;
+        Ok(())
+    }
+
+    // Integration tests
+    #[test]
+    fn test_config_combination_production() {
+        let core = CoreConfig::for_production();
+        let encryption = EncryptionConfig::default();
+        let signature = SignatureConfig::default();
+
+        assert_eq!(core.security_level, SecurityLevel::Maximum);
+        assert!(core.strict_validation);
+        assert!(encryption.preferred_scheme.is_none());
+        assert!(signature.preferred_scheme.is_none());
+    }
+
+    #[test]
+    fn test_config_combination_development() {
+        let core = CoreConfig::for_development();
+        let encryption = EncryptionConfig::new().with_compression(false);
+
+        assert_eq!(core.security_level, SecurityLevel::Standard);
+        assert!(!core.strict_validation);
+        assert!(!encryption.compression_enabled);
+    }
+}
