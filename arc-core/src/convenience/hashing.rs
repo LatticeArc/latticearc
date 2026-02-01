@@ -484,3 +484,277 @@ pub fn hmac_check_with_config_unverified(
 ) -> Result<bool> {
     hmac_check_with_config(data, key, tag, config, SecurityMode::Unverified)
 }
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+mod tests {
+    use super::*;
+    use crate::{SecurityMode, VerifiedSession, generate_keypair};
+
+    // hash_data tests
+    #[test]
+    fn test_hash_data_deterministic() {
+        let data = b"Test data for hashing";
+        let hash1 = hash_data(data);
+        let hash2 = hash_data(data);
+        assert_eq!(hash1, hash2, "Hash should be deterministic");
+        assert_eq!(hash1.len(), 32, "SHA-256 hash should be 32 bytes");
+    }
+
+    #[test]
+    fn test_hash_data_different_inputs() {
+        let data1 = b"First message";
+        let data2 = b"Second message";
+        let hash1 = hash_data(data1);
+        let hash2 = hash_data(data2);
+        assert_ne!(hash1, hash2, "Different inputs should produce different hashes");
+    }
+
+    #[test]
+    fn test_hash_data_empty_input() {
+        let data = b"";
+        let hash = hash_data(data);
+        assert_eq!(hash.len(), 32, "Empty input should still produce 32-byte hash");
+    }
+
+    #[test]
+    fn test_hash_data_large_input() {
+        let data = vec![0xAB; 100000];
+        let hash = hash_data(&data);
+        assert_eq!(hash.len(), 32, "Large input should produce 32-byte hash");
+    }
+
+    // derive_key tests (unverified API)
+    #[test]
+    fn test_derive_key_unverified_basic() -> Result<()> {
+        let password = b"strong_password";
+        let salt = b"random_salt_1234";
+        let key = derive_key_unverified(password, salt, 32)?;
+        assert_eq!(key.len(), 32);
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_unverified_deterministic() -> Result<()> {
+        let password = b"test_password";
+        let salt = b"test_salt";
+        let key1 = derive_key_unverified(password, salt, 32)?;
+        let key2 = derive_key_unverified(password, salt, 32)?;
+        assert_eq!(key1, key2, "Key derivation should be deterministic");
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_unverified_different_passwords() -> Result<()> {
+        let salt = b"same_salt";
+        let key1 = derive_key_unverified(b"password1", salt, 32)?;
+        let key2 = derive_key_unverified(b"password2", salt, 32)?;
+        assert_ne!(key1, key2, "Different passwords should produce different keys");
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_unverified_different_salts() -> Result<()> {
+        let password = b"same_password";
+        let key1 = derive_key_unverified(password, b"salt1", 32)?;
+        let key2 = derive_key_unverified(password, b"salt2", 32)?;
+        assert_ne!(key1, key2, "Different salts should produce different keys");
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_unverified_different_lengths() -> Result<()> {
+        let password = b"password";
+        let salt = b"salt";
+        let key16 = derive_key_unverified(password, salt, 16)?;
+        let key32 = derive_key_unverified(password, salt, 32)?;
+        let key64 = derive_key_unverified(password, salt, 64)?;
+        assert_eq!(key16.len(), 16);
+        assert_eq!(key32.len(), 32);
+        assert_eq!(key64.len(), 64);
+        Ok(())
+    }
+
+    // derive_key with config tests
+    #[test]
+    fn test_derive_key_with_config_unverified() -> Result<()> {
+        let password = b"password";
+        let salt = b"salt";
+        let config = CoreConfig::default();
+        let key = derive_key_with_config_unverified(password, salt, 32, &config)?;
+        assert_eq!(key.len(), 32);
+        Ok(())
+    }
+
+    // derive_key verified API tests
+    #[test]
+    fn test_derive_key_verified_mode() -> Result<()> {
+        let password = b"secure_password";
+        let salt = b"secure_salt";
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let key = derive_key(password, salt, 32, SecurityMode::Verified(&session))?;
+        assert_eq!(key.len(), 32);
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_unverified_mode() -> Result<()> {
+        let password = b"password";
+        let salt = b"salt";
+        let key = derive_key(password, salt, 32, SecurityMode::Unverified)?;
+        assert_eq!(key.len(), 32);
+        Ok(())
+    }
+
+    // HMAC tests (unverified API)
+    #[test]
+    fn test_hmac_unverified_basic() -> Result<()> {
+        let key = b"secret_key_1234567890";
+        let data = b"Message to authenticate";
+        let tag = hmac_unverified(key, data)?;
+        assert!(!tag.is_empty());
+        assert_eq!(tag.len(), 32, "HMAC-SHA256 should produce 32-byte tag");
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_unverified_deterministic() -> Result<()> {
+        let key = b"key";
+        let data = b"data";
+        let tag1 = hmac_unverified(key, data)?;
+        let tag2 = hmac_unverified(key, data)?;
+        assert_eq!(tag1, tag2, "HMAC should be deterministic");
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_check_unverified_valid() -> Result<()> {
+        let key = b"authentication_key";
+        let data = b"Important message";
+        let tag = hmac_unverified(key, data)?;
+        let is_valid = hmac_check_unverified(key, data, &tag)?;
+        assert!(is_valid, "Valid HMAC should verify successfully");
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_check_unverified_wrong_key() -> Result<()> {
+        let key1 = b"key1";
+        let key2 = b"key2";
+        let data = b"data";
+        let tag = hmac_unverified(key1, data)?;
+        let is_valid = hmac_check_unverified(key2, data, &tag)?;
+        assert!(!is_valid, "Wrong key should fail verification");
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_check_unverified_wrong_data() -> Result<()> {
+        let key = b"key";
+        let data1 = b"original data";
+        let data2 = b"modified data";
+        let tag = hmac_unverified(key, data1)?;
+        let is_valid = hmac_check_unverified(key, data2, &tag)?;
+        assert!(!is_valid, "Wrong data should fail verification");
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_check_unverified_invalid_tag() -> Result<()> {
+        let key = b"key";
+        let data = b"data";
+        let invalid_tag = vec![0u8; 32];
+        let is_valid = hmac_check_unverified(key, data, &invalid_tag)?;
+        assert!(!is_valid, "Invalid tag should fail verification");
+        Ok(())
+    }
+
+    // HMAC with config tests
+    #[test]
+    fn test_hmac_with_config_unverified() -> Result<()> {
+        let key = b"key";
+        let data = b"data";
+        let config = CoreConfig::default();
+        let tag = hmac_with_config_unverified(data, key, &config)?;
+        let is_valid = hmac_check_with_config_unverified(data, key, &tag, &config)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // HMAC verified API tests
+    #[test]
+    fn test_hmac_verified_mode() -> Result<()> {
+        let key = b"secret_key";
+        let data = b"authenticated message";
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let tag = hmac(data, key, SecurityMode::Verified(&session))?;
+        let is_valid = hmac_check(data, key, &tag, SecurityMode::Verified(&session))?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_unverified_mode() -> Result<()> {
+        let key = b"key";
+        let data = b"data";
+        let tag = hmac(data, key, SecurityMode::Unverified)?;
+        let is_valid = hmac_check(data, key, &tag, SecurityMode::Unverified)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_with_config_verified() -> Result<()> {
+        let key = b"key";
+        let data = b"data";
+        let config = CoreConfig::default();
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let tag = hmac_with_config(data, key, &config, SecurityMode::Verified(&session))?;
+        let is_valid =
+            hmac_check_with_config(data, key, &tag, &config, SecurityMode::Verified(&session))?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // Edge cases
+    #[test]
+    fn test_hmac_empty_data() -> Result<()> {
+        let key = b"key";
+        let data = b"";
+        let tag = hmac_unverified(key, data)?;
+        let is_valid = hmac_check_unverified(key, data, &tag)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_large_data() -> Result<()> {
+        let key = b"key";
+        let data = vec![0x42; 100000];
+        let tag = hmac_unverified(key, &data)?;
+        let is_valid = hmac_check_unverified(key, &data, &tag)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hmac_different_key_lengths() -> Result<()> {
+        let data = b"test data";
+        let key16 = b"1234567890123456"; // 16 bytes
+        let key32 = b"12345678901234567890123456789012"; // 32 bytes
+
+        let tag16 = hmac_unverified(key16, data)?;
+        let tag32 = hmac_unverified(key32, data)?;
+
+        assert!(hmac_check_unverified(key16, data, &tag16)?);
+        assert!(hmac_check_unverified(key32, data, &tag32)?);
+        assert_ne!(tag16, tag32, "Different keys should produce different tags");
+        Ok(())
+    }
+}
