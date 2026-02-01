@@ -630,3 +630,211 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     }
     result
 }
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+#[allow(clippy::expect_used)] // Tests use expect for simplicity
+mod tests {
+    use super::*;
+    use crate::{CryptoConfig, SecurityLevel, UseCase};
+
+    // Sign/Verify tests with different security levels
+    #[test]
+    fn test_sign_verify_with_standard_security() -> Result<()> {
+        let message = b"Test message with standard security";
+        let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+
+        let signed = sign(message, config)?;
+
+        assert!(!signed.metadata.signature.is_empty());
+        assert!(!signed.metadata.public_key.is_empty());
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid, "Signature should be valid");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_with_high_security() -> Result<()> {
+        let message = b"Test message with high security";
+        let config = CryptoConfig::new().security_level(SecurityLevel::High);
+
+        let signed = sign(message, config)?;
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid, "Signature should be valid");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_with_maximum_security() -> Result<()> {
+        let message = b"Test message with maximum security";
+        let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+
+        let signed = sign(message, config)?;
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid, "Signature should be valid");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_wrong_message() -> Result<()> {
+        let message = b"Original message";
+        let config = CryptoConfig::new();
+
+        let signed = sign(message, config)?;
+
+        // Modify the message
+        let mut modified_signed = signed.clone();
+        modified_signed.data = b"Modified message".to_vec();
+
+        // verify() may return Ok(false) or Err depending on implementation
+        match verify(&modified_signed, CryptoConfig::new()) {
+            Ok(valid) => assert!(!valid, "Modified message should fail verification"),
+            Err(_) => {} // Error is also acceptable
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_corrupted_signature() -> Result<()> {
+        let message = b"Test message";
+        let config = CryptoConfig::new();
+
+        let signed = sign(message, config)?;
+
+        // Corrupt the signature
+        let mut corrupted_signed = signed.clone();
+        if let Some(byte) = corrupted_signed.metadata.signature.first_mut() {
+            *byte ^= 0xFF;
+        }
+
+        // verify() may return Ok(false) or Err depending on implementation
+        match verify(&corrupted_signed, CryptoConfig::new()) {
+            Ok(valid) => assert!(!valid, "Corrupted signature should fail verification"),
+            Err(_) => {} // Error is also acceptable
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_empty_message() -> Result<()> {
+        let message = b"";
+        let config = CryptoConfig::new();
+
+        let signed = sign(message, config)?;
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid, "Empty message signature should be valid");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_large_message() -> Result<()> {
+        let message = vec![0xABu8; 10_000]; // 10KB message
+        let config = CryptoConfig::new();
+
+        let signed = sign(&message, config)?;
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid, "Large message signature should be valid");
+
+        Ok(())
+    }
+
+    // Use case selection tests
+    #[test]
+    fn test_sign_with_financial_transactions_use_case() -> Result<()> {
+        let message = b"Financial transaction data";
+        let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
+
+        let signed = sign(message, config)?;
+
+        // Financial transactions should use strong signature
+        assert!(
+            signed.scheme.contains("ml-dsa") || signed.scheme.contains("ed25519"),
+            "Financial transactions should use strong signatures"
+        );
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_with_authentication_use_case() -> Result<()> {
+        let message = b"Authentication data";
+        let config = CryptoConfig::new().use_case(UseCase::Authentication);
+
+        let signed = sign(message, config)?;
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_with_firmware_signing_use_case() -> Result<()> {
+        let message = b"Firmware binary data";
+        let config = CryptoConfig::new().use_case(UseCase::FirmwareSigning);
+
+        let signed = sign(message, config)?;
+
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid);
+
+        Ok(())
+    }
+
+    // Invalid key tests
+    #[test]
+    fn test_encrypt_with_invalid_key_length() {
+        let message = b"Test message";
+        let short_key = vec![0x42u8; 16]; // Too short for AES-256
+        let config = CryptoConfig::new();
+
+        let result = encrypt(message, &short_key, config);
+        assert!(result.is_err(), "Encryption with short key should fail");
+    }
+
+    #[test]
+    fn test_decrypt_empty_ciphertext() -> Result<()> {
+        let key = vec![0x42u8; 32];
+        let empty_encrypted = EncryptedData {
+            data: vec![],
+            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
+            scheme: "aes-256-gcm".to_string(),
+            timestamp: 0,
+        };
+
+        let decrypted = decrypt(&empty_encrypted, &key, CryptoConfig::new())?;
+        assert!(decrypted.is_empty());
+
+        Ok(())
+    }
+
+    // Cross-algorithm tests for signing
+    #[test]
+    fn test_sign_verify_multiple_security_levels() -> Result<()> {
+        let message = b"Test cross-level signatures";
+
+        let levels = [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
+        for level in &levels {
+            let config = CryptoConfig::new().security_level(level.clone());
+            let signed = sign(message, config)?;
+            let is_valid = verify(&signed, CryptoConfig::new())?;
+            assert!(is_valid, "Failed for security level: {:?}", level);
+        }
+
+        Ok(())
+    }
+}
