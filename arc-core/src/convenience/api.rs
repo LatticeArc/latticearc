@@ -837,4 +837,203 @@ mod tests {
 
         Ok(())
     }
+
+    // ========================================================================
+    // Additional Signing Algorithm Coverage
+    // ========================================================================
+
+    // Test specific algorithm branches in sign/verify
+    #[test]
+    fn test_sign_verify_metadata_populated() -> Result<()> {
+        let message = b"Test metadata";
+        let config = CryptoConfig::new();
+
+        let signed = sign(message, config)?;
+
+        assert!(!signed.metadata.signature.is_empty(), "Signature should not be empty");
+        assert!(!signed.metadata.public_key.is_empty(), "Public key should not be empty");
+        assert!(!signed.metadata.signature_algorithm.is_empty(), "Algorithm should be set");
+        assert!(!signed.scheme.is_empty(), "Scheme should be set");
+        assert!(signed.timestamp > 0, "Timestamp should be set");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_with_corrupted_public_key() -> Result<()> {
+        let message = b"Test message";
+        let config = CryptoConfig::new();
+
+        let signed = sign(message, config)?;
+
+        // Corrupt the public key
+        let mut corrupted_signed = signed.clone();
+        if let Some(byte) = corrupted_signed.metadata.public_key.first_mut() {
+            *byte ^= 0xFF;
+        }
+
+        // Verification should fail
+        match verify(&corrupted_signed, CryptoConfig::new()) {
+            Ok(valid) => assert!(!valid, "Corrupted public key should fail verification"),
+            Err(_) => {} // Error is also acceptable
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_binary_message() -> Result<()> {
+        let message = vec![0x00, 0xFF, 0x7F, 0x80, 0x01, 0xFE];
+        let config = CryptoConfig::new();
+
+        let signed = sign(&message, config)?;
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid, "Binary message signature should be valid");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_unicode_message() -> Result<()> {
+        let message = "Test with Unicode: 你好世界 🔐".as_bytes();
+        let config = CryptoConfig::new();
+
+        let signed = sign(message, config)?;
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid, "Unicode message signature should be valid");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_with_blockchain_transaction_use_case() -> Result<()> {
+        let message = b"Blockchain transaction data";
+        let config = CryptoConfig::new().use_case(UseCase::BlockchainTransaction);
+
+        let signed = sign(message, config)?;
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_with_legal_documents_use_case() -> Result<()> {
+        let message = b"Legal document hash";
+        let config = CryptoConfig::new().use_case(UseCase::LegalDocuments);
+
+        let signed = sign(message, config)?;
+        let is_valid = verify(&signed, CryptoConfig::new())?;
+        assert!(is_valid);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_multiple_messages() -> Result<()> {
+        let config = CryptoConfig::new();
+        let messages =
+            vec![b"First message".as_ref(), b"Second message".as_ref(), b"Third message".as_ref()];
+
+        for message in messages {
+            let signed = sign(message, config.clone())?;
+            let is_valid = verify(&signed, CryptoConfig::new())?;
+            assert!(is_valid, "Message: {:?}", String::from_utf8_lossy(message));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_produces_unique_signatures() -> Result<()> {
+        let message = b"Same message";
+        let config = CryptoConfig::new();
+
+        let signed1 = sign(message, config.clone())?;
+        let signed2 = sign(message, config)?;
+
+        // Different key pairs should produce different signatures
+        assert_ne!(signed1.metadata.signature, signed2.metadata.signature);
+        assert_ne!(signed1.metadata.public_key, signed2.metadata.public_key);
+
+        // Both should verify successfully
+        let is_valid1 = verify(&signed1, CryptoConfig::new())?;
+        let is_valid2 = verify(&signed2, CryptoConfig::new())?;
+        assert!(is_valid1);
+        assert!(is_valid2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_rejects_empty_signature() {
+        let signed = SignedData {
+            data: b"Test message".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![], // Empty signature
+                signature_algorithm: "ed25519".to_string(),
+                public_key: vec![0u8; 32],
+                key_id: None,
+            },
+            scheme: "ed25519".to_string(),
+            timestamp: 0,
+        };
+
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err() || (result.is_ok() && !result.unwrap()));
+    }
+
+    #[test]
+    fn test_verify_rejects_empty_public_key() {
+        let signed = SignedData {
+            data: b"Test message".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 64],
+                signature_algorithm: "ed25519".to_string(),
+                public_key: vec![], // Empty public key
+                key_id: None,
+            },
+            scheme: "ed25519".to_string(),
+            timestamp: 0,
+        };
+
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err() || (result.is_ok() && !result.unwrap()));
+    }
+
+    // Decrypt error handling (doesn't require encrypt roundtrip)
+    #[test]
+    fn test_decrypt_with_short_key() {
+        let encrypted = EncryptedData {
+            data: vec![1, 2, 3, 4],
+            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
+            scheme: "aes-256-gcm".to_string(),
+            timestamp: 0,
+        };
+        let short_key = vec![0x42u8; 16]; // Too short
+
+        let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
+        assert!(result.is_err(), "Decryption with short key should fail");
+    }
+
+    #[test]
+    fn test_decrypt_unknown_scheme() -> Result<()> {
+        let encrypted = EncryptedData {
+            data: vec![0x12u8; 40], // 40 bytes of dummy data
+            metadata: EncryptedMetadata {
+                nonce: vec![0u8; 12],
+                tag: Some(vec![0u8; 16]),
+                key_id: None,
+            },
+            scheme: "unknown-scheme".to_string(),
+            timestamp: 0,
+        };
+        let key = vec![0x42u8; 32];
+
+        // Unknown schemes fall back to AES-256-GCM decryption, which should fail for invalid data
+        let result = decrypt(&encrypted, &key, CryptoConfig::new());
+        assert!(result.is_err(), "Decryption of invalid data should fail");
+
+        Ok(())
+    }
 }
