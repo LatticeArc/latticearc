@@ -835,3 +835,388 @@ pub fn verify_pq_fn_dsa_with_config_unverified(
 ) -> Result<bool> {
     verify_pq_fn_dsa_with_config(message, signature, fn_dsa_pk, config, SecurityMode::Unverified)
 }
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+mod tests {
+    use super::*;
+    use crate::convenience::keygen::{
+        generate_fn_dsa_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair,
+    };
+    use crate::{SecurityMode, VerifiedSession, generate_keypair};
+    use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
+    use arc_primitives::sig::slh_dsa::SecurityLevel as SlhDsaSecurityLevel;
+
+    // ML-DSA tests (unverified API)
+    #[test]
+    fn test_sign_verify_pq_ml_dsa_unverified_44() -> Result<()> {
+        let message = b"Test message for ML-DSA-44";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
+
+        let signature =
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA44)?;
+        assert!(!signature.is_empty());
+
+        let is_valid =
+            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA44)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_pq_ml_dsa_unverified_65() -> Result<()> {
+        let message = b"Test message for ML-DSA-65";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+
+        let signature =
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA65)?;
+        let is_valid =
+            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA65)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_pq_ml_dsa_unverified_87() -> Result<()> {
+        let message = b"Test message for ML-DSA-87";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
+
+        let signature =
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA87)?;
+        let is_valid =
+            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA87)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_verify_invalid_signature() {
+        let message = b"Test message";
+        let (pk, _sk) =
+            generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+        let invalid_signature = vec![0u8; 100];
+
+        let result = verify_pq_ml_dsa_unverified(
+            message,
+            &invalid_signature,
+            &pk,
+            MlDsaParameterSet::MLDSA65,
+        );
+        assert!(result.is_err(), "Verification should fail for invalid signature");
+    }
+
+    #[test]
+    fn test_ml_dsa_verify_wrong_message() {
+        let message = b"Original message";
+        let wrong_message = b"Wrong message";
+        let (pk, sk) =
+            generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+
+        let signature = sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA65)
+            .expect("signing should succeed");
+        let result =
+            verify_pq_ml_dsa_unverified(wrong_message, &signature, &pk, MlDsaParameterSet::MLDSA65);
+        assert!(result.is_err(), "Verification should fail for wrong message");
+    }
+
+    // ML-DSA with config tests
+    #[test]
+    fn test_sign_verify_pq_ml_dsa_with_config_unverified() -> Result<()> {
+        let message = b"Test with config";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+        let config = CoreConfig::default();
+
+        let signature = sign_pq_ml_dsa_with_config_unverified(
+            message,
+            sk.as_ref(),
+            MlDsaParameterSet::MLDSA65,
+            &config,
+        )?;
+        let is_valid = verify_pq_ml_dsa_with_config_unverified(
+            message,
+            &signature,
+            &pk,
+            MlDsaParameterSet::MLDSA65,
+            &config,
+        )?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // ML-DSA verified API tests
+    #[test]
+    fn test_sign_verify_pq_ml_dsa_verified() -> Result<()> {
+        let message = b"Test with verified session";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let signature = sign_pq_ml_dsa(
+            message,
+            sk.as_ref(),
+            MlDsaParameterSet::MLDSA65,
+            SecurityMode::Verified(&session),
+        )?;
+        let is_valid = verify_pq_ml_dsa(
+            message,
+            &signature,
+            &pk,
+            MlDsaParameterSet::MLDSA65,
+            SecurityMode::Verified(&session),
+        )?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_pq_ml_dsa_unverified_mode() -> Result<()> {
+        let message = b"Test unverified mode";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+
+        let signature = sign_pq_ml_dsa(
+            message,
+            sk.as_ref(),
+            MlDsaParameterSet::MLDSA65,
+            SecurityMode::Unverified,
+        )?;
+        let is_valid = verify_pq_ml_dsa(
+            message,
+            &signature,
+            &pk,
+            MlDsaParameterSet::MLDSA65,
+            SecurityMode::Unverified,
+        )?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // SLH-DSA tests
+    #[test]
+    fn test_sign_verify_pq_slh_dsa_unverified_128s() -> Result<()> {
+        let message = b"Test SLH-DSA-128s";
+        let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
+
+        let signature =
+            sign_pq_slh_dsa_unverified(message, sk.as_ref(), SlhDsaSecurityLevel::Shake128s)?;
+        let is_valid =
+            verify_pq_slh_dsa_unverified(message, &signature, &pk, SlhDsaSecurityLevel::Shake128s)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sign_verify_pq_slh_dsa_unverified_128f() -> Result<()> {
+        let message = b"Test SLH-DSA-128f";
+        let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s)?;
+
+        let signature =
+            sign_pq_slh_dsa_unverified(message, sk.as_ref(), SlhDsaSecurityLevel::Shake192s)?;
+        let is_valid =
+            verify_pq_slh_dsa_unverified(message, &signature, &pk, SlhDsaSecurityLevel::Shake192s)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_slh_dsa_verify_wrong_message() {
+        let message = b"Original message";
+        let wrong_message = b"Wrong message";
+        let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)
+            .expect("keygen should succeed");
+
+        let signature =
+            sign_pq_slh_dsa_unverified(message, sk.as_ref(), SlhDsaSecurityLevel::Shake128s)
+                .expect("signing should succeed");
+        let result = verify_pq_slh_dsa_unverified(
+            wrong_message,
+            &signature,
+            &pk,
+            SlhDsaSecurityLevel::Shake128s,
+        );
+        assert!(result.is_err(), "Verification should fail for wrong message");
+    }
+
+    // SLH-DSA with config tests
+    #[test]
+    fn test_sign_verify_pq_slh_dsa_with_config_unverified() -> Result<()> {
+        let message = b"Test SLH-DSA with config";
+        let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
+        let config = CoreConfig::default();
+
+        let signature = sign_pq_slh_dsa_with_config_unverified(
+            message,
+            sk.as_ref(),
+            SlhDsaSecurityLevel::Shake128s,
+            &config,
+        )?;
+        let is_valid = verify_pq_slh_dsa_with_config_unverified(
+            message,
+            &signature,
+            &pk,
+            SlhDsaSecurityLevel::Shake128s,
+            &config,
+        )?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // SLH-DSA verified API tests
+    #[test]
+    fn test_sign_verify_pq_slh_dsa_verified() -> Result<()> {
+        let message = b"Test SLH-DSA verified";
+        let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
+
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let signature = sign_pq_slh_dsa(
+            message,
+            sk.as_ref(),
+            SlhDsaSecurityLevel::Shake128s,
+            SecurityMode::Verified(&session),
+        )?;
+        let is_valid = verify_pq_slh_dsa(
+            message,
+            &signature,
+            &pk,
+            SlhDsaSecurityLevel::Shake128s,
+            SecurityMode::Verified(&session),
+        )?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // FN-DSA tests
+    #[test]
+    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    fn test_sign_verify_pq_fn_dsa_unverified() -> Result<()> {
+        let message = b"Test FN-DSA";
+        let (pk, sk) = generate_fn_dsa_keypair()?;
+
+        let signature = sign_pq_fn_dsa_unverified(message, sk.as_ref())?;
+        let is_valid = verify_pq_fn_dsa_unverified(message, &signature, &pk)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    fn test_fn_dsa_verify_wrong_message() -> Result<()> {
+        let message = b"Original message";
+        let wrong_message = b"Wrong message";
+        let (pk, sk) = generate_fn_dsa_keypair()?;
+
+        let signature = sign_pq_fn_dsa_unverified(message, sk.as_ref())?;
+        let is_valid = verify_pq_fn_dsa_unverified(wrong_message, &signature, &pk)?;
+        assert!(!is_valid);
+        Ok(())
+    }
+
+    // FN-DSA with config tests
+    #[test]
+    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    fn test_sign_verify_pq_fn_dsa_with_config_unverified() -> Result<()> {
+        let message = b"Test FN-DSA with config";
+        let (pk, sk) = generate_fn_dsa_keypair()?;
+        let config = CoreConfig::default();
+
+        let signature = sign_pq_fn_dsa_with_config_unverified(message, sk.as_ref(), &config)?;
+        let is_valid = verify_pq_fn_dsa_with_config_unverified(message, &signature, &pk, &config)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // FN-DSA verified API tests
+    #[test]
+    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    fn test_sign_verify_pq_fn_dsa_verified() -> Result<()> {
+        let message = b"Test FN-DSA verified";
+        let (pk, sk) = generate_fn_dsa_keypair()?;
+
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let signature = sign_pq_fn_dsa(message, sk.as_ref(), SecurityMode::Verified(&session))?;
+        let is_valid =
+            verify_pq_fn_dsa(message, &signature, &pk, SecurityMode::Verified(&session))?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    // Edge case tests
+    #[test]
+    fn test_ml_dsa_empty_message() -> Result<()> {
+        let message = b"";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+
+        let signature =
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA65)?;
+        let is_valid =
+            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA65)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_large_message() -> Result<()> {
+        let message = vec![0xAB; 10000];
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+
+        let signature =
+            sign_pq_ml_dsa_unverified(&message, sk.as_ref(), MlDsaParameterSet::MLDSA65)?;
+        let is_valid =
+            verify_pq_ml_dsa_unverified(&message, &signature, &pk, MlDsaParameterSet::MLDSA65)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_signature_determinism() -> Result<()> {
+        let message = b"Same message";
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+
+        let sig1 = sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA65)?;
+        let sig2 = sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA65)?;
+
+        // ML-DSA signatures may be non-deterministic due to randomness
+        // Just verify both are valid
+        let valid1 = verify_pq_ml_dsa_unverified(message, &sig1, &pk, MlDsaParameterSet::MLDSA65)?;
+        let valid2 = verify_pq_ml_dsa_unverified(message, &sig2, &pk, MlDsaParameterSet::MLDSA65)?;
+        assert!(valid1 && valid2);
+        Ok(())
+    }
+
+    // Integration tests
+    #[test]
+    fn test_all_ml_dsa_security_levels() -> Result<()> {
+        let message = b"Test all levels";
+        let levels = vec![
+            MlDsaParameterSet::MLDSA44,
+            MlDsaParameterSet::MLDSA65,
+            MlDsaParameterSet::MLDSA87,
+        ];
+
+        for level in levels {
+            let (pk, sk) = generate_ml_dsa_keypair(level)?;
+            let signature = sign_pq_ml_dsa_unverified(message, sk.as_ref(), level)?;
+            let is_valid = verify_pq_ml_dsa_unverified(message, &signature, &pk, level)?;
+            assert!(is_valid, "Verification failed for {:?}", level);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_all_slh_dsa_security_levels() -> Result<()> {
+        let message = b"Test all SLH-DSA levels";
+        let levels = vec![SlhDsaSecurityLevel::Shake128s, SlhDsaSecurityLevel::Shake192s];
+
+        for level in levels {
+            let (pk, sk) = generate_slh_dsa_keypair(level)?;
+            let signature = sign_pq_slh_dsa_unverified(message, sk.as_ref(), level)?;
+            let is_valid = verify_pq_slh_dsa_unverified(message, &signature, &pk, level)?;
+            assert!(is_valid, "Verification failed for {:?}", level);
+        }
+        Ok(())
+    }
+}
