@@ -97,3 +97,24 @@ path = "fuzz_targets/constant_time_fuzz.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "ml_dsa_fuzz"
+path = "fuzz_targets/ml_dsa_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "chacha_poly_fuzz"
+path = "fuzz_targets/chacha_poly_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hmac_fuzz"
+path = "fuzz_targets/hmac_fuzz.rs"
+test = false
+doc = false
+bench = false
