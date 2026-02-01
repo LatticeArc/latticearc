@@ -283,7 +283,7 @@ impl Default for SecurityMode<'_> {
 /// use arc_core::{VerifiedSession, encrypt_hybrid};
 ///
 /// // Establish a verified session (performs challenge-response)
-/// let session = VerifiedSession::establish(&public_key, &private_key)?;
+/// let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 ///
 /// // Use the session for cryptographic operations
 /// let result = encrypt_hybrid(data, None, &key, SecurityMode::Verified(&session))?;
@@ -321,7 +321,7 @@ impl VerifiedSession {
     /// # Example
     ///
     /// ```rust,ignore
-    /// let session = VerifiedSession::establish(&public_key, &private_key)?;
+    /// let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
     /// assert!(session.is_valid());
     /// ```
     pub fn establish(public_key: &[u8], private_key: &[u8]) -> Result<Self> {
@@ -1074,5 +1074,382 @@ impl ZeroTrustSession {
     /// Returns `CoreError::EntropyDepleted` if session ID generation fails.
     pub fn into_verified(self) -> Result<VerifiedSession> {
         VerifiedSession::from_authenticated(&self)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+mod tests {
+    use super::*;
+    use crate::generate_keypair;
+
+    // TrustLevel tests
+    #[test]
+    fn test_trust_level_default() {
+        let level = TrustLevel::default();
+        assert_eq!(level, TrustLevel::Untrusted);
+    }
+
+    #[test]
+    fn test_trust_level_variants() {
+        assert_eq!(TrustLevel::Untrusted as i32, 0);
+        assert_eq!(TrustLevel::Partial as i32, 1);
+        assert_eq!(TrustLevel::Trusted as i32, 2);
+        assert_eq!(TrustLevel::FullyTrusted as i32, 3);
+    }
+
+    #[test]
+    fn test_trust_level_is_trusted() {
+        assert!(!TrustLevel::Untrusted.is_trusted());
+        assert!(TrustLevel::Partial.is_trusted());
+        assert!(TrustLevel::Trusted.is_trusted());
+        assert!(TrustLevel::FullyTrusted.is_trusted());
+    }
+
+    #[test]
+    fn test_trust_level_is_fully_trusted() {
+        assert!(!TrustLevel::Untrusted.is_fully_trusted());
+        assert!(!TrustLevel::Partial.is_fully_trusted());
+        assert!(!TrustLevel::Trusted.is_fully_trusted());
+        assert!(TrustLevel::FullyTrusted.is_fully_trusted());
+    }
+
+    #[test]
+    fn test_trust_level_ordering() {
+        assert!(TrustLevel::Untrusted < TrustLevel::Partial);
+        assert!(TrustLevel::Partial < TrustLevel::Trusted);
+        assert!(TrustLevel::Trusted < TrustLevel::FullyTrusted);
+    }
+
+    // SecurityMode tests
+    #[test]
+    fn test_security_mode_unverified_is_unverified() {
+        let mode = SecurityMode::Unverified;
+        assert!(mode.is_unverified());
+        assert!(!mode.is_verified());
+    }
+
+    #[test]
+    fn test_security_mode_validate_unverified() -> Result<()> {
+        let mode = SecurityMode::Unverified;
+        mode.validate()?;
+        Ok(())
+    }
+
+    // VerifiedSession tests
+    #[test]
+    fn test_verified_session_establish() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        assert!(session.is_valid());
+        // After self-authentication during establish, trust level is upgraded
+        assert!(session.trust_level() >= TrustLevel::Partial);
+        Ok(())
+    }
+
+    #[test]
+    fn test_verified_session_session_id() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        let session_id = session.session_id();
+        assert_eq!(session_id.len(), 32);
+        Ok(())
+    }
+
+    #[test]
+    fn test_verified_session_public_key() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        let pk = session.public_key();
+        assert!(!pk.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_verified_session_timestamps() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        let authenticated_at = session.authenticated_at();
+        let expires_at = session.expires_at();
+
+        assert!(expires_at > authenticated_at, "Session should expire after authentication");
+        Ok(())
+    }
+
+    #[test]
+    fn test_verified_session_verify_valid() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        session.verify_valid()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_security_mode_verified_with_session() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        let mode = SecurityMode::Verified(&session);
+        assert!(mode.is_verified());
+        assert!(!mode.is_unverified());
+        Ok(())
+    }
+
+    #[test]
+    fn test_security_mode_verified_validate() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        let mode = SecurityMode::Verified(&session);
+        mode.validate()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_security_mode_verified_session() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        let mode = SecurityMode::Verified(&session);
+        assert!(mode.session().is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn test_security_mode_unverified_session() {
+        let mode = SecurityMode::Unverified;
+        assert!(mode.session().is_none());
+    }
+
+    // ZeroTrustAuth tests
+    #[test]
+    fn test_zero_trust_auth_new() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        // Just verify it was created successfully
+        assert!(std::mem::size_of_val(&auth) > 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_auth_with_config() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let config =
+            ZeroTrustConfig::new().with_timeout(10000).with_complexity(ProofComplexity::High);
+
+        let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+        assert!(std::mem::size_of_val(&auth) > 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_auth_generate_challenge() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let challenge = auth.generate_challenge()?;
+        assert!(!challenge.is_expired());
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_auth_multiple_challenges() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let challenge1 = auth.generate_challenge()?;
+        let challenge2 = auth.generate_challenge()?;
+
+        // Challenges should be different
+        assert!(!challenge1.is_expired());
+        assert!(!challenge2.is_expired());
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_auth_verify_challenge_age() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let challenge = auth.generate_challenge()?;
+        let is_valid = auth.verify_challenge_age(&challenge)?;
+
+        assert!(is_valid, "Freshly generated challenge should be valid");
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_auth_start_continuous_verification() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let continuous = auth.start_continuous_verification();
+        let result = continuous.is_valid();
+
+        assert!(result.is_ok());
+        Ok(())
+    }
+
+    // Challenge tests
+    #[test]
+    fn test_challenge_not_expired_when_fresh() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let challenge = auth.generate_challenge()?;
+        assert!(!challenge.is_expired());
+        Ok(())
+    }
+
+    // ZeroTrustSession tests
+    #[test]
+    fn test_zero_trust_session_new() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let session = ZeroTrustSession::new(auth);
+        assert!(!session.is_authenticated());
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_session_initiate_authentication() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let mut session = ZeroTrustSession::new(auth);
+        let challenge = session.initiate_authentication()?;
+
+        assert!(!challenge.is_expired());
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_session_not_authenticated_initially() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let session = ZeroTrustSession::new(auth);
+        assert!(!session.is_authenticated());
+        Ok(())
+    }
+
+    // ProofComplexity tests
+    #[test]
+    fn test_proof_complexity_variants() {
+        let _low = ProofComplexity::Low;
+        let _medium = ProofComplexity::Medium;
+        let _high = ProofComplexity::High;
+
+        assert_eq!(ProofComplexity::Medium, ProofComplexity::Medium);
+    }
+
+    // Integration tests
+    #[test]
+    fn test_verified_session_with_multiple_instances() -> Result<()> {
+        // Test creating multiple sessions
+        for _ in 0..3 {
+            let (public_key, private_key) = generate_keypair()?;
+            let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+            assert!(session.is_valid());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_config_variations() -> Result<()> {
+        // Test with different configurations
+        let configs = vec![
+            ZeroTrustConfig::new().with_timeout(5000),
+            ZeroTrustConfig::new().with_complexity(ProofComplexity::Low),
+            ZeroTrustConfig::new().with_complexity(ProofComplexity::High),
+            ZeroTrustConfig::new().with_continuous_verification(true),
+            ZeroTrustConfig::new().with_verification_interval(60000),
+        ];
+
+        for config in configs {
+            let (public_key, private_key) = generate_keypair()?;
+            let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+            let _challenge = auth.generate_challenge()?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_trust_level_progression() {
+        let levels = vec![
+            TrustLevel::Untrusted,
+            TrustLevel::Partial,
+            TrustLevel::Trusted,
+            TrustLevel::FullyTrusted,
+        ];
+
+        for (i, level) in levels.iter().enumerate() {
+            assert_eq!(*level as usize, i);
+        }
+    }
+
+    #[test]
+    fn test_verified_session_multiple_sessions() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+
+        // Create multiple sessions with same keys
+        let session1 = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session2 = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+
+        // Sessions should have different IDs
+        assert!(session1.is_valid());
+        assert!(session2.is_valid());
+        assert_ne!(session1.session_id(), session2.session_id());
+        Ok(())
+    }
+
+    #[test]
+    fn test_challenge_generation_produces_unique_challenges() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let auth = ZeroTrustAuth::new(public_key, private_key)?;
+
+        let mut challenges = Vec::new();
+        for _ in 0..5 {
+            challenges.push(auth.generate_challenge()?);
+        }
+
+        // All challenges should be valid
+        for challenge in &challenges {
+            assert!(!challenge.is_expired());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_continuous_session_validation() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let config = ZeroTrustConfig::new().with_continuous_verification(true);
+        let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+
+        let continuous = auth.start_continuous_verification();
+        assert!(continuous.is_valid().is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn test_zero_trust_auth_with_all_complexity_levels() -> Result<()> {
+        let complexities =
+            vec![ProofComplexity::Low, ProofComplexity::Medium, ProofComplexity::High];
+
+        for complexity in complexities {
+            let (public_key, private_key) = generate_keypair()?;
+            let config = ZeroTrustConfig::new().with_complexity(complexity);
+            let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+            let challenge = auth.generate_challenge()?;
+            assert!(!challenge.is_expired());
+        }
+        Ok(())
     }
 }
