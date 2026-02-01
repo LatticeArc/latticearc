@@ -1,7 +1,37 @@
 //! Post-quantum KEM operations (ML-KEM)
 //!
 //! This module provides post-quantum key encapsulation mechanism operations
-//! using ML-KEM (FIPS 203).
+//! using ML-KEM (FIPS 203) with **FIPS 140-3 validated** aws-lc-rs.
+//!
+//! # ⚠️ IMPORTANT: FIPS 140-3 LIMITATION
+//!
+//! **ML-KEM DECRYPTION IS NOT SUPPORTED** with the current implementation.
+//!
+//! ## Why Decryption Doesn't Work
+//!
+//! FIPS 140-3 validated aws-lc-rs **intentionally prohibits** ML-KEM secret key
+//! serialization for security reasons. This means:
+//!
+//! - ✅ **Encryption works**: You can encrypt data using ML-KEM public keys
+//! - ❌ **Decryption fails**: Secret keys from `generate_ml_kem_keypair()` are placeholders
+//! - ❌ **No persistence**: Cannot save/load ML-KEM secret keys to/from bytes
+//! - ✅ **FIPS compliant**: Maintains FIPS 140-3 certification
+//!
+//! ## Recommended Alternatives
+//!
+//! 1. **Ephemeral Session Keys** (Recommended for sessions):
+//!    - Keep `DecapsulationKey` object in memory for session lifetime
+//!    - Use ML-KEM for key agreement, derive session keys
+//!    - Never serialize the secret key to bytes
+//!
+//! 2. **Hybrid Mode** (Recommended for persistence):
+//!    - Use X25519 for long-term keys (supports serialization)
+//!    - Combine with ML-KEM for post-quantum protection
+//!    - See `arc-hybrid` crate
+//!
+//! 3. **HSM/KMS Integration**:
+//!    - Use hardware security modules with native ML-KEM support
+//!    - Keys never leave the secure hardware boundary
 //!
 //! ## Unified API with SecurityMode
 //!
@@ -12,14 +42,14 @@
 //! The `_unverified` variants are opt-out functions for scenarios where Zero Trust
 //! verification is not required or not possible.
 
-use arc_primitives::kem::ml_kem::{MlKem, MlKemCiphertext, MlKemSecretKey, MlKemSecurityLevel};
+use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
-use super::aes_gcm::{decrypt_aes_gcm_internal, encrypt_aes_gcm_internal};
+use super::aes_gcm::encrypt_aes_gcm_internal;
 use crate::config::CoreConfig;
 use crate::error::{CoreError, Result};
 use crate::zero_trust::SecurityMode;
 
-use arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
+use arc_validation::resource_limits::validate_encryption_size;
 
 // ============================================================================
 // Internal Implementation
@@ -72,62 +102,45 @@ fn encrypt_pq_ml_kem_internal(
 }
 
 /// Internal implementation of ML-KEM decryption.
+///
+/// # FIPS 140-3 Limitation
+///
+/// **ML-KEM decryption is not supported** with the current FIPS 140-3 validated
+/// aws-lc-rs implementation. This is an intentional security design by AWS-LC that
+/// prohibits secret key serialization.
+///
+/// ## Why This Doesn't Work
+///
+/// - aws-lc-rs `DecapsulationKey` cannot be serialized to bytes
+/// - Secret keys from `generate_ml_kem_keypair()` are placeholder values
+/// - Decapsulation requires the original `DecapsulationKey` object from key generation
+///
+/// ## Recommended Alternatives
+///
+/// 1. **Ephemeral Session Keys**: Keep `DecapsulationKey` in memory for session duration
+/// 2. **Hybrid Mode**: Use X25519 for persistent keys + ML-KEM for PQ protection
+/// 3. **HSM/KMS**: Use hardware security modules with native ML-KEM support
+///
+/// # Errors
+///
+/// Always returns `CoreError::NotImplemented` explaining the FIPS limitation.
 fn decrypt_pq_ml_kem_internal(
-    encrypted_data: &[u8],
-    ml_kem_sk: &[u8],
+    _encrypted_data: &[u8],
+    _ml_kem_sk: &[u8],
     security_level: MlKemSecurityLevel,
 ) -> Result<Vec<u8>> {
-    crate::log_crypto_operation_start!(
+    crate::log_crypto_operation_error!(
         "decrypt_pq_ml_kem",
-        security_level = ?security_level,
-        encrypted_len = encrypted_data.len()
+        "FIPS limitation: decapsulation not supported"
     );
 
-    validate_decryption_size(encrypted_data.len()).map_err(|e| {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "resource limit exceeded");
-        CoreError::ResourceExceeded(e.to_string())
-    })?;
-
-    // Parse the combined data: ciphertext + encrypted_payload
-    let ciphertext_size = match security_level {
-        MlKemSecurityLevel::MlKem512 => 768,
-        MlKemSecurityLevel::MlKem768 => 1088,
-        MlKemSecurityLevel::MlKem1024 => 1568,
-    };
-
-    if encrypted_data.len() < ciphertext_size {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "encrypted data too short");
-        return Err(CoreError::InvalidInput("Encrypted data too short".to_string()));
-    }
-
-    let (ciphertext_bytes, encrypted_payload) = encrypted_data.split_at(ciphertext_size);
-
-    let ciphertext =
-        MlKemCiphertext::new(security_level, ciphertext_bytes.to_vec()).map_err(|e| {
-            crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "invalid ciphertext");
-            CoreError::InvalidInput(format!("Invalid ML-KEM ciphertext: {}", e))
-        })?;
-
-    let sk = MlKemSecretKey::new(security_level, ml_kem_sk.to_vec()).map_err(|e| {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "invalid private key");
-        CoreError::InvalidInput(format!("Invalid ML-KEM private key: {}", e))
-    })?;
-
-    let shared_secret = MlKem::decapsulate(&sk, &ciphertext).map_err(|e| {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "decapsulation failed");
-        CoreError::DecryptionFailed(format!("ML-KEM decapsulation failed: {}", e))
-    })?;
-
-    // Decrypt payload with shared secret
-    let result = decrypt_aes_gcm_internal(encrypted_payload, shared_secret.as_bytes())?;
-
-    crate::log_crypto_operation_complete!(
-        "decrypt_pq_ml_kem",
-        security_level = ?security_level,
-        result_len = result.len()
-    );
-
-    Ok(result)
+    Err(CoreError::NotImplemented(format!(
+        "ML-KEM {:?} decryption with serialized keys. FIPS 140-3 validated aws-lc-rs \
+             does not support DecapsulationKey deserialization for security reasons. \
+             ML-KEM secret keys cannot be persisted to bytes. Use ephemeral keys (keep \
+             DecapsulationKey in memory), hybrid mode with X25519, or HSM/KMS integration.",
+        security_level
+    )))
 }
 
 // ============================================================================
@@ -173,6 +186,13 @@ pub fn encrypt_pq_ml_kem(
 }
 
 /// Decrypt data using ML-KEM.
+///
+/// # ⚠️ FIPS 140-3 LIMITATION - NOT IMPLEMENTED
+///
+/// **This function always returns an error** due to FIPS 140-3 aws-lc-rs design limitations.
+/// ML-KEM secret keys cannot be deserialized from bytes for security reasons.
+///
+/// See module documentation for alternatives (ephemeral keys, hybrid mode, HSM/KMS).
 ///
 /// Uses `SecurityMode` to specify verification behavior:
 /// - `SecurityMode::Verified(&session)`: Validates session before decryption
@@ -235,6 +255,10 @@ pub fn encrypt_pq_ml_kem_with_config(
 
 /// Decrypt data using ML-KEM with custom configuration.
 ///
+/// # ⚠️ FIPS 140-3 LIMITATION - NOT IMPLEMENTED
+///
+/// **This function always returns an error** due to FIPS 140-3 aws-lc-rs design limitations.
+///
 /// # Errors
 ///
 /// Returns an error if:
@@ -280,6 +304,10 @@ pub fn encrypt_pq_ml_kem_unverified(
 
 /// Decrypt data using ML-KEM without Zero Trust verification.
 ///
+/// # ⚠️ FIPS 140-3 LIMITATION - NOT IMPLEMENTED
+///
+/// **This function always returns an error** due to FIPS 140-3 aws-lc-rs design limitations.
+///
 /// This is an opt-out function for scenarios where Zero Trust verification is not required
 /// or not possible.
 ///
@@ -323,6 +351,10 @@ pub fn encrypt_pq_ml_kem_with_config_unverified(
 }
 
 /// Decrypt data using ML-KEM with configuration without Zero Trust verification.
+///
+/// # ⚠️ FIPS 140-3 LIMITATION - NOT IMPLEMENTED
+///
+/// **This function always returns an error** due to FIPS 140-3 aws-lc-rs design limitations.
 ///
 /// This is an opt-out function for scenarios where Zero Trust verification is not required
 /// or not possible.
@@ -412,14 +444,21 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_pq_ml_kem_unverified_invalid_ciphertext() {
+    fn test_decrypt_pq_ml_kem_always_fails_fips_limitation() {
         let (_, sk) =
             generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
-        let invalid_data = vec![0u8; 100];
+        let data = vec![0u8; 2000]; // Valid-looking ciphertext size
 
-        let result =
-            decrypt_pq_ml_kem_unverified(&invalid_data, sk.as_ref(), MlKemSecurityLevel::MlKem768);
-        assert!(result.is_err());
+        let result = decrypt_pq_ml_kem_unverified(&data, sk.as_ref(), MlKemSecurityLevel::MlKem768);
+
+        // Should always return NotImplemented error due to FIPS limitation
+        assert!(result.is_err(), "ML-KEM decryption should always fail with FIPS aws-lc-rs");
+        match result.unwrap_err() {
+            CoreError::NotImplemented(msg) => {
+                assert!(msg.contains("aws-lc-rs"), "Error should mention aws-lc-rs limitation");
+            }
+            other => panic!("Expected NotImplemented error, got: {:?}", other),
+        }
     }
 
     // With config tests
@@ -538,19 +577,28 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_with_invalid_key_size() {
+    fn test_decrypt_always_returns_not_implemented() {
         let data = b"Test data";
-        let (pk, _sk) =
+        let (pk, sk) =
             generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
         let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)
             .expect("encryption should succeed");
 
-        // Try to decrypt with empty key
-        let invalid_key = vec![];
+        // Even with valid key and ciphertext, decryption should fail due to FIPS limitation
         let result =
-            decrypt_pq_ml_kem_unverified(&encrypted, &invalid_key, MlKemSecurityLevel::MlKem768);
-        assert!(result.is_err());
+            decrypt_pq_ml_kem_unverified(&encrypted, sk.as_ref(), MlKemSecurityLevel::MlKem768);
+
+        assert!(result.is_err(), "ML-KEM decryption should always fail with FIPS aws-lc-rs");
+        match result.unwrap_err() {
+            CoreError::NotImplemented(msg) => {
+                assert!(
+                    msg.contains("FIPS 140-3") || msg.contains("aws-lc-rs"),
+                    "Error should mention FIPS/aws-lc-rs limitation"
+                );
+            }
+            other => panic!("Expected NotImplemented error, got: {:?}", other),
+        }
     }
 
     #[test]
