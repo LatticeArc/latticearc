@@ -351,3 +351,232 @@ pub fn decrypt_pq_ml_kem_with_config_unverified(
         SecurityMode::Unverified,
     )
 }
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+mod tests {
+    use super::*;
+    use crate::convenience::keygen::generate_ml_kem_keypair;
+    use crate::{SecurityMode, VerifiedSession, generate_keypair};
+    use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
+
+    // Encryption tests - testing that encryption produces output
+    #[test]
+    fn test_encrypt_pq_ml_kem_unverified_512() -> Result<()> {
+        let data = b"Test data for ML-KEM-512";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)?;
+
+        let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem512)?;
+        assert!(encrypted.len() > data.len(), "Ciphertext should be larger than plaintext");
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_unverified_768() -> Result<()> {
+        let data = b"Test data for ML-KEM-768";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_unverified_1024() -> Result<()> {
+        let data = b"Test data for ML-KEM-1024";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)?;
+
+        let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem1024)?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_unverified_empty_data() -> Result<()> {
+        let data = b"";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)?;
+        assert!(encrypted.len() > 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_unverified_large_data() -> Result<()> {
+        let data = vec![0u8; 10000];
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_decrypt_pq_ml_kem_unverified_invalid_ciphertext() {
+        let (_, sk) =
+            generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
+        let invalid_data = vec![0u8; 100];
+
+        let result =
+            decrypt_pq_ml_kem_unverified(&invalid_data, sk.as_ref(), MlKemSecurityLevel::MlKem768);
+        assert!(result.is_err());
+    }
+
+    // With config tests
+    #[test]
+    fn test_encrypt_pq_ml_kem_with_config_unverified() -> Result<()> {
+        let data = b"Test data with config";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+        let config = CoreConfig::default();
+
+        let encrypted = encrypt_pq_ml_kem_with_config_unverified(
+            data,
+            &pk,
+            MlKemSecurityLevel::MlKem768,
+            &config,
+        )?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_with_config_different_levels() -> Result<()> {
+        let data = b"Test security levels";
+        let levels = vec![
+            MlKemSecurityLevel::MlKem512,
+            MlKemSecurityLevel::MlKem768,
+            MlKemSecurityLevel::MlKem1024,
+        ];
+
+        for level in levels {
+            let (pk, _sk) = generate_ml_kem_keypair(level)?;
+            let config = CoreConfig::default();
+
+            let encrypted = encrypt_pq_ml_kem_with_config_unverified(data, &pk, level, &config)?;
+            assert!(encrypted.len() > 0);
+        }
+        Ok(())
+    }
+
+    // Verified API tests (with SecurityMode)
+    #[test]
+    fn test_encrypt_pq_ml_kem_verified() -> Result<()> {
+        let data = b"Test data with verified session";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        // Create verified session
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let encrypted = encrypt_pq_ml_kem(
+            data,
+            &pk,
+            MlKemSecurityLevel::MlKem768,
+            SecurityMode::Verified(&session),
+        )?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_unverified_mode() -> Result<()> {
+        let data = b"Test data with unverified mode";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        let encrypted =
+            encrypt_pq_ml_kem(data, &pk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_with_config_verified() -> Result<()> {
+        let data = b"Test with config and session";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+        let config = CoreConfig::default();
+
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let encrypted = encrypt_pq_ml_kem_with_config(
+            data,
+            &pk,
+            MlKemSecurityLevel::MlKem768,
+            &config,
+            SecurityMode::Verified(&session),
+        )?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_encrypt_pq_ml_kem_with_config_unverified_mode() -> Result<()> {
+        let data = b"Test with config unverified mode";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+        let config = CoreConfig::default();
+
+        let encrypted = encrypt_pq_ml_kem_with_config(
+            data,
+            &pk,
+            MlKemSecurityLevel::MlKem768,
+            &config,
+            SecurityMode::Unverified,
+        )?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    // Edge case tests
+    #[test]
+    fn test_ml_kem_binary_data_encryption() -> Result<()> {
+        let data = vec![0xFF, 0x00, 0xAA, 0x55, 0x12, 0x34, 0x56, 0x78];
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+        assert!(encrypted.len() > data.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_decrypt_with_invalid_key_size() {
+        let data = b"Test data";
+        let (pk, _sk) =
+            generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
+
+        let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)
+            .expect("encryption should succeed");
+
+        // Try to decrypt with empty key
+        let invalid_key = vec![];
+        let result =
+            decrypt_pq_ml_kem_unverified(&encrypted, &invalid_key, MlKemSecurityLevel::MlKem768);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ml_kem_ciphertext_size_increases() -> Result<()> {
+        let data = b"Small data";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)?;
+        assert!(encrypted.len() > data.len(), "Ciphertext should be larger than plaintext");
+        Ok(())
+    }
+
+    // Integration test
+    #[test]
+    fn test_ml_kem_multiple_encryptions_produce_different_ciphertexts() -> Result<()> {
+        let data = b"Same plaintext";
+        let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+
+        let encrypted1 = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)?;
+        let encrypted2 = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)?;
+
+        // Due to randomness in KEM, ciphertexts should differ
+        assert_ne!(
+            encrypted1, encrypted2,
+            "Multiple encryptions should produce different ciphertexts"
+        );
+        Ok(())
+    }
+}
