@@ -148,16 +148,20 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; 32]> {
 pub fn verify_hmac_sha256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
 
+    // Always compute MAC to prevent timing side-channels
+    // Use constant-time operations for all comparisons
     let key_valid = !key.is_empty();
     let tag_valid: bool = tag.len().ct_eq(&32).into();
 
-    if !key_valid || !tag_valid {
-        return false;
-    }
-
+    // Compute MAC regardless of validation status (timing-safe)
     let expected_tag = hmac_sha256(key, data);
+
+    // Constant-time comparison: valid only if key valid AND tag length valid AND MAC matches
     match expected_tag {
-        Ok(computed_tag) => computed_tag.ct_eq(tag).into(),
+        Ok(computed_tag) => {
+            let mac_matches = computed_tag.ct_eq(tag).into();
+            key_valid && tag_valid && mac_matches
+        }
         Err(_) => false,
     }
 }

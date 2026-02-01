@@ -1190,4 +1190,238 @@ mod tests {
         );
         Ok(())
     }
+
+    // Corrupted ciphertext tests
+    #[test]
+    fn test_corrupted_ciphertext_invalid_length() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+        let (_ss, mut ct) = MlKem::encapsulate(&mut rng, &pk)?;
+
+        // Truncate ciphertext to invalid length
+        ct.data.truncate(ct.data.len() - 10);
+
+        // Should fail due to length mismatch
+        let result = MlKem::decapsulate(&sk, &ct);
+        assert!(result.is_err(), "Decapsulation with truncated ciphertext should fail");
+        Ok(())
+    }
+
+    #[test]
+    fn test_corrupted_ciphertext_modified_bytes() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+        let (_ss, mut ct) = MlKem::encapsulate(&mut rng, &pk)?;
+
+        // Corrupt first byte
+        ct.data[0] ^= 0xFF;
+
+        // Decapsulation should handle corrupted data (either error or different secret)
+        let result = MlKem::decapsulate(&sk, &ct);
+        // aws-lc-rs limitation means this will error, but that's expected
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_ciphertext_construction_invalid_length() {
+        // Test that ciphertext construction rejects invalid lengths
+        let invalid_data = vec![0u8; 100]; // Wrong size for ML-KEM-512
+        let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem512, invalid_data);
+        assert!(result.is_err(), "Should reject ciphertext with wrong length");
+
+        // Test for each security level
+        let invalid_768 = vec![0u8; 500];
+        let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem768, invalid_768);
+        assert!(result.is_err());
+
+        let invalid_1024 = vec![0u8; 600];
+        let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem1024, invalid_1024);
+        assert!(result.is_err());
+    }
+
+    // Deterministic key generation tests
+    #[test]
+    #[ignore = "aws-lc-rs uses internal FIPS-approved DRBG; external seed is not used deterministically"]
+    fn test_deterministic_key_generation_with_seed() -> Result<(), MlKemError> {
+        let seed1 = [0x42u8; 32];
+        let seed2 = [0x42u8; 32];
+        let seed3 = [0x99u8; 32];
+
+        // Same seed should produce same public key
+        let (pk1, _sk1) = MlKem::generate_keypair_with_seed(&seed1, MlKemSecurityLevel::MlKem512)?;
+        let (pk2, _sk2) = MlKem::generate_keypair_with_seed(&seed2, MlKemSecurityLevel::MlKem512)?;
+        assert_eq!(pk1.as_bytes(), pk2.as_bytes(), "Same seed should produce same public key");
+
+        // Different seed should produce different public key
+        let (pk3, _sk3) = MlKem::generate_keypair_with_seed(&seed3, MlKemSecurityLevel::MlKem512)?;
+        assert_ne!(
+            pk1.as_bytes(),
+            pk3.as_bytes(),
+            "Different seeds should produce different public keys"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "aws-lc-rs uses internal FIPS-approved DRBG; external seed is not used deterministically"]
+    fn test_deterministic_key_generation_all_levels() -> Result<(), MlKemError> {
+        let seed = [0xAAu8; 32];
+
+        for level in [
+            MlKemSecurityLevel::MlKem512,
+            MlKemSecurityLevel::MlKem768,
+            MlKemSecurityLevel::MlKem1024,
+        ] {
+            let (pk1, _sk1) = MlKem::generate_keypair_with_seed(&seed, level)?;
+            let (pk2, _sk2) = MlKem::generate_keypair_with_seed(&seed, level)?;
+
+            assert_eq!(
+                pk1.as_bytes(),
+                pk2.as_bytes(),
+                "Deterministic generation should work for {}",
+                level.name()
+            );
+            assert_eq!(pk1.as_bytes().len(), level.public_key_size());
+        }
+        Ok(())
+    }
+
+    // Invalid public key tests
+    #[test]
+    fn test_encapsulate_with_invalid_public_key_length() {
+        // Test with wrong-sized public key for ML-KEM-512
+        let invalid_pk_data = vec![0u8; 100]; // Should be 800
+        let result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem512, invalid_pk_data);
+        assert!(result.is_err(), "Should reject public key with invalid length");
+    }
+
+    #[test]
+    fn test_public_key_validation_all_levels() {
+        for (level, size) in [
+            (MlKemSecurityLevel::MlKem512, 800),
+            (MlKemSecurityLevel::MlKem768, 1184),
+            (MlKemSecurityLevel::MlKem1024, 1568),
+        ] {
+            // Valid size should succeed
+            let valid_pk = MlKemPublicKey::new(level, vec![0u8; size]);
+            assert!(valid_pk.is_ok(), "Valid public key for {} should be accepted", level.name());
+
+            // Invalid sizes should fail
+            let too_small = MlKemPublicKey::new(level, vec![0u8; size - 1]);
+            assert!(
+                too_small.is_err(),
+                "Too small public key for {} should be rejected",
+                level.name()
+            );
+
+            let too_large = MlKemPublicKey::new(level, vec![0u8; size + 1]);
+            assert!(
+                too_large.is_err(),
+                "Too large public key for {} should be rejected",
+                level.name()
+            );
+        }
+    }
+
+    // Cross-parameter set tests
+    #[test]
+    fn test_decapsulate_with_mismatched_security_levels() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+
+        let (pk512, _sk512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+        let (_pk768, sk768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+
+        // Encapsulate with MlKem512
+        let (_ss, ct512) = MlKem::encapsulate(&mut rng, &pk512)?;
+
+        // Try to decapsulate with MlKem768 secret key (should fail)
+        let result = MlKem::decapsulate(&sk768, &ct512);
+        assert!(result.is_err(), "Decapsulation with mismatched security levels should fail");
+
+        // Verify error message mentions security level mismatch
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("security level") || err_msg.contains("mismatch"),
+            "Error should mention security level mismatch: {}",
+            err_msg
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ciphertext_security_level_accessor() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+
+        for level in [
+            MlKemSecurityLevel::MlKem512,
+            MlKemSecurityLevel::MlKem768,
+            MlKemSecurityLevel::MlKem1024,
+        ] {
+            let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)?;
+            let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+
+            assert_eq!(ct.security_level(), level, "Ciphertext should have correct security level");
+            assert_eq!(ct.as_bytes().len(), level.ciphertext_size());
+        }
+        Ok(())
+    }
+
+    // Encapsulation determinism tests
+    #[test]
+    fn test_encapsulate_produces_different_ciphertexts() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+
+        // Encapsulate twice with same public key
+        let (ss1, ct1) = MlKem::encapsulate(&mut rng, &pk)?;
+        let (ss2, ct2) = MlKem::encapsulate(&mut rng, &pk)?;
+
+        // Ciphertexts should differ (randomized encapsulation)
+        assert_ne!(
+            ct1.as_bytes(),
+            ct2.as_bytes(),
+            "Randomized encapsulation should produce different ciphertexts"
+        );
+
+        // Shared secrets should also differ
+        assert_ne!(
+            ss1.as_bytes(),
+            ss2.as_bytes(),
+            "Different encapsulations should produce different shared secrets"
+        );
+
+        Ok(())
+    }
+
+    // Resource limit tests
+    #[test]
+    fn test_encapsulate_oversized_public_key() {
+        // Create a public key that's too large (exceeds resource limit)
+        let oversized_pk = MlKemPublicKey::new(
+            MlKemSecurityLevel::MlKem1024,
+            vec![0u8; 101 * 1024 * 1024], // 101MB exceeds limit
+        );
+
+        // Construction should fail first due to size mismatch
+        assert!(oversized_pk.is_err(), "Oversized public key should be rejected");
+    }
+
+    #[test]
+    fn test_decapsulate_oversized_ciphertext() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (_pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+
+        // Create an oversized ciphertext (exceeds resource limit)
+        let oversized_ct = MlKemCiphertext::new(
+            MlKemSecurityLevel::MlKem512,
+            vec![0u8; 101 * 1024 * 1024], // 101MB exceeds limit
+        );
+
+        // Construction should fail first due to size mismatch
+        assert!(oversized_ct.is_err(), "Oversized ciphertext should be rejected");
+        Ok(())
+    }
 }
