@@ -438,17 +438,20 @@ pub fn cmac_256(key: &[u8], data: &[u8]) -> Result<Cmac256, CmacError> {
 pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
 
+    // Always compute CMAC to prevent timing side-channels
     let tag_valid: bool = tag.len().ct_eq(&16).into();
-    if !tag_valid {
-        return false;
+
+    // Compute CMAC regardless of tag length validation (timing-safe)
+    let expected_tag_result = cmac_128(key, data);
+
+    // Constant-time comparison: valid only if tag length valid AND CMAC computation succeeded AND tags match
+    match expected_tag_result {
+        Ok(cmac) => {
+            let tags_match = cmac.tag.ct_eq(tag).into();
+            tag_valid && tags_match
+        }
+        Err(_) => false,
     }
-
-    let expected_tag = match cmac_128(key, data) {
-        Ok(cmac) => cmac.tag,
-        Err(_) => return false,
-    };
-
-    expected_tag.ct_eq(tag).into()
 }
 
 /// Verify CMAC-192 tag using constant-time comparison
@@ -482,17 +485,20 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
 pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
 
+    // Always compute CMAC to prevent timing side-channels
     let tag_valid: bool = tag.len().ct_eq(&16).into();
-    if !tag_valid {
-        return false;
+
+    // Compute CMAC regardless of tag length validation (timing-safe)
+    let expected_tag_result = cmac_192(key, data);
+
+    // Constant-time comparison: valid only if tag length valid AND CMAC computation succeeded AND tags match
+    match expected_tag_result {
+        Ok(cmac) => {
+            let tags_match = cmac.tag.ct_eq(tag).into();
+            tag_valid && tags_match
+        }
+        Err(_) => false,
     }
-
-    let expected_tag = match cmac_192(key, data) {
-        Ok(cmac) => cmac.tag,
-        Err(_) => return false,
-    };
-
-    expected_tag.ct_eq(tag).into()
 }
 
 /// Verify CMAC-256 tag using constant-time comparison
@@ -526,17 +532,20 @@ pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
 pub fn verify_cmac_256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
 
+    // Always compute CMAC to prevent timing side-channels
     let tag_valid: bool = tag.len().ct_eq(&16).into();
-    if !tag_valid {
-        return false;
+
+    // Compute CMAC regardless of tag length validation (timing-safe)
+    let expected_tag_result = cmac_256(key, data);
+
+    // Constant-time comparison: valid only if tag length valid AND CMAC computation succeeded AND tags match
+    match expected_tag_result {
+        Ok(cmac) => {
+            let tags_match = cmac.tag.ct_eq(tag).into();
+            tag_valid && tags_match
+        }
+        Err(_) => false,
     }
-
-    let expected_tag = match cmac_256(key, data) {
-        Ok(cmac) => cmac.tag,
-        Err(_) => return false,
-    };
-
-    expected_tag.ct_eq(tag).into()
 }
 
 #[cfg(test)]

@@ -173,4 +173,204 @@ mod tests {
 
         Ok(())
     }
+
+    // RFC 8032 test vectors
+    #[test]
+    fn test_ed25519_rfc8032_test_vector_1() -> Result<()> {
+        // RFC 8032 Section 7.1, TEST 1 (empty message)
+        let secret_key =
+            hex::decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
+                .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let expected_public =
+            hex::decode("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
+                .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let message = b"";
+        let expected_signature = hex::decode(
+            "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e06522490155\
+             5fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+        )
+        .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+
+        let keypair = Ed25519KeyPair::from_secret_key(&secret_key)?;
+        assert_eq!(keypair.public_key_bytes(), expected_public);
+
+        let signature = keypair.sign(message)?;
+        assert_eq!(Ed25519Signature::signature_bytes(&signature), expected_signature);
+
+        Ed25519Signature::verify(&expected_public, message, &signature)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_rfc8032_test_vector_2() -> Result<()> {
+        // RFC 8032 Section 7.1, TEST 2 (1-byte message)
+        let secret_key =
+            hex::decode("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb")
+                .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let expected_public =
+            hex::decode("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c")
+                .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let message = hex::decode("72").map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let expected_signature = hex::decode(
+            "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da\
+             085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00",
+        )
+        .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+
+        let keypair = Ed25519KeyPair::from_secret_key(&secret_key)?;
+        assert_eq!(keypair.public_key_bytes(), expected_public);
+
+        let signature = keypair.sign(&message)?;
+        assert_eq!(Ed25519Signature::signature_bytes(&signature), expected_signature);
+
+        Ed25519Signature::verify(&expected_public, &message, &signature)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_rfc8032_test_vector_3() -> Result<()> {
+        // RFC 8032 Section 7.1, TEST 3 (2-byte message)
+        let secret_key =
+            hex::decode("c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7")
+                .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let expected_public =
+            hex::decode("fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025")
+                .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let message =
+            hex::decode("af82").map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+        let expected_signature = hex::decode(
+            "6291d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac\
+             18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a",
+        )
+        .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
+
+        let keypair = Ed25519KeyPair::from_secret_key(&secret_key)?;
+        assert_eq!(keypair.public_key_bytes(), expected_public);
+
+        let signature = keypair.sign(&message)?;
+        assert_eq!(Ed25519Signature::signature_bytes(&signature), expected_signature);
+
+        Ed25519Signature::verify(&expected_public, &message, &signature)?;
+        Ok(())
+    }
+
+    // Corrupted signature tests
+    #[test]
+    fn test_ed25519_corrupted_signature() -> Result<()> {
+        let keypair = Ed25519KeyPair::generate()?;
+        let message = b"Test message for corruption";
+        let signature = keypair.sign(message)?;
+        let mut sig_bytes = Ed25519Signature::signature_bytes(&signature);
+
+        // Corrupt first byte
+        sig_bytes[0] ^= 0xFF;
+        let corrupted_sig = Ed25519Signature::signature_from_bytes(&sig_bytes)?;
+        assert!(
+            Ed25519Signature::verify(&keypair.public_key_bytes(), message, &corrupted_sig).is_err()
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_signature_with_wrong_public_key() -> Result<()> {
+        let keypair1 = Ed25519KeyPair::generate()?;
+        let keypair2 = Ed25519KeyPair::generate()?;
+        let message = b"Test message";
+        let signature = keypair1.sign(message)?;
+
+        // Verify with wrong public key should fail
+        assert!(
+            Ed25519Signature::verify(&keypair2.public_key_bytes(), message, &signature).is_err()
+        );
+
+        Ok(())
+    }
+
+    // Invalid input tests
+    #[test]
+    fn test_ed25519_invalid_secret_key_length() {
+        let invalid_secret = vec![0u8; 16]; // Wrong length
+        let result = Ed25519KeyPair::from_secret_key(&invalid_secret);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ed25519_invalid_public_key() {
+        let keypair = Ed25519KeyPair::generate().expect("Key generation should succeed");
+        let message = b"Test message";
+        let signature = keypair.sign(message).expect("Signing should succeed");
+
+        // Invalid public key (all zeros)
+        let invalid_pk = vec![0u8; 32];
+        let result = Ed25519Signature::verify(&invalid_pk, message, &signature);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ed25519_invalid_signature_length() {
+        let invalid_sig = vec![0u8; 32]; // Should be 64
+        let result = Ed25519Signature::signature_from_bytes(&invalid_sig);
+        assert!(result.is_err());
+
+        let too_long_sig = vec![0u8; 128]; // Should be 64
+        let result = Ed25519Signature::signature_from_bytes(&too_long_sig);
+        assert!(result.is_err());
+    }
+
+    // Signature malleability tests
+    #[test]
+    fn test_ed25519_signature_deterministic() -> Result<()> {
+        let keypair = Ed25519KeyPair::generate()?;
+        let message = b"Test message for determinism";
+
+        // Ed25519 signatures are deterministic
+        let sig1 = keypair.sign(message)?;
+        let sig2 = keypair.sign(message)?;
+
+        assert_eq!(
+            Ed25519Signature::signature_bytes(&sig1),
+            Ed25519Signature::signature_bytes(&sig2)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_empty_message() -> Result<()> {
+        let keypair = Ed25519KeyPair::generate()?;
+        let message = b"";
+        let signature = keypair.sign(message)?;
+
+        Ed25519Signature::verify(&keypair.public_key_bytes(), message, &signature)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_large_message() -> Result<()> {
+        let keypair = Ed25519KeyPair::generate()?;
+        let message = vec![0xAB; 10_000]; // 10KB message
+        let signature = keypair.sign(&message)?;
+
+        Ed25519Signature::verify(&keypair.public_key_bytes(), &message, &signature)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_multiple_messages_same_keypair() -> Result<()> {
+        let keypair = Ed25519KeyPair::generate()?;
+
+        for i in 0..10 {
+            let message = format!("Message number {}", i);
+            let signature = keypair.sign(message.as_bytes())?;
+            Ed25519Signature::verify(&keypair.public_key_bytes(), message.as_bytes(), &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_signature_size() {
+        assert_eq!(Ed25519Signature::signature_len(), 64);
+    }
 }
