@@ -67,7 +67,7 @@
 //! │  │ DataCharacteristics {                                       │        │
 //! │  │   entropy: f64,          // Shannon entropy (bits/byte)     │        │
 //! │  │   pattern_type: enum,    // Random|Text|Repetitive|...      │        │
-//! │  │   size_bytes: usize,     // Total data length               │        │
+//! │  │   size: usize,     // Total data length               │        │
 //! │  │   is_compressible: bool, // entropy < 6.0                   │        │
 //! │  │ }                                                           │        │
 //! │  └─────────────────────────────────────────────────────────────┘        │
@@ -626,5 +626,462 @@ impl Default for PerformanceMetrics {
             memory_usage_mb: 100.0,
             cpu_usage_percent: 25.0,
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+mod tests {
+    use super::*;
+
+    // Constant tests
+    #[test]
+    fn test_classical_fallback_threshold() {
+        assert_eq!(CLASSICAL_FALLBACK_SIZE_THRESHOLD, 4096);
+    }
+
+    #[test]
+    fn test_scheme_constants() {
+        assert_eq!(DEFAULT_ENCRYPTION_SCHEME, "hybrid-ml-kem-768-aes-256-gcm");
+        assert_eq!(DEFAULT_SIGNATURE_SCHEME, "hybrid-ml-dsa-65-ed25519");
+        assert_eq!(DEFAULT_PQ_ENCRYPTION_SCHEME, "pq-ml-kem-768-aes-256-gcm");
+        assert_eq!(DEFAULT_PQ_SIGNATURE_SCHEME, "pq-ml-dsa-65");
+        assert_eq!(CLASSICAL_AES_GCM, "aes-256-gcm");
+        assert_eq!(CLASSICAL_ED25519, "ed25519");
+    }
+
+    #[test]
+    fn test_hybrid_encryption_constants() {
+        assert_eq!(HYBRID_ENCRYPTION_512, "hybrid-ml-kem-512-aes-256-gcm");
+        assert_eq!(HYBRID_ENCRYPTION_768, "hybrid-ml-kem-768-aes-256-gcm");
+        assert_eq!(HYBRID_ENCRYPTION_1024, "hybrid-ml-kem-1024-aes-256-gcm");
+    }
+
+    #[test]
+    fn test_hybrid_signature_constants() {
+        assert_eq!(HYBRID_SIGNATURE_44, "hybrid-ml-dsa-44-ed25519");
+        assert_eq!(HYBRID_SIGNATURE_65, "hybrid-ml-dsa-65-ed25519");
+        assert_eq!(HYBRID_SIGNATURE_87, "hybrid-ml-dsa-87-ed25519");
+    }
+
+    #[test]
+    fn test_pq_encryption_constants() {
+        assert_eq!(PQ_ENCRYPTION_512, "pq-ml-kem-512-aes-256-gcm");
+        assert_eq!(PQ_ENCRYPTION_768, "pq-ml-kem-768-aes-256-gcm");
+        assert_eq!(PQ_ENCRYPTION_1024, "pq-ml-kem-1024-aes-256-gcm");
+    }
+
+    #[test]
+    fn test_pq_signature_constants() {
+        assert_eq!(PQ_SIGNATURE_44, "pq-ml-dsa-44");
+        assert_eq!(PQ_SIGNATURE_65, "pq-ml-dsa-65");
+        assert_eq!(PQ_SIGNATURE_87, "pq-ml-dsa-87");
+    }
+
+    // CryptoPolicyEngine construction tests
+    #[test]
+    fn test_policy_engine_new() {
+        let engine = CryptoPolicyEngine::new();
+        assert!(std::mem::size_of_val(&engine) == 0); // Zero-sized type
+    }
+
+    #[test]
+    fn test_policy_engine_default() {
+        let engine = CryptoPolicyEngine::default();
+        assert!(std::mem::size_of_val(&engine) == 0);
+    }
+
+    #[test]
+    fn test_default_scheme() {
+        assert_eq!(CryptoPolicyEngine::default_scheme(), DEFAULT_ENCRYPTION_SCHEME);
+    }
+
+    // recommend_scheme tests for all use cases
+    #[test]
+    fn test_recommend_scheme_secure_messaging() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::SecureMessaging, &config)?;
+        assert_eq!(scheme, "hybrid-ml-kem-768-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_recommend_scheme_email_encryption() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::EmailEncryption, &config)?;
+        assert_eq!(scheme, "hybrid-ml-kem-1024-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_recommend_scheme_vpn_tunnel() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::VpnTunnel, &config)?;
+        assert_eq!(scheme, "hybrid-ml-kem-768-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_recommend_scheme_file_storage() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::FileStorage, &config)?;
+        assert_eq!(scheme, "hybrid-ml-kem-1024-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_recommend_scheme_authentication() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::Authentication, &config)?;
+        assert_eq!(scheme, "hybrid-ml-dsa-87-ed25519");
+        Ok(())
+    }
+
+    #[test]
+    fn test_recommend_scheme_financial_transactions() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme =
+            CryptoPolicyEngine::recommend_scheme(&UseCase::FinancialTransactions, &config)?;
+        assert_eq!(scheme, "hybrid-ml-dsa-65-ed25519");
+        Ok(())
+    }
+
+    #[test]
+    fn test_recommend_scheme_healthcare_records() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::HealthcareRecords, &config)?;
+        assert_eq!(scheme, "hybrid-ml-kem-1024-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_recommend_scheme_iot_device() -> Result<()> {
+        let config = CoreConfig::default();
+        let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::IoTDevice, &config)?;
+        assert_eq!(scheme, "hybrid-ml-kem-512-aes-256-gcm");
+        Ok(())
+    }
+
+    // force_scheme tests
+    #[test]
+    fn test_force_scheme_hybrid() {
+        let scheme = CryptoPolicyEngine::force_scheme(&crate::types::CryptoScheme::Hybrid);
+        assert_eq!(scheme, DEFAULT_ENCRYPTION_SCHEME);
+    }
+
+    #[test]
+    fn test_force_scheme_symmetric() {
+        let scheme = CryptoPolicyEngine::force_scheme(&crate::types::CryptoScheme::Symmetric);
+        assert_eq!(scheme, "aes-256-gcm");
+    }
+
+    #[test]
+    fn test_force_scheme_asymmetric() {
+        let scheme = CryptoPolicyEngine::force_scheme(&crate::types::CryptoScheme::Asymmetric);
+        assert_eq!(scheme, "ed25519");
+    }
+
+    #[test]
+    fn test_force_scheme_post_quantum() {
+        let scheme = CryptoPolicyEngine::force_scheme(&crate::types::CryptoScheme::PostQuantum);
+        assert_eq!(scheme, DEFAULT_PQ_ENCRYPTION_SCHEME);
+    }
+
+    #[test]
+    fn test_force_scheme_homomorphic() {
+        let scheme = CryptoPolicyEngine::force_scheme(&crate::types::CryptoScheme::Homomorphic);
+        assert_eq!(scheme, "hybrid-ml-kem-768-aes-256-gcm");
+    }
+
+    // select_pq_encryption_scheme tests
+    #[test]
+    fn test_select_pq_encryption_standard() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let scheme = CryptoPolicyEngine::select_pq_encryption_scheme(&config)?;
+        assert_eq!(scheme, "pq-ml-kem-512-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_pq_encryption_high() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::High);
+        let scheme = CryptoPolicyEngine::select_pq_encryption_scheme(&config)?;
+        assert_eq!(scheme, "pq-ml-kem-768-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_pq_encryption_maximum() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
+        let scheme = CryptoPolicyEngine::select_pq_encryption_scheme(&config)?;
+        assert_eq!(scheme, "pq-ml-kem-1024-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_pq_encryption_quantum() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Quantum);
+        let scheme = CryptoPolicyEngine::select_pq_encryption_scheme(&config)?;
+        assert_eq!(scheme, "pq-ml-kem-1024-aes-256-gcm");
+        Ok(())
+    }
+
+    // select_pq_signature_scheme tests
+    #[test]
+    fn test_select_pq_signature_standard() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let scheme = CryptoPolicyEngine::select_pq_signature_scheme(&config)?;
+        assert_eq!(scheme, "pq-ml-dsa-44");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_pq_signature_high() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::High);
+        let scheme = CryptoPolicyEngine::select_pq_signature_scheme(&config)?;
+        assert_eq!(scheme, "pq-ml-dsa-65");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_pq_signature_maximum() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
+        let scheme = CryptoPolicyEngine::select_pq_signature_scheme(&config)?;
+        assert_eq!(scheme, "pq-ml-dsa-87");
+        Ok(())
+    }
+
+    // analyze_data_characteristics tests
+    #[test]
+    fn test_analyze_empty_data() {
+        let data: &[u8] = &[];
+        let characteristics = CryptoPolicyEngine::analyze_data_characteristics(data);
+        assert_eq!(characteristics.size, 0);
+        assert_eq!(characteristics.entropy, 0.0);
+    }
+
+    #[test]
+    fn test_analyze_random_data() {
+        // High-entropy data (simulated random)
+        let data: Vec<u8> = (0..256).map(|i| i as u8).collect();
+        let characteristics = CryptoPolicyEngine::analyze_data_characteristics(&data);
+        assert_eq!(characteristics.size, 256);
+        assert!(characteristics.entropy > 7.0, "Random data should have high entropy");
+    }
+
+    #[test]
+    fn test_analyze_repetitive_data() {
+        // Low-entropy data (all zeros)
+        let data = vec![0u8; 1000];
+        let characteristics = CryptoPolicyEngine::analyze_data_characteristics(&data);
+        assert_eq!(characteristics.size, 1000);
+        assert!(characteristics.entropy < 1.0, "Repetitive data should have low entropy");
+        assert_eq!(characteristics.pattern_type, PatternType::Repetitive);
+    }
+
+    #[test]
+    fn test_analyze_text_data() {
+        let data = b"Hello, World! This is a test message with some text content.";
+        let characteristics = CryptoPolicyEngine::analyze_data_characteristics(data);
+        assert_eq!(characteristics.size, data.len());
+        assert!(characteristics.entropy > 3.0 && characteristics.entropy < 6.0);
+    }
+
+    // select_encryption_scheme tests
+    #[test]
+    fn test_select_encryption_scheme_maximum_security() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
+        let data = b"test data";
+        let scheme = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?;
+        assert_eq!(scheme, "hybrid-ml-kem-1024-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_encryption_scheme_high_security() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::High);
+        let data = b"test data";
+        let scheme = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?;
+        assert_eq!(scheme, "hybrid-ml-kem-768-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_encryption_scheme_standard_security() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let data = b"test data";
+        let scheme = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?;
+        assert_eq!(scheme, "hybrid-ml-kem-512-aes-256-gcm");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_encryption_scheme_with_use_case() -> Result<()> {
+        let config = CoreConfig::default();
+        let data = b"financial transaction data";
+        let scheme = CryptoPolicyEngine::select_encryption_scheme(
+            data,
+            &config,
+            Some(&UseCase::FinancialTransactions),
+        )?;
+        assert!(scheme.contains("hybrid") || scheme.contains("ml-"));
+        Ok(())
+    }
+
+    // select_signature_scheme tests
+    #[test]
+    fn test_select_signature_scheme_maximum() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
+        let scheme = CryptoPolicyEngine::select_signature_scheme(&config)?;
+        assert_eq!(scheme, "hybrid-ml-dsa-87-ed25519");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_signature_scheme_high() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::High);
+        let scheme = CryptoPolicyEngine::select_signature_scheme(&config)?;
+        assert_eq!(scheme, "hybrid-ml-dsa-65-ed25519");
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_signature_scheme_standard() -> Result<()> {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let scheme = CryptoPolicyEngine::select_signature_scheme(&config)?;
+        assert_eq!(scheme, "hybrid-ml-dsa-44-ed25519");
+        Ok(())
+    }
+
+    // select_for_context tests
+    #[test]
+    fn test_select_for_context_large_data() -> Result<()> {
+        let config = CoreConfig::default();
+        let data = vec![0u8; 10000];
+        let scheme = CryptoPolicyEngine::select_for_context(&data, &config)?;
+        assert!(scheme.contains("hybrid"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_for_context_small_data() -> Result<()> {
+        let config = CoreConfig::default();
+        let data = b"small";
+        let scheme = CryptoPolicyEngine::select_for_context(data, &config)?;
+        assert!(scheme.contains("hybrid") || scheme.contains("ml-"));
+        Ok(())
+    }
+
+    // adaptive_selection tests
+    #[test]
+    fn test_adaptive_selection_balanced() -> Result<()> {
+        let config = CoreConfig::new().with_performance_preference(PerformancePreference::Balanced);
+        let data = b"balanced test data";
+        let metrics = PerformanceMetrics::default();
+        let scheme = CryptoPolicyEngine::adaptive_selection(data, &metrics, &config)?;
+        assert!(scheme.contains("hybrid"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_adaptive_selection_speed() -> Result<()> {
+        let config = CoreConfig::new()
+            .with_performance_preference(PerformancePreference::Speed)
+            .with_security_level(SecurityLevel::Standard);
+        let data = b"speed test";
+        let metrics = PerformanceMetrics::default();
+        let scheme = CryptoPolicyEngine::adaptive_selection(data, &metrics, &config)?;
+        assert!(!scheme.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_adaptive_selection_memory() -> Result<()> {
+        let config = CoreConfig::new().with_performance_preference(PerformancePreference::Memory);
+        let data = b"memory efficient";
+        let metrics = PerformanceMetrics::default();
+        let scheme = CryptoPolicyEngine::adaptive_selection(data, &metrics, &config)?;
+        assert!(!scheme.is_empty());
+        Ok(())
+    }
+
+    // Integration tests
+    #[test]
+    fn test_all_use_cases_return_valid_schemes() -> Result<()> {
+        let config = CoreConfig::default();
+        let use_cases = vec![
+            UseCase::SecureMessaging,
+            UseCase::EmailEncryption,
+            UseCase::VpnTunnel,
+            UseCase::ApiSecurity,
+            UseCase::FileStorage,
+            UseCase::DatabaseEncryption,
+            UseCase::CloudStorage,
+            UseCase::BackupArchive,
+            UseCase::ConfigSecrets,
+            UseCase::Authentication,
+            UseCase::SessionToken,
+            UseCase::DigitalCertificate,
+            UseCase::KeyExchange,
+            UseCase::FinancialTransactions,
+            UseCase::LegalDocuments,
+            UseCase::BlockchainTransaction,
+            UseCase::HealthcareRecords,
+            UseCase::GovernmentClassified,
+            UseCase::PaymentCard,
+            UseCase::IoTDevice,
+            UseCase::FirmwareSigning,
+            UseCase::SearchableEncryption,
+            UseCase::HomomorphicComputation,
+            UseCase::AuditLog,
+        ];
+
+        for use_case in use_cases {
+            let scheme = CryptoPolicyEngine::recommend_scheme(&use_case, &config)?;
+            assert!(!scheme.is_empty(), "UseCase {:?} returned empty scheme", use_case);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_all_security_levels_return_valid_encryption() -> Result<()> {
+        let levels = vec![
+            SecurityLevel::Standard,
+            SecurityLevel::High,
+            SecurityLevel::Maximum,
+            SecurityLevel::Quantum,
+        ];
+
+        for level in levels {
+            let config = CoreConfig::new().with_security_level(level.clone());
+            let scheme = CryptoPolicyEngine::select_pq_encryption_scheme(&config)?;
+            assert!(
+                !scheme.is_empty(),
+                "SecurityLevel {:?} returned empty encryption scheme",
+                level
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_all_security_levels_return_valid_signature() -> Result<()> {
+        let levels = vec![
+            SecurityLevel::Standard,
+            SecurityLevel::High,
+            SecurityLevel::Maximum,
+            SecurityLevel::Quantum,
+        ];
+
+        for level in levels {
+            let config = CoreConfig::new().with_security_level(level.clone());
+            let scheme = CryptoPolicyEngine::select_pq_signature_scheme(&config)?;
+            assert!(
+                !scheme.is_empty(),
+                "SecurityLevel {:?} returned empty signature scheme",
+                level
+            );
+        }
+        Ok(())
     }
 }
