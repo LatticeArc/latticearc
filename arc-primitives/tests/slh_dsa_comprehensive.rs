@@ -532,6 +532,9 @@ fn test_sha2_public_key_derivation() {
 
 #[test]
 fn test_shake_vs_sha2_incompatible() {
+    // SHAKE and SHA2 variants at the same security level have the same
+    // key/signature sizes but use different internal hash functions.
+    // A signature from one variant should not verify with the other's public key.
     let message = b"Cross-variant test";
 
     let (pk_shake, sk_shake) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
@@ -544,13 +547,26 @@ fn test_shake_vs_sha2_incompatible() {
     assert!(pk_shake.verify(message, &sig_shake, b""));
     assert!(pk_sha2.verify(message, &sig_sha2, b""));
 
-    // Cross-variant signatures have different sizes, so we can't directly verify
-    // This test ensures the variants are indeed different
-    assert_ne!(
-        sig_shake.as_ref().len(),
-        sig_sha2.as_ref().len(),
-        "SHAKE and SHA2 signature sizes should differ at same security level (128s)"
+    // Verify that sizes are the same (SHAKE and SHA2 at same level have same sizes)
+    assert_eq!(
+        slh_dsa_shake_128s::SIG_LEN,
+        slh_dsa_sha2_128s::SIG_LEN,
+        "SHAKE and SHA2 128s should have same signature size"
     );
+    assert_eq!(
+        slh_dsa_shake_128s::PK_LEN,
+        slh_dsa_sha2_128s::PK_LEN,
+        "SHAKE and SHA2 128s should have same public key size"
+    );
+
+    // Cross-variant verification should fail because internal hash differs
+    // We can attempt verification since sizes match
+    let mut sig_shake_array = [0u8; slh_dsa_sha2_128s::SIG_LEN];
+    sig_shake_array.copy_from_slice(sig_shake.as_ref());
+
+    // This should fail - SHAKE signature verified with SHA2 public key
+    let cross_verify = pk_sha2.verify(message, &sig_shake_array, b"");
+    assert!(!cross_verify, "SHAKE signature should not verify with SHA2 public key");
 }
 
 #[test]
