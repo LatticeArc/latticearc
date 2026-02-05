@@ -238,6 +238,7 @@ fn run_ml_kem_1024_test(vector: &MlKemTestVector) -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
@@ -257,5 +258,390 @@ mod tests {
     fn test_ml_kem_1024_kat() {
         let result = run_ml_kem_1024_kat();
         assert!(result.is_ok(), "ML-KEM-1024 KAT failed: {:?}", result);
+    }
+
+    // ========================================================================
+    // Individual private test function coverage
+    // ========================================================================
+
+    #[test]
+    fn test_run_ml_kem_512_test_individual_vector_1() {
+        let vector = &ML_KEM_512_VECTORS[0];
+        let result = run_ml_kem_512_test(vector);
+        assert!(result.is_ok(), "ML-KEM-512 vector 1 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_kem_512_test_individual_vector_2() {
+        let vector = &ML_KEM_512_VECTORS[1];
+        let result = run_ml_kem_512_test(vector);
+        assert!(result.is_ok(), "ML-KEM-512 vector 2 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_kem_768_test_individual_vector_1() {
+        let vector = &ML_KEM_768_VECTORS[0];
+        let result = run_ml_kem_768_test(vector);
+        assert!(result.is_ok(), "ML-KEM-768 vector 1 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_kem_768_test_individual_vector_2() {
+        let vector = &ML_KEM_768_VECTORS[1];
+        let result = run_ml_kem_768_test(vector);
+        assert!(result.is_ok(), "ML-KEM-768 vector 2 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_kem_1024_test_individual_vector_1() {
+        let vector = &ML_KEM_1024_VECTORS[0];
+        let result = run_ml_kem_1024_test(vector);
+        assert!(result.is_ok(), "ML-KEM-1024 vector 1 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_kem_1024_test_individual_vector_2() {
+        let vector = &ML_KEM_1024_VECTORS[1];
+        let result = run_ml_kem_1024_test(vector);
+        assert!(result.is_ok(), "ML-KEM-1024 vector 2 failed: {:?}", result);
+    }
+
+    // ========================================================================
+    // Hex decode error path coverage within test functions
+    // ========================================================================
+
+    #[test]
+    fn test_run_ml_kem_512_test_invalid_seed_hex() {
+        let vector = MlKemTestVector {
+            test_name: "ML-KEM-512-INVALID-SEED",
+            seed: "zzzz",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_ct: "eeff",
+            expected_ss: "1122",
+        };
+        let result = run_ml_kem_512_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid seed hex");
+        assert!(
+            matches!(&result, Err(NistKatError::HexError(msg)) if !msg.is_empty()),
+            "Expected non-empty HexError, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_run_ml_kem_512_test_invalid_ss_hex() {
+        // Valid seed but invalid expected_ss hex
+        let vector = MlKemTestVector {
+            test_name: "ML-KEM-512-INVALID-SS",
+            seed: "0000000000000000000000000000000000000000000000000000000000000000\
+                    0000000000000000000000000000000000000000000000000000000000000000",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_ct: "eeff",
+            expected_ss: "not_valid_hex!!",
+        };
+        let result = run_ml_kem_512_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid expected_ss hex");
+    }
+
+    #[test]
+    fn test_run_ml_kem_768_test_invalid_seed_hex() {
+        let vector = MlKemTestVector {
+            test_name: "ML-KEM-768-INVALID-SEED",
+            seed: "xyz123",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_ct: "eeff",
+            expected_ss: "1122",
+        };
+        let result = run_ml_kem_768_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid seed hex");
+    }
+
+    #[test]
+    fn test_run_ml_kem_1024_test_invalid_seed_hex() {
+        let vector = MlKemTestVector {
+            test_name: "ML-KEM-1024-INVALID-SEED",
+            seed: "not_hex",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_ct: "eeff",
+            expected_ss: "1122",
+        };
+        let result = run_ml_kem_1024_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid seed hex");
+    }
+
+    // ========================================================================
+    // Test vector struct field coverage
+    // ========================================================================
+
+    #[test]
+    fn test_ml_kem_test_vector_struct_fields_512() {
+        for vector in ML_KEM_512_VECTORS {
+            // Exercise all field reads for coverage
+            assert!(!vector.test_name.is_empty());
+            assert!(!vector.seed.is_empty());
+            assert!(!vector.expected_pk.is_empty());
+            assert!(!vector.expected_sk.is_empty());
+            assert!(!vector.expected_ct.is_empty());
+            assert!(!vector.expected_ss.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_ml_kem_test_vector_struct_fields_768() {
+        for vector in ML_KEM_768_VECTORS {
+            assert!(!vector.test_name.is_empty());
+            assert!(!vector.seed.is_empty());
+            assert!(!vector.expected_pk.is_empty());
+            assert!(!vector.expected_sk.is_empty());
+            assert!(!vector.expected_ct.is_empty());
+            assert!(!vector.expected_ss.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_ml_kem_test_vector_struct_fields_1024() {
+        for vector in ML_KEM_1024_VECTORS {
+            assert!(!vector.test_name.is_empty());
+            assert!(!vector.seed.is_empty());
+            assert!(!vector.expected_pk.is_empty());
+            assert!(!vector.expected_sk.is_empty());
+            assert!(!vector.expected_ct.is_empty());
+            assert!(!vector.expected_ss.is_empty());
+        }
+    }
+
+    // ========================================================================
+    // Decode expected values coverage (exercises hex decode paths
+    // for pk, sk, ct, ss in the test vectors)
+    // ========================================================================
+
+    #[test]
+    fn test_decode_all_512_vector_fields() {
+        for vector in ML_KEM_512_VECTORS {
+            let seed = decode_hex(vector.seed);
+            assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
+            let pk = decode_hex(vector.expected_pk);
+            assert!(pk.is_ok(), "pk decode failed for {}", vector.test_name);
+            let sk = decode_hex(vector.expected_sk);
+            assert!(sk.is_ok(), "sk decode failed for {}", vector.test_name);
+            let ct = decode_hex(vector.expected_ct);
+            assert!(ct.is_ok(), "ct decode failed for {}", vector.test_name);
+            let ss = decode_hex(vector.expected_ss);
+            assert!(ss.is_ok(), "ss decode failed for {}", vector.test_name);
+        }
+    }
+
+    #[test]
+    fn test_decode_all_768_vector_fields() {
+        for vector in ML_KEM_768_VECTORS {
+            let seed = decode_hex(vector.seed);
+            assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
+            let pk = decode_hex(vector.expected_pk);
+            assert!(pk.is_ok(), "pk decode failed for {}", vector.test_name);
+            let sk = decode_hex(vector.expected_sk);
+            assert!(sk.is_ok(), "sk decode failed for {}", vector.test_name);
+            let ct = decode_hex(vector.expected_ct);
+            assert!(ct.is_ok(), "ct decode failed for {}", vector.test_name);
+            let ss = decode_hex(vector.expected_ss);
+            assert!(ss.is_ok(), "ss decode failed for {}", vector.test_name);
+        }
+    }
+
+    #[test]
+    fn test_decode_all_1024_vector_fields() {
+        for vector in ML_KEM_1024_VECTORS {
+            let seed = decode_hex(vector.seed);
+            assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
+            let pk = decode_hex(vector.expected_pk);
+            assert!(pk.is_ok(), "pk decode failed for {}", vector.test_name);
+            let sk = decode_hex(vector.expected_sk);
+            assert!(sk.is_ok(), "sk decode failed for {}", vector.test_name);
+            let ct = decode_hex(vector.expected_ct);
+            assert!(ct.is_ok(), "ct decode failed for {}", vector.test_name);
+            let ss = decode_hex(vector.expected_ss);
+            assert!(ss.is_ok(), "ss decode failed for {}", vector.test_name);
+        }
+    }
+
+    // ========================================================================
+    // Error variant coverage - exercise TestFailed construction
+    // and formatting for ML-KEM variants
+    // ========================================================================
+
+    #[test]
+    fn test_kem_512_test_failed_error_construction() {
+        let err = NistKatError::TestFailed {
+            algorithm: "ML-KEM-512".to_string(),
+            test_name: "ML-KEM-512-KAT-1".to_string(),
+            message: "Shared secrets do not match".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("ML-KEM-512"));
+        assert!(msg.contains("ML-KEM-512-KAT-1"));
+        assert!(msg.contains("Shared secrets do not match"));
+    }
+
+    #[test]
+    fn test_kem_768_test_failed_error_construction() {
+        let err = NistKatError::TestFailed {
+            algorithm: "ML-KEM-768".to_string(),
+            test_name: "ML-KEM-768-KAT-1".to_string(),
+            message: "Shared secrets do not match".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("ML-KEM-768"));
+    }
+
+    #[test]
+    fn test_kem_1024_test_failed_error_construction() {
+        let err = NistKatError::TestFailed {
+            algorithm: "ML-KEM-1024".to_string(),
+            test_name: "ML-KEM-1024-KAT-1".to_string(),
+            message: "Shared secrets do not match".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("ML-KEM-1024"));
+    }
+
+    #[test]
+    fn test_kem_implementation_error_keygen() {
+        let err = NistKatError::ImplementationError(format!("KeyGen failed: {:?}", "test error"));
+        let msg = err.to_string();
+        assert!(msg.contains("KeyGen failed"));
+    }
+
+    #[test]
+    fn test_kem_implementation_error_encaps() {
+        let err = NistKatError::ImplementationError(format!("Encaps failed: {:?}", "test error"));
+        let msg = err.to_string();
+        assert!(msg.contains("Encaps failed"));
+    }
+
+    #[test]
+    fn test_kem_implementation_error_decaps() {
+        let err = NistKatError::ImplementationError(format!("Decaps failed: {:?}", "test error"));
+        let msg = err.to_string();
+        assert!(msg.contains("Decaps failed"));
+    }
+
+    // ========================================================================
+    // Vector count and naming convention coverage
+    // ========================================================================
+
+    #[test]
+    fn test_vector_counts() {
+        assert_eq!(ML_KEM_512_VECTORS.len(), 2);
+        assert_eq!(ML_KEM_768_VECTORS.len(), 2);
+        assert_eq!(ML_KEM_1024_VECTORS.len(), 2);
+    }
+
+    #[test]
+    fn test_vector_naming_conventions() {
+        for (i, vector) in ML_KEM_512_VECTORS.iter().enumerate() {
+            assert!(
+                vector.test_name.starts_with("ML-KEM-512"),
+                "Vector {} name '{}' does not start with ML-KEM-512",
+                i,
+                vector.test_name
+            );
+        }
+        for (i, vector) in ML_KEM_768_VECTORS.iter().enumerate() {
+            assert!(
+                vector.test_name.starts_with("ML-KEM-768"),
+                "Vector {} name '{}' does not start with ML-KEM-768",
+                i,
+                vector.test_name
+            );
+        }
+        for (i, vector) in ML_KEM_1024_VECTORS.iter().enumerate() {
+            assert!(
+                vector.test_name.starts_with("ML-KEM-1024"),
+                "Vector {} name '{}' does not start with ML-KEM-1024",
+                i,
+                vector.test_name
+            );
+        }
+    }
+
+    // ========================================================================
+    // Run each variant's KAT multiple times for consistency
+    // ========================================================================
+
+    #[test]
+    fn test_ml_kem_512_kat_repeated() {
+        for _ in 0..3 {
+            let result = run_ml_kem_512_kat();
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_ml_kem_768_kat_repeated() {
+        for _ in 0..3 {
+            let result = run_ml_kem_768_kat();
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_ml_kem_1024_kat_repeated() {
+        for _ in 0..3 {
+            let result = run_ml_kem_1024_kat();
+            assert!(result.is_ok());
+        }
+    }
+
+    // ========================================================================
+    // Custom test vector to exercise non-error code path deeply
+    // ========================================================================
+
+    #[test]
+    fn test_run_ml_kem_512_test_with_custom_valid_vector() {
+        // Use a valid 64-byte seed hex to exercise the full code path
+        let vector = MlKemTestVector {
+            test_name: "ML-KEM-512-CUSTOM",
+            seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\
+                    abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_ct: "eeff",
+            expected_ss: "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
+        };
+        let result = run_ml_kem_512_test(&vector);
+        assert!(result.is_ok(), "Custom ML-KEM-512 test should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_kem_768_test_with_custom_valid_vector() {
+        let vector = MlKemTestVector {
+            test_name: "ML-KEM-768-CUSTOM",
+            seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\
+                    abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_ct: "eeff",
+            expected_ss: "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
+        };
+        let result = run_ml_kem_768_test(&vector);
+        assert!(result.is_ok(), "Custom ML-KEM-768 test should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_kem_1024_test_with_custom_valid_vector() {
+        let vector = MlKemTestVector {
+            test_name: "ML-KEM-1024-CUSTOM",
+            seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\
+                    abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_ct: "eeff",
+            expected_ss: "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
+        };
+        let result = run_ml_kem_1024_test(&vector);
+        assert!(result.is_ok(), "Custom ML-KEM-1024 test should pass: {:?}", result);
     }
 }

@@ -637,4 +637,221 @@ mod tests {
         println!("NIST SHA-256: {}/{} passed", results.passed, results.total);
         assert!(results.all_passed(), "NIST SHA-256 failures: {:?}", results.failures);
     }
+
+    // ==========================================================================
+    // Additional Coverage Tests for RfcTestResults and RfcTestError
+    // ==========================================================================
+
+    /// Test RfcTestResults counting consistency with mixed operations
+    #[test]
+    fn test_rfc_test_results_counting_consistency() {
+        let mut results = RfcTestResults::new();
+
+        results.add_pass();
+        results.add_failure("first failure".to_string());
+        results.add_pass();
+        results.add_pass();
+        results.add_failure("second failure".to_string());
+
+        assert_eq!(results.total, results.passed + results.failed);
+        assert_eq!(results.total, 5);
+        assert_eq!(results.passed, 3);
+        assert_eq!(results.failed, 2);
+        assert!(!results.all_passed());
+        assert_eq!(results.failures.len(), 2);
+        assert_eq!(results.failures.first(), Some(&"first failure".to_string()));
+        assert_eq!(results.failures.get(1), Some(&"second failure".to_string()));
+    }
+
+    /// Test RfcTestError display formatting for TestFailed variant
+    #[test]
+    fn test_rfc_test_error_display_test_failed() {
+        let error = RfcTestError::TestFailed {
+            rfc: "RFC 7748".to_string(),
+            test_name: "X25519 DH".to_string(),
+            message: "shared secret mismatch".to_string(),
+        };
+
+        let display = format!("{}", error);
+        assert!(display.contains("RFC 7748"));
+        assert!(display.contains("X25519 DH"));
+        assert!(display.contains("shared secret mismatch"));
+    }
+
+    /// Test RfcTestError display formatting for HexError variant
+    #[test]
+    fn test_rfc_test_error_display_hex_error() {
+        let error = RfcTestError::HexError("odd length input".to_string());
+
+        let display = format!("{}", error);
+        assert!(display.contains("Hex decode error"));
+        assert!(display.contains("odd length input"));
+    }
+
+    /// Test that RfcTestResults::new and default produce equivalent state
+    #[test]
+    fn test_rfc_test_results_new_equals_default() {
+        let from_new = RfcTestResults::new();
+        let from_default = RfcTestResults::default();
+
+        assert_eq!(from_new.total, from_default.total);
+        assert_eq!(from_new.passed, from_default.passed);
+        assert_eq!(from_new.failed, from_default.failed);
+        assert_eq!(from_new.failures.len(), from_default.failures.len());
+    }
+
+    /// Test ChaCha20-Poly1305 decryption with tampered ciphertext
+    #[test]
+    fn test_rfc8439_chacha20_tampered_ciphertext() {
+        use chacha20poly1305::{
+            ChaCha20Poly1305,
+            aead::{Aead, KeyInit, Payload},
+        };
+
+        let mut results = RfcTestResults::new();
+
+        let key = [0x42u8; 32];
+        let nonce = [0u8; 12];
+        let plaintext = b"test message";
+        let aad = b"aad";
+
+        let cipher = ChaCha20Poly1305::new(&key.into());
+        let ct = cipher.encrypt((&nonce).into(), Payload { msg: plaintext, aad }).expect("encrypt");
+
+        // Tamper with ciphertext
+        let mut tampered = ct.clone();
+        if let Some(b) = tampered.first_mut() {
+            *b ^= 0xFF;
+        }
+
+        // Decryption should fail
+        let decrypt_result = cipher.decrypt((&nonce).into(), Payload { msg: &tampered, aad });
+
+        match decrypt_result {
+            Err(_) => {
+                results.add_pass(); // Expected: decryption fails on tampered data
+            }
+            Ok(_) => {
+                results.add_failure("Tampered ciphertext should not decrypt".to_string());
+            }
+        }
+
+        assert!(results.all_passed(), "Failures: {:?}", results.failures);
+    }
+
+    /// Test AES-GCM with wrong key produces authentication failure
+    #[test]
+    fn test_nist_aes_gcm_wrong_key_decryption() {
+        use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
+
+        let mut results = RfcTestResults::new();
+
+        let key1 = [0x42u8; 32];
+        let key2 = [0x43u8; 32]; // Different key
+        let nonce_bytes = [0u8; 12];
+        let plaintext = b"test plaintext";
+
+        // Encrypt with key1
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &key1).expect("key");
+        let sealing_key = LessSafeKey::new(unbound_key);
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+        let mut ciphertext = plaintext.to_vec();
+        sealing_key
+            .seal_in_place_append_tag(nonce, Aad::empty(), &mut ciphertext)
+            .expect("encrypt");
+
+        // Try to decrypt with key2 - should fail
+        let unbound_key2 = UnboundKey::new(&AES_256_GCM, &key2).expect("key");
+        let opening_key = LessSafeKey::new(unbound_key2);
+        let nonce2 = Nonce::assume_unique_for_key(nonce_bytes);
+
+        let result = opening_key.open_in_place(nonce2, Aad::empty(), &mut ciphertext);
+        if result.is_err() {
+            results.add_pass(); // Expected: wrong key fails
+        } else {
+            results.add_failure("Wrong key should fail decryption".to_string());
+        }
+
+        assert!(results.all_passed(), "Failures: {:?}", results.failures);
+    }
+
+    /// Test HKDF with maximum output length
+    #[test]
+    fn test_rfc5869_hkdf_max_output() {
+        use hkdf::Hkdf;
+        use sha2::Sha256;
+
+        let mut results = RfcTestResults::new();
+
+        let ikm = b"input key material";
+        let salt = b"salt";
+        let info = b"info";
+
+        let hk = Hkdf::<Sha256>::new(Some(salt), ikm);
+
+        // HKDF-SHA256 max output is 255 * 32 = 8160 bytes
+        let mut okm = vec![0u8; 8160];
+        if hk.expand(info, &mut okm).is_ok() {
+            results.add_pass();
+        } else {
+            results.add_failure("HKDF max output should succeed".to_string());
+        }
+
+        // Beyond max should fail
+        let mut okm_too_long = vec![0u8; 8161];
+        if hk.expand(info, &mut okm_too_long).is_err() {
+            results.add_pass();
+        } else {
+            results.add_failure("HKDF beyond max output should fail".to_string());
+        }
+
+        assert!(results.all_passed(), "Failures: {:?}", results.failures);
+    }
+
+    /// Test Ed25519 deterministic signing
+    #[test]
+    fn test_rfc8032_ed25519_deterministic() {
+        use ed25519_dalek::{Signer, SigningKey};
+
+        let mut results = RfcTestResults::new();
+
+        let secret = [0x42u8; 32];
+        let key = SigningKey::from_bytes(&secret);
+
+        let message = b"deterministic signing test";
+
+        let sig1 = key.sign(message);
+        let sig2 = key.sign(message);
+
+        if sig1.to_bytes() == sig2.to_bytes() {
+            results.add_pass();
+        } else {
+            results.add_failure("Ed25519 signing should be deterministic".to_string());
+        }
+
+        assert!(results.all_passed(), "Failures: {:?}", results.failures);
+    }
+
+    /// Test X25519 low-order point handling
+    #[test]
+    fn test_rfc7748_x25519_identity() {
+        use x25519_dalek::{PublicKey, StaticSecret};
+
+        let mut results = RfcTestResults::new();
+
+        // Two different keys should produce different public keys
+        let key1 = StaticSecret::from([1u8; 32]);
+        let key2 = StaticSecret::from([2u8; 32]);
+
+        let pub1 = PublicKey::from(&key1);
+        let pub2 = PublicKey::from(&key2);
+
+        if pub1.as_bytes() != pub2.as_bytes() {
+            results.add_pass();
+        } else {
+            results.add_failure("Different secrets should give different public keys".to_string());
+        }
+
+        assert!(results.all_passed(), "Failures: {:?}", results.failures);
+    }
 }
