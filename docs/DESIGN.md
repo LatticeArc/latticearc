@@ -62,7 +62,7 @@ graph TB
     subgraph "Testing & Validation"
         VAL[arc-validation<br/>CAVP Tests]
         PERF[arc-perf<br/>Benchmarks]
-        FUZZ[arc-fuzz<br/>Fuzzing]
+        FUZZ[fuzz<br/>Fuzzing]
     end
 
     APP --> MAIN

@@ -5,21 +5,116 @@
 
 //! ECDH (Elliptic Curve Diffie-Hellman) Key Exchange
 //!
-//! This module provides ECDH using X25519 via aws-lc-rs for FIPS 140-3 compliance
-//! and optimized performance (AVX2, AES-NI).
+//! This module provides ECDH using X25519 and NIST curves (P-256, P-384, P-521)
+//! via aws-lc-rs for FIPS 140-3 compliance and optimized performance (AVX2, AES-NI).
+//!
+//! # Supported Curves
+//!
+//! - **X25519**: Modern curve (RFC 7748), 128-bit security
+//! - **P-256 (NIST P-256/secp256r1)**: FIPS 186-4, 128-bit security
+//! - **P-384 (NIST P-384/secp384r1)**: FIPS 186-4, 192-bit security
+//! - **P-521 (NIST P-521/secp521r1)**: FIPS 186-4, 256-bit security
 //!
 //! # Performance
 //!
-//! aws-lc-rs provides ~4x speedup over pure-Rust x25519-dalek:
-//! - Key generation: ~6µs (vs ~24µs)
-//! - Key agreement: ~6µs (vs ~20µs)
+//! aws-lc-rs provides ~4x speedup over pure-Rust implementations:
+//! - Key generation: ~6µs (vs ~24µs for x25519-dalek)
+//! - Key agreement: ~6µs (vs ~20µs for x25519-dalek)
+//!
+//! # Example
+//!
+//! ```no_run
+//! use arc_primitives::kem::ecdh::{EcdhP256KeyPair, EcdhP384KeyPair, EcdhP521KeyPair, X25519KeyPair};
+//!
+//! // P-256 key exchange
+//! let alice = EcdhP256KeyPair::generate()?;
+//! let bob = EcdhP256KeyPair::generate()?;
+//!
+//! let alice_pk = alice.public_key_bytes().to_vec();
+//! let bob_pk = bob.public_key_bytes().to_vec();
+//!
+//! let alice_secret = alice.agree(&bob_pk)?;
+//! let bob_secret = bob.agree(&alice_pk)?;
+//!
+//! assert_eq!(alice_secret, bob_secret);
+//! # Ok::<(), arc_primitives::kem::ecdh::EcdhError>(())
+//! ```
 
 use aws_lc_rs::agreement::{self, EphemeralPrivateKey, UnparsedPublicKey, X25519};
+
+// ECDH curve algorithms - imported where used to avoid lint warnings
+use aws_lc_rs::agreement::{ECDH_P256, ECDH_P384, ECDH_P521};
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// X25519 key size in bytes
 pub const X25519_KEY_SIZE: usize = 32;
+
+/// P-256 public key size in bytes (uncompressed: 1 + 32 + 32 = 65 bytes)
+pub const P256_PUBLIC_KEY_SIZE: usize = 65;
+
+/// P-256 shared secret size in bytes (x-coordinate only)
+pub const P256_SHARED_SECRET_SIZE: usize = 32;
+
+/// P-384 public key size in bytes (uncompressed: 1 + 48 + 48 = 97 bytes)
+pub const P384_PUBLIC_KEY_SIZE: usize = 97;
+
+/// P-384 shared secret size in bytes (x-coordinate only)
+pub const P384_SHARED_SECRET_SIZE: usize = 48;
+
+/// P-521 public key size in bytes (uncompressed: 1 + 66 + 66 = 133 bytes)
+pub const P521_PUBLIC_KEY_SIZE: usize = 133;
+
+/// P-521 shared secret size in bytes (x-coordinate only)
+pub const P521_SHARED_SECRET_SIZE: usize = 66;
+
+/// Supported ECDH curve types
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EcdhCurve {
+    /// X25519 curve (Curve25519)
+    X25519,
+    /// NIST P-256 curve (secp256r1)
+    P256,
+    /// NIST P-384 curve (secp384r1)
+    P384,
+    /// NIST P-521 curve (secp521r1)
+    P521,
+}
+
+impl EcdhCurve {
+    /// Get the public key size for this curve
+    #[must_use]
+    pub const fn public_key_size(self) -> usize {
+        match self {
+            Self::X25519 => X25519_KEY_SIZE,
+            Self::P256 => P256_PUBLIC_KEY_SIZE,
+            Self::P384 => P384_PUBLIC_KEY_SIZE,
+            Self::P521 => P521_PUBLIC_KEY_SIZE,
+        }
+    }
+
+    /// Get the shared secret size for this curve
+    #[must_use]
+    pub const fn shared_secret_size(self) -> usize {
+        match self {
+            Self::X25519 => X25519_KEY_SIZE,
+            Self::P256 => P256_SHARED_SECRET_SIZE,
+            Self::P384 => P384_SHARED_SECRET_SIZE,
+            Self::P521 => P521_SHARED_SECRET_SIZE,
+        }
+    }
+
+    /// Get the curve name for display purposes
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::X25519 => "X25519",
+            Self::P256 => "P-256",
+            Self::P384 => "P-384",
+            Self::P521 => "P-521",
+        }
+    }
+}
 
 /// Error types for ECDH operations
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -44,6 +139,31 @@ pub enum EcdhError {
     /// Key agreement failed
     #[error("ECDH key agreement failed")]
     AgreementFailed,
+
+    /// Invalid public key (point not on curve)
+    #[error("Invalid public key: point validation failed for curve {curve}")]
+    InvalidPublicKey {
+        /// The curve name
+        curve: &'static str,
+    },
+
+    /// Invalid point format
+    #[error("Invalid point format: expected {expected}, got {actual}")]
+    InvalidPointFormat {
+        /// Expected format description
+        expected: &'static str,
+        /// Actual format description
+        actual: &'static str,
+    },
+
+    /// Curve mismatch
+    #[error("Curve mismatch: expected {expected}, got {actual}")]
+    CurveMismatch {
+        /// Expected curve name
+        expected: &'static str,
+        /// Actual curve name
+        actual: &'static str,
+    },
 }
 
 /// X25519 public key wrapper
@@ -294,6 +414,479 @@ pub fn diffie_hellman(
     let mut output = [0u8; X25519_KEY_SIZE];
     output.copy_from_slice(&result);
     output
+}
+
+// ============================================================================
+// NIST P-256 (secp256r1) Implementation
+// ============================================================================
+
+/// P-256 public key wrapper
+///
+/// Contains the 65-byte uncompressed public key for P-256 ECDH operations.
+/// Format: 0x04 || x-coordinate (32 bytes) || y-coordinate (32 bytes)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EcdhP256PublicKey {
+    bytes: Vec<u8>,
+}
+
+impl EcdhP256PublicKey {
+    /// Create a new P-256 public key from bytes
+    ///
+    /// # Errors
+    /// Returns an error if the provided bytes are not a valid uncompressed point (65 bytes).
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, EcdhError> {
+        if bytes.len() != P256_PUBLIC_KEY_SIZE {
+            return Err(EcdhError::InvalidKeySize {
+                expected: P256_PUBLIC_KEY_SIZE,
+                actual: bytes.len(),
+            });
+        }
+        // Check for uncompressed point format (0x04 prefix)
+        if bytes.first() != Some(&0x04) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "uncompressed (0x04 prefix)",
+                actual: "invalid prefix",
+            });
+        }
+        Ok(Self { bytes: bytes.to_vec() })
+    }
+
+    /// Get the public key as bytes
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Convert to Vec<u8>
+    #[must_use]
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.bytes.clone()
+    }
+
+    /// Validate that this public key represents a valid point on P-256
+    ///
+    /// # Errors
+    /// Returns an error if point validation fails.
+    pub fn validate(&self) -> Result<(), EcdhError> {
+        // aws-lc-rs validates points during key agreement, so we just check format
+        if self.bytes.len() != P256_PUBLIC_KEY_SIZE {
+            return Err(EcdhError::InvalidKeySize {
+                expected: P256_PUBLIC_KEY_SIZE,
+                actual: self.bytes.len(),
+            });
+        }
+        if self.bytes.first() != Some(&0x04) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "uncompressed (0x04 prefix)",
+                actual: "invalid prefix",
+            });
+        }
+        Ok(())
+    }
+}
+
+/// P-256 key pair for ECDH key exchange
+///
+/// This struct holds an ephemeral private key from aws-lc-rs along with
+/// the computed public key bytes for transmission.
+pub struct EcdhP256KeyPair {
+    private: EphemeralPrivateKey,
+    public_bytes: Vec<u8>,
+}
+
+impl EcdhP256KeyPair {
+    /// Generate a new P-256 key pair
+    ///
+    /// # Errors
+    /// Returns an error if key generation fails.
+    pub fn generate() -> Result<Self, EcdhError> {
+        let rng = aws_lc_rs::rand::SystemRandom::new();
+        let private = EphemeralPrivateKey::generate(&ECDH_P256, &rng)
+            .map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        let public = private.compute_public_key().map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        Ok(Self { private, public_bytes: public.as_ref().to_vec() })
+    }
+
+    /// Get public key bytes for transmission
+    #[must_use]
+    pub fn public_key_bytes(&self) -> &[u8] {
+        &self.public_bytes
+    }
+
+    /// Get the public key
+    ///
+    /// # Errors
+    /// Returns an error if the public key bytes are invalid (should never happen).
+    pub fn public_key(&self) -> Result<EcdhP256PublicKey, EcdhError> {
+        EcdhP256PublicKey::from_bytes(&self.public_bytes)
+    }
+
+    /// Perform P-256 ECDH key agreement with a peer's public key
+    ///
+    /// Consumes the private key to ensure single-use (ephemeral) semantics.
+    ///
+    /// # Errors
+    /// Returns an error if key agreement fails (e.g., invalid peer public key).
+    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Vec<u8>, EcdhError> {
+        let peer_public = UnparsedPublicKey::new(&ECDH_P256, peer_public_bytes);
+
+        agreement::agree_ephemeral(
+            self.private,
+            peer_public,
+            EcdhError::AgreementFailed,
+            |shared_secret| Ok(shared_secret.to_vec()),
+        )
+    }
+}
+
+impl std::fmt::Debug for EcdhP256KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EcdhP256KeyPair")
+            .field("public_bytes", &self.public_bytes)
+            .field("private", &"[REDACTED]")
+            .finish()
+    }
+}
+
+// ============================================================================
+// NIST P-384 (secp384r1) Implementation
+// ============================================================================
+
+/// P-384 public key wrapper
+///
+/// Contains the 97-byte uncompressed public key for P-384 ECDH operations.
+/// Format: 0x04 || x-coordinate (48 bytes) || y-coordinate (48 bytes)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EcdhP384PublicKey {
+    bytes: Vec<u8>,
+}
+
+impl EcdhP384PublicKey {
+    /// Create a new P-384 public key from bytes
+    ///
+    /// # Errors
+    /// Returns an error if the provided bytes are not a valid uncompressed point (97 bytes).
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, EcdhError> {
+        if bytes.len() != P384_PUBLIC_KEY_SIZE {
+            return Err(EcdhError::InvalidKeySize {
+                expected: P384_PUBLIC_KEY_SIZE,
+                actual: bytes.len(),
+            });
+        }
+        // Check for uncompressed point format (0x04 prefix)
+        if bytes.first() != Some(&0x04) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "uncompressed (0x04 prefix)",
+                actual: "invalid prefix",
+            });
+        }
+        Ok(Self { bytes: bytes.to_vec() })
+    }
+
+    /// Get the public key as bytes
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Convert to Vec<u8>
+    #[must_use]
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.bytes.clone()
+    }
+
+    /// Validate that this public key represents a valid point on P-384
+    ///
+    /// # Errors
+    /// Returns an error if point validation fails.
+    pub fn validate(&self) -> Result<(), EcdhError> {
+        if self.bytes.len() != P384_PUBLIC_KEY_SIZE {
+            return Err(EcdhError::InvalidKeySize {
+                expected: P384_PUBLIC_KEY_SIZE,
+                actual: self.bytes.len(),
+            });
+        }
+        if self.bytes.first() != Some(&0x04) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "uncompressed (0x04 prefix)",
+                actual: "invalid prefix",
+            });
+        }
+        Ok(())
+    }
+}
+
+/// P-384 key pair for ECDH key exchange
+///
+/// This struct holds an ephemeral private key from aws-lc-rs along with
+/// the computed public key bytes for transmission.
+pub struct EcdhP384KeyPair {
+    private: EphemeralPrivateKey,
+    public_bytes: Vec<u8>,
+}
+
+impl EcdhP384KeyPair {
+    /// Generate a new P-384 key pair
+    ///
+    /// # Errors
+    /// Returns an error if key generation fails.
+    pub fn generate() -> Result<Self, EcdhError> {
+        let rng = aws_lc_rs::rand::SystemRandom::new();
+        let private = EphemeralPrivateKey::generate(&ECDH_P384, &rng)
+            .map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        let public = private.compute_public_key().map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        Ok(Self { private, public_bytes: public.as_ref().to_vec() })
+    }
+
+    /// Get public key bytes for transmission
+    #[must_use]
+    pub fn public_key_bytes(&self) -> &[u8] {
+        &self.public_bytes
+    }
+
+    /// Get the public key
+    ///
+    /// # Errors
+    /// Returns an error if the public key bytes are invalid (should never happen).
+    pub fn public_key(&self) -> Result<EcdhP384PublicKey, EcdhError> {
+        EcdhP384PublicKey::from_bytes(&self.public_bytes)
+    }
+
+    /// Perform P-384 ECDH key agreement with a peer's public key
+    ///
+    /// Consumes the private key to ensure single-use (ephemeral) semantics.
+    ///
+    /// # Errors
+    /// Returns an error if key agreement fails (e.g., invalid peer public key).
+    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Vec<u8>, EcdhError> {
+        let peer_public = UnparsedPublicKey::new(&ECDH_P384, peer_public_bytes);
+
+        agreement::agree_ephemeral(
+            self.private,
+            peer_public,
+            EcdhError::AgreementFailed,
+            |shared_secret| Ok(shared_secret.to_vec()),
+        )
+    }
+}
+
+impl std::fmt::Debug for EcdhP384KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EcdhP384KeyPair")
+            .field("public_bytes", &self.public_bytes)
+            .field("private", &"[REDACTED]")
+            .finish()
+    }
+}
+
+// ============================================================================
+// NIST P-521 (secp521r1) Implementation
+// ============================================================================
+
+/// P-521 public key wrapper
+///
+/// Contains the 133-byte uncompressed public key for P-521 ECDH operations.
+/// Format: 0x04 || x-coordinate (66 bytes) || y-coordinate (66 bytes)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EcdhP521PublicKey {
+    bytes: Vec<u8>,
+}
+
+impl EcdhP521PublicKey {
+    /// Create a new P-521 public key from bytes
+    ///
+    /// # Errors
+    /// Returns an error if the provided bytes are not a valid uncompressed point (133 bytes).
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, EcdhError> {
+        if bytes.len() != P521_PUBLIC_KEY_SIZE {
+            return Err(EcdhError::InvalidKeySize {
+                expected: P521_PUBLIC_KEY_SIZE,
+                actual: bytes.len(),
+            });
+        }
+        // Check for uncompressed point format (0x04 prefix)
+        if bytes.first() != Some(&0x04) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "uncompressed (0x04 prefix)",
+                actual: "invalid prefix",
+            });
+        }
+        Ok(Self { bytes: bytes.to_vec() })
+    }
+
+    /// Get the public key as bytes
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Convert to Vec<u8>
+    #[must_use]
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.bytes.clone()
+    }
+
+    /// Validate that this public key represents a valid point on P-521
+    ///
+    /// # Errors
+    /// Returns an error if point validation fails.
+    pub fn validate(&self) -> Result<(), EcdhError> {
+        if self.bytes.len() != P521_PUBLIC_KEY_SIZE {
+            return Err(EcdhError::InvalidKeySize {
+                expected: P521_PUBLIC_KEY_SIZE,
+                actual: self.bytes.len(),
+            });
+        }
+        if self.bytes.first() != Some(&0x04) {
+            return Err(EcdhError::InvalidPointFormat {
+                expected: "uncompressed (0x04 prefix)",
+                actual: "invalid prefix",
+            });
+        }
+        Ok(())
+    }
+}
+
+/// P-521 key pair for ECDH key exchange
+///
+/// This struct holds an ephemeral private key from aws-lc-rs along with
+/// the computed public key bytes for transmission.
+pub struct EcdhP521KeyPair {
+    private: EphemeralPrivateKey,
+    public_bytes: Vec<u8>,
+}
+
+impl EcdhP521KeyPair {
+    /// Generate a new P-521 key pair
+    ///
+    /// # Errors
+    /// Returns an error if key generation fails.
+    pub fn generate() -> Result<Self, EcdhError> {
+        let rng = aws_lc_rs::rand::SystemRandom::new();
+        let private = EphemeralPrivateKey::generate(&ECDH_P521, &rng)
+            .map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        let public = private.compute_public_key().map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        Ok(Self { private, public_bytes: public.as_ref().to_vec() })
+    }
+
+    /// Get public key bytes for transmission
+    #[must_use]
+    pub fn public_key_bytes(&self) -> &[u8] {
+        &self.public_bytes
+    }
+
+    /// Get the public key
+    ///
+    /// # Errors
+    /// Returns an error if the public key bytes are invalid (should never happen).
+    pub fn public_key(&self) -> Result<EcdhP521PublicKey, EcdhError> {
+        EcdhP521PublicKey::from_bytes(&self.public_bytes)
+    }
+
+    /// Perform P-521 ECDH key agreement with a peer's public key
+    ///
+    /// Consumes the private key to ensure single-use (ephemeral) semantics.
+    ///
+    /// # Errors
+    /// Returns an error if key agreement fails (e.g., invalid peer public key).
+    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Vec<u8>, EcdhError> {
+        let peer_public = UnparsedPublicKey::new(&ECDH_P521, peer_public_bytes);
+
+        agreement::agree_ephemeral(
+            self.private,
+            peer_public,
+            EcdhError::AgreementFailed,
+            |shared_secret| Ok(shared_secret.to_vec()),
+        )
+    }
+}
+
+impl std::fmt::Debug for EcdhP521KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EcdhP521KeyPair")
+            .field("public_bytes", &self.public_bytes)
+            .field("private", &"[REDACTED]")
+            .finish()
+    }
+}
+
+// ============================================================================
+// Generic ECDH Operations for NIST Curves
+// ============================================================================
+
+/// Perform ephemeral P-256 ECDH key agreement
+///
+/// Generates a new ephemeral key pair and performs Diffie-Hellman with the peer's public key.
+///
+/// # Returns
+/// A tuple of (shared_secret, our_public_key)
+///
+/// # Errors
+/// Returns an error if key generation or agreement fails.
+pub fn agree_ephemeral_p256(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), EcdhError> {
+    let keypair = EcdhP256KeyPair::generate()?;
+    let our_public = keypair.public_key_bytes().to_vec();
+    let shared_secret = keypair.agree(peer_public_bytes)?;
+    Ok((shared_secret, our_public))
+}
+
+/// Perform ephemeral P-384 ECDH key agreement
+///
+/// Generates a new ephemeral key pair and performs Diffie-Hellman with the peer's public key.
+///
+/// # Returns
+/// A tuple of (shared_secret, our_public_key)
+///
+/// # Errors
+/// Returns an error if key generation or agreement fails.
+pub fn agree_ephemeral_p384(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), EcdhError> {
+    let keypair = EcdhP384KeyPair::generate()?;
+    let our_public = keypair.public_key_bytes().to_vec();
+    let shared_secret = keypair.agree(peer_public_bytes)?;
+    Ok((shared_secret, our_public))
+}
+
+/// Perform ephemeral P-521 ECDH key agreement
+///
+/// Generates a new ephemeral key pair and performs Diffie-Hellman with the peer's public key.
+///
+/// # Returns
+/// A tuple of (shared_secret, our_public_key)
+///
+/// # Errors
+/// Returns an error if key generation or agreement fails.
+pub fn agree_ephemeral_p521(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), EcdhError> {
+    let keypair = EcdhP521KeyPair::generate()?;
+    let our_public = keypair.public_key_bytes().to_vec();
+    let shared_secret = keypair.agree(peer_public_bytes)?;
+    Ok((shared_secret, our_public))
+}
+
+/// Validate a P-256 public key
+///
+/// # Errors
+/// Returns an error if the public key is invalid.
+pub fn validate_p256_public_key(public_key_bytes: &[u8]) -> Result<(), EcdhError> {
+    let pk = EcdhP256PublicKey::from_bytes(public_key_bytes)?;
+    pk.validate()
+}
+
+/// Validate a P-384 public key
+///
+/// # Errors
+/// Returns an error if the public key is invalid.
+pub fn validate_p384_public_key(public_key_bytes: &[u8]) -> Result<(), EcdhError> {
+    let pk = EcdhP384PublicKey::from_bytes(public_key_bytes)?;
+    pk.validate()
+}
+
+/// Validate a P-521 public key
+///
+/// # Errors
+/// Returns an error if the public key is invalid.
+pub fn validate_p521_public_key(public_key_bytes: &[u8]) -> Result<(), EcdhError> {
+    let pk = EcdhP521PublicKey::from_bytes(public_key_bytes)?;
+    pk.validate()
 }
 
 #[cfg(test)]

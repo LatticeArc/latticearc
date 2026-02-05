@@ -11,7 +11,7 @@
 
 # Security-sensitive files
 SECURITY.md @LatticeArc/security-team
-/arc-fuzz/ @LatticeArc/security-team
+/fuzz/ @LatticeArc/security-team
 
 # CI/CD workflows
 /.github/workflows/ @LatticeArc/maintainers

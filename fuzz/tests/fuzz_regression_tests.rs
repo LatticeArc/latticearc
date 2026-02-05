@@ -19,7 +19,7 @@
 //! # Running Regression Tests
 //!
 //! ```bash
-//! cargo test --package arc-fuzz --test fuzz_regression_tests
+//! cargo test --package fuzz --test fuzz_regression_tests
 //! ```
 
 use arc_primitives::aead::aes_gcm::{AesGcm128, AesGcm256};

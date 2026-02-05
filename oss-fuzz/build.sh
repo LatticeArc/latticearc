@@ -8,7 +8,7 @@ cd $SRC/latticearc
 cargo +nightly fuzz build --release
 
 # Copy fuzz targets to output directory
-# Note: Adjust target names based on actual fuzz targets in arc-fuzz
+# Note: Adjust target names based on actual fuzz targets in fuzz/
 FUZZ_TARGETS=(
     "fuzz_aes_gcm"
     "fuzz_chacha20_poly1305"

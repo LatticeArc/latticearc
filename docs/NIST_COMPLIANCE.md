@@ -44,7 +44,7 @@ graph LR
 | FIPS 205 | SLH-DSA | `fips205` crate | Audited | Complete |
 | FIPS 206 | FN-DSA | `fn-dsa` crate | Partial | Complete |
 
-*ML-DSA uses the `fips204` pure Rust crate. For FIPS 140-3 certification, migration to `aws-lc-rs` is required once the ML-DSA Rust API is exposed (tracking: aws/aws-lc-rs#773).
+*ML-DSA uses the `fips204` pure Rust crate. For FIPS 140-3 certification, migration to `aws-lc-rs` is required once the ML-DSA Rust API is exposed (tracking: aws/aws-lc-rs#773, our PR: aws/aws-lc-rs#1029 under review).
 
 ## FIPS 203: ML-KEM (Module-Lattice-Based Key Encapsulation)
 

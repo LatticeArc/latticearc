@@ -9,10 +9,10 @@ members = [
     "arc-zkp",
     "arc-perf",
     "arc-prelude",
+    "arc-tests",
 ]
 # Exclude fuzz crate from normal workspace builds (requires nightly + specific setup)
-# Note: "fuzz" is a symlink to "arc-fuzz" for cargo-fuzz compatibility
-exclude = ["arc-fuzz", "fuzz"]
+exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
@@ -304,6 +304,7 @@ aws-lc-rs = { version = "1.15", default-features = false, features = ["fips"] }
 
 # Post-quantum signatures - aws-lc-rs doesn't yet expose ML-DSA in Rust API
 # See: https://github.com/aws/aws-lc-rs/issues/773
+# Our PR: https://github.com/aws/aws-lc-rs/pull/1029 (under review)
 fips204 = { version = "0.4.6" }  # ML-DSA (FIPS 204) - keep until aws-lc-rs exposes it
 fips205 = { version = "0.4.1" }  # SLH-DSA (FIPS 205) - not yet in aws-lc-rs
 fn-dsa = { version = "0.3.0" }   # FN-DSA (FIPS 206) - unique implementation

@@ -214,7 +214,7 @@ cargo sbom --output-format spdx_json_2_3 > docs/sbom-spdx.json
 - **Reason:** Not yet FIPS-validated (except aws-lc-rs)
 - **Mitigation:**
   - Regular updates to latest versions
-  - Tracking aws-lc-rs ML-DSA integration (aws/aws-lc-rs#773)
+  - Tracking aws-lc-rs ML-DSA integration (aws/aws-lc-rs#773, our PR: aws/aws-lc-rs#1029 under review)
   - Independent security audits
   - CAVP test vector validation
 - **Monitoring:** Monthly version checks, quarterly security reviews

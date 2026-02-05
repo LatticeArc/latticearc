@@ -30,6 +30,7 @@ aws-lc-rs = { workspace = true }
 
 # Post-quantum signatures - aws-lc-rs doesn't yet expose ML-DSA in Rust API
 # Keep fips204 until aws-lc-rs exposes ML-DSA (see: https://github.com/aws/aws-lc-rs/issues/773)
+# Our PR: https://github.com/aws/aws-lc-rs/pull/1029 (under review)
 fips204 = { workspace = true }  # ML-DSA (FIPS 204)
 fips205 = { workspace = true }  # SLH-DSA (FIPS 205)
 fn-dsa = { workspace = true }   # FN-DSA (FIPS 206)

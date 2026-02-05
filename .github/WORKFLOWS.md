@@ -150,7 +150,7 @@ Runs nightly for continuous fuzzing.
 
 ### Targets
 
-Fuzzes all targets in `arc-fuzz/`:
+Fuzzes all targets in `fuzz/`:
 
 ```bash
 cargo +nightly fuzz run fuzz_ml_kem -- -max_total_time=3600

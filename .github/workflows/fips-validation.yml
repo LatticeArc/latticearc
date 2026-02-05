@@ -254,7 +254,7 @@ jobs:
 
           - Power-up self-tests verify Known Answer Tests (KAT) for all algorithms
           - CAVP test vectors sourced from NIST official repositories
-          - ML-DSA migration to aws-lc-rs tracked at aws/aws-lc-rs#773
+          - ML-DSA migration to aws-lc-rs tracked at aws/aws-lc-rs#773 (our PR: aws/aws-lc-rs#1029 under review)
           EOF
 
       - name: Upload compliance report

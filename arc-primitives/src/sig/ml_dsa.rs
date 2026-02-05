@@ -12,9 +12,10 @@
 //! **For FIPS 140-3 certification**, this module will need to migrate to `aws-lc-rs` when
 //! the ML-DSA Rust API becomes available. Track progress at:
 //! - <https://github.com/aws/aws-lc-rs/issues/773>
+//! - Our PR: <https://github.com/aws/aws-lc-rs/pull/1029> (under review)
 //!
-//! **Migration Status**: Awaiting aws-lc-rs ML-DSA API exposure
-//! **Expected Timeline**: TBD (check issue for updates)
+//! **Migration Status**: Our PR under review upstream
+//! **Expected Timeline**: Pending PR merge (check PR for updates)
 //!
 //! See `docs/ML_DSA_MIGRATION.md` for the complete migration plan.
 //!

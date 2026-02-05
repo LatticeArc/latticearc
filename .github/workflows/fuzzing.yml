@@ -50,12 +50,12 @@ jobs:
 
     - name: Build fuzz targets
       run: |
-        cd arc-fuzz
+        cd fuzz
         cargo fuzz build
 
     - name: Run fuzz tests (short duration)
       run: |
-        cd arc-fuzz
+        cd fuzz
         timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300 || true
 
     - name: Upload fuzz artifacts
@@ -63,7 +63,7 @@ jobs:
       if: failure()
       with:
         name: fuzz-artifacts-${{ matrix.target }}
-        path: arc-fuzz/artifacts/
+        path: fuzz/artifacts/
         retention-days: 7
 
   extended-fuzz:
@@ -98,7 +98,7 @@ jobs:
 
     - name: Run extended fuzz tests
       run: |
-        cd arc-fuzz
+        cd fuzz
         timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600 || true
 
     - name: Upload extended fuzz artifacts
@@ -106,7 +106,7 @@ jobs:
       if: failure()
       with:
         name: extended-fuzz-artifacts-${{ matrix.target }}
-        path: arc-fuzz/artifacts/
+        path: fuzz/artifacts/
         retention-days: 7
 
   fuzz-coverage:
@@ -141,7 +141,7 @@ jobs:
 
     - name: Run fuzz with coverage
       run: |
-        cd arc-fuzz
+        cd fuzz
         # First, run fuzzer briefly to generate corpus inputs
         timeout 60s cargo fuzz run encrypt_fuzz -- -max_total_time=60 || true
         # Then generate coverage from the corpus (may fail if corpus is empty)
@@ -151,7 +151,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: fuzz-coverage
-        path: arc-fuzz/coverage/
+        path: fuzz/coverage/
         retention-days: 30
 
   fuzz-report:

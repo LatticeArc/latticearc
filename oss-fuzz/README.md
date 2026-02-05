@@ -6,7 +6,7 @@ This directory contains configuration files for integrating LatticeArc with [Goo
 
 | Stage | Status |
 |-------|--------|
-| Local fuzzing | ✅ Complete (`arc-fuzz` crate) |
+| Local fuzzing | ✅ Complete (`fuzz` crate) |
 | OSS-Fuzz config | ✅ Prepared |
 | Application | ⬜ Pending |
 | Integration | ⬜ Pending |
