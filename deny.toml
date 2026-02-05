@@ -22,13 +22,7 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 
 # Ignore specific advisories (only if necessary)
-# These are unmaintained transitive dependencies from older crates
-ignore = [
-    "RUSTSEC-2021-0139",  # ansi_term - unmaintained (transitive dep)
-    "RUSTSEC-2024-0375",  # atty - unmaintained (transitive dep)
-    "RUSTSEC-2021-0145",  # atty - potential unaligned read (transitive dep)
-    "RUSTSEC-2023-0052",  # webpki - CPU DoS (low severity, transitive)
-]
+ignore = []
 
 [bans]
 # Allow or deny multiple versions of the same crate

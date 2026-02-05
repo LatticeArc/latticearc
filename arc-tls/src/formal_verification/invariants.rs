@@ -18,6 +18,7 @@ pub struct TlsInvariants;
 
 impl TlsInvariants {
     /// Creates a new invariants checker.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

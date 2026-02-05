@@ -265,7 +265,7 @@ mod connection_state_machine {
 
     #[test]
     fn test_handshake_state_transitions_distinct() {
-        let states = vec![
+        let states = [
             HandshakeState::Start,
             HandshakeState::ClientHelloSent,
             HandshakeState::ServerHelloReceived,

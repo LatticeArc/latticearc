@@ -12,6 +12,7 @@ pub struct KaniProofs;
 
 impl KaniProofs {
     /// Creates a new Kani proof harness.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

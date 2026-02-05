@@ -1,3 +1,31 @@
+#![allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::redundant_clone,
+    clippy::clone_on_copy,
+    clippy::collapsible_if,
+    clippy::single_match,
+    clippy::needless_range_loop,
+    clippy::explicit_iter_loop,
+    clippy::explicit_auto_deref,
+    clippy::assertions_on_constants,
+    clippy::len_zero,
+    clippy::print_stdout,
+    clippy::unused_unit,
+    clippy::expect_fun_call,
+    clippy::useless_vec,
+    clippy::cloned_instead_of_copied,
+    clippy::float_cmp,
+    clippy::needless_borrows_for_generic_args,
+    clippy::manual_let_else
+)]
 //! Comprehensive ML-KEM Primitives Tests - Phase 2 Security Audit
 //!
 //! This test suite provides comprehensive coverage for ML-KEM (FIPS 203)
@@ -21,11 +49,6 @@
 //! expose secret key bytes for serialization. This is an intentional security
 //! design decision. Tests that require secret key deserialization are marked
 //! with `#[ignore]` and appropriate documentation.
-
-#![allow(clippy::expect_used)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
 
 use arc_primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemConfig, MlKemError, MlKemPublicKey, MlKemSecretKey,

@@ -112,6 +112,10 @@ impl KatTestResult {
 }
 
 /// Helper function to decode hex strings
+///
+/// # Errors
+///
+/// Returns `NistKatError::HexError` if the input string is not valid hex.
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, NistKatError> {
     hex::decode(s).map_err(|e| NistKatError::HexError(e.to_string()))
 }

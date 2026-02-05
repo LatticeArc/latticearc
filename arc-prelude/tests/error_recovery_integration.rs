@@ -7,6 +7,14 @@
 //! - System health monitoring
 //! - Error statistics tracking
 
+#![allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp,
+    clippy::arithmetic_side_effects
+)]
+
 use arc_prelude::prelude::error::LatticeArcError;
 use arc_prelude::prelude::error::error_recovery::{
     CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, DegradationStrategy, EffortLevel,
@@ -788,8 +796,8 @@ fn test_error_statistics_comprehensive() {
 
     let stats = handler.error_stats();
     assert_eq!(stats.total_errors, 3);
-    assert!(stats.errors_by_severity.len() > 0);
-    assert!(stats.errors_by_component.len() > 0);
+    assert!(!stats.errors_by_severity.is_empty());
+    assert!(!stats.errors_by_component.is_empty());
 }
 
 #[test]
@@ -835,7 +843,7 @@ fn test_system_health_degradation_over_time() {
 
 #[test]
 fn test_recovery_suggestion_priorities() {
-    let suggestions = vec![
+    let suggestions = [
         RecoverySuggestion {
             strategy: RecoveryStrategy::Retry,
             description: "High priority".to_string(),

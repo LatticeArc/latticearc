@@ -15,6 +15,7 @@ pub struct SecurityProperties;
 
 impl SecurityProperties {
     /// Creates a new security properties checker.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

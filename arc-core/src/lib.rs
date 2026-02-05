@@ -520,4 +520,31 @@ fn run_power_up_self_tests() -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::panic_in_result_fn,
+    clippy::unnecessary_wraps,
+    clippy::redundant_clone,
+    clippy::useless_vec,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::clone_on_copy,
+    clippy::len_zero,
+    clippy::single_match,
+    clippy::unnested_or_patterns,
+    clippy::default_constructed_unit_structs,
+    clippy::redundant_closure_for_method_calls,
+    clippy::semicolon_if_nothing_returned,
+    clippy::unnecessary_unwrap,
+    clippy::redundant_pattern_matching,
+    clippy::missing_const_for_thread_local,
+    clippy::get_first,
+    clippy::float_cmp,
+    clippy::needless_borrows_for_generic_args,
+    unused_qualifications
+)]
 mod tests;

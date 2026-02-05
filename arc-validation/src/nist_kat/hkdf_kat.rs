@@ -67,6 +67,10 @@ pub const HKDF_SHA256_VECTORS: &[HkdfTestVector] = &[
 ];
 
 /// Run HKDF-SHA256 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_hkdf_sha256_kat() -> Result<(), NistKatError> {
     for vector in HKDF_SHA256_VECTORS {
         run_hkdf_sha256_test(vector)?;
@@ -119,6 +123,7 @@ fn run_hkdf_sha256_test(vector: &HkdfTestVector) -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
@@ -134,5 +139,187 @@ mod tests {
             let result = run_hkdf_sha256_test(vector);
             assert!(result.is_ok(), "Test {} failed: {:?}", vector.test_name, result);
         }
+    }
+
+    // =========================================================================
+    // Error Path Tests - Tests for the error branches in run_hkdf_sha256_test
+    // =========================================================================
+
+    #[test]
+    fn test_prk_mismatch_error() {
+        // Create a test vector with an intentionally wrong expected_prk
+        let bad_prk_vector = HkdfTestVector {
+            test_name: "PRK-Mismatch-Test",
+            ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+            salt: "000102030405060708090a0b0c",
+            info: "f0f1f2f3f4f5f6f7f8f9",
+            length: 42,
+            // Wrong PRK - changed last byte from e5 to e6
+            expected_prk: "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e6",
+            expected_okm: "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865",
+        };
+
+        let result = run_hkdf_sha256_test(&bad_prk_vector);
+        assert!(result.is_err(), "Expected PRK mismatch error");
+
+        match result {
+            Err(NistKatError::TestFailed { algorithm, test_name, message }) => {
+                assert_eq!(algorithm, "HKDF-SHA256");
+                assert_eq!(test_name, "PRK-Mismatch-Test");
+                assert!(message.contains("PRK mismatch"));
+            }
+            _ => panic!("Expected TestFailed error"),
+        }
+    }
+
+    #[test]
+    fn test_okm_mismatch_error() {
+        // Create a test vector with correct PRK but wrong expected_okm
+        let bad_okm_vector = HkdfTestVector {
+            test_name: "OKM-Mismatch-Test",
+            ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+            salt: "000102030405060708090a0b0c",
+            info: "f0f1f2f3f4f5f6f7f8f9",
+            length: 42,
+            // Correct PRK
+            expected_prk: "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5",
+            // Wrong OKM - changed last byte from 65 to 66
+            expected_okm: "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185866",
+        };
+
+        let result = run_hkdf_sha256_test(&bad_okm_vector);
+        assert!(result.is_err(), "Expected OKM mismatch error");
+
+        match result {
+            Err(NistKatError::TestFailed { algorithm, test_name, message }) => {
+                assert_eq!(algorithm, "HKDF-SHA256");
+                assert_eq!(test_name, "OKM-Mismatch-Test");
+                assert!(message.contains("OKM mismatch"));
+            }
+            _ => panic!("Expected TestFailed error"),
+        }
+    }
+
+    #[test]
+    fn test_hex_decode_error_ikm() {
+        let invalid_ikm_vector = HkdfTestVector {
+            test_name: "Invalid-IKM-Test",
+            ikm: "invalid_hex_string",
+            salt: "000102030405060708090a0b0c",
+            info: "f0f1f2f3f4f5f6f7f8f9",
+            length: 42,
+            expected_prk: "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5",
+            expected_okm: "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865",
+        };
+
+        let result = run_hkdf_sha256_test(&invalid_ikm_vector);
+        assert!(result.is_err(), "Expected hex decode error");
+        assert!(matches!(result, Err(NistKatError::HexError(_))));
+    }
+
+    #[test]
+    fn test_hex_decode_error_salt() {
+        let invalid_salt_vector = HkdfTestVector {
+            test_name: "Invalid-Salt-Test",
+            ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+            salt: "not_valid_hex",
+            info: "f0f1f2f3f4f5f6f7f8f9",
+            length: 42,
+            expected_prk: "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5",
+            expected_okm: "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865",
+        };
+
+        let result = run_hkdf_sha256_test(&invalid_salt_vector);
+        assert!(result.is_err(), "Expected hex decode error for salt");
+        assert!(matches!(result, Err(NistKatError::HexError(_))));
+    }
+
+    #[test]
+    fn test_hex_decode_error_info() {
+        let invalid_info_vector = HkdfTestVector {
+            test_name: "Invalid-Info-Test",
+            ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+            salt: "000102030405060708090a0b0c",
+            info: "xyz_not_hex",
+            length: 42,
+            expected_prk: "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5",
+            expected_okm: "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865",
+        };
+
+        let result = run_hkdf_sha256_test(&invalid_info_vector);
+        assert!(result.is_err(), "Expected hex decode error for info");
+        assert!(matches!(result, Err(NistKatError::HexError(_))));
+    }
+
+    #[test]
+    fn test_hex_decode_error_expected_prk() {
+        let invalid_expected_prk_vector = HkdfTestVector {
+            test_name: "Invalid-Expected-PRK-Test",
+            ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+            salt: "000102030405060708090a0b0c",
+            info: "f0f1f2f3f4f5f6f7f8f9",
+            length: 42,
+            expected_prk: "invalid_prk_hex",
+            expected_okm: "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865",
+        };
+
+        let result = run_hkdf_sha256_test(&invalid_expected_prk_vector);
+        assert!(result.is_err(), "Expected hex decode error for expected_prk");
+        assert!(matches!(result, Err(NistKatError::HexError(_))));
+    }
+
+    #[test]
+    fn test_hex_decode_error_expected_okm() {
+        let invalid_expected_okm_vector = HkdfTestVector {
+            test_name: "Invalid-Expected-OKM-Test",
+            ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+            salt: "000102030405060708090a0b0c",
+            info: "f0f1f2f3f4f5f6f7f8f9",
+            length: 42,
+            expected_prk: "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5",
+            expected_okm: "invalid_okm_hex",
+        };
+
+        let result = run_hkdf_sha256_test(&invalid_expected_okm_vector);
+        assert!(result.is_err(), "Expected hex decode error for expected_okm");
+        assert!(matches!(result, Err(NistKatError::HexError(_))));
+    }
+
+    #[test]
+    fn test_empty_salt_branch() {
+        // Test case 3 uses empty salt - verify the empty salt branch is taken
+        let empty_salt_vector = &HKDF_SHA256_VECTORS[2];
+        assert!(empty_salt_vector.salt.is_empty(), "Test vector 3 should have empty salt");
+        let result = run_hkdf_sha256_test(empty_salt_vector);
+        assert!(result.is_ok(), "Empty salt test should pass");
+    }
+
+    #[test]
+    fn test_non_empty_salt_branch() {
+        // Test case 1 uses non-empty salt - verify the non-empty salt branch is taken
+        let non_empty_salt_vector = &HKDF_SHA256_VECTORS[0];
+        assert!(!non_empty_salt_vector.salt.is_empty(), "Test vector 1 should have non-empty salt");
+        let result = run_hkdf_sha256_test(non_empty_salt_vector);
+        assert!(result.is_ok(), "Non-empty salt test should pass");
+    }
+
+    #[test]
+    fn test_vector_count() {
+        // Verify we have exactly 3 test vectors
+        assert_eq!(HKDF_SHA256_VECTORS.len(), 3);
+    }
+
+    #[test]
+    fn test_vector_names() {
+        assert_eq!(HKDF_SHA256_VECTORS[0].test_name, "RFC-5869-Test-Case-1");
+        assert_eq!(HKDF_SHA256_VECTORS[1].test_name, "RFC-5869-Test-Case-2");
+        assert_eq!(HKDF_SHA256_VECTORS[2].test_name, "RFC-5869-Test-Case-3");
+    }
+
+    #[test]
+    fn test_vector_lengths() {
+        assert_eq!(HKDF_SHA256_VECTORS[0].length, 42);
+        assert_eq!(HKDF_SHA256_VECTORS[1].length, 82);
+        assert_eq!(HKDF_SHA256_VECTORS[2].length, 42);
     }
 }

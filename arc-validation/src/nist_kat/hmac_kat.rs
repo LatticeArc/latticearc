@@ -104,6 +104,10 @@ pub const HMAC_VECTORS: &[HmacTestVector] = &[
 ];
 
 /// Run HMAC-SHA256 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_hmac_sha256_kat() -> Result<(), NistKatError> {
     for vector in HMAC_VECTORS {
         let key = decode_hex(vector.key)?;
@@ -123,7 +127,7 @@ pub fn run_hmac_sha256_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });
@@ -133,6 +137,10 @@ pub fn run_hmac_sha256_kat() -> Result<(), NistKatError> {
 }
 
 /// Run HMAC-SHA224 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_hmac_sha224_kat() -> Result<(), NistKatError> {
     for vector in HMAC_VECTORS {
         let key = decode_hex(vector.key)?;
@@ -152,7 +160,7 @@ pub fn run_hmac_sha224_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });
@@ -162,6 +170,10 @@ pub fn run_hmac_sha224_kat() -> Result<(), NistKatError> {
 }
 
 /// Run HMAC-SHA384 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_hmac_sha384_kat() -> Result<(), NistKatError> {
     for vector in HMAC_VECTORS {
         let key = decode_hex(vector.key)?;
@@ -181,7 +193,7 @@ pub fn run_hmac_sha384_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });
@@ -191,6 +203,10 @@ pub fn run_hmac_sha384_kat() -> Result<(), NistKatError> {
 }
 
 /// Run HMAC-SHA512 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_hmac_sha512_kat() -> Result<(), NistKatError> {
     for vector in HMAC_VECTORS {
         let key = decode_hex(vector.key)?;
@@ -210,7 +226,7 @@ pub fn run_hmac_sha512_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });
@@ -220,6 +236,7 @@ pub fn run_hmac_sha512_kat() -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::indexing_slicing, clippy::err_expect)]
 mod tests {
     use super::*;
 
@@ -277,7 +294,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });
@@ -311,7 +328,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });
@@ -345,7 +362,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });
@@ -379,7 +396,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "MAC mismatch: got {}, expected {}",
-                    hex::encode(&code_bytes),
+                    hex::encode(code_bytes),
                     hex::encode(&expected_mac)
                 ),
             });

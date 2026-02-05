@@ -955,6 +955,7 @@ impl MlKem {
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
 #[allow(clippy::explicit_iter_loop)] // Tests use iterator style
+#[allow(clippy::indexing_slicing)] // Tests use direct indexing
 mod tests {
     use super::*;
     use rand::rngs::OsRng;

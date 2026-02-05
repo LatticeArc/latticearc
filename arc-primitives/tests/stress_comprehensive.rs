@@ -1,3 +1,31 @@
+#![allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::redundant_clone,
+    clippy::clone_on_copy,
+    clippy::collapsible_if,
+    clippy::single_match,
+    clippy::needless_range_loop,
+    clippy::explicit_iter_loop,
+    clippy::explicit_auto_deref,
+    clippy::assertions_on_constants,
+    clippy::len_zero,
+    clippy::print_stdout,
+    clippy::unused_unit,
+    clippy::expect_fun_call,
+    clippy::useless_vec,
+    clippy::cloned_instead_of_copied,
+    clippy::float_cmp,
+    clippy::needless_borrows_for_generic_args,
+    clippy::manual_let_else
+)]
 //! Comprehensive Stress and Load Tests for arc-primitives
 //!
 //! This test suite provides extensive stress testing for all cryptographic
@@ -24,8 +52,6 @@
 //! separately in CI with extended timeouts.
 
 #![deny(unsafe_code)]
-// Allow expect in tests for cleaner assertions
-#![allow(clippy::expect_used)]
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -34,7 +60,7 @@ use arc_primitives::aead::AeadCipher;
 use arc_primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
 use arc_primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use arc_primitives::hash::sha2::{sha256, sha384, sha512};
-use arc_primitives::hash::sha3::{sha3_256, sha3_384, sha3_512};
+use arc_primitives::hash::sha3::{sha3_256, sha3_512};
 use arc_primitives::kem::ecdh::{EcdhP256KeyPair, EcdhP384KeyPair, X25519KeyPair};
 use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use arc_primitives::rand::{random_bytes, random_u32, random_u64};
@@ -414,7 +440,9 @@ fn test_high_volume_sha3_256_hash() {
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
         let input = format!("SHA3 data: iteration {}", i);
-        if sha3_256(input.as_bytes()).is_ok() {
+        // sha3_256 returns [u8; 32] directly (no Result wrapper)
+        let hash = sha3_256(input.as_bytes());
+        if hash.len() == 32 {
             success_count += 1;
         }
     }
@@ -517,7 +545,8 @@ fn test_sha512_large_input() {
 #[test]
 fn test_sha3_512_large_input() {
     let large_data = vec![0x77u8; MEDIUM_BUFFER_SIZE];
-    let hash = sha3_512(&large_data).expect("hashing should succeed");
+    // sha3_512 returns [u8; 64] directly (no Result wrapper)
+    let hash = sha3_512(&large_data);
     assert_eq!(hash.len(), 64);
 }
 
@@ -1222,8 +1251,9 @@ fn test_mixed_algorithm_stress() {
             }
         }
 
-        // Hash
-        if sha256(msg.as_bytes()).is_ok() && sha3_256(msg.as_bytes()).is_ok() {
+        // Hash - sha256 returns Result, sha3_256 returns array directly
+        if sha256(msg.as_bytes()).is_ok() {
+            let _h2 = sha3_256(msg.as_bytes()); // sha3 never fails
             hash_count += 1;
         }
     }
@@ -1346,10 +1376,11 @@ fn test_stress_comprehensive_summary() {
     assert_eq!(alice_ss, bob_ss);
 
     // 6. Hash operations
+    // sha256 returns Result, sha3_256 returns array directly
     let hash = sha256(b"test").expect("SHA-256 should succeed");
     assert_eq!(hash.len(), 32);
 
-    let hash3 = sha3_256(b"test").expect("SHA3-256 should succeed");
+    let hash3 = sha3_256(b"test"); // sha3 returns [u8; 32] directly
     assert_eq!(hash3.len(), 32);
 
     // 7. RNG operations

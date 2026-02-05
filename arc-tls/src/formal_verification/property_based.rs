@@ -13,6 +13,7 @@ pub struct PropertyTests;
 
 impl PropertyTests {
     /// Creates a new property test suite.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

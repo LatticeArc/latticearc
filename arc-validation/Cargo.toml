@@ -93,8 +93,6 @@ tokio-test = "0.4.4"
 wycheproof = "0.6"
 # Criterion for constant-time benchmarks
 criterion = { version = "0.5", features = ["html_reports"] }
-# dudect for constant-time validation
-dudect-bencher = "0.4"
 
 [features]
 default = []

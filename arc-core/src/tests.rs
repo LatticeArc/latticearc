@@ -1,9 +1,5 @@
-#![deny(unsafe_code)]
 // Tests are allowed to use unwrap/expect for simplicity
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
-// Tests use the unified API with CryptoConfig
+// (Allow attributes are on the `mod tests;` declaration in lib.rs)
 
 use crate::*;
 

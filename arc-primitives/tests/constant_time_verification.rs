@@ -1,3 +1,31 @@
+#![allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::redundant_clone,
+    clippy::clone_on_copy,
+    clippy::collapsible_if,
+    clippy::single_match,
+    clippy::needless_range_loop,
+    clippy::explicit_iter_loop,
+    clippy::explicit_auto_deref,
+    clippy::assertions_on_constants,
+    clippy::len_zero,
+    clippy::print_stdout,
+    clippy::unused_unit,
+    clippy::expect_fun_call,
+    clippy::useless_vec,
+    clippy::cloned_instead_of_copied,
+    clippy::float_cmp,
+    clippy::needless_borrows_for_generic_args,
+    clippy::manual_let_else
+)]
 //! Constant-Time Operation Verification Tests for arc-primitives
 //!
 //! This test suite verifies constant-time guarantees through CODE VERIFICATION,
@@ -37,8 +65,6 @@
 //! 4. **API Contract Tests** - Verify Debug redaction, no Clone for secrets
 //! 5. **Branch-Free Operation Verification** - Test Choice conditional selection
 
-#![allow(clippy::expect_used)]
-#![allow(clippy::unwrap_used)]
 #![allow(dead_code)]
 
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};

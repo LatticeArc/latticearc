@@ -122,6 +122,10 @@ pub const ML_KEM_1024_VECTORS: &[MlKemTestVector] = &[
 ];
 
 /// Run ML-KEM-512 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_ml_kem_512_kat() -> Result<(), NistKatError> {
     for vector in ML_KEM_512_VECTORS {
         run_ml_kem_512_test(vector)?;
@@ -130,6 +134,10 @@ pub fn run_ml_kem_512_kat() -> Result<(), NistKatError> {
 }
 
 /// Run ML-KEM-768 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_ml_kem_768_kat() -> Result<(), NistKatError> {
     for vector in ML_KEM_768_VECTORS {
         run_ml_kem_768_test(vector)?;
@@ -138,6 +146,10 @@ pub fn run_ml_kem_768_kat() -> Result<(), NistKatError> {
 }
 
 /// Run ML-KEM-1024 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_ml_kem_1024_kat() -> Result<(), NistKatError> {
     for vector in ML_KEM_1024_VECTORS {
         run_ml_kem_1024_test(vector)?;

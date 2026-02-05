@@ -31,6 +31,9 @@ pub fn random_u64() -> u64 {
 
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+#[allow(clippy::indexing_slicing)] // Tests use direct indexing
+#[allow(clippy::cast_possible_truncation)] // Tests cast sizes for testing
+#[allow(clippy::cast_lossless)] // Tests use simple casts
 mod tests {
     use super::*;
     use std::collections::HashSet;

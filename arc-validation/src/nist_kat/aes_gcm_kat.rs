@@ -103,6 +103,10 @@ pub const AES_256_GCM_VECTORS: &[AesGcmTestVector] = &[
 ];
 
 /// Run AES-128-GCM KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_aes_128_gcm_kat() -> Result<(), NistKatError> {
     for vector in AES_128_GCM_VECTORS {
         run_aes_128_gcm_test(vector)?;
@@ -111,6 +115,10 @@ pub fn run_aes_128_gcm_kat() -> Result<(), NistKatError> {
 }
 
 /// Run AES-256-GCM KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_aes_256_gcm_kat() -> Result<(), NistKatError> {
     for vector in AES_256_GCM_VECTORS {
         run_aes_256_gcm_test(vector)?;
@@ -133,7 +141,7 @@ fn run_aes_128_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
 
     let nonce_array: [u8; 12] = nonce
         .try_into()
-        .map_err(|_| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
+        .map_err(|_err| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
     let nonce_obj = Nonce::assume_unique_for_key(nonce_array);
 
     let mut in_out = plaintext.clone();
@@ -141,7 +149,7 @@ fn run_aes_128_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
         .map_err(|e| NistKatError::ImplementationError(format!("Encryption failed: {:?}", e)))?;
 
     // Verify ciphertext + tag
-    let mut expected_output = expected_ciphertext.clone();
+    let mut expected_output = expected_ciphertext;
     expected_output.extend_from_slice(&expected_tag);
 
     if in_out != expected_output {
@@ -163,7 +171,7 @@ fn run_aes_128_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
 
     let nonce_array_2: [u8; 12] = decode_hex(vector.nonce)?
         .try_into()
-        .map_err(|_| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
+        .map_err(|_err| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
     let nonce_obj_2 = Nonce::assume_unique_for_key(nonce_array_2);
 
     let decrypted = key_2
@@ -196,7 +204,7 @@ fn run_aes_256_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
 
     let nonce_array: [u8; 12] = nonce
         .try_into()
-        .map_err(|_| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
+        .map_err(|_err| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
     let nonce_obj = Nonce::assume_unique_for_key(nonce_array);
 
     let mut in_out = plaintext.clone();
@@ -204,7 +212,7 @@ fn run_aes_256_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
         .map_err(|e| NistKatError::ImplementationError(format!("Encryption failed: {:?}", e)))?;
 
     // Verify ciphertext + tag
-    let mut expected_output = expected_ciphertext.clone();
+    let mut expected_output = expected_ciphertext;
     expected_output.extend_from_slice(&expected_tag);
 
     if in_out != expected_output {
@@ -226,7 +234,7 @@ fn run_aes_256_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
 
     let nonce_array_2: [u8; 12] = decode_hex(vector.nonce)?
         .try_into()
-        .map_err(|_| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
+        .map_err(|_err| NistKatError::ImplementationError("Invalid nonce length".to_string()))?;
     let nonce_obj_2 = Nonce::assume_unique_for_key(nonce_array_2);
 
     let decrypted = key_2

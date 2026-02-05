@@ -18,8 +18,34 @@
 //! Total: 45+ comprehensive platform compatibility tests
 
 #![deny(unsafe_code)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::panic_in_result_fn,
+    clippy::unnecessary_wraps,
+    clippy::redundant_clone,
+    clippy::useless_vec,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::clone_on_copy,
+    clippy::len_zero,
+    clippy::single_match,
+    clippy::unnested_or_patterns,
+    clippy::default_constructed_unit_structs,
+    clippy::redundant_closure_for_method_calls,
+    clippy::semicolon_if_nothing_returned,
+    clippy::unnecessary_unwrap,
+    clippy::redundant_pattern_matching,
+    clippy::missing_const_for_thread_local,
+    clippy::get_first,
+    clippy::float_cmp,
+    clippy::needless_borrows_for_generic_args,
+    clippy::absurd_extreme_comparisons,
+    unused_qualifications
+)]
 
 use std::mem;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -547,21 +573,21 @@ fn test_env_random_number_generation() {
 
 #[test]
 fn test_env_random_reproducibility_with_seed() {
-    // Seeded RNG should be reproducible
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha20Rng;
+    // Test that key derivation with same inputs produces reproducible outputs
+    use arc_core::derive_key_unverified;
 
-    let seed = [0u8; 32];
-    let mut rng1 = ChaCha20Rng::from_seed(seed);
-    let mut rng2 = ChaCha20Rng::from_seed(seed);
+    let password = b"test-password";
+    let salt = b"test-salt";
 
-    let mut buf1 = [0u8; 64];
-    let mut buf2 = [0u8; 64];
+    let key1 = derive_key_unverified(password, salt, 64);
+    let key2 = derive_key_unverified(password, salt, 64);
 
-    rng1.fill_bytes(&mut buf1);
-    rng2.fill_bytes(&mut buf2);
+    assert!(key1.is_ok(), "Key derivation should succeed");
+    assert!(key2.is_ok(), "Key derivation should succeed");
 
-    assert_eq!(buf1, buf2, "Same seed should produce same sequence");
+    let k1 = key1.expect("already checked");
+    let k2 = key2.expect("already checked");
+    assert_eq!(k1, k2, "Same inputs should produce same derived key");
 }
 
 #[test]

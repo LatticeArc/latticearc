@@ -1,6 +1,36 @@
 #![deny(unsafe_code)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::print_stdout)]
+#![allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::float_cmp,
+    clippy::redundant_closure,
+    clippy::redundant_clone,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::single_match_else,
+    clippy::default_constructed_unit_structs,
+    clippy::manual_is_multiple_of,
+    clippy::needless_borrows_for_generic_args,
+    clippy::print_stdout,
+    clippy::unnecessary_unwrap,
+    clippy::unnecessary_literal_unwrap,
+    clippy::to_string_in_format_args,
+    clippy::expect_fun_call,
+    clippy::clone_on_copy,
+    clippy::cast_precision_loss,
+    clippy::useless_format,
+    clippy::assertions_on_constants,
+    clippy::drop_non_drop,
+    clippy::redundant_closure_for_method_calls,
+    clippy::unnecessary_map_or,
+    clippy::print_stderr,
+    clippy::inconsistent_digit_grouping,
+    clippy::useless_vec
+)]
 
 //! NIST Known Answer Test Integration Suite
 //!

@@ -12,6 +12,7 @@ pub struct SawProofs;
 
 impl SawProofs {
     /// Creates a new SAW proof harness.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

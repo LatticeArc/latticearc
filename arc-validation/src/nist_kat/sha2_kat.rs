@@ -137,6 +137,10 @@ pub const SHA512_256_VECTORS: &[Sha2TestVector] = &[
 ];
 
 /// Run SHA-256 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_sha256_kat() -> Result<(), NistKatError> {
     for vector in SHA256_VECTORS {
         let message = decode_hex(vector.message)?;
@@ -152,7 +156,7 @@ pub fn run_sha256_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -162,6 +166,10 @@ pub fn run_sha256_kat() -> Result<(), NistKatError> {
 }
 
 /// Run SHA-224 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_sha224_kat() -> Result<(), NistKatError> {
     for vector in SHA224_VECTORS {
         let message = decode_hex(vector.message)?;
@@ -177,7 +185,7 @@ pub fn run_sha224_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -187,6 +195,10 @@ pub fn run_sha224_kat() -> Result<(), NistKatError> {
 }
 
 /// Run SHA-384 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_sha384_kat() -> Result<(), NistKatError> {
     for vector in SHA384_VECTORS {
         let message = decode_hex(vector.message)?;
@@ -202,7 +214,7 @@ pub fn run_sha384_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -212,6 +224,10 @@ pub fn run_sha384_kat() -> Result<(), NistKatError> {
 }
 
 /// Run SHA-512 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_sha512_kat() -> Result<(), NistKatError> {
     for vector in SHA512_VECTORS {
         let message = decode_hex(vector.message)?;
@@ -227,7 +243,7 @@ pub fn run_sha512_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -237,6 +253,10 @@ pub fn run_sha512_kat() -> Result<(), NistKatError> {
 }
 
 /// Run SHA-512/224 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_sha512_224_kat() -> Result<(), NistKatError> {
     for vector in SHA512_224_VECTORS {
         let message = decode_hex(vector.message)?;
@@ -252,7 +272,7 @@ pub fn run_sha512_224_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -262,6 +282,10 @@ pub fn run_sha512_224_kat() -> Result<(), NistKatError> {
 }
 
 /// Run SHA-512/256 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_sha512_256_kat() -> Result<(), NistKatError> {
     for vector in SHA512_256_VECTORS {
         let message = decode_hex(vector.message)?;
@@ -277,7 +301,7 @@ pub fn run_sha512_256_kat() -> Result<(), NistKatError> {
                 test_name: vector.test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -357,7 +381,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -398,7 +422,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -437,7 +461,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -477,7 +501,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -519,7 +543,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });
@@ -558,7 +582,7 @@ mod tests {
                 test_name: test_name.to_string(),
                 message: format!(
                     "Hash mismatch: got {}, expected {}",
-                    hex::encode(&result),
+                    hex::encode(result),
                     hex::encode(&expected_hash)
                 ),
             });

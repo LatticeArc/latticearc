@@ -104,6 +104,10 @@ pub const ML_DSA_87_VECTORS: &[MlDsaTestVector] = &[
 ];
 
 /// Run ML-DSA-44 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_ml_dsa_44_kat() -> Result<(), NistKatError> {
     for vector in ML_DSA_44_VECTORS {
         run_ml_dsa_44_test(vector)?;
@@ -112,6 +116,10 @@ pub fn run_ml_dsa_44_kat() -> Result<(), NistKatError> {
 }
 
 /// Run ML-DSA-65 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_ml_dsa_65_kat() -> Result<(), NistKatError> {
     for vector in ML_DSA_65_VECTORS {
         run_ml_dsa_65_test(vector)?;
@@ -120,6 +128,10 @@ pub fn run_ml_dsa_65_kat() -> Result<(), NistKatError> {
 }
 
 /// Run ML-DSA-87 KAT
+///
+/// # Errors
+///
+/// Returns `NistKatError` if any test vector fails validation.
 pub fn run_ml_dsa_87_kat() -> Result<(), NistKatError> {
     for vector in ML_DSA_87_VECTORS {
         run_ml_dsa_87_test(vector)?;

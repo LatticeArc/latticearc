@@ -1,3 +1,31 @@
+#![allow(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::redundant_clone,
+    clippy::clone_on_copy,
+    clippy::collapsible_if,
+    clippy::single_match,
+    clippy::needless_range_loop,
+    clippy::explicit_iter_loop,
+    clippy::explicit_auto_deref,
+    clippy::assertions_on_constants,
+    clippy::len_zero,
+    clippy::print_stdout,
+    clippy::unused_unit,
+    clippy::expect_fun_call,
+    clippy::useless_vec,
+    clippy::cloned_instead_of_copied,
+    clippy::float_cmp,
+    clippy::needless_borrows_for_generic_args,
+    clippy::manual_let_else
+)]
 //! Comprehensive Interoperability Tests for arc-primitives
 //!
 //! This test suite validates interoperability across:
@@ -33,11 +61,6 @@
 //!    - RFC 5869 HKDF compatibility
 //!    - RFC 8439 ChaCha20-Poly1305 compatibility
 
-#![allow(clippy::expect_used)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::panic)]
-#![allow(clippy::indexing_slicing)]
-
 use arc_primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 use arc_primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
 use arc_primitives::ec::traits::{EcKeyPair, EcSignature};
@@ -45,12 +68,10 @@ use arc_primitives::kdf::hkdf::{hkdf, hkdf_expand, hkdf_extract};
 use arc_primitives::kem::ecdh::{X25519_KEY_SIZE, X25519KeyPair};
 use arc_primitives::kem::ml_kem::{MlKem, MlKemPublicKey, MlKemSecurityLevel, MlKemSharedSecret};
 use arc_primitives::sig::ml_dsa::{
-    MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
-    generate_keypair as ml_dsa_generate_keypair, sign as ml_dsa_sign, verify as ml_dsa_verify,
+    MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate_keypair,
+    sign as ml_dsa_sign, verify as ml_dsa_verify,
 };
-use arc_primitives::sig::slh_dsa::{
-    SecurityLevel as SlhDsaSecurityLevel, SigningKey, VerifyingKey,
-};
+use arc_primitives::sig::slh_dsa::{SecurityLevel as SlhDsaSecurityLevel, SigningKey};
 use rand::rngs::OsRng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
@@ -1063,7 +1084,7 @@ fn test_all_signatures_reject_wrong_public_key() {
     let message = b"Test message";
 
     // ML-DSA
-    let (pk1, sk1) =
+    let (_pk1, sk1) =
         ml_dsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen 1 should succeed");
     let (pk2, _sk2) =
         ml_dsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen 2 should succeed");

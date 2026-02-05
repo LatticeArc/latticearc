@@ -53,6 +53,7 @@ impl KatSummary {
 
     /// Get pass rate as percentage
     #[must_use]
+    #[allow(clippy::cast_precision_loss)] // Precision loss acceptable for percentage display
     pub fn pass_rate(&self) -> f64 {
         if self.total == 0 { 0.0 } else { (self.passed as f64 / self.total as f64) * 100.0 }
     }

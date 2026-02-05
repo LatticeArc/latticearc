@@ -524,6 +524,8 @@ pub fn verify(
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[allow(clippy::indexing_slicing)] // Tests use direct indexing
+#[allow(clippy::single_match)] // Tests use match for clarity
 mod tests {
     use super::*;
     use rand::RngCore;
