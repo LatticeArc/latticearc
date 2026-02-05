@@ -241,13 +241,66 @@ graph TD
     class SM_ALG,FS_ALG,FT_ALG,IOT_ALG algo
 ```
 
-| Use Case | Encryption | Signature |
-|----------|------------|-----------|
-| `SecureMessaging` | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 |
-| `FileStorage` | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 |
-| `FinancialTransactions` | — | ML-DSA-65 + Ed25519 |
-| `Authentication` | — | ML-DSA-87 + Ed25519 |
-| `IoTDevice` | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 |
+**Communication**
+
+| Use Case | Scheme |
+|----------|--------|
+| `SecureMessaging` | ML-KEM-768 + AES-256-GCM |
+| `EmailEncryption` | ML-KEM-1024 + AES-256-GCM |
+| `VpnTunnel` | ML-KEM-768 + AES-256-GCM |
+| `ApiSecurity` | ML-KEM-768 + AES-256-GCM |
+
+**Storage**
+
+| Use Case | Scheme |
+|----------|--------|
+| `FileStorage` | ML-KEM-1024 + AES-256-GCM |
+| `DatabaseEncryption` | ML-KEM-768 + AES-256-GCM |
+| `CloudStorage` | ML-KEM-1024 + AES-256-GCM |
+| `BackupArchive` | ML-KEM-1024 + AES-256-GCM |
+| `ConfigSecrets` | ML-KEM-768 + AES-256-GCM |
+
+**Authentication & Identity**
+
+| Use Case | Scheme |
+|----------|--------|
+| `Authentication` | ML-DSA-87 + Ed25519 |
+| `SessionToken` | ML-KEM-768 + AES-256-GCM |
+| `DigitalCertificate` | ML-DSA-87 + Ed25519 |
+| `KeyExchange` | ML-KEM-1024 + X25519 |
+
+**Financial & Legal**
+
+| Use Case | Scheme |
+|----------|--------|
+| `FinancialTransactions` | ML-DSA-65 + Ed25519 |
+| `LegalDocuments` | ML-DSA-87 + Ed25519 |
+| `BlockchainTransaction` | ML-DSA-65 + Ed25519 |
+
+**Regulated Industries**
+
+| Use Case | Scheme |
+|----------|--------|
+| `HealthcareRecords` | ML-KEM-1024 + AES-256-GCM |
+| `GovernmentClassified` | ML-KEM-1024 + AES-256-GCM |
+| `PaymentCard` | ML-KEM-1024 + AES-256-GCM |
+
+**IoT & Embedded**
+
+| Use Case | Scheme |
+|----------|--------|
+| `IoTDevice` | ML-KEM-512 + AES-256-GCM |
+| `FirmwareSigning` | ML-DSA-65 + Ed25519 |
+
+**Advanced**
+
+| Use Case | Scheme |
+|----------|--------|
+| `SearchableEncryption` | ML-KEM-768 + AES-256-GCM |
+| `HomomorphicComputation` | ML-KEM-768 + AES-256-GCM |
+| `AuditLog` | ML-KEM-768 + AES-256-GCM |
+
+All schemes above are hybrid (PQ + classical) by default.
 
 ### By Security Level
 

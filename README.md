@@ -125,10 +125,15 @@ let encrypted = encrypt(data, &key, CryptoConfig::new()
 
 | Use Case | Encryption | Signatures |
 |----------|------------|------------|
-| `FileStorage` | Hybrid (ML-KEM-1024 + AES-256-GCM) | Hybrid (ML-DSA-87 + Ed25519) |
 | `SecureMessaging` | Hybrid (ML-KEM-768 + AES-256-GCM) | Hybrid (ML-DSA-65 + Ed25519) |
-| `FinancialTransactions` | Hybrid (ML-KEM-1024 + AES-256-GCM) | Hybrid (ML-DSA-87 + Ed25519) |
+| `FileStorage` | Hybrid (ML-KEM-1024 + AES-256-GCM) | Hybrid (ML-DSA-87 + Ed25519) |
+| `FinancialTransactions` | — | Hybrid (ML-DSA-65 + Ed25519) |
+| `Authentication` | — | Hybrid (ML-DSA-87 + Ed25519) |
+| `HealthcareRecords` | Hybrid (ML-KEM-1024 + AES-256-GCM) | — |
+| `GovernmentClassified` | Hybrid (ML-KEM-1024 + AES-256-GCM) | — |
 | `IoTDevice` | Hybrid (ML-KEM-512 + AES-256-GCM) | Hybrid (ML-DSA-44 + Ed25519) |
+
+> **24 use cases supported.** See [Unified API Guide](docs/UNIFIED_API_GUIDE.md) for the complete list including cloud storage, VPN, blockchain, firmware signing, and more.
 
 ### By Security Level
 
@@ -208,7 +213,9 @@ let config = TlsConfig::new()
 | [`arc-hybrid`](arc-hybrid/) | Hybrid encryption combining PQC and classical |
 | [`arc-tls`](arc-tls/) | Post-quantum TLS integration |
 | [`arc-zkp`](arc-zkp/) | Zero-knowledge proofs |
+| [`arc-prelude`](arc-prelude/) | Common types, errors, and memory safety utilities |
 | [`arc-validation`](arc-validation/) | Test vectors and compliance testing |
+| [`arc-perf`](arc-perf/) | Performance benchmarking |
 
 ## Security
 
@@ -238,9 +245,11 @@ See [SECURITY.md](SECURITY.md) for our security policy.
 ## Documentation
 
 - [API Reference](https://docs.rs/latticearc)
-- [Unified API Guide](docs/UNIFIED_API_GUIDE.md)
-- [Security Guide](docs/SECURITY_GUIDE.md)
-- [NIST Compliance](docs/NIST_COMPLIANCE.md)
+- [Unified API Guide](docs/UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
+- [Architecture](docs/DESIGN.md) — crate structure, design decisions, enterprise features
+- [Security Guide](docs/SECURITY_GUIDE.md) — threat model, secure usage patterns
+- [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
+- [FAQ](docs/FAQ.md)
 
 ## License
 

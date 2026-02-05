@@ -145,14 +145,12 @@ graph TD
 use arc_core::config::{ZeroTrustConfig, ProofComplexity};
 use arc_core::zero_trust::ZeroTrustAuth;
 
-// High-security configuration
-let config = ZeroTrustConfig {
-    challenge_timeout_ms: 30_000,      // 30s timeout
-    proof_complexity: ProofComplexity::High,
-    continuous_verification: true,
-    verification_interval_ms: 60_000,  // Re-verify every 60s
-    ..Default::default()
-};
+// High-security configuration using builder pattern
+let config = ZeroTrustConfig::new()
+    .with_timeout(30_000)                // 30s challenge timeout
+    .with_complexity(ProofComplexity::High)
+    .with_continuous_verification(true)
+    .with_verification_interval(60_000); // Re-verify every 60s
 
 let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 ```
@@ -293,37 +291,37 @@ secret.zeroize();
 ```mermaid
 graph LR
     subgraph "Security Levels"
-        L[Low<br/>128-bit]
-        M[Medium<br/>192-bit]
-        H[High<br/>256-bit]
-        X[Maximum<br/>256+ bit]
+        S[Standard<br/>128-bit]
+        H[High<br/>192-bit]
+        M[Maximum<br/>256-bit]
+        Q[Quantum<br/>256-bit PQ-only]
     end
 
     subgraph "Use Cases"
         GEN[General Purpose]
-        SENS[Sensitive Data]
+        ENT[Enterprise]
         REG[Regulated]
         GOV[Government]
     end
 
-    L --> GEN
-    M --> SENS
-    H --> REG
-    X --> GOV
+    S --> GEN
+    H --> ENT
+    M --> REG
+    Q --> GOV
 
     classDef level fill:#3498db,stroke:#333,color:#fff
     classDef use fill:#9b59b6,stroke:#333,color:#fff
 
-    class L,M,H,X level
-    class GEN,SENS,REG,GOV use
+    class S,H,M,Q level
+    class GEN,ENT,REG,GOV use
 ```
 
-| Level | Algorithms | Equivalent | Use Case |
-|-------|-----------|------------|----------|
-| Low | ML-KEM-512, ML-DSA-44 | AES-128 | General purpose |
-| Medium | ML-KEM-768, ML-DSA-65 | AES-192 | Sensitive data |
-| High | ML-KEM-768, ML-DSA-65 | AES-256 | High-security |
-| Maximum | ML-KEM-1024, ML-DSA-87 | AES-256+ | Government, financial |
+| Level | Algorithms | Mode | NIST Level | Use Case |
+|-------|-----------|------|------------|----------|
+| `Standard` | ML-KEM-512, ML-DSA-44 | Hybrid | 1 | General purpose, IoT |
+| `High` (default) | ML-KEM-768, ML-DSA-65 | Hybrid | 3 | Enterprise, sensitive data |
+| `Maximum` | ML-KEM-1024, ML-DSA-87 | Hybrid | 5 | Financial, regulated |
+| `Quantum` | ML-KEM-1024, ML-DSA-87 | PQ-only | 5 | Government (CNSA 2.0) |
 
 ### Recommendations
 
