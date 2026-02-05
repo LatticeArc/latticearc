@@ -4,7 +4,13 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.93%2B-orange.svg)](https://www.rust-lang.org/)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/LatticeArc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/LatticeArc/latticearc)
+[![CI](https://github.com/latticearc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/latticearc/latticearc/actions/workflows/security.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/security.yml)
+[![CodeQL](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml)
+[![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
+[![Fuzzing](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml)
+[![SBOM](https://github.com/latticearc/latticearc/actions/workflows/sbom.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/sbom.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/latticearc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/latticearc/latticearc)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11857/badge)](https://www.bestpractices.dev/projects/11857)
 
 LatticeArc is a post-quantum cryptography library for Rust, implementing the NIST FIPS 203-206 standards for quantum-resistant encryption and digital signatures.

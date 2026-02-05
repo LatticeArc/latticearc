@@ -1,12 +1,15 @@
 name: Performance
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  schedule:
-    - cron: '0 4 * * *'
+  # push/pull_request/schedule disabled to conserve GitHub Actions free tier minutes.
+  # Re-enable when project is stable or on a paid plan.
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main, develop ]
+  # schedule:
+  #   - cron: '0 4 * * *'
+  workflow_dispatch:
 
 permissions: read-all
 

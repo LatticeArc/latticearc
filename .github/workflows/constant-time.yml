@@ -4,12 +4,14 @@
 name: Constant-Time Validation
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  schedule:
-    - cron: '0 5 * * 0'  # Weekly on Sunday at 5 AM UTC
+  # push/pull_request/schedule disabled to conserve GitHub Actions free tier minutes.
+  # Re-enable when project is stable or on a paid plan.
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
+  # schedule:
+  #   - cron: '0 5 * * 0'  # Weekly on Sunday at 5 AM UTC
   workflow_dispatch:
 
 permissions: read-all

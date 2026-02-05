@@ -3,13 +3,15 @@
 name: Performance Benchmarks
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'arc-primitives/**'
-      - 'Cargo.toml'
-  schedule:
-    - cron: '0 0 * * 0'  # Weekly on Sunday
+  # push/schedule disabled to conserve GitHub Actions free tier minutes.
+  # Re-enable when project is stable or on a paid plan.
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'arc-primitives/**'
+  #     - 'Cargo.toml'
+  # schedule:
+  #   - cron: '0 0 * * 0'  # Weekly on Sunday
   workflow_dispatch:  # Manual trigger
 
 permissions: read-all

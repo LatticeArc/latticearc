@@ -146,7 +146,7 @@ cargo test --test signature_integration --all-features
 
 The vulnerability was discovered during the Phase 1 codebase audit on 2026-01-31 when comprehensive integration tests were added to improve test coverage. The tests immediately revealed that signatures were verifying with incorrect public keys.
 
-**Credit**: Discovered by Claude Code during automated security testing
+**Credit**: Discovered during automated security testing
 
 ## Timeline
 
