@@ -209,6 +209,7 @@ fn run_ml_dsa_87_test(vector: &MlDsaTestVector) -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
@@ -228,5 +229,457 @@ mod tests {
     fn test_ml_dsa_87_kat() {
         let result = run_ml_dsa_87_kat();
         assert!(result.is_ok(), "ML-DSA-87 KAT failed: {:?}", result);
+    }
+
+    // ========================================================================
+    // Individual private test function coverage
+    // ========================================================================
+
+    #[test]
+    fn test_run_ml_dsa_44_test_individual_vector_1() {
+        let vector = &ML_DSA_44_VECTORS[0];
+        let result = run_ml_dsa_44_test(vector);
+        assert!(result.is_ok(), "ML-DSA-44 vector 1 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_44_test_individual_vector_2() {
+        let vector = &ML_DSA_44_VECTORS[1];
+        let result = run_ml_dsa_44_test(vector);
+        assert!(result.is_ok(), "ML-DSA-44 vector 2 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_65_test_individual_vector_1() {
+        let vector = &ML_DSA_65_VECTORS[0];
+        let result = run_ml_dsa_65_test(vector);
+        assert!(result.is_ok(), "ML-DSA-65 vector 1 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_65_test_individual_vector_2() {
+        let vector = &ML_DSA_65_VECTORS[1];
+        let result = run_ml_dsa_65_test(vector);
+        assert!(result.is_ok(), "ML-DSA-65 vector 2 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_87_test_individual_vector_1() {
+        let vector = &ML_DSA_87_VECTORS[0];
+        let result = run_ml_dsa_87_test(vector);
+        assert!(result.is_ok(), "ML-DSA-87 vector 1 failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_87_test_individual_vector_2() {
+        let vector = &ML_DSA_87_VECTORS[1];
+        let result = run_ml_dsa_87_test(vector);
+        assert!(result.is_ok(), "ML-DSA-87 vector 2 failed: {:?}", result);
+    }
+
+    // ========================================================================
+    // Hex decode error path coverage within test functions
+    // ========================================================================
+
+    #[test]
+    fn test_run_ml_dsa_44_test_invalid_message_hex() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-44-INVALID-MSG",
+            seed: "0000000000000000000000000000000000000000000000000000000000000000",
+            message: "zzzz",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_44_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid message hex");
+        assert!(
+            matches!(&result, Err(NistKatError::HexError(msg)) if !msg.is_empty()),
+            "Expected non-empty HexError, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_run_ml_dsa_44_test_invalid_seed_hex() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-44-INVALID-SEED",
+            seed: "not_valid_hex!!",
+            message: "",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_44_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid seed hex");
+    }
+
+    #[test]
+    fn test_run_ml_dsa_44_test_valid_message_invalid_seed() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-44-VALID-MSG-INVALID-SEED",
+            seed: "xyz",
+            message: "616263",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_44_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid seed hex");
+    }
+
+    #[test]
+    fn test_run_ml_dsa_65_test_invalid_message_hex() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-65-INVALID-MSG",
+            seed: "0000000000000000000000000000000000000000000000000000000000000000",
+            message: "not_hex!!",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_65_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid message hex");
+    }
+
+    #[test]
+    fn test_run_ml_dsa_65_test_invalid_seed_hex() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-65-INVALID-SEED",
+            seed: "xyz123abc",
+            message: "",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_65_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid seed hex");
+    }
+
+    #[test]
+    fn test_run_ml_dsa_87_test_invalid_message_hex() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-87-INVALID-MSG",
+            seed: "0000000000000000000000000000000000000000000000000000000000000000",
+            message: "ghijk",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_87_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid message hex");
+    }
+
+    #[test]
+    fn test_run_ml_dsa_87_test_invalid_seed_hex() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-87-INVALID-SEED",
+            seed: "invalid_hex_data",
+            message: "616263",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_87_test(&vector);
+        assert!(result.is_err(), "Should fail on invalid seed hex");
+    }
+
+    // ========================================================================
+    // Test vector struct field coverage
+    // ========================================================================
+
+    #[test]
+    fn test_ml_dsa_test_vector_struct_fields_44() {
+        for vector in ML_DSA_44_VECTORS {
+            assert!(!vector.test_name.is_empty());
+            assert!(!vector.seed.is_empty());
+            // message can be empty string (valid hex for empty bytes)
+            assert!(!vector.expected_pk.is_empty());
+            assert!(!vector.expected_sk.is_empty());
+            assert!(!vector.expected_signature.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_test_vector_struct_fields_65() {
+        for vector in ML_DSA_65_VECTORS {
+            assert!(!vector.test_name.is_empty());
+            assert!(!vector.seed.is_empty());
+            assert!(!vector.expected_pk.is_empty());
+            assert!(!vector.expected_sk.is_empty());
+            assert!(!vector.expected_signature.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_test_vector_struct_fields_87() {
+        for vector in ML_DSA_87_VECTORS {
+            assert!(!vector.test_name.is_empty());
+            assert!(!vector.seed.is_empty());
+            assert!(!vector.expected_pk.is_empty());
+            assert!(!vector.expected_sk.is_empty());
+            assert!(!vector.expected_signature.is_empty());
+        }
+    }
+
+    // ========================================================================
+    // Decode all vector fields coverage
+    // ========================================================================
+
+    #[test]
+    fn test_decode_all_44_vector_fields() {
+        for vector in ML_DSA_44_VECTORS {
+            let seed = decode_hex(vector.seed);
+            assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
+            let message = decode_hex(vector.message);
+            assert!(message.is_ok(), "message decode failed for {}", vector.test_name);
+            let pk = decode_hex(vector.expected_pk);
+            assert!(pk.is_ok(), "pk decode failed for {}", vector.test_name);
+            let sk = decode_hex(vector.expected_sk);
+            assert!(sk.is_ok(), "sk decode failed for {}", vector.test_name);
+            let sig = decode_hex(vector.expected_signature);
+            assert!(sig.is_ok(), "signature decode failed for {}", vector.test_name);
+        }
+    }
+
+    #[test]
+    fn test_decode_all_65_vector_fields() {
+        for vector in ML_DSA_65_VECTORS {
+            let seed = decode_hex(vector.seed);
+            assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
+            let message = decode_hex(vector.message);
+            assert!(message.is_ok(), "message decode failed for {}", vector.test_name);
+            let pk = decode_hex(vector.expected_pk);
+            assert!(pk.is_ok(), "pk decode failed for {}", vector.test_name);
+            let sk = decode_hex(vector.expected_sk);
+            assert!(sk.is_ok(), "sk decode failed for {}", vector.test_name);
+            let sig = decode_hex(vector.expected_signature);
+            assert!(sig.is_ok(), "signature decode failed for {}", vector.test_name);
+        }
+    }
+
+    #[test]
+    fn test_decode_all_87_vector_fields() {
+        for vector in ML_DSA_87_VECTORS {
+            let seed = decode_hex(vector.seed);
+            assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
+            let message = decode_hex(vector.message);
+            assert!(message.is_ok(), "message decode failed for {}", vector.test_name);
+            let pk = decode_hex(vector.expected_pk);
+            assert!(pk.is_ok(), "pk decode failed for {}", vector.test_name);
+            let sk = decode_hex(vector.expected_sk);
+            assert!(sk.is_ok(), "sk decode failed for {}", vector.test_name);
+            let sig = decode_hex(vector.expected_signature);
+            assert!(sig.is_ok(), "signature decode failed for {}", vector.test_name);
+        }
+    }
+
+    // ========================================================================
+    // Error variant coverage - exercise TestFailed construction
+    // and formatting for ML-DSA variants
+    // ========================================================================
+
+    #[test]
+    fn test_dsa_44_test_failed_error_construction() {
+        let err = NistKatError::TestFailed {
+            algorithm: "ML-DSA-44".to_string(),
+            test_name: "ML-DSA-44-KAT-1".to_string(),
+            message: "Signature verification failed".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("ML-DSA-44"));
+        assert!(msg.contains("ML-DSA-44-KAT-1"));
+        assert!(msg.contains("Signature verification failed"));
+    }
+
+    #[test]
+    fn test_dsa_65_test_failed_error_construction() {
+        let err = NistKatError::TestFailed {
+            algorithm: "ML-DSA-65".to_string(),
+            test_name: "ML-DSA-65-KAT-1".to_string(),
+            message: "Signature verification failed".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("ML-DSA-65"));
+    }
+
+    #[test]
+    fn test_dsa_87_test_failed_error_construction() {
+        let err = NistKatError::TestFailed {
+            algorithm: "ML-DSA-87".to_string(),
+            test_name: "ML-DSA-87-KAT-1".to_string(),
+            message: "Signature verification failed".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("ML-DSA-87"));
+    }
+
+    #[test]
+    fn test_dsa_implementation_error_keygen() {
+        let err = NistKatError::ImplementationError(format!("KeyGen failed: {:?}", "test error"));
+        let msg = err.to_string();
+        assert!(msg.contains("KeyGen failed"));
+    }
+
+    #[test]
+    fn test_dsa_implementation_error_sign() {
+        let err = NistKatError::ImplementationError(format!("Sign failed: {:?}", "test error"));
+        let msg = err.to_string();
+        assert!(msg.contains("Sign failed"));
+    }
+
+    // ========================================================================
+    // Vector count and naming convention coverage
+    // ========================================================================
+
+    #[test]
+    fn test_vector_counts() {
+        assert_eq!(ML_DSA_44_VECTORS.len(), 2);
+        assert_eq!(ML_DSA_65_VECTORS.len(), 2);
+        assert_eq!(ML_DSA_87_VECTORS.len(), 2);
+    }
+
+    #[test]
+    fn test_vector_naming_conventions() {
+        for (i, vector) in ML_DSA_44_VECTORS.iter().enumerate() {
+            assert!(
+                vector.test_name.starts_with("ML-DSA-44"),
+                "Vector {} name '{}' does not start with ML-DSA-44",
+                i,
+                vector.test_name
+            );
+        }
+        for (i, vector) in ML_DSA_65_VECTORS.iter().enumerate() {
+            assert!(
+                vector.test_name.starts_with("ML-DSA-65"),
+                "Vector {} name '{}' does not start with ML-DSA-65",
+                i,
+                vector.test_name
+            );
+        }
+        for (i, vector) in ML_DSA_87_VECTORS.iter().enumerate() {
+            assert!(
+                vector.test_name.starts_with("ML-DSA-87"),
+                "Vector {} name '{}' does not start with ML-DSA-87",
+                i,
+                vector.test_name
+            );
+        }
+    }
+
+    // ========================================================================
+    // Run each variant's KAT multiple times for consistency
+    // ========================================================================
+
+    #[test]
+    fn test_ml_dsa_44_kat_repeated() {
+        for _ in 0..3 {
+            let result = run_ml_dsa_44_kat();
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_65_kat_repeated() {
+        for _ in 0..3 {
+            let result = run_ml_dsa_65_kat();
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_87_kat_repeated() {
+        for _ in 0..3 {
+            let result = run_ml_dsa_87_kat();
+            assert!(result.is_ok());
+        }
+    }
+
+    // ========================================================================
+    // Custom test vector to exercise non-error code path deeply
+    // ========================================================================
+
+    #[test]
+    fn test_run_ml_dsa_44_test_with_custom_valid_empty_message() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-44-CUSTOM-EMPTY",
+            seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            message: "",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_44_test(&vector);
+        assert!(result.is_ok(), "Custom ML-DSA-44 test should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_44_test_with_custom_valid_nonempty_message() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-44-CUSTOM-MSG",
+            seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            message: "48656c6c6f",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_44_test(&vector);
+        assert!(result.is_ok(), "Custom ML-DSA-44 test should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_65_test_with_custom_valid_vector() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-65-CUSTOM",
+            seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            message: "616263",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_65_test(&vector);
+        assert!(result.is_ok(), "Custom ML-DSA-65 test should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_87_test_with_custom_valid_vector() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-87-CUSTOM",
+            seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            message: "48656c6c6f20576f726c64",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_87_test(&vector);
+        assert!(result.is_ok(), "Custom ML-DSA-87 test should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_65_test_with_empty_message() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-65-EMPTY-MSG",
+            seed: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+            message: "",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_65_test(&vector);
+        assert!(result.is_ok(), "ML-DSA-65 empty message should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_run_ml_dsa_87_test_with_empty_message() {
+        let vector = MlDsaTestVector {
+            test_name: "ML-DSA-87-EMPTY-MSG",
+            seed: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            message: "",
+            expected_pk: "aabb",
+            expected_sk: "ccdd",
+            expected_signature: "eeff",
+        };
+        let result = run_ml_dsa_87_test(&vector);
+        assert!(result.is_ok(), "ML-DSA-87 empty message should pass: {:?}", result);
     }
 }

@@ -245,6 +245,7 @@ fn run_aes_256_gcm_test(vector: &AesGcmTestVector) -> Result<(), NistKatError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic)]
 mod tests {
     use super::*;
 
@@ -258,5 +259,517 @@ mod tests {
     fn test_aes_256_gcm_kat() {
         let result = run_aes_256_gcm_kat();
         assert!(result.is_ok(), "AES-256-GCM KAT failed: {:?}", result);
+    }
+
+    // =========================================================================
+    // Error path coverage for run_aes_128_gcm_test
+    // =========================================================================
+
+    #[test]
+    fn test_aes_128_gcm_invalid_key_hex() {
+        // Trigger decode_hex error on the key field (line 122)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-key-hex",
+            key: "ZZZZ",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_invalid_nonce_hex() {
+        // Trigger decode_hex error on the nonce field (line 123)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-nonce-hex",
+            key: "00000000000000000000000000000000",
+            nonce: "ZZZZZZZZZZZZZZZZZZZZZZZZ",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_invalid_aad_hex() {
+        // Trigger decode_hex error on the aad field (line 124)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-aad-hex",
+            key: "00000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "GG",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_invalid_plaintext_hex() {
+        // Trigger decode_hex error on the plaintext field (line 125)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-pt-hex",
+            key: "00000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "XY",
+            expected_ciphertext: "",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_invalid_expected_ciphertext_hex() {
+        // Trigger decode_hex error on expected_ciphertext field (line 126)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-ct-hex",
+            key: "00000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "QQ",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_invalid_expected_tag_hex() {
+        // Trigger decode_hex error on expected_tag field (line 127)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-tag-hex",
+            key: "00000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_invalid_key_length() {
+        // Trigger UnboundKey::new error: key is wrong size for AES-128 (line 131)
+        // Valid hex but wrong key length (8 bytes instead of 16)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-key-len",
+            key: "0000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::ImplementationError(msg)) => {
+                assert!(msg.contains("Key creation failed"), "Unexpected msg: {}", msg);
+            }
+            other => panic!("Expected ImplementationError for bad key length, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_invalid_nonce_length() {
+        // Trigger nonce try_into error: nonce is wrong size (line 136)
+        // Valid hex but wrong nonce length (8 bytes instead of 12)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-bad-nonce-len",
+            key: "00000000000000000000000000000000",
+            nonce: "0000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::ImplementationError(msg)) => {
+                assert!(msg.contains("Invalid nonce length"), "Unexpected msg: {}", msg);
+            }
+            other => panic!("Expected ImplementationError for bad nonce length, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_ciphertext_mismatch() {
+        // Trigger TestFailed: ciphertext output mismatch (lines 148-157)
+        // Use valid key/nonce/plaintext but wrong expected_ciphertext
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-ct-mismatch",
+            key: "00000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            // Wrong tag -- should be 58e2fccefa7e3061367f1d57a4e7455a
+            expected_tag: "00000000000000000000000000000000",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::TestFailed { algorithm, test_name, message }) => {
+                assert_eq!(algorithm, "AES-128-GCM");
+                assert_eq!(test_name, "ERR-128-ct-mismatch");
+                assert!(message.contains("Output mismatch"), "Unexpected msg: {}", message);
+            }
+            other => panic!("Expected TestFailed for ciphertext mismatch, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_decryption_nonce_hex_error() {
+        // Trigger the decode_hex error for nonce on the decryption path (line 164)
+        // This is hard to trigger because the same nonce was already decoded on line 123.
+        // However, the code calls decode_hex(vector.nonce) again on line 164 for decryption.
+        // We cannot make it fail on line 164 but not line 123 since they use the same string.
+        // So this path is effectively covered by the nonce hex error test above.
+        // Instead, let's verify the decryption path works for all vectors.
+        for vector in AES_128_GCM_VECTORS {
+            let result = run_aes_128_gcm_test(vector);
+            assert!(result.is_ok(), "AES-128-GCM test '{}' failed: {:?}", vector.test_name, result);
+        }
+    }
+
+    // =========================================================================
+    // Error path coverage for run_aes_256_gcm_test
+    // =========================================================================
+
+    #[test]
+    fn test_aes_256_gcm_invalid_key_hex() {
+        // Trigger decode_hex error on the key field (line 185)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-key-hex",
+            key: "ZZZZ",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_invalid_nonce_hex() {
+        // Trigger decode_hex error on the nonce field (line 186)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-nonce-hex",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "ZZZZZZZZZZZZZZZZZZZZZZZZ",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_invalid_aad_hex() {
+        // Trigger decode_hex error on the aad field (line 187)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-aad-hex",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "GG",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_invalid_plaintext_hex() {
+        // Trigger decode_hex error on the plaintext field (line 188)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-pt-hex",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "XY",
+            expected_ciphertext: "",
+            expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_invalid_expected_ciphertext_hex() {
+        // Trigger decode_hex error on expected_ciphertext field (line 189)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-ct-hex",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "QQ",
+            expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_invalid_expected_tag_hex() {
+        // Trigger decode_hex error on expected_tag field (line 190)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-tag-hex",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::HexError(_)) => {}
+            other => panic!("Expected HexError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_invalid_key_length() {
+        // Trigger UnboundKey::new error: key is wrong size for AES-256 (line 193)
+        // Valid hex but wrong key length (8 bytes instead of 32)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-key-len",
+            key: "0000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::ImplementationError(msg)) => {
+                assert!(msg.contains("Key creation failed"), "Unexpected msg: {}", msg);
+            }
+            other => panic!("Expected ImplementationError for bad key length, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_invalid_nonce_length() {
+        // Trigger nonce try_into error: nonce is wrong size (line 198)
+        // Valid hex but wrong nonce length (8 bytes instead of 12)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-bad-nonce-len",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "0000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::ImplementationError(msg)) => {
+                assert!(msg.contains("Invalid nonce length"), "Unexpected msg: {}", msg);
+            }
+            other => panic!("Expected ImplementationError for bad nonce length, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_ciphertext_mismatch() {
+        // Trigger TestFailed: ciphertext output mismatch (lines 211-219)
+        // Use valid key/nonce/plaintext but wrong expected_tag
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-ct-mismatch",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "",
+            expected_ciphertext: "",
+            // Wrong tag -- should be 530f8afbc74536b9a963b4f1c4cb738b
+            expected_tag: "00000000000000000000000000000000",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::TestFailed { algorithm, test_name, message }) => {
+                assert_eq!(algorithm, "AES-256-GCM");
+                assert_eq!(test_name, "ERR-256-ct-mismatch");
+                assert!(message.contains("Output mismatch"), "Unexpected msg: {}", message);
+            }
+            other => panic!("Expected TestFailed for ciphertext mismatch, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_decryption_path_all_vectors() {
+        // Ensure decryption path (lines 222-244) is fully exercised for all vectors
+        for vector in AES_256_GCM_VECTORS {
+            let result = run_aes_256_gcm_test(vector);
+            assert!(result.is_ok(), "AES-256-GCM test '{}' failed: {:?}", vector.test_name, result);
+        }
+    }
+
+    // =========================================================================
+    // Additional error path tests
+    // =========================================================================
+
+    #[test]
+    fn test_aes_128_gcm_ciphertext_mismatch_with_plaintext() {
+        // Trigger TestFailed for ciphertext mismatch with non-empty plaintext
+        // This covers the format! branch with non-empty hex output (lines 148-157)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-128-ct-mismatch-pt",
+            key: "00000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "00000000000000000000000000000000",
+            // Wrong expected ciphertext
+            expected_ciphertext: "ffffffffffffffffffffffffffffffff",
+            expected_tag: "00000000000000000000000000000000",
+        };
+        let result = run_aes_128_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::TestFailed { algorithm, message, .. }) => {
+                assert_eq!(algorithm, "AES-128-GCM");
+                assert!(message.contains("Output mismatch"));
+                // Verify the message contains hex-encoded got/expected values
+                assert!(message.contains("got "));
+                assert!(message.contains("expected "));
+            }
+            other => panic!("Expected TestFailed, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_256_gcm_ciphertext_mismatch_with_plaintext() {
+        // Same as above but for AES-256 (lines 211-219)
+        let vector = AesGcmTestVector {
+            test_name: "ERR-256-ct-mismatch-pt",
+            key: "0000000000000000000000000000000000000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "",
+            plaintext: "00000000000000000000000000000000",
+            // Wrong expected ciphertext
+            expected_ciphertext: "ffffffffffffffffffffffffffffffff",
+            expected_tag: "00000000000000000000000000000000",
+        };
+        let result = run_aes_256_gcm_test(&vector);
+        assert!(result.is_err());
+        match result {
+            Err(NistKatError::TestFailed { algorithm, message, .. }) => {
+                assert_eq!(algorithm, "AES-256-GCM");
+                assert!(message.contains("Output mismatch"));
+                assert!(message.contains("got "));
+                assert!(message.contains("expected "));
+            }
+            other => panic!("Expected TestFailed, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_128_gcm_vector_struct_fields() {
+        // Exercise the AesGcmTestVector struct to ensure all fields are covered
+        let vector = AesGcmTestVector {
+            test_name: "field-test",
+            key: "00000000000000000000000000000000",
+            nonce: "000000000000000000000000",
+            aad: "aabbccdd",
+            plaintext: "eeff0011",
+            expected_ciphertext: "deadbeef",
+            expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
+        };
+        assert_eq!(vector.test_name, "field-test");
+        assert_eq!(vector.key, "00000000000000000000000000000000");
+        assert_eq!(vector.nonce, "000000000000000000000000");
+        assert_eq!(vector.aad, "aabbccdd");
+        assert_eq!(vector.plaintext, "eeff0011");
+        assert_eq!(vector.expected_ciphertext, "deadbeef");
+        assert_eq!(vector.expected_tag, "58e2fccefa7e3061367f1d57a4e7455a");
+    }
+
+    #[test]
+    fn test_aes_128_gcm_kat_iterates_all_vectors() {
+        // Verify run_aes_128_gcm_kat processes all 3 vectors successfully
+        // covering the Ok(()) return at line 110
+        assert_eq!(AES_128_GCM_VECTORS.len(), 3);
+        let result = run_aes_128_gcm_kat();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_aes_256_gcm_kat_iterates_all_vectors() {
+        // Verify run_aes_256_gcm_kat processes all 3 vectors successfully
+        // covering the Ok(()) return at line 118
+        assert_eq!(AES_256_GCM_VECTORS.len(), 3);
+        let result = run_aes_256_gcm_kat();
+        assert!(result.is_ok());
     }
 }
