@@ -559,8 +559,7 @@ mod retry_policy_tests {
 
     #[test]
     fn test_retry_policy_backoff_calculation() {
-        let mut policy = RetryPolicy::default();
-        policy.jitter = false; // Disable jitter for predictable testing
+        let policy = RetryPolicy { jitter: false, ..Default::default() };
 
         let backoff1 = policy.backoff_for_attempt(1);
         let backoff2 = policy.backoff_for_attempt(2);
