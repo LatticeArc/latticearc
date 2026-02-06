@@ -218,6 +218,21 @@ let config = TlsConfig::new()
     .with_client_auth(true);
 ```
 
+### TLS Use Cases
+
+| Use Case | Mode | Key Exchange | Description |
+|----------|------|--------------|-------------|
+| `WebServer` | Hybrid | X25519 + ML-KEM-768 | Public-facing web servers |
+| `InternalService` | Hybrid | X25519 + ML-KEM-768 | Zero-trust microservices |
+| `ApiGateway` | Hybrid | X25519 + ML-KEM-768 | API proxies and gateways |
+| `FinancialServices` | Hybrid | X25519 + ML-KEM-768 | Banking and payments |
+| `Healthcare` | Hybrid | X25519 + ML-KEM-768 | HIPAA-compliant systems |
+| `DatabaseConnection` | Hybrid | X25519 + ML-KEM-768 | Long-lived DB connections |
+| `Government` | PQ-only | ML-KEM-1024 | Classified/high-security |
+| `IoT` | Classic | X25519 | Resource-constrained devices |
+| `LegacyIntegration` | Classic | X25519 | Older system compatibility |
+| `RealTimeStreaming` | Classic | X25519 | Low-latency video/audio |
+
 ## Algorithm Selection
 
 ### By Use Case

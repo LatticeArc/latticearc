@@ -199,9 +199,15 @@ let config = TlsConfig::new()
 | Use Case | TLS Mode | Key Exchange |
 |----------|----------|--------------|
 | `WebServer` | Hybrid | X25519 + ML-KEM-768 |
+| `InternalService` | Hybrid | X25519 + ML-KEM-768 |
+| `ApiGateway` | Hybrid | X25519 + ML-KEM-768 |
 | `FinancialServices` | Hybrid | X25519 + ML-KEM-768 |
+| `Healthcare` | Hybrid | X25519 + ML-KEM-768 |
+| `DatabaseConnection` | Hybrid | X25519 + ML-KEM-768 |
 | `Government` | PQ-only | ML-KEM-1024 |
 | `IoT` | Classic | X25519 |
+| `LegacyIntegration` | Classic | X25519 |
+| `RealTimeStreaming` | Classic | X25519 |
 
 ## Crate Structure
 
