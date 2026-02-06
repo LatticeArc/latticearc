@@ -438,8 +438,7 @@ fn test_system_health_needs_check() {
     assert!(!health.needs_check());
 
     // Manual test with custom interval
-    let mut health = SystemHealth::default();
-    health.check_interval = Duration::from_millis(1);
+    let health = SystemHealth { check_interval: Duration::from_millis(1), ..Default::default() };
     std::thread::sleep(Duration::from_millis(5));
 
     assert!(health.needs_check());
