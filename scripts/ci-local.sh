@@ -52,8 +52,8 @@ run_check_verbose() {
 # 1. Format check
 run_check "Format" "cargo fmt --all -- --check"
 
-# 2. Clippy (strict)
-run_check_verbose "Clippy" "cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tail -5"
+# 2. Clippy (strict - matches GitHub Security Scan)
+run_check_verbose "Clippy" "cargo clippy --workspace --all-targets --all-features -- -D clippy::all -D clippy::perf -D clippy::style -D clippy::complexity -D clippy::correctness -D clippy::suspicious -D warnings 2>&1 | tail -5"
 
 # 3. Build
 run_check "Build" "cargo build --workspace --all-features"
