@@ -47,3 +47,6 @@ fuzz/corpus/
 # OS files
 Thumbs.db
 Desktop.ini
+
+# Generated SBOM files (regenerate in CI, avoid local paths)
+**/sbom*.json
