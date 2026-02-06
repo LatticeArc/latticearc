@@ -197,7 +197,7 @@ impl X25519PublicKey {
         &self.bytes
     }
 
-    /// Convert to Vec<u8>
+    /// Convert to `Vec<u8>`
     #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.bytes.to_vec()
@@ -457,7 +457,7 @@ impl EcdhP256PublicKey {
         &self.bytes
     }
 
-    /// Convert to Vec<u8>
+    /// Convert to `Vec<u8>`
     #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.bytes.clone()
@@ -589,7 +589,7 @@ impl EcdhP384PublicKey {
         &self.bytes
     }
 
-    /// Convert to Vec<u8>
+    /// Convert to `Vec<u8>`
     #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.bytes.clone()
@@ -720,7 +720,7 @@ impl EcdhP521PublicKey {
         &self.bytes
     }
 
-    /// Convert to Vec<u8>
+    /// Convert to `Vec<u8>`
     #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.bytes.clone()

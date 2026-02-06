@@ -106,7 +106,7 @@ pub fn load_from_cavp_json(json_data: &str) -> Result<Vec<MlKemKatVector>> {
 /// Attempts to load official NIST test vectors first, falls back to basic validation vectors.
 ///
 /// The official NIST test vectors are available from:
-/// https://github.com/usnistgov/ACVP-Server/tree/master/gen-val/json-files
+/// <https://github.com/usnistgov/ACVP-Server/tree/master/gen-val/json-files>
 ///
 /// # Errors
 /// Returns an error if key generation or encapsulation fails during vector creation.

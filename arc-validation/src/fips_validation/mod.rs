@@ -45,12 +45,12 @@
 //!
 //! ## Module Organization
 //!
-//! - [`types`] - Core types (ValidationScope, FIPSLevel, ValidationResult, etc.)
-//! - [`validator`] - FIPSValidator struct and validation logic
-//! - [`global`] - Global FIPS state and initialization functions
-//! - [`algorithm_tests`] - AES, SHA-3, ML-KEM algorithm tests
-//! - [`interface_tests`] - API and key management interface tests
-//! - [`policy_tests`] - Self-tests and error handling tests
+//! - `types` - Core types (ValidationScope, FIPSLevel, ValidationResult, etc.)
+//! - `validator` - FIPSValidator struct and validation logic
+//! - `global` - Global FIPS state and initialization functions
+//! - `algorithm_tests` - AES, SHA-3, ML-KEM algorithm tests
+//! - `interface_tests` - API and key management interface tests
+//! - `policy_tests` - Self-tests and error handling tests
 //!
 //! ## Usage
 //!

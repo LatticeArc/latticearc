@@ -203,13 +203,13 @@ pub struct HybridSecretKey {
 }
 
 impl HybridSecretKey {
-    /// Convert ml_kem_sk to Vec<u8> for compatibility
+    /// Convert ml_kem_sk to `Vec<u8>` for compatibility
     #[must_use]
     pub fn ml_kem_sk_bytes(&self) -> Vec<u8> {
         (*self.ml_kem_sk).clone()
     }
 
-    /// Convert ecdh_sk to Vec<u8> for compatibility
+    /// Convert ecdh_sk to `Vec<u8>` for compatibility
     #[must_use]
     pub fn ecdh_sk_bytes(&self) -> Vec<u8> {
         (*self.ecdh_sk).clone()

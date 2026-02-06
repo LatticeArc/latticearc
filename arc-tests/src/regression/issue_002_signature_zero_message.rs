@@ -1,7 +1,7 @@
 //! Regression test for issue #002
 //!
 //! **Issue**: Zero-length message signature handling
-//! **Link**: https://github.com/example/latticearc/issues/2
+//! **Link**: <https://github.com/latticearc/latticearc/issues/2>
 //!
 //! ## Bug Description
 //!

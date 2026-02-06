@@ -1,7 +1,7 @@
 //! Regression test for issue #001
 //!
 //! **Issue**: Empty ciphertext handling
-//! **Link**: https://github.com/example/latticearc/issues/1
+//! **Link**: <https://github.com/latticearc/latticearc/issues/1>
 //!
 //! ## Bug Description
 //!

@@ -75,7 +75,7 @@ impl SecureBytes {
         &mut self.inner
     }
 
-    /// Convert to Vec<u8>, consuming self
+    /// Convert to `Vec<u8>`, consuming self
     ///
     /// # Security Note
     /// This method transfers ownership of the data without zeroizing it.

@@ -158,7 +158,7 @@ pub enum SecurityLevel {
     /// Uses ML-KEM-512 + X25519, ML-DSA-44 + Ed25519.
     /// Suitable for resource-constrained devices and general use.
     Standard,
-    /// NIST Level 3 (192-bit equivalent). Hybrid mode. [default]
+    /// NIST Level 3 (192-bit equivalent). Hybrid mode. (default)
     /// Uses ML-KEM-768 + X25519, ML-DSA-65 + Ed25519.
     /// Recommended for most enterprise applications.
     #[default]

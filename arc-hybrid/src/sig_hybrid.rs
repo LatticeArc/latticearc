@@ -215,13 +215,13 @@ pub struct HybridSecretKey {
 }
 
 impl HybridSecretKey {
-    /// Convert ml_dsa_sk to Vec<u8> for compatibility
+    /// Convert ml_dsa_sk to `Vec<u8>` for compatibility
     #[must_use]
     pub fn ml_dsa_sk_bytes(&self) -> Vec<u8> {
         (*self.ml_dsa_sk).clone()
     }
 
-    /// Convert ed25519_sk to Vec<u8> for compatibility
+    /// Convert ed25519_sk to `Vec<u8>` for compatibility
     #[must_use]
     pub fn ed25519_sk_bytes(&self) -> Vec<u8> {
         (*self.ed25519_sk).clone()

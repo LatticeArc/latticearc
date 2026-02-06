@@ -9,7 +9,7 @@
 //! This implementation provides the counter mode KDF using HMAC as the PRF.
 //!
 //! The counter-based KDF follows the format:
-//! K(i) = PRF(KI, [i]_2 || Label || 0x00 || Context || [L]_2)
+//! `K(i) = PRF(KI, [i]_2 || Label || 0x00 || Context || [L]_2)`
 //!
 //! Where:
 //! - KI: Keying material input (the master secret)
