@@ -1,0 +1,38 @@
+[package]
+name = "arc-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Comprehensive test suite for LatticeArc - regression, API stability, and concurrency tests"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme.workspace = true
+
+# Inherit all lints from workspace
+[lints]
+workspace = true
+
+[dependencies]
+arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
+arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
+arc-core = { version = "0.1.1", path = "../arc-core" }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Cryptographic dependencies for testing
+rand = { workspace = true }
+rand_core = { workspace = true }
+
+# Serialization for API stability tests
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Hex encoding for test vectors
+hex = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
