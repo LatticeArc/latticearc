@@ -81,7 +81,6 @@ where
 
 /// Test FN-DSA-512 key generation produces correct key sizes
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_512_key_generation() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -104,7 +103,6 @@ fn test_fndsa_512_key_generation() {
 
 /// Test FN-DSA-512 signature generation produces correct size
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_512_signature_size() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -125,7 +123,6 @@ fn test_fndsa_512_signature_size() {
 
 /// Test FN-DSA-512 sign and verify roundtrip
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_512_sign_verify_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -142,7 +139,6 @@ fn test_fndsa_512_sign_verify_roundtrip() {
 
 /// Test FN-DSA-512 key serialization roundtrip
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_512_key_serialization_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -224,7 +220,6 @@ fn test_fndsa_512_invalid_signing_key_length() {
 
 /// Test FN-DSA-1024 key generation produces correct key sizes
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_1024_key_generation() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -247,7 +242,6 @@ fn test_fndsa_1024_key_generation() {
 
 /// Test FN-DSA-1024 signature generation produces correct size
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_1024_signature_size() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -268,7 +262,6 @@ fn test_fndsa_1024_signature_size() {
 
 /// Test FN-DSA-1024 sign and verify roundtrip
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_1024_sign_verify_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -285,7 +278,6 @@ fn test_fndsa_1024_sign_verify_roundtrip() {
 
 /// Test FN-DSA-1024 key serialization roundtrip
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_1024_key_serialization_roundtrip() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -336,7 +328,6 @@ fn test_fndsa_1024_invalid_key_lengths() {
 
 /// Test that same key produces valid signatures for multiple messages
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_multiple_messages_same_key() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -376,7 +367,6 @@ fn test_fndsa_multiple_messages_same_key() {
 
 /// Test that different keys produce different signatures for same message
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_different_keys_different_signatures() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -419,7 +409,6 @@ fn test_fndsa_different_keys_different_signatures() {
 
 /// Test signature verification rejects tampered message
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_tampered_message_rejected() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -447,7 +436,6 @@ fn test_fndsa_tampered_message_rejected() {
 
 /// Test signature verification rejects corrupted signature
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_corrupted_signature_rejected() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -478,7 +466,6 @@ fn test_fndsa_corrupted_signature_rejected() {
 
 /// Test empty message signing and verification
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_empty_message() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -496,7 +483,6 @@ fn test_fndsa_empty_message() {
 
 /// Test large message signing and verification
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_large_message() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -516,7 +502,6 @@ fn test_fndsa_large_message() {
 
 /// Test deterministic key generation with seeded RNG
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_deterministic_keygen() {
     run_with_large_stack(|| {
         let seed = [42u8; 32];
@@ -594,7 +579,6 @@ fn test_fndsa_signature_construction() {
 
 /// Test verifying key maintains security level
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_verifying_key_security_level() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -619,7 +603,6 @@ fn test_fndsa_verifying_key_security_level() {
 
 /// Test signing key maintains security level
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_signing_key_security_level() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -648,7 +631,6 @@ fn test_fndsa_signing_key_security_level() {
 
 /// Test that signing key provides access to verifying key
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_signing_key_provides_verifying_key() {
     run_with_large_stack(|| {
         let mut rng = OsRng;
@@ -682,7 +664,6 @@ fn test_fndsa_signing_key_provides_verifying_key() {
 
 /// Test key zeroization
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_key_zeroization() {
     run_with_large_stack(|| {
         use zeroize::Zeroize;
@@ -709,7 +690,6 @@ fn test_fndsa_key_zeroization() {
 
 /// Test cross-level key rejection
 #[test]
-#[ignore = "FN-DSA has stack overflow issues in debug mode - run with --release"]
 fn test_fndsa_cross_level_rejection() {
     run_with_large_stack(|| {
         let mut rng = OsRng;

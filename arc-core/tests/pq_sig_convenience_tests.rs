@@ -333,7 +333,6 @@ fn test_slh_dsa_shake256s_verified_mode() -> Result<()> {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_verified_mode() -> Result<()> {
     let message = b"Test FN-DSA with verified session";
     let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -410,7 +409,6 @@ fn test_slh_dsa_with_config_verified_mode() -> Result<()> {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_with_config_verified_mode() -> Result<()> {
     let message = b"Test FN-DSA with config and verified session";
     let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -543,7 +541,6 @@ fn test_slh_dsa_cross_keypair_fails() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_cross_keypair_fails() {
     let message = b"Test FN-DSA cross-keypair verification";
     let (_pk1, sk1) = generate_fn_dsa_keypair().expect("keypair 1 generation");
@@ -669,7 +666,6 @@ fn test_slh_dsa_corrupted_signature_single_byte() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_corrupted_signature_single_byte() {
     let message = b"Test FN-DSA corrupted signature";
     let (pk, sk) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -902,7 +898,6 @@ fn test_slh_dsa_all_variants_with_config() -> Result<()> {
 // ============================================================================
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_roundtrip() -> Result<()> {
     let message = b"Test FN-DSA roundtrip";
     let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -918,7 +913,6 @@ fn test_fn_dsa_roundtrip() -> Result<()> {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_with_config_roundtrip() -> Result<()> {
     let message = b"Test FN-DSA with config";
     let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -933,7 +927,6 @@ fn test_fn_dsa_with_config_roundtrip() -> Result<()> {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_large_message() -> Result<()> {
     let message = vec![0xAB; 10_000];
     let (pk, sk) = generate_fn_dsa_keypair()?;
