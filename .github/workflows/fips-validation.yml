@@ -44,11 +44,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-fips-
 
-      - name: Build arc-primitives
-        run: cargo build -p arc-primitives --all-features
+      - name: Build arc-primitives (release)
+        run: cargo build -p arc-primitives --all-features --release
 
-      - name: Test arc-primitives
-        run: cargo test -p arc-primitives --all-features
+      - name: Test arc-primitives (release for performance)
+        run: cargo test -p arc-primitives --all-features --release
 
       - name: Clippy cryptographic module
         run: |
@@ -78,8 +78,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-fips-selftest-
 
-      - name: Run FIPS power-up self-tests
-        run: cargo test -p arc-primitives --features fips-self-test self_test
+      - name: Run FIPS power-up self-tests (release)
+        run: cargo test -p arc-primitives --release --features fips-self-test self_test
 
       - name: Verify self-test coverage
         run: |
@@ -111,11 +111,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-cavp-
 
-      - name: Run CAVP validation tests
-        run: cargo test -p arc-validation cavp --all-features
+      - name: Run CAVP validation tests (release)
+        run: cargo test -p arc-validation cavp --all-features --release
 
-      - name: Run NIST KAT compliance tests
-        run: cargo test -p arc-validation nist_kat --all-features
+      - name: Run NIST KAT compliance tests (release)
+        run: cargo test -p arc-validation nist_kat --all-features --release
 
   fips-algorithm-validation:
     name: FIPS Algorithm Validation
@@ -160,7 +160,7 @@ jobs:
       - name: Validate ${{ matrix.algorithm.name }} (${{ matrix.algorithm.standard }})
         run: |
           echo "Testing ${{ matrix.algorithm.name }} against ${{ matrix.algorithm.standard }}"
-          cargo test -p arc-primitives --all-features ${{ matrix.algorithm.test }}
+          cargo test -p arc-primitives --all-features --release ${{ matrix.algorithm.test }}
 
   fips-no-unsafe:
     name: FIPS No Unsafe Code
