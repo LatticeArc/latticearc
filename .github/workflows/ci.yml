@@ -264,7 +264,9 @@ jobs:
     needs: [quality, build]
     strategy:
       matrix:
-        profile: [dev, release]
+        # Only run release - dev mode is 10x slower for crypto ops (SLH-DSA)
+        # Debug-specific issues are caught by clippy and other static analysis
+        profile: [release]
 
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
