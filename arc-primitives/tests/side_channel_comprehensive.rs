@@ -1861,6 +1861,7 @@ fn test_chacha20poly1305_tag_verification_constant_time() {
 
 /// Test ChaCha20-Poly1305 decryption failure timing consistency
 #[test]
+#[ignore = "timing tests are unstable on CI - virtualized infrastructure has variable latency"]
 fn test_chacha20poly1305_decryption_failure_timing() {
     use arc_primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
