@@ -780,6 +780,7 @@ fn test_arc_primitives_all_security_levels() {
 // ============================================================================
 
 #[test]
+#[ignore = "Timing test - SLH-DSA is inherently slow; CI runners have variable performance"]
 fn test_keygen_completes_in_reasonable_time() {
     use std::time::Instant;
 
@@ -793,6 +794,7 @@ fn test_keygen_completes_in_reasonable_time() {
 }
 
 #[test]
+#[ignore = "Timing test - SLH-DSA is inherently slow; CI runners have variable performance"]
 fn test_signing_completes_in_reasonable_time() {
     use std::time::Instant;
 
