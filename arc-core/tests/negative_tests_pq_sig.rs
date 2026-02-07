@@ -402,7 +402,6 @@ fn test_fn_dsa_sign_empty_private_key() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_verify_empty_signature() {
     let (public_key, _private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
@@ -414,7 +413,6 @@ fn test_fn_dsa_verify_empty_signature() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_verify_corrupted_signature() {
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
@@ -432,7 +430,6 @@ fn test_fn_dsa_verify_corrupted_signature() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_verify_truncated_private_key() {
     let (_public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
@@ -444,7 +441,6 @@ fn test_fn_dsa_verify_truncated_private_key() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_verify_wrong_public_key() {
     let (_public_key_1, private_key_1) = generate_fn_dsa_keypair().expect("keypair generation");
     let (public_key_2, _private_key_2) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -459,7 +455,6 @@ fn test_fn_dsa_verify_wrong_public_key() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_verify_junk_signature() {
     let (public_key, _private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
@@ -542,7 +537,6 @@ fn test_slh_dsa_verify_large_message() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_verify_modified_single_bit() {
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 

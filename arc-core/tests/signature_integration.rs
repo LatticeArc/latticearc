@@ -784,7 +784,6 @@ fn test_slh_dsa_large_message() {
 //
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_sign_verify_roundtrip() {
     let message = b"Test message for FN-DSA";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -799,7 +798,6 @@ fn test_fn_dsa_sign_verify_roundtrip() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_with_security_mode() {
     let message = b"Test with SecurityMode";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -814,7 +812,6 @@ fn test_fn_dsa_with_security_mode() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_with_config() {
     let message = b"Test with CoreConfig";
     let config = CoreConfig::default();
@@ -831,7 +828,6 @@ fn test_fn_dsa_with_config() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_with_config_and_security_mode() {
     let message = b"Test with both config and SecurityMode";
     let config = CoreConfig::default();
@@ -862,7 +858,6 @@ fn test_fn_dsa_with_config_and_security_mode() {
 // ============================================================================
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_modified_signature_fails() {
     let message = b"Original message";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -881,7 +876,6 @@ fn test_fn_dsa_modified_signature_fails() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_wrong_message_fails() {
     let message = b"Original message";
     let wrong_message = b"Different message";
@@ -896,7 +890,6 @@ fn test_fn_dsa_wrong_message_fails() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_signature_not_deterministic() {
     let message = b"Same message";
     let (_, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -915,7 +908,6 @@ fn test_fn_dsa_signature_not_deterministic() {
 // ============================================================================
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_invalid_public_key_length() {
     let message = b"Test message";
     let (_, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -930,7 +922,6 @@ fn test_fn_dsa_invalid_public_key_length() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_wrong_public_key_fails() {
     let message = b"Test message";
     let (_, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -949,7 +940,6 @@ fn test_fn_dsa_wrong_public_key_fails() {
 // ============================================================================
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_empty_message() {
     let message = b"";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -964,9 +954,8 @@ fn test_fn_dsa_empty_message() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_large_message() {
-    let message = vec![0x42u8; 100_000]; // 100KB
+    let message = vec![0x42u8; 60_000]; // 60KB (within 64KB signature limit)
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
     let signature = sign_pq_fn_dsa_unverified(&message, private_key.as_slice())
@@ -1006,7 +995,6 @@ fn test_ml_dsa_signature_with_slh_dsa_key_fails() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_slh_dsa_signature_with_fn_dsa_key_fails() {
     let message = b"Test message";
     let (_, slh_dsa_sk) =
@@ -1024,7 +1012,6 @@ fn test_slh_dsa_signature_with_fn_dsa_key_fails() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_signature_with_ml_dsa_key_fails() {
     let message = b"Test message";
     let (_, fn_dsa_sk) = generate_fn_dsa_keypair().expect("FN-DSA keypair");
@@ -1066,7 +1053,6 @@ fn test_slh_dsa_invalid_private_key() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_invalid_private_key() {
     let message = b"Test message";
     let invalid_sk = vec![0u8; 10]; // Too short
@@ -1107,7 +1093,6 @@ fn test_slh_dsa_empty_signature() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_empty_signature() {
     let message = b"Test message";
     let (public_key, _) = generate_fn_dsa_keypair().expect("keypair generation");
@@ -1167,7 +1152,6 @@ fn test_slh_dsa_key_serialization_roundtrip() {
 }
 
 #[test]
-#[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
 fn test_fn_dsa_key_serialization_roundtrip() {
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
