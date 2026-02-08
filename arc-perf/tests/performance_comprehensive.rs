@@ -1165,19 +1165,19 @@ fn test_performance_measurement_baseline() {
     let mut timer = Timer::start();
     let mut sum: u64 = 0;
     for i in 0..100000 {
-        sum = sum.wrapping_add(i);
+        sum = sum.wrapping_add(std::hint::black_box(i));
     }
     let elapsed = timer.stop();
     assert!(elapsed > Duration::ZERO, "Timer should measure non-zero time");
-    assert!(sum > 0, "Work should produce result"); // Prevent optimization
+    std::hint::black_box(sum);
 
     // Test 2: Benchmark function produces statistics
     let stats = benchmark(100, || {
         let mut x: u64 = 0;
         for i in 0..1000 {
-            x = x.wrapping_add(i);
+            x = x.wrapping_add(std::hint::black_box(i));
         }
-        let _ = x; // Prevent optimization
+        std::hint::black_box(x);
     });
 
     assert_eq!(stats.count, 100, "Should have 100 samples");
