@@ -75,15 +75,33 @@
 //! ## Digital Signatures
 //!
 //! ```rust,ignore
-//! use latticearc::{sign, verify, CryptoConfig};
+//! use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 //!
 //! let message = b"Document to sign";
 //!
-//! // Sign with defaults (ML-DSA-65 + Ed25519 hybrid)
-//! let signed = sign(message, CryptoConfig::new())?;
+//! // Generate a persistent signing keypair (ML-DSA-65 + Ed25519 hybrid)
+//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
+//!
+//! // Sign with the persistent keypair
+//! let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())?;
 //!
 //! // Verify (uses public key embedded in SignedData)
 //! let is_valid = verify(&signed, CryptoConfig::new())?;
+//! ```
+//!
+//! ## Hybrid Encryption (ML-KEM-768 + X25519)
+//!
+//! ```rust,ignore
+//! use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+//!
+//! // Generate a hybrid keypair (ML-KEM-768 + X25519)
+//! let (pk, sk) = generate_hybrid_keypair()?;
+//!
+//! // Encrypt (ML-KEM encapsulate + X25519 ECDH + HKDF-SHA256 + AES-256-GCM)
+//! let encrypted = encrypt_hybrid(b"secret data", &pk, SecurityMode::Unverified)?;
+//!
+//! // Decrypt
+//! let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
 //! ```
 //!
 //! ## Session Lifecycle
@@ -114,35 +132,22 @@
 //!
 //! ```rust,ignore
 //! use latticearc::{
-//!     encrypt, decrypt, sign, verify,
-//!     CryptoConfig, VerifiedSession, UseCase,
-//!     generate_keypair, CoreError,
+//!     generate_signing_keypair, sign_with_key, verify,
+//!     generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid,
+//!     CryptoConfig, SecurityMode, CoreError,
 //! };
 //!
 //! fn secure_workflow() -> Result<(), CoreError> {
-//!     // Initialize credentials
-//!     let (pk, sk) = generate_keypair()?;
+//!     // --- Hybrid Encryption ---
+//!     let (enc_pk, enc_sk) = generate_hybrid_keypair()?;
+//!     let encrypted = encrypt_hybrid(b"confidential", &enc_pk, SecurityMode::Unverified)?;
+//!     let decrypted = decrypt_hybrid(&encrypted, &enc_sk, SecurityMode::Unverified)?;
 //!
-//!     // Establish Zero Trust session
-//!     let session = VerifiedSession::establish(&pk, &sk)?;
-//!
-//!     // Encrypt with session verification
-//!     let key = [0u8; 32];
-//!     let encrypted = encrypt(b"confidential", &key, CryptoConfig::new()
-//!         .session(&session)
-//!         .use_case(UseCase::FileStorage))?;
-//!
-//!     // Sign a document
-//!     let signed = sign(b"important document", CryptoConfig::new()
-//!         .session(&session))?;
-//!
-//!     // Verify signature
-//!     let is_valid = verify(&signed, CryptoConfig::new().session(&session))?;
+//!     // --- Digital Signatures ---
+//!     let (sign_pk, sign_sk, _scheme) = generate_signing_keypair(CryptoConfig::new())?;
+//!     let signed = sign_with_key(b"important document", &sign_sk, &sign_pk, CryptoConfig::new())?;
+//!     let is_valid = verify(&signed, CryptoConfig::new())?;
 //!     assert!(is_valid);
-//!
-//!     // Decrypt
-//!     let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()
-//!         .session(&session))?;
 //!
 //!     Ok(())
 //! }
@@ -229,13 +234,18 @@ pub use arc_core::{
 // ============================================================================
 
 // Single entry points for all cryptographic operations
-pub use arc_core::{decrypt, encrypt, sign, verify};
+pub use arc_core::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
-// Hybrid encryption
+// Hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM)
 pub use arc_core::{
-    HybridEncryptionResult, TrueHybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config,
-    decrypt_true_hybrid, encrypt_hybrid, encrypt_hybrid_with_config, encrypt_true_hybrid,
-    generate_true_hybrid_keypair,
+    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
+    encrypt_hybrid_with_config, generate_hybrid_keypair,
+};
+
+// Hybrid signatures (ML-DSA-65 + Ed25519)
+pub use arc_core::{
+    generate_hybrid_signing_keypair, generate_hybrid_signing_keypair_with_config, sign_hybrid,
+    sign_hybrid_with_config, verify_hybrid_signature, verify_hybrid_signature_with_config,
 };
 
 // Key generation (no SecurityMode needed - creates credentials)
@@ -280,7 +290,7 @@ pub use arc_core::{
     // AES-GCM
     decrypt_aes_gcm_unverified,
     decrypt_aes_gcm_with_config_unverified,
-    // Hybrid
+    // Hybrid Encryption (ML-KEM-768 + X25519 + HKDF + AES-GCM)
     decrypt_hybrid_unverified,
     decrypt_hybrid_with_config_unverified,
     // PQ KEM
@@ -295,6 +305,8 @@ pub use arc_core::{
     encrypt_hybrid_with_config_unverified,
     encrypt_pq_ml_kem_unverified,
     encrypt_pq_ml_kem_with_config_unverified,
+    // Hybrid Signatures (ML-DSA-65 + Ed25519)
+    generate_hybrid_signing_keypair_unverified,
     hmac_check_unverified,
     hmac_check_with_config_unverified,
     hmac_unverified,
@@ -302,6 +314,7 @@ pub use arc_core::{
     // Ed25519
     sign_ed25519_unverified,
     sign_ed25519_with_config_unverified,
+    sign_hybrid_unverified,
     // PQ Signatures
     sign_pq_fn_dsa_unverified,
     sign_pq_fn_dsa_with_config_unverified,
@@ -311,6 +324,7 @@ pub use arc_core::{
     sign_pq_slh_dsa_with_config_unverified,
     verify_ed25519_unverified,
     verify_ed25519_with_config_unverified,
+    verify_hybrid_signature_unverified,
     verify_pq_fn_dsa_unverified,
     verify_pq_fn_dsa_with_config_unverified,
     verify_pq_ml_dsa_unverified,

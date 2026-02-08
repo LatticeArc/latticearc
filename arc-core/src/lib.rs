@@ -270,16 +270,24 @@ pub use zero_trust::{
 // Unified API (recommended)
 // ============================================================================
 
-pub use convenience::{decrypt, encrypt, sign, verify};
+pub use convenience::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
 // ============================================================================
 // Hybrid Encryption
 // ============================================================================
 
 pub use convenience::{
-    HybridEncryptionResult, TrueHybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config,
-    decrypt_true_hybrid, encrypt_hybrid, encrypt_hybrid_with_config, encrypt_true_hybrid,
-    generate_true_hybrid_keypair,
+    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
+    encrypt_hybrid_with_config, generate_hybrid_keypair,
+};
+
+// ============================================================================
+// Hybrid Signatures (ML-DSA-65 + Ed25519)
+// ============================================================================
+
+pub use convenience::{
+    generate_hybrid_signing_keypair, generate_hybrid_signing_keypair_with_config, sign_hybrid,
+    sign_hybrid_with_config, verify_hybrid_signature, verify_hybrid_signature_with_config,
 };
 
 // ============================================================================
@@ -340,7 +348,7 @@ pub use convenience::{
     // AES-GCM
     decrypt_aes_gcm_unverified,
     decrypt_aes_gcm_with_config_unverified,
-    // Hybrid
+    // Hybrid Encryption (true hybrid ML-KEM + X25519)
     decrypt_hybrid_unverified,
     decrypt_hybrid_with_config_unverified,
     // PQ KEM
@@ -355,6 +363,8 @@ pub use convenience::{
     encrypt_hybrid_with_config_unverified,
     encrypt_pq_ml_kem_unverified,
     encrypt_pq_ml_kem_with_config_unverified,
+    // Hybrid Signatures (ML-DSA-65 + Ed25519)
+    generate_hybrid_signing_keypair_unverified,
     hmac_check_unverified,
     hmac_check_with_config_unverified,
     hmac_unverified,
@@ -362,6 +372,7 @@ pub use convenience::{
     // Ed25519
     sign_ed25519_unverified,
     sign_ed25519_with_config_unverified,
+    sign_hybrid_unverified,
     // PQ Signatures
     sign_pq_fn_dsa_unverified,
     sign_pq_fn_dsa_with_config_unverified,
@@ -371,6 +382,7 @@ pub use convenience::{
     sign_pq_slh_dsa_with_config_unverified,
     verify_ed25519_unverified,
     verify_ed25519_with_config_unverified,
+    verify_hybrid_signature_unverified,
     verify_pq_fn_dsa_unverified,
     verify_pq_fn_dsa_with_config_unverified,
     verify_pq_ml_dsa_unverified,

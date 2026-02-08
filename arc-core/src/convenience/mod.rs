@@ -5,33 +5,36 @@
 //!
 //! ## Unified API
 //!
-//! All operations use `CryptoOptions` for configuration:
+//! All operations use `CryptoConfig` for configuration:
 //!
 //! ```rust,ignore
-//! use latticearc::{encrypt, decrypt, sign, verify, CryptoOptions, UseCase};
+//! use latticearc::{
+//!     encrypt, decrypt, generate_signing_keypair, sign_with_key, verify,
+//!     CryptoConfig, UseCase,
+//! };
 //!
 //! // Encrypt with use case (recommended)
-//! let encrypted = encrypt(data, &key, CryptoOptions::new()
+//! let encrypted = encrypt(data, &key, CryptoConfig::new()
 //!     .use_case(UseCase::FileStorage))?;
 //!
 //! // Decrypt
-//! let plaintext = decrypt(&encrypted, &key, CryptoOptions::new())?;
+//! let plaintext = decrypt(&encrypted, &key, CryptoConfig::new())?;
 //!
-//! // Sign
-//! let signed = sign(message, CryptoOptions::new()
-//!     .use_case(UseCase::FinancialTransactions))?;
+//! // Sign (generate keypair once, sign with persistent key)
+//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
+//! let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())?;
 //!
 //! // Verify
-//! let is_valid = verify(&signed, CryptoOptions::new())?;
+//! let is_valid = verify(&signed, CryptoConfig::new())?;
 //! ```
 //!
 //! ## With Zero Trust Session
 //!
 //! ```rust,ignore
-//! use latticearc::{encrypt, CryptoOptions, UseCase, VerifiedSession};
+//! use latticearc::{encrypt, CryptoConfig, UseCase, VerifiedSession};
 //!
 //! let session = VerifiedSession::establish(&pk, &sk)?;
-//! let encrypted = encrypt(data, &key, CryptoOptions::new()
+//! let encrypted = encrypt(data, &key, CryptoConfig::new()
 //!     .session(&session)
 //!     .use_case(UseCase::FileStorage))?;
 //! ```
@@ -41,6 +44,7 @@ mod api;
 pub(crate) mod ed25519;
 mod hashing;
 mod hybrid;
+mod hybrid_sig;
 mod keygen;
 mod pq_kem;
 mod pq_sig;
@@ -49,16 +53,24 @@ mod pq_sig;
 // Unified API
 // ============================================================================
 
-pub use api::{decrypt, encrypt, sign, verify};
+pub use api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
 // ============================================================================
 // Hybrid Encryption
 // ============================================================================
 
 pub use hybrid::{
-    HybridEncryptionResult, TrueHybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config,
-    decrypt_true_hybrid, encrypt_hybrid, encrypt_hybrid_with_config, encrypt_true_hybrid,
-    generate_true_hybrid_keypair,
+    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
+    encrypt_hybrid_with_config, generate_hybrid_keypair,
+};
+
+// ============================================================================
+// Hybrid Signatures (ML-DSA-65 + Ed25519)
+// ============================================================================
+
+pub use hybrid_sig::{
+    generate_hybrid_signing_keypair, generate_hybrid_signing_keypair_with_config, sign_hybrid,
+    sign_hybrid_with_config, verify_hybrid_signature, verify_hybrid_signature_with_config,
 };
 
 // ============================================================================
@@ -145,4 +157,9 @@ pub use pq_sig::{
 pub use hybrid::{
     decrypt_hybrid_unverified, decrypt_hybrid_with_config_unverified, encrypt_hybrid_unverified,
     encrypt_hybrid_with_config_unverified,
+};
+
+pub use hybrid_sig::{
+    generate_hybrid_signing_keypair_unverified, sign_hybrid_unverified,
+    verify_hybrid_signature_unverified,
 };

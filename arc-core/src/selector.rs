@@ -292,7 +292,7 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     pub fn select_encryption_scheme(
-        data: &[u8],
+        _data: &[u8],
         config: &CoreConfig,
         use_case: Option<&UseCase>,
     ) -> Result<String> {
@@ -301,10 +301,7 @@ impl CryptoPolicyEngine {
             return Self::recommend_scheme(use_case, config);
         }
 
-        // Priority 2: Context-aware selection
-        // TODO: Use data characteristics for adaptive algorithm selection
-        let _characteristics = Self::analyze_data_characteristics(data);
-
+        // Priority 2: Security-level-based selection
         match &config.security_level {
             // Quantum: PQ-only (no classical key exchange)
             SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
@@ -351,9 +348,7 @@ impl CryptoPolicyEngine {
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
-    pub fn select_for_context(data: &[u8], config: &CoreConfig) -> Result<String> {
-        let _characteristics = Self::analyze_data_characteristics(data);
-
+    pub fn select_for_context(_data: &[u8], config: &CoreConfig) -> Result<String> {
         match &config.security_level {
             // Quantum: PQ-only (no classical key exchange)
             SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
