@@ -38,7 +38,9 @@
 use thiserror::Error;
 use zeroize::{ZeroizeOnDrop, Zeroizing};
 
-use crate::kem::ecdh::{X25519PublicKey as EccPublicKey, X25519SecretKey as EccSecretKey};
+use crate::kem::ecdh::{
+    X25519PublicKey as EccPublicKey, X25519SecretKey as EccSecretKey, X25519StaticKeyPair,
+};
 
 /// Error types for key operations
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -322,7 +324,6 @@ impl KeyPair {
     ///
     /// # Errors
     /// Returns an error if key generation fails.
-    #[allow(deprecated)] // TODO: Migrate to X25519StaticKeyPair once KeyPair stores real keys
     pub fn generate() -> Result<Self, KeyError> {
         let mut rng = rand::rngs::OsRng;
         let (ml_pk, ml_sk) = crate::kem::ml_kem::MlKem::generate_keypair(
@@ -330,7 +331,13 @@ impl KeyPair {
             crate::kem::ml_kem::MlKemSecurityLevel::MlKem768,
         )
         .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
-        let (ecc_pk, ecc_sk) = crate::kem::ecdh::generate_keypair(&mut rng)
+
+        let x25519_kp = X25519StaticKeyPair::generate()
+            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+        let ecc_pk = EccPublicKey::from_bytes(x25519_kp.public_key_bytes())
+            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+        let seed = x25519_kp.seed_bytes().map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+        let ecc_sk = EccSecretKey::from_bytes(seed.as_ref())
             .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
 
         Ok(Self {

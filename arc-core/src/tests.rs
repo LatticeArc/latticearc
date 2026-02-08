@@ -36,8 +36,12 @@ fn test_basic_signing() {
         .spawn(|| {
             let message = b"Important message";
 
-            // Test signing with unified API
-            let signed = sign(message, CryptoConfig::new()).expect("Signing should succeed");
+            // Test signing with persistent keypair API
+            let config = CryptoConfig::new();
+            let (pk, sk, _scheme) =
+                generate_signing_keypair(config).expect("Keygen should succeed");
+            let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())
+                .expect("Signing should succeed");
 
             // Test verification
             let verified =
@@ -230,9 +234,15 @@ fn test_signature_verification_with_use_case() {
             let message = b"Test signature with use case";
 
             // Test signing with High security level (uses ml-dsa-65-ed25519 which works correctly)
-            // Note: UseCase::Authentication selects hybrid-ml-dsa-87-ed25519 which has
-            // a known limitation in hybrid public key storage.
-            let signed = sign(message, CryptoConfig::new().security_level(SecurityLevel::High));
+            let config = CryptoConfig::new().security_level(SecurityLevel::High);
+            let (pk, sk, _scheme) =
+                generate_signing_keypair(config).expect("Keygen should succeed");
+            let signed = sign_with_key(
+                message,
+                &sk,
+                &pk,
+                CryptoConfig::new().security_level(SecurityLevel::High),
+            );
             assert!(signed.is_ok(), "Signing failed: {:?}", signed.err());
 
             let signed = signed.unwrap();
@@ -362,157 +372,39 @@ fn test_unified_api_rejects_symmetric_key_for_hybrid_schemes() {
         .unwrap();
 }
 
-/// Test hybrid encryption roundtrip with ML-KEM-768.
+/// Test hybrid encryption roundtrip with ML-KEM-768 + X25519.
 ///
-/// Note: This test is ignored due to aws-lc-rs not supporting ML-KEM secret key
-/// deserialization. The encryption works but decapsulation requires the original
-/// DecapsulationKey object from key generation.
-/// See: docs/ML_KEM_KEY_PERSISTENCE.md
+/// Uses the true hybrid API that combines ML-KEM + X25519 ECDH + HKDF + AES-GCM.
 #[test]
-#[ignore = "aws-lc-rs does not support secret key deserialization - decapsulate not functional"]
-fn test_hybrid_encryption_public_api_roundtrip() {
+fn test_hybrid_encryption_roundtrip() {
     std::thread::Builder::new()
-        .name("test_hybrid_encryption_public_api_roundtrip".to_string())
+        .name("test_hybrid_encryption_roundtrip".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
-            use crate::convenience::{decrypt_hybrid, encrypt_hybrid, generate_ml_kem_keypair};
+            use crate::convenience::{decrypt_hybrid, encrypt_hybrid, generate_hybrid_keypair};
             use crate::zero_trust::SecurityMode;
-            use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
 
             let data = b"Secret message for hybrid encryption test";
-            let symmetric_key = vec![0x42u8; 32];
 
-            // Generate ML-KEM keypair
-            let (public_key, private_key) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)
-                .expect("ML-KEM keypair generation should succeed");
+            // Generate hybrid keypair (ML-KEM-768 + X25519)
+            let (pk, sk) =
+                generate_hybrid_keypair().expect("Hybrid keypair generation should succeed");
 
-            // Encrypt with hybrid scheme
-            let encrypted =
-                encrypt_hybrid(data, Some(&public_key), &symmetric_key, SecurityMode::Unverified)
-                    .expect("Hybrid encryption should succeed");
+            // Encrypt
+            let encrypted = encrypt_hybrid(data, &pk, SecurityMode::Unverified)
+                .expect("Hybrid encryption should succeed");
 
-            // Decrypt with hybrid scheme
-            let decrypted = decrypt_hybrid(
-                &encrypted.ciphertext,
-                Some(private_key.as_ref()),
-                &encrypted.encapsulated_key,
-                &symmetric_key,
-                SecurityMode::Unverified,
-            )
-            .expect("Hybrid decryption should succeed");
+            // Verify structure
+            assert_eq!(encrypted.kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
+            assert_eq!(encrypted.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
+            assert_eq!(encrypted.nonce.len(), 12, "AES-GCM nonce should be 12 bytes");
+            assert_eq!(encrypted.tag.len(), 16, "AES-GCM tag should be 16 bytes");
+
+            // Decrypt
+            let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)
+                .expect("Hybrid decryption should succeed");
 
             assert_eq!(data.as_slice(), decrypted.as_slice());
-        })
-        .unwrap()
-        .join()
-        .unwrap();
-}
-
-#[test]
-#[ignore = "aws-lc-rs does not support secret key deserialization - decapsulate not functional"]
-fn test_hybrid_encryption_ml_kem_512() {
-    std::thread::Builder::new()
-        .name("test_hybrid_encryption_ml_kem_512".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(|| {
-            use crate::convenience::{decrypt_hybrid, encrypt_hybrid, generate_ml_kem_keypair};
-            use crate::zero_trust::SecurityMode;
-            use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
-
-            let data = b"ML-KEM-512 test data";
-            let symmetric_key = vec![0xABu8; 32];
-
-            let (public_key, private_key) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)
-                .expect("ML-KEM-512 keypair generation should succeed");
-
-            let encrypted =
-                encrypt_hybrid(data, Some(&public_key), &symmetric_key, SecurityMode::Unverified)
-                    .expect("ML-KEM-512 hybrid encryption should succeed");
-
-            let decrypted = decrypt_hybrid(
-                &encrypted.ciphertext,
-                Some(private_key.as_ref()),
-                &encrypted.encapsulated_key,
-                &symmetric_key,
-                SecurityMode::Unverified,
-            )
-            .expect("ML-KEM-512 hybrid decryption should succeed");
-
-            assert_eq!(data.as_slice(), decrypted.as_slice());
-        })
-        .unwrap()
-        .join()
-        .unwrap();
-}
-
-#[test]
-#[ignore = "aws-lc-rs does not support secret key deserialization - decapsulate not functional"]
-fn test_hybrid_encryption_ml_kem_1024() {
-    std::thread::Builder::new()
-        .name("test_hybrid_encryption_ml_kem_1024".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(|| {
-            use crate::convenience::{decrypt_hybrid, encrypt_hybrid, generate_ml_kem_keypair};
-            use crate::zero_trust::SecurityMode;
-            use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
-
-            let data = b"ML-KEM-1024 test data for maximum security";
-            let symmetric_key = vec![0xCDu8; 32];
-
-            let (public_key, private_key) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)
-                .expect("ML-KEM-1024 keypair generation should succeed");
-
-            let encrypted =
-                encrypt_hybrid(data, Some(&public_key), &symmetric_key, SecurityMode::Unverified)
-                    .expect("ML-KEM-1024 hybrid encryption should succeed");
-
-            let decrypted = decrypt_hybrid(
-                &encrypted.ciphertext,
-                Some(private_key.as_ref()),
-                &encrypted.encapsulated_key,
-                &symmetric_key,
-                SecurityMode::Unverified,
-            )
-            .expect("ML-KEM-1024 hybrid decryption should succeed");
-
-            assert_eq!(data.as_slice(), decrypted.as_slice());
-        })
-        .unwrap()
-        .join()
-        .unwrap();
-}
-
-#[test]
-fn test_hybrid_encryption_only() {
-    std::thread::Builder::new()
-        .name("test_hybrid_encryption_only".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(|| {
-            use crate::convenience::{encrypt_hybrid, generate_ml_kem_keypair};
-            use crate::zero_trust::SecurityMode;
-            use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
-
-            let data = b"Test hybrid encryption (without decryption due to aws-lc-rs limitation)";
-            let symmetric_key = vec![0x42u8; 32];
-
-            // Generate ML-KEM keypair
-            let (public_key, _private_key) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)
-                .expect("ML-KEM keypair generation should succeed");
-
-            // Encrypt with hybrid scheme - this should work
-            let encrypted =
-                encrypt_hybrid(data, Some(&public_key), &symmetric_key, SecurityMode::Unverified)
-                    .expect("Hybrid encryption should succeed");
-
-            // Verify encrypted data structure
-            assert!(!encrypted.ciphertext.is_empty(), "Ciphertext should not be empty");
-            assert!(!encrypted.encapsulated_key.is_empty(), "Encapsulated key should not be empty");
-            // ML-KEM-768 encapsulated key is 1088 bytes
-            assert_eq!(
-                encrypted.encapsulated_key.len(),
-                1088,
-                "ML-KEM-768 encapsulated key should be 1088 bytes"
-            );
         })
         .unwrap()
         .join()

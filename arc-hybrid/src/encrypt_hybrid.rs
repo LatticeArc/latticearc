@@ -608,7 +608,7 @@ mod tests {
     }
 
     #[test]
-    fn test_true_hybrid_encryption_roundtrip() {
+    fn test_kem_ecdh_hybrid_encryption_roundtrip() {
         let mut rng = rand::thread_rng();
 
         // Generate hybrid keypair (ML-KEM-768 + X25519)
@@ -632,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn test_true_hybrid_encryption_with_aad() {
+    fn test_kem_ecdh_hybrid_encryption_with_aad() {
         let mut rng = rand::thread_rng();
 
         let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
@@ -661,7 +661,7 @@ mod tests {
     }
 
     #[test]
-    fn test_true_hybrid_encryption_different_ciphertexts() {
+    fn test_kem_ecdh_hybrid_encryption_different_ciphertexts() {
         let mut rng = rand::thread_rng();
 
         let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();

@@ -56,8 +56,7 @@ impl SchnorrProver {
     /// # Errors
     /// Returns an error if key serialization fails.
     pub fn new() -> Result<(Self, [u8; 33])> {
-        let mut rng = rand::thread_rng();
-        let secret_key = SecretKey::random(&mut rng);
+        let secret_key = SecretKey::random(&mut rand::rngs::OsRng);
         let public_key = secret_key.public_key();
 
         let secret_bytes: [u8; 32] = secret_key.to_bytes().into();
@@ -100,14 +99,12 @@ impl SchnorrProver {
     /// These are modular arithmetic in a finite field.
     #[allow(clippy::arithmetic_side_effects)] // EC scalar math is modular, cannot overflow
     pub fn prove(&self, context: &[u8]) -> Result<SchnorrProof> {
-        let mut rng = rand::thread_rng();
-
         // Parse secret key
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.secret)).into();
         let x = x.ok_or(ZkpError::InvalidScalar)?;
 
         // Generate random nonce k
-        let k = Scalar::random(&mut rng);
+        let k = Scalar::random(&mut rand::rngs::OsRng);
 
         // Compute commitment R = k*G
         let r_point = ProjectivePoint::GENERATOR * k;

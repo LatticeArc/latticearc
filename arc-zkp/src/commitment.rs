@@ -50,7 +50,7 @@ impl HashCommitment {
     /// Returns an error if random number generation fails.
     pub fn commit(value: &[u8]) -> Result<(Self, HashOpening)> {
         let mut randomness = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut randomness);
+        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut randomness);
 
         let commitment = Self::compute_hash(value, &randomness);
 
@@ -122,7 +122,7 @@ impl PedersenCommitment {
     /// Returns an error if the value is not a valid scalar.
     pub fn commit(value: &[u8; 32]) -> Result<(Self, PedersenOpening)> {
         let mut blinding = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut blinding);
+        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut blinding);
 
         Self::commit_with_blinding(value, &blinding)
     }

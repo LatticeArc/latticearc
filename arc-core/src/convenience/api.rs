@@ -26,6 +26,7 @@
 
 use chrono::Utc;
 use tracing::warn;
+use zeroize::Zeroizing;
 
 use arc_primitives::{
     kem::ml_kem::MlKemSecurityLevel,
@@ -298,51 +299,110 @@ pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> R
     }
 }
 
-/// Sign a message with automatic algorithm selection.
+/// Generate a signing keypair for the scheme selected by config.
 ///
-/// # Examples
+/// The scheme selector auto-picks hybrid (ML-DSA-65 + Ed25519) by default.
+/// Returns `(public_key_bytes, secret_key_bytes, scheme_name)`.
 ///
-/// ```rust,ignore
-/// use latticearc::{sign, CryptoConfig, UseCase, VerifiedSession};
+/// # Unified API
 ///
-/// // Simple: Use defaults
-/// let signed = sign(message, CryptoConfig::new())?;
+/// This is the keypair generation companion to [`sign_with_key`]. Together they
+/// form the unified signing API — the scheme selector handles PQ-only, hybrid,
+/// and classical transparently based on `CryptoConfig`.
 ///
-/// // With use case
-/// let signed = sign(message, CryptoConfig::new()
-///     .use_case(UseCase::FinancialTransactions))?;
+/// # Errors
 ///
-/// // With Zero Trust session
-/// let session = VerifiedSession::establish(&pk, &sk)?;
-/// let signed = sign(message, CryptoConfig::new()
-///     .session(&session)
-///     .use_case(UseCase::FinancialTransactions))?;
-/// ```
+/// Returns an error if:
+/// - Session is set and has expired (`CoreError::SessionExpired`)
+/// - Key generation fails for the selected scheme
+#[allow(deprecated)]
+pub fn generate_signing_keypair(
+    config: CryptoConfig,
+) -> Result<(Vec<u8>, Zeroizing<Vec<u8>>, String)> {
+    config.validate()?;
+
+    let scheme = select_signature_scheme(&config)?;
+
+    let (public_key, secret_key) = match scheme.as_str() {
+        "ml-dsa-44" | "pq-ml-dsa-44" => {
+            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
+            (pk, sk)
+        }
+        "ml-dsa-65" | "pq-ml-dsa-65" => {
+            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+            (pk, sk)
+        }
+        "ml-dsa-87" | "pq-ml-dsa-87" => {
+            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
+            (pk, sk)
+        }
+        "slh-dsa-shake-128s" => {
+            let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
+            (pk, sk)
+        }
+        "slh-dsa-shake-192s" => {
+            let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s)?;
+            (pk, sk)
+        }
+        "slh-dsa-shake-256s" => {
+            let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
+            (pk, sk)
+        }
+        "fn-dsa" => {
+            let (pk, sk) = generate_fn_dsa_keypair()?;
+            (pk, sk)
+        }
+        "hybrid-ml-dsa-44-ed25519" => {
+            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
+            let (ed_pk, ed_sk) = generate_keypair()?;
+            let combined_pk = [pq_pk, ed_pk].concat();
+            let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+            (combined_pk, crate::types::PrivateKey::new(combined_sk))
+        }
+        "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
+            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+            let (ed_pk, ed_sk) = generate_keypair()?;
+            let combined_pk = [pq_pk, ed_pk].concat();
+            let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+            (combined_pk, crate::types::PrivateKey::new(combined_sk))
+        }
+        "hybrid-ml-dsa-87-ed25519" => {
+            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
+            let (ed_pk, ed_sk) = generate_keypair()?;
+            let combined_pk = [pq_pk, ed_pk].concat();
+            let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+            (combined_pk, crate::types::PrivateKey::new(combined_sk))
+        }
+        _ => {
+            // Fallback: Ed25519
+            let (pk, sk) = generate_keypair()?;
+            (pk, sk)
+        }
+    };
+
+    Ok((public_key, Zeroizing::new(secret_key.as_ref().to_vec()), scheme))
+}
+
+/// Sign a message using caller-provided keys (unified API).
 ///
-/// # Algorithm Selection
-///
-/// | Use Case | Algorithm |
-/// |----------|-----------|
-/// | `FinancialTransactions` | ML-DSA-87 + Ed25519 |
-/// | `Authentication` | ML-DSA-87 + Ed25519 |
-/// | `FirmwareSigning` | ML-DSA-65 |
-///
-/// | Security Level | Algorithm |
-/// |----------------|-----------|
-/// | `Maximum` | ML-DSA-87 |
-/// | `High` | ML-DSA-65 |
-/// | `Medium` | ML-DSA-65 |
-/// | `Low` | ML-DSA-44 |
+/// Use [`generate_signing_keypair`] to create matching keys. The scheme is
+/// determined by `CryptoConfig` — hybrid by default.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - Session is set and has expired (`CoreError::SessionExpired`)
 /// - Message size exceeds resource limits
-/// - Key generation fails
+/// - Secret/public key bytes don't match the expected sizes for the scheme
 /// - Signing operation fails
 #[allow(deprecated)]
-pub fn sign(message: &[u8], config: CryptoConfig) -> Result<SignedData> {
+#[allow(clippy::arithmetic_side_effects)] // Key size additions use well-defined NIST constants
+pub fn sign_with_key(
+    message: &[u8],
+    secret_key: &[u8],
+    public_key: &[u8],
+    config: CryptoConfig,
+) -> Result<SignedData> {
     config.validate()?;
 
     let scheme = select_signature_scheme(&config)?;
@@ -350,89 +410,153 @@ pub fn sign(message: &[u8], config: CryptoConfig) -> Result<SignedData> {
     validate_signature_size(message.len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
-    crate::log_crypto_operation_start!("sign", scheme = %scheme, message_size = message.len());
+    crate::log_crypto_operation_start!("sign_with_key", scheme = %scheme, message_size = message.len());
 
-    let (public_key, _private_key, signature) = match scheme.as_str() {
-        "ml-dsa-44" => {
-            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
-            let sig =
-                sign_pq_ml_dsa_unverified(message, sk.as_slice(), MlDsaParameterSet::MLDSA44)?;
-            (pk, sk, sig)
+    let (result_pk, signature) = match scheme.as_str() {
+        "ml-dsa-44" | "pq-ml-dsa-44" => {
+            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MLDSA44)?;
+            (public_key.to_vec(), sig)
         }
-        "ml-dsa-65" => {
-            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
-            let sig =
-                sign_pq_ml_dsa_unverified(message, sk.as_slice(), MlDsaParameterSet::MLDSA65)?;
-            (pk, sk, sig)
+        "ml-dsa-65" | "pq-ml-dsa-65" => {
+            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MLDSA65)?;
+            (public_key.to_vec(), sig)
         }
-        "ml-dsa-87" => {
-            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
-            let sig =
-                sign_pq_ml_dsa_unverified(message, sk.as_slice(), MlDsaParameterSet::MLDSA87)?;
-            (pk, sk, sig)
+        "ml-dsa-87" | "pq-ml-dsa-87" => {
+            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MLDSA87)?;
+            (public_key.to_vec(), sig)
         }
         "slh-dsa-shake-128s" => {
-            let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
             let sig =
-                sign_pq_slh_dsa_unverified(message, sk.as_slice(), SlhDsaSecurityLevel::Shake128s)?;
-            (pk, sk, sig)
+                sign_pq_slh_dsa_unverified(message, secret_key, SlhDsaSecurityLevel::Shake128s)?;
+            (public_key.to_vec(), sig)
         }
         "slh-dsa-shake-192s" => {
-            let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s)?;
             let sig =
-                sign_pq_slh_dsa_unverified(message, sk.as_slice(), SlhDsaSecurityLevel::Shake192s)?;
-            (pk, sk, sig)
+                sign_pq_slh_dsa_unverified(message, secret_key, SlhDsaSecurityLevel::Shake192s)?;
+            (public_key.to_vec(), sig)
         }
         "slh-dsa-shake-256s" => {
-            let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
             let sig =
-                sign_pq_slh_dsa_unverified(message, sk.as_slice(), SlhDsaSecurityLevel::Shake256s)?;
-            (pk, sk, sig)
+                sign_pq_slh_dsa_unverified(message, secret_key, SlhDsaSecurityLevel::Shake256s)?;
+            (public_key.to_vec(), sig)
         }
         "fn-dsa" => {
-            let (pk, sk) = generate_fn_dsa_keypair()?;
-            let sig = sign_pq_fn_dsa_unverified(message, sk.as_slice())?;
-            (pk, sk, sig)
+            let sig = sign_pq_fn_dsa_unverified(message, secret_key)?;
+            (public_key.to_vec(), sig)
+        }
+        "hybrid-ml-dsa-44-ed25519" => {
+            let pq_sk_len = MlDsaParameterSet::MLDSA44.secret_key_size();
+            let pq_pk_len = MlDsaParameterSet::MLDSA44.public_key_size();
+            const ED25519_SK_LEN: usize = 32;
+
+            if secret_key.len() != pq_sk_len + ED25519_SK_LEN {
+                return Err(CoreError::InvalidKey(format!(
+                    "Hybrid secret key length mismatch: expected {}, got {}",
+                    pq_sk_len + ED25519_SK_LEN,
+                    secret_key.len()
+                )));
+            }
+            if public_key.len() != pq_pk_len + 32 {
+                return Err(CoreError::InvalidKey(format!(
+                    "Hybrid public key length mismatch: expected {}, got {}",
+                    pq_pk_len + 32,
+                    public_key.len()
+                )));
+            }
+
+            let pq_sk = secret_key.get(..pq_sk_len).ok_or_else(|| {
+                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
+            })?;
+            let ed_sk = secret_key.get(pq_sk_len..).ok_or_else(|| {
+                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
+            })?;
+
+            let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, MlDsaParameterSet::MLDSA44)?;
+            let ed_sig = sign_ed25519_internal(message, ed_sk)?;
+            let combined_sig = [pq_sig, ed_sig].concat();
+            (public_key.to_vec(), combined_sig)
         }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
-            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
-            let (ed_pk, ed_sk) = generate_keypair()?;
-            let pq_sig =
-                sign_pq_ml_dsa_unverified(message, pq_sk.as_slice(), MlDsaParameterSet::MLDSA65)?;
-            let ed_sig = sign_ed25519_internal(message, ed_sk.as_slice())?;
+            let pq_sk_len = MlDsaParameterSet::MLDSA65.secret_key_size();
+            let pq_pk_len = MlDsaParameterSet::MLDSA65.public_key_size();
+            const ED25519_SK_LEN: usize = 32;
+
+            if secret_key.len() != pq_sk_len + ED25519_SK_LEN {
+                return Err(CoreError::InvalidKey(format!(
+                    "Hybrid secret key length mismatch: expected {}, got {}",
+                    pq_sk_len + ED25519_SK_LEN,
+                    secret_key.len()
+                )));
+            }
+            if public_key.len() != pq_pk_len + 32 {
+                return Err(CoreError::InvalidKey(format!(
+                    "Hybrid public key length mismatch: expected {}, got {}",
+                    pq_pk_len + 32,
+                    public_key.len()
+                )));
+            }
+
+            let pq_sk = secret_key.get(..pq_sk_len).ok_or_else(|| {
+                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
+            })?;
+            let ed_sk = secret_key.get(pq_sk_len..).ok_or_else(|| {
+                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
+            })?;
+
+            let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, MlDsaParameterSet::MLDSA65)?;
+            let ed_sig = sign_ed25519_internal(message, ed_sk)?;
             let combined_sig = [pq_sig, ed_sig].concat();
-            // Store both public keys: ML-DSA (1952 bytes) + Ed25519 (32 bytes)
-            let combined_pk = [pq_pk, ed_pk].concat();
-            (combined_pk, ed_sk, combined_sig)
+            (public_key.to_vec(), combined_sig)
         }
         "hybrid-ml-dsa-87-ed25519" => {
-            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
-            let (ed_pk, ed_sk) = generate_keypair()?;
-            let pq_sig =
-                sign_pq_ml_dsa_unverified(message, pq_sk.as_slice(), MlDsaParameterSet::MLDSA87)?;
-            let ed_sig = sign_ed25519_internal(message, ed_sk.as_slice())?;
+            let pq_sk_len = MlDsaParameterSet::MLDSA87.secret_key_size();
+            let pq_pk_len = MlDsaParameterSet::MLDSA87.public_key_size();
+            const ED25519_SK_LEN: usize = 32;
+
+            if secret_key.len() != pq_sk_len + ED25519_SK_LEN {
+                return Err(CoreError::InvalidKey(format!(
+                    "Hybrid secret key length mismatch: expected {}, got {}",
+                    pq_sk_len + ED25519_SK_LEN,
+                    secret_key.len()
+                )));
+            }
+            if public_key.len() != pq_pk_len + 32 {
+                return Err(CoreError::InvalidKey(format!(
+                    "Hybrid public key length mismatch: expected {}, got {}",
+                    pq_pk_len + 32,
+                    public_key.len()
+                )));
+            }
+
+            let pq_sk = secret_key.get(..pq_sk_len).ok_or_else(|| {
+                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
+            })?;
+            let ed_sk = secret_key.get(pq_sk_len..).ok_or_else(|| {
+                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
+            })?;
+
+            let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, MlDsaParameterSet::MLDSA87)?;
+            let ed_sig = sign_ed25519_internal(message, ed_sk)?;
             let combined_sig = [pq_sig, ed_sig].concat();
-            // Store both public keys: ML-DSA (2592 bytes) + Ed25519 (32 bytes)
-            let combined_pk = [pq_pk, ed_pk].concat();
-            (combined_pk, ed_sk, combined_sig)
+            (public_key.to_vec(), combined_sig)
         }
         _ => {
-            let (pk, sk) = generate_keypair()?;
-            let sig = sign_ed25519_internal(message, sk.as_slice())?;
-            (pk, sk, sig)
+            // Fallback: Ed25519
+            let sig = sign_ed25519_internal(message, secret_key)?;
+            (public_key.to_vec(), sig)
         }
     };
 
     let timestamp = u64::try_from(Utc::now().timestamp()).unwrap_or(0);
 
-    crate::log_crypto_operation_complete!("sign", signature_size = signature.len(), scheme = %scheme);
+    crate::log_crypto_operation_complete!("sign_with_key", signature_size = signature.len(), scheme = %scheme);
 
     Ok(SignedData {
         data: message.to_vec(),
         metadata: SignedMetadata {
             signature,
             signature_algorithm: scheme.clone(),
-            public_key,
+            public_key: result_pk,
             key_id: None,
         },
         scheme,
@@ -475,19 +599,19 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
     let result = match signed.scheme.as_str() {
-        "ml-dsa-44" => verify_pq_ml_dsa_unverified(
+        "ml-dsa-44" | "pq-ml-dsa-44" => verify_pq_ml_dsa_unverified(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
             MlDsaParameterSet::MLDSA44,
         ),
-        "ml-dsa-65" => verify_pq_ml_dsa_unverified(
+        "ml-dsa-65" | "pq-ml-dsa-65" => verify_pq_ml_dsa_unverified(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
             MlDsaParameterSet::MLDSA65,
         ),
-        "ml-dsa-87" => verify_pq_ml_dsa_unverified(
+        "ml-dsa-87" | "pq-ml-dsa-87" => verify_pq_ml_dsa_unverified(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
@@ -516,6 +640,51 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             &signed.metadata.signature,
             &signed.metadata.public_key,
         ),
+        "hybrid-ml-dsa-44-ed25519" => {
+            const ML_DSA_44_PK_LEN: usize = 1312;
+            const ED25519_PK_LEN: usize = 32;
+
+            let sig_len = signed.metadata.signature.len();
+            if sig_len < 2420 {
+                return Err(CoreError::InvalidInput("Hybrid signature too short".to_string()));
+            }
+
+            let pk_len = signed.metadata.public_key.len();
+            if pk_len != ML_DSA_44_PK_LEN + ED25519_PK_LEN {
+                return Err(CoreError::InvalidInput(format!(
+                    "Invalid hybrid public key length: expected {}, got {}",
+                    ML_DSA_44_PK_LEN + ED25519_PK_LEN,
+                    pk_len
+                )));
+            }
+            let pq_pk = signed.metadata.public_key.get(..ML_DSA_44_PK_LEN).ok_or_else(|| {
+                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
+            })?;
+            let ed_pk = signed.metadata.public_key.get(ML_DSA_44_PK_LEN..).ok_or_else(|| {
+                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
+            })?;
+
+            let pq_sig_len = sig_len.checked_sub(64).ok_or_else(|| {
+                CoreError::InvalidInput(
+                    "Hybrid signature too short for Ed25519 component".to_string(),
+                )
+            })?;
+            let pq_sig = signed.metadata.signature.get(..pq_sig_len).ok_or_else(|| {
+                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
+            })?;
+            let ed_sig = signed.metadata.signature.get(pq_sig_len..).ok_or_else(|| {
+                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
+            })?;
+
+            let pq_valid = verify_pq_ml_dsa_unverified(
+                &signed.data,
+                pq_sig,
+                pq_pk,
+                MlDsaParameterSet::MLDSA44,
+            )?;
+            let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
+            Ok(pq_valid && ed_valid)
+        }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
             // ML-DSA-65 public key is 1952 bytes, Ed25519 is 32 bytes
             const ML_DSA_65_PK_LEN: usize = 1952;
@@ -663,13 +832,19 @@ mod tests {
     use super::*;
     use crate::{CryptoConfig, SecurityLevel, UseCase};
 
+    /// Helper: generate keypair + sign + return signed data
+    fn sign_message(message: &[u8], config: CryptoConfig) -> Result<SignedData> {
+        let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+        sign_with_key(message, &sk, &pk, config)
+    }
+
     // Sign/Verify tests with different security levels
     #[test]
     fn test_sign_verify_with_standard_security() -> Result<()> {
         let message = b"Test message with standard security";
         let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         assert!(!signed.metadata.signature.is_empty());
         assert!(!signed.metadata.public_key.is_empty());
@@ -685,7 +860,7 @@ mod tests {
         let message = b"Test message with high security";
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid, "Signature should be valid");
@@ -698,7 +873,7 @@ mod tests {
         let message = b"Test message with maximum security";
         let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid, "Signature should be valid");
@@ -711,7 +886,7 @@ mod tests {
         let message = b"Original message";
         let config = CryptoConfig::new();
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         // Modify the message
         let mut modified_signed = signed.clone();
@@ -731,7 +906,7 @@ mod tests {
         let message = b"Test message";
         let config = CryptoConfig::new();
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         // Corrupt the signature
         let mut corrupted_signed = signed.clone();
@@ -753,7 +928,7 @@ mod tests {
         let message = b"";
         let config = CryptoConfig::new();
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid, "Empty message signature should be valid");
@@ -766,7 +941,7 @@ mod tests {
         let message = vec![0xABu8; 10_000]; // 10KB message
         let config = CryptoConfig::new();
 
-        let signed = sign(&message, config)?;
+        let signed = sign_message(&message, config)?;
 
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid, "Large message signature should be valid");
@@ -780,7 +955,7 @@ mod tests {
         let message = b"Financial transaction data";
         let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         // Financial transactions should use strong signature
         assert!(
@@ -799,7 +974,7 @@ mod tests {
         let message = b"Authentication data";
         let config = CryptoConfig::new().use_case(UseCase::Authentication);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid);
@@ -812,7 +987,7 @@ mod tests {
         let message = b"Firmware binary data";
         let config = CryptoConfig::new().use_case(UseCase::FirmwareSigning);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid);
@@ -855,7 +1030,7 @@ mod tests {
         let levels = [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
         for level in &levels {
             let config = CryptoConfig::new().security_level(level.clone());
-            let signed = sign(message, config)?;
+            let signed = sign_message(message, config)?;
             let is_valid = verify(&signed, CryptoConfig::new())?;
             assert!(is_valid, "Failed for security level: {:?}", level);
         }
@@ -867,13 +1042,13 @@ mod tests {
     // Additional Signing Algorithm Coverage
     // ========================================================================
 
-    // Test specific algorithm branches in sign/verify
+    // Test specific algorithm branches in sign_with_key/verify
     #[test]
     fn test_sign_verify_metadata_populated() -> Result<()> {
         let message = b"Test metadata";
         let config = CryptoConfig::new();
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         assert!(!signed.metadata.signature.is_empty(), "Signature should not be empty");
         assert!(!signed.metadata.public_key.is_empty(), "Public key should not be empty");
@@ -889,7 +1064,7 @@ mod tests {
         let message = b"Test message";
         let config = CryptoConfig::new();
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
 
         // Corrupt the public key
         let mut corrupted_signed = signed.clone();
@@ -911,7 +1086,7 @@ mod tests {
         let message = vec![0x00, 0xFF, 0x7F, 0x80, 0x01, 0xFE];
         let config = CryptoConfig::new();
 
-        let signed = sign(&message, config)?;
+        let signed = sign_message(&message, config)?;
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid, "Binary message signature should be valid");
 
@@ -923,7 +1098,7 @@ mod tests {
         let message = "Test with Unicode: 你好世界 🔐".as_bytes();
         let config = CryptoConfig::new();
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid, "Unicode message signature should be valid");
 
@@ -935,7 +1110,7 @@ mod tests {
         let message = b"Blockchain transaction data";
         let config = CryptoConfig::new().use_case(UseCase::BlockchainTransaction);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid);
 
@@ -947,7 +1122,7 @@ mod tests {
         let message = b"Legal document hash";
         let config = CryptoConfig::new().use_case(UseCase::LegalDocuments);
 
-        let signed = sign(message, config)?;
+        let signed = sign_message(message, config)?;
         let is_valid = verify(&signed, CryptoConfig::new())?;
         assert!(is_valid);
 
@@ -961,7 +1136,7 @@ mod tests {
             vec![b"First message".as_ref(), b"Second message".as_ref(), b"Third message".as_ref()];
 
         for message in messages {
-            let signed = sign(message, config.clone())?;
+            let signed = sign_message(message, config.clone())?;
             let is_valid = verify(&signed, CryptoConfig::new())?;
             assert!(is_valid, "Message: {:?}", String::from_utf8_lossy(message));
         }
@@ -974,8 +1149,8 @@ mod tests {
         let message = b"Same message";
         let config = CryptoConfig::new();
 
-        let signed1 = sign(message, config.clone())?;
-        let signed2 = sign(message, config)?;
+        let signed1 = sign_message(message, config.clone())?;
+        let signed2 = sign_message(message, config)?;
 
         // Different key pairs should produce different signatures
         assert_ne!(signed1.metadata.signature, signed2.metadata.signature);

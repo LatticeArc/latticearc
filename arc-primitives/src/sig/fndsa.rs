@@ -343,15 +343,16 @@ pub struct SigningKey {
 }
 
 impl Drop for SigningKey {
+    /// # Security Note
+    ///
+    /// Only the serialized `bytes` field is zeroized. The `inner` field
+    /// (`FnDsaSigningKeyStandard` from the `fn-dsa` crate) does not
+    /// implement `Zeroize`, so its key material may persist in memory
+    /// after drop. This is an upstream limitation of the `fn-dsa` crate.
     fn drop(&mut self) {
-        // Zeroize the serialized key bytes in-place (preserving length for testing)
-        // This zeros each byte individually rather than using Vec::zeroize which clears
         for byte in &mut self.bytes {
             byte.zeroize();
         }
-        // Note: self.inner (FnDsaSigningKeyStandard) cannot be zeroized
-        // as it's from an external crate that doesn't implement Zeroize.
-        // The bytes field contains the same key material and IS zeroized.
     }
 }
 

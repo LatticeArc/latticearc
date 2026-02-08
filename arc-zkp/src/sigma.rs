@@ -254,7 +254,7 @@ impl DlogEqualityProof {
         let x = x.ok_or(ZkpError::InvalidScalar)?;
 
         // Random nonce
-        let k = Scalar::random(&mut rand::thread_rng());
+        let k = Scalar::random(&mut rand::rngs::OsRng);
 
         // Commitments
         let a_point = g * k;
