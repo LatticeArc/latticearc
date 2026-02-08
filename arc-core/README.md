@@ -1,14 +1,13 @@
 # arc-core
 
-Unified API layer for LatticeArc post-quantum cryptography with intelligent scheme selection, zero-trust authentication, and hardware acceleration.
+Unified API layer for LatticeArc post-quantum cryptography with intelligent scheme selection and zero-trust authentication.
 
 ## Features
 
 - **Zero-Trust Enforcement** - All crypto ops require verified session
 - **Convenience API** - Simple encrypt/decrypt/sign/verify functions
 - **Smart Selection** - CryptoPolicyEngine for automatic scheme selection
-- **Hardware Routing** - Automatic detection and routing to optimal hardware
-- **Use Case Templates** - 8 predefined use cases with optimized schemes
+- **Use Case Templates** - 20+ predefined use cases with optimized schemes
 
 ## Quick Start
 
@@ -72,7 +71,7 @@ match session.trust_level() {
 | `convenience` | High-level encrypt/decrypt/sign/verify (session-verified + _unverified) |
 | `selector` | CryptoPolicyEngine |
 | `zero_trust` | VerifiedSession, TrustLevel, ZeroTrustAuth, Challenge, ZKP |
-| `hardware` | HardwareRouter, accelerator detection |
+| `hardware` | Hardware trait re-exports (types only — detection is in enterprise) |
 | `config` | CoreConfig, ZeroTrustConfig |
 | `types` | UseCase, SecurityLevel, PerformancePreference |
 | `error` | CoreError including SessionExpired, AuthenticationRequired |
@@ -218,23 +217,11 @@ session.verify_response(&proof)?;
 let verified_session = session.into_verified()?;
 ```
 
-## Hardware Detection
+## Hardware
 
-```rust
-use arc_core::hardware::HardwareRouter;
+The `hardware` module provides **trait definitions only** (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`). These define the interface contract for hardware-aware operations.
 
-let router = HardwareRouter::new();
-
-// Detect available hardware
-let info = router.detect_hardware();
-println!("Accelerators: {:?}", info.available_accelerators);
-println!("SIMD: {}, AES-NI: {}", info.capabilities.simd_support, info.capabilities.aes_ni);
-
-// Route operation to best hardware
-let result = router.route_to_best_hardware(|| {
-    encrypt(data, &key)
-})?;
-```
+Hardware detection, adaptive routing, and performance-based algorithm selection are available in the enterprise `arc-enterprise-perf` crate. The underlying crypto library (`aws-lc-rs`) handles AES-NI and SIMD acceleration automatically at the C level.
 
 ## Configuration
 
@@ -245,7 +232,6 @@ use arc_core::types::{SecurityLevel, PerformancePreference};
 let config = CoreConfig::builder()
     .security_level(SecurityLevel::High)
     .performance_preference(PerformancePreference::Balanced)
-    .hardware_acceleration(true)
     .build()?;
 ```
 

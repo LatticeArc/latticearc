@@ -86,8 +86,7 @@ use arc_core::{
     error::{CoreError, Result},
     generate_keypair,
     generate_keypair_with_config,
-    // Hardware types
-    hardware::{CpuAccelerator, FpgaAccelerator, GpuAccelerator, HardwareRouter, SgxAccelerator},
+    // Hardware types are imported from traits:: below
     hash_data,
     hmac_check_unverified,
     hmac_unverified,
@@ -354,20 +353,18 @@ fn test_audit_types_accessible() {
 /// Test 1.15: Hardware accelerator types are accessible
 #[test]
 fn test_hardware_types_accessible() {
-    // Hardware accelerators are constructable
-    let _cpu = CpuAccelerator::new(&HardwareCapabilities {
-        simd_support: true,
-        aes_ni: true,
-        threads: 4,
-        memory: 1024,
-    });
-
-    let _gpu = GpuAccelerator::new();
-    let _fpga = FpgaAccelerator::new();
-    let _sgx = SgxAccelerator::new();
-
-    // HardwareRouter is constructable
-    let _router = HardwareRouter::new();
+    // Hardware type definitions are accessible (stubs removed — real detection in enterprise)
+    let _info = HardwareInfo {
+        available_accelerators: vec![HardwareType::Cpu],
+        preferred_accelerator: Some(HardwareType::Cpu),
+        capabilities: HardwareCapabilities {
+            simd_support: true,
+            aes_ni: true,
+            threads: 4,
+            memory: 1024,
+        },
+    };
+    assert!(_info.best_accelerator().is_some());
 }
 
 /// Test 1.16: Zero trust types are accessible
@@ -867,13 +864,23 @@ fn test_zero_trust_session_method_return_types() {
     let _: Result<u64> = session.session_age_ms();
 }
 
-/// Test 3.11: HardwareRouter methods return expected types
+/// Test 3.11: HardwareInfo methods return expected types
 #[test]
-fn test_hardware_router_method_return_types() {
-    let router = HardwareRouter::new();
+fn test_hardware_info_method_return_types() {
+    let info = HardwareInfo {
+        available_accelerators: vec![HardwareType::Cpu],
+        preferred_accelerator: Some(HardwareType::Cpu),
+        capabilities: HardwareCapabilities {
+            simd_support: true,
+            aes_ni: true,
+            threads: 1,
+            memory: 0,
+        },
+    };
 
     // Method return types
-    let _: HardwareInfo = router.detect_hardware();
+    let _: Option<&HardwareType> = info.best_accelerator();
+    let _: String = info.summary();
 }
 
 /// Test 3.12: KeyStateMachine methods return expected types
@@ -1215,8 +1222,16 @@ fn test_data_characteristics_api_stable() {
 /// Test 5.5: HardwareInfo structure is stable
 #[test]
 fn test_hardware_info_api_stable() {
-    let router = HardwareRouter::new();
-    let info = router.detect_hardware();
+    let info = HardwareInfo {
+        available_accelerators: vec![HardwareType::Cpu],
+        preferred_accelerator: Some(HardwareType::Cpu),
+        capabilities: HardwareCapabilities {
+            simd_support: true,
+            aes_ni: true,
+            threads: 8,
+            memory: 0,
+        },
+    };
 
     // Methods should work (call before moving fields)
     let _best: Option<&HardwareType> = info.best_accelerator();
