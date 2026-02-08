@@ -12,7 +12,8 @@ Unified API layer for LatticeArc post-quantum cryptography with intelligent sche
 ## Quick Start
 
 ```rust
-use arc_core::{VerifiedSession, encrypt, decrypt, sign, verify, generate_keypair};
+use arc_core::{VerifiedSession, encrypt, decrypt, generate_signing_keypair,
+               sign_with_key, verify, generate_keypair, CryptoConfig};
 
 // Establish verified session (required for Zero Trust)
 let (public_key, private_key) = generate_keypair()?;
@@ -24,8 +25,10 @@ let encrypted = encrypt(&session, b"secret message", &key)?;
 let decrypted = decrypt(&session, &encrypted, &key)?;
 
 // Simple signing (auto-selects hybrid signature scheme)
-let signed = sign(&session, b"document")?;
-let is_valid = verify(&session, &signed)?;
+let config = CryptoConfig::new().session(&session);
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(b"document", &sk, &pk, &config)?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 ## Zero Trust Enforcement
@@ -217,27 +220,43 @@ session.verify_response(&proof)?;
 let verified_session = session.into_verified()?;
 ```
 
-## True Hybrid Encryption
+## Hybrid Encryption
 
 For true hybrid key encapsulation (ML-KEM-768 + X25519 combined via HKDF):
 
 ```rust
-use arc_core::{
-    generate_true_hybrid_keypair, encrypt_true_hybrid, decrypt_true_hybrid,
-    SecurityMode,
-};
+use arc_core::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
 
 // Generate hybrid keypair
-let (pk, sk) = generate_true_hybrid_keypair()?;
+let (pk, sk) = generate_hybrid_keypair()?;
 
 // Encrypt — ML-KEM + X25519 + HKDF + AES-256-GCM
-let encrypted = encrypt_true_hybrid(data, &pk, SecurityMode::Unverified)?;
+let encrypted = encrypt_hybrid(data, &pk, SecurityMode::Unverified)?;
 
 // Decrypt
-let plaintext = decrypt_true_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
 ```
 
 Security holds if **either** ML-KEM or X25519 remains secure.
+
+## Hybrid Signatures
+
+Direct hybrid signature operations (ML-DSA-65 + Ed25519 AND-composition):
+
+```rust
+use arc_core::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
+
+// Generate hybrid signing keypair
+let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
+
+// Sign (both ML-DSA and Ed25519)
+let signature = sign_hybrid(b"message", &sk, SecurityMode::Unverified)?;
+
+// Verify (both must pass)
+let valid = verify_hybrid_signature(b"message", &signature, &pk, SecurityMode::Unverified)?;
+```
+
+Both component signatures must verify. Security holds if **either** ML-DSA or Ed25519 remains secure.
 
 ## Hardware
 

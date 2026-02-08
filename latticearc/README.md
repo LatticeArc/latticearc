@@ -55,13 +55,17 @@ latticearc = "0.1"
 ### Digital Signatures
 
 ```rust
-use latticearc::{sign, verify, CryptoConfig};
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
-// Sign with defaults (ML-DSA-65 + Ed25519)
-let signed = sign(b"important document", CryptoConfig::new())?;
+// Generate signing keypair (defaults: ML-DSA-65 + Ed25519)
+let config = CryptoConfig::new();
+let (pk, sk) = generate_signing_keypair(&config)?;
+
+// Sign
+let signed = sign_with_key(b"important document", &sk, &pk, &config)?;
 
 // Verify
-let is_valid = verify(&signed, CryptoConfig::new())?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 ### Encryption
@@ -77,21 +81,23 @@ let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 ### With Use Case Selection
 
 ```rust
-use latticearc::{sign, CryptoConfig, UseCase};
+use latticearc::{generate_signing_keypair, sign_with_key, CryptoConfig, UseCase};
 
 // Library auto-selects optimal algorithm
-let signed = sign(b"financial data", CryptoConfig::new()
-    .use_case(UseCase::FinancialTransactions))?;
+let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(b"financial data", &sk, &pk, &config)?;
 ```
 
 ### With Security Level
 
 ```rust
-use latticearc::{sign, CryptoConfig, SecurityLevel};
+use latticearc::{generate_signing_keypair, sign_with_key, CryptoConfig, SecurityLevel};
 
-// Maximum security (ML-DSA-87)
-let signed = sign(b"classified", CryptoConfig::new()
-    .security_level(SecurityLevel::Maximum))?;
+// Maximum security (ML-DSA-87 + Ed25519)
+let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(b"classified", &sk, &pk, &config)?;
 ```
 
 ### Key Generation
@@ -103,23 +109,52 @@ use latticearc::generate_keypair;
 let (public_key, private_key) = generate_keypair()?;
 ```
 
+### Hybrid Encryption
+
+```rust
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+
+// Generate hybrid keypair (ML-KEM-768 + X25519)
+let (pk, sk) = generate_hybrid_keypair()?;
+
+// Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+
+// Decrypt
+let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+```
+
+### Hybrid Signatures
+
+```rust
+use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
+
+// Generate hybrid signing keypair (ML-DSA-65 + Ed25519)
+let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
+
+// Sign (both ML-DSA and Ed25519)
+let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
+
+// Verify (both must pass)
+let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
+```
+
 ### With Zero Trust Session
 
 For enterprise security with session-based verification:
 
 ```rust
-use latticearc::{sign, verify, generate_keypair, CryptoConfig, VerifiedSession};
+use latticearc::{generate_signing_keypair, sign_with_key, verify, generate_keypair, CryptoConfig, VerifiedSession};
 
 // Establish verified session
 let (public_key, private_key) = generate_keypair()?;
 let session = VerifiedSession::establish(&public_key, &private_key)?;
 
 // Operations with session verification
-let signed = sign(b"authenticated message", CryptoConfig::new()
-    .session(&session))?;
-
-let is_valid = verify(&signed, CryptoConfig::new()
-    .session(&session))?;
+let config = CryptoConfig::new().session(&session);
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(b"authenticated message", &sk, &pk, &config)?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 ### Post-Quantum TLS
@@ -184,6 +219,23 @@ All features are included by default:
 | `Standard` | Hybrid | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 |
 
 > For complete security level documentation, see [docs/UNIFIED_API_GUIDE.md](../docs/UNIFIED_API_GUIDE.md).
+
+## Runnable Examples
+
+The `latticearc` crate includes comprehensive examples:
+
+- `basic_encryption.rs` - Simple symmetric encryption with AES-256-GCM
+- `digital_signatures.rs` - Digital signatures with ML-DSA and hybrid modes
+- `hybrid_encryption.rs` - Hybrid encryption (ML-KEM + X25519 + HKDF)
+- `post_quantum_signatures.rs` - Post-quantum signature schemes
+- `complete_secure_workflow.rs` - End-to-end secure workflow with Zero Trust
+- `zero_knowledge_proofs.rs` - Zero-knowledge proof demonstrations
+
+Run an example with:
+```bash
+cargo run --example basic_encryption
+cargo run --example digital_signatures
+```
 
 ## Security
 

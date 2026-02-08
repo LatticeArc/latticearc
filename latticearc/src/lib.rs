@@ -104,6 +104,21 @@
 //! let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
 //! ```
 //!
+//! ## Hybrid Signatures (ML-DSA-65 + Ed25519)
+//!
+//! ```rust,ignore
+//! use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
+//!
+//! // Generate a hybrid signing keypair (ML-DSA-65 + Ed25519)
+//! let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
+//!
+//! // Sign (both ML-DSA and Ed25519 signatures generated)
+//! let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
+//!
+//! // Verify (both must pass for signature to be valid)
+//! let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
+//! ```
+//!
 //! ## Session Lifecycle
 //!
 //! Sessions have a 30-minute default lifetime:

@@ -104,15 +104,17 @@ flowchart LR
 ### Digital Signatures
 
 ```rust
-use latticearc::{sign, verify, CryptoConfig};
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 let message = b"Document to sign";
 
-// Sign with defaults (ML-DSA-65 + Ed25519 hybrid)
-let signed = sign(message, CryptoConfig::new())?;
+// Generate signing keypair and sign with defaults (ML-DSA-65 + Ed25519 hybrid)
+let config = CryptoConfig::new();
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(message, &sk, &pk, &config)?;
 
 // Verify
-let is_valid = verify(&signed, CryptoConfig::new())?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 ### Encryption
@@ -127,16 +129,90 @@ let encrypted = encrypt(plaintext, &key, CryptoConfig::new())?;
 let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 ```
 
+### Hybrid Encryption
+
+For true hybrid key encapsulation (ML-KEM + X25519 + HKDF):
+
+```rust
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+
+// Generate hybrid keypair (ML-KEM-768 + X25519)
+let (pk, sk) = generate_hybrid_keypair()?;
+
+// Encrypt using hybrid KEM
+let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+
+// Decrypt
+let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+```
+
+Security holds if **either** ML-KEM or X25519 remains secure.
+
+### Hybrid Signatures
+
+For direct hybrid signature operations (ML-DSA-65 + Ed25519 AND-composition):
+
+```rust
+use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
+
+// Generate hybrid signing keypair
+let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
+
+// Sign (both ML-DSA and Ed25519)
+let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
+
+// Verify (both must pass)
+let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
+```
+
+Both component signatures must verify for the result to be valid — an attacker must break *both* algorithms to forge a signature.
+
+#### Hybrid Encryption Flow
+
+```mermaid
+flowchart TB
+    subgraph "Key Generation (once)"
+        KG[generate_hybrid_keypair] --> X_SK[X25519 Static Key]
+        KG --> ML_DK[ML-KEM-768 Decapsulation Key]
+        KG --> PK["HybridPublicKey<br/>(X25519 PK + ML-KEM EK)"]
+    end
+
+    subgraph "Encryption"
+        PT[Plaintext] --> AES[AES-256-GCM Encrypt]
+        E_MLKEM[ML-KEM Encapsulate] --> SS1[Shared Secret 1]
+        E_X25519[X25519 ECDH] --> SS2[Shared Secret 2]
+        SS1 --> HKDF[HKDF-SHA256]
+        SS2 --> HKDF
+        HKDF --> DEK[Data Encryption Key]
+        DEK --> AES
+        AES --> CT["HybridEncryptionResult<br/>(KEM CT + ECDH PK + CT + nonce + tag)"]
+    end
+
+    subgraph "Decryption"
+        CT2[HybridEncryptionResult] --> DAES[AES-256-GCM Decrypt]
+        D_MLKEM[ML-KEM Decapsulate] --> DSS1[Shared Secret 1]
+        D_X25519[X25519 Agree] --> DSS2[Shared Secret 2]
+        DSS1 --> DHKDF[HKDF-SHA256]
+        DSS2 --> DHKDF
+        DHKDF --> DDEK[Data Encryption Key]
+        DDEK --> DAES
+        DAES --> DPT[Plaintext]
+    end
+```
+
 ### With Zero Trust Session
 
 ```rust
-use latticearc::{sign, verify, generate_keypair, CryptoConfig, VerifiedSession};
+use latticearc::{generate_signing_keypair, sign_with_key, verify, generate_keypair,
+                 CryptoConfig, VerifiedSession};
 
 let (public_key, private_key) = generate_keypair()?;
 let session = VerifiedSession::establish(&public_key, &private_key)?;
 
-let signed = sign(message, CryptoConfig::new().session(&session))?;
-let is_valid = verify(&signed, CryptoConfig::new().session(&session))?;
+let config = CryptoConfig::new().session(&session);
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(message, &sk, &pk, &config)?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 ## CryptoConfig
@@ -357,7 +433,7 @@ sequenceDiagram
 
     Note over App,ZT: Session ready for crypto operations
 
-    App->>LA: sign(msg, config.session(&session))
+    App->>LA: sign_with_key(msg, &sk, &pk, config.session(&session))
     LA->>LA: Verify session valid
     LA-->>App: SignedData
 ```
@@ -384,14 +460,39 @@ session.verify_valid()?;  // Returns Err if expired
 
 ### Signature Functions
 
-```rust
-use latticearc::{sign, verify, CryptoConfig};
+```mermaid
+flowchart LR
+    subgraph "Setup (once)"
+        GEN[generate_signing_keypair] --> PK[Public Key]
+        GEN --> SK[Secret Key]
+        GEN --> SCH[Scheme Name]
+    end
 
-// Sign (generates keypair internally)
-let signed = sign(message, CryptoConfig::new())?;
+    subgraph "Sign (per message)"
+        MSG[Message] --> SIGN[sign_with_key]
+        SK --> SIGN
+        PK --> SIGN
+        SIGN --> SD[SignedData]
+    end
+
+    subgraph "Verify"
+        SD --> VER[verify]
+        VER --> OK["true / false"]
+    end
+```
+
+```rust
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
+
+// Generate signing keypair
+let config = CryptoConfig::new();
+let (pk, sk) = generate_signing_keypair(&config)?;
+
+// Sign with generated keys
+let signed = sign_with_key(message, &sk, &pk, &config)?;
 
 // Verify (uses public key from SignedData)
-let is_valid = verify(&signed, CryptoConfig::new())?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 ### Encryption
@@ -432,9 +533,12 @@ let mac = hmac(data, &key, SecurityMode::default())?;
 ## Error Handling
 
 ```rust
-use latticearc::{sign, CoreError, CryptoConfig};
+use latticearc::{generate_signing_keypair, sign_with_key, CoreError, CryptoConfig};
 
-match sign(message, CryptoConfig::new().session(&session)) {
+let config = CryptoConfig::new().session(&session);
+let (pk, sk) = generate_signing_keypair(&config)?;
+
+match sign_with_key(message, &sk, &pk, &config) {
     Ok(signed) => { /* success */ }
     Err(CoreError::SessionExpired) => {
         // Re-authenticate
@@ -463,16 +567,18 @@ let ed_sig = ed_sk.sign(message);
 // Return 4 separate components...
 ```
 
-### LatticeArc (2 lines)
+### LatticeArc (3 lines)
 
 ```rust
-let signed = sign(message, CryptoConfig::new())?;
-let is_valid = verify(&signed, CryptoConfig::new())?;
+let config = CryptoConfig::new();
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(message, &sk, &pk, &config)?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 | Aspect | Manual | LatticeArc |
 |--------|--------|------------|
-| Lines of code | ~50 | 2 |
+| Lines of code | ~50 | 4 |
 | Key management | 4 separate vectors | Single `SignedData` |
 | Algorithm updates | Code changes | Config change |
 | Memory safety | Manual | Automatic |

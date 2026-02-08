@@ -73,10 +73,12 @@ let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 ### Digital Signatures
 
 ```rust
-use latticearc::{sign, verify, CryptoConfig};
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
-let signed = sign(b"document", CryptoConfig::new())?;
-let is_valid = verify(&signed, CryptoConfig::new())?;
+let config = CryptoConfig::new();
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed = sign_with_key(b"document", &sk, &pk, &config)?;
+let is_valid = verify(&signed, &config)?;
 ```
 
 ## Algorithm Selection
@@ -121,6 +123,36 @@ use latticearc::{encrypt, CryptoConfig, UseCase};
 
 let encrypted = encrypt(data, &key, CryptoConfig::new()
     .use_case(UseCase::FileStorage))?;
+```
+
+### Hybrid Encryption
+
+```rust
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+
+// Generate hybrid keypair (ML-KEM-768 + X25519)
+let (pk, sk) = generate_hybrid_keypair()?;
+
+// Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+
+// Decrypt
+let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+```
+
+### Hybrid Signatures
+
+```rust
+use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
+
+// Generate hybrid signing keypair (ML-DSA-65 + Ed25519)
+let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
+
+// Sign (both ML-DSA and Ed25519 signatures generated)
+let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
+
+// Verify (both must pass for signature to be valid)
+let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
 ```
 
 | Use Case | Encryption | Signatures |
@@ -208,6 +240,23 @@ let config = TlsConfig::new()
 | `IoT` | Classic | X25519 |
 | `LegacyIntegration` | Classic | X25519 |
 | `RealTimeStreaming` | Classic | X25519 |
+
+## Runnable Examples
+
+The `latticearc` crate includes comprehensive examples demonstrating the API:
+
+- `basic_encryption.rs` - Simple symmetric encryption with AES-256-GCM
+- `digital_signatures.rs` - Digital signatures with ML-DSA and hybrid modes
+- `hybrid_encryption.rs` - Hybrid encryption (ML-KEM + X25519 + HKDF)
+- `post_quantum_signatures.rs` - Post-quantum signature schemes
+- `complete_secure_workflow.rs` - End-to-end secure workflow with Zero Trust
+- `zero_knowledge_proofs.rs` - Zero-knowledge proof demonstrations
+
+Run an example with:
+```bash
+cargo run --example basic_encryption
+cargo run --example digital_signatures
+```
 
 ## Crate Structure
 

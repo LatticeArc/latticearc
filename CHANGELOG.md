@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Hybrid Signature Convenience API**: New dedicated functions for hybrid signatures (ML-DSA-65 + Ed25519)
+  - `generate_hybrid_signing_keypair()` / `sign_hybrid()` / `verify_hybrid_signature()` with `SecurityMode` support
+  - `_with_config` variants for configuration validation
+  - `_unverified` variants for use without Zero Trust sessions
+  - Wraps `arc-hybrid::sig_hybrid` with proper error mapping and resource limit validation
+  - Re-exported through `arc-core` and `latticearc` facades
+
+### Changed
+
+- **API Refactoring**: Removed broken `sign()` function, replaced with `generate_signing_keypair()` + `sign_with_key()`
+  - Old `sign(message, config)` generated new keypair on every call (broken behavior)
+  - New pattern: `generate_signing_keypair(&config)` → `sign_with_key(message, &sk, &pk, &config)` → `verify(&signed, &config)`
+  - Keypairs are now reusable across multiple signing operations
+- **Hybrid Encryption API Renamed**: Simplified naming for hybrid functions
+  - `encrypt_true_hybrid()` → `encrypt_hybrid()`
+  - `decrypt_true_hybrid()` → `decrypt_hybrid()`
+  - `generate_true_hybrid_keypair()` → `generate_hybrid_keypair()`
+  - `TrueHybridEncryptionResult` → `HybridEncryptionResult`
+  - Old functions removed (breaking change)
+
+### Removed
+
+- **Removed `sign()` function**: Use `generate_signing_keypair()` + `sign_with_key()` instead
+- **Removed `generate_keypair()` ECDH bug**: Function no longer calls deprecated broken ECDH
+- **Removed `diffie_hellman()` function**: Use hybrid KEM or direct X25519 primitives instead
+
+### Removed
+
+- **Dead code**: Removed unused data characteristics computation in `selector.rs`
+
+### Documentation
+
+- Updated all READMEs with new signing API pattern
+- Added hybrid signature convenience API examples to all docs
+- Updated API_DOCUMENTATION.md with correct function signatures
+- Updated UNIFIED_API_GUIDE.md with hybrid encryption examples
+- Added "Runnable Examples" section to main README
+- All documentation now uses `latticearc::*` imports (not `quantumshield::*`)
+
+---
+
 ## [0.1.3] - 2026-02-07
 
 ### Fixed

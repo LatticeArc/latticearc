@@ -1,7 +1,7 @@
-# QuantumShield API Documentation
+# LatticeArc API Documentation
 
-**Version**: 1.0.0
-**Last Updated**: January 13, 2026
+**Version**: 0.1.3
+**Last Updated**: February 7, 2026
 **License**: Apache 2.0
 
 ---
@@ -22,7 +22,7 @@
 
 ## Overview
 
-QuantumShield provides three levels of API abstraction:
+LatticeArc provides three levels of API abstraction:
 
 | API Level | Description | Use Case |
 |-----------|-------------|----------|
@@ -53,18 +53,14 @@ The main entry point for QuantumShield cryptographic operations.
 #### Initialization
 
 ```rust
-use quantumshield::QuantumShield;
+use latticearc::{CryptoConfig, SecurityLevel};
 
 // Default configuration
-let qs = QuantumShield::new()?;
-
-// Custom configuration
-let qs = QuantumShield::with_config(config)?;
+let config = CryptoConfig::new();
 
 // Security level configuration
-let qs = QuantumShield::with_security_level(
-    quantumshield::SecurityLevel::High
-)?;
+let config = CryptoConfig::new()
+    .security_level(SecurityLevel::High);
 ```
 
 #### Key Generation
@@ -73,10 +69,9 @@ let qs = QuantumShield::with_security_level(
 // Generate keypair
 let keypair = qs.generate_keypair()?;
 
-// Key generation with specific scheme
-let keypair = qs.generate_keypair_with_scheme(
-    quantumshield::CryptoScheme::HybridPq
-)?;
+// Key generation with specific use case
+let config = CryptoConfig::new()
+    .use_case(UseCase::SecureMessaging);
 
 // Get public/private keys
 let public_key = keypair.public_key();
@@ -90,12 +85,8 @@ let private_key = keypair.secret_key();
 let plaintext = b"Secret message";
 let encrypted = qs.encrypt(public_key, plaintext)?;
 
-// Encrypt with context
-let context = quantumshield::CryptoContext {
-    associated_data: Some(b"metadata".to_vec()),
-    ..Default::default()
-};
-let encrypted = qs.encrypt_with_context(public_key, plaintext, &context)?;
+// Encrypt with associated data
+let encrypted = encrypt_with_aad(plaintext, &key, b"metadata", &config)?;
 ```
 
 #### Decryption
@@ -111,13 +102,19 @@ assert_eq!(plaintext, decrypted.as_slice());
 #### Signatures
 
 ```rust
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
+
+// Generate signing keypair
+let config = CryptoConfig::new();
+let (public_key, secret_key) = generate_signing_keypair(&config)?;
+
 // Sign message
 let message = b"Important document";
-let signature = qs.sign(private_key, message)?;
+let signed_data = sign_with_key(message, &secret_key, &public_key, &config)?;
 
 // Verify signature
-let verified = qs.verify(public_key, message, &signature)?;
-assert!(verified.into());
+let is_valid = verify(&signed_data, &config)?;
+assert!(is_valid);
 ```
 
 ### Configuration API
@@ -125,15 +122,10 @@ assert!(verified.into());
 #### CryptoConfig
 
 ```rust
-use quantumshield::CryptoConfig;
-use quantumshield::SecurityLevel;
-use quantumshield::PerformancePreference;
+use latticearc::{CryptoConfig, SecurityLevel};
 
 let config = CryptoConfig::new()
-    .with_security_level(SecurityLevel::High)
-    .with_performance_preference(PerformancePreference::Speed)
-    .with_compliance_mode(true)
-    .validate()?;
+    .security_level(SecurityLevel::High);
 ```
 
 #### Configuration Options
@@ -157,7 +149,7 @@ The Unified API provides simple functions for common operations.
 #### Encryption
 
 ```rust
-use quantumshield::unified_api::*;
+use latticearc::*;
 
 // Simple encryption
 let encrypted = encrypt(sensitive_data)?;
@@ -186,12 +178,16 @@ assert_eq!(data, decrypted.as_slice());
 #### Signatures
 
 ```rust
-// Sign data
-let signature = sign(data)?;
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
+
+// Generate keys and sign data
+let config = CryptoConfig::new();
+let (pk, sk) = generate_signing_keypair(&config)?;
+let signed_data = sign_with_key(data, &sk, &pk, &config)?;
 
 // Verify signature
-let verified = verify(data, &signature)?;
-assert!(verified);
+let is_valid = verify(&signed_data, &config)?;
+assert!(is_valid);
 ```
 
 #### Key Generation
@@ -209,7 +205,7 @@ let (public_key, private_key) = generate_keypair_with_scheme(
 ### Zero-Trust Authentication
 
 ```rust
-use quantumshield::unified_api::ZeroTrustAuth;
+use latticearc::{VerifiedSession, generate_keypair};
 
 // Initialize zero-trust authentication
 let auth = ZeroTrustAuth::new(public_key, private_key)?;
@@ -227,19 +223,19 @@ let verified = auth.verify_proof(&proof, &challenge)?;
 ### Auto-Selection Engine
 
 ```rust
-use quantumshield::unified_api::CryptoSelector;
+use arc_core::selector::CryptoPolicyEngine;
 
 // Recommend scheme for use case
-let scheme = CryptoSelector::recommend_scheme(
-    UseCase::SecureMessaging,
+let scheme = CryptoPolicyEngine::recommend_scheme(
+    &UseCase::SecureMessaging,
     &config
 )?;
 
 // Analyze data characteristics
-let characteristics = CryptoSelector::analyze_data_characteristics(data);
+let characteristics = CryptoPolicyEngine::analyze_data_characteristics(data);
 
 // Select encryption scheme
-let selected = CryptoSelector::select_encryption_scheme(data, &config)?;
+let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?;
 ```
 
 ---
@@ -249,7 +245,7 @@ let selected = CryptoSelector::select_encryption_scheme(data, &config)?;
 ### ML-KEM (Key Encapsulation Mechanism)
 
 ```rust
-use quantumshield_primitives::kem::ml_kem::*;
+use arc_primitives::kem::ml_kem::*;
 
 // Generate keypair
 let keypair = MlKem1024KeyPair::generate()?;
@@ -266,7 +262,7 @@ assert_eq!(shared_secret, decapsulated);
 ### ML-DSA (Digital Signature Algorithm)
 
 ```rust
-use quantumshield_primitives::sig::ml_dsa::*;
+use arc_primitives::sig::ml_dsa::*;
 
 // Generate keypair
 let keypair = MlDsa65KeyPair::generate()?;
@@ -283,7 +279,7 @@ assert!(verified.into());
 ### SLH-DSA (Stateless Hash-Based Signatures)
 
 ```rust
-use quantumshield_primitives::sig::slh_dsa::*;
+use arc_primitives::sig::slh_dsa::*;
 
 // Generate keypair
 let keypair = SlhDsaSha2128KeyPair::generate()?;
@@ -298,7 +294,7 @@ let verified = keypair.public_key.verify(message, &signature)?;
 ### AES-GCM (AEAD Encryption)
 
 ```rust
-use quantumshield_primitives::aead::aes_gcm::*;
+use arc_primitives::aead::aes_gcm::*;
 
 // Generate key
 let key = Aes256GcmKey::generate()?;
@@ -314,7 +310,7 @@ let decrypted = aes_gcm_decrypt(&key, &nonce, &ciphertext, aad)?;
 ### ChaCha20-Poly1305
 
 ```rust
-use quantumshield_primitives::aead::chacha20poly1305::*;
+use arc_primitives::aead::chacha20poly1305::*;
 
 // Generate key
 let key = ChaCha20Poly1305Key::generate()?;
@@ -336,32 +332,53 @@ let decrypted = chacha20poly1305_decrypt(&key, &nonce, &ciphertext, aad)?;
 Combines post-quantum and classical encryption for quantum-safe hybrid security.
 
 ```rust
-use quantumshield::hybrid::*;
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
 
-// Generate hybrid keypair
-let keypair = HybridKeyPair::generate()?;
+// Generate hybrid keypair (ML-KEM-768 + X25519)
+let (pk, sk) = generate_hybrid_keypair()?;
 
-// Hybrid encryption
+// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
 let plaintext = b"Sensitive data";
-let encrypted = hybrid_encrypt(keypair.public_key(), plaintext)?;
+let encrypted = encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified)?;
 
 // Hybrid decryption
-let decrypted = hybrid_decrypt(keypair.secret_key(), &encrypted)?;
+let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
 ```
 
 ### Hybrid Signatures
 
-```rust
-use quantumshield::hybrid::*;
+#### Via Unified API (returns `SignedData`)
 
-// Generate hybrid keypair
-let keypair = HybridSigKeyPair::generate()?;
+```rust
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig, SecurityLevel};
+
+// Generate hybrid signature keypair (ML-DSA + Ed25519)
+let config = CryptoConfig::new().security_level(SecurityLevel::High);
+let (pk, sk) = generate_signing_keypair(&config)?;
 
 // Sign
-let signature = hybrid_sign(keypair.secret_key(), plaintext)?;
+let message = b"Important data";
+let signed_data = sign_with_key(message, &sk, &pk, &config)?;
 
 // Verify
-let verified = hybrid_verify(keypair.public_key(), plaintext, &signature)?;
+let is_valid = verify(&signed_data, &config)?;
+```
+
+#### Direct Hybrid Signature API
+
+For direct access to ML-DSA-65 + Ed25519 AND-composition signatures:
+
+```rust
+use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
+
+// Generate hybrid signing keypair
+let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
+
+// Sign (both ML-DSA and Ed25519 signatures are generated)
+let signature = sign_hybrid(b"important message", &sk, SecurityMode::Unverified)?;
+
+// Verify (both signatures must verify)
+let valid = verify_hybrid_signature(b"important message", &signature, &pk, SecurityMode::Unverified)?;
 ```
 
 ---
@@ -371,7 +388,7 @@ let verified = hybrid_verify(keypair.public_key(), plaintext, &signature)?;
 ### Error Types
 
 ```rust
-use quantumshield::CryptoError;
+use latticearc::CoreError;
 
 match operation() {
     Ok(result) => println!("Success: {:?}", result),
@@ -471,21 +488,17 @@ pub enum UseCase {
 ### Example 1: Simple Encryption
 
 ```rust
-use quantumshield::QuantumShield;
+use latticearc::{encrypt, decrypt, CryptoConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize
-    let qs = QuantumShield::new()?;
-
-    // Generate keys
-    let keypair = qs.generate_keypair()?;
+    let key = [0u8; 32];
+    let message = b"Hello, LatticeArc!";
 
     // Encrypt
-    let message = b"Hello, QuantumShield!";
-    let encrypted = qs.encrypt(keypair.public_key(), message)?;
+    let encrypted = encrypt(message, &key, CryptoConfig::new())?;
 
     // Decrypt
-    let decrypted = qs.decrypt(keypair.secret_key(), &encrypted)?;
+    let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 
     assert_eq!(message, decrypted.as_slice());
     println!("✅ Encryption/Decryption successful!");
@@ -497,17 +510,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Example 2: Digital Signatures
 
 ```rust
-use quantumshield::QuantumShield;
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let qs = QuantumShield::new()?;
-    let keypair = qs.generate_keypair()?;
+    let config = CryptoConfig::new();
+    let (pk, sk) = generate_signing_keypair(&config)?;
 
     let document = b"Important document";
-    let signature = qs.sign(keypair.secret_key(), document)?;
+    let signed_data = sign_with_key(document, &sk, &pk, &config)?;
 
-    let verified = qs.verify(keypair.public_key(), document, &signature)?;
-    assert!(verified.into());
+    let is_valid = verify(&signed_data, &config)?;
+    assert!(is_valid);
 
     println!("✅ Signature verified!");
     Ok(())
@@ -517,18 +530,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Example 3: Hybrid Encryption
 
 ```rust
-use quantumshield::hybrid::*;
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Generate hybrid keypair
-    let keypair = HybridKeyPair::generate()?;
+    let (pk, sk) = generate_hybrid_keypair()?;
 
     // Encrypt
     let plaintext = b"Quantum-safe data";
-    let encrypted = hybrid_encrypt(keypair.public_key(), plaintext)?;
+    let encrypted = encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified)?;
 
     // Decrypt
-    let decrypted = hybrid_decrypt(keypair.secret_key(), &encrypted)?;
+    let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
 
     assert_eq!(plaintext, decrypted.as_slice());
     println!("✅ Hybrid encryption successful!");
@@ -540,21 +553,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Example 4: Zero-Trust Authentication
 
 ```rust
-use quantumshield::unified_api::{ZeroTrustAuth, generate_keypair};
+use latticearc::{generate_keypair, VerifiedSession, generate_signing_keypair,
+                 sign_with_key, verify, CryptoConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Generate keys
     let (public_key, private_key) = generate_keypair()?;
 
-    // Initialize zero-trust
-    let auth = ZeroTrustAuth::new(public_key, private_key)?;
+    // Establish verified session
+    let session = VerifiedSession::establish(&public_key, &private_key)?;
 
-    // Challenge-response
-    let challenge = auth.generate_challenge();
-    let proof = auth.generate_proof(&challenge)?;
-    let verified = auth.verify_proof(&proof, &challenge)?;
+    // Use session for crypto operations
+    let config = CryptoConfig::new().session(&session);
+    let (pk, sk) = generate_signing_keypair(&config)?;
+    let signed = sign_with_key(b"authenticated message", &sk, &pk, &config)?;
+    let is_valid = verify(&signed, &config)?;
 
-    assert!(verified.into());
+    assert!(is_valid);
     println!("✅ Zero-trust authentication successful!");
 
     Ok(())
@@ -636,12 +651,12 @@ let encrypted = encrypt(&keypair.public_key, data)?;
 
 ## Support
 
-- **Documentation**: https://docs.quantumshield.io
-- **GitHub Issues**: https://github.com/quantumshield/quantumshield/issues
-- **Security**: security@quantumshield.io
+- **Documentation**: https://docs.rs/latticearc
+- **GitHub Issues**: https://github.com/latticearc/latticearc/issues
+- **Security**: security@latticearc.com
 
 ---
 
-**Document Version**: 1.0.0
-**Last Updated**: January 13, 2026
-**Maintained By**: QuantumShield Documentation Team
+**Document Version**: 0.1.3
+**Last Updated**: February 7, 2026
+**Maintained By**: LatticeArc Documentation Team
