@@ -504,7 +504,7 @@ jobs:
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-crash-nightly-${{ matrix.fuzz-target }}
         path: fuzz/artifacts/${{ matrix.fuzz-target }}/
@@ -559,7 +559,7 @@ jobs:
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-crash-weekly-${{ matrix.fuzz-target }}
         path: fuzz/artifacts/${{ matrix.fuzz-target }}/
@@ -808,7 +808,7 @@ jobs:
       run: cargo test --workspace --target ${{ matrix.target }} --release --all-features
 
     - name: Package and upload artifacts
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: apache-${{ matrix.target }}
         path: |
@@ -873,7 +873,7 @@ jobs:
         echo "- **Telemetry**: Enabled (OpenTelemetry + Prometheus)" >> report.md
 
     - name: Upload pipeline report
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: pipeline-report
         path: report.md
