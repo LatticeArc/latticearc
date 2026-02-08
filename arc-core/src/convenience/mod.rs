@@ -56,8 +56,9 @@ pub use api::{decrypt, encrypt, sign, verify};
 // ============================================================================
 
 pub use hybrid::{
-    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
-    encrypt_hybrid_with_config,
+    HybridEncryptionResult, TrueHybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config,
+    decrypt_true_hybrid, encrypt_hybrid, encrypt_hybrid_with_config, encrypt_true_hybrid,
+    generate_true_hybrid_keypair,
 };
 
 // ============================================================================

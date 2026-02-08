@@ -30,6 +30,13 @@ use crate::{
 };
 use tracing::debug;
 
+use arc_hybrid::encrypt_hybrid::{
+    HybridCiphertext as ArcHybridCiphertext, decrypt_hybrid as arc_hybrid_decrypt,
+    encrypt_hybrid as arc_hybrid_encrypt,
+};
+use arc_hybrid::kem_hybrid::{
+    self as kem, HybridPublicKey as KemHybridPublicKey, HybridSecretKey as KemHybridSecretKey,
+};
 use arc_primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
 };
@@ -562,6 +569,102 @@ pub fn decrypt_hybrid_with_config_unverified(
         config,
         SecurityMode::Unverified,
     )
+}
+
+// ============================================================================
+// True Hybrid API (ML-KEM-768 + X25519 + HKDF + AES-256-GCM)
+// ============================================================================
+
+/// Result of true hybrid encryption (ML-KEM + X25519 + AES-256-GCM).
+#[derive(Debug)]
+pub struct TrueHybridEncryptionResult {
+    /// ML-KEM ciphertext (1088 bytes for ML-KEM-768).
+    pub kem_ciphertext: Vec<u8>,
+    /// X25519 ephemeral public key (32 bytes).
+    pub ecdh_ephemeral_pk: Vec<u8>,
+    /// AES-256-GCM encrypted data.
+    pub symmetric_ciphertext: Vec<u8>,
+    /// AES-GCM nonce (12 bytes).
+    pub nonce: Vec<u8>,
+    /// AES-GCM authentication tag (16 bytes).
+    pub tag: Vec<u8>,
+}
+
+/// Generate a true hybrid keypair (ML-KEM-768 + X25519).
+///
+/// # Errors
+///
+/// Returns an error if key generation fails.
+pub fn generate_true_hybrid_keypair() -> Result<(KemHybridPublicKey, KemHybridSecretKey)> {
+    let mut rng = rand::rngs::OsRng;
+    kem::generate_keypair(&mut rng).map_err(|e| {
+        CoreError::EncryptionFailed(format!("Hybrid keypair generation failed: {}", e))
+    })
+}
+
+/// Encrypt data using true hybrid encryption (ML-KEM-768 + X25519 + AES-256-GCM).
+///
+/// This uses real hybrid key encapsulation: the shared secret is derived from
+/// both ML-KEM (post-quantum) and X25519 (classical) via HKDF. Security holds
+/// if *either* algorithm remains secure.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The session has expired (when `mode` is `Verified`)
+/// - Hybrid KEM encapsulation fails
+/// - AES-GCM encryption fails
+pub fn encrypt_true_hybrid(
+    data: &[u8],
+    hybrid_pk: &KemHybridPublicKey,
+    mode: SecurityMode,
+) -> Result<TrueHybridEncryptionResult> {
+    mode.validate()?;
+
+    validate_encryption_size(data.len()).map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
+
+    let mut rng = rand::rngs::OsRng;
+    let ct = arc_hybrid_encrypt(&mut rng, hybrid_pk, data, None).map_err(|e| {
+        CoreError::EncryptionFailed(format!("True hybrid encryption failed: {}", e))
+    })?;
+
+    Ok(TrueHybridEncryptionResult {
+        kem_ciphertext: ct.kem_ciphertext,
+        ecdh_ephemeral_pk: ct.ecdh_ephemeral_pk,
+        symmetric_ciphertext: ct.symmetric_ciphertext,
+        nonce: ct.nonce,
+        tag: ct.tag,
+    })
+}
+
+/// Decrypt data using true hybrid encryption (ML-KEM-768 + X25519 + AES-256-GCM).
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The session has expired (when `mode` is `Verified`)
+/// - Hybrid KEM decapsulation fails
+/// - AES-GCM decryption or authentication fails
+pub fn decrypt_true_hybrid(
+    encrypted: &TrueHybridEncryptionResult,
+    hybrid_sk: &KemHybridSecretKey,
+    mode: SecurityMode,
+) -> Result<Vec<u8>> {
+    mode.validate()?;
+
+    validate_decryption_size(encrypted.symmetric_ciphertext.len())
+        .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
+
+    let ct = ArcHybridCiphertext {
+        kem_ciphertext: encrypted.kem_ciphertext.clone(),
+        ecdh_ephemeral_pk: encrypted.ecdh_ephemeral_pk.clone(),
+        symmetric_ciphertext: encrypted.symmetric_ciphertext.clone(),
+        nonce: encrypted.nonce.clone(),
+        tag: encrypted.tag.clone(),
+    };
+
+    arc_hybrid_decrypt(hybrid_sk, &ct, None)
+        .map_err(|e| CoreError::DecryptionFailed(format!("True hybrid decryption failed: {}", e)))
 }
 
 #[cfg(test)]
@@ -1169,6 +1272,66 @@ mod tests {
         let plaintext = decrypt_hybrid_unverified(&result.ciphertext, None, &[], &symmetric_key)?;
 
         assert_eq!(plaintext, message, "All-255 bytes should roundtrip");
+        Ok(())
+    }
+
+    // ============================================================================
+    // True Hybrid (ML-KEM-768 + X25519) Tests
+    // ============================================================================
+
+    #[test]
+    fn test_true_hybrid_roundtrip() -> Result<()> {
+        let (pk, sk) = generate_true_hybrid_keypair()?;
+
+        let message = b"True hybrid encryption roundtrip test";
+        let encrypted = encrypt_true_hybrid(message, &pk, SecurityMode::Unverified)?;
+
+        assert_eq!(encrypted.kem_ciphertext.len(), 1088);
+        assert_eq!(encrypted.ecdh_ephemeral_pk.len(), 32);
+        assert!(!encrypted.symmetric_ciphertext.is_empty());
+        assert_eq!(encrypted.nonce.len(), 12);
+        assert_eq!(encrypted.tag.len(), 16);
+
+        let decrypted = decrypt_true_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+        assert_eq!(decrypted, message);
+        Ok(())
+    }
+
+    #[test]
+    fn test_true_hybrid_large_message() -> Result<()> {
+        let (pk, sk) = generate_true_hybrid_keypair()?;
+
+        let message = vec![0xAB; 10_000];
+        let encrypted = encrypt_true_hybrid(&message, &pk, SecurityMode::Unverified)?;
+        let decrypted = decrypt_true_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+
+        assert_eq!(decrypted, message);
+        Ok(())
+    }
+
+    #[test]
+    fn test_true_hybrid_multiple_encryptions() -> Result<()> {
+        let (pk, sk) = generate_true_hybrid_keypair()?;
+
+        for i in 0..5 {
+            let message = format!("Message {}", i);
+            let encrypted = encrypt_true_hybrid(message.as_bytes(), &pk, SecurityMode::Unverified)?;
+            let decrypted = decrypt_true_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+            assert_eq!(decrypted, message.as_bytes());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_true_hybrid_non_deterministic() -> Result<()> {
+        let (pk, _sk) = generate_true_hybrid_keypair()?;
+
+        let message = b"Same message";
+        let enc1 = encrypt_true_hybrid(message, &pk, SecurityMode::Unverified)?;
+        let enc2 = encrypt_true_hybrid(message, &pk, SecurityMode::Unverified)?;
+
+        assert_ne!(enc1.kem_ciphertext, enc2.kem_ciphertext);
+        assert_ne!(enc1.ecdh_ephemeral_pk, enc2.ecdh_ephemeral_pk);
         Ok(())
     }
 }

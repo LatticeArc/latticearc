@@ -648,6 +648,85 @@ impl Default for MlKemConfig {
     }
 }
 
+/// ML-KEM keypair that holds the actual decapsulation key for real decapsulation.
+///
+/// This is the **correct** type for use in hybrid KEM and any scenario requiring
+/// both encapsulation and decapsulation. Unlike [`MlKemSecretKey`] (which holds
+/// placeholder bytes due to aws-lc-rs limitations), this type holds the real
+/// aws-lc-rs `DecapsulationKey` and can actually perform decapsulation.
+///
+/// # Key Persistence Limitation
+///
+/// aws-lc-rs does not support ML-KEM secret key serialization. This keypair
+/// is **in-memory only** — it cannot be stored to disk and restored later.
+/// For long-term key persistence, use an HSM or store the seed used for
+/// deterministic key generation.
+pub struct MlKemDecapsulationKeyPair {
+    /// The public key (serializable).
+    public_key: MlKemPublicKey,
+    /// The aws-lc-rs decapsulation key (not serializable).
+    decaps_key: DecapsulationKey,
+    /// Security level of this keypair.
+    security_level: MlKemSecurityLevel,
+}
+
+impl MlKemDecapsulationKeyPair {
+    /// Get the public key.
+    #[must_use]
+    pub fn public_key(&self) -> &MlKemPublicKey {
+        &self.public_key
+    }
+
+    /// Get the public key bytes for transmission.
+    #[must_use]
+    pub fn public_key_bytes(&self) -> &[u8] {
+        self.public_key.as_bytes()
+    }
+
+    /// Get the security level.
+    #[must_use]
+    pub fn security_level(&self) -> MlKemSecurityLevel {
+        self.security_level
+    }
+
+    /// Decapsulate a ciphertext to recover the shared secret.
+    ///
+    /// This performs **real** ML-KEM decapsulation using the aws-lc-rs
+    /// `DecapsulationKey`, unlike `MlKem::decapsulate()` which always errors.
+    ///
+    /// # Errors
+    /// Returns an error if decapsulation fails (e.g., invalid ciphertext).
+    pub fn decapsulate(
+        &self,
+        ciphertext: &MlKemCiphertext,
+    ) -> Result<MlKemSharedSecret, MlKemError> {
+        if ciphertext.security_level != self.security_level {
+            return Err(MlKemError::DecapsulationError(format!(
+                "Security level mismatch: keypair is {:?}, ciphertext is {:?}",
+                self.security_level, ciphertext.security_level
+            )));
+        }
+
+        let shared_secret = self
+            .decaps_key
+            .decapsulate(ciphertext.data.as_slice().into())
+            .map_err(|e| MlKemError::DecapsulationError(format!("Decapsulation failed: {}", e)))?;
+
+        let ss_bytes = shared_secret.as_ref();
+        MlKemSharedSecret::from_slice(ss_bytes)
+    }
+}
+
+impl std::fmt::Debug for MlKemDecapsulationKeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MlKemDecapsulationKeyPair")
+            .field("public_key", &self.public_key)
+            .field("security_level", &self.security_level)
+            .field("decaps_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
 /// ML-KEM Key Encapsulation Mechanism
 ///
 /// Implements FIPS 203 ML-KEM for all three security levels using aws-lc-rs
@@ -756,6 +835,39 @@ impl MlKem {
         let secret_key = MlKemSecretKey::new(config.security_level, sk_bytes)?;
 
         Ok((public_key, secret_key))
+    }
+
+    /// Generate an ML-KEM keypair that supports decapsulation.
+    ///
+    /// Unlike [`generate_keypair`](Self::generate_keypair), this returns an
+    /// [`MlKemDecapsulationKeyPair`] that holds the aws-lc-rs `DecapsulationKey`
+    /// directly, enabling actual decapsulation operations.
+    ///
+    /// This is the **correct** way to generate ML-KEM keys when you need to
+    /// both encapsulate and decapsulate (e.g., in hybrid KEM).
+    ///
+    /// # Errors
+    /// Returns an error if key generation or public key serialization fails.
+    pub fn generate_decapsulation_keypair(
+        security_level: MlKemSecurityLevel,
+    ) -> Result<MlKemDecapsulationKeyPair, MlKemError> {
+        let algorithm = security_level.as_aws_algorithm();
+
+        let decaps_key = DecapsulationKey::generate(algorithm).map_err(|e| {
+            MlKemError::KeyGenerationError(format!("aws-lc-rs key generation failed: {}", e))
+        })?;
+
+        let encaps_key = decaps_key.encapsulation_key().map_err(|e| {
+            MlKemError::KeyGenerationError(format!("Failed to derive encapsulation key: {}", e))
+        })?;
+
+        let pk_bytes = encaps_key.key_bytes().map_err(|e| {
+            MlKemError::KeyGenerationError(format!("Failed to serialize public key: {}", e))
+        })?;
+
+        let public_key = MlKemPublicKey::new(security_level, pk_bytes.as_ref().to_vec())?;
+
+        Ok(MlKemDecapsulationKeyPair { public_key, decaps_key, security_level })
     }
 
     /// Encapsulate a shared secret using the public key
@@ -1423,6 +1535,50 @@ mod tests {
 
         // Construction should fail first due to size mismatch
         assert!(oversized_ct.is_err(), "Oversized ciphertext should be rejected");
+        Ok(())
+    }
+
+    #[test]
+    fn test_decapsulation_keypair_roundtrip() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+
+        for level in [
+            MlKemSecurityLevel::MlKem512,
+            MlKemSecurityLevel::MlKem768,
+            MlKemSecurityLevel::MlKem1024,
+        ] {
+            let keypair = MlKem::generate_decapsulation_keypair(level)?;
+            assert_eq!(keypair.security_level(), level);
+            assert_eq!(keypair.public_key_bytes().len(), level.public_key_size());
+
+            // Encapsulate using the public key
+            let (ss_enc, ct) = MlKem::encapsulate(&mut rng, keypair.public_key())?;
+
+            // Decapsulate using the real decapsulation key
+            let ss_dec = keypair.decapsulate(&ct)?;
+
+            // Shared secrets must match
+            assert_eq!(
+                ss_enc.as_bytes(),
+                ss_dec.as_bytes(),
+                "Encapsulate/decapsulate roundtrip must produce matching shared secrets for {}",
+                level.name()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_decapsulation_keypair_security_level_mismatch() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+
+        let keypair_512 = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem512)?;
+        let (pk_768, _) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+        let (_, ct_768) = MlKem::encapsulate(&mut rng, &pk_768)?;
+
+        // Decapsulating a 768 ciphertext with a 512 keypair should fail
+        let result = keypair_512.decapsulate(&ct_768);
+        assert!(result.is_err());
         Ok(())
     }
 }

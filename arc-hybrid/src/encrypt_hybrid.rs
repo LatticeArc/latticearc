@@ -39,6 +39,7 @@
 //! let decrypted = decrypt(&ml_kem_sk, &ciphertext, Some(&context))?;
 //! ```
 
+use crate::kem_hybrid::{self, EncapsulatedKey, HybridPublicKey, HybridSecretKey};
 use arc_primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
 };
@@ -88,6 +89,8 @@ pub enum HybridEncryptionError {
 pub struct HybridCiphertext {
     /// ML-KEM ciphertext for key decapsulation (1088 bytes for ML-KEM-768).
     pub kem_ciphertext: Vec<u8>,
+    /// X25519 ephemeral public key for ECDH (32 bytes). Empty for legacy ML-KEM-only ciphertexts.
+    pub ecdh_ephemeral_pk: Vec<u8>,
     /// AES-256-GCM encrypted message data.
     pub symmetric_ciphertext: Vec<u8>,
     /// 12-byte nonce used for AES-GCM encryption.
@@ -133,8 +136,10 @@ pub fn derive_encryption_key(
     shared_secret: &[u8],
     context: &HybridEncryptionContext,
 ) -> Result<[u8; 32], HybridEncryptionError> {
-    if shared_secret.len() != 32 {
-        return Err(HybridEncryptionError::KdfError("Shared secret must be 32 bytes".to_string()));
+    if shared_secret.len() != 32 && shared_secret.len() != 64 {
+        return Err(HybridEncryptionError::KdfError(
+            "Shared secret must be 32 bytes (ML-KEM) or 64 bytes (hybrid)".to_string(),
+        ));
     }
 
     // Create info for domain separation
@@ -228,6 +233,7 @@ pub fn encrypt<R: rand::Rng + rand::CryptoRng>(
 
     Ok(HybridCiphertext {
         kem_ciphertext: kem_ct,
+        ecdh_ephemeral_pk: vec![], // Legacy ML-KEM-only path — no ECDH
         symmetric_ciphertext: ciphertext.to_vec(),
         nonce: nonce_bytes.to_vec(),
         tag: tag.to_vec(),
@@ -299,6 +305,144 @@ pub fn decrypt(
         ciphertext.symmetric_ciphertext.iter().chain(ciphertext.tag.iter()).copied().collect();
 
     // Decrypt in-place with AAD
+    let aad = Aad::from(&ctx.aad[..]);
+    let plaintext = aes_key.open_in_place(nonce, aad, &mut in_out).map_err(|_e| {
+        HybridEncryptionError::DecryptionError(
+            "AES-GCM decryption/authentication failed".to_string(),
+        )
+    })?;
+
+    Ok(plaintext.to_vec())
+}
+
+/// True hybrid encryption using ML-KEM-768 + X25519 + AES-256-GCM.
+///
+/// This function performs real hybrid key encapsulation (combining post-quantum
+/// ML-KEM with classical X25519 ECDH via HKDF) before AES-256-GCM encryption.
+/// Security holds if *either* ML-KEM or X25519 remains secure.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Hybrid KEM encapsulation fails
+/// - Key derivation fails
+/// - AES-GCM encryption fails
+pub fn encrypt_hybrid<R: rand::Rng + rand::CryptoRng>(
+    rng: &mut R,
+    hybrid_pk: &HybridPublicKey,
+    plaintext: &[u8],
+    context: Option<&HybridEncryptionContext>,
+) -> Result<HybridCiphertext, HybridEncryptionError> {
+    let default_ctx = HybridEncryptionContext::default();
+    let ctx = context.unwrap_or(&default_ctx);
+
+    // Hybrid KEM encapsulation (ML-KEM-768 + X25519 ECDH + HKDF)
+    let encapsulated = kem_hybrid::encapsulate(rng, hybrid_pk)
+        .map_err(|e| HybridEncryptionError::KemError(format!("{}", e)))?;
+
+    // Derive AES-256 encryption key from 64-byte hybrid shared secret
+    let encryption_key = derive_encryption_key(&encapsulated.shared_secret, ctx)?;
+
+    // Generate random nonce for AES-GCM
+    let mut nonce_bytes = [0u8; 12];
+    rng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+    // AES-256-GCM authenticated encryption
+    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|_e| {
+        HybridEncryptionError::EncryptionError("Failed to create AES key".to_string())
+    })?;
+    let aes_key = LessSafeKey::new(unbound_key);
+
+    let mut in_out = plaintext.to_vec();
+    let aad = Aad::from(&ctx.aad[..]);
+    aes_key.seal_in_place_append_tag(nonce, aad, &mut in_out).map_err(|_e| {
+        HybridEncryptionError::EncryptionError("AES-GCM encryption failed".to_string())
+    })?;
+
+    let tag_len = 16;
+    let ct_len = in_out.len();
+    let split_pos = ct_len.checked_sub(tag_len).ok_or_else(|| {
+        HybridEncryptionError::EncryptionError("Ciphertext length calculation overflow".to_string())
+    })?;
+    let (ciphertext, tag) = in_out.split_at(split_pos);
+
+    Ok(HybridCiphertext {
+        kem_ciphertext: encapsulated.ml_kem_ct.clone(),
+        ecdh_ephemeral_pk: encapsulated.ecdh_pk.clone(),
+        symmetric_ciphertext: ciphertext.to_vec(),
+        nonce: nonce_bytes.to_vec(),
+        tag: tag.to_vec(),
+    })
+}
+
+/// True hybrid decryption using ML-KEM-768 + X25519 + AES-256-GCM.
+///
+/// This function performs real hybrid key decapsulation (ML-KEM decapsulation +
+/// X25519 ECDH agreement, combined via HKDF) before AES-256-GCM decryption.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The ciphertext components have invalid lengths
+/// - Hybrid KEM decapsulation fails
+/// - Key derivation fails
+/// - AES-GCM decryption or authentication fails
+pub fn decrypt_hybrid(
+    hybrid_sk: &HybridSecretKey,
+    ciphertext: &HybridCiphertext,
+    context: Option<&HybridEncryptionContext>,
+) -> Result<Vec<u8>, HybridEncryptionError> {
+    let default_ctx = HybridEncryptionContext::default();
+    let ctx = context.unwrap_or(&default_ctx);
+
+    // Validate ciphertext structure
+    if ciphertext.kem_ciphertext.len() != 1088 {
+        return Err(HybridEncryptionError::InvalidInput(
+            "ML-KEM-768 ciphertext must be 1088 bytes".to_string(),
+        ));
+    }
+    if ciphertext.ecdh_ephemeral_pk.len() != 32 {
+        return Err(HybridEncryptionError::InvalidInput(
+            "X25519 ephemeral public key must be 32 bytes".to_string(),
+        ));
+    }
+    if ciphertext.nonce.len() != 12 {
+        return Err(HybridEncryptionError::InvalidInput("Nonce must be 12 bytes".to_string()));
+    }
+    if ciphertext.tag.len() != 16 {
+        return Err(HybridEncryptionError::InvalidInput("Tag must be 16 bytes".to_string()));
+    }
+
+    // Reconstruct EncapsulatedKey for kem_hybrid::decapsulate
+    let encapsulated = EncapsulatedKey {
+        ml_kem_ct: ciphertext.kem_ciphertext.clone(),
+        ecdh_pk: ciphertext.ecdh_ephemeral_pk.clone(),
+        shared_secret: zeroize::Zeroizing::new(vec![]), // placeholder — decapsulate recovers this
+    };
+
+    // Hybrid KEM decapsulation (ML-KEM + X25519 ECDH + HKDF)
+    let shared_secret = kem_hybrid::decapsulate(hybrid_sk, &encapsulated)
+        .map_err(|e| HybridEncryptionError::DecryptionError(format!("{}", e)))?;
+
+    // Derive AES-256 encryption key from 64-byte hybrid shared secret
+    let encryption_key = derive_encryption_key(&shared_secret, ctx)?;
+
+    // AES-256-GCM authenticated decryption
+    let nonce_bytes: [u8; 12] =
+        ciphertext.nonce.as_slice().try_into().map_err(|_e| {
+            HybridEncryptionError::DecryptionError("Invalid nonce length".to_string())
+        })?;
+    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|_e| {
+        HybridEncryptionError::DecryptionError("Failed to create AES key".to_string())
+    })?;
+    let aes_key = LessSafeKey::new(unbound_key);
+
+    let mut in_out: Vec<u8> =
+        ciphertext.symmetric_ciphertext.iter().chain(ciphertext.tag.iter()).copied().collect();
+
     let aad = Aad::from(&ctx.aad[..]);
     let plaintext = aes_key.open_in_place(nonce, aad, &mut in_out).map_err(|_e| {
         HybridEncryptionError::DecryptionError(
@@ -387,6 +531,7 @@ mod tests {
         let invalid_sk = vec![1u8; 1000]; // Wrong length
         let ct = HybridCiphertext {
             kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![],
             symmetric_ciphertext: vec![2u8; 100],
             nonce: vec![3u8; 12],
             tag: vec![4u8; 16],
@@ -402,6 +547,7 @@ mod tests {
         // Test invalid nonce length
         let invalid_nonce_ct = HybridCiphertext {
             kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![],
             symmetric_ciphertext: vec![2u8; 100],
             nonce: vec![3u8; 11], // Invalid length
             tag: vec![4u8; 16],
@@ -412,6 +558,7 @@ mod tests {
         // Test invalid tag length
         let invalid_tag_ct = HybridCiphertext {
             kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![],
             symmetric_ciphertext: vec![2u8; 100],
             nonce: vec![3u8; 12],
             tag: vec![4u8; 15], // Invalid length
@@ -422,6 +569,7 @@ mod tests {
         // Test invalid KEM ciphertext length
         let invalid_kem_ct = HybridCiphertext {
             kem_ciphertext: vec![1u8; 1000], // Invalid length
+            ecdh_ephemeral_pk: vec![],
             symmetric_ciphertext: vec![2u8; 100],
             nonce: vec![3u8; 12],
             tag: vec![4u8; 16],
@@ -452,5 +600,85 @@ mod tests {
         let invalid_secret = vec![1u8; 31]; // Wrong length
         let result = derive_encryption_key(&invalid_secret, &context1);
         assert!(result.is_err(), "Should reject invalid shared secret length");
+
+        // Test 64-byte hybrid shared secret is accepted
+        let hybrid_secret = vec![1u8; 64];
+        let result = derive_encryption_key(&hybrid_secret, &context1);
+        assert!(result.is_ok(), "Should accept 64-byte hybrid shared secret");
+    }
+
+    #[test]
+    fn test_true_hybrid_encryption_roundtrip() {
+        let mut rng = rand::thread_rng();
+
+        // Generate hybrid keypair (ML-KEM-768 + X25519)
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let plaintext = b"Hello, true hybrid encryption!";
+        let context = HybridEncryptionContext::default();
+
+        // Encrypt with true hybrid (ML-KEM + X25519 + HKDF + AES-GCM)
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, Some(&context)).unwrap();
+
+        assert_eq!(ct.kem_ciphertext.len(), 1088, "ML-KEM-768 ciphertext should be 1088 bytes");
+        assert_eq!(ct.ecdh_ephemeral_pk.len(), 32, "X25519 ephemeral PK should be 32 bytes");
+        assert!(!ct.symmetric_ciphertext.is_empty(), "Symmetric ciphertext should not be empty");
+        assert_eq!(ct.nonce.len(), 12, "Nonce should be 12 bytes");
+        assert_eq!(ct.tag.len(), 16, "Tag should be 16 bytes");
+
+        // Decrypt with true hybrid
+        let decrypted = decrypt_hybrid(&hybrid_sk, &ct, Some(&context)).unwrap();
+        assert_eq!(decrypted, plaintext, "Decrypted text should match original");
+    }
+
+    #[test]
+    fn test_true_hybrid_encryption_with_aad() {
+        let mut rng = rand::thread_rng();
+
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let plaintext = b"Secret message with AAD";
+        let aad = b"Additional authenticated data";
+        let context = HybridEncryptionContext {
+            info: b"LatticeArc-Hybrid-Encryption-v1".to_vec(),
+            aad: aad.to_vec(),
+        };
+
+        // Encrypt with AAD
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, Some(&context)).unwrap();
+
+        // Decrypt with correct AAD
+        let decrypted = decrypt_hybrid(&hybrid_sk, &ct, Some(&context)).unwrap();
+        assert_eq!(decrypted, plaintext, "Decryption with correct AAD should succeed");
+
+        // Decrypt with wrong AAD should fail
+        let wrong_context = HybridEncryptionContext {
+            info: b"LatticeArc-Hybrid-Encryption-v1".to_vec(),
+            aad: b"Wrong AAD".to_vec(),
+        };
+        let result = decrypt_hybrid(&hybrid_sk, &ct, Some(&wrong_context));
+        assert!(result.is_err(), "Decryption with wrong AAD should fail");
+    }
+
+    #[test]
+    fn test_true_hybrid_encryption_different_ciphertexts() {
+        let mut rng = rand::thread_rng();
+
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let plaintext = b"Same plaintext, different ciphertexts";
+
+        let ct1 = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, None).unwrap();
+        let ct2 = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, None).unwrap();
+
+        // Ciphertexts should differ (randomized encapsulation + nonce)
+        assert_ne!(ct1.kem_ciphertext, ct2.kem_ciphertext);
+        assert_ne!(ct1.ecdh_ephemeral_pk, ct2.ecdh_ephemeral_pk);
+
+        // Both should decrypt correctly
+        let dec1 = decrypt_hybrid(&hybrid_sk, &ct1, None).unwrap();
+        let dec2 = decrypt_hybrid(&hybrid_sk, &ct2, None).unwrap();
+        assert_eq!(dec1, plaintext);
+        assert_eq!(dec2, plaintext);
     }
 }

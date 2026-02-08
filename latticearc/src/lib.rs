@@ -233,8 +233,9 @@ pub use arc_core::{decrypt, encrypt, sign, verify};
 
 // Hybrid encryption
 pub use arc_core::{
-    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
-    encrypt_hybrid_with_config,
+    HybridEncryptionResult, TrueHybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config,
+    decrypt_true_hybrid, encrypt_hybrid, encrypt_hybrid_with_config, encrypt_true_hybrid,
+    generate_true_hybrid_keypair,
 };
 
 // Key generation (no SecurityMode needed - creates credentials)
@@ -319,10 +320,9 @@ pub use arc_core::{
 };
 
 // ============================================================================
-// Hardware Accelerators
+// Hardware Types (trait definitions only — real detection in enterprise)
+// Re-exported from arc_core::traits above (lines 187-191)
 // ============================================================================
-
-pub use arc_core::{FpgaAccelerator, GpuAccelerator, SgxAccelerator};
 
 // ============================================================================
 // Serialization Utilities

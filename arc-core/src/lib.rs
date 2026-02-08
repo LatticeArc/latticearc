@@ -2,13 +2,13 @@
 //!
 //! Core cryptographic library for the LatticeArc post-quantum cryptography platform.
 //! Provides unified APIs for encryption, decryption, signing, verification, and
-//! hardware-aware scheme selection.
+//! use case-based scheme selection.
 //!
 //! ## Key Features
 //!
 //! - **Post-Quantum Cryptography**: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205)
 //! - **Hybrid Schemes**: Combined PQC + classical for defense in depth
-//! - **Hardware Acceleration**: Automatic detection and routing to optimal hardware
+//! - **Hardware Traits**: Type definitions for hardware-aware operations (detection in enterprise)
 //! - **Zero-Trust Authentication**: Challenge-response with continuous verification
 //! - **FIPS 140-3 Compliance**: Power-up self-tests and validated implementations
 //! - **Unified API**: Single API with `SecurityMode` parameter for verified/unverified operations
@@ -189,7 +189,7 @@ pub mod config;
 pub mod convenience;
 /// Error types and result aliases.
 pub mod error;
-/// Hardware detection and acceleration routing.
+/// Hardware type re-exports (trait definitions only — detection in enterprise).
 pub mod hardware;
 /// Key lifecycle management per NIST SP 800-57.
 pub mod key_lifecycle;
@@ -219,7 +219,7 @@ pub use config::{
     ZeroTrustConfig,
 };
 pub use error::{CoreError, Result};
-pub use hardware::{CpuAccelerator, HardwareRouter};
+// Hardware types are re-exported from traits below (hardware module is re-exports only)
 pub use key_lifecycle::{
     CustodianRole, KeyCustodian, KeyLifecycleRecord, KeyLifecycleState, KeyStateMachine,
     StateTransition,
@@ -277,8 +277,9 @@ pub use convenience::{decrypt, encrypt, sign, verify};
 // ============================================================================
 
 pub use convenience::{
-    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
-    encrypt_hybrid_with_config,
+    HybridEncryptionResult, TrueHybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config,
+    decrypt_true_hybrid, encrypt_hybrid, encrypt_hybrid_with_config, encrypt_true_hybrid,
+    generate_true_hybrid_keypair,
 };
 
 // ============================================================================
@@ -378,7 +379,7 @@ pub use convenience::{
     verify_pq_slh_dsa_with_config_unverified,
 };
 
-pub use hardware::{FpgaAccelerator, GpuAccelerator, SgxAccelerator};
+// HardwareAware is re-exported from traits below
 
 /// Library version from Cargo.toml.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -416,8 +417,8 @@ pub fn init() -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if:
-/// - The provided configuration fails validation (e.g., maximum security without
-///   hardware acceleration, or speed preference without fallback enabled)
+/// - The provided configuration fails validation (e.g., conflicting security
+///   and performance preferences)
 /// - Any FIPS 140-3 power-up self-test fails (SHA-3 KAT, AES-GCM, or keypair generation)
 pub fn init_with_config(config: &CoreConfig) -> Result<()> {
     config.validate()?;
