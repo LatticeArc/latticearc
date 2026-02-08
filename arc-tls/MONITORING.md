@@ -215,7 +215,7 @@ use arc_tls::monitoring::*;
 let elk_config = ElkConfig {
     enabled: true,
     elasticsearch_url: "http://localhost:9200".to_string(),
-    index_prefix: "latticearc-tls".to_string(),
+    index_prefix: "arc-tls".to_string(),
     kibana_url: Some("http://localhost:5601".to_string()),
     ..Default::default()
 };
@@ -271,7 +271,7 @@ let config = ExporterConfig {
 let config = ElkConfig {
     enabled: true,
     elasticsearch_url: "http://localhost:9200".to_string(),
-    index_prefix: "latticearc-tls".to_string(),
+    index_prefix: "arc-tls".to_string(),
     logstash_url: Some("http://localhost:5044".to_string()),
     kibana_url: Some("http://localhost:5601".to_string()),
     username: Some("elastic".to_string()),
@@ -355,7 +355,7 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'latticearc-tls'
+  - job_name: 'arc-tls'
     static_configs:
       - targets: ['localhost:9090']
 ```
