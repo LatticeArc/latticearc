@@ -76,9 +76,9 @@ let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 let config = CryptoConfig::new();
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(b"document", &sk, &pk, &config)?;
-let is_valid = verify(&signed, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(b"document", &sk, &pk, config.clone())?;
+let is_valid = verify(&signed, config)?;
 ```
 
 ## Algorithm Selection

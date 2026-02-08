@@ -21,37 +21,38 @@ let session = VerifiedSession::establish(&public_key, &private_key)?;
 
 // Simple encryption (auto-selects hybrid PQ scheme)
 let key = [0u8; 32];
-let encrypted = encrypt(&session, b"secret message", &key)?;
-let decrypted = decrypt(&session, &encrypted, &key)?;
+let config = CryptoConfig::new().session(&session);
+let encrypted = encrypt(b"secret message", &key, config.clone())?;
+let decrypted = decrypt(&encrypted, &key, config.clone())?;
 
 // Simple signing (auto-selects hybrid signature scheme)
-let config = CryptoConfig::new().session(&session);
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(b"document", &sk, &pk, &config)?;
-let is_valid = verify(&signed, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(b"document", &sk, &pk, config.clone())?;
+let is_valid = verify(&signed, config)?;
 ```
 
 ## Zero Trust Enforcement
 
-All cryptographic operations require a `VerifiedSession` to enforce Zero Trust at the API level.
+All cryptographic operations support optional `VerifiedSession` for Zero Trust enforcement.
 
-### Verified API (Default)
+### With Session Verification (Recommended)
 
 ```rust
-use arc_core::{VerifiedSession, encrypt};
+use arc_core::{VerifiedSession, encrypt, CryptoConfig};
 
 let session = VerifiedSession::establish(&public_key, &private_key)?;
-let encrypted = encrypt(&session, data, &key)?;
+let config = CryptoConfig::new().session(&session);
+let encrypted = encrypt(data, &key, config)?;
 ```
 
-### Unverified API (Opt-Out)
+### Without Session (Opt-Out)
 
-`_unverified` variants for scenarios without session management:
+Pass a default `CryptoConfig` without a session:
 
 ```rust
-use arc_core::encrypt_unverified;
+use arc_core::{encrypt, CryptoConfig};
 
-let encrypted = encrypt_unverified(data, &key)?;
+let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 ```
 
 ### Trust Levels
@@ -163,7 +164,7 @@ let pq_sig = CryptoPolicyEngine::select_pq_signature_scheme(&config)?;
 // -> "pq-ml-dsa-65"
 
 // Force specific scheme type
-let forced = CryptoPolicyEngine::force_scheme(CryptoScheme::HybridKem);
+let forced = CryptoPolicyEngine::force_scheme(&CryptoScheme::Hybrid);
 ```
 
 ### Security Level Mappings

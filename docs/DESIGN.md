@@ -433,7 +433,7 @@ Post-quantum TLS 1.3 with rustls:
 
 Common types and error handling:
 
-- `CryptoError` hierarchy
+- `LatticeArcError` hierarchy
 - Common traits
 - Memory safety utilities
 
@@ -510,7 +510,7 @@ DEFAULT_SIGNATURE_SCHEME  = "hybrid-ml-dsa-65-ed25519"
 ```mermaid
 graph TD
     subgraph "arc-prelude"
-        CE[CryptoError]
+        CE[LatticeArcError]
     end
 
     subgraph "Error Variants"

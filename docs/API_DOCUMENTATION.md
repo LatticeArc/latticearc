@@ -46,11 +46,7 @@ Audited Crates (fips203, fips204, fips205, etc.)
 
 ## Core API
 
-### QuantumShield Struct
-
-The main entry point for QuantumShield cryptographic operations.
-
-#### Initialization
+### Configuration
 
 ```rust
 use latticearc::{CryptoConfig, SecurityLevel};
@@ -63,57 +59,34 @@ let config = CryptoConfig::new()
     .security_level(SecurityLevel::High);
 ```
 
-#### Key Generation
+### Encryption
 
 ```rust
-// Generate keypair
-let keypair = qs.generate_keypair()?;
+use latticearc::{encrypt, decrypt, CryptoConfig};
 
-// Key generation with specific use case
-let config = CryptoConfig::new()
-    .use_case(UseCase::SecureMessaging);
-
-// Get public/private keys
-let public_key = keypair.public_key();
-let private_key = keypair.secret_key();
-```
-
-#### Encryption
-
-```rust
-// Encrypt with public key
+let key = [0u8; 32];  // 256-bit key for AES-256-GCM
 let plaintext = b"Secret message";
-let encrypted = qs.encrypt(public_key, plaintext)?;
 
-// Encrypt with associated data
-let encrypted = encrypt_with_aad(plaintext, &key, b"metadata", &config)?;
-```
-
-#### Decryption
-
-```rust
-// Decrypt with private key
-let decrypted = qs.decrypt(private_key, &encrypted)?;
-
-// Verify decryption
+let encrypted = encrypt(plaintext, &key, CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 assert_eq!(plaintext, decrypted.as_slice());
 ```
 
-#### Signatures
+### Signatures
 
 ```rust
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
-// Generate signing keypair
+// Generate signing keypair (returns public key, secret key, and scheme name)
 let config = CryptoConfig::new();
-let (public_key, secret_key) = generate_signing_keypair(&config)?;
+let (public_key, secret_key, _scheme) = generate_signing_keypair(config.clone())?;
 
 // Sign message
 let message = b"Important document";
-let signed_data = sign_with_key(message, &secret_key, &public_key, &config)?;
+let signed_data = sign_with_key(message, &secret_key, &public_key, config.clone())?;
 
 // Verify signature
-let is_valid = verify(&signed_data, &config)?;
+let is_valid = verify(&signed_data, config)?;
 assert!(is_valid);
 ```
 
@@ -149,30 +122,22 @@ The Unified API provides simple functions for common operations.
 #### Encryption
 
 ```rust
-use latticearc::*;
+use latticearc::{encrypt, decrypt, CryptoConfig, UseCase, SecurityLevel};
 
-// Simple encryption
-let encrypted = encrypt(sensitive_data)?;
+// Simple encryption with default config
+let key = [0u8; 32];
+let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 
-// Encryption with scheme selection
-let encrypted = encrypt_with_scheme(
-    data,
-    CryptoScheme::HybridPq
-)?;
+// Encryption with use case selection
+let encrypted = encrypt(data, &key, CryptoConfig::new()
+    .use_case(UseCase::FileStorage))?;
 
-// Encryption with configuration
-let config = CryptoConfig::new().with_security_level(SecurityLevel::High);
-let encrypted = encrypt_with_config(data, &config)?;
-```
+// Encryption with security level
+let encrypted = encrypt(data, &key, CryptoConfig::new()
+    .security_level(SecurityLevel::Maximum))?;
 
-#### Decryption
-
-```rust
-// Simple decryption
-let decrypted = decrypt(&encrypted)?;
-
-// Verify decryption
-assert_eq!(data, decrypted.as_slice());
+// Decryption
+let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 ```
 
 #### Signatures
@@ -182,24 +147,21 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 // Generate keys and sign data
 let config = CryptoConfig::new();
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed_data = sign_with_key(data, &sk, &pk, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed_data = sign_with_key(data, &sk, &pk, config.clone())?;
 
 // Verify signature
-let is_valid = verify(&signed_data, &config)?;
+let is_valid = verify(&signed_data, config)?;
 assert!(is_valid);
 ```
 
 #### Key Generation
 
 ```rust
-// Generate keypair
-let (public_key, private_key) = generate_keypair()?;
+use latticearc::generate_keypair;
 
-// Generate with specific scheme
-let (public_key, private_key) = generate_keypair_with_scheme(
-    CryptoScheme::HybridPq
-)?;
+// Generate Ed25519 keypair
+let (public_key, private_key) = generate_keypair()?;
 ```
 
 ### Zero-Trust Authentication
@@ -354,14 +316,14 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig, 
 
 // Generate hybrid signature keypair (ML-DSA + Ed25519)
 let config = CryptoConfig::new().security_level(SecurityLevel::High);
-let (pk, sk) = generate_signing_keypair(&config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 
 // Sign
 let message = b"Important data";
-let signed_data = sign_with_key(message, &sk, &pk, &config)?;
+let signed_data = sign_with_key(message, &sk, &pk, config.clone())?;
 
 // Verify
-let is_valid = verify(&signed_data, &config)?;
+let is_valid = verify(&signed_data, config)?;
 ```
 
 #### Direct Hybrid Signature API
@@ -392,16 +354,16 @@ use latticearc::CoreError;
 
 match operation() {
     Ok(result) => println!("Success: {:?}", result),
-    Err(CryptoError::InvalidKeyLength { expected, actual }) => {
+    Err(CoreError::InvalidKeyLength { expected, actual }) => {
         eprintln!("Invalid key length: expected {}, got {}", expected, actual);
     }
-    Err(CryptoError::EncryptionFailed(msg)) => {
+    Err(CoreError::EncryptionFailed(msg)) => {
         eprintln!("Encryption failed: {}", msg);
     }
-    Err(CryptoError::DecryptionFailed(msg)) => {
+    Err(CoreError::DecryptionFailed(msg)) => {
         eprintln!("Decryption failed: {}", msg);
     }
-    Err(CryptoError::VerificationFailed) => {
+    Err(CoreError::VerificationFailed) => {
         eprintln!("Signature verification failed");
     }
     Err(e) => {
@@ -430,10 +392,10 @@ match operation() {
 
 ```rust
 pub enum SecurityLevel {
-    Low,      // 128-bit security
-    Medium,   // 192-bit security
-    High,     // 256-bit security (default)
-    Maximum,  // 512-bit security (maximum security)
+    Standard, // NIST Level 1 (128-bit equivalent), hybrid mode
+    High,     // NIST Level 3 (192-bit equivalent), hybrid mode (default)
+    Maximum,  // NIST Level 5 (256-bit equivalent), hybrid mode
+    Quantum,  // NIST Level 5, PQ-only (no classical fallback)
 }
 ```
 
@@ -441,28 +403,11 @@ pub enum SecurityLevel {
 
 ```rust
 pub enum CryptoScheme {
-    // Post-quantum schemes
-    MlKem1024,
-    MlKem768,
-    MlKem512,
-    MlDsa65,
-    MlDsa44,
-    SlhDsaSha2128,
-    SlhDsaShake128,
-
-    // Classical schemes
-    Aes256Gcm,
-    ChaCha20Poly1305,
-    EcdsaP256,
-    EcdhP256,
-
-    // Hybrid schemes
-    HybridPq,          // Post-quantum + Classical
-    HybridDsa,         // Hybrid signatures
-
-    // Advanced schemes
-    Homomorphic(HomomorphicScheme),
-    Threshold(ThresholdScheme),
+    Hybrid,       // PQC + classical for defense in depth
+    Symmetric,    // Symmetric encryption (e.g., AES-GCM)
+    Asymmetric,   // Classical asymmetric (e.g., Ed25519)
+    Homomorphic,  // Homomorphic encryption schemes
+    PostQuantum,  // Pure post-quantum without classical fallback
 }
 ```
 
@@ -471,13 +416,29 @@ pub enum CryptoScheme {
 ```rust
 pub enum UseCase {
     SecureMessaging,
+    EmailEncryption,
+    VpnTunnel,
+    ApiSecurity,
+    FileStorage,
     DatabaseEncryption,
-    FileEncryption,
-    SecureCommunication,
-    DataAtRest,
-    DataInTransit,
+    CloudStorage,
+    BackupArchive,
+    ConfigSecrets,
+    Authentication,
+    SessionToken,
+    DigitalCertificate,
+    KeyExchange,
     FinancialTransactions,
+    LegalDocuments,
+    BlockchainTransaction,
     HealthcareRecords,
+    GovernmentClassified,
+    PaymentCard,
+    IoTDevice,
+    FirmwareSigning,
+    SearchableEncryption,
+    HomomorphicComputation,
+    AuditLog,
 }
 ```
 
@@ -514,12 +475,12 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = CryptoConfig::new();
-    let (pk, sk) = generate_signing_keypair(&config)?;
+    let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 
     let document = b"Important document";
-    let signed_data = sign_with_key(document, &sk, &pk, &config)?;
+    let signed_data = sign_with_key(document, &sk, &pk, config.clone())?;
 
-    let is_valid = verify(&signed_data, &config)?;
+    let is_valid = verify(&signed_data, config)?;
     assert!(is_valid);
 
     println!("✅ Signature verified!");
@@ -565,9 +526,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Use session for crypto operations
     let config = CryptoConfig::new().session(&session);
-    let (pk, sk) = generate_signing_keypair(&config)?;
-    let signed = sign_with_key(b"authenticated message", &sk, &pk, &config)?;
-    let is_valid = verify(&signed, &config)?;
+    let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+    let signed = sign_with_key(b"authenticated message", &sk, &pk, config.clone())?;
+    let is_valid = verify(&signed, config)?;
 
     assert!(is_valid);
     println!("✅ Zero-trust authentication successful!");
@@ -594,10 +555,12 @@ int encrypted_len = RSA_public_encrypt(
 );
 ```
 
-**After (QuantumShield):**
+**After (LatticeArc):**
 ```rust
-let keypair = QuantumShield::new()?.generate_keypair()?;
-let encrypted = encrypt(&keypair.public_key, data)?;
+use latticearc::{encrypt, CryptoConfig};
+
+let key = [0u8; 32];
+let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 ```
 
 ### From Sodium
@@ -613,10 +576,12 @@ crypto_box_easy(encrypted, msg, msg_len,
                 nonce, public_key, secret_key);
 ```
 
-**After (QuantumShield):**
+**After (LatticeArc):**
 ```rust
-let (public_key, private_key) = generate_keypair()?;
-let encrypted = encrypt_with_keypair(public_key, private_key, data)?;
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, SecurityMode};
+
+let (pk, sk) = generate_hybrid_keypair()?;
+let encrypted = encrypt_hybrid(data, &pk, SecurityMode::Unverified)?;
 ```
 
 ### From Bouncy Castle
@@ -632,10 +597,12 @@ cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 byte[] encrypted = cipher.doFinal(plaintext);
 ```
 
-**After (QuantumShield):**
+**After (LatticeArc):**
 ```rust
-let keypair = QuantumShield::new()?.generate_keypair()?;
-let encrypted = encrypt(&keypair.public_key, data)?;
+use latticearc::{encrypt, CryptoConfig};
+
+let key = [0u8; 32];
+let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 ```
 
 ---

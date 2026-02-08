@@ -110,11 +110,11 @@ let message = b"Document to sign";
 
 // Generate signing keypair and sign with defaults (ML-DSA-65 + Ed25519 hybrid)
 let config = CryptoConfig::new();
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(message, &sk, &pk, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 
 // Verify
-let is_valid = verify(&signed, &config)?;
+let is_valid = verify(&signed, config)?;
 ```
 
 ### Encryption
@@ -210,9 +210,9 @@ let (public_key, private_key) = generate_keypair()?;
 let session = VerifiedSession::establish(&public_key, &private_key)?;
 
 let config = CryptoConfig::new().session(&session);
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(message, &sk, &pk, &config)?;
-let is_valid = verify(&signed, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(message, &sk, &pk, config.clone())?;
+let is_valid = verify(&signed, config)?;
 ```
 
 ## CryptoConfig
@@ -486,13 +486,13 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 // Generate signing keypair
 let config = CryptoConfig::new();
-let (pk, sk) = generate_signing_keypair(&config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 
 // Sign with generated keys
-let signed = sign_with_key(message, &sk, &pk, &config)?;
+let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 
 // Verify (uses public key from SignedData)
-let is_valid = verify(&signed, &config)?;
+let is_valid = verify(&signed, config)?;
 ```
 
 ### Encryption
@@ -536,9 +536,9 @@ let mac = hmac(data, &key, SecurityMode::default())?;
 use latticearc::{generate_signing_keypair, sign_with_key, CoreError, CryptoConfig};
 
 let config = CryptoConfig::new().session(&session);
-let (pk, sk) = generate_signing_keypair(&config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 
-match sign_with_key(message, &sk, &pk, &config) {
+match sign_with_key(message, &sk, &pk, config) {
     Ok(signed) => { /* success */ }
     Err(CoreError::SessionExpired) => {
         // Re-authenticate
@@ -571,9 +571,9 @@ let ed_sig = ed_sk.sign(message);
 
 ```rust
 let config = CryptoConfig::new();
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(message, &sk, &pk, &config)?;
-let is_valid = verify(&signed, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(message, &sk, &pk, config.clone())?;
+let is_valid = verify(&signed, config)?;
 ```
 
 | Aspect | Manual | LatticeArc |

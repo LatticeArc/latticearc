@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **API Refactoring**: Removed broken `sign()` function, replaced with `generate_signing_keypair()` + `sign_with_key()`
   - Old `sign(message, config)` generated new keypair on every call (broken behavior)
-  - New pattern: `generate_signing_keypair(&config)` → `sign_with_key(message, &sk, &pk, &config)` → `verify(&signed, &config)`
+  - New pattern: `generate_signing_keypair(config)` → `sign_with_key(message, &sk, &pk, config)` → `verify(&signed, config)`
   - Keypairs are now reusable across multiple signing operations
 - **Hybrid Encryption API Renamed**: Simplified naming for hybrid functions
   - `encrypt_true_hybrid()` → `encrypt_hybrid()`

@@ -59,13 +59,13 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 // Generate signing keypair (defaults: ML-DSA-65 + Ed25519)
 let config = CryptoConfig::new();
-let (pk, sk) = generate_signing_keypair(&config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 
 // Sign
-let signed = sign_with_key(b"important document", &sk, &pk, &config)?;
+let signed = sign_with_key(b"important document", &sk, &pk, config.clone())?;
 
 // Verify
-let is_valid = verify(&signed, &config)?;
+let is_valid = verify(&signed, config)?;
 ```
 
 ### Encryption
@@ -85,8 +85,8 @@ use latticearc::{generate_signing_keypair, sign_with_key, CryptoConfig, UseCase}
 
 // Library auto-selects optimal algorithm
 let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(b"financial data", &sk, &pk, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(b"financial data", &sk, &pk, config)?;
 ```
 
 ### With Security Level
@@ -96,8 +96,8 @@ use latticearc::{generate_signing_keypair, sign_with_key, CryptoConfig, Security
 
 // Maximum security (ML-DSA-87 + Ed25519)
 let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(b"classified", &sk, &pk, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(b"classified", &sk, &pk, config)?;
 ```
 
 ### Key Generation
@@ -152,9 +152,9 @@ let session = VerifiedSession::establish(&public_key, &private_key)?;
 
 // Operations with session verification
 let config = CryptoConfig::new().session(&session);
-let (pk, sk) = generate_signing_keypair(&config)?;
-let signed = sign_with_key(b"authenticated message", &sk, &pk, &config)?;
-let is_valid = verify(&signed, &config)?;
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(b"authenticated message", &sk, &pk, config.clone())?;
+let is_valid = verify(&signed, config)?;
 ```
 
 ### Post-Quantum TLS
