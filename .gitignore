@@ -50,3 +50,7 @@ Desktop.ini
 
 # Generated SBOM files (regenerate in CI, avoid local paths)
 **/sbom*.json
+
+# Claude Code metadata
+.claude/
+**/CLAUDE.md
