@@ -13,8 +13,8 @@ LatticeArc is available in two editions:
 | Post-quantum TLS 1.3 | ✅ | ✅ |
 | Scheme selection by use case | ✅ | ✅ |
 | Zero-trust authentication framework | ✅ | ✅ |
-| Hardware capability detection | ✅ | ✅ |
-| **Adaptive hardware routing** | ❌ | ✅ |
+| Hardware type definitions (traits only) | ✅ | ✅ |
+| **Hardware detection & adaptive routing** | ❌ | ✅ |
 | **ML-based attack detection** | ❌ | ✅ |
 | **Self-healing security (auto key rotation)** | ❌ | ✅ |
 | **Continuous trust verification** | ❌ | ✅ |
@@ -128,7 +128,7 @@ graph LR
 | **Level 1: Simple** | `encrypt()`, `decrypt()`, `sign()`, `verify()` | Same + session-aware variants |
 | **Level 2: Use Case** | `recommend_scheme()` by security level/use case | Same |
 | **Level 3: Primitives** | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-GCM | Same |
-| **Level 4: Adaptive** | ❌ | 🔒 Runtime performance tracking, hardware routing |
+| **Level 4: Adaptive** | ❌ | 🔒 Runtime hardware detection, performance tracking, adaptive routing |
 | **Level 5: Self-Healing** | ❌ | 🔒 Attack detection, auto key rotation, graceful degradation |
 
 ## Scheme Selection Flow
@@ -269,89 +269,55 @@ graph TD
     class L_OUT,M_OUT,H_OUT output
 ```
 
-## Hardware Detection
+## Hardware Acceleration
 
-The Apache edition detects hardware capabilities for informational purposes:
+The Apache edition provides **trait definitions only** for hardware-aware operations (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`). These define the interface contract but contain no detection or routing logic.
 
-```mermaid
-flowchart TD
-    subgraph "HardwareRouter (Apache)"
-        DETECT[detect_hardware]
-        CACHE[(Detection Cache)]
-        CAPS_OUT[Return Capabilities]
-    end
+The underlying cryptography library (`aws-lc-rs`) handles AES-NI, SHA extensions, and SIMD acceleration automatically at the C level — no application-level hardware detection is needed for optimal performance.
 
-    subgraph "Detected Capabilities"
-        CAPS[HardwareCapabilities]
-        SIMD[simd_support]
-        AESNI[aes_ni]
-        THREADS[thread_count]
-        MEM[memory]
-    end
+> **Apache Edition**: Hardware acceleration traits only. No detection, no routing. The crypto primitives (`aws-lc-rs`) already use AES-NI and SIMD internally when available.
 
-    DETECT --> CACHE
-    CACHE --> CAPS_OUT
+🔒 **Enterprise Feature: Hardware Detection & Adaptive Routing**
 
-    CAPS --> SIMD
-    CAPS --> AESNI
-    CAPS --> THREADS
-    CAPS --> MEM
-
-    classDef router fill:#4a90d9,stroke:#333,color:#fff
-    classDef caps fill:#f5a623,stroke:#333,color:#fff
-
-    class DETECT,CACHE,CAPS_OUT router
-    class CAPS,SIMD,AESNI,THREADS,MEM caps
-```
-
-> **Apache Edition**: Detects CPU features (SIMD, AES-NI, thread count, memory) but executes all operations on the CPU. Useful for diagnostics and compatibility checks.
-
-🔒 **Enterprise Feature: Adaptive Hardware Routing**
+The enterprise `arc-enterprise-perf` crate provides real hardware detection and adaptive routing:
 
 ```mermaid
 flowchart TD
-    subgraph "HardwareRouter (Enterprise)"
+    subgraph "AdaptiveSelector (Enterprise)"
         DETECT[detect_hardware]
-        CACHE[(Detection Cache)]
-        SELECT[select_best_accelerator]
-        ROUTE[route_to_best_hardware]
+        PERF[PerformanceTracker]
+        RISK[RiskLevel]
+        SELECT[select_optimal_scheme]
     end
 
-    subgraph "Accelerators"
-        CPU[CpuAccelerator<br/>SIMD + AES-NI]
-        GPU[GpuAccelerator<br/>CUDA/OpenCL]
-        FPGA[FpgaAccelerator<br/>Xilinx/Altera]
-        TPM[TpmAccelerator<br/>Hardware Keys]
-        SGX[SgxAccelerator<br/>Secure Enclave]
+    subgraph "Detected Hardware"
+        CPU[CPU<br/>AES-NI / AVX-512]
+        GPU[GPU<br/>CUDA/OpenCL]
+        HSM[HSM/TPM<br/>Hardware Keys]
     end
 
-    DETECT --> CACHE
-    CACHE --> SELECT
-    SELECT --> CPU
-    SELECT --> GPU
-    SELECT --> FPGA
-    SELECT --> TPM
-    SELECT --> SGX
+    DETECT --> CPU
+    DETECT --> GPU
+    DETECT --> HSM
 
-    CPU --> ROUTE
-    GPU --> ROUTE
-    FPGA --> ROUTE
-    TPM --> ROUTE
-    SGX --> ROUTE
+    CPU --> SELECT
+    GPU --> SELECT
+    HSM --> SELECT
+    PERF --> SELECT
+    RISK --> SELECT
 
     classDef router fill:#4a90d9,stroke:#333,color:#fff
     classDef accel fill:#50c878,stroke:#333,color:#fff
-    classDef enterprise fill:#e74c3c,stroke:#333,color:#fff
 
-    class DETECT,CACHE,SELECT,ROUTE router
-    class CPU,GPU,FPGA,TPM,SGX accel
+    class DETECT,PERF,RISK,SELECT router
+    class CPU,GPU,HSM accel
 ```
 
-Enterprise edition dynamically routes cryptographic operations to the optimal hardware accelerator based on:
+Enterprise edition dynamically selects cryptographic algorithms based on:
+- Runtime hardware capability detection (CPU features, GPU, HSM/TPM)
+- Continuous performance metrics with feedback loop
+- Risk-level scaling (Normal → Critical, with security multipliers)
 - Data size and characteristics
-- Hardware availability and capabilities
-- Runtime performance metrics
-- Security requirements (e.g., HSM for key storage)
 
 ## Encryption Data Flow
 
@@ -426,7 +392,7 @@ The Unified API layer with intelligent features:
 | `convenience` | Simple encrypt/decrypt/sign/verify functions |
 | `selector` | CryptoPolicyEngine |
 | `zero_trust` | ZeroTrustAuth, Challenge, ZeroKnowledgeProof |
-| `hardware` | HardwareRouter, accelerator detection |
+| `hardware` | Hardware trait re-exports (types only, no detection) |
 | `config` | CoreConfig, ZeroTrustConfig, SecurityLevel |
 | `types` | UseCase, PerformancePreference, CryptoContext |
 
@@ -680,45 +646,15 @@ flowchart TD
 - **Auto-Remediation**: Automatic key rotation and algorithm switching on vulnerability detection
 - **Graceful Degradation**: Multi-level fallback (Full → Degraded → Emergency) with security guarantees
 
-### Adaptive Algorithm Selection
+### Runtime-Adaptive Algorithm Selection
 
-```mermaid
-flowchart LR
-    subgraph "Analysis"
-        DATA[Data Characteristics]
-        HW[Hardware Capabilities]
-        PERF[Runtime Metrics]
-    end
+The enterprise `AdaptiveSelector` performs runtime algorithm selection based on:
 
-    subgraph "Selection Engine"
-        ENGINE[Adaptive Selector]
-    end
+- **Hardware Detection**: CPU instruction sets (AES-NI, AVX-512), GPU, HSM/TPM availability
+- **Performance Feedback**: Continuous measurement of algorithm latency and throughput
+- **Risk-Level Scaling**: Dynamic security multipliers under active threat conditions
 
-    subgraph "Execution"
-        CPU[CPU<br/>AES-NI/SIMD]
-        GPU[GPU<br/>CUDA/OpenCL]
-        HSM[HSM/TPM<br/>Key Storage]
-    end
-
-    DATA --> ENGINE
-    HW --> ENGINE
-    PERF --> ENGINE
-    ENGINE --> CPU
-    ENGINE --> GPU
-    ENGINE --> HSM
-
-    classDef analysis fill:#4a90d9,stroke:#333,color:#fff
-    classDef engine fill:#f5a623,stroke:#333,color:#fff
-    classDef exec fill:#50c878,stroke:#333,color:#fff
-
-    class DATA,HW,PERF analysis
-    class ENGINE engine
-    class CPU,GPU,HSM exec
-```
-
-- **Data-Aware Selection**: Entropy analysis, pattern detection, size optimization
-- **Hardware Routing**: Automatic dispatch to CPU/GPU/HSM based on capability and availability
-- **Performance Feedback**: Runtime metrics inform future algorithm selection
+> **Note**: The Apache edition provides static `UseCase`-based scheme selection via `CryptoPolicyEngine` (a lookup table). Runtime-adaptive selection with hardware detection, performance feedback, and risk scaling is an enterprise-only feature.
 
 ### Zero-Trust at Operation Level
 

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.3] - 2026-02-07
+
+### Fixed
+
+- **True Hybrid Encryption** (commit `9973d0c`): Fixed critical issue where arc-core's hybrid encryption used ML-KEM only (no X25519, no HKDF)
+  - Added `encrypt_true_hybrid()` / `decrypt_true_hybrid()` / `generate_true_hybrid_keypair()` API
+  - Delegates to arc-hybrid's real ML-KEM-768 + X25519 + HKDF + AES-256-GCM combiner
+  - New types: `TrueHybridEncryptionResult`, re-exports `KemHybridPublicKey` / `KemHybridSecretKey`
+  - Added `X25519StaticKeyPair` with real ECDH via aws-lc-rs `PrivateKey::agree()`
+  - Added `MlKemDecapsulationKeyPair` with real aws-lc-rs `DecapsulationKey`
+  - Old ML-KEM-only functions retained for backward compatibility
+
+### Changed
+
+- **Hardware Cleanup** (commit `de47ebb`): Removed dead hardware stub implementations from arc-core
+  - Removed `HardwareRouter`, `CpuAccelerator`, `GpuAccelerator`, `FpgaAccelerator`, `SgxAccelerator`, `TpmAccelerator`
+  - Retained trait definitions (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`)
+  - Real hardware detection is in enterprise `arc-enterprise-perf` crate
+  - `aws-lc-rs` handles AES-NI/SHA/SIMD acceleration at the C level
+- **Documentation**: Updated all docs to clarify hardware detection is enterprise-only
+  - Removed references to `HardwareRouter`, `detect_hardware()`, `HardwarePreference` from all Apache docs
+  - Updated DESIGN.md, arc-core/README.md, latticearc/README.md, API_DOCUMENTATION.md, FAQ.md, unified_api docs
+
+---
+
 ## [0.1.2] - 2026-01-30
 
 ### Removed
@@ -30,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Documentation**: Clarified Apache vs Enterprise feature scope in DESIGN.md
   - Added comparison table showing which features are in Apache (open source) vs Enterprise (proprietary)
-  - Clarified that hardware detection is in Apache, but adaptive routing is Enterprise-only
+  - Clarified that hardware traits are in Apache (types only), but detection and adaptive routing are Enterprise-only
   - Updated Zero Trust section to distinguish framework (Apache) from enforcement (Enterprise)
 
 ### Notes

@@ -220,7 +220,7 @@ Common causes:
 ### Performance is slower than expected
 
 1. Are you building in release mode? (`cargo build --release`)
-2. Is hardware acceleration available?
+2. Build with `--target-cpu=native` to enable AES-NI, AVX2, and other CPU features
 3. Check if you're accidentally cloning large data structures
 
 ### Memory usage is high

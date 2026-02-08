@@ -20,44 +20,54 @@ Add to your `Cargo.toml`:
 arc-hybrid = "0.1"
 ```
 
-### Hybrid KEM (ML-KEM + X25519)
+### Hybrid KEM (ML-KEM-768 + X25519 + HKDF)
 
 ```rust
-use arc_hybrid::*;
+use arc_hybrid::kem_hybrid;
 
-// Generate hybrid key pair
-let (pk, sk) = HybridKem::generate_keypair()?;
+let mut rng = rand::rngs::OsRng;
 
-// Encapsulate (combines both algorithms)
-let (shared_secret, ciphertext) = HybridKem::encapsulate(&pk)?;
+// Generate hybrid key pair (ML-KEM-768 + X25519)
+let (pk, sk) = kem_hybrid::generate_keypair(&mut rng)?;
+
+// Encapsulate — combines ML-KEM + X25519 shared secrets via HKDF
+let (encapsulated_key, shared_secret) = kem_hybrid::encapsulate(&mut rng, &pk)?;
 
 // Decapsulate
-let shared_secret = HybridKem::decapsulate(&ciphertext, &sk)?;
+let shared_secret = kem_hybrid::decapsulate(&sk, &encapsulated_key)?;
 ```
 
-### Hybrid Signatures (ML-DSA + Ed25519)
+### Hybrid Signatures (ML-DSA-65 + Ed25519)
 
 ```rust
-use arc_hybrid::*;
+use arc_hybrid::sig_hybrid;
+
+let mut rng = rand::rngs::OsRng;
 
 // Generate hybrid key pair
-let (vk, sk) = HybridSig::generate_keypair()?;
+let (pk, sk) = sig_hybrid::generate_keypair(&mut rng)?;
 
-// Sign (produces both signatures)
-let signature = HybridSig::sign(&message, &sk)?;
+// Sign (produces both ML-DSA + Ed25519 signatures)
+let signature = sig_hybrid::sign(&sk, b"message")?;
 
 // Verify (both must pass)
-let is_valid = HybridSig::verify(&message, &signature, &vk)?;
+let is_valid = sig_hybrid::verify(&pk, b"message", &signature)?;
 ```
 
-### Hybrid Encryption
+### Hybrid Encryption (KEM + AES-256-GCM)
 
 ```rust
-use arc_hybrid::*;
+use arc_hybrid::encrypt_hybrid::{encrypt_hybrid, decrypt_hybrid};
+use arc_hybrid::kem_hybrid;
 
-// Full encryption (KEM + symmetric)
-let ciphertext = hybrid_encrypt(&plaintext, &recipient_pk)?;
-let plaintext = hybrid_decrypt(&ciphertext, &recipient_sk)?;
+let mut rng = rand::rngs::OsRng;
+let (pk, sk) = kem_hybrid::generate_keypair(&mut rng)?;
+
+// Encrypt: KEM encapsulate + HKDF + AES-256-GCM
+let ciphertext = encrypt_hybrid(&mut rng, &pk, b"secret data", None)?;
+
+// Decrypt: KEM decapsulate + HKDF + AES-256-GCM verify+decrypt
+let plaintext = decrypt_hybrid(&sk, &ciphertext, None)?;
 ```
 
 ## Why Hybrid?
@@ -74,11 +84,11 @@ Recommended for any data requiring long-term confidentiality.
 
 ## Algorithm Combinations
 
-| Hybrid Scheme | Post-Quantum | Classical |
-|--------------|--------------|-----------|
-| HybridKem | ML-KEM-768 | X25519 |
-| HybridSig | ML-DSA-65 | Ed25519 |
-| HybridEncrypt | ML-KEM + AES-GCM | X25519 + AES-GCM |
+| Hybrid Scheme | Post-Quantum | Classical | Key Combination |
+|--------------|--------------|-----------|-----------------|
+| `kem_hybrid` | ML-KEM-768 | X25519 | HKDF-SHA256 |
+| `sig_hybrid` | ML-DSA-65 | Ed25519 | Concatenated |
+| `encrypt_hybrid` | ML-KEM-768 + AES-256-GCM | X25519 + AES-256-GCM | HKDF-SHA256 |
 
 ## Security Properties
 

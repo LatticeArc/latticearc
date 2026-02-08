@@ -161,7 +161,7 @@ All features are included by default:
 - Hybrid encryption (PQC + classical)
 - Zero-knowledge proofs (Schnorr, Pedersen)
 - TLS 1.3 integration
-- Hardware-aware scheme selection
+- Use case-based scheme selection
 
 ## Algorithm Selection
 

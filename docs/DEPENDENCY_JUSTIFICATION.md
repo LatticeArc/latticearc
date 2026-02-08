@@ -338,7 +338,7 @@ This document provides comprehensive justification for all major dependencies in
 #### 28. arc-core (v0.1.2)
 - **Purpose**: Unified API layer
 - **Justification**:
-  - Hardware-aware algorithm selection
+  - Use case-based algorithm selection
   - Simple API for complex crypto operations
   - Zero-trust authentication integration
 - **License**: Apache-2.0

@@ -68,7 +68,7 @@ match session.trust_level() {
 
 | Module | Purpose |
 |--------|---------|
-| `convenience` | High-level encrypt/decrypt/sign/verify (session-verified + _unverified) |
+| `convenience` | High-level encrypt/decrypt/sign/verify, true hybrid (ML-KEM+X25519+HKDF) |
 | `selector` | CryptoPolicyEngine |
 | `zero_trust` | VerifiedSession, TrustLevel, ZeroTrustAuth, Challenge, ZKP |
 | `hardware` | Hardware trait re-exports (types only — detection is in enterprise) |
@@ -216,6 +216,28 @@ session.verify_response(&proof)?;
 // Convert to VerifiedSession for crypto operations
 let verified_session = session.into_verified()?;
 ```
+
+## True Hybrid Encryption
+
+For true hybrid key encapsulation (ML-KEM-768 + X25519 combined via HKDF):
+
+```rust
+use arc_core::{
+    generate_true_hybrid_keypair, encrypt_true_hybrid, decrypt_true_hybrid,
+    SecurityMode,
+};
+
+// Generate hybrid keypair
+let (pk, sk) = generate_true_hybrid_keypair()?;
+
+// Encrypt — ML-KEM + X25519 + HKDF + AES-256-GCM
+let encrypted = encrypt_true_hybrid(data, &pk, SecurityMode::Unverified)?;
+
+// Decrypt
+let plaintext = decrypt_true_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+```
+
+Security holds if **either** ML-KEM or X25519 remains secure.
 
 ## Hardware
 
