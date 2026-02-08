@@ -620,7 +620,7 @@ let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 
 - **Documentation**: https://docs.rs/latticearc
 - **GitHub Issues**: https://github.com/latticearc/latticearc/issues
-- **Security**: security@latticearc.com
+- **Security**: Security@LatticeArc.com
 
 ---
 

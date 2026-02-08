@@ -237,7 +237,7 @@ Open a GitHub issue using the bug report template.
 
 ### How do I report a security vulnerability?
 
-**Do NOT open a public issue.** Email security@latticearc.com. See [SECURITY.md](SECURITY.md).
+**Do NOT open a public issue.** Email Security@LatticeArc.com. See [SECURITY.md](SECURITY.md).
 
 ### How do I contribute code?
 

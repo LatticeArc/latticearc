@@ -90,7 +90,7 @@ Once integrated, LatticeArc receives:
 ## Contact
 
 For OSS-Fuzz integration questions:
-- security@latticearc.com
+- Security@LatticeArc.com
 - GitHub Issues
 
 ---

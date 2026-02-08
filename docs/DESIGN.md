@@ -672,7 +672,7 @@ The enterprise `AdaptiveSelector` performs runtime algorithm selection based on:
 | Threat prediction accuracy | > 85% |
 | Degradation trigger | < 50ms |
 
-For Enterprise licensing, contact: enterprise@latticearc.com
+For Enterprise licensing, contact: Enterprise@LatticeArc.com
 
 ## References
 

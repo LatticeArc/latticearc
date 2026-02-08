@@ -293,7 +293,7 @@ LatticeArc builds on audited cryptographic libraries:
 
 ### Reporting Vulnerabilities
 
-Report security issues to: security@latticearc.com
+Report security issues to: Security@LatticeArc.com
 
 See [SECURITY.md](SECURITY.md) for our security policy.
 

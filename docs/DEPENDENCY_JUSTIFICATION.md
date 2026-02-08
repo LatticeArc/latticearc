@@ -498,7 +498,7 @@ The dependency tree is regularly monitored via:
 - SBOM generation (CycloneDX, SPDX)
 - CI/CD security gates
 
-For questions or concerns, contact: security@latticearc.dev
+For questions or concerns, contact: Security@LatticeArc.com
 
 ---
 
