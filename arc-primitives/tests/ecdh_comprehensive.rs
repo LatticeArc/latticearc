@@ -1,4 +1,5 @@
 #![allow(
+    deprecated, // Tests cover the old generate_keypair/diffie_hellman API
     clippy::panic,
     clippy::unwrap_used,
     clippy::expect_used,

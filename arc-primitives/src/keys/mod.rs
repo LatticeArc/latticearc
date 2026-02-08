@@ -322,6 +322,7 @@ impl KeyPair {
     ///
     /// # Errors
     /// Returns an error if key generation fails.
+    #[allow(deprecated)] // TODO: Migrate to X25519StaticKeyPair once KeyPair stores real keys
     pub fn generate() -> Result<Self, KeyError> {
         let mut rng = rand::rngs::OsRng;
         let (ml_pk, ml_sk) = crate::kem::ml_kem::MlKem::generate_keypair(

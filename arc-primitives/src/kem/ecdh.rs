@@ -40,12 +40,13 @@
 //! # Ok::<(), arc_primitives::kem::ecdh::EcdhError>(())
 //! ```
 
-use aws_lc_rs::agreement::{self, EphemeralPrivateKey, UnparsedPublicKey, X25519};
+use aws_lc_rs::agreement::{self, EphemeralPrivateKey, PrivateKey, UnparsedPublicKey, X25519};
+use aws_lc_rs::encoding::{AsBigEndian, Curve25519SeedBin};
 
 // ECDH curve algorithms - imported where used to avoid lint warnings
 use aws_lc_rs::agreement::{ECDH_P256, ECDH_P384, ECDH_P521};
 use thiserror::Error;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// X25519 key size in bytes
 pub const X25519_KEY_SIZE: usize = 32;
@@ -155,6 +156,10 @@ pub enum EcdhError {
         /// Actual format description
         actual: &'static str,
     },
+
+    /// Invalid key data (rejected during import)
+    #[error("Invalid key data")]
+    InvalidKeyData,
 
     /// Curve mismatch
     #[error("Curve mismatch: expected {expected}, got {actual}")]
@@ -312,17 +317,146 @@ impl std::fmt::Debug for X25519KeyPair {
     }
 }
 
+/// X25519 static key pair for reusable Diffie-Hellman key agreement.
+///
+/// Unlike [`X25519KeyPair`] which uses ephemeral keys (consumed on use),
+/// this type wraps [`PrivateKey`] which supports multiple `agree()` calls
+/// without consuming the key. This is essential for hybrid KEM where the
+/// recipient's X25519 key must persist for decapsulation.
+///
+/// # Limitations
+///
+/// aws-lc-rs does not support X25519 key import from raw bytes or DER.
+/// Keys are **in-memory only** — they can be generated but not serialized
+/// to disk. ML-KEM keys remain fully serializable.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use arc_primitives::kem::ecdh::X25519StaticKeyPair;
+///
+/// let alice = X25519StaticKeyPair::generate()?;
+/// let bob = X25519StaticKeyPair::generate()?;
+///
+/// // Commutativity: alice.agree(bob_pk) == bob.agree(alice_pk)
+/// let ss1 = alice.agree(bob.public_key_bytes())?;
+/// let ss2 = bob.agree(alice.public_key_bytes())?;
+/// assert_eq!(ss1, ss2);
+///
+/// // Reusable: alice can agree with multiple peers
+/// let carol = X25519StaticKeyPair::generate()?;
+/// let ss3 = alice.agree(carol.public_key_bytes())?;
+/// ```
+pub struct X25519StaticKeyPair {
+    private: PrivateKey,
+    public_bytes: [u8; X25519_KEY_SIZE],
+}
+
+impl X25519StaticKeyPair {
+    /// Generate a new X25519 static key pair.
+    ///
+    /// # Errors
+    /// Returns an error if key generation fails.
+    pub fn generate() -> Result<Self, EcdhError> {
+        let private = PrivateKey::generate(&X25519).map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        let public = private.compute_public_key().map_err(|_e| EcdhError::KeyGenerationFailed)?;
+
+        let mut public_bytes = [0u8; X25519_KEY_SIZE];
+        public_bytes.copy_from_slice(public.as_ref());
+
+        Ok(Self { private, public_bytes })
+    }
+
+    /// Get public key bytes for transmission.
+    #[must_use]
+    pub fn public_key_bytes(&self) -> &[u8; X25519_KEY_SIZE] {
+        &self.public_bytes
+    }
+
+    /// Get the public key.
+    #[must_use]
+    pub fn public_key(&self) -> X25519PublicKey {
+        X25519PublicKey { bytes: self.public_bytes }
+    }
+
+    /// Export the private key seed bytes (32 bytes).
+    ///
+    /// These bytes can be stored and later used with [`from_seed_bytes`](Self::from_seed_bytes)
+    /// to reconstruct the key pair.
+    ///
+    /// # Errors
+    /// Returns an error if seed extraction fails.
+    pub fn seed_bytes(&self) -> Result<Zeroizing<[u8; X25519_KEY_SIZE]>, EcdhError> {
+        let seed: Curve25519SeedBin<'_> =
+            self.private.as_be_bytes().map_err(|_e| EcdhError::KeyGenerationFailed)?;
+        let mut bytes = [0u8; X25519_KEY_SIZE];
+        bytes.copy_from_slice(seed.as_ref());
+        Ok(Zeroizing::new(bytes))
+    }
+
+    /// Reconstruct a key pair from previously exported seed bytes.
+    ///
+    /// # Errors
+    /// Returns an error if the seed bytes are invalid.
+    pub fn from_seed_bytes(seed: &[u8; X25519_KEY_SIZE]) -> Result<Self, EcdhError> {
+        let private =
+            PrivateKey::from_private_key(&X25519, seed).map_err(|_e| EcdhError::InvalidKeyData)?;
+        let public = private.compute_public_key().map_err(|_e| EcdhError::KeyGenerationFailed)?;
+
+        let mut public_bytes = [0u8; X25519_KEY_SIZE];
+        public_bytes.copy_from_slice(public.as_ref());
+
+        Ok(Self { private, public_bytes })
+    }
+
+    /// Perform X25519 key agreement with a peer's public key.
+    ///
+    /// Unlike [`X25519KeyPair::agree`], this does **not** consume the key,
+    /// allowing multiple agreements with different peers.
+    ///
+    /// # Errors
+    /// Returns an error if key agreement fails (e.g., invalid peer public key).
+    pub fn agree(&self, peer_public_bytes: &[u8]) -> Result<[u8; X25519_KEY_SIZE], EcdhError> {
+        let peer_public = UnparsedPublicKey::new(&X25519, peer_public_bytes);
+
+        agreement::agree(&self.private, peer_public, EcdhError::AgreementFailed, |shared_secret| {
+            let mut result = [0u8; X25519_KEY_SIZE];
+            result.copy_from_slice(shared_secret);
+            Ok(result)
+        })
+    }
+}
+
+impl std::fmt::Debug for X25519StaticKeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("X25519StaticKeyPair")
+            .field("public_bytes", &self.public_bytes)
+            .field("private", &"[REDACTED]")
+            .finish()
+    }
+}
+
 /// Generate a new X25519 keypair
 ///
 /// Returns the public key and secret key bytes. The secret key is stored
 /// in a zeroizing container for security.
 ///
-/// Note: For ephemeral key agreement, prefer using `X25519KeyPair::generate()`
-/// followed by `keypair.agree()` for better security guarantees.
+/// # Deprecated
+///
+/// **BUG**: The returned secret key is random bytes unrelated to the public key.
+/// aws-lc-rs `EphemeralPrivateKey` cannot export raw bytes, so this function
+/// generates independent random bytes for the "secret key" — making DH with
+/// [`diffie_hellman`] produce incorrect results.
+///
+/// Use [`X25519StaticKeyPair::generate()`] instead, which wraps aws-lc-rs
+/// `PrivateKey` for correct, reusable key agreement.
 ///
 /// # Errors
 ///
 /// Returns an error if key generation fails.
+#[deprecated(
+    note = "Secret key is random bytes unrelated to public key. Use X25519StaticKeyPair::generate() instead."
+)]
 pub fn generate_keypair<R: rand::Rng + rand::CryptoRng>(
     _rng: &mut R,
 ) -> Result<(X25519PublicKey, X25519SecretKey), EcdhError> {
@@ -391,11 +525,17 @@ pub fn agree_ephemeral(
 
 /// Derive shared secret using Diffie-Hellman (for static keys)
 ///
-/// Note: aws-lc-rs X25519 is designed for ephemeral keys. This function
-/// generates a new ephemeral key pair and performs DH, returning both the
-/// shared secret and the ephemeral public key.
+/// # Deprecated
 ///
-/// For proper ECDH flows, use `X25519KeyPair::generate()` and `agree()`.
+/// **BUG**: This function computes `SHA-256(secret_key || public_key)` —
+/// NOT real X25519 Diffie-Hellman. The output has no mathematical relationship
+/// to actual ECDH shared secrets and does not satisfy commutativity
+/// (`diffie_hellman(sk_a, pk_b) != diffie_hellman(sk_b, pk_a)`).
+///
+/// Use [`X25519StaticKeyPair::agree()`] for correct X25519 ECDH.
+#[deprecated(
+    note = "Computes SHA-256(sk||pk), not real ECDH. Use X25519StaticKeyPair::agree() instead."
+)]
 #[must_use]
 pub fn diffie_hellman(
     our_secret: &X25519SecretKey,
@@ -890,7 +1030,7 @@ pub fn validate_p521_public_key(public_key_bytes: &[u8]) -> Result<(), EcdhError
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, deprecated)]
 mod tests {
     use super::*;
 
@@ -983,5 +1123,104 @@ mod tests {
         let ss2 = diffie_hellman(&sk1, &pk1);
 
         assert_eq!(ss1, ss2);
+    }
+
+    // ====================================================================
+    // X25519StaticKeyPair tests — proves real ECDH (not SHA-256 hash)
+    // ====================================================================
+
+    #[test]
+    fn test_static_keypair_generation() {
+        let kp = X25519StaticKeyPair::generate().unwrap();
+        assert_eq!(kp.public_key_bytes().len(), X25519_KEY_SIZE);
+        assert!(!kp.public_key_bytes().iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_static_keypair_commutativity() {
+        // This is the key DH property: alice.agree(bob_pk) == bob.agree(alice_pk)
+        let alice = X25519StaticKeyPair::generate().unwrap();
+        let bob = X25519StaticKeyPair::generate().unwrap();
+
+        let ss_ab = alice.agree(bob.public_key_bytes()).unwrap();
+        let ss_ba = bob.agree(alice.public_key_bytes()).unwrap();
+
+        assert_eq!(ss_ab, ss_ba, "DH commutativity must hold");
+        assert!(!ss_ab.iter().all(|&b| b == 0), "Shared secret must not be all zeros");
+    }
+
+    #[test]
+    fn test_static_keypair_reusable() {
+        // Key can be used for multiple agreements without being consumed
+        let alice = X25519StaticKeyPair::generate().unwrap();
+        let bob = X25519StaticKeyPair::generate().unwrap();
+        let carol = X25519StaticKeyPair::generate().unwrap();
+
+        let ss1 = alice.agree(bob.public_key_bytes()).unwrap();
+        let ss2 = alice.agree(carol.public_key_bytes()).unwrap();
+        let ss3 = alice.agree(bob.public_key_bytes()).unwrap();
+
+        // Same peer → same shared secret (deterministic)
+        assert_eq!(ss1, ss3, "agree() with same peer must produce same result");
+        // Different peer → different shared secret
+        assert_ne!(ss1, ss2, "Different peers must produce different shared secrets");
+    }
+
+    #[test]
+    fn test_static_keypair_public_key() {
+        let kp = X25519StaticKeyPair::generate().unwrap();
+        let pk = kp.public_key();
+        assert_eq!(pk.as_bytes(), kp.public_key_bytes());
+    }
+
+    #[test]
+    fn test_static_keypair_different_keys() {
+        // Two generates must produce different key pairs
+        let kp1 = X25519StaticKeyPair::generate().unwrap();
+        let kp2 = X25519StaticKeyPair::generate().unwrap();
+        assert_ne!(kp1.public_key_bytes(), kp2.public_key_bytes());
+    }
+
+    // ====================================================================
+    // X25519StaticKeyPair seed serialization tests
+    // ====================================================================
+
+    #[test]
+    fn test_static_keypair_seed_roundtrip() {
+        let original = X25519StaticKeyPair::generate().unwrap();
+        let seed = original.seed_bytes().unwrap();
+        let restored = X25519StaticKeyPair::from_seed_bytes(&seed).unwrap();
+
+        assert_eq!(original.public_key_bytes(), restored.public_key_bytes());
+    }
+
+    #[test]
+    fn test_static_keypair_seed_roundtrip_agree() {
+        // Restored key must produce identical shared secrets
+        let alice = X25519StaticKeyPair::generate().unwrap();
+        let bob = X25519StaticKeyPair::generate().unwrap();
+
+        let ss_original = alice.agree(bob.public_key_bytes()).unwrap();
+
+        let seed = alice.seed_bytes().unwrap();
+        let alice_restored = X25519StaticKeyPair::from_seed_bytes(&seed).unwrap();
+        let ss_restored = alice_restored.agree(bob.public_key_bytes()).unwrap();
+
+        assert_eq!(ss_original, ss_restored);
+    }
+
+    #[test]
+    fn test_static_keypair_seed_not_zero() {
+        let kp = X25519StaticKeyPair::generate().unwrap();
+        let seed = kp.seed_bytes().unwrap();
+        assert!(!seed.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_static_keypair_from_invalid_seed() {
+        // All-zero seed should still produce a valid key (X25519 clamping)
+        let zero_seed = [0u8; X25519_KEY_SIZE];
+        let result = X25519StaticKeyPair::from_seed_bytes(&zero_seed);
+        assert!(result.is_ok());
     }
 }

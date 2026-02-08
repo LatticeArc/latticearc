@@ -99,8 +99,8 @@ pub mod formal_verification;
 
 // Re-exports for convenience - use explicit exports to avoid ambiguity
 pub use encrypt_hybrid::{
-    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt,
-    derive_encryption_key, encrypt,
+    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, decrypt_hybrid,
+    derive_encryption_key, encrypt, encrypt_hybrid,
 };
 pub use kem_hybrid::{
     EncapsulatedKey, HybridKemError, HybridPublicKey as KemHybridPublicKey,

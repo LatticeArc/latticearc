@@ -1,3 +1,4 @@
+#![allow(deprecated)] // Benchmark uses legacy ECDH API
 //! Comprehensive LatticeArc Benchmark
 //!
 //! Measures all cryptographic operations including:
