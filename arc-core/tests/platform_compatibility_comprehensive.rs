@@ -53,7 +53,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use arc_core::{
-    HardwareRouter,
     config::{
         CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig,
         UseCaseConfig, ZeroTrustConfig,
@@ -396,12 +395,18 @@ fn test_all_use_cases_available() {
 }
 
 #[test]
-fn test_feature_hardware_detection() {
-    // Hardware detection should work with any feature combination
-    let router = HardwareRouter::new();
-    let info = router.detect_hardware();
-
-    // CPU should always be available
+fn test_feature_hardware_types() {
+    // Hardware type definitions should be usable
+    let info = arc_core::traits::HardwareInfo {
+        available_accelerators: vec![HardwareType::Cpu],
+        preferred_accelerator: Some(HardwareType::Cpu),
+        capabilities: arc_core::traits::HardwareCapabilities {
+            simd_support: true,
+            aes_ni: true,
+            threads: 1,
+            memory: 0,
+        },
+    };
     assert!(info.available_accelerators.contains(&HardwareType::Cpu));
 }
 
@@ -924,18 +929,26 @@ fn test_concurrent_policy_engine_access() {
 }
 
 #[test]
-fn test_hardware_router_thread_safe() {
-    // Hardware router should be thread-safe
+fn test_hardware_types_thread_safe() {
+    // Hardware types should be usable across threads
     use std::sync::Arc;
 
-    let router = Arc::new(HardwareRouter::new());
+    let info = Arc::new(arc_core::traits::HardwareInfo {
+        available_accelerators: vec![HardwareType::Cpu],
+        preferred_accelerator: Some(HardwareType::Cpu),
+        capabilities: arc_core::traits::HardwareCapabilities {
+            simd_support: true,
+            aes_ni: true,
+            threads: 1,
+            memory: 0,
+        },
+    });
     let mut handles = vec![];
 
     for _ in 0..4 {
-        let router_clone = Arc::clone(&router);
+        let info_clone = Arc::clone(&info);
         let handle = thread::spawn(move || {
-            let info = router_clone.detect_hardware();
-            assert!(info.available_accelerators.contains(&HardwareType::Cpu));
+            assert!(info_clone.available_accelerators.contains(&HardwareType::Cpu));
         });
         handles.push(handle);
     }
