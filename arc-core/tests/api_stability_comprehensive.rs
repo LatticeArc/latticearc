@@ -84,6 +84,7 @@ use arc_core::{
     encrypt_hybrid_unverified,
     // Error types
     error::{CoreError, Result},
+    generate_hybrid_keypair,
     generate_keypair,
     generate_keypair_with_config,
     // Hardware types are imported from traits:: below
@@ -295,11 +296,11 @@ fn test_aes_gcm_functions_accessible() {
 /// Test 1.11: Hybrid encryption functions are accessible
 #[test]
 fn test_hybrid_encryption_functions_accessible() {
-    let key = [0u8; 32];
     let data = b"plaintext";
 
-    // encrypt_hybrid_unverified for API stability
-    let encrypted = encrypt_hybrid_unverified(data, None, &key);
+    // generate_hybrid_keypair + encrypt_hybrid_unverified for API stability
+    let (pk, _sk) = generate_hybrid_keypair().expect("keygen");
+    let encrypted = encrypt_hybrid_unverified(data, &pk);
     assert!(encrypted.is_ok(), "encrypt_hybrid_unverified() should succeed");
 }
 
@@ -997,21 +998,20 @@ fn test_unverified_aes_gcm_works() {
     assert_eq!(decrypted, data);
 }
 
-/// Test 4.2: Legacy hybrid encryption works
+/// Test 4.2: Hybrid encryption works (ML-KEM-768 + X25519 + HKDF + AES-GCM)
 #[test]
-fn test_legacy_hybrid_encryption_works() {
-    let key = [0u8; 32];
+fn test_hybrid_encryption_works() {
     let data = b"test data";
 
-    // encrypt_hybrid_unverified returns HybridEncryptionResult with ciphertext and encapsulated_key
-    // Using explicit type annotation to test type stability
-    let result: HybridEncryptionResult =
-        encrypt_hybrid_unverified(data, None, &key).expect("encrypt");
+    // generate_hybrid_keypair + encrypt/decrypt roundtrip
+    let (pk, sk) = generate_hybrid_keypair().expect("keygen");
+    let result: HybridEncryptionResult = encrypt_hybrid_unverified(data, &pk).expect("encrypt");
 
-    // decrypt_hybrid_unverified takes 4 args: ciphertext, kem_private_key, encapsulated_key, symmetric_key
-    let decrypted =
-        decrypt_hybrid_unverified(&result.ciphertext, None, &result.encapsulated_key, &key)
-            .expect("decrypt");
+    // HybridEncryptionResult has kem_ciphertext, ecdh_ephemeral_pk, symmetric_ciphertext, nonce, tag
+    assert_eq!(result.kem_ciphertext.len(), 1088, "ML-KEM-768 CT");
+    assert_eq!(result.ecdh_ephemeral_pk.len(), 32, "X25519 PK");
+
+    let decrypted = decrypt_hybrid_unverified(&result, &sk).expect("decrypt");
     assert_eq!(decrypted, data);
 }
 

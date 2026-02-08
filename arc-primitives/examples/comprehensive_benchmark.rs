@@ -34,7 +34,7 @@ use arc_primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
 use arc_primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use arc_primitives::hash::{sha3_256, sha256, sha512};
 use arc_primitives::kdf::hkdf::hkdf;
-use arc_primitives::kem::ecdh::{self, X25519KeyPair};
+use arc_primitives::kem::ecdh::{X25519KeyPair, X25519StaticKeyPair};
 use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use arc_primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 use rand::rngs::OsRng;
@@ -123,7 +123,7 @@ fn main() {
     // Hybrid KeyGen: Generate both ML-KEM and X25519 keypairs
     let r = benchmark("Hybrid KeyGen", 500, || {
         let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
-        let _ = ecdh::generate_keypair(&mut rng);
+        let _ = X25519StaticKeyPair::generate();
     });
     print_result(&r);
     all_results.push(r);
@@ -131,7 +131,8 @@ fn main() {
     // Pre-generate keys for encapsulation benchmark
     let (ml_kem_pk, _ml_kem_sk) =
         MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
-    let (x25519_pk, _x25519_sk) = ecdh::generate_keypair(&mut rng).unwrap();
+    let x25519_static = X25519StaticKeyPair::generate().unwrap();
+    let x25519_pk = x25519_static.public_key();
 
     // Hybrid Encrypt: ML-KEM encaps + X25519 DH + HKDF combine + AES-GCM encrypt
     let r = benchmark("Hybrid Encrypt (1KB)", 500, || {
@@ -186,7 +187,7 @@ fn main() {
 
     // Classical KeyGen
     let r = benchmark("Classical KeyGen", 5000, || {
-        let _ = ecdh::generate_keypair(&mut rng);
+        let _ = X25519StaticKeyPair::generate();
     });
     print_result(&r);
     all_results.push(r);

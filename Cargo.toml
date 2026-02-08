@@ -330,6 +330,7 @@ test-case = { version = "3.0" }
 cpuid = { version = "0.1" }
 cryptoki = { version = "0.11" }
 tempfile = { version = "3.24" }
+rcgen = { version = "0.13" }
 # Tracing and observability
 tracing-subscriber = { version = "0.3.22" }
 tracing-appender = { version = "0.2" }

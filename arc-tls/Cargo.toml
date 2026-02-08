@@ -45,6 +45,10 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 ed25519-dalek = { workspace = true }
 
+[dev-dependencies]
+rcgen = { workspace = true }
+sha2 = { workspace = true }
+
 [[bench]]
 name = "tls_performance"
 harness = false

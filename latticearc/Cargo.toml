@@ -57,3 +57,21 @@ hex = { workspace = true }
 
 [lib]
 path = "src/lib.rs"
+
+[[example]]
+name = "basic_encryption"
+
+[[example]]
+name = "digital_signatures"
+
+[[example]]
+name = "hybrid_encryption"
+
+[[example]]
+name = "post_quantum_signatures"
+
+[[example]]
+name = "complete_secure_workflow"
+
+[[example]]
+name = "zero_knowledge_proofs"
