@@ -43,7 +43,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  RUSTFLAGS: "-C target-cpu=native -D warnings"
+  RUSTFLAGS: "-D warnings"
   # Repository type detection
   REPO_TYPE: apache
   # OpenTelemetry configuration
