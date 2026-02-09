@@ -1,0 +1,30 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Encrypt data using ML-KEM."><title>encrypt_pq_ml_kem in latticearc - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="latticearc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">encrypt_pq_ml_kem</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../latticearc/index.html">latticearc</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">encrypt_<wbr>pq_<wbr>ml_<wbr>kem</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li><li><a href="#errors" title="Errors">Errors</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate latticearc</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">latticearc</a></div><h1>Function <span class="fn">encrypt_<wbr>pq_<wbr>ml_<wbr>kem</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/arc_core/convenience/pq_kem.rs.html#178-183">Source</a> </span></div><pre class="rust item-decl"><code>pub fn encrypt_pq_ml_kem(
+    data: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.u8.html">u8</a>],
+    ml_kem_pk: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.u8.html">u8</a>],
+    security_level: <a class="enum" href="../arc_primitives/kem/ml_kem/enum.MlKemSecurityLevel.html" title="enum arc_primitives::kem::ml_kem::MlKemSecurityLevel">MlKemSecurityLevel</a>,
+    mode: <a class="enum" href="enum.SecurityMode.html" title="enum latticearc::SecurityMode">SecurityMode</a>&lt;'_&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.93.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.93.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.u8.html">u8</a>&gt;, <a class="enum" href="enum.CoreError.html" title="enum latticearc::CoreError">CoreError</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Encrypt data using ML-KEM.</p>
+<p>Uses <code>SecurityMode</code> to specify verification behavior:</p>
+<ul>
+<li><code>SecurityMode::Verified(&amp;session)</code>: Validates session before encryption</li>
+<li><code>SecurityMode::Unverified</code>: Skips session validation</li>
+</ul>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt_pq_ml_kem, SecurityMode, VerifiedSession};
+<span class="kw">use </span>arc_primitives::kem::ml_kem::MlKemSecurityLevel;
+
+<span class="comment">// With Zero Trust (recommended)
+</span><span class="kw">let </span>session = VerifiedSession::establish(<span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>sk)<span class="question-mark">?</span>;
+<span class="kw">let </span>encrypted = encrypt_pq_ml_kem(data, <span class="kw-2">&amp;</span>ml_kem_pk, MlKemSecurityLevel::MlKem768, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+
+<span class="comment">// Without verification (opt-out)
+</span><span class="kw">let </span>encrypted = encrypt_pq_ml_kem(data, <span class="kw-2">&amp;</span>ml_kem_pk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)<span class="question-mark">?</span>;</code></pre></div><h2 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h2>
+<p>Returns an error if:</p>
+<ul>
+<li>The mode is <code>Verified</code> and the session has expired (<code>CoreError::SessionExpired</code>)</li>
+<li>The data size exceeds resource limits</li>
+<li>The public key is invalid for the specified security level</li>
+<li>The ML-KEM encapsulation operation fails</li>
+<li>The AES-GCM encryption of the payload fails</li>
+</ul>
+</div></details></section></div></main></body></html>
