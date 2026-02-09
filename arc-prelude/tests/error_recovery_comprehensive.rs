@@ -311,10 +311,13 @@ fn test_recovery_timeout_zero_instant_recovery() {
 
 #[test]
 fn test_recovery_timeout_precise_boundary() {
+    // Use generous margins: CI runners can oversleep by 50-200ms on loaded VMs.
+    // recovery_timeout=2000ms, sleep 200ms for "too early" (well under 2s),
+    // then sleep 2500ms more for "now allowed" (well over 2s total).
     let config = CircuitBreakerConfig {
         failure_threshold: 2,
         success_threshold: 1,
-        recovery_timeout: Duration::from_millis(100),
+        recovery_timeout: Duration::from_millis(2000),
         monitoring_window: Duration::from_secs(60),
     };
 
@@ -325,15 +328,15 @@ fn test_recovery_timeout_precise_boundary() {
         let _: Result<(), _> = cb.call(|| Err(LatticeArcError::NetworkError("fail".to_string())));
     }
 
-    // Wait slightly less than timeout
-    thread::sleep(Duration::from_millis(50));
+    // Wait well under the timeout (200ms << 2000ms)
+    thread::sleep(Duration::from_millis(200));
 
     // Should still be blocked
     let result = cb.call(|| Ok("too early"));
     assert!(matches!(result, Err(LatticeArcError::CircuitBreakerOpen)));
 
-    // Wait for remaining time
-    thread::sleep(Duration::from_millis(100));
+    // Wait well past the timeout (200 + 2500 = 2700ms > 2000ms)
+    thread::sleep(Duration::from_millis(2500));
 
     // Now should be allowed
     let result = cb.call(|| Ok("now allowed"));

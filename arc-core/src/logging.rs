@@ -13,10 +13,10 @@
 //!
 //! ## Usage
 //!
-//! ```rust
+//! ```rust,no_run
 //! use arc_core::logging::{init_tracing, sanitize_data};
 //!
-//! // Initialize logging
+//! // Initialize logging (sets global tracing subscriber — call once per process)
 //! init_tracing().expect("Failed to init tracing");
 //!
 //! // Log with automatic sanitization
