@@ -13,7 +13,7 @@ cryptographic material is logged.</p>
 <h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::logging::{init_tracing, sanitize_data};
 
-<span class="comment">// Initialize logging
+<span class="comment">// Initialize logging (sets global tracing subscriber — call once per process)
 </span>init_tracing().expect(<span class="string">"Failed to init tracing"</span>);
 
 <span class="comment">// Log with automatic sanitization
