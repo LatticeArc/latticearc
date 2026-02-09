@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["XNONCE_LEN"],"fn":["verify_tag_constant_time","zeroize_data"],"struct":["ChaCha20Poly1305Cipher","XChaCha20Poly1305Cipher"],"type":["XNonce"]};

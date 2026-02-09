@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["arc_core",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.0/core/convert/trait.TryFrom.html\" title=\"trait core::convert::TryFrom\">TryFrom</a>&lt;<a class=\"struct\" href=\"arc_core/serialization/struct.SerializableEncryptedData.html\" title=\"struct arc_core::serialization::SerializableEncryptedData\">SerializableEncryptedData</a>&gt; for <a class=\"type\" href=\"arc_core/types/type.EncryptedData.html\" title=\"type arc_core::types::EncryptedData\">EncryptedData</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.0/core/convert/trait.TryFrom.html\" title=\"trait core::convert::TryFrom\">TryFrom</a>&lt;<a class=\"struct\" href=\"arc_core/serialization/struct.SerializableKeyPair.html\" title=\"struct arc_core::serialization::SerializableKeyPair\">SerializableKeyPair</a>&gt; for <a class=\"struct\" href=\"arc_core/types/struct.KeyPair.html\" title=\"struct arc_core::types::KeyPair\">KeyPair</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.0/core/convert/trait.TryFrom.html\" title=\"trait core::convert::TryFrom\">TryFrom</a>&lt;<a class=\"struct\" href=\"arc_core/serialization/struct.SerializableSignedData.html\" title=\"struct arc_core::serialization::SerializableSignedData\">SerializableSignedData</a>&gt; for <a class=\"type\" href=\"arc_core/types/type.SignedData.html\" title=\"type arc_core::types::SignedData\">SignedData</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1412]}

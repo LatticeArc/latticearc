@@ -1,0 +1,185 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Digital Signatures"><title>arc_primitives::sig - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arc_primitives" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module sig</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../arc_primitives/index.html">arc_<wbr>primitives</a><span class="version">0.1.2</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module sig</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#digital-signatures" title="Digital Signatures">Digital Signatures</a><ul><li><a href="#post-quantum-algorithms" title="Post-Quantum Algorithms">Post-Quantum Algorithms</a></li><li><a href="#classical-algorithms" title="Classical Algorithms">Classical Algorithms</a></li><li><a href="#security-properties" title="Security Properties">Security Properties</a></li><li><a href="#algorithm-comparison" title="Algorithm Comparison">Algorithm Comparison</a></li><li><a href="#example-usage" title="Example Usage">Example Usage</a></li><li><a href="#fips-compliance" title="FIPS Compliance">FIPS Compliance</a></li><li><a href="#mathematical-correctness" title="Mathematical Correctness">Mathematical Correctness</a></li><li><a href="#security-considerations" title="Security Considerations">Security Considerations</a></li><li><a href="#module-structure" title="Module Structure">Module Structure</a></li></ul></li></ul><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate arc_<wbr>primitives</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">arc_primitives</a></div><h1>Module <span>sig</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/arc_primitives/sig/mod.rs.html#1-179">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="digital-signatures"><a class="doc-anchor" href="#digital-signatures">§</a>Digital Signatures</h2>
+<p>This module provides a unified interface for both post-quantum and classical
+digital signature schemes. It supports the following algorithms:</p>
+<h3 id="post-quantum-algorithms"><a class="doc-anchor" href="#post-quantum-algorithms">§</a>Post-Quantum Algorithms</h3><h4 id="ml-dsa-fips-204"><a class="doc-anchor" href="#ml-dsa-fips-204">§</a>ML-DSA (FIPS 204)</h4>
+<p>Module-Lattice-Based Digital Signature Algorithm providing EUF-CMA security.</p>
+<ul>
+<li>
+<p><strong>ML-DSA-44</strong>: NIST Security Category 2 (~128-bit classical security)</p>
+<ul>
+<li>Public key: 1312 bytes</li>
+<li>Secret key: 2560 bytes</li>
+<li>Signature: ~2.4 KB</li>
+</ul>
+</li>
+<li>
+<p><strong>ML-DSA-65</strong>: NIST Security Category 3 (~192-bit classical security)</p>
+<ul>
+<li>Public key: 1952 bytes</li>
+<li>Secret key: 4032 bytes</li>
+<li>Signature: ~3.3 KB</li>
+</ul>
+</li>
+<li>
+<p><strong>ML-DSA-87</strong>: NIST Security Category 5 (~256-bit classical security)</p>
+<ul>
+<li>Public key: 2592 bytes</li>
+<li>Secret key: 4896 bytes</li>
+<li>Signature: ~4.6 KB</li>
+</ul>
+</li>
+</ul>
+<h4 id="slh-dsa-fips-205"><a class="doc-anchor" href="#slh-dsa-fips-205">§</a>SLH-DSA (FIPS 205)</h4>
+<p>Stateless Hash-Based Digital Signature Algorithm providing EUF-CMA security
+with conservative security guarantees.</p>
+<ul>
+<li>
+<p><strong>SLH-DSA-SHAKE-128s</strong>: NIST Security Category 1</p>
+<ul>
+<li>Very long keys, but quantum-resistant</li>
+<li>Stateless: No secret state that needs updating</li>
+<li>Signatures can be made as many times as needed</li>
+</ul>
+</li>
+<li>
+<p><strong>SLH-DSA-SHAKE-192s</strong>: NIST Security Category 3</p>
+<ul>
+<li>Balanced security and performance</li>
+</ul>
+</li>
+<li>
+<p><strong>SLH-DSA-SHAKE-256s</strong>: NIST Security Category 5</p>
+<ul>
+<li>Highest security level</li>
+</ul>
+</li>
+</ul>
+<h4 id="fn-dsa-fips-206"><a class="doc-anchor" href="#fn-dsa-fips-206">§</a>FN-DSA (FIPS 206)</h4>
+<p>Few-Time Digital Signature Algorithm based on NTRU lattice.
+Provides compact signatures with lattice-based security.</p>
+<ul>
+<li>
+<p><strong>FN-DSA-512</strong>: ~128-bit security (Level I)</p>
+<ul>
+<li>Public key: 897 bytes</li>
+<li>Secret key: 1281 bytes</li>
+<li>Signature: 666 bytes</li>
+</ul>
+</li>
+<li>
+<p><strong>FN-DSA-1024</strong>: ~256-bit security (Level V)</p>
+<ul>
+<li>Public key: 1793 bytes</li>
+<li>Secret key: 2305 bytes</li>
+<li>Signature: 1280 bytes</li>
+</ul>
+</li>
+</ul>
+<h3 id="classical-algorithms"><a class="doc-anchor" href="#classical-algorithms">§</a>Classical Algorithms</h3>
+<ul>
+<li>
+<p><strong>ECDSA</strong>: Elliptic Curve Digital Signature Algorithm</p>
+<ul>
+<li>P-256, P-384, P-521 curves</li>
+</ul>
+</li>
+<li>
+<p><strong>Ed25519</strong>: EdDSA signature scheme using Curve25519</p>
+<ul>
+<li>Fast, secure, widely adopted</li>
+</ul>
+</li>
+</ul>
+<h3 id="security-properties"><a class="doc-anchor" href="#security-properties">§</a>Security Properties</h3>
+<p>All signature implementations in this module provide:</p>
+<ul>
+<li>
+<p><strong>EUF-CMA</strong>: Existential Unforgeability under Chosen Message Attacks</p>
+<ul>
+<li>An adversary cannot forge a valid signature even when given
+signatures on arbitrary messages of their choice</li>
+</ul>
+</li>
+<li>
+<p><strong>Constant-time</strong>: All secret-handling operations execute in constant time</p>
+<ul>
+<li>Protects against timing side-channel attacks</li>
+</ul>
+</li>
+<li>
+<p><strong>Zeroization</strong>: Secret keys are securely wiped when dropped</p>
+<ul>
+<li>Prevents secret material from remaining in memory</li>
+</ul>
+</li>
+<li>
+<p><strong>Domain Separation</strong>: Optional context string parameter</p>
+<ul>
+<li>Prevents signature reuse across different applications</li>
+</ul>
+</li>
+</ul>
+<h3 id="algorithm-comparison"><a class="doc-anchor" href="#algorithm-comparison">§</a>Algorithm Comparison</h3><div><table><thead><tr><th>Algorithm</th><th>Key Size</th><th>Signature Size</th><th>Security</th><th>Best For</th></tr></thead><tbody>
+<tr><td>ML-DSA-44</td><td>~2.4 KB</td><td>~2.4 KB</td><td>128-bit</td><td>Balanced security/performance</td></tr>
+<tr><td>ML-DSA-65</td><td>~3.6 KB</td><td>~3.3 KB</td><td>192-bit</td><td>High-security applications</td></tr>
+<tr><td>ML-DSA-87</td><td>~4.6 KB</td><td>~4.6 KB</td><td>256-bit</td><td>Maximum security</td></tr>
+<tr><td>SLH-DSA-SHAKE</td><td>Large</td><td>~41 KB</td><td>Conservative</td><td>Long-term security, stateless</td></tr>
+<tr><td>FN-DSA-512</td><td>~1.3 KB</td><td>666 bytes</td><td>128-bit</td><td>Compact signatures, fast verify</td></tr>
+<tr><td>FN-DSA-1024</td><td>~2.3 KB</td><td>1280 bytes</td><td>256-bit</td><td>High-security with compact sigs</td></tr>
+</tbody></table>
+</div><h3 id="example-usage"><a class="doc-anchor" href="#example-usage">§</a>Example Usage</h3><h4 id="ml-dsa-signing-and-verification"><a class="doc-anchor" href="#ml-dsa-signing-and-verification">§</a>ML-DSA Signing and Verification</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_primitives::sig::{MlDsaParameterSet, generate_keypair, sign, verify};
+
+<span class="comment">// Generate keypair
+</span><span class="kw">let </span>(pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)<span class="question-mark">?</span>;
+
+<span class="comment">// Sign a message
+</span><span class="kw">let </span>message = <span class="string">b"Hello, post-quantum world!"</span>;
+<span class="kw">let </span>signature = sign(<span class="kw-2">&amp;</span>sk, message, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>;
+
+<span class="comment">// Verify signature
+</span><span class="kw">let </span>is_valid = verify(<span class="kw-2">&amp;</span>pk, message, <span class="kw-2">&amp;</span>signature, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>;
+<span class="macro">assert!</span>(is_valid);</code></pre></div><h4 id="slh-dsa-with-context"><a class="doc-anchor" href="#slh-dsa-with-context">§</a>SLH-DSA with Context</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_primitives::sig::slh_dsa::{SecurityLevel, SigningKey, VerifyingKey};
+
+<span class="kw">let </span>(sk, pk) = SigningKey::generate(SecurityLevel::Shake128s)<span class="question-mark">?</span>;
+
+<span class="kw">let </span>message = <span class="string">b"Important document"</span>;
+<span class="kw">let </span>context = <span class="string">b"my-application-v1"</span>; <span class="comment">// Domain separation
+
+</span><span class="kw">let </span>signature = sk.sign(message, <span class="prelude-val">Some</span>(context))<span class="question-mark">?</span>;
+<span class="kw">let </span>is_valid = pk.verify(message, <span class="kw-2">&amp;</span>signature, <span class="prelude-val">Some</span>(context))<span class="question-mark">?</span>;</code></pre></div><h3 id="fips-compliance"><a class="doc-anchor" href="#fips-compliance">§</a>FIPS Compliance</h3>
+<p>All post-quantum signature algorithms are fully compliant with their respective FIPS standards:</p>
+<ul>
+<li><strong>ML-DSA</strong>: <a href="https://csrc.nist.gov/pubs/fips/204/final/">FIPS 204</a></li>
+<li><strong>SLH-DSA</strong>: <a href="https://csrc.nist.gov/pubs/fips/205/final/">FIPS 205</a></li>
+<li><strong>FN-DSA</strong>: <a href="https://csrc.nist.gov/pubs/fips/206/final/">FIPS 206</a></li>
+</ul>
+<p>All implementations use audited FIPS-standard crates (fips204, fips205, fn-dsa).</p>
+<h3 id="mathematical-correctness"><a class="doc-anchor" href="#mathematical-correctness">§</a>Mathematical Correctness</h3><h4 id="ml-dsa"><a class="doc-anchor" href="#ml-dsa">§</a>ML-DSA</h4>
+<p>Based on Module-SIS (Short Integer Solution) lattice problem.
+The security reduction proves that forging a signature requires solving
+the Module-SIS problem, which is believed to be hard for quantum computers.</p>
+<h4 id="slh-dsa"><a class="doc-anchor" href="#slh-dsa">§</a>SLH-DSA</h4>
+<p>Based on Merkle tree hash-based signatures. Security relies on
+collision resistance of the underlying hash function (SHAKE).
+Provides information-theoretic security against quantum attacks.</p>
+<h4 id="fn-dsa"><a class="doc-anchor" href="#fn-dsa">§</a>FN-DSA</h4>
+<p>Based on the NTRU lattice problem (Shortest Vector Problem).
+Provides provable security with compact signatures.</p>
+<h3 id="security-considerations"><a class="doc-anchor" href="#security-considerations">§</a>Security Considerations</h3>
+<ul>
+<li><strong>Key Generation</strong>: Always use cryptographically secure random number generators</li>
+<li><strong>Key Storage</strong>: Store secret keys securely, never transmit them</li>
+<li><strong>Signature Reuse</strong>: SLH-DSA is stateless (no signature reuse concerns)</li>
+<li><strong>Context Parameter</strong>: Use non-empty context strings for domain separation</li>
+<li><strong>Algorithm Selection</strong>: Choose algorithm based on your security requirements
+and performance constraints</li>
+</ul>
+<h3 id="module-structure"><a class="doc-anchor" href="#module-structure">§</a>Module Structure</h3>
+<ul>
+<li><a href="ml_dsa/index.html" title="mod arc_primitives::sig::ml_dsa"><code>ml_dsa</code></a>: ML-DSA (FIPS 204) lattice-based signatures</li>
+<li><a href="slh_dsa/index.html" title="mod arc_primitives::sig::slh_dsa"><code>slh_dsa</code></a>: SLH-DSA (FIPS 205) hash-based signatures</li>
+<li><a href="fndsa/index.html" title="mod arc_primitives::sig::fndsa"><code>fndsa</code></a>: FN-DSA (FIPS 206) compact lattice signatures</li>
+</ul>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt><code>pub use <a class="mod" href="fndsa/index.html" title="mod arc_primitives::sig::fndsa">fndsa</a>::*;</code></dt><dt><code>pub use <a class="mod" href="ml_dsa/index.html" title="mod arc_primitives::sig::ml_dsa">ml_dsa</a>::*;</code></dt><dt><code>pub use <a class="mod" href="slh_dsa/index.html" title="mod arc_primitives::sig::slh_dsa">slh_dsa</a>::*;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="fndsa/index.html" title="mod arc_primitives::sig::fndsa">fndsa</a></dt><dd>FIPS 206: FN-DSA (Few-Time Digital Signature Algorithm) Implementation</dd><dt><a class="mod" href="ml_dsa/index.html" title="mod arc_primitives::sig::ml_dsa">ml_dsa</a></dt><dd>ML-DSA (FIPS 204) Digital Signatures</dd><dt><a class="mod" href="slh_dsa/index.html" title="mod arc_primitives::sig::slh_dsa">slh_dsa</a></dt><dd>SLH-DSA (Stateless Hash-Based Digital Signature Algorithm)</dd></dl></section></div></main></body></html>

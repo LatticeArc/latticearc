@@ -1,0 +1,89 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Hybrid Key Encapsulation Mechanism (KEM) Module"><title>arc_hybrid::kem_hybrid - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="arc_hybrid" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module kem_hybrid</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../arc_hybrid/index.html">arc_<wbr>hybrid</a><span class="version">0.1.2</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module kem_<wbr>hybrid</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#architecture" title="Architecture">Architecture</a></li><li><a href="#key-sizes-summary" title="Key Sizes Summary">Key Sizes Summary</a></li><li><a href="#security-properties" title="Security Properties">Security Properties</a></li><li><a href="#example" title="Example">Example</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate arc_<wbr>hybrid</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">arc_hybrid</a></div><h1>Module <span>kem_<wbr>hybrid</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/arc_hybrid/kem_hybrid.rs.html#1-653">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Hybrid Key Encapsulation Mechanism (KEM) Module</p>
+<p>This module provides hybrid key encapsulation combining post-quantum (ML-KEM)
+and classical (X25519 ECDH) algorithms for quantum-resistant key exchange
+with classical security guarantees.</p>
+<h2 id="architecture"><a class="doc-anchor" href="#architecture">§</a>Architecture</h2><div class="example-wrap"><pre class="language-text"><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                    HYBRID KEM: Encapsulation Flow                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌───────────────┐      ┌──────────────────────────────────────────┐   │
+│  │  Recipient&#39;s  │      │             Sender (Encapsulator)        │   │
+│  │  Public Key   │      │                                          │   │
+│  │               │      │  ┌─────────────────────────────────────┐ │   │
+│  │ ┌───────────┐ │      │  │         ML-KEM-768 Encaps          │ │   │
+│  │ │ ML-KEM PK │─┼──────┼─►│ RNG ──► Ciphertext (1088 B)        │ │   │
+│  │ │ (1184 B)  │ │      │  │         Shared Secret₁ (32 B)      │ │   │
+│  │ └───────────┘ │      │  └────────────────────┬────────────────┘ │   │
+│  │               │      │                       │                  │   │
+│  │ ┌───────────┐ │      │  ┌─────────────────────────────────────┐ │   │
+│  │ │ X25519 PK │─┼──────┼─►│         X25519 ECDH                 │ │   │
+│  │ │  (32 B)   │ │      │  │ ephemeral_sk ──► PK_ephemeral (32 B)│ │   │
+│  │ └───────────┘ │      │  │ ECDH(sk, PK) ──► Shared Secret₂     │ │   │
+│  └───────────────┘      │  └────────────────────┬────────────────┘ │   │
+│                         │                       │                  │   │
+│                         │  ┌─────────────────────────────────────┐ │   │
+│                         │  │         HKDF-SHA256 Combine         │ │   │
+│                         │  │                                     │ │   │
+│                         │  │  info = &quot;hybrid-kem-v1&quot;             │ │   │
+│                         │  │  IKM  = SS₁ ║ SS₂ (64 bytes)        │ │   │
+│                         │  │            ↓                        │ │   │
+│                         │  │  Hybrid Shared Secret (64 B)        │ │   │
+│                         │  └─────────────────────────────────────┘ │   │
+│                         └──────────────────────────────────────────┘   │
+│                                                                         │
+│  Output Ciphertext:  ML-KEM CT (1088 B) ║ X25519 PK (32 B) = 1120 B    │
+│  Output Secret:      64-byte hybrid shared secret                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    HYBRID KEM: Decapsulation Flow                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌───────────────┐      ┌──────────────────────────────────────────┐   │
+│  │   Ciphertext  │      │           Recipient (Decapsulator)       │   │
+│  │   (1120 B)    │      │                                          │   │
+│  │               │      │  ┌─────────────────────────────────────┐ │   │
+│  │ ┌───────────┐ │      │  │         ML-KEM-768 Decaps          │ │   │
+│  │ │ ML-KEM CT │─┼──────┼─►│ SK + CT ──► Shared Secret₁ (32 B)  │ │   │
+│  │ │ (1088 B)  │ │      │  └────────────────────┬────────────────┘ │   │
+│  │ └───────────┘ │      │                       │                  │   │
+│  │               │      │  ┌─────────────────────────────────────┐ │   │
+│  │ ┌───────────┐ │      │  │         X25519 ECDH                 │ │   │
+│  │ │ X25519 PK │─┼──────┼─►│ ECDH(my_sk, ephemeral_pk)           │ │   │
+│  │ │  (32 B)   │ │      │  │         ──► Shared Secret₂ (32 B)  │ │   │
+│  │ └───────────┘ │      │  └────────────────────┬────────────────┘ │   │
+│  └───────────────┘      │                       │                  │   │
+│                         │  ┌─────────────────────────────────────┐ │   │
+│                         │  │         HKDF-SHA256 Combine         │ │   │
+│                         │  │  Hybrid Shared Secret (64 B)        │ │   │
+│                         │  └─────────────────────────────────────┘ │   │
+│                         └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘</code></pre></div><h2 id="key-sizes-summary"><a class="doc-anchor" href="#key-sizes-summary">§</a>Key Sizes Summary</h2><div><table><thead><tr><th>Component</th><th>Public Key</th><th>Secret Key</th><th>Ciphertext</th><th>Shared Secret</th></tr></thead><tbody>
+<tr><td>ML-KEM-768</td><td>1184 B</td><td>2400 B</td><td>1088 B</td><td>32 B</td></tr>
+<tr><td>X25519</td><td>32 B</td><td>32 B</td><td>32 B</td><td>32 B</td></tr>
+<tr><td><strong>Hybrid</strong></td><td><strong>1216 B</strong></td><td><strong>2432 B</strong></td><td><strong>1120 B</strong></td><td><strong>64 B</strong></td></tr>
+</tbody></table>
+</div><h2 id="security-properties"><a class="doc-anchor" href="#security-properties">§</a>Security Properties</h2>
+<ul>
+<li><strong>IND-CCA2</strong> security from ML-KEM (post-quantum secure)</li>
+<li><strong>IND-CPA</strong> security from X25519 ECDH (classical secure)</li>
+<li><strong>XOR composition</strong> ensures security if <em>either</em> component remains secure</li>
+<li>Automatic memory zeroization for secret keys via <a href="zeroize::ZeroizeOnDrop"><code>ZeroizeOnDrop</code></a></li>
+</ul>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_hybrid::kem_hybrid::{generate_keypair, encapsulate, decapsulate};
+<span class="kw">use </span>rand::rngs::OsRng;
+
+<span class="kw">let </span><span class="kw-2">mut </span>rng = OsRng;
+
+<span class="comment">// Generate hybrid keypair
+</span><span class="kw">let </span>(pk, sk) = generate_keypair(<span class="kw-2">&amp;mut </span>rng)<span class="question-mark">?</span>;
+
+<span class="comment">// Encapsulate to create shared secret and ciphertext
+</span><span class="kw">let </span>encapsulated = encapsulate(<span class="kw-2">&amp;mut </span>rng, <span class="kw-2">&amp;</span>pk)<span class="question-mark">?</span>;
+
+<span class="comment">// Decapsulate to recover the shared secret
+</span><span class="kw">let </span>shared_secret = decapsulate(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>encapsulated)<span class="question-mark">?</span>;
+
+<span class="comment">// Both parties now have the same 64-byte shared secret
+</span><span class="macro">assert_eq!</span>(shared_secret.as_slice(), encapsulated.shared_secret.as_slice());</code></pre></div></div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.EncapsulatedKey.html" title="struct arc_hybrid::kem_hybrid::EncapsulatedKey">Encapsulated<wbr>Key</a></dt><dd>Hybrid encapsulation result containing shared secret</dd><dt><a class="struct" href="struct.HybridPublicKey.html" title="struct arc_hybrid::kem_hybrid::HybridPublicKey">Hybrid<wbr>Public<wbr>Key</a></dt><dd>Hybrid public key combining ML-KEM and ECDH public keys.</dd><dt><a class="struct" href="struct.HybridSecretKey.html" title="struct arc_hybrid::kem_hybrid::HybridSecretKey">Hybrid<wbr>Secret<wbr>Key</a></dt><dd>Hybrid secret key combining ML-KEM and X25519 ECDH.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.HybridKemError.html" title="enum arc_hybrid::kem_hybrid::HybridKemError">Hybrid<wbr>KemError</a></dt><dd>Error types for hybrid KEM operations.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.decapsulate.html" title="fn arc_hybrid::kem_hybrid::decapsulate">decapsulate</a></dt><dd>Decapsulate using hybrid KEM.</dd><dt><a class="fn" href="fn.derive_hybrid_shared_secret.html" title="fn arc_hybrid::kem_hybrid::derive_hybrid_shared_secret">derive_<wbr>hybrid_<wbr>shared_<wbr>secret</a></dt><dd>Derive hybrid shared secret using HPKE-style KDF</dd><dt><a class="fn" href="fn.encapsulate.html" title="fn arc_hybrid::kem_hybrid::encapsulate">encapsulate</a></dt><dd>Encapsulate using hybrid KEM</dd><dt><a class="fn" href="fn.generate_keypair.html" title="fn arc_hybrid::kem_hybrid::generate_keypair">generate_<wbr>keypair</a></dt><dd>Generate hybrid keypair (ML-KEM-768 + X25519).</dd></dl></section></div></main></body></html>
