@@ -357,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "aws-lc-rs does not support secret key deserialization - decapsulate not functional"]
+    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
     fn test_hybrid_key_exchange() {
         let mut rng = rand::thread_rng();
 

@@ -41,8 +41,8 @@
 //! # Important Note on Stack Usage
 //!
 //! FN-DSA operations require significant stack space due to the underlying NTRU lattice
-//! computations. In debug mode, stack overflow may occur. Tests are marked with `#[ignore]`
-//! and should be run with release optimizations:
+//! computations. In debug mode, stack overflow may occur. Tests must be run with release
+//! optimizations:
 //!
 //! ```bash
 //! cargo test --test fn_dsa_comprehensive --release -- --ignored

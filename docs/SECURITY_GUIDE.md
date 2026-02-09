@@ -239,13 +239,15 @@ let decrypted = decrypt_hybrid(&result.ciphertext, &result.encapsulated_key, &sk
 use arc_core::convenience::*;
 use arc_core::zero_trust::ZeroTrustAuth;
 
-// Simple signing
-let signed = sign(message)?;
-let is_valid = verify(&signed)?;
+// Generate keypair + sign + verify
+let config = CryptoConfig::new();
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(message, &sk, &pk, config.clone())?;
+let is_valid = verify(&signed, config)?;
 
-// Post-quantum signatures
-let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MLDSA65)?;
-let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MLDSA65)?;
+// Post-quantum signatures (ML-DSA only, no classical)
+let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
+let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
 
 // Zero-trust authenticated signing
 let auth = ZeroTrustAuth::new(public_key, private_key)?;

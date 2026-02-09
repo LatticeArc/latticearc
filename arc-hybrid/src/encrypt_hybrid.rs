@@ -459,7 +459,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "aws-lc-rs does not support secret key deserialization - decrypt not functional"]
+    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
     fn test_hybrid_encryption_roundtrip() {
         let mut rng = rand::thread_rng();
 
@@ -487,7 +487,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "aws-lc-rs does not support secret key deserialization - decrypt not functional"]
+    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
     fn test_hybrid_encryption_with_aad() {
         let mut rng = rand::thread_rng();
 

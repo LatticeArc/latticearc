@@ -280,7 +280,7 @@ mod zeroization_tests {
     use super::*;
 
     #[test]
-    #[ignore = "aws-lc-rs does not expose ML-KEM secret key bytes for serialization"]
+    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
     fn test_keypair_secret_data_nonzero() {
         let keypair = KeyPair::generate().expect("Should generate keypair");
         let secret_key = keypair.secret_key();

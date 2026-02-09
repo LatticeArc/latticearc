@@ -21,39 +21,27 @@ mod pbkdf2_tests {
     use zeroize::Zeroize;
 
     #[test]
-    #[ignore] // Fails due to security hardening (min iterations = 1000)
-    fn test_pbkdf2_rfc6070_test_vector_1() {
-        // RFC 6070 Test Vector 1
+    fn test_pbkdf2_rejects_unsafe_iteration_count_1() {
+        // RFC 6070 Test Vector 1 uses iterations=1, which our security
+        // hardening correctly rejects (minimum 1000 per OWASP guidelines)
         let password = b"password";
         let salt = b"salt";
-        let iterations = 1;
-        let params = Pbkdf2Params::with_salt(salt).iterations(iterations).key_length(20);
+        let params = Pbkdf2Params::with_salt(salt).iterations(1).key_length(20);
 
-        let result = pbkdf2(password, &params).unwrap();
-        let expected = [
-            0x0c, 0x60, 0xc8, 0x0f, 0x96, 0x1f, 0x0e, 0x71, 0xf3, 0xa9, 0xb5, 0x24, 0xaf, 0x60,
-            0x12, 0x06, 0x2f, 0xe0, 0x37, 0xa6,
-        ];
-
-        assert_eq!(&result.key[..], &expected);
+        let result = pbkdf2(password, &params);
+        assert!(result.is_err(), "iterations=1 must be rejected");
     }
 
     #[test]
-    #[ignore] // Fails due to security hardening (min iterations = 1000)
-    fn test_pbkdf2_rfc6070_test_vector_2() {
-        // RFC 6070 Test Vector 2
+    fn test_pbkdf2_rejects_unsafe_iteration_count_2() {
+        // RFC 6070 Test Vector 2 uses iterations=2, which our security
+        // hardening correctly rejects (minimum 1000 per OWASP guidelines)
         let password = b"password";
         let salt = b"salt";
-        let iterations = 2;
-        let params = Pbkdf2Params::with_salt(salt).iterations(iterations).key_length(20);
+        let params = Pbkdf2Params::with_salt(salt).iterations(2).key_length(20);
 
-        let result = pbkdf2(password, &params).unwrap();
-        let expected = [
-            0xea, 0x6c, 0x01, 0x4d, 0xc7, 0x2d, 0x6f, 0x8c, 0xcd, 0x1e, 0xd9, 0x2a, 0xce, 0x1d,
-            0x41, 0xf0, 0xd8, 0xde, 0x89, 0x57,
-        ];
-
-        assert_eq!(&result.key[..], &expected);
+        let result = pbkdf2(password, &params);
+        assert!(result.is_err(), "iterations=2 must be rejected");
     }
 
     #[test]

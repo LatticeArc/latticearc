@@ -68,13 +68,15 @@ assert!(results.rng_passed);
 ```rust
 use arc_validation::timing::*;
 
-// Measure operation timing variance
-let analysis = analyze_timing(|| {
-    verify_signature(&message, &signature, &key)
-}, 1000)?;
+// Validate constant-time behavior of byte comparisons
+let validator = TimingValidator::new(200, 0.50);
+validator.validate_constant_time_compare(&data_a, &data_b)?;
 
-// Check for timing leaks
-assert!(analysis.variance_ratio < 1.1, "Timing variance too high");
+// Top-level convenience: validate subtle crate constant-time ops
+validate_constant_time()?;
+
+// Constant-time equality check
+assert!(constant_time_eq(&secret_a, &secret_b));
 ```
 
 ## Test Vector Sources
@@ -95,8 +97,8 @@ cargo test -p arc-validation --all-features
 # Run specific algorithm tests
 cargo test -p arc-validation ml_kem
 
-# Run timing analysis (slow)
-cargo test -p arc-validation timing -- --ignored
+# Run timing analysis
+cargo test -p arc-validation timing --all-features --release
 ```
 
 ## Modules
@@ -114,7 +116,6 @@ cargo test -p arc-validation timing -- --ignored
 | Feature | Description | Default |
 |---------|-------------|---------|
 | `std` | Standard library | Yes |
-| `timing-tests` | Enable timing analysis | No |
 
 ## License
 

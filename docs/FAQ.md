@@ -109,11 +109,16 @@ let public_key = MlKemPublicKey::from_bytes(&pk_bytes)?;
 ### How do I use hybrid encryption?
 
 ```rust
-use latticearc::hybrid::*;
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
 
-let (pk, sk) = HybridKem::generate_keypair()?;
-let (shared_secret, ciphertext) = HybridKem::encapsulate(&pk)?;
-let shared_secret = HybridKem::decapsulate(&ciphertext, &sk)?;
+// Generate hybrid keypair (ML-KEM-768 + X25519)
+let (pk, sk) = generate_hybrid_keypair()?;
+
+// Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+
+// Decrypt
+let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
 ```
 
 ## Security

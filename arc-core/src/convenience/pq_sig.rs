@@ -1115,7 +1115,7 @@ mod tests {
 
     // FN-DSA tests
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    // FN-DSA: must run in release mode (stack overflow in debug)
     fn test_sign_verify_pq_fn_dsa_unverified() -> Result<()> {
         let message = b"Test FN-DSA";
         let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -1127,21 +1127,22 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    // FN-DSA: must run in release mode (stack overflow in debug)
     fn test_fn_dsa_verify_wrong_message() -> Result<()> {
         let message = b"Original message";
         let wrong_message = b"Wrong message";
         let (pk, sk) = generate_fn_dsa_keypair()?;
 
         let signature = sign_pq_fn_dsa_unverified(message, sk.as_ref())?;
-        let is_valid = verify_pq_fn_dsa_unverified(wrong_message, &signature, &pk)?;
-        assert!(!is_valid);
+        // FN-DSA returns Err on verification failure, not Ok(false)
+        let result = verify_pq_fn_dsa_unverified(wrong_message, &signature, &pk);
+        assert!(result.is_err(), "FN-DSA verify with wrong message should fail");
         Ok(())
     }
 
     // FN-DSA with config tests
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    // FN-DSA: must run in release mode (stack overflow in debug)
     fn test_sign_verify_pq_fn_dsa_with_config_unverified() -> Result<()> {
         let message = b"Test FN-DSA with config";
         let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -1155,7 +1156,7 @@ mod tests {
 
     // FN-DSA verified API tests
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    // FN-DSA: must run in release mode (stack overflow in debug)
     fn test_sign_verify_pq_fn_dsa_verified() -> Result<()> {
         let message = b"Test FN-DSA verified";
         let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -1305,7 +1306,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    // FN-DSA: must run in release mode (stack overflow in debug)
     fn test_fn_dsa_empty_message() -> Result<()> {
         let message = b"";
         let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -1316,7 +1317,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    // FN-DSA: must run in release mode (stack overflow in debug)
     fn test_fn_dsa_large_message() -> Result<()> {
         let message = vec![0xEF; 10_000];
         let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -1407,7 +1408,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
+    // FN-DSA: must run in release mode (stack overflow in debug)
     fn test_fn_dsa_binary_data() -> Result<()> {
         let message = vec![0x00, 0xFF, 0x7F, 0x80, 0x01, 0xFE];
         let (pk, sk) = generate_fn_dsa_keypair()?;

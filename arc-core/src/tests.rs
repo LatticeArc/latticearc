@@ -337,35 +337,182 @@ fn test_unified_api_aes_gcm_roundtrip() {
 }
 
 #[test]
-fn test_unified_api_rejects_symmetric_key_for_hybrid_schemes() {
+fn test_unified_api_hybrid_scheme_falls_back_to_aes_gcm() {
     std::thread::Builder::new()
-        .name("test_unified_api_rejects_symmetric_key_for_hybrid".to_string())
+        .name("test_unified_api_hybrid_fallback".to_string())
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
-            // The unified encrypt() API validates that hybrid schemes receive proper keys
-            // A 32-byte symmetric key should be rejected for hybrid schemes
+            // When the selector picks a hybrid scheme but the caller provides a
+            // symmetric key, the unified API falls back to AES-256-GCM.
+            // True hybrid encryption requires encrypt_hybrid() with typed keys.
 
-            let data = b"Test data";
+            let data = b"Test data for unified API hybrid fallback";
             let symmetric_key = vec![0x42u8; 32];
 
-            // Configure for hybrid encryption explicitly
             use crate::UseCase;
             let config = CryptoConfig::new().use_case(UseCase::FileStorage);
 
-            // This should fail because UseCase::FileStorage selects hybrid scheme
-            // but we're providing a 32-byte symmetric key
-            let result = encrypt(data, &symmetric_key, config);
+            // This should succeed — falls back to AES-256-GCM with the symmetric key
+            let encrypted = encrypt(data, &symmetric_key, config)
+                .expect("Unified API should fall back to AES-256-GCM for symmetric keys");
 
-            // Should fail with InvalidKey error
-            assert!(result.is_err(), "Hybrid scheme should reject 32-byte symmetric key");
-            if let Err(e) = result {
-                let error_message = format!("{:?}", e);
-                assert!(
-                    error_message.contains("public key") || error_message.contains("InvalidKey"),
-                    "Error should mention public key requirement: {}",
-                    error_message
-                );
+            // The stored scheme should be aes-256-gcm (the actual encryption used)
+            assert_eq!(
+                encrypted.scheme, "aes-256-gcm",
+                "Scheme should be aes-256-gcm after fallback, got: {}",
+                encrypted.scheme
+            );
+
+            // Roundtrip: decrypt should work with the same key
+            let decrypted = decrypt(&encrypted, &symmetric_key, CryptoConfig::new())
+                .expect("Decryption should succeed with the same symmetric key");
+            assert_eq!(data.as_slice(), decrypted.as_slice());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_unified_api_default_encrypt_decrypt_roundtrip() {
+    std::thread::Builder::new()
+        .name("test_unified_api_default_roundtrip".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            // The default CryptoConfig (SecurityLevel::High) should work with
+            // the unified API and a 32-byte symmetric key.
+            let data = b"Default unified API roundtrip test";
+            let key = vec![0x55u8; 32];
+
+            let encrypted =
+                encrypt(data, &key, CryptoConfig::new()).expect("Default encrypt should succeed");
+
+            assert_eq!(encrypted.scheme, "aes-256-gcm");
+
+            let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
+                .expect("Default decrypt should succeed");
+
+            assert_eq!(data.as_slice(), decrypted.as_slice());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_unified_api_all_use_cases_roundtrip() {
+    std::thread::Builder::new()
+        .name("test_unified_api_all_use_cases".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            use crate::UseCase;
+
+            let data = b"Roundtrip test for all use cases";
+            let key = vec![0xAAu8; 32];
+
+            let use_cases = [
+                // Communication (4)
+                UseCase::SecureMessaging,
+                UseCase::EmailEncryption,
+                UseCase::VpnTunnel,
+                UseCase::ApiSecurity,
+                // Storage (5)
+                UseCase::FileStorage,
+                UseCase::DatabaseEncryption,
+                UseCase::CloudStorage,
+                UseCase::BackupArchive,
+                UseCase::ConfigSecrets,
+                // Authentication & Identity (4)
+                UseCase::Authentication,
+                UseCase::SessionToken,
+                UseCase::DigitalCertificate,
+                UseCase::KeyExchange,
+                // Financial & Legal (3)
+                UseCase::FinancialTransactions,
+                UseCase::LegalDocuments,
+                UseCase::BlockchainTransaction,
+                // Regulated Industries (3)
+                UseCase::HealthcareRecords,
+                UseCase::GovernmentClassified,
+                UseCase::PaymentCard,
+                // IoT & Embedded (2)
+                UseCase::IoTDevice,
+                UseCase::FirmwareSigning,
+                // Advanced (3)
+                UseCase::SearchableEncryption,
+                UseCase::HomomorphicComputation,
+                UseCase::AuditLog,
+            ];
+
+            for uc in &use_cases {
+                let config = CryptoConfig::new().use_case(uc.clone());
+                let encrypted = encrypt(data, &key, config)
+                    .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", uc, e));
+
+                // Scheme name varies by use case (some produce signature scheme names)
+                // but all paths use AES-256-GCM internally with symmetric keys
+                assert!(!encrypted.scheme.is_empty(), "UseCase {:?} should have a scheme", uc);
+
+                let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
+                    .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", uc, e));
+                assert_eq!(data.as_slice(), decrypted.as_slice(), "UseCase {:?}", uc);
             }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_unified_api_all_security_levels_roundtrip() {
+    std::thread::Builder::new()
+        .name("test_unified_api_all_security_levels".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            let data = b"Roundtrip test for all security levels";
+            let key = vec![0xBBu8; 32];
+
+            let levels = [
+                SecurityLevel::Standard,
+                SecurityLevel::High,
+                SecurityLevel::Maximum,
+                SecurityLevel::Quantum,
+            ];
+
+            for level in &levels {
+                let config = CryptoConfig::new().security_level(level.clone());
+                let encrypted = encrypt(data, &key, config)
+                    .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", level, e));
+
+                // Scheme name varies by level (Quantum produces pq- prefix)
+                // but all paths use AES-256-GCM internally with symmetric keys
+                assert!(
+                    !encrypted.scheme.is_empty(),
+                    "SecurityLevel {:?} should have a scheme",
+                    level
+                );
+
+                let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
+                    .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", level, e));
+                assert_eq!(data.as_slice(), decrypted.as_slice(), "SecurityLevel {:?}", level);
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_unified_api_rejects_short_key() {
+    std::thread::Builder::new()
+        .name("test_unified_api_rejects_short_key".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            let data = b"Test data";
+            let short_key = vec![0x42u8; 16]; // Too short
+
+            let result = encrypt(data, &short_key, CryptoConfig::new());
+            assert!(result.is_err(), "Should reject key shorter than 32 bytes");
         })
         .unwrap()
         .join()

@@ -460,7 +460,7 @@ fn test_ml_kem_shared_secret_length_encapsulation_only() {
 }
 
 #[test]
-#[ignore = "aws-lc-rs does not support ML-KEM secret key deserialization for decapsulation"]
+#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
 fn test_ml_kem_shared_secret_length_full_roundtrip() {
     let mut rng = OsRng;
 

@@ -29,8 +29,8 @@
 //! Comprehensive SLH-DSA (Stateless Hash-Based Digital Signature) Tests
 //!
 //! This test suite validates SLH-DSA signatures as specified in FIPS 205.
-//! SLH-DSA is computationally intensive; some tests are marked with `#[ignore]`
-//! for CI performance reasons.
+//! SLH-DSA is computationally intensive; tests must run in release mode
+//! for performance reasons.
 //!
 //! Test coverage:
 //! - All SHA2 variants (128s, 128f, 192s, 192f, 256s, 256f)
@@ -164,7 +164,6 @@ slh_dsa_basic_test!(test_shake_128f_basic_sign_verify, slh_dsa_shake_128f);
 slh_dsa_basic_test!(test_shake_192s_basic_sign_verify, slh_dsa_shake_192s);
 
 #[test]
-#[ignore] // Computationally intensive
 fn test_shake_192f_basic_sign_verify() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";
@@ -177,7 +176,6 @@ fn test_shake_192f_basic_sign_verify() {
 slh_dsa_basic_test!(test_shake_256s_basic_sign_verify, slh_dsa_shake_256s);
 
 #[test]
-#[ignore] // Computationally intensive
 fn test_shake_256f_basic_sign_verify() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";
@@ -196,7 +194,6 @@ slh_dsa_basic_test!(test_sha2_128f_basic_sign_verify, slh_dsa_sha2_128f);
 slh_dsa_basic_test!(test_sha2_192s_basic_sign_verify, slh_dsa_sha2_192s);
 
 #[test]
-#[ignore] // Computationally intensive
 fn test_sha2_192f_basic_sign_verify() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";
@@ -209,7 +206,6 @@ fn test_sha2_192f_basic_sign_verify() {
 slh_dsa_basic_test!(test_sha2_256s_basic_sign_verify, slh_dsa_sha2_256s);
 
 #[test]
-#[ignore] // Computationally intensive
 fn test_sha2_256f_basic_sign_verify() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";

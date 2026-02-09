@@ -208,17 +208,18 @@ let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)
 
 ```rust
 use arc_primitives::kem::ml_kem::*;
+use rand::rngs::OsRng;
 
 // Generate keypair
-let keypair = MlKem1024KeyPair::generate()?;
+let mut rng = OsRng;
+let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)?;
 
-// Encapsulate
-let encapsulated = keypair.public_key.encapsulate()?;
-let shared_secret = encapsulated.shared_secret;
+// Encapsulate (produces shared secret + ciphertext)
+let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &pk)?;
 
-// Decapsulate
-let decapsulated = keypair.private_key.decapsulate(&encapsulated.ciphertext)?;
-assert_eq!(shared_secret, decapsulated);
+// Decapsulate (recovers same shared secret)
+let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
+assert_eq!(shared_secret, recovered);
 ```
 
 ### ML-DSA (Digital Signature Algorithm)
@@ -227,15 +228,15 @@ assert_eq!(shared_secret, decapsulated);
 use arc_primitives::sig::ml_dsa::*;
 
 // Generate keypair
-let keypair = MlDsa65KeyPair::generate()?;
+let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)?;
 
 // Sign
 let message = b"Important message";
-let signature = keypair.private_key.sign(message)?;
+let signature = sign(&sk, message, b"")?;
 
 // Verify
-let verified = keypair.public_key.verify(message, &signature)?;
-assert!(verified.into());
+let verified = verify(&pk, message, &signature, b"")?;
+assert!(verified);
 ```
 
 ### SLH-DSA (Stateless Hash-Based Signatures)
@@ -244,45 +245,49 @@ assert!(verified.into());
 use arc_primitives::sig::slh_dsa::*;
 
 // Generate keypair
-let keypair = SlhDsaSha2128KeyPair::generate()?;
+let (signing_key, verifying_key) = SigningKey::generate(SecurityLevel::Sha2128s)?;
 
 // Sign
-let signature = keypair.private_key.sign(message)?;
+let signature = signing_key.sign(message, None)?;
 
 // Verify
-let verified = keypair.public_key.verify(message, &signature)?;
+let verified = verifying_key.verify(message, &signature, None)?;
 ```
 
 ### AES-GCM (AEAD Encryption)
 
 ```rust
 use arc_primitives::aead::aes_gcm::*;
+use arc_primitives::aead::AeadCipher;
 
-// Generate key
-let key = Aes256GcmKey::generate()?;
+// Generate key and create cipher
+let key = AesGcm256::generate_key();
+let cipher = AesGcm256::new(&key)?;
 
 // Encrypt
-let nonce = AesGcmNonce::generate();
-let ciphertext = aes_gcm_encrypt(&key, &nonce, plaintext, aad)?;
+let nonce = AesGcm256::generate_nonce();
+let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
 
 // Decrypt
-let decrypted = aes_gcm_decrypt(&key, &nonce, &ciphertext, aad)?;
+let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
 ```
 
 ### ChaCha20-Poly1305
 
 ```rust
 use arc_primitives::aead::chacha20poly1305::*;
+use arc_primitives::aead::AeadCipher;
 
-// Generate key
-let key = ChaCha20Poly1305Key::generate()?;
+// Generate key and create cipher
+let key = ChaCha20Poly1305Cipher::generate_key();
+let cipher = ChaCha20Poly1305Cipher::new(&key)?;
 
 // Encrypt
-let nonce = ChaCha20Poly1305Nonce::generate();
-let ciphertext = chacha20poly1305_encrypt(&key, &nonce, plaintext, aad)?;
+let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
 
 // Decrypt
-let decrypted = chacha20poly1305_decrypt(&key, &nonce, &ciphertext, aad)?;
+let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
 ```
 
 ---

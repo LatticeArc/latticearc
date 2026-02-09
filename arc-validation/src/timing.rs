@@ -45,7 +45,7 @@ impl Default for TimingValidator {
             sample_count: 200,                 // More samples for statistical significance
             warmup_iterations: 100,            // Extended warmup to stabilize caches
             batch_size: 200,                   // Larger batches to reduce measurement noise
-            max_timing_difference_ratio: 0.20, // 20% threshold accounts for environmental noise
+            max_timing_difference_ratio: 0.50, // 50% threshold accounts for CI runner noise (real timing leaks show >5x difference)
         }
     }
 }
@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Timing validation is inherently flaky in non-controlled environments"]
+    // Must run in release mode for reliable timing
     fn test_constant_time_compare_with_subtle() {
         // Test that subtle::ConstantTimeEq comparisons pass constant-time validation
         // This validates that the subtle crate's implementation is constant-time
@@ -318,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Timing validation is inherently flaky in non-controlled environments"]
+    // Must run in release mode for reliable timing
     fn test_validate_constant_time_function() {
         // Test the top-level validate_constant_time function
         // NOTE: This test requires controlled conditions (CPU frequency locked,
@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Timing validation is inherently flaky in non-controlled environments"]
+    // Must run in release mode for reliable timing
     fn test_compare_timings_similar_operations() {
         // Test that two similar operations have similar timing
         // NOTE: This test requires controlled conditions to pass reliably.

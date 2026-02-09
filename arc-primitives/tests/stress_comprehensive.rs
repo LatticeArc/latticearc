@@ -48,8 +48,7 @@
 //! - SHA-2/SHA-3: Hash operations at scale
 //! - CSPRNG: Random byte generation at scale
 //!
-//! Tests marked with `#[ignore]` are very long-running and should be run
-//! separately in CI with extended timeouts.
+//! All tests must run in release mode for acceptable performance.
 
 #![deny(unsafe_code)]
 
@@ -479,7 +478,6 @@ fn test_high_volume_random_bytes() {
 
 /// Test operations with large buffer (100MB encryption)
 #[test]
-#[ignore = "Very resource intensive - requires 100MB+ memory"]
 fn test_large_buffer_encryption_100mb() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
@@ -646,7 +644,7 @@ fn test_high_volume_random_u32_distribution() {
 
 /// Extended operation sequence - 10000+ ML-KEM operations
 #[test]
-#[ignore = "Very long-running test - 10000+ operations"]
+// Must run in release mode
 fn test_extended_mlkem_operations() {
     let mut rng = OsRng;
     let mut success_count = 0;
@@ -675,7 +673,7 @@ fn test_extended_mlkem_operations() {
 
 /// Extended operation sequence - 10000+ hash operations
 #[test]
-#[ignore = "Very long-running test - 10000+ operations"]
+// Must run in release mode
 fn test_extended_hash_operations() {
     let mut success_count = 0;
 
@@ -821,7 +819,7 @@ fn test_no_keygen_degradation() {
 
 /// Extended encryption stability test
 #[test]
-#[ignore = "Very long-running test"]
+// Must run in release mode
 fn test_extended_encryption_stability() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
@@ -851,7 +849,7 @@ fn test_extended_encryption_stability() {
 
 /// Test extended ECDH operations
 #[test]
-#[ignore = "Long-running test - 5000 operations"]
+// Must run in release mode
 fn test_extended_ecdh_operations() {
     let mut success_count = 0;
     const ECDH_ITERATIONS: usize = 5000;

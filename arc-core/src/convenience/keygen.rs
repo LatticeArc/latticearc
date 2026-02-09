@@ -587,9 +587,8 @@ mod tests {
         Ok(())
     }
 
-    // FN-DSA tests (ignored due to stack overflow)
+    // FN-DSA tests — must run in release mode (stack overflow in debug)
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
     fn test_fn_dsa_keypair_functionality() -> Result<()> {
         use crate::convenience::pq_sig::{sign_pq_fn_dsa_unverified, verify_pq_fn_dsa_unverified};
 
@@ -603,7 +602,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "FN-DSA causes stack overflow in debug mode - run in release mode"]
     fn test_fn_dsa_with_config() -> Result<()> {
         use crate::convenience::pq_sig::{sign_pq_fn_dsa_unverified, verify_pq_fn_dsa_unverified};
 

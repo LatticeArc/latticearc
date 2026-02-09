@@ -444,7 +444,7 @@ fn test_validate_constant_time_runs_without_panic() {
 }
 
 #[test]
-#[ignore = "Timing validation is inherently flaky in non-controlled environments"]
+// Must run in release mode for reliable timing
 fn test_validate_constant_time_passes_in_controlled_environment() {
     let result = validate_constant_time();
     assert!(

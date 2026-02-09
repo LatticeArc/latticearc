@@ -108,10 +108,10 @@ use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
 let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
 
 // Sign (FIPS 204 Section 6.2)
-let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MLDSA65)?;
+let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
 
 // Verify (FIPS 204 Section 6.3)
-let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MLDSA65)?;
+let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
 ```
 
 ### CAVP Validation

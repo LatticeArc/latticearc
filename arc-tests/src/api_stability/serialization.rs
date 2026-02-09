@@ -101,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "aws-lc-rs does not support secret key deserialization for decapsulation"]
+    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
     fn api_stability_shared_secret_size() {
         let mut rng = OsRng;
 

@@ -295,42 +295,31 @@ mod tests {
     // FIPS 198-1 Test Vectors for HMAC-SHA-256
     // From: https://csrc.nist.gov/Projects/Cryptographic-Standards-and-Guidelines/example-values
 
-    /// Test case 1: Key size = block size (64 bytes), data size = 3 bytes
+    /// RFC 4231 Test Case 1: Key = 20 bytes of 0x0b, Data = "Hi There"
     #[test]
-    #[ignore]
-    fn test_hmac_sha256_fips_test_case_1() {
-        // Key = 0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b
-        //       0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b
-        let key = hex!(
-            "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
-        );
+    fn test_hmac_sha256_rfc4231_test_case_1() {
+        let key = hex!("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
 
-        // Data = "Hi There"
         let data = b"Hi There";
 
-        // Expected MAC = 0xb0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7
         let expected = hex!("b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
 
         let result = hmac_sha256(&key, data).unwrap();
-        assert_eq!(result, expected, "FIPS 198-1 test case 1 failed");
+        assert_eq!(result, expected, "RFC 4231 test case 1 failed");
         assert!(verify_hmac_sha256(&key, data, &expected));
     }
 
-    /// Test case 2: Key size < block size, data size = 28 bytes
+    /// RFC 4231 Test Case 2: Key = "Jefe", Data = "what do ya want for nothing?"
     #[test]
-    #[ignore]
-    fn test_hmac_sha256_fips_test_case_2() {
-        // Key = "Jefe"
+    fn test_hmac_sha256_rfc4231_test_case_2() {
         let key = b"Jefe";
 
-        // Data = "what do ya want for nothing?"
         let data = b"what do ya want for nothing?";
 
-        // Expected MAC = 0x5bdcc146bf60754e6a04224268492d823634321e9b4d0221576756b33a39f8d4
-        let expected = hex!("5bdcc146bf60754e6a04224268492d823634321e9b4d0221576756b33a39f8d4");
+        let expected = hex!("5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
 
         let result = hmac_sha256(key, data).unwrap();
-        assert_eq!(result, expected, "FIPS 198-1 test case 2 failed");
+        assert_eq!(result, expected, "RFC 4231 test case 2 failed");
         assert!(verify_hmac_sha256(key, data, &expected));
     }
 
@@ -368,60 +357,31 @@ mod tests {
         assert!(verify_hmac_sha256(&key, &data, &expected));
     }
 
-    /// Test case 5: Key size = 131 bytes (> block size, should be hashed), data size = 54 bytes
+    /// RFC 4231 Test Case 6: Key = 131 bytes of 0xaa, large key (hashed first)
     #[test]
-    #[ignore]
-    fn test_hmac_sha256_fips_test_case_5() {
-        // Key = 0x01 repeated 131 times
-        let key = [0x01_u8; 131];
+    fn test_hmac_sha256_rfc4231_test_case_6() {
+        let key = [0xaa_u8; 131];
 
-        // Data = "Test Using Larger Than Block-Size Key - Hash Key First"
         let data = b"Test Using Larger Than Block-Size Key - Hash Key First";
 
-        // Expected MAC = 0x60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54
         let expected = hex!("60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54");
 
         let result = hmac_sha256(&key, data).unwrap();
-        assert_eq!(result, expected, "FIPS 198-1 test case 5 failed");
+        assert_eq!(result, expected, "RFC 4231 test case 6 failed");
         assert!(verify_hmac_sha256(&key, data, &expected));
     }
 
-    /// Test case 6: Key size = 131 bytes (> block size, should be hashed), data size = 73 bytes
+    /// RFC 4231 Test Case 7: Key = 131 bytes of 0xaa, large key + large data
     #[test]
-    #[ignore]
-    fn test_hmac_sha256_fips_test_case_6() {
-        // Key = 0x01 repeated 131 times
-        let key = [0x01_u8; 131];
+    fn test_hmac_sha256_rfc4231_test_case_7() {
+        let key = [0xaa_u8; 131];
 
-        // Data = "This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm."
         let data = b"This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.";
 
-        // Expected MAC = 0x9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2
         let expected = hex!("9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2");
 
         let result = hmac_sha256(&key, data).unwrap();
-        assert_eq!(result, expected, "FIPS 198-1 test case 6 failed");
-        assert!(verify_hmac_sha256(&key, data, &expected));
-    }
-
-    /// Test case 7: Key size = block size (64 bytes), data size = 152 bytes
-    #[test]
-    #[ignore]
-    fn test_hmac_sha256_fips_test_case_7() {
-        // Key = 0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b
-        //       0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b
-        let key = hex!(
-            "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
-        );
-
-        // Data = "Hi There"
-        let data = b"Hi There";
-
-        // Expected MAC = 0xb0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7
-        let expected = hex!("b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
-
-        let result = hmac_sha256(&key, data).unwrap();
-        assert_eq!(result, expected, "FIPS 198-1 test case 7 failed");
+        assert_eq!(result, expected, "RFC 4231 test case 7 failed");
         assert!(verify_hmac_sha256(&key, data, &expected));
     }
 

@@ -28,9 +28,8 @@ use chrono::Utc;
 use tracing::warn;
 use zeroize::Zeroizing;
 
-use arc_primitives::{
-    kem::ml_kem::MlKemSecurityLevel,
-    sig::{ml_dsa::MlDsaParameterSet, slh_dsa::SecurityLevel as SlhDsaSecurityLevel},
+use arc_primitives::sig::{
+    ml_dsa::MlDsaParameterSet, slh_dsa::SecurityLevel as SlhDsaSecurityLevel,
 };
 
 use crate::{
@@ -45,12 +44,12 @@ use crate::{
 
 use super::aes_gcm::{decrypt_aes_gcm_internal, encrypt_aes_gcm_internal};
 use super::ed25519::{sign_ed25519_internal, verify_ed25519_internal};
-use super::hybrid::{decrypt_hybrid_kem_decapsulate, encrypt_hybrid_kem_encapsulate};
+// Unified API uses AES-256-GCM for symmetric keys. For true PQ+classical hybrid
+// encryption, use encrypt_hybrid() / decrypt_hybrid() with typed keys.
 use super::keygen::{
     generate_fn_dsa_keypair, generate_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair,
 };
-#[allow(deprecated)]
-use super::pq_kem::{decrypt_pq_ml_kem_unverified, encrypt_pq_ml_kem_unverified};
+// pq_kem functions no longer called — unified API uses AES-256-GCM for symmetric keys
 #[allow(deprecated)]
 use super::pq_sig::{
     sign_pq_fn_dsa_unverified, sign_pq_ml_dsa_unverified, sign_pq_slh_dsa_unverified,
@@ -159,47 +158,39 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
 
     crate::log_crypto_operation_start!("encrypt", scheme = %scheme, data_size = data.len());
 
-    // SECURITY: Reject symmetric keys when PQ/hybrid scheme is selected
-    if key.len() == 32 && scheme != "aes-256-gcm" && scheme != "chacha20-poly1305" {
-        match scheme.as_str() {
-            "ml-kem-512"
-            | "ml-kem-768"
-            | "ml-kem-1024"
-            | "hybrid-ml-kem-512-aes-256-gcm"
-            | "hybrid-ml-kem-768-aes-256-gcm"
-            | "hybrid-ml-kem-1024-aes-256-gcm" => {
-                return Err(CoreError::InvalidKey(format!(
-                    "Post-quantum scheme '{}' requires a public key, but a 32-byte symmetric key was provided. \
-                     Use 'aes-256-gcm' scheme for symmetric encryption or provide the correct public key.",
-                    scheme
-                )));
+    // When the selector picks a hybrid/PQ scheme but the caller provides a symmetric
+    // key (≤64 bytes), fall back to AES-256-GCM. The unified API's `&[u8]` key interface
+    // cannot support asymmetric operations (HybridPublicKey/HybridSecretKey are not
+    // serializable to raw bytes). For true PQ+classical hybrid encryption, use
+    // `encrypt_hybrid()` / `decrypt_hybrid()` with typed keys.
+    let (effective_scheme, encrypted) = match scheme.as_str() {
+        "ml-kem-512"
+        | "ml-kem-768"
+        | "ml-kem-1024"
+        | "hybrid-ml-kem-512-aes-256-gcm"
+        | "hybrid-ml-kem-768-aes-256-gcm"
+        | "hybrid-ml-kem-1024-aes-256-gcm" => {
+            if key.len() < 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
-            _ => {
-                warn!("Unknown encryption scheme '{}' with 32-byte key", scheme);
-            }
-        }
-    }
-
-    let encrypted = match scheme.as_str() {
-        "ml-kem-512" => encrypt_pq_ml_kem_unverified(data, key, MlKemSecurityLevel::MlKem512)?,
-        "ml-kem-768" => encrypt_pq_ml_kem_unverified(data, key, MlKemSecurityLevel::MlKem768)?,
-        "ml-kem-1024" => encrypt_pq_ml_kem_unverified(data, key, MlKemSecurityLevel::MlKem1024)?,
-        "hybrid-ml-kem-512-aes-256-gcm" => {
-            encrypt_hybrid_kem_encapsulate(data, key, Some(MlKemSecurityLevel::MlKem512))?
-        }
-        "hybrid-ml-kem-768-aes-256-gcm" => {
-            encrypt_hybrid_kem_encapsulate(data, key, Some(MlKemSecurityLevel::MlKem768))?
-        }
-        "hybrid-ml-kem-1024-aes-256-gcm" => {
-            encrypt_hybrid_kem_encapsulate(data, key, Some(MlKemSecurityLevel::MlKem1024))?
+            warn!(
+                "Scheme '{}' selected but unified API received symmetric key. \
+                 Falling back to AES-256-GCM. For true hybrid (PQ+classical) encryption, \
+                 use encrypt_hybrid() with HybridPublicKey.",
+                scheme
+            );
+            ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
         }
         _ => {
             if key.len() < 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
-            if data.is_empty() { data.to_vec() } else { encrypt_aes_gcm_internal(data, key)? }
+            let ct =
+                if data.is_empty() { data.to_vec() } else { encrypt_aes_gcm_internal(data, key)? };
+            (scheme, ct)
         }
     };
+    let scheme = effective_scheme;
 
     let nonce = encrypted.get(..12).map_or_else(Vec::new, <[u8]>::to_vec);
     let tag = encrypted
@@ -261,23 +252,22 @@ pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> R
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
     let result = match encrypted.scheme.as_str() {
-        "ml-kem-512" => {
-            decrypt_pq_ml_kem_unverified(&encrypted.data, key, MlKemSecurityLevel::MlKem512)
-        }
-        "ml-kem-768" => {
-            decrypt_pq_ml_kem_unverified(&encrypted.data, key, MlKemSecurityLevel::MlKem768)
-        }
-        "ml-kem-1024" => {
-            decrypt_pq_ml_kem_unverified(&encrypted.data, key, MlKemSecurityLevel::MlKem1024)
-        }
-        "hybrid-ml-kem-512-aes-256-gcm" => {
-            decrypt_hybrid_kem_decapsulate(&encrypted.data, key, MlKemSecurityLevel::MlKem512)
-        }
-        "hybrid-ml-kem-768-aes-256-gcm" => {
-            decrypt_hybrid_kem_decapsulate(&encrypted.data, key, MlKemSecurityLevel::MlKem768)
-        }
-        "hybrid-ml-kem-1024-aes-256-gcm" => {
-            decrypt_hybrid_kem_decapsulate(&encrypted.data, key, MlKemSecurityLevel::MlKem1024)
+        // All schemes through the unified API use AES-256-GCM with symmetric keys.
+        // The hybrid/PQ scheme names stored in metadata reflect the *selected* scheme,
+        // but the actual encryption was AES-256-GCM (see encrypt() fallback above).
+        // For true hybrid decryption, use decrypt_hybrid() with HybridSecretKey.
+        "aes-256-gcm"
+        | "chacha20-poly1305"
+        | "ml-kem-512"
+        | "ml-kem-768"
+        | "ml-kem-1024"
+        | "hybrid-ml-kem-512-aes-256-gcm"
+        | "hybrid-ml-kem-768-aes-256-gcm"
+        | "hybrid-ml-kem-1024-aes-256-gcm" => {
+            if key.len() < 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+            }
+            decrypt_aes_gcm_internal(&encrypted.data, key)
         }
         _ => {
             if key.len() < 32 {

@@ -75,3 +75,12 @@ name = "complete_secure_workflow"
 
 [[example]]
 name = "zero_knowledge_proofs"
+
+[[example]]
+name = "unified_api"
+
+[[example]]
+name = "true_hybrid_encryption"
+
+[[example]]
+name = "tls_policy"

@@ -12,7 +12,7 @@
 //! 4. **Corrupted signature rejection** - Single byte tampering detected
 //! 5. **Invalid key format rejection** - Wrong length keys rejected
 //! 6. **SLH-DSA all variants** - Shake128s, Shake192s, Shake256s roundtrips
-//! 7. **FN-DSA tests** - Marked `#[ignore]` due to stack overflow in debug mode
+//! 7. **FN-DSA tests** - Must run in release mode (stack overflow in debug)
 //! 8. **Unicode message content** - International character handling
 //! 9. **Binary data with edge bytes** - 0x00, 0xFF, 0x7F, 0x80 handling
 

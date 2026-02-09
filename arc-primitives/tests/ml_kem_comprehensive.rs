@@ -47,8 +47,8 @@
 //! ## FIPS 140-3 Compliance Note
 //! The aws-lc-rs library provides FIPS 140-3 validated ML-KEM but does NOT
 //! expose secret key bytes for serialization. This is an intentional security
-//! design decision. Tests that require secret key deserialization are marked
-//! with `#[ignore]` and appropriate documentation.
+//! design decision. Tests that require secret key deserialization are blocked
+//! pending upstream PR (aws-lc-rs#1029, issue #16).
 
 use arc_primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemConfig, MlKemError, MlKemPublicKey, MlKemSecretKey,
@@ -1056,10 +1056,11 @@ fn test_security_level_methods_consistency() {
     }
 }
 
-/// Test deterministic keypair generation (ignored due to aws-lc-rs using internal DRBG)
+/// Test that keypair generation is non-deterministic even with same seed.
+/// aws-lc-rs uses an internal FIPS-approved DRBG that adds its own entropy,
+/// so external seeds do NOT produce deterministic output (by design).
 #[test]
-#[ignore = "aws-lc-rs uses internal FIPS-approved DRBG; external seed is not used deterministically"]
-fn test_deterministic_keypair_generation() {
+fn test_keypair_generation_non_deterministic_despite_same_seed() {
     let seed = [0x42u8; 32];
 
     let (pk1, _sk1) = MlKem::generate_keypair_with_seed(&seed, MlKemSecurityLevel::MlKem768)
@@ -1067,7 +1068,13 @@ fn test_deterministic_keypair_generation() {
     let (pk2, _sk2) = MlKem::generate_keypair_with_seed(&seed, MlKemSecurityLevel::MlKem768)
         .expect("generation 2 should succeed");
 
-    assert_eq!(pk1.as_bytes(), pk2.as_bytes(), "Same seed should produce same public key");
+    // aws-lc-rs FIPS DRBG adds internal entropy — same external seed does NOT
+    // produce same keys. This is the correct FIPS behavior.
+    assert_ne!(
+        pk1.as_bytes(),
+        pk2.as_bytes(),
+        "aws-lc-rs FIPS DRBG should make output non-deterministic"
+    );
 }
 
 // ============================================================================

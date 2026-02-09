@@ -22,10 +22,7 @@
 //! Run with: cargo test --package arc-tls --test tls_protocol_comprehensive --all-features
 
 use arc_core::{PerformancePreference, SecurityLevel};
-use arc_tls::basic_features::{
-    create_client_connector, create_server_acceptor, get_config_info, load_certs, load_private_key,
-    tls_connect,
-};
+use arc_tls::basic_features::{get_config_info, load_certs, load_private_key, tls_connect};
 use arc_tls::error::{ErrorCode, ErrorContext, ErrorSeverity, OperationPhase, RecoveryHint};
 use arc_tls::pq_key_exchange::{
     PqKexMode, get_kex_info, get_kex_provider, is_custom_hybrid_available, is_pq_available,
@@ -1192,41 +1189,8 @@ mod kex_info_tests {
 }
 
 // =============================================================================
-// SECTION 9: NETWORK INTEGRATION TESTS (marked as ignored)
+// SECTION 9: NETWORK INTEGRATION TESTS
 // =============================================================================
-
-mod network_integration_tests {
-    use super::*;
-
-    #[tokio::test]
-    #[ignore = "Requires network access"]
-    async fn test_real_tls_connection_hybrid() {
-        let config = TlsConfig::new(); // Hybrid mode
-        let result = tls_connect("www.google.com:443", "www.google.com", &config).await;
-        assert!(result.is_ok(), "TLS connection should succeed");
-    }
-
-    #[tokio::test]
-    #[ignore = "Requires network access"]
-    async fn test_real_tls_connection_classic() {
-        let config = TlsConfig::new().use_case(TlsUseCase::LegacyIntegration);
-        let result = tls_connect("www.google.com:443", "www.google.com", &config).await;
-        assert!(result.is_ok(), "Classic TLS connection should succeed");
-    }
-
-    #[tokio::test]
-    #[ignore = "Requires valid certificate files"]
-    async fn test_server_acceptor_creation_with_certs() {
-        let config = TlsConfig::default();
-        let result = create_server_acceptor(&config, "server.crt", "server.key");
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    #[ignore = "Requires client certificate files"]
-    async fn test_client_connector_with_mtls() {
-        let config = TlsConfig::new().with_client_auth("client.crt", "client.key");
-        let result = create_client_connector(&config);
-        assert!(result.is_ok());
-    }
-}
+// Real TLS handshake tests (classic, hybrid, PQ, mTLS, ALPN, large data) are in
+// arc-tls/tests/tls_handshake_roundtrip.rs — they use rcgen-generated certs and
+// localhost TCP, no external dependencies.

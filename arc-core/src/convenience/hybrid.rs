@@ -223,121 +223,12 @@ pub fn decrypt_hybrid_with_config_unverified(
     decrypt_hybrid_with_config(encrypted, hybrid_sk, config, SecurityMode::Unverified)
 }
 
-// ============================================================================
-// Internal helpers used by the unified encrypt/decrypt in api.rs
-// ============================================================================
-
-// These are kept for the unified API's hybrid scheme dispatch (api.rs).
-// They use the old ML-KEM-only + AES-GCM path which the unified encrypt/decrypt
-// delegates to for scheme strings like "hybrid-ml-kem-768-aes-256-gcm".
-
-use arc_primitives::kem::ml_kem::{
-    MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
-};
-
-use super::aes_gcm::{decrypt_aes_gcm_internal, encrypt_aes_gcm_internal};
-use super::keygen::generate_ml_kem_keypair;
-
-pub(crate) fn encrypt_hybrid_kem_encapsulate(
-    data: &[u8],
-    symmetric_key: &[u8],
-    kem_security_level: Option<MlKemSecurityLevel>,
-) -> Result<Vec<u8>> {
-    if symmetric_key.len() < 32 {
-        return Err(CoreError::InvalidInput(format!(
-            "Symmetric key must be at least 32 bytes, got {}",
-            symmetric_key.len()
-        )));
-    }
-
-    let ciphertext = if let Some(level) = kem_security_level {
-        let (kem_pk, _) = generate_ml_kem_keypair(level)?;
-        let (encapsulated_key, shared_secret) = kem_encapsulate(kem_pk.as_slice())?;
-        let encrypted = encrypt_aes_gcm_internal(data, &shared_secret)?;
-        let mut result = encapsulated_key;
-        result.extend_from_slice(&encrypted);
-        result
-    } else {
-        encrypt_aes_gcm_internal(data, symmetric_key)?
-    };
-
-    Ok(ciphertext)
-}
-
-pub(crate) fn decrypt_hybrid_kem_decapsulate(
-    encrypted_data: &[u8],
-    symmetric_key: &[u8],
-    kem_security_level: MlKemSecurityLevel,
-) -> Result<Vec<u8>> {
-    let encapsulated_size = match kem_security_level {
-        MlKemSecurityLevel::MlKem512 => 768,
-        MlKemSecurityLevel::MlKem768 => 1088,
-        MlKemSecurityLevel::MlKem1024 => 1568,
-    };
-
-    let encapsulated_key = encrypted_data
-        .get(..encapsulated_size)
-        .ok_or_else(|| CoreError::InvalidInput("Hybrid encrypted data too short".to_string()))?;
-
-    let ciphertext = encrypted_data
-        .get(encapsulated_size..)
-        .ok_or_else(|| CoreError::InvalidInput("Hybrid encrypted data too short".to_string()))?;
-
-    let shared_secret = kem_decapsulate(symmetric_key, encapsulated_key)?;
-    decrypt_aes_gcm_internal(ciphertext, &shared_secret)
-}
-
-fn kem_encapsulate(public_key_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
-    let security_level = match public_key_bytes.len() {
-        800 => MlKemSecurityLevel::MlKem512,
-        1184 => MlKemSecurityLevel::MlKem768,
-        1568 => MlKemSecurityLevel::MlKem1024,
-        l => {
-            return Err(CoreError::InvalidKeyLength { expected: 1184, actual: l });
-        }
-    };
-
-    let public_key = MlKemPublicKey::new(security_level, public_key_bytes.to_vec())
-        .map_err(|e| CoreError::InvalidInput(format!("Invalid public key: {}", e)))?;
-
-    let mut rng = rand::rngs::OsRng;
-    let (shared_secret, encapsulated) = MlKem::encapsulate(&mut rng, &public_key)
-        .map_err(|e| CoreError::EncryptionFailed(format!("Encapsulation failed: {}", e)))?;
-
-    Ok((encapsulated.into_bytes(), shared_secret.as_bytes().to_vec()))
-}
-
-fn kem_decapsulate(private_key: &[u8], encapsulated_key: &[u8]) -> Result<Vec<u8>> {
-    let security_level = match private_key.len() {
-        1632 => MlKemSecurityLevel::MlKem512,
-        2400 => MlKemSecurityLevel::MlKem768,
-        3168 => MlKemSecurityLevel::MlKem1024,
-        l => return Err(CoreError::InvalidKeyLength { expected: 2400, actual: l }),
-    };
-
-    let ciphertext_size = security_level.ciphertext_size();
-    if encapsulated_key.len() < ciphertext_size {
-        return Err(CoreError::InvalidInput(format!(
-            "Encapsulated key too short: expected {}, got {}",
-            ciphertext_size,
-            encapsulated_key.len()
-        )));
-    }
-
-    let encapsulated_slice = encapsulated_key
-        .get(..ciphertext_size)
-        .ok_or_else(|| CoreError::InvalidInput("Encapsulated key too short".to_string()))?;
-
-    let encapsulated = MlKemCiphertext::new(security_level, encapsulated_slice.to_vec())
-        .map_err(|_e| CoreError::DecryptionFailed("Invalid encapsulated key".to_string()))?;
-
-    let kem_private_key = MlKemSecretKey::new(security_level, private_key.to_vec())
-        .map_err(|_e| CoreError::DecryptionFailed("Invalid private key".to_string()))?;
-
-    MlKem::decapsulate(&kem_private_key, &encapsulated)
-        .map(|shared_secret| shared_secret.as_bytes().to_vec())
-        .map_err(|e| CoreError::DecryptionFailed(format!("KEM decapsulation failed: {}", e)))
-}
+// The unified API (api.rs) with `&[u8]` keys only supports AES-256-GCM symmetric
+// encryption. When the selector picks a hybrid scheme (which it does by default),
+// the unified API falls back to AES-256-GCM automatically.
+//
+// For true PQ+classical hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM),
+// use the typed API: encrypt_hybrid() / decrypt_hybrid() with HybridPublicKey/HybridSecretKey.
 
 #[cfg(test)]
 #[allow(

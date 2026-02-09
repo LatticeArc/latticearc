@@ -217,32 +217,26 @@ fn test_histogram_batch_recording() {
 }
 
 #[test]
-#[ignore = "Performance overhead test is flaky in CI due to system load variations"]
 fn test_performance_overhead() {
-    // Measure overhead of performance tracking
+    // Verify that MetricsCollector tracking completes in bounded time.
+    // We don't compare against a baseline (which can be near-zero for trivial loops,
+    // making ratio comparisons meaningless). Instead we check absolute wall time.
     let collector = MetricsCollector::new();
 
-    // Baseline: no tracking
-    let baseline = time_operation(|| {
-        let mut x = 0u64;
-        for i in 0..10000 {
-            x = x.wrapping_add(i);
-        }
-    });
-
-    // With tracking
     let with_tracking = time_operation(|| {
         let mut x = 0u64;
         for _ in 0..10000 {
             x = x.wrapping_add(1);
-            // Simulate some work
             collector.record_operation("overhead_test", Duration::from_nanos(1));
         }
     });
 
-    // The tracking overhead should be reasonable (less than 10x in this simple case)
-    // In practice, the overhead is minimal for actual cryptographic operations
-    assert!(with_tracking < baseline * 100);
+    // 10,000 record_operation calls should complete well under 1 second
+    assert!(
+        with_tracking < Duration::from_secs(1),
+        "10k record_operation calls took {:?}, expected < 1s",
+        with_tracking
+    );
 }
 
 #[test]
