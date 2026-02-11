@@ -336,12 +336,7 @@ tracing-appender = { version = "0.2" }
 
 # Common utilities
 parking_lot = { version = "0.12.3" }
-bytes = { version = "1.9" }
-url = { version = "2.5" }
 lazy_static = { version = "1.5" }
-futures = { version = "0.3" }
-crossbeam-utils = { version = "0.8" }
-generic-array = { version = "0.14" }
 blake2 = { version = "0.10" }
 
 [profile.bench]

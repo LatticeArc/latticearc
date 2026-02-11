@@ -92,7 +92,7 @@ tokio-test = "0.4.4"
 # Wycheproof test vectors for crypto edge cases
 wycheproof = "0.6"
 # Criterion for constant-time benchmarks
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { workspace = true }
 
 [features]
 default = []
