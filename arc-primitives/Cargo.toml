@@ -10,6 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 readme.workspace = true
+build = "build.rs"
 
 # Inherit all lints from workspace
 [lints]
