@@ -774,8 +774,10 @@ jobs:
         cargo test --test statistical_timing_tests --all-features
 
   # === Release Validation ===
+  # Uses native compilation without --target flags to avoid cross-compilation issues
+  # with aws-lc-rs. See: https://github.com/aws/aws-lc-rs/issues/409
   release-validation:
-    name: Release Validation
+    name: Release Validation (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [test, build, security, integration, security-tests]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -784,13 +786,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
+            artifact-name: x86_64-linux
+          - os: macos-13  # Intel x86_64
+            artifact-name: x86_64-macos
+          - os: macos-14  # Apple Silicon ARM64
+            artifact-name: aarch64-macos
           - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            artifact-name: x86_64-windows
 
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -799,8 +801,6 @@ jobs:
 
     - name: Install Rust (Edition 2024)
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
-      with:
-        targets: ${{ matrix.target }}
 
     # Go is required for aws-lc-fips-sys FIPS builds
     - name: Install Go (macOS)
@@ -811,18 +811,18 @@ jobs:
         cache: false
 
     - name: Build release artifacts
-      run: cargo build --workspace --target ${{ matrix.target }} --release --all-features
+      run: cargo build --workspace --release --all-features
 
     - name: Test release artifacts
-      run: cargo test --workspace --target ${{ matrix.target }} --release --all-features
+      run: cargo test --workspace --release --all-features
 
     - name: Package and upload artifacts
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: apache-${{ matrix.target }}
+        name: apache-${{ matrix.artifact-name }}
         path: |
-          target/${{ matrix.target }}/release/*latticearc*
-          target/${{ matrix.target }}/release/liblatticearc*
+          target/release/*latticearc*
+          target/release/liblatticearc*
         retention-days: 30
 
   # === Final Status Check ===
