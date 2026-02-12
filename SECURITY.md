@@ -143,20 +143,28 @@ Audit reports will be published in the `docs/audits/` directory when available.
 - **Mathematically proven**, not just tested
 
 **Our API Layer:**
-- Uses the [`subtle`](https://docs.rs/subtle) crate for all constant-time comparisons
-- Verified with [ctgrind](https://github.com/agl/ctgrind) (Valgrind-based) in CI
-- No conditional branches or memory accesses on secrets in our code
+- Uses the [`subtle`](https://docs.rs/subtle) crate for constant-time comparisons
+- `subtle` is maintained by [dalek-cryptography](https://github.com/dalek-cryptography/subtle)
+- **Not formally verified** - uses pure Rust bitwise operations to prevent timing leaks
+- Battle-tested: 22.7M downloads/month, used by rustls, RustCrypto, curve25519-dalek
+- Zero known timing vulnerabilities (no RustSec advisories)
+- Maintainers emphasize this is a "best-effort attempt" dependent on compiler behavior
+
+**Why we use `subtle`:**
+- Industry standard in Rust cryptography ecosystem
+- No formally verified alternative exists for Rust custom types (enums, structs)
+- aws-lc-rs provides `verify_slices_are_equal` only for `&[u8]` (not custom types)
+- Pragmatic trade-off: battle-tested (proven) vs formally verified (doesn't exist for our use case)
 
 **What We Cannot Guarantee:**
 - CPU microarchitectural side-channels (cache timing, speculative execution)
 - Compiler optimizations that break constant-time properties (mitigated via `subtle`)
 - OS scheduling effects on timing measurements
 
-**Testing Approach:**
-We do NOT use runtime timing tests (flaky on CI). Instead:
-- ✅ Formal verification for primitives (aws-lc)
-- ✅ ctgrind for our API layer (deterministic, CI-friendly)
-- ✅ Code review for constant-time patterns
+**Verification Approach:**
+- ✅ Formal verification (SAW) for primitives via aws-lc-rs
+- ✅ Battle-tested libraries (`subtle`) for API layer comparisons
+- ✅ Code review for constant-time patterns (no secret-dependent branches)
 
 ### Memory
 

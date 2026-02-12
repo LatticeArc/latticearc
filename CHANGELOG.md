@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added path filters to run proofs only when formal verification code changes
   - Badge now reflects actual proof execution status, not fake checks
   - Follows AWS-LC model: ~1060 min/month (53% of free tier)
+- **Documentation**: Clarified constant-time comparison approach in SECURITY.md
+  - Documented use of `subtle` crate (22.7M downloads/month, battle-tested)
+  - Acknowledged `subtle` is not formally verified (no alternative exists for Rust custom types)
+  - Explained trade-off: aws-lc-rs SAW verification for primitives, `subtle` for API layer
+  - Added usage statistics and security track record (zero RustSec advisories)
 - **API Improvements**: Enhanced parameter ergonomics
   - `KeyLifecycle::add_approver()` now accepts `impl Into<String>`
   - `logging::set_correlation_id()` now accepts `impl Into<String>`
@@ -72,6 +77,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **ctgrind constant-time tests**: Removed arc-primitives/tests/constant_time.rs
+  - Tests verified `subtle` crate, not our code
+  - Required unsafe blocks that violated workspace lint policy
+  - aws-lc-rs primitives already have SAW formal verification
+  - Removed ctgrind dependency
 - **Unused Dependencies**: Removed 5 workspace dependencies (attack surface reduction)
   - `bytes` (not used in any .rs files)
   - `url` (not used in any .rs files)
