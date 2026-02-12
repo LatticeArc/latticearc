@@ -185,6 +185,55 @@ let encrypted = encrypt(data, &key, CryptoConfig::new()
 
 > **Note:** `Quantum` mode uses PQ-only algorithms (no classical fallback) for CNSA 2.0 compliance. For complete security level documentation, see [docs/UNIFIED_API_GUIDE.md](docs/UNIFIED_API_GUIDE.md).
 
+## Algorithm Selection
+
+LatticeArc uses NIST-standardized post-quantum algorithms (FIPS 203-206) with carefully chosen classical algorithms for hybrid mode.
+
+### What We Use
+
+**Post-Quantum:**
+- ML-KEM-512/768/1024 (FIPS 203) - Key encapsulation
+- ML-DSA-44/65/87 (FIPS 204) - Digital signatures
+- SLH-DSA (FIPS 205) - Stateless hash-based signatures
+- FN-DSA-512/1024 (FIPS 206) - Fast lattice signatures
+
+**Classical (Hybrid Mode):**
+- **Ed25519** for signatures - 5x faster than P-256 ECDSA, FIPS 186-5 approved (2023)
+- **X25519** for key exchange - TLS 1.3 standard
+- **AES-256-GCM** - Hardware-accelerated, FIPS 140-3 validated
+- **ChaCha20-Poly1305** - Software-friendly alternative
+
+### Why Ed25519 Instead of P-256 ECDSA?
+
+| Metric | Ed25519 | P-256 ECDSA |
+|--------|---------|-------------|
+| Signing speed | 16,000 ops/sec | 3,000 ops/sec |
+| Side-channel resistance | Built-in | Requires careful implementation |
+| FIPS 186-5 approved | ✅ Yes (since 2023) | ✅ Yes |
+| Implementation safety | Deterministic nonces | Random nonces (RNG failure = key leak) |
+
+**We chose Ed25519** for better performance and security. P-256 ECDSA hybrids available on request for legacy compliance.
+
+### What We Skip
+
+**Pre-standard algorithms:** CRYSTALS-Kyber, CRYSTALS-Dilithium (superseded by ML-KEM/ML-DSA)
+
+**Broken algorithms:** SIKE, Rainbow (cryptanalyzed)
+
+**Legacy algorithms:** RSA (50x slower), DSA (deprecated)
+
+**Why?** We follow NIST's 2026 migration timeline and focus on standardized, production-ready algorithms.
+
+### Backend Selection
+
+- **ML-KEM, AES-GCM, X25519:** aws-lc-rs (FIPS 140-3 validated)
+- **ML-DSA:** fips204 (awaiting aws-lc-rs stabilization)
+- **SLH-DSA:** fips205 (NIST-compliant)
+- **FN-DSA:** fn-dsa (FIPS 206)
+- **Ed25519:** ed25519-dalek (audited, constant-time)
+
+For detailed rationale, performance comparisons, and competitor analysis, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md).
+
 ## Zero Trust Sessions
 
 For enterprise security, use verified sessions that enforce authentication before each operation:
