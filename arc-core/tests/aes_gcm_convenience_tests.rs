@@ -353,16 +353,21 @@ fn test_aes_gcm_key_one_byte_short() {
 }
 
 #[test]
-fn test_aes_gcm_key_longer_than_32_bytes() -> Result<()> {
-    // Keys longer than 32 bytes should work (only first 32 used)
+fn test_aes_gcm_key_longer_than_32_bytes() {
+    // Keys longer than 32 bytes should be rejected (not truncated)
     let long_key = vec![0x42; 64];
     let plaintext = b"Test with longer key";
 
-    let ciphertext = encrypt_aes_gcm_unverified(plaintext, &long_key)?;
-    let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &long_key)?;
+    let result = encrypt_aes_gcm_unverified(plaintext, &long_key);
+    assert!(result.is_err(), "Should reject keys longer than 32 bytes");
 
-    assert_eq!(decrypted, plaintext);
-    Ok(())
+    match result {
+        Err(CoreError::InvalidKeyLength { expected, actual }) => {
+            assert_eq!(expected, 32);
+            assert_eq!(actual, 64);
+        }
+        other => panic!("Expected InvalidKeyLength, got {:?}", other),
+    }
 }
 
 #[test]

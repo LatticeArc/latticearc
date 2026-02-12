@@ -175,13 +175,21 @@ fn test_aes_gcm_encrypt_31_byte_key() {
 }
 
 #[test]
-fn test_aes_gcm_encrypt_oversized_key_accepted() {
+fn test_aes_gcm_encrypt_oversized_key_rejected() {
     let data = b"Test data";
     let oversized_key = [0u8; 64]; // More than 32 bytes
 
-    // Should succeed - implementation takes first 32 bytes
+    // Should fail - implementation rejects keys that aren't exactly 32 bytes
     let result = encrypt_aes_gcm_unverified(data, &oversized_key);
-    assert!(result.is_ok(), "Should accept oversized key and use first 32 bytes");
+    assert!(result.is_err(), "Should reject oversized key (not truncate)");
+
+    match result {
+        Err(CoreError::InvalidKeyLength { expected, actual }) => {
+            assert_eq!(expected, 32);
+            assert_eq!(actual, 64);
+        }
+        _ => panic!("Expected InvalidKeyLength error"),
+    }
 }
 
 // ============================================================================

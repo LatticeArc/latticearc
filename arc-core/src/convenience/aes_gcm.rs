@@ -2,6 +2,16 @@
 //!
 //! This module provides AES-256-GCM authenticated encryption.
 //!
+//! ## Security Considerations
+//!
+//! **Nonce Management:** This implementation uses random 96-bit nonces. Due to birthday
+//! paradox, random nonces have a collision probability of approximately 2^-32 after 2^32
+//! encryptions (4 billion operations). For high-volume applications, consider using
+//! counter-based nonces or rotating keys.
+//!
+//! **Key Length:** Keys are expected to be exactly 32 bytes for AES-256. Keys longer than
+//! 32 bytes will be rejected to prevent silent truncation.
+//!
 //! ## Unified API with SecurityMode
 //!
 //! All cryptographic operations use `SecurityMode` to specify verification behavior:
@@ -22,6 +32,7 @@ use crate::{
 use tracing::debug;
 
 use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
+use rand::rngs::OsRng;
 use rand_core::RngCore;
 
 use crate::config::CoreConfig;
@@ -40,25 +51,18 @@ pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8
         data_len = data.len()
     );
 
-    if key.len() < 32 {
+    // Validate key length - must be exactly 32 bytes (AES-256)
+    if key.len() != 32 {
         let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
         log_crypto_operation_error!("aes_gcm_encrypt", err);
         return Err(err);
     }
 
-    let key_bytes: [u8; 32] = key
-        .get(..32)
-        .ok_or_else(|| {
-            let err = CoreError::InvalidInput("Key must be at least 32 bytes".to_string());
-            log_crypto_operation_error!("aes_gcm_encrypt", err);
-            err
-        })?
-        .try_into()
-        .map_err(|_e| {
-            let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
-            log_crypto_operation_error!("aes_gcm_encrypt", err);
-            err
-        })?;
+    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
+        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
+        log_crypto_operation_error!("aes_gcm_encrypt", err);
+        err
+    })?;
 
     let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
         let err = CoreError::EncryptionFailed("Failed to create AES key".to_string());
@@ -67,8 +71,9 @@ pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8
     })?;
     let aes_key = LessSafeKey::new(unbound);
 
+    // Generate cryptographically secure random nonce using OsRng
     let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().try_fill_bytes(&mut nonce_bytes).map_err(|_e| {
+    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|_e| {
         let err = CoreError::EncryptionFailed("Failed to generate random nonce".to_string());
         log_crypto_operation_error!("aes_gcm_encrypt", err);
         err
@@ -114,25 +119,18 @@ pub(crate) fn decrypt_aes_gcm_internal(encrypted_data: &[u8], key: &[u8]) -> Res
         return Err(err);
     }
 
-    if key.len() < 32 {
+    // Validate key length - must be exactly 32 bytes (AES-256)
+    if key.len() != 32 {
         let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
         log_crypto_operation_error!("aes_gcm_decrypt", err);
         return Err(err);
     }
 
-    let key_bytes: [u8; 32] = key
-        .get(..32)
-        .ok_or_else(|| {
-            let err = CoreError::InvalidInput("Key must be at least 32 bytes".to_string());
-            log_crypto_operation_error!("aes_gcm_decrypt", err);
-            err
-        })?
-        .try_into()
-        .map_err(|_e| {
-            let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
-            log_crypto_operation_error!("aes_gcm_decrypt", err);
-            err
-        })?;
+    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
+        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
+        log_crypto_operation_error!("aes_gcm_decrypt", err);
+        err
+    })?;
 
     let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
         let err = CoreError::DecryptionFailed("Failed to create AES key".to_string());
@@ -568,14 +566,19 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_encrypt_with_longer_key_uses_first_32_bytes() -> Result<()> {
-        let long_key = vec![0x42; 64]; // 64 bytes, only first 32 will be used
+    fn test_aes_gcm_encrypt_with_longer_key_rejects() {
+        let long_key = vec![0x42; 64]; // 64 bytes - should be rejected (not truncated)
         let plaintext = b"Test";
 
-        let ciphertext = encrypt_aes_gcm_unverified(plaintext, &long_key)?;
-        let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &long_key)?;
-        assert_eq!(decrypted, plaintext);
-        Ok(())
+        let result = encrypt_aes_gcm_unverified(plaintext, &long_key);
+        assert!(result.is_err(), "Should reject keys longer than 32 bytes");
+
+        if let Err(CoreError::InvalidKeyLength { expected, actual }) = result {
+            assert_eq!(expected, 32);
+            assert_eq!(actual, 64);
+        } else {
+            panic!("Expected InvalidKeyLength error");
+        }
     }
 
     // Ciphertext validation tests
