@@ -618,31 +618,13 @@ LatticeArc exists within a rich ecosystem of cryptographic libraries. Rather tha
 
 ## Roadmap
 
-### Planned Additions
-
-#### P-256/P-384/P-521 ECDSA Hybrids (Optional Feature)
-
-**Status:** Planned for user demand
-
-**Why add:**
-- ✅ Legacy HSM compatibility (pre-2020 hardware)
-- ✅ IETF draft standard alignment
-- ✅ Interoperability with OpenSSL oqs-provider
-
-**Implementation plan:**
-```rust
-// Optional feature: ecdsa-hybrids
-#[cfg(feature = "ecdsa-hybrids")]
-pub fn generate_p256_hybrid_signing_keypair() -> Result<...>;
-```
-
-**Default:** Ed25519 hybrids remain default for performance
-
----
+### Actively Planned
 
 #### ML-DSA Migration to aws-lc-rs
 
 **Status:** Waiting for upstream stabilization
+
+**Priority:** High - enables FIPS-validated signatures
 
 **Timeline:**
 - aws-lc-rs v1.16.0 expected Mar-Jun 2026
@@ -657,9 +639,41 @@ pub fn generate_p256_hybrid_signing_keypair() -> Result<...>;
 
 **Status:** Monitoring NIST Round 5
 
+**Priority:** Medium - algorithmic diversity
+
 **Condition:** Only if NIST standardizes in Round 5+
 
 **Rationale:** Provide code-based alternatives to lattice-based schemes
+
+---
+
+### Available on Request (Not Proactively Building)
+
+#### P-256/P-384/P-521 ECDSA Hybrids
+
+**Status:** NOT planned unless users need it
+
+**Our position:** Ed25519 is objectively better (5x faster, safer, FIPS 186-5 approved). We will NOT proactively add P-256 ECDSA.
+
+**When we WOULD add it:**
+- Multiple users request it for specific legacy constraints
+- Real use case: Pre-2020 HSM that doesn't support Ed25519
+- Real use case: Auditor requires P-256 despite FIPS 186-5 approving Ed25519
+
+**How to request:**
+[Open an issue](https://github.com/latticearc/latticearc/issues/new) with:
+- Your specific legacy constraint
+- Why Ed25519 won't work
+- Evidence you can't upgrade/educate auditor
+
+**Implementation IF requested:**
+```rust
+// Optional feature: ecdsa-hybrids (disabled by default)
+#[cfg(feature = "ecdsa-hybrids")]
+pub fn generate_p256_hybrid_signing_keypair() -> Result<...>;
+```
+
+**Default will always be:** Ed25519 hybrids for performance and safety
 
 ---
 
