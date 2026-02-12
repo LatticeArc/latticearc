@@ -12,7 +12,7 @@ This document explains LatticeArc's algorithm choices, including what we include
 - [Included Algorithms](#included-algorithms)
 - [Excluded Algorithms](#excluded-algorithms)
 - [Backend Selection](#backend-selection)
-- [Competitor Comparison](#competitor-comparison)
+- [Ecosystem Positioning](#ecosystem-positioning)
 - [Performance Data](#performance-data)
 - [Roadmap](#roadmap)
 
@@ -458,70 +458,113 @@ Signature operations per second:
 
 ---
 
-## Competitor Comparison
+## Ecosystem Positioning
 
-### vs OpenSSL 3.5.0 (with oqs-provider)
+LatticeArc exists within a rich ecosystem of cryptographic libraries. Rather than competing, we **build on** and **complement** existing tools. Here's how we relate to other libraries:
 
-| Feature | OpenSSL + oqs-provider | LatticeArc |
-|---------|------------------------|------------|
+### AWS-LC: Our Foundation
+
+**Relationship:** We **use AWS-LC** as our cryptographic backend via the `aws-lc-rs` Rust bindings.
+
+| Component | AWS-LC | LatticeArc |
+|-----------|--------|------------|
+| **ML-KEM** | ✅ FIPS 140-3 validated implementation | ✅ **Uses** aws-lc-rs |
+| **X25519, AES-GCM** | ✅ FIPS 140-3 validated | ✅ **Uses** aws-lc-rs |
+| **Hybrid Signatures** | ❌ Not in scope (KEM-only) | ✅ We add this layer |
+| **Language** | C with Rust FFI | Pure Rust API |
+| **API Level** | Low-level primitives | High-level builder pattern |
+
+**How we complement AWS-LC:**
+- We **depend on** their FIPS-validated ML-KEM, X25519, and AES-GCM
+- We **add** hybrid signature API (ML-DSA + Ed25519)
+- We **provide** high-level Rust API on top of their low-level C primitives
+- We **integrate** multiple backends (aws-lc-rs + fips204 + ed25519-dalek)
+
+**Credit:** AWS-LC's FIPS validation enables our compliance-ready approach.
+
+---
+
+### OpenSSL: Different API Layer
+
+**Relationship:** Complementary - we target different developer experiences.
+
+| Aspect | OpenSSL (+ oqs-provider) | LatticeArc |
+|--------|--------------------------|------------|
 | **Hybrid KEMs** | X25519MLKEM768 | ML-KEM-768 + X25519 + HKDF |
 | **Hybrid Sigs** | ML-DSA + P-256 ECDSA | ML-DSA + Ed25519 |
-| **ML-DSA + RSA** | ✅ Yes | ❌ No |
-| **FN-DSA** | ❌ No | ✅ Yes |
-| **Memory Safety** | ⚠️ C | ✅ Rust |
-| **API Level** | Low-level EVP | High-level builder |
-| **FIPS 140-3** | ⚠️ Pending (3.0 module) | ✅ Via aws-lc-rs |
-
-**Advantages:**
-- ✅ Ed25519 hybrids (5x faster than P-256)
-- ✅ Rust memory safety
-- ✅ High-level API (developer productivity)
-- ✅ FN-DSA support
-
-**Disadvantages:**
-- ❌ No P-256/RSA hybrids (available on request)
-- ❌ Not battle-tested (v0.1.0 vs 25 years)
-
----
-
-### vs AWS-LC
-
-| Feature | AWS-LC | LatticeArc |
-|---------|--------|------------|
-| **ML-KEM** | ✅ FIPS 140-3 validated | ✅ Uses aws-lc-rs backend |
-| **Hybrid Sigs** | ❌ No (KEM-only focus) | ✅ ML-DSA + Ed25519 |
+| **FN-DSA** | ❌ Not available | ✅ FIPS 206 support |
 | **Language** | C | Rust |
-| **API Level** | Low-level | High-level |
+| **API Philosophy** | Low-level EVP (maximum control) | High-level builder (developer productivity) |
+| **Use Case** | General-purpose C/C++ projects | Rust ecosystem, modern APIs |
 
-**Relationship:** We **build on** AWS-LC via aws-lc-rs and add hybrid signatures + high-level API.
+**How we differ:**
+- **Algorithm choice:** Ed25519 hybrids (5x faster) vs P-256 ECDSA
+- **API level:** `encrypt(data, &key, config)?` vs `EVP_PKEY_encapsulate_init()`
+- **Memory safety:** Rust compile-time guarantees vs C manual memory management
+- **Target audience:** Rust developers wanting high-level API vs C developers needing low-level control
 
----
-
-### vs liboqs (Open Quantum Safe)
-
-| Feature | liboqs | LatticeArc |
-|---------|--------|------------|
-| **Purpose** | Research/prototyping | Production |
-| **FIPS validation** | ❌ Explicitly not for production | ✅ Via aws-lc-rs |
-| **Algorithm count** | 50+ (includes experimental) | NIST standards only |
-| **Hybrid Sigs** | ✅ ML-DSA + P-256/RSA | ✅ ML-DSA + Ed25519 |
-| **Memory Safety** | ⚠️ C | ✅ Rust |
-
-**Advantage:** Production-ready vs research-focused.
+**Not competitors:** OpenSSL dominates C/C++ ecosystem (25 years, battle-tested). We serve Rust ecosystem with modern API.
 
 ---
 
-### vs Bouncy Castle
+### liboqs: Research Partner
 
-| Feature | Bouncy Castle | LatticeArc |
-|---------|---------------|------------|
-| **Language** | Java/C# | Rust |
-| **Maturity** | 25 years | v0.1.0 |
-| **Hybrid Sigs** | ✅ Composite sigs | ✅ ML-DSA + Ed25519 |
-| **Performance** | JVM overhead | Native Rust speed |
-| **Memory Safety** | GC (runtime) | Compile-time |
+**Relationship:** We learn from their research; they're explicitly for prototyping, not production.
 
-**Advantage:** Rust performance and compile-time safety vs JVM ecosystem maturity.
+| Aspect | liboqs | LatticeArc |
+|--------|--------|------------|
+| **Mission** | "Prototyping and experimenting" | Production deployment |
+| **Algorithm Scope** | 50+ (including experimental) | NIST standards only |
+| **FIPS Validation** | ❌ "Not for production use" | ✅ Via aws-lc-rs |
+| **Hybrid Sigs** | ✅ ML-DSA + P-256/RSA (research) | ✅ ML-DSA + Ed25519 (production) |
+| **Used By** | oqs-provider (OpenSSL), research projects | Rust production applications |
+
+**How we complement liboqs:**
+- We **study** their experimental algorithm implementations
+- We **adopt** algorithms when they become NIST-standardized
+- We **focus on** production readiness while they explore new algorithms
+- We **integrate** their research findings into production-grade code
+
+**Credit:** liboqs's work on hybrid signatures informed our API design.
+
+---
+
+### rustls: Integration Partner
+
+**Relationship:** We **integrate with** rustls for TLS support.
+
+| Component | rustls | LatticeArc |
+|-----------|--------|------------|
+| **Scope** | TLS 1.3 protocol | Broader crypto library |
+| **Hybrid KEMs** | ✅ X25519MLKEM768 (TLS only) | ✅ Standalone + TLS via `arc-tls` |
+| **Signatures** | ❌ No signature API | ✅ Hybrid signatures (ML-DSA + Ed25519) |
+| **Non-TLS Crypto** | ❌ Out of scope | ✅ Encryption, signatures, ZKP |
+
+**How we work together:**
+- Our `arc-tls` crate **wraps** rustls with PQC extensions
+- We **provide** standalone crypto operations (encrypt, sign) rustls doesn't
+- We **reuse** their excellent TLS 1.3 implementation
+- We **complement** by adding hybrid signatures and broader crypto API
+
+---
+
+### Bouncy Castle: Different Ecosystem
+
+**Relationship:** Parallel efforts in different language ecosystems.
+
+| Aspect | Bouncy Castle | LatticeArc |
+|--------|---------------|------------|
+| **Ecosystem** | Java/C# | Rust |
+| **Maturity** | 25 years, v2.x | New, v0.1.0 |
+| **Hybrid Sigs** | ✅ Composite sigs (X.509) | ✅ ML-DSA + Ed25519 |
+| **Use Case** | Enterprise Java applications | Rust applications, systems programming |
+
+**How we differ:**
+- **Language:** JVM (GC, runtime safety) vs Rust (compile-time safety, no GC)
+- **Performance:** JVM overhead vs native machine code
+- **Target users:** Java/C# developers vs Rust developers
+
+**Not competitors:** We serve entirely different language ecosystems. A Java shop uses Bouncy Castle; a Rust shop uses LatticeArc.
 
 ---
 

@@ -232,7 +232,7 @@ LatticeArc uses NIST-standardized post-quantum algorithms (FIPS 203-206) with ca
 - **FN-DSA:** fn-dsa (FIPS 206)
 - **Ed25519:** ed25519-dalek (audited, constant-time)
 
-For detailed rationale, performance comparisons, and competitor analysis, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md).
+For detailed rationale, performance comparisons, and ecosystem positioning, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md).
 
 ## Zero Trust Sessions
 
