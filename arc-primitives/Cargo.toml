@@ -83,6 +83,9 @@ libfuzzer-sys = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 
+# Constant-time verification (Valgrind-based, CI-friendly)
+ctgrind = "0.0.0"
+
 [lib]
 path = "src/lib.rs"
 

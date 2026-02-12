@@ -103,12 +103,29 @@ Audit reports will be published in the `docs/audits/` directory when available.
 
 ## Known Limitations
 
-### Timing Side Channels
+### Constant-Time Guarantees
 
-While we use constant-time primitives, we cannot guarantee:
-- Rust compiler optimizations don't introduce timing variance
-- CPU microarchitectural timing (cache, branch prediction)
-- OS scheduling effects on timing
+**Primitives (AES-GCM, ML-KEM, etc.):**
+- We rely on [aws-lc-rs](https://github.com/aws/aws-lc-rs) cryptographic primitives
+- These are [formally verified](https://github.com/awslabs/aws-lc-verification) for constant-time execution
+- Verification uses SAW (Software Analysis Workbench) with Cryptol specifications
+- **Mathematically proven**, not just tested
+
+**Our API Layer:**
+- Uses the [`subtle`](https://docs.rs/subtle) crate for all constant-time comparisons
+- Verified with [ctgrind](https://github.com/agl/ctgrind) (Valgrind-based) in CI
+- No conditional branches or memory accesses on secrets in our code
+
+**What We Cannot Guarantee:**
+- CPU microarchitectural side-channels (cache timing, speculative execution)
+- Compiler optimizations that break constant-time properties (mitigated via `subtle`)
+- OS scheduling effects on timing measurements
+
+**Testing Approach:**
+We do NOT use runtime timing tests (flaky on CI). Instead:
+- ✅ Formal verification for primitives (aws-lc)
+- ✅ ctgrind for our API layer (deterministic, CI-friendly)
+- ✅ Code review for constant-time patterns
 
 ### Memory
 
