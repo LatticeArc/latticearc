@@ -4,15 +4,16 @@
 name: Kani Formal Verification
 
 on:
-  # push/pull_request/schedule disabled to conserve GitHub Actions free tier minutes.
-  # Re-enable when project is stable or on a paid plan.
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
-  # schedule:
-  #   - cron: '0 3 * * 1'  # Weekly on Monday at 3 AM UTC
-  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'  # Nightly at 3 AM UTC (low traffic)
+    - cron: '0 5 * * 0'  # Weekly Sunday at 5 AM UTC (full suite)
+  workflow_dispatch:     # Keep manual trigger
+  push:
+    branches: [main]     # Run on main branch merges (release validation)
+    paths:
+      - 'arc-hybrid/src/formal_verification.rs'
+      - 'arc-core/src/key_lifecycle.rs'
+      - 'arc-primitives/**'  # Re-run if primitives change
 
 permissions: read-all
 

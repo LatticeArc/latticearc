@@ -90,8 +90,39 @@ We recommend always using the latest version.
 
 ### Formal Verification
 
-- Kani model checking for critical functions
-- Property-based testing with proptest
+#### Our Code (Kani Model Checker)
+
+| Component | Proofs | Properties Verified | Run Frequency |
+|-----------|--------|---------------------|---------------|
+| arc-hybrid | 7 | Correctness, Memory Safety, Security | Nightly + Weekly |
+| arc-core | 2 | State Machine Invariants | Nightly + Weekly |
+
+**Kani proofs verify:**
+- Encrypt→Decrypt roundtrip returns original plaintext
+- KEM encapsulate→decapsulate produces consistent shared secrets
+- Key derivation is deterministic (same inputs → same keys)
+- Valid signatures verify correctly
+- Invalid key lengths are rejected (no crashes)
+- Operations are panic-free with valid inputs
+- Secrets are zeroized correctly (no memory leaks)
+- Key lifecycle state machine enforces valid transitions
+
+**Verification approach:**
+- Proofs available in source code (`arc-hybrid/src/formal_verification.rs`, `arc-core/src/key_lifecycle.rs`)
+- Run on nightly schedule (not every commit) following AWS-LC model
+- Full suite runs weekly for comprehensive verification
+- Manual runs via GitHub Actions workflow_dispatch
+
+#### Underlying Primitives (AWS-LC SAW Verification)
+
+We inherit formal verification for cryptographic primitives from aws-lc-rs:
+- AES-GCM, ML-KEM, SHA-2, HMAC, AES-KWP
+- Verified using SAW (Software Analysis Workbench) with Cryptol specifications
+- Proofs maintained in [aws-lc-verification](https://github.com/awslabs/aws-lc-verification)
+
+#### Property-Based Testing
+
+- Property-based testing with proptest for additional randomized validation
 
 ## Security Audits
 

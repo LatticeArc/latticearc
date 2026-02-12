@@ -317,15 +317,9 @@ jobs:
         PROPTEST_DURATION=$((END_TIME - START_TIME))
         echo "property_test_duration_seconds $PROPTEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/property-test || true
 
-    - name: Formal verification (Apache)
-      continue-on-error: true
-      run: |
-        START_TIME=$(date +%s)
-        cargo install kani-verifier
-        cargo kani --workspace --only-codegen
-        END_TIME=$(date +%s)
-        KANI_DURATION=$((END_TIME - START_TIME))
-        echo "formal_verification_duration_seconds $KANI_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/formal-verification || true
+    # Note: Kani formal verification proofs exist in arc-hybrid and arc-core
+    # but are not run on every commit due to computational cost (~30+ min).
+    # Proofs run on nightly schedule. See kani.yml workflow.
 
     - name: Generate coverage report
       if: matrix.profile == 'dev'

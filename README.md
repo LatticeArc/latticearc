@@ -356,12 +356,26 @@ Report security issues to: Security@LatticeArc.com
 
 See [SECURITY.md](SECURITY.md) for our security policy.
 
+## Formal Verification
+
+LatticeArc includes [Kani](https://github.com/model-checking/kani) formal verification proofs for critical cryptographic operations:
+
+- **9 proofs** across arc-hybrid and arc-core
+- **Properties verified**: Correctness (encrypt/decrypt roundtrip, KEM consistency, KDF determinism), Memory Safety (panic-freedom, zeroization), Security (input validation, state machine invariants)
+- **Verification schedule**: Proofs run nightly on main branch and weekly for extended verification
+- **Status**: [![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
+
+**Note:** Following the AWS-LC model, proofs are not run on every commit due to computational cost (~30 minutes for full suite). Proofs are available in source and run on schedule to validate correctness.
+
+For underlying primitives (AES-GCM, ML-KEM), we rely on [aws-lc-rs's SAW formal verification](https://github.com/awslabs/aws-lc-verification).
+
 ## Documentation
 
 - [API Reference](https://docs.rs/latticearc)
 - [Unified API Guide](docs/UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
 - [Architecture](docs/DESIGN.md) — crate structure, design decisions, enterprise features
 - [Security Guide](docs/SECURITY_GUIDE.md) — threat model, secure usage patterns
+- [Formal Verification](docs/FORMAL_VERIFICATION.md) — Kani proofs, verification schedule, SAW inheritance
 - [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
 - [FAQ](docs/FAQ.md)
 
