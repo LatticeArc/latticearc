@@ -477,12 +477,12 @@
 <a href=#477 id=477 data-nosnippet>477</a>/// ```rust
 <a href=#478 id=478 data-nosnippet>478</a>/// use arc_core::logging::{set_correlation_id, current_correlation_id};
 <a href=#479 id=479 data-nosnippet>479</a>///
-<a href=#480 id=480 data-nosnippet>480</a>/// set_correlation_id("request-12345".to_string());
+<a href=#480 id=480 data-nosnippet>480</a>/// set_correlation_id("request-12345");
 <a href=#481 id=481 data-nosnippet>481</a>/// assert_eq!(current_correlation_id(), Some("request-12345".to_string()));
 <a href=#482 id=482 data-nosnippet>482</a>/// ```
-<a href=#483 id=483 data-nosnippet>483</a></span><span class="kw">pub fn </span>set_correlation_id(id: String) {
+<a href=#483 id=483 data-nosnippet>483</a></span><span class="kw">pub fn </span>set_correlation_id(id: <span class="kw">impl </span>Into&lt;String&gt;) {
 <a href=#484 id=484 data-nosnippet>484</a>    CORRELATION_ID.with(|cell| {
-<a href=#485 id=485 data-nosnippet>485</a>        <span class="kw-2">*</span>cell.borrow_mut() = <span class="prelude-val">Some</span>(id);
+<a href=#485 id=485 data-nosnippet>485</a>        <span class="kw-2">*</span>cell.borrow_mut() = <span class="prelude-val">Some</span>(id.into());
 <a href=#486 id=486 data-nosnippet>486</a>    });
 <a href=#487 id=487 data-nosnippet>487</a>}
 <a href=#488 id=488 data-nosnippet>488</a>
@@ -615,7 +615,7 @@
 <a href=#615 id=615 data-nosnippet>615</a>    ///
 <a href=#616 id=616 data-nosnippet>616</a>    /// A new `CorrelationGuard` that sets and manages the correlation ID.
 <a href=#617 id=617 data-nosnippet>617</a>    </span><span class="attr">#[must_use]
-<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="kw">pub fn </span>with_id(id: String) -&gt; <span class="self">Self </span>{
+<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="kw">pub fn </span>with_id(id: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; <span class="self">Self </span>{
 <a href=#619 id=619 data-nosnippet>619</a>        <span class="kw">let </span>previous = current_correlation_id();
 <a href=#620 id=620 data-nosnippet>620</a>        set_correlation_id(id);
 <a href=#621 id=621 data-nosnippet>621</a>        <span class="self">Self </span>{ previous }
