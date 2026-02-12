@@ -288,6 +288,7 @@ LatticeArc builds on audited cryptographic libraries:
 ### Limitations
 
 - **Not FIPS 140-3 certified** — We use FIPS-validated backends, but LatticeArc itself has not undergone CMVP validation
+  - **FIPS-ready**: Module integrity test (Section 9.2.2) implemented, KAT suite complete, ready for certification when needed
 - **Not independently audited** — We welcome security researchers to review our code
 - **Pre-1.0 software** — API may change between versions
 

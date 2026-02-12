@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **FIPS 140-3 Integrity Test**: Implemented Section 9.2.2 Software/Firmware Load Test
+  - `integrity_test()` with HMAC-SHA256 module verification
+  - `build.rs` for production HMAC generation
+  - Development mode prints HMAC, production mode verifies against PRODUCTION_HMAC.txt
+  - Power-up test integration (runs before any crypto operations)
+  - Constant-time comparison using `subtle::ConstantTimeEq`
+- **Dependabot Auto-Merge**: GitHub Actions updates auto-merge after CI passes
+  - Configured in `.github/dependabot.yml` with grouped updates
+  - `.github/workflows/dependabot-automerge.yml` workflow
+  - Reduces PR noise from weekly dependency updates
+- **Documentation**: 7 comprehensive review and analysis documents
+  - API Design Review (0 critical issues)
+  - Security Guidance Review (9.3/10 score)
+  - CI Workflow Status and Analysis
+  - Dependency Cleanup summary
+  - RUSTSEC Advisories documentation
+  - aws-lc-rs PR #1029 merge update
 - **Hybrid Signature Convenience API**: New dedicated functions for hybrid signatures (ML-DSA-65 + Ed25519)
   - `generate_hybrid_signing_keypair()` / `sign_hybrid()` / `verify_hybrid_signature()` with `SecurityMode` support
   - `_with_config` variants for configuration validation
@@ -20,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **API Improvements**: Enhanced parameter ergonomics
+  - `KeyLifecycle::add_approver()` now accepts `impl Into<String>`
+  - `logging::set_correlation_id()` now accepts `impl Into<String>`
+  - `CorrelationGuard::with_id()` now accepts `impl Into<String>`
+  - Allows passing `&str` without `.to_string()` allocation
+- **Dependencies**: Updated aws-lc-rs from 1.15.0 to 1.15.4 (security patches)
+- **CI Matrix**: Added `fail-fast: false` to test job for complete platform coverage
+- **Documentation**: Enhanced HKDF and AES-GCM security warnings
+  - HKDF: Added comprehensive salt usage guidance (random > zero salt)
+  - AES-GCM: Documented key truncation behavior (>32 bytes silently truncated)
 - **API Refactoring**: Removed broken `sign()` function, replaced with `generate_signing_keypair()` + `sign_with_key()`
   - Old `sign(message, config)` generated new keypair on every call (broken behavior)
   - New pattern: `generate_signing_keypair(config)` → `sign_with_key(message, &sk, &pk, config)` → `verify(&signed, config)`
@@ -33,13 +60,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Unused Dependencies**: Removed 5 workspace dependencies (attack surface reduction)
+  - `bytes` (not used in any .rs files)
+  - `url` (not used in any .rs files)
+  - `futures` (not used in any .rs files)
+  - `crossbeam-utils` (declared but never imported)
+  - `generic-array` (not used in apache codebase)
+  - Also removed from arc-core and latticearc member crates
 - **Removed `sign()` function**: Use `generate_signing_keypair()` + `sign_with_key()` instead
 - **Removed `generate_keypair()` ECDH bug**: Function no longer calls deprecated broken ECDH
 - **Removed `diffie_hellman()` function**: Use hybrid KEM or direct X25519 primitives instead
-
-### Removed
-
 - **Dead code**: Removed unused data characteristics computation in `selector.rs`
+
+### Security
+
+- **RUSTSEC Advisories**: Documented all 4 ignored advisories (LOW risk)
+  - RUSTSEC-2023-0052: webpki DoS (transitive, waiting rustls update)
+  - RUSTSEC-2021-0139: ansi_term unmaintained (informational only)
+  - RUSTSEC-2024-0375: atty unmaintained (informational only)
+  - RUSTSEC-2021-0145: atty unsound on Windows (theoretical, requires custom allocator)
+  - All are transitive dependencies from dev tools (clap/criterion)
+  - Overall risk assessment: LOW and acceptable
+  - See `RUSTSEC_ADVISORIES_IGNORED.md` for full details
+
+### Upstream
+
+- **aws-lc-rs PR #1029 MERGED** (Feb 10, 2026)
+  - ML-KEM `DecapsulationKey` serialization support
+  - Enables persistent storage of ML-KEM private keys
+  - Will unblock issue #16 when v1.16.0 is released (est. Mar-Jun 2026)
+  - Provides foundation for true hybrid encryption with key persistence
 
 ### Documentation
 
