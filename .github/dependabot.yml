@@ -34,9 +34,15 @@ updates:
       time: "09:00"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 5
+    # Auto-merge minor/patch updates for GitHub Actions (always use latest)
+    groups:
+      github-actions-updates:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "ci"
+      - "automerge"
     commit-message:
       prefix: "ci"
     reviewers:

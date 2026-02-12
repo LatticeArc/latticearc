@@ -263,6 +263,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [quality, build]
     strategy:
+      fail-fast: false
       matrix:
         # Only run release - dev mode is 10x slower for crypto ops (SLH-DSA)
         # Debug-specific issues are caught by clippy and other static analysis
