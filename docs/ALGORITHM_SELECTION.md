@@ -436,9 +436,47 @@ Signature operations per second:
 - ⚠️ No public Rust API yet
 
 **Migration plan:**
-- We submitted PR aws/aws-lc-rs#1034 for ML-DSA seed-based keygen
+- We submitted PR [aws/aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034) for ML-DSA seed-based keygen
 - When aws-lc-rs stabilizes ML-DSA (v1.16+), we'll migrate
 - Tracking: GitHub issue #17
+
+---
+
+### Upstream Contributions to aws-lc-rs
+
+We actively contribute features to aws-lc-rs that benefit the entire Rust cryptography ecosystem:
+
+#### PR #1029: ML-KEM DecapsulationKey Serialization (Merged ✅)
+
+**Status:** Merged Feb 10, 2026
+**Problem:** ML-KEM decapsulation keys couldn't be serialized for storage/transmission
+**Solution:** Added `private_key_as_be_bytes()` and `DecapsulationKey::from_bytes()` methods
+**Impact:** Enables key persistence for ML-KEM, unlocking key management scenarios
+**Link:** https://github.com/aws/aws-lc-rs/pull/1029
+
+**Why it matters:** Before this PR, applications couldn't store ML-KEM keys between sessions. This was a blocker for enterprise key management workflows.
+
+**Related issues:**
+- aws/aws-lc-rs#799 (DecapsulationKey serialization support)
+
+#### PR #1034: ML-DSA Seed-Based Keygen (Under Review)
+
+**Status:** Under review (created Feb 8, 2026)
+**Problem:** ML-DSA keygen is random-only, preventing deterministic key derivation
+**Solution:** Added `PqdsaKeyPair::from_seed()` for RFC 5869 seed-based keygen
+**Impact:** Enables HD wallets, test vectors, and deterministic keygen for ML-DSA
+**Link:** https://github.com/aws/aws-lc-rs/pull/1034
+**Tests:** 25 new tests (360 insertions, 3 files)
+
+**Why it matters:** Deterministic keygen is critical for:
+- Test vector reproducibility
+- Hierarchical deterministic (HD) wallets
+- Zero-downtime key rotation scenarios
+- Compliance with deterministic keygen requirements
+
+**Related issues:**
+- aws/aws-lc-rs#964 (ML-DSA stabilization)
+- aws/aws-lc-rs#773 (ML-DSA Rust API support)
 
 ---
 

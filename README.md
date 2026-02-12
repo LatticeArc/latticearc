@@ -334,6 +334,15 @@ LatticeArc builds on audited cryptographic libraries:
 | Ed25519 | `ed25519-dalek` | Audited |
 | TLS | `rustls` | Audited by Cure53 |
 
+### Upstream Contributions
+
+We actively contribute to the cryptographic ecosystem:
+
+- **[aws-lc-rs#1029](https://github.com/aws/aws-lc-rs/pull/1029)** — ML-KEM `DecapsulationKey` serialization (merged Feb 10, 2026)
+- **[aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034)** — ML-DSA seed-based deterministic keygen (under review)
+
+These contributions enable FIPS-validated serialization and deterministic key generation for post-quantum algorithms, benefiting the entire Rust cryptography community.
+
 ### Limitations
 
 - **Not FIPS 140-3 certified** — We use FIPS-validated backends, but LatticeArc itself has not undergone CMVP validation
