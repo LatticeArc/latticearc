@@ -32,7 +32,7 @@ jobs:
           - cross_border_fuzz
           - hybrid_kem_fuzz
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -43,7 +43,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -62,7 +62,7 @@ jobs:
         timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300 || true
 
     - name: Upload fuzz artifacts
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       if: failure()
       with:
         name: fuzz-artifacts-${{ matrix.target }}
@@ -80,7 +80,7 @@ jobs:
           - cross_border_fuzz
           - hybrid_kem_fuzz
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -91,7 +91,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -105,7 +105,7 @@ jobs:
         timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600 || true
 
     - name: Upload extended fuzz artifacts
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       if: failure()
       with:
         name: extended-fuzz-artifacts-${{ matrix.target }}
@@ -116,7 +116,7 @@ jobs:
     name: Fuzzing Coverage
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -129,12 +129,12 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@1c0532667bd5bc37f71fc223a52e7c41c966d9d7 # main
+      uses: taiki-e/install-action@3035223527de4d6eb6207d7b9f901df966359a8e # main
       with:
         tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -151,7 +151,7 @@ jobs:
         cargo fuzz coverage encrypt_fuzz -- -max_total_time=60 || echo "Fuzz coverage skipped (no corpus)"
 
     - name: Upload fuzz coverage
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-coverage
         path: fuzz/coverage/
