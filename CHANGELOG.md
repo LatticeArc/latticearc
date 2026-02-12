@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Formal Verification Documentation**: Comprehensive documentation for Kani proofs
+  - New `docs/FORMAL_VERIFICATION.md` with 155 lines of detailed verification documentation
+  - README.md section explaining 9 Kani proofs and verification schedule
+  - SECURITY.md expanded with proof details table and verification approach
+  - Clear disclosure: proofs run on schedule (nightly/weekly), not every commit
+  - Follows AWS-LC model for cost-effective formal verification (~30 min for full suite)
 - **FIPS 140-3 Integrity Test**: Implemented Section 9.2.2 Software/Firmware Load Test
   - `integrity_test()` with HMAC-SHA256 module verification
   - `build.rs` for production HMAC generation
@@ -37,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CI/CD**: Fixed misleading Kani formal verification claims
+  - Removed `--only-codegen` check from ci.yml (was not running actual proofs)
+  - Enabled kani.yml schedule: nightly (3 AM UTC) + weekly (Sunday 5 AM UTC)
+  - Added path filters to run proofs only when formal verification code changes
+  - Badge now reflects actual proof execution status, not fake checks
+  - Follows AWS-LC model: ~1060 min/month (53% of free tier)
 - **API Improvements**: Enhanced parameter ergonomics
   - `KeyLifecycle::add_approver()` now accepts `impl Into<String>`
   - `logging::set_correlation_id()` now accepts `impl Into<String>`
