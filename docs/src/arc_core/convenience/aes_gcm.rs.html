@@ -693,22 +693,102 @@
 <a href=#693 id=693 data-nosnippet>693</a>        <span class="prelude-val">Ok</span>(())
 <a href=#694 id=694 data-nosnippet>694</a>    }
 <a href=#695 id=695 data-nosnippet>695</a>
-<a href=#696 id=696 data-nosnippet>696</a>    <span class="comment">// Performance/size validation
+<a href=#696 id=696 data-nosnippet>696</a>    <span class="comment">// Verified session tests
 <a href=#697 id=697 data-nosnippet>697</a>    </span><span class="attr">#[test]
-<a href=#698 id=698 data-nosnippet>698</a>    </span><span class="kw">fn </span>test_aes_gcm_ciphertext_size_overhead() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#698 id=698 data-nosnippet>698</a>    </span><span class="kw">fn </span>test_aes_gcm_roundtrip_verified_session() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#699 id=699 data-nosnippet>699</a>        <span class="kw">let </span>key = generate_test_key();
-<a href=#700 id=700 data-nosnippet>700</a>        <span class="kw">let </span>plaintext = <span class="string">b"Test message"</span>;
-<a href=#701 id=701 data-nosnippet>701</a>
-<a href=#702 id=702 data-nosnippet>702</a>        <span class="kw">let </span>ciphertext = encrypt_aes_gcm_unverified(plaintext, <span class="kw-2">&amp;</span>key)<span class="question-mark">?</span>;
+<a href=#700 id=700 data-nosnippet>700</a>        <span class="kw">let </span>plaintext = <span class="string">b"Verified session roundtrip test"</span>;
+<a href=#701 id=701 data-nosnippet>701</a>        <span class="kw">let </span>(auth_pk, auth_sk) = <span class="kw">crate</span>::generate_keypair()<span class="question-mark">?</span>;
+<a href=#702 id=702 data-nosnippet>702</a>        <span class="kw">let </span>session = <span class="kw">crate</span>::VerifiedSession::establish(<span class="kw-2">&amp;</span>auth_pk, auth_sk.as_ref())<span class="question-mark">?</span>;
 <a href=#703 id=703 data-nosnippet>703</a>
-<a href=#704 id=704 data-nosnippet>704</a>        <span class="comment">// AES-GCM overhead = 12 bytes (nonce) + 16 bytes (auth tag) = 28 bytes
-<a href=#705 id=705 data-nosnippet>705</a>        </span><span class="kw">let </span>expected_size = plaintext.len() + <span class="number">28</span>;
-<a href=#706 id=706 data-nosnippet>706</a>        <span class="macro">assert_eq!</span>(
-<a href=#707 id=707 data-nosnippet>707</a>            ciphertext.len(),
-<a href=#708 id=708 data-nosnippet>708</a>            expected_size,
-<a href=#709 id=709 data-nosnippet>709</a>            <span class="string">"Ciphertext should have exact overhead of 28 bytes (12 nonce + 16 tag)"
-<a href=#710 id=710 data-nosnippet>710</a>        </span>);
-<a href=#711 id=711 data-nosnippet>711</a>        <span class="prelude-val">Ok</span>(())
-<a href=#712 id=712 data-nosnippet>712</a>    }
-<a href=#713 id=713 data-nosnippet>713</a>}
+<a href=#704 id=704 data-nosnippet>704</a>        <span class="kw">let </span>ct = encrypt_aes_gcm(plaintext, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+<a href=#705 id=705 data-nosnippet>705</a>        <span class="kw">let </span>pt = decrypt_aes_gcm(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+<a href=#706 id=706 data-nosnippet>706</a>        <span class="macro">assert_eq!</span>(pt, plaintext.as_ref());
+<a href=#707 id=707 data-nosnippet>707</a>        <span class="prelude-val">Ok</span>(())
+<a href=#708 id=708 data-nosnippet>708</a>    }
+<a href=#709 id=709 data-nosnippet>709</a>
+<a href=#710 id=710 data-nosnippet>710</a>    <span class="attr">#[test]
+<a href=#711 id=711 data-nosnippet>711</a>    </span><span class="kw">fn </span>test_aes_gcm_with_config_verified_session() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#712 id=712 data-nosnippet>712</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#713 id=713 data-nosnippet>713</a>        <span class="kw">let </span>plaintext = <span class="string">b"Config + verified session test"</span>;
+<a href=#714 id=714 data-nosnippet>714</a>        <span class="kw">let </span>config = CoreConfig::default();
+<a href=#715 id=715 data-nosnippet>715</a>        <span class="kw">let </span>(auth_pk, auth_sk) = <span class="kw">crate</span>::generate_keypair()<span class="question-mark">?</span>;
+<a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">let </span>session = <span class="kw">crate</span>::VerifiedSession::establish(<span class="kw-2">&amp;</span>auth_pk, auth_sk.as_ref())<span class="question-mark">?</span>;
+<a href=#717 id=717 data-nosnippet>717</a>
+<a href=#718 id=718 data-nosnippet>718</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_with_config(
+<a href=#719 id=719 data-nosnippet>719</a>            plaintext,
+<a href=#720 id=720 data-nosnippet>720</a>            <span class="kw-2">&amp;</span>key,
+<a href=#721 id=721 data-nosnippet>721</a>            <span class="kw-2">&amp;</span>config,
+<a href=#722 id=722 data-nosnippet>722</a>            SecurityMode::Verified(<span class="kw-2">&amp;</span>session),
+<a href=#723 id=723 data-nosnippet>723</a>        )<span class="question-mark">?</span>;
+<a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">let </span>pt = decrypt_aes_gcm_with_config(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>config, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+<a href=#725 id=725 data-nosnippet>725</a>        <span class="macro">assert_eq!</span>(pt, plaintext.as_ref());
+<a href=#726 id=726 data-nosnippet>726</a>        <span class="prelude-val">Ok</span>(())
+<a href=#727 id=727 data-nosnippet>727</a>    }
+<a href=#728 id=728 data-nosnippet>728</a>
+<a href=#729 id=729 data-nosnippet>729</a>    <span class="attr">#[test]
+<a href=#730 id=730 data-nosnippet>730</a>    </span><span class="kw">fn </span>test_aes_gcm_encrypt_with_empty_key() {
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="kw">let </span>result = encrypt_aes_gcm_unverified(<span class="string">b"test"</span>, <span class="kw-2">&amp;</span>[]);
+<a href=#732 id=732 data-nosnippet>732</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#733 id=733 data-nosnippet>733</a>        <span class="kw">match </span>result.unwrap_err() {
+<a href=#734 id=734 data-nosnippet>734</a>            CoreError::InvalidKeyLength { expected, actual } =&gt; {
+<a href=#735 id=735 data-nosnippet>735</a>                <span class="macro">assert_eq!</span>(expected, <span class="number">32</span>);
+<a href=#736 id=736 data-nosnippet>736</a>                <span class="macro">assert_eq!</span>(actual, <span class="number">0</span>);
+<a href=#737 id=737 data-nosnippet>737</a>            }
+<a href=#738 id=738 data-nosnippet>738</a>            other =&gt; <span class="macro">panic!</span>(<span class="string">"Expected InvalidKeyLength, got: {:?}"</span>, other),
+<a href=#739 id=739 data-nosnippet>739</a>        }
+<a href=#740 id=740 data-nosnippet>740</a>    }
+<a href=#741 id=741 data-nosnippet>741</a>
+<a href=#742 id=742 data-nosnippet>742</a>    <span class="attr">#[test]
+<a href=#743 id=743 data-nosnippet>743</a>    </span><span class="kw">fn </span>test_aes_gcm_decrypt_with_empty_key() {
+<a href=#744 id=744 data-nosnippet>744</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#745 id=745 data-nosnippet>745</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_unverified(<span class="string">b"test"</span>, <span class="kw-2">&amp;</span>key).unwrap();
+<a href=#746 id=746 data-nosnippet>746</a>        <span class="kw">let </span>result = decrypt_aes_gcm_unverified(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>[]);
+<a href=#747 id=747 data-nosnippet>747</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#748 id=748 data-nosnippet>748</a>    }
+<a href=#749 id=749 data-nosnippet>749</a>
+<a href=#750 id=750 data-nosnippet>750</a>    <span class="attr">#[test]
+<a href=#751 id=751 data-nosnippet>751</a>    </span><span class="kw">fn </span>test_aes_gcm_decrypt_exactly_12_bytes() {
+<a href=#752 id=752 data-nosnippet>752</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#753 id=753 data-nosnippet>753</a>        <span class="comment">// Exactly 12 bytes = just a nonce, no ciphertext or tag
+<a href=#754 id=754 data-nosnippet>754</a>        </span><span class="kw">let </span>result = decrypt_aes_gcm_unverified(<span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">12</span>], <span class="kw-2">&amp;</span>key);
+<a href=#755 id=755 data-nosnippet>755</a>        <span class="macro">assert!</span>(result.is_err(), <span class="string">"12-byte input has no ciphertext body"</span>);
+<a href=#756 id=756 data-nosnippet>756</a>    }
+<a href=#757 id=757 data-nosnippet>757</a>
+<a href=#758 id=758 data-nosnippet>758</a>    <span class="attr">#[test]
+<a href=#759 id=759 data-nosnippet>759</a>    </span><span class="kw">fn </span>test_aes_gcm_internal_encrypt_wrong_key_length() {
+<a href=#760 id=760 data-nosnippet>760</a>        <span class="kw">let </span>result = encrypt_aes_gcm_internal(<span class="string">b"test"</span>, <span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">31</span>]);
+<a href=#761 id=761 data-nosnippet>761</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>result = encrypt_aes_gcm_internal(<span class="string">b"test"</span>, <span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">33</span>]);
+<a href=#763 id=763 data-nosnippet>763</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#764 id=764 data-nosnippet>764</a>    }
+<a href=#765 id=765 data-nosnippet>765</a>
+<a href=#766 id=766 data-nosnippet>766</a>    <span class="attr">#[test]
+<a href=#767 id=767 data-nosnippet>767</a>    </span><span class="kw">fn </span>test_aes_gcm_internal_decrypt_wrong_key_length() {
+<a href=#768 id=768 data-nosnippet>768</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#769 id=769 data-nosnippet>769</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_internal(<span class="string">b"test"</span>, <span class="kw-2">&amp;</span>key).unwrap();
+<a href=#770 id=770 data-nosnippet>770</a>        <span class="kw">let </span>result = decrypt_aes_gcm_internal(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">31</span>]);
+<a href=#771 id=771 data-nosnippet>771</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#772 id=772 data-nosnippet>772</a>        <span class="kw">let </span>result = decrypt_aes_gcm_internal(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">33</span>]);
+<a href=#773 id=773 data-nosnippet>773</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#774 id=774 data-nosnippet>774</a>    }
+<a href=#775 id=775 data-nosnippet>775</a>
+<a href=#776 id=776 data-nosnippet>776</a>    <span class="comment">// Performance/size validation
+<a href=#777 id=777 data-nosnippet>777</a>    </span><span class="attr">#[test]
+<a href=#778 id=778 data-nosnippet>778</a>    </span><span class="kw">fn </span>test_aes_gcm_ciphertext_size_overhead() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#779 id=779 data-nosnippet>779</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#780 id=780 data-nosnippet>780</a>        <span class="kw">let </span>plaintext = <span class="string">b"Test message"</span>;
+<a href=#781 id=781 data-nosnippet>781</a>
+<a href=#782 id=782 data-nosnippet>782</a>        <span class="kw">let </span>ciphertext = encrypt_aes_gcm_unverified(plaintext, <span class="kw-2">&amp;</span>key)<span class="question-mark">?</span>;
+<a href=#783 id=783 data-nosnippet>783</a>
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="comment">// AES-GCM overhead = 12 bytes (nonce) + 16 bytes (auth tag) = 28 bytes
+<a href=#785 id=785 data-nosnippet>785</a>        </span><span class="kw">let </span>expected_size = plaintext.len() + <span class="number">28</span>;
+<a href=#786 id=786 data-nosnippet>786</a>        <span class="macro">assert_eq!</span>(
+<a href=#787 id=787 data-nosnippet>787</a>            ciphertext.len(),
+<a href=#788 id=788 data-nosnippet>788</a>            expected_size,
+<a href=#789 id=789 data-nosnippet>789</a>            <span class="string">"Ciphertext should have exact overhead of 28 bytes (12 nonce + 16 tag)"
+<a href=#790 id=790 data-nosnippet>790</a>        </span>);
+<a href=#791 id=791 data-nosnippet>791</a>        <span class="prelude-val">Ok</span>(())
+<a href=#792 id=792 data-nosnippet>792</a>    }
+<a href=#793 id=793 data-nosnippet>793</a>}
 </code></pre></div></section></main></body></html>

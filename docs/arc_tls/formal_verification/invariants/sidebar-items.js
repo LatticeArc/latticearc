@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["TlsInvariants"]};
+window.SIDEBAR_ITEMS = {"struct":["InvariantResult","TlsInvariants"]};

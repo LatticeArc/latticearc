@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["SecurityProperties"]};
+window.SIDEBAR_ITEMS = {"enum":["SecurityProperty"],"struct":["PropertyCheck","SecurityProperties"]};
