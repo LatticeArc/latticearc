@@ -950,12 +950,14 @@ mod tests {
 
     #[test]
     fn test_handshake_stats_fields() {
-        let mut stats = HandshakeStats::default();
-        stats.duration_ms = 150;
-        stats.kex_time_ms = 50;
-        stats.cert_time_ms = 30;
-        stats.client_hello_size = 512;
-        stats.server_hello_size = 1024;
+        let stats = HandshakeStats {
+            duration_ms: 150,
+            kex_time_ms: 50,
+            cert_time_ms: 30,
+            client_hello_size: 512,
+            server_hello_size: 1024,
+            ..Default::default()
+        };
 
         assert_eq!(stats.duration_ms, 150);
         assert_eq!(stats.kex_time_ms, 50);

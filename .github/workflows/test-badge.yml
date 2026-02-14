@@ -52,8 +52,18 @@ jobs:
           echo "BADGE_COUNT=${ROUNDED}+" >> $GITHUB_ENV
           echo "Exact test count: $TEST_COUNT, badge shows: ${ROUNDED}+"
 
+      - name: Check secrets configured
+        id: check-secrets
+        run: |
+          if [ -n "${{ secrets.GIST_SECRET }}" ] && [ -n "${{ secrets.GIST_ID }}" ]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "::warning::GIST_SECRET and/or GIST_ID not configured. Skipping badge update."
+          fi
+
       - name: Update badge via Gist
-        if: env.TEST_COUNT != '0'
+        if: env.TEST_COUNT != '0' && steps.check-secrets.outputs.configured == 'true'
         uses: schneegans/dynamic-badges-action@e9a478b16159b4d31420099ba146cdc50f134483 # v1.7.0
         with:
           auth: ${{ secrets.GIST_SECRET }}

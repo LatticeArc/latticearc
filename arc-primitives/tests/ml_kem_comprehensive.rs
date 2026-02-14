@@ -1132,6 +1132,139 @@ fn test_ciphertext_clone() {
     assert_eq!(ct.security_level(), ct_clone.security_level());
 }
 
+/// Test encapsulate_with_rng produces valid results
+#[test]
+fn test_encapsulate_with_rng() {
+    let mut rng = OsRng;
+    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+        .expect("key generation should succeed");
+
+    let seed = [0x42u8; 32];
+    let result = MlKem::encapsulate_with_rng(&pk, &seed);
+    assert!(result.is_ok(), "encapsulate_with_rng should succeed");
+
+    let (ss, ct) = result.unwrap();
+    assert_eq!(ss.as_bytes().len(), 32, "Shared secret should be 32 bytes");
+    assert_eq!(ct.as_bytes().len(), 1088, "MlKem768 ciphertext should be 1088 bytes");
+}
+
+/// Test encapsulate_with_rng with different seeds produces different results
+#[test]
+fn test_encapsulate_with_rng_different_seeds() {
+    let mut rng = OsRng;
+    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+        .expect("key generation should succeed");
+
+    let seed1 = [0x01u8; 32];
+    let seed2 = [0x02u8; 32];
+
+    let (ss1, ct1) = MlKem::encapsulate_with_rng(&pk, &seed1).unwrap();
+    let (ss2, ct2) = MlKem::encapsulate_with_rng(&pk, &seed2).unwrap();
+
+    // Different seeds should produce different outputs (highly probable)
+    assert_ne!(
+        ct1.as_bytes(),
+        ct2.as_bytes(),
+        "Different seeds should produce different ciphertexts"
+    );
+    assert_ne!(
+        ss1.as_bytes(),
+        ss2.as_bytes(),
+        "Different seeds should produce different shared secrets"
+    );
+}
+
+/// Test secret key into_bytes consumes the key
+#[test]
+fn test_secret_key_into_bytes() {
+    let sk = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xABu8; 2400])
+        .expect("construction should succeed");
+
+    let original_bytes = sk.as_bytes().to_vec();
+    let consumed_bytes = sk.into_bytes();
+
+    assert_eq!(consumed_bytes, original_bytes);
+    assert_eq!(consumed_bytes.len(), 2400);
+}
+
+/// Test MlKemDecapsulationKeyPair Debug impl
+#[test]
+fn test_decapsulation_keypair_debug() {
+    let keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)
+        .expect("decapsulation keypair generation should succeed");
+
+    let debug = format!("{:?}", keypair);
+    assert!(debug.contains("MlKemDecapsulationKeyPair"), "Debug should contain struct name");
+    assert!(debug.contains("[REDACTED]"), "Debug should redact the decaps key");
+    assert!(debug.contains("MlKem768"), "Debug should show security level");
+}
+
+/// Test MlKemDecapsulationKeyPair getters
+#[test]
+fn test_decapsulation_keypair_getters() {
+    let keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)
+        .expect("decapsulation keypair generation should succeed");
+
+    assert_eq!(keypair.security_level(), MlKemSecurityLevel::MlKem768);
+    assert_eq!(keypair.public_key().as_bytes().len(), 1184);
+    assert_eq!(keypair.public_key_bytes().len(), 1184);
+    assert_eq!(keypair.public_key().security_level(), MlKemSecurityLevel::MlKem768);
+}
+
+/// Test full encap/decap roundtrip with MlKemDecapsulationKeyPair
+#[test]
+fn test_decapsulation_keypair_roundtrip() {
+    let mut rng = OsRng;
+
+    for level in
+        [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
+    {
+        let keypair = MlKem::generate_decapsulation_keypair(level)
+            .expect("decapsulation keypair generation should succeed");
+
+        // Encapsulate using the public key
+        let (ss_encap, ct) = MlKem::encapsulate(&mut rng, keypair.public_key())
+            .expect("encapsulation should succeed");
+
+        // Decapsulate using the decapsulation keypair
+        let ss_decap = keypair.decapsulate(&ct).expect("decapsulation should succeed");
+
+        // Shared secrets must match
+        assert_eq!(
+            ss_encap.as_bytes(),
+            ss_decap.as_bytes(),
+            "Encap and decap shared secrets should match for {}",
+            level.name()
+        );
+    }
+}
+
+/// Test MlKemDecapsulationKeyPair rejects wrong security level ciphertext
+#[test]
+fn test_decapsulation_keypair_security_level_mismatch() {
+    let mut rng = OsRng;
+
+    let keypair_768 = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)
+        .expect("generation should succeed");
+    let (pk_512, _sk_512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        .expect("generation should succeed");
+
+    let (_ss, ct_512) =
+        MlKem::encapsulate(&mut rng, &pk_512).expect("encapsulation should succeed");
+
+    // Try to decapsulate a 512 ciphertext with a 768 keypair
+    let result = keypair_768.decapsulate(&ct_512);
+    assert!(result.is_err(), "Mismatched security levels should fail");
+}
+
+/// Test shared_secret_size returns 32 for all levels
+#[test]
+fn test_shared_secret_size_all_levels() {
+    assert_eq!(MlKemSecurityLevel::MlKem512.shared_secret_size(), 32);
+    assert_eq!(MlKemSecurityLevel::MlKem768.shared_secret_size(), 32);
+    assert_eq!(MlKemSecurityLevel::MlKem1024.shared_secret_size(), 32);
+}
+
 /// Test error display implementations
 #[test]
 fn test_error_display() {

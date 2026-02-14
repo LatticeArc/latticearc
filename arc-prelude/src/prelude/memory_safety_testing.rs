@@ -383,4 +383,70 @@ mod tests {
         });
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_memory_safety_tester_new_and_default_are_equivalent() {
+        let t1 = UtilityMemorySafetyTester::new();
+        let t2 = UtilityMemorySafetyTester;
+        // Both should work identically
+        assert!(t1.test_hex_memory_safety().is_ok());
+        assert!(t2.test_hex_memory_safety().is_ok());
+    }
+
+    #[test]
+    fn test_leak_detector_new_and_default_are_equivalent() {
+        let d1 = UtilityLeakDetector::new();
+        let d2 = UtilityLeakDetector;
+        assert!(d1.monitor_leaks(|| Ok(())).is_ok());
+        assert!(d2.monitor_leaks(|| Ok(())).is_ok());
+    }
+
+    #[test]
+    fn test_uuid_memory_safety_standalone() {
+        let tester = UtilityMemorySafetyTester::new();
+        assert!(tester.test_uuid_memory_safety().is_ok());
+    }
+
+    #[test]
+    fn test_error_memory_safety_standalone() {
+        let tester = UtilityMemorySafetyTester::new();
+        assert!(tester.test_error_memory_safety().is_ok());
+    }
+
+    #[test]
+    fn test_hex_roundtrip_large_data() {
+        let tester = UtilityMemorySafetyTester::new();
+        // Ensure large data hex encode/decode works
+        let data = vec![0xABu8; 4096];
+        let encoded = hex::encode(&data);
+        let decoded = hex::decode(&encoded);
+        assert!(decoded.is_ok());
+        if let Ok(ref bytes) = decoded {
+            assert_eq!(bytes, &data);
+        }
+        // Basic tester should still pass
+        assert!(tester.test_hex_memory_safety().is_ok());
+    }
+
+    #[test]
+    fn test_concurrent_safety_produces_no_errors() {
+        let tester = UtilityMemorySafetyTester::new();
+        // Run concurrent safety test multiple times to increase confidence
+        for _ in 0..3 {
+            assert!(tester.test_concurrent_safety().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_leak_detector_monitor_many_successes() {
+        let detector = UtilityLeakDetector::new();
+        let counter = std::sync::atomic::AtomicUsize::new(0);
+        let result = detector.monitor_leaks(|| {
+            counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        });
+        assert!(result.is_ok());
+        // Should have run 1000 iterations
+        assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), 1000);
+    }
 }

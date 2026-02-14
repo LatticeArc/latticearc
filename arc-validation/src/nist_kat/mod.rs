@@ -119,3 +119,85 @@ impl KatTestResult {
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, NistKatError> {
     hex::decode(s).map_err(|e| NistKatError::HexError(e.to_string()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_hex_valid() {
+        let result = decode_hex("48656c6c6f").expect("valid hex");
+        assert_eq!(result, b"Hello");
+    }
+
+    #[test]
+    fn test_decode_hex_empty() {
+        let result = decode_hex("").expect("empty hex");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_decode_hex_invalid() {
+        let result = decode_hex("zzzz");
+        assert!(result.is_err());
+        if let Err(ref err) = result {
+            assert!(format!("{}", err).contains("Hex decode error"));
+        }
+    }
+
+    #[test]
+    fn test_kat_test_result_passed() {
+        let result = KatTestResult::passed("tc1".to_string(), "SHA-256".to_string(), 42);
+        assert!(result.passed);
+        assert!(result.error_message.is_none());
+        assert_eq!(result.test_case, "tc1");
+        assert_eq!(result.algorithm, "SHA-256");
+        assert_eq!(result.execution_time_us, 42);
+    }
+
+    #[test]
+    fn test_kat_test_result_failed() {
+        let result =
+            KatTestResult::failed("tc2".to_string(), "AES".to_string(), "mismatch".to_string(), 99);
+        assert!(!result.passed);
+        assert_eq!(result.error_message, Some("mismatch".to_string()));
+        assert_eq!(result.test_case, "tc2");
+        assert_eq!(result.algorithm, "AES");
+        assert_eq!(result.execution_time_us, 99);
+    }
+
+    #[test]
+    fn test_kat_test_result_clone_debug() {
+        let result = KatTestResult::passed("tc3".to_string(), "HKDF".to_string(), 10);
+        let cloned = result.clone();
+        assert_eq!(cloned.test_case, "tc3");
+        let debug = format!("{:?}", result);
+        assert!(debug.contains("tc3"));
+    }
+
+    #[test]
+    fn test_nist_kat_error_display() {
+        let err = NistKatError::TestFailed {
+            algorithm: "SHA-256".to_string(),
+            test_name: "vector1".to_string(),
+            message: "hash mismatch".to_string(),
+        };
+        let display = format!("{}", err);
+        assert!(display.contains("SHA-256"));
+        assert!(display.contains("vector1"));
+        assert!(display.contains("hash mismatch"));
+
+        let err2 = NistKatError::ImplementationError("not implemented".to_string());
+        assert!(format!("{}", err2).contains("not implemented"));
+
+        let err3 = NistKatError::UnsupportedAlgorithm("SIKE".to_string());
+        assert!(format!("{}", err3).contains("SIKE"));
+    }
+
+    #[test]
+    fn test_nist_kat_error_debug() {
+        let err = NistKatError::HexError("bad hex".to_string());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("HexError"));
+    }
+}

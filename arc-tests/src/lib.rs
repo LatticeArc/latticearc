@@ -66,3 +66,43 @@ pub mod utils {
         assert_ne!(left, right, "{}: byte slices should differ", context);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::utils;
+
+    #[test]
+    fn test_rng_returns_osrng() {
+        use rand::RngCore;
+        let mut rng = utils::test_rng();
+        let mut buf = [0u8; 16];
+        rng.fill_bytes(&mut buf);
+        // Should produce non-zero random bytes
+        assert!(buf.iter().any(|&b| b != 0), "RNG should produce non-zero output");
+    }
+
+    #[test]
+    fn test_assert_bytes_eq_matching() {
+        utils::assert_bytes_eq(b"hello", b"hello", "matching slices");
+        utils::assert_bytes_eq(&[], &[], "empty slices");
+        utils::assert_bytes_eq(&[1, 2, 3], &[1, 2, 3], "numeric slices");
+    }
+
+    #[test]
+    #[should_panic(expected = "byte slices differ")]
+    fn test_assert_bytes_eq_mismatch() {
+        utils::assert_bytes_eq(b"hello", b"world", "should panic");
+    }
+
+    #[test]
+    fn test_assert_bytes_ne_different() {
+        utils::assert_bytes_ne(b"hello", b"world", "different slices");
+        utils::assert_bytes_ne(&[1], &[2], "single byte diff");
+    }
+
+    #[test]
+    #[should_panic(expected = "byte slices should differ")]
+    fn test_assert_bytes_ne_same() {
+        utils::assert_bytes_ne(b"same", b"same", "should panic");
+    }
+}

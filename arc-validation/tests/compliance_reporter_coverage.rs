@@ -207,7 +207,10 @@ fn test_save_report_to_file() {
     let results = make_mixed_kat_results();
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
 
-    let tmp_base = "/tmp/claude/compliance_report_test";
+    let tmp_dir = std::env::temp_dir().join("compliance_report_test_dir");
+    std::fs::create_dir_all(&tmp_dir).expect("Should create temp dir");
+    let tmp_base = tmp_dir.join("compliance_report_test");
+    let tmp_base = tmp_base.to_str().expect("Valid UTF-8 path");
     reporter.save_report_to_file(&report, tmp_base).expect("Save should succeed");
 
     // Verify files were created

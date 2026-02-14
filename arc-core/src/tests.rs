@@ -717,6 +717,22 @@ fn test_version_constant() {
     assert!(crate::VERSION.contains('.'), "VERSION should contain a dot separator");
 }
 
+#[test]
+fn test_init_with_invalid_config() {
+    // Invalid config should fail validation before self-tests
+    let invalid_config = crate::CoreConfig::new()
+        .with_security_level(SecurityLevel::Maximum)
+        .with_hardware_acceleration(false);
+    let result = crate::init_with_config(&invalid_config);
+    assert!(result.is_err(), "init_with_config should fail with invalid config");
+}
+
+#[test]
+fn test_self_tests_passed_is_bool() {
+    // Just verify it returns a bool without panicking
+    let _passed: bool = crate::self_tests_passed();
+}
+
 // ============================================================================
 // Phase 4: types.rs coverage (ZeroizedBytes, KeyPair, enums, CryptoConfig)
 // ============================================================================

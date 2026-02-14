@@ -1195,6 +1195,7 @@ pub fn verify_operational() -> Result<()> {
 // =============================================================================
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
@@ -1577,5 +1578,222 @@ mod tests {
         // Cleanup
         clear_error_state();
         let _ = initialize_and_test();
+    }
+
+    // -------------------------------------------------------------------------
+    // Additional coverage for error paths and edge cases
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_self_test_result_fail_to_result_contains_message() {
+        let fail = SelfTestResult::Fail("module corrupted".to_string());
+        let result = fail.to_result();
+        assert!(result.is_err());
+        if let Err(LatticeArcError::ValidationError { message }) = result {
+            assert!(message.contains("module corrupted"));
+            assert!(message.contains("FIPS 140-3"));
+        }
+    }
+
+    #[test]
+    fn test_individual_test_result_with_no_duration() {
+        let result = IndividualTestResult {
+            algorithm: "TEST".to_string(),
+            result: SelfTestResult::Fail("error".to_string()),
+            duration_us: None,
+        };
+        assert!(result.result.is_fail());
+        assert!(result.duration_us.is_none());
+        let debug = format!("{:?}", result);
+        assert!(debug.contains("None"));
+    }
+
+    #[test]
+    fn test_self_test_report_with_failures() {
+        // Manually build a report with mixed pass/fail results
+        let report = SelfTestReport {
+            overall_result: SelfTestResult::Fail("SHA-256 failed".to_string()),
+            tests: vec![
+                IndividualTestResult {
+                    algorithm: "SHA-256".to_string(),
+                    result: SelfTestResult::Fail("KAT mismatch".to_string()),
+                    duration_us: Some(100),
+                },
+                IndividualTestResult {
+                    algorithm: "AES-GCM".to_string(),
+                    result: SelfTestResult::Pass,
+                    duration_us: Some(200),
+                },
+            ],
+            total_duration_us: 300,
+        };
+        assert!(report.overall_result.is_fail());
+        assert_eq!(report.tests.len(), 2);
+        assert!(report.tests[0].result.is_fail());
+        assert!(report.tests[1].result.is_pass());
+
+        let debug = format!("{:?}", report);
+        assert!(debug.contains("SelfTestReport"));
+    }
+
+    #[test]
+    fn test_module_error_code_repr_values() {
+        // Verify the repr(u32) values match expectations
+        assert_eq!(ModuleErrorCode::NoError as u32, 0);
+        assert_eq!(ModuleErrorCode::SelfTestFailure as u32, 1);
+        assert_eq!(ModuleErrorCode::EntropyFailure as u32, 2);
+        assert_eq!(ModuleErrorCode::IntegrityFailure as u32, 3);
+        assert_eq!(ModuleErrorCode::CriticalCryptoError as u32, 4);
+        assert_eq!(ModuleErrorCode::KeyZeroizationFailure as u32, 5);
+        assert_eq!(ModuleErrorCode::AuthenticationFailure as u32, 6);
+        assert_eq!(ModuleErrorCode::HsmError as u32, 7);
+        assert_eq!(ModuleErrorCode::UnknownCriticalError as u32, 255);
+    }
+
+    #[test]
+    fn test_module_error_code_from_u32_boundary() {
+        // Values 8-254 all map to UnknownCriticalError
+        assert_eq!(ModuleErrorCode::from_u32(8), ModuleErrorCode::UnknownCriticalError);
+        assert_eq!(ModuleErrorCode::from_u32(128), ModuleErrorCode::UnknownCriticalError);
+        assert_eq!(ModuleErrorCode::from_u32(254), ModuleErrorCode::UnknownCriticalError);
+        assert_eq!(ModuleErrorCode::from_u32(u32::MAX), ModuleErrorCode::UnknownCriticalError);
+    }
+
+    #[test]
+    fn test_module_error_state_no_error_timestamp_zero() {
+        clear_error_state();
+        let state = get_module_error_state();
+        assert!(!state.is_error());
+        assert_eq!(state.timestamp, 0);
+    }
+
+    #[test]
+    fn test_module_error_state_error_has_nonzero_timestamp() {
+        clear_error_state();
+        set_module_error(ModuleErrorCode::SelfTestFailure);
+        let state = get_module_error_state();
+        assert!(state.is_error());
+        // Timestamp should be recent (within last few seconds)
+        assert!(state.timestamp > 0);
+
+        // Cleanup
+        clear_error_state();
+        let _ = initialize_and_test();
+    }
+
+    #[test]
+    fn test_verify_operational_error_message_contains_description() {
+        clear_error_state();
+        set_module_error(ModuleErrorCode::EntropyFailure);
+
+        let result = verify_operational();
+        assert!(result.is_err());
+        if let Err(LatticeArcError::ValidationError { message }) = result {
+            assert!(message.contains("Entropy source failure"));
+            assert!(message.contains("error set at timestamp"));
+        }
+
+        // Cleanup
+        clear_error_state();
+        let _ = initialize_and_test();
+    }
+
+    #[test]
+    fn test_all_error_codes_block_operations() {
+        let error_codes = [
+            ModuleErrorCode::SelfTestFailure,
+            ModuleErrorCode::EntropyFailure,
+            ModuleErrorCode::IntegrityFailure,
+            ModuleErrorCode::CriticalCryptoError,
+            ModuleErrorCode::KeyZeroizationFailure,
+            ModuleErrorCode::AuthenticationFailure,
+            ModuleErrorCode::HsmError,
+            ModuleErrorCode::UnknownCriticalError,
+        ];
+
+        for code in &error_codes {
+            clear_error_state();
+            SELF_TEST_PASSED.store(true, Ordering::SeqCst);
+            set_module_error(*code);
+
+            assert!(!is_module_operational(), "{:?} should block operations", code);
+            assert!(verify_operational().is_err(), "{:?} should fail verify", code);
+        }
+
+        // Cleanup
+        clear_error_state();
+        let _ = initialize_and_test();
+    }
+
+    #[test]
+    fn test_initialize_and_test_sets_flag() {
+        SELF_TEST_PASSED.store(false, Ordering::SeqCst);
+        clear_error_state();
+        assert!(!self_tests_passed());
+
+        let result = initialize_and_test();
+        assert!(result.is_pass());
+        assert!(self_tests_passed());
+    }
+
+    #[test]
+    fn test_current_timestamp_reasonable() {
+        let ts = current_timestamp();
+        // Should be after 2020-01-01 (1577836800)
+        assert!(ts > 1_577_836_800, "Timestamp should be after 2020");
+    }
+
+    #[test]
+    fn test_kat_sha256_is_deterministic() {
+        // Running SHA-256 KAT multiple times should always pass
+        for _ in 0..5 {
+            assert!(kat_sha256().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_kat_hkdf_sha256_is_deterministic() {
+        for _ in 0..5 {
+            assert!(kat_hkdf_sha256().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_kat_aes_256_gcm_is_deterministic() {
+        for _ in 0..5 {
+            assert!(kat_aes_256_gcm().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_kat_ml_kem_768_always_succeeds() {
+        // ML-KEM uses randomness but should always succeed
+        for _ in 0..3 {
+            assert!(kat_ml_kem_768().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_run_power_up_tests_is_deterministic() {
+        for _ in 0..3 {
+            let result = run_power_up_tests();
+            assert!(result.is_pass());
+        }
+    }
+
+    #[test]
+    fn test_run_power_up_tests_with_report_all_pass() {
+        let report = run_power_up_tests_with_report();
+        assert!(report.overall_result.is_pass());
+        for test in &report.tests {
+            assert!(
+                test.result.is_pass(),
+                "Test {} should pass but got: {:?}",
+                test.algorithm,
+                test.result
+            );
+            assert!(test.duration_us.is_some());
+        }
+        assert!(report.total_duration_us > 0);
     }
 }

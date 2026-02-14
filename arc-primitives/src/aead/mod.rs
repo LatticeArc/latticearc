@@ -165,7 +165,6 @@ mod tests {
     /// This function uses constant-time operations from the `subtle` crate to prevent
     /// timing side channels. The comparison time is independent of the position of
     /// any differences between the slices.
-    #[allow(dead_code)]
     fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
         use subtle::ConstantTimeEq;
         let len_eq = a.len().ct_eq(&b.len());
@@ -174,5 +173,61 @@ mod tests {
             result &= x.ct_eq(y);
         }
         result.into()
+    }
+
+    #[test]
+    fn test_constant_time_eq_equal() {
+        assert!(constant_time_eq(b"hello", b"hello"));
+        assert!(constant_time_eq(b"", b""));
+        assert!(constant_time_eq(&[0u8; 32], &[0u8; 32]));
+    }
+
+    #[test]
+    fn test_constant_time_eq_not_equal() {
+        assert!(!constant_time_eq(b"hello", b"world"));
+        assert!(!constant_time_eq(b"short", b"longer"));
+        assert!(!constant_time_eq(b"a", b""));
+    }
+
+    #[test]
+    fn test_aead_constants() {
+        assert_eq!(NONCE_LEN, 12);
+        assert_eq!(TAG_LEN, 16);
+        assert_eq!(AES_GCM_128_KEY_LEN, 16);
+        assert_eq!(AES_GCM_256_KEY_LEN, 32);
+        assert_eq!(CHACHA20_POLY1305_KEY_LEN, 32);
+    }
+
+    #[test]
+    fn test_aead_error_display() {
+        let err = AeadError::InvalidKeyLength;
+        assert_eq!(format!("{}", err), "Invalid key length");
+
+        let err = AeadError::InvalidNonceLength;
+        assert_eq!(format!("{}", err), "Invalid nonce length");
+
+        let err = AeadError::InvalidTagLength;
+        assert_eq!(format!("{}", err), "Invalid tag length");
+
+        let err = AeadError::TagVerificationFailed;
+        assert_eq!(format!("{}", err), "Authentication tag verification failed");
+
+        let err = AeadError::EncryptionFailed("test".to_string());
+        assert_eq!(format!("{}", err), "Encryption failed: test");
+
+        let err = AeadError::DecryptionFailed("oops".to_string());
+        assert_eq!(format!("{}", err), "Decryption failed: oops");
+
+        let err = AeadError::Other("misc".to_string());
+        assert_eq!(format!("{}", err), "AEAD error: misc");
+    }
+
+    #[test]
+    fn test_nonce_and_tag_types() {
+        let nonce: Nonce = [0u8; NONCE_LEN];
+        assert_eq!(nonce.len(), 12);
+
+        let tag: Tag = [0u8; TAG_LEN];
+        assert_eq!(tag.len(), 16);
     }
 }
