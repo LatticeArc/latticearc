@@ -445,4 +445,94 @@ mod tests {
     fn test_ci_integration() {
         assert!(ci_integration::run_ci_tests().is_ok());
     }
+
+    #[test]
+    fn test_prelude_ci_test_suite_default() {
+        let suite = PreludeCiTestSuite;
+        // Just verify default construction works
+        let _ = suite;
+    }
+
+    #[test]
+    fn test_generate_report_with_failures() {
+        let report = PreludeCiReport {
+            unit_tests_passed: false,
+            property_tests_passed: true,
+            memory_safety_passed: false,
+            cavp_compliance_report: Some("CAVP results here".to_string()),
+            side_channel_report: Some("Side channel report here".to_string()),
+            side_channel_assessments: vec![],
+            performance_results: PerformanceResults {
+                hex_encode_avg: std::time::Duration::from_micros(5),
+                uuid_generate_avg: std::time::Duration::from_micros(10),
+            },
+        };
+
+        let text = report.generate_report();
+        assert!(text.contains("ISSUES DETECTED"));
+        assert!(text.contains("FAILED"));
+        assert!(text.contains("CAVP Compliance Report"));
+        assert!(text.contains("Side-Channel Analysis Report"));
+        assert!(!report.all_critical_tests_passed());
+    }
+
+    #[test]
+    fn test_generate_report_with_side_channel_assessments() {
+        use crate::prelude::side_channel_analysis::{
+            Severity, SideChannelAssessment, SideChannelType,
+        };
+
+        let report = PreludeCiReport {
+            unit_tests_passed: true,
+            property_tests_passed: true,
+            memory_safety_passed: true,
+            cavp_compliance_report: None,
+            side_channel_report: None,
+            side_channel_assessments: vec![SideChannelAssessment {
+                vulnerability_type: SideChannelType::Timing,
+                severity: Severity::Critical,
+                confidence: 0.95,
+                description: "Timing leak".to_string(),
+                mitigation_suggestions: vec!["Use constant-time".to_string()],
+            }],
+            performance_results: PerformanceResults::default(),
+        };
+
+        let text = report.generate_report();
+        assert!(text.contains("High/Critical Side-Channel Issues: 1"));
+        assert!(!report.all_critical_tests_passed());
+    }
+
+    #[test]
+    fn test_all_critical_tests_passed_with_high_severity() {
+        use crate::prelude::side_channel_analysis::{
+            Severity, SideChannelAssessment, SideChannelType,
+        };
+
+        let report = PreludeCiReport {
+            unit_tests_passed: true,
+            property_tests_passed: true,
+            memory_safety_passed: true,
+            cavp_compliance_report: None,
+            side_channel_report: None,
+            side_channel_assessments: vec![SideChannelAssessment {
+                vulnerability_type: SideChannelType::Cache,
+                severity: Severity::High,
+                confidence: 0.8,
+                description: "Cache leak".to_string(),
+                mitigation_suggestions: vec!["Flush".to_string()],
+            }],
+            performance_results: PerformanceResults::default(),
+        };
+
+        // High severity (not Critical) should still pass all_critical_tests_passed
+        assert!(report.all_critical_tests_passed());
+    }
+
+    #[test]
+    fn test_performance_results_debug() {
+        let perf = PerformanceResults::default();
+        let debug = format!("{:?}", perf);
+        assert!(debug.contains("PerformanceResults"));
+    }
 }

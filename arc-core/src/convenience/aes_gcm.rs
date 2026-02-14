@@ -693,6 +693,86 @@ mod tests {
         Ok(())
     }
 
+    // Verified session tests
+    #[test]
+    fn test_aes_gcm_roundtrip_verified_session() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"Verified session roundtrip test";
+        let (auth_pk, auth_sk) = crate::generate_keypair()?;
+        let session = crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let ct = encrypt_aes_gcm(plaintext, &key, SecurityMode::Verified(&session))?;
+        let pt = decrypt_aes_gcm(&ct, &key, SecurityMode::Verified(&session))?;
+        assert_eq!(pt, plaintext.as_ref());
+        Ok(())
+    }
+
+    #[test]
+    fn test_aes_gcm_with_config_verified_session() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"Config + verified session test";
+        let config = CoreConfig::default();
+        let (auth_pk, auth_sk) = crate::generate_keypair()?;
+        let session = crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let ct = encrypt_aes_gcm_with_config(
+            plaintext,
+            &key,
+            &config,
+            SecurityMode::Verified(&session),
+        )?;
+        let pt = decrypt_aes_gcm_with_config(&ct, &key, &config, SecurityMode::Verified(&session))?;
+        assert_eq!(pt, plaintext.as_ref());
+        Ok(())
+    }
+
+    #[test]
+    fn test_aes_gcm_encrypt_with_empty_key() {
+        let result = encrypt_aes_gcm_unverified(b"test", &[]);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CoreError::InvalidKeyLength { expected, actual } => {
+                assert_eq!(expected, 32);
+                assert_eq!(actual, 0);
+            }
+            other => panic!("Expected InvalidKeyLength, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_gcm_decrypt_with_empty_key() {
+        let key = generate_test_key();
+        let ct = encrypt_aes_gcm_unverified(b"test", &key).unwrap();
+        let result = decrypt_aes_gcm_unverified(&ct, &[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_aes_gcm_decrypt_exactly_12_bytes() {
+        let key = generate_test_key();
+        // Exactly 12 bytes = just a nonce, no ciphertext or tag
+        let result = decrypt_aes_gcm_unverified(&[0u8; 12], &key);
+        assert!(result.is_err(), "12-byte input has no ciphertext body");
+    }
+
+    #[test]
+    fn test_aes_gcm_internal_encrypt_wrong_key_length() {
+        let result = encrypt_aes_gcm_internal(b"test", &[0u8; 31]);
+        assert!(result.is_err());
+        let result = encrypt_aes_gcm_internal(b"test", &[0u8; 33]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_aes_gcm_internal_decrypt_wrong_key_length() {
+        let key = generate_test_key();
+        let ct = encrypt_aes_gcm_internal(b"test", &key).unwrap();
+        let result = decrypt_aes_gcm_internal(&ct, &[0u8; 31]);
+        assert!(result.is_err());
+        let result = decrypt_aes_gcm_internal(&ct, &[0u8; 33]);
+        assert!(result.is_err());
+    }
+
     // Performance/size validation
     #[test]
     fn test_aes_gcm_ciphertext_size_overhead() -> Result<()> {

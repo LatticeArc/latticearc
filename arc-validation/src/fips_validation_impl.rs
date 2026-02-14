@@ -357,8 +357,10 @@ impl Fips140_3Validator {
         let start_time = Instant::now();
 
         let mut rng_samples = Vec::new();
-        for i in 0..10000 {
-            rng_samples.push((i * 2654435761u32).wrapping_mul(1103515245).wrapping_add(12345));
+        for i in 0u32..10000 {
+            rng_samples.push(
+                i.wrapping_mul(2_654_435_761).wrapping_mul(1_103_515_245).wrapping_add(12345),
+            );
         }
 
         let test_data: Vec<u8> =

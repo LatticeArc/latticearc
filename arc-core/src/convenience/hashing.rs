@@ -748,6 +748,95 @@ mod tests {
         Ok(())
     }
 
+    // Error path tests
+    #[test]
+    fn test_derive_key_empty_salt_fails() {
+        let result = derive_key_unverified(b"password", b"", 32);
+        assert!(result.is_err(), "Empty salt should fail");
+        match result.unwrap_err() {
+            CoreError::InvalidInput(msg) => assert!(msg.contains("Salt")),
+            other => panic!("Expected InvalidInput, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_derive_key_zero_length_fails() {
+        let result = derive_key_unverified(b"password", b"salt", 0);
+        assert!(result.is_err(), "Zero length should fail");
+        match result.unwrap_err() {
+            CoreError::InvalidInput(msg) => assert!(msg.contains("Length")),
+            other => panic!("Expected InvalidInput, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_hmac_empty_key_fails() {
+        let result = hmac_unverified(&[], b"data");
+        assert!(result.is_err(), "Empty HMAC key should fail");
+        match result.unwrap_err() {
+            CoreError::InvalidInput(msg) => assert!(msg.contains("key")),
+            other => panic!("Expected InvalidInput, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_hmac_check_wrong_tag_length() {
+        let result = hmac_check_unverified(b"key", b"data", &[0u8; 16]);
+        assert!(result.is_err(), "Wrong tag length should fail");
+        match result.unwrap_err() {
+            CoreError::InvalidInput(msg) => assert!(msg.contains("32 bytes")),
+            other => panic!("Expected InvalidInput, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_hmac_check_empty_key_fails() {
+        let result = hmac_check_unverified(&[], b"data", &[0u8; 32]);
+        assert!(result.is_err(), "Empty key for HMAC check should fail");
+    }
+
+    // Derive key with config + verified session
+    #[test]
+    fn test_derive_key_with_config_verified() -> Result<()> {
+        let password = b"password";
+        let salt = b"salt";
+        let config = CoreConfig::default();
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let key =
+            derive_key_with_config(password, salt, 32, &config, SecurityMode::Verified(&session))?;
+        assert_eq!(key.len(), 32);
+        Ok(())
+    }
+
+    // HMAC check with config + unverified (covers _with_config_unverified for hmac_check)
+    #[test]
+    fn test_hmac_check_with_config_unverified_roundtrip() -> Result<()> {
+        let key = b"test_key";
+        let data = b"important data";
+        let config = CoreConfig::default();
+
+        let tag = hmac_with_config_unverified(data, key, &config)?;
+        let valid = hmac_check_with_config_unverified(data, key, &tag, &config)?;
+        assert!(valid);
+
+        // Wrong data should fail
+        let valid = hmac_check_with_config_unverified(b"wrong data", key, &tag, &config)?;
+        assert!(!valid);
+        Ok(())
+    }
+
+    // Hash parallel path (data > 65536 bytes)
+    #[test]
+    fn test_hash_data_parallel_path() {
+        let data = vec![0xAB; 70000]; // > 65536 to trigger parallel path
+        let hash1 = hash_data(&data);
+        let hash2 = hash_data(&data);
+        assert_eq!(hash1, hash2, "Parallel hash should be deterministic");
+        assert_eq!(hash1.len(), 32);
+    }
+
     // Edge cases
     #[test]
     fn test_hmac_empty_data() -> Result<()> {

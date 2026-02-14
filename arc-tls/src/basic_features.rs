@@ -475,6 +475,8 @@ pub fn get_config_info(config: &TlsConfig) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use arc_core::SecurityLevel;
@@ -503,5 +505,302 @@ mod tests {
         let config = TlsConfig::new().security_level(SecurityLevel::Quantum);
         let info = get_config_info(&config);
         assert!(info.contains("Post-quantum") || info.contains("PQ"));
+    }
+
+    #[test]
+    fn test_config_info_classic() {
+        let mut config = TlsConfig::new();
+        config.mode = TlsMode::Classic;
+        let info = get_config_info(&config);
+        assert!(info.contains("Classic"));
+        assert!(info.contains("Not PQ secure"));
+    }
+
+    #[test]
+    fn test_load_certificates_nonexistent_file() {
+        let result = load_certificates("/nonexistent/path/cert.pem");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_certs_delegates_to_load_certificates() {
+        // load_certs should return same error as load_certificates
+        let result = load_certs("/nonexistent/path/cert.pem");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_private_key_nonexistent_file() {
+        let result = load_private_key("/nonexistent/path/key.pem");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_private_key_secure_nonexistent_file() {
+        let result = load_private_key_secure("/nonexistent/path/key.pem");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_secure_private_key_pkcs8() {
+        // Create a PKCS#8 key
+        let key_bytes = vec![1u8; 32];
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
+        let secure = SecurePrivateKey::new(key);
+
+        assert!(secure.as_pkcs8().is_some());
+        assert!(secure.as_pkcs1().is_none());
+        assert!(secure.as_sec1().is_none());
+
+        let _key_ref = secure.key_ref();
+    }
+
+    #[test]
+    fn test_secure_private_key_pkcs1() {
+        let key_bytes = vec![2u8; 32];
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs1KeyDer::from(key_bytes));
+        let secure = SecurePrivateKey::new(key);
+
+        assert!(secure.as_pkcs1().is_some());
+        assert!(secure.as_pkcs8().is_none());
+        assert!(secure.as_sec1().is_none());
+    }
+
+    #[test]
+    fn test_secure_private_key_sec1() {
+        let key_bytes = vec![3u8; 32];
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivateSec1KeyDer::from(key_bytes));
+        let secure = SecurePrivateKey::new(key);
+
+        assert!(secure.as_sec1().is_some());
+        assert!(secure.as_pkcs1().is_none());
+        assert!(secure.as_pkcs8().is_none());
+    }
+
+    #[test]
+    fn test_secure_private_key_into_inner() {
+        let key_bytes = vec![4u8; 32];
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
+        let secure = SecurePrivateKey::new(key);
+
+        let _inner = secure.into_inner();
+        // SecurePrivateKey is consumed, no use-after-free
+    }
+
+    #[test]
+    fn test_secure_private_key_as_ref() {
+        let key_bytes = vec![5u8; 32];
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
+        let secure = SecurePrivateKey::new(key);
+
+        let key_ref: &PrivateKeyDer<'static> = secure.as_ref();
+        assert!(matches!(key_ref, PrivateKeyDer::Pkcs8(_)));
+    }
+
+    #[test]
+    fn test_secure_private_key_zeroize() {
+        let key_bytes = vec![6u8; 32];
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
+        let mut secure = SecurePrivateKey::new(key);
+        secure.zeroize(); // Should not panic
+    }
+
+    #[test]
+    fn test_secure_private_key_drop() {
+        let key_bytes = vec![7u8; 32];
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
+        let secure = SecurePrivateKey::new(key);
+        drop(secure); // Should not panic - zeroize on drop
+    }
+
+    // === Tests with valid PEM files using rcgen ===
+
+    fn generate_test_cert_and_key() -> (String, String, tempfile::TempDir) {
+        let key_pair = rcgen::KeyPair::generate().unwrap();
+        let params = rcgen::CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let cert = params.self_signed(&key_pair).unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("cert.pem");
+        let key_path = dir.path().join("key.pem");
+        std::fs::write(&cert_path, cert.pem()).unwrap();
+        std::fs::write(&key_path, key_pair.serialize_pem()).unwrap();
+
+        (cert_path.to_str().unwrap().to_string(), key_path.to_str().unwrap().to_string(), dir)
+    }
+
+    #[test]
+    fn test_load_certificates_valid_pem() {
+        let (cert_path, _key_path, _dir) = generate_test_cert_and_key();
+        let certs = load_certificates(&cert_path);
+        assert!(certs.is_ok(), "Should load valid PEM certificate");
+        assert_eq!(certs.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_load_certificates_empty_pem_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("empty.pem");
+        std::fs::write(&cert_path, "").unwrap();
+
+        let result = load_certificates(cert_path.to_str().unwrap());
+        assert!(result.is_err(), "Empty PEM should produce error");
+    }
+
+    #[test]
+    fn test_load_certificates_invalid_pem_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("invalid.pem");
+        std::fs::write(&cert_path, "NOT A VALID PEM FILE").unwrap();
+
+        let result = load_certificates(cert_path.to_str().unwrap());
+        assert!(result.is_err(), "Invalid PEM content should produce error");
+    }
+
+    #[test]
+    fn test_load_certs_valid_pem() {
+        let (cert_path, _key_path, _dir) = generate_test_cert_and_key();
+        let certs = load_certs(&cert_path);
+        assert!(certs.is_ok());
+        assert_eq!(certs.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_load_private_key_valid_pem() {
+        let (_cert_path, key_path, _dir) = generate_test_cert_and_key();
+        let key = load_private_key(&key_path);
+        assert!(key.is_ok(), "Should load valid PEM private key");
+    }
+
+    #[test]
+    fn test_load_private_key_secure_valid_pem() {
+        let (_cert_path, key_path, _dir) = generate_test_cert_and_key();
+        let secure_key = load_private_key_secure(&key_path);
+        assert!(secure_key.is_ok(), "Should load valid PEM private key securely");
+        let sk = secure_key.unwrap();
+        // rcgen generates PKCS#8 keys
+        assert!(sk.as_pkcs8().is_some(), "Key should be PKCS#8 format");
+    }
+
+    #[test]
+    fn test_load_private_key_secure_into_inner() {
+        let (_cert_path, key_path, _dir) = generate_test_cert_and_key();
+        let secure_key = load_private_key_secure(&key_path).unwrap();
+        let _inner = secure_key.into_inner();
+        // Verify the key can be consumed without panic
+    }
+
+    #[test]
+    fn test_create_client_connector_default_config() {
+        let config = TlsConfig::new();
+        let connector = create_client_connector(&config);
+        assert!(connector.is_ok(), "Default client connector should succeed");
+    }
+
+    #[test]
+    fn test_create_client_connector_classic_mode() {
+        let mut config = TlsConfig::new();
+        config.mode = TlsMode::Classic;
+        let connector = create_client_connector(&config);
+        assert!(connector.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_acceptor_valid() {
+        let (cert_path, key_path, _dir) = generate_test_cert_and_key();
+        let config = TlsConfig::new();
+        let acceptor = create_server_acceptor(&config, &cert_path, &key_path);
+        assert!(acceptor.is_ok(), "Server acceptor with valid cert/key should succeed");
+    }
+
+    #[test]
+    fn test_create_server_acceptor_classic_mode() {
+        let (cert_path, key_path, _dir) = generate_test_cert_and_key();
+        let mut config = TlsConfig::new();
+        config.mode = TlsMode::Classic;
+        let acceptor = create_server_acceptor(&config, &cert_path, &key_path);
+        assert!(acceptor.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_acceptor_nonexistent_cert() {
+        let config = TlsConfig::new();
+        let result =
+            create_server_acceptor(&config, "/nonexistent/cert.pem", "/nonexistent/key.pem");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_server_acceptor_mtls_with_ca() {
+        // Generate CA
+        let ca_key = rcgen::KeyPair::generate().unwrap();
+        let mut ca_params = rcgen::CertificateParams::new(vec!["Test CA".to_string()]).unwrap();
+        ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        let ca_cert = ca_params.self_signed(&ca_key).unwrap();
+
+        // Generate server cert signed by CA
+        let server_key = rcgen::KeyPair::generate().unwrap();
+        let server_params = rcgen::CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let server_cert = server_params.signed_by(&server_key, &ca_cert, &ca_key).unwrap();
+
+        // Write PEM files
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("server.pem");
+        let key_path = dir.path().join("server.key");
+        let ca_path = dir.path().join("ca.pem");
+        std::fs::write(&cert_path, server_cert.pem()).unwrap();
+        std::fs::write(&key_path, server_key.serialize_pem()).unwrap();
+        std::fs::write(&ca_path, ca_cert.pem()).unwrap();
+
+        let config = TlsConfig::new()
+            .with_client_verification(crate::ClientVerificationMode::Required)
+            .with_client_ca_certs(ca_path.to_str().unwrap());
+        let acceptor = create_server_acceptor(
+            &config,
+            cert_path.to_str().unwrap(),
+            key_path.to_str().unwrap(),
+        );
+        assert!(acceptor.is_ok(), "mTLS server acceptor should succeed with valid CA");
+    }
+
+    #[test]
+    fn test_load_private_key_invalid_pem_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let key_path = dir.path().join("invalid.pem");
+        std::fs::write(&key_path, "NOT A VALID KEY").unwrap();
+
+        let result = load_private_key(key_path.to_str().unwrap());
+        assert!(result.is_err(), "Invalid PEM content should produce error");
+    }
+
+    #[test]
+    fn test_load_private_key_secure_invalid_pem_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let key_path = dir.path().join("invalid.pem");
+        std::fs::write(&key_path, "NOT A VALID KEY").unwrap();
+
+        let result = load_private_key_secure(key_path.to_str().unwrap());
+        assert!(result.is_err(), "Invalid PEM content should produce error");
+    }
+
+    #[test]
+    fn test_load_certificates_multiple_certs() {
+        // Generate two certs and concatenate PEM
+        let key1 = rcgen::KeyPair::generate().unwrap();
+        let params1 = rcgen::CertificateParams::new(vec!["cert1.test".to_string()]).unwrap();
+        let cert1 = params1.self_signed(&key1).unwrap();
+
+        let key2 = rcgen::KeyPair::generate().unwrap();
+        let params2 = rcgen::CertificateParams::new(vec!["cert2.test".to_string()]).unwrap();
+        let cert2 = params2.self_signed(&key2).unwrap();
+
+        let combined_pem = format!("{}{}", cert1.pem(), cert2.pem());
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("multi.pem");
+        std::fs::write(&cert_path, combined_pem).unwrap();
+
+        let certs = load_certificates(cert_path.to_str().unwrap());
+        assert!(certs.is_ok());
+        assert_eq!(certs.unwrap().len(), 2, "Should load both certificates");
     }
 }

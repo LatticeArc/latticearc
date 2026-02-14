@@ -452,6 +452,7 @@ fn generate_recommendations(err: &crate::error::TlsError) -> Vec<String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -504,5 +505,347 @@ mod tests {
         assert!(!info.platform.is_empty());
         assert!(!info.rust_version.is_empty());
         assert!(!info.tls_version.is_empty());
+    }
+
+    #[test]
+    fn test_tls_context_with_trace() {
+        let ctx = TlsContext::with_trace("test_op", "trace-123".to_string());
+        assert_eq!(ctx.operation_name, "test_op");
+        assert_eq!(ctx.trace_id, Some("trace-123".to_string()));
+    }
+
+    #[test]
+    fn test_tls_context_with_peer() {
+        let addr: SocketAddr = "127.0.0.1:443".parse().unwrap();
+        let ctx = TlsContext::new("connect").with_peer(addr);
+        assert_eq!(ctx.peer_addr, Some(addr));
+    }
+
+    #[test]
+    fn test_tls_context_with_domain() {
+        let ctx = TlsContext::new("connect").with_domain("example.com");
+        assert_eq!(ctx.domain, Some("example.com".to_string()));
+    }
+
+    #[test]
+    fn test_tls_context_with_mode() {
+        let ctx = TlsContext::new("handshake").with_mode("hybrid");
+        assert_eq!(ctx.mode, Some("hybrid".to_string()));
+    }
+
+    #[test]
+    fn test_tls_context_with_kex_method() {
+        let ctx = TlsContext::new("kex").with_kex_method("X25519MLKEM768");
+        assert_eq!(ctx.kex_method, Some("X25519MLKEM768".to_string()));
+    }
+
+    #[test]
+    fn test_tls_context_format() {
+        let addr: SocketAddr = "10.0.0.1:8443".parse().unwrap();
+        let ctx = TlsContext::with_trace("connect", "trace-abc".to_string())
+            .with_peer(addr)
+            .with_domain("example.com")
+            .with_mode("hybrid");
+
+        let formatted = ctx.format();
+        assert!(formatted.contains("op=connect"));
+        assert!(formatted.contains("trace=trace-abc"));
+        assert!(formatted.contains("peer=10.0.0.1:8443"));
+        assert!(formatted.contains("domain=example.com"));
+        assert!(formatted.contains("mode=hybrid"));
+    }
+
+    #[test]
+    fn test_tls_context_display() {
+        let ctx = TlsContext::new("test");
+        let display = format!("{}", ctx);
+        assert!(display.contains("op=test"));
+        assert!(display.contains("id="));
+    }
+
+    #[test]
+    fn test_tls_context_elapsed() {
+        let ctx = TlsContext::new("timed");
+        let elapsed = ctx.elapsed();
+        // Should be very small since we just created it
+        assert!(elapsed < std::time::Duration::from_secs(5));
+    }
+
+    #[test]
+    fn test_tls_context_child_inherits_fields() {
+        let addr: SocketAddr = "10.0.0.1:443".parse().unwrap();
+        let parent = TlsContext::new("parent")
+            .with_peer(addr)
+            .with_domain("example.com")
+            .with_mode("hybrid")
+            .with_kex_method("X25519");
+
+        let child = parent.child("child");
+        assert_eq!(child.operation_name, "child");
+        assert_eq!(child.parent_span_id, Some(parent.operation_id.clone()));
+        assert_eq!(child.peer_addr, parent.peer_addr);
+        assert_eq!(child.domain, parent.domain);
+        assert_eq!(child.mode, parent.mode);
+        assert_eq!(child.kex_method, parent.kex_method);
+    }
+
+    #[test]
+    fn test_tls_context_get_metadata_missing() {
+        let ctx = TlsContext::new("test");
+        assert!(ctx.get_metadata("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_error_chain_default() {
+        let chain = ErrorChain::default();
+        assert!(chain.is_empty());
+        assert_eq!(chain.len(), 0);
+    }
+
+    #[test]
+    fn test_error_chain_format_empty() {
+        let chain = ErrorChain::new();
+        assert_eq!(chain.format(), "No errors");
+    }
+
+    #[test]
+    fn test_error_chain_format_with_errors() {
+        let mut chain = ErrorChain::new();
+        let ctx = TlsContext::new("test");
+        chain.push(ErrorLink::new("IoError", "Connection refused", &ctx));
+        chain.push(ErrorLink::with_code("TlsError", "Handshake failed", "E001", &ctx));
+
+        let formatted = chain.format();
+        assert!(formatted.contains("IoError"));
+        assert!(formatted.contains("Connection refused"));
+        assert!(formatted.contains("TlsError"));
+        assert!(formatted.contains("E001"));
+    }
+
+    #[test]
+    fn test_error_chain_display() {
+        let chain = ErrorChain::new();
+        let display = format!("{}", chain);
+        assert_eq!(display, "No errors");
+    }
+
+    #[test]
+    fn test_error_chain_push_tls_error() {
+        let mut chain = ErrorChain::new();
+        let ctx = TlsContext::new("test");
+        let tls_err = crate::error::TlsError::Config {
+            message: "bad config".to_string(),
+            field: Some("mode".to_string()),
+            code: crate::error::ErrorCode::InvalidConfig,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        chain.push_tls_error(&tls_err, &ctx);
+
+        assert_eq!(chain.len(), 1);
+        assert!(!chain.is_empty());
+    }
+
+    #[test]
+    fn test_error_link_new() {
+        let ctx = TlsContext::new("test");
+        let link = ErrorLink::new("MyError", "Something failed", &ctx);
+        assert_eq!(link.error_type, "MyError");
+        assert_eq!(link.message, "Something failed");
+        assert!(link.code.is_none());
+    }
+
+    #[test]
+    fn test_error_link_with_code() {
+        let ctx = TlsContext::new("test");
+        let link = ErrorLink::with_code("MyError", "Failed", "E404", &ctx);
+        assert_eq!(link.code, Some("E404".to_string()));
+    }
+
+    #[test]
+    fn test_system_info_format() {
+        let info = SystemInfo::collect();
+        let formatted = info.format();
+        assert!(formatted.contains("Platform:"));
+        assert!(formatted.contains("Rust:"));
+        assert!(formatted.contains("LatticeArc-TLS:"));
+        assert!(formatted.contains("Features:"));
+    }
+
+    #[test]
+    fn test_system_info_features() {
+        let info = SystemInfo::collect();
+        assert!(info.features.contains(&"pq".to_string()));
+        assert!(info.features.contains(&"hybrid".to_string()));
+    }
+
+    #[test]
+    fn test_diagnostic_info_new() {
+        let ctx = TlsContext::new("failing_op");
+        let err = crate::error::TlsError::Config {
+            message: "test error".to_string(),
+            field: None,
+            code: crate::error::ErrorCode::InvalidConfig,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let diag = DiagnosticInfo::new(&ctx, &err);
+
+        assert!(!diag.chain.is_empty());
+        assert!(!diag.recommendations.is_empty());
+        assert!(!diag.system_info.platform.is_empty());
+    }
+
+    #[test]
+    fn test_diagnostic_info_format() {
+        let ctx = TlsContext::new("test_op").with_domain("example.com");
+        let err = crate::error::TlsError::Config {
+            message: "invalid".to_string(),
+            field: None,
+            code: crate::error::ErrorCode::InvalidConfig,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let diag = DiagnosticInfo::new(&ctx, &err);
+        let formatted = diag.format();
+
+        assert!(formatted.contains("TLS Error Diagnostic"));
+        assert!(formatted.contains("Error Chain"));
+        assert!(formatted.contains("System Info"));
+        assert!(formatted.contains("Recommendations"));
+    }
+
+    #[test]
+    fn test_diagnostic_info_display() {
+        let ctx = TlsContext::new("test_op");
+        let err = crate::error::TlsError::Config {
+            message: "test".to_string(),
+            field: None,
+            code: crate::error::ErrorCode::InvalidConfig,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let diag = DiagnosticInfo::new(&ctx, &err);
+        let display = format!("{}", diag);
+        assert!(display.contains("TLS Error Diagnostic"));
+    }
+
+    #[test]
+    fn test_recommendations_pq_not_available() {
+        let err = crate::error::TlsError::PqNotAvailable {
+            message: "not available".to_string(),
+            code: crate::error::ErrorCode::PqNotAvailable,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("classical")));
+    }
+
+    #[test]
+    fn test_recommendations_certificate_expired() {
+        let err = crate::error::TlsError::Certificate {
+            message: "expired".to_string(),
+            subject: None,
+            issuer: None,
+            code: crate::error::ErrorCode::CertificateExpired,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("expired")));
+    }
+
+    #[test]
+    fn test_recommendations_hostname_mismatch() {
+        let err = crate::error::TlsError::Certificate {
+            message: "hostname mismatch".to_string(),
+            subject: None,
+            issuer: None,
+            code: crate::error::ErrorCode::CertificateHostnameMismatch,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("SNI")));
+    }
+
+    #[test]
+    fn test_recommendations_chain_incomplete() {
+        let err = crate::error::TlsError::Certificate {
+            message: "chain".to_string(),
+            subject: None,
+            issuer: None,
+            code: crate::error::ErrorCode::CertificateChainIncomplete,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("chain")));
+    }
+
+    #[test]
+    fn test_recommendations_io_connection_refused() {
+        let err = crate::error::TlsError::Io {
+            message: "refused".to_string(),
+            source: None,
+            code: crate::error::ErrorCode::ConnectionRefused,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("firewall") || r.contains("running")));
+    }
+
+    #[test]
+    fn test_recommendations_io_timeout() {
+        let err = crate::error::TlsError::Io {
+            message: "timeout".to_string(),
+            source: None,
+            code: crate::error::ErrorCode::ConnectionTimeout,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("network") || r.contains("responsive")));
+    }
+
+    #[test]
+    fn test_recommendations_io_dns() {
+        let err = crate::error::TlsError::Io {
+            message: "dns".to_string(),
+            source: None,
+            code: crate::error::ErrorCode::DnsResolutionFailed,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("DNS")));
+    }
+
+    #[test]
+    fn test_recommendations_handshake_protocol_mismatch() {
+        let err = crate::error::TlsError::Handshake {
+            message: "version".to_string(),
+            state: "ClientHello".to_string(),
+            code: crate::error::ErrorCode::ProtocolVersionMismatch,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("TLS version") || r.contains("TLS 1.3")));
+    }
+
+    #[test]
+    fn test_recommendations_handshake_cipher_mismatch() {
+        let err = crate::error::TlsError::Handshake {
+            message: "cipher".to_string(),
+            state: "ServerHello".to_string(),
+            code: crate::error::ErrorCode::CipherSuiteMismatch,
+            context: Box::default(),
+            recovery: Box::new(crate::error::RecoveryHint::NoRecovery),
+        };
+        let recs = generate_recommendations(&err);
+        assert!(recs.iter().any(|r| r.contains("cipher")));
     }
 }

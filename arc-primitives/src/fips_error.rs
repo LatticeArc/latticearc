@@ -804,6 +804,173 @@ mod tests {
     }
 
     #[test]
+    fn test_all_messages_non_empty() {
+        let all_codes = [
+            FipsErrorCode::SelfTestFailed,
+            FipsErrorCode::IntegrityCheckFailed,
+            FipsErrorCode::ConditionalTestFailed,
+            FipsErrorCode::KatFailed,
+            FipsErrorCode::ContinuousRngTestFailed,
+            FipsErrorCode::InvalidKeyLength,
+            FipsErrorCode::InvalidNonce,
+            FipsErrorCode::DecryptionFailed,
+            FipsErrorCode::SignatureInvalid,
+            FipsErrorCode::InvalidParameter,
+            FipsErrorCode::UnsupportedAlgorithm,
+            FipsErrorCode::KeyGenerationFailed,
+            FipsErrorCode::EncapsulationFailed,
+            FipsErrorCode::DecapsulationFailed,
+            FipsErrorCode::SigningFailed,
+            FipsErrorCode::InvalidCiphertext,
+            FipsErrorCode::InvalidPublicKey,
+            FipsErrorCode::InvalidSecretKey,
+            FipsErrorCode::EncryptionFailed,
+            FipsErrorCode::HashFailed,
+            FipsErrorCode::MacFailed,
+            FipsErrorCode::KeyDerivationFailed,
+            FipsErrorCode::RngFailure,
+            FipsErrorCode::ZeroizationFailed,
+            FipsErrorCode::ResourceExhausted,
+            FipsErrorCode::InternalError,
+            FipsErrorCode::IoError,
+            FipsErrorCode::SerializationFailed,
+            FipsErrorCode::DeserializationFailed,
+            FipsErrorCode::BufferTooSmall,
+            FipsErrorCode::Timeout,
+            FipsErrorCode::ModuleNotInitialized,
+            FipsErrorCode::OperationNotPermitted,
+            FipsErrorCode::ModuleInErrorState,
+            FipsErrorCode::FeatureNotAvailable,
+            FipsErrorCode::KeyValidationFailed,
+            FipsErrorCode::WeakKeyDetected,
+        ];
+
+        for code in &all_codes {
+            let msg = code.message();
+            assert!(!msg.is_empty(), "Message for {:?} is empty", code);
+            let display = format!("{}", code);
+            assert!(
+                display.starts_with("FIPS-"),
+                "Display for {:?} doesn't start with FIPS-",
+                code
+            );
+        }
+    }
+
+    #[test]
+    fn test_fips_error_trait_all_error_variants() {
+        // Test all crate::error::Error variants for fips_code coverage
+        let cases: Vec<(crate::error::Error, FipsErrorCode)> = vec![
+            (
+                crate::error::Error::FeatureNotAvailable("test".into()),
+                FipsErrorCode::FeatureNotAvailable,
+            ),
+            (crate::error::Error::InvalidInput("test".into()), FipsErrorCode::InvalidParameter),
+            (crate::error::Error::EncryptionFailed("test".into()), FipsErrorCode::EncryptionFailed),
+            (crate::error::Error::DecryptionFailed("test".into()), FipsErrorCode::DecryptionFailed),
+            (
+                crate::error::Error::SerializationError("test".into()),
+                FipsErrorCode::SerializationFailed,
+            ),
+            (
+                crate::error::Error::DeserializationError("test".into()),
+                FipsErrorCode::DeserializationFailed,
+            ),
+            (crate::error::Error::Other("test".into()), FipsErrorCode::InternalError),
+            (
+                crate::error::Error::ResourceExceeded("test".into()),
+                FipsErrorCode::ResourceExhausted,
+            ),
+            (crate::error::Error::KeyValidationFailed, FipsErrorCode::KeyValidationFailed),
+            (crate::error::Error::WeakKey, FipsErrorCode::WeakKeyDetected),
+            (crate::error::Error::InvalidKeyFormat, FipsErrorCode::InvalidParameter),
+        ];
+
+        for (error, expected_code) in &cases {
+            assert_eq!(error.fips_code(), *expected_code, "Wrong FIPS code for {:?}", error);
+        }
+    }
+
+    #[test]
+    fn test_fips_error_trait_all_ml_kem_variants() {
+        use crate::kem::ml_kem::MlKemError;
+        let cases: Vec<(MlKemError, FipsErrorCode)> = vec![
+            (MlKemError::KeyGenerationError("test".into()), FipsErrorCode::KeyGenerationFailed),
+            (MlKemError::EncapsulationError("test".into()), FipsErrorCode::EncapsulationFailed),
+            (MlKemError::DecapsulationError("test".into()), FipsErrorCode::DecapsulationFailed),
+            (
+                MlKemError::InvalidKeyLength {
+                    variant: "ML-KEM-768".into(),
+                    size: 32,
+                    actual: 16,
+                    key_type: "public".into(),
+                },
+                FipsErrorCode::InvalidKeyLength,
+            ),
+            (
+                MlKemError::InvalidCiphertextLength {
+                    variant: "ML-KEM-768".into(),
+                    expected: 1088,
+                    actual: 100,
+                },
+                FipsErrorCode::InvalidCiphertext,
+            ),
+            (
+                MlKemError::UnsupportedSecurityLevel("test".into()),
+                FipsErrorCode::UnsupportedAlgorithm,
+            ),
+            (MlKemError::CryptoError("test".into()), FipsErrorCode::InternalError),
+        ];
+
+        for (error, expected_code) in &cases {
+            assert_eq!(error.fips_code(), *expected_code, "Wrong FIPS code for {:?}", error);
+            // Also test From conversion
+            let converted: FipsErrorCode = error.into();
+            assert_eq!(converted, *expected_code);
+        }
+    }
+
+    #[test]
+    fn test_fips_error_trait_default_methods() {
+        let error = FipsCompliantError::new(FipsErrorCode::SelfTestFailed);
+        assert!(error.is_fips_critical());
+        let msg = error.fips_message();
+        assert!(msg.contains("FIPS-0001"));
+
+        let error = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
+        assert!(!error.is_fips_critical());
+    }
+
+    #[test]
+    fn test_fips_compliant_error_display_without_context() {
+        let error = FipsCompliantError::new(FipsErrorCode::RngFailure);
+        let display = format!("{}", error);
+        assert_eq!(display, "FIPS-0200: Random number generation failed");
+    }
+
+    #[test]
+    fn test_fips_compliant_error_from_code() {
+        let error: FipsCompliantError = FipsErrorCode::Timeout.into();
+        assert_eq!(error.code(), FipsErrorCode::Timeout);
+        assert!(error.context().is_none());
+    }
+
+    #[test]
+    fn test_fips_compliant_error_is_std_error() {
+        let error = FipsCompliantError::new(FipsErrorCode::BufferTooSmall);
+        let _: &dyn std::error::Error = &error;
+    }
+
+    #[test]
+    fn test_fips_error_ml_kem_from_error() {
+        // Test FipsError for Error wrapping MlKemError
+        use crate::kem::ml_kem::MlKemError;
+        let ml_kem_err = MlKemError::KeyGenerationError("test".into());
+        let error = crate::error::Error::MlKem(ml_kem_err);
+        assert_eq!(error.fips_code(), FipsErrorCode::KeyGenerationFailed);
+    }
+
+    #[test]
     fn test_error_code_uniqueness() {
         // Collect all error codes to verify uniqueness
         let codes = [

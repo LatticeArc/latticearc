@@ -3,15 +3,21 @@
 > **Evaluation Phase**: This project is currently in active development and evaluation. APIs may change without notice. Not recommended for production use yet.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.93%2B-orange.svg)](https://www.rust-lang.org/)
 [![CI](https://github.com/latticearc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
-[![Security Scan](https://github.com/latticearc/latticearc/actions/workflows/security.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/security.yml)
 [![CodeQL](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml)
-[![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
+[![Kani Model Checking](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 [![Fuzzing](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml)
-[![SBOM](https://github.com/latticearc/latticearc/actions/workflows/sbom.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/sbom.yml)
+[![FIPS Self-Tests](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/latticearc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/latticearc/latticearc)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11857/badge)](https://www.bestpractices.dev/projects/11857)
+
+[![NIST Test Vectors](https://img.shields.io/badge/NIST_CAVP-vectors_verified-blue)](arc-validation/)
+[![FIPS 140--3](https://img.shields.io/badge/FIPS_140--3-ready-blue)](docs/FIPS_CHECKLIST.md)
+[![Memory Safe](https://img.shields.io/badge/memory_safe-forbid(unsafe__code)-brightgreen)](Cargo.toml)
+[![SLSA 3](https://img.shields.io/badge/SLSA-Level_3-blue)](.github/workflows/release.yml)
+[![Tests](https://img.shields.io/badge/tests-6%2C400%2B-brightgreen)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
+<!-- TODO: Once GIST_SECRET and GIST_ID secrets are configured, replace the static tests badge above with:
+[![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/LatticeArc-Founder/GIST_ID/raw/test-count.json)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
+-->
 
 LatticeArc is a post-quantum cryptography library for Rust, implementing the NIST FIPS 203-206 standards for quantum-resistant encryption and digital signatures.
 
@@ -363,7 +369,7 @@ LatticeArc includes [Kani](https://github.com/model-checking/kani) formal verifi
 - **9 proofs** across arc-hybrid and arc-core
 - **Properties verified**: Correctness (encrypt/decrypt roundtrip, KEM consistency, KDF determinism), Memory Safety (panic-freedom, zeroization), Security (input validation, state machine invariants)
 - **Verification schedule**: Proofs run nightly on main branch and weekly for extended verification
-- **Status**: [![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
+- **Status**: [![Kani Model Checking](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 
 **Note:** Following the AWS-LC model, proofs are not run on every commit due to computational cost (~30 minutes for full suite). Proofs are available in source and run on schedule to validate correctness.
 

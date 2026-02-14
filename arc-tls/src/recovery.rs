@@ -518,6 +518,8 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -559,5 +561,726 @@ mod tests {
     fn test_fallback_strategy_description() {
         let strategy = FallbackStrategy::hybrid_to_classical();
         assert!(strategy.description().contains("hybrid to classical"));
+    }
+
+    // === RetryPolicy additional tests ===
+
+    #[test]
+    fn test_retry_policy_conservative() {
+        let policy = RetryPolicy::conservative();
+        assert_eq!(policy.max_attempts, 2);
+        assert_eq!(policy.initial_backoff, Duration::from_millis(200));
+        assert_eq!(policy.max_backoff, Duration::from_secs(2));
+    }
+
+    #[test]
+    fn test_retry_policy_aggressive() {
+        let policy = RetryPolicy::aggressive();
+        assert_eq!(policy.max_attempts, 5);
+        assert_eq!(policy.initial_backoff, Duration::from_millis(50));
+        assert_eq!(policy.max_backoff, Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_retry_policy_custom() {
+        let policy = RetryPolicy::new(10, Duration::from_millis(500), Duration::from_secs(30));
+        assert_eq!(policy.max_attempts, 10);
+        assert_eq!(policy.initial_backoff, Duration::from_millis(500));
+        assert_eq!(policy.max_backoff, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_retry_policy_backoff_capped_at_max() {
+        let policy = RetryPolicy {
+            max_attempts: 10,
+            initial_backoff: Duration::from_millis(100),
+            max_backoff: Duration::from_millis(500),
+            backoff_multiplier: 2.0,
+            jitter: false,
+        };
+        // Attempt 10 should be capped at max_backoff
+        let backoff = policy.backoff_for_attempt(10);
+        assert!(backoff <= Duration::from_millis(500));
+    }
+
+    #[test]
+    fn test_retry_policy_backoff_without_jitter() {
+        let policy = RetryPolicy {
+            max_attempts: 3,
+            initial_backoff: Duration::from_millis(100),
+            max_backoff: Duration::from_secs(5),
+            backoff_multiplier: 2.0,
+            jitter: false,
+        };
+        // Without jitter, backoff should be deterministic
+        let backoff1 = policy.backoff_for_attempt(1);
+        let backoff1_again = policy.backoff_for_attempt(1);
+        assert_eq!(backoff1, backoff1_again);
+        assert_eq!(backoff1, Duration::from_millis(100));
+
+        let backoff2 = policy.backoff_for_attempt(2);
+        assert_eq!(backoff2, Duration::from_millis(200));
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_io_errors() {
+        let policy = RetryPolicy::default();
+
+        let retryable = TlsError::Io {
+            message: "refused".to_string(),
+            source: None,
+            code: ErrorCode::ConnectionRefused,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 }),
+        };
+        assert!(policy.should_retry(&retryable, 1));
+
+        let timeout = TlsError::Io {
+            message: "timeout".to_string(),
+            source: None,
+            code: ErrorCode::ConnectionTimeout,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 }),
+        };
+        assert!(policy.should_retry(&timeout, 1));
+
+        let reset = TlsError::Io {
+            message: "reset".to_string(),
+            source: None,
+            code: ErrorCode::ConnectionReset,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 }),
+        };
+        assert!(policy.should_retry(&reset, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_not_retry_max_attempts() {
+        let policy = RetryPolicy::default(); // max_attempts = 3
+
+        let retryable = TlsError::Io {
+            message: "refused".to_string(),
+            source: None,
+            code: ErrorCode::ConnectionRefused,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 }),
+        };
+        assert!(!policy.should_retry(&retryable, 3)); // at max attempts
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_tls_errors() {
+        let policy = RetryPolicy::default();
+
+        let handshake = TlsError::Tls {
+            message: "handshake failed".to_string(),
+            code: ErrorCode::HandshakeFailed,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 }),
+        };
+        assert!(policy.should_retry(&handshake, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_handshake_errors() {
+        let policy = RetryPolicy::default();
+
+        let handshake = TlsError::Handshake {
+            message: "handshake failed".to_string(),
+            state: "ClientHello".to_string(),
+            code: ErrorCode::HandshakeFailed,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 }),
+        };
+        assert!(policy.should_retry(&handshake, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_key_exchange_errors() {
+        let policy = RetryPolicy::default();
+
+        let kex = TlsError::KeyExchange {
+            message: "key exchange failed".to_string(),
+            method: "X25519".to_string(),
+            operation: None,
+            code: ErrorCode::KeyExchangeFailed,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(policy.should_retry(&kex, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_not_retry_cert_errors() {
+        let policy = RetryPolicy::default();
+
+        let cert = TlsError::Certificate {
+            message: "cert expired".to_string(),
+            subject: None,
+            issuer: None,
+            code: ErrorCode::CertificateExpired,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(!policy.should_retry(&cert, 1));
+    }
+
+    // === CircuitBreaker additional tests ===
+
+    #[test]
+    fn test_circuit_breaker_allows_requests_when_closed() {
+        let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
+        assert!(breaker.allow_request());
+    }
+
+    #[test]
+    fn test_circuit_breaker_blocks_requests_when_open() {
+        let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
+        for _ in 0..3 {
+            breaker.record_failure();
+        }
+        assert_eq!(breaker.state(), CircuitState::Open);
+        assert!(!breaker.allow_request());
+    }
+
+    #[test]
+    fn test_circuit_breaker_half_open_after_timeout() {
+        let breaker = CircuitBreaker::new(3, Duration::from_millis(1));
+        for _ in 0..3 {
+            breaker.record_failure();
+        }
+        assert_eq!(breaker.state(), CircuitState::Open);
+
+        // Wait for timeout
+        std::thread::sleep(Duration::from_millis(5));
+
+        // Should transition to half-open
+        assert!(breaker.allow_request());
+        assert_eq!(breaker.state(), CircuitState::HalfOpen);
+    }
+
+    #[test]
+    fn test_circuit_breaker_closes_after_success_in_half_open() {
+        let breaker = CircuitBreaker::new(3, Duration::from_millis(1));
+        for _ in 0..3 {
+            breaker.record_failure();
+        }
+
+        std::thread::sleep(Duration::from_millis(5));
+        let _ = breaker.allow_request(); // transitions to half-open
+
+        // Record 3 successes (success_threshold = 3)
+        for _ in 0..3 {
+            breaker.record_success();
+        }
+        assert_eq!(breaker.state(), CircuitState::Closed);
+    }
+
+    #[test]
+    fn test_circuit_breaker_reopens_on_failure_in_half_open() {
+        let breaker = CircuitBreaker::new(3, Duration::from_millis(1));
+        for _ in 0..3 {
+            breaker.record_failure();
+        }
+
+        std::thread::sleep(Duration::from_millis(5));
+        let _ = breaker.allow_request(); // transitions to half-open
+
+        // Failure in half-open should reopen
+        breaker.record_failure();
+        assert_eq!(breaker.state(), CircuitState::Open);
+    }
+
+    #[test]
+    fn test_circuit_breaker_reset() {
+        let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
+        for _ in 0..3 {
+            breaker.record_failure();
+        }
+        assert_eq!(breaker.state(), CircuitState::Open);
+
+        breaker.reset();
+        assert_eq!(breaker.state(), CircuitState::Closed);
+        assert!(breaker.allow_request());
+    }
+
+    #[test]
+    fn test_circuit_breaker_success_resets_failure_count_when_closed() {
+        let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
+        breaker.record_failure();
+        breaker.record_failure();
+        breaker.record_success(); // should reset failure count
+        breaker.record_failure();
+        breaker.record_failure();
+        // If failure count was NOT reset, this would be 5 > 3 → open
+        // Since it was reset after success, we only have 2 failures → still closed
+        assert_eq!(breaker.state(), CircuitState::Closed);
+    }
+
+    // === FallbackStrategy additional tests ===
+
+    #[test]
+    fn test_fallback_strategy_none() {
+        let strategy = FallbackStrategy::None;
+        assert!(strategy.description().contains("No fallback"));
+
+        let err = TlsError::Internal {
+            message: "test".to_string(),
+            code: ErrorCode::InternalError,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(!strategy.should_fallback(&err));
+    }
+
+    #[test]
+    fn test_fallback_strategy_pq_to_hybrid() {
+        let strategy = FallbackStrategy::pq_to_hybrid();
+        assert!(strategy.description().contains("PQ-only to hybrid"));
+    }
+
+    #[test]
+    fn test_fallback_strategy_hybrid_to_classical_triggers() {
+        let strategy = FallbackStrategy::hybrid_to_classical();
+
+        let pq_err = TlsError::Config {
+            message: "PQ not available".to_string(),
+            field: None,
+            code: ErrorCode::PqNotAvailable,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(strategy.should_fallback(&pq_err));
+    }
+
+    #[test]
+    fn test_fallback_strategy_custom_always_triggers() {
+        let strategy = FallbackStrategy::Custom { description: "My fallback".to_string() };
+        assert_eq!(strategy.description(), "My fallback");
+
+        let err = TlsError::Internal {
+            message: "any error".to_string(),
+            code: ErrorCode::InternalError,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(strategy.should_fallback(&err));
+    }
+
+    #[test]
+    fn test_fallback_strategy_default_is_none() {
+        let strategy = FallbackStrategy::default();
+        assert!(matches!(strategy, FallbackStrategy::None));
+    }
+
+    // === DegradationConfig tests ===
+
+    #[test]
+    fn test_degradation_config_default() {
+        let config = DegradationConfig::default();
+        assert!(config.enable_fallback);
+        assert!(!config.allow_reduced_security);
+        assert_eq!(config.max_degradation_attempts, 2);
+    }
+
+    // === CircuitState tests ===
+
+    #[test]
+    fn test_circuit_state_eq() {
+        assert_eq!(CircuitState::Closed, CircuitState::Closed);
+        assert_ne!(CircuitState::Open, CircuitState::Closed);
+        assert_ne!(CircuitState::HalfOpen, CircuitState::Open);
+    }
+
+    // === Async function tests ===
+
+    #[tokio::test]
+    async fn test_retry_with_policy_success_first_try() {
+        let policy = RetryPolicy::default();
+        let result = retry_with_policy(&policy, || async { Ok::<_, TlsError>(42) }, "test").await;
+        assert_eq!(result.expect("should succeed"), 42);
+    }
+
+    #[tokio::test]
+    async fn test_retry_with_policy_non_retryable_error() {
+        let policy = RetryPolicy::default();
+        let result: Result<i32, TlsError> = retry_with_policy(
+            &policy,
+            || async {
+                Err(TlsError::Certificate {
+                    message: "expired".to_string(),
+                    subject: None,
+                    issuer: None,
+                    code: ErrorCode::CertificateExpired,
+                    context: Box::default(),
+                    recovery: Box::new(RecoveryHint::NoRecovery),
+                })
+            },
+            "cert_test",
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), ErrorCode::CertificateExpired);
+    }
+
+    #[tokio::test]
+    async fn test_retry_with_policy_retryable_exhausted() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        let attempts = Arc::new(AtomicU32::new(0));
+        let attempts_clone = attempts.clone();
+        let policy = RetryPolicy {
+            max_attempts: 2,
+            initial_backoff: Duration::from_millis(1),
+            max_backoff: Duration::from_millis(10),
+            backoff_multiplier: 2.0,
+            jitter: false,
+        };
+        let result: Result<i32, TlsError> = retry_with_policy(
+            &policy,
+            || {
+                let a = attempts_clone.clone();
+                async move {
+                    a.fetch_add(1, Ordering::SeqCst);
+                    Err(TlsError::Io {
+                        message: "refused".to_string(),
+                        source: None,
+                        code: ErrorCode::ConnectionRefused,
+                        context: Box::default(),
+                        recovery: Box::new(RecoveryHint::Retry {
+                            max_attempts: 3,
+                            backoff_ms: 1000,
+                        }),
+                    })
+                }
+            },
+            "retry_test",
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn test_retry_with_policy_succeeds_on_retry() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        let attempts = Arc::new(AtomicU32::new(0));
+        let attempts_clone = attempts.clone();
+        let policy = RetryPolicy {
+            max_attempts: 3,
+            initial_backoff: Duration::from_millis(1),
+            max_backoff: Duration::from_millis(10),
+            backoff_multiplier: 2.0,
+            jitter: false,
+        };
+        let result = retry_with_policy(
+            &policy,
+            || {
+                let a = attempts_clone.clone();
+                async move {
+                    let attempt = a.fetch_add(1, Ordering::SeqCst);
+                    if attempt < 1 {
+                        Err(TlsError::Io {
+                            message: "refused".to_string(),
+                            source: None,
+                            code: ErrorCode::ConnectionRefused,
+                            context: Box::default(),
+                            recovery: Box::new(RecoveryHint::Retry {
+                                max_attempts: 3,
+                                backoff_ms: 1000,
+                            }),
+                        })
+                    } else {
+                        Ok(99)
+                    }
+                }
+            },
+            "retry_success_test",
+        )
+        .await;
+        assert_eq!(result.expect("should succeed on retry"), 99);
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_circuit_breaker_success() {
+        let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
+        let result =
+            execute_with_circuit_breaker(&breaker, || async { Ok::<_, TlsError>(42) }, "test")
+                .await;
+        assert_eq!(result.expect("should succeed"), 42);
+        assert_eq!(breaker.state(), CircuitState::Closed);
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_circuit_breaker_failure() {
+        let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
+        let result: Result<i32, TlsError> = execute_with_circuit_breaker(
+            &breaker,
+            || async {
+                Err(TlsError::Internal {
+                    message: "fail".to_string(),
+                    code: ErrorCode::InternalError,
+                    context: Box::default(),
+                    recovery: Box::new(RecoveryHint::NoRecovery),
+                })
+            },
+            "test",
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_circuit_breaker_open_blocks() {
+        let breaker = CircuitBreaker::new(2, Duration::from_secs(60));
+        breaker.record_failure();
+        breaker.record_failure();
+        assert_eq!(breaker.state(), CircuitState::Open);
+
+        let result: Result<i32, TlsError> =
+            execute_with_circuit_breaker(&breaker, || async { Ok(42) }, "blocked_test").await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), ErrorCode::TooManyConnections);
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_fallback_primary_succeeds() {
+        let strategy = FallbackStrategy::hybrid_to_classical();
+        let result = execute_with_fallback(
+            &strategy,
+            || async { Ok::<_, TlsError>(42) },
+            || async { Ok(99) },
+            "test",
+        )
+        .await;
+        assert_eq!(result.expect("primary should succeed"), 42);
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_fallback_triggers() {
+        let strategy = FallbackStrategy::hybrid_to_classical();
+        let result = execute_with_fallback(
+            &strategy,
+            || async {
+                Err::<i32, _>(TlsError::Config {
+                    message: "PQ not available".to_string(),
+                    field: None,
+                    code: ErrorCode::PqNotAvailable,
+                    context: Box::default(),
+                    recovery: Box::new(RecoveryHint::NoRecovery),
+                })
+            },
+            || async { Ok(99) },
+            "fallback_test",
+        )
+        .await;
+        assert_eq!(result.expect("fallback should succeed"), 99);
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_fallback_no_trigger() {
+        let strategy = FallbackStrategy::None;
+        let result: Result<i32, TlsError> = execute_with_fallback(
+            &strategy,
+            || async {
+                Err(TlsError::Internal {
+                    message: "fail".to_string(),
+                    code: ErrorCode::InternalError,
+                    context: Box::default(),
+                    recovery: Box::new(RecoveryHint::NoRecovery),
+                })
+            },
+            || async { Ok(99) },
+            "no_fallback_test",
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    // === FallbackStrategy should_fallback additional coverage ===
+
+    #[test]
+    fn test_fallback_pq_to_hybrid_triggers_on_hybrid_kem_failed() {
+        let strategy = FallbackStrategy::pq_to_hybrid();
+        let err = TlsError::Config {
+            message: "kem failed".to_string(),
+            field: None,
+            code: ErrorCode::HybridKemFailed,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(strategy.should_fallback(&err));
+    }
+
+    #[test]
+    fn test_fallback_pq_to_hybrid_does_not_trigger_on_pq_not_available() {
+        let strategy = FallbackStrategy::pq_to_hybrid();
+        let err = TlsError::Config {
+            message: "PQ not available".to_string(),
+            field: None,
+            code: ErrorCode::PqNotAvailable,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(!strategy.should_fallback(&err));
+    }
+
+    #[test]
+    fn test_fallback_hybrid_to_classical_triggers_on_hybrid_kem_failed() {
+        let strategy = FallbackStrategy::hybrid_to_classical();
+        let err = TlsError::Config {
+            message: "kem failed".to_string(),
+            field: None,
+            code: ErrorCode::HybridKemFailed,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(strategy.should_fallback(&err));
+    }
+
+    // === RetryPolicy should_retry edge cases ===
+
+    #[test]
+    fn test_retry_policy_should_retry_tls_invalid_handshake() {
+        let policy = RetryPolicy::default();
+        let err = TlsError::Tls {
+            message: "invalid handshake".to_string(),
+            code: ErrorCode::InvalidHandshakeMessage,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(policy.should_retry(&err, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_tls_handshake_timeout() {
+        let policy = RetryPolicy::default();
+        let err = TlsError::Tls {
+            message: "timeout".to_string(),
+            code: ErrorCode::HandshakeTimeout,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(policy.should_retry(&err, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_handshake_protocol_version() {
+        let policy = RetryPolicy::default();
+        let err = TlsError::Handshake {
+            message: "version mismatch".to_string(),
+            state: "ClientHello".to_string(),
+            code: ErrorCode::ProtocolVersionMismatch,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(policy.should_retry(&err, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_handshake_timeout() {
+        let policy = RetryPolicy::default();
+        let err = TlsError::Handshake {
+            message: "timeout".to_string(),
+            state: "ServerHello".to_string(),
+            code: ErrorCode::HandshakeTimeout,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(policy.should_retry(&err, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_retry_kex_encapsulation() {
+        let policy = RetryPolicy::default();
+        let err = TlsError::KeyExchange {
+            message: "encap failed".to_string(),
+            method: "ML-KEM".to_string(),
+            operation: Some("encapsulate".to_string()),
+            code: ErrorCode::EncapsulationFailed,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(policy.should_retry(&err, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_not_retry_non_retryable_io() {
+        let policy = RetryPolicy::default();
+        let err = TlsError::Io {
+            message: "not found".to_string(),
+            source: None,
+            code: ErrorCode::IoError,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(!policy.should_retry(&err, 1));
+    }
+
+    #[test]
+    fn test_retry_policy_should_not_retry_config_error() {
+        let policy = RetryPolicy::default();
+        let err = TlsError::Config {
+            message: "invalid".to_string(),
+            field: None,
+            code: ErrorCode::InvalidConfig,
+            context: Box::default(),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(!policy.should_retry(&err, 1));
+    }
+
+    // === DegradationConfig custom values ===
+
+    #[test]
+    fn test_degradation_config_custom() {
+        let config = DegradationConfig {
+            enable_fallback: false,
+            allow_reduced_security: true,
+            max_degradation_attempts: 5,
+        };
+        assert!(!config.enable_fallback);
+        assert!(config.allow_reduced_security);
+        assert_eq!(config.max_degradation_attempts, 5);
+    }
+
+    // === CircuitState Debug + Copy + Clone ===
+
+    #[test]
+    fn test_circuit_state_debug() {
+        let state = CircuitState::HalfOpen;
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("HalfOpen"));
+    }
+
+    #[test]
+    fn test_circuit_state_clone_copy() {
+        let state = CircuitState::Open;
+        let cloned = state;
+        let copied = state;
+        assert_eq!(state, cloned);
+        assert_eq!(state, copied);
+    }
+
+    // === RetryPolicy Clone + Debug ===
+
+    #[test]
+    fn test_retry_policy_clone_debug() {
+        let policy = RetryPolicy::default();
+        let cloned = policy.clone();
+        assert_eq!(cloned.max_attempts, policy.max_attempts);
+        let debug = format!("{:?}", policy);
+        assert!(debug.contains("RetryPolicy"));
+    }
+
+    // === FallbackStrategy Clone + Debug ===
+
+    #[test]
+    fn test_fallback_strategy_clone_debug() {
+        let strategy = FallbackStrategy::HybridToClassical;
+        let cloned = strategy.clone();
+        assert!(matches!(cloned, FallbackStrategy::HybridToClassical));
+        let debug = format!("{:?}", strategy);
+        assert!(debug.contains("HybridToClassical"));
     }
 }

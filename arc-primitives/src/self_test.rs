@@ -1428,4 +1428,154 @@ mod tests {
             ModuleErrorState { error_code: ModuleErrorCode::HsmError, timestamp: 1234567890 };
         assert!(state.is_error());
     }
+
+    // -------------------------------------------------------------------------
+    // Additional description coverage
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_module_error_code_all_descriptions() {
+        // Cover every description() branch
+        assert_eq!(
+            ModuleErrorCode::IntegrityFailure.description(),
+            "Software/firmware integrity check failure"
+        );
+        assert_eq!(
+            ModuleErrorCode::CriticalCryptoError.description(),
+            "Critical cryptographic operation error"
+        );
+        assert_eq!(
+            ModuleErrorCode::KeyZeroizationFailure.description(),
+            "Sensitive key material zeroization failure"
+        );
+        assert_eq!(
+            ModuleErrorCode::AuthenticationFailure.description(),
+            "Repeated authentication failures"
+        );
+        assert_eq!(ModuleErrorCode::HsmError.description(), "Hardware security module error");
+        assert_eq!(ModuleErrorCode::UnknownCriticalError.description(), "Unknown critical error");
+    }
+
+    #[test]
+    fn test_set_module_error_no_error_does_not_clear_self_test() {
+        // Setting NoError should not clear self_test_passed flag
+        clear_error_state();
+        let result = initialize_and_test();
+        assert!(result.is_pass());
+        assert!(self_tests_passed());
+
+        // NoError is NOT an error, so is_error() = false => SELF_TEST_PASSED stays true
+        set_module_error(ModuleErrorCode::NoError);
+        assert!(self_tests_passed());
+
+        // Cleanup
+        clear_error_state();
+    }
+
+    #[test]
+    fn test_self_test_result_debug_clone() {
+        let pass = SelfTestResult::Pass;
+        let cloned = pass.clone();
+        assert_eq!(pass, cloned);
+        let debug = format!("{:?}", pass);
+        assert!(debug.contains("Pass"));
+
+        let fail = SelfTestResult::Fail("oops".to_string());
+        let fail_clone = fail.clone();
+        assert_eq!(fail, fail_clone);
+        let debug = format!("{:?}", fail);
+        assert!(debug.contains("oops"));
+    }
+
+    #[test]
+    fn test_individual_test_result_fields() {
+        let result = IndividualTestResult {
+            algorithm: "SHA-256".to_string(),
+            result: SelfTestResult::Pass,
+            duration_us: Some(42),
+        };
+        assert_eq!(result.algorithm, "SHA-256");
+        assert!(result.result.is_pass());
+        assert_eq!(result.duration_us, Some(42));
+
+        let cloned = result.clone();
+        assert_eq!(cloned.algorithm, "SHA-256");
+        assert_eq!(cloned, result);
+
+        let debug = format!("{:?}", result);
+        assert!(debug.contains("SHA-256"));
+    }
+
+    #[test]
+    fn test_self_test_report_fields() {
+        let report = run_power_up_tests_with_report();
+        assert_eq!(report.tests.len(), 4); // SHA-256, HKDF, AES-GCM, ML-KEM
+        assert!(report.total_duration_us > 0);
+
+        let cloned = report.clone();
+        assert_eq!(cloned.tests.len(), 4);
+
+        let debug = format!("{:?}", report);
+        assert!(debug.contains("SelfTestReport"));
+    }
+
+    #[test]
+    fn test_module_error_code_debug() {
+        let code = ModuleErrorCode::SelfTestFailure;
+        let debug = format!("{:?}", code);
+        assert!(debug.contains("SelfTestFailure"));
+
+        let cloned = code;
+        assert_eq!(cloned, ModuleErrorCode::SelfTestFailure);
+    }
+
+    #[test]
+    fn test_module_error_state_debug_clone() {
+        let state =
+            ModuleErrorState { error_code: ModuleErrorCode::EntropyFailure, timestamp: 1000 };
+        let cloned = state.clone();
+        assert_eq!(cloned.error_code, ModuleErrorCode::EntropyFailure);
+        assert_eq!(cloned.timestamp, 1000);
+
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("EntropyFailure"));
+    }
+
+    #[test]
+    fn test_verify_operational_without_self_tests() {
+        // Reset state: no error, but self-tests not passed
+        clear_error_state();
+        SELF_TEST_PASSED.store(false, Ordering::SeqCst);
+
+        let result = verify_operational();
+        assert!(result.is_err());
+        if let Err(LatticeArcError::ValidationError { message }) = result {
+            assert!(message.contains("self-tests have not passed"));
+        }
+
+        // Cleanup: restore
+        let _ = initialize_and_test();
+    }
+
+    #[test]
+    fn test_multiple_error_states_in_sequence() {
+        clear_error_state();
+
+        // Set different errors in sequence
+        set_module_error(ModuleErrorCode::EntropyFailure);
+        let state = get_module_error_state();
+        assert_eq!(state.error_code, ModuleErrorCode::EntropyFailure);
+
+        set_module_error(ModuleErrorCode::HsmError);
+        let state = get_module_error_state();
+        assert_eq!(state.error_code, ModuleErrorCode::HsmError);
+
+        set_module_error(ModuleErrorCode::KeyZeroizationFailure);
+        let state = get_module_error_state();
+        assert_eq!(state.error_code, ModuleErrorCode::KeyZeroizationFailure);
+
+        // Cleanup
+        clear_error_state();
+        let _ = initialize_and_test();
+    }
 }

@@ -132,3 +132,257 @@ pub fn get_error_severity(error: &LatticeArcError) -> ErrorSeverity {
 pub fn requires_security_response(error: &LatticeArcError) -> bool {
     matches!(get_error_severity(error), ErrorSeverity::Critical | ErrorSeverity::High)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // === ErrorRecoveryStrategy tests ===
+
+    #[test]
+    fn test_recovery_strategy_retry() {
+        let strategy = ErrorRecoveryStrategy::Retry { max_attempts: 3, delay_ms: 1000 };
+        assert_eq!(strategy, ErrorRecoveryStrategy::Retry { max_attempts: 3, delay_ms: 1000 });
+    }
+
+    #[test]
+    fn test_recovery_strategy_fallback() {
+        let strategy = ErrorRecoveryStrategy::Fallback { alternative: "use backup".to_string() };
+        assert!(matches!(strategy, ErrorRecoveryStrategy::Fallback { .. }));
+    }
+
+    #[test]
+    fn test_recovery_strategy_degrade() {
+        let strategy =
+            ErrorRecoveryStrategy::Degrade { reduced_functionality: "limited".to_string() };
+        assert!(matches!(strategy, ErrorRecoveryStrategy::Degrade { .. }));
+    }
+
+    #[test]
+    fn test_recovery_strategy_ignore() {
+        let strategy = ErrorRecoveryStrategy::Ignore;
+        assert_eq!(strategy, ErrorRecoveryStrategy::Ignore);
+    }
+
+    #[test]
+    fn test_recovery_strategy_fail() {
+        let strategy = ErrorRecoveryStrategy::Fail;
+        assert_eq!(strategy, ErrorRecoveryStrategy::Fail);
+    }
+
+    #[test]
+    fn test_recovery_strategy_clone_and_debug() {
+        let strategy = ErrorRecoveryStrategy::Retry { max_attempts: 2, delay_ms: 500 };
+        let cloned = strategy.clone();
+        assert_eq!(strategy, cloned);
+        let debug = format!("{:?}", strategy);
+        assert!(debug.contains("Retry"));
+    }
+
+    // === ErrorSeverity tests ===
+
+    #[test]
+    fn test_error_severity_ordering() {
+        assert!(ErrorSeverity::Low < ErrorSeverity::Medium);
+        assert!(ErrorSeverity::Medium < ErrorSeverity::High);
+        assert!(ErrorSeverity::High < ErrorSeverity::Critical);
+    }
+
+    #[test]
+    fn test_error_severity_values() {
+        assert_eq!(ErrorSeverity::Low as u8, 1);
+        assert_eq!(ErrorSeverity::Medium as u8, 2);
+        assert_eq!(ErrorSeverity::High as u8, 3);
+        assert_eq!(ErrorSeverity::Critical as u8, 4);
+    }
+
+    #[test]
+    fn test_error_severity_clone_copy() {
+        let s = ErrorSeverity::High;
+        let c = s;
+        assert_eq!(s, c);
+    }
+
+    // === attempt_error_recovery tests ===
+
+    #[test]
+    fn test_recovery_network_error() {
+        let err = LatticeArcError::NetworkError("connection lost".to_string());
+        let strategy = attempt_error_recovery(&err);
+        assert!(matches!(strategy, Some(ErrorRecoveryStrategy::Retry { max_attempts: 3, .. })));
+    }
+
+    #[test]
+    fn test_recovery_timeout_error() {
+        let err = LatticeArcError::TimeoutError("timed out".to_string());
+        let strategy = attempt_error_recovery(&err);
+        assert!(matches!(strategy, Some(ErrorRecoveryStrategy::Retry { max_attempts: 2, .. })));
+    }
+
+    #[test]
+    fn test_recovery_service_unavailable() {
+        let err = LatticeArcError::ServiceUnavailable("503".to_string());
+        let strategy = attempt_error_recovery(&err);
+        assert!(matches!(strategy, Some(ErrorRecoveryStrategy::Retry { max_attempts: 5, .. })));
+    }
+
+    #[test]
+    fn test_recovery_circuit_breaker() {
+        let err = LatticeArcError::CircuitBreakerOpen;
+        let strategy = attempt_error_recovery(&err);
+        assert!(matches!(strategy, Some(ErrorRecoveryStrategy::Retry { max_attempts: 1, .. })));
+    }
+
+    #[test]
+    fn test_recovery_resource_exhausted() {
+        let err = LatticeArcError::ResourceExhausted;
+        let strategy = attempt_error_recovery(&err);
+        assert!(matches!(strategy, Some(ErrorRecoveryStrategy::Degrade { .. })));
+    }
+
+    #[test]
+    fn test_recovery_hardware_error() {
+        let err = LatticeArcError::HardwareError("HSM failure".to_string());
+        let strategy = attempt_error_recovery(&err);
+        assert!(matches!(strategy, Some(ErrorRecoveryStrategy::Fallback { .. })));
+    }
+
+    #[test]
+    fn test_recovery_feature_not_enabled() {
+        let err = LatticeArcError::FeatureNotEnabled("async".to_string());
+        let strategy = attempt_error_recovery(&err);
+        assert_eq!(strategy, Some(ErrorRecoveryStrategy::Fail));
+    }
+
+    #[test]
+    fn test_recovery_no_strategy() {
+        let err = LatticeArcError::EncryptionError("AES failed".to_string());
+        let strategy = attempt_error_recovery(&err);
+        assert!(strategy.is_none());
+    }
+
+    // === is_recoverable_error tests ===
+
+    #[test]
+    fn test_is_recoverable_network() {
+        assert!(is_recoverable_error(&LatticeArcError::NetworkError("x".to_string())));
+    }
+
+    #[test]
+    fn test_is_not_recoverable_encryption() {
+        assert!(!is_recoverable_error(&LatticeArcError::EncryptionError("x".to_string())));
+    }
+
+    // === get_error_severity tests ===
+
+    #[test]
+    fn test_severity_critical_for_crypto_errors() {
+        assert_eq!(
+            get_error_severity(&LatticeArcError::EncryptionError("x".to_string())),
+            ErrorSeverity::Critical
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::DecryptionError("x".to_string())),
+            ErrorSeverity::Critical
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::KeyGenerationError("x".to_string())),
+            ErrorSeverity::Critical
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::SigningError("x".to_string())),
+            ErrorSeverity::Critical
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::VerificationError),
+            ErrorSeverity::Critical
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::InvalidSignature("x".to_string())),
+            ErrorSeverity::Critical
+        );
+    }
+
+    #[test]
+    fn test_severity_high_for_auth_errors() {
+        assert_eq!(
+            get_error_severity(&LatticeArcError::AuthenticationError("x".to_string())),
+            ErrorSeverity::High
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::AccessDenied("x".to_string())),
+            ErrorSeverity::High
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::Unauthorized("x".to_string())),
+            ErrorSeverity::High
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::SecurityViolation("x".to_string())),
+            ErrorSeverity::High
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::PolicyViolation("x".to_string())),
+            ErrorSeverity::High
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::ComplianceViolation("x".to_string())),
+            ErrorSeverity::High
+        );
+    }
+
+    #[test]
+    fn test_severity_medium_for_infra_errors() {
+        assert_eq!(
+            get_error_severity(&LatticeArcError::NetworkError("x".to_string())),
+            ErrorSeverity::Medium
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::DatabaseError("x".to_string())),
+            ErrorSeverity::Medium
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::IoError("x".to_string())),
+            ErrorSeverity::Medium
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::HardwareError("x".to_string())),
+            ErrorSeverity::Medium
+        );
+        assert_eq!(
+            get_error_severity(&LatticeArcError::ServiceUnavailable("x".to_string())),
+            ErrorSeverity::Medium
+        );
+    }
+
+    #[test]
+    fn test_severity_low_for_other_errors() {
+        assert_eq!(
+            get_error_severity(&LatticeArcError::InvalidInput("x".to_string())),
+            ErrorSeverity::Low
+        );
+        assert_eq!(get_error_severity(&LatticeArcError::RandomError), ErrorSeverity::Low);
+    }
+
+    // === requires_security_response tests ===
+
+    #[test]
+    fn test_requires_response_for_crypto() {
+        assert!(requires_security_response(&LatticeArcError::EncryptionError("x".to_string())));
+    }
+
+    #[test]
+    fn test_requires_response_for_auth() {
+        assert!(requires_security_response(&LatticeArcError::AccessDenied("x".to_string())));
+    }
+
+    #[test]
+    fn test_no_response_for_low() {
+        assert!(!requires_security_response(&LatticeArcError::InvalidInput("x".to_string())));
+    }
+
+    #[test]
+    fn test_no_response_for_medium() {
+        assert!(!requires_security_response(&LatticeArcError::NetworkError("x".to_string())));
+    }
+}

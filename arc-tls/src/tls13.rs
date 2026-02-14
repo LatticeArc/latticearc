@@ -854,4 +854,464 @@ mod tests {
         // Should return the custom provider, not the mode-based one
         assert_eq!(provider.unwrap().kx_groups.len(), custom_provider.kx_groups.len());
     }
+
+    #[test]
+    fn test_tls13_config_pq() {
+        let config = Tls13Config::pq();
+        assert_eq!(config.mode, TlsMode::Pq);
+        assert!(config.use_pq_kx);
+    }
+
+    #[test]
+    fn test_tls13_config_with_pq_kx() {
+        let config = Tls13Config::hybrid().with_pq_kx(false);
+        assert!(!config.use_pq_kx);
+
+        let config2 = Tls13Config::classic().with_pq_kx(true);
+        assert!(config2.use_pq_kx);
+    }
+
+    #[test]
+    fn test_tls13_config_with_protocol_versions() {
+        let config = Tls13Config::hybrid().with_protocol_versions(vec![&rustls::version::TLS13]);
+        assert_eq!(config.protocol_versions.len(), 1);
+    }
+
+    #[test]
+    fn test_tls13_config_with_resumption() {
+        let resumption = rustls::client::Resumption::in_memory_sessions(64);
+        let _config = Tls13Config::hybrid().with_resumption(resumption);
+        // Just verify it doesn't panic
+    }
+
+    #[test]
+    fn test_tls13_config_with_client_verification() {
+        let config =
+            Tls13Config::hybrid().with_client_verification(ClientVerificationMode::Required);
+        assert_eq!(config.client_verification, ClientVerificationMode::Required);
+
+        let config2 =
+            Tls13Config::hybrid().with_client_verification(ClientVerificationMode::Optional);
+        assert_eq!(config2.client_verification, ClientVerificationMode::Optional);
+    }
+
+    #[test]
+    fn test_tls13_config_with_client_ca_roots() {
+        let roots = RootCertStore::empty();
+        let config = Tls13Config::hybrid().with_client_ca_roots(roots);
+        assert!(config.client_ca_roots.is_some());
+    }
+
+    #[test]
+    fn test_tls13_config_with_client_cert() {
+        let cert_bytes = vec![0u8; 32];
+        let cert = CertificateDer::from(cert_bytes);
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
+        let config = Tls13Config::hybrid().with_client_cert(vec![cert], key);
+        assert!(config.client_cert_chain.is_some());
+        assert!(config.client_private_key.is_some());
+    }
+
+    #[test]
+    fn test_handshake_state_all_variants() {
+        let states = [
+            HandshakeState::Start,
+            HandshakeState::ClientHelloSent,
+            HandshakeState::ServerHelloReceived,
+            HandshakeState::ServerHelloSent,
+            HandshakeState::ServerFinishedSent,
+            HandshakeState::ServerFinishedReceived,
+            HandshakeState::ClientFinishedSent,
+            HandshakeState::Complete,
+        ];
+        // Each variant is distinct
+        for (i, s1) in states.iter().enumerate() {
+            for (j, s2) in states.iter().enumerate() {
+                if i == j {
+                    assert_eq!(s1, s2);
+                } else {
+                    assert_ne!(s1, s2);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_handshake_state_clone_copy_debug() {
+        let state = HandshakeState::ClientHelloSent;
+        let cloned = state;
+        let copied = state;
+        assert_eq!(state, cloned);
+        assert_eq!(state, copied);
+
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("ClientHelloSent"));
+    }
+
+    #[test]
+    fn test_handshake_stats_fields() {
+        let mut stats = HandshakeStats::default();
+        stats.duration_ms = 150;
+        stats.kex_time_ms = 50;
+        stats.cert_time_ms = 30;
+        stats.client_hello_size = 512;
+        stats.server_hello_size = 1024;
+
+        assert_eq!(stats.duration_ms, 150);
+        assert_eq!(stats.kex_time_ms, 50);
+        assert_eq!(stats.cert_time_ms, 30);
+        assert_eq!(stats.client_hello_size, 512);
+        assert_eq!(stats.server_hello_size, 1024);
+    }
+
+    #[test]
+    fn test_handshake_stats_clone_debug() {
+        let stats = HandshakeStats::default();
+        let stats2 = stats.clone();
+        assert_eq!(stats.round_trips, stats2.round_trips);
+
+        let debug = format!("{:?}", stats);
+        assert!(debug.contains("HandshakeStats"));
+    }
+
+    #[test]
+    fn test_verify_config_valid_early_data() {
+        let config = Tls13Config::hybrid().with_early_data(16384);
+        assert!(verify_config(&config).is_ok());
+    }
+
+    #[test]
+    fn test_verify_config_all_modes() {
+        assert!(verify_config(&Tls13Config::classic()).is_ok());
+        assert!(verify_config(&Tls13Config::hybrid()).is_ok());
+        assert!(verify_config(&Tls13Config::pq()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_cipher_suites_valid() {
+        let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
+        assert!(validate_cipher_suites(&suites).is_ok());
+    }
+
+    #[test]
+    fn test_validate_cipher_suites_empty() {
+        let suites: Vec<SupportedCipherSuite> = vec![];
+        assert!(validate_cipher_suites(&suites).is_ok());
+    }
+
+    #[test]
+    fn test_get_cipher_suites_all_modes() {
+        // Classic and Hybrid have 3 suites
+        assert_eq!(get_cipher_suites(TlsMode::Classic).len(), 3);
+        assert_eq!(get_cipher_suites(TlsMode::Hybrid).len(), 3);
+        // PQ has 2 suites (no AES-128-GCM)
+        assert_eq!(get_cipher_suites(TlsMode::Pq).len(), 2);
+    }
+
+    // === create_client_config tests ===
+
+    #[test]
+    fn test_create_client_config_hybrid() {
+        let config = Tls13Config::hybrid();
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_client_config_classic() {
+        let config = Tls13Config::classic();
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_client_config_pq() {
+        let config = Tls13Config::pq();
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_client_config_with_alpn() {
+        let config = Tls13Config::hybrid().with_alpn_protocols(vec!["h2", "http/1.1"]);
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+        let client_config = result.unwrap();
+        assert_eq!(client_config.alpn_protocols.len(), 2);
+    }
+
+    #[test]
+    fn test_create_client_config_with_cipher_suites_warning() {
+        // Custom cipher suites should produce a warning but not fail
+        let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
+        let config = Tls13Config::hybrid().with_cipher_suites(suites);
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_client_config_with_custom_provider() {
+        let provider = rustls::crypto::aws_lc_rs::default_provider();
+        let config = Tls13Config::hybrid().with_crypto_provider(provider);
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_client_config_with_key_log() {
+        let key_log = Arc::new(rustls::KeyLogFile::new());
+        let config = Tls13Config::hybrid().with_key_log(key_log);
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+    }
+
+    // === create_server_config tests ===
+
+    #[test]
+    fn test_create_server_config_with_alpn() {
+        // create_server_config requires valid cert+key, but we can test error path
+        let cert_bytes = vec![0u8; 32];
+        let cert = CertificateDer::from(cert_bytes);
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
+        let config = Tls13Config::hybrid().with_alpn_protocols(vec!["h2"]);
+        // This will fail due to invalid cert/key, but exercises code paths
+        let _result = create_server_config(&config, vec![cert], key);
+    }
+
+    #[test]
+    fn test_create_server_config_with_early_data() {
+        let cert_bytes = vec![0u8; 32];
+        let cert = CertificateDer::from(cert_bytes);
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
+        let config = Tls13Config::hybrid().with_early_data(16384);
+        let _result = create_server_config(&config, vec![cert], key);
+    }
+
+    #[test]
+    fn test_create_server_config_mtls_missing_ca_roots() {
+        let cert_bytes = vec![0u8; 32];
+        let cert = CertificateDer::from(cert_bytes);
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
+        let config =
+            Tls13Config::hybrid().with_client_verification(ClientVerificationMode::Required);
+        // Missing CA roots should return an error
+        let result = create_server_config(&config, vec![cert], key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_server_config_with_cipher_suites_warning() {
+        let cert_bytes = vec![0u8; 32];
+        let cert = CertificateDer::from(cert_bytes);
+        let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
+        let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
+        let config = Tls13Config::hybrid().with_cipher_suites(suites);
+        let _result = create_server_config(&config, vec![cert], key);
+    }
+
+    // === Tls13Config builder method coverage ===
+
+    #[test]
+    fn test_tls13_config_with_key_log_setter() {
+        let key_log = Arc::new(rustls::KeyLogFile::new());
+        let config = Tls13Config::hybrid().with_key_log(key_log);
+        assert!(config.key_log.is_some());
+    }
+
+    // === get_configured_crypto_provider coverage ===
+
+    #[test]
+    fn test_get_configured_crypto_provider_default() {
+        let config = Tls13Config::hybrid();
+        let provider = get_configured_crypto_provider(&config);
+        assert!(provider.is_ok());
+    }
+
+    #[test]
+    fn test_get_configured_crypto_provider_classic() {
+        let config = Tls13Config::classic();
+        let provider = get_configured_crypto_provider(&config);
+        assert!(provider.is_ok());
+    }
+
+    // === validate_cipher_suites edge cases ===
+
+    #[test]
+    fn test_validate_cipher_suites_all_three_valid() {
+        let suites = get_secure_cipher_suites();
+        assert!(validate_cipher_suites(&suites).is_ok());
+    }
+
+    #[test]
+    fn test_validate_cipher_suites_single_valid() {
+        let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256];
+        assert!(validate_cipher_suites(&suites).is_ok());
+    }
+
+    // === Tls13Config Debug trait ===
+
+    #[test]
+    fn test_tls13_config_debug() {
+        let config = Tls13Config::hybrid();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("Tls13Config"));
+    }
+
+    // === Tests with valid certificates using rcgen ===
+
+    fn generate_self_signed_cert() -> (CertificateDer<'static>, PrivateKeyDer<'static>) {
+        let key_pair = rcgen::KeyPair::generate().unwrap();
+        let params = rcgen::CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let cert = params.self_signed(&key_pair).unwrap();
+        let cert_der = CertificateDer::from(cert.der().to_vec());
+        let key_der = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(
+            key_pair.serialize_der(),
+        ));
+        (cert_der, key_der)
+    }
+
+    fn generate_ca_and_server_cert()
+    -> (CertificateDer<'static>, CertificateDer<'static>, PrivateKeyDer<'static>) {
+        let ca_key = rcgen::KeyPair::generate().unwrap();
+        let mut ca_params = rcgen::CertificateParams::new(vec!["Test CA".to_string()]).unwrap();
+        ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        let ca_cert = ca_params.self_signed(&ca_key).unwrap();
+
+        let server_key = rcgen::KeyPair::generate().unwrap();
+        let server_params = rcgen::CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let server_cert = server_params.signed_by(&server_key, &ca_cert, &ca_key).unwrap();
+
+        let ca_cert_der = CertificateDer::from(ca_cert.der().to_vec());
+        let server_cert_der = CertificateDer::from(server_cert.der().to_vec());
+        let server_key_der = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(
+            server_key.serialize_der(),
+        ));
+        (ca_cert_der, server_cert_der, server_key_der)
+    }
+
+    #[test]
+    fn test_create_server_config_hybrid_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let config = Tls13Config::hybrid();
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok(), "Server config with valid cert should succeed");
+    }
+
+    #[test]
+    fn test_create_server_config_classic_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let config = Tls13Config::classic();
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_config_pq_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let config = Tls13Config::pq();
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_config_with_alpn_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let config = Tls13Config::hybrid().with_alpn_protocols(vec!["h2", "http/1.1"]);
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok());
+        let server_config = result.unwrap();
+        assert_eq!(server_config.alpn_protocols.len(), 2);
+    }
+
+    #[test]
+    fn test_create_server_config_with_early_data_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let config = Tls13Config::hybrid().with_early_data(16384);
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok());
+        let server_config = result.unwrap();
+        assert_eq!(server_config.max_early_data_size, 16384);
+    }
+
+    #[test]
+    fn test_create_server_config_with_key_log_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let key_log = Arc::new(rustls::KeyLogFile::new());
+        let config = Tls13Config::hybrid().with_key_log(key_log);
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_config_with_cipher_suites_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
+        let config = Tls13Config::hybrid().with_cipher_suites(suites);
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_config_with_custom_provider_valid_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let provider = rustls::crypto::aws_lc_rs::default_provider();
+        let config = Tls13Config::classic().with_crypto_provider(provider);
+        let result = create_server_config(&config, vec![cert_der], key_der);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_config_mtls_required() {
+        let (ca_cert_der, server_cert_der, server_key_der) = generate_ca_and_server_cert();
+
+        let mut ca_root_store = RootCertStore::empty();
+        ca_root_store.add(ca_cert_der).unwrap();
+
+        let config = Tls13Config::hybrid()
+            .with_client_verification(ClientVerificationMode::Required)
+            .with_client_ca_roots(ca_root_store);
+
+        let result = create_server_config(&config, vec![server_cert_der], server_key_der);
+        assert!(result.is_ok(), "mTLS Required with valid CA should succeed");
+    }
+
+    #[test]
+    fn test_create_server_config_mtls_optional() {
+        let (ca_cert_der, server_cert_der, server_key_der) = generate_ca_and_server_cert();
+
+        let mut ca_root_store = RootCertStore::empty();
+        ca_root_store.add(ca_cert_der).unwrap();
+
+        let config = Tls13Config::hybrid()
+            .with_client_verification(ClientVerificationMode::Optional)
+            .with_client_ca_roots(ca_root_store);
+
+        let result = create_server_config(&config, vec![server_cert_der], server_key_der);
+        assert!(result.is_ok(), "mTLS Optional with valid CA should succeed");
+    }
+
+    #[test]
+    fn test_create_client_config_with_client_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let config = Tls13Config::hybrid().with_client_cert(vec![cert_der], key_der);
+        let result = create_client_config(&config);
+        assert!(result.is_ok(), "Client config with client cert should succeed");
+    }
+
+    #[test]
+    fn test_create_client_config_classic_with_client_cert() {
+        let (cert_der, key_der) = generate_self_signed_cert();
+        let config = Tls13Config::classic().with_client_cert(vec![cert_der], key_der);
+        let result = create_client_config(&config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_server_config_chain_with_ca() {
+        let (ca_cert_der, server_cert_der, server_key_der) = generate_ca_and_server_cert();
+        let chain = vec![server_cert_der, ca_cert_der];
+        let config = Tls13Config::hybrid();
+        let result = create_server_config(&config, chain, server_key_der);
+        assert!(result.is_ok(), "Server config with cert chain should succeed");
+    }
 }

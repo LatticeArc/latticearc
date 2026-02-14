@@ -502,4 +502,76 @@ mod tests {
         // until the struct is actually dropped, but the test verifies the trait is implemented)
         assert_eq!(key_bytes.len(), 32);
     }
+
+    #[test]
+    fn test_pbkdf2_params_new_zero_salt_length() {
+        let result = Pbkdf2Params::new(0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pbkdf2_params_new_valid() {
+        let params = Pbkdf2Params::new(16).unwrap();
+        assert_eq!(params.salt.len(), 16);
+        assert_eq!(params.iterations, 10000);
+        assert_eq!(params.key_length, 32);
+        assert_eq!(params.prf, PrfType::HmacSha256);
+    }
+
+    #[test]
+    fn test_pbkdf2_multi_block_sha256() {
+        // key_length > 32 requires multiple blocks for SHA256
+        let password = b"password";
+        let salt = b"salt123456789012";
+        let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(64);
+
+        let result = pbkdf2(password, &params).unwrap();
+        assert_eq!(result.key.len(), 64);
+    }
+
+    #[test]
+    fn test_pbkdf2_multi_block_sha512() {
+        // key_length > 64 requires multiple blocks for SHA512
+        let password = b"password";
+        let salt = b"salt123456789012";
+        let params =
+            Pbkdf2Params::with_salt(salt).iterations(1000).key_length(128).prf(PrfType::HmacSha512);
+
+        let result = pbkdf2(password, &params).unwrap();
+        assert_eq!(result.key.len(), 128);
+    }
+
+    #[test]
+    fn test_pbkdf2_result_key_accessor() {
+        let password = b"password";
+        let salt = b"salt123456789012";
+        let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
+
+        let result = pbkdf2(password, &params).unwrap();
+        assert_eq!(result.key(), &result.key[..]);
+        assert_eq!(result.key().len(), 32);
+    }
+
+    #[test]
+    fn test_pbkdf2_params_builder_chain() {
+        let params = Pbkdf2Params::with_salt(b"saltsaltsaltsalt")
+            .iterations(5000)
+            .key_length(48)
+            .prf(PrfType::HmacSha512);
+
+        assert_eq!(params.iterations, 5000);
+        assert_eq!(params.key_length, 48);
+        assert_eq!(params.prf, PrfType::HmacSha512);
+    }
+
+    #[test]
+    fn test_prf_type_debug_clone_eq() {
+        let prf = PrfType::HmacSha256;
+        let cloned = prf;
+        assert_eq!(prf, cloned);
+        assert_ne!(PrfType::HmacSha256, PrfType::HmacSha512);
+
+        let debug = format!("{:?}", prf);
+        assert!(debug.contains("HmacSha256"));
+    }
 }

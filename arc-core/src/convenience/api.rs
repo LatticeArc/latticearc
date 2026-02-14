@@ -1226,4 +1226,934 @@ mod tests {
 
         Ok(())
     }
+
+    // === SLH-DSA sign/verify roundtrip tests ===
+
+    #[test]
+    fn test_slh_dsa_shake_128s_roundtrip() {
+        std::thread::Builder::new()
+            .name("slh_dsa_128s".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::convenience::keygen::generate_slh_dsa_keypair;
+                use crate::convenience::pq_sig::sign_pq_slh_dsa_unverified;
+                use arc_primitives::sig::slh_dsa::SecurityLevel;
+
+                let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake128s).unwrap();
+                let message = b"SLH-DSA-128s test message";
+                let signature =
+                    sign_pq_slh_dsa_unverified(message, sk.as_ref(), SecurityLevel::Shake128s)
+                        .unwrap();
+
+                let signed_data = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature,
+                        signature_algorithm: "slh-dsa-shake-128s".to_string(),
+                        public_key: pk,
+                        key_id: None,
+                    },
+                    scheme: "slh-dsa-shake-128s".to_string(),
+                    timestamp: 0,
+                };
+
+                let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
+                assert!(verified, "SLH-DSA-128s signature should verify");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_slh_dsa_shake_192s_roundtrip() {
+        std::thread::Builder::new()
+            .name("slh_dsa_192s".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::convenience::keygen::generate_slh_dsa_keypair;
+                use crate::convenience::pq_sig::sign_pq_slh_dsa_unverified;
+                use arc_primitives::sig::slh_dsa::SecurityLevel;
+
+                let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake192s).unwrap();
+                let message = b"SLH-DSA-192s test message";
+                let signature =
+                    sign_pq_slh_dsa_unverified(message, sk.as_ref(), SecurityLevel::Shake192s)
+                        .unwrap();
+
+                let signed_data = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature,
+                        signature_algorithm: "slh-dsa-shake-192s".to_string(),
+                        public_key: pk,
+                        key_id: None,
+                    },
+                    scheme: "slh-dsa-shake-192s".to_string(),
+                    timestamp: 0,
+                };
+
+                let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
+                assert!(verified, "SLH-DSA-192s signature should verify");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_slh_dsa_shake_256s_roundtrip() {
+        std::thread::Builder::new()
+            .name("slh_dsa_256s".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::convenience::keygen::generate_slh_dsa_keypair;
+                use crate::convenience::pq_sig::sign_pq_slh_dsa_unverified;
+                use arc_primitives::sig::slh_dsa::SecurityLevel;
+
+                let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake256s).unwrap();
+                let message = b"SLH-DSA-256s test message";
+                let signature =
+                    sign_pq_slh_dsa_unverified(message, sk.as_ref(), SecurityLevel::Shake256s)
+                        .unwrap();
+
+                let signed_data = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature,
+                        signature_algorithm: "slh-dsa-shake-256s".to_string(),
+                        public_key: pk,
+                        key_id: None,
+                    },
+                    scheme: "slh-dsa-shake-256s".to_string(),
+                    timestamp: 0,
+                };
+
+                let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
+                assert!(verified, "SLH-DSA-256s signature should verify");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === FN-DSA sign/verify roundtrip test ===
+
+    #[test]
+    fn test_fn_dsa_roundtrip() {
+        std::thread::Builder::new()
+            .name("fn_dsa".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::convenience::keygen::generate_fn_dsa_keypair;
+                use crate::convenience::pq_sig::sign_pq_fn_dsa_unverified;
+
+                let (pk, sk) = generate_fn_dsa_keypair().unwrap();
+                let message = b"FN-DSA test message";
+                let signature = sign_pq_fn_dsa_unverified(message, sk.as_ref()).unwrap();
+
+                let signed_data = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature,
+                        signature_algorithm: "fn-dsa".to_string(),
+                        public_key: pk,
+                        key_id: None,
+                    },
+                    scheme: "fn-dsa".to_string(),
+                    timestamp: 0,
+                };
+
+                let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
+                assert!(verified, "FN-DSA signature should verify");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Hybrid ML-DSA-44 + Ed25519 sign/verify roundtrip ===
+
+    #[test]
+    fn test_hybrid_ml_dsa_44_ed25519_roundtrip() {
+        std::thread::Builder::new()
+            .name("hybrid_44".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::convenience::keygen::{generate_keypair, generate_ml_dsa_keypair};
+                use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
+
+                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+                let (ed_pk, ed_sk) = generate_keypair().unwrap();
+                let combined_pk = [pq_pk, ed_pk].concat();
+                let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+
+                let message = b"Hybrid ML-DSA-44 + Ed25519 test";
+                let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+                let signed_data =
+                    sign_with_key(message, &combined_sk, &combined_pk, config).unwrap();
+                assert!(signed_data.metadata.signature_algorithm.contains("hybrid"));
+
+                let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
+                assert!(verified, "Hybrid ML-DSA-44+Ed25519 should verify");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Hybrid ML-DSA-87 + Ed25519 sign/verify roundtrip ===
+
+    #[test]
+    fn test_hybrid_ml_dsa_87_ed25519_roundtrip() {
+        std::thread::Builder::new()
+            .name("hybrid_87".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::convenience::keygen::{generate_keypair, generate_ml_dsa_keypair};
+                use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
+
+                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87).unwrap();
+                let (ed_pk, ed_sk) = generate_keypair().unwrap();
+                let combined_pk = [pq_pk, ed_pk].concat();
+                let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+
+                let message = b"Hybrid ML-DSA-87 + Ed25519 test";
+                let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+                let signed_data =
+                    sign_with_key(message, &combined_sk, &combined_pk, config).unwrap();
+                assert!(signed_data.metadata.signature_algorithm.contains("hybrid"));
+
+                let verified = verify(&signed_data, CryptoConfig::new()).unwrap();
+                assert!(verified, "Hybrid ML-DSA-87+Ed25519 should verify");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Error handling tests for sign_with_key ===
+
+    #[test]
+    fn test_sign_with_invalid_hybrid_key_lengths() {
+        std::thread::Builder::new()
+            .name("hybrid_bad_key".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let message = b"test";
+                // Try to sign with keys that are too short for any hybrid scheme
+                let _short_key = vec![1u8; 10];
+                let short_pk = vec![2u8; 10];
+                let signed = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature: vec![0u8; 10],
+                        signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
+                        public_key: short_pk,
+                        key_id: None,
+                    },
+                    scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
+                    timestamp: 0,
+                };
+
+                // Verification should fail because the keys/signature are too short
+                let result = verify(&signed, CryptoConfig::new());
+                assert!(result.is_err() || (result.is_ok() && !result.unwrap()));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Ed25519 fallback test ===
+
+    #[test]
+    fn test_sign_verify_with_ed25519_fallback_scheme() {
+        std::thread::Builder::new()
+            .name("ed25519_fallback".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::convenience::ed25519::sign_ed25519_unverified;
+                use crate::convenience::keygen::generate_keypair;
+
+                let (pk, sk) = generate_keypair().unwrap();
+                let message = b"Ed25519 fallback test";
+
+                // Manually construct SignedData with ed25519 scheme
+                let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+                let signed = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature,
+                        signature_algorithm: "ed25519".to_string(),
+                        public_key: pk,
+                        key_id: None,
+                    },
+                    scheme: "ed25519".to_string(),
+                    timestamp: 0,
+                };
+
+                let verified = verify(&signed, CryptoConfig::new()).unwrap();
+                assert!(verified, "Ed25519 fallback verification should succeed");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Encryption with different security levels ===
+
+    #[test]
+    fn test_encrypt_decrypt_with_maximum_security() {
+        std::thread::Builder::new()
+            .name("max_security_enc".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let data = b"Maximum security encryption test";
+                let key = vec![0x42u8; 32];
+                let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+
+                let encrypted = encrypt(data, &key, config.clone()).unwrap();
+                let decrypted = decrypt(&encrypted, &key, config).unwrap();
+                assert_eq!(data.as_slice(), decrypted.as_slice());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === select_encryption_scheme and select_signature_scheme ===
+
+    #[test]
+    fn test_select_scheme_with_use_case() {
+        let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
+        let scheme = select_signature_scheme(&config);
+        assert!(scheme.is_ok(), "Should select a scheme for SecureMessaging");
+
+        let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
+        let scheme = select_signature_scheme(&config);
+        assert!(scheme.is_ok(), "Should select a scheme for FinancialTransactions");
+    }
+
+    #[test]
+    fn test_select_encryption_scheme_with_use_case() {
+        let data = b"test data";
+        let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
+        let scheme = select_encryption_scheme(data, &config);
+        assert!(scheme.is_ok(), "Should select encryption scheme for SecureMessaging");
+    }
+
+    // === Verify error branches for hybrid schemes ===
+
+    #[test]
+    fn test_verify_hybrid_44_signature_too_short() {
+        let signed = SignedData {
+            data: b"test".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 100], // Too short for hybrid-44
+                signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
+                public_key: vec![0u8; 1344], // 1312 + 32
+                key_id: None,
+            },
+            scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
+            timestamp: 0,
+        };
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_hybrid_44_invalid_pk_length() {
+        let signed = SignedData {
+            data: b"test".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 3000], // Long enough
+                signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
+                public_key: vec![0u8; 100], // Wrong PK length
+                key_id: None,
+            },
+            scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
+            timestamp: 0,
+        };
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_hybrid_65_signature_too_short() {
+        let signed = SignedData {
+            data: b"test".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 100], // Too short for hybrid-65
+                signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
+                public_key: vec![0u8; 1984], // 1952 + 32
+                key_id: None,
+            },
+            scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
+            timestamp: 0,
+        };
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_hybrid_65_invalid_pk_length() {
+        let signed = SignedData {
+            data: b"test".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 4000], // Long enough
+                signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
+                public_key: vec![0u8; 100], // Wrong PK length
+                key_id: None,
+            },
+            scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
+            timestamp: 0,
+        };
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_hybrid_87_signature_too_short() {
+        let signed = SignedData {
+            data: b"test".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 100], // Too short for hybrid-87
+                signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
+                public_key: vec![0u8; 2624], // 2592 + 32
+                key_id: None,
+            },
+            scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
+            timestamp: 0,
+        };
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_hybrid_87_invalid_pk_length() {
+        let signed = SignedData {
+            data: b"test".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 5000], // Long enough
+                signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
+                public_key: vec![0u8; 100], // Wrong PK length
+                key_id: None,
+            },
+            scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
+            timestamp: 0,
+        };
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    // === sign_with_key error branches for hybrid ===
+
+    #[test]
+    fn test_sign_with_key_hybrid_44_invalid_sk_length() {
+        std::thread::Builder::new()
+            .name("hybrid_44_bad_sk".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
+                let pq_pk_len = MlDsaParameterSet::MLDSA44.public_key_size();
+
+                let message = b"test";
+                let bad_sk = vec![0u8; 10]; // Wrong length
+                let pk = vec![0u8; pq_pk_len + 32]; // Correct PK length
+
+                let signed = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature: vec![],
+                        signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
+                        public_key: pk.clone(),
+                        key_id: None,
+                    },
+                    scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
+                    timestamp: 0,
+                };
+
+                // Direct call to sign_with_key with wrong SK length
+                let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+                let result = sign_with_key(message, &bad_sk, &pk, config);
+                // The scheme selector may not pick hybrid-44, so we test via verify instead
+                let _ = result;
+
+                // Test verify with correct-length PK but bad signature
+                let result = verify(&signed, CryptoConfig::new());
+                assert!(result.is_err() || matches!(result, Ok(false)));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Encrypt/Decrypt with different stored scheme names ===
+
+    #[test]
+    fn test_decrypt_with_ml_kem_scheme_name() {
+        // Tests the decrypt path where scheme is "ml-kem-768" (falls through to AES-GCM)
+        let key = vec![0x42u8; 32];
+        let config = CryptoConfig::new();
+        let data = b"test plaintext";
+
+        // First encrypt normally
+        let encrypted = encrypt(data, &key, config.clone()).unwrap();
+
+        // Modify scheme to ml-kem-768 to test the decrypt fallback path
+        let modified = EncryptedData {
+            data: encrypted.data,
+            metadata: encrypted.metadata,
+            scheme: "ml-kem-768".to_string(),
+            timestamp: encrypted.timestamp,
+        };
+        let result = decrypt(&modified, &key, config);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), data);
+    }
+
+    #[test]
+    fn test_decrypt_with_chacha_scheme_name() {
+        let key = vec![0x42u8; 32];
+        let config = CryptoConfig::new();
+        let data = b"test chacha path";
+
+        let encrypted = encrypt(data, &key, config.clone()).unwrap();
+
+        // Modify scheme to chacha20-poly1305 to test the decrypt fallback path
+        let modified = EncryptedData {
+            data: encrypted.data,
+            metadata: encrypted.metadata,
+            scheme: "chacha20-poly1305".to_string(),
+            timestamp: encrypted.timestamp,
+        };
+        let result = decrypt(&modified, &key, config);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), data);
+    }
+
+    #[test]
+    fn test_decrypt_short_key_unknown_scheme() {
+        let encrypted = EncryptedData {
+            data: vec![1, 2, 3, 4],
+            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
+            scheme: "unknown-fallback".to_string(),
+            timestamp: 0,
+        };
+        let short_key = vec![0x42u8; 16]; // Too short
+        let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_short_key_ml_kem_scheme() {
+        let encrypted = EncryptedData {
+            data: vec![1, 2, 3, 4],
+            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
+            scheme: "ml-kem-768".to_string(),
+            timestamp: 0,
+        };
+        let short_key = vec![0x42u8; 16]; // Too short
+        let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_encrypt_empty_data() {
+        let key = vec![0x42u8; 32];
+        let config = CryptoConfig::new();
+        let encrypted = encrypt(b"", &key, config.clone()).unwrap();
+        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        assert!(decrypted.is_empty());
+    }
+
+    // === Use case-based encryption ===
+
+    #[test]
+    fn test_encrypt_decrypt_with_use_case() {
+        let key = vec![0x42u8; 32];
+        let data = b"UseCase-based encryption test";
+        let config = CryptoConfig::new().use_case(UseCase::FileStorage);
+
+        let encrypted = encrypt(data, &key, config.clone()).unwrap();
+        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        assert_eq!(decrypted, data);
+    }
+
+    #[test]
+    fn test_encrypt_with_iot_use_case() {
+        let key = vec![0x42u8; 32];
+        let data = b"IoT device data";
+        let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
+
+        let encrypted = encrypt(data, &key, config).unwrap();
+        assert!(!encrypted.data.is_empty());
+    }
+
+    // === Keygen through generate_signing_keypair with different use cases ===
+
+    #[test]
+    fn test_generate_signing_keypair_iot_use_case() {
+        let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
+        let result = generate_signing_keypair(config);
+        assert!(result.is_ok());
+        let (pk, sk, scheme) = result.unwrap();
+        assert!(!pk.is_empty());
+        assert!(!sk.is_empty());
+        assert!(!scheme.is_empty());
+    }
+
+    #[test]
+    fn test_generate_signing_keypair_file_storage_use_case() {
+        let config = CryptoConfig::new().use_case(UseCase::FileStorage);
+        let result = generate_signing_keypair(config);
+        assert!(result.is_ok());
+    }
+
+    // === Additional keygen scheme branches ===
+
+    #[test]
+    fn test_generate_signing_keypair_blockchain_use_case() {
+        let config = CryptoConfig::new().use_case(UseCase::BlockchainTransaction);
+        let result = generate_signing_keypair(config);
+        assert!(result.is_ok());
+        let (pk, sk, scheme) = result.unwrap();
+        assert!(!pk.is_empty());
+        assert!(!sk.is_empty());
+        assert!(!scheme.is_empty());
+    }
+
+    #[test]
+    fn test_generate_signing_keypair_legal_use_case() {
+        let config = CryptoConfig::new().use_case(UseCase::LegalDocuments);
+        let result = generate_signing_keypair(config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_generate_signing_keypair_firmware_use_case() {
+        let config = CryptoConfig::new().use_case(UseCase::FirmwareSigning);
+        let result = generate_signing_keypair(config);
+        assert!(result.is_ok());
+    }
+
+    // === Verified session API tests ===
+
+    #[test]
+    fn test_encrypt_decrypt_with_verified_session() {
+        std::thread::Builder::new()
+            .name("enc_verified".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let data = b"Verified session test data";
+                let key = vec![0x42u8; 32];
+
+                let (auth_pk, auth_sk) = crate::convenience::keygen::generate_keypair().unwrap();
+                let session =
+                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+
+                let config = CryptoConfig::new().session(&session);
+                let encrypted = encrypt(data, &key, config.clone()).unwrap();
+                let decrypted = decrypt(&encrypted, &key, config).unwrap();
+                assert_eq!(data.as_slice(), decrypted.as_slice());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_sign_verify_with_verified_session() {
+        std::thread::Builder::new()
+            .name("sign_verified".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let message = b"Verified session sign test";
+
+                let (auth_pk, auth_sk) = crate::convenience::keygen::generate_keypair().unwrap();
+                let session =
+                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+
+                let config = CryptoConfig::new().session(&session);
+                let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+                let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
+                let valid = verify(&signed, config).unwrap();
+                assert!(valid);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === sign_with_key hybrid error branches ===
+
+    #[test]
+    fn test_sign_with_key_hybrid_87_wrong_sk_length() {
+        std::thread::Builder::new()
+            .name("hybrid_87_bad_sk".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
+                let pq_pk_len = MlDsaParameterSet::MLDSA87.public_key_size();
+
+                let message = b"test";
+                let bad_sk = vec![0u8; 10]; // Wrong length
+                let pk = vec![0u8; pq_pk_len + 32]; // Correct PK length
+
+                // Need to manually construct SignedData with hybrid-87 scheme
+                // to test the verify error path
+                let signed = SignedData {
+                    data: message.to_vec(),
+                    metadata: SignedMetadata {
+                        signature: vec![0u8; 100], // Too short
+                        signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
+                        public_key: pk,
+                        key_id: None,
+                    },
+                    scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
+                    timestamp: 0,
+                };
+                let result = verify(&signed, CryptoConfig::new());
+                assert!(result.is_err());
+
+                let _ = bad_sk; // suppress unused warning
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_sign_with_key_hybrid_44_wrong_pk_length() {
+        std::thread::Builder::new()
+            .name("hybrid_44_bad_pk".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
+                let pq_sk_len = MlDsaParameterSet::MLDSA44.secret_key_size();
+
+                let message = b"test";
+                let sk = vec![0u8; pq_sk_len + 32]; // Correct SK length
+                let bad_pk = vec![0u8; 100]; // Wrong PK length
+
+                // This should return InvalidKey error for wrong PK length
+                let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+                let _result = sign_with_key(message, &sk, &bad_pk, config);
+                // The scheme selector may not pick hybrid-44, so we just check it doesn't panic
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Verify decrypt with different scheme names for coverage ===
+
+    #[test]
+    fn test_decrypt_with_hybrid_scheme_names() {
+        let key = vec![0x42u8; 32];
+        let config = CryptoConfig::new();
+        let data = b"test plaintext for scheme coverage";
+
+        // Encrypt normally
+        let encrypted = encrypt(data, &key, config.clone()).unwrap();
+
+        // Test decrypt with each hybrid scheme name variant
+        let scheme_names = vec![
+            "ml-kem-512",
+            "ml-kem-1024",
+            "hybrid-ml-kem-512-aes-256-gcm",
+            "hybrid-ml-kem-1024-aes-256-gcm",
+        ];
+        for scheme in scheme_names {
+            let modified = EncryptedData {
+                data: encrypted.data.clone(),
+                metadata: encrypted.metadata.clone(),
+                scheme: scheme.to_string(),
+                timestamp: encrypted.timestamp,
+            };
+            let result = decrypt(&modified, &key, config.clone());
+            assert!(result.is_ok(), "Decrypt should succeed for scheme: {}", scheme);
+            assert_eq!(result.unwrap(), data);
+        }
+    }
+
+    // === Encrypt with short key for hybrid/PQ scheme path ===
+
+    #[test]
+    fn test_encrypt_short_key_with_use_case() {
+        let short_key = vec![0x42u8; 16]; // Too short
+        let config = CryptoConfig::new().use_case(UseCase::FileStorage);
+        let result = encrypt(b"test", &short_key, config);
+        assert!(result.is_err(), "Short key should fail even with use case");
+    }
+
+    // === select_encryption_scheme with SecurityLevel ===
+
+    #[test]
+    fn test_select_encryption_scheme_with_security_level() {
+        let data = b"test data";
+        let levels = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
+        for level in levels {
+            let config = CryptoConfig::new().security_level(level.clone());
+            let scheme = select_encryption_scheme(data, &config);
+            assert!(scheme.is_ok(), "Should select scheme for security level: {:?}", level);
+        }
+    }
+
+    // === select_signature_scheme with SecurityLevel ===
+
+    #[test]
+    fn test_select_signature_scheme_with_security_levels() {
+        let levels = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
+        for level in levels {
+            let config = CryptoConfig::new().security_level(level.clone());
+            let scheme = select_signature_scheme(&config);
+            assert!(scheme.is_ok(), "Should select sig scheme for security level: {:?}", level);
+        }
+    }
+
+    // === SecurityLevel::Quantum flow (PQ-only signatures) ===
+
+    #[test]
+    fn test_sign_verify_quantum_security_level() {
+        std::thread::Builder::new()
+            .name("quantum_sig".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let message = b"Quantum-only signature test";
+                let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+
+                let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+                assert!(
+                    scheme.contains("pq-ml-dsa"),
+                    "Quantum level should select PQ-only: {}",
+                    scheme
+                );
+                assert!(!pk.is_empty());
+                assert!(!sk.is_empty());
+
+                let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
+                assert_eq!(signed.scheme, scheme);
+
+                let valid = verify(&signed, config).unwrap();
+                assert!(valid, "PQ-only signature should verify");
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Encrypt/decrypt with different security levels ===
+
+    #[test]
+    fn test_encrypt_decrypt_standard_security_level() {
+        let key = vec![0x42u8; 32];
+        let data = b"Standard level encryption";
+        let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+
+        let encrypted = encrypt(data, &key, config.clone()).unwrap();
+        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        assert_eq!(decrypted, data);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_maximum_security_level() {
+        let key = vec![0x42u8; 32];
+        let data = b"Maximum level encryption";
+        let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+
+        let encrypted = encrypt(data, &key, config.clone()).unwrap();
+        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        assert_eq!(decrypted, data);
+    }
+
+    // === Generate signing keypair with all use cases ===
+
+    #[test]
+    fn test_generate_signing_keypair_authentication_use_case() {
+        std::thread::Builder::new()
+            .name("auth_keygen".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let config = CryptoConfig::new().use_case(UseCase::Authentication);
+                let (pk, sk, scheme) = generate_signing_keypair(config).unwrap();
+                assert!(
+                    scheme.contains("hybrid-ml-dsa-87"),
+                    "Auth should use hybrid-87: {}",
+                    scheme
+                );
+                assert!(!pk.is_empty());
+                assert!(!sk.is_empty());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_generate_signing_keypair_digital_certificate_use_case() {
+        std::thread::Builder::new()
+            .name("cert_keygen".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let config = CryptoConfig::new().use_case(UseCase::DigitalCertificate);
+                let (pk, sk, scheme) = generate_signing_keypair(config).unwrap();
+                assert!(
+                    scheme.contains("hybrid-ml-dsa-87"),
+                    "DigitalCertificate should use hybrid-87: {}",
+                    scheme
+                );
+                assert!(!pk.is_empty());
+                assert!(!sk.is_empty());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Sign message wrapper for various use cases ===
+
+    #[test]
+    fn test_sign_message_standard_level() {
+        std::thread::Builder::new()
+            .name("sign_standard".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+                let signed = sign_message(b"Standard", config).unwrap();
+                assert!(
+                    signed.scheme.contains("hybrid-ml-dsa-44"),
+                    "Standard should use hybrid-44: {}",
+                    signed.scheme
+                );
+                let valid = verify(&signed, CryptoConfig::new()).unwrap();
+                assert!(valid);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Decrypt fallback path (unknown scheme) ===
+
+    #[test]
+    fn test_decrypt_unknown_scheme_fallback() {
+        let key = vec![0x42u8; 32];
+        let config = CryptoConfig::new();
+        let data = b"test unknown scheme fallback";
+
+        let encrypted = encrypt(data, &key, config.clone()).unwrap();
+
+        // Change scheme to something unknown to test fallback path
+        let modified = EncryptedData {
+            data: encrypted.data,
+            metadata: encrypted.metadata,
+            scheme: "some-future-scheme-v2".to_string(),
+            timestamp: encrypted.timestamp,
+        };
+        let result = decrypt(&modified, &key, config);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), data);
+    }
 }

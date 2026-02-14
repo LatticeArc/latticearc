@@ -661,3 +661,830 @@ fn test_decrypt_honors_scheme_from_encrypted_data() {
         .join()
         .unwrap();
 }
+
+// ============================================================================
+// Phase 4: lib.rs coverage (init, self_tests_passed, VERSION)
+// ============================================================================
+
+#[test]
+fn test_init() {
+    std::thread::Builder::new()
+        .name("test_init".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let result = crate::init();
+            assert!(result.is_ok(), "init() should succeed");
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_init_with_config_default() {
+    std::thread::Builder::new()
+        .name("test_init_with_config_default".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let config = crate::CoreConfig::default();
+            let result = crate::init_with_config(&config);
+            assert!(result.is_ok(), "init_with_config with defaults should succeed");
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_self_tests_passed_after_init() {
+    std::thread::Builder::new()
+        .name("test_self_tests_passed".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            // Run init to ensure self-tests pass
+            let _ = crate::init();
+            assert!(crate::self_tests_passed(), "self_tests_passed should be true after init");
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_version_constant() {
+    assert!(!crate::VERSION.is_empty(), "VERSION should not be empty");
+    // Should be a semver-like string
+    assert!(crate::VERSION.contains('.'), "VERSION should contain a dot separator");
+}
+
+// ============================================================================
+// Phase 4: types.rs coverage (ZeroizedBytes, KeyPair, enums, CryptoConfig)
+// ============================================================================
+
+#[test]
+fn test_zeroized_bytes_basic() {
+    let data = vec![1u8, 2, 3, 4, 5];
+    let zb = ZeroizedBytes::new(data.clone());
+    assert_eq!(zb.as_slice(), &[1, 2, 3, 4, 5]);
+    assert_eq!(zb.len(), 5);
+    assert!(!zb.is_empty());
+    // AsRef trait
+    let slice: &[u8] = zb.as_ref();
+    assert_eq!(slice, &[1, 2, 3, 4, 5]);
+    // Debug trait
+    let debug = format!("{:?}", zb);
+    assert!(debug.contains("ZeroizedBytes"));
+}
+
+#[test]
+fn test_zeroized_bytes_empty() {
+    let zb = ZeroizedBytes::new(vec![]);
+    assert!(zb.is_empty());
+    assert_eq!(zb.len(), 0);
+    assert_eq!(zb.as_slice(), &[] as &[u8]);
+}
+
+#[test]
+fn test_keypair_accessors() {
+    let pk = vec![10u8, 20, 30];
+    let sk = ZeroizedBytes::new(vec![40, 50, 60]);
+    let kp = KeyPair::new(pk.clone(), sk);
+    assert_eq!(kp.public_key(), &pk);
+    assert_eq!(kp.private_key().as_slice(), &[40, 50, 60]);
+    // Direct field access
+    assert_eq!(kp.public_key, pk);
+    assert_eq!(kp.private_key.as_slice(), &[40, 50, 60]);
+}
+
+#[test]
+fn test_security_level_variants() {
+    let standard = SecurityLevel::Standard;
+    let high = SecurityLevel::High;
+    let maximum = SecurityLevel::Maximum;
+    let quantum = SecurityLevel::Quantum;
+
+    // Default is High
+    assert_eq!(SecurityLevel::default(), SecurityLevel::High);
+
+    // Clone and PartialEq
+    assert_eq!(standard.clone(), SecurityLevel::Standard);
+    assert_eq!(high.clone(), SecurityLevel::High);
+    assert_eq!(maximum.clone(), SecurityLevel::Maximum);
+    assert_eq!(quantum.clone(), SecurityLevel::Quantum);
+
+    // All variants are distinct
+    assert_ne!(standard, high);
+    assert_ne!(high, maximum);
+    assert_ne!(maximum, quantum);
+}
+
+#[test]
+fn test_performance_preference_variants() {
+    let speed = PerformancePreference::Speed;
+    let memory = PerformancePreference::Memory;
+    let balanced = PerformancePreference::Balanced;
+
+    // Default is Balanced
+    assert_eq!(PerformancePreference::default(), PerformancePreference::Balanced);
+
+    // All distinct
+    assert_ne!(speed, memory);
+    assert_ne!(memory, balanced);
+    assert_ne!(speed, balanced);
+
+    // Clone
+    assert_eq!(speed.clone(), PerformancePreference::Speed);
+}
+
+#[test]
+fn test_use_case_all_variants() {
+    // Ensure all 24 variants can be constructed and are distinct
+    let variants: Vec<UseCase> = vec![
+        UseCase::SecureMessaging,
+        UseCase::EmailEncryption,
+        UseCase::VpnTunnel,
+        UseCase::ApiSecurity,
+        UseCase::FileStorage,
+        UseCase::DatabaseEncryption,
+        UseCase::CloudStorage,
+        UseCase::BackupArchive,
+        UseCase::ConfigSecrets,
+        UseCase::Authentication,
+        UseCase::SessionToken,
+        UseCase::DigitalCertificate,
+        UseCase::KeyExchange,
+        UseCase::FinancialTransactions,
+        UseCase::LegalDocuments,
+        UseCase::BlockchainTransaction,
+        UseCase::HealthcareRecords,
+        UseCase::GovernmentClassified,
+        UseCase::PaymentCard,
+        UseCase::IoTDevice,
+        UseCase::FirmwareSigning,
+        UseCase::SearchableEncryption,
+        UseCase::HomomorphicComputation,
+        UseCase::AuditLog,
+    ];
+    assert_eq!(variants.len(), 24);
+
+    // Each variant should be unique
+    for (i, a) in variants.iter().enumerate() {
+        for (j, b) in variants.iter().enumerate() {
+            if i != j {
+                assert_ne!(a, b, "UseCase variants at {} and {} should differ", i, j);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_crypto_scheme_variants() {
+    let hybrid = CryptoScheme::Hybrid;
+    let symmetric = CryptoScheme::Symmetric;
+    let asymmetric = CryptoScheme::Asymmetric;
+    let homomorphic = CryptoScheme::Homomorphic;
+    let pq = CryptoScheme::PostQuantum;
+
+    assert_ne!(hybrid, symmetric);
+    assert_ne!(symmetric, asymmetric);
+    assert_ne!(asymmetric, homomorphic);
+    assert_ne!(homomorphic, pq);
+
+    // Clone
+    assert_eq!(hybrid.clone(), CryptoScheme::Hybrid);
+}
+
+#[test]
+fn test_crypto_context_default() {
+    let ctx = CryptoContext::default();
+    assert_eq!(ctx.security_level, SecurityLevel::High);
+    assert_eq!(ctx.performance_preference, PerformancePreference::Balanced);
+    assert!(ctx.use_case.is_none());
+    assert!(ctx.hardware_acceleration);
+}
+
+#[test]
+fn test_algorithm_selection_default() {
+    let sel = AlgorithmSelection::default();
+    assert_eq!(sel, AlgorithmSelection::SecurityLevel(SecurityLevel::High));
+}
+
+#[test]
+fn test_algorithm_selection_variants() {
+    let by_use_case = AlgorithmSelection::UseCase(UseCase::FileStorage);
+    let by_level = AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum);
+    assert_ne!(by_use_case, by_level);
+
+    // Clone
+    assert_eq!(by_use_case.clone(), AlgorithmSelection::UseCase(UseCase::FileStorage));
+}
+
+#[test]
+fn test_crypto_config_builder() {
+    let config = CryptoConfig::new();
+    assert!(config.get_session().is_none());
+    assert!(!config.is_verified());
+    assert_eq!(*config.get_selection(), AlgorithmSelection::default());
+    // validate with no session should succeed
+    assert!(config.validate().is_ok());
+}
+
+#[test]
+fn test_crypto_config_use_case() {
+    let config = CryptoConfig::new().use_case(UseCase::HealthcareRecords);
+    assert_eq!(*config.get_selection(), AlgorithmSelection::UseCase(UseCase::HealthcareRecords));
+}
+
+#[test]
+fn test_crypto_config_security_level() {
+    let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+    assert_eq!(*config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum));
+}
+
+#[test]
+fn test_crypto_config_default_trait() {
+    let config: CryptoConfig<'_> = CryptoConfig::default();
+    assert!(config.get_session().is_none());
+    assert_eq!(*config.get_selection(), AlgorithmSelection::default());
+}
+
+#[test]
+fn test_encrypted_metadata() {
+    let meta = EncryptedMetadata {
+        nonce: vec![1, 2, 3],
+        tag: Some(vec![4, 5, 6]),
+        key_id: Some("key-1".to_string()),
+    };
+    let meta2 = meta.clone();
+    assert_eq!(meta, meta2);
+    assert_eq!(meta.nonce, vec![1, 2, 3]);
+    assert_eq!(meta.tag, Some(vec![4, 5, 6]));
+    assert_eq!(meta.key_id, Some("key-1".to_string()));
+
+    // Without optional fields
+    let meta3 = EncryptedMetadata { nonce: vec![], tag: None, key_id: None };
+    assert_ne!(meta, meta3);
+}
+
+#[test]
+fn test_signed_metadata() {
+    let meta = SignedMetadata {
+        signature: vec![1, 2, 3],
+        signature_algorithm: "ed25519".to_string(),
+        public_key: vec![4, 5, 6],
+        key_id: Some("sig-key-1".to_string()),
+    };
+    let meta2 = meta.clone();
+    assert_eq!(meta.signature, meta2.signature);
+    assert_eq!(meta.signature_algorithm, meta2.signature_algorithm);
+    assert_eq!(meta.public_key, meta2.public_key);
+    assert_eq!(meta.key_id, meta2.key_id);
+}
+
+#[test]
+fn test_encrypted_data_type_alias() {
+    let encrypted = EncryptedData {
+        data: vec![10, 20, 30],
+        metadata: EncryptedMetadata { nonce: vec![1], tag: None, key_id: None },
+        scheme: "aes-256-gcm".to_string(),
+        timestamp: 1234567890,
+    };
+    let encrypted2 = encrypted.clone();
+    assert_eq!(encrypted, encrypted2);
+    assert_eq!(encrypted.scheme, "aes-256-gcm");
+    assert_eq!(encrypted.timestamp, 1234567890);
+}
+
+#[test]
+fn test_crypto_config_overrides() {
+    // Setting use_case then security_level should use security_level
+    let config =
+        CryptoConfig::new().use_case(UseCase::FileStorage).security_level(SecurityLevel::Standard);
+    assert_eq!(*config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::Standard));
+
+    // Setting security_level then use_case should use use_case
+    let config2 =
+        CryptoConfig::new().security_level(SecurityLevel::Standard).use_case(UseCase::VpnTunnel);
+    assert_eq!(*config2.get_selection(), AlgorithmSelection::UseCase(UseCase::VpnTunnel));
+}
+
+// ============================================================================
+// Phase 4: traits.rs coverage (VerificationStatus, HardwareInfo)
+// ============================================================================
+
+#[test]
+fn test_verification_status_is_verified() {
+    assert!(VerificationStatus::Verified.is_verified());
+    assert!(!VerificationStatus::Expired.is_verified());
+    assert!(!VerificationStatus::Failed.is_verified());
+    assert!(!VerificationStatus::Pending.is_verified());
+}
+
+#[test]
+fn test_hardware_info_best_accelerator_preferred() {
+    let info = HardwareInfo {
+        available_accelerators: vec![HardwareType::Cpu, HardwareType::Gpu],
+        preferred_accelerator: Some(HardwareType::Gpu),
+        capabilities: HardwareCapabilities {
+            simd_support: true,
+            aes_ni: true,
+            threads: 4,
+            memory: 1024,
+        },
+    };
+    assert_eq!(info.best_accelerator(), Some(&HardwareType::Gpu));
+}
+
+#[test]
+fn test_hardware_info_best_accelerator_fallback_to_first() {
+    let info = HardwareInfo {
+        available_accelerators: vec![HardwareType::Fpga, HardwareType::Cpu],
+        preferred_accelerator: None,
+        capabilities: HardwareCapabilities {
+            simd_support: false,
+            aes_ni: false,
+            threads: 1,
+            memory: 512,
+        },
+    };
+    assert_eq!(info.best_accelerator(), Some(&HardwareType::Fpga));
+}
+
+#[test]
+fn test_hardware_info_best_accelerator_none() {
+    let info = HardwareInfo {
+        available_accelerators: vec![],
+        preferred_accelerator: None,
+        capabilities: HardwareCapabilities {
+            simd_support: false,
+            aes_ni: false,
+            threads: 1,
+            memory: 256,
+        },
+    };
+    assert_eq!(info.best_accelerator(), None);
+}
+
+#[test]
+fn test_hardware_info_summary() {
+    let info = HardwareInfo {
+        available_accelerators: vec![HardwareType::Cpu],
+        preferred_accelerator: Some(HardwareType::Cpu),
+        capabilities: HardwareCapabilities {
+            simd_support: true,
+            aes_ni: true,
+            threads: 8,
+            memory: 4096,
+        },
+    };
+    let summary = info.summary();
+    assert!(summary.contains("Cpu"), "Summary should mention Cpu");
+    assert!(summary.contains("Available"), "Summary should mention Available");
+    assert!(summary.contains("Preferred"), "Summary should mention Preferred");
+}
+
+#[test]
+fn test_hardware_type_variants() {
+    let types = vec![
+        HardwareType::Cpu,
+        HardwareType::Gpu,
+        HardwareType::Fpga,
+        HardwareType::Tpu,
+        HardwareType::Sgx,
+    ];
+    // All should be clonable and debug-formattable
+    for t in &types {
+        let cloned = t.clone();
+        assert_eq!(t, &cloned);
+        let debug = format!("{:?}", t);
+        assert!(!debug.is_empty());
+    }
+}
+
+#[test]
+fn test_data_characteristics_fields() {
+    let dc = DataCharacteristics { size: 1024, entropy: 7.5, pattern_type: PatternType::Random };
+    assert_eq!(dc.size, 1024);
+    assert!((dc.entropy - 7.5).abs() < f64::EPSILON);
+    assert_eq!(dc.pattern_type, PatternType::Random);
+
+    let dc2 = dc.clone();
+    assert_eq!(dc2.size, dc.size);
+}
+
+#[test]
+fn test_pattern_type_variants() {
+    let patterns = vec![
+        PatternType::Random,
+        PatternType::Structured,
+        PatternType::Repetitive,
+        PatternType::Text,
+        PatternType::Binary,
+    ];
+    for (i, a) in patterns.iter().enumerate() {
+        for (j, b) in patterns.iter().enumerate() {
+            if i == j {
+                assert_eq!(a, b);
+            } else {
+                assert_ne!(a, b);
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Phase 4: AES-GCM with verified session
+// ============================================================================
+
+#[test]
+fn test_aes_gcm_with_verified_session() {
+    std::thread::Builder::new()
+        .name("test_aes_gcm_verified".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            use crate::zero_trust::SecurityMode;
+
+            let (pk, sk) = generate_keypair().unwrap();
+            let session = VerifiedSession::establish(&pk, sk.as_slice()).unwrap();
+
+            let key = vec![0x42u8; 32];
+            let data = b"Verified AES-GCM test";
+
+            let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session)).unwrap();
+            let decrypted =
+                decrypt_aes_gcm(&encrypted, &key, SecurityMode::Verified(&session)).unwrap();
+            assert_eq!(data.as_slice(), decrypted.as_slice());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_aes_gcm_with_config_verified_session() {
+    std::thread::Builder::new()
+        .name("test_aes_gcm_config_verified".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            use crate::zero_trust::SecurityMode;
+
+            let (pk, sk) = generate_keypair().unwrap();
+            let session = VerifiedSession::establish(&pk, sk.as_slice()).unwrap();
+            let config = crate::config::CoreConfig::default();
+
+            let key = vec![0x42u8; 32];
+            let data = b"Config verified AES-GCM test";
+
+            let encrypted =
+                encrypt_aes_gcm_with_config(data, &key, &config, SecurityMode::Verified(&session))
+                    .unwrap();
+            let decrypted = decrypt_aes_gcm_with_config(
+                &encrypted,
+                &key,
+                &config,
+                SecurityMode::Verified(&session),
+            )
+            .unwrap();
+            assert_eq!(data.as_slice(), decrypted.as_slice());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+// ============================================================================
+// Phase 4: api.rs - generate_signing_keypair with specific schemes
+// ============================================================================
+
+#[test]
+fn test_generate_signing_keypair_quantum_level() {
+    std::thread::Builder::new()
+        .name("keygen_quantum".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+            let result = generate_signing_keypair(config);
+            assert!(result.is_ok(), "Quantum level keypair generation should succeed");
+            let (pk, sk, scheme) = result.unwrap();
+            assert!(!pk.is_empty());
+            assert!(!sk.is_empty());
+            assert!(!scheme.is_empty());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_generate_signing_keypair_all_use_cases() {
+    std::thread::Builder::new()
+        .name("keygen_use_cases".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let use_cases = vec![
+                UseCase::SecureMessaging,
+                UseCase::IoTDevice,
+                UseCase::GovernmentClassified,
+                UseCase::HealthcareRecords,
+                UseCase::PaymentCard,
+                UseCase::AuditLog,
+            ];
+            for uc in use_cases {
+                let config = CryptoConfig::new().use_case(uc.clone());
+                let result = generate_signing_keypair(config);
+                assert!(result.is_ok(), "Keypair generation failed for {:?}", uc);
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+// ============================================================================
+// Phase 4: api.rs - sign_with_key error paths for hybrid schemes
+// ============================================================================
+
+#[test]
+fn test_sign_with_key_hybrid_44_wrong_sk_length() {
+    std::thread::Builder::new()
+        .name("hybrid44_bad_sk".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let message = b"test";
+            let wrong_sk = vec![0u8; 100]; // Wrong length for hybrid-44
+            let wrong_pk = vec![0u8; 100];
+            let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+
+            // First check what scheme Standard gives us
+            let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+            if scheme.contains("hybrid-ml-dsa-44") {
+                // Now try with wrong key lengths
+                let result = sign_with_key(message, &wrong_sk, &pk, config.clone());
+                assert!(result.is_err(), "Should fail with wrong SK length");
+
+                let result2 = sign_with_key(message, &sk, &wrong_pk, config);
+                assert!(result2.is_err(), "Should fail with wrong PK length");
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_sign_with_key_hybrid_87_wrong_key_lengths() {
+    std::thread::Builder::new()
+        .name("hybrid87_bad_keys".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let message = b"test";
+            let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+
+            let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+            if scheme.contains("hybrid-ml-dsa-87") {
+                // Wrong SK length
+                let wrong_sk = vec![0u8; 100];
+                let result = sign_with_key(message, &wrong_sk, &pk, config.clone());
+                assert!(result.is_err(), "Should fail with wrong SK length for hybrid-87");
+
+                // Wrong PK length
+                let wrong_pk = vec![0u8; 100];
+                let result2 = sign_with_key(message, &sk, &wrong_pk, config);
+                assert!(result2.is_err(), "Should fail with wrong PK length for hybrid-87");
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+// ============================================================================
+// Phase 4: verify() error paths for hybrid signature validation
+// ============================================================================
+
+#[test]
+fn test_verify_hybrid_44_short_signature() {
+    let signed = SignedData {
+        data: b"test".to_vec(),
+        metadata: SignedMetadata {
+            signature: vec![0u8; 10], // Too short for hybrid-44
+            signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
+            public_key: vec![0u8; 1344], // 1312 + 32
+            key_id: None,
+        },
+        scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
+        timestamp: 0,
+    };
+
+    let result = verify(&signed, CryptoConfig::new());
+    assert!(result.is_err(), "Should fail with too-short hybrid-44 signature");
+}
+
+#[test]
+fn test_verify_hybrid_44_wrong_pk_length() {
+    let signed = SignedData {
+        data: b"test".to_vec(),
+        metadata: SignedMetadata {
+            signature: vec![0u8; 2500], // Long enough
+            signature_algorithm: "hybrid-ml-dsa-44-ed25519".to_string(),
+            public_key: vec![0u8; 100], // Wrong length (should be 1312 + 32 = 1344)
+            key_id: None,
+        },
+        scheme: "hybrid-ml-dsa-44-ed25519".to_string(),
+        timestamp: 0,
+    };
+
+    let result = verify(&signed, CryptoConfig::new());
+    assert!(result.is_err(), "Should fail with wrong PK length for hybrid-44");
+}
+
+#[test]
+fn test_verify_hybrid_87_short_signature() {
+    let signed = SignedData {
+        data: b"test".to_vec(),
+        metadata: SignedMetadata {
+            signature: vec![0u8; 10], // Too short for hybrid-87
+            signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
+            public_key: vec![0u8; 2624], // 2592 + 32
+            key_id: None,
+        },
+        scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
+        timestamp: 0,
+    };
+
+    let result = verify(&signed, CryptoConfig::new());
+    assert!(result.is_err(), "Should fail with too-short hybrid-87 signature");
+}
+
+#[test]
+fn test_verify_hybrid_87_wrong_pk_length() {
+    let signed = SignedData {
+        data: b"test".to_vec(),
+        metadata: SignedMetadata {
+            signature: vec![0u8; 5000], // Long enough
+            signature_algorithm: "hybrid-ml-dsa-87-ed25519".to_string(),
+            public_key: vec![0u8; 100], // Wrong length (should be 2592 + 32 = 2624)
+            key_id: None,
+        },
+        scheme: "hybrid-ml-dsa-87-ed25519".to_string(),
+        timestamp: 0,
+    };
+
+    let result = verify(&signed, CryptoConfig::new());
+    assert!(result.is_err(), "Should fail with wrong PK length for hybrid-87");
+}
+
+#[test]
+fn test_decrypt_with_short_key_unknown_scheme() {
+    let encrypted = EncryptedData {
+        data: vec![1, 2, 3, 4],
+        metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
+        scheme: "unknown-scheme".to_string(),
+        timestamp: 0,
+    };
+    let short_key = vec![0x42u8; 16];
+
+    let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
+    assert!(result.is_err(), "Decrypt with short key on unknown scheme should fail");
+}
+
+#[test]
+fn test_encrypt_empty_data() {
+    std::thread::Builder::new()
+        .name("encrypt_empty".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            let key = vec![0x42u8; 32];
+            let encrypted = encrypt(b"", &key, CryptoConfig::new()).unwrap();
+            // Empty plaintext still produces ciphertext (nonce + auth tag)
+            assert!(!encrypted.data.is_empty());
+
+            let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()).unwrap();
+            assert!(decrypted.is_empty());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_verify_hybrid_65_short_signature() {
+    let signed = SignedData {
+        data: b"test".to_vec(),
+        metadata: SignedMetadata {
+            signature: vec![0u8; 10], // Too short for hybrid-65
+            signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
+            public_key: vec![0u8; 1984], // 1952 + 32
+            key_id: None,
+        },
+        scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
+        timestamp: 0,
+    };
+
+    let result = verify(&signed, CryptoConfig::new());
+    assert!(result.is_err(), "Should fail with too-short hybrid-65 signature");
+}
+
+#[test]
+fn test_verify_hybrid_65_wrong_pk_length() {
+    let signed = SignedData {
+        data: b"test".to_vec(),
+        metadata: SignedMetadata {
+            signature: vec![0u8; 4000], // Long enough
+            signature_algorithm: "hybrid-ml-dsa-65-ed25519".to_string(),
+            public_key: vec![0u8; 100], // Wrong length (should be 1952 + 32 = 1984)
+            key_id: None,
+        },
+        scheme: "hybrid-ml-dsa-65-ed25519".to_string(),
+        timestamp: 0,
+    };
+
+    let result = verify(&signed, CryptoConfig::new());
+    assert!(result.is_err(), "Should fail with wrong PK length for hybrid-65");
+}
+
+// ============================================================================
+// Unified API with VerifiedSession
+// ============================================================================
+
+#[test]
+fn test_unified_encrypt_decrypt_with_verified_session() {
+    std::thread::Builder::new()
+        .name("unified_verified".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let data = b"Verified session encryption test";
+            let key = vec![0x42u8; 32];
+
+            let (auth_pk, auth_sk) = generate_keypair().unwrap();
+            let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+
+            let config = CryptoConfig::new().session(&session);
+            let encrypted = encrypt(data, &key, config.clone()).unwrap();
+            let decrypted = decrypt(&encrypted, &key, config).unwrap();
+            assert_eq!(data.as_slice(), decrypted.as_slice());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_unified_sign_verify_with_verified_session() {
+    std::thread::Builder::new()
+        .name("sign_verified".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let message = b"Verified session signing test";
+
+            let (auth_pk, auth_sk) = generate_keypair().unwrap();
+            let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+
+            let config = CryptoConfig::new().session(&session);
+            let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+            let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
+            let valid = verify(&signed, config).unwrap();
+            assert!(valid, "Signature should verify with verified session");
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_encrypt_decrypt_with_use_case_secure_messaging() {
+    std::thread::Builder::new()
+        .name("secure_msg".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let data = b"Secure messaging test";
+            let key = vec![0x42u8; 32];
+            let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
+
+            let encrypted = encrypt(data, &key, config.clone()).unwrap();
+            let decrypted = decrypt(&encrypted, &key, config).unwrap();
+            assert_eq!(data.as_slice(), decrypted.as_slice());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_encrypt_decrypt_with_use_case_financial() {
+    std::thread::Builder::new()
+        .name("financial".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let data = b"Financial transactions test";
+            let key = vec![0x42u8; 32];
+            let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
+
+            let encrypted = encrypt(data, &key, config.clone()).unwrap();
+            let decrypted = decrypt(&encrypted, &key, config).unwrap();
+            assert_eq!(data.as_slice(), decrypted.as_slice());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

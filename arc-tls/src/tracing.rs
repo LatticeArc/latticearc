@@ -394,6 +394,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -429,5 +430,168 @@ mod tests {
         assert_eq!(metrics.bytes_sent, 100);
         assert_eq!(metrics.bytes_received, 200);
         assert_eq!(metrics.handshake_duration, Duration::from_millis(100));
+    }
+
+    #[test]
+    fn test_tracing_config_debug() {
+        let config = TracingConfig::debug();
+        assert_eq!(config.log_level, Level::DEBUG);
+        assert!(!config.include_sensitive_data);
+        assert!(config.track_performance);
+    }
+
+    #[test]
+    fn test_tracing_config_trace() {
+        let config = TracingConfig::trace();
+        assert_eq!(config.log_level, Level::TRACE);
+        assert!(!config.include_sensitive_data);
+    }
+
+    #[test]
+    fn test_tracing_config_with_sensitive_data() {
+        let config = TracingConfig::default().with_sensitive_data();
+        assert!(config.include_sensitive_data);
+    }
+
+    #[test]
+    fn test_tracing_config_distributed_tracing() {
+        let config = TracingConfig::default();
+        assert!(!config.distributed_tracing);
+    }
+
+    #[test]
+    fn test_tls_span_with_peer() {
+        let addr: SocketAddr = "127.0.0.1:443".parse().unwrap();
+        let span = TlsSpan::new("test_op", Some(addr));
+        assert!(span.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_tls_span_connection() {
+        let span = TlsSpan::connection("example.com:443", Some("example.com"));
+        assert!(span.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_tls_span_connection_no_domain() {
+        let span = TlsSpan::connection("192.168.1.1:443", None);
+        assert!(span.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_tls_span_handshake() {
+        let addr: SocketAddr = "10.0.0.1:8443".parse().unwrap();
+        let span = TlsSpan::handshake(Some(addr), "hybrid");
+        assert!(span.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_tls_span_handshake_no_peer() {
+        let span = TlsSpan::handshake(None, "classic");
+        assert!(span.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_tls_span_key_exchange() {
+        let span = TlsSpan::key_exchange("X25519MLKEM768");
+        assert!(span.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_tls_span_certificate_verification() {
+        let span = TlsSpan::certificate_verification("example.com", "Let's Encrypt");
+        assert!(span.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_tls_span_complete() {
+        let span = TlsSpan::new("completable_op", None);
+        span.complete(); // Should not panic
+    }
+
+    #[test]
+    fn test_tls_span_error() {
+        let span = TlsSpan::new("failing_op", None);
+        let err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "refused");
+        span.error(err); // Should not panic
+    }
+
+    #[test]
+    fn test_tls_span_in_scope() {
+        let span = TlsSpan::new("scoped_op", None);
+        let result = span.in_scope(|| 42);
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn test_tls_span_elapsed() {
+        let span = TlsSpan::new("timed_op", None);
+        std::thread::sleep(Duration::from_millis(5));
+        let elapsed = span.elapsed();
+        assert!(elapsed >= Duration::from_millis(1));
+    }
+
+    #[test]
+    fn test_tls_metrics_record_kex() {
+        let mut metrics = TlsMetrics::new();
+        metrics.record_kex(Duration::from_millis(50));
+        assert_eq!(metrics.kex_duration, Duration::from_millis(50));
+    }
+
+    #[test]
+    fn test_tls_metrics_record_cert() {
+        let mut metrics = TlsMetrics::new();
+        metrics.record_cert(Duration::from_millis(25));
+        assert_eq!(metrics.cert_duration, Duration::from_millis(25));
+    }
+
+    #[test]
+    fn test_tls_metrics_complete() {
+        let mut metrics = TlsMetrics::new();
+        metrics.record_handshake(Duration::from_millis(100));
+        metrics.record_kex(Duration::from_millis(50));
+        metrics.record_cert(Duration::from_millis(25));
+        metrics.complete();
+        assert_eq!(metrics.total_duration, Duration::from_millis(175));
+    }
+
+    #[test]
+    fn test_tls_metrics_log() {
+        let mut metrics = TlsMetrics::new();
+        metrics.record_sent(1024);
+        metrics.record_received(2048);
+        metrics.record_handshake(Duration::from_millis(100));
+        metrics.complete();
+        metrics.log("test_connection"); // Should not panic
+    }
+
+    #[test]
+    fn test_tls_metrics_saturating_add() {
+        let mut metrics = TlsMetrics::new();
+        metrics.record_sent(u64::MAX);
+        metrics.record_sent(1);
+        assert_eq!(metrics.bytes_sent, u64::MAX); // saturating
+
+        metrics.record_received(u64::MAX);
+        metrics.record_received(100);
+        assert_eq!(metrics.bytes_received, u64::MAX); // saturating
+    }
+
+    #[test]
+    fn test_tls_metrics_clone_debug() {
+        let metrics = TlsMetrics::new();
+        let metrics2 = metrics.clone();
+        assert_eq!(metrics.bytes_sent, metrics2.bytes_sent);
+        let debug = format!("{:?}", metrics);
+        assert!(debug.contains("TlsMetrics"));
+    }
+
+    #[test]
+    fn test_tracing_config_clone_debug() {
+        let config = TracingConfig::default();
+        let config2 = config.clone();
+        assert_eq!(config.log_level, config2.log_level);
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("TracingConfig"));
     }
 }

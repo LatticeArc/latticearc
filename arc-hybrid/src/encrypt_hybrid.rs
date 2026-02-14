@@ -681,4 +681,484 @@ mod tests {
         assert_eq!(dec1, plaintext);
         assert_eq!(dec2, plaintext);
     }
+
+    #[test]
+    fn test_error_display_variants() {
+        let kem_err = HybridEncryptionError::KemError("kem fail".to_string());
+        assert!(kem_err.to_string().contains("kem fail"));
+
+        let enc_err = HybridEncryptionError::EncryptionError("enc fail".to_string());
+        assert!(enc_err.to_string().contains("enc fail"));
+
+        let dec_err = HybridEncryptionError::DecryptionError("dec fail".to_string());
+        assert!(dec_err.to_string().contains("dec fail"));
+
+        let kdf_err = HybridEncryptionError::KdfError("kdf fail".to_string());
+        assert!(kdf_err.to_string().contains("kdf fail"));
+
+        let input_err = HybridEncryptionError::InvalidInput("bad input".to_string());
+        assert!(input_err.to_string().contains("bad input"));
+
+        let key_err = HybridEncryptionError::KeyLengthError { expected: 32, actual: 16 };
+        let msg = key_err.to_string();
+        assert!(msg.contains("32"));
+        assert!(msg.contains("16"));
+    }
+
+    #[test]
+    fn test_error_eq_and_clone() {
+        let err1 = HybridEncryptionError::KemError("test".to_string());
+        let err2 = err1.clone();
+        assert_eq!(err1, err2);
+
+        let err3 = HybridEncryptionError::KemError("different".to_string());
+        assert_ne!(err1, err3);
+    }
+
+    #[test]
+    fn test_hybrid_ciphertext_clone_debug() {
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1, 2, 3],
+            ecdh_ephemeral_pk: vec![4, 5],
+            symmetric_ciphertext: vec![6, 7, 8],
+            nonce: vec![9; 12],
+            tag: vec![10; 16],
+        };
+        let ct2 = ct.clone();
+        assert_eq!(ct.kem_ciphertext, ct2.kem_ciphertext);
+        assert_eq!(ct.ecdh_ephemeral_pk, ct2.ecdh_ephemeral_pk);
+
+        let debug_str = format!("{:?}", ct);
+        assert!(debug_str.contains("HybridCiphertext"));
+    }
+
+    #[test]
+    fn test_encryption_context_default() {
+        let ctx = HybridEncryptionContext::default();
+        assert_eq!(ctx.info, b"LatticeArc-Hybrid-Encryption-v1");
+        assert!(ctx.aad.is_empty());
+    }
+
+    #[test]
+    fn test_encryption_context_clone_debug() {
+        let ctx =
+            HybridEncryptionContext { info: b"custom-info".to_vec(), aad: b"custom-aad".to_vec() };
+        let ctx2 = ctx.clone();
+        assert_eq!(ctx.info, ctx2.info);
+        assert_eq!(ctx.aad, ctx2.aad);
+
+        let debug_str = format!("{:?}", ctx);
+        assert!(debug_str.contains("HybridEncryptionContext"));
+    }
+
+    #[test]
+    fn test_derive_key_invalid_lengths() {
+        let ctx = HybridEncryptionContext::default();
+
+        // Too short (31 bytes)
+        assert!(derive_encryption_key(&[0u8; 31], &ctx).is_err());
+
+        // Too long (65 bytes)
+        assert!(derive_encryption_key(&[0u8; 65], &ctx).is_err());
+
+        // 1 byte
+        assert!(derive_encryption_key(&[0u8; 1], &ctx).is_err());
+
+        // Empty
+        assert!(derive_encryption_key(&[], &ctx).is_err());
+
+        // 33 bytes (between valid sizes)
+        assert!(derive_encryption_key(&[0u8; 33], &ctx).is_err());
+    }
+
+    #[test]
+    fn test_derive_key_different_secrets_differ() {
+        let ctx = HybridEncryptionContext::default();
+        let secret_a = [1u8; 32];
+        let secret_b = [2u8; 32];
+
+        let key_a = derive_encryption_key(&secret_a, &ctx).unwrap();
+        let key_b = derive_encryption_key(&secret_b, &ctx).unwrap();
+
+        assert_ne!(key_a, key_b);
+    }
+
+    #[test]
+    fn test_derive_key_64_byte_hybrid_secret() {
+        let ctx = HybridEncryptionContext::default();
+        let secret = [42u8; 64];
+        let key = derive_encryption_key(&secret, &ctx).unwrap();
+        assert_eq!(key.len(), 32);
+
+        // Deterministic
+        let key2 = derive_encryption_key(&secret, &ctx).unwrap();
+        assert_eq!(key, key2);
+    }
+
+    #[test]
+    fn test_decrypt_hybrid_invalid_kem_ct_length() {
+        let mut rng = rand::thread_rng();
+        let (_hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 500], // Wrong: should be 1088
+            ecdh_ephemeral_pk: vec![2u8; 32],
+            symmetric_ciphertext: vec![3u8; 64],
+            nonce: vec![4u8; 12],
+            tag: vec![5u8; 16],
+        };
+        let result = decrypt_hybrid(&hybrid_sk, &ct, None);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn test_decrypt_hybrid_invalid_ecdh_pk_length() {
+        let mut rng = rand::thread_rng();
+        let (_hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![2u8; 16], // Wrong: should be 32
+            symmetric_ciphertext: vec![3u8; 64],
+            nonce: vec![4u8; 12],
+            tag: vec![5u8; 16],
+        };
+        let result = decrypt_hybrid(&hybrid_sk, &ct, None);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn test_decrypt_hybrid_invalid_nonce_length() {
+        let mut rng = rand::thread_rng();
+        let (_hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![2u8; 32],
+            symmetric_ciphertext: vec![3u8; 64],
+            nonce: vec![4u8; 8], // Wrong: should be 12
+            tag: vec![5u8; 16],
+        };
+        let result = decrypt_hybrid(&hybrid_sk, &ct, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_hybrid_invalid_tag_length() {
+        let mut rng = rand::thread_rng();
+        let (_hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![2u8; 32],
+            symmetric_ciphertext: vec![3u8; 64],
+            nonce: vec![4u8; 12],
+            tag: vec![5u8; 10], // Wrong: should be 16
+        };
+        let result = decrypt_hybrid(&hybrid_sk, &ct, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_hybrid_tampered_ciphertext() {
+        let mut rng = rand::thread_rng();
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let plaintext = b"Test message for tampering";
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, None).unwrap();
+
+        // Tamper with symmetric ciphertext
+        let mut tampered = ct.clone();
+        if let Some(byte) = tampered.symmetric_ciphertext.first_mut() {
+            *byte ^= 0xFF;
+        }
+        assert!(decrypt_hybrid(&hybrid_sk, &tampered, None).is_err());
+
+        // Tamper with tag
+        let mut tampered_tag = ct;
+        if let Some(byte) = tampered_tag.tag.first_mut() {
+            *byte ^= 0xFF;
+        }
+        assert!(decrypt_hybrid(&hybrid_sk, &tampered_tag, None).is_err());
+    }
+
+    #[test]
+    fn test_encrypt_hybrid_empty_plaintext() {
+        let mut rng = rand::thread_rng();
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let plaintext = b"";
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, None).unwrap();
+        let decrypted = decrypt_hybrid(&hybrid_sk, &ct, None).unwrap();
+        assert!(decrypted.is_empty());
+    }
+
+    #[test]
+    fn test_encrypt_hybrid_large_plaintext() {
+        let mut rng = rand::thread_rng();
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let plaintext = vec![0xABu8; 10_000];
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, &plaintext, None).unwrap();
+        let decrypted = decrypt_hybrid(&hybrid_sk, &ct, None).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    // --- ML-KEM-only encrypt() tests (encapsulation works, decapsulation blocked) ---
+
+    #[test]
+    fn test_ml_kem_encrypt_succeeds() {
+        let mut rng = rand::thread_rng();
+        let (ml_kem_pk, _ml_kem_sk) =
+            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+
+        let plaintext = b"Encrypt-only test";
+        let ct = encrypt(&mut rng, ml_kem_pk.as_bytes(), plaintext, None);
+        assert!(ct.is_ok(), "ML-KEM-only encrypt should succeed");
+
+        let ct = ct.unwrap();
+        assert_eq!(ct.kem_ciphertext.len(), 1088);
+        assert!(ct.ecdh_ephemeral_pk.is_empty(), "ML-KEM-only path has no ECDH key");
+        assert!(!ct.symmetric_ciphertext.is_empty());
+        assert_eq!(ct.nonce.len(), 12);
+        assert_eq!(ct.tag.len(), 16);
+    }
+
+    #[test]
+    fn test_ml_kem_encrypt_with_custom_context() {
+        let mut rng = rand::thread_rng();
+        let (ml_kem_pk, _) =
+            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+
+        let ctx = HybridEncryptionContext {
+            info: b"Custom-Info-Domain".to_vec(),
+            aad: b"Custom-AAD".to_vec(),
+        };
+        let ct = encrypt(&mut rng, ml_kem_pk.as_bytes(), b"test data", Some(&ctx));
+        assert!(ct.is_ok(), "Should encrypt with custom context");
+    }
+
+    #[test]
+    fn test_ml_kem_encrypt_produces_unique_ciphertexts() {
+        let mut rng = rand::thread_rng();
+        let (ml_kem_pk, _) =
+            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+
+        let plaintext = b"Determinism test";
+        let ct1 = encrypt(&mut rng, ml_kem_pk.as_bytes(), plaintext, None).unwrap();
+        let ct2 = encrypt(&mut rng, ml_kem_pk.as_bytes(), plaintext, None).unwrap();
+
+        // Randomized: different KEM ciphertext and nonce each time
+        assert_ne!(ct1.kem_ciphertext, ct2.kem_ciphertext);
+        assert_ne!(ct1.nonce, ct2.nonce);
+    }
+
+    #[test]
+    fn test_ml_kem_encrypt_empty_plaintext() {
+        let mut rng = rand::thread_rng();
+        let (ml_kem_pk, _) =
+            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+
+        let ct = encrypt(&mut rng, ml_kem_pk.as_bytes(), b"", None);
+        assert!(ct.is_ok(), "Should encrypt empty plaintext");
+        let ct = ct.unwrap();
+        assert!(ct.symmetric_ciphertext.is_empty(), "Empty plaintext → empty ciphertext");
+        assert_eq!(ct.tag.len(), 16, "Tag is always 16 bytes");
+    }
+
+    #[test]
+    fn test_decrypt_invalid_ml_kem_sk_length() {
+        let sk = vec![0u8; 100]; // Wrong length
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![],
+            symmetric_ciphertext: vec![2u8; 64],
+            nonce: vec![3u8; 12],
+            tag: vec![4u8; 16],
+        };
+        let err = decrypt(&sk, &ct, None).unwrap_err();
+        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+        assert!(err.to_string().contains("2400"));
+    }
+
+    #[test]
+    fn test_decrypt_invalid_kem_ciphertext_length() {
+        let sk = vec![0u8; 2400];
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 500], // Wrong
+            ecdh_ephemeral_pk: vec![],
+            symmetric_ciphertext: vec![2u8; 64],
+            nonce: vec![3u8; 12],
+            tag: vec![4u8; 16],
+        };
+        let err = decrypt(&sk, &ct, None).unwrap_err();
+        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+        assert!(err.to_string().contains("1088"));
+    }
+
+    #[test]
+    fn test_decrypt_invalid_nonce_length() {
+        let sk = vec![0u8; 2400];
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![],
+            symmetric_ciphertext: vec![2u8; 64],
+            nonce: vec![3u8; 10], // Wrong
+            tag: vec![4u8; 16],
+        };
+        let err = decrypt(&sk, &ct, None).unwrap_err();
+        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+        assert!(err.to_string().contains("12"));
+    }
+
+    #[test]
+    fn test_decrypt_invalid_tag_length() {
+        let sk = vec![0u8; 2400];
+        let ct = HybridCiphertext {
+            kem_ciphertext: vec![1u8; 1088],
+            ecdh_ephemeral_pk: vec![],
+            symmetric_ciphertext: vec![2u8; 64],
+            nonce: vec![3u8; 12],
+            tag: vec![4u8; 8], // Wrong
+        };
+        let err = decrypt(&sk, &ct, None).unwrap_err();
+        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+        assert!(err.to_string().contains("16"));
+    }
+
+    #[test]
+    fn test_encrypt_hybrid_with_none_context_uses_default() {
+        let mut rng = rand::thread_rng();
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let plaintext = b"Default context test";
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, None).unwrap();
+        let decrypted = decrypt_hybrid(&hybrid_sk, &ct, None).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_decrypt_hybrid_with_none_context_uses_default() {
+        let mut rng = rand::thread_rng();
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let default_ctx = HybridEncryptionContext::default();
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, b"ctx test", Some(&default_ctx)).unwrap();
+        // Decrypt with None context should also use default
+        let decrypted = decrypt_hybrid(&hybrid_sk, &ct, None).unwrap();
+        assert_eq!(decrypted, b"ctx test");
+    }
+
+    #[test]
+    fn test_encrypt_with_none_context_uses_default() {
+        let mut rng = rand::thread_rng();
+        let (ml_kem_pk, _) =
+            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+
+        // encrypt() with None should use default context internally
+        let ct = encrypt(&mut rng, ml_kem_pk.as_bytes(), b"none ctx", None);
+        assert!(ct.is_ok());
+    }
+
+    // ========================================================================
+    // Additional coverage: derive_encryption_key and error paths
+    // ========================================================================
+
+    #[test]
+    fn test_derive_encryption_key_with_64_byte_secret() {
+        let secret = [0xAA; 64]; // Hybrid 64-byte shared secret
+        let ctx = HybridEncryptionContext::default();
+        let key = derive_encryption_key(&secret, &ctx).unwrap();
+        assert_eq!(key.len(), 32);
+    }
+
+    #[test]
+    fn test_derive_encryption_key_invalid_length() {
+        let ctx = HybridEncryptionContext::default();
+        // 16 bytes is neither 32 nor 64
+        let result = derive_encryption_key(&[0u8; 16], &ctx);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("32 bytes"));
+    }
+
+    #[test]
+    fn test_derive_encryption_key_deterministic() {
+        let secret = [0xBB; 32];
+        let ctx = HybridEncryptionContext::default();
+        let k1 = derive_encryption_key(&secret, &ctx).unwrap();
+        let k2 = derive_encryption_key(&secret, &ctx).unwrap();
+        assert_eq!(k1, k2, "Same inputs must produce same key");
+    }
+
+    #[test]
+    fn test_derive_encryption_key_different_contexts_differ() {
+        let secret = [0xCC; 32];
+        let ctx1 = HybridEncryptionContext { info: b"ctx1".to_vec(), aad: vec![] };
+        let ctx2 = HybridEncryptionContext { info: b"ctx2".to_vec(), aad: vec![] };
+        let k1 = derive_encryption_key(&secret, &ctx1).unwrap();
+        let k2 = derive_encryption_key(&secret, &ctx2).unwrap();
+        assert_ne!(k1, k2, "Different contexts must produce different keys");
+    }
+
+    #[test]
+    fn test_derive_encryption_key_with_aad() {
+        let secret = [0xDD; 32];
+        let ctx_no_aad = HybridEncryptionContext::default();
+        let ctx_with_aad = HybridEncryptionContext {
+            info: b"LatticeArc-Hybrid-Encryption-v1".to_vec(),
+            aad: b"extra-data".to_vec(),
+        };
+        let k1 = derive_encryption_key(&secret, &ctx_no_aad).unwrap();
+        let k2 = derive_encryption_key(&secret, &ctx_with_aad).unwrap();
+        assert_ne!(k1, k2, "Different AAD must produce different keys");
+    }
+
+    #[test]
+    fn test_encrypt_hybrid_custom_context() {
+        let mut rng = rand::thread_rng();
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let ctx = HybridEncryptionContext {
+            info: b"custom-app-info".to_vec(),
+            aad: b"custom-aad".to_vec(),
+        };
+
+        let plaintext = b"Custom context encryption";
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, plaintext, Some(&ctx)).unwrap();
+        let decrypted = decrypt_hybrid(&hybrid_sk, &ct, Some(&ctx)).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_decrypt_hybrid_wrong_context_fails() {
+        let mut rng = rand::thread_rng();
+        let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+
+        let ctx1 = HybridEncryptionContext { info: b"context-1".to_vec(), aad: b"aad-1".to_vec() };
+        let ctx2 = HybridEncryptionContext { info: b"context-2".to_vec(), aad: b"aad-2".to_vec() };
+
+        let ct = encrypt_hybrid(&mut rng, &hybrid_pk, b"test", Some(&ctx1)).unwrap();
+        let result = decrypt_hybrid(&hybrid_sk, &ct, Some(&ctx2));
+        assert!(result.is_err(), "Wrong context must fail decryption");
+    }
+
+    #[test]
+    fn test_hybrid_encryption_error_display_all() {
+        let errors = vec![
+            HybridEncryptionError::KemError("kem".into()),
+            HybridEncryptionError::EncryptionError("enc".into()),
+            HybridEncryptionError::DecryptionError("dec".into()),
+            HybridEncryptionError::InvalidInput("inp".into()),
+            HybridEncryptionError::KdfError("kdf".into()),
+            HybridEncryptionError::KeyLengthError { expected: 32, actual: 16 },
+        ];
+        for err in &errors {
+            let msg = format!("{}", err);
+            assert!(!msg.is_empty());
+        }
+    }
 }

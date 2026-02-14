@@ -600,4 +600,89 @@ mod tests {
         let result = sign_ed25519_unverified(message, &invalid_sk);
         assert!(result.is_err(), "Should reject secret key with wrong length");
     }
+
+    // === Additional error branch tests ===
+
+    #[test]
+    fn test_ed25519_empty_key() {
+        let message = b"Test message";
+        let result = sign_ed25519_unverified(message, &[]);
+        assert!(result.is_err(), "Empty secret key should fail");
+    }
+
+    #[test]
+    fn test_ed25519_verify_empty_signature() {
+        let message = b"Test message";
+        let (pk, _sk) = generate_keypair().expect("keygen should succeed");
+
+        let result = verify_ed25519_unverified(message, &[], &pk);
+        assert!(result.is_err(), "Empty signature should fail verification");
+    }
+
+    #[test]
+    fn test_ed25519_verify_empty_public_key() {
+        let message = b"Test message";
+        let (_, sk) = generate_keypair().expect("keygen should succeed");
+        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+
+        let result = verify_ed25519_unverified(message, &signature, &[]);
+        assert!(result.is_err(), "Empty public key should fail");
+    }
+
+    #[test]
+    fn test_ed25519_verify_invalid_public_key_format() {
+        let message = b"Test message";
+        let (_, sk) = generate_keypair().expect("keygen should succeed");
+        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+
+        // 32 bytes but not a valid Ed25519 point
+        let bad_pk = vec![0xFF; 32];
+        let result = verify_ed25519_unverified(message, &signature, &bad_pk);
+        assert!(result.is_err(), "Invalid Ed25519 point should fail");
+    }
+
+    #[test]
+    fn test_ed25519_sign_with_config_validation() {
+        let message = b"Test message";
+        let (_, sk) = generate_keypair().expect("keygen should succeed");
+        let config = CoreConfig::default();
+
+        let result =
+            sign_ed25519_with_config(message, sk.as_ref(), &config, SecurityMode::Unverified);
+        assert!(result.is_ok(), "Signing with valid config should succeed");
+    }
+
+    #[test]
+    fn test_ed25519_verify_with_config_validation() {
+        let message = b"Test message";
+        let (pk, sk) = generate_keypair().expect("keygen should succeed");
+        let config = CoreConfig::default();
+
+        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+        let result =
+            verify_ed25519_with_config(message, &signature, &pk, &config, SecurityMode::Unverified);
+        assert!(result.is_ok());
+    }
+
+    // Unverified variant tests for coverage
+    #[test]
+    fn test_ed25519_sign_with_config_unverified() {
+        let message = b"Test message";
+        let (_, sk) = generate_keypair().expect("keygen should succeed");
+        let config = CoreConfig::default();
+
+        let result = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ed25519_verify_with_config_unverified() {
+        let message = b"Test message";
+        let (pk, sk) = generate_keypair().expect("keygen should succeed");
+        let config = CoreConfig::default();
+
+        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+        let result = verify_ed25519_with_config_unverified(message, &signature, &pk, &config);
+        assert!(result.is_ok());
+    }
 }

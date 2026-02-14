@@ -468,3 +468,301 @@ impl<'a> CryptoConfig<'a> {
         if let Some(session) = self.session { session.verify_valid() } else { Ok(()) }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    // --- ZeroizedBytes tests ---
+
+    #[test]
+    fn test_zeroized_bytes_new() {
+        let data = vec![1u8, 2, 3, 4, 5];
+        let zb = ZeroizedBytes::new(data.clone());
+        assert_eq!(zb.as_slice(), &data);
+    }
+
+    #[test]
+    fn test_zeroized_bytes_len() {
+        let zb = ZeroizedBytes::new(vec![0u8; 32]);
+        assert_eq!(zb.len(), 32);
+        assert!(!zb.is_empty());
+    }
+
+    #[test]
+    fn test_zeroized_bytes_empty() {
+        let zb = ZeroizedBytes::new(vec![]);
+        assert_eq!(zb.len(), 0);
+        assert!(zb.is_empty());
+    }
+
+    #[test]
+    fn test_zeroized_bytes_as_ref() {
+        let data = vec![10u8, 20, 30];
+        let zb = ZeroizedBytes::new(data.clone());
+        let slice: &[u8] = zb.as_ref();
+        assert_eq!(slice, &data);
+    }
+
+    #[test]
+    fn test_zeroized_bytes_debug() {
+        let zb = ZeroizedBytes::new(vec![1, 2, 3]);
+        let debug = format!("{:?}", zb);
+        assert!(debug.contains("ZeroizedBytes"));
+    }
+
+    // --- EncryptedMetadata tests ---
+
+    #[test]
+    fn test_encrypted_metadata_with_tag() {
+        let meta = EncryptedMetadata {
+            nonce: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            tag: Some(vec![0xAA; 16]),
+            key_id: Some("key-001".to_string()),
+        };
+        assert_eq!(meta.nonce.len(), 12);
+        assert!(meta.tag.is_some());
+        assert_eq!(meta.key_id.as_deref(), Some("key-001"));
+    }
+
+    #[test]
+    fn test_encrypted_metadata_without_tag() {
+        let meta = EncryptedMetadata { nonce: vec![0u8; 12], tag: None, key_id: None };
+        assert!(meta.tag.is_none());
+        assert!(meta.key_id.is_none());
+    }
+
+    #[test]
+    fn test_encrypted_metadata_eq() {
+        let meta1 = EncryptedMetadata { nonce: vec![1, 2, 3], tag: None, key_id: None };
+        let meta2 = meta1.clone();
+        assert_eq!(meta1, meta2);
+    }
+
+    // --- SignedMetadata tests ---
+
+    #[test]
+    fn test_signed_metadata_clone_debug() {
+        let meta = SignedMetadata {
+            signature: vec![0xBB; 64],
+            signature_algorithm: "ML-DSA-65".to_string(),
+            public_key: vec![0xCC; 32],
+            key_id: Some("sig-key-001".to_string()),
+        };
+        let cloned = meta.clone();
+        assert_eq!(cloned.signature_algorithm, "ML-DSA-65");
+        assert_eq!(cloned.public_key.len(), 32);
+
+        let debug = format!("{:?}", meta);
+        assert!(debug.contains("SignedMetadata"));
+    }
+
+    // --- CryptoPayload tests ---
+
+    #[test]
+    fn test_crypto_payload_clone_eq() {
+        let payload: CryptoPayload<EncryptedMetadata> = CryptoPayload {
+            data: vec![1, 2, 3],
+            metadata: EncryptedMetadata { nonce: vec![0u8; 12], tag: None, key_id: None },
+            scheme: "AES-256-GCM".to_string(),
+            timestamp: 1234567890,
+        };
+        let cloned = payload.clone();
+        assert_eq!(payload, cloned);
+        assert_eq!(payload.scheme, "AES-256-GCM");
+        assert_eq!(payload.timestamp, 1234567890);
+    }
+
+    // --- KeyPair tests ---
+
+    #[test]
+    fn test_keypair_new() {
+        let pk = vec![1u8; 32];
+        let sk = ZeroizedBytes::new(vec![2u8; 64]);
+        let kp = KeyPair::new(pk.clone(), sk);
+        assert_eq!(kp.public_key(), &pk);
+        assert_eq!(kp.private_key().len(), 64);
+    }
+
+    #[test]
+    fn test_keypair_debug() {
+        let kp = KeyPair::new(vec![1u8; 32], ZeroizedBytes::new(vec![2u8; 32]));
+        let debug = format!("{:?}", kp);
+        assert!(debug.contains("KeyPair"));
+    }
+
+    // --- SecurityLevel tests ---
+
+    #[test]
+    fn test_security_level_default() {
+        assert_eq!(SecurityLevel::default(), SecurityLevel::High);
+    }
+
+    #[test]
+    fn test_security_level_variants() {
+        let variants = vec![
+            SecurityLevel::Standard,
+            SecurityLevel::High,
+            SecurityLevel::Maximum,
+            SecurityLevel::Quantum,
+        ];
+        for v in &variants {
+            assert_eq!(*v, v.clone());
+        }
+        assert_ne!(SecurityLevel::Standard, SecurityLevel::Maximum);
+    }
+
+    #[test]
+    fn test_security_level_debug() {
+        let debug = format!("{:?}", SecurityLevel::Quantum);
+        assert!(debug.contains("Quantum"));
+    }
+
+    // --- PerformancePreference tests ---
+
+    #[test]
+    fn test_performance_preference_default() {
+        assert_eq!(PerformancePreference::default(), PerformancePreference::Balanced);
+    }
+
+    #[test]
+    fn test_performance_preference_variants() {
+        assert_ne!(PerformancePreference::Speed, PerformancePreference::Memory);
+        assert_eq!(PerformancePreference::Speed, PerformancePreference::Speed.clone());
+    }
+
+    // --- UseCase tests ---
+
+    #[test]
+    fn test_use_case_variants() {
+        let cases = vec![
+            UseCase::SecureMessaging,
+            UseCase::EmailEncryption,
+            UseCase::VpnTunnel,
+            UseCase::ApiSecurity,
+            UseCase::FileStorage,
+            UseCase::DatabaseEncryption,
+            UseCase::CloudStorage,
+            UseCase::BackupArchive,
+            UseCase::ConfigSecrets,
+            UseCase::Authentication,
+            UseCase::SessionToken,
+            UseCase::DigitalCertificate,
+            UseCase::KeyExchange,
+            UseCase::FinancialTransactions,
+            UseCase::LegalDocuments,
+            UseCase::BlockchainTransaction,
+            UseCase::HealthcareRecords,
+            UseCase::GovernmentClassified,
+            UseCase::PaymentCard,
+            UseCase::IoTDevice,
+            UseCase::FirmwareSigning,
+            UseCase::SearchableEncryption,
+            UseCase::HomomorphicComputation,
+            UseCase::AuditLog,
+        ];
+        for c in &cases {
+            assert_eq!(*c, c.clone());
+        }
+        assert_ne!(UseCase::SecureMessaging, UseCase::FileStorage);
+    }
+
+    // --- CryptoScheme tests ---
+
+    #[test]
+    fn test_crypto_scheme_variants() {
+        let schemes = vec![
+            CryptoScheme::Hybrid,
+            CryptoScheme::Symmetric,
+            CryptoScheme::Asymmetric,
+            CryptoScheme::Homomorphic,
+            CryptoScheme::PostQuantum,
+        ];
+        for s in &schemes {
+            assert_eq!(*s, s.clone());
+        }
+        assert_ne!(CryptoScheme::Hybrid, CryptoScheme::Symmetric);
+    }
+
+    // --- CryptoContext tests ---
+
+    #[test]
+    fn test_crypto_context_default() {
+        let ctx = CryptoContext::default();
+        assert_eq!(ctx.security_level, SecurityLevel::High);
+        assert_eq!(ctx.performance_preference, PerformancePreference::Balanced);
+        assert!(ctx.use_case.is_none());
+        assert!(ctx.hardware_acceleration);
+    }
+
+    #[test]
+    fn test_crypto_context_clone_debug() {
+        let ctx = CryptoContext::default();
+        let cloned = ctx.clone();
+        assert_eq!(cloned.security_level, ctx.security_level);
+        let debug = format!("{:?}", ctx);
+        assert!(debug.contains("CryptoContext"));
+    }
+
+    // --- AlgorithmSelection tests ---
+
+    #[test]
+    fn test_algorithm_selection_default() {
+        let sel = AlgorithmSelection::default();
+        assert_eq!(sel, AlgorithmSelection::SecurityLevel(SecurityLevel::High));
+    }
+
+    #[test]
+    fn test_algorithm_selection_use_case() {
+        let sel = AlgorithmSelection::UseCase(UseCase::FileStorage);
+        assert_eq!(sel, AlgorithmSelection::UseCase(UseCase::FileStorage));
+        assert_ne!(sel, AlgorithmSelection::default());
+    }
+
+    // --- CryptoConfig tests ---
+
+    #[test]
+    fn test_crypto_config_new() {
+        let config = CryptoConfig::new();
+        assert!(!config.is_verified());
+        assert!(config.get_session().is_none());
+        assert_eq!(*config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::High));
+    }
+
+    #[test]
+    fn test_crypto_config_default() {
+        let config = CryptoConfig::default();
+        assert!(!config.is_verified());
+    }
+
+    #[test]
+    fn test_crypto_config_use_case() {
+        let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
+        assert_eq!(*config.get_selection(), AlgorithmSelection::UseCase(UseCase::SecureMessaging));
+    }
+
+    #[test]
+    fn test_crypto_config_security_level() {
+        let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+        assert_eq!(
+            *config.get_selection(),
+            AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum)
+        );
+    }
+
+    #[test]
+    fn test_crypto_config_validate_no_session() {
+        let config = CryptoConfig::new();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_crypto_config_clone_debug() {
+        let config = CryptoConfig::new().use_case(UseCase::Authentication);
+        let cloned = config.clone();
+        assert_eq!(cloned.get_selection(), config.get_selection());
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("CryptoConfig"));
+    }
+}

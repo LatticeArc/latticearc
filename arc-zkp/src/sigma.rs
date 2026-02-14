@@ -402,4 +402,363 @@ mod tests {
         let proof = DlogEqualityProof::prove(&statement, &x, b"context1").unwrap();
         assert!(!proof.verify(&statement, b"context2").unwrap());
     }
+
+    #[test]
+    fn test_dlog_equality_wrong_secret() {
+        // Prove with one secret, verify with a statement that uses a different discrete log
+        let x_key = SecretKey::random(&mut rand::thread_rng());
+        let x: [u8; 32] = x_key.to_bytes().into();
+        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+
+        let y_key = SecretKey::random(&mut rand::thread_rng());
+        let y: [u8; 32] = y_key.to_bytes().into();
+        let y_scalar = Scalar::from_repr(*FieldBytes::from_slice(&y)).unwrap();
+
+        let g = ProjectivePoint::GENERATOR;
+        let h = g * Scalar::from(3u64);
+
+        // Statement uses x for G but y for H (different discrete logs)
+        let p = g * x_scalar; // P = x*G
+        let q = h * y_scalar; // Q = y*H (should be x*H for valid proof)
+
+        let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g.to_affine().to_bytes().as_slice()).unwrap();
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h.to_affine().to_bytes().as_slice()).unwrap();
+        let p_bytes: [u8; 33] = <[u8; 33]>::try_from(p.to_affine().to_bytes().as_slice()).unwrap();
+        let q_bytes: [u8; 33] = <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).unwrap();
+
+        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+
+        // Proving with x: P = x*G is fine but Q != x*H
+        let proof = DlogEqualityProof::prove(&statement, &x, b"test").unwrap();
+        // Verification should fail since the discrete logs are not equal
+        assert!(!proof.verify(&statement, b"test").unwrap());
+    }
+
+    #[test]
+    fn test_dlog_equality_tampered_challenge() {
+        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let x: [u8; 32] = secret_key.to_bytes().into();
+        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+
+        let g = ProjectivePoint::GENERATOR;
+        let h = g * Scalar::from(2u64);
+        let p = g * x_scalar;
+        let q = h * x_scalar;
+
+        let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g.to_affine().to_bytes().as_slice()).unwrap();
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h.to_affine().to_bytes().as_slice()).unwrap();
+        let p_bytes: [u8; 33] = <[u8; 33]>::try_from(p.to_affine().to_bytes().as_slice()).unwrap();
+        let q_bytes: [u8; 33] = <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).unwrap();
+
+        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+
+        let mut proof = DlogEqualityProof::prove(&statement, &x, b"test").unwrap();
+        // Tamper with challenge
+        proof.challenge[0] ^= 0xFF;
+        assert!(!proof.verify(&statement, b"test").unwrap());
+    }
+
+    #[test]
+    fn test_dlog_equality_tampered_response() {
+        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let x: [u8; 32] = secret_key.to_bytes().into();
+        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+
+        let g = ProjectivePoint::GENERATOR;
+        let h = g * Scalar::from(2u64);
+        let p = g * x_scalar;
+        let q = h * x_scalar;
+
+        let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g.to_affine().to_bytes().as_slice()).unwrap();
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h.to_affine().to_bytes().as_slice()).unwrap();
+        let p_bytes: [u8; 33] = <[u8; 33]>::try_from(p.to_affine().to_bytes().as_slice()).unwrap();
+        let q_bytes: [u8; 33] = <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).unwrap();
+
+        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+
+        let mut proof = DlogEqualityProof::prove(&statement, &x, b"test").unwrap();
+        // Tamper with response
+        proof.response[0] ^= 0xFF;
+        // Should fail verification (either false or error for invalid scalar)
+        let result = proof.verify(&statement, b"test");
+        if let Ok(valid) = result {
+            assert!(!valid);
+        }
+        // Err case: invalid scalar is also acceptable
+    }
+
+    #[test]
+    fn test_dlog_equality_invalid_point() {
+        // Use invalid SEC1 prefix byte (must be 0x02 or 0x03 for compressed)
+        let mut invalid_point: [u8; 33] = [0x05; 33]; // Invalid prefix
+        invalid_point[0] = 0x05;
+        let valid_g: [u8; 33] =
+            <[u8; 33]>::try_from(ProjectivePoint::GENERATOR.to_affine().to_bytes().as_slice())
+                .unwrap();
+
+        let statement =
+            DlogEqualityStatement { g: invalid_point, h: valid_g, p: valid_g, q: valid_g };
+
+        let secret = [1u8; 32];
+        let result = DlogEqualityProof::prove(&statement, &secret, b"test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_dlog_equality_proof_fields() {
+        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let x: [u8; 32] = secret_key.to_bytes().into();
+        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+
+        let g = ProjectivePoint::GENERATOR;
+        let h = g * Scalar::from(2u64);
+        let p = g * x_scalar;
+        let q = h * x_scalar;
+
+        let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g.to_affine().to_bytes().as_slice()).unwrap();
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h.to_affine().to_bytes().as_slice()).unwrap();
+        let p_bytes: [u8; 33] = <[u8; 33]>::try_from(p.to_affine().to_bytes().as_slice()).unwrap();
+        let q_bytes: [u8; 33] = <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).unwrap();
+
+        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+
+        let proof = DlogEqualityProof::prove(&statement, &x, b"test").unwrap();
+
+        // Proof fields should be populated
+        assert_eq!(proof.a.len(), 33);
+        assert_eq!(proof.b.len(), 33);
+        assert_eq!(proof.challenge.len(), 32);
+        assert_eq!(proof.response.len(), 32);
+
+        // Clone and debug
+        let proof2 = proof.clone();
+        assert_eq!(proof.challenge, proof2.challenge);
+        let debug = format!("{:?}", proof);
+        assert!(debug.contains("DlogEqualityProof"));
+    }
+
+    #[test]
+    fn test_dlog_equality_statement_clone_debug() {
+        let g: [u8; 33] =
+            <[u8; 33]>::try_from(ProjectivePoint::GENERATOR.to_affine().to_bytes().as_slice())
+                .unwrap();
+
+        let statement = DlogEqualityStatement { g, h: g, p: g, q: g };
+        let stmt2 = statement.clone();
+        assert_eq!(statement.g, stmt2.g);
+
+        let debug = format!("{:?}", statement);
+        assert!(debug.contains("DlogEqualityStatement"));
+    }
+
+    #[test]
+    fn test_sigma_proof_fields() {
+        let proof =
+            SigmaProof { commitment: vec![1, 2, 3], challenge: [0u8; 32], response: vec![4, 5, 6] };
+        let proof2 = proof.clone();
+        assert_eq!(proof.commitment, proof2.commitment);
+        assert_eq!(proof.challenge, proof2.challenge);
+        assert_eq!(proof.response, proof2.response);
+
+        let debug = format!("{:?}", proof);
+        assert!(debug.contains("SigmaProof"));
+    }
+
+    #[test]
+    fn test_dlog_equality_different_generators() {
+        // Use a different multiplier for H
+        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let x: [u8; 32] = secret_key.to_bytes().into();
+        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+
+        let g = ProjectivePoint::GENERATOR;
+        let h = g * Scalar::from(7u64); // H = 7*G
+
+        let p = g * x_scalar;
+        let q = h * x_scalar;
+
+        let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g.to_affine().to_bytes().as_slice()).unwrap();
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h.to_affine().to_bytes().as_slice()).unwrap();
+        let p_bytes: [u8; 33] = <[u8; 33]>::try_from(p.to_affine().to_bytes().as_slice()).unwrap();
+        let q_bytes: [u8; 33] = <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).unwrap();
+
+        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+
+        let proof = DlogEqualityProof::prove(&statement, &x, b"ctx").unwrap();
+        assert!(proof.verify(&statement, b"ctx").unwrap());
+    }
+
+    // ========================================================================
+    // FiatShamir wrapper tests
+    // ========================================================================
+
+    /// Minimal sigma protocol mock for testing FiatShamir wrapper
+    struct MockSigmaProtocol;
+
+    impl SigmaProtocol for MockSigmaProtocol {
+        type Statement = Vec<u8>;
+        type Witness = Vec<u8>;
+        type Commitment = Vec<u8>;
+        type Response = Vec<u8>;
+
+        fn commit(
+            &self,
+            _statement: &Self::Statement,
+            witness: &Self::Witness,
+        ) -> Result<(Self::Commitment, Vec<u8>)> {
+            // Deterministic commitment: hash of witness
+            let mut hasher = Sha256::new();
+            hasher.update(b"mock-commit");
+            hasher.update(witness);
+            let commitment = hasher.finalize().to_vec();
+            // State = copy of witness for respond()
+            Ok((commitment, witness.clone()))
+        }
+
+        fn respond(
+            &self,
+            _witness: &Self::Witness,
+            commitment_state: Vec<u8>,
+            challenge: &[u8; 32],
+        ) -> Result<Self::Response> {
+            // Response: hash(commitment_state || challenge)
+            let mut hasher = Sha256::new();
+            hasher.update(b"mock-response");
+            hasher.update(&commitment_state);
+            hasher.update(challenge);
+            Ok(hasher.finalize().to_vec())
+        }
+
+        fn verify(
+            &self,
+            _statement: &Self::Statement,
+            commitment: &Self::Commitment,
+            challenge: &[u8; 32],
+            response: &Self::Response,
+        ) -> Result<bool> {
+            // For mock: verify that response matches expected hash
+            // We can't reconstruct witness, so just check lengths are valid
+            Ok(commitment.len() == 32 && challenge.len() == 32 && response.len() == 32)
+        }
+
+        fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
+            commitment.clone()
+        }
+
+        fn deserialize_commitment(&self, bytes: &[u8]) -> Result<Self::Commitment> {
+            Ok(bytes.to_vec())
+        }
+
+        fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
+            response.clone()
+        }
+
+        fn deserialize_response(&self, bytes: &[u8]) -> Result<Self::Response> {
+            Ok(bytes.to_vec())
+        }
+
+        fn serialize_statement(&self, statement: &Self::Statement) -> Vec<u8> {
+            statement.clone()
+        }
+    }
+
+    #[test]
+    fn test_fiat_shamir_prove_verify_roundtrip() {
+        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain");
+        let statement = vec![1u8; 32];
+        let witness = vec![42u8; 16];
+
+        let proof = fs.prove(&statement, &witness, b"context").unwrap();
+
+        // Proof fields should be populated
+        assert_eq!(proof.commitment.len(), 32);
+        assert_eq!(proof.challenge.len(), 32);
+        assert_eq!(proof.response.len(), 32);
+
+        // Verification should succeed
+        assert!(fs.verify(&statement, &proof, b"context").unwrap());
+    }
+
+    #[test]
+    fn test_fiat_shamir_wrong_context_fails() {
+        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain");
+        let statement = vec![1u8; 32];
+        let witness = vec![42u8; 16];
+
+        let proof = fs.prove(&statement, &witness, b"context-a").unwrap();
+
+        // Different context → different challenge → verification fails
+        assert!(!fs.verify(&statement, &proof, b"context-b").unwrap());
+    }
+
+    #[test]
+    fn test_fiat_shamir_tampered_challenge_fails() {
+        let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain");
+        let statement = vec![1u8; 32];
+        let witness = vec![42u8; 16];
+
+        let mut proof = fs.prove(&statement, &witness, b"ctx").unwrap();
+        proof.challenge[0] ^= 0xFF; // Tamper with challenge
+
+        // Recomputed challenge won't match tampered one
+        assert!(!fs.verify(&statement, &proof, b"ctx").unwrap());
+    }
+
+    #[test]
+    fn test_fiat_shamir_different_domain_separators() {
+        let fs1 = FiatShamir::new(MockSigmaProtocol, b"domain-1");
+        let fs2 = FiatShamir::new(MockSigmaProtocol, b"domain-2");
+        let statement = vec![1u8; 32];
+        let witness = vec![42u8; 16];
+
+        let proof = fs1.prove(&statement, &witness, b"ctx").unwrap();
+
+        // Proof from domain-1 should not verify under domain-2
+        assert!(!fs2.verify(&statement, &proof, b"ctx").unwrap());
+    }
+
+    #[test]
+    fn test_fiat_shamir_different_statements() {
+        let fs = FiatShamir::new(MockSigmaProtocol, b"domain");
+        let statement1 = vec![1u8; 32];
+        let statement2 = vec![2u8; 32];
+        let witness = vec![42u8; 16];
+
+        let proof = fs.prove(&statement1, &witness, b"ctx").unwrap();
+
+        // Proof for statement1 should not verify under statement2
+        assert!(!fs.verify(&statement2, &proof, b"ctx").unwrap());
+    }
+
+    #[test]
+    fn test_fiat_shamir_empty_domain_and_context() {
+        let fs = FiatShamir::new(MockSigmaProtocol, b"");
+        let statement = vec![0u8; 32];
+        let witness = vec![0u8; 8];
+
+        let proof = fs.prove(&statement, &witness, b"").unwrap();
+        assert!(fs.verify(&statement, &proof, b"").unwrap());
+    }
+
+    #[test]
+    fn test_dlog_equality_empty_context() {
+        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let x: [u8; 32] = secret_key.to_bytes().into();
+        let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
+
+        let g = ProjectivePoint::GENERATOR;
+        let h = g * Scalar::from(2u64);
+        let p = g * x_scalar;
+        let q = h * x_scalar;
+
+        let g_bytes: [u8; 33] = <[u8; 33]>::try_from(g.to_affine().to_bytes().as_slice()).unwrap();
+        let h_bytes: [u8; 33] = <[u8; 33]>::try_from(h.to_affine().to_bytes().as_slice()).unwrap();
+        let p_bytes: [u8; 33] = <[u8; 33]>::try_from(p.to_affine().to_bytes().as_slice()).unwrap();
+        let q_bytes: [u8; 33] = <[u8; 33]>::try_from(q.to_affine().to_bytes().as_slice()).unwrap();
+
+        let statement = DlogEqualityStatement { g: g_bytes, h: h_bytes, p: p_bytes, q: q_bytes };
+
+        let proof = DlogEqualityProof::prove(&statement, &x, b"").unwrap();
+        assert!(proof.verify(&statement, b"").unwrap());
+    }
 }

@@ -236,3 +236,209 @@ impl Default for ErrorContext {
         Self::new()
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_context_new_defaults() {
+        let ctx = ErrorContext::new();
+        assert!(ctx.user_message.is_empty());
+        assert!(ctx.technical_details.is_empty());
+        assert!(ctx.component.is_empty());
+        assert!(ctx.parameters.is_empty());
+        assert!(ctx.system_state.is_empty());
+    }
+
+    #[test]
+    fn test_error_context_default_matches_new() {
+        let ctx = ErrorContext::default();
+        assert!(ctx.user_message.is_empty());
+        assert!(ctx.component.is_empty());
+    }
+
+    #[test]
+    fn test_error_context_builder_pattern() {
+        let ctx = ErrorContext::new()
+            .with_user_message("Something failed".to_string())
+            .with_component("encryption".to_string())
+            .add_technical_detail("algorithm".to_string(), "AES-256".to_string())
+            .add_parameter("key_size".to_string(), "256".to_string())
+            .add_system_state("memory".to_string(), "ok".to_string());
+
+        assert_eq!(ctx.user_message, "Something failed");
+        assert_eq!(ctx.component, "encryption");
+        assert_eq!(ctx.technical_details.get("algorithm").unwrap(), "AES-256");
+        assert_eq!(ctx.parameters.get("key_size").unwrap(), "256");
+        assert_eq!(ctx.system_state.get("memory").unwrap(), "ok");
+    }
+
+    #[test]
+    fn test_enhanced_error_new() {
+        let error = LatticeArcError::InvalidInput("bad input".to_string());
+        let enhanced = EnhancedError::new(error, "encrypt".to_string());
+
+        assert_eq!(enhanced.operation, "encrypt");
+        assert!(enhanced.error_id.starts_with("ERR-"));
+        assert_eq!(enhanced.severity, ErrorSeverity::Medium);
+        assert!(enhanced.recovery_suggestions.is_empty());
+        // stack_trace depends on std-backtrace feature flag
+        #[cfg(feature = "std-backtrace")]
+        assert!(enhanced.stack_trace.is_some());
+        #[cfg(not(feature = "std-backtrace"))]
+        assert!(enhanced.stack_trace.is_none());
+    }
+
+    #[test]
+    fn test_enhanced_error_with_context() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let ctx = ErrorContext::new().with_component("test-comp".to_string());
+        let enhanced = EnhancedError::new(error, "op".to_string()).with_context(ctx);
+
+        assert_eq!(enhanced.context.component, "test-comp");
+    }
+
+    #[test]
+    fn test_enhanced_error_with_severity() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let enhanced =
+            EnhancedError::new(error, "op".to_string()).with_severity(ErrorSeverity::Critical);
+
+        assert_eq!(enhanced.severity, ErrorSeverity::Critical);
+    }
+
+    #[test]
+    fn test_enhanced_error_with_recovery_suggestions() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let suggestions = vec![RecoverySuggestion {
+            strategy: RecoveryStrategy::Retry,
+            description: "Retry the operation".to_string(),
+            priority: 10,
+            effort_estimate: EffortLevel::Low,
+            success_probability: 0.8,
+            steps: vec!["Wait and retry".to_string()],
+        }];
+
+        let enhanced =
+            EnhancedError::new(error, "op".to_string()).with_recovery_suggestions(suggestions);
+
+        assert_eq!(enhanced.recovery_suggestions.len(), 1);
+        assert!(enhanced.is_recoverable());
+    }
+
+    #[test]
+    fn test_enhanced_error_not_recoverable_when_no_suggestions() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let enhanced = EnhancedError::new(error, "op".to_string());
+        assert!(!enhanced.is_recoverable());
+    }
+
+    #[test]
+    fn test_enhanced_error_user_message_default() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let enhanced = EnhancedError::new(error, "op".to_string());
+        assert_eq!(enhanced.user_message(), "An error occurred");
+    }
+
+    #[test]
+    fn test_enhanced_error_user_message_custom() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let ctx = ErrorContext::new().with_user_message("Custom message".to_string());
+        let enhanced = EnhancedError::new(error, "op".to_string()).with_context(ctx);
+        assert_eq!(enhanced.user_message(), "Custom message");
+    }
+
+    #[test]
+    fn test_error_severity_ordering() {
+        assert!(ErrorSeverity::Low < ErrorSeverity::Medium);
+        assert!(ErrorSeverity::Medium < ErrorSeverity::High);
+        assert!(ErrorSeverity::High < ErrorSeverity::Critical);
+    }
+
+    #[test]
+    fn test_error_severity_eq() {
+        assert_eq!(ErrorSeverity::Low, ErrorSeverity::Low);
+        assert_ne!(ErrorSeverity::Low, ErrorSeverity::High);
+    }
+
+    #[test]
+    fn test_recovery_strategy_variants() {
+        let strategies = vec![
+            RecoveryStrategy::Retry,
+            RecoveryStrategy::Fallback,
+            RecoveryStrategy::CircuitBreaker,
+            RecoveryStrategy::GracefulDegradation,
+            RecoveryStrategy::ManualIntervention,
+        ];
+        for s in &strategies {
+            assert_eq!(*s, *s);
+        }
+        assert_ne!(RecoveryStrategy::Retry, RecoveryStrategy::Fallback);
+    }
+
+    #[test]
+    fn test_effort_level_variants() {
+        let levels =
+            vec![EffortLevel::Low, EffortLevel::Medium, EffortLevel::High, EffortLevel::VeryHigh];
+        for l in &levels {
+            assert_eq!(*l, *l);
+        }
+        assert_ne!(EffortLevel::Low, EffortLevel::High);
+    }
+
+    #[test]
+    fn test_enhanced_error_clone_and_debug() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let enhanced = EnhancedError::new(error, "op".to_string());
+        let cloned = enhanced.clone();
+
+        assert_eq!(cloned.operation, enhanced.operation);
+        assert_eq!(cloned.error_id, enhanced.error_id);
+
+        let debug = format!("{:?}", enhanced);
+        assert!(debug.contains("EnhancedError"));
+    }
+
+    #[test]
+    fn test_recovery_suggestion_clone_and_debug() {
+        let suggestion = RecoverySuggestion {
+            strategy: RecoveryStrategy::Retry,
+            description: "Retry".to_string(),
+            priority: 5,
+            effort_estimate: EffortLevel::Low,
+            success_probability: 0.9,
+            steps: vec!["Step 1".to_string()],
+        };
+        let cloned = suggestion.clone();
+        assert_eq!(cloned.priority, 5);
+        assert_eq!(cloned.strategy, RecoveryStrategy::Retry);
+
+        let debug = format!("{:?}", suggestion);
+        assert!(debug.contains("Retry"));
+    }
+
+    #[test]
+    fn test_error_context_clone_and_debug() {
+        let ctx = ErrorContext::new().with_component("test".to_string());
+        let cloned = ctx.clone();
+        assert_eq!(cloned.component, "test");
+
+        let debug = format!("{:?}", ctx);
+        assert!(debug.contains("ErrorContext"));
+    }
+
+    #[test]
+    fn test_enhanced_error_serialization() {
+        let error = LatticeArcError::InvalidInput("test".to_string());
+        let enhanced = EnhancedError::new(error, "op".to_string());
+
+        let json = serde_json::to_string(&enhanced).unwrap();
+        assert!(json.contains("InvalidInput"));
+        assert!(json.contains("op"));
+
+        let deserialized: EnhancedError = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.operation, "op");
+    }
+}

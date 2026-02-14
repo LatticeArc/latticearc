@@ -614,4 +614,98 @@ mod tests {
         assert!(is_valid);
         Ok(())
     }
+
+    // === Ed25519 validation tests ===
+
+    #[test]
+    fn test_validate_ed25519_keypair_success() -> Result<()> {
+        // A normal keypair should pass validation
+        let signing_key = SigningKey::generate(&mut rand::rngs::OsRng);
+        let verifying_key = signing_key.verifying_key();
+        assert!(validate_ed25519_keypair(&signing_key, &verifying_key).is_ok());
+        Ok(())
+    }
+
+    // Note: Ed25519 SigningKey/VerifyingKey are always 32 bytes, so
+    // the length checks (lines 63, 80) can't be triggered directly.
+    // The identity check (all zeros) and keypair consistency check are the
+    // meaningful error branches.
+
+    #[test]
+    fn test_generate_keypair_produces_valid_ed25519() -> Result<()> {
+        // Verify our keygen goes through the full validation path
+        let (pk, sk) = generate_keypair()?;
+        assert_eq!(pk.len(), 32, "Ed25519 public key should be 32 bytes");
+        assert_eq!(sk.as_ref().len(), 32, "Ed25519 secret key should be 32 bytes");
+
+        // Verify keys are not zero (validation check)
+        assert!(!pk.iter().all(|&b| b == 0), "Public key should not be all zeros");
+        assert!(!sk.as_ref().iter().all(|&b| b == 0), "Secret key should not be all zeros");
+        Ok(())
+    }
+
+    #[test]
+    fn test_generate_keypair_with_config_validates() -> Result<()> {
+        let config = CoreConfig::default();
+        let (pk, sk) = generate_keypair_with_config(&config)?;
+        assert_eq!(pk.len(), 32);
+        assert_eq!(sk.as_ref().len(), 32);
+        Ok(())
+    }
+
+    // === ML-KEM keygen with all security levels ===
+
+    #[test]
+    fn test_ml_kem_keypair_768_with_config() -> Result<()> {
+        let config = CoreConfig::default();
+        let (pk, sk) = generate_ml_kem_keypair_with_config(MlKemSecurityLevel::MlKem768, &config)?;
+        assert!(!pk.is_empty(), "ML-KEM-768 public key should not be empty");
+        assert!(!sk.as_ref().is_empty(), "ML-KEM-768 secret key should not be empty");
+        Ok(())
+    }
+
+    // === ML-DSA keygen with all parameter sets ===
+
+    #[test]
+    fn test_ml_dsa_keypair_44() -> Result<()> {
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
+        assert!(!pk.is_empty());
+        assert!(!sk.as_ref().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_keypair_87() -> Result<()> {
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
+        assert!(!pk.is_empty());
+        assert!(!sk.as_ref().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_keypair_with_config_44() -> Result<()> {
+        let config = CoreConfig::default();
+        let (pk, sk) = generate_ml_dsa_keypair_with_config(MlDsaParameterSet::MLDSA44, &config)?;
+        assert!(!pk.is_empty());
+        assert!(!sk.as_ref().is_empty());
+        Ok(())
+    }
+
+    // === SLH-DSA keygen with higher security levels ===
+
+    #[test]
+    fn test_slh_dsa_keypair_192s() -> Result<()> {
+        let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s)?;
+        assert!(!pk.is_empty());
+        assert!(!sk.as_ref().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_slh_dsa_keypair_256s() -> Result<()> {
+        let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
+        assert!(!pk.is_empty());
+        assert!(!sk.as_ref().is_empty());
+        Ok(())
+    }
 }

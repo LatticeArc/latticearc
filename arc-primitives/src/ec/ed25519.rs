@@ -375,4 +375,29 @@ mod tests {
     fn test_ed25519_signature_size() {
         assert_eq!(Ed25519Signature::signature_len(), 64);
     }
+
+    #[test]
+    fn test_ed25519_getter_accessors() -> Result<()> {
+        let keypair = Ed25519KeyPair::generate()?;
+        let pk = keypair.public_key();
+        let sk = keypair.secret_key();
+        // Verify getters return consistent data
+        assert_eq!(pk.to_bytes().to_vec(), keypair.public_key_bytes());
+        assert_eq!(sk.to_bytes().to_vec(), keypair.secret_key_bytes());
+        Ok(())
+    }
+
+    #[test]
+    fn test_ed25519_sign_trait_returns_error() {
+        let signer = Ed25519Signature;
+        let result = signer.sign(b"test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ed25519_from_secret_key_too_long() {
+        let too_long = vec![0u8; 64];
+        let result = Ed25519KeyPair::from_secret_key(&too_long);
+        assert!(result.is_err());
+    }
 }

@@ -570,4 +570,69 @@ mod tests {
         let result = counter_kdf(ki, &params, 100).unwrap();
         assert_eq!(result.key.len(), 100);
     }
+
+    #[test]
+    fn test_counter_kdf_result_key_accessor() {
+        let ki = b"test keying material";
+        let params = CounterKdfParams::new(b"Label");
+        let result = counter_kdf(ki, &params, 32).unwrap();
+        assert_eq!(result.key(), &result.key[..]);
+        assert_eq!(result.key().len(), 32);
+    }
+
+    #[test]
+    fn test_counter_kdf_params_for_encryption() {
+        let params = CounterKdfParams::for_encryption();
+        assert_eq!(params.label, b"Encryption Key");
+        assert!(params.context.is_empty());
+    }
+
+    #[test]
+    fn test_counter_kdf_params_for_mac() {
+        let params = CounterKdfParams::for_mac();
+        assert_eq!(params.label, b"MAC Key");
+    }
+
+    #[test]
+    fn test_counter_kdf_params_for_iv() {
+        let params = CounterKdfParams::for_iv();
+        assert_eq!(params.label, b"IV Generation");
+    }
+
+    #[test]
+    fn test_counter_kdf_params_debug() {
+        let params = CounterKdfParams::new(b"Test").with_context(b"ctx");
+        let debug = format!("{:?}", params);
+        assert!(debug.contains("CounterKdfParams"));
+    }
+
+    #[test]
+    fn test_counter_kdf_result_clone_and_zeroize() {
+        let ki = b"test keying material";
+        let params = CounterKdfParams::new(b"Label");
+        let result = counter_kdf(ki, &params, 32).unwrap();
+        let cloned = result.clone();
+        assert_eq!(cloned.key, result.key);
+        assert_eq!(cloned.key_length, result.key_length);
+        // Drop triggers zeroize
+        drop(result);
+    }
+
+    #[test]
+    fn test_counter_kdf_exact_hash_boundary() {
+        // Exactly HASH_LEN (32 bytes) - single block
+        let ki = b"test keying material";
+        let params = CounterKdfParams::new(b"Label");
+        let result = counter_kdf(ki, &params, 32).unwrap();
+        assert_eq!(result.key.len(), 32);
+    }
+
+    #[test]
+    fn test_counter_kdf_one_byte_over_boundary() {
+        // 33 bytes - requires 2 blocks for SHA-256
+        let ki = b"test keying material";
+        let params = CounterKdfParams::new(b"Label");
+        let result = counter_kdf(ki, &params, 33).unwrap();
+        assert_eq!(result.key.len(), 33);
+    }
 }

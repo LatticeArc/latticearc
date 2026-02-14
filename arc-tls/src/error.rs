@@ -849,11 +849,133 @@ mod tests {
     }
 
     #[test]
+    fn test_error_code_display_all_categories() {
+        // Connection
+        assert_eq!(ErrorCode::ConnectionTimeout.to_string(), "CONNECTION_TIMEOUT");
+        assert_eq!(ErrorCode::ConnectionReset.to_string(), "CONNECTION_RESET");
+        assert_eq!(ErrorCode::DnsResolutionFailed.to_string(), "DNS_RESOLUTION_FAILED");
+
+        // Handshake
+        assert_eq!(ErrorCode::ProtocolVersionMismatch.to_string(), "PROTOCOL_VERSION_MISMATCH");
+        assert_eq!(ErrorCode::CipherSuiteMismatch.to_string(), "CIPHER_SUITE_MISMATCH");
+        assert_eq!(ErrorCode::InvalidHandshakeMessage.to_string(), "INVALID_HANDSHAKE_MESSAGE");
+        assert_eq!(ErrorCode::UnexpectedMessage.to_string(), "UNEXPECTED_MESSAGE");
+        assert_eq!(ErrorCode::HandshakeTimeout.to_string(), "HANDSHAKE_TIMEOUT");
+
+        // Certificate
+        assert_eq!(ErrorCode::CertificateParseError.to_string(), "CERTIFICATE_PARSE_ERROR");
+        assert_eq!(ErrorCode::CertificateExpired.to_string(), "CERTIFICATE_EXPIRED");
+        assert_eq!(ErrorCode::CertificateNotYetValid.to_string(), "CERTIFICATE_NOT_YET_VALID");
+        assert_eq!(ErrorCode::CertificateRevoked.to_string(), "CERTIFICATE_REVOKED");
+        assert_eq!(ErrorCode::CertificateInvalid.to_string(), "CERTIFICATE_INVALID");
+        assert_eq!(
+            ErrorCode::CertificateChainIncomplete.to_string(),
+            "CERTIFICATE_CHAIN_INCOMPLETE"
+        );
+        assert_eq!(
+            ErrorCode::CertificateHostnameMismatch.to_string(),
+            "CERTIFICATE_HOSTNAME_MISMATCH"
+        );
+        assert_eq!(ErrorCode::CertificateSelfSigned.to_string(), "CERTIFICATE_SELF_SIGNED");
+        assert_eq!(
+            ErrorCode::CertificateNotValidForName.to_string(),
+            "CERTIFICATE_NOT_VALID_FOR_NAME"
+        );
+        assert_eq!(
+            ErrorCode::CertificateNotValidForNameContext.to_string(),
+            "CERTIFICATE_NOT_VALID_FOR_NAME_CONTEXT"
+        );
+        assert_eq!(
+            ErrorCode::CertificateUnknownCriticalExtension.to_string(),
+            "CERTIFICATE_UNKNOWN_CRITICAL_EXTENSION"
+        );
+        assert_eq!(ErrorCode::CertificateBadDer.to_string(), "CERTIFICATE_BAD_DER");
+        assert_eq!(
+            ErrorCode::CertificateBadDerSequence.to_string(),
+            "CERTIFICATE_BAD_DER_SEQUENCE"
+        );
+        assert_eq!(ErrorCode::CertificateBadDerTime.to_string(), "CERTIFICATE_BAD_DER_TIME");
+        assert_eq!(
+            ErrorCode::CertificateSignatureInvalid.to_string(),
+            "CERTIFICATE_SIGNATURE_INVALID"
+        );
+        assert_eq!(
+            ErrorCode::CertificateNotValidForPurpose.to_string(),
+            "CERTIFICATE_NOT_VALID_FOR_PURPOSE"
+        );
+
+        // Key exchange
+        assert_eq!(ErrorCode::KeyExchangeFailed.to_string(), "KEY_EXCHANGE_FAILED");
+        assert_eq!(ErrorCode::InvalidPublicKey.to_string(), "INVALID_PUBLIC_KEY");
+        assert_eq!(ErrorCode::InvalidPrivateKey.to_string(), "INVALID_PRIVATE_KEY");
+        assert_eq!(ErrorCode::KeyGenerationFailed.to_string(), "KEY_GENERATION_FAILED");
+        assert_eq!(ErrorCode::EncapsulationFailed.to_string(), "ENCAPSULATION_FAILED");
+        assert_eq!(ErrorCode::DecapsulationFailed.to_string(), "DECAPSULATION_FAILED");
+        assert_eq!(ErrorCode::PqNotAvailable.to_string(), "PQ_NOT_AVAILABLE");
+        assert_eq!(ErrorCode::HybridKemFailed.to_string(), "HYBRID_KEM_FAILED");
+
+        // Crypto provider
+        assert_eq!(ErrorCode::CryptoProviderInitFailed.to_string(), "CRYPTO_PROVIDER_INIT_FAILED");
+        assert_eq!(
+            ErrorCode::CryptoProviderNotSupported.to_string(),
+            "CRYPTO_PROVIDER_NOT_SUPPORTED"
+        );
+        assert_eq!(ErrorCode::InvalidKeyMaterial.to_string(), "INVALID_KEY_MATERIAL");
+        assert_eq!(
+            ErrorCode::SignatureVerificationFailed.to_string(),
+            "SIGNATURE_VERIFICATION_FAILED"
+        );
+        assert_eq!(ErrorCode::HmacFailed.to_string(), "HMAC_FAILED");
+        assert_eq!(ErrorCode::CipherOperationFailed.to_string(), "CIPHER_OPERATION_FAILED");
+
+        // IO
+        assert_eq!(ErrorCode::IoError.to_string(), "IO_ERROR");
+        assert_eq!(ErrorCode::ReadError.to_string(), "READ_ERROR");
+        assert_eq!(ErrorCode::WriteError.to_string(), "WRITE_ERROR");
+        assert_eq!(ErrorCode::UnexpectedEof.to_string(), "UNEXPECTED_EOF");
+
+        // Config
+        assert_eq!(ErrorCode::InvalidConfig.to_string(), "INVALID_CONFIG");
+        assert_eq!(ErrorCode::MissingCertificate.to_string(), "MISSING_CERTIFICATE");
+        assert_eq!(ErrorCode::MissingPrivateKey.to_string(), "MISSING_PRIVATE_KEY");
+        assert_eq!(ErrorCode::InvalidCipherSuite.to_string(), "INVALID_CIPHER_SUITE");
+        assert_eq!(ErrorCode::InvalidProtocolVersion.to_string(), "INVALID_PROTOCOL_VERSION");
+
+        // Resource
+        assert_eq!(ErrorCode::MemoryAllocationFailed.to_string(), "MEMORY_ALLOCATION_FAILED");
+        assert_eq!(ErrorCode::TooManyConnections.to_string(), "TOO_MANY_CONNECTIONS");
+        assert_eq!(ErrorCode::ResourceExhausted.to_string(), "RESOURCE_EXHAUSTED");
+
+        // Internal
+        assert_eq!(ErrorCode::InternalError.to_string(), "INTERNAL_ERROR");
+        assert_eq!(ErrorCode::UnsupportedOperation.to_string(), "UNSUPPORTED_OPERATION");
+        assert_eq!(ErrorCode::InvariantViolation.to_string(), "INVARIANT_VIOLATION");
+        assert_eq!(ErrorCode::UnexpectedState.to_string(), "UNEXPECTED_STATE");
+        assert_eq!(ErrorCode::Other.to_string(), "OTHER");
+    }
+
+    #[test]
     fn test_error_context_default() {
         let context = ErrorContext::default();
         assert!(!context.error_id.is_empty());
         assert_eq!(context.code, ErrorCode::InternalError);
+        assert_eq!(context.severity, ErrorSeverity::Error);
+        assert_eq!(context.phase, OperationPhase::Initialization);
+        assert!(context.peer_addr.is_none());
+        assert!(context.domain.is_none());
+        assert!(context.extra.is_empty());
     }
+
+    #[test]
+    fn test_generate_error_id_unique() {
+        let id1 = generate_error_id();
+        let id2 = generate_error_id();
+        assert_ne!(id1, id2);
+        assert!(id1.starts_with("TLSERR_"));
+        assert!(id2.starts_with("TLSERR_"));
+    }
+
+    // === IO error conversion tests ===
 
     #[test]
     fn test_io_error_conversion() {
@@ -864,11 +986,63 @@ mod tests {
     }
 
     #[test]
+    fn test_io_error_connection_reset() {
+        let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::ConnectionReset, "reset"));
+        assert_eq!(err.code(), ErrorCode::ConnectionReset);
+        assert_eq!(err.severity(), ErrorSeverity::Warning);
+    }
+
+    #[test]
+    fn test_io_error_timed_out() {
+        let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout"));
+        assert_eq!(err.code(), ErrorCode::ConnectionTimeout);
+    }
+
+    #[test]
+    fn test_io_error_unexpected_eof() {
+        let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof"));
+        assert_eq!(err.code(), ErrorCode::UnexpectedEof);
+    }
+
+    #[test]
+    fn test_io_error_not_found() {
+        let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::NotFound, "not found"));
+        assert_eq!(err.code(), ErrorCode::IoError);
+        assert_eq!(err.severity(), ErrorSeverity::Critical);
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_io_error_permission_denied() {
+        let err =
+            TlsError::from(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"));
+        assert_eq!(err.code(), ErrorCode::IoError);
+        assert_eq!(err.severity(), ErrorSeverity::Critical);
+    }
+
+    #[test]
+    fn test_io_error_other() {
+        let err = TlsError::from(std::io::Error::other("other"));
+        assert_eq!(err.code(), ErrorCode::IoError);
+        assert_eq!(err.severity(), ErrorSeverity::Error);
+    }
+
+    // === Recoverability tests ===
+
+    #[test]
     fn test_error_recoverability() {
         let recoverable_err =
             TlsError::from(std::io::Error::new(std::io::ErrorKind::ConnectionReset, "test"));
         assert!(recoverable_err.is_recoverable());
     }
+
+    #[test]
+    fn test_error_not_recoverable() {
+        let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
+        assert!(!err.is_recoverable());
+    }
+
+    // === Fallback support tests ===
 
     #[test]
     fn test_error_fallback_support() {
@@ -888,6 +1062,340 @@ mod tests {
             }),
         };
 
+        assert!(err.supports_fallback());
+    }
+
+    #[test]
+    fn test_error_no_fallback() {
+        let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
+        assert!(!err.supports_fallback());
+    }
+
+    // === TlsError variant construction tests ===
+
+    fn make_context(code: ErrorCode) -> Box<ErrorContext> {
+        Box::new(ErrorContext { code, ..Default::default() })
+    }
+
+    #[test]
+    fn test_tls_error_handshake() {
+        let err = TlsError::Handshake {
+            message: "failed".to_string(),
+            state: "ClientHello".to_string(),
+            code: ErrorCode::HandshakeFailed,
+            context: make_context(ErrorCode::HandshakeFailed),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert_eq!(err.code(), ErrorCode::HandshakeFailed);
+        assert!(err.to_string().contains("failed"));
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_tls_error_certificate() {
+        let err = TlsError::Certificate {
+            message: "expired".to_string(),
+            subject: Some("CN=test".to_string()),
+            issuer: Some("CN=ca".to_string()),
+            code: ErrorCode::CertificateExpired,
+            context: make_context(ErrorCode::CertificateExpired),
+            recovery: Box::new(RecoveryHint::CheckSystemTime),
+        };
+        assert_eq!(err.code(), ErrorCode::CertificateExpired);
+        assert!(err.is_recoverable());
+    }
+
+    #[test]
+    fn test_tls_error_key_exchange() {
+        let err = TlsError::KeyExchange {
+            message: "KEM failed".to_string(),
+            method: "ML-KEM-768".to_string(),
+            operation: Some("encapsulate".to_string()),
+            code: ErrorCode::KeyExchangeFailed,
+            context: make_context(ErrorCode::KeyExchangeFailed),
+            recovery: Box::new(RecoveryHint::Retry { max_attempts: 1, backoff_ms: 0 }),
+        };
+        assert_eq!(err.code(), ErrorCode::KeyExchangeFailed);
+    }
+
+    #[test]
+    fn test_tls_error_config() {
+        let err = TlsError::Config {
+            message: "bad config".to_string(),
+            field: Some("cipher_suites".to_string()),
+            code: ErrorCode::InvalidConfig,
+            context: make_context(ErrorCode::InvalidConfig),
+            recovery: Box::new(RecoveryHint::Reconfigure {
+                field: "cipher_suites".to_string(),
+                suggestion: "use TLS_AES_256_GCM_SHA384".to_string(),
+            }),
+        };
+        assert_eq!(err.code(), ErrorCode::InvalidConfig);
+        assert!(err.is_recoverable());
+    }
+
+    #[test]
+    fn test_tls_error_unsupported_cipher() {
+        let err = TlsError::UnsupportedCipherSuite {
+            cipher_suite: "TLS_NULL_NULL".to_string(),
+            code: ErrorCode::InvalidCipherSuite,
+            context: make_context(ErrorCode::InvalidCipherSuite),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(err.to_string().contains("TLS_NULL_NULL"));
+    }
+
+    #[test]
+    fn test_tls_error_unsupported_version() {
+        let err = TlsError::UnsupportedVersion {
+            version: "TLS 1.0".to_string(),
+            code: ErrorCode::InvalidProtocolVersion,
+            context: make_context(ErrorCode::InvalidProtocolVersion),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert!(err.to_string().contains("TLS 1.0"));
+    }
+
+    #[test]
+    fn test_tls_error_hybrid_kem() {
+        let err = TlsError::HybridKem {
+            message: "hybrid failed".to_string(),
+            component: "ML-KEM".to_string(),
+            code: ErrorCode::HybridKemFailed,
+            context: make_context(ErrorCode::HybridKemFailed),
+            recovery: Box::new(RecoveryHint::Fallback { description: "ECDHE only".to_string() }),
+        };
+        assert_eq!(err.code(), ErrorCode::HybridKemFailed);
+        assert!(err.supports_fallback());
+    }
+
+    #[test]
+    fn test_tls_error_invalid_key_material() {
+        let err = TlsError::InvalidKeyMaterial {
+            message: "bad key".to_string(),
+            key_type: "ML-KEM-768".to_string(),
+            code: ErrorCode::InvalidKeyMaterial,
+            context: make_context(ErrorCode::InvalidKeyMaterial),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert_eq!(err.code(), ErrorCode::InvalidKeyMaterial);
+    }
+
+    #[test]
+    fn test_tls_error_crypto_provider() {
+        let err = TlsError::CryptoProvider {
+            message: "init failed".to_string(),
+            provider: "aws-lc-rs".to_string(),
+            code: ErrorCode::CryptoProviderInitFailed,
+            context: make_context(ErrorCode::CryptoProviderInitFailed),
+            recovery: Box::new(RecoveryHint::ContactSupport {
+                message: "check installation".to_string(),
+            }),
+        };
+        assert_eq!(err.code(), ErrorCode::CryptoProviderInitFailed);
+        assert!(err.is_recoverable());
+    }
+
+    #[test]
+    fn test_tls_error_resource() {
+        let err = TlsError::Resource {
+            message: "out of memory".to_string(),
+            resource_type: "memory".to_string(),
+            code: ErrorCode::MemoryAllocationFailed,
+            context: make_context(ErrorCode::MemoryAllocationFailed),
+            recovery: Box::new(RecoveryHint::CheckResourceLimits),
+        };
+        assert_eq!(err.code(), ErrorCode::MemoryAllocationFailed);
+    }
+
+    #[test]
+    fn test_tls_error_internal() {
+        let err = TlsError::Internal {
+            message: "unexpected state".to_string(),
+            code: ErrorCode::InternalError,
+            context: make_context(ErrorCode::InternalError),
+            recovery: Box::new(RecoveryHint::NoRecovery),
+        };
+        assert_eq!(err.code(), ErrorCode::InternalError);
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_tls_error_tls_variant() {
+        let err = TlsError::Tls {
+            message: "protocol error".to_string(),
+            code: ErrorCode::HandshakeFailed,
+            context: make_context(ErrorCode::HandshakeFailed),
+            recovery: Box::new(RecoveryHint::VerifyCertificates),
+        };
+        assert_eq!(err.code(), ErrorCode::HandshakeFailed);
+    }
+
+    // === Severity ordering tests ===
+
+    #[test]
+    fn test_severity_ordering() {
+        assert!(ErrorSeverity::Info < ErrorSeverity::Warning);
+        assert!(ErrorSeverity::Warning < ErrorSeverity::Error);
+        assert!(ErrorSeverity::Error < ErrorSeverity::Critical);
+    }
+
+    // === RecoveryHint variant tests ===
+
+    #[test]
+    fn test_recovery_hint_variants() {
+        let _ = RecoveryHint::NoRecovery;
+        let _ = RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 };
+        let _ = RecoveryHint::Fallback { description: "use backup".to_string() };
+        let _ = RecoveryHint::Reconfigure {
+            field: "tls".to_string(),
+            suggestion: "upgrade".to_string(),
+        };
+        let _ = RecoveryHint::ContactSupport { message: "help".to_string() };
+        let _ = RecoveryHint::CheckSystemTime;
+        let _ = RecoveryHint::CheckNetworkConnectivity;
+        let _ = RecoveryHint::VerifyCertificates;
+        let _ = RecoveryHint::CheckResourceLimits;
+    }
+
+    // === OperationPhase tests ===
+
+    #[test]
+    fn test_operation_phase_eq() {
+        assert_eq!(OperationPhase::ConnectionSetup, OperationPhase::ConnectionSetup);
+        assert_ne!(OperationPhase::Handshake, OperationPhase::DataTransfer);
+        assert_eq!(
+            OperationPhase::CertificateVerification,
+            OperationPhase::CertificateVerification
+        );
+        assert_eq!(OperationPhase::KeyExchange, OperationPhase::KeyExchange);
+        assert_eq!(OperationPhase::Teardown, OperationPhase::Teardown);
+        assert_eq!(OperationPhase::Initialization, OperationPhase::Initialization);
+    }
+
+    // === rustls::Error conversion tests ===
+
+    #[test]
+    fn test_from_rustls_invalid_message() {
+        let err = TlsError::from(rustls::Error::InvalidMessage(
+            rustls::InvalidMessage::HandshakePayloadTooLarge,
+        ));
+        assert_eq!(err.code(), ErrorCode::InvalidHandshakeMessage);
+        assert_eq!(err.severity(), ErrorSeverity::Error);
+    }
+
+    #[test]
+    fn test_from_rustls_alert_received() {
+        let err = TlsError::from(rustls::Error::AlertReceived(
+            rustls::AlertDescription::HandshakeFailure,
+        ));
+        assert_eq!(err.code(), ErrorCode::HandshakeFailed);
+        assert_eq!(err.severity(), ErrorSeverity::Warning);
+    }
+
+    #[test]
+    fn test_from_rustls_handshake_not_complete() {
+        let err = TlsError::from(rustls::Error::HandshakeNotComplete);
+        assert_eq!(err.code(), ErrorCode::HandshakeFailed);
+        assert!(err.is_recoverable());
+    }
+
+    #[test]
+    fn test_from_rustls_peer_incompatible() {
+        let err = TlsError::from(rustls::Error::PeerIncompatible(
+            rustls::PeerIncompatible::ServerDoesNotSupportTls12Or13,
+        ));
+        assert_eq!(err.code(), ErrorCode::ProtocolVersionMismatch);
+        assert!(err.supports_fallback());
+    }
+
+    #[test]
+    fn test_from_rustls_peer_misbehaved() {
+        let err = TlsError::from(rustls::Error::PeerMisbehaved(
+            rustls::PeerMisbehaved::TooMuchEarlyDataReceived,
+        ));
+        assert_eq!(err.code(), ErrorCode::HandshakeFailed);
+        assert_eq!(err.severity(), ErrorSeverity::Critical);
+        assert!(!err.is_recoverable());
+    }
+
+    #[test]
+    fn test_from_rustls_no_certificates_presented() {
+        let err = TlsError::from(rustls::Error::NoCertificatesPresented);
+        assert_eq!(err.code(), ErrorCode::MissingCertificate);
+        assert!(err.is_recoverable());
+    }
+
+    #[test]
+    fn test_from_rustls_cert_expired() {
+        let err =
+            TlsError::from(rustls::Error::InvalidCertificate(rustls::CertificateError::Expired));
+        assert_eq!(err.code(), ErrorCode::CertificateExpired);
+        assert!(err.is_recoverable()); // CheckSystemTime
+    }
+
+    #[test]
+    fn test_from_rustls_cert_not_valid_for_name() {
+        let err = TlsError::from(rustls::Error::InvalidCertificate(
+            rustls::CertificateError::NotValidForName,
+        ));
+        assert_eq!(err.code(), ErrorCode::CertificateNotValidForName);
+    }
+
+    #[test]
+    fn test_from_rustls_cert_bad_signature() {
+        let err = TlsError::from(rustls::Error::InvalidCertificate(
+            rustls::CertificateError::BadSignature,
+        ));
+        assert_eq!(err.code(), ErrorCode::CertificateSignatureInvalid);
+    }
+
+    #[test]
+    fn test_from_rustls_cert_invalid_purpose() {
+        let err = TlsError::from(rustls::Error::InvalidCertificate(
+            rustls::CertificateError::InvalidPurpose,
+        ));
+        assert_eq!(err.code(), ErrorCode::CertificateNotValidForPurpose);
+    }
+
+    #[test]
+    fn test_from_rustls_cert_unhandled_critical_extension() {
+        let err = TlsError::from(rustls::Error::InvalidCertificate(
+            rustls::CertificateError::UnhandledCriticalExtension,
+        ));
+        assert_eq!(err.code(), ErrorCode::CertificateUnknownCriticalExtension);
+    }
+
+    #[test]
+    fn test_from_rustls_cert_invalid_other() {
+        let err = TlsError::from(rustls::Error::InvalidCertificate(
+            rustls::CertificateError::NotValidYet,
+        ));
+        assert_eq!(err.code(), ErrorCode::CertificateInvalid);
+    }
+
+    #[test]
+    fn test_from_rustls_general() {
+        let err = TlsError::from(rustls::Error::General("something went wrong".into()));
+        assert_eq!(err.code(), ErrorCode::HandshakeFailed);
+        assert!(err.is_recoverable()); // Retry
+    }
+
+    #[test]
+    fn test_from_rustls_error_context_has_extra() {
+        let err = TlsError::from(rustls::Error::HandshakeNotComplete);
+        let ctx = err.context();
+        assert!(ctx.extra.contains_key("rustls_error"));
+    }
+
+    // === HybridKemError conversion test ===
+
+    #[test]
+    fn test_from_hybrid_kem_error() {
+        let hybrid_err =
+            arc_hybrid::kem::HybridKemError::InvalidKeyMaterial("bad key data".to_string());
+        let err = TlsError::from(hybrid_err);
+        assert_eq!(err.code(), ErrorCode::HybridKemFailed);
         assert!(err.supports_fallback());
     }
 }

@@ -344,4 +344,43 @@ mod tests {
 
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_memory_safety_tester_default() {
+        let tester = UtilityMemorySafetyTester;
+        assert!(tester.test_memory_safety().is_ok());
+    }
+
+    #[test]
+    fn test_leak_detector_default() {
+        let detector = UtilityLeakDetector;
+        let result = detector.monitor_leaks(|| Ok(()));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_leak_detector_with_failing_operation() {
+        let detector = UtilityLeakDetector::new();
+        // Operation that always fails — monitor_leaks should still succeed
+        // (it counts errors but doesn't propagate them)
+        let result = detector.monitor_leaks(|| {
+            Err(LatticeArcError::InvalidInput("intentional failure".to_string()))
+        });
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_leak_detector_with_intermittent_failures() {
+        let detector = UtilityLeakDetector::new();
+        let counter = std::sync::atomic::AtomicUsize::new(0);
+        let result = detector.monitor_leaks(|| {
+            let val = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if val.is_multiple_of(3) {
+                Err(LatticeArcError::InvalidInput("every third fails".to_string()))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(result.is_ok());
+    }
 }

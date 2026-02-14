@@ -38,3 +38,14 @@ pub fn run_formal_verification() {
     tracing::info!("Install with: cargo install kani-verifier");
     tracing::info!("Run verification with: cargo kani --package arc-tls");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_run_formal_verification() {
+        // Verify the function executes without panic
+        run_formal_verification();
+    }
+}

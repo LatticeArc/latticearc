@@ -237,3 +237,191 @@ pub use recovery::{
     ErrorRecoveryStrategy, ErrorSeverity, attempt_error_recovery, get_error_severity,
     is_recoverable_error, requires_security_response,
 };
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lattice_arc_error_display_messages() {
+        let cases: Vec<(LatticeArcError, &str)> = vec![
+            (LatticeArcError::EncryptionError("aes".to_string()), "Encryption error: aes"),
+            (LatticeArcError::DecryptionError("gcm".to_string()), "Decryption error: gcm"),
+            (LatticeArcError::KeyGenerationError("rng".to_string()), "Key generation error: rng"),
+            (LatticeArcError::InvalidKey("bad".to_string()), "Invalid key: bad"),
+            (
+                LatticeArcError::EncapsulationError("kem".to_string()),
+                "KEM encapsulation error: kem",
+            ),
+            (LatticeArcError::DecapsulationError("dk".to_string()), "KEM decapsulation error: dk"),
+            (LatticeArcError::SigningError("sig".to_string()), "Signing error: sig"),
+            (
+                LatticeArcError::AuthenticationError("auth".to_string()),
+                "Authentication error: auth",
+            ),
+            (LatticeArcError::VerificationError, "Signature verification failed"),
+            (LatticeArcError::InvalidSignature("bad".to_string()), "Invalid signature: bad"),
+            (LatticeArcError::SerializationError("json".to_string()), "Serialization error: json"),
+            (LatticeArcError::IoError("disk".to_string()), "I/O error: disk"),
+            (LatticeArcError::RandomError, "Random number generation failed"),
+            (LatticeArcError::CircuitBreakerOpen, "Circuit breaker is open"),
+            (LatticeArcError::ResourceExhausted, "System resources exhausted"),
+            (LatticeArcError::PinIncorrect, "PIN verification failed"),
+            (LatticeArcError::PinLocked, "PIN account locked due to too many failed attempts"),
+            (LatticeArcError::InvalidPoint, "Invalid elliptic curve point"),
+            (LatticeArcError::ZkpError("proof".to_string()), "ZKP error: proof"),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(format!("{error}"), expected);
+        }
+    }
+
+    #[test]
+    fn test_lattice_arc_error_structured_variants() {
+        let err = LatticeArcError::InvalidSignatureLength { expected: 64, got: 32 };
+        let msg = format!("{err}");
+        assert!(msg.contains("64"));
+        assert!(msg.contains("32"));
+
+        let err = LatticeArcError::InvalidKeyLength { expected: 32, actual: 16 };
+        let msg = format!("{err}");
+        assert!(msg.contains("32"));
+        assert!(msg.contains("16"));
+
+        let err = LatticeArcError::ValidationError { message: "fail".to_string() };
+        assert_eq!(format!("{err}"), "Validation error: fail");
+    }
+
+    #[test]
+    fn test_lattice_arc_error_clone_eq() {
+        let err = LatticeArcError::EncryptionError("test".to_string());
+        let cloned = err.clone();
+        assert_eq!(err, cloned);
+
+        let different = LatticeArcError::DecryptionError("test".to_string());
+        assert_ne!(err, different);
+    }
+
+    #[test]
+    fn test_lattice_arc_error_debug() {
+        let err = LatticeArcError::EncryptionError("test".to_string());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("EncryptionError"));
+    }
+
+    #[test]
+    fn test_lattice_arc_error_serialization() {
+        let err = LatticeArcError::InvalidInput("bad data".to_string());
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("InvalidInput"));
+
+        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn test_lattice_arc_error_serialization_unit_variants() {
+        let variants = vec![
+            LatticeArcError::VerificationError,
+            LatticeArcError::RandomError,
+            LatticeArcError::CircuitBreakerOpen,
+            LatticeArcError::ResourceExhausted,
+            LatticeArcError::PinIncorrect,
+            LatticeArcError::PinLocked,
+            LatticeArcError::InvalidPoint,
+        ];
+
+        for err in variants {
+            let json = serde_json::to_string(&err).unwrap();
+            let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
+            assert_eq!(err, deserialized);
+        }
+    }
+
+    #[test]
+    fn test_lattice_arc_error_serialization_structured() {
+        let err = LatticeArcError::InvalidKeyLength { expected: 32, actual: 16 };
+        let json = serde_json::to_string(&err).unwrap();
+        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
+        assert_eq!(err, deserialized);
+
+        let err = LatticeArcError::InvalidSignatureLength { expected: 64, got: 48 };
+        let json = serde_json::to_string(&err).unwrap();
+        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn test_lattice_arc_error_unsupported_version() {
+        let err = LatticeArcError::UnsupportedVersion(42);
+        assert_eq!(format!("{err}"), "Unsupported version: 42");
+
+        let json = serde_json::to_string(&err).unwrap();
+        let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn test_lattice_arc_error_remaining_display() {
+        // Cover remaining variants for Display completeness
+        let remaining: Vec<(LatticeArcError, &str)> = vec![
+            (LatticeArcError::DeserializationError("x".to_string()), "Deserialization error: x"),
+            (LatticeArcError::InvalidEnvelope("x".to_string()), "Invalid envelope: x"),
+            (LatticeArcError::InvalidFormat("x".to_string()), "Invalid format: x"),
+            (LatticeArcError::InvalidConfiguration("x".to_string()), "Invalid configuration: x"),
+            (LatticeArcError::InvalidData("x".to_string()), "Invalid data: x"),
+            (LatticeArcError::InvalidInput("x".to_string()), "Invalid input: x"),
+            (LatticeArcError::ServiceUnavailable("x".to_string()), "Service unavailable: x"),
+            (LatticeArcError::SecurityViolation("x".to_string()), "Security violation: x"),
+            (LatticeArcError::PolicyViolation("x".to_string()), "Policy violation: x"),
+            (LatticeArcError::ComplianceViolation("x".to_string()), "Compliance violation: x"),
+            (LatticeArcError::InvalidParameter("x".to_string()), "Invalid parameter: x"),
+            (LatticeArcError::NotImplemented("x".to_string()), "Not implemented: x"),
+            (
+                LatticeArcError::CpuFeatureNotAvailable("x".to_string()),
+                "CPU feature not available: x",
+            ),
+            (LatticeArcError::MemoryError("x".to_string()), "Memory error: x"),
+            (LatticeArcError::FeatureNotEnabled("x".to_string()), "Feature not enabled: x"),
+            (LatticeArcError::AuditError("x".to_string()), "Audit error: x"),
+            (LatticeArcError::HsmError("x".to_string()), "HSM error: x"),
+            (LatticeArcError::CloudKmsError("x".to_string()), "Cloud KMS error: x"),
+            (LatticeArcError::DatabaseError("x".to_string()), "Database error: x"),
+            (LatticeArcError::NetworkError("x".to_string()), "Network error: x"),
+            (LatticeArcError::TlsError("x".to_string()), "TLS error: x"),
+            (LatticeArcError::KeyDerivationError("x".to_string()), "Key derivation error: x"),
+            (LatticeArcError::VerificationFailed("x".to_string()), "Formal verification failed: x"),
+            (LatticeArcError::FuzzingError("x".to_string()), "Fuzzing error: x"),
+            (LatticeArcError::DevToolError("x".to_string()), "Development tool error: x"),
+            (LatticeArcError::MigrationError("x".to_string()), "Migration error: x"),
+            (LatticeArcError::ProfilingError("x".to_string()), "Profiling error: x"),
+            (LatticeArcError::SideChannelError("x".to_string()), "Side channel error: x"),
+            (LatticeArcError::AsyncError("x".to_string()), "Async error: x"),
+            (LatticeArcError::WasmError("x".to_string()), "WASM error: x"),
+            (LatticeArcError::AccessDenied("x".to_string()), "Access denied: x"),
+            (LatticeArcError::Unauthorized("x".to_string()), "Unauthorized: x"),
+            (LatticeArcError::Expired("x".to_string()), "Expired: x"),
+            (LatticeArcError::HardwareError("x".to_string()), "Hardware error: x"),
+            (LatticeArcError::InvalidOperation("x".to_string()), "Invalid operation: x"),
+            (LatticeArcError::ConcurrencyError("x".to_string()), "Concurrency error: x"),
+            (LatticeArcError::TimeoutError("x".to_string()), "Timeout: x"),
+            (
+                LatticeArcError::SignatureVerificationError("x".to_string()),
+                "Signature verification error: x",
+            ),
+        ];
+
+        for (error, expected) in remaining {
+            assert_eq!(format!("{error}"), expected, "Failed for: {:?}", error);
+        }
+    }
+
+    #[test]
+    fn test_time_capsule_error_alias() {
+        // TimeCapsuleError is just an alias for LatticeArcError
+        let err: TimeCapsuleError = LatticeArcError::InvalidInput("test".to_string());
+        assert_eq!(format!("{err}"), "Invalid input: test");
+    }
+}

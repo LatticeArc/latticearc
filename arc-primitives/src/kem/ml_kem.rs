@@ -1068,6 +1068,7 @@ impl MlKem {
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
 #[allow(clippy::explicit_iter_loop)] // Tests use iterator style
 #[allow(clippy::indexing_slicing)] // Tests use direct indexing
+#[allow(clippy::panic)]
 mod tests {
     use super::*;
     use rand::rngs::OsRng;
@@ -1572,5 +1573,219 @@ mod tests {
         let result = keypair_512.decapsulate(&ct_768);
         assert!(result.is_err());
         Ok(())
+    }
+
+    // ========================================================================
+    // Phase 4: Additional coverage tests for uncovered getters/methods
+    // ========================================================================
+
+    #[test]
+    fn test_shared_secret_size_constant() {
+        // shared_secret_size() is 32 for all levels
+        assert_eq!(MlKemSecurityLevel::MlKem512.shared_secret_size(), 32);
+        assert_eq!(MlKemSecurityLevel::MlKem768.shared_secret_size(), 32);
+        assert_eq!(MlKemSecurityLevel::MlKem1024.shared_secret_size(), 32);
+    }
+
+    #[test]
+    fn test_nist_security_category() {
+        assert_eq!(MlKemSecurityLevel::MlKem512.nist_security_category(), 1);
+        assert_eq!(MlKemSecurityLevel::MlKem768.nist_security_category(), 3);
+        assert_eq!(MlKemSecurityLevel::MlKem1024.nist_security_category(), 5);
+    }
+
+    #[test]
+    fn test_ml_kem_config_default() {
+        let config = MlKemConfig::default();
+        assert!(matches!(config.security_level, MlKemSecurityLevel::MlKem768));
+        assert!(matches!(config.simd_mode, SimdMode::Auto));
+    }
+
+    #[test]
+    fn test_ml_kem_secret_key_security_level_getter() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        for level in [
+            MlKemSecurityLevel::MlKem512,
+            MlKemSecurityLevel::MlKem768,
+            MlKemSecurityLevel::MlKem1024,
+        ] {
+            let (_pk, sk) = MlKem::generate_keypair(&mut rng, level)?;
+            assert_eq!(sk.security_level(), level);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_decapsulation_keypair_debug() -> Result<(), MlKemError> {
+        let keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)?;
+        let debug = format!("{:?}", keypair);
+        assert!(debug.contains("MlKemDecapsulationKeyPair"));
+        assert!(debug.contains("[REDACTED]"));
+        // Verify secret key material is not leaked in Debug output
+        assert!(debug.contains("decaps_key: \"[REDACTED]\""));
+        Ok(())
+    }
+
+    #[test]
+    fn test_encapsulate_with_rng() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+        let seed = [0x42u8; 32];
+        let (ss, ct) = MlKem::encapsulate_with_rng(&pk, &seed)?;
+        assert_eq!(ss.as_bytes().len(), 32);
+        assert_eq!(ct.as_bytes().len(), MlKemSecurityLevel::MlKem768.ciphertext_size());
+        Ok(())
+    }
+
+    // ========================================================================
+    // Additional coverage: uncovered methods and error paths
+    // ========================================================================
+
+    #[test]
+    fn test_secret_key_into_bytes() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (_pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+        let expected_len = MlKemSecurityLevel::MlKem768.secret_key_size();
+        let bytes = sk.into_bytes();
+        assert_eq!(bytes.len(), expected_len);
+        Ok(())
+    }
+
+    #[test]
+    fn test_secret_key_constant_time_eq() -> Result<(), MlKemError> {
+        let level = MlKemSecurityLevel::MlKem512;
+        let sk1 = MlKemSecretKey::new(level, vec![0xAA; level.secret_key_size()])?;
+        let sk2 = MlKemSecretKey::new(level, vec![0xAA; level.secret_key_size()])?;
+        let sk3 = MlKemSecretKey::new(level, vec![0xBB; level.secret_key_size()])?;
+
+        assert_eq!(sk1, sk2);
+        assert_ne!(sk1, sk3);
+        assert!(bool::from(sk1.ct_eq(&sk2)));
+        assert!(!bool::from(sk1.ct_eq(&sk3)));
+        Ok(())
+    }
+
+    #[test]
+    fn test_secret_key_new_wrong_length() {
+        let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 100]);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MlKemError::InvalidKeyLength { variant, size, actual, key_type } => {
+                assert!(variant.contains("768"));
+                assert_eq!(size, 2400);
+                assert_eq!(actual, 100);
+                assert_eq!(key_type, "secret key");
+            }
+            other => panic!("Expected InvalidKeyLength, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ciphertext_into_bytes() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+        let expected_len = ct.as_bytes().len();
+        let bytes = ct.into_bytes();
+        assert_eq!(bytes.len(), expected_len);
+        Ok(())
+    }
+
+    #[test]
+    fn test_shared_secret_as_array() {
+        let data = [0x42u8; 32];
+        let ss = MlKemSharedSecret::new(data);
+        let arr = ss.as_array();
+        assert_eq!(arr, data);
+    }
+
+    #[test]
+    fn test_simd_status() {
+        let status = MlKem::simd_status();
+        assert!(status.acceleration_available);
+        assert!(matches!(status.mode, SimdMode::Auto));
+        assert!((status.performance_multiplier - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_simd_mode_variants() {
+        let modes = [
+            SimdMode::Scalar,
+            SimdMode::Auto,
+            SimdMode::ForceSimd,
+            SimdMode::ForceScalar,
+            SimdMode::Avx2,
+            SimdMode::Neon,
+        ];
+        for mode in &modes {
+            let debug = format!("{:?}", mode);
+            assert!(!debug.is_empty());
+        }
+        assert_eq!(SimdMode::Auto, SimdMode::Auto);
+        assert_ne!(SimdMode::Scalar, SimdMode::Auto);
+    }
+
+    #[test]
+    fn test_ml_kem_error_display_all_variants() {
+        let errors: Vec<MlKemError> = vec![
+            MlKemError::KeyGenerationError("kg fail".into()),
+            MlKemError::EncapsulationError("enc fail".into()),
+            MlKemError::DecapsulationError("dec fail".into()),
+            MlKemError::InvalidKeyLength {
+                variant: "ML-KEM-768".into(),
+                size: 1184,
+                actual: 100,
+                key_type: "public key".into(),
+            },
+            MlKemError::InvalidCiphertextLength {
+                variant: "ML-KEM-512".into(),
+                expected: 768,
+                actual: 100,
+            },
+            MlKemError::UnsupportedSecurityLevel("bad".into()),
+            MlKemError::CryptoError("crypto fail".into()),
+        ];
+        for err in &errors {
+            let msg = format!("{}", err);
+            assert!(!msg.is_empty(), "Display should not be empty for {:?}", err);
+        }
+    }
+
+    #[test]
+    fn test_ml_kem_security_level_secret_key_sizes() {
+        assert_eq!(MlKemSecurityLevel::MlKem512.secret_key_size(), 1632);
+        assert_eq!(MlKemSecurityLevel::MlKem768.secret_key_size(), 2400);
+        assert_eq!(MlKemSecurityLevel::MlKem1024.secret_key_size(), 3168);
+    }
+
+    #[test]
+    fn test_ml_kem_security_level_ciphertext_sizes() {
+        assert_eq!(MlKemSecurityLevel::MlKem512.ciphertext_size(), 768);
+        assert_eq!(MlKemSecurityLevel::MlKem768.ciphertext_size(), 1088);
+        assert_eq!(MlKemSecurityLevel::MlKem1024.ciphertext_size(), 1568);
+    }
+
+    #[test]
+    fn test_ml_kem_config_custom() {
+        let config = MlKemConfig {
+            security_level: MlKemSecurityLevel::MlKem1024,
+            simd_mode: SimdMode::ForceScalar,
+        };
+        assert!(matches!(config.security_level, MlKemSecurityLevel::MlKem1024));
+        assert!(matches!(config.simd_mode, SimdMode::ForceScalar));
+    }
+
+    #[test]
+    fn test_public_key_security_level_getter() -> Result<(), MlKemError> {
+        let mut rng = OsRng;
+        let (pk, _) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+        assert_eq!(pk.security_level(), MlKemSecurityLevel::MlKem512);
+        Ok(())
+    }
+
+    #[test]
+    fn test_security_level_constant_time_eq() {
+        assert!(bool::from(MlKemSecurityLevel::MlKem768.ct_eq(&MlKemSecurityLevel::MlKem768)));
+        assert!(!bool::from(MlKemSecurityLevel::MlKem512.ct_eq(&MlKemSecurityLevel::MlKem1024)));
     }
 }

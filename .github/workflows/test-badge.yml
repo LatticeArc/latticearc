@@ -1,0 +1,64 @@
+# Updates the dynamic test count badge on shields.io via GitHub Gist
+#
+# Setup required (one-time):
+#   1. Create a GitHub Gist (any content) and note the Gist ID from the URL
+#   2. Create a PAT with `gist` scope
+#   3. Add repository secrets: GIST_SECRET (the PAT) and GIST_ID (the gist ID)
+#   4. Update the README badge URL with your gist details
+
+name: Test Count Badge
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  update-badge:
+    name: Update Test Count
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-test-badge-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Count tests
+        run: |
+          TEST_COUNT=$(cargo test --workspace --all-features --release -- --list 2>/dev/null | grep -c ': test$' || echo "0")
+          # Round down to nearest hundred for badge stability
+          ROUNDED=$((TEST_COUNT / 100 * 100))
+          echo "TEST_COUNT=$TEST_COUNT" >> $GITHUB_ENV
+          echo "BADGE_COUNT=${ROUNDED}+" >> $GITHUB_ENV
+          echo "Exact test count: $TEST_COUNT, badge shows: ${ROUNDED}+"
+
+      - name: Update badge via Gist
+        if: env.TEST_COUNT != '0'
+        uses: schneegans/dynamic-badges-action@e9a478b16159b4d31420099ba146cdc50f134483 # v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: test-count.json
+          label: tests
+          message: ${{ env.BADGE_COUNT }}
+          color: brightgreen

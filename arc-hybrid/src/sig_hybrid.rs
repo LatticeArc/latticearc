@@ -343,9 +343,15 @@ pub fn verify(
     let ml_dsa_sig_struct = MlDsaSignature::new(MlDsaParameterSet::MLDSA65, sig.ml_dsa_sig.clone())
         .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
 
-    ml_dsa_verify(&ml_dsa_pk_struct, message, &ml_dsa_sig_struct, &[]).map_err(|e| {
-        HybridSignatureError::VerificationFailed(format!("ML-DSA verification failed: {}", e))
-    })?;
+    let ml_dsa_valid =
+        ml_dsa_verify(&ml_dsa_pk_struct, message, &ml_dsa_sig_struct, &[]).map_err(|e| {
+            HybridSignatureError::VerificationFailed(format!("ML-DSA verification failed: {}", e))
+        })?;
+    if !ml_dsa_valid {
+        return Err(HybridSignatureError::VerificationFailed(
+            "ML-DSA signature is invalid".to_string(),
+        ));
+    }
 
     // Verify Ed25519 signature
     let ed25519_verifying_key_bytes: [u8; 32] =
@@ -380,6 +386,8 @@ pub fn verify(
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
 #[allow(clippy::implicit_clone)] // Tests don't require optimal cloning patterns
+#[allow(clippy::indexing_slicing)] // Tests use direct indexing for simplicity
+#[allow(clippy::single_match)] // Match with comment is clearer than if-let in tests
 mod tests {
     use super::*;
 
@@ -701,5 +709,276 @@ mod tests {
             assert!(ml_dsa_zeroized, "Thread {} ML-DSA secret should be zeroized", thread_id);
             assert!(ed25519_zeroized, "Thread {} Ed25519 secret should be zeroized", thread_id);
         }
+    }
+
+    // --- Additional coverage tests ---
+
+    #[test]
+    fn test_hybrid_verify_wrong_message_fails() {
+        let mut rng = rand::thread_rng();
+        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let sig = sign(&sk, b"Original message").unwrap();
+        let result = verify(&pk, b"Different message", &sig);
+        // ML-DSA verify will return error for wrong message
+        assert!(result.is_err(), "Wrong message should fail verification");
+    }
+
+    #[test]
+    fn test_hybrid_verify_wrong_key_fails() {
+        let mut rng = rand::thread_rng();
+        let (_pk1, sk1) = generate_keypair(&mut rng).unwrap();
+        let (pk2, _sk2) = generate_keypair(&mut rng).unwrap();
+
+        let sig = sign(&sk1, b"Test").unwrap();
+        let result = verify(&pk2, b"Test", &sig);
+        assert!(result.is_err(), "Wrong public key should fail verification");
+    }
+
+    #[test]
+    fn test_hybrid_sign_invalid_ed25519_sk_length() {
+        let sk = HybridSecretKey {
+            ml_dsa_sk: Zeroizing::new(vec![0u8; 4032]),
+            ed25519_sk: Zeroizing::new(vec![0u8; 16]), // Wrong: should be 32
+        };
+        let result = sign(&sk, b"test");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, HybridSignatureError::InvalidKeyMaterial(_)));
+    }
+
+    #[test]
+    fn test_hybrid_verify_invalid_ed25519_pk_length() {
+        let pk = HybridPublicKey {
+            ml_dsa_pk: vec![0u8; 1952],
+            ed25519_pk: vec![0u8; 16], // Wrong: should be 32
+        };
+        let sig = HybridSignature { ml_dsa_sig: vec![0u8; 3293], ed25519_sig: vec![0u8; 64] };
+        let result = verify(&pk, b"test", &sig);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, HybridSignatureError::InvalidKeyMaterial(_)));
+    }
+
+    #[test]
+    fn test_hybrid_verify_invalid_ed25519_sig_length() {
+        let mut rng = rand::thread_rng();
+        let (pk, _sk) = generate_keypair(&mut rng).unwrap();
+
+        let sig = HybridSignature {
+            ml_dsa_sig: vec![0u8; 3293],
+            ed25519_sig: vec![0u8; 32], // Wrong: should be 64
+        };
+        let result = verify(&pk, b"test", &sig);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, HybridSignatureError::InvalidKeyMaterial(_)));
+    }
+
+    #[test]
+    fn test_hybrid_signature_error_display_all_variants() {
+        let err1 = HybridSignatureError::MlDsaError("dsa fail".to_string());
+        assert!(err1.to_string().contains("dsa fail"));
+
+        let err2 = HybridSignatureError::Ed25519Error("ed fail".to_string());
+        assert!(err2.to_string().contains("ed fail"));
+
+        let err3 = HybridSignatureError::VerificationFailed("verify fail".to_string());
+        assert!(err3.to_string().contains("verify fail"));
+
+        let err4 = HybridSignatureError::InvalidKeyMaterial("bad key".to_string());
+        assert!(err4.to_string().contains("bad key"));
+
+        let err5 = HybridSignatureError::CryptoError("crypto fail".to_string());
+        assert!(err5.to_string().contains("crypto fail"));
+    }
+
+    #[test]
+    fn test_hybrid_signature_error_eq_clone() {
+        let err1 = HybridSignatureError::MlDsaError("test".to_string());
+        let err2 = err1.clone();
+        assert_eq!(err1, err2);
+        assert_ne!(err1, HybridSignatureError::Ed25519Error("test".to_string()));
+    }
+
+    #[test]
+    fn test_hybrid_public_key_clone_debug() {
+        let mut rng = rand::thread_rng();
+        let (pk, _sk) = generate_keypair(&mut rng).unwrap();
+
+        let pk2 = pk.clone();
+        assert_eq!(pk.ml_dsa_pk, pk2.ml_dsa_pk);
+        assert_eq!(pk.ed25519_pk, pk2.ed25519_pk);
+
+        let debug = format!("{:?}", pk);
+        assert!(debug.contains("HybridPublicKey"));
+    }
+
+    #[test]
+    fn test_hybrid_secret_key_debug_format() {
+        let mut rng = rand::thread_rng();
+        let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let debug = format!("{:?}", sk);
+        assert!(debug.contains("HybridSecretKey"));
+    }
+
+    #[test]
+    fn test_hybrid_signature_clone_debug() {
+        let sig = HybridSignature { ml_dsa_sig: vec![1, 2, 3], ed25519_sig: vec![4, 5, 6] };
+        let sig2 = sig.clone();
+        assert_eq!(sig.ml_dsa_sig, sig2.ml_dsa_sig);
+        assert_eq!(sig.ed25519_sig, sig2.ed25519_sig);
+
+        let debug = format!("{:?}", sig);
+        assert!(debug.contains("HybridSignature"));
+    }
+
+    #[test]
+    fn test_sign_same_key_consistent_ed25519() {
+        let mut rng = rand::thread_rng();
+        let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let message = b"Consistency test";
+        let sig1 = sign(&sk, message).unwrap();
+        let sig2 = sign(&sk, message).unwrap();
+
+        // Ed25519 signing is deterministic (RFC 8032)
+        assert_eq!(sig1.ed25519_sig, sig2.ed25519_sig, "Ed25519 sig should be deterministic");
+        // ML-DSA uses hedged randomness — signatures may differ but both verify
+        assert!(!sig1.ml_dsa_sig.is_empty());
+        assert!(!sig2.ml_dsa_sig.is_empty());
+    }
+
+    #[test]
+    fn test_sign_different_messages_different_sigs() {
+        let mut rng = rand::thread_rng();
+        let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let sig1 = sign(&sk, b"Message A").unwrap();
+        let sig2 = sign(&sk, b"Message B").unwrap();
+
+        assert_ne!(sig1.ml_dsa_sig, sig2.ml_dsa_sig);
+        assert_ne!(sig1.ed25519_sig, sig2.ed25519_sig);
+    }
+
+    #[test]
+    fn test_sign_empty_message() {
+        let mut rng = rand::thread_rng();
+        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let sig = sign(&sk, b"").unwrap();
+        let valid = verify(&pk, b"", &sig).unwrap();
+        assert!(valid, "Empty message signature should verify");
+    }
+
+    #[test]
+    fn test_sign_large_message() {
+        let mut rng = rand::thread_rng();
+        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let large_message = vec![0xABu8; 100_000];
+        let sig = sign(&sk, &large_message).unwrap();
+        let valid = verify(&pk, &large_message, &sig).unwrap();
+        assert!(valid, "Large message signature should verify");
+    }
+
+    // ========================================================================
+    // Additional coverage: verify error paths
+    // ========================================================================
+
+    #[test]
+    fn test_verify_wrong_key_pair_ml_dsa() {
+        let mut rng = rand::thread_rng();
+        let (pk1, _sk1) = generate_keypair(&mut rng).unwrap();
+        let (_pk2, sk2) = generate_keypair(&mut rng).unwrap();
+
+        // Sign with sk2, verify with pk1 — ML-DSA component should fail
+        let sig = sign(&sk2, b"test msg").unwrap();
+        let result = verify(&pk1, b"test msg", &sig);
+        // ML-DSA verify returns Err for wrong key pair
+        assert!(result.is_err(), "Verification with wrong key pair must fail");
+    }
+
+    #[test]
+    fn test_verify_corrupted_ed25519_signature() {
+        let mut rng = rand::thread_rng();
+        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+        let message = b"Test message";
+
+        let mut sig = sign(&sk, message).unwrap();
+        // Corrupt only the Ed25519 signature (leave ML-DSA intact)
+        sig.ed25519_sig[0] ^= 0xFF;
+
+        let result = verify(&pk, message, &sig);
+        // Should fail: either error or false
+        match result {
+            Ok(valid) => assert!(!valid, "Corrupted Ed25519 sig must not verify"),
+            Err(_) => {} // Error is also acceptable
+        }
+    }
+
+    #[test]
+    fn test_verify_invalid_ml_dsa_sig_length() {
+        let mut rng = rand::thread_rng();
+        let (pk, _sk) = generate_keypair(&mut rng).unwrap();
+
+        let sig = HybridSignature {
+            ml_dsa_sig: vec![0u8; 100], // Wrong length for MLDSA65
+            ed25519_sig: vec![0u8; 64],
+        };
+
+        let result = verify(&pk, b"test", &sig);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_invalid_ml_dsa_pk_length() {
+        let mut rng = rand::thread_rng();
+        let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+        let sig = sign(&sk, b"test").unwrap();
+
+        let bad_pk = HybridPublicKey {
+            ml_dsa_pk: vec![0u8; 100], // Wrong length
+            ed25519_pk: vec![0u8; 32],
+        };
+
+        let result = verify(&bad_pk, b"test", &sig);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sign_verify_multiple_messages_same_key() {
+        let mut rng = rand::thread_rng();
+        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let messages: Vec<&[u8]> = vec![b"msg1", b"msg2", b"msg3"];
+        let sigs: Vec<_> = messages.iter().map(|m| sign(&sk, m).unwrap()).collect();
+
+        // Each signature should verify with its own message
+        for (msg, sig) in messages.iter().zip(sigs.iter()) {
+            assert!(verify(&pk, msg, sig).unwrap());
+        }
+
+        // Cross-verify should fail
+        assert!(!verify(&pk, b"msg1", &sigs[1]).unwrap_or(false));
+    }
+
+    #[test]
+    fn test_hybrid_signature_clone() {
+        let mut rng = rand::thread_rng();
+        let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+        let sig = sign(&sk, b"clone test").unwrap();
+        let cloned = sig.clone();
+        assert_eq!(sig.ml_dsa_sig, cloned.ml_dsa_sig);
+        assert_eq!(sig.ed25519_sig, cloned.ed25519_sig);
+    }
+
+    #[test]
+    fn test_hybrid_public_key_ml_dsa_len() {
+        let mut rng = rand::thread_rng();
+        let (pk, _sk) = generate_keypair(&mut rng).unwrap();
+        assert_eq!(pk.ml_dsa_pk.len(), 1952); // MLDSA65 public key size
+        assert_eq!(pk.ed25519_pk.len(), 32);
     }
 }

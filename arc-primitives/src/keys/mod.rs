@@ -275,24 +275,163 @@ impl SecretKey {
 
 #[cfg(test)]
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[allow(clippy::unwrap_used)]
 #[allow(clippy::redundant_clone)] // Test clones needed for struct construction
-mod zeroization_tests {
+#[allow(clippy::panic)]
+mod tests {
     use super::*;
 
+    // === KeyError tests ===
+
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
-    fn test_keypair_secret_data_nonzero() {
-        let keypair = KeyPair::generate().expect("Should generate keypair");
-        let secret_key = keypair.secret_key();
+    fn test_key_error_display() {
+        let e = KeyError::GenerationFailed("test".to_string());
+        assert!(e.to_string().contains("Key generation failed"));
 
-        let ml_sk_before = secret_key.ml_kem();
-        let ecc_sk_before = secret_key.ecc().as_bytes();
+        let e = KeyError::SerializationFailed("bad".to_string());
+        assert!(e.to_string().contains("serialization"));
 
-        assert!(
-            !ml_sk_before.iter().all(|&b| b == 0),
-            "ML-KEM secret should contain non-zero data"
-        );
-        assert!(!ecc_sk_before.iter().all(|&b| b == 0), "ECC secret should contain non-zero data");
+        let e = KeyError::DeserializationFailed("oops".to_string());
+        assert!(e.to_string().contains("deserialization"));
+
+        let e = KeyError::InvalidKey("nope".to_string());
+        assert!(e.to_string().contains("Invalid key"));
+    }
+
+    #[test]
+    fn test_key_error_from_rand() {
+        // getrandom returns an error code; simulate via rand::Error
+        let rand_err = rand::Error::new("test rng failure");
+        let key_err = KeyError::from(rand_err);
+        match key_err {
+            KeyError::GenerationFailed(msg) => assert!(msg.contains("test rng failure")),
+            _ => panic!("Expected GenerationFailed"),
+        }
+    }
+
+    #[test]
+    fn test_key_error_eq() {
+        let a = KeyError::GenerationFailed("x".to_string());
+        let b = KeyError::GenerationFailed("x".to_string());
+        assert_eq!(a, b);
+
+        let c = KeyError::GenerationFailed("y".to_string());
+        assert_ne!(a, c);
+    }
+
+    // === PublicKey tests ===
+
+    #[test]
+    fn test_public_key_roundtrip() {
+        // Create a PublicKey with known data
+        let ml_pk = vec![0xAA; 1184]; // ML-KEM-768 public key size
+        let ecc_bytes = [0x42; 32];
+        let ecc_pk = EccPublicKey::from_bytes(&ecc_bytes).expect("valid ECC public key");
+
+        let pk = PublicKey { ml_pk: ml_pk.clone(), ecc_pk };
+
+        // Test accessors
+        assert_eq!(pk.ml_kem(), &ml_pk[..]);
+        assert_eq!(pk.ecc().as_bytes(), &ecc_bytes);
+
+        // Test serialization
+        let bytes = pk.to_bytes();
+        assert_eq!(bytes.len(), 1184 + 32);
+
+        // Test deserialization
+        let pk2 = PublicKey::from_bytes(&bytes).expect("deserialization should succeed");
+        assert_eq!(pk2.ml_kem(), &ml_pk[..]);
+        assert_eq!(pk2.ecc().as_bytes(), &ecc_bytes);
+    }
+
+    #[test]
+    fn test_public_key_len() {
+        let ml_pk = vec![0; 800];
+        let ecc_pk = EccPublicKey::from_bytes(&[1; 32]).unwrap();
+        let pk = PublicKey { ml_pk, ecc_pk };
+        assert_eq!(pk.len(), 832);
+        assert!(!pk.is_empty());
+    }
+
+    #[test]
+    fn test_public_key_debug_redacted() {
+        let pk =
+            PublicKey { ml_pk: vec![0; 100], ecc_pk: EccPublicKey::from_bytes(&[1; 32]).unwrap() };
+        let debug = format!("{:?}", pk);
+        assert!(debug.contains("PublicKey"));
+    }
+
+    #[test]
+    fn test_public_key_clone() {
+        let pk =
+            PublicKey { ml_pk: vec![5; 100], ecc_pk: EccPublicKey::from_bytes(&[7; 32]).unwrap() };
+        let cloned = pk.clone();
+        assert_eq!(cloned.ml_kem(), pk.ml_kem());
+    }
+
+    #[test]
+    fn test_public_key_from_bytes_too_short() {
+        let result = PublicKey::from_bytes(&[0; 31]);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            KeyError::DeserializationFailed(msg) => assert!(msg.contains("Insufficient")),
+            other => panic!("Expected DeserializationFailed, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_public_key_from_bytes_exact_32() {
+        // Exactly 32 bytes means empty ML-KEM and 32 bytes ECC
+        let result = PublicKey::from_bytes(&[0x42; 32]);
+        assert!(result.is_ok());
+        let pk = result.unwrap();
+        assert!(pk.ml_kem().is_empty());
+    }
+
+    // === SecretKey tests ===
+
+    #[test]
+    fn test_secret_key_roundtrip() {
+        let ml_sk = vec![0xBB; 2400];
+        let ecc_bytes = [0xCC; 32];
+        let ecc_sk = EccSecretKey::from_bytes(&ecc_bytes).expect("valid ECC secret key");
+
+        let sk = SecretKey { ml_sk: Zeroizing::new(ml_sk.clone()), ecc_sk: Zeroizing::new(ecc_sk) };
+
+        // Test accessors
+        assert_eq!(sk.ml_kem(), &ml_sk[..]);
+        assert_eq!(sk.ecc().as_bytes(), &ecc_bytes);
+
+        // Test serialization
+        let bytes = sk.to_bytes();
+        assert_eq!(bytes.len(), 2400 + 32);
+
+        // Test deserialization
+        let sk2 = SecretKey::from_bytes(&bytes).expect("deserialization should succeed");
+        assert_eq!(sk2.ml_kem(), &ml_sk[..]);
+        assert_eq!(sk2.ecc().as_bytes(), &ecc_bytes);
+    }
+
+    #[test]
+    fn test_secret_key_from_bytes_too_short() {
+        let result = SecretKey::from_bytes(&[0; 31]);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            KeyError::DeserializationFailed(msg) => assert!(msg.contains("Insufficient")),
+            other => panic!("Expected DeserializationFailed, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_secret_key_debug_redacted() {
+        let sk = SecretKey {
+            ml_sk: Zeroizing::new(vec![0; 100]),
+            ecc_sk: Zeroizing::new(EccSecretKey::from_bytes(&[1; 32]).unwrap()),
+        };
+        let debug = format!("{:?}", sk);
+        assert!(debug.contains("SecretKey"));
+        // Should NOT contain raw key data
+        assert!(!debug.contains("0000"));
     }
 
     #[test]
@@ -316,6 +455,83 @@ mod zeroization_tests {
                 "ECC secret should contain non-zero data"
             );
         }
+    }
+
+    // === KeyPair tests ===
+
+    #[test]
+    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    fn test_keypair_secret_data_nonzero() {
+        let keypair = KeyPair::generate().expect("Should generate keypair");
+        let secret_key = keypair.secret_key();
+
+        let ml_sk_before = secret_key.ml_kem();
+        let ecc_sk_before = secret_key.ecc().as_bytes();
+
+        assert!(
+            !ml_sk_before.iter().all(|&b| b == 0),
+            "ML-KEM secret should contain non-zero data"
+        );
+        assert!(!ecc_sk_before.iter().all(|&b| b == 0), "ECC secret should contain non-zero data");
+    }
+
+    #[test]
+    fn test_keypair_generate_and_accessors() {
+        let keypair = KeyPair::generate().expect("key generation should succeed");
+        let pk = keypair.public_key();
+        let sk = keypair.secret_key();
+
+        // Public key should have ML-KEM + ECC components
+        assert!(!pk.ml_kem().is_empty());
+        assert_eq!(pk.ecc().as_bytes().len(), 32);
+
+        // Secret key should have ML-KEM + ECC components
+        assert!(!sk.ml_kem().is_empty());
+        assert_eq!(sk.ecc().as_bytes().len(), 32);
+    }
+
+    #[test]
+    fn test_keypair_public_key_serialization() {
+        let keypair = KeyPair::generate().expect("key generation should succeed");
+        let pk = keypair.public_key();
+        let bytes = pk.to_bytes();
+        let pk2 = PublicKey::from_bytes(&bytes).expect("deserialization should succeed");
+        assert_eq!(pk.ml_kem(), pk2.ml_kem());
+        assert_eq!(pk.ecc().as_bytes(), pk2.ecc().as_bytes());
+    }
+
+    #[test]
+    fn test_secret_key_from_bytes_exact_32() {
+        // Exactly 32 bytes means empty ML-KEM and 32 bytes ECC
+        let result = SecretKey::from_bytes(&[0x42; 32]);
+        assert!(result.is_ok());
+        let sk = result.unwrap();
+        assert!(sk.ml_kem().is_empty());
+        assert_eq!(sk.ecc().as_bytes(), &[0x42; 32]);
+    }
+
+    #[test]
+    fn test_keypair_debug() {
+        let keypair = KeyPair::generate().expect("key generation should succeed");
+        let debug = format!("{:?}", keypair);
+        assert!(debug.contains("KeyPair"));
+    }
+
+    #[test]
+    fn test_secret_key_serialization() {
+        let keypair = KeyPair::generate().expect("key generation should succeed");
+        let sk = keypair.secret_key();
+        let bytes = sk.to_bytes();
+        let sk2 = SecretKey::from_bytes(&bytes).expect("deserialization should succeed");
+        assert_eq!(sk.ml_kem(), sk2.ml_kem());
+        assert_eq!(sk.ecc().as_bytes(), sk2.ecc().as_bytes());
+    }
+
+    #[test]
+    fn test_key_error_clone() {
+        let err = KeyError::InvalidKey("bad".to_string());
+        let cloned = err.clone();
+        assert_eq!(err, cloned);
     }
 }
 

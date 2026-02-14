@@ -617,4 +617,468 @@ mod tests {
         tester.load_test_vectors(vectors);
         assert!(tester.run_compliance_tests().is_ok());
     }
+
+    // === UtilityCavpTester comprehensive tests ===
+
+    #[test]
+    fn test_utility_cavp_tester_default() {
+        let tester = UtilityCavpTester::default();
+        assert!(tester.test_vectors.is_empty());
+        assert!(tester.results.is_empty());
+    }
+
+    #[test]
+    fn test_utility_cavp_tester_load_and_run() {
+        let mut tester = UtilityCavpTester::new();
+        let vectors = load_sample_utility_vectors();
+        tester.load_test_vectors(vectors);
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    #[test]
+    fn test_utility_cavp_tester_generate_report() {
+        let mut tester = UtilityCavpTester::new();
+        let vectors = load_sample_utility_vectors();
+        tester.load_test_vectors(vectors);
+        tester.run_compliance_tests().unwrap();
+        let report = tester.generate_report();
+        assert!(report.contains("Utility CAVP Compliance Test Report"));
+        assert!(report.contains("Total Tests:"));
+        assert!(report.contains("Passed:"));
+        assert!(report.contains("PASSED"));
+    }
+
+    #[test]
+    fn test_utility_cavp_empty_run() {
+        let mut tester = UtilityCavpTester::new();
+        // No vectors loaded — should succeed with zero tests
+        assert!(tester.run_compliance_tests().is_ok());
+        let report = tester.generate_report();
+        assert!(report.contains("Total Tests: 0"));
+    }
+
+    #[test]
+    fn test_utility_cavp_hex_encode_vector() {
+        let mut tester = UtilityCavpTester::new();
+        tester.load_test_vectors(vec![UtilityTestVector {
+            test_case_id: "HEX-CUSTOM-001".to_string(),
+            function: "hex_encode".to_string(),
+            input_data: vec![0xDE, 0xAD],
+            expected_output: b"dead".to_vec(),
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    #[test]
+    fn test_utility_cavp_hex_decode_vector() {
+        let mut tester = UtilityCavpTester::new();
+        tester.load_test_vectors(vec![UtilityTestVector {
+            test_case_id: "HEX-DEC-001".to_string(),
+            function: "hex_decode".to_string(),
+            input_data: b"cafe".to_vec(),
+            expected_output: vec![0xCA, 0xFE],
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    #[test]
+    fn test_utility_cavp_uuid_vector() {
+        let mut tester = UtilityCavpTester::new();
+        tester.load_test_vectors(vec![UtilityTestVector {
+            test_case_id: "UUID-001".to_string(),
+            function: "uuid_generate".to_string(),
+            input_data: vec![],
+            expected_output: vec![],
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    #[test]
+    fn test_utility_cavp_version_check_vector() {
+        let mut tester = UtilityCavpTester::new();
+        tester.load_test_vectors(vec![UtilityTestVector {
+            test_case_id: "VER-001".to_string(),
+            function: "version_check".to_string(),
+            input_data: vec![],
+            expected_output: vec![crate::prelude::VERSION],
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    #[test]
+    fn test_utility_cavp_domain_constant_vectors() {
+        use crate::prelude::domains;
+        for (name, expected) in [
+            ("HYBRID_KEM", domains::HYBRID_KEM.to_vec()),
+            ("CASCADE_OUTER", domains::CASCADE_OUTER.to_vec()),
+            ("CASCADE_INNER", domains::CASCADE_INNER.to_vec()),
+            ("SIGNATURE_BIND", domains::SIGNATURE_BIND.to_vec()),
+        ] {
+            let mut tester = UtilityCavpTester::new();
+            tester.load_test_vectors(vec![UtilityTestVector {
+                test_case_id: format!("DOMAIN-{}", name),
+                function: "domain_constant".to_string(),
+                input_data: name.as_bytes().to_vec(),
+                expected_output: expected,
+                parameters: HashMap::new(),
+            }]);
+            assert!(tester.run_compliance_tests().is_ok(), "Failed for domain {}", name);
+        }
+    }
+
+    #[test]
+    fn test_utility_cavp_unknown_domain() {
+        let mut tester = UtilityCavpTester::new();
+        tester.load_test_vectors(vec![UtilityTestVector {
+            test_case_id: "DOMAIN-UNKNOWN".to_string(),
+            function: "domain_constant".to_string(),
+            input_data: b"UNKNOWN_DOMAIN".to_vec(),
+            expected_output: vec![],
+            parameters: HashMap::new(),
+        }]);
+        // unknown domain returns false, which triggers VerificationFailed
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_utility_cavp_unsupported_function() {
+        let mut tester = UtilityCavpTester::new();
+        tester.load_test_vectors(vec![UtilityTestVector {
+            test_case_id: "UNSUPPORTED-001".to_string(),
+            function: "unsupported_function".to_string(),
+            input_data: vec![],
+            expected_output: vec![],
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_utility_cavp_hex_encode_mismatch() {
+        let mut tester = UtilityCavpTester::new();
+        tester.load_test_vectors(vec![UtilityTestVector {
+            test_case_id: "HEX-FAIL-001".to_string(),
+            function: "hex_encode".to_string(),
+            input_data: vec![0xFF],
+            expected_output: b"00".to_vec(), // wrong expected
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    // === CryptoCavpTester comprehensive tests ===
+
+    #[test]
+    fn test_crypto_cavp_tester_default() {
+        let tester = CryptoCavpTester::default();
+        assert!(tester.test_vectors.is_empty());
+    }
+
+    #[test]
+    fn test_crypto_cavp_generate_report() {
+        let mut tester = CryptoCavpTester::new();
+        let vectors = load_sample_crypto_vectors();
+        tester.load_test_vectors(vectors);
+        tester.run_compliance_tests().unwrap();
+        let report = tester.generate_report();
+        assert!(report.contains("Cryptographic CAVP Compliance Test Report"));
+        assert!(report.contains("PASSED"));
+    }
+
+    #[test]
+    fn test_crypto_cavp_empty_run() {
+        let mut tester = CryptoCavpTester::new();
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    #[test]
+    fn test_crypto_cavp_unsupported_algorithm() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "UNSUP-001".to_string(),
+            algorithm: "RSA-2048".to_string(),
+            operation: "sign".to_string(),
+            private_key: vec![],
+            public_key: vec![],
+            message: vec![],
+            signature: vec![],
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_crypto_cavp_ecdsa_unsupported_operation() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ECDSA-BAD-OP".to_string(),
+            algorithm: "ECDSA-secp256k1".to_string(),
+            operation: "encrypt".to_string(),
+            private_key: vec![0xC9; 32],
+            public_key: vec![],
+            message: vec![],
+            signature: vec![],
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_crypto_cavp_ed25519_unsupported_operation() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ED-BAD-OP".to_string(),
+            algorithm: "Ed25519".to_string(),
+            operation: "encrypt".to_string(),
+            private_key: vec![0x01; 32],
+            public_key: vec![],
+            message: vec![],
+            signature: vec![],
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_crypto_cavp_ecdsa_invalid_key() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ECDSA-BAD-KEY".to_string(),
+            algorithm: "ECDSA-secp256k1".to_string(),
+            operation: "sign".to_string(),
+            private_key: vec![0; 32], // all-zero key is invalid for ECDSA
+            public_key: vec![],
+            message: b"test".to_vec(),
+            signature: vec![],
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_crypto_cavp_ed25519_wrong_key_length() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ED-BAD-LEN".to_string(),
+            algorithm: "Ed25519".to_string(),
+            operation: "sign".to_string(),
+            private_key: vec![1; 16], // wrong length
+            public_key: vec![],
+            message: b"test".to_vec(),
+            signature: vec![],
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_load_sample_utility_vectors_not_empty() {
+        let vectors = load_sample_utility_vectors();
+        assert!(!vectors.is_empty());
+        // Verify expected test IDs
+        let ids: Vec<&str> = vectors.iter().map(|v| v.test_case_id.as_str()).collect();
+        assert!(ids.contains(&"HEX-ENCODE-001"));
+        assert!(ids.contains(&"HEX-DECODE-001"));
+        assert!(ids.contains(&"UUID-GENERATE-001"));
+    }
+
+    #[test]
+    fn test_load_sample_crypto_vectors_not_empty() {
+        let vectors = load_sample_crypto_vectors();
+        assert!(!vectors.is_empty());
+        let ids: Vec<&str> = vectors.iter().map(|v| v.test_case_id.as_str()).collect();
+        assert!(ids.contains(&"ECDSA-SECP256K1-SIGN-001"));
+        assert!(ids.contains(&"ED25519-SIGN-001"));
+        assert!(ids.contains(&"ED25519-VERIFY-001"));
+    }
+
+    // === ECDSA verify path coverage ===
+
+    #[test]
+    fn test_crypto_cavp_ecdsa_verify_valid() {
+        use k256::ecdsa::{SigningKey as EcdsaSigningKey, signature::Signer};
+
+        // Generate a valid ECDSA key pair and signature
+        let private_key: [u8; 32] = [
+            0xc9, 0xaf, 0xa9, 0xd8, 0x45, 0xba, 0x75, 0x16, 0x6b, 0x5c, 0x21, 0x57, 0x67, 0xb1,
+            0xd6, 0x93, 0x4e, 0x50, 0xc3, 0xdb, 0x36, 0xe8, 0x9b, 0x12, 0x7b, 0x8a, 0x62, 0x2b,
+            0x12, 0x0f, 0x67, 0x21,
+        ];
+        let signing_key = EcdsaSigningKey::from_slice(&private_key).unwrap();
+        let verifying_key = signing_key.verifying_key();
+        let message = b"test message for ECDSA verify";
+        let signature: Signature = signing_key.sign(message);
+
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ECDSA-VERIFY-001".to_string(),
+            algorithm: "ECDSA-secp256k1".to_string(),
+            operation: "verify".to_string(),
+            private_key: vec![],
+            public_key: verifying_key.to_sec1_bytes().to_vec(),
+            message: message.to_vec(),
+            signature: signature.to_bytes().to_vec(),
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    #[test]
+    fn test_crypto_cavp_ecdsa_verify_invalid_signature() {
+        use k256::ecdsa::{SigningKey as EcdsaSigningKey, signature::Signer};
+
+        let private_key: [u8; 32] = [
+            0xc9, 0xaf, 0xa9, 0xd8, 0x45, 0xba, 0x75, 0x16, 0x6b, 0x5c, 0x21, 0x57, 0x67, 0xb1,
+            0xd6, 0x93, 0x4e, 0x50, 0xc3, 0xdb, 0x36, 0xe8, 0x9b, 0x12, 0x7b, 0x8a, 0x62, 0x2b,
+            0x12, 0x0f, 0x67, 0x21,
+        ];
+        let signing_key = EcdsaSigningKey::from_slice(&private_key).unwrap();
+        let verifying_key = signing_key.verifying_key();
+        let message = b"test message for ECDSA verify";
+        let signature: Signature = signing_key.sign(message);
+
+        // Use wrong message for verification — should fail, expected_result=false
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ECDSA-VERIFY-FAIL".to_string(),
+            algorithm: "ECDSA-secp256k1".to_string(),
+            operation: "verify".to_string(),
+            private_key: vec![],
+            public_key: verifying_key.to_sec1_bytes().to_vec(),
+            message: b"wrong message".to_vec(),
+            signature: signature.to_bytes().to_vec(),
+            expected_result: false, // We expect verification to fail
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_ok());
+    }
+
+    // === ECDSA verify error paths ===
+
+    #[test]
+    fn test_crypto_cavp_ecdsa_verify_invalid_public_key() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ECDSA-BAD-PK".to_string(),
+            algorithm: "ECDSA-secp256k1".to_string(),
+            operation: "verify".to_string(),
+            private_key: vec![],
+            public_key: vec![0xFF; 10], // Invalid SEC1 encoded public key
+            message: b"test".to_vec(),
+            signature: vec![0; 64],
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_crypto_cavp_ecdsa_verify_invalid_signature_bytes() {
+        use k256::ecdsa::SigningKey as EcdsaSigningKey;
+
+        let private_key: [u8; 32] = [
+            0xc9, 0xaf, 0xa9, 0xd8, 0x45, 0xba, 0x75, 0x16, 0x6b, 0x5c, 0x21, 0x57, 0x67, 0xb1,
+            0xd6, 0x93, 0x4e, 0x50, 0xc3, 0xdb, 0x36, 0xe8, 0x9b, 0x12, 0x7b, 0x8a, 0x62, 0x2b,
+            0x12, 0x0f, 0x67, 0x21,
+        ];
+        let signing_key = EcdsaSigningKey::from_slice(&private_key).unwrap();
+        let verifying_key = signing_key.verifying_key();
+
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ECDSA-BAD-SIG".to_string(),
+            algorithm: "ECDSA-secp256k1".to_string(),
+            operation: "verify".to_string(),
+            private_key: vec![],
+            public_key: verifying_key.to_sec1_bytes().to_vec(),
+            message: b"test".to_vec(),
+            signature: vec![0xFF; 10], // Wrong length for ECDSA signature
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    // === Ed25519 verify error paths ===
+
+    #[test]
+    fn test_crypto_cavp_ed25519_verify_wrong_pk_length() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ED-BAD-PK-LEN".to_string(),
+            algorithm: "Ed25519".to_string(),
+            operation: "verify".to_string(),
+            private_key: vec![],
+            public_key: vec![1; 16], // Wrong length (not 32 bytes)
+            message: b"test".to_vec(),
+            signature: vec![0; 64],
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    #[test]
+    fn test_crypto_cavp_ed25519_verify_wrong_sig_length() {
+        let mut tester = CryptoCavpTester::new();
+        tester.load_test_vectors(vec![CryptoTestVector {
+            test_case_id: "ED-BAD-SIG-LEN".to_string(),
+            algorithm: "Ed25519".to_string(),
+            operation: "verify".to_string(),
+            private_key: vec![],
+            public_key: vec![1; 32],
+            message: b"test".to_vec(),
+            signature: vec![0; 10], // Wrong length (not 64 bytes)
+            expected_result: true,
+            parameters: HashMap::new(),
+        }]);
+        assert!(tester.run_compliance_tests().is_err());
+    }
+
+    // === UtilityTestVector / CryptoTestVector struct field access ===
+
+    #[test]
+    fn test_utility_test_vector_clone_debug() {
+        let vector = UtilityTestVector {
+            test_case_id: "TEST-001".to_string(),
+            function: "hex_encode".to_string(),
+            input_data: vec![1, 2, 3],
+            expected_output: b"010203".to_vec(),
+            parameters: HashMap::new(),
+        };
+        let cloned = vector.clone();
+        assert_eq!(cloned.test_case_id, "TEST-001");
+        assert_eq!(cloned.function, "hex_encode");
+        let debug = format!("{:?}", vector);
+        assert!(debug.contains("UtilityTestVector"));
+    }
+
+    #[test]
+    fn test_crypto_test_vector_clone_debug() {
+        let vector = CryptoTestVector {
+            test_case_id: "CRYPTO-001".to_string(),
+            algorithm: "Ed25519".to_string(),
+            operation: "sign".to_string(),
+            private_key: vec![1; 32],
+            public_key: vec![],
+            message: b"msg".to_vec(),
+            signature: vec![],
+            expected_result: true,
+            parameters: HashMap::new(),
+        };
+        let cloned = vector.clone();
+        assert_eq!(cloned.algorithm, "Ed25519");
+        let debug = format!("{:?}", vector);
+        assert!(debug.contains("CryptoTestVector"));
+    }
 }

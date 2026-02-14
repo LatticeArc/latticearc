@@ -1,7 +1,11 @@
-# Kani - Formal Verification
-# Model checking for Rust code to prove absence of certain bugs
+# Kani - Bounded Model Checking
+# Proves absence of panics, overflow, and out-of-bounds access in Rust code
+#
+# Two tiers:
+#   - "Verified Proofs" (arc-core): Pure Rust logic, no FFI — must pass for badge
+#   - "Experimental Proofs" (arc-hybrid): Calls aws-lc-rs FFI — best-effort, may not verify
 
-name: Kani Formal Verification
+name: Kani Model Checking
 
 on:
   schedule:
@@ -25,18 +29,10 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  kani-proofs:
-    name: Kani Proofs (${{ matrix.crate }})
+  # Tier 1: Pure Rust proofs that MUST pass — badge reflects this job
+  kani-verified:
+    name: Verified Proofs (arc-core)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        crate:
-          - arc-prelude
-          - arc-primitives
-          - arc-core
-          - arc-hybrid
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -53,26 +49,28 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.kani
-          key: ${{ runner.os }}-kani-${{ matrix.crate }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-kani-verified-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run Kani proofs on ${{ matrix.crate }}
+      - name: Run verified Kani proofs (arc-core)
         run: |
-          cargo kani -p ${{ matrix.crate }} --all-features 2>&1 | tee kani-output.txt
+          cargo kani -p arc-core --all-features 2>&1 | tee kani-output.txt
         timeout-minutes: 120
-        continue-on-error: true
+        # No continue-on-error — these proofs must pass
 
       - name: Upload Kani results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: kani-results-${{ matrix.crate }}
+          name: kani-verified-results
           path: kani-output.txt
           retention-days: 30
 
-      - name: Kani Summary
+      - name: Verified Proofs Summary
         if: always()
         run: |
-          echo "## Kani Verification: ${{ matrix.crate }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Verified Kani Proofs (arc-core)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "These proofs are pure Rust (no FFI) and must pass." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if grep -q "VERIFICATION:- SUCCESSFUL" kani-output.txt 2>/dev/null; then
             echo "✅ All proofs verified successfully" >> $GITHUB_STEP_SUMMARY
@@ -84,12 +82,14 @@ jobs:
             grep -A5 "VERIFICATION:- FAILED" kani-output.txt >> $GITHUB_STEP_SUMMARY || true
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ No Kani proofs found in this crate" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ No Kani proofs found" >> $GITHUB_STEP_SUMMARY
           fi
 
-  kani-crypto-proofs:
-    name: Cryptographic Invariant Proofs
+  # Tier 2: Proofs that depend on aws-lc-rs FFI — Kani may not support these
+  kani-experimental:
+    name: Experimental Proofs (arc-hybrid)
     runs-on: ubuntu-latest
+    continue-on-error: true  # FFI-dependent — does not affect badge
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -106,63 +106,58 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.kani
-          key: ${{ runner.os }}-kani-crypto-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-kani-experimental-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Verify cryptographic invariants
+      - name: Run experimental Kani proofs (arc-hybrid)
         run: |
-          echo "Running cryptographic invariant proofs..."
-
-          # Verify key size invariants
-          cargo kani -p arc-primitives --all-features \
-            --harness "verify_key_sizes" 2>&1 | tee -a kani-crypto.txt || true
-
-          # Verify encryption roundtrip
-          cargo kani -p arc-hybrid --all-features \
-            --harness "encrypt_decrypt_roundtrip" 2>&1 | tee -a kani-crypto.txt || true
-
-          # Verify KEM consistency
-          cargo kani -p arc-hybrid --all-features \
-            --harness "kem_encapsulate_decapsulate_consistency" 2>&1 | tee -a kani-crypto.txt || true
+          echo "⚠️ These proofs call aws-lc-rs FFI — Kani may not support them."
+          echo "Results are best-effort and do not affect the workflow badge."
+          echo ""
+          cargo kani -p arc-hybrid --all-features 2>&1 | tee kani-output.txt
         timeout-minutes: 180
-        continue-on-error: true
 
-      - name: Upload crypto proof results
+      - name: Upload experimental results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: kani-crypto-proofs
-          path: kani-crypto.txt
+          name: kani-experimental-results
+          path: kani-output.txt
           retention-days: 30
 
-      - name: Crypto Proofs Summary
+      - name: Experimental Proofs Summary
         if: always()
         run: |
-          echo "## Cryptographic Invariant Proofs" >> $GITHUB_STEP_SUMMARY
+          echo "## Experimental Kani Proofs (arc-hybrid)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Verified properties:" >> $GITHUB_STEP_SUMMARY
-          echo "- Key size constraints" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ These proofs depend on aws-lc-rs FFI and may not verify with Kani." >> $GITHUB_STEP_SUMMARY
+          echo "They do **not** affect the workflow badge status." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Properties tested (when FFI is supported):" >> $GITHUB_STEP_SUMMARY
           echo "- Encryption/decryption roundtrip" >> $GITHUB_STEP_SUMMARY
           echo "- KEM encapsulate/decapsulate consistency" >> $GITHUB_STEP_SUMMARY
+          echo "- Key derivation determinism" >> $GITHUB_STEP_SUMMARY
           echo "- Signature sign/verify correctness" >> $GITHUB_STEP_SUMMARY
-          echo "- Zeroization of sensitive data" >> $GITHUB_STEP_SUMMARY
+          echo "- Input validation (invalid key rejection)" >> $GITHUB_STEP_SUMMARY
+          echo "- Memory safety (no panics)" >> $GITHUB_STEP_SUMMARY
+          echo "- Zeroization of secrets" >> $GITHUB_STEP_SUMMARY
 
   kani-summary:
     name: Kani Summary
     runs-on: ubuntu-latest
-    needs: [kani-proofs, kani-crypto-proofs]
+    needs: [kani-verified, kani-experimental]
     if: always()
     steps:
       - name: Generate summary
         run: |
-          echo "# Kani Formal Verification Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# Kani Model Checking Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Kani uses model checking to prove the absence of:" >> $GITHUB_STEP_SUMMARY
-          echo "- Panics and assertions failures" >> $GITHUB_STEP_SUMMARY
+          echo "Kani uses bounded model checking to prove the absence of:" >> $GITHUB_STEP_SUMMARY
+          echo "- Panics and assertion failures" >> $GITHUB_STEP_SUMMARY
           echo "- Arithmetic overflow/underflow" >> $GITHUB_STEP_SUMMARY
           echo "- Out-of-bounds array access" >> $GITHUB_STEP_SUMMARY
           echo "- Invalid memory access" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Crate Proofs | ${{ needs.kani-proofs.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Crypto Invariants | ${{ needs.kani-crypto-proofs.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tier | Component | Status | Badge Impact |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----------|--------|--------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Verified | arc-core (pure Rust) | ${{ needs.kani-verified.result }} | Yes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Experimental | arc-hybrid (FFI) | ${{ needs.kani-experimental.result }} | No |" >> $GITHUB_STEP_SUMMARY

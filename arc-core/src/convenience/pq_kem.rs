@@ -637,6 +637,86 @@ mod tests {
         Ok(())
     }
 
+    // Decrypt with config tests (FIPS limitation - always returns error)
+    #[test]
+    fn test_decrypt_pq_ml_kem_with_config_unverified_always_fails() {
+        let data = vec![0u8; 2000];
+        let config = CoreConfig::default();
+        let result = decrypt_pq_ml_kem_with_config_unverified(
+            &data,
+            &[0u8; 32],
+            MlKemSecurityLevel::MlKem768,
+            &config,
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CoreError::NotImplemented(_) => {}
+            other => panic!("Expected NotImplemented, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_decrypt_pq_ml_kem_with_config_verified_always_fails() -> Result<()> {
+        let data = vec![0u8; 2000];
+        let config = CoreConfig::default();
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let result = decrypt_pq_ml_kem_with_config(
+            &data,
+            &[0u8; 32],
+            MlKemSecurityLevel::MlKem768,
+            &config,
+            SecurityMode::Verified(&session),
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CoreError::NotImplemented(_) => {}
+            other => panic!("Expected NotImplemented, got: {:?}", other),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_decrypt_pq_ml_kem_verified_always_fails() -> Result<()> {
+        let data = vec![0u8; 2000];
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let result = decrypt_pq_ml_kem(
+            &data,
+            &[0u8; 32],
+            MlKemSecurityLevel::MlKem768,
+            SecurityMode::Verified(&session),
+        );
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    // ML-KEM encrypt with invalid public key
+    #[test]
+    fn test_encrypt_pq_ml_kem_invalid_pk() {
+        let data = b"test";
+        let bad_pk = vec![0u8; 10]; // Too short for any ML-KEM level
+        let result = encrypt_pq_ml_kem_unverified(data, &bad_pk, MlKemSecurityLevel::MlKem768);
+        assert!(result.is_err(), "Invalid public key should fail");
+    }
+
+    // Decrypt with all three security levels for coverage
+    #[test]
+    fn test_decrypt_pq_ml_kem_512_always_fails() {
+        let result =
+            decrypt_pq_ml_kem_unverified(&[0u8; 1000], &[0u8; 32], MlKemSecurityLevel::MlKem512);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_pq_ml_kem_1024_always_fails() {
+        let result =
+            decrypt_pq_ml_kem_unverified(&[0u8; 2000], &[0u8; 32], MlKemSecurityLevel::MlKem1024);
+        assert!(result.is_err());
+    }
+
     // Integration test
     #[test]
     fn test_ml_kem_multiple_encryptions_produce_different_ciphertexts() -> Result<()> {

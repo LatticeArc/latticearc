@@ -171,4 +171,59 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_secp256k1_from_secret_key_invalid_length() {
+        let too_short = vec![0u8; 16];
+        let result = Secp256k1KeyPair::from_secret_key(&too_short);
+        assert!(result.is_err());
+
+        let too_long = vec![0u8; 64];
+        let result = Secp256k1KeyPair::from_secret_key(&too_long);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_secp256k1_signature_from_bytes_invalid_length() {
+        let too_short = vec![0u8; 32];
+        let result = Secp256k1Signature::signature_from_bytes(&too_short);
+        assert!(result.is_err());
+
+        let too_long = vec![0u8; 128];
+        let result = Secp256k1Signature::signature_from_bytes(&too_long);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_secp256k1_getter_accessors() -> Result<()> {
+        let keypair = Secp256k1KeyPair::generate()?;
+        let _pk = keypair.public_key();
+        let _sk = keypair.secret_key();
+        // Verify getters return consistent data
+        assert_eq!(keypair.public_key_bytes().len(), 65);
+        assert_eq!(keypair.secret_key_bytes().len(), 32);
+        Ok(())
+    }
+
+    #[test]
+    fn test_secp256k1_signature_len() {
+        assert_eq!(Secp256k1Signature::signature_len(), 64);
+    }
+
+    #[test]
+    fn test_secp256k1_sign_trait_returns_error() {
+        let signer = Secp256k1Signature;
+        let result = signer.sign(b"test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_secp256k1_verify_invalid_public_key() {
+        let invalid_pk = vec![0u8; 10];
+        let sig = Signature::from_bytes(&[0u8; 64].into());
+        if let Ok(sig) = sig {
+            let result = Secp256k1Signature::verify(&invalid_pk, b"test", &sig);
+            assert!(result.is_err());
+        }
+    }
 }

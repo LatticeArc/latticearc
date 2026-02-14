@@ -357,7 +357,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
     fn test_hybrid_key_exchange() {
         let mut rng = rand::thread_rng();
 
@@ -391,5 +390,115 @@ mod tests {
     fn test_get_kex_provider_classical() {
         let provider = get_kex_provider(TlsMode::Classic, PqKexMode::Classical);
         assert!(provider.is_ok());
+    }
+
+    #[test]
+    fn test_get_kex_provider_custom_hybrid() {
+        let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::CustomHybrid);
+        assert!(provider.is_ok());
+    }
+
+    #[test]
+    fn test_get_kex_provider_pq_rustls() {
+        let provider = get_kex_provider(TlsMode::Pq, PqKexMode::RustlsPq);
+        assert!(provider.is_ok());
+    }
+
+    #[test]
+    fn test_get_kex_provider_pq_custom_hybrid() {
+        let provider = get_kex_provider(TlsMode::Pq, PqKexMode::CustomHybrid);
+        assert!(provider.is_ok());
+    }
+
+    #[test]
+    fn test_get_kex_provider_classic_with_rustls_pq() {
+        // Classic mode overrides kex_mode
+        let provider = get_kex_provider(TlsMode::Classic, PqKexMode::RustlsPq);
+        assert!(provider.is_ok());
+    }
+
+    // === KexInfo tests ===
+
+    #[test]
+    fn test_kex_info_custom_hybrid() {
+        let info = get_kex_info(TlsMode::Hybrid, PqKexMode::CustomHybrid);
+        assert!(info.method.contains("Custom Hybrid"));
+        assert!(info.is_pq_secure);
+        assert_eq!(info.ss_size, 64);
+        assert_eq!(info.pk_size, 32 + 1184);
+    }
+
+    #[test]
+    fn test_kex_info_pq_mode() {
+        let info = get_kex_info(TlsMode::Pq, PqKexMode::RustlsPq);
+        assert!(info.is_pq_secure);
+        assert_eq!(info.method, "X25519MLKEM768");
+    }
+
+    #[test]
+    fn test_kex_info_classic_overrides_kex_mode() {
+        let info = get_kex_info(TlsMode::Classic, PqKexMode::RustlsPq);
+        assert!(!info.is_pq_secure);
+        assert!(info.method.contains("X25519"));
+    }
+
+    // === SecureSharedSecret tests ===
+
+    #[test]
+    fn test_secure_shared_secret_new_and_ref() {
+        let secret = SecureSharedSecret::new(vec![1, 2, 3, 4]);
+        assert_eq!(secret.secret_ref(), &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_secure_shared_secret_as_ref() {
+        let secret = SecureSharedSecret::new(vec![5, 6, 7]);
+        let slice: &[u8] = secret.as_ref();
+        assert_eq!(slice, &[5, 6, 7]);
+    }
+
+    #[test]
+    fn test_secure_shared_secret_into_inner() {
+        let secret = SecureSharedSecret::new(vec![10, 20, 30]);
+        let zeroizing = secret.into_inner();
+        assert_eq!(zeroizing.as_slice(), &[10, 20, 30]);
+        // Zeroizing wrapper will zeroize on drop
+    }
+
+    #[test]
+    fn test_secure_shared_secret_into_inner_raw() {
+        let secret = SecureSharedSecret::new(vec![40, 50, 60]);
+        let raw = secret.into_inner_raw();
+        assert_eq!(raw, vec![40, 50, 60]);
+    }
+
+    #[test]
+    fn test_secure_shared_secret_zeroize() {
+        let mut secret = SecureSharedSecret::new(vec![1, 2, 3, 4, 5]);
+        secret.zeroize();
+        assert!(secret.secret_ref().iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_secure_shared_secret_drop_zeroizes() {
+        // Verify drop impl compiles and runs without panic
+        let secret = SecureSharedSecret::new(vec![99; 64]);
+        drop(secret);
+    }
+
+    // === PqKexMode tests ===
+
+    #[test]
+    fn test_pq_kex_mode_eq() {
+        assert_eq!(PqKexMode::RustlsPq, PqKexMode::RustlsPq);
+        assert_eq!(PqKexMode::Classical, PqKexMode::Classical);
+        assert_ne!(PqKexMode::RustlsPq, PqKexMode::Classical);
+        assert_ne!(PqKexMode::CustomHybrid, PqKexMode::RustlsPq);
+    }
+
+    #[test]
+    fn test_pq_kex_mode_debug() {
+        let debug_str = format!("{:?}", PqKexMode::CustomHybrid);
+        assert!(debug_str.contains("CustomHybrid"));
     }
 }

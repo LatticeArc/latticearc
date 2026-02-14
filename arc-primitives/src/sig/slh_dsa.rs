@@ -653,6 +653,8 @@ impl std::fmt::Debug for SigningKey {
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
 #[allow(clippy::explicit_iter_loop)] // Tests use iterator style
 #[allow(clippy::redundant_clone)] // Tests clone for independent modification
+#[allow(clippy::indexing_slicing)]
+#[allow(clippy::unnecessary_cast)]
 mod tests {
     use super::*;
 

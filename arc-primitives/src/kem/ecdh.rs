@@ -1031,6 +1031,7 @@ pub fn validate_p521_public_key(public_key_bytes: &[u8]) -> Result<(), EcdhError
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, deprecated)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
@@ -1222,5 +1223,374 @@ mod tests {
         let zero_seed = [0u8; X25519_KEY_SIZE];
         let result = X25519StaticKeyPair::from_seed_bytes(&zero_seed);
         assert!(result.is_ok());
+    }
+
+    // ====================================================================
+    // EcdhCurve enum tests
+    // ====================================================================
+
+    #[test]
+    fn test_ecdh_curve_public_key_size() {
+        assert_eq!(EcdhCurve::X25519.public_key_size(), X25519_KEY_SIZE);
+        assert_eq!(EcdhCurve::P256.public_key_size(), P256_PUBLIC_KEY_SIZE);
+        assert_eq!(EcdhCurve::P384.public_key_size(), P384_PUBLIC_KEY_SIZE);
+        assert_eq!(EcdhCurve::P521.public_key_size(), P521_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_ecdh_curve_shared_secret_size() {
+        assert_eq!(EcdhCurve::X25519.shared_secret_size(), X25519_KEY_SIZE);
+        assert_eq!(EcdhCurve::P256.shared_secret_size(), P256_SHARED_SECRET_SIZE);
+        assert_eq!(EcdhCurve::P384.shared_secret_size(), P384_SHARED_SECRET_SIZE);
+        assert_eq!(EcdhCurve::P521.shared_secret_size(), P521_SHARED_SECRET_SIZE);
+    }
+
+    #[test]
+    fn test_ecdh_curve_name() {
+        assert_eq!(EcdhCurve::X25519.name(), "X25519");
+        assert_eq!(EcdhCurve::P256.name(), "P-256");
+        assert_eq!(EcdhCurve::P384.name(), "P-384");
+        assert_eq!(EcdhCurve::P521.name(), "P-521");
+    }
+
+    #[test]
+    fn test_ecdh_curve_clone_eq() {
+        let c1 = EcdhCurve::P256;
+        let c2 = c1;
+        assert_eq!(c1, c2);
+        assert_ne!(EcdhCurve::P256, EcdhCurve::P384);
+    }
+
+    // ====================================================================
+    // X25519 additional coverage
+    // ====================================================================
+
+    #[test]
+    fn test_x25519_public_key_to_vec() {
+        let bytes = [0x42u8; X25519_KEY_SIZE];
+        let pk = X25519PublicKey::from_bytes(&bytes).unwrap();
+        assert_eq!(pk.to_vec(), bytes.to_vec());
+    }
+
+    #[test]
+    fn test_x25519_secret_key_invalid_size() {
+        let result = X25519SecretKey::from_bytes(&[0u8; 16]);
+        assert!(matches!(result, Err(EcdhError::InvalidKeySize { expected: 32, actual: 16 })));
+    }
+
+    #[test]
+    fn test_x25519_secret_key_debug_redacted() {
+        let sk = X25519SecretKey::from_bytes(&[0xAA; X25519_KEY_SIZE]).unwrap();
+        let debug = format!("{:?}", sk);
+        assert!(debug.contains("REDACTED"));
+        assert!(!debug.contains("0xaa"));
+    }
+
+    #[test]
+    fn test_x25519_keypair_debug() {
+        let kp = X25519KeyPair::generate().unwrap();
+        let debug = format!("{:?}", kp);
+        assert!(debug.contains("X25519KeyPair"));
+        assert!(debug.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_x25519_keypair_public_key() {
+        let kp = X25519KeyPair::generate().unwrap();
+        let pk = kp.public_key();
+        assert_eq!(pk.as_bytes().len(), X25519_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_x25519_static_keypair_debug() {
+        let kp = X25519StaticKeyPair::generate().unwrap();
+        let debug = format!("{:?}", kp);
+        assert!(debug.contains("X25519StaticKeyPair"));
+        assert!(debug.contains("REDACTED"));
+    }
+
+    // ====================================================================
+    // P-256 tests
+    // ====================================================================
+
+    #[test]
+    fn test_p256_keypair_generation() {
+        let kp = EcdhP256KeyPair::generate().unwrap();
+        assert_eq!(kp.public_key_bytes().len(), P256_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_p256_keypair_public_key() {
+        let kp = EcdhP256KeyPair::generate().unwrap();
+        let pk = kp.public_key().unwrap();
+        assert_eq!(pk.as_bytes().len(), P256_PUBLIC_KEY_SIZE);
+        assert_eq!(pk.to_vec().len(), P256_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_p256_key_exchange() {
+        let alice = EcdhP256KeyPair::generate().unwrap();
+        let bob = EcdhP256KeyPair::generate().unwrap();
+
+        let alice_pk = alice.public_key_bytes().to_vec();
+        let bob_pk = bob.public_key_bytes().to_vec();
+
+        let ss_alice = alice.agree(&bob_pk).unwrap();
+        let ss_bob = bob.agree(&alice_pk).unwrap();
+
+        assert_eq!(ss_alice, ss_bob);
+        assert_eq!(ss_alice.len(), P256_SHARED_SECRET_SIZE);
+    }
+
+    #[test]
+    fn test_p256_public_key_from_bytes_valid() {
+        let kp = EcdhP256KeyPair::generate().unwrap();
+        let pk_bytes = kp.public_key_bytes().to_vec();
+        let pk = EcdhP256PublicKey::from_bytes(&pk_bytes).unwrap();
+        assert_eq!(pk.as_bytes(), &pk_bytes);
+        assert!(pk.validate().is_ok());
+    }
+
+    #[test]
+    fn test_p256_public_key_wrong_size() {
+        let result = EcdhP256PublicKey::from_bytes(&[0x04; 32]);
+        assert!(matches!(result, Err(EcdhError::InvalidKeySize { .. })));
+    }
+
+    #[test]
+    fn test_p256_public_key_wrong_prefix() {
+        let mut bytes = vec![0x05; P256_PUBLIC_KEY_SIZE];
+        bytes[0] = 0x05; // Not 0x04
+        let result = EcdhP256PublicKey::from_bytes(&bytes);
+        assert!(matches!(result, Err(EcdhError::InvalidPointFormat { .. })));
+    }
+
+    #[test]
+    fn test_p256_keypair_debug() {
+        let kp = EcdhP256KeyPair::generate().unwrap();
+        let debug = format!("{:?}", kp);
+        assert!(debug.contains("EcdhP256KeyPair"));
+        assert!(debug.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_agree_ephemeral_p256() {
+        let bob = EcdhP256KeyPair::generate().unwrap();
+        let bob_pk = bob.public_key_bytes().to_vec();
+        let (shared_secret, our_pk) = agree_ephemeral_p256(&bob_pk).unwrap();
+        assert_eq!(shared_secret.len(), P256_SHARED_SECRET_SIZE);
+        assert_eq!(our_pk.len(), P256_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_validate_p256_public_key_valid() {
+        let kp = EcdhP256KeyPair::generate().unwrap();
+        assert!(validate_p256_public_key(kp.public_key_bytes()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_p256_public_key_invalid() {
+        assert!(validate_p256_public_key(&[0u8; 10]).is_err());
+    }
+
+    // ====================================================================
+    // P-384 tests
+    // ====================================================================
+
+    #[test]
+    fn test_p384_keypair_generation() {
+        let kp = EcdhP384KeyPair::generate().unwrap();
+        assert_eq!(kp.public_key_bytes().len(), P384_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_p384_keypair_public_key() {
+        let kp = EcdhP384KeyPair::generate().unwrap();
+        let pk = kp.public_key().unwrap();
+        assert_eq!(pk.as_bytes().len(), P384_PUBLIC_KEY_SIZE);
+        assert_eq!(pk.to_vec().len(), P384_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_p384_key_exchange() {
+        let alice = EcdhP384KeyPair::generate().unwrap();
+        let bob = EcdhP384KeyPair::generate().unwrap();
+
+        let alice_pk = alice.public_key_bytes().to_vec();
+        let bob_pk = bob.public_key_bytes().to_vec();
+
+        let ss_alice = alice.agree(&bob_pk).unwrap();
+        let ss_bob = bob.agree(&alice_pk).unwrap();
+
+        assert_eq!(ss_alice, ss_bob);
+        assert_eq!(ss_alice.len(), P384_SHARED_SECRET_SIZE);
+    }
+
+    #[test]
+    fn test_p384_public_key_from_bytes_valid() {
+        let kp = EcdhP384KeyPair::generate().unwrap();
+        let pk_bytes = kp.public_key_bytes().to_vec();
+        let pk = EcdhP384PublicKey::from_bytes(&pk_bytes).unwrap();
+        assert_eq!(pk.as_bytes(), &pk_bytes);
+        assert!(pk.validate().is_ok());
+    }
+
+    #[test]
+    fn test_p384_public_key_wrong_size() {
+        let result = EcdhP384PublicKey::from_bytes(&[0x04; 32]);
+        assert!(matches!(result, Err(EcdhError::InvalidKeySize { .. })));
+    }
+
+    #[test]
+    fn test_p384_public_key_wrong_prefix() {
+        let mut bytes = vec![0x03; P384_PUBLIC_KEY_SIZE];
+        bytes[0] = 0x03;
+        let result = EcdhP384PublicKey::from_bytes(&bytes);
+        assert!(matches!(result, Err(EcdhError::InvalidPointFormat { .. })));
+    }
+
+    #[test]
+    fn test_p384_keypair_debug() {
+        let kp = EcdhP384KeyPair::generate().unwrap();
+        let debug = format!("{:?}", kp);
+        assert!(debug.contains("EcdhP384KeyPair"));
+        assert!(debug.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_agree_ephemeral_p384() {
+        let bob = EcdhP384KeyPair::generate().unwrap();
+        let bob_pk = bob.public_key_bytes().to_vec();
+        let (shared_secret, our_pk) = agree_ephemeral_p384(&bob_pk).unwrap();
+        assert_eq!(shared_secret.len(), P384_SHARED_SECRET_SIZE);
+        assert_eq!(our_pk.len(), P384_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_validate_p384_public_key_valid() {
+        let kp = EcdhP384KeyPair::generate().unwrap();
+        assert!(validate_p384_public_key(kp.public_key_bytes()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_p384_public_key_invalid() {
+        assert!(validate_p384_public_key(&[0u8; 10]).is_err());
+    }
+
+    // ====================================================================
+    // P-521 tests
+    // ====================================================================
+
+    #[test]
+    fn test_p521_keypair_generation() {
+        let kp = EcdhP521KeyPair::generate().unwrap();
+        assert_eq!(kp.public_key_bytes().len(), P521_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_p521_keypair_public_key() {
+        let kp = EcdhP521KeyPair::generate().unwrap();
+        let pk = kp.public_key().unwrap();
+        assert_eq!(pk.as_bytes().len(), P521_PUBLIC_KEY_SIZE);
+        assert_eq!(pk.to_vec().len(), P521_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_p521_key_exchange() {
+        let alice = EcdhP521KeyPair::generate().unwrap();
+        let bob = EcdhP521KeyPair::generate().unwrap();
+
+        let alice_pk = alice.public_key_bytes().to_vec();
+        let bob_pk = bob.public_key_bytes().to_vec();
+
+        let ss_alice = alice.agree(&bob_pk).unwrap();
+        let ss_bob = bob.agree(&alice_pk).unwrap();
+
+        assert_eq!(ss_alice, ss_bob);
+        assert_eq!(ss_alice.len(), P521_SHARED_SECRET_SIZE);
+    }
+
+    #[test]
+    fn test_p521_public_key_from_bytes_valid() {
+        let kp = EcdhP521KeyPair::generate().unwrap();
+        let pk_bytes = kp.public_key_bytes().to_vec();
+        let pk = EcdhP521PublicKey::from_bytes(&pk_bytes).unwrap();
+        assert_eq!(pk.as_bytes(), &pk_bytes);
+        assert!(pk.validate().is_ok());
+    }
+
+    #[test]
+    fn test_p521_public_key_wrong_size() {
+        let result = EcdhP521PublicKey::from_bytes(&[0x04; 32]);
+        assert!(matches!(result, Err(EcdhError::InvalidKeySize { .. })));
+    }
+
+    #[test]
+    fn test_p521_public_key_wrong_prefix() {
+        let mut bytes = vec![0x02; P521_PUBLIC_KEY_SIZE];
+        bytes[0] = 0x02;
+        let result = EcdhP521PublicKey::from_bytes(&bytes);
+        assert!(matches!(result, Err(EcdhError::InvalidPointFormat { .. })));
+    }
+
+    #[test]
+    fn test_p521_keypair_debug() {
+        let kp = EcdhP521KeyPair::generate().unwrap();
+        let debug = format!("{:?}", kp);
+        assert!(debug.contains("EcdhP521KeyPair"));
+        assert!(debug.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_agree_ephemeral_p521() {
+        let bob = EcdhP521KeyPair::generate().unwrap();
+        let bob_pk = bob.public_key_bytes().to_vec();
+        let (shared_secret, our_pk) = agree_ephemeral_p521(&bob_pk).unwrap();
+        assert_eq!(shared_secret.len(), P521_SHARED_SECRET_SIZE);
+        assert_eq!(our_pk.len(), P521_PUBLIC_KEY_SIZE);
+    }
+
+    #[test]
+    fn test_validate_p521_public_key_valid() {
+        let kp = EcdhP521KeyPair::generate().unwrap();
+        assert!(validate_p521_public_key(kp.public_key_bytes()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_p521_public_key_invalid() {
+        assert!(validate_p521_public_key(&[0u8; 10]).is_err());
+    }
+
+    // ====================================================================
+    // Error variant coverage
+    // ====================================================================
+
+    #[test]
+    fn test_ecdh_error_display() {
+        let e = EcdhError::KeyGenerationFailed;
+        assert!(e.to_string().contains("key generation"));
+
+        let e = EcdhError::SharedSecretDerivationFailed;
+        assert!(e.to_string().contains("shared secret"));
+
+        let e = EcdhError::InvalidKeySize { expected: 32, actual: 16 };
+        assert!(e.to_string().contains("32"));
+        assert!(e.to_string().contains("16"));
+
+        let e = EcdhError::AgreementFailed;
+        assert!(e.to_string().contains("agreement"));
+
+        let e = EcdhError::InvalidPublicKey { curve: "P-256" };
+        assert!(e.to_string().contains("P-256"));
+
+        let e = EcdhError::InvalidPointFormat { expected: "uncompressed", actual: "compressed" };
+        assert!(e.to_string().contains("uncompressed"));
+
+        let e = EcdhError::InvalidKeyData;
+        assert!(e.to_string().contains("Invalid key data"));
+
+        let e = EcdhError::CurveMismatch { expected: "P-256", actual: "P-384" };
+        assert!(e.to_string().contains("P-256"));
+        assert!(e.to_string().contains("P-384"));
     }
 }
