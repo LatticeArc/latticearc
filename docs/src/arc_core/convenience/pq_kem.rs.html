@@ -74,8 +74,8 @@
 <a href=#74 id=74 data-nosnippet>74</a>
 <a href=#75 id=75 data-nosnippet>75</a>    <span class="kw">let </span>pk = arc_primitives::kem::ml_kem::MlKemPublicKey::new(security_level, ml_kem_pk.to_vec())
 <a href=#76 id=76 data-nosnippet>76</a>        .map_err(|e| {
-<a href=#77 id=77 data-nosnippet>77</a>        <span class="macro">crate::log_crypto_operation_error!</span>(<span class="string">"encrypt_pq_ml_kem"</span>, <span class="string">"invalid public key"</span>);
-<a href=#78 id=78 data-nosnippet>78</a>        CoreError::InvalidInput(<span class="macro">format!</span>(<span class="string">"Invalid ML-KEM public key: {}"</span>, e))
+<a href=#77 id=77 data-nosnippet>77</a>        <span class="macro">crate::log_crypto_operation_error!</span>(<span class="string">"encrypt_pq_ml_kem"</span>, e);
+<a href=#78 id=78 data-nosnippet>78</a>        CoreError::InvalidInput(<span class="string">"Invalid ML-KEM public key format"</span>.to_string())
 <a href=#79 id=79 data-nosnippet>79</a>    })<span class="question-mark">?</span>;
 <a href=#80 id=80 data-nosnippet>80</a>
 <a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::rngs::OsRng;

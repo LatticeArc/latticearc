@@ -40,7 +40,7 @@
 <a href=#40 id=40 data-nosnippet>40</a>
 <a href=#41 id=41 data-nosnippet>41</a><span class="doccomment">/// HMAC test vectors from RFC 4231
 <a href=#42 id=42 data-nosnippet>42</a></span><span class="kw">pub const </span>HMAC_VECTORS: <span class="kw-2">&amp;</span>[HmacTestVector] = <span class="kw-2">&amp;</span>[
-<a href=#43 id=43 data-nosnippet>43</a>    <span class="comment">// Test Case 1: 20-byte key
+<a href=#43 id=43 data-nosnippet>43</a>    <span class="comment">// RFC 4231 Section 4.2, Test Case 1 (20-byte key=0x0b, message="Hi There")
 <a href=#44 id=44 data-nosnippet>44</a>    </span>HmacTestVector {
 <a href=#45 id=45 data-nosnippet>45</a>        test_name: <span class="string">"RFC-4231-Test-Case-1"</span>,
 <a href=#46 id=46 data-nosnippet>46</a>        key: <span class="string">"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"</span>,
@@ -50,7 +50,7 @@
 <a href=#50 id=50 data-nosnippet>50</a>        expected_mac_sha384: <span class="string">"afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9cb6"</span>,
 <a href=#51 id=51 data-nosnippet>51</a>        expected_mac_sha512: <span class="string">"87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854"</span>,
 <a href=#52 id=52 data-nosnippet>52</a>    },
-<a href=#53 id=53 data-nosnippet>53</a>    <span class="comment">// Test Case 2: Short key ("Jefe")
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="comment">// RFC 4231 Section 4.3, Test Case 2 (key="Jefe", message="what do ya want for nothing?")
 <a href=#54 id=54 data-nosnippet>54</a>    </span>HmacTestVector {
 <a href=#55 id=55 data-nosnippet>55</a>        test_name: <span class="string">"RFC-4231-Test-Case-2"</span>,
 <a href=#56 id=56 data-nosnippet>56</a>        key: <span class="string">"4a656665"</span>,                                                     <span class="comment">// "Jefe"
