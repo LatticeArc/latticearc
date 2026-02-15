@@ -15,6 +15,7 @@ use thiserror::Error;
 /// This enum covers all error conditions from cryptographic operations,
 /// configuration validation, hardware acceleration, and authentication.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum CoreError {
     /// Invalid input provided to an operation.
     #[error("Invalid input: {0}")]

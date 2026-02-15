@@ -151,7 +151,12 @@ pub fn generate_ml_kem_keypair(
         KeyPurpose::KeyExchange
     );
 
-    Ok((pk.into_bytes(), PrivateKey::new(sk.into_bytes())))
+    // into_bytes() returns Zeroizing<Vec<u8>> for auto-zeroization.
+    // Extract the inner vec for PrivateKey construction; the empty vec left
+    // in the Zeroizing wrapper is harmlessly zeroized on drop.
+    let mut sk_bytes = sk.into_bytes();
+    let sk_data = std::mem::take(&mut *sk_bytes);
+    Ok((pk.into_bytes(), PrivateKey::new(sk_data)))
 }
 
 /// Generate an ML-KEM keypair with configuration

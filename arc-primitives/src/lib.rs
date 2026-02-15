@@ -61,7 +61,7 @@
 //! | Algorithm | Implementation | FIPS Validated |
 //! |-----------|----------------|----------------|
 //! | ML-KEM | `aws-lc-rs` | Yes (Cert #4631, #4759, #4816) |
-//! | ML-DSA | `fips204` crate | No (awaiting aws-lc-rs API) |
+//! | ML-DSA | `fips204` crate | No (aws-lc-rs API not yet stable) |
 //! | SLH-DSA | `fips205` crate | Audited |
 //! | FN-DSA | `fn-dsa` crate | Partial |
 //! | AES-GCM | `aws-lc-rs` | Yes |

@@ -1,8 +1,6 @@
 #![deny(unsafe_code)]
 // Benchmark files use unwrap() for simplicity
 #![allow(clippy::unwrap_used)]
-// Benchmarks may use deprecated APIs for compatibility testing
-#![allow(deprecated)]
 // Allow fully-qualified names in benchmarks
 #![allow(unused_qualifications)]
 // Benchmark closures may not return values

@@ -10,8 +10,7 @@
     clippy::panic,
     clippy::arithmetic_side_effects,
     clippy::cast_precision_loss,
-    clippy::single_match,
-    deprecated
+    clippy::single_match
 )]
 
 use arc_core::convenience::*;

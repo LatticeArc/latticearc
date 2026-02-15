@@ -107,7 +107,6 @@ impl Pbkdf2Params {
 }
 
 /// PBKDF2 key derivation result
-#[derive(Clone)]
 pub struct Pbkdf2Result {
     /// Derived key
     pub key: Vec<u8>,
@@ -180,6 +179,13 @@ pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
     if params.iterations < 1000 {
         return Err(LatticeArcError::InvalidParameter(
             "Iteration count must be at least 1000".to_string(),
+        ));
+    }
+
+    // Cap iterations to prevent denial-of-service via excessive computation
+    if params.iterations > 10_000_000 {
+        return Err(LatticeArcError::InvalidParameter(
+            "Iteration count must not exceed 10,000,000".to_string(),
         ));
     }
 

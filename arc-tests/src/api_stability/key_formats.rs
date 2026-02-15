@@ -132,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn api_stability_decapsulate_signature() {
         let mut rng = OsRng;
         let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)

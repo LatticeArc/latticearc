@@ -198,7 +198,7 @@ mod handshake_tests {
 
     #[test]
     fn test_session_store_with_persistence_config() {
-        let config = SessionPersistenceConfig::new("/tmp/sessions.bin", 500);
+        let config = SessionPersistenceConfig::new(std::env::temp_dir().join("sessions.bin"), 500);
         let store = create_session_store(Some(&config));
         assert_eq!(Arc::strong_count(&store), 1);
     }
@@ -211,7 +211,7 @@ mod handshake_tests {
 
     #[test]
     fn test_persistent_session_store() {
-        let store = PersistentSessionStore::new("/tmp/test.bin", 200);
+        let store = PersistentSessionStore::new(std::env::temp_dir().join("test.bin"), 200);
         assert_eq!(store.capacity(), 200);
         assert!(!store.is_persistence_enabled()); // Not yet supported by rustls
     }

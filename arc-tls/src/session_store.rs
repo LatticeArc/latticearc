@@ -142,7 +142,7 @@ impl PersistentSessionStore {
     /// Returns false until rustls provides public serialization APIs.
     #[must_use]
     pub const fn is_persistence_enabled(&self) -> bool {
-        // Currently false - waiting for rustls to expose serialization
+        // Rustls does not expose session serialization APIs
         false
     }
 }
@@ -166,7 +166,7 @@ impl PersistentSessionStore {
 /// let store = create_session_store(None);
 ///
 /// // Configured store (in-memory for now, path reserved for future use)
-/// let config = SessionPersistenceConfig::new("/tmp/sessions.bin", 500);
+/// let config = SessionPersistenceConfig::new(std::env::temp_dir().join("sessions.bin"), 500);
 /// let store = create_session_store(Some(&config));
 /// ```
 #[must_use]
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_persistent_store_creation() {
-        let store = PersistentSessionStore::new("/tmp/test.bin", 50);
+        let store = PersistentSessionStore::new(std::env::temp_dir().join("test.bin"), 50);
         assert_eq!(store.capacity(), 50);
         assert!(!store.is_persistence_enabled());
     }
@@ -221,7 +221,8 @@ mod tests {
 
     #[test]
     fn test_create_session_store_with_config() {
-        let config = crate::SessionPersistenceConfig::new("/tmp/test.bin", 200);
+        let config =
+            crate::SessionPersistenceConfig::new(std::env::temp_dir().join("test.bin"), 200);
         let store = create_session_store(Some(&config));
         assert_eq!(Arc::strong_count(&store), 1);
     }

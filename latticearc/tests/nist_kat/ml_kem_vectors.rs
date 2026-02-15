@@ -159,7 +159,7 @@ fn test_mlkem_1024_encapsulation_sizes() {
 /// Note: aws-lc-rs does not expose secret key serialization, so decapsulation
 /// from serialized keys is not supported. These tests verify the limitation is handled.
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_mlkem_512_roundtrip() {
     let mut rng = OsRng;
     let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
@@ -175,7 +175,7 @@ fn test_mlkem_512_roundtrip() {
 }
 
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_mlkem_768_roundtrip() {
     let mut rng = OsRng;
     let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
@@ -191,7 +191,7 @@ fn test_mlkem_768_roundtrip() {
 }
 
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_mlkem_1024_roundtrip() {
     let mut rng = OsRng;
     let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
@@ -258,7 +258,7 @@ fn test_mlkem_different_keypairs() {
 
 /// Test decapsulation with wrong secret key fails
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_mlkem_wrong_secret_key() {
     let mut rng = OsRng;
     let (pk1, _sk1) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)

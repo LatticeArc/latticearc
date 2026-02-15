@@ -460,7 +460,7 @@ fn test_ml_kem_shared_secret_length_encapsulation_only() {
 }
 
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_ml_kem_shared_secret_length_full_roundtrip() {
     let mut rng = OsRng;
 

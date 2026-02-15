@@ -6,8 +6,7 @@
     clippy::indexing_slicing,
     clippy::panic,
     clippy::arithmetic_side_effects,
-    clippy::cast_precision_loss,
-    deprecated
+    clippy::cast_precision_loss
 )]
 
 use arc_validation::format::{FormatError, validate_key_format};

@@ -45,6 +45,7 @@ use core::fmt;
 /// assert!(msg.starts_with("FIPS-0100:"));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum FipsErrorCode {
     // ========================================================================

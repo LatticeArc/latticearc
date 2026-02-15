@@ -154,11 +154,11 @@ mod pbkdf2_tests {
         assert_eq!(result.key.len(), 32);
 
         // Zeroize should clear the key
-        let mut result_clone = result.clone();
-        result_clone.zeroize();
+        let mut result = result;
+        result.zeroize();
 
         // After zeroize, the key should be all zeros
-        assert!(result_clone.key.iter().all(|&b| b == 0));
+        assert!(result.key.iter().all(|&b| b == 0));
     }
 }
 
@@ -306,11 +306,11 @@ mod hkdf_tests {
         assert_eq!(result.key.len(), 32);
 
         // Zeroize should clear the key
-        let mut result_clone = result.clone();
-        result_clone.zeroize();
+        let mut result = result;
+        result.zeroize();
 
         // After zeroize, the key should be all zeros
-        assert!(result_clone.key.iter().all(|&b| b == 0));
+        assert!(result.key.iter().all(|&b| b == 0));
     }
 }
 

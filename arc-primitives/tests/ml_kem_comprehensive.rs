@@ -47,8 +47,7 @@
 //! ## FIPS 140-3 Compliance Note
 //! The aws-lc-rs library provides FIPS 140-3 validated ML-KEM but does NOT
 //! expose secret key bytes for serialization. This is an intentional security
-//! design decision. Tests that require secret key deserialization are blocked
-//! pending upstream PR (aws-lc-rs#1029, issue #16).
+//! design decision. Tests that require secret key deserialization are ignored.
 
 use arc_primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemConfig, MlKemError, MlKemPublicKey, MlKemSecretKey,
@@ -1183,7 +1182,8 @@ fn test_secret_key_into_bytes() {
     let original_bytes = sk.as_bytes().to_vec();
     let consumed_bytes = sk.into_bytes();
 
-    assert_eq!(consumed_bytes, original_bytes);
+    // into_bytes() now returns Zeroizing<Vec<u8>> for automatic zeroization
+    assert_eq!(&*consumed_bytes, &original_bytes);
     assert_eq!(consumed_bytes.len(), 2400);
 }
 

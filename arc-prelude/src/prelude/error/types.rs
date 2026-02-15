@@ -23,6 +23,7 @@ pub type Result<T> = std::result::Result<T, LatticeArcError>;
 /// This enum covers all possible error conditions that can occur during
 /// cryptographic operations, key management, serialization, and I/O.
 #[derive(Debug, Error, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum LatticeArcError {
     /// Encryption operation failed
     #[error("Encryption error: {0}")]

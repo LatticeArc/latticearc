@@ -937,7 +937,8 @@ mod tests {
 
     #[test]
     fn test_tls_config_with_session_persistence() {
-        let config = TlsConfig::new().with_session_persistence("/tmp/sessions.bin", 500);
+        let config = TlsConfig::new()
+            .with_session_persistence(std::env::temp_dir().join("sessions.bin"), 500);
         assert!(config.session_persistence.is_some());
         let sp = config.session_persistence.as_ref().expect("should have persistence");
         assert_eq!(sp.max_sessions, 500);
@@ -1002,8 +1003,8 @@ mod tests {
 
     #[test]
     fn test_session_persistence_config_new() {
-        let sp = SessionPersistenceConfig::new("/tmp/sess.bin", 100);
-        assert_eq!(sp.path, std::path::PathBuf::from("/tmp/sess.bin"));
+        let sp = SessionPersistenceConfig::new(std::env::temp_dir().join("sess.bin"), 100);
+        assert_eq!(sp.path, std::env::temp_dir().join("sess.bin"));
         assert_eq!(sp.max_sessions, 100);
     }
 

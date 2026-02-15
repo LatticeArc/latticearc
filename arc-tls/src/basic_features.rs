@@ -69,7 +69,7 @@ pub fn load_certificates(path: &str) -> Result<Vec<CertificateDer<'static>>, Tls
     Ok(certs_vec)
 }
 
-/// Deprecated: Use load_certificates instead
+/// Short alias for [`load_certificates`].
 ///
 /// # Errors
 ///

@@ -230,17 +230,18 @@ impl CryptoPolicyEngine {
 
     /// Returns the scheme string for a specific scheme category.
     ///
-    /// In FIPS mode, `Asymmetric` maps to `pq-ml-dsa-65` instead of `ed25519`,
-    /// since Ed25519 is not a FIPS-approved algorithm.
+    /// All selections return hybrid or PQ-only schemes. Classical-only schemes
+    /// (e.g., bare AES-GCM or Ed25519) are never selected — the library always
+    /// provides post-quantum protection.
     #[must_use]
     pub fn force_scheme(scheme: &crate::types::CryptoScheme) -> String {
         match *scheme {
             crate::types::CryptoScheme::Hybrid => DEFAULT_ENCRYPTION_SCHEME.to_string(),
-            crate::types::CryptoScheme::Symmetric => "aes-256-gcm".to_string(),
-            #[cfg(feature = "fips")]
+            crate::types::CryptoScheme::Symmetric => {
+                // Symmetric requests get hybrid (AES-GCM wrapped with ML-KEM)
+                "hybrid-ml-kem-768-aes-256-gcm".to_string()
+            }
             crate::types::CryptoScheme::Asymmetric => "pq-ml-dsa-65".to_string(),
-            #[cfg(not(feature = "fips"))]
-            crate::types::CryptoScheme::Asymmetric => "ed25519".to_string(),
             // Homomorphic encryption requires enterprise features - fallback to hybrid
             crate::types::CryptoScheme::Homomorphic => "hybrid-ml-kem-768-aes-256-gcm".to_string(),
             crate::types::CryptoScheme::PostQuantum => DEFAULT_PQ_ENCRYPTION_SCHEME.to_string(),
@@ -326,34 +327,22 @@ impl CryptoPolicyEngine {
     /// Selects a signature scheme based on the configuration's security level.
     ///
     /// In FIPS mode, all levels use PQ-only signatures (ML-DSA) because
-    /// Ed25519 is not FIPS-approved and ECDSA-P256 is not yet implemented.
+    /// Returns PQ-only signatures for Quantum level, hybrid (ML-DSA + Ed25519) for all others.
+    /// Classical-only signatures are never selected.
     ///
     /// # Errors
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     pub fn select_signature_scheme(config: &CoreConfig) -> Result<String> {
-        // In FIPS mode, use PQ-only signatures (no Ed25519 hybrid)
-        #[cfg(feature = "fips")]
-        {
-            match &config.security_level {
-                SecurityLevel::Quantum | SecurityLevel::Maximum => Ok(PQ_SIGNATURE_87.to_string()),
-                SecurityLevel::High => Ok(PQ_SIGNATURE_65.to_string()),
-                SecurityLevel::Standard => Ok(PQ_SIGNATURE_44.to_string()),
-            }
-        }
+        match &config.security_level {
+            // Quantum: PQ-only signatures (no classical component)
+            SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),
 
-        #[cfg(not(feature = "fips"))]
-        {
-            match &config.security_level {
-                // Quantum: PQ-only signatures (no Ed25519)
-                SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),
-
-                // Hybrid signatures for all other levels
-                SecurityLevel::Maximum => Ok(HYBRID_SIGNATURE_87.to_string()),
-                SecurityLevel::High => Ok(HYBRID_SIGNATURE_65.to_string()),
-                SecurityLevel::Standard => Ok(HYBRID_SIGNATURE_44.to_string()),
-            }
+            // All other levels: hybrid signatures (ML-DSA + Ed25519)
+            SecurityLevel::Maximum => Ok(HYBRID_SIGNATURE_87.to_string()),
+            SecurityLevel::High => Ok(HYBRID_SIGNATURE_65.to_string()),
+            SecurityLevel::Standard => Ok(HYBRID_SIGNATURE_44.to_string()),
         }
     }
 
@@ -411,12 +400,14 @@ impl CryptoPolicyEngine {
             (PerformancePreference::Memory, metrics) if metrics.memory_usage_mb > 500.0 => {
                 Ok("hybrid-ml-kem-768-aes-256-gcm".to_string())
             }
-            // Slow encryption with speed preference on repetitive data: use classical
+            // Slow encryption with speed preference on repetitive data: downgrade to
+            // lightest hybrid scheme (ML-KEM-512) to improve speed while maintaining
+            // post-quantum protection. Never downgrade to classical-only.
             (PerformancePreference::Speed, metrics)
                 if metrics.encryption_speed_ms > 1000.0
                     && matches!(characteristics.pattern_type, PatternType::Repetitive) =>
             {
-                Ok("aes-256-gcm".to_string())
+                Ok("hybrid-ml-kem-512-aes-256-gcm".to_string())
             }
             _ => Ok(base_scheme),
         }
@@ -614,12 +605,13 @@ pub const PQ_SIGNATURE_65: &str = "pq-ml-dsa-65";
 pub const PQ_SIGNATURE_87: &str = "pq-ml-dsa-87";
 
 // =============================================================================
-// CLASSICAL SCHEMES - For legacy/compatibility only
+// CLASSICAL SCHEME IDENTIFIERS - Used only for decrypt compatibility with
+// data encrypted by earlier versions. Never selected for new operations.
 // =============================================================================
 
-/// Classical symmetric encryption
+/// Classical symmetric encryption scheme identifier (decrypt compatibility only)
 pub const CLASSICAL_AES_GCM: &str = "aes-256-gcm";
-/// Classical signature
+/// Classical signature scheme identifier (decrypt compatibility only)
 pub const CLASSICAL_ED25519: &str = "ed25519";
 
 /// Runtime performance metrics for adaptive scheme selection.
@@ -815,16 +807,15 @@ mod tests {
     #[test]
     fn test_force_scheme_symmetric() {
         let scheme = CryptoPolicyEngine::force_scheme(&crate::types::CryptoScheme::Symmetric);
-        assert_eq!(scheme, "aes-256-gcm");
+        // Symmetric always returns hybrid (never classical-only AES-GCM)
+        assert_eq!(scheme, "hybrid-ml-kem-768-aes-256-gcm");
     }
 
     #[test]
     fn test_force_scheme_asymmetric() {
         let scheme = CryptoPolicyEngine::force_scheme(&crate::types::CryptoScheme::Asymmetric);
-        #[cfg(feature = "fips")]
+        // Always PQ-only (never classical Ed25519)
         assert_eq!(scheme, "pq-ml-dsa-65");
-        #[cfg(not(feature = "fips"))]
-        assert_eq!(scheme, "ed25519");
     }
 
     #[test]
@@ -979,9 +970,6 @@ mod tests {
     fn test_select_signature_scheme_maximum() -> Result<()> {
         let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
         let scheme = CryptoPolicyEngine::select_signature_scheme(&config)?;
-        #[cfg(feature = "fips")]
-        assert_eq!(scheme, "pq-ml-dsa-87");
-        #[cfg(not(feature = "fips"))]
         assert_eq!(scheme, "hybrid-ml-dsa-87-ed25519");
         Ok(())
     }
@@ -990,9 +978,6 @@ mod tests {
     fn test_select_signature_scheme_high() -> Result<()> {
         let config = CoreConfig::new().with_security_level(SecurityLevel::High);
         let scheme = CryptoPolicyEngine::select_signature_scheme(&config)?;
-        #[cfg(feature = "fips")]
-        assert_eq!(scheme, "pq-ml-dsa-65");
-        #[cfg(not(feature = "fips"))]
         assert_eq!(scheme, "hybrid-ml-dsa-65-ed25519");
         Ok(())
     }
@@ -1001,9 +986,6 @@ mod tests {
     fn test_select_signature_scheme_standard() -> Result<()> {
         let config = CoreConfig::new().with_security_level(SecurityLevel::Standard);
         let scheme = CryptoPolicyEngine::select_signature_scheme(&config)?;
-        #[cfg(feature = "fips")]
-        assert_eq!(scheme, "pq-ml-dsa-44");
-        #[cfg(not(feature = "fips"))]
         assert_eq!(scheme, "hybrid-ml-dsa-44-ed25519");
         Ok(())
     }

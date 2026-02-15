@@ -113,7 +113,7 @@ impl EnhancedError {
     pub fn new(error: LatticeArcError, operation: String) -> Self {
         use rand::Rng;
 
-        let error_id = format!("ERR-{}", rand::thread_rng().r#gen::<u64>());
+        let error_id = format!("ERR-{}", rand::rngs::OsRng.r#gen::<u64>());
         let timestamp = Utc::now();
 
         Self {

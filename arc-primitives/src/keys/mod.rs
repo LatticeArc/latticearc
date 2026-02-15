@@ -458,7 +458,7 @@ mod tests {
     // === KeyPair tests ===
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_keypair_secret_data_nonzero() {
         let keypair = KeyPair::generate().expect("Should generate keypair");
         let secret_key = keypair.secret_key();
@@ -556,10 +556,7 @@ impl KeyPair {
 
         Ok(Self {
             public_key: PublicKey { ml_pk: ml_pk.into_bytes(), ecc_pk },
-            secret_key: SecretKey {
-                ml_sk: Zeroizing::new(ml_sk.into_bytes()),
-                ecc_sk: Zeroizing::new(ecc_sk),
-            },
+            secret_key: SecretKey { ml_sk: ml_sk.into_bytes(), ecc_sk: Zeroizing::new(ecc_sk) },
         })
     }
 

@@ -49,8 +49,7 @@ use super::ed25519::{sign_ed25519_internal, verify_ed25519_internal};
 use super::keygen::{
     generate_fn_dsa_keypair, generate_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair,
 };
-// pq_kem functions no longer called — unified API uses AES-256-GCM for symmetric keys
-#[allow(deprecated)]
+// Unified API uses AES-256-GCM for symmetric keys; PQ KEM is via encrypt_hybrid()
 use super::pq_sig::{
     sign_pq_fn_dsa_unverified, sign_pq_ml_dsa_unverified, sign_pq_slh_dsa_unverified,
     verify_pq_fn_dsa_unverified, verify_pq_ml_dsa_unverified, verify_pq_slh_dsa_unverified,
@@ -169,7 +168,7 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
 /// - Data size exceeds resource limits
 /// - Key length is invalid for the selected scheme
 /// - Encryption operation fails
-#[allow(deprecated)]
+#[must_use = "encryption result must be used or errors will be silently dropped"]
 pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<EncryptedData> {
     fips_verify_operational()?;
     config.validate()?;
@@ -186,12 +185,16 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
     // serializable to raw bytes). For true PQ+classical hybrid encryption, use
     // `encrypt_hybrid()` / `decrypt_hybrid()` with typed keys.
     let (effective_scheme, encrypted) = match scheme.as_str() {
-        "ml-kem-512"
-        | "ml-kem-768"
-        | "ml-kem-1024"
-        | "hybrid-ml-kem-512-aes-256-gcm"
-        | "hybrid-ml-kem-768-aes-256-gcm"
-        | "hybrid-ml-kem-1024-aes-256-gcm" => {
+        // Direct AES-256-GCM
+        "aes-256-gcm" => {
+            if key.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+            }
+            ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
+        }
+        // Hybrid/PQ KEM schemes: the unified API can only do symmetric encryption
+        // (HybridPublicKey is not a &[u8]), so fall back to AES-GCM.
+        s if s.contains("ml-kem") => {
             if key.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
@@ -203,14 +206,30 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
             );
             ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
         }
-        _ => {
+        // Signature schemes: config selected a signing-oriented scheme, but
+        // encrypt() was called. Use AES-GCM for the data encryption.
+        s if s.contains("ml-dsa")
+            || s.contains("slh-dsa")
+            || s.contains("fn-dsa")
+            || s.contains("ed25519") =>
+        {
             if key.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
-            // Non-encryption schemes (e.g. signature schemes selected for signing-oriented
-            // use cases) fall back to AES-256-GCM when used with the unified encrypt API.
-            // Store "aes-256-gcm" as the effective scheme so decrypt() handles it correctly.
+            warn!(
+                "Signature scheme '{}' selected but encrypt() was called. \
+                 Using AES-256-GCM for encryption. Use sign_with_key() for signing.",
+                scheme
+            );
             ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
+        }
+        _ => {
+            return Err(CoreError::InvalidInput(format!(
+                "Unsupported encryption scheme: '{}'. Use a supported scheme \
+                 (aes-256-gcm, ml-kem-*, or hybrid-ml-kem-*-aes-256-gcm) or the \
+                 dedicated API for the specific algorithm.",
+                scheme
+            )));
         }
     };
     let scheme = effective_scheme;
@@ -260,7 +279,7 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
 /// - Encrypted data size exceeds resource limits
 /// - Key is invalid for the encryption scheme
 /// - Decryption fails
-#[allow(deprecated)]
+#[must_use = "decryption result must be used or errors will be silently dropped"]
 pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> Result<Vec<u8>> {
     fips_verify_operational()?;
     config.validate()?;
@@ -275,13 +294,17 @@ pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> R
         // The hybrid/PQ scheme names stored in metadata reflect the *selected* scheme,
         // but the actual encryption was AES-256-GCM (see encrypt() fallback above).
         // For true hybrid decryption, use decrypt_hybrid() with HybridSecretKey.
-        "aes-256-gcm"
-        | "ml-kem-512"
-        | "ml-kem-768"
-        | "ml-kem-1024"
-        | "hybrid-ml-kem-512-aes-256-gcm"
-        | "hybrid-ml-kem-768-aes-256-gcm"
-        | "hybrid-ml-kem-1024-aes-256-gcm" => {
+        // All data encrypted through the unified API uses AES-256-GCM regardless
+        // of the selected scheme name (see encrypt() fallback logic above).
+        "aes-256-gcm" => {
+            if key.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+            }
+            decrypt_aes_gcm_internal(&encrypted.data, key)
+        }
+        // Any ML-KEM variant (hybrid, pq, with x25519/aes suffix) was encrypted
+        // with AES-256-GCM through the unified API.
+        s if s.contains("ml-kem") => {
             if key.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
@@ -323,7 +346,7 @@ pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> R
 /// Returns an error if:
 /// - Session is set and has expired (`CoreError::SessionExpired`)
 /// - Key generation fails for the selected scheme
-#[allow(deprecated)]
+#[must_use = "keypair result must be used or errors will be silently dropped"]
 pub fn generate_signing_keypair(
     config: CryptoConfig,
 ) -> Result<(Vec<u8>, Zeroizing<Vec<u8>>, String)> {
@@ -402,8 +425,8 @@ pub fn generate_signing_keypair(
 /// - Message size exceeds resource limits
 /// - Secret/public key bytes don't match the expected sizes for the scheme
 /// - Signing operation fails
-#[allow(deprecated)]
 #[allow(clippy::arithmetic_side_effects)] // Key size additions use well-defined NIST constants
+#[must_use = "signing result must be used or errors will be silently dropped"]
 pub fn sign_with_key(
     message: &[u8],
     secret_key: &[u8],
@@ -595,7 +618,7 @@ pub fn sign_with_key(
 /// - Message size exceeds resource limits
 /// - Public key is invalid
 /// - Signature is malformed or invalid
-#[allow(deprecated)]
+#[must_use = "verification result must be used or errors will be silently dropped"]
 pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     fips_verify_operational()?;
     config.validate()?;
@@ -1394,7 +1417,6 @@ mod tests {
 
     // === Hybrid ML-DSA-44 + Ed25519 sign/verify roundtrip ===
 
-    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_hybrid_ml_dsa_44_ed25519_roundtrip() {
         std::thread::Builder::new()
@@ -1425,7 +1447,6 @@ mod tests {
 
     // === Hybrid ML-DSA-87 + Ed25519 sign/verify roundtrip ===
 
-    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_hybrid_ml_dsa_87_ed25519_roundtrip() {
         std::thread::Builder::new()
@@ -2128,13 +2149,6 @@ mod tests {
             .spawn(|| {
                 let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
                 let signed = sign_message(b"Standard", config).unwrap();
-                #[cfg(feature = "fips")]
-                assert!(
-                    signed.scheme.contains("pq-ml-dsa-44"),
-                    "FIPS Standard should use pq-ml-dsa-44: {}",
-                    signed.scheme
-                );
-                #[cfg(not(feature = "fips"))]
                 assert!(
                     signed.scheme.contains("hybrid-ml-dsa-44"),
                     "Standard should use hybrid-44: {}",

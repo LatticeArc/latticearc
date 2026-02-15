@@ -264,7 +264,13 @@ pub use arc_core::{
 };
 
 // Key generation (no SecurityMode needed - creates credentials)
-pub use arc_core::{generate_keypair, generate_keypair_with_config};
+pub use arc_core::{
+    generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config,
+    generate_fn_dsa_keypair_with_level, generate_keypair, generate_keypair_with_config,
+    generate_ml_dsa_keypair, generate_ml_dsa_keypair_with_config, generate_ml_kem_keypair,
+    generate_ml_kem_keypair_with_config, generate_slh_dsa_keypair,
+    generate_slh_dsa_keypair_with_config,
+};
 
 // Hashing (hash_data is stateless, others use SecurityMode)
 pub use arc_core::{
@@ -300,7 +306,6 @@ pub use arc_core::{
 // Low-Level Unverified Variants (for primitives)
 // ============================================================================
 
-#[allow(deprecated)]
 pub use arc_core::{
     // AES-GCM
     decrypt_aes_gcm_unverified,

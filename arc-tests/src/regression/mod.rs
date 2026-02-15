@@ -1,7 +1,7 @@
 //! Regression Tests
 //!
-//! This module contains tests that prevent reintroduction of fixed bugs.
-//! Each test file corresponds to a specific issue/bug that was fixed.
+//! This module contains regression tests that guard against specific bugs.
+//! Each test file targets a specific edge case or failure mode.
 //!
 //! ## File Naming Convention
 //!

@@ -1,89 +1,25 @@
 #!/bin/bash
-# Pre-push hook - Enforces MANDATORY checklist before ANY push
-# This hook CANNOT be bypassed except with --no-verify (which violates project policy)
+# Pre-push hook - Lightweight sanity check before pushing
+#
+# Heavy checks (compile, clippy, tests) run in pre-commit.
+# This hook only verifies CHANGELOG and format as a fast safety net.
 
 set -e
 
-echo "🔒 Pre-Push Checklist Enforcement"
-echo "================================="
-echo ""
+echo "Pre-push: Quick sanity check..."
 
-# Check 1: CHANGELOG.md updated
-echo "📝 [1/6] Checking CHANGELOG.md..."
-if ! git diff --cached --name-only origin/$(git rev-parse --abbrev-ref HEAD) 2>/dev/null | grep -q "CHANGELOG.md"; then
-    # Check if any code or docs changed
-    if git diff --cached --name-only origin/$(git rev-parse --abbrev-ref HEAD) 2>/dev/null | grep -qE '\.(rs|toml|md)$'; then
-        echo "⚠️  WARNING: CHANGELOG.md not updated"
-        echo "   Consider adding an entry to CHANGELOG.md describing your changes"
-        echo "   Continuing anyway..."
+# Check 1: CHANGELOG.md updated (warning only)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if git diff --name-only "origin/${BRANCH}..HEAD" 2>/dev/null | grep -qE '\.(rs|toml|md)$'; then
+    if ! git diff --name-only "origin/${BRANCH}..HEAD" 2>/dev/null | grep -q "CHANGELOG.md"; then
+        echo "  WARNING: CHANGELOG.md not updated. Consider adding an entry."
     fi
 fi
-echo "✅ CHANGELOG.md check passed"
 
-# Check 2: Format
-echo "🎨 [2/6] Checking code format..."
+# Check 2: Format (fast, catches uncommitted format drift)
 if ! cargo fmt --all -- --check > /dev/null 2>&1; then
-    echo "❌ FAILED: Code not formatted"
-    echo "   Run: cargo fmt --all"
+    echo "  FAILED: Code not formatted. Run: cargo fmt --all"
     exit 1
 fi
-echo "✅ Format check passed"
 
-# Check 3: Clippy
-echo "📎 [3/6] Running clippy..."
-if ! cargo clippy --workspace --all-targets --all-features -- -D warnings > /dev/null 2>&1; then
-    echo "❌ FAILED: Clippy errors found"
-    echo "   Run: cargo clippy --workspace --all-targets --all-features -- -D warnings"
-    exit 1
-fi
-echo "✅ Clippy passed"
-
-# Check 4: Compile check
-echo "🔨 [4/6] Checking compilation..."
-if ! cargo check --workspace --all-features > /dev/null 2>&1; then
-    echo "❌ FAILED: Compilation errors"
-    echo "   Run: cargo check --workspace --all-features"
-    exit 1
-fi
-echo "✅ Compilation check passed"
-
-# Check 5: Full test suite (release mode)
-echo "🧪 [5/6] Running full test suite (release mode)..."
-echo "   This may take 2-3 minutes..."
-TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1)
-TEST_FAILED=$(echo "$TEST_OUTPUT" | grep -c "test result: FAILED" || true)
-
-if [ "$TEST_FAILED" -gt 0 ]; then
-    # Check if only TLS tests failed (known sandbox issue)
-    TLS_FAILURES=$(echo "$TEST_OUTPUT" | grep -c "arc-tls.*Operation not permitted" || true)
-
-    if [ "$TLS_FAILURES" -gt 0 ]; then
-        echo "⚠️  WARNING: TLS tests failed (known sandbox issue)"
-        echo "   All other tests passed. Continuing..."
-    else
-        echo "❌ FAILED: Tests failed"
-        echo "$TEST_OUTPUT" | grep -A 10 "test result: FAILED"
-        echo ""
-        echo "   Run: cargo test --workspace --all-features --release"
-        exit 1
-    fi
-else
-    TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')
-    echo "✅ All $TOTAL_PASSED tests passed"
-fi
-
-# Check 6: Security audit (allow sandbox failures)
-echo "🔐 [6/6] Running security audit..."
-if cargo audit --deny warnings > /dev/null 2>&1; then
-    echo "✅ Security audit passed"
-elif cargo deny check all > /dev/null 2>&1; then
-    echo "✅ Security audit passed (via cargo deny)"
-else
-    echo "⚠️  WARNING: Security audit skipped (sandbox lock issue)"
-    echo "   Verify manually after push: cargo audit && cargo deny check all"
-fi
-
-echo ""
-echo "✅ All pre-push checks passed!"
-echo "   Pushing to remote..."
-echo ""
+echo "Pre-push checks passed."

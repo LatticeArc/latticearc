@@ -1,8 +1,10 @@
 #!/bin/bash
 # Pre-commit hook: Full quality checks before committing
 #
-# To enable this hook, run:
+# To enable this hook, either:
 #   git config core.hooksPath .githooks
+# Or:
+#   ./hooks/install.sh
 
 set -e
 
@@ -35,11 +37,11 @@ fi
 
 echo "Running clippy..."
 if ! cargo clippy --workspace --all-targets --all-features -- -D warnings > /dev/null 2>&1; then
-    echo "❌ Clippy errors found"
+    echo "Clippy errors found"
     echo "   Run: cargo clippy --workspace --all-targets --all-features -- -D warnings"
     exit 1
 fi
-echo "✅ Clippy passed"
+echo "Clippy passed"
 
 echo "Running tests (release mode)..."
 TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1)
@@ -51,15 +53,15 @@ if [ "$TEST_FAILED" -gt 0 ]; then
 
     if [ -z "$REAL_FAILURES" ]; then
         TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')
-        echo "✅ $TOTAL_PASSED tests passed (arc-tls/arc-validation sandbox failures ignored)"
+        echo "$TOTAL_PASSED tests passed (arc-tls/arc-validation sandbox failures ignored)"
     else
-        echo "❌ Tests failed"
+        echo "Tests failed"
         echo "$TEST_OUTPUT" | grep -A 10 "test result: FAILED"
         exit 1
     fi
 else
     TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')
-    echo "✅ All $TOTAL_PASSED tests passed"
+    echo "All $TOTAL_PASSED tests passed"
 fi
 
 echo "Pre-commit checks passed."

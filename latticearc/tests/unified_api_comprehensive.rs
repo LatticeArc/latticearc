@@ -22,14 +22,14 @@ use latticearc::{
 // ============================================================================
 // KNOWN GAPS — Tests that SHOULD pass but CAN'T due to upstream blockers.
 //
-// Each #[ignore] test documents a real limitation. The test body describes what
-// would be tested and why it's blocked. Run with `--include-ignored` to see
-// the full list. These must be revisited as upstream issues are resolved.
+// Each #[ignore] test documents a known limitation. The test body describes what
+// would be tested and why it cannot run. Run with `--include-ignored` to see
+// the full list.
 // ============================================================================
 
 /// The unified `encrypt()`/`decrypt()` API uses AES-256-GCM with symmetric keys.
 /// The `&[u8]` key interface cannot carry ML-KEM/X25519 typed keys, so KEM is
-/// not possible through this API. This is by design (issue #18, closed).
+/// not possible through this API. This is by design.
 ///
 /// For true PQ encryption, use `encrypt_hybrid()` with typed `HybridPublicKey`.
 #[test]
@@ -56,34 +56,21 @@ fn test_unified_api_uses_aes256gcm_by_design() {
     assert_eq!(decrypted, data);
 }
 
-/// C2: ML-KEM standalone decapsulation always fails.
+/// ML-KEM standalone decapsulation requires a live `DecapsulationKey` object.
 ///
-/// `MlKem::decapsulate()` returns an error because aws-lc-rs `DecapsulationKey`
-/// cannot be reconstructed from raw bytes. Only `MlKemDecapsulationKeyPair`
-/// (which holds the live aws-lc-rs object) can decapsulate.
-///
-/// Tracking: GitHub issue #16, upstream aws-lc-rs#1029
+/// `MlKem::decapsulate()` fails because `DecapsulationKey` cannot be
+/// reconstructed from raw bytes. Use `MlKemDecapsulationKeyPair` (which holds
+/// the live aws-lc-rs object) or the hybrid API instead.
 #[test]
-#[ignore = "ML-KEM standalone decapsulate() always fails — blocked on aws-lc-rs#1029 (issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_ml_kem_standalone_decapsulation() {
-    // What this WOULD test: Generate ML-KEM keypair, serialize secret key bytes,
-    // reconstruct DecapsulationKey from bytes, decapsulate successfully.
-    //
-    // Reality: aws-lc-rs DecapsulationKey has no from_bytes() constructor.
-    // Our MlKem::decapsulate() returns "does not support DecapsulationKey
-    // deserialization" error.
-    //
-    // Workaround: Use encrypt_hybrid()/decrypt_hybrid() which keeps
-    // DecapsulationKey alive in memory (never serializes it).
-    //
-    // Tracking: aws-lc-rs PR #1029 (under review by justsmth)
+    // aws-lc-rs DecapsulationKey has no from_bytes() constructor.
+    // Use encrypt_hybrid()/decrypt_hybrid() which keeps the key in memory.
     panic!("ML-KEM DecapsulationKey cannot be deserialized from bytes");
 }
 
-/// Hybrid signing keygen uses the correct Ed25519 `generate_keypair()` from
-/// `arc-core::convenience::keygen`, NOT the buggy X25519 one from
-/// `arc-primitives::kem::ecdh` (which is properly `#[deprecated]`).
-/// Issue #19 was closed as false alarm — the two functions were confused.
+/// Hybrid signing keygen uses Ed25519 `generate_keypair()` from
+/// `arc-core::convenience::keygen`.
 #[test]
 fn test_hybrid_signing_keygen_is_correct() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
@@ -105,22 +92,12 @@ fn test_hybrid_signing_keygen_is_correct() {
 }
 
 /// Quantum-level signing selects PQ-only ML-DSA-87 (no Ed25519 hybrid).
-/// This test is excluded from the main sign/verify test because it uses the
-/// fips204 crate which may behave differently from the future aws-lc-rs ML-DSA.
 ///
-/// Tracking: GitHub issue #17, awaiting aws-lc-rs ML-DSA stabilization
+/// Uses the `fips204` crate for ML-DSA. This crate is not FIPS-validated
+/// (unlike aws-lc-rs). Excluded to flag as a known migration point.
 #[test]
-#[ignore = "Quantum signing uses fips204 ML-DSA-87 — awaiting aws-lc-rs stabilization (issue #17)"]
+#[ignore = "ML-DSA uses fips204 crate which is not FIPS-validated"]
 fn test_sign_verify_quantum_level_pq_only() {
-    // What this tests: SecurityLevel::Quantum selects pq-ml-dsa-87 (PQ-only,
-    // no Ed25519). This actually works today via fips204 crate, but the
-    // implementation will migrate to aws-lc-rs once ML-DSA is stabilized.
-    //
-    // We exclude it from the main test to flag it as a known migration point.
-    // The fips204 crate is NOT FIPS-validated (unlike aws-lc-rs).
-    //
-    // Tracking: aws-lc-rs issue #964 (stabilization), #773 (ML-DSA support)
-    // Our PR: aws-lc-rs#1034 (seed-based keygen)
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen");
     assert_eq!(scheme, "pq-ml-dsa-87");
@@ -129,61 +106,34 @@ fn test_sign_verify_quantum_level_pq_only() {
     let signed = sign_with_key(b"quantum test", &sk, &pk, config).expect("sign");
     let valid = verify(&signed, CryptoConfig::new()).expect("verify");
     assert!(valid, "PQ-only ML-DSA-87 signature should verify");
-    // NOTE: This test actually passes — it's ignored to flag the fips204→aws-lc-rs
-    // migration dependency, not because it fails.
 }
 
-/// #10: FN-DSA secret key inner bytes are not zeroized on drop.
+/// FN-DSA secret key inner bytes are not zeroized on drop.
 ///
-/// The fn-dsa crate does not implement Zeroize for its internal key type.
-/// We wrap it but cannot zeroize the inner representation.
+/// The `fn-dsa` crate does not implement `Zeroize` for its internal key type.
+/// Our wrapper zeroizes `Vec<u8>` bytes but the inner representation may persist.
 #[test]
-#[ignore = "FN-DSA inner key not zeroized on drop — upstream fn-dsa crate limitation (issue #10)"]
+#[ignore = "FN-DSA inner key not zeroized — fn-dsa crate does not implement Zeroize"]
 fn test_fn_dsa_secret_key_zeroization() {
-    // What this WOULD test: After dropping an FN-DSA secret key, verify that
-    // the memory region is zeroed (no residual key material).
-    //
-    // Reality: fn-dsa crate's internal key type does not implement Zeroize.
-    // We zeroize our wrapper's Vec<u8> but the fn-dsa internal representation
-    // may retain key material in memory.
-    //
-    // Impact: Secret key material may persist in memory after logical deletion.
+    // fn-dsa crate's internal key type does not implement Zeroize.
     // Mitigated by process isolation and mlock in production deployments.
-    //
-    // Tracking: GitHub issue #10 (upstream limitation, no fix available)
-    panic!("FN-DSA inner key zeroization blocked on upstream crate");
+    panic!("FN-DSA inner key zeroization not possible with current crate");
 }
 
 /// ML-KEM DecapsulationKey cannot be serialized for persistent storage.
 ///
-/// In-memory usage works (encrypt_hybrid/decrypt_hybrid), but there is no way
-/// to save a DecapsulationKey to disk and reload it later.
-///
-/// Tracking: GitHub issue #16, upstream aws-lc-rs#1029
+/// In-memory usage works (encrypt_hybrid/decrypt_hybrid), but aws-lc-rs
+/// `DecapsulationKey` has no `to_bytes()`/`from_bytes()` API. Keys are
+/// ephemeral — they exist only in memory for the session.
 #[test]
-#[ignore = "ML-KEM DecapsulationKey not serializable — blocked on aws-lc-rs#1029 (issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_ml_kem_key_persistence() {
-    // What this WOULD test: Generate ML-KEM keypair, serialize DecapsulationKey
-    // to bytes, store to file/DB, reload, decapsulate successfully.
-    //
-    // Reality: aws-lc-rs DecapsulationKey has no to_bytes()/from_bytes() API.
-    // Keys are ephemeral — they exist only in memory for the session.
-    //
-    // Impact: Cannot implement persistent key storage, key rotation with
-    // stored keys, or key backup/recovery for ML-KEM.
-    //
     // Workaround: Use X25519 (which supports seed persistence via
     // Curve25519SeedBin) alongside ML-KEM in hybrid mode.
-    //
-    // Tracking: aws-lc-rs PR #1029 adds serialization (under review)
-    panic!("ML-KEM key persistence blocked on aws-lc-rs#1029");
+    panic!("ML-KEM key persistence not supported by aws-lc-rs API");
 }
 
-// NOTE: TLS handshake integration tests (classic, hybrid, PQ, ALPN, mTLS,
-// multi-message, large data) are in arc-tls/tests/tls_handshake_roundtrip.rs.
-// Previously an ignored test here documented the gap — now removed since
-// tls_handshake_roundtrip.rs covers real TLS 1.3 handshakes with self-signed
-// certs, loopback TCP connections, and PQ key exchange verification.
+// TLS handshake integration tests are in arc-tls/tests/tls_handshake_roundtrip.rs.
 
 // ============================================================================
 // Unified encrypt/decrypt — All 24 UseCases

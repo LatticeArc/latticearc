@@ -10,8 +10,7 @@
     clippy::arithmetic_side_effects,
     clippy::cast_precision_loss,
     clippy::single_match,
-    clippy::redundant_clone,
-    deprecated
+    clippy::redundant_clone
 )]
 
 use arc_core::convenience::*;

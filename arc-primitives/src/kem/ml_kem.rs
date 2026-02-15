@@ -138,7 +138,7 @@ use aws_lc_rs::kem::{Algorithm as KemAlgorithm, DecapsulationKey, EncapsulationK
 use subtle::{Choice, ConstantTimeEq};
 use thiserror::Error;
 use tracing::instrument;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
 
@@ -496,10 +496,13 @@ impl MlKemSecretKey {
         &self.data
     }
 
-    /// Consumes the key and returns the raw bytes
+    /// Consumes the key and returns the raw bytes wrapped in `Zeroizing`.
+    ///
+    /// The returned `Zeroizing<Vec<u8>>` ensures the secret key bytes are
+    /// automatically zeroized when dropped.
     #[must_use]
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.data
+    pub fn into_bytes(self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.data)
     }
 }
 
@@ -1102,7 +1105,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_key_generation_with_rng() -> Result<(), MlKemError> {
         let mut rng = OsRng;
         let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
@@ -1116,7 +1119,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_encapsulation_decapsulation_roundtrip() -> Result<(), MlKemError> {
         let mut rng = OsRng;
         let security_levels = [
@@ -1147,7 +1150,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_ml_kem_secret_key_zeroization() {
         let mut rng = OsRng;
         let (_pk, mut sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
@@ -1224,7 +1227,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_all_security_levels_zeroization() {
         let mut rng = OsRng;
         let levels = [

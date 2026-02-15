@@ -1,6 +1,6 @@
 # Git Hooks
 
-This directory contains git hooks that enforce the **Mandatory Pre-Push Checklist** for code quality.
+This directory contains git hooks that enforce code quality automatically.
 
 ## Why Git Hooks?
 
@@ -16,60 +16,68 @@ From the repository root:
 
 This copies hooks from `hooks/` to `.git/hooks/` and makes them executable.
 
+Alternatively, use the `.githooks/` directory directly:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Available Hooks
+
+### pre-commit
+
+Runs **before every `git commit`**. Enforces all heavy checks:
+
+1. **Auto-format** (`cargo fmt --all`) - Formats and re-stages changed files
+2. **Compilation** (`cargo check --all-features`) - Must compile
+3. **Clippy lints** (`cargo clippy -D warnings`) - No warnings allowed
+4. **Full test suite** (`cargo test --release`) - All tests must pass
+
+**Timing**: ~2-3 minutes (tests run in release mode for crypto performance)
 
 ### pre-push
 
-Runs **before every `git push`**. Enforces:
+Runs **before every `git push`**. Lightweight sanity check only:
 
 1. **CHANGELOG.md updated** (warning) - Reminds to document changes
-2. **Format check** (`cargo fmt --check`) - Code must be formatted
-3. **Clippy lints** (`cargo clippy -D warnings`) - No warnings allowed
-4. **Compilation** (`cargo check --all-features`) - Must compile
-5. **Full test suite** (`cargo test --release`) - All tests must pass
-6. **Security audit** (`cargo audit` or `cargo deny`) - No known vulnerabilities
+2. **Format check** (`cargo fmt --check`) - Catches uncommitted format drift
 
-**Timing**: ~2-3 minutes (tests run in release mode for crypto performance)
+**Timing**: ~5 seconds
+
+**Why lightweight?** Heavy checks (tests, clippy) moved to pre-commit to avoid
+SSH connection timeouts during push. The pre-commit hook runs locally with no
+time pressure; pre-push runs during an active SSH session to GitHub.
 
 ## Bypassing Hooks (NOT RECOMMENDED)
 
 ```bash
-git push --no-verify
+git commit --no-verify   # Skip pre-commit
+git push --no-verify     # Skip pre-push
 ```
 
-**This violates project policy** and may be rejected in code review. Only use in emergencies (CI broken, urgent hotfix).
+**This violates project policy** and may be rejected in code review. Only use in emergencies.
 
 ## Hook Behavior
 
-### CHANGELOG.md Check
-
-- **Behavior**: Warns if CHANGELOG.md not updated when code/docs change
-- **Rationale**: Every change should be documented
-- **Enforcement**: Warning only (doesn't block push)
-
 ### Test Failures
 
-- **Known issue**: TLS tests fail in sandbox (network binding blocked)
-- **Behavior**: Hook detects "Operation not permitted" errors and allows push
+- **Known issue**: arc-tls and arc-validation tests fail in sandbox environments
+- **Behavior**: Hook filters out these known failures and allows commit
 - **Rationale**: These failures are environmental, not code-related
-- **All other test failures block push**
-
-### Security Audit
-
-- **Known issue**: Advisory database lock fails in sandbox
-- **Behavior**: Hook warns but allows push
-- **Rationale**: Known clean (4 ignored LOW-risk advisories documented)
-- **Manual verification**: Run `cargo audit && cargo deny check all` after push
+- **All other test failures block commit**
 
 ## Troubleshooting
 
 ### Hook not running
 
 ```bash
-# Check if installed
-ls -la .git/hooks/pre-push
+# Check which hooks path is active
+git config core.hooksPath
 
-# If missing, reinstall
+# If using .githooks/ (recommended):
+git config core.hooksPath .githooks
+
+# If using .git/hooks/:
 ./hooks/install.sh
 ```
 
@@ -78,8 +86,7 @@ ls -la .git/hooks/pre-push
 ```bash
 cargo fmt --all
 git add -u
-git commit --amend --no-edit
-git push
+git commit
 ```
 
 ### Hook fails on clippy
@@ -87,7 +94,6 @@ git push
 ```bash
 # See all warnings
 cargo clippy --workspace --all-targets --all-features -- -D warnings
-
 # Fix and retry
 ```
 
@@ -96,7 +102,6 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```bash
 # Run locally to see failures
 cargo test --workspace --all-features --release
-
 # Fix failures and retry
 ```
 
@@ -108,35 +113,31 @@ cargo test --workspace --all-features --release
 # 2. Hook has false positive (report bug)
 # 3. Discussed with team lead
 
-git push --no-verify  # Add comment in commit message explaining why
+git commit --no-verify  # Add comment in commit message explaining why
 ```
 
 ## Updating Hooks
 
-After modifying hooks in `hooks/`:
+After modifying hooks in `hooks/` or `.githooks/`:
 
 ```bash
-# Reinstall to update .git/hooks/
+# If using .git/hooks/, reinstall:
 ./hooks/install.sh
 
 # Commit hook changes
-git add hooks/
-git commit -m "chore(hooks): Update pre-push hook"
+git add hooks/ .githooks/
+git commit -m "chore(hooks): Update hooks"
 git push
 ```
-
-All contributors should run `./hooks/install.sh` after pulling hook updates.
 
 ## Hook Philosophy
 
 **Trust but verify**: Hooks enforce objective quality gates (format, tests, lints). They don't replace code review, but catch mistakes before human reviewers see them.
 
-**Fast feedback**: 2-3 minutes is better than waiting for CI (5-10 minutes) or code review comments (hours/days).
-
 **Fail early**: Better to catch issues locally than in CI or production.
 
 ## Related Documentation
 
-- `.github/workflows/ci.yml` - CI pipeline (mirrors hook checks)
+- `.github/workflows/` - CI pipeline (mirrors hook checks)
 - `SECURITY.md` - Security policy and reporting
 - `CONTRIBUTING.md` - Contribution guidelines

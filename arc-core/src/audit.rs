@@ -654,7 +654,7 @@ fn generate_uuid() -> String {
     use rand::RngCore;
 
     let mut bytes = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
 
     // Set version (4) and variant (RFC 4122) bits
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -884,12 +884,13 @@ mod tests {
 
     #[test]
     fn test_audit_config_accessors() {
-        let config = AuditConfig::new(PathBuf::from("/tmp/claude/audit_test"))
+        let test_path = std::env::temp_dir().join("latticearc_audit_test");
+        let config = AuditConfig::new(test_path.clone())
             .with_max_file_size(1024)
             .with_max_file_age(Duration::from_secs(60))
             .with_retention_days(7);
 
-        assert_eq!(config.storage_path(), &PathBuf::from("/tmp/claude/audit_test"));
+        assert_eq!(config.storage_path(), &test_path);
         assert_eq!(config.max_file_size_bytes(), 1024);
         assert_eq!(config.max_file_age(), Duration::from_secs(60));
         assert_eq!(config.retention_days(), 7);

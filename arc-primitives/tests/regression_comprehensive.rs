@@ -39,7 +39,7 @@
 //! ## Test Categories
 //!
 //! 1. **Known Issue Regression Tests** (20+ tests)
-//!    - Edge cases that previously caused issues
+//!    - Known edge cases and boundary conditions
 //!    - Boundary condition handling
 //!    - Error recovery from malformed inputs
 //!    - Buffer overflow protections

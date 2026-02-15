@@ -1,7 +1,7 @@
 //! Fuzz Regression Tests
 //!
-//! This module contains regression tests for known edge cases discovered through
-//! fuzzing. These tests ensure that previously identified issues remain fixed.
+//! This module contains regression tests for edge cases discovered through
+//! fuzzing. These tests guard against reintroduction of specific failure modes.
 //!
 //! # Organization
 //!

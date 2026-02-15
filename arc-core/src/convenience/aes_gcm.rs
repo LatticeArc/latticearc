@@ -304,13 +304,13 @@ pub fn decrypt_aes_gcm_with_config(
 ///
 /// # Key Requirements
 ///
-/// The `key` must be at least 32 bytes. Keys longer than 32 bytes are
-/// truncated to the first 32 bytes. Provide exactly 32 bytes for clarity.
+/// The `key` must be exactly 32 bytes (AES-256). Any other key length
+/// returns an error.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The key length is less than 32 bytes
+/// - The key length is not exactly 32 bytes
 /// - Random nonce generation fails
 /// - The encryption operation fails
 #[inline]
@@ -342,14 +342,14 @@ pub fn decrypt_aes_gcm_unverified(encrypted_data: &[u8], key: &[u8]) -> Result<V
 ///
 /// # Key Requirements
 ///
-/// The `key` must be at least 32 bytes. Keys longer than 32 bytes are
-/// truncated to the first 32 bytes. Provide exactly 32 bytes for clarity.
+/// The `key` must be exactly 32 bytes (AES-256). Any other key length
+/// returns an error.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - The configuration validation fails
-/// - The key length is less than 32 bytes
+/// - The key length is not exactly 32 bytes
 /// - Random nonce generation fails
 /// - The encryption operation fails
 #[inline]

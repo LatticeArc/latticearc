@@ -294,7 +294,13 @@ pub use convenience::{
 // Key Generation
 // ============================================================================
 
-pub use convenience::{generate_keypair, generate_keypair_with_config};
+pub use convenience::{
+    generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config,
+    generate_fn_dsa_keypair_with_level, generate_keypair, generate_keypair_with_config,
+    generate_ml_dsa_keypair, generate_ml_dsa_keypair_with_config, generate_ml_kem_keypair,
+    generate_ml_kem_keypair_with_config, generate_slh_dsa_keypair,
+    generate_slh_dsa_keypair_with_config,
+};
 
 // ============================================================================
 // Hashing

@@ -73,15 +73,15 @@ mod session_management {
 
     #[test]
     fn test_persistent_store_creation() {
-        let store = PersistentSessionStore::new("/tmp/tls_sessions.bin", 500);
+        let store = PersistentSessionStore::new(std::env::temp_dir().join("tls_sessions.bin"), 500);
         assert_eq!(store.capacity(), 500);
-        assert_eq!(store.path().to_str().unwrap(), "/tmp/tls_sessions.bin");
+        assert_eq!(store.path(), std::env::temp_dir().join("tls_sessions.bin"));
     }
 
     #[test]
     fn test_persistent_store_persistence_disabled() {
         let store = PersistentSessionStore::new("/var/cache/sessions.bin", 100);
-        // Persistence is currently disabled (waiting for rustls serialization API)
+        // Persistence is not enabled — rustls does not expose session serialization
         assert!(!store.is_persistence_enabled());
     }
 
@@ -94,7 +94,7 @@ mod session_management {
 
     #[test]
     fn test_create_session_store_with_config() {
-        let config = SessionPersistenceConfig::new("/tmp/sessions.bin", 200);
+        let config = SessionPersistenceConfig::new(std::env::temp_dir().join("sessions.bin"), 200);
         let store = create_session_store(Some(&config));
         assert_eq!(std::sync::Arc::strong_count(&store), 1);
     }
@@ -115,7 +115,7 @@ mod session_management {
 
     #[test]
     fn test_create_resumption_config_with_persistence() {
-        let config = SessionPersistenceConfig::new("/tmp/sessions.bin", 500);
+        let config = SessionPersistenceConfig::new(std::env::temp_dir().join("sessions.bin"), 500);
         let resumption = create_resumption_config(Some(&config));
         let _ = resumption;
     }

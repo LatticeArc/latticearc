@@ -1,7 +1,6 @@
-//! Regression test for issue #001
+//! Regression test: Empty ciphertext handling
 //!
-//! **Issue**: Empty ciphertext handling
-//! **Link**: <https://github.com/latticearc/latticearc/issues/1>
+//! Ensures ML-KEM correctly rejects empty ciphertext inputs.
 //!
 //! ## Bug Description
 //!

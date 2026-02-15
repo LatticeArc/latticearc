@@ -107,7 +107,7 @@ fn test_concurrent_keygen_different_security_levels() {
 // ============================================================================
 
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_concurrent_encapsulation_same_key() {
     let mut rng = OsRng;
     let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
@@ -242,7 +242,7 @@ fn test_thread_local_rng_isolation() {
 // ============================================================================
 
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_high_concurrency_stress() {
     const NUM_THREADS: usize = 32;
     const OPERATIONS_PER_THREAD: usize = 5;
@@ -347,7 +347,7 @@ fn test_shared_public_key_concurrent_read() {
 // ============================================================================
 
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_no_data_races_during_operation() {
     // This test verifies no undefined behavior from data races
     // by performing many concurrent operations and checking for panics
@@ -403,7 +403,7 @@ fn test_no_data_races_during_operation() {
 // ============================================================================
 
 #[test]
-#[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_concurrent_operations_complete_in_reasonable_time() {
     use std::time::Instant;
 

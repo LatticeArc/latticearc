@@ -12,7 +12,7 @@ mod tests {
     use std::thread;
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn concurrent_encap_decap_same_keypair() {
         let mut rng = OsRng;
         let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
@@ -93,7 +93,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Blocked: ML-KEM DecapsulationKey not serializable (aws-lc-rs#1029, issue #16)"]
+    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn concurrent_full_kem_cycle_no_panic() {
         const NUM_THREADS: usize = 8;
         const CYCLES_PER_THREAD: usize = 3;

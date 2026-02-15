@@ -22,7 +22,6 @@ use tracing::instrument;
 use zeroize::Zeroize;
 
 /// HKDF result containing the derived key
-#[derive(Clone)]
 pub struct HkdfResult {
     /// Derived key material
     pub key: Vec<u8>,
