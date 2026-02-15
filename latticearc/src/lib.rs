@@ -366,7 +366,8 @@ pub use arc_core::serialization::{
 // Additional Modules
 // ============================================================================
 
-/// ZKP primitives
+/// ZKP primitives (non-FIPS: not part of the FIPS 140-3 module boundary)
+#[cfg(not(feature = "fips"))]
 pub use arc_zkp as zkp;
 
 /// Performance utilities

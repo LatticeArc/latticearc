@@ -226,13 +226,22 @@ impl MlDsaPublicKey {
 /// - Implements `ZeroizeOnDrop` for automatic memory cleanup
 /// - Implements `ConstantTimeEq` for timing-safe comparisons
 /// - Does not implement `Clone` to prevent unzeroized copies
-#[derive(Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct MlDsaSecretKey {
     /// The parameter set for this key
     #[zeroize(skip)]
     parameter_set: MlDsaParameterSet,
     /// Serialized secret key bytes (zeroized on drop)
     data: Vec<u8>,
+}
+
+impl std::fmt::Debug for MlDsaSecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MlDsaSecretKey")
+            .field("parameter_set", &self.parameter_set)
+            .field("data", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl MlDsaSecretKey {

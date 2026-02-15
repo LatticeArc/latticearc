@@ -124,6 +124,23 @@ fn encrypt_pq_ml_kem_internal(
 /// # Errors
 ///
 /// Always returns `CoreError::NotImplemented` explaining the FIPS limitation.
+/// Attempts to decrypt ML-KEM encrypted data from serialized secret key bytes.
+///
+/// # FIPS 140-3 Limitation
+///
+/// This function always returns `NotImplemented` because aws-lc-rs (FIPS validated)
+/// does not support deserializing `DecapsulationKey` from bytes for security reasons.
+/// ML-KEM secret keys cannot be round-tripped through serialization.
+///
+/// # Alternatives
+///
+/// - **Ephemeral keys**: Keep `MlKemDecapsulationKeyPair` in memory (use
+///   `MlKem::generate_keypair_with_decaps()` and call `decapsulate()` directly)
+/// - **Hybrid mode**: Use `encrypt_true_hybrid()` / `decrypt_true_hybrid()` which
+///   combines ML-KEM with X25519 for key exchange
+/// - **HSM/KMS**: Store keys in hardware security modules with native ML-KEM support
+///
+/// See `arc-primitives::kem::ml_kem::MlKemDecapsulationKeyPair` for the working API.
 fn decrypt_pq_ml_kem_internal(
     _encrypted_data: &[u8],
     _ml_kem_sk: &[u8],

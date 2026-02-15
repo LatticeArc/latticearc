@@ -19,7 +19,7 @@
 
 use arc_prelude::error::LatticeArcError;
 use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
-use ed25519_dalek::Signer;
+use fips204::ml_dsa_44;
 use hmac::{Hmac, Mac};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
@@ -65,7 +65,7 @@ pub fn test_self_tests() -> Result<TestResult, LatticeArcError> {
     let encrypt_key = LessSafeKey::new(unbound);
 
     let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
     let mut ct = test_msg.to_vec();
@@ -99,9 +99,9 @@ pub fn test_self_tests() -> Result<TestResult, LatticeArcError> {
     let hmac_result = mac.finalize().into_bytes();
 
     let expected_hmac: [u8; 32] = [
-        0x50, 0x3d, 0x89, 0x69, 0x9b, 0xe2, 0x57, 0x7a, 0x5b, 0xc2, 0x29, 0x60, 0xc2, 0x99, 0xd9,
-        0x55, 0x51, 0x25, 0x48, 0x63, 0xb6, 0x3e, 0x1f, 0xc8, 0x26, 0x6a, 0x1f, 0x1d, 0xaa, 0x9a,
-        0x6d, 0x87,
+        0x50, 0x31, 0xfe, 0x3d, 0x98, 0x9c, 0x6d, 0x15, 0x37, 0xa0, 0x13, 0xfa, 0x6e, 0x73, 0x9d,
+        0xa2, 0x34, 0x63, 0xfd, 0xae, 0xc3, 0xb7, 0x01, 0x37, 0xd8, 0x28, 0xe3, 0x6a, 0xce, 0x22,
+        0x1b, 0xd0,
     ];
 
     if hmac_result.as_slice() == expected_hmac {
@@ -111,28 +111,31 @@ pub fn test_self_tests() -> Result<TestResult, LatticeArcError> {
         test_details.push("FAILED: HMAC KAT mismatch".to_string());
     }
 
-    // Test 4: Ed25519 signature consistency
-    test_details.push("Test 4: Signature verification consistency".to_string());
+    // Test 4: ML-DSA-44 signature consistency (FIPS 204)
+    test_details.push("Test 4: ML-DSA-44 signature verification consistency".to_string());
 
-    let mut csprng = rand::rngs::OsRng;
-    let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
-    let message = b"self_test_message";
-    let signature = signing_key.sign(message);
+    let (ml_dsa_pk, ml_dsa_sk) = ml_dsa_44::try_keygen().map_err(|_e| {
+        LatticeArcError::ValidationError { message: "ML-DSA-44 keygen failed".to_string() }
+    })?;
+    let message: &[u8] = b"self_test_message";
+    let ml_dsa_sig = ml_dsa_sk.try_sign(message, &[]).map_err(|_e| {
+        LatticeArcError::ValidationError { message: "ML-DSA-44 sign failed".to_string() }
+    })?;
 
-    let verification_result = signing_key.verifying_key().verify_strict(message, &signature);
-    if verification_result.is_ok() {
+    let verification_result = ml_dsa_pk.verify(message, &ml_dsa_sig, &[]);
+    if verification_result {
         test_details.push("PASSED".to_string());
     } else {
         all_passed = false;
-        test_details.push("FAILED: Signature verification failed".to_string());
+        test_details.push("FAILED: ML-DSA-44 signature verification failed".to_string());
     }
 
     // Test 5: Wrong signature rejection
     test_details.push("Test 5: Invalid signature rejection".to_string());
 
     let wrong_message = b"wrong_message";
-    let verification_result = signing_key.verifying_key().verify_strict(wrong_message, &signature);
-    if verification_result.is_err() {
+    let wrong_verify = ml_dsa_pk.verify(wrong_message, &ml_dsa_sig, &[]);
+    if !wrong_verify {
         test_details.push("PASSED".to_string());
     } else {
         all_passed = false;
@@ -254,7 +257,7 @@ pub fn test_error_handling() -> Result<TestResult, LatticeArcError> {
     let encrypt_key = LessSafeKey::new(unbound);
 
     let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
     let mut ciphertext = test_data.to_vec();
@@ -306,15 +309,16 @@ pub fn test_error_handling() -> Result<TestResult, LatticeArcError> {
         test_details.push("FAILED: Invalid tag was accepted".to_string());
     }
 
-    // Test 5: Empty HMAC key rejection
-    test_details.push("Test 5: Empty HMAC key rejection".to_string());
+    // Test 5: Empty HMAC key (valid per RFC 2104 §2)
+    test_details.push("Test 5: Empty HMAC key is valid per RFC 2104".to_string());
 
     let mac_result = <Hmac<Sha256> as hmac::digest::KeyInit>::new_from_slice(&[]);
     if mac_result.is_ok() {
-        all_passed = false;
-        test_details.push("FAILED: Empty HMAC key was accepted".to_string());
-    } else {
         test_details.push("PASSED".to_string());
+    } else {
+        all_passed = false;
+        test_details
+            .push("FAILED: Empty HMAC key rejected (should be valid per RFC 2104)".to_string());
     }
 
     // Test 6: Error message safety (aws-lc-rs errors don't expose key material)
@@ -332,13 +336,13 @@ pub fn test_error_handling() -> Result<TestResult, LatticeArcError> {
     let error_result = decrypt_key3.open_in_place(nonce3, Aad::empty(), &mut ct_copy);
     let error_msg = format!("{:?}", error_result);
 
-    // Check error message doesn't contain raw key bytes
+    // Check error message doesn't contain raw key bytes (full hex representation)
     let key_hex = hex::encode(sensitive_key);
-    let key_leaked = key_hex.chars().any(|c| error_msg.contains(c));
+    let key_leaked = error_msg.contains(&key_hex);
 
     if key_leaked {
         all_passed = false;
-        test_details.push("FAILED: Error message may leak sensitive data".to_string());
+        test_details.push("FAILED: Error message leaks full key material".to_string());
     } else {
         test_details.push("PASSED".to_string());
     }

@@ -8,7 +8,10 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
+use std::fmt;
+
 use chrono::{DateTime, Utc};
+use subtle::{Choice, ConstantTimeEq};
 use zeroize::Zeroize;
 
 use crate::zero_trust::VerifiedSession;
@@ -19,7 +22,6 @@ use crate::zero_trust::VerifiedSession;
 /// Clone is intentionally NOT implemented to prevent creating
 /// copies of sensitive data that might not be properly zeroized.
 /// If you need to share the data, use `as_slice()` to get a reference.
-#[derive(Debug)]
 pub struct ZeroizedBytes {
     data: Vec<u8>,
 }
@@ -56,9 +58,21 @@ impl Drop for ZeroizedBytes {
     }
 }
 
+impl fmt::Debug for ZeroizedBytes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ZeroizedBytes").field("data", &"[REDACTED]").finish()
+    }
+}
+
 impl AsRef<[u8]> for ZeroizedBytes {
     fn as_ref(&self) -> &[u8] {
         &self.data
+    }
+}
+
+impl ConstantTimeEq for ZeroizedBytes {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.data.ct_eq(&other.data)
     }
 }
 
@@ -459,13 +473,18 @@ impl<'a> CryptoConfig<'a> {
         self.session.is_some()
     }
 
-    /// Validates the session if present.
+    /// Validates the configuration.
+    ///
+    /// Checks session expiry if present.
     ///
     /// # Errors
     ///
     /// Returns `CoreError::SessionExpired` if the session has expired.
     pub fn validate(&self) -> crate::error::Result<()> {
-        if let Some(session) = self.session { session.verify_valid() } else { Ok(()) }
+        if let Some(session) = self.session {
+            session.verify_valid()?;
+        }
+        Ok(())
     }
 }
 

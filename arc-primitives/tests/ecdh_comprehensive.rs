@@ -1,5 +1,4 @@
 #![allow(
-    deprecated, // Tests cover the old generate_keypair/diffie_hellman API
     clippy::panic,
     clippy::unwrap_used,
     clippy::expect_used,
@@ -47,9 +46,8 @@ use arc_primitives::kem::ecdh::{
     EcdhP521KeyPair, EcdhP521PublicKey, P256_PUBLIC_KEY_SIZE, P256_SHARED_SECRET_SIZE,
     P384_PUBLIC_KEY_SIZE, P384_SHARED_SECRET_SIZE, P521_PUBLIC_KEY_SIZE, P521_SHARED_SECRET_SIZE,
     X25519_KEY_SIZE, X25519KeyPair, X25519PublicKey, X25519SecretKey, agree_ephemeral,
-    agree_ephemeral_p256, agree_ephemeral_p384, agree_ephemeral_p521, diffie_hellman,
-    generate_keypair, validate_p256_public_key, validate_p384_public_key, validate_p521_public_key,
-    validate_public_key,
+    agree_ephemeral_p256, agree_ephemeral_p384, agree_ephemeral_p521, validate_p256_public_key,
+    validate_p384_public_key, validate_p521_public_key, validate_public_key,
 };
 
 // ============================================================================
@@ -345,8 +343,9 @@ fn test_p521_point_validation_function() {
 
 #[test]
 fn test_x25519_point_validation() {
-    let mut rng = rand::thread_rng();
-    let (pk, _sk) = generate_keypair(&mut rng).expect("keypair generation should succeed");
+    let keypair = X25519KeyPair::generate().expect("keypair generation should succeed");
+    let pk = X25519PublicKey::from_bytes(keypair.public_key_bytes())
+        .expect("public key creation should succeed");
 
     let result = validate_public_key(&pk);
     assert!(result.is_ok(), "Valid X25519 public key should pass validation");
@@ -613,28 +612,6 @@ fn test_x25519_agree_ephemeral() {
     let (shared_secret, our_public) = result.expect("ephemeral agreement should succeed");
     assert_eq!(shared_secret.len(), X25519_KEY_SIZE, "Shared secret should be 32 bytes");
     assert_eq!(our_public.len(), X25519_KEY_SIZE, "Our public key should be 32 bytes");
-}
-
-#[test]
-fn test_x25519_legacy_generate_keypair() {
-    let mut rng = rand::thread_rng();
-    let result = generate_keypair(&mut rng);
-    assert!(result.is_ok(), "Legacy keypair generation should succeed");
-
-    let (pk, sk) = result.expect("keypair generation should succeed");
-    assert_eq!(pk.as_bytes().len(), X25519_KEY_SIZE);
-    assert_eq!(sk.as_bytes().len(), X25519_KEY_SIZE);
-}
-
-#[test]
-fn test_x25519_diffie_hellman_deterministic() {
-    let sk = X25519SecretKey::from_bytes(&[1u8; X25519_KEY_SIZE]).expect("sk creation succeeds");
-    let pk = X25519PublicKey::from_bytes(&[2u8; X25519_KEY_SIZE]).expect("pk creation succeeds");
-
-    let ss1 = diffie_hellman(&sk, &pk);
-    let ss2 = diffie_hellman(&sk, &pk);
-
-    assert_eq!(ss1, ss2, "DH should be deterministic with same inputs");
 }
 
 // ============================================================================

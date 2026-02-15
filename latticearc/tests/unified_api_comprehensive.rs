@@ -91,8 +91,8 @@ fn test_hybrid_signing_keygen_is_correct() {
         generate_signing_keypair(config.clone()).expect("hybrid signing keygen should succeed");
 
     assert!(
-        scheme.contains("hybrid") || scheme.contains("ed25519"),
-        "Scheme should be hybrid or ed25519, got: {scheme}"
+        scheme.contains("hybrid") || scheme.contains("ed25519") || scheme.contains("pq-ml-dsa"),
+        "Scheme should be hybrid, ed25519, or pq-ml-dsa, got: {scheme}"
     );
     assert!(!pk.is_empty(), "Public key should not be empty");
     assert!(!sk.is_empty(), "Secret key should not be empty");

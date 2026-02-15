@@ -178,16 +178,25 @@ fn test_decrypt_invalid_key_too_short() {
 // ============================================================
 
 #[test]
-fn test_sign_verify_ml_dsa_44() {
-    let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
+fn test_sign_verify_authentication_use_case_keypair() {
+    // Authentication use case maps to a signing scheme (hybrid-ml-dsa)
+    let config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
     assert!(!pk.is_empty());
     assert!(!sk.is_empty());
 
-    let message = b"ML-DSA sign/verify test";
+    let message = b"Authentication sign/verify test";
     let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
     let valid = verify(&signed, config).unwrap();
     assert!(valid, "Scheme {} should verify correctly", scheme);
+}
+
+#[test]
+fn test_sign_verify_iot_use_case_rejected() {
+    // IoT use case maps to an encryption scheme, not a signing scheme
+    let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
+    let result = generate_signing_keypair(config);
+    assert!(result.is_err(), "IoT encryption scheme should not be used for signing");
 }
 
 #[test]
@@ -224,25 +233,21 @@ fn test_sign_verify_standard_security() {
 }
 
 #[test]
-fn test_sign_verify_file_storage_use_case() {
+fn test_sign_verify_file_storage_use_case_rejected() {
+    // FileStorage maps to an encryption scheme (hybrid-ml-kem-1024-aes-256-gcm),
+    // not a signing scheme. Keygen should reject it.
     let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
-
-    let message = b"File storage signing test";
-    let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
-    let valid = verify(&signed, config).unwrap();
-    assert!(valid, "FileStorage scheme {} should verify", scheme);
+    let result = generate_signing_keypair(config);
+    assert!(result.is_err(), "FileStorage encryption scheme should not be used for signing");
 }
 
 #[test]
-fn test_sign_verify_secure_messaging_use_case() {
+fn test_sign_verify_secure_messaging_use_case_rejected() {
+    // SecureMessaging maps to an encryption scheme (hybrid-ml-kem-768-aes-256-gcm),
+    // not a signing scheme. Keygen should reject it.
     let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
-    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
-
-    let message = b"Secure messaging signing test";
-    let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
-    let valid = verify(&signed, config).unwrap();
-    assert!(valid, "SecureMessaging scheme {} should verify", scheme);
+    let result = generate_signing_keypair(config);
+    assert!(result.is_err(), "SecureMessaging encryption scheme should not be used for signing");
 }
 
 // ============================================================
@@ -338,7 +343,7 @@ fn test_version_string() {
 
 #[test]
 fn test_verify_with_wrong_signature() {
-    let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
+    let config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
     let message = b"Original message";
@@ -359,7 +364,7 @@ fn test_verify_with_wrong_signature() {
 
 #[test]
 fn test_verify_with_wrong_message() {
-    let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
+    let config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
     let message = b"Original message";

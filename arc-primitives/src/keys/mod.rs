@@ -36,7 +36,7 @@
 //! ```
 
 use thiserror::Error;
-use zeroize::{ZeroizeOnDrop, Zeroizing};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::kem::ecdh::{
     X25519PublicKey as EccPublicKey, X25519SecretKey as EccSecretKey, X25519StaticKeyPair,
@@ -201,13 +201,11 @@ impl PublicKey {
 ///
 /// This struct implements `ZeroizeOnDrop` to ensure sensitive key material
 /// is securely erased from memory when key goes out of scope.
-#[derive(ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey {
     /// ML-KEM secret key bytes (post-quantum)
-    #[zeroize(skip)]
     pub(crate) ml_sk: Zeroizing<Vec<u8>>,
     /// ECDH secret key (classical)
-    #[zeroize(skip)]
     pub(crate) ecc_sk: Zeroizing<EccSecretKey>,
 }
 

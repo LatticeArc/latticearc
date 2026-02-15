@@ -1,3 +1,7 @@
+// This test file exercises non-FIPS algorithms (ChaCha20-Poly1305, Ed25519).
+// Skip when building with `--features fips` since those modules are gated out.
+#![allow(missing_docs)]
+#![cfg(not(feature = "fips"))]
 #![allow(
     clippy::panic,
     clippy::unwrap_used,

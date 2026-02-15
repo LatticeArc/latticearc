@@ -213,7 +213,7 @@ impl X25519PublicKey {
 ///
 /// Contains the 32-byte secret key for X25519 ECDH operations.
 /// Automatically zeroizes memory on drop to prevent key leakage.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct X25519SecretKey {
     bytes: [u8; X25519_KEY_SIZE],
 }
@@ -441,44 +441,6 @@ impl std::fmt::Debug for X25519StaticKeyPair {
 /// Returns the public key and secret key bytes. The secret key is stored
 /// in a zeroizing container for security.
 ///
-/// # Deprecated
-///
-/// **BUG**: The returned secret key is random bytes unrelated to the public key.
-/// aws-lc-rs `EphemeralPrivateKey` cannot export raw bytes, so this function
-/// generates independent random bytes for the "secret key" — making DH with
-/// [`diffie_hellman`] produce incorrect results.
-///
-/// Use [`X25519StaticKeyPair::generate()`] instead, which wraps aws-lc-rs
-/// `PrivateKey` for correct, reusable key agreement.
-///
-/// # Errors
-///
-/// Returns an error if key generation fails.
-#[deprecated(
-    note = "Secret key is random bytes unrelated to public key. Use X25519StaticKeyPair::generate() instead."
-)]
-pub fn generate_keypair<R: rand::Rng + rand::CryptoRng>(
-    _rng: &mut R,
-) -> Result<(X25519PublicKey, X25519SecretKey), EcdhError> {
-    // Generate using aws-lc-rs (ignores provided rng, uses SystemRandom)
-    let rng = aws_lc_rs::rand::SystemRandom::new();
-    let private = EphemeralPrivateKey::generate(&X25519, &rng)
-        .map_err(|_e| EcdhError::KeyGenerationFailed)?;
-    let public = private.compute_public_key().map_err(|_e| EcdhError::KeyGenerationFailed)?;
-
-    let mut public_bytes = [0u8; X25519_KEY_SIZE];
-    public_bytes.copy_from_slice(public.as_ref());
-
-    // For compatibility, we need to extract the private key bytes
-    // aws-lc-rs EphemeralPrivateKey doesn't expose the raw bytes directly,
-    // so we generate random bytes for the "static secret" use case
-    let mut secret_bytes = [0u8; X25519_KEY_SIZE];
-    aws_lc_rs::rand::SecureRandom::fill(&rng, &mut secret_bytes)
-        .map_err(|_e| EcdhError::KeyGenerationFailed)?;
-
-    Ok((X25519PublicKey { bytes: public_bytes }, X25519SecretKey { bytes: secret_bytes }))
-}
-
 /// Validate a public key has correct size.
 ///
 /// # Errors
@@ -521,39 +483,6 @@ pub fn agree_ephemeral(
     let our_public = *keypair.public_key_bytes();
     let shared_secret = keypair.agree(peer_public_bytes)?;
     Ok((shared_secret, our_public))
-}
-
-/// Derive shared secret using Diffie-Hellman (for static keys)
-///
-/// # Deprecated
-///
-/// **BUG**: This function computes `SHA-256(secret_key || public_key)` —
-/// NOT real X25519 Diffie-Hellman. The output has no mathematical relationship
-/// to actual ECDH shared secrets and does not satisfy commutativity
-/// (`diffie_hellman(sk_a, pk_b) != diffie_hellman(sk_b, pk_a)`).
-///
-/// Use [`X25519StaticKeyPair::agree()`] for correct X25519 ECDH.
-#[deprecated(
-    note = "Computes SHA-256(sk||pk), not real ECDH. Use X25519StaticKeyPair::agree() instead."
-)]
-#[must_use]
-pub fn diffie_hellman(
-    our_secret: &X25519SecretKey,
-    their_public: &X25519PublicKey,
-) -> [u8; X25519_KEY_SIZE] {
-    // aws-lc-rs doesn't support static DH directly, so we use the secret key bytes
-    // to derive a shared secret through HKDF-style combination
-    // This is a compatibility shim - for proper DH, use X25519KeyPair
-    use sha2::{Digest, Sha256};
-
-    let mut hasher = Sha256::new();
-    hasher.update(our_secret.as_bytes());
-    hasher.update(their_public.as_bytes());
-
-    let result = hasher.finalize();
-    let mut output = [0u8; X25519_KEY_SIZE];
-    output.copy_from_slice(&result);
-    output
 }
 
 // ============================================================================
@@ -1030,7 +959,7 @@ pub fn validate_p521_public_key(public_key_bytes: &[u8]) -> Result<(), EcdhError
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, deprecated)]
+#[allow(clippy::unwrap_used)]
 #[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
@@ -1105,25 +1034,6 @@ mod tests {
         let (shared_secret, our_public) = result.unwrap();
         assert_eq!(shared_secret.len(), X25519_KEY_SIZE);
         assert_eq!(our_public.len(), X25519_KEY_SIZE);
-    }
-
-    #[test]
-    fn test_legacy_generate_keypair() {
-        let mut rng = rand::thread_rng();
-        let (pk, sk) = generate_keypair(&mut rng).unwrap();
-        assert_eq!(pk.as_bytes().len(), X25519_KEY_SIZE);
-        assert_eq!(sk.as_bytes().len(), X25519_KEY_SIZE);
-    }
-
-    #[test]
-    fn test_diffie_hellman_deterministic() {
-        let sk1 = X25519SecretKey::from_bytes(&[1u8; X25519_KEY_SIZE]).unwrap();
-        let pk1 = X25519PublicKey::from_bytes(&[2u8; X25519_KEY_SIZE]).unwrap();
-
-        let ss1 = diffie_hellman(&sk1, &pk1);
-        let ss2 = diffie_hellman(&sk1, &pk1);
-
-        assert_eq!(ss1, ss2);
     }
 
     // ====================================================================

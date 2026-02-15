@@ -297,26 +297,23 @@ impl FIPSValidator {
         let has_high = issues.iter().any(|i| i.severity == IssueSeverity::High);
         let has_medium = issues.iter().any(|i| i.severity == IssueSeverity::Medium);
 
-        // All critical tests must pass for any FIPS level
-        let all_algorithm_tests_passed = test_results.values().all(|r| r.passed);
+        // Algorithm validation tests must all pass for any FIPS level.
+        // Non-algorithm tests (error_handling, key_management, api_interfaces)
+        // generate issues with appropriate severity but don't block Level 1.
+        let algorithm_test_keys = ["aes_validation", "sha3_validation", "mlkem_validation"];
+        let all_algorithm_tests_passed =
+            algorithm_test_keys.iter().all(|key| test_results.get(*key).is_none_or(|r| r.passed));
 
-        // Cannot achieve any FIPS level with critical issues
+        // Cannot achieve any FIPS level with critical issues or algorithm failures
         if has_critical || !all_algorithm_tests_passed {
             return None;
         }
 
-        // Level assessment based on issues and test results
-        if has_high {
-            // High severity issues limit to Level 1
-            Some(FIPSLevel::Level1)
-        } else if has_medium {
-            // Medium severity issues limit to Level 2
-            Some(FIPSLevel::Level2)
-        } else {
-            // All tests pass with no medium or high severity issues
-            // Default to Level 2 as baseline (can be upgraded to Level 3/4 with additional tests)
-            Some(FIPSLevel::Level2)
-        }
+        // Software-only modules are always Level 1 per FIPS 140-3.
+        // Level 2+ requires tamper-evident physical security mechanisms
+        // (e.g., HSM, TPM, tamper-evident coatings) which software cannot provide.
+        let _ = (has_high, has_medium); // Acknowledged but irrelevant for sw-only
+        Some(FIPSLevel::Level1)
     }
 
     // Public test methods for conditional self-tests

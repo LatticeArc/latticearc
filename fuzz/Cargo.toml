@@ -38,6 +38,11 @@ string_add = "warn"               # Warn on string concatenation
 string_add_assign = "warn"        # Warn on string append
 unnecessary_cast = "warn"         # Warn on unnecessary casts
 
+[features]
+default = []
+# FIPS mode marker: gates tests that use non-FIPS algorithms
+fips = []
+
 [dependencies]
 libfuzzer-sys = "0.4"
 subtle = "2.6"

@@ -174,9 +174,9 @@ fn test_verify_pure_ml_dsa_65_direct() {
 // ============================================================
 
 #[test]
-fn test_verify_ed25519_fallback_direct() {
+fn test_verify_ed25519_scheme_is_supported() {
     let (pk, sk) = generate_keypair().unwrap();
-    let msg = b"Ed25519 fallback verify test";
+    let msg = b"Ed25519 verify test";
     let sig = sign_ed25519_unverified(msg, sk.as_ref()).unwrap();
 
     let signed = SignedData {
@@ -193,7 +193,7 @@ fn test_verify_ed25519_fallback_direct() {
 
     let config = CryptoConfig::new();
     let valid = verify(&signed, config).unwrap();
-    assert!(valid, "Ed25519 fallback verification should succeed");
+    assert!(valid, "Ed25519 verification should succeed");
 }
 
 // ============================================================
@@ -201,7 +201,7 @@ fn test_verify_ed25519_fallback_direct() {
 // ============================================================
 
 #[test]
-fn test_decrypt_chacha_scheme_name() {
+fn test_decrypt_chacha_scheme_rejected() {
     let key = vec![0x42u8; 32];
     let data = b"Test data for chacha scheme name";
     let config = CryptoConfig::new();
@@ -209,7 +209,7 @@ fn test_decrypt_chacha_scheme_name() {
     // Encrypt normally first
     let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
 
-    // Re-wrap with chacha20-poly1305 scheme name — decrypt dispatches all to AES-GCM
+    // Re-wrap with chacha20-poly1305 scheme name — decrypt now rejects unsupported schemes
     let rewrapped = EncryptedData {
         data: encrypted.data.clone(),
         metadata: EncryptedMetadata {
@@ -221,19 +221,20 @@ fn test_decrypt_chacha_scheme_name() {
         timestamp: encrypted.timestamp,
     };
 
-    let decrypted = decrypt(&rewrapped, &key, config).unwrap();
-    assert_eq!(decrypted, data);
+    let result = decrypt(&rewrapped, &key, config);
+    assert!(result.is_err(), "chacha20-poly1305 should be rejected by decrypt");
 }
 
 #[test]
-fn test_decrypt_ml_kem_scheme_name() {
+fn test_decrypt_ml_kem_scheme_name_accepted() {
     let key = vec![0x42u8; 32];
     let data = b"Test data for ml-kem scheme name";
     let config = CryptoConfig::new();
 
     let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
 
-    // Re-wrap with ml-kem-768 scheme name
+    // Re-wrap with ml-kem-768 scheme name — accepted because ml-kem-768
+    // is in the supported decrypt match (uses AES-256-GCM under the hood)
     let rewrapped = EncryptedData {
         data: encrypted.data.clone(),
         metadata: EncryptedMetadata {
@@ -250,14 +251,14 @@ fn test_decrypt_ml_kem_scheme_name() {
 }
 
 #[test]
-fn test_decrypt_unknown_scheme_fallback() {
+fn test_decrypt_unknown_scheme_rejected() {
     let key = vec![0x42u8; 32];
     let data = b"Test data for unknown scheme";
     let config = CryptoConfig::new();
 
     let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
 
-    // Re-wrap with unknown scheme name — should fallback to AES-GCM
+    // Re-wrap with unknown scheme name — decrypt now rejects unsupported schemes
     let rewrapped = EncryptedData {
         data: encrypted.data.clone(),
         metadata: EncryptedMetadata {
@@ -269,8 +270,8 @@ fn test_decrypt_unknown_scheme_fallback() {
         timestamp: encrypted.timestamp,
     };
 
-    let decrypted = decrypt(&rewrapped, &key, config).unwrap();
-    assert_eq!(decrypted, data);
+    let result = decrypt(&rewrapped, &key, config);
+    assert!(result.is_err(), "Unknown scheme should be rejected by decrypt");
 }
 
 // ============================================================

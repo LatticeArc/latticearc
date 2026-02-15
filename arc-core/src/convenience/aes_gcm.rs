@@ -9,8 +9,8 @@
 //! encryptions (4 billion operations). For high-volume applications, consider using
 //! counter-based nonces or rotating keys.
 //!
-//! **Key Length:** Keys are expected to be exactly 32 bytes for AES-256. Keys longer than
-//! 32 bytes will be rejected to prevent silent truncation.
+//! **Key Length:** Keys must be exactly 32 bytes for AES-256. Any other key length is
+//! rejected with an error.
 //!
 //! ## Unified API with SecurityMode
 //!
@@ -44,6 +44,10 @@ use crate::zero_trust::SecurityMode;
 // ============================================================================
 
 /// Internal implementation of AES-GCM encryption.
+///
+/// Uses a 96-bit random nonce generated from `OsRng`. Per NIST SP 800-38D
+/// Section 8.2.2, with random nonces the key should be rotated after 2^32
+/// encryptions to maintain the birthday bound safety margin.
 pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     log_crypto_operation_start!(
         "aes_gcm_encrypt",
@@ -194,19 +198,14 @@ pub(crate) fn decrypt_aes_gcm_internal(encrypted_data: &[u8], key: &[u8]) -> Res
 ///
 /// # Key Requirements
 ///
-/// The `key` parameter must be at least 32 bytes for AES-256-GCM.
-/// - If the key is **less than 32 bytes**, an error is returned
-/// - If the key is **exactly 32 bytes**, it is used as-is
-/// - If the key is **greater than 32 bytes**, only the first 32 bytes are used (silently truncated)
-///
-/// For maximum security, always provide exactly 32 bytes. Use a KDF like HKDF
-/// to derive properly-sized keys from other material.
+/// The `key` parameter must be exactly 32 bytes for AES-256-GCM.
+/// Any other key length returns an error.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - The session has expired (`CoreError::SessionExpired`) when using `Verified` mode
-/// - The key length is less than 32 bytes
+/// - The key length is not exactly 32 bytes
 /// - Random nonce generation fails
 /// - The encryption operation fails
 #[inline]
@@ -250,16 +249,15 @@ pub fn decrypt_aes_gcm(encrypted_data: &[u8], key: &[u8], mode: SecurityMode) ->
 ///
 /// # Key Requirements
 ///
-/// The `key` parameter must be at least 32 bytes for AES-256-GCM.
-/// Keys longer than 32 bytes are silently truncated to the first 32 bytes.
-/// For maximum security, provide exactly 32 bytes.
+/// The `key` parameter must be exactly 32 bytes for AES-256-GCM.
+/// Any other key length returns an error.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - The session has expired when using `Verified` mode
 /// - The configuration validation fails
-/// - The key length is less than 32 bytes
+/// - The key length is not exactly 32 bytes
 /// - The encryption operation fails
 #[inline]
 pub fn encrypt_aes_gcm_with_config(

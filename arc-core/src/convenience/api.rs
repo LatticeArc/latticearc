@@ -56,6 +56,27 @@ use super::pq_sig::{
     verify_pq_fn_dsa_unverified, verify_pq_ml_dsa_unverified, verify_pq_slh_dsa_unverified,
 };
 
+/// Check FIPS module is operational before any crypto operation.
+/// On first call, runs power-up self-tests (lazy initialization).
+/// No-op when `fips-self-test` feature is not enabled.
+#[cfg(feature = "fips-self-test")]
+fn fips_verify_operational() -> Result<()> {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let _ = arc_primitives::self_test::initialize_and_test();
+    });
+    arc_primitives::self_test::verify_operational().map_err(|e| CoreError::SelfTestFailed {
+        component: "FIPS module".to_string(),
+        status: e.to_string(),
+    })
+}
+
+#[cfg(not(feature = "fips-self-test"))]
+fn fips_verify_operational() -> Result<()> {
+    Ok(())
+}
+
 use arc_validation::resource_limits::{
     validate_decryption_size, validate_encryption_size, validate_signature_size,
 };
@@ -150,6 +171,7 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
 /// - Encryption operation fails
 #[allow(deprecated)]
 pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<EncryptedData> {
+    fips_verify_operational()?;
     config.validate()?;
 
     let scheme = select_encryption_scheme(data, &config)?;
@@ -170,7 +192,7 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
         | "hybrid-ml-kem-512-aes-256-gcm"
         | "hybrid-ml-kem-768-aes-256-gcm"
         | "hybrid-ml-kem-1024-aes-256-gcm" => {
-            if key.len() < 32 {
+            if key.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
             warn!(
@@ -182,12 +204,13 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
             ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
         }
         _ => {
-            if key.len() < 32 {
+            if key.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
-            let ct =
-                if data.is_empty() { data.to_vec() } else { encrypt_aes_gcm_internal(data, key)? };
-            (scheme, ct)
+            // Non-encryption schemes (e.g. signature schemes selected for signing-oriented
+            // use cases) fall back to AES-256-GCM when used with the unified encrypt API.
+            // Store "aes-256-gcm" as the effective scheme so decrypt() handles it correctly.
+            ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
         }
     };
     let scheme = effective_scheme;
@@ -239,14 +262,10 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
 /// - Decryption fails
 #[allow(deprecated)]
 pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> Result<Vec<u8>> {
+    fips_verify_operational()?;
     config.validate()?;
 
     crate::log_crypto_operation_start!("decrypt", scheme = %encrypted.scheme, data_size = encrypted.data.len());
-
-    if encrypted.data.is_empty() {
-        crate::log_crypto_operation_complete!("decrypt", result_size = 0_usize);
-        return Ok(encrypted.data.clone());
-    }
 
     validate_decryption_size(encrypted.data.len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
@@ -257,23 +276,22 @@ pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> R
         // but the actual encryption was AES-256-GCM (see encrypt() fallback above).
         // For true hybrid decryption, use decrypt_hybrid() with HybridSecretKey.
         "aes-256-gcm"
-        | "chacha20-poly1305"
         | "ml-kem-512"
         | "ml-kem-768"
         | "ml-kem-1024"
         | "hybrid-ml-kem-512-aes-256-gcm"
         | "hybrid-ml-kem-768-aes-256-gcm"
         | "hybrid-ml-kem-1024-aes-256-gcm" => {
-            if key.len() < 32 {
+            if key.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
             decrypt_aes_gcm_internal(&encrypted.data, key)
         }
         _ => {
-            if key.len() < 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
-            }
-            decrypt_aes_gcm_internal(&encrypted.data, key)
+            return Err(CoreError::InvalidInput(format!(
+                "Unsupported decryption scheme: {}",
+                encrypted.scheme
+            )));
         }
     };
 
@@ -309,6 +327,7 @@ pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> R
 pub fn generate_signing_keypair(
     config: CryptoConfig,
 ) -> Result<(Vec<u8>, Zeroizing<Vec<u8>>, String)> {
+    fips_verify_operational()?;
     config.validate()?;
 
     let scheme = select_signature_scheme(&config)?;
@@ -364,9 +383,7 @@ pub fn generate_signing_keypair(
             (combined_pk, crate::types::PrivateKey::new(combined_sk))
         }
         _ => {
-            // Fallback: Ed25519
-            let (pk, sk) = generate_keypair()?;
-            (pk, sk)
+            return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
         }
     };
 
@@ -393,6 +410,7 @@ pub fn sign_with_key(
     public_key: &[u8],
     config: CryptoConfig,
 ) -> Result<SignedData> {
+    fips_verify_operational()?;
     config.validate()?;
 
     let scheme = select_signature_scheme(&config)?;
@@ -531,9 +549,7 @@ pub fn sign_with_key(
             (public_key.to_vec(), combined_sig)
         }
         _ => {
-            // Fallback: Ed25519
-            let sig = sign_ed25519_internal(message, secret_key)?;
-            (public_key.to_vec(), sig)
+            return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
         }
     };
 
@@ -581,6 +597,7 @@ pub fn sign_with_key(
 /// - Signature is malformed or invalid
 #[allow(deprecated)]
 pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
+    fips_verify_operational()?;
     config.validate()?;
 
     crate::log_crypto_operation_start!("verify", scheme = %signed.scheme, message_size = signed.data.len());
@@ -772,11 +789,17 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
             Ok(pq_valid && ed_valid)
         }
-        _ => verify_ed25519_internal(
+        "ed25519" => verify_ed25519_internal(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
         ),
+        _ => {
+            return Err(CoreError::InvalidInput(format!(
+                "Unsupported verification scheme: {}",
+                signed.scheme
+            )));
+        }
     };
 
     match &result {
@@ -997,7 +1020,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_empty_ciphertext() -> Result<()> {
+    fn test_decrypt_empty_ciphertext() {
         let key = vec![0x42u8; 32];
         let empty_encrypted = EncryptedData {
             data: vec![],
@@ -1006,10 +1029,9 @@ mod tests {
             timestamp: 0,
         };
 
-        let decrypted = decrypt(&empty_encrypted, &key, CryptoConfig::new())?;
-        assert!(decrypted.is_empty());
-
-        Ok(())
+        // Empty ciphertext should be rejected (too short for nonce)
+        let result = decrypt(&empty_encrypted, &key, CryptoConfig::new());
+        assert!(result.is_err(), "Empty ciphertext should be rejected");
     }
 
     // Cross-algorithm tests for signing
@@ -1161,11 +1183,11 @@ mod tests {
             data: b"Test message".to_vec(),
             metadata: SignedMetadata {
                 signature: vec![], // Empty signature
-                signature_algorithm: "ed25519".to_string(),
-                public_key: vec![0u8; 32],
+                signature_algorithm: "ml-dsa-44".to_string(),
+                public_key: vec![0u8; 1312],
                 key_id: None,
             },
-            scheme: "ed25519".to_string(),
+            scheme: "ml-dsa-44".to_string(),
             timestamp: 0,
         };
 
@@ -1178,12 +1200,12 @@ mod tests {
         let signed = SignedData {
             data: b"Test message".to_vec(),
             metadata: SignedMetadata {
-                signature: vec![0u8; 64],
-                signature_algorithm: "ed25519".to_string(),
+                signature: vec![0u8; 2420],
+                signature_algorithm: "ml-dsa-44".to_string(),
                 public_key: vec![], // Empty public key
                 key_id: None,
             },
-            scheme: "ed25519".to_string(),
+            scheme: "ml-dsa-44".to_string(),
             timestamp: 0,
         };
 
@@ -1207,7 +1229,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_unknown_scheme() -> Result<()> {
+    fn test_decrypt_unknown_scheme() {
         let encrypted = EncryptedData {
             data: vec![0x12u8; 40], // 40 bytes of dummy data
             metadata: EncryptedMetadata {
@@ -1220,11 +1242,9 @@ mod tests {
         };
         let key = vec![0x42u8; 32];
 
-        // Unknown schemes fall back to AES-256-GCM decryption, which should fail for invalid data
+        // Unknown schemes are explicitly rejected
         let result = decrypt(&encrypted, &key, CryptoConfig::new());
-        assert!(result.is_err(), "Decryption of invalid data should fail");
-
-        Ok(())
+        assert!(result.is_err(), "Unknown scheme should be rejected");
     }
 
     // === SLH-DSA sign/verify roundtrip tests ===
@@ -1374,6 +1394,7 @@ mod tests {
 
     // === Hybrid ML-DSA-44 + Ed25519 sign/verify roundtrip ===
 
+    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_hybrid_ml_dsa_44_ed25519_roundtrip() {
         std::thread::Builder::new()
@@ -1404,6 +1425,7 @@ mod tests {
 
     // === Hybrid ML-DSA-87 + Ed25519 sign/verify roundtrip ===
 
+    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_hybrid_ml_dsa_87_ed25519_roundtrip() {
         std::thread::Builder::new()
@@ -1468,37 +1490,22 @@ mod tests {
     // === Ed25519 fallback test ===
 
     #[test]
-    fn test_sign_verify_with_ed25519_fallback_scheme() {
-        std::thread::Builder::new()
-            .name("ed25519_fallback".to_string())
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                use crate::convenience::ed25519::sign_ed25519_unverified;
-                use crate::convenience::keygen::generate_keypair;
+    fn test_verify_with_unsupported_scheme_rejected() {
+        let signed = SignedData {
+            data: b"test".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 64],
+                signature_algorithm: "unsupported-scheme".to_string(),
+                public_key: vec![0u8; 32],
+                key_id: None,
+            },
+            scheme: "unsupported-scheme".to_string(),
+            timestamp: 0,
+        };
 
-                let (pk, sk) = generate_keypair().unwrap();
-                let message = b"Ed25519 fallback test";
-
-                // Manually construct SignedData with ed25519 scheme
-                let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
-                let signed = SignedData {
-                    data: message.to_vec(),
-                    metadata: SignedMetadata {
-                        signature,
-                        signature_algorithm: "ed25519".to_string(),
-                        public_key: pk,
-                        key_id: None,
-                    },
-                    scheme: "ed25519".to_string(),
-                    timestamp: 0,
-                };
-
-                let verified = verify(&signed, CryptoConfig::new()).unwrap();
-                assert!(verified, "Ed25519 fallback verification should succeed");
-            })
-            .unwrap()
-            .join()
-            .unwrap();
+        // Unsupported schemes are explicitly rejected
+        let result = verify(&signed, CryptoConfig::new());
+        assert!(result.is_err(), "Unsupported scheme should be rejected");
     }
 
     // === Encryption with different security levels ===
@@ -1714,14 +1721,14 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_with_chacha_scheme_name() {
+    fn test_decrypt_with_chacha_scheme_name_rejected() {
         let key = vec![0x42u8; 32];
         let config = CryptoConfig::new();
         let data = b"test chacha path";
 
         let encrypted = encrypt(data, &key, config.clone()).unwrap();
 
-        // Modify scheme to chacha20-poly1305 to test the decrypt fallback path
+        // chacha20-poly1305 is not a supported decrypt scheme in the unified API
         let modified = EncryptedData {
             data: encrypted.data,
             metadata: encrypted.metadata,
@@ -1729,12 +1736,11 @@ mod tests {
             timestamp: encrypted.timestamp,
         };
         let result = decrypt(&modified, &key, config);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), data);
+        assert!(result.is_err(), "chacha20-poly1305 should be rejected");
     }
 
     #[test]
-    fn test_decrypt_short_key_unknown_scheme() {
+    fn test_decrypt_unknown_scheme_short_key() {
         let encrypted = EncryptedData {
             data: vec![1, 2, 3, 4],
             metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
@@ -1742,6 +1748,7 @@ mod tests {
             timestamp: 0,
         };
         let short_key = vec![0x42u8; 16]; // Too short
+        // Unknown scheme is rejected before key check
         let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
         assert!(result.is_err());
     }
@@ -1794,21 +1801,20 @@ mod tests {
     // === Keygen through generate_signing_keypair with different use cases ===
 
     #[test]
-    fn test_generate_signing_keypair_iot_use_case() {
+    fn test_generate_signing_keypair_iot_use_case_rejected() {
+        // IoT use case maps to an encryption scheme (hybrid-ml-kem-512-aes-256-gcm),
+        // not a signing scheme. Keygen should reject it.
         let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
         let result = generate_signing_keypair(config);
-        assert!(result.is_ok());
-        let (pk, sk, scheme) = result.unwrap();
-        assert!(!pk.is_empty());
-        assert!(!sk.is_empty());
-        assert!(!scheme.is_empty());
+        assert!(result.is_err(), "IoT encryption scheme should not be used for signing keypair");
     }
 
     #[test]
-    fn test_generate_signing_keypair_file_storage_use_case() {
+    fn test_generate_signing_keypair_file_storage_use_case_rejected() {
+        // FileStorage use case maps to an encryption scheme, not signing.
         let config = CryptoConfig::new().use_case(UseCase::FileStorage);
         let result = generate_signing_keypair(config);
-        assert!(result.is_ok());
+        assert!(result.is_err(), "FileStorage encryption scheme should not be used for signing");
     }
 
     // === Additional keygen scheme branches ===
@@ -2122,6 +2128,13 @@ mod tests {
             .spawn(|| {
                 let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
                 let signed = sign_message(b"Standard", config).unwrap();
+                #[cfg(feature = "fips")]
+                assert!(
+                    signed.scheme.contains("pq-ml-dsa-44"),
+                    "FIPS Standard should use pq-ml-dsa-44: {}",
+                    signed.scheme
+                );
+                #[cfg(not(feature = "fips"))]
                 assert!(
                     signed.scheme.contains("hybrid-ml-dsa-44"),
                     "Standard should use hybrid-44: {}",
@@ -2138,14 +2151,14 @@ mod tests {
     // === Decrypt fallback path (unknown scheme) ===
 
     #[test]
-    fn test_decrypt_unknown_scheme_fallback() {
+    fn test_decrypt_unknown_scheme_rejected() {
         let key = vec![0x42u8; 32];
         let config = CryptoConfig::new();
-        let data = b"test unknown scheme fallback";
+        let data = b"test unknown scheme rejected";
 
         let encrypted = encrypt(data, &key, config.clone()).unwrap();
 
-        // Change scheme to something unknown to test fallback path
+        // Unknown schemes are explicitly rejected
         let modified = EncryptedData {
             data: encrypted.data,
             metadata: encrypted.metadata,
@@ -2153,7 +2166,6 @@ mod tests {
             timestamp: encrypted.timestamp,
         };
         let result = decrypt(&modified, &key, config);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), data);
+        assert!(result.is_err(), "Unknown scheme should be rejected");
     }
 }

@@ -445,13 +445,21 @@ impl MlKemPublicKey {
 /// - Clone is intentionally NOT implemented to prevent copies of secret key material
 /// - Fields are private to prevent direct access; use provided methods
 /// - Data is automatically zeroized on drop
-#[derive(Debug)]
 pub struct MlKemSecretKey {
     /// Security level of this key (private)
     security_level: MlKemSecurityLevel,
     /// Placeholder bytes (zeroized on drop, private)
     /// NOTE: These are NOT actual secret key bytes due to aws-lc-rs limitations
     data: Vec<u8>,
+}
+
+impl std::fmt::Debug for MlKemSecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MlKemSecretKey")
+            .field("security_level", &self.security_level)
+            .field("data", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl MlKemSecretKey {
@@ -575,10 +583,16 @@ impl MlKemCiphertext {
 /// # Security Note
 /// - Clone is intentionally NOT implemented to prevent copies of secret material
 /// - Field is private to prevent direct access; use provided methods
-#[derive(Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct MlKemSharedSecret {
     /// The 32-byte shared secret data (zeroized on drop, private)
     data: [u8; 32],
+}
+
+impl std::fmt::Debug for MlKemSharedSecret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MlKemSharedSecret").field("data", &"[REDACTED]").finish()
+    }
 }
 
 impl MlKemSharedSecret {

@@ -132,12 +132,7 @@ fn test_secure_bytes_constant_time_eq() {
     assert_ne!(a, d); // Different lengths
 }
 
-#[test]
-fn test_secure_bytes_clone() {
-    let sb = SecureBytes::new(vec![10, 20, 30]);
-    let cloned = sb.clone();
-    assert_eq!(sb, cloned);
-}
+// Clone intentionally removed from SecureBytes to prevent copies of secret data
 
 #[test]
 fn test_secure_bytes_from_vec() {

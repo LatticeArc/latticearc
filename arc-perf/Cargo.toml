@@ -15,6 +15,11 @@ readme.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+# FIPS mode marker: gates tests that use non-FIPS algorithms
+fips = []
+
 [dependencies]
 # Core dependencies
 

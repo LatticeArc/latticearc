@@ -248,7 +248,9 @@ pub fn generate_slh_dsa_keypair_with_config(
     generate_slh_dsa_keypair(security_level)
 }
 
-/// Generate an FN-DSA keypair
+/// Generate an FN-DSA keypair (Level512).
+///
+/// For Level1024, use [`generate_fn_dsa_keypair_with_level`].
 ///
 /// # Errors
 ///
@@ -256,22 +258,41 @@ pub fn generate_slh_dsa_keypair_with_config(
 /// - The FN-DSA key generation operation fails
 /// - The RNG is unavailable or fails to provide sufficient randomness
 pub fn generate_fn_dsa_keypair() -> Result<(PublicKey, PrivateKey)> {
-    debug!("Generating FN-DSA keypair (Level512)");
+    generate_fn_dsa_keypair_with_level(FNDsaSecurityLevel::Level512)
+}
+
+/// Generate an FN-DSA keypair at the specified security level.
+///
+/// # Arguments
+/// * `level` - Security level: `Level512` (NIST Level I) or `Level1024` (NIST Level V)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The FN-DSA key generation operation fails
+/// - The RNG is unavailable or fails to provide sufficient randomness
+///
+/// # Stack Usage
+/// FN-DSA Level1024 requires ~32MB stack in debug builds. Use `--release`
+/// or spawn a thread with `stack_size(32 * 1024 * 1024)` if needed.
+pub fn generate_fn_dsa_keypair_with_level(
+    level: FNDsaSecurityLevel,
+) -> Result<(PublicKey, PrivateKey)> {
+    debug!("Generating FN-DSA keypair ({:?})", level);
 
     let mut rng = rand::rngs::OsRng;
-    let keypair =
-        arc_primitives::sig::fndsa::KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)
-            .map_err(|e| CoreError::KeyGenerationFailed {
-                reason: format!("FN-DSA key generation failed: {}", e),
-                recovery: "Check RNG availability".to_string(),
-            })?;
+    let keypair = arc_primitives::sig::fndsa::KeyPair::generate(&mut rng, level).map_err(|e| {
+        CoreError::KeyGenerationFailed {
+            reason: format!("FN-DSA key generation failed: {}", e),
+            recovery: "Check RNG availability".to_string(),
+        }
+    })?;
 
-    crate::log_key_generated!(
-        "fn-dsa-keypair",
-        "FN-DSA-512",
-        KeyType::KeyPair,
-        KeyPurpose::Signing
-    );
+    let level_name = match level {
+        FNDsaSecurityLevel::Level512 => "FN-DSA-512",
+        FNDsaSecurityLevel::Level1024 => "FN-DSA-1024",
+    };
+    crate::log_key_generated!("fn-dsa-keypair", level_name, KeyType::KeyPair, KeyPurpose::Signing);
 
     Ok((keypair.verifying_key().to_bytes(), PrivateKey::new(keypair.signing_key().to_bytes())))
 }

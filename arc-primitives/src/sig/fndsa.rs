@@ -328,6 +328,10 @@ impl VerifyingKey {
 /// - The `inner` field from the external `fn-dsa` crate cannot be directly zeroized
 ///   as it doesn't implement `Zeroize`.
 ///
+/// **FIPS 140-3 Impact:** Section 10.3.5 requires zeroization of all Sensitive
+/// Security Parameters (SSPs). The inner `fn-dsa` signing key cannot be zeroized
+/// due to upstream crate limitations. This is tracked as GitHub issue #10.
+///
 /// **For maximum security**, consider using ML-DSA (`arc_primitives::sig::mldsa`)
 /// which has full zeroization support for all key material.
 pub struct SigningKey {

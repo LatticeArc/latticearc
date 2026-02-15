@@ -35,12 +35,18 @@ pub struct HashCommitment {
 }
 
 /// Opening for a hash commitment
-#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct HashOpening {
     /// The committed value
     pub value: Vec<u8>,
     /// The randomness used
     pub randomness: [u8; 32],
+}
+
+impl std::fmt::Debug for HashOpening {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HashOpening").field("data", &"[REDACTED]").finish()
+    }
 }
 
 impl HashCommitment {

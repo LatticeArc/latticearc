@@ -27,7 +27,7 @@ use rand::RngCore;
 use rand::rngs::OsRng;
 use subtle::ConstantTimeEq;
 use tracing::instrument;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
 
@@ -49,7 +49,7 @@ use arc_validation::resource_limits::{validate_decryption_size, validate_encrypt
 /// let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, None).unwrap();
 /// assert_eq!(plaintext, decrypted.as_slice());
 /// ```
-#[derive(Clone)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct AesGcm128 {
     key_bytes: [u8; AES_GCM_128_KEY_LEN],
 }
@@ -188,7 +188,7 @@ impl AesGcm128 {
 /// let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, None).unwrap();
 /// assert_eq!(plaintext, decrypted.as_slice());
 /// ```
-#[derive(Clone)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct AesGcm256 {
     key_bytes: [u8; AES_GCM_256_KEY_LEN],
 }

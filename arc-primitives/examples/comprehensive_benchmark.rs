@@ -1,4 +1,3 @@
-#![allow(deprecated)] // Benchmark uses legacy ECDH API
 //! Comprehensive LatticeArc Benchmark
 //!
 //! Measures all cryptographic operations including:
@@ -31,6 +30,7 @@ use std::time::{Duration, Instant};
 
 use arc_primitives::aead::AeadCipher;
 use arc_primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
+#[cfg(not(feature = "fips"))]
 use arc_primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use arc_primitives::hash::{sha3_256, sha256, sha512};
 use arc_primitives::kdf::hkdf::hkdf;
@@ -550,30 +550,34 @@ fn main() {
     print_result(&r);
     all_results.push(r);
 
-    // ChaCha20-Poly1305
-    println!("\n  --- ChaCha20-Poly1305 ---");
-    let chacha_key = [0u8; 32];
-    let chacha = ChaCha20Poly1305Cipher::new(&chacha_key).unwrap();
-    let chacha_nonce = ChaCha20Poly1305Cipher::generate_nonce();
+    // ChaCha20-Poly1305 (non-FIPS only)
+    #[cfg(not(feature = "fips"))]
+    {
+        println!("\n  --- ChaCha20-Poly1305 ---");
+        let chacha_key = [0u8; 32];
+        let chacha = ChaCha20Poly1305Cipher::new(&chacha_key).unwrap();
+        let chacha_nonce = ChaCha20Poly1305Cipher::generate_nonce();
 
-    let r = benchmark("Encrypt (1KB)", 10000, || {
-        let _ = chacha.encrypt(&chacha_nonce, &aead_plaintext_1kb, None);
-    });
-    print_result(&r);
-    all_results.push(r);
+        let r = benchmark("Encrypt (1KB)", 10000, || {
+            let _ = chacha.encrypt(&chacha_nonce, &aead_plaintext_1kb, None);
+        });
+        print_result(&r);
+        all_results.push(r);
 
-    let (chacha_ct, chacha_tag) = chacha.encrypt(&chacha_nonce, &aead_plaintext_1kb, None).unwrap();
-    let r = benchmark("Decrypt (1KB)", 10000, || {
-        let _ = chacha.decrypt(&chacha_nonce, &chacha_ct, &chacha_tag, None);
-    });
-    print_result(&r);
-    all_results.push(r);
+        let (chacha_ct, chacha_tag) =
+            chacha.encrypt(&chacha_nonce, &aead_plaintext_1kb, None).unwrap();
+        let r = benchmark("Decrypt (1KB)", 10000, || {
+            let _ = chacha.decrypt(&chacha_nonce, &chacha_ct, &chacha_tag, None);
+        });
+        print_result(&r);
+        all_results.push(r);
 
-    let r = benchmark("Encrypt (16KB)", 1000, || {
-        let _ = chacha.encrypt(&chacha_nonce, &aead_plaintext_16kb, None);
-    });
-    print_result(&r);
-    all_results.push(r);
+        let r = benchmark("Encrypt (16KB)", 1000, || {
+            let _ = chacha.encrypt(&chacha_nonce, &aead_plaintext_16kb, None);
+        });
+        print_result(&r);
+        all_results.push(r);
+    }
 
     // ========================================================================
     // Hash Functions

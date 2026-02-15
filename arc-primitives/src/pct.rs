@@ -78,6 +78,19 @@ pub enum PctError {
 /// Result type for PCT operations
 pub type PctResult<T> = Result<T, PctError>;
 
+/// Enter module error state when PCT fails (FIPS 140-3 requirement)
+///
+/// When a Pairwise Consistency Test fails, the module must enter an error
+/// state and refuse all subsequent cryptographic operations.
+#[cfg(feature = "fips-self-test")]
+fn enter_pct_error_state() {
+    crate::self_test::set_module_error(crate::self_test::ModuleErrorCode::SelfTestFailure);
+}
+
+/// No-op when FIPS self-test feature is not enabled
+#[cfg(not(feature = "fips-self-test"))]
+fn enter_pct_error_state() {}
+
 // =============================================================================
 // ML-DSA Pairwise Consistency Test
 // =============================================================================
@@ -135,7 +148,66 @@ pub fn pct_ml_dsa(
     let is_valid = verify(public_key, PCT_TEST_MESSAGE, &signature, PCT_EMPTY_CONTEXT)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid { Ok(()) } else { Err(PctError::KeyPairInconsistent) }
+    if is_valid {
+        Ok(())
+    } else {
+        enter_pct_error_state();
+        Err(PctError::KeyPairInconsistent)
+    }
+}
+
+// =============================================================================
+// ML-KEM Pairwise Consistency Test
+// =============================================================================
+
+/// Performs a Pairwise Consistency Test for ML-KEM keypairs
+///
+/// This function generates a fresh keypair with decapsulation capability,
+/// encapsulates a shared secret, decapsulates it, and verifies the shared
+/// secrets match. According to FIPS 140-3, this test must pass before the
+/// keypair can be used for any cryptographic operations.
+///
+/// # Arguments
+///
+/// * `security_level` - The ML-KEM security level to test
+///
+/// # Returns
+///
+/// * `Ok(())` - The keypair is consistent and passed PCT
+/// * `Err(PctError)` - The keypair failed PCT and must not be used
+///
+/// # Errors
+///
+/// Returns `PctError::SigningFailed` if key generation or encapsulation fails.
+/// Returns `PctError::VerificationFailed` if decapsulation fails.
+/// Returns `PctError::KeyPairInconsistent` if shared secrets don't match.
+pub fn pct_ml_kem(security_level: crate::kem::ml_kem::MlKemSecurityLevel) -> PctResult<()> {
+    use crate::kem::ml_kem::MlKem;
+    use rand::rngs::OsRng;
+    use subtle::ConstantTimeEq;
+
+    let mut rng = OsRng;
+
+    // Generate keypair with decapsulation capability
+    let dk = MlKem::generate_decapsulation_keypair(security_level)
+        .map_err(|e| PctError::SigningFailed(format!("ML-KEM key generation failed: {}", e)))?;
+
+    // Encapsulate
+    let (ss_encap, ct) = MlKem::encapsulate(&mut rng, dk.public_key())
+        .map_err(|e| PctError::SigningFailed(format!("ML-KEM encapsulation failed: {}", e)))?;
+
+    // Decapsulate
+    let ss_decap = dk
+        .decapsulate(&ct)
+        .map_err(|e| PctError::VerificationFailed(format!("ML-KEM decapsulation failed: {}", e)))?;
+
+    // Constant-time comparison
+    if bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes())) {
+        Ok(())
+    } else {
+        enter_pct_error_state();
+        Err(PctError::KeyPairInconsistent)
+    }
 }
 
 // =============================================================================
@@ -195,7 +267,12 @@ pub fn pct_slh_dsa(
         .verify(PCT_TEST_MESSAGE, &signature, None)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid { Ok(()) } else { Err(PctError::KeyPairInconsistent) }
+    if is_valid {
+        Ok(())
+    } else {
+        enter_pct_error_state();
+        Err(PctError::KeyPairInconsistent)
+    }
 }
 
 // =============================================================================
@@ -259,7 +336,12 @@ pub fn pct_fn_dsa(
         .verify(PCT_TEST_MESSAGE, &signature)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid { Ok(()) } else { Err(PctError::KeyPairInconsistent) }
+    if is_valid {
+        Ok(())
+    } else {
+        enter_pct_error_state();
+        Err(PctError::KeyPairInconsistent)
+    }
 }
 
 /// Performs a Pairwise Consistency Test for an FN-DSA KeyPair
@@ -307,7 +389,12 @@ pub fn pct_fn_dsa_keypair(keypair: &mut crate::sig::fndsa::KeyPair) -> PctResult
         .verify(PCT_TEST_MESSAGE, &signature)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid { Ok(()) } else { Err(PctError::KeyPairInconsistent) }
+    if is_valid {
+        Ok(())
+    } else {
+        enter_pct_error_state();
+        Err(PctError::KeyPairInconsistent)
+    }
 }
 
 // =============================================================================
@@ -318,6 +405,20 @@ pub fn pct_fn_dsa_keypair(keypair: &mut crate::sig::fndsa::KeyPair) -> PctResult
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_pct_ml_kem_768_passes() {
+        use crate::kem::ml_kem::MlKemSecurityLevel;
+        let result = pct_ml_kem(MlKemSecurityLevel::MlKem768);
+        assert!(result.is_ok(), "PCT should pass for ML-KEM-768");
+    }
+
+    #[test]
+    fn test_pct_ml_kem_1024_passes() {
+        use crate::kem::ml_kem::MlKemSecurityLevel;
+        let result = pct_ml_kem(MlKemSecurityLevel::MlKem1024);
+        assert!(result.is_ok(), "PCT should pass for ML-KEM-1024");
+    }
 
     #[test]
     fn test_pct_ml_dsa_44_passes() {

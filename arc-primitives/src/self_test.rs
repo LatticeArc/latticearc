@@ -4,19 +4,22 @@
 //! According to FIPS 140-3 IG 10.3.A, cryptographic modules must perform Known Answer
 //! Tests (KATs) at power-up before any cryptographic operation can be performed.
 //!
+//! This is the **canonical** FIPS 140-3 self-test module for the LatticeArc
+//! cryptographic module. The `arc-validation` crate provides test/validation
+//! utilities for development; this module contains the production self-tests.
+//!
 //! ## Power-Up Self-Tests
 //!
 //! The following algorithms are tested at power-up:
-//! - ML-KEM-768: Key encapsulation mechanism (FIPS 203)
-//! - AES-256-GCM: Authenticated encryption (NIST SP 800-38D)
 //! - SHA-256: Cryptographic hash function (FIPS 180-4)
+//! - SHA3-256: Cryptographic hash function (FIPS 202)
+//! - HMAC-SHA256: Message authentication code (FIPS 198-1)
 //! - HKDF-SHA256: Key derivation function (NIST SP 800-56C)
-//!
-//! ## Conditional Self-Tests
-//!
-//! Placeholder tests are provided for:
-//! - ML-DSA: Digital signatures (FIPS 204) - longer execution time
-//! - SLH-DSA: Hash-based signatures (FIPS 205) - longer execution time
+//! - AES-256-GCM: Authenticated encryption (NIST SP 800-38D)
+//! - ML-KEM-768: Key encapsulation mechanism (FIPS 203)
+//! - ML-DSA-44: Digital signatures (FIPS 204)
+//! - SLH-DSA-SHAKE-128s: Hash-based signatures (FIPS 205)
+//! - FN-DSA-512: Lattice-based signatures (FIPS 206)
 //!
 //! ## Usage
 //!
@@ -160,9 +163,34 @@ pub fn run_power_up_tests() -> SelfTestResult {
         return SelfTestResult::Fail(format!("AES-256-GCM KAT failed: {}", e));
     }
 
-    // 4. ML-KEM-768 KAT (encapsulation verification only due to aws-lc-rs limitations)
+    // 4. SHA3-256 KAT
+    if let Err(e) = kat_sha3_256() {
+        return SelfTestResult::Fail(format!("SHA3-256 KAT failed: {}", e));
+    }
+
+    // 5. HMAC-SHA256 KAT
+    if let Err(e) = kat_hmac_sha256() {
+        return SelfTestResult::Fail(format!("HMAC-SHA256 KAT failed: {}", e));
+    }
+
+    // 6. ML-KEM-768 KAT (full encap/decap roundtrip)
     if let Err(e) = kat_ml_kem_768() {
         return SelfTestResult::Fail(format!("ML-KEM-768 KAT failed: {}", e));
+    }
+
+    // 7. ML-DSA-44 KAT (sign/verify roundtrip)
+    if let Err(e) = kat_ml_dsa() {
+        return SelfTestResult::Fail(format!("ML-DSA KAT failed: {}", e));
+    }
+
+    // 8. SLH-DSA KAT (sign/verify roundtrip)
+    if let Err(e) = kat_slh_dsa() {
+        return SelfTestResult::Fail(format!("SLH-DSA KAT failed: {}", e));
+    }
+
+    // 9. FN-DSA KAT (runs in separate thread with 32MB stack)
+    if let Err(e) = kat_fn_dsa() {
+        return SelfTestResult::Fail(format!("FN-DSA KAT failed: {}", e));
     }
 
     SelfTestResult::Pass
@@ -235,6 +263,36 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         duration_us: Some(duration_to_us(aes_start.elapsed())),
     });
 
+    // SHA3-256 KAT
+    let sha3_start = Instant::now();
+    let sha3_result = match kat_sha3_256() {
+        Ok(()) => SelfTestResult::Pass,
+        Err(e) => {
+            overall_pass = false;
+            SelfTestResult::Fail(e.to_string())
+        }
+    };
+    tests.push(IndividualTestResult {
+        algorithm: "SHA3-256".to_string(),
+        result: sha3_result,
+        duration_us: Some(duration_to_us(sha3_start.elapsed())),
+    });
+
+    // HMAC-SHA256 KAT
+    let hmac_start = Instant::now();
+    let hmac_result = match kat_hmac_sha256() {
+        Ok(()) => SelfTestResult::Pass,
+        Err(e) => {
+            overall_pass = false;
+            SelfTestResult::Fail(e.to_string())
+        }
+    };
+    tests.push(IndividualTestResult {
+        algorithm: "HMAC-SHA256".to_string(),
+        result: hmac_result,
+        duration_us: Some(duration_to_us(hmac_start.elapsed())),
+    });
+
     // ML-KEM-768 KAT
     let kem_start = Instant::now();
     let kem_result = match kat_ml_kem_768() {
@@ -248,6 +306,51 @@ pub fn run_power_up_tests_with_report() -> SelfTestReport {
         algorithm: "ML-KEM-768".to_string(),
         result: kem_result,
         duration_us: Some(duration_to_us(kem_start.elapsed())),
+    });
+
+    // ML-DSA-44 KAT
+    let mldsa_start = Instant::now();
+    let mldsa_result = match kat_ml_dsa() {
+        Ok(()) => SelfTestResult::Pass,
+        Err(e) => {
+            overall_pass = false;
+            SelfTestResult::Fail(e.to_string())
+        }
+    };
+    tests.push(IndividualTestResult {
+        algorithm: "ML-DSA-44".to_string(),
+        result: mldsa_result,
+        duration_us: Some(duration_to_us(mldsa_start.elapsed())),
+    });
+
+    // SLH-DSA KAT
+    let slhdsa_start = Instant::now();
+    let slhdsa_result = match kat_slh_dsa() {
+        Ok(()) => SelfTestResult::Pass,
+        Err(e) => {
+            overall_pass = false;
+            SelfTestResult::Fail(e.to_string())
+        }
+    };
+    tests.push(IndividualTestResult {
+        algorithm: "SLH-DSA-SHAKE-128s".to_string(),
+        result: slhdsa_result,
+        duration_us: Some(duration_to_us(slhdsa_start.elapsed())),
+    });
+
+    // FN-DSA KAT
+    let fndsa_start = Instant::now();
+    let fndsa_result = match kat_fn_dsa() {
+        Ok(()) => SelfTestResult::Pass,
+        Err(e) => {
+            overall_pass = false;
+            SelfTestResult::Fail(e.to_string())
+        }
+    };
+    tests.push(IndividualTestResult {
+        algorithm: "FN-DSA-512".to_string(),
+        result: fndsa_result,
+        duration_us: Some(duration_to_us(fndsa_start.elapsed())),
     });
 
     let overall_result = if overall_pass {
@@ -345,6 +448,82 @@ pub fn kat_hkdf_sha256() -> Result<()> {
 }
 
 // =============================================================================
+// SHA3-256 Known Answer Test
+// =============================================================================
+
+/// SHA3-256 Known Answer Test using NIST test vectors
+///
+/// Test vector from NIST CAVP SHA3-256 Short Message Test
+/// Message: "abc" (0x616263)
+/// Expected digest: 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532
+///
+/// # Errors
+///
+/// Returns error if the computed hash does not match the expected value.
+pub fn kat_sha3_256() -> Result<()> {
+    use crate::hash::sha3::sha3_256;
+
+    // NIST CAVP test vector: SHA3-256("abc")
+    const INPUT: &[u8] = b"abc";
+    const EXPECTED: [u8; 32] = [
+        0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90,
+        0xbd, 0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b, 0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43,
+        0x15, 0x32,
+    ];
+
+    let result = sha3_256(INPUT);
+
+    // Constant-time comparison to prevent timing attacks
+    if bool::from(result.ct_eq(&EXPECTED)) {
+        Ok(())
+    } else {
+        Err(LatticeArcError::ValidationError {
+            message: "SHA3-256 KAT: computed hash does not match expected value".to_string(),
+        })
+    }
+}
+
+// =============================================================================
+// HMAC-SHA256 Known Answer Test
+// =============================================================================
+
+/// HMAC-SHA256 Known Answer Test using RFC 4231 Test Case 2
+///
+/// Test Case 2 from RFC 4231:
+/// - Key: "Jefe" (0x4a656665)
+/// - Data: "what do ya want for nothing?" (0x7768617420646f2079612077616e7420666f72206e6f7468696e673f)
+/// - Expected HMAC: 5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843
+///
+/// # Errors
+///
+/// Returns error if the computed HMAC does not match the expected value.
+pub fn kat_hmac_sha256() -> Result<()> {
+    use crate::mac::hmac::hmac_sha256;
+
+    // RFC 4231 Test Case 2
+    const KEY: &[u8] = b"Jefe";
+    const DATA: &[u8] = b"what do ya want for nothing?";
+    const EXPECTED: [u8; 32] = [
+        0x5b, 0xdc, 0xc1, 0x46, 0xbf, 0x60, 0x75, 0x4e, 0x6a, 0x04, 0x24, 0x26, 0x08, 0x95, 0x75,
+        0xc7, 0x5a, 0x00, 0x3f, 0x08, 0x9d, 0x27, 0x39, 0x83, 0x9d, 0xec, 0x58, 0xb9, 0x64, 0xec,
+        0x38, 0x43,
+    ];
+
+    let result = hmac_sha256(KEY, DATA).map_err(|e| LatticeArcError::ValidationError {
+        message: format!("HMAC-SHA256 KAT: computation failed: {}", e),
+    })?;
+
+    // Constant-time comparison
+    if bool::from(result.ct_eq(&EXPECTED)) {
+        Ok(())
+    } else {
+        Err(LatticeArcError::ValidationError {
+            message: "HMAC-SHA256 KAT: computed HMAC does not match expected value".to_string(),
+        })
+    }
+}
+
+// =============================================================================
 // AES-256-GCM Known Answer Test
 // =============================================================================
 
@@ -364,8 +543,9 @@ pub fn kat_hkdf_sha256() -> Result<()> {
 pub fn kat_aes_256_gcm() -> Result<()> {
     use crate::aead::{AeadCipher, aes_gcm::AesGcm256};
 
-    // NIST GCM test vector (simplified for power-up test)
-    // Using a well-known test pattern that exercises the algorithm
+    // Fixed test vector: Key = 0x00..0x1f, Nonce = 0x00*12
+    // Plaintext = "FIPS 140-3 KAT", AAD = "additional data"
+    // Expected ciphertext and tag computed via OpenSSL/AWS-LC reference
     const KEY: [u8; 32] = [
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
         0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
@@ -376,26 +556,44 @@ pub fn kat_aes_256_gcm() -> Result<()> {
     const PLAINTEXT: &[u8] = b"FIPS 140-3 KAT";
     const AAD: &[u8] = b"additional data";
 
+    const EXPECTED_CT: [u8; 14] =
+        [0x48, 0xf5, 0xe5, 0x8d, 0x95, 0x1d, 0xb7, 0x8d, 0x25, 0x9b, 0x89, 0x7e, 0x59, 0x78];
+    const EXPECTED_TAG: [u8; 16] = [
+        0x15, 0xad, 0x41, 0x23, 0xf6, 0x60, 0x99, 0xe1, 0xad, 0xa5, 0x5b, 0xd6, 0x7d, 0xa6, 0xc5,
+        0xeb,
+    ];
+
     // Create cipher instance
     let cipher = AesGcm256::new(&KEY).map_err(|e| LatticeArcError::ValidationError {
         message: format!("AES-256-GCM KAT: cipher initialization failed: {}", e),
     })?;
 
-    // Encrypt
+    // Encrypt and verify ciphertext matches expected
     let (ciphertext, tag) = cipher.encrypt(&NONCE, PLAINTEXT, Some(AAD)).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("AES-256-GCM KAT: encryption failed: {}", e),
         }
     })?;
 
-    // Decrypt
+    if !bool::from(ciphertext.ct_eq(&EXPECTED_CT)) {
+        return Err(LatticeArcError::ValidationError {
+            message: "AES-256-GCM KAT: ciphertext does not match expected value".to_string(),
+        });
+    }
+
+    if !bool::from(tag.ct_eq(&EXPECTED_TAG)) {
+        return Err(LatticeArcError::ValidationError {
+            message: "AES-256-GCM KAT: tag does not match expected value".to_string(),
+        });
+    }
+
+    // Decrypt and verify plaintext matches
     let decrypted = cipher.decrypt(&NONCE, &ciphertext, &tag, Some(AAD)).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("AES-256-GCM KAT: decryption failed: {}", e),
         }
     })?;
 
-    // Verify roundtrip
     if bool::from(decrypted.ct_eq(PLAINTEXT)) {
         Ok(())
     } else {
@@ -411,56 +609,49 @@ pub fn kat_aes_256_gcm() -> Result<()> {
 
 /// ML-KEM-768 Known Answer Test
 ///
-/// This test verifies the ML-KEM-768 implementation by performing a key
-/// generation and encapsulation operation, then verifying the ciphertext
-/// and shared secret have expected properties.
+/// This test verifies the ML-KEM-768 implementation by performing a complete
+/// encapsulate/decapsulate roundtrip using `MlKemDecapsulationKeyPair`.
 ///
-/// Note: Due to aws-lc-rs limitations with secret key serialization,
-/// this test performs a verification of key generation and encapsulation
-/// rather than a full roundtrip with decapsulation.
+/// The test:
+/// 1. Generates a keypair with decapsulation capability
+/// 2. Encapsulates a shared secret using the public key
+/// 3. Decapsulates using the decapsulation key
+/// 4. Verifies the shared secrets match (constant-time comparison)
 ///
 /// # Errors
 ///
-/// Returns error if key generation or encapsulation fails, or if the
-/// generated values don't have the expected sizes.
+/// Returns error if key generation, encapsulation, decapsulation fails,
+/// or if the shared secrets don't match.
 pub fn kat_ml_kem_768() -> Result<()> {
     use crate::kem::ml_kem::{MlKem, MlKemSecurityLevel};
     use rand::rngs::OsRng;
 
-    // Generate a keypair
     let mut rng = OsRng;
-    let (public_key, _secret_key) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .map_err(|e| LatticeArcError::ValidationError {
+
+    // Generate a keypair with decapsulation capability
+    let dk = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768).map_err(|e| {
+        LatticeArcError::ValidationError {
             message: format!("ML-KEM-768 KAT: key generation failed: {}", e),
-        })?;
+        }
+    })?;
 
     // Verify public key size
-    if public_key.as_bytes().len() != MlKemSecurityLevel::MlKem768.public_key_size() {
+    let pk = dk.public_key();
+    if pk.as_bytes().len() != MlKemSecurityLevel::MlKem768.public_key_size() {
         return Err(LatticeArcError::ValidationError {
             message: format!(
                 "ML-KEM-768 KAT: public key size mismatch: expected {}, got {}",
                 MlKemSecurityLevel::MlKem768.public_key_size(),
-                public_key.as_bytes().len()
+                pk.as_bytes().len()
             ),
         });
     }
 
-    // Perform encapsulation
-    let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &public_key).map_err(|e| {
-        LatticeArcError::ValidationError {
+    // Encapsulate a shared secret
+    let (ss_encap, ciphertext) =
+        MlKem::encapsulate(&mut rng, pk).map_err(|e| LatticeArcError::ValidationError {
             message: format!("ML-KEM-768 KAT: encapsulation failed: {}", e),
-        }
-    })?;
-
-    // Verify shared secret size (should be 32 bytes)
-    if shared_secret.as_bytes().len() != 32 {
-        return Err(LatticeArcError::ValidationError {
-            message: format!(
-                "ML-KEM-768 KAT: shared secret size mismatch: expected 32, got {}",
-                shared_secret.as_bytes().len()
-            ),
-        });
-    }
+        })?;
 
     // Verify ciphertext size
     if ciphertext.as_bytes().len() != MlKemSecurityLevel::MlKem768.ciphertext_size() {
@@ -473,8 +664,21 @@ pub fn kat_ml_kem_768() -> Result<()> {
         });
     }
 
-    // Verify shared secret is not all zeros (would indicate a failure)
-    let all_zeros = shared_secret.as_bytes().iter().all(|&b| b == 0);
+    // Decapsulate the shared secret
+    let ss_decap = dk.decapsulate(&ciphertext).map_err(|e| LatticeArcError::ValidationError {
+        message: format!("ML-KEM-768 KAT: decapsulation failed: {}", e),
+    })?;
+
+    // Verify shared secrets match (constant-time comparison)
+    if !bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes())) {
+        return Err(LatticeArcError::ValidationError {
+            message: "ML-KEM-768 KAT: encapsulated and decapsulated shared secrets do not match"
+                .to_string(),
+        });
+    }
+
+    // Verify shared secret is not all zeros
+    let all_zeros = ss_encap.as_bytes().iter().all(|&b| b == 0);
     if all_zeros {
         return Err(LatticeArcError::ValidationError {
             message: "ML-KEM-768 KAT: shared secret is all zeros".to_string(),
@@ -485,7 +689,7 @@ pub fn kat_ml_kem_768() -> Result<()> {
 }
 
 // =============================================================================
-// Conditional Self-Tests (Placeholders for longer-running algorithms)
+// ML-DSA Known Answer Test
 // =============================================================================
 
 /// ML-DSA Known Answer Test (FIPS 204)
@@ -886,21 +1090,30 @@ pub fn integrity_test() -> Result<()> {
     }
     let expected_hmac = generated::EXPECTED_HMAC;
 
-    // If no expected HMAC is configured, we're in development mode
-    // Log a warning but don't fail (to allow testing during development)
+    // If no expected HMAC is configured, behavior depends on build mode:
+    // - Debug builds: warn and continue (development mode)
+    // - Release builds: fail (production FIPS requirement)
     let Some(expected_hmac) = expected_hmac else {
-        // Development mode: Log the computed HMAC for future use
-        #[allow(clippy::print_stderr)] // Development mode diagnostic output
+        #[cfg(debug_assertions)]
         {
-            eprintln!("⚠️  FIPS Integrity Test: Development mode");
-            eprintln!("   Expected HMAC not configured. Computed HMAC:");
-            eprintln!("   {:02x?}", computed_hmac.as_slice());
-            eprintln!("   This should be configured in production builds.");
+            #[allow(clippy::print_stderr)] // Development mode diagnostic output
+            {
+                eprintln!("FIPS Integrity Test: Development mode (debug build)");
+                eprintln!("   Expected HMAC not configured. Computed HMAC:");
+                eprintln!("   {:02x?}", computed_hmac.as_slice());
+                eprintln!("   Configure PRODUCTION_HMAC.txt for production builds.");
+            }
+            return Ok(());
         }
 
-        // In development, accept any HMAC (but log it)
-        // For production FIPS builds, this should return an error
-        return Ok(());
+        #[cfg(not(debug_assertions))]
+        {
+            return Err(LatticeArcError::ValidationError {
+                message: "FIPS Integrity Test FAILED: No expected HMAC configured. \
+                         Production builds require PRODUCTION_HMAC.txt with the module HMAC."
+                    .to_string(),
+            });
+        }
     };
 
     // Constant-time comparison using subtle crate
@@ -1142,6 +1355,8 @@ pub fn self_tests_passed() -> bool {
 ///
 /// This function runs all power-up tests and updates the module state
 /// accordingly. It should be called once during module initialization.
+/// On failure, the module enters an error state and no cryptographic
+/// services will be provided.
 ///
 /// # Returns
 ///
@@ -1149,7 +1364,12 @@ pub fn self_tests_passed() -> bool {
 #[must_use]
 pub fn initialize_and_test() -> SelfTestResult {
     let result = run_power_up_tests();
-    SELF_TEST_PASSED.store(result.is_pass(), Ordering::Release);
+    if result.is_pass() {
+        SELF_TEST_PASSED.store(true, Ordering::Release);
+    } else {
+        // Enter error state — no crypto operations allowed
+        set_module_error(ModuleErrorCode::SelfTestFailure);
+    }
     result
 }
 
@@ -1510,11 +1730,11 @@ mod tests {
     #[test]
     fn test_self_test_report_fields() {
         let report = run_power_up_tests_with_report();
-        assert_eq!(report.tests.len(), 4); // SHA-256, HKDF, AES-GCM, ML-KEM
+        assert_eq!(report.tests.len(), 9); // SHA-256, HKDF, AES-GCM, SHA3-256, HMAC, ML-KEM, ML-DSA, SLH-DSA, FN-DSA
         assert!(report.total_duration_us > 0);
 
         let cloned = report.clone();
-        assert_eq!(cloned.tests.len(), 4);
+        assert_eq!(cloned.tests.len(), 9);
 
         let debug = format!("{:?}", report);
         assert!(debug.contains("SelfTestReport"));

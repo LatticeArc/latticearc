@@ -1197,7 +1197,25 @@ fn test_generate_signing_keypair_all_use_cases() {
         .name("keygen_use_cases".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
-            let use_cases = vec![
+            // Only signing-oriented use cases can generate signing keypairs.
+            // Encryption-oriented use cases (IoT, FileStorage, etc.) correctly
+            // return errors because their schemes are for encryption, not signing.
+            let signing_use_cases = vec![
+                UseCase::Authentication,
+                UseCase::DigitalCertificate,
+                UseCase::FinancialTransactions,
+                UseCase::LegalDocuments,
+                UseCase::BlockchainTransaction,
+                UseCase::FirmwareSigning,
+            ];
+            for uc in signing_use_cases {
+                let config = CryptoConfig::new().use_case(uc.clone());
+                let result = generate_signing_keypair(config);
+                assert!(result.is_ok(), "Keypair generation failed for {:?}", uc);
+            }
+
+            // Encryption-oriented use cases should fail keygen
+            let encryption_use_cases = vec![
                 UseCase::SecureMessaging,
                 UseCase::IoTDevice,
                 UseCase::GovernmentClassified,
@@ -1205,10 +1223,14 @@ fn test_generate_signing_keypair_all_use_cases() {
                 UseCase::PaymentCard,
                 UseCase::AuditLog,
             ];
-            for uc in use_cases {
+            for uc in encryption_use_cases {
                 let config = CryptoConfig::new().use_case(uc.clone());
                 let result = generate_signing_keypair(config);
-                assert!(result.is_ok(), "Keypair generation failed for {:?}", uc);
+                assert!(
+                    result.is_err(),
+                    "Encryption use case {:?} should not produce signing keypair",
+                    uc
+                );
             }
         })
         .unwrap()

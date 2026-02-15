@@ -138,8 +138,8 @@ pub fn continuous_rng_test() -> Result<(), LatticeArcError> {
     let mut sample1 = [0u8; 32];
     let mut sample2 = [0u8; 32];
 
-    rand::thread_rng().fill_bytes(&mut sample1);
-    rand::thread_rng().fill_bytes(&mut sample2);
+    rand::rngs::OsRng.fill_bytes(&mut sample1);
+    rand::rngs::OsRng.fill_bytes(&mut sample2);
 
     if sample1 == sample2 {
         return Err(LatticeArcError::ValidationError {

@@ -78,9 +78,10 @@ pub use hybrid_sig::{
 // ============================================================================
 
 pub use keygen::{
-    generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config, generate_keypair,
-    generate_keypair_with_config, generate_ml_dsa_keypair, generate_ml_dsa_keypair_with_config,
-    generate_ml_kem_keypair, generate_ml_kem_keypair_with_config, generate_slh_dsa_keypair,
+    generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config,
+    generate_fn_dsa_keypair_with_level, generate_keypair, generate_keypair_with_config,
+    generate_ml_dsa_keypair, generate_ml_dsa_keypair_with_config, generate_ml_kem_keypair,
+    generate_ml_kem_keypair_with_config, generate_slh_dsa_keypair,
     generate_slh_dsa_keypair_with_config,
 };
 

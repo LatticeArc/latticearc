@@ -17,7 +17,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// This type provides secure memory handling for sensitive data like
 /// cryptographic keys and shared secrets. Memory is automatically
 /// zeroized when the value goes out of scope.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SecureBytes {
     inner: Vec<u8>,
 }
@@ -623,12 +623,7 @@ mod tests {
         assert_eq!(sb.as_slice(), &[9, 8, 7]);
     }
 
-    #[test]
-    fn test_secure_bytes_clone() {
-        let original = SecureBytes::new(vec![1, 2, 3]);
-        let cloned = original.clone();
-        assert_eq!(original, cloned);
-    }
+    // Clone intentionally removed from SecureBytes to prevent copies of secret data
 
     // === secure_zeroize tests ===
 

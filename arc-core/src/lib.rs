@@ -470,7 +470,7 @@ fn run_power_up_self_tests() -> Result<()> {
     // Test 2: AES-GCM encryption/decryption
     use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
     let mut key_bytes = [0u8; 32];
-    rand::thread_rng().try_fill_bytes(&mut key_bytes).map_err(|_e| CoreError::SelfTestFailed {
+    rand::rngs::OsRng.try_fill_bytes(&mut key_bytes).map_err(|_e| CoreError::SelfTestFailed {
         component: "RNG".to_string(),
         status: "failed to generate random key bytes".to_string(),
     })?;
@@ -483,11 +483,9 @@ fn run_power_up_self_tests() -> Result<()> {
     let encrypt_key = LessSafeKey::new(unbound);
 
     let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().try_fill_bytes(&mut nonce_bytes).map_err(|_e| {
-        CoreError::SelfTestFailed {
-            component: "RNG".to_string(),
-            status: "failed to generate random nonce bytes".to_string(),
-        }
+    rand::rngs::OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|_e| CoreError::SelfTestFailed {
+        component: "RNG".to_string(),
+        status: "failed to generate random nonce bytes".to_string(),
     })?;
 
     let plaintext = b"test message for AES-GCM";

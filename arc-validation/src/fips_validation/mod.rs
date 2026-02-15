@@ -14,8 +14,10 @@
 
 //! # FIPS Validation Framework
 //!
-//! This module provides comprehensive FIPS 140-3 validation capabilities for
-//! cryptographic modules and implementations in LatticeArc.
+//! This module provides FIPS 140-3 validation **testing utilities** for
+//! cryptographic modules and implementations in LatticeArc. It is NOT the
+//! production FIPS self-test module. See `arc_primitives::self_test` for the
+//! canonical implementation that runs power-up KATs and integrity checks.
 //!
 //! ## Supported Standards
 //!

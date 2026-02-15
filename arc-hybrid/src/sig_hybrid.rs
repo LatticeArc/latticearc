@@ -206,12 +206,18 @@ pub struct HybridPublicKey {
 /// // Drop secret key - automatically zeroized
 /// drop(sk);  // Secret material automatically zeroized
 /// ```
-#[derive(Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct HybridSecretKey {
     /// ML-DSA-65 secret key bytes (4032 bytes), automatically zeroized on drop.
     pub ml_dsa_sk: Zeroizing<Vec<u8>>,
     /// Ed25519 secret key bytes (32 bytes), automatically zeroized on drop.
     pub ed25519_sk: Zeroizing<Vec<u8>>,
+}
+
+impl std::fmt::Debug for HybridSecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HybridSecretKey").field("data", &"[REDACTED]").finish()
+    }
 }
 
 impl HybridSecretKey {
