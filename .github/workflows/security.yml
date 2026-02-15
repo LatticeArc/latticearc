@@ -114,14 +114,13 @@ jobs:
         RUST_MIN_STACK: 16777216
       run: |
         cargo test --workspace --all-features --release --no-run
-        # Run critical tests under Valgrind (only executable test binaries)
-        # Find and run the main latticearc test binary
         TEST_BIN=$(find target/release/deps -name 'latticearc-*' -type f -executable ! -name '*.d' | head -1)
         if [ -n "$TEST_BIN" ]; then
           echo "Running Valgrind on: $TEST_BIN"
-          valgrind --leak-check=full --error-exitcode=1 --suppressions=/usr/share/valgrind/default.supp "$TEST_BIN" --test-threads=1 || echo "Valgrind found issues (non-fatal for CI)"
+          valgrind --leak-check=full --error-exitcode=1 --suppressions=/usr/share/valgrind/default.supp "$TEST_BIN" --test-threads=1
         else
-          echo "No test binary found, skipping Valgrind check"
+          echo "No test binary found"
+          exit 1
         fi
 
   side-channel-analysis:
@@ -146,16 +145,12 @@ jobs:
         key: ${{ runner.os }}-sidechannel-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run timing analysis tests
-      continue-on-error: true
       run: |
-        # Run timing-related tests if they exist
-        cargo test timing --workspace --all-features --release || echo "No timing tests found"
+        cargo test timing --workspace --all-features --release
 
     - name: Run side-channel resistance tests
-      continue-on-error: true
       run: |
-        # Run constant-time tests if they exist
-        cargo test constant_time --workspace --all-features --release || echo "No side-channel tests found"
+        cargo test constant_time --workspace --all-features --release
 
   cryptographic-tests:
     name: Cryptographic Security Tests
@@ -176,21 +171,16 @@ jobs:
         key: ${{ runner.os }}-crypto-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run NIST KAT compliance tests
-      run: |
-        cargo test --test nist_kat_tests --all-features --release || echo "NIST KAT tests not found, skipping"
+      run: cargo test --test nist_kat_tests --all-features --release
 
     - name: Run cryptographic validation tests
-      run: |
-        # Run all validation tests in arc-validation
-        cargo test --package arc-validation --all-features --release || echo "Validation tests completed"
+      run: cargo test --package arc-validation --all-features --release
 
     - name: Run hybrid encryption tests
-      run: |
-        cargo test --package arc-hybrid --all-features --release || echo "Hybrid tests completed"
+      run: cargo test --package arc-hybrid --all-features --release
 
     - name: Run zeroization tests
-      run: |
-        cargo test --test zeroization_tests --all-features --release || echo "Zeroization tests not found, skipping"
+      run: cargo test --workspace --all-features --release -- zeroization
 
   dependency-scan:
     name: Dependency Security Scan

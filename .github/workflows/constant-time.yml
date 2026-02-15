@@ -4,14 +4,8 @@
 name: Constant-Time Validation
 
 on:
-  # push/pull_request/schedule disabled to conserve GitHub Actions free tier minutes.
-  # Re-enable when project is stable or on a paid plan.
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
-  # schedule:
-  #   - cron: '0 5 * * 0'  # Weekly on Sunday at 5 AM UTC
+  schedule:
+    - cron: '0 5 * * 0'  # Weekly on Sunday at 5 AM UTC
   workflow_dispatch:
 
 permissions: read-all
@@ -48,7 +42,6 @@ jobs:
         run: |
           cargo bench --package arc-validation --bench constant_time -- --noplot 2>&1 | tee bench-output.txt
         timeout-minutes: 30
-        continue-on-error: true
 
       - name: Analyze timing consistency
         run: |
@@ -107,8 +100,7 @@ jobs:
 
       - name: Run subtle-related tests
         run: |
-          cargo test --workspace --all-features -- --test-threads=1 constant 2>&1 | tee subtle-tests.txt
-        continue-on-error: true
+          cargo test --workspace --all-features --release -- --test-threads=1 constant 2>&1 | tee subtle-tests.txt
 
   # Summary job
   constant-time-summary:

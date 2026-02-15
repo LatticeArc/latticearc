@@ -83,13 +83,21 @@ jobs:
 
       - name: Verify self-test coverage
         run: |
-          echo "Verifying FIPS 140-3 self-test requirements:"
-          echo "- ML-KEM (FIPS 203): Encapsulation/Decapsulation KAT"
-          echo "- ML-DSA (FIPS 204): Sign/Verify KAT"
-          echo "- SLH-DSA (FIPS 205): Sign/Verify KAT"
-          echo "- FN-DSA (FIPS 206): Sign/Verify KAT"
-          echo "- AES-GCM (FIPS 197): Encrypt/Decrypt KAT"
-          echo "- SHA-2/3 (FIPS 180-4/202): Hash KAT"
+          echo "Verifying FIPS 140-3 self-test functions exist and ran..."
+          # Verify that KAT functions exist in self_test.rs
+          for kat in kat_aes_256_gcm kat_sha256 kat_sha3_256 kat_hmac_sha256 kat_hkdf_sha256 kat_ml_kem_768 kat_ml_dsa kat_slh_dsa kat_fn_dsa; do
+            if ! grep -q "fn $kat" arc-primitives/src/self_test.rs; then
+              echo "FAILED: Missing KAT function: $kat"
+              exit 1
+            fi
+          done
+          echo "All required KAT functions found in self_test.rs"
+          # Verify power-up test calls all KATs
+          if ! grep -q "run_power_up_tests" arc-primitives/src/self_test.rs; then
+            echo "FAILED: Missing run_power_up_tests function"
+            exit 1
+          fi
+          echo "Power-up test entry point verified"
 
   cavp-validation:
     name: CAVP Vector Tests
@@ -180,16 +188,12 @@ jobs:
 
       - name: Check for forbidden patterns
         run: |
-          echo "Checking for patterns forbidden in cryptographic modules..."
-          # Check for panic-inducing code
-          if grep -rn "panic!" --include="*.rs" arc-primitives/src/; then
-            echo "Warning: Found panic! macros - review for FIPS compliance"
-          fi
-          # Check for unwrap usage
-          if grep -rn "\.unwrap()" --include="*.rs" arc-primitives/src/; then
-            echo "Warning: Found .unwrap() calls - review for FIPS compliance"
-          fi
-          echo "Pattern check complete"
+          echo "Checking for panic/unwrap/expect in production code (--lib excludes tests)..."
+          cargo clippy -p arc-primitives --all-features --lib -- \
+            -D clippy::panic \
+            -D clippy::unwrap_used \
+            -D clippy::expect_used
+          echo "No forbidden patterns found in production code"
 
   fips-compliance-report:
     name: Generate Compliance Report

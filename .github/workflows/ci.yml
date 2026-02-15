@@ -207,7 +207,7 @@ jobs:
     - name: Build workspace
       run: |
         START_TIME=$(date +%s)
-        cargo build --workspace --target ${{ matrix.target }} --release
+        cargo build --workspace --target ${{ matrix.target }} --release --all-features
         END_TIME=$(date +%s)
         BUILD_DURATION=$((END_TIME - START_TIME))
         echo "build_duration_seconds $BUILD_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-build/instance/${{ github.run_id }}/target/${{ matrix.target }}/operation/workspace-build || true
@@ -215,7 +215,7 @@ jobs:
     - name: Test build artifacts
       run: |
         START_TIME=$(date +%s)
-        cargo test --workspace --target ${{ matrix.target }} --release --no-run
+        cargo test --workspace --target ${{ matrix.target }} --release --all-features --no-run
         END_TIME=$(date +%s)
         ARTIFACT_TEST_DURATION=$((END_TIME - START_TIME))
         echo "artifact_test_duration_seconds $ARTIFACT_TEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-build/instance/${{ github.run_id }}/target/${{ matrix.target }}/operation/artifact-test || true
@@ -309,35 +309,25 @@ jobs:
         INTEGRATION_DURATION=$((END_TIME - START_TIME))
         echo "integration_test_duration_seconds $INTEGRATION_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/integration-test || true
 
-    - name: Run property-based tests
-      run: |
-        START_TIME=$(date +%s)
-        cargo test --workspace --profile ${{ matrix.profile }} --all-features
-        END_TIME=$(date +%s)
-        PROPTEST_DURATION=$((END_TIME - START_TIME))
-        echo "property_test_duration_seconds $PROPTEST_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/property-test || true
-
     # Note: Kani formal verification proofs exist in arc-hybrid and arc-core
     # but are not run on every commit due to computational cost (~30+ min).
     # Proofs run on nightly schedule. See kani.yml workflow.
 
     - name: Generate coverage report
-      if: matrix.profile == 'dev'
       run: |
         START_TIME=$(date +%s)
-        cargo llvm-cov --workspace --all-features --html --lcov --output-path lcov.info
+        cargo llvm-cov --workspace --all-features --release --html --lcov --output-path lcov.info
         END_TIME=$(date +%s)
         COVERAGE_DURATION=$((END_TIME - START_TIME))
-        # Extract coverage percentage
         COVERAGE=$(grep -o '"covered_percent":[0-9.]*' lcov.info | head -1 | grep -o '[0-9.]*' || echo "0")
         echo "coverage_generation_duration_seconds $COVERAGE_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/coverage-generation || true
         echo "test_coverage_percent $COVERAGE" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/test-coverage || true
 
     - name: Upload coverage to Codecov
-      if: matrix.profile == 'dev'
       uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
       with:
         files: lcov.info
+        fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
 
   # =============================================================================
@@ -369,11 +359,9 @@ jobs:
     - name: Run regression tests
       run: |
         START_TIME=$(date +%s)
-        # Run all regression tests - these are quick and catch reintroduced bugs
-        cargo test --workspace --all-features -- regression || true
-        # Also run from dedicated regression directory if it exists
+        cargo test --workspace --all-features --release -- regression
         if [ -d "tests/regression" ]; then
-          cargo test --test 'regression_*' --all-features || true
+          cargo test --test 'regression_*' --all-features --release
         fi
         END_TIME=$(date +%s)
         REGRESSION_DURATION=$((END_TIME - START_TIME))
@@ -409,10 +397,8 @@ jobs:
     - name: Run concurrency tests
       run: |
         START_TIME=$(date +%s)
-        # Run concurrency-specific tests
-        cargo test --package arc-primitives --test concurrency_tests --all-features || true
-        # Also run thread-safety tests from other packages
-        cargo test --workspace --all-features -- concurrent parallel thread || true
+        cargo test --package arc-primitives --test concurrency_tests --all-features --release
+        cargo test --workspace --all-features --release -- concurrent parallel thread
         END_TIME=$(date +%s)
         CONCURRENCY_DURATION=$((END_TIME - START_TIME))
         echo "concurrency_test_duration_seconds $CONCURRENCY_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/concurrency-test || true
@@ -443,14 +429,11 @@ jobs:
     - name: Run API stability tests
       run: |
         START_TIME=$(date +%s)
-        # Run API stability tests from dedicated directory
         if [ -d "tests/api_stability" ]; then
-          cargo test --test 'api_*' --all-features || true
+          cargo test --test 'api_*' --all-features --release
         fi
-        # Run serialization stability tests
-        cargo test --workspace --all-features -- serialization_stability || true
-        # Run backward compatibility tests
-        cargo test --workspace --all-features -- backward_compat || true
+        cargo test --workspace --all-features --release -- serialization_stability
+        cargo test --workspace --all-features --release -- backward_compat
         END_TIME=$(date +%s)
         API_DURATION=$((END_TIME - START_TIME))
         echo "api_stability_test_duration_seconds $API_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/api-stability-test || true

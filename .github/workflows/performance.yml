@@ -20,7 +20,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  RUSTFLAGS: "-C target-cpu=native"
+  RUSTFLAGS: ""
 
 jobs:
   benchmark:
@@ -46,7 +46,7 @@ jobs:
 
     - name: Run benchmarks
       run: |
-        cargo bench --workspace --all-features || echo "Benchmarks completed (some may have been skipped)"
+        cargo bench --workspace --all-features
 
     - name: Store benchmark result
       if: hashFiles('target/criterion/reports/index.html') != ''
@@ -86,8 +86,7 @@ jobs:
 
     - name: Run performance regression tests
       run: |
-        # Run performance regression tests if they exist
-        cargo test --test performance_regression_tests --all-features --release 2>&1 || echo "No performance_regression_tests found, skipping"
+        cargo test -p arc-tests --all-features --release regression
 
   profiling:
     name: Performance Profiling
