@@ -52,7 +52,7 @@ This document provides comprehensive justification for all major dependencies in
   - Primary post-quantum signature scheme
   - Audited by cryptography experts
   - No unsafe code, constant-time operations
-  - Awaiting aws-lc-rs Rust API (tracking: aws/aws-lc-rs#773, our PR: aws/aws-lc-rs#1029 under review)
+  - Awaiting aws-lc-rs Rust API (tracking: aws/aws-lc-rs#773, our PR: aws/aws-lc-rs#1029 merged, awaiting v1.16.0 release)
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Independent cryptographic review
 - **Usage**: `arc-primitives` (signatures), `arc-core`

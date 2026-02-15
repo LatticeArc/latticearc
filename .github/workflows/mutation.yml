@@ -4,8 +4,7 @@
 name: Mutation Testing
 
 on:
-  # Schedule disabled to conserve GitHub Actions free tier minutes.
-  # Re-enable when project is stable or on a paid plan.
+  # Schedule will be enabled once the library is stable and usage increases.
   # schedule:
   #   - cron: '0 6 * * 0'  # Weekly on Sunday at 6 AM UTC
   workflow_dispatch:

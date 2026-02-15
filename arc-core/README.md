@@ -4,10 +4,10 @@ Unified API layer for LatticeArc post-quantum cryptography with intelligent sche
 
 ## Features
 
-- **Zero-Trust Enforcement** - All crypto ops require verified session
+- **Zero-Trust Support** - Optional verified session for all crypto ops
 - **Convenience API** - Simple encrypt/decrypt/sign/verify functions
 - **Smart Selection** - CryptoPolicyEngine for automatic scheme selection
-- **Use Case Templates** - 20+ predefined use cases with optimized schemes
+- **Use Case Templates** - 24 predefined use cases with optimized schemes
 
 ## Quick Start
 

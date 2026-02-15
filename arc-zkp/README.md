@@ -21,53 +21,43 @@ arc-zkp = "0.1"
 
 ### Schnorr Proof
 
-Prove knowledge of a discrete logarithm without revealing it:
+Prove knowledge of a discrete logarithm without revealing it (secp256k1):
 
 ```rust
-use arc_zkp::schnorr::*;
+use arc_zkp::schnorr::{SchnorrProver, SchnorrVerifier};
 
-// Prover has secret x where Y = g^x
-let secret = generate_secret()?;
-let public = compute_public(&secret)?;
+// Create prover with random secret key
+let (prover, public_key) = SchnorrProver::new()?;
 
-// Generate proof
-let proof = SchnorrProof::prove(&secret, &public)?;
+// Generate non-interactive proof (Fiat-Shamir)
+let proof = prover.prove(b"context")?;
 
-// Verifier checks proof
-let is_valid = proof.verify(&public)?;
-assert!(is_valid);
+// Verifier checks proof using only the public key
+let verifier = SchnorrVerifier::new(&public_key)?;
+let is_valid = verifier.verify(&proof, b"context")?;
 ```
 
 ### Sigma Protocols
 
-Build custom zero-knowledge proofs:
+Fiat-Shamir transformed sigma protocols:
 
 ```rust
-use arc_zkp::sigma::*;
+use arc_zkp::sigma::{SigmaProof, FiatShamir};
 
-// AND composition: prove knowledge of both x and y
-let proof = SigmaProtocol::and(
-    SchnorrProof::prove(&x, &X)?,
-    SchnorrProof::prove(&y, &Y)?,
-)?;
-
-// OR composition: prove knowledge of x OR y
-let proof = SigmaProtocol::or(
-    SchnorrProof::prove(&x, &X)?,
-    SchnorrProof::simulate(&Y)?,  // Simulate the one we don't know
-)?;
+// Sigma proofs provide a general framework for
+// zero-knowledge proofs with Fiat-Shamir heuristic
 ```
 
 ### Commitment Schemes
 
 ```rust
-use arc_zkp::commitment::*;
+use arc_zkp::commitment::PedersenCommitment;
 
-// Pedersen commitment
-let (commitment, opening) = pedersen_commit(&value, &blinding)?;
+// Pedersen commitment (computationally hiding, binding)
+let (commitment, opening) = PedersenCommitment::commit(&value)?;
 
-// Later, open the commitment
-let is_valid = pedersen_verify(&commitment, &value, &opening)?;
+// Later, verify the commitment
+let is_valid = commitment.verify(&opening)?;
 ```
 
 ## Properties

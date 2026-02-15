@@ -41,9 +41,13 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
+/// Commitment schemes (Pedersen, hash-based).
 pub mod commitment;
+/// Error types for zero-knowledge proof operations.
 pub mod error;
+/// Schnorr proof system for discrete-log knowledge proofs.
 pub mod schnorr;
+/// Sigma protocols and Fiat-Shamir transform.
 pub mod sigma;
 
 pub use commitment::{HashCommitment, HashOpening, PedersenCommitment, PedersenOpening};

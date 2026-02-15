@@ -206,7 +206,6 @@ pub mod types;
 /// Zero-trust authentication primitives.
 pub mod zero_trust;
 
-use lazy_static::lazy_static;
 use rand_core::RngCore;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -403,9 +402,7 @@ pub use convenience::{
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // FIPS 140-3 self-test status - must pass before any crypto operations
-lazy_static! {
-    static ref SELF_TESTS_PASSED: AtomicBool = AtomicBool::new(false);
-}
+static SELF_TESTS_PASSED: AtomicBool = AtomicBool::new(false);
 
 /// Initializes the arc-core library with default configuration.
 ///

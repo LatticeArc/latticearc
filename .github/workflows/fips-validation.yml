@@ -5,8 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  # Daily schedule disabled to conserve GitHub Actions free tier minutes.
-  # Re-enable when project is stable or on a paid plan.
+  # Daily schedule will be enabled once the library is stable and usage increases.
   # schedule:
   #   - cron: '0 4 * * *'  # Daily at 4 AM UTC
   workflow_dispatch:

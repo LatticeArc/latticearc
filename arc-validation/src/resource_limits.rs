@@ -211,9 +211,8 @@ pub enum ResourceError {
 
 pub type Result<T> = std::result::Result<T, ResourceError>;
 
-lazy_static::lazy_static! {
-    static ref GLOBAL_RESOURCE_LIMITS: ResourceLimitsManager = ResourceLimitsManager::new();
-}
+static GLOBAL_RESOURCE_LIMITS: std::sync::LazyLock<ResourceLimitsManager> =
+    std::sync::LazyLock::new(ResourceLimitsManager::new);
 
 #[must_use]
 pub fn get_global_resource_limits() -> &'static ResourceLimitsManager {

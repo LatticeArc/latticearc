@@ -12,6 +12,7 @@ use super::traits::{EcKeyPair, EcSignature};
 use arc_prelude::error::{LatticeArcError, Result};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
+use zeroize::Zeroizing;
 
 /// Ed25519 key pair implementation
 pub struct Ed25519KeyPair {
@@ -59,8 +60,8 @@ impl EcKeyPair for Ed25519KeyPair {
         self.public_key.to_bytes().to_vec()
     }
 
-    fn secret_key_bytes(&self) -> Vec<u8> {
-        self.secret_key.to_bytes().to_vec()
+    fn secret_key_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.secret_key.to_bytes().to_vec())
     }
 }
 
@@ -383,7 +384,7 @@ mod tests {
         let sk = keypair.secret_key();
         // Verify getters return consistent data
         assert_eq!(pk.to_bytes().to_vec(), keypair.public_key_bytes());
-        assert_eq!(sk.to_bytes().to_vec(), keypair.secret_key_bytes());
+        assert_eq!(sk.to_bytes().to_vec(), *keypair.secret_key_bytes());
         Ok(())
     }
 

@@ -67,43 +67,40 @@ Choose based on your constraints:
 ### How do I encrypt data?
 
 ```rust
-use latticearc::prelude::*;
+use latticearc::{encrypt, decrypt, CryptoConfig};
 
-// Generate keys
-let (pk, sk) = MlKem::generate_keypair(MlKemVariant::MlKem768)?;
-
-// Encrypt
-let (shared_secret, ciphertext) = MlKem::encapsulate(&pk)?;
-
-// Use shared_secret with AES-GCM for symmetric encryption
-let encrypted = aes_gcm_encrypt(&data, &shared_secret, &nonce, &[])?;
+// Symmetric encryption with AES-256-GCM
+let key = [0u8; 32];
+let encrypted = encrypt(b"secret data", &key, CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 ```
 
 ### How do I sign data?
 
 ```rust
-use latticearc::prelude::*;
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
-// Generate keys
-let (vk, sk) = MlDsa::generate_keypair(MlDsaVariant::MlDsa65)?;
+// Generate hybrid signing keypair (ML-DSA-65 + Ed25519)
+let config = CryptoConfig::new();
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 
 // Sign
-let signature = MlDsa::sign(&message, &sk)?;
+let signed = sign_with_key(b"message", &sk, &pk, config.clone())?;
 
 // Verify
-let is_valid = MlDsa::verify(&message, &signature, &vk)?;
+let is_valid = verify(&signed, config)?;
 ```
 
-### How do I serialize keys?
+### How do I use low-level primitives?
 
 ```rust
-use latticearc::prelude::*;
+use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use rand::rngs::OsRng;
 
-// To bytes
-let pk_bytes = public_key.to_bytes();
-
-// From bytes
-let public_key = MlKemPublicKey::from_bytes(&pk_bytes)?;
+let mut rng = OsRng;
+let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &pk)?;
+let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
 ```
 
 ### How do I use hybrid encryption?

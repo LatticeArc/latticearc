@@ -482,8 +482,8 @@ fn test_aes_gcm_different_nonces_for_same_data() {
     let decrypted2 =
         decrypt_aes_gcm_unverified(&encrypted2, &key).expect("decryption should succeed");
 
-    assert_eq!(decrypted1, data);
-    assert_eq!(decrypted2, data);
+    assert_eq!(decrypted1, data, "First ciphertext should decrypt correctly");
+    assert_eq!(decrypted2, data, "Second ciphertext should decrypt correctly");
 }
 
 // ============================================================================
@@ -519,5 +519,5 @@ fn test_aes_gcm_decrypt_minimum_valid_length() {
 
     let decrypted =
         decrypt_aes_gcm_unverified(&encrypted, &key).expect("decryption should succeed");
-    assert_eq!(decrypted, empty_data);
+    assert_eq!(decrypted, empty_data, "Empty data should round-trip correctly");
 }

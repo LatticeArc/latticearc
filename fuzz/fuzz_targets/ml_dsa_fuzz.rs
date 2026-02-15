@@ -26,19 +26,19 @@ fuzz_target!(|data: &[u8]| {
             // Test 1: Valid signature should verify
             let result = verify(&pk, message, &valid_sig, context);
             // Valid signature must verify successfully
-            assert!(result.is_ok() && result.unwrap(), "Valid signature must verify");
+            assert!(matches!(result, Ok(true)), "Valid signature must verify");
 
             // Test 2: Wrong message should fail verification
             let wrong_msg = b"different message content here";
             let result = verify(&pk, wrong_msg, &valid_sig, context);
             // Wrong message must fail verification
-            assert!(result.is_ok() && !result.unwrap(), "Wrong message must fail verification");
+            assert!(matches!(result, Ok(false)), "Wrong message must fail verification");
 
             // Test 3: Wrong context should fail verification
             let wrong_context = b"wrong context";
             let result = verify(&pk, message, &valid_sig, wrong_context);
             // Wrong context must fail verification
-            assert!(result.is_ok() && !result.unwrap(), "Wrong context must fail verification");
+            assert!(matches!(result, Ok(false)), "Wrong context must fail verification");
         }
     }
 });

@@ -38,7 +38,6 @@ rand = { workspace = true }
 
 # Performance optimizations
 rayon = { workspace = true }
-lazy_static = { workspace = true }
 parking_lot = { workspace = true }
 
 # Time handling

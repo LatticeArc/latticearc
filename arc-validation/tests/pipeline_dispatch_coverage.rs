@@ -8,7 +8,8 @@
     clippy::indexing_slicing,
     clippy::panic,
     clippy::arithmetic_side_effects,
-    clippy::cast_precision_loss
+    clippy::cast_precision_loss,
+    clippy::field_reassign_with_default
 )]
 
 use arc_validation::cavp::pipeline::{CavpTestExecutor, CavpValidationPipeline, PipelineConfig};

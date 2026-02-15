@@ -15,8 +15,7 @@ on:
     branches: [ main, develop, master ]
   pull_request:
     branches: [ main, develop, master ]
-  # Schedule disabled to conserve GitHub Actions free tier minutes.
-  # Re-enable when project is stable or on a paid plan.
+  # Schedule will be enabled once the library is stable and usage increases.
   # schedule:
   #   - cron: '0 2 * * *'  # Tier 4: Daily at 2 AM UTC (Nightly)
   #   - cron: '0 4 * * 0'  # Tier 5: Weekly at 4 AM UTC Sunday

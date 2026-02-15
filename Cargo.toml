@@ -336,7 +336,6 @@ tracing-appender = { version = "0.2" }
 
 # Common utilities
 parking_lot = { version = "0.12.3" }
-lazy_static = { version = "1.5" }
 blake2 = { version = "0.10" }
 
 [profile.bench]

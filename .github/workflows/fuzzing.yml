@@ -1,8 +1,7 @@
 name: Fuzzing
 
 on:
-  # push/pull_request/schedule disabled to conserve GitHub Actions free tier minutes.
-  # Re-enable when project is stable or on a paid plan.
+  # Triggers will be enabled once the library is stable and usage increases.
   # push:
   #   branches: [ main, develop ]
   # pull_request:

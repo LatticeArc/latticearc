@@ -66,9 +66,9 @@ We recommend always using the latest version.
 | ML-DSA | FIPS 204 | fips204 crate |
 | SLH-DSA | FIPS 205 | fips205 crate |
 | FN-DSA | FIPS 206 | fn-dsa crate |
-| AES-GCM | FIPS 197, SP 800-38D | aes-gcm crate |
+| AES-GCM | FIPS 197, SP 800-38D | aws-lc-rs |
 | SHA-3 | FIPS 202 | sha3 crate |
-| HKDF | RFC 5869 | hkdf crate |
+| HKDF | RFC 5869 | aws-lc-rs (HMAC-based) |
 
 ### Defense in Depth
 

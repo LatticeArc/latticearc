@@ -102,9 +102,7 @@ See `docs/SECURITY_PROOFS.md` for formal analysis.
 
 | Feature | Description | Default |
 |---------|-------------|---------|
-| `std` | Standard library | Yes |
-| `ml-kem-768` | Use ML-KEM-768 | Yes |
-| `ml-kem-1024` | Use ML-KEM-1024 | No |
+| `formal-verification` | Enable formal verification proofs (Kani) | No |
 
 ## Security
 

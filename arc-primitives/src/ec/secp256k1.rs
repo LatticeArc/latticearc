@@ -12,6 +12,7 @@ use super::traits::{EcKeyPair, EcSignature};
 use arc_prelude::error::{LatticeArcError, Result};
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};
 use rand::rngs::OsRng;
+use zeroize::Zeroizing;
 
 /// secp256k1 key pair implementation
 #[derive(Clone)]
@@ -59,8 +60,8 @@ impl EcKeyPair for Secp256k1KeyPair {
         self.public_key.to_encoded_point(false).as_bytes().to_vec()
     }
 
-    fn secret_key_bytes(&self) -> Vec<u8> {
-        self.secret_key.to_bytes().to_vec()
+    fn secret_key_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.secret_key.to_bytes().to_vec())
     }
 }
 

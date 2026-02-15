@@ -117,7 +117,7 @@ jobs:
         TEST_BIN=$(find target/release/deps -name 'latticearc-*' -type f -executable ! -name '*.d' | head -1)
         if [ -n "$TEST_BIN" ]; then
           echo "Running Valgrind on: $TEST_BIN"
-          valgrind --leak-check=full --error-exitcode=1 --suppressions=/usr/share/valgrind/default.supp "$TEST_BIN" --test-threads=1
+          valgrind --leak-check=full --error-exitcode=1 "$TEST_BIN" --test-threads=1
         else
           echo "No test binary found"
           exit 1

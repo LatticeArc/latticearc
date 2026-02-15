@@ -74,9 +74,11 @@ arc-tls = "0.1.0"
 
 ### Feature Flags
 
-- `pq` (default): Enable rustls-post-quantum for hybrid KEX
-- `hybrid`: Enable custom hybrid implementation
-- `ecc_hybrid`: Enable ECC-based hybrid signatures
+| Feature | Description | Default |
+|---------|-------------|---------|
+| `formal-verification` | Enable formal verification module | No |
+| `kani` | Enable Kani model checking proofs | No |
+| `saw` | Enable SAW proof integration | No |
 
 ## Quick Start
 

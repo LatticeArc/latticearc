@@ -1,7 +1,13 @@
 //! Coverage tests for arc-tls/src/tls13.rs uncovered validation paths
 //! Targets: validate_cipher_suites error path, verify_config error path
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::field_reassign_with_default
+)]
 
 use arc_tls::TlsMode;
 use arc_tls::tls13::{

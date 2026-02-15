@@ -12,7 +12,8 @@
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
     clippy::redundant_closure_for_method_calls,
-    clippy::useless_format
+    clippy::useless_format,
+    clippy::field_reassign_with_default
 )]
 
 use arc_validation::cavp::pipeline::{CavpTestExecutor, CavpValidationPipeline, PipelineConfig};

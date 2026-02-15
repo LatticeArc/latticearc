@@ -9,6 +9,7 @@
 //! Following RustCrypto patterns with Result-based error handling.
 
 use arc_prelude::error::Result;
+use zeroize::Zeroizing;
 
 /// Unified elliptic curve key pair trait
 pub trait EcKeyPair: Send + Sync {
@@ -43,8 +44,8 @@ pub trait EcKeyPair: Send + Sync {
     /// Export public key as bytes
     fn public_key_bytes(&self) -> Vec<u8>;
 
-    /// Export secret key as bytes (use with caution)
-    fn secret_key_bytes(&self) -> Vec<u8>;
+    /// Export secret key as bytes wrapped in [`Zeroizing`] for automatic cleanup on drop.
+    fn secret_key_bytes(&self) -> Zeroizing<Vec<u8>>;
 }
 
 /// Unified elliptic curve signature trait

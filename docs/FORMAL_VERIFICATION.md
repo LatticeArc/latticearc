@@ -20,7 +20,7 @@ Following the [AWS-LC model](https://github.com/awslabs/aws-lc-verification), ou
 
 **Why not run on every commit?**
 - Full Kani verification takes 30+ minutes for 9 proofs
-- GitHub Actions free tier has limited compute minutes
+- CI compute minutes are limited; schedules will be enabled as the library matures
 - Even AWS-LC (with Amazon's resources) doesn't run SAW proofs on every commit
 - Code changes rarely break mathematical properties that proofs verify
 
@@ -100,16 +100,16 @@ fn new_property() {
 
 ## Cost Analysis
 
-**GitHub Actions free tier: 2000 minutes/month**
+**Estimated GitHub Actions usage: ~1060 minutes/month**
 
 | Schedule | Frequency | Duration | Monthly Cost |
 |----------|-----------|----------|--------------|
 | Nightly | Daily | 10 min | 300 min/month |
 | Weekly | Sunday | 180 min | 720 min/month |
 | On merge | ~4/month | 10 min | 40 min/month |
-| **Total** | | | **1060 min/month (53%)** |
+| **Total** | | | **~1060 min/month** |
 
-Leaves 47% of free tier for other CI jobs (tests, security, fuzzing).
+Scheduled runs will be enabled once the library is stable and usage increases.
 
 ## Limitations
 

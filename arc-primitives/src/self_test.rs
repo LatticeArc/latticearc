@@ -464,6 +464,7 @@ pub fn kat_sha3_256() -> Result<()> {
     use crate::hash::sha3::sha3_256;
 
     // NIST CAVP test vector: SHA3-256("abc")
+    // Source: https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/sha3/sha-3bytetestvectors.zip
     const INPUT: &[u8] = b"abc";
     const EXPECTED: [u8; 32] = [
         0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90,
@@ -543,9 +544,9 @@ pub fn kat_hmac_sha256() -> Result<()> {
 pub fn kat_aes_256_gcm() -> Result<()> {
     use crate::aead::{AeadCipher, aes_gcm::AesGcm256};
 
-    // Fixed test vector: Key = 0x00..0x1f, Nonce = 0x00*12
-    // Plaintext = "FIPS 140-3 KAT", AAD = "additional data"
-    // Expected ciphertext and tag computed via OpenSSL/AWS-LC reference
+    // Self-computed test vector (not from an external source):
+    // Key = 0x00..0x1f, Nonce = 0x00*12, Plaintext = "FIPS 140-3 KAT", AAD = "additional data"
+    // Expected ciphertext and tag independently verified via OpenSSL `aes-256-gcm` and AWS-LC
     const KEY: [u8; 32] = [
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
         0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,

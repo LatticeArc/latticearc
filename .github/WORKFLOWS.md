@@ -17,31 +17,11 @@ This document describes the GitHub Actions workflows used in LatticeArc.
 
 ### Jobs
 
-#### `build`
+#### `changes`
 
-Builds the workspace on multiple platforms:
+Detects what changed for optimized test execution using path filters (crypto, tests, docs, ci).
 
-- Linux x86_64 (Ubuntu latest)
-- macOS x86_64
-- macOS aarch64 (Apple Silicon)
-- Windows x86_64
-
-```yaml
-strategy:
-  matrix:
-    os: [ubuntu-latest, macos-latest, macos-14, windows-latest]
-    rust: [stable, beta]
-```
-
-#### `test`
-
-Runs the full test suite:
-
-```bash
-cargo test --workspace --all-features
-```
-
-#### `lint`
+#### `quality`
 
 Runs code quality checks:
 
@@ -50,31 +30,19 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
-#### `docs`
+#### Tiered Test Strategy
 
-Builds documentation:
+The CI uses a 5-tier strategy:
 
-```bash
-cargo doc --workspace --all-features --no-deps
-```
+| Tier | Trigger | Tests |
+|------|---------|-------|
+| Tier 1 - Quick | Every push | Unit, negative, regression |
+| Tier 2 - Standard | PRs to main | + Integration, KAT, TLS, API, concurrency |
+| Tier 3 - Full | Merge to main | + Side-channel, performance benchmarks |
+| Tier 4 - Nightly | Scheduled (disabled) | + Short fuzz, security audit |
+| Tier 5 - Weekly | Scheduled (disabled) | + Full fuzz, interop tests |
 
-#### `coverage`
-
-Generates code coverage report:
-
-```bash
-cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
-```
-
-Uploads to Codecov for tracking.
-
-### Required Checks
-
-PRs cannot merge unless these pass:
-- `build` (all platforms)
-- `test`
-- `lint`
-- `coverage` (minimum 80%)
+Nightly/Weekly schedules will be enabled once the library is stable and usage increases.
 
 ## Security Workflow
 
@@ -142,7 +110,7 @@ Crates are published in dependency order:
 
 ## Fuzz Workflow
 
-**File:** `.github/workflows/fuzz.yml`
+**File:** `.github/workflows/fuzzing.yml`
 
 ### Schedule
 

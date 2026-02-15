@@ -216,16 +216,17 @@ flowchart LR
 ```rust
 use arc_core::convenience::*;
 
-// Recommended: Hybrid encryption (default)
-let encrypted = encrypt(data, &key)?;
+// Symmetric encryption with AES-256-GCM (default hybrid scheme)
+let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 
-// For long-term storage: ML-KEM-1024
-let encrypted = encrypt_for_use_case(data, UseCase::FileStorage, &key)?;
+// Use case selection for scheme recommendation
+let config = CryptoConfig::new().use_case(UseCase::FileStorage);
+let encrypted = encrypt(data, &key, config)?;
 
-// Hybrid public-key encryption
-let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
-let result = encrypt_hybrid(data, &pk)?;
-let decrypted = decrypt_hybrid(&result.ciphertext, &result.encapsulated_key, &sk)?;
+// Hybrid public-key encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
+let encrypted = encrypt_hybrid(data, &hybrid_pk, SecurityMode::Unverified)?;
+let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)?;
 ```
 
 **Security constraints:**

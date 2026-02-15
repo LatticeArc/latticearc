@@ -44,7 +44,7 @@ graph LR
 | FIPS 205 | SLH-DSA | `fips205` crate | Audited | Complete |
 | FIPS 206 | FN-DSA | `fn-dsa` crate | Partial | Complete |
 
-*ML-DSA uses the `fips204` pure Rust crate. For FIPS 140-3 certification, migration to `aws-lc-rs` is required once the ML-DSA Rust API is exposed (tracking: aws/aws-lc-rs#773, our PR: aws/aws-lc-rs#1029 under review).
+*ML-DSA uses the `fips204` pure Rust crate. For FIPS 140-3 certification, migration to `aws-lc-rs` is required once the ML-DSA Rust API is stabilized (tracking: aws/aws-lc-rs#773, our PRs: aws/aws-lc-rs#1029 and #1034 both merged, awaiting v1.16.0 release with stable ML-DSA API).
 
 ## FIPS 203: ML-KEM (Module-Lattice-Based Key Encapsulation)
 
@@ -65,21 +65,14 @@ use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
 // Key generation (FIPS 203 Section 7.1)
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-// Hybrid encryption using ML-KEM + AES-GCM
-let result = encrypt_hybrid(plaintext, &pk)?;
-// result.ciphertext - AES-GCM encrypted data
-// result.encapsulated_key - ML-KEM ciphertext
-
-// Decryption
-let plaintext = decrypt_hybrid(
-    &result.ciphertext,
-    &result.encapsulated_key,
-    &sk
-)?;
-
-// Direct PQ encryption
+// PQ encryption using ML-KEM + AES-GCM
 let ciphertext = encrypt_pq_ml_kem(data, &pk, MlKemSecurityLevel::MlKem768)?;
 let plaintext = decrypt_pq_ml_kem(&ciphertext, &sk, MlKemSecurityLevel::MlKem768)?;
+
+// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
+let encrypted = encrypt_hybrid(data, &hybrid_pk, SecurityMode::Unverified)?;
+let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)?;
 ```
 
 ### CAVP Validation
@@ -167,10 +160,10 @@ use arc_core::convenience::*;
 let (pk, sk) = generate_fn_dsa_keypair()?;
 
 // Sign (FIPS 206 Section 6.2)
-let signature = sign_pq_fn_dsa(message, &sk)?;
+let signature = sign_pq_fn_dsa(message, &sk, SecurityMode::Unverified)?;
 
 // Verify (FIPS 206 Section 6.3)
-let is_valid = verify_pq_fn_dsa(message, &signature, &pk)?;
+let is_valid = verify_pq_fn_dsa(message, &signature, &pk, SecurityMode::Unverified)?;
 ```
 
 ## Security Levels
@@ -186,24 +179,24 @@ graph TD
     end
 
     subgraph "LatticeArc Mapping"
-        LOW[SecurityLevel::Low]
-        MED[SecurityLevel::Medium]
+        STD[SecurityLevel::Standard]
         HIGH[SecurityLevel::High]
         MAX[SecurityLevel::Maximum]
+        QTM[SecurityLevel::Quantum]
     end
 
-    L1 --> LOW
-    L2 --> LOW
-    L3 --> MED
+    L1 --> STD
+    L2 --> STD
     L3 --> HIGH
     L4 --> HIGH
     L5 --> MAX
+    L5 --> QTM
 
     classDef nist fill:#3498db,stroke:#333,color:#fff
     classDef arc fill:#27ae60,stroke:#333,color:#fff
 
     class L1,L2,L3,L4,L5 nist
-    class LOW,MED,HIGH,MAX arc
+    class STD,HIGH,MAX,QTM arc
 ```
 
 | Level | Description | Classical Equivalent |
@@ -260,16 +253,10 @@ For FIPS 140-3 compliance:
 
 ### Self-Tests
 
-```rust
-use arc_validation::fips_validation::*;
+FIPS algorithm self-tests are implemented in `arc-primitives` (module `self_test`) and run automatically via the `fips-self-test` feature. Validation tests run through the `arc-validation` crate:
 
-// Run FIPS algorithm validation
-let results = run_fips_validation()?;
-
-// Check specific algorithms
-assert!(results.ml_kem_valid);
-assert!(results.ml_dsa_valid);
-assert!(results.slh_dsa_valid);
+```bash
+cargo test --package arc-validation --all-features
 ```
 
 ## Hybrid Mode (Recommended)
@@ -308,10 +295,10 @@ use arc_core::selector::*;
 DEFAULT_ENCRYPTION_SCHEME  // "hybrid-ml-kem-768-aes-256-gcm"
 DEFAULT_SIGNATURE_SCHEME   // "hybrid-ml-dsa-65-ed25519"
 
-// Hybrid encryption
-let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
-let result = encrypt_hybrid(plaintext, &pk)?;
-let decrypted = decrypt_hybrid(&result.ciphertext, &result.encapsulated_key, &sk)?;
+// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
+let encrypted = encrypt_hybrid(data, &hybrid_pk, SecurityMode::Unverified)?;
+let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)?;
 ```
 
 ### Timeline Recommendations

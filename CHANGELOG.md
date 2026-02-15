@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enabled kani.yml schedule: nightly (3 AM UTC) + weekly (Sunday 5 AM UTC)
   - Added path filters to run proofs only when formal verification code changes
   - Badge now reflects actual proof execution status, not fake checks
-  - Follows AWS-LC model: ~1060 min/month (53% of free tier)
+  - Follows AWS-LC model: scheduled runs will be enabled once the library is stable
 - **Documentation**: Clarified constant-time comparison approach in SECURITY.md
   - Documented use of `subtle` crate (22.7M downloads/month, battle-tested)
   - Acknowledged `subtle` is not formally verified (no alternative exists for Rust custom types)
@@ -112,6 +112,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enables persistent storage of ML-KEM private keys
   - Will unblock issue #16 when v1.16.0 is released (est. Mar-Jun 2026)
   - Provides foundation for true hybrid encryption with key persistence
+- **aws-lc-rs PR #1034 MERGED** (Feb 13, 2026)
+  - ML-DSA seed-based deterministic key generation (`PqdsaKeyPair::from_seed()`)
+  - Enables deterministic keygen, HD wallets, and test vector reproducibility
+  - Available when aws-lc-rs v1.16.0 is released with stable ML-DSA API
 
 ### Documentation
 

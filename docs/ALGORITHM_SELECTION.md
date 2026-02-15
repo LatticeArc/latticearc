@@ -436,7 +436,7 @@ Signature operations per second:
 - ⚠️ No public Rust API yet
 
 **Migration plan:**
-- We submitted PR [aws/aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034) for ML-DSA seed-based keygen
+- Our PR [aws/aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034) for ML-DSA seed-based keygen was merged
 - When aws-lc-rs stabilizes ML-DSA (v1.16+), we'll migrate
 - Tracking: GitHub issue #17
 
@@ -459,9 +459,9 @@ We actively contribute features to aws-lc-rs that benefit the entire Rust crypto
 **Related issues:**
 - aws/aws-lc-rs#799 (DecapsulationKey serialization support)
 
-#### PR #1034: ML-DSA Seed-Based Keygen (Under Review)
+#### PR #1034: ML-DSA Seed-Based Keygen (Merged ✅)
 
-**Status:** Under review (created Feb 8, 2026)
+**Status:** Merged Feb 13, 2026
 **Problem:** ML-DSA keygen is random-only, preventing deterministic key derivation
 **Solution:** Added `PqdsaKeyPair::from_seed()` for RFC 5869 seed-based keygen
 **Impact:** Enables HD wallets, test vectors, and deterministic keygen for ML-DSA
@@ -486,8 +486,8 @@ We actively contribute features to aws-lc-rs that benefit the entire Rust crypto
 |-----------|---------|---------|--------|
 | **ML-KEM** | aws-lc-rs | 1.15.4 | ✅ FIPS 140-3 validated |
 | **ML-DSA** | fips204 | 0.4.6 | ⚠️ Awaiting aws-lc-rs stabilization |
-| **SLH-DSA** | fips205 | 0.3.6 | ✅ NIST-compliant |
-| **FN-DSA** | fn-dsa | 0.4.3 | ✅ FIPS 206 compliant |
+| **SLH-DSA** | fips205 | 0.4.1 | ✅ NIST-compliant |
+| **FN-DSA** | fn-dsa | 0.3.0 | ✅ FIPS 206 compliant |
 | **Ed25519** | ed25519-dalek | 2.1.1 | ✅ Audited, constant-time |
 | **X25519** | aws-lc-rs | 1.15.4 | ✅ FIPS 140-3 validated |
 | **AES-GCM** | aws-lc-rs | 1.15.4 | ✅ FIPS 140-3 validated |
@@ -667,7 +667,7 @@ LatticeArc exists within a rich ecosystem of cryptographic libraries. Rather tha
 **Timeline:**
 - aws-lc-rs v1.16.0 expected Mar-Jun 2026
 - Will migrate when stable ML-DSA API is available
-- Tracking: Issue #17, PR aws/aws-lc-rs#1034
+- Tracking: Issue #17, PRs aws/aws-lc-rs#1029 and #1034 (both merged)
 
 **Benefit:** FIPS-validated ML-DSA (currently using fips204)
 

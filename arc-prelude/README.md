@@ -6,10 +6,10 @@ Common types, traits, and error handling for LatticeArc.
 
 `arc-prelude` provides foundational types used across all LatticeArc crates:
 
-- **Error types** - Unified error handling
-- **Common traits** - Shared trait definitions
-- **Utility types** - Commonly used type aliases
-- **Memory safety** - Zeroization utilities
+- **Error types** - `LatticeArcError` enum with recovery mechanisms
+- **Error recovery** - Circuit breaker, graceful degradation, enhanced error handler
+- **Testing infrastructure** - CAVP compliance, property-based testing, side-channel analysis
+- **Re-exports** - Common dependencies (zeroize, subtle, serde, rand, etc.)
 
 ## Usage
 
@@ -22,80 +22,57 @@ arc-prelude = "0.1"
 
 ### Error Handling
 
-```rust
-use arc_prelude::*;
+```rust,ignore
+use arc_prelude::prelude::{LatticeArcError, Result};
 
-fn crypto_operation() -> Result<Vec<u8>, CryptoError> {
-    // Operations return CryptoError variants
-    let key = parse_key(input)?;
-    Ok(encrypt(data, &key)?)
-}
-
-// Match on specific errors
-match result {
-    Err(CryptoError::InvalidKey { reason }) => {
-        eprintln!("Key error: {}", reason);
-    }
-    Err(CryptoError::DecryptionFailed) => {
-        eprintln!("Decryption failed - wrong key?");
-    }
-    Ok(data) => { /* use data */ }
-    Err(e) => return Err(e),
+fn crypto_operation() -> Result<()> {
+    // Operations return LatticeArcError variants
+    Ok(())
 }
 ```
 
-### Common Traits
+### Error Types
 
-```rust
-use arc_prelude::traits::*;
+The main error type is `LatticeArcError` defined in `prelude::error::types`:
 
-// Implement for custom types
-impl Zeroizable for MySecret {
-    fn zeroize(&mut self) {
-        self.data.zeroize();
-    }
+```rust,ignore
+pub enum LatticeArcError {
+    // Cryptographic operation errors
+    // Key validation errors
+    // Configuration errors
+    // etc.
 }
 ```
 
-## Error Types
+### Re-exports
 
-| Error | Description |
-|-------|-------------|
-| `InvalidKey` | Key format or length invalid |
-| `InvalidInput` | Input validation failed |
-| `InvalidCiphertext` | Ciphertext format invalid |
-| `InvalidSignature` | Signature verification failed |
-| `EncryptionFailed` | Encryption operation failed |
-| `DecryptionFailed` | Decryption operation failed |
-| `KeyGenerationFailed` | Key generation failed |
-| `InternalError` | Unexpected internal error |
+Common dependencies re-exported for convenience:
+
+```rust,ignore
+use arc_prelude::prelude::*;
+
+// Includes access to:
+// - LatticeArcError, Result
+// - Error recovery (CircuitBreaker, EnhancedErrorHandler)
+// - CAVP compliance testing (UtilityCavpTester, CryptoCavpTester)
+// - Property-based testing utilities
+// - Side-channel analysis tools
+```
 
 ## Features
 
 | Feature | Description | Default |
 |---------|-------------|---------|
-| `std` | Standard library | Yes |
-| `alloc` | Heap allocation | Yes |
-
-## Re-exports
-
-Common dependencies re-exported for convenience:
-
-```rust
-use arc_prelude::prelude::*;
-
-// Includes:
-// - zeroize::{Zeroize, ZeroizeOnDrop}
-// - subtle::{ConstantTimeEq, Choice}
-// - Error types
-// - Common traits
-```
+| `std` | Standard library support | Yes |
+| `std-backtrace` | Backtrace support in error types | No |
+| `async` | Async runtime (tokio) support | No |
+| `database` | Database error conversions | No |
 
 ## Security
 
-- No unsafe code
-- Zeroization utilities for secret data
-- Constant-time comparison helpers
+- No unsafe code (`#![deny(unsafe_code)]`)
+- Zeroization via `zeroize` crate (re-exported)
+- Constant-time comparison via `subtle` crate (re-exported)
 
 ## License
 
