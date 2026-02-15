@@ -315,7 +315,7 @@ jobs:
     - name: Generate coverage report
       run: |
         START_TIME=$(date +%s)
-        cargo llvm-cov --workspace --all-features --release --html --lcov --output-path lcov.info
+        cargo llvm-cov --workspace --all-features --release --lcov --output-path lcov.info
         END_TIME=$(date +%s)
         COVERAGE_DURATION=$((END_TIME - START_TIME))
         COVERAGE=$(grep -o '"covered_percent":[0-9.]*' lcov.info | head -1 | grep -o '[0-9.]*' || echo "0")
@@ -801,11 +801,56 @@ jobs:
           target/release/liblatticearc*
         retention-days: 30
 
+  # === KAT Vector Integrity Check ===
+  kat-integrity:
+    name: KAT Vector Integrity
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+    - name: Verify KAT test vector checksums
+      run: ./scripts/verify-kat-checksums.sh
+
+  # === Feature Flag Powerset Check (Weekly) ===
+  feature-powerset:
+    name: Feature Flag Powerset
+    runs-on: ubuntu-latest
+    needs: [changes, quality]
+    if: needs.changes.outputs.is_weekly == 'true' || github.event.inputs.tier == 'weekly'
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        submodules: recursive
+
+    - name: Install Rust (Edition 2024)
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+    - name: Install cargo-hack
+      uses: taiki-e/install-action@1c0532667bd5bc37f71fc223a52e7c41c966d9d7 # main
+      with:
+        tool: cargo-hack
+
+    - name: Cache Cargo registry
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-feature-powerset-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check feature powerset compiles
+      run: |
+        cargo hack check --feature-powerset --exclude-all-features \
+          --exclude-no-default-features \
+          -p arc-core -p arc-primitives -p arc-prelude -p arc-hybrid -p latticearc
+
   # === Final Status Check ===
   status-check:
     name: Pipeline Status
     runs-on: ubuntu-latest
-    needs: [quality, build, test, security, regression-tests, concurrency-tests, api-stability-tests, fuzz-nightly, fuzz-weekly, fuzz-smoke, performance, docs, integration, security-tests]
+    needs: [quality, build, test, security, regression-tests, concurrency-tests, api-stability-tests, fuzz-nightly, fuzz-weekly, fuzz-smoke, performance, docs, integration, security-tests, feature-powerset, kat-integrity]
     if: always()
     steps:
     - name: Check all job statuses

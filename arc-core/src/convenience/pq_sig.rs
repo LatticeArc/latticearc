@@ -56,7 +56,7 @@ fn sign_pq_ml_dsa_internal(
 
     let sk = MlDsaSecretKey::new(parameter_set, ml_dsa_sk.to_vec()).map_err(|e| {
         log_crypto_operation_error!("ml_dsa_sign", e);
-        CoreError::InvalidInput(format!("Invalid ML-DSA private key: {}", e))
+        CoreError::InvalidInput("Invalid ML-DSA private key format".to_string())
     })?;
 
     let signature = arc_primitives::sig::ml_dsa::sign(&sk, message, &[]).map_err(|e| {
@@ -87,7 +87,7 @@ fn verify_pq_ml_dsa_internal(
 
     let pk = MlDsaPublicKey::new(parameter_set, ml_dsa_pk.to_vec()).map_err(|e| {
         log_crypto_operation_error!("ml_dsa_verify", e);
-        CoreError::InvalidInput(format!("Invalid ML-DSA public key: {}", e))
+        CoreError::InvalidInput("Invalid ML-DSA public key format".to_string())
     })?;
 
     let sig = MlDsaSignature::new(parameter_set, signature.to_vec()).map_err(|e| {
@@ -133,7 +133,7 @@ fn sign_pq_slh_dsa_internal(
 
     let sk = SlhDsaSigningKey::from_bytes(security_level, slh_dsa_sk).map_err(|e| {
         log_crypto_operation_error!("slh_dsa_sign", e);
-        CoreError::InvalidInput(format!("Invalid SLH-DSA private key: {}", e))
+        CoreError::InvalidInput("Invalid SLH-DSA private key format".to_string())
     })?;
 
     let signature = sk.sign(message, Some(b"context")).map_err(|e| {
@@ -163,7 +163,7 @@ fn verify_pq_slh_dsa_internal(
 
     let pk = SlhDsaVerifyingKey::from_bytes(security_level, slh_dsa_pk).map_err(|e| {
         log_crypto_operation_error!("slh_dsa_verify", e);
-        CoreError::InvalidInput(format!("Invalid SLH-DSA public key: {}", e))
+        CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
     let result = match pk.verify(message, signature, Some(b"context")) {
@@ -205,7 +205,7 @@ fn sign_pq_fn_dsa_internal(message: &[u8], fn_dsa_sk: &[u8]) -> Result<Vec<u8>> 
     let mut sk = FnDsaSigningKey::from_bytes(fn_dsa_sk.to_vec(), FNDsaSecurityLevel::Level512)
         .map_err(|e| {
             log_crypto_operation_error!("fn_dsa_sign", e);
-            CoreError::InvalidInput(format!("Invalid FN-DSA private key: {}", e))
+            CoreError::InvalidInput("Invalid FN-DSA private key format".to_string())
         })?;
 
     let mut rng = rand::rngs::OsRng;
@@ -241,7 +241,7 @@ fn verify_pq_fn_dsa_internal(message: &[u8], signature: &[u8], fn_dsa_pk: &[u8])
     let pk = FnDsaVerifyingKey::from_bytes(fn_dsa_pk.to_vec(), FNDsaSecurityLevel::Level512)
         .map_err(|e| {
             log_crypto_operation_error!("fn_dsa_verify", e);
-            CoreError::InvalidInput(format!("Invalid FN-DSA public key: {}", e))
+            CoreError::InvalidInput("Invalid FN-DSA public key format".to_string())
         })?;
 
     let sig = FnDsaSignature::from_bytes(signature.to_vec()).map_err(|e| {

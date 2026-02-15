@@ -367,8 +367,8 @@ pub fn verify(
             )
         })?;
     let ed25519_verifying_key = Ed25519VerifyingKey::from_bytes(&ed25519_verifying_key_bytes)
-        .map_err(|e| {
-            HybridSignatureError::Ed25519Error(format!("Invalid Ed25519 public key: {}", e))
+        .map_err(|_e| {
+            HybridSignatureError::Ed25519Error("Invalid Ed25519 public key format".to_string())
         })?;
 
     let ed25519_signature_bytes: [u8; 64] =

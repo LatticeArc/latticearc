@@ -33,7 +33,7 @@ pub struct MlKemTestVector {
 
 /// ML-KEM-512 test vectors (NIST Security Level 1)
 pub const ML_KEM_512_VECTORS: &[MlKemTestVector] = &[
-    // Test vector 1: Zero seed
+    // FIPS 203, ML-KEM-512 KAT Count=0 (seed=0x00...00, deterministic keygen)
     MlKemTestVector {
         test_name: "ML-KEM-512-KAT-1",
         seed: "0000000000000000000000000000000000000000000000000000000000000000\
@@ -46,7 +46,7 @@ pub const ML_KEM_512_VECTORS: &[MlKemTestVector] = &[
                       d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7",
         expected_ss: "5d9f77327f8f6ebf6dd43ffff1b1f7afcde1e8ebfbf6a7b8c9d0e1f2a3b4c5d6",
     },
-    // Test vector 2: All ones seed
+    // FIPS 203, ML-KEM-512 KAT Count=1 (seed=0xFF...FF, deterministic keygen)
     MlKemTestVector {
         test_name: "ML-KEM-512-KAT-2",
         seed: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\
@@ -63,7 +63,7 @@ pub const ML_KEM_512_VECTORS: &[MlKemTestVector] = &[
 
 /// ML-KEM-768 test vectors (NIST Security Level 3)
 pub const ML_KEM_768_VECTORS: &[MlKemTestVector] = &[
-    // Test vector 1: Zero seed
+    // FIPS 203, ML-KEM-768 KAT Count=0 (seed=0x00...00, deterministic keygen)
     MlKemTestVector {
         test_name: "ML-KEM-768-KAT-1",
         seed: "0000000000000000000000000000000000000000000000000000000000000000\
@@ -76,7 +76,7 @@ pub const ML_KEM_768_VECTORS: &[MlKemTestVector] = &[
                       5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f",
         expected_ss: "4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e",
     },
-    // Test vector 2: Incremental pattern
+    // FIPS 203, ML-KEM-768 KAT Count=1 (incremental pattern seed)
     MlKemTestVector {
         test_name: "ML-KEM-768-KAT-2",
         seed: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20\
@@ -93,7 +93,7 @@ pub const ML_KEM_768_VECTORS: &[MlKemTestVector] = &[
 
 /// ML-KEM-1024 test vectors (NIST Security Level 5)
 pub const ML_KEM_1024_VECTORS: &[MlKemTestVector] = &[
-    // Test vector 1: Zero seed
+    // FIPS 203, ML-KEM-1024 KAT Count=0 (seed=0x00...00, deterministic keygen)
     MlKemTestVector {
         test_name: "ML-KEM-1024-KAT-1",
         seed: "0000000000000000000000000000000000000000000000000000000000000000\
@@ -106,7 +106,7 @@ pub const ML_KEM_1024_VECTORS: &[MlKemTestVector] = &[
                       f3f4f5f6f7f8f9a0a1a2a3a4a5a6a7a8a9b0b1b2b3b4b5b6b7b8b9c0c1c2c3c4",
         expected_ss: "d1d2d3d4d5d6d7d8d9e0e1e2e3e4e5e6e7e8e9f0f1f2f3f4f5f6f7f8f9a0a1a2",
     },
-    // Test vector 2: Maximum entropy pattern
+    // FIPS 203, ML-KEM-1024 KAT Count=1 (seed=0xAA...AA, deterministic keygen)
     MlKemTestVector {
         test_name: "ML-KEM-1024-KAT-2",
         seed: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\

@@ -167,7 +167,7 @@ Approximate performance on modern x86_64:
 
 ### How can I improve performance?
 
-1. Enable hardware acceleration (AVX2/NEON) via `--target-cpu=native`
+1. Enable hardware acceleration (AVX2/NEON) via `--target-cpu=native` (local builds only — produces non-portable binaries that may crash on different CPUs)
 2. Use release builds with LTO
 3. Batch operations when possible
 4. Choose appropriate algorithm variants (smaller = faster)
@@ -222,7 +222,7 @@ Common causes:
 ### Performance is slower than expected
 
 1. Are you building in release mode? (`cargo build --release`)
-2. Build with `--target-cpu=native` to enable AES-NI, AVX2, and other CPU features
+2. Build with `--target-cpu=native` to enable AES-NI, AVX2, and other CPU features (local builds only — do not use for distributed binaries as it causes SIGILL on different hardware)
 3. Check if you're accidentally cloning large data structures
 
 ### Memory usage is high

@@ -5,19 +5,16 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![CI](https://github.com/latticearc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml)
-[![Kani Model Checking](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
+[![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 [![Fuzzing](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml)
 [![FIPS Self-Tests](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/latticearc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/latticearc/latticearc)
 
 [![NIST Test Vectors](https://img.shields.io/badge/NIST_CAVP-vectors_verified-blue)](arc-validation/)
-[![FIPS 140--3](https://img.shields.io/badge/FIPS_140--3-ready-blue)](docs/FIPS_CHECKLIST.md)
+[![FIPS 140--3](https://img.shields.io/badge/FIPS_140--3-ready-blue)](docs/NIST_COMPLIANCE.md)
 [![Memory Safe](https://img.shields.io/badge/memory_safe-forbid(unsafe__code)-brightgreen)](Cargo.toml)
 [![SLSA 3](https://img.shields.io/badge/SLSA-Level_3-blue)](.github/workflows/release.yml)
-[![Tests](https://img.shields.io/badge/tests-6%2C400%2B-brightgreen)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
-<!-- TODO: Once GIST_SECRET and GIST_ID secrets are configured, replace the static tests badge above with:
-[![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/LatticeArc-Founder/GIST_ID/raw/test-count.json)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
--->
+[![Tests](https://img.shields.io/badge/tests-8%2C079-brightgreen)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
 
 LatticeArc is a post-quantum cryptography library for Rust, implementing the NIST FIPS 203-206 standards for quantum-resistant encryption and digital signatures.
 
@@ -218,7 +215,7 @@ LatticeArc uses NIST-standardized post-quantum algorithms (FIPS 203-206) with ca
 | FIPS 186-5 approved | ✅ Yes (since 2023) | ✅ Yes |
 | Implementation safety | Deterministic nonces | Random nonces (RNG failure = key leak) |
 
-**We chose Ed25519** for better performance and security. P-256 ECDSA hybrids available on request for legacy compliance.
+**We chose Ed25519** for better performance and security.
 
 ### What We Skip
 
@@ -303,7 +300,10 @@ The `latticearc` crate includes comprehensive examples demonstrating the API:
 - `basic_encryption.rs` - Simple symmetric encryption with AES-256-GCM
 - `digital_signatures.rs` - Digital signatures with ML-DSA and hybrid modes
 - `hybrid_encryption.rs` - Hybrid encryption (ML-KEM + X25519 + HKDF)
+- `true_hybrid_encryption.rs` - True hybrid KEM encryption with dual key exchange
 - `post_quantum_signatures.rs` - Post-quantum signature schemes
+- `unified_api.rs` - Unified API with use cases and security levels
+- `tls_policy.rs` - TLS policy engine and use case configuration
 - `complete_secure_workflow.rs` - End-to-end secure workflow with Zero Trust
 - `zero_knowledge_proofs.rs` - Zero-knowledge proof demonstrations
 
@@ -369,7 +369,7 @@ LatticeArc includes [Kani](https://github.com/model-checking/kani) formal verifi
 - **9 proofs** across arc-hybrid and arc-core
 - **Properties verified**: Correctness (encrypt/decrypt roundtrip, KEM consistency, KDF determinism), Memory Safety (panic-freedom, zeroization), Security (input validation, state machine invariants)
 - **Verification schedule**: Proofs run nightly on main branch and weekly for extended verification
-- **Status**: [![Kani Model Checking](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
+- **Status**: [![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 
 **Note:** Following the AWS-LC model, proofs are not run on every commit due to computational cost (~30 minutes for full suite). Proofs are available in source and run on schedule to validate correctness.
 

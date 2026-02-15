@@ -74,8 +74,8 @@ fn encrypt_pq_ml_kem_internal(
 
     let pk = arc_primitives::kem::ml_kem::MlKemPublicKey::new(security_level, ml_kem_pk.to_vec())
         .map_err(|e| {
-        crate::log_crypto_operation_error!("encrypt_pq_ml_kem", "invalid public key");
-        CoreError::InvalidInput(format!("Invalid ML-KEM public key: {}", e))
+        crate::log_crypto_operation_error!("encrypt_pq_ml_kem", e);
+        CoreError::InvalidInput("Invalid ML-KEM public key format".to_string())
     })?;
 
     let mut rng = rand::rngs::OsRng;

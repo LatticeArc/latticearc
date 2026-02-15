@@ -46,8 +46,8 @@ TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1)
 TEST_FAILED=$(echo "$TEST_OUTPUT" | grep -c "test result: FAILED" || true)
 
 if [ "$TEST_FAILED" -gt 0 ]; then
-    # Filter out known sandbox failures (arc-tls, arc-validation)
-    REAL_FAILURES=$(echo "$TEST_OUTPUT" | grep "test result: FAILED" | grep -v "arc_tls\|arc_validation" || true)
+    # Filter out known sandbox failures (only PermissionDenied/TcpListener bind errors)
+    REAL_FAILURES=$(echo "$TEST_OUTPUT" | grep "test result: FAILED" | grep -v "PermissionDenied\|Os { code: 1\|TcpListener" || true)
 
     if [ -z "$REAL_FAILURES" ]; then
         TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')

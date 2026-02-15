@@ -138,8 +138,8 @@ fn hmac_internal(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         return Err(err);
     }
 
-    let mut mac = <Hmac<Sha256> as hmac::digest::KeyInit>::new_from_slice(key).map_err(|e| {
-        let err = CoreError::InvalidInput(format!("Invalid HMAC key: {}", e));
+    let mut mac = <Hmac<Sha256> as hmac::digest::KeyInit>::new_from_slice(key).map_err(|_e| {
+        let err = CoreError::InvalidInput("Invalid HMAC key".to_string());
         crate::log_crypto_operation_error!("hmac", err);
         err
     })?;

@@ -161,8 +161,9 @@ impl PublicKey {
             .get(..ecc_start)
             .ok_or_else(|| KeyError::DeserializationFailed("ML-KEM key out of bounds".to_string()))?
             .to_vec();
-        let ecc_pk = EccPublicKey::from_bytes(&ecc_pk_bytes)
-            .map_err(|e| KeyError::DeserializationFailed(format!("Invalid ECC public key: {e}")))?;
+        let ecc_pk = EccPublicKey::from_bytes(&ecc_pk_bytes).map_err(|_e| {
+            KeyError::DeserializationFailed("Invalid ECC public key format".to_string())
+        })?;
 
         Ok(Self { ml_pk, ecc_pk })
     }
@@ -264,8 +265,9 @@ impl SecretKey {
                 })?
                 .to_vec(),
         );
-        let ecc_sk = EccSecretKey::from_bytes(&ecc_sk_bytes)
-            .map_err(|e| KeyError::DeserializationFailed(format!("Invalid ECC secret key: {e}")))?;
+        let ecc_sk = EccSecretKey::from_bytes(&ecc_sk_bytes).map_err(|_e| {
+            KeyError::DeserializationFailed("Invalid ECC secret key format".to_string())
+        })?;
 
         Ok(Self { ml_sk, ecc_sk: Zeroizing::new(ecc_sk) })
     }

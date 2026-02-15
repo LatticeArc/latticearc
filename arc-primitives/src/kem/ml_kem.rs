@@ -962,8 +962,9 @@ impl MlKem {
         let algorithm = public_key.security_level.as_aws_algorithm();
 
         // Create encapsulation key from public key bytes
-        let encaps_key = EncapsulationKey::new(algorithm, &public_key.data)
-            .map_err(|e| MlKemError::EncapsulationError(format!("Invalid public key: {}", e)))?;
+        let encaps_key = EncapsulationKey::new(algorithm, &public_key.data).map_err(|_e| {
+            MlKemError::EncapsulationError("Invalid public key format".to_string())
+        })?;
 
         // Encapsulate to get ciphertext and shared secret
         let (ciphertext, shared_secret) = encaps_key

@@ -51,6 +51,9 @@ Desktop.ini
 # Generated SBOM files (regenerate in CI, avoid local paths)
 **/sbom*.json
 
+# Internal audit documents
+docs/audit/
+
 # AI tool metadata
 .claude/
 **/CLAUDE.md

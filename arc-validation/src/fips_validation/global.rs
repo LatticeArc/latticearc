@@ -26,8 +26,16 @@ pub(crate) static FIPS_VALIDATION_RESULT: Mutex<Option<ValidationResult>> = Mute
 
 /// Initialize FIPS mode with power-on self-tests.
 ///
+/// # Aborts
+///
+/// This function calls `std::process::abort()` if power-on self-tests fail or
+/// no security level is achieved, as required by FIPS 140-3. Callers cannot
+/// recover from self-test failure.
+///
 /// # Errors
-/// Returns an error if the module validation fails or the validation result lock cannot be acquired.
+///
+/// Returns an error only if the validation result lock cannot be acquired.
+/// All crypto failures result in process abort, not `Err`.
 pub fn init() -> Result<(), LatticeArcError> {
     if FIPS_INITIALIZED.load(Ordering::Acquire) {
         return Ok(());

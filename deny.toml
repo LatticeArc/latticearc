@@ -44,7 +44,7 @@ external-default-features = "allow"
 allow = []
 
 # Explicitly denied crates
-# Note: libc and nix are required by some dependencies, so we allow them
+# Note: libc is present as a transitive dependency (via aws-lc-sys) — acceptable
 deny = []
 
 # Skip specific crates

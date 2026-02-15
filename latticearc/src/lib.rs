@@ -16,34 +16,43 @@
 //!
 //! ### Basic Usage
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{encrypt, decrypt, CryptoConfig};
 //!
 //! let key = [0u8; 32];  // 256-bit key for AES-256
 //! let encrypted = encrypt(b"secret", &key, CryptoConfig::new())?;
 //! let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### With Use Case Selection
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{encrypt, CryptoConfig, UseCase};
 //!
 //! let key = [0u8; 32];
 //! // Library automatically selects optimal algorithm for the use case
 //! let encrypted = encrypt(b"data", &key, CryptoConfig::new()
 //!     .use_case(UseCase::FileStorage))?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### With Security Level
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{encrypt, CryptoConfig, SecurityLevel};
 //!
 //! let key = [0u8; 32];
 //! // Explicit security level control
 //! let encrypted = encrypt(b"data", &key, CryptoConfig::new()
 //!     .security_level(SecurityLevel::Maximum))?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Zero Trust Session Verification
@@ -51,19 +60,22 @@
 //! For production deployments, use [`VerifiedSession`] to enable Zero Trust
 //! verification before each operation:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair};
 //!
 //! // Step 1: Generate a keypair (done once, typically at provisioning)
 //! let (pk, sk) = generate_keypair()?;
 //!
 //! // Step 2: Establish a verified session (performs challenge-response)
-//! let session = VerifiedSession::establish(&pk, &sk)?;
+//! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
 //!
 //! // Step 3: Operations verify session before proceeding
 //! let key = [0u8; 32];
 //! let encrypted = encrypt(b"secret", &key, CryptoConfig::new().session(&session))?;
 //! let decrypted = decrypt(&encrypted, &key, CryptoConfig::new().session(&session))?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! **Benefits of session verification:**
@@ -74,7 +86,8 @@
 //!
 //! ## Digital Signatures
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 //!
 //! let message = b"Document to sign";
@@ -87,11 +100,14 @@
 //!
 //! // Verify (uses public key embedded in SignedData)
 //! let is_valid = verify(&signed, CryptoConfig::new())?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Hybrid Encryption (ML-KEM-768 + X25519)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
 //!
 //! // Generate a hybrid keypair (ML-KEM-768 + X25519)
@@ -102,11 +118,14 @@
 //!
 //! // Decrypt
 //! let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Hybrid Signatures (ML-DSA-65 + Ed25519)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
 //!
 //! // Generate a hybrid signing keypair (ML-DSA-65 + Ed25519)
@@ -117,17 +136,20 @@
 //!
 //! // Verify (both must pass for signature to be valid)
 //! let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Session Lifecycle
 //!
 //! Sessions have a 30-minute default lifetime:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{encrypt, CryptoConfig, VerifiedSession, generate_keypair, CoreError};
 //!
 //! let (pk, sk) = generate_keypair()?;
-//! let session = VerifiedSession::establish(&pk, &sk)?;
+//! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
 //!
 //! // Check session properties
 //! assert!(session.is_valid());  // Not expired
@@ -139,13 +161,15 @@
 //!
 //! // Refresh if expired
 //! if !session.is_valid() {
-//!     let new_session = VerifiedSession::establish(&pk, &sk)?;
+//!     let new_session = VerifiedSession::establish(&pk, sk.as_ref())?;
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Complete Example
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use latticearc::{
 //!     generate_signing_keypair, sign_with_key, verify,
 //!     generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid,

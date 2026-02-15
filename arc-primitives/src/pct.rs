@@ -16,6 +16,8 @@
 //! - **ML-DSA** (FIPS 204): Module-Lattice-Based Digital Signature Algorithm
 //! - **SLH-DSA** (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
 //! - **FN-DSA** (FIPS 206): Few-Time Digital Signature Algorithm
+//! - **Ed25519** (RFC 8032): Edwards-Curve Digital Signature Algorithm (non-FIPS)
+//! - **secp256k1** (SEC 2): ECDSA on secp256k1 curve (non-FIPS)
 //!
 //! ## Usage
 //!
@@ -395,6 +397,90 @@ pub fn pct_fn_dsa_keypair(keypair: &mut crate::sig::fndsa::KeyPair) -> PctResult
         enter_pct_error_state();
         Err(PctError::KeyPairInconsistent)
     }
+}
+
+// =============================================================================
+// Ed25519 Pairwise Consistency Test (non-FIPS only)
+// =============================================================================
+
+/// Performs a Pairwise Consistency Test for Ed25519 keypairs
+///
+/// This function signs a fixed test message with the secret key and verifies
+/// the signature with the public key. While Ed25519 is not a FIPS-approved
+/// algorithm, PCT ensures keypair correctness after generation.
+///
+/// # Arguments
+///
+/// * `keypair` - The Ed25519 keypair to test
+///
+/// # Returns
+///
+/// * `Ok(())` - The keypair is consistent and passed PCT
+/// * `Err(PctError)` - The keypair failed PCT and must not be used
+///
+/// # Errors
+///
+/// Returns `PctError::SigningFailed` if signing the test message fails.
+/// Returns `PctError::VerificationFailed` if verification encounters an error.
+#[cfg(not(feature = "fips"))]
+pub fn pct_ed25519(keypair: &crate::ec::ed25519::Ed25519KeyPair) -> PctResult<()> {
+    use crate::ec::traits::{EcKeyPair, EcSignature};
+
+    // Sign the test message
+    let signature =
+        keypair.sign(PCT_TEST_MESSAGE).map_err(|e| PctError::SigningFailed(e.to_string()))?;
+
+    // Verify the signature
+    crate::ec::ed25519::Ed25519Signature::verify(
+        &keypair.public_key_bytes(),
+        PCT_TEST_MESSAGE,
+        &signature,
+    )
+    .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
+
+    Ok(())
+}
+
+// =============================================================================
+// Secp256k1 Pairwise Consistency Test (non-FIPS only)
+// =============================================================================
+
+/// Performs a Pairwise Consistency Test for secp256k1 keypairs
+///
+/// This function signs a fixed test message with the secret key and verifies
+/// the signature with the public key. While secp256k1 is not a FIPS-approved
+/// algorithm, PCT ensures keypair correctness after generation.
+///
+/// # Arguments
+///
+/// * `keypair` - The secp256k1 keypair to test
+///
+/// # Returns
+///
+/// * `Ok(())` - The keypair is consistent and passed PCT
+/// * `Err(PctError)` - The keypair failed PCT and must not be used
+///
+/// # Errors
+///
+/// Returns `PctError::SigningFailed` if signing the test message fails.
+/// Returns `PctError::VerificationFailed` if verification encounters an error.
+#[cfg(not(feature = "fips"))]
+pub fn pct_secp256k1(keypair: &crate::ec::secp256k1::Secp256k1KeyPair) -> PctResult<()> {
+    use crate::ec::traits::{EcKeyPair, EcSignature};
+
+    // Sign the test message
+    let signature =
+        keypair.sign(PCT_TEST_MESSAGE).map_err(|e| PctError::SigningFailed(e.to_string()))?;
+
+    // Verify the signature
+    crate::ec::secp256k1::Secp256k1Signature::verify(
+        &keypair.public_key_bytes(),
+        PCT_TEST_MESSAGE,
+        &signature,
+    )
+    .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
+
+    Ok(())
 }
 
 // =============================================================================

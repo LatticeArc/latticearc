@@ -36,7 +36,7 @@ pub struct AesGcmTestVector {
 
 /// AES-128-GCM test vectors from NIST SP 800-38D
 pub const AES_128_GCM_VECTORS: &[AesGcmTestVector] = &[
-    // Test Case 1: Empty plaintext
+    // NIST SP 800-38D, GCM Test Case 1 (Table C.1, Key=0, IV=0, no AAD, no PT)
     AesGcmTestVector {
         test_name: "AES-128-GCM-KAT-1",
         key: "00000000000000000000000000000000",
@@ -46,7 +46,7 @@ pub const AES_128_GCM_VECTORS: &[AesGcmTestVector] = &[
         expected_ciphertext: "",
         expected_tag: "58e2fccefa7e3061367f1d57a4e7455a",
     },
-    // Test Case 2: 128-bit plaintext
+    // NIST SP 800-38D, GCM Test Case 2 (Table C.1, Key=0, IV=0, no AAD, 128-bit PT)
     AesGcmTestVector {
         test_name: "AES-128-GCM-KAT-2",
         key: "00000000000000000000000000000000",
@@ -56,7 +56,7 @@ pub const AES_128_GCM_VECTORS: &[AesGcmTestVector] = &[
         expected_ciphertext: "0388dace60b6a392f328c2b971b2fe78",
         expected_tag: "ab6e47d42cec13bdf53a67b21257bddf",
     },
-    // Test Case 3: 256-bit plaintext
+    // NIST SP 800-38D, GCM Test Case 3 (Table C.1, Key=feffe9..., IV=cafebabe..., 512-bit PT)
     AesGcmTestVector {
         test_name: "AES-128-GCM-KAT-3",
         key: "feffe9928665731c6d6a8f9467308308",
@@ -70,7 +70,7 @@ pub const AES_128_GCM_VECTORS: &[AesGcmTestVector] = &[
 
 /// AES-256-GCM test vectors from NIST SP 800-38D
 pub const AES_256_GCM_VECTORS: &[AesGcmTestVector] = &[
-    // Test Case 1: Empty plaintext
+    // NIST SP 800-38D, GCM Test Case 13 (Table C.3, 256-bit Key=0, IV=0, no AAD, no PT)
     AesGcmTestVector {
         test_name: "AES-256-GCM-KAT-1",
         key: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -80,7 +80,7 @@ pub const AES_256_GCM_VECTORS: &[AesGcmTestVector] = &[
         expected_ciphertext: "",
         expected_tag: "530f8afbc74536b9a963b4f1c4cb738b",
     },
-    // Test Case 2: 128-bit plaintext
+    // NIST SP 800-38D, GCM Test Case 14 (Table C.3, 256-bit Key=0, IV=0, no AAD, 128-bit PT)
     AesGcmTestVector {
         test_name: "AES-256-GCM-KAT-2",
         key: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -90,7 +90,7 @@ pub const AES_256_GCM_VECTORS: &[AesGcmTestVector] = &[
         expected_ciphertext: "cea7403d4d606b6e074ec5d3baf39d18",
         expected_tag: "d0d1c8a799996bf0265b98b5d48ab919",
     },
-    // Test Case 3: 256-bit plaintext
+    // NIST SP 800-38D, GCM Test Case 15 (Table C.3, 256-bit Key=feffe9..., IV=cafebabe..., 512-bit PT)
     AesGcmTestVector {
         test_name: "AES-256-GCM-KAT-3",
         key: "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",

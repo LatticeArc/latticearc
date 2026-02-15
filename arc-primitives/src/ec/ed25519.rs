@@ -28,7 +28,13 @@ impl EcKeyPair for Ed25519KeyPair {
         let secret_key = SigningKey::generate(&mut OsRng {});
         let public_key = VerifyingKey::from(&secret_key);
 
-        Ok(Self { public_key, secret_key })
+        let keypair = Self { public_key, secret_key };
+
+        // Pairwise Consistency Test (PCT)
+        crate::pct::pct_ed25519(&keypair)
+            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))?;
+
+        Ok(keypair)
     }
 
     fn from_secret_key(secret_key_bytes: &[u8]) -> Result<Self> {

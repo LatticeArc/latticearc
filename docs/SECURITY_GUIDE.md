@@ -182,6 +182,28 @@ let (pk, sk) = generate_keypair()?;  // Ed25519
 - Store private keys in plaintext
 - Log or expose key material
 
+### Salt and KDF Best Practices
+
+When deriving keys from passwords or shared secrets, follow these guidelines:
+
+- **Always use a unique salt** per key derivation. Generate at least 16 bytes from `OsRng`
+- **Never reuse salts** across different keys or users
+- **Store the salt alongside the ciphertext** — salts are not secret
+- **Use HKDF-SHA256** (`derive_key()`) for key derivation from high-entropy input
+- **Use Argon2/scrypt** for password-based key derivation (not currently provided — use external crate)
+
+```rust
+use arc_core::convenience::*;
+
+// Derive a key from a shared secret + unique salt
+let salt = rand::random::<[u8; 16]>();
+let derived_key = derive_key(shared_secret, &salt, 32)?;
+
+// HMAC for message authentication
+let tag = hmac(data, &key, SecurityMode::Unverified)?;
+let valid = hmac_check(data, &key, &tag, SecurityMode::Unverified)?;
+```
+
 ### Encryption
 
 ```mermaid

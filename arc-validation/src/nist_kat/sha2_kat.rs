@@ -30,25 +30,25 @@ pub struct Sha2TestVector {
 
 /// SHA-256 test vectors from NIST
 pub const SHA256_VECTORS: &[Sha2TestVector] = &[
-    // Test Case 1: Empty string
+    // FIPS 180-4, SHA-256 Short Message Test, Len=0 (empty string → well-known hash)
     Sha2TestVector {
         test_name: "SHA-256-KAT-1",
         message: "",
         expected_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     },
-    // Test Case 2: "abc"
+    // FIPS 180-4, SHA-256 Short Message Test, Len=24 ("abc" → NIST example B.1)
     Sha2TestVector {
         test_name: "SHA-256-KAT-2",
         message: "616263", // "abc"
         expected_hash: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     },
-    // Test Case 3: "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    // FIPS 180-4, SHA-256 Short Message Test, Len=448 (NIST example B.2, two-block)
     Sha2TestVector {
         test_name: "SHA-256-KAT-3",
         message: "6162636462636465636465666465666765666768666768696768696a68696a6b696a6b6c6a6b6c6d6b6c6d6e6c6d6e6f6d6e6f706e6f7071",
         expected_hash: "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
     },
-    // Test Case 4: "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
+    // FIPS 180-4, SHA-256 Long Message Test, Len=896 (NIST example B.3, multi-block)
     Sha2TestVector {
         test_name: "SHA-256-KAT-4",
         message: "61626364656667686263646566676869636465666768696a6465666768696a6b65666768696a6b6c666768696a6b6c6d6768696a6b6c6d6e68696a6b6c6d6e6f696a6b6c6d6e6f706a6b6c6d6e6f70716b6c6d6e6f7071726c6d6e6f707172736d6e6f70717273746e6f707172737475",
