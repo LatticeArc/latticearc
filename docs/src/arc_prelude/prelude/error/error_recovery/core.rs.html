@@ -113,7 +113,7 @@
 <a href=#113 id=113 data-nosnippet>113</a>    </span><span class="kw">pub fn </span>new(error: LatticeArcError, operation: String) -&gt; <span class="self">Self </span>{
 <a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">use </span>rand::Rng;
 <a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">let </span>error_id = <span class="macro">format!</span>(<span class="string">"ERR-{}"</span>, rand::thread_rng().r#gen::&lt;u64&gt;());
+<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">let </span>error_id = <span class="macro">format!</span>(<span class="string">"ERR-{}"</span>, rand::rngs::OsRng.r#gen::&lt;u64&gt;());
 <a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span>timestamp = Utc::now();
 <a href=#118 id=118 data-nosnippet>118</a>
 <a href=#119 id=119 data-nosnippet>119</a>        <span class="self">Self </span>{

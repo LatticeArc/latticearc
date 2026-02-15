@@ -138,8 +138,8 @@
 <a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">let </span><span class="kw-2">mut </span>sample1 = [<span class="number">0u8</span>; <span class="number">32</span>];
 <a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">let </span><span class="kw-2">mut </span>sample2 = [<span class="number">0u8</span>; <span class="number">32</span>];
 <a href=#140 id=140 data-nosnippet>140</a>
-<a href=#141 id=141 data-nosnippet>141</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>sample1);
-<a href=#142 id=142 data-nosnippet>142</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>sample2);
+<a href=#141 id=141 data-nosnippet>141</a>    rand::rngs::OsRng.fill_bytes(<span class="kw-2">&amp;mut </span>sample1);
+<a href=#142 id=142 data-nosnippet>142</a>    rand::rngs::OsRng.fill_bytes(<span class="kw-2">&amp;mut </span>sample2);
 <a href=#143 id=143 data-nosnippet>143</a>
 <a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">if </span>sample1 == sample2 {
 <a href=#145 id=145 data-nosnippet>145</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {

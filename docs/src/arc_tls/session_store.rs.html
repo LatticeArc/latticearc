@@ -142,7 +142,7 @@
 <a href=#142 id=142 data-nosnippet>142</a>    /// Returns false until rustls provides public serialization APIs.
 <a href=#143 id=143 data-nosnippet>143</a>    </span><span class="attr">#[must_use]
 <a href=#144 id=144 data-nosnippet>144</a>    </span><span class="kw">pub const fn </span>is_persistence_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#145 id=145 data-nosnippet>145</a>        <span class="comment">// Currently false - waiting for rustls to expose serialization
+<a href=#145 id=145 data-nosnippet>145</a>        <span class="comment">// Rustls does not expose session serialization APIs
 <a href=#146 id=146 data-nosnippet>146</a>        </span><span class="bool-val">false
 <a href=#147 id=147 data-nosnippet>147</a>    </span>}
 <a href=#148 id=148 data-nosnippet>148</a>}
@@ -166,7 +166,7 @@
 <a href=#166 id=166 data-nosnippet>166</a>/// let store = create_session_store(None);
 <a href=#167 id=167 data-nosnippet>167</a>///
 <a href=#168 id=168 data-nosnippet>168</a>/// // Configured store (in-memory for now, path reserved for future use)
-<a href=#169 id=169 data-nosnippet>169</a>/// let config = SessionPersistenceConfig::new("/tmp/sessions.bin", 500);
+<a href=#169 id=169 data-nosnippet>169</a>/// let config = SessionPersistenceConfig::new(std::env::temp_dir().join("sessions.bin"), 500);
 <a href=#170 id=170 data-nosnippet>170</a>/// let store = create_session_store(Some(&amp;config));
 <a href=#171 id=171 data-nosnippet>171</a>/// ```
 <a href=#172 id=172 data-nosnippet>172</a></span><span class="attr">#[must_use]
@@ -208,7 +208,7 @@
 <a href=#208 id=208 data-nosnippet>208</a>
 <a href=#209 id=209 data-nosnippet>209</a>    <span class="attr">#[test]
 <a href=#210 id=210 data-nosnippet>210</a>    </span><span class="kw">fn </span>test_persistent_store_creation() {
-<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">let </span>store = PersistentSessionStore::new(<span class="string">"/tmp/test.bin"</span>, <span class="number">50</span>);
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">let </span>store = PersistentSessionStore::new(std::env::temp_dir().join(<span class="string">"test.bin"</span>), <span class="number">50</span>);
 <a href=#212 id=212 data-nosnippet>212</a>        <span class="macro">assert_eq!</span>(store.capacity(), <span class="number">50</span>);
 <a href=#213 id=213 data-nosnippet>213</a>        <span class="macro">assert!</span>(!store.is_persistence_enabled());
 <a href=#214 id=214 data-nosnippet>214</a>    }
@@ -221,16 +221,17 @@
 <a href=#221 id=221 data-nosnippet>221</a>
 <a href=#222 id=222 data-nosnippet>222</a>    <span class="attr">#[test]
 <a href=#223 id=223 data-nosnippet>223</a>    </span><span class="kw">fn </span>test_create_session_store_with_config() {
-<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">let </span>config = <span class="kw">crate</span>::SessionPersistenceConfig::new(<span class="string">"/tmp/test.bin"</span>, <span class="number">200</span>);
-<a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">let </span>store = create_session_store(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config));
-<a href=#226 id=226 data-nosnippet>226</a>        <span class="macro">assert_eq!</span>(Arc::strong_count(<span class="kw-2">&amp;</span>store), <span class="number">1</span>);
-<a href=#227 id=227 data-nosnippet>227</a>    }
-<a href=#228 id=228 data-nosnippet>228</a>
-<a href=#229 id=229 data-nosnippet>229</a>    <span class="attr">#[test]
-<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">fn </span>test_create_resumption_config() {
-<a href=#231 id=231 data-nosnippet>231</a>        <span class="kw">let </span>resumption = create_resumption_config(<span class="prelude-val">None</span>);
-<a href=#232 id=232 data-nosnippet>232</a>        <span class="comment">// Just verify it creates without error
-<a href=#233 id=233 data-nosnippet>233</a>        </span><span class="kw">let _ </span>= resumption;
-<a href=#234 id=234 data-nosnippet>234</a>    }
-<a href=#235 id=235 data-nosnippet>235</a>}
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">let </span>config =
+<a href=#225 id=225 data-nosnippet>225</a>            <span class="kw">crate</span>::SessionPersistenceConfig::new(std::env::temp_dir().join(<span class="string">"test.bin"</span>), <span class="number">200</span>);
+<a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">let </span>store = create_session_store(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config));
+<a href=#227 id=227 data-nosnippet>227</a>        <span class="macro">assert_eq!</span>(Arc::strong_count(<span class="kw-2">&amp;</span>store), <span class="number">1</span>);
+<a href=#228 id=228 data-nosnippet>228</a>    }
+<a href=#229 id=229 data-nosnippet>229</a>
+<a href=#230 id=230 data-nosnippet>230</a>    <span class="attr">#[test]
+<a href=#231 id=231 data-nosnippet>231</a>    </span><span class="kw">fn </span>test_create_resumption_config() {
+<a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">let </span>resumption = create_resumption_config(<span class="prelude-val">None</span>);
+<a href=#233 id=233 data-nosnippet>233</a>        <span class="comment">// Just verify it creates without error
+<a href=#234 id=234 data-nosnippet>234</a>        </span><span class="kw">let _ </span>= resumption;
+<a href=#235 id=235 data-nosnippet>235</a>    }
+<a href=#236 id=236 data-nosnippet>236</a>}
 </code></pre></div></section></main></body></html>
