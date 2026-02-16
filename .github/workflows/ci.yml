@@ -68,7 +68,7 @@ jobs:
       is_nightly: ${{ github.event.schedule == '0 2 * * *' }}
       is_weekly: ${{ github.event.schedule == '0 4 * * 0' }}
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
       id: filter
@@ -99,7 +99,7 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -115,7 +115,7 @@ jobs:
         echo "OpenTelemetry tracing enabled for CI quality checks"
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -179,7 +179,7 @@ jobs:
             target: x86_64-pc-windows-msvc
 
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -189,7 +189,7 @@ jobs:
         targets: ${{ matrix.target }}
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -199,7 +199,7 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5
+      uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v5
       with:
         go-version: '1.22'
 
@@ -225,7 +225,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: quality
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Install Rust (Edition 2024)
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
@@ -269,7 +269,7 @@ jobs:
         profile: [release]
 
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -279,12 +279,12 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@1c0532667bd5bc37f71fc223a52e7c41c966d9d7 # main
+      uses: taiki-e/install-action@80e1af6735e72e84f33517a81b7d524165116b99 # main
       with:
         tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -322,7 +322,7 @@ jobs:
         echo "test_coverage_percent $COVERAGE" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/test-coverage || true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
+      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
       with:
         files: lcov.info
         fail_ci_if_error: false
@@ -338,7 +338,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [changes, quality]
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -346,7 +346,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -376,7 +376,7 @@ jobs:
     needs: [changes, quality, build]
     if: github.event_name == 'pull_request' || github.event_name == 'push' || needs.changes.outputs.crypto == 'true'
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -384,7 +384,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -408,7 +408,7 @@ jobs:
     needs: [changes, quality, build]
     if: github.event_name == 'pull_request' || needs.changes.outputs.crypto == 'true'
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -416,7 +416,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -452,7 +452,7 @@ jobs:
         fuzz-target: ["encrypt_fuzz", "cross_border_fuzz"]
 
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -465,7 +465,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -480,7 +480,7 @@ jobs:
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-crash-nightly-${{ matrix.fuzz-target }}
         path: fuzz/artifacts/${{ matrix.fuzz-target }}/
@@ -507,7 +507,7 @@ jobs:
           - cross_border_fuzz
 
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -520,7 +520,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -535,7 +535,7 @@ jobs:
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-crash-weekly-${{ matrix.fuzz-target }}
         path: fuzz/artifacts/${{ matrix.fuzz-target }}/
@@ -548,7 +548,7 @@ jobs:
     # Run on PRs when crypto code changed
     if: github.event_name == 'pull_request' && needs.changes.outputs.crypto == 'true'
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -561,7 +561,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -583,7 +583,7 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
         fetch-depth: 0
@@ -592,7 +592,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -637,7 +637,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -645,7 +645,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -661,7 +661,7 @@ jobs:
 
     - name: Deploy documentation
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-      uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
+      uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: target/doc
@@ -681,7 +681,7 @@ jobs:
           - os: windows-latest
 
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -690,12 +690,12 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+      uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v5
       with:
         go-version: 'stable'
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -721,7 +721,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, security]
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -729,7 +729,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -768,7 +768,7 @@ jobs:
             artifact-name: x86_64-windows
 
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -778,7 +778,7 @@ jobs:
     # Go is required for aws-lc-fips-sys FIPS builds
     - name: Install Go (macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+      uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v5
       with:
         go-version: 'stable'
         cache: false
@@ -790,7 +790,7 @@ jobs:
       run: cargo test --workspace --release --all-features
 
     - name: Package and upload artifacts
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: apache-${{ matrix.artifact-name }}
         path: |
@@ -804,7 +804,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: quality
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Verify KAT test vector checksums
       run: ./scripts/verify-kat-checksums.sh
@@ -816,7 +816,7 @@ jobs:
     needs: [changes, quality]
     if: needs.changes.outputs.is_weekly == 'true' || github.event.inputs.tier == 'weekly'
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         submodules: recursive
 
@@ -824,12 +824,12 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@1c0532667bd5bc37f71fc223a52e7c41c966d9d7 # main
+      uses: taiki-e/install-action@80e1af6735e72e84f33517a81b7d524165116b99 # main
       with:
         tool: cargo-hack
 
     - name: Cache Cargo registry
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           ~/.cargo/registry
@@ -900,7 +900,7 @@ jobs:
         echo "- **Telemetry**: Enabled (OpenTelemetry + Prometheus)" >> report.md
 
     - name: Upload pipeline report
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: pipeline-report
         path: report.md
