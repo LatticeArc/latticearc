@@ -196,7 +196,10 @@ impl ErrorRecoveryHandler {
                             .record_recovery_success();
                         return Ok(());
                     }
-                    Err(_) => continue,
+                    Err(e) => {
+                        tracing::debug!("Recovery strategy failed: {e}");
+                        continue;
+                    }
                 }
             }
         }

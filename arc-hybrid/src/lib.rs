@@ -94,9 +94,6 @@ pub mod encrypt {
     pub use crate::encrypt_hybrid::*;
 }
 
-#[cfg(all(feature = "formal-verification", kani))]
-pub mod formal_verification;
-
 // Re-exports for convenience - use explicit exports to avoid ambiguity
 pub use encrypt_hybrid::{
     HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, decrypt_hybrid,

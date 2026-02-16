@@ -130,7 +130,10 @@ pub(crate) fn verify_ed25519_internal(
 
     let result = match verifying_key.verify(data, &signature) {
         Ok(_) => Ok(true),
-        Err(_) => Err(CoreError::VerificationFailed),
+        Err(e) => {
+            debug!(error = %e, "Ed25519 verification failed with underlying error");
+            Err(CoreError::VerificationFailed)
+        }
     };
 
     match &result {

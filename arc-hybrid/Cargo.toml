@@ -41,5 +41,3 @@ subtle = { workspace = true }
 [lib]
 path = "src/lib.rs"
 
-[features]
-formal-verification = []
