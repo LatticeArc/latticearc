@@ -5,7 +5,6 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![CI](https://github.com/latticearc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml)
-[![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 [![Fuzzing](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml)
 [![FIPS Self-Tests](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/latticearc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/latticearc/latticearc)
@@ -364,16 +363,9 @@ See [SECURITY.md](SECURITY.md) for our security policy.
 
 ## Formal Verification
 
-LatticeArc includes [Kani](https://github.com/model-checking/kani) formal verification proofs for critical cryptographic operations:
+For underlying cryptographic primitives (AES-GCM, ML-KEM, X25519, SHA-2), we rely on [aws-lc-rs's SAW formal verification](https://github.com/awslabs/aws-lc-verification), which provides mathematical proofs of correctness for the C implementations.
 
-- **9 proofs** across arc-hybrid and arc-core
-- **Properties verified**: Correctness (encrypt/decrypt roundtrip, KEM consistency, KDF determinism), Memory Safety (panic-freedom, zeroization), Security (input validation, state machine invariants)
-- **Verification schedule**: Proofs run nightly on main branch and weekly for extended verification
-- **Status**: [![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
-
-**Note:** Following the AWS-LC model, proofs are not run on every commit due to computational cost (~30 minutes for full suite). Proofs are available in source and run on schedule to validate correctness.
-
-For underlying primitives (AES-GCM, ML-KEM), we rely on [aws-lc-rs's SAW formal verification](https://github.com/awslabs/aws-lc-verification).
+LatticeArc source includes [Kani](https://github.com/model-checking/kani) proof harnesses for key lifecycle state machine invariants (`arc-core/src/key_lifecycle.rs`). These proofs are not currently executed in CI because Kani cannot compile crates with transitive C FFI dependencies (aws-lc-sys). They are available for verification on isolated pure-Rust extractions of the logic.
 
 ## Documentation
 
@@ -381,7 +373,6 @@ For underlying primitives (AES-GCM, ML-KEM), we rely on [aws-lc-rs's SAW formal 
 - [Unified API Guide](docs/UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
 - [Architecture](docs/DESIGN.md) — crate structure, design decisions, enterprise features
 - [Security Guide](docs/SECURITY_GUIDE.md) — threat model, secure usage patterns
-- [Formal Verification](docs/FORMAL_VERIFICATION.md) — Kani proofs, verification schedule, SAW inheritance
 - [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
 - [FAQ](docs/FAQ.md)
 
