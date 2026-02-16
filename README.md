@@ -7,7 +7,7 @@
 [![CodeQL](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml)
 [![Fuzzing](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml)
 [![FIPS Self-Tests](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml)
-[![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
+[![Kani: type invariants](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/latticearc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/latticearc/latticearc)
 
 [![NIST Test Vectors](https://img.shields.io/badge/NIST_CAVP-vectors_verified-blue)](arc-validation/)
@@ -364,18 +364,26 @@ Report security issues to: Security@LatticeArc.com
 
 See [SECURITY.md](SECURITY.md) for our security policy.
 
-## Formal Verification
+## Verification Strategy
 
-For underlying cryptographic primitives (AES-GCM, ML-KEM, X25519, SHA-2), we rely on [aws-lc-rs's SAW formal verification](https://github.com/awslabs/aws-lc-verification), which provides mathematical proofs of correctness for the C implementations.
+Correctness is verified at three layers, each with the right tool for the job:
 
-LatticeArc includes 12 [Kani](https://github.com/model-checking/kani) bounded model checking proofs in `arc-types` (pure Rust, zero FFI dependencies). The verified tier runs in CI on every push to `main` and proves:
+| Layer | Tool | Scope | What it proves |
+|-------|------|-------|----------------|
+| **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
+| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (12 proofs) | `arc-types` (pure Rust) | State machine rules, enum exhaustiveness, ordering, defaults |
 
-- **Key lifecycle state machine** (5 proofs in `src/key_lifecycle.rs`): destroyed keys cannot transition, no backward transitions, initial state must be Generation, retired-only-to-destroyed, API consistency between `is_valid_transition` and `allowed_next_states`
-- **Trust level ordering** (3 proofs in `src/zero_trust.rs`): total ordering, `is_trusted()` correctness, Untrusted is minimum
-- **Policy engine completeness** (3 proofs in `src/selector.rs`): every CryptoScheme/SecurityLevel has a valid algorithm
-- **Security defaults** (1 proof in `src/types.rs`): default SecurityLevel is High (NIST Level 3)
+**SAW (inherited):** We don't run SAW ourselves — aws-lc-rs provides [verified implementations](https://github.com/awslabs/aws-lc-verification) of the underlying primitives.
 
-These properties are also tested with 40+ property-based tests (proptest) in `arc-tests/tests/proptest_*.rs` covering hybrid KEM, hybrid encryption, hybrid signatures, unified API, pure PQ KEM, and scheme selection.
+**Proptest (API-level crypto):** 40+ property-based tests in `arc-tests/tests/proptest_*.rs`, each running 256 random cases in release mode. These verify that our Rust wrappers correctly compose the verified primitives — encrypt/decrypt roundtrip, KEM encapsulate/decapsulate consistency, signature sign/verify, FIPS 203 key sizes, and scheme selector determinism.
+
+**Kani (type invariants):** 12 bounded model checking proofs in `arc-types`, run on every push to `main`. These do **not** verify cryptographic operations (which require FFI). They verify the pure-Rust policy and state management layer:
+
+- **Key lifecycle** (5 proofs): SP 800-57 state machine — destroyed keys can't transition, no backward transitions, retired keys can only be destroyed
+- **Policy engine** (3 proofs): every `CryptoScheme` and `SecurityLevel` variant maps to a valid algorithm (catches missing match arms when enums grow)
+- **Trust levels** (3 proofs): total ordering, `is_trusted()` iff level >= Partial
+- **Defaults** (1 proof): `SecurityLevel::default()` is `High` (NIST Level 3), not a weaker option
 
 ## Documentation
 

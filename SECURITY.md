@@ -88,44 +88,35 @@ We recommend always using the latest version.
 - **License compliance** - cargo-deny checks
 - **CAVP validation** - NIST test vectors
 
-### Formal Verification
+### Verification (Three Layers)
 
-#### Our Code (Kani Model Checker)
+Correctness is verified at three layers. See [docs/FORMAL_VERIFICATION.md](docs/FORMAL_VERIFICATION.md) for full details.
 
-| Component | Proofs | Properties Verified | Run Frequency |
-|-----------|--------|---------------------|---------------|
-| arc-hybrid | 7 | Correctness, Memory Safety, Security | Nightly + Weekly |
-| arc-types | 12 | State Machine, Trust Ordering, Policy Completeness, Defaults | Nightly + Weekly + On Push |
-
-**Kani proofs verify:**
-- Encrypt→Decrypt roundtrip returns original plaintext
-- KEM encapsulate→decapsulate produces consistent shared secrets
-- Key derivation is deterministic (same inputs → same keys)
-- Valid signatures verify correctly
-- Invalid key lengths are rejected (no crashes)
-- Operations are panic-free with valid inputs
-- Secrets are zeroized correctly (no memory leaks)
-- Key lifecycle state machine enforces valid transitions (5 proofs)
-- Trust level ordering is total and consistent (3 proofs)
-- Policy engine covers all security levels and scheme categories (3 proofs)
-- Default security level is NIST Level 3 (1 proof)
-
-**Verification approach:**
-- Proofs available in source code (`arc-types/src/key_lifecycle.rs`, `arc-types/src/zero_trust.rs`, `arc-types/src/types.rs`, `arc-types/src/selector.rs`)
-- Run on nightly schedule (not every commit) following AWS-LC model
-- Full suite runs weekly for comprehensive verification
-- Manual runs via GitHub Actions workflow_dispatch
-
-#### Underlying Primitives (AWS-LC SAW Verification)
+#### Layer 1: SAW — Primitive Correctness (inherited)
 
 We inherit formal verification for cryptographic primitives from aws-lc-rs:
 - AES-GCM, ML-KEM, SHA-2, HMAC, AES-KWP
 - Verified using SAW (Software Analysis Workbench) with Cryptol specifications
 - Proofs maintained in [aws-lc-verification](https://github.com/awslabs/aws-lc-verification)
 
-#### Property-Based Testing
+#### Layer 2: Proptest — API Crypto Correctness (40+ tests)
 
-- Property-based testing with proptest for additional randomized validation
+Property-based tests verify our Rust wrappers correctly compose the verified primitives:
+- Encrypt/decrypt roundtrip, KEM encapsulate/decapsulate consistency
+- Signature sign/verify, wrong-key/wrong-message rejection
+- Non-malleability (bit-flip in ciphertext → decryption fails)
+- FIPS 203 key/ciphertext size compliance across all ML-KEM parameter sets
+- 256 random cases per property, release mode
+
+#### Layer 3: Kani — Type Invariants (12 proofs)
+
+Kani model checking verifies the pure-Rust policy and state management layer in `arc-types`. These proofs do **not** cover cryptographic operations (which require FFI). They verify:
+- Key lifecycle state machine enforces SP 800-57 transitions (5 proofs)
+- Policy engine maps every enum variant to a valid algorithm (3 proofs)
+- Trust level ordering is total and consistent (3 proofs)
+- Default security level is NIST Level 3 (1 proof)
+
+Proofs in source code: `arc-types/src/{key_lifecycle,zero_trust,types,selector}.rs`
 
 ## Security Audits
 

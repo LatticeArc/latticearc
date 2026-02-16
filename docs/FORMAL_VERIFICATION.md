@@ -1,169 +1,133 @@
-# Formal Verification with Kani
+# Verification Strategy
 
-LatticeArc uses the [Kani model checker](https://github.com/model-checking/kani) to formally verify critical properties of our cryptographic implementations.
+LatticeArc verifies correctness at three layers, each with the right tool for the job.
 
-## What is Formal Verification?
+## Three-Layer Approach
 
-Formal verification uses mathematical proofs to guarantee properties hold for *all possible inputs*, not just test cases. Kani symbolically executes Rust code to prove:
-- **Correctness**: Operations produce expected results
-- **Memory Safety**: No panics, buffer overflows, or undefined behavior
-- **Security**: Invalid inputs are rejected, secrets are cleared
+| Layer | Tool | Scope | What it proves |
+|-------|------|-------|----------------|
+| **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
+| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (12 proofs) | `arc-types` (pure Rust) | State machine rules, enum exhaustiveness, ordering, defaults |
 
-## Verification Approach
+### Why three layers?
 
-Following the [AWS-LC model](https://github.com/awslabs/aws-lc-verification), our proofs:
-- ✅ Are written in source code alongside implementations
-- ✅ Run on scheduled basis (nightly/weekly), not every commit
-- ✅ Cover critical cryptographic operations
-- ✅ Use symbolic execution (all possible inputs)
-- ❌ Are NOT run on every commit (too expensive, 30+ min)
+Kani uses bounded model checking to prove properties hold for **all possible inputs**, not just test cases. But Kani cannot verify code that calls FFI (like aws-lc-rs). Our crypto operations all go through FFI, so Kani can only verify the pure-Rust policy and type layer.
 
-**Why not run on every commit?**
-- Full Kani verification takes 30+ minutes for 12 proofs
-- CI compute minutes are limited; schedules will be enabled as the library matures
-- Even AWS-LC (with Amazon's resources) doesn't run SAW proofs on every commit
-- Code changes rarely break mathematical properties that proofs verify
+For crypto correctness, we use two complementary approaches:
+- **SAW** (inherited from aws-lc-rs) proves the primitives are correct at the C level
+- **Proptest** proves our Rust wrappers correctly compose those primitives (256 random cases per property, release mode)
 
-## Verified Components
+This means: no single tool covers everything, but together they form a complete chain from C primitives through Rust wrappers to type-level invariants.
 
-### arc-types (12 proofs across 4 modules)
+## Layer 1: SAW — Primitive Correctness (inherited)
 
-#### `src/key_lifecycle.rs` (5 proofs)
+We don't run SAW ourselves. aws-lc-rs provides [mathematically verified implementations](https://github.com/awslabs/aws-lc-verification) of AES-GCM, ML-KEM, X25519, and SHA-2. These are the building blocks our library composes.
 
-| Proof | Property | What It Guarantees |
-|-------|----------|-------------------|
-| `key_state_machine_destroyed_cannot_transition` | Security | Destroyed keys are immutable (no resurrection) |
-| `key_state_machine_no_backward_to_generation` | Security | Key lifecycle is unidirectional (no rollback) |
-| `key_state_machine_only_generation_from_none` | Security | Keys must begin in Generation state |
-| `key_state_machine_transitions_match_spec` | Correctness | `is_valid_transition` matches independent SP 800-57 encoding |
-| `key_state_machine_retired_only_to_destroyed` | Security | Retired keys can only be destroyed (no reactivation) |
+## Layer 2: Proptest — API Crypto Correctness
 
-#### `src/zero_trust.rs` (3 proofs)
+40+ property-based tests in `arc-tests/tests/proptest_*.rs`, each running 256 random cases:
 
-| Proof | Property | What It Guarantees |
-|-------|----------|-------------------|
-| `trust_level_ordering_total` | Correctness | Trust hierarchy has no ambiguous comparisons |
-| `trust_level_is_trusted_iff_at_least_partial` | Security | Untrusted entities are never considered trusted |
-| `trust_level_untrusted_is_minimum` | Security | Trust floor is well-defined (Untrusted is lowest) |
+| File | Tests | What it covers |
+|------|-------|----------------|
+| `proptest_hybrid_kem.rs` | 5 | ML-KEM-768 + X25519: roundtrip, key independence, wrong-key rejection |
+| `proptest_hybrid_encrypt.rs` | 6 | Hybrid encryption: roundtrip, non-malleability, AAD integrity, key independence |
+| `proptest_hybrid_sig.rs` | 7 | ML-DSA-65 + Ed25519: roundtrip, wrong-message/key, Ed25519 determinism, sizes |
+| `proptest_unified_api.rs` | 8 | Unified API: AEAD + signing across all security levels and use cases |
+| `proptest_pq_kem.rs` | 8 | ML-KEM-512/768/1024: roundtrip, FIPS 203 key/ciphertext sizes |
+| `proptest_selector.rs` | 6 | CryptoPolicyEngine: determinism, monotonicity, exhaustiveness |
 
-#### `src/types.rs` (1 proof)
+These are the tests that verify **actual cryptographic correctness** — encrypt/decrypt roundtrip, KEM consistency, signature verification, and FIPS spec compliance.
 
-| Proof | Property | What It Guarantees |
-|-------|----------|-------------------|
-| `security_level_default_is_high` | Security | Default security is NIST Level 3, not weaker |
+## Layer 3: Kani — Type Invariants
 
-#### `src/selector.rs` (3 proofs)
+12 bounded model checking proofs in `arc-types` (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
 
-| Proof | Property | What It Guarantees |
-|-------|----------|-------------------|
-| `force_scheme_covers_all_variants` | Correctness | Every CryptoScheme maps to a non-empty algorithm |
-| `select_pq_encryption_covers_all_levels` | Security | Every SecurityLevel has a PQ encryption algorithm |
-| `select_pq_signature_covers_all_levels` | Security | Every SecurityLevel has a PQ signature algorithm |
+### What Kani verifies
+
+#### Key Lifecycle State Machine — `src/key_lifecycle.rs` (5 proofs)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `key_state_machine_transitions_match_spec` | `is_valid_transition` matches an independent SP 800-57 encoding |
+| `key_state_machine_destroyed_cannot_transition` | Destroyed keys are immutable (no resurrection) |
+| `key_state_machine_no_backward_to_generation` | Key lifecycle is unidirectional (no rollback) |
+| `key_state_machine_only_generation_from_none` | Keys must begin in Generation state |
+| `key_state_machine_retired_only_to_destroyed` | Retired keys can only be destroyed (no reactivation) |
+
+#### Policy Engine — `src/selector.rs` (3 proofs)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `force_scheme_covers_all_variants` | Every `CryptoScheme` maps to a non-empty algorithm string |
+| `select_pq_encryption_covers_all_levels` | Every `SecurityLevel` has a PQ encryption algorithm |
+| `select_pq_signature_covers_all_levels` | Every `SecurityLevel` has a PQ signature algorithm |
+
+These catch bugs when someone adds a new enum variant but forgets to handle it — Kani exhaustively checks all variants.
+
+#### Trust Levels — `src/zero_trust.rs` (3 proofs)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `trust_level_ordering_total` | Trust hierarchy has no ambiguous comparisons |
+| `trust_level_is_trusted_iff_at_least_partial` | Untrusted entities are never considered trusted |
+| `trust_level_untrusted_is_minimum` | Trust floor is well-defined (Untrusted is lowest) |
+
+#### Security Defaults — `src/types.rs` (1 proof)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `security_level_default_is_high` | Default security is NIST Level 3, not a weaker option |
+
+### What Kani does NOT verify
+
+- Encryption/decryption correctness (requires FFI → use proptest)
+- KEM encapsulate/decapsulate consistency (requires FFI → use proptest)
+- Signature sign/verify correctness (requires FFI → use proptest)
+- Constant-time execution (CPU microarchitecture → use aws-lc-rs SAW + `subtle` crate)
+- Side channels, speculative execution, hardware attacks
 
 ## Running Proofs
 
-### Automated (GitHub Actions)
+### Kani (automated)
 
-- **Nightly**: Runs at 3 AM UTC daily (per-crate jobs, ~10 min)
-- **Weekly**: Runs at 5 AM UTC Sunday (extended crypto proofs, 180 min)
-- **On main merge**: Validates releases before publishing
+- Runs on every push to `main` (when `arc-types/src/` changes)
+- Nightly at 3 AM UTC, weekly Sunday at 5 AM UTC
 
-### Manual (Local)
+### Kani (local)
 
 ```bash
-# Install Kani
 cargo install --locked kani-verifier
 cargo kani setup
 
-# Run all 12 proofs (arc-types — pure Rust, zero FFI)
+# Run all 12 proofs
 cargo kani -p arc-types
 
-# Run specific proof
-cargo kani --harness key_state_machine_destroyed_cannot_transition -p arc-types
-cargo kani --harness trust_level_ordering_total -p arc-types
-cargo kani --harness force_scheme_covers_all_variants -p arc-types
+# Run a specific proof
+cargo kani --harness key_state_machine_transitions_match_spec -p arc-types
 ```
 
-### Manual (GitHub Actions)
+### Proptest (local)
 
-1. Go to [Kani workflow](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
-2. Click "Run workflow"
-3. Select branch and click "Run workflow" button
-
-## Adding New Proofs
-
-1. Create `#[kani::proof]` function in crate's `src/formal_verification.rs`
-2. Use `kani::any()` for symbolic inputs (all possible values)
-3. Use `kani::assume()` to constrain inputs to valid ranges
-4. Use `assert!()` to state property that must always hold
-5. Run locally to validate proof works
-6. Proofs will run automatically on next schedule
-
-Example:
-```rust
-#[kani::proof]
-fn new_property() {
-    let input: u32 = kani::any();
-    kani::assume(input < 1000);  // Constrain to valid range
-
-    let result = my_function(input);
-
-    assert!(result.is_ok(), "Function should never fail with valid input");
-}
+```bash
+# Run all property-based tests (release mode required for crypto perf)
+cargo test --package arc-tests --release -- proptest
 ```
 
-## Cost Analysis
+## Comparison
 
-**Estimated GitHub Actions usage: ~1060 minutes/month**
-
-| Schedule | Frequency | Duration | Monthly Cost |
-|----------|-----------|----------|--------------|
-| Nightly | Daily | 10 min | 300 min/month |
-| Weekly | Sunday | 180 min | 720 min/month |
-| On merge | ~4/month | 10 min | 40 min/month |
-| **Total** | | | **~1060 min/month** |
-
-Scheduled runs will be enabled once the library is stable and usage increases.
-
-## Limitations
-
-### What Kani CAN verify
-
-- ✅ Control flow correctness (no secret-dependent branches)
-- ✅ Memory safety (no panics, buffer overflows, use-after-free)
-- ✅ Arithmetic correctness (no overflows, correct results)
-- ✅ State machine validity (only valid transitions)
-
-### What Kani CANNOT verify
-
-- ❌ Cache-timing side channels (CPU microarchitecture)
-- ❌ Speculative execution vulnerabilities (Spectre/Meltdown)
-- ❌ Hardware-level attacks (power analysis, EM emanation)
-- ❌ Constant-time execution (delegated to aws-lc-rs SAW proofs and `subtle` crate)
-
-For constant-time verification, we rely on aws-lc-rs's SAW-verified primitives and the `subtle` crate for API-layer comparisons. See [SECURITY.md](../SECURITY.md#constant-time-guarantees) for details.
-
-## Comparison with Other Approaches
-
-| Tool | What It Verifies | Cost | Coverage |
-|------|------------------|------|----------|
-| **Kani** | Properties for all possible inputs | High (30 min) | 12 proofs (arc-types, pure Rust) |
-| **Tests** | Properties for specific test cases | Low (2 min) | 977 tests |
-| **Fuzzing** | Find edge cases via randomness | Medium (5 min/day) | 9 fuzz targets |
-| **subtle** | Constant-time API comparisons | Inherited | Used in all secret comparisons |
-| **SAW** | Primitives (via aws-lc-rs) | Inherited | AES-GCM, ML-KEM, SHA-2 |
-
-Each approach complements the others. We use all four plus inherited SAW verification.
+| Tool | What It Verifies | Coverage | Cost |
+|------|------------------|----------|------|
+| **SAW** | Primitive correctness (via aws-lc-rs) | AES-GCM, ML-KEM, SHA-2 | Inherited |
+| **Proptest** | API crypto correctness (256 random cases/property) | 40+ properties, 6 files | ~60s (release) |
+| **Kani** | Type invariants (all possible inputs) | 12 proofs in arc-types | ~10 min |
+| **Unit tests** | Specific test cases | 977+ tests | ~120s (release) |
+| **Fuzzing** | Edge cases via randomness | 9 fuzz targets | 5 min/day |
 
 ## Additional Resources
 
 - [Kani User Guide](https://model-checking.github.io/kani/)
 - [AWS-LC Verification](https://github.com/awslabs/aws-lc-verification) — SAW proofs for primitives
-- [FIPS 203-206 Standards](https://csrc.nist.gov/) — NIST post-quantum cryptography standards
-- [Property-Based Testing with Proptest](https://proptest-rs.github.io/proptest/)
-
-## Related Documentation
-
+- [Proptest Book](https://proptest-rs.github.io/proptest/)
 - [SECURITY.md](../SECURITY.md) — Security policy and guarantees
-- [NIST_COMPLIANCE.md](NIST_COMPLIANCE.md) — FIPS conformance details
 - [TESTING_STRATEGY.md](TESTING_STRATEGY.md) — Complete testing approach
