@@ -41,32 +41,35 @@ graph TB
     end
 
     subgraph "LatticeArc Public API"
-        MAIN[latticearc<br/>Main Facade]
+        MAIN["latticearc (facade)<br/>re-exports: LatticeArcError"]
     end
 
-    subgraph "High-Level APIs"
-        CORE[arc-core<br/>Unified API]
-        HYBRID[arc-hybrid<br/>Hybrid Crypto]
+    subgraph "High-Level APIs (Layer 3)"
+        CORE[arc-core<br/>Unified API + Zero-Trust]
         TLS[arc-tls<br/>PQ TLS 1.3]
     end
 
-    subgraph "Domain Types"
-        TYPES[arc-types<br/>Pure-Rust Types & Traits]
+    subgraph "Hybrid Constructions (Layer 2)"
+        HYBRID[arc-hybrid<br/>PQ + Classical]
     end
 
-    subgraph "Core Cryptography"
-        PRIM[arc-primitives<br/>Crypto Primitives]
-        ZKP[arc-zkp<br/>Zero-Knowledge]
+    subgraph "Algorithms (Layer 1)"
+        PRIM[arc-primitives<br/>ML-KEM, ML-DSA, AES-GCM, ...]
+        ZKP[arc-zkp<br/>Zero-Knowledge Proofs]
+    end
+
+    subgraph "Domain Types (Layer 0)"
+        TYPES["arc-types<br/>Pure Rust · Zero FFI · Kani-verified<br/>types, traits, config, selector,<br/>key_lifecycle, zero_trust,<br/>resource_limits, domains"]
     end
 
     subgraph "Foundation"
-        PRELUDE[arc-prelude<br/>Types & Errors]
+        PRELUDE[arc-prelude<br/>Errors + Testing Infra]
     end
 
-    subgraph "Testing & Validation"
-        VAL[arc-validation<br/>CAVP Tests]
+    subgraph "Testing & Validation (dev-deps only)"
+        VAL[arc-validation<br/>CAVP / NIST Vectors]
+        TESTS["arc-tests<br/>37 integration tests<br/>(consolidated)"]
         PERF[arc-perf<br/>Benchmarks]
-        TESTS[arc-tests<br/>Integration Tests]
         FUZZ[fuzz<br/>Fuzzing]
     end
 
@@ -74,18 +77,24 @@ graph TB
     MAIN --> CORE
     MAIN --> HYBRID
     MAIN --> TLS
+    MAIN --> ZKP
+    MAIN --> PERF
     CORE --> TYPES
     CORE --> PRIM
-    CORE --> PRELUDE
+    CORE --> HYBRID
     HYBRID --> PRIM
-    HYBRID --> PRELUDE
     TLS --> PRIM
     TLS --> PRELUDE
     ZKP --> PRIM
+    PRIM --> TYPES
     PRIM --> PRELUDE
-    VAL --> PRIM
-    PERF --> PRIM
+    PRIM -.->|dev-dep| VAL
+    VAL --> PRELUDE
+    VAL --> TYPES
+    TESTS --> MAIN
     TESTS --> CORE
+    TESTS --> PRIM
+    TESTS --> TYPES
 
     classDef facade fill:#4a90d9,stroke:#333,color:#fff
     classDef highlevel fill:#50c878,stroke:#333,color:#fff
@@ -95,12 +104,21 @@ graph TB
     classDef testing fill:#95a5a6,stroke:#333,color:#fff
 
     class MAIN facade
-    class CORE,HYBRID,TLS highlevel
+    class CORE,TLS highlevel
+    class HYBRID highlevel
     class TYPES types
     class PRIM,ZKP core
     class PRELUDE foundation
     class VAL,PERF,TESTS,FUZZ testing
 ```
+
+**Key architectural properties (v0.1.1):**
+- **`arc-types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (12 proofs)
+- **`arc-core`** no longer depends on `arc-validation` or `arc-prelude` in production
+- **`latticearc`** uses explicit re-exports (no `pub use prelude::*` glob)
+- **`arc-tests`** consolidates all 37 integration tests from arc-core and latticearc
+- **`arc-validation`** is dev-deps only — never in production dependency chains
+- Dashed lines (-.->|dev-dep|) indicate test-only dependencies
 
 ## API Abstraction Levels
 
@@ -385,12 +403,15 @@ flowchart LR
 
 ### `latticearc` (Main Facade)
 
-Re-exports all public APIs from the workspace.
+Re-exports public APIs from the workspace via explicit imports:
 
 ```rust
-use latticearc::prelude::*;
-// Access to all crates via single import
+use latticearc::{encrypt, decrypt, CryptoConfig, SecurityLevel};
+use latticearc::LatticeArcError; // Explicit re-export from arc-prelude
 ```
+
+> **Note**: As of v0.1.1, `latticearc` no longer glob-exports `arc-prelude::*`.
+> Use explicit imports from `latticearc` or access sub-crates directly (e.g., `arc_core::*`).
 
 ### `arc-types` (Pure-Rust Domain Types)
 
@@ -457,16 +478,28 @@ Post-quantum TLS 1.3 with rustls:
 Common types and error handling:
 
 - `LatticeArcError` hierarchy
-- Common traits
-- Memory safety utilities
+- Error recovery (circuit breaker, graceful degradation)
+- Testing infrastructure (CAVP compliance, property-based testing)
+- `domains` module (re-exports from `arc-types` for backward compatibility)
 
 ### `arc-validation`
 
-CAVP/FIPS compliance testing:
+CAVP/FIPS compliance testing (dev-dependency only — not in production dep chains):
 
 - NIST test vectors
 - Self-test infrastructure
 - Timing analysis
+- `resource_limits` module (re-exports from `arc-types` for backward compatibility)
+
+### `arc-tests`
+
+Consolidated integration test suite (37 test files):
+
+- Convenience API tests (encryption, signing, KEM, hybrid)
+- NIST Known Answer Tests (ML-KEM, ML-DSA, SLH-DSA, AES-GCM, ChaCha20)
+- Zero-trust and session tests
+- API stability and serialization tests
+- End-to-end workflows and cross-validation tests
 
 ### `arc-zkp`
 

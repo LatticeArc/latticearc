@@ -40,6 +40,7 @@ use serde::{Deserialize, Serialize};
 
 /// SP 800-57 Section 3: Key Lifecycle States
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum KeyLifecycleState {
     /// Key material generation
     Generation,
@@ -356,7 +357,7 @@ mod kani_proofs {
 
         // Property: Destroyed keys cannot transition to any state
         let is_valid = KeyStateMachine::is_valid_transition(Some(KeyLifecycleState::Destroyed), to);
-        kani::assert!(!is_valid, "Destroyed keys should not transition");
+        kani::assert(!is_valid, "Destroyed keys should not transition");
     }
 
     #[kani::proof]
@@ -367,7 +368,7 @@ mod kani_proofs {
         kani::assume(from != KeyLifecycleState::Generation);
         let is_valid =
             KeyStateMachine::is_valid_transition(Some(from), KeyLifecycleState::Generation);
-        kani::assert!(!is_valid, "Cannot transition back to Generation");
+        kani::assert(!is_valid, "Cannot transition back to Generation");
     }
 
     // --- New proofs ---
@@ -380,23 +381,38 @@ mod kani_proofs {
         kani::assume(to != KeyLifecycleState::Generation);
 
         let is_valid = KeyStateMachine::is_valid_transition(None, to);
-        kani::assert!(!is_valid, "Only Generation is valid from initial state (None)");
+        kani::assert(!is_valid, "Only Generation is valid from initial state (None)");
     }
 
-    /// Proves that `allowed_next_states` and `is_valid_transition` agree
-    /// for all state pairs. This ensures no inconsistency between the two APIs.
+    /// Proves that `is_valid_transition` matches the SP 800-57 transition
+    /// specification for all state pairs. This is an independent encoding of
+    /// the allowed transitions — if `is_valid_transition` has a bug, this
+    /// proof will catch the discrepancy.
+    ///
+    /// Note: `allowed_next_states()` returns `Vec`, which Kani cannot
+    /// efficiently verify (unbounded loop unwinding on heap iteration).
+    /// Unit tests verify `allowed_next_states()` separately.
     #[kani::proof]
-    fn key_state_machine_allowed_next_consistent() {
+    fn key_state_machine_transitions_match_spec() {
         let from: KeyLifecycleState = kani::any();
         let to: KeyLifecycleState = kani::any();
 
         let transition_valid = KeyStateMachine::is_valid_transition(Some(from), to);
-        let allowed = KeyStateMachine::allowed_next_states(from);
-        let in_allowed = allowed.contains(&to);
 
-        kani::assert!(
-            transition_valid == in_allowed,
-            "is_valid_transition and allowed_next_states must agree"
+        // Independent specification of SP 800-57 allowed transitions
+        let spec_allows = match from {
+            KeyLifecycleState::Generation => to == KeyLifecycleState::Active,
+            KeyLifecycleState::Active => {
+                to == KeyLifecycleState::Rotating || to == KeyLifecycleState::Retired
+            }
+            KeyLifecycleState::Rotating => to == KeyLifecycleState::Retired,
+            KeyLifecycleState::Retired => to == KeyLifecycleState::Destroyed,
+            KeyLifecycleState::Destroyed => false,
+        };
+
+        kani::assert(
+            transition_valid == spec_allows,
+            "is_valid_transition must match SP 800-57 specification",
         );
     }
 
@@ -408,7 +424,7 @@ mod kani_proofs {
         kani::assume(to != KeyLifecycleState::Destroyed);
 
         let is_valid = KeyStateMachine::is_valid_transition(Some(KeyLifecycleState::Retired), to);
-        kani::assert!(!is_valid, "Retired keys can only transition to Destroyed");
+        kani::assert(!is_valid, "Retired keys can only transition to Destroyed");
     }
 }
 

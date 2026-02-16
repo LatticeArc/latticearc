@@ -27,7 +27,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`arc-core` refactored**: Types, traits, config, selector, key_lifecycle, and zero_trust modules
   now re-export from `arc-types` instead of defining inline. No public API changes.
 - **Workspace version**: Bumped to 0.1.1 across all crates.
-- **Architecture: Dependency graph cleanup** (breaking inverted dependencies):
+- **Architecture: Dependency graph cleanup** (breaking inverted dependencies).
+
+  **Before (0.1.0):**
+  ```
+  arc-prelude (errors + testing infra, 6.7K lines)
+  │  deps: aws-lc-rs, ed25519-dalek, k256
+  ▼
+  arc-validation (CAVP/NIST, 24.3K)     arc-primitives (algorithms, 22.2K)
+  │  deps: arc-prelude            ◄────── deps: arc-prelude, arc-validation
+  │                                        │
+  arc-hybrid (hybrid, 4K)                  │
+  │  deps: arc-primitives          ◄───────┘
+  │
+  arc-core (API, 17.6K)
+  │  deps: arc-types, arc-primitives, arc-hybrid,
+  │        arc-prelude, arc-validation
+  │
+  ├── arc-tls    ├── arc-tests    ├── fuzz
+  ▼
+  latticearc (facade)
+    deps: ALL crates + pub use prelude::*
+  ```
+
+  **After (0.1.1):**
+  ```
+  arc-types (Layer 0: zero FFI, Kani-verifiable)
+  │  + resource_limits (from arc-validation)
+  │  + domains (from arc-prelude)
+  │  NO external deps (pure Rust)
+  ▼
+  arc-primitives (Layer 1: algorithms)     arc-prelude (errors)
+  │  deps: arc-types, arc-prelude          │
+  │  arc-validation → dev-deps only        ▼
+  ▼                                        arc-validation (CAVP/NIST)
+  arc-hybrid (Layer 2: hybrid)               deps: arc-prelude, arc-types
+  │  deps: arc-primitives
+  ▼
+  arc-core (Layer 3: unified API)
+  │  deps: arc-types, arc-primitives, arc-hybrid
+  │  REMOVED: arc-prelude, arc-validation
+  ▼
+  latticearc (facade)
+  │  deps: arc-core, arc-primitives, arc-hybrid,
+  │        arc-tls, arc-zkp, arc-perf
+  │  REMOVED: 14 unused deps, glob export
+  │  Only re-exports: LatticeArcError
+  │
+  arc-tests (all integration tests)
+    deps: latticearc, arc-core, arc-primitives, arc-types
+    37 test files consolidated from arc-core + latticearc
+  ```
+
   - `resource_limits` module moved from `arc-validation` to `arc-types` (pure Rust, zero FFI)
   - `domains` constants moved from `arc-prelude` to `arc-types`
   - Both original modules replaced with re-exports for backward compatibility

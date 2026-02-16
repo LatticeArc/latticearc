@@ -1,8 +1,8 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Enterprise Post-Quantum Cryptography Platform  
-**Version:** 0.1.2  
-**Date:** 2026-01-31  
+**Version:** 0.1.1
+**Date:** 2026-02-16  
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
 ## Executive Summary
@@ -326,75 +326,97 @@ This document provides comprehensive justification for all major dependencies in
 
 ## Internal LatticeArc Crates
 
-#### 27. arc-primitives (v0.1.2)
+#### 27. arc-types (v0.1.1)
+- **Purpose**: Pure-Rust domain types, traits, config, and policy engine
+- **Justification**:
+  - Layer 0 of the dependency graph — zero FFI dependencies
+  - Enables Kani formal verification (12 proofs)
+  - Contains `resource_limits`, `domains`, `key_lifecycle`, `selector`, `zero_trust`
+  - All other crates depend on arc-types for shared type definitions
+- **License**: Apache-2.0
+- **Usage**: All arc-* crates (Layer 0 foundation)
+
+#### 28. arc-primitives (v0.1.1)
 - **Purpose**: Core cryptographic primitives
 - **Justification**:
   - Foundation for all crypto operations
   - Implements KEM, signatures, AEAD, hash, KDF
   - Thin wrappers over validated libraries
 - **License**: Apache-2.0
-- **Usage**: All other arc-* crates
+- **Usage**: All higher-level arc-* crates
 
-#### 28. arc-core (v0.1.2)
+#### 29. arc-core (v0.1.1)
 - **Purpose**: Unified API layer
 - **Justification**:
   - Use case-based algorithm selection
   - Simple API for complex crypto operations
   - Zero-trust authentication integration
+  - Re-exports arc-types modules
 - **License**: Apache-2.0
 - **Usage**: latticearc facade, enterprise crates
 
-#### 29. arc-prelude (v0.1.2)
-- **Purpose**: Common types and error handling
+#### 30. arc-prelude (v0.1.1)
+- **Purpose**: Error types and testing infrastructure
 - **Justification**:
-  - Standardized error types
-  - Memory safety utilities
-  - Shared prelude across crates
+  - Standardized `LatticeArcError` error types
+  - Testing infrastructure (CAVP, property-based, side-channel)
+  - `domains` module re-exported from arc-types for backward compatibility
 - **License**: Apache-2.0
-- **Usage**: All arc-* crates
+- **Usage**: arc-primitives, arc-validation
 
-#### 30. arc-hybrid (v0.1.2)
+#### 31. arc-hybrid (v0.1.1)
 - **Purpose**: Hybrid PQC + classical encryption
 - **Justification**:
   - Defense in depth
   - Transition period safety
-  - Combines ML-KEM with X25519/RSA
+  - Combines ML-KEM with X25519 via HKDF
 - **License**: Apache-2.0
-- **Usage**: Enterprise products
+- **Usage**: arc-core, latticearc
 
-#### 31. arc-tls (v0.1.2)
+#### 32. arc-tls (v0.1.1)
 - **Purpose**: Post-quantum TLS integration
 - **Justification**:
   - PQC-enabled TLS with Rustls
   - Required for secure communications
   - Hybrid key exchange support
 - **License**: Apache-2.0
-- **Usage**: Network products
+- **Usage**: latticearc
 
-#### 32. arc-validation (v0.1.2)
+#### 33. arc-validation (v0.1.1)
 - **Purpose**: FIPS validation and test vectors
 - **Justification**:
   - CAVP test vector validation
   - Compliance verification
   - Quality assurance
+  - `resource_limits` module re-exported from arc-types for backward compatibility
 - **License**: Apache-2.0
-- **Usage**: CI/CD, compliance audits
+- **Usage**: Dev-dependency only (CI/CD, compliance audits)
 
-#### 33. arc-zkp (v0.1.2)
+#### 34. arc-zkp (v0.1.1)
 - **Purpose**: Zero-knowledge proof systems
 - **Justification**:
   - Privacy-preserving authentication
   - Schnorr and Sigma protocols
   - Required for zero-trust features
 - **License**: Apache-2.0
-- **Usage**: Enterprise policy enforcement
+- **Usage**: latticearc
 
-#### 34. arc-perf (v0.1.2)
+#### 35. arc-perf (v0.1.1)
 - **Purpose**: Performance benchmarking
 - **Justification**:
   - Standardized benchmarks
   - Performance regression detection
   - Hardware comparison data
+- **License**: Apache-2.0
+- **Usage**: latticearc, CI/CD
+
+#### 36. arc-tests (v0.1.1)
+- **Purpose**: Consolidated integration test suite
+- **Justification**:
+  - Single location for all 37 integration test files
+  - Tests consolidated from arc-core and latticearc
+  - NIST KAT vectors, convenience API tests, zero-trust tests
+  - Reduces test scatter and simplifies CI
 - **License**: Apache-2.0
 - **Usage**: CI/CD, development
 

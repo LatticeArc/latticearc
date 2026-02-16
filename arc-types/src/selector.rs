@@ -464,7 +464,7 @@ mod kani_proofs {
     fn force_scheme_covers_all_variants() {
         let scheme: crate::types::CryptoScheme = kani::any();
         let result = CryptoPolicyEngine::force_scheme(&scheme);
-        kani::assert!(!result.is_empty(), "force_scheme must return a non-empty scheme string");
+        kani::assert(!result.is_empty(), "force_scheme must return a non-empty scheme string");
     }
 
     /// Proves that PQ encryption scheme selection succeeds for every
@@ -481,9 +481,9 @@ mod kani_proofs {
             strict_validation: true,
         };
         let result = CryptoPolicyEngine::select_pq_encryption_scheme(&config);
-        kani::assert!(
+        kani::assert(
             result.is_ok(),
-            "PQ encryption selection must succeed for all security levels"
+            "PQ encryption selection must succeed for all security levels",
         );
     }
 
@@ -501,10 +501,7 @@ mod kani_proofs {
             strict_validation: true,
         };
         let result = CryptoPolicyEngine::select_pq_signature_scheme(&config);
-        kani::assert!(
-            result.is_ok(),
-            "PQ signature selection must succeed for all security levels"
-        );
+        kani::assert(result.is_ok(), "PQ signature selection must succeed for all security levels");
     }
 }
 

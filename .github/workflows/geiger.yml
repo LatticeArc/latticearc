@@ -81,7 +81,7 @@ jobs:
       - name: Check workspace crates for unsafe
         run: |
           echo "Checking that workspace crates have #![deny(unsafe_code)]..."
-          for crate in arc-prelude arc-primitives arc-core arc-hybrid arc-tls arc-validation latticearc; do
+          for crate in arc-types arc-prelude arc-primitives arc-core arc-hybrid arc-tls arc-validation arc-tests latticearc; do
             if [ -f "$crate/src/lib.rs" ]; then
               if grep -q "deny(unsafe_code)" "$crate/src/lib.rs" || grep -q "forbid(unsafe_code)" "$crate/src/lib.rs"; then
                 echo "✅ $crate: unsafe code denied"

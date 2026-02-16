@@ -130,8 +130,8 @@ cargo test --workspace --doc
 
 ### Test Categories
 
-1. **Unit Tests** - inline in source files
-2. **Integration Tests** - in `tests/` directories
+1. **Unit Tests** - inline in source files (`#[cfg(test)]` modules)
+2. **Integration Tests** - consolidated in `arc-tests/tests/` (37 test files)
 3. **Property Tests** - using proptest for invariants
 4. **Doc Tests** - examples in documentation
 5. **CAVP Vectors** - NIST test vectors in arc-validation

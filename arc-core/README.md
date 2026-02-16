@@ -73,12 +73,17 @@ match session.trust_level() {
 | Module | Purpose |
 |--------|---------|
 | `convenience` | High-level encrypt/decrypt/sign/verify, true hybrid (ML-KEM+X25519+HKDF) |
-| `selector` | CryptoPolicyEngine |
+| `selector` | CryptoPolicyEngine (re-exported from arc-types) |
 | `zero_trust` | VerifiedSession, TrustLevel, ZeroTrustAuth, Challenge, ZKP |
 | `hardware` | Hardware trait re-exports (types only — detection is in enterprise) |
-| `config` | CoreConfig, ZeroTrustConfig |
-| `types` | UseCase, SecurityLevel, PerformancePreference |
+| `config` | CoreConfig (re-exported from arc-types), CryptoConfig |
+| `types` | UseCase, SecurityLevel, PerformancePreference (re-exported from arc-types) |
+| `key_lifecycle` | KeyStateMachine, KeyLifecycleRecord (re-exported from arc-types) |
 | `error` | CoreError including SessionExpired, AuthenticationRequired |
+
+> **Note**: `selector`, `config`, `types`, `key_lifecycle`, and `zero_trust` modules
+> are re-exported from `arc-types` (pure Rust, zero FFI). `arc-core` adds FFI-dependent
+> operations (convenience crypto functions, session management).
 
 ## Cryptographic Modes
 

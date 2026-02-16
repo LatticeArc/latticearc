@@ -9,6 +9,7 @@
 /// Represents the current level of trust established through
 /// challenge-response verification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum TrustLevel {
     /// No trust established - initial state before any verification.
     #[default]
@@ -54,7 +55,7 @@ mod kani_proofs {
 
         // Exactly one must hold (XOR logic via sum)
         let count = less as u8 + equal as u8 + greater as u8;
-        kani::assert!(count == 1, "TrustLevel ordering must be total");
+        kani::assert(count == 1, "TrustLevel ordering must be total");
     }
 
     /// Proves that `is_trusted()` returns true if and only if the level
@@ -67,10 +68,7 @@ mod kani_proofs {
         let trusted = level.is_trusted();
         let at_least_partial = level >= TrustLevel::Partial;
 
-        kani::assert!(
-            trusted == at_least_partial,
-            "is_trusted() must be true iff level >= Partial"
-        );
+        kani::assert(trusted == at_least_partial, "is_trusted() must be true iff level >= Partial");
     }
 
     /// Proves that Untrusted is the minimum trust level — no level
@@ -79,7 +77,7 @@ mod kani_proofs {
     fn trust_level_untrusted_is_minimum() {
         let level: TrustLevel = kani::any();
 
-        kani::assert!(TrustLevel::Untrusted <= level, "Untrusted must be the minimum trust level");
+        kani::assert(TrustLevel::Untrusted <= level, "Untrusted must be the minimum trust level");
     }
 }
 

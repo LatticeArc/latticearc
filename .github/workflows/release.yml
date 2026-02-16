@@ -43,7 +43,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       - uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
 
-      # Publish in dependency order
+      # Publish in dependency order (Layer 0 → Layer 3 → facade)
+      # Layer 0: arc-types (zero deps, everything depends on this)
+      - name: Publish arc-types
+        run: cargo publish -p arc-types --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io
+        run: sleep 30
+
+      # Foundation: arc-prelude (depends on arc-types)
       - name: Publish arc-prelude
         run: cargo publish -p arc-prelude --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
@@ -51,6 +60,7 @@ jobs:
       - name: Wait for crates.io
         run: sleep 30
 
+      # Layer 1: arc-primitives (depends on arc-types, arc-prelude)
       - name: Publish arc-primitives
         run: cargo publish -p arc-primitives --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
@@ -58,19 +68,9 @@ jobs:
       - name: Wait for crates.io
         run: sleep 30
 
-      - name: Publish arc-core
-        run: cargo publish -p arc-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        continue-on-error: true
-
-      - name: Wait for crates.io
-        run: sleep 30
-
+      # Layer 2: arc-hybrid, arc-validation, arc-zkp (depend on arc-primitives)
       - name: Publish arc-hybrid
         run: cargo publish -p arc-hybrid --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        continue-on-error: true
-
-      - name: Publish arc-tls
-        run: cargo publish -p arc-tls --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
 
       - name: Publish arc-validation
@@ -81,6 +81,18 @@ jobs:
         run: cargo publish -p arc-zkp --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
 
+      - name: Wait for crates.io
+        run: sleep 30
+
+      # Layer 3: arc-core (depends on arc-types, arc-primitives, arc-hybrid)
+      - name: Publish arc-core
+        run: cargo publish -p arc-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish arc-tls
+        run: cargo publish -p arc-tls --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
       - name: Publish arc-perf
         run: cargo publish -p arc-perf --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
@@ -88,6 +100,7 @@ jobs:
       - name: Wait for crates.io
         run: sleep 30
 
+      # Facade: latticearc (depends on everything)
       - name: Publish latticearc
         run: cargo publish -p latticearc --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true

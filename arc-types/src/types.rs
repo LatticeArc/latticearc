@@ -160,6 +160,7 @@ impl KeyPair {
 ///
 /// Higher levels provide stronger protection but may impact performance.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum SecurityLevel {
     /// NIST Level 1 (128-bit equivalent). Hybrid mode.
     /// Uses ML-KEM-512 + X25519, ML-DSA-44 + Ed25519.
@@ -302,6 +303,7 @@ pub enum UseCase {
 
 /// Category of cryptographic scheme.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum CryptoScheme {
     /// Hybrid PQC + classical for defense in depth.
     Hybrid,
@@ -376,9 +378,9 @@ mod kani_proofs {
     #[kani::proof]
     fn security_level_default_is_high() {
         let default = SecurityLevel::default();
-        kani::assert!(
+        kani::assert(
             default == SecurityLevel::High,
-            "Default SecurityLevel must be High (NIST Level 3)"
+            "Default SecurityLevel must be High (NIST Level 3)",
         );
     }
 }

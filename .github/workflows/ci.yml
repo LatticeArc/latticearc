@@ -75,6 +75,7 @@ jobs:
       with:
         filters: |
           crypto:
+            - 'arc-types/**'
             - 'arc-primitives/**'
             - 'arc-core/**'
             - 'arc-hybrid/**'
@@ -83,6 +84,7 @@ jobs:
           tests:
             - '**/tests/**'
             - 'arc-validation/**'
+            - 'arc-tests/**'
             - 'fuzz/**'
           docs:
             - 'docs/**'
@@ -308,9 +310,9 @@ jobs:
         INTEGRATION_DURATION=$((END_TIME - START_TIME))
         echo "integration_test_duration_seconds $INTEGRATION_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/integration-test || true
 
-    # Note: Kani formal verification proofs exist in arc-hybrid and arc-core
-    # but are not run on every commit due to computational cost (~30+ min).
-    # Proofs run on nightly schedule. See kani.yml workflow.
+    # Note: Kani formal verification proofs exist in arc-types (verified, pure Rust)
+    # and arc-hybrid (experimental, FFI-dependent). Not run on every commit due to
+    # computational cost (~30+ min). Proofs run on nightly schedule. See kani.yml.
 
     - name: Generate coverage report
       run: |
@@ -844,7 +846,7 @@ jobs:
       run: |
         cargo hack check --feature-powerset --exclude-all-features \
           --exclude-no-default-features \
-          -p arc-core -p arc-primitives -p arc-prelude -p arc-hybrid -p latticearc
+          -p arc-types -p arc-core -p arc-primitives -p arc-prelude -p arc-hybrid -p latticearc
 
   # === Final Status Check ===
   status-check:

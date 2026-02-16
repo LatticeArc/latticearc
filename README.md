@@ -324,10 +324,10 @@ cargo run --example digital_signatures
 | [`arc-hybrid`](arc-hybrid/) | Hybrid encryption combining PQC and classical |
 | [`arc-tls`](arc-tls/) | Post-quantum TLS integration |
 | [`arc-zkp`](arc-zkp/) | Zero-knowledge proofs |
-| [`arc-prelude`](arc-prelude/) | Common types, errors, and memory safety utilities |
-| [`arc-validation`](arc-validation/) | Test vectors and compliance testing |
+| [`arc-prelude`](arc-prelude/) | Error types, testing infrastructure, re-exports domains from arc-types |
+| [`arc-validation`](arc-validation/) | CAVP test vectors and compliance testing (dev-dep only) |
 | [`arc-perf`](arc-perf/) | Performance benchmarking |
-| [`arc-tests`](arc-tests/) | Regression, API stability, and concurrency tests |
+| [`arc-tests`](arc-tests/) | Consolidated integration test suite (37 test files from all crates) |
 
 ## Security
 

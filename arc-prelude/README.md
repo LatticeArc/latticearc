@@ -4,12 +4,13 @@ Common types, traits, and error handling for LatticeArc.
 
 ## Overview
 
-`arc-prelude` provides foundational types used across all LatticeArc crates:
+`arc-prelude` provides foundational types used across LatticeArc crates:
 
 - **Error types** - `LatticeArcError` enum with recovery mechanisms
 - **Error recovery** - Circuit breaker, graceful degradation, enhanced error handler
 - **Testing infrastructure** - CAVP compliance, property-based testing, side-channel analysis
 - **Re-exports** - Common dependencies (zeroize, subtle, serde, rand, etc.)
+- **Domains** - HKDF domain separation constants (re-exported from `arc-types`)
 
 ## Usage
 
