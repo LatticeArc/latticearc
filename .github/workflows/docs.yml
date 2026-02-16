@@ -3,6 +3,10 @@ name: Documentation
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - 'docs/**'
   pull_request:
     branches: [ main, develop ]
 

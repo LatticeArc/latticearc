@@ -4,12 +4,11 @@
 name: CodeQL
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
     branches: [main, develop]
   schedule:
     - cron: '0 8 * * 1'  # Weekly on Monday at 8 AM UTC
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

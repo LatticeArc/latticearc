@@ -7,8 +7,6 @@ on:
   branch_protection_rule:
   schedule:
     - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
