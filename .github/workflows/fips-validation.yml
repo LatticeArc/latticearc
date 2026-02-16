@@ -1,4 +1,4 @@
-name: FIPS Validation
+name: NIST CAVP Tests
 
 on:
   pull_request:
