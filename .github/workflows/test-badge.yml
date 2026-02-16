@@ -15,8 +15,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: read-all
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,6 +28,8 @@ jobs:
   update-badge:
     name: Update Test Count
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     # Skip if the last commit was from this workflow (prevent infinite loop)
     if: "!contains(github.event.head_commit.message, '[test-badge]')"
     steps:
