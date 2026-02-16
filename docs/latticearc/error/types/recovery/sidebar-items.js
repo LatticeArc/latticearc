@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ErrorRecoveryStrategy","ErrorSeverity"],"fn":["attempt_error_recovery","get_error_severity","is_recoverable_error","requires_security_response"]};

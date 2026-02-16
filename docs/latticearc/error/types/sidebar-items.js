@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ErrorRecoveryStrategy","ErrorSeverity","LatticeArcError"],"fn":["attempt_error_recovery","get_error_severity","is_recoverable_error","requires_security_response"],"mod":["conversions","recovery"],"type":["Result","TimeCapsuleError"]};

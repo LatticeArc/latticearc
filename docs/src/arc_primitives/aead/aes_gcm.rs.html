@@ -29,7 +29,7 @@
 <a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span>tracing::instrument;
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
 <a href=#31 id=31 data-nosnippet>31</a>
-<a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
+<a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>arc_types::resource_limits::{validate_decryption_size, validate_encryption_size};
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a><span class="doccomment">/// AES-GCM-128 cipher (128-bit key)
 <a href=#35 id=35 data-nosnippet>35</a>///
@@ -82,7 +82,7 @@
 <a href=#82 id=82 data-nosnippet>82</a>        aad: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
 <a href=#83 id=83 data-nosnippet>83</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;u8&gt;, Tag), AeadError&gt; {
 <a href=#84 id=84 data-nosnippet>84</a>        validate_encryption_size(plaintext.len()).map_err(
-<a href=#85 id=85 data-nosnippet>85</a>            |e: arc_validation::resource_limits::ResourceError| {
+<a href=#85 id=85 data-nosnippet>85</a>            |e: arc_types::resource_limits::ResourceError| {
 <a href=#86 id=86 data-nosnippet>86</a>                AeadError::EncryptionFailed(e.to_string())
 <a href=#87 id=87 data-nosnippet>87</a>            },
 <a href=#88 id=88 data-nosnippet>88</a>        )<span class="question-mark">?</span>;
@@ -132,7 +132,7 @@
 <a href=#132 id=132 data-nosnippet>132</a>        aad: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
 <a href=#133 id=133 data-nosnippet>133</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, AeadError&gt; {
 <a href=#134 id=134 data-nosnippet>134</a>        validate_decryption_size(ciphertext.len()).map_err(
-<a href=#135 id=135 data-nosnippet>135</a>            |e: arc_validation::resource_limits::ResourceError| {
+<a href=#135 id=135 data-nosnippet>135</a>            |e: arc_types::resource_limits::ResourceError| {
 <a href=#136 id=136 data-nosnippet>136</a>                AeadError::DecryptionFailed(e.to_string())
 <a href=#137 id=137 data-nosnippet>137</a>            },
 <a href=#138 id=138 data-nosnippet>138</a>        )<span class="question-mark">?</span>;
@@ -221,7 +221,7 @@
 <a href=#221 id=221 data-nosnippet>221</a>        aad: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
 <a href=#222 id=222 data-nosnippet>222</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;u8&gt;, Tag), AeadError&gt; {
 <a href=#223 id=223 data-nosnippet>223</a>        validate_encryption_size(plaintext.len()).map_err(
-<a href=#224 id=224 data-nosnippet>224</a>            |e: arc_validation::resource_limits::ResourceError| {
+<a href=#224 id=224 data-nosnippet>224</a>            |e: arc_types::resource_limits::ResourceError| {
 <a href=#225 id=225 data-nosnippet>225</a>                AeadError::EncryptionFailed(e.to_string())
 <a href=#226 id=226 data-nosnippet>226</a>            },
 <a href=#227 id=227 data-nosnippet>227</a>        )<span class="question-mark">?</span>;
@@ -271,7 +271,7 @@
 <a href=#271 id=271 data-nosnippet>271</a>        aad: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
 <a href=#272 id=272 data-nosnippet>272</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, AeadError&gt; {
 <a href=#273 id=273 data-nosnippet>273</a>        validate_decryption_size(ciphertext.len()).map_err(
-<a href=#274 id=274 data-nosnippet>274</a>            |e: arc_validation::resource_limits::ResourceError| {
+<a href=#274 id=274 data-nosnippet>274</a>            |e: arc_types::resource_limits::ResourceError| {
 <a href=#275 id=275 data-nosnippet>275</a>                AeadError::DecryptionFailed(e.to_string())
 <a href=#276 id=276 data-nosnippet>276</a>            },
 <a href=#277 id=277 data-nosnippet>277</a>        )<span class="question-mark">?</span>;

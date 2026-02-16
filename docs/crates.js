@@ -1,2 +1,2 @@
-window.ALL_CRATES = ["arc_core","arc_hybrid","arc_perf","arc_prelude","arc_primitives","arc_tests","arc_tls","arc_validation","arc_zkp","latticearc"];
-//{"start":21,"fragment_lengths":[10,13,11,14,17,12,10,17,10,13]}
+window.ALL_CRATES = ["arc_core","arc_hybrid","arc_perf","arc_prelude","arc_primitives","arc_tests","arc_tls","arc_types","arc_validation","arc_zkp","latticearc"];
+//{"start":21,"fragment_lengths":[10,13,11,14,17,12,10,12,17,10,13]}
