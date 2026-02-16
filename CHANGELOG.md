@@ -41,9 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Replaced by property-based tests in `arc-tests` that cover the same properties.
 - **`formal-verification` feature flag** from `arc-hybrid`.
 - **Kani experimental CI tier** (`kani-experimental` job in `kani.yml`) — no longer needed.
+- **Fuzzing badge** from README (schedule disabled, badge was stale).
+- **Hardcoded test count badge** (8,079 was incorrect; replaced with self-updating workflow).
 
 ### Changed
 
+- **Kani badge renamed** to "Kani: type invariants" — honestly scoped to what it verifies.
+- **FIPS badge** changed from "ready" to "ML-KEM validated" — accurate scope.
+- **Self-updating test count badge**: Replaced Gist-based approach (secrets not configured)
+  with `shields.io/endpoint` reading from `.github/badges/test-count.json`.
 - **`arc-core` refactored**: Types, traits, config, selector, key_lifecycle, and zero_trust modules
   now re-export from `arc-types` instead of defining inline. No public API changes.
 - **Workspace version**: Bumped to 0.1.1 across all crates.

@@ -5,16 +5,15 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![CI](https://github.com/latticearc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml)
-[![Fuzzing](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml)
-[![FIPS Self-Tests](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml)
+[![FIPS Validation](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml)
 [![Kani: type invariants](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/latticearc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/latticearc/latticearc)
 
 [![NIST Test Vectors](https://img.shields.io/badge/NIST_CAVP-vectors_verified-blue)](arc-validation/)
-[![FIPS 140--3](https://img.shields.io/badge/FIPS_140--3-ready-blue)](docs/NIST_COMPLIANCE.md)
+[![FIPS 140-3](https://img.shields.io/badge/FIPS_140--3-ML--KEM_validated-blue)](docs/NIST_COMPLIANCE.md)
 [![Memory Safe](https://img.shields.io/badge/memory_safe-forbid(unsafe__code)-brightgreen)](Cargo.toml)
 [![SLSA 3](https://img.shields.io/badge/SLSA-Level_3-blue)](.github/workflows/release.yml)
-[![Tests](https://img.shields.io/badge/tests-8%2C079-brightgreen)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/latticearc/latticearc/main/.github/badges/test-count.json)](https://github.com/latticearc/latticearc/actions/workflows/ci.yml)
 
 LatticeArc is a post-quantum cryptography library for Rust, implementing the NIST FIPS 203-206 standards for quantum-resistant encryption and digital signatures.
 
