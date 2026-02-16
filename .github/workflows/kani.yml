@@ -14,10 +14,6 @@ on:
     - cron: '0 3 * * *'  # Nightly at 3 AM UTC (low traffic)
     - cron: '0 5 * * 0'  # Weekly Sunday at 5 AM UTC (full suite)
   workflow_dispatch:     # Keep manual trigger
-  push:
-    branches: [main]     # Run on main branch merges (release validation)
-    paths:
-      - 'arc-types/src/**'          # Re-run if arc-types changes
 
 permissions: read-all
 

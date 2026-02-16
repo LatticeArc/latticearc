@@ -9,6 +9,10 @@ on:
       - 'docs/**'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - 'docs/**'
 
 permissions: read-all
 
