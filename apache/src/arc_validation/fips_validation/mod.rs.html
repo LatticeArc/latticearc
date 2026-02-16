@@ -14,97 +14,99 @@
 <a href=#14 id=14 data-nosnippet>14</a>
 <a href=#15 id=15 data-nosnippet>15</a></span><span class="doccomment">//! # FIPS Validation Framework
 <a href=#16 id=16 data-nosnippet>16</a>//!
-<a href=#17 id=17 data-nosnippet>17</a>//! This module provides comprehensive FIPS 140-3 validation capabilities for
-<a href=#18 id=18 data-nosnippet>18</a>//! cryptographic modules and implementations in LatticeArc.
-<a href=#19 id=19 data-nosnippet>19</a>//!
-<a href=#20 id=20 data-nosnippet>20</a>//! ## Supported Standards
+<a href=#17 id=17 data-nosnippet>17</a>//! This module provides FIPS 140-3 validation **testing utilities** for
+<a href=#18 id=18 data-nosnippet>18</a>//! cryptographic modules and implementations in LatticeArc. It is NOT the
+<a href=#19 id=19 data-nosnippet>19</a>//! production FIPS self-test module. See `arc_primitives::self_test` for the
+<a href=#20 id=20 data-nosnippet>20</a>//! canonical implementation that runs power-up KATs and integrity checks.
 <a href=#21 id=21 data-nosnippet>21</a>//!
-<a href=#22 id=22 data-nosnippet>22</a>//! - **FIPS 140-3**: Security requirements for cryptographic modules
-<a href=#23 id=23 data-nosnippet>23</a>//! - **FIPS 197**: Advanced Encryption Standard (AES)
-<a href=#24 id=24 data-nosnippet>24</a>//! - **FIPS 198-1**: HMAC
-<a href=#25 id=25 data-nosnippet>25</a>//! - **FIPS 202**: SHA-3 Standard
-<a href=#26 id=26 data-nosnippet>26</a>//! - **FIPS 203/204/205**: Post-Quantum Cryptography Standards
-<a href=#27 id=27 data-nosnippet>27</a>//! - **NIST SP 800-107**: Key Derivation Functions
-<a href=#28 id=28 data-nosnippet>28</a>//! - **NIST SP 800-38B**: CMAC
-<a href=#29 id=29 data-nosnippet>29</a>//!
-<a href=#30 id=30 data-nosnippet>30</a>//! ## Features
+<a href=#22 id=22 data-nosnippet>22</a>//! ## Supported Standards
+<a href=#23 id=23 data-nosnippet>23</a>//!
+<a href=#24 id=24 data-nosnippet>24</a>//! - **FIPS 140-3**: Security requirements for cryptographic modules
+<a href=#25 id=25 data-nosnippet>25</a>//! - **FIPS 197**: Advanced Encryption Standard (AES)
+<a href=#26 id=26 data-nosnippet>26</a>//! - **FIPS 198-1**: HMAC
+<a href=#27 id=27 data-nosnippet>27</a>//! - **FIPS 202**: SHA-3 Standard
+<a href=#28 id=28 data-nosnippet>28</a>//! - **FIPS 203/204/205**: Post-Quantum Cryptography Standards
+<a href=#29 id=29 data-nosnippet>29</a>//! - **NIST SP 800-107**: Key Derivation Functions
+<a href=#30 id=30 data-nosnippet>30</a>//! - **NIST SP 800-38B**: CMAC
 <a href=#31 id=31 data-nosnippet>31</a>//!
-<a href=#32 id=32 data-nosnippet>32</a>//! - **Module Validation**: Automated FIPS compliance checking
-<a href=#33 id=33 data-nosnippet>33</a>//! - **Algorithm Validation**: Individual cryptographic algorithm testing using NIST test vectors
-<a href=#34 id=34 data-nosnippet>34</a>//! - **Key Management**: FIPS-compliant key generation and handling
-<a href=#35 id=35 data-nosnippet>35</a>//! - **Self-Tests**: Automated power-up and conditional self-tests
-<a href=#36 id=36 data-nosnippet>36</a>//! - **Certificate Generation**: FIPS validation certificate management
-<a href=#37 id=37 data-nosnippet>37</a>//!
-<a href=#38 id=38 data-nosnippet>38</a>//! ## NIST Test Vectors
+<a href=#32 id=32 data-nosnippet>32</a>//! ## Features
+<a href=#33 id=33 data-nosnippet>33</a>//!
+<a href=#34 id=34 data-nosnippet>34</a>//! - **Module Validation**: Automated FIPS compliance checking
+<a href=#35 id=35 data-nosnippet>35</a>//! - **Algorithm Validation**: Individual cryptographic algorithm testing using NIST test vectors
+<a href=#36 id=36 data-nosnippet>36</a>//! - **Key Management**: FIPS-compliant key generation and handling
+<a href=#37 id=37 data-nosnippet>37</a>//! - **Self-Tests**: Automated power-up and conditional self-tests
+<a href=#38 id=38 data-nosnippet>38</a>//! - **Certificate Generation**: FIPS validation certificate management
 <a href=#39 id=39 data-nosnippet>39</a>//!
-<a href=#40 id=40 data-nosnippet>40</a>//! All validation tests use official NIST test vectors from:
-<a href=#41 id=41 data-nosnippet>41</a>//! - FIPS 197 AES Test Vectors (csrc.nist.gov)
-<a href=#42 id=42 data-nosnippet>42</a>//! - FIPS 202 SHA-3 Test Vectors (csrc.nist.gov)
-<a href=#43 id=43 data-nosnippet>43</a>//! - FIPS 203 ML-KEM Test Vectors (csrc.nist.gov)
-<a href=#44 id=44 data-nosnippet>44</a>//! - SP 800-107 KDF Test Vectors (csrc.nist.gov)
-<a href=#45 id=45 data-nosnippet>45</a>//!
-<a href=#46 id=46 data-nosnippet>46</a>//! ## Module Organization
+<a href=#40 id=40 data-nosnippet>40</a>//! ## NIST Test Vectors
+<a href=#41 id=41 data-nosnippet>41</a>//!
+<a href=#42 id=42 data-nosnippet>42</a>//! All validation tests use official NIST test vectors from:
+<a href=#43 id=43 data-nosnippet>43</a>//! - FIPS 197 AES Test Vectors (csrc.nist.gov)
+<a href=#44 id=44 data-nosnippet>44</a>//! - FIPS 202 SHA-3 Test Vectors (csrc.nist.gov)
+<a href=#45 id=45 data-nosnippet>45</a>//! - FIPS 203 ML-KEM Test Vectors (csrc.nist.gov)
+<a href=#46 id=46 data-nosnippet>46</a>//! - SP 800-107 KDF Test Vectors (csrc.nist.gov)
 <a href=#47 id=47 data-nosnippet>47</a>//!
-<a href=#48 id=48 data-nosnippet>48</a>//! - `types` - Core types (ValidationScope, FIPSLevel, ValidationResult, etc.)
-<a href=#49 id=49 data-nosnippet>49</a>//! - `validator` - FIPSValidator struct and validation logic
-<a href=#50 id=50 data-nosnippet>50</a>//! - `global` - Global FIPS state and initialization functions
-<a href=#51 id=51 data-nosnippet>51</a>//! - `algorithm_tests` - AES, SHA-3, ML-KEM algorithm tests
-<a href=#52 id=52 data-nosnippet>52</a>//! - `interface_tests` - API and key management interface tests
-<a href=#53 id=53 data-nosnippet>53</a>//! - `policy_tests` - Self-tests and error handling tests
-<a href=#54 id=54 data-nosnippet>54</a>//!
-<a href=#55 id=55 data-nosnippet>55</a>//! ## Usage
+<a href=#48 id=48 data-nosnippet>48</a>//! ## Module Organization
+<a href=#49 id=49 data-nosnippet>49</a>//!
+<a href=#50 id=50 data-nosnippet>50</a>//! - `types` - Core types (ValidationScope, FIPSLevel, ValidationResult, etc.)
+<a href=#51 id=51 data-nosnippet>51</a>//! - `validator` - FIPSValidator struct and validation logic
+<a href=#52 id=52 data-nosnippet>52</a>//! - `global` - Global FIPS state and initialization functions
+<a href=#53 id=53 data-nosnippet>53</a>//! - `algorithm_tests` - AES, SHA-3, ML-KEM algorithm tests
+<a href=#54 id=54 data-nosnippet>54</a>//! - `interface_tests` - API and key management interface tests
+<a href=#55 id=55 data-nosnippet>55</a>//! - `policy_tests` - Self-tests and error handling tests
 <a href=#56 id=56 data-nosnippet>56</a>//!
-<a href=#57 id=57 data-nosnippet>57</a>//! ```rust,ignore
-<a href=#58 id=58 data-nosnippet>58</a>//! use arc_validation::fips_validation::{FIPSValidator, ValidationScope};
-<a href=#59 id=59 data-nosnippet>59</a>//!
-<a href=#60 id=60 data-nosnippet>60</a>//! // Create FIPS validator
-<a href=#61 id=61 data-nosnippet>61</a>//! let validator = FIPSValidator::new(ValidationScope::FullModule);
-<a href=#62 id=62 data-nosnippet>62</a>//!
-<a href=#63 id=63 data-nosnippet>63</a>//! // Perform FIPS validation
-<a href=#64 id=64 data-nosnippet>64</a>//! let result = validator.validate_module()?;
-<a href=#65 id=65 data-nosnippet>65</a>//!
-<a href=#66 id=66 data-nosnippet>66</a>//! if result.is_valid() {
-<a href=#67 id=67 data-nosnippet>67</a>//!     tracing::info!("FIPS validation passed - Level {:?}", result.level);
-<a href=#68 id=68 data-nosnippet>68</a>//!
-<a href=#69 id=69 data-nosnippet>69</a>//!     // Generate validation certificate
-<a href=#70 id=70 data-nosnippet>70</a>//!     let certificate = validator.generate_certificate(&amp;result)?;
-<a href=#71 id=71 data-nosnippet>71</a>//!     tracing::info!("Validation certificate: {}", certificate.id);
-<a href=#72 id=72 data-nosnippet>72</a>//! } else {
-<a href=#73 id=73 data-nosnippet>73</a>//!     tracing::error!("FIPS validation failed");
-<a href=#74 id=74 data-nosnippet>74</a>//!
-<a href=#75 id=75 data-nosnippet>75</a>//!     // Get remediation guidance
-<a href=#76 id=76 data-nosnippet>76</a>//!     let remediation = validator.get_remediation_guidance(&amp;result);
-<a href=#77 id=77 data-nosnippet>77</a>//!     for item in remediation {
-<a href=#78 id=78 data-nosnippet>78</a>//!         tracing::info!("Remediation: {}", item);
-<a href=#79 id=79 data-nosnippet>79</a>//!     }
-<a href=#80 id=80 data-nosnippet>80</a>//! }
-<a href=#81 id=81 data-nosnippet>81</a>//! ```
-<a href=#82 id=82 data-nosnippet>82</a>
-<a href=#83 id=83 data-nosnippet>83</a></span><span class="kw">mod </span>algorithm_tests;
-<a href=#84 id=84 data-nosnippet>84</a><span class="kw">mod </span>global;
-<a href=#85 id=85 data-nosnippet>85</a><span class="kw">mod </span>interface_tests;
-<a href=#86 id=86 data-nosnippet>86</a><span class="kw">mod </span>policy_tests;
-<a href=#87 id=87 data-nosnippet>87</a><span class="kw">mod </span>types;
-<a href=#88 id=88 data-nosnippet>88</a><span class="kw">mod </span>validator;
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a><span class="comment">// Re-export public types
-<a href=#91 id=91 data-nosnippet>91</a></span><span class="kw">pub use </span>types::{
-<a href=#92 id=92 data-nosnippet>92</a>    FIPSLevel, IssueSeverity, TestResult, ValidationCertificate, ValidationIssue, ValidationResult,
-<a href=#93 id=93 data-nosnippet>93</a>    ValidationScope,
-<a href=#94 id=94 data-nosnippet>94</a>};
-<a href=#95 id=95 data-nosnippet>95</a>
-<a href=#96 id=96 data-nosnippet>96</a><span class="comment">// Re-export validator
-<a href=#97 id=97 data-nosnippet>97</a></span><span class="kw">pub use </span>validator::FIPSValidator;
-<a href=#98 id=98 data-nosnippet>98</a>
-<a href=#99 id=99 data-nosnippet>99</a><span class="comment">// Re-export global functions
-<a href=#100 id=100 data-nosnippet>100</a></span><span class="kw">pub use </span>global::{
-<a href=#101 id=101 data-nosnippet>101</a>    continuous_rng_test, get_fips_validation_result, init, is_fips_initialized,
-<a href=#102 id=102 data-nosnippet>102</a>    run_conditional_self_test,
-<a href=#103 id=103 data-nosnippet>103</a>};
-<a href=#104 id=104 data-nosnippet>104</a>
-<a href=#105 id=105 data-nosnippet>105</a><span class="comment">// Re-export from other FIPS modules
-<a href=#106 id=106 data-nosnippet>106</a></span><span class="kw">pub use </span><span class="kw">crate</span>::fips_validation_impl::<span class="kw-2">*</span>;
-<a href=#107 id=107 data-nosnippet>107</a><span class="kw">pub use </span><span class="kw">crate</span>::kat_tests::<span class="kw-2">*</span>;
-<a href=#108 id=108 data-nosnippet>108</a><span class="kw">pub use </span><span class="kw">crate</span>::nist_sp800_22::<span class="kw-2">*</span>;
-<a href=#109 id=109 data-nosnippet>109</a><span class="kw">pub use </span><span class="kw">crate</span>::validation_summary::<span class="kw-2">*</span>;
+<a href=#57 id=57 data-nosnippet>57</a>//! ## Usage
+<a href=#58 id=58 data-nosnippet>58</a>//!
+<a href=#59 id=59 data-nosnippet>59</a>//! ```rust,ignore
+<a href=#60 id=60 data-nosnippet>60</a>//! use arc_validation::fips_validation::{FIPSValidator, ValidationScope};
+<a href=#61 id=61 data-nosnippet>61</a>//!
+<a href=#62 id=62 data-nosnippet>62</a>//! // Create FIPS validator
+<a href=#63 id=63 data-nosnippet>63</a>//! let validator = FIPSValidator::new(ValidationScope::FullModule);
+<a href=#64 id=64 data-nosnippet>64</a>//!
+<a href=#65 id=65 data-nosnippet>65</a>//! // Perform FIPS validation
+<a href=#66 id=66 data-nosnippet>66</a>//! let result = validator.validate_module()?;
+<a href=#67 id=67 data-nosnippet>67</a>//!
+<a href=#68 id=68 data-nosnippet>68</a>//! if result.is_valid() {
+<a href=#69 id=69 data-nosnippet>69</a>//!     tracing::info!("FIPS validation passed - Level {:?}", result.level);
+<a href=#70 id=70 data-nosnippet>70</a>//!
+<a href=#71 id=71 data-nosnippet>71</a>//!     // Generate validation certificate
+<a href=#72 id=72 data-nosnippet>72</a>//!     let certificate = validator.generate_certificate(&amp;result)?;
+<a href=#73 id=73 data-nosnippet>73</a>//!     tracing::info!("Validation certificate: {}", certificate.id);
+<a href=#74 id=74 data-nosnippet>74</a>//! } else {
+<a href=#75 id=75 data-nosnippet>75</a>//!     tracing::error!("FIPS validation failed");
+<a href=#76 id=76 data-nosnippet>76</a>//!
+<a href=#77 id=77 data-nosnippet>77</a>//!     // Get remediation guidance
+<a href=#78 id=78 data-nosnippet>78</a>//!     let remediation = validator.get_remediation_guidance(&amp;result);
+<a href=#79 id=79 data-nosnippet>79</a>//!     for item in remediation {
+<a href=#80 id=80 data-nosnippet>80</a>//!         tracing::info!("Remediation: {}", item);
+<a href=#81 id=81 data-nosnippet>81</a>//!     }
+<a href=#82 id=82 data-nosnippet>82</a>//! }
+<a href=#83 id=83 data-nosnippet>83</a>//! ```
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a></span><span class="kw">mod </span>algorithm_tests;
+<a href=#86 id=86 data-nosnippet>86</a><span class="kw">mod </span>global;
+<a href=#87 id=87 data-nosnippet>87</a><span class="kw">mod </span>interface_tests;
+<a href=#88 id=88 data-nosnippet>88</a><span class="kw">mod </span>policy_tests;
+<a href=#89 id=89 data-nosnippet>89</a><span class="kw">mod </span>types;
+<a href=#90 id=90 data-nosnippet>90</a><span class="kw">mod </span>validator;
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a><span class="comment">// Re-export public types
+<a href=#93 id=93 data-nosnippet>93</a></span><span class="kw">pub use </span>types::{
+<a href=#94 id=94 data-nosnippet>94</a>    FIPSLevel, IssueSeverity, TestResult, ValidationCertificate, ValidationIssue, ValidationResult,
+<a href=#95 id=95 data-nosnippet>95</a>    ValidationScope,
+<a href=#96 id=96 data-nosnippet>96</a>};
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a><span class="comment">// Re-export validator
+<a href=#99 id=99 data-nosnippet>99</a></span><span class="kw">pub use </span>validator::FIPSValidator;
+<a href=#100 id=100 data-nosnippet>100</a>
+<a href=#101 id=101 data-nosnippet>101</a><span class="comment">// Re-export global functions
+<a href=#102 id=102 data-nosnippet>102</a></span><span class="kw">pub use </span>global::{
+<a href=#103 id=103 data-nosnippet>103</a>    continuous_rng_test, get_fips_validation_result, init, is_fips_initialized,
+<a href=#104 id=104 data-nosnippet>104</a>    run_conditional_self_test,
+<a href=#105 id=105 data-nosnippet>105</a>};
+<a href=#106 id=106 data-nosnippet>106</a>
+<a href=#107 id=107 data-nosnippet>107</a><span class="comment">// Re-export from other FIPS modules
+<a href=#108 id=108 data-nosnippet>108</a></span><span class="kw">pub use </span><span class="kw">crate</span>::fips_validation_impl::<span class="kw-2">*</span>;
+<a href=#109 id=109 data-nosnippet>109</a><span class="kw">pub use </span><span class="kw">crate</span>::kat_tests::<span class="kw-2">*</span>;
+<a href=#110 id=110 data-nosnippet>110</a><span class="kw">pub use </span><span class="kw">crate</span>::nist_sp800_22::<span class="kw-2">*</span>;
+<a href=#111 id=111 data-nosnippet>111</a><span class="kw">pub use </span><span class="kw">crate</span>::validation_summary::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>
