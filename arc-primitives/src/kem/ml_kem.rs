@@ -140,7 +140,7 @@ use thiserror::Error;
 use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
+use arc_types::resource_limits::{validate_decryption_size, validate_encryption_size};
 
 /// SIMD execution mode (Scalar-only in this edition)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

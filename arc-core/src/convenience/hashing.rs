@@ -26,7 +26,7 @@ use crate::config::CoreConfig;
 use crate::error::{CoreError, Result};
 use crate::zero_trust::SecurityMode;
 
-use arc_validation::resource_limits::validate_key_derivation_count;
+use arc_types::resource_limits::validate_key_derivation_count;
 
 /// Custom output length type for aws-lc-rs HKDF
 struct HkdfOutputLen(usize);

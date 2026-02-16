@@ -10,6 +10,10 @@
 
 use thiserror::Error;
 
+// Re-export TypeError from arc-types so downstream consumers can handle it
+// (returned by config validate() methods and CryptoPolicyEngine methods)
+pub use arc_types::error::TypeError;
+
 /// Errors that can occur during LatticeArc Core operations.
 ///
 /// This enum covers all error conditions from cryptographic operations,
@@ -197,6 +201,22 @@ pub enum CoreError {
     /// Audit storage operation failed.
     #[error("Audit error: {0}")]
     AuditError(String),
+}
+
+/// Conversion from pure-Rust `TypeError` (arc-types) into FFI-aware `CoreError`.
+///
+/// This allows the `?` operator to work seamlessly when arc-types functions
+/// (which return `TypeError`) are called from arc-core functions (which return `CoreError`).
+impl From<TypeError> for CoreError {
+    fn from(err: TypeError) -> Self {
+        match err {
+            TypeError::InvalidStateTransition { from, to } => {
+                CoreError::InvalidStateTransition { from, to }
+            }
+            TypeError::ConfigurationError(msg) => CoreError::ConfigurationError(msg),
+            _ => CoreError::InvalidInput(err.to_string()),
+        }
+    }
 }
 
 /// A specialized Result type for LatticeArc Core operations.

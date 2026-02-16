@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.1] - 2026-02-16
+
+### Added
+
+- **`arc-types` crate**: Pure-Rust domain types, traits, config, policy engine, and key lifecycle
+  management extracted from `arc-core`. Zero FFI dependencies, enabling Kani formal verification.
+- **Kani proofs expanded (2 → 12)**: Formal verification now covers all major `arc-types` modules:
+  - `key_lifecycle.rs`: 5 proofs — state machine immutability, forward-only transitions, API consistency
+  - `zero_trust.rs`: 3 proofs — trust level ordering, `is_trusted()` correctness, minimum bound
+  - `types.rs`: 1 proof — default `SecurityLevel` is `High` (NIST Level 3)
+  - `selector.rs`: 3 proofs — `force_scheme` completeness, PQ encryption/signature coverage for all levels
+- **Kani CI for `arc-types`**: Verified tier now targets `arc-types` (pure Rust) instead of
+  `arc-core` (FFI-dependent). All 12 proofs run on every push to `main`.
+- **Kani Proofs badge**: Added to README, linking to the `arc-types` verification workflow.
+
+### Changed
+
+- **`arc-core` refactored**: Types, traits, config, selector, key_lifecycle, and zero_trust modules
+  now re-export from `arc-types` instead of defining inline. No public API changes.
+- **Workspace version**: Bumped to 0.1.1 across all crates.
+- **Architecture: Dependency graph cleanup** (breaking inverted dependencies):
+  - `resource_limits` module moved from `arc-validation` to `arc-types` (pure Rust, zero FFI)
+  - `domains` constants moved from `arc-prelude` to `arc-types`
+  - Both original modules replaced with re-exports for backward compatibility
+  - `arc-primitives` no longer depends on `arc-validation` in production (moved to dev-deps)
+  - `arc-core` no longer depends on `arc-validation` or `arc-prelude` in production
+  - `arc-tests` no longer depends on `arc-prelude` (was unused)
+- **Architecture: Public API cleanup**:
+  - `latticearc` no longer glob-exports `arc-prelude::*` (was leaking testing infrastructure
+    into public namespace). Only `LatticeArcError` explicitly re-exported.
+  - 14 unused direct dependencies removed from `latticearc` (all transitive via arc-core)
+  - 3 unused dependencies removed from `arc-core` (`k256`, `async-trait`, `anyhow`)
+  - `criterion` and `tempfile` moved from production to dev-deps in `arc-tls`
+
 ## [Unreleased]
 
 ### Added

@@ -50,6 +50,10 @@ graph TB
         TLS[arc-tls<br/>PQ TLS 1.3]
     end
 
+    subgraph "Domain Types"
+        TYPES[arc-types<br/>Pure-Rust Types & Traits]
+    end
+
     subgraph "Core Cryptography"
         PRIM[arc-primitives<br/>Crypto Primitives]
         ZKP[arc-zkp<br/>Zero-Knowledge]
@@ -62,6 +66,7 @@ graph TB
     subgraph "Testing & Validation"
         VAL[arc-validation<br/>CAVP Tests]
         PERF[arc-perf<br/>Benchmarks]
+        TESTS[arc-tests<br/>Integration Tests]
         FUZZ[fuzz<br/>Fuzzing]
     end
 
@@ -69,6 +74,7 @@ graph TB
     MAIN --> CORE
     MAIN --> HYBRID
     MAIN --> TLS
+    CORE --> TYPES
     CORE --> PRIM
     CORE --> PRELUDE
     HYBRID --> PRIM
@@ -79,18 +85,21 @@ graph TB
     PRIM --> PRELUDE
     VAL --> PRIM
     PERF --> PRIM
+    TESTS --> CORE
 
     classDef facade fill:#4a90d9,stroke:#333,color:#fff
     classDef highlevel fill:#50c878,stroke:#333,color:#fff
     classDef core fill:#f5a623,stroke:#333,color:#fff
+    classDef types fill:#e74c3c,stroke:#333,color:#fff
     classDef foundation fill:#9b59b6,stroke:#333,color:#fff
     classDef testing fill:#95a5a6,stroke:#333,color:#fff
 
     class MAIN facade
     class CORE,HYBRID,TLS highlevel
+    class TYPES types
     class PRIM,ZKP core
     class PRELUDE foundation
-    class VAL,PERF,FUZZ testing
+    class VAL,PERF,TESTS,FUZZ testing
 ```
 
 ## API Abstraction Levels
@@ -383,18 +392,32 @@ use latticearc::prelude::*;
 // Access to all crates via single import
 ```
 
+### `arc-types` (Pure-Rust Domain Types)
+
+Zero-FFI-dependency crate containing all types, traits, and configuration that can be formally verified with Kani:
+
+| Module | Purpose |
+|--------|---------|
+| `types` | `ZeroizedBytes`, `SecurityLevel`, `UseCase`, `CryptoScheme`, `CryptoContext` |
+| `traits` | `Encryptable`, `Decryptable`, `Signable`, `Verifiable`, `SchemeSelector` |
+| `config` | `CoreConfig`, `EncryptionConfig`, `SignatureConfig`, `ZeroTrustConfig` |
+| `selector` | `CryptoPolicyEngine` and scheme constants |
+| `key_lifecycle` | `KeyStateMachine`, `KeyLifecycleRecord` (with Kani proofs) |
+| `zero_trust` | `TrustLevel` enum |
+| `error` | `TypeError` for pure-Rust error conditions |
+
 ### `arc-core`
 
-The Unified API layer with intelligent features:
+The Unified API layer, re-exports `arc-types` and adds cryptographic operations:
 
 | Module | Purpose |
 |--------|---------|
 | `convenience` | Simple encrypt/decrypt/sign/verify functions |
-| `selector` | CryptoPolicyEngine |
+| `selector` | Re-exports CryptoPolicyEngine from arc-types |
 | `zero_trust` | ZeroTrustAuth, Challenge, ZeroKnowledgeProof |
 | `hardware` | Hardware trait re-exports (types only, no detection) |
-| `config` | CoreConfig, ZeroTrustConfig, SecurityLevel |
-| `types` | UseCase, PerformancePreference, CryptoContext |
+| `config` | Re-exports CoreConfig from arc-types, adds CryptoConfig |
+| `types` | Re-exports from arc-types, adds FFI-dependent types |
 
 ### `arc-primitives`
 

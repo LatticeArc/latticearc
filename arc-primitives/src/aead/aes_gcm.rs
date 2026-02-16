@@ -29,7 +29,7 @@ use subtle::ConstantTimeEq;
 use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
+use arc_types::resource_limits::{validate_decryption_size, validate_encryption_size};
 
 /// AES-GCM-128 cipher (128-bit key)
 ///
@@ -82,7 +82,7 @@ impl AeadCipher for AesGcm128 {
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
         validate_encryption_size(plaintext.len()).map_err(
-            |e: arc_validation::resource_limits::ResourceError| {
+            |e: arc_types::resource_limits::ResourceError| {
                 AeadError::EncryptionFailed(e.to_string())
             },
         )?;
@@ -132,7 +132,7 @@ impl AeadCipher for AesGcm128 {
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>, AeadError> {
         validate_decryption_size(ciphertext.len()).map_err(
-            |e: arc_validation::resource_limits::ResourceError| {
+            |e: arc_types::resource_limits::ResourceError| {
                 AeadError::DecryptionFailed(e.to_string())
             },
         )?;
@@ -221,7 +221,7 @@ impl AeadCipher for AesGcm256 {
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
         validate_encryption_size(plaintext.len()).map_err(
-            |e: arc_validation::resource_limits::ResourceError| {
+            |e: arc_types::resource_limits::ResourceError| {
                 AeadError::EncryptionFailed(e.to_string())
             },
         )?;
@@ -271,7 +271,7 @@ impl AeadCipher for AesGcm256 {
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>, AeadError> {
         validate_decryption_size(ciphertext.len()).map_err(
-            |e: arc_validation::resource_limits::ResourceError| {
+            |e: arc_types::resource_limits::ResourceError| {
                 AeadError::DecryptionFailed(e.to_string())
             },
         )?;

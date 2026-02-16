@@ -22,12 +22,10 @@ fips = ["arc-primitives/fips", "fips-self-test"]
 fips-self-test = ["arc-primitives/fips-self-test"]
 
 [dependencies]
-arc-primitives = { version = "0.1.0", path = "../arc-primitives" }
-arc-hybrid = { version = "0.1.0", path = "../arc-hybrid" }
-arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
-arc-validation = { version = "0.1.0", path = "../arc-validation" }
+arc-types = { version = "0.1.1", path = "../arc-types" }
+arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
+arc-hybrid = { version = "0.1.1", path = "../arc-hybrid" }
 thiserror = { workspace = true }
-anyhow = { workspace = true }
 
 # Tracing and logging dependencies
 tracing = { workspace = true }
@@ -46,10 +44,8 @@ hex = { workspace = true }
 sha3 = { workspace = true }
 sha2 = { workspace = true }
 ed25519-dalek = { workspace = true }
-k256 = { workspace = true }
 hmac = { workspace = true }
 rayon = { workspace = true }
-async-trait = { workspace = true }
 parking_lot = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

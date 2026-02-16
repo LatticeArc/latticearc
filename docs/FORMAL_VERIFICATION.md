@@ -38,12 +38,39 @@ Following the [AWS-LC model](https://github.com/awslabs/aws-lc-verification), ou
 | `memory_safety_no_panics` | Memory Safety | Operations never panic with valid inputs |
 | `zeroization_testing` | Memory Safety | Secrets are completely zeroized |
 
-### arc-core (2 proofs in `src/key_lifecycle.rs`)
+### arc-types (12 proofs across 4 modules)
+
+#### `src/key_lifecycle.rs` (5 proofs)
 
 | Proof | Property | What It Guarantees |
 |-------|----------|-------------------|
 | `key_state_machine_destroyed_cannot_transition` | Security | Destroyed keys are immutable (no resurrection) |
 | `key_state_machine_no_backward_to_generation` | Security | Key lifecycle is unidirectional (no rollback) |
+| `key_state_machine_only_generation_from_none` | Security | Keys must begin in Generation state |
+| `key_state_machine_allowed_next_consistent` | Correctness | `is_valid_transition` and `allowed_next_states` always agree |
+| `key_state_machine_retired_only_to_destroyed` | Security | Retired keys can only be destroyed (no reactivation) |
+
+#### `src/zero_trust.rs` (3 proofs)
+
+| Proof | Property | What It Guarantees |
+|-------|----------|-------------------|
+| `trust_level_ordering_total` | Correctness | Trust hierarchy has no ambiguous comparisons |
+| `trust_level_is_trusted_iff_at_least_partial` | Security | Untrusted entities are never considered trusted |
+| `trust_level_untrusted_is_minimum` | Security | Trust floor is well-defined (Untrusted is lowest) |
+
+#### `src/types.rs` (1 proof)
+
+| Proof | Property | What It Guarantees |
+|-------|----------|-------------------|
+| `security_level_default_is_high` | Security | Default security is NIST Level 3, not weaker |
+
+#### `src/selector.rs` (3 proofs)
+
+| Proof | Property | What It Guarantees |
+|-------|----------|-------------------|
+| `force_scheme_covers_all_variants` | Correctness | Every CryptoScheme maps to a non-empty algorithm |
+| `select_pq_encryption_covers_all_levels` | Security | Every SecurityLevel has a PQ encryption algorithm |
+| `select_pq_signature_covers_all_levels` | Security | Every SecurityLevel has a PQ signature algorithm |
 
 ## Running Proofs
 
@@ -60,14 +87,16 @@ Following the [AWS-LC model](https://github.com/awslabs/aws-lc-verification), ou
 cargo install --locked kani-verifier
 cargo kani setup
 
-# Run all proofs (30+ min)
-cargo kani --workspace --all-features
+# Run all 12 verified proofs (arc-types — pure Rust, zero FFI)
+cargo kani -p arc-types
 
-# Run specific crate
+# Run experimental proofs (arc-hybrid — FFI-dependent, may fail to compile)
 cargo kani -p arc-hybrid --all-features
 
 # Run specific proof
-cargo kani --harness encrypt_decrypt_roundtrip -p arc-hybrid
+cargo kani --harness key_state_machine_destroyed_cannot_transition -p arc-types
+cargo kani --harness trust_level_ordering_total -p arc-types
+cargo kani --harness force_scheme_covers_all_variants -p arc-types
 ```
 
 ### Manual (GitHub Actions)
@@ -125,21 +154,21 @@ Scheduled runs will be enabled once the library is stable and usage increases.
 - ❌ Cache-timing side channels (CPU microarchitecture)
 - ❌ Speculative execution vulnerabilities (Spectre/Meltdown)
 - ❌ Hardware-level attacks (power analysis, EM emanation)
-- ❌ Constant-time execution (use ctgrind for this)
+- ❌ Constant-time execution (delegated to aws-lc-rs SAW proofs and `subtle` crate)
 
-For constant-time verification, see `arc-primitives/tests/constant_time.rs` (ctgrind-based).
+For constant-time verification, we rely on aws-lc-rs's SAW-verified primitives and the `subtle` crate for API-layer comparisons. See [SECURITY.md](../SECURITY.md#constant-time-guarantees) for details.
 
 ## Comparison with Other Approaches
 
 | Tool | What It Verifies | Cost | Coverage |
 |------|------------------|------|----------|
-| **Kani** | Properties for all possible inputs | High (30 min) | 9 critical proofs |
+| **Kani** | Properties for all possible inputs | High (30 min) | 19 proofs (12 verified + 7 experimental) |
 | **Tests** | Properties for specific test cases | Low (2 min) | 977 tests |
 | **Fuzzing** | Find edge cases via randomness | Medium (5 min/day) | 9 fuzz targets |
-| **ctgrind** | Constant-time execution | Low (30 sec) | 4 API layer proofs |
+| **subtle** | Constant-time API comparisons | Inherited | Used in all secret comparisons |
 | **SAW** | Primitives (via aws-lc-rs) | Inherited | AES-GCM, ML-KEM, SHA-2 |
 
-Each approach complements the others. We use all five.
+Each approach complements the others. We use all four plus inherited SAW verification.
 
 ## Additional Resources
 

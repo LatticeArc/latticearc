@@ -203,7 +203,10 @@
 pub use arc_core as core;
 pub use arc_prelude as prelude;
 
-pub use prelude::*;
+// Explicit re-export of LatticeArcError for arc-primitives error compatibility.
+// All other arc-prelude types (testing infra, error recovery) are accessible via
+// `latticearc::prelude::*` for advanced users, but not glob-exported here.
+pub use arc_prelude::prelude::LatticeArcError;
 
 // ============================================================================
 // Core Types

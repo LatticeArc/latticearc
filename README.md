@@ -7,6 +7,7 @@
 [![CodeQL](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/codeql.yml)
 [![Fuzzing](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fuzzing.yml)
 [![FIPS Self-Tests](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/fips-validation.yml)
+[![Kani Proofs](https://github.com/latticearc/latticearc/actions/workflows/kani.yml/badge.svg)](https://github.com/latticearc/latticearc/actions/workflows/kani.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/latticearc/latticearc/badge)](https://securityscorecards.dev/viewer/?uri=github.com/latticearc/latticearc)
 
 [![NIST Test Vectors](https://img.shields.io/badge/NIST_CAVP-vectors_verified-blue)](arc-validation/)
@@ -317,7 +318,8 @@ cargo run --example digital_signatures
 | Crate | Description |
 |-------|-------------|
 | [`latticearc`](latticearc/) | Main API - start here |
-| [`arc-core`](arc-core/) | Core types and unified API |
+| [`arc-types`](arc-types/) | Pure-Rust domain types, traits, config, policy engine (zero FFI, Kani-verifiable) |
+| [`arc-core`](arc-core/) | Unified API layer (re-exports arc-types, adds crypto operations) |
 | [`arc-primitives`](arc-primitives/) | Cryptographic primitives (KEM, signatures, AEAD) |
 | [`arc-hybrid`](arc-hybrid/) | Hybrid encryption combining PQC and classical |
 | [`arc-tls`](arc-tls/) | Post-quantum TLS integration |
@@ -325,6 +327,7 @@ cargo run --example digital_signatures
 | [`arc-prelude`](arc-prelude/) | Common types, errors, and memory safety utilities |
 | [`arc-validation`](arc-validation/) | Test vectors and compliance testing |
 | [`arc-perf`](arc-perf/) | Performance benchmarking |
+| [`arc-tests`](arc-tests/) | Regression, API stability, and concurrency tests |
 
 ## Security
 
@@ -365,7 +368,14 @@ See [SECURITY.md](SECURITY.md) for our security policy.
 
 For underlying cryptographic primitives (AES-GCM, ML-KEM, X25519, SHA-2), we rely on [aws-lc-rs's SAW formal verification](https://github.com/awslabs/aws-lc-verification), which provides mathematical proofs of correctness for the C implementations.
 
-LatticeArc source includes [Kani](https://github.com/model-checking/kani) proof harnesses for key lifecycle state machine invariants (`arc-core/src/key_lifecycle.rs`). These proofs are not currently executed in CI because Kani cannot compile crates with transitive C FFI dependencies (aws-lc-sys). They are available for verification on isolated pure-Rust extractions of the logic.
+LatticeArc includes 12 [Kani](https://github.com/model-checking/kani) bounded model checking proofs in `arc-types` (pure Rust, zero FFI dependencies). The verified tier runs in CI on every push to `main` and proves:
+
+- **Key lifecycle state machine** (5 proofs in `src/key_lifecycle.rs`): destroyed keys cannot transition, no backward transitions, initial state must be Generation, retired-only-to-destroyed, API consistency between `is_valid_transition` and `allowed_next_states`
+- **Trust level ordering** (3 proofs in `src/zero_trust.rs`): total ordering, `is_trusted()` correctness, Untrusted is minimum
+- **Policy engine completeness** (3 proofs in `src/selector.rs`): every CryptoScheme/SecurityLevel has a valid algorithm
+- **Security defaults** (1 proof in `src/types.rs`): default SecurityLevel is High (NIST Level 3)
+
+Additional experimental proofs exist in `arc-hybrid/src/formal_verification.rs` (7 proofs covering encryption roundtrip, KEM consistency, key derivation) but require FFI support in Kani to execute.
 
 ## Documentation
 

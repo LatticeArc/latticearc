@@ -32,7 +32,7 @@ use arc_hybrid::kem_hybrid::{
 use crate::error::{CoreError, Result};
 use crate::zero_trust::SecurityMode;
 
-use arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
+use arc_types::resource_limits::{validate_decryption_size, validate_encryption_size};
 
 /// Result of hybrid encryption (ML-KEM-768 + X25519 + AES-256-GCM).
 ///

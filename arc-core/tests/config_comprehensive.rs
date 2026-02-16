@@ -47,7 +47,7 @@ use arc_core::{
         CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig,
         UseCaseConfig, ZeroTrustConfig,
     },
-    error::CoreError,
+    error::TypeError,
     traits::HardwareType,
     types::{
         AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, PerformancePreference,
@@ -430,7 +430,7 @@ fn test_core_config_validation_failure_max_security_no_hw() {
     assert!(result.is_err());
 
     match result {
-        Err(CoreError::ConfigurationError(msg)) => {
+        Err(TypeError::ConfigurationError(msg)) => {
             assert!(msg.contains("hardware acceleration"));
         }
         _ => panic!("Expected ConfigurationError"),
@@ -447,7 +447,7 @@ fn test_core_config_validation_failure_speed_no_fallback() {
     assert!(result.is_err());
 
     match result {
-        Err(CoreError::ConfigurationError(msg)) => {
+        Err(TypeError::ConfigurationError(msg)) => {
             assert!(msg.contains("fallback"));
         }
         _ => panic!("Expected ConfigurationError"),
@@ -491,7 +491,7 @@ fn test_encryption_config_validation_failure_compression_without_integrity() {
     assert!(result.is_err());
 
     match result {
-        Err(CoreError::ConfigurationError(msg)) => {
+        Err(TypeError::ConfigurationError(msg)) => {
             assert!(msg.contains("Compression") || msg.contains("integrity"));
         }
         _ => panic!("Expected ConfigurationError"),
@@ -513,7 +513,7 @@ fn test_signature_config_validation_failure_cert_chain_without_timestamp() {
     assert!(result.is_err());
 
     match result {
-        Err(CoreError::ConfigurationError(msg)) => {
+        Err(TypeError::ConfigurationError(msg)) => {
             assert!(msg.contains("timestamp") || msg.contains("Certificate"));
         }
         _ => panic!("Expected ConfigurationError"),
@@ -538,7 +538,7 @@ fn test_zero_trust_config_validation_failure_zero_timeout() {
     assert!(result.is_err());
 
     match result {
-        Err(CoreError::ConfigurationError(msg)) => {
+        Err(TypeError::ConfigurationError(msg)) => {
             assert!(msg.contains("timeout") || msg.contains("zero"));
         }
         _ => panic!("Expected ConfigurationError"),
@@ -554,7 +554,7 @@ fn test_zero_trust_config_validation_failure_continuous_zero_interval() {
     assert!(result.is_err());
 
     match result {
-        Err(CoreError::ConfigurationError(msg)) => {
+        Err(TypeError::ConfigurationError(msg)) => {
             assert!(msg.contains("interval") || msg.contains("Continuous"), "Got: {}", msg);
         }
         _ => panic!("Expected ConfigurationError"),
@@ -585,7 +585,7 @@ fn test_hardware_config_validation_failure_force_cpu_with_acceleration() {
     assert!(result.is_err());
 
     match result {
-        Err(CoreError::ConfigurationError(msg)) => {
+        Err(TypeError::ConfigurationError(msg)) => {
             assert!(msg.contains("CPU") || msg.contains("acceleration"));
         }
         _ => panic!("Expected ConfigurationError"),

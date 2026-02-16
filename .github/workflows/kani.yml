@@ -1,13 +1,9 @@
 # Kani - Bounded Model Checking
 # Attempts to prove absence of panics, overflow, and out-of-bounds access in Rust code
 #
-# KNOWN LIMITATION: Both arc-core and arc-hybrid have transitive FFI dependencies
-# on aws-lc-sys (C code). Kani cannot compile C FFI, so proofs may fail to compile.
-# This workflow detects and reports that honestly instead of showing misleading results.
-#
 # Two tiers:
-#   - arc-core: Key lifecycle proofs (may fail to compile due to aws-lc-sys FFI)
-#   - arc-hybrid: Crypto composition proofs (expected to fail — FFI-heavy)
+#   - arc-types: Key lifecycle proofs (pure Rust, zero FFI — MUST pass)
+#   - arc-hybrid: Crypto composition proofs (FFI-dependent — best-effort)
 
 name: Kani Model Checking
 
@@ -19,9 +15,9 @@ on:
   push:
     branches: [main]     # Run on main branch merges (release validation)
     paths:
+      - 'arc-types/src/**'          # Re-run if arc-types changes (verified tier)
       - 'arc-hybrid/src/formal_verification.rs'
-      - 'arc-core/src/key_lifecycle.rs'
-      - 'arc-primitives/**'  # Re-run if primitives change
+      - 'arc-primitives/**'         # Re-run if primitives change
 
 permissions: read-all
 
@@ -35,7 +31,7 @@ env:
 jobs:
   # Tier 1: Pure Rust proofs that MUST pass — badge reflects this job
   kani-verified:
-    name: Verified Proofs (arc-core)
+    name: Verified Proofs (arc-types)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -55,21 +51,11 @@ jobs:
             ~/.kani
           key: ${{ runner.os }}-kani-verified-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run verified Kani proofs (arc-core)
+      - name: Run verified Kani proofs (arc-types)
         run: |
           set -o pipefail
-          cargo kani -p arc-core --all-features 2>&1 | tee kani-output.txt
-          exit_code=$?
-          if [ $exit_code -ne 0 ]; then
-            echo "::error::Kani exited with code $exit_code"
-            # Check if this is an FFI compilation failure vs a real proof failure
-            if grep -q "error\[E\|error: could not compile\|cbmc.*error\|unsupported.*FFI\|foreign function" kani-output.txt 2>/dev/null; then
-              echo "::warning::Kani failed to compile arc-core (likely due to transitive FFI dependencies from aws-lc-sys). Proofs were NOT executed."
-            fi
-            exit $exit_code
-          fi
+          cargo kani -p arc-types 2>&1 | tee kani-output.txt
         timeout-minutes: 120
-        continue-on-error: true  # FFI compilation may fail — summary step reports honestly
 
       - name: Upload Kani results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -82,12 +68,16 @@ jobs:
       - name: Verified Proofs Summary
         if: always()
         run: |
-          echo "## Kani Proofs (arc-core)" >> $GITHUB_STEP_SUMMARY
+          echo "## Kani Proofs (arc-types)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ ! -f kani-output.txt ]; then
             echo "⚠️ No Kani output file — step may have been skipped" >> $GITHUB_STEP_SUMMARY
           elif grep -q "VERIFICATION:- SUCCESSFUL" kani-output.txt; then
             echo "✅ All proofs verified successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Proofs verified:" >> $GITHUB_STEP_SUMMARY
+            echo "- \`key_state_machine_destroyed_cannot_transition\`: Destroyed keys reject all transitions" >> $GITHUB_STEP_SUMMARY
+            echo "- \`key_state_machine_no_backward_to_generation\`: No backward transitions to Generation state" >> $GITHUB_STEP_SUMMARY
           elif grep -q "VERIFICATION:- FAILED" kani-output.txt; then
             echo "❌ Some proofs failed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -95,12 +85,6 @@ jobs:
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
             grep -A5 "VERIFICATION:- FAILED" kani-output.txt >> $GITHUB_STEP_SUMMARY || true
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          elif grep -qE "error\[E|error: could not compile|foreign function" kani-output.txt; then
-            echo "⚠️ Kani could not compile arc-core (transitive FFI dependencies from aws-lc-sys)." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Proofs were NOT executed.** Kani does not support crates with C FFI dependencies." >> $GITHUB_STEP_SUMMARY
-            echo "Proof harnesses exist in source (`arc-core/src/key_lifecycle.rs`) but require" >> $GITHUB_STEP_SUMMARY
-            echo "extraction to a pure-Rust crate to verify." >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️ Unexpected Kani output — review the artifact for details" >> $GITHUB_STEP_SUMMARY
           fi
@@ -179,5 +163,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Tier | Component | Status | Badge Impact |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-----------|--------|--------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Verified | arc-core (pure Rust) | ${{ needs.kani-verified.result }} | Yes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Verified | arc-types (pure Rust) | ${{ needs.kani-verified.result }} | Yes |" >> $GITHUB_STEP_SUMMARY
           echo "| Experimental | arc-hybrid (FFI) | ${{ needs.kani-experimental.result }} | No |" >> $GITHUB_STEP_SUMMARY

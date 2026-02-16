@@ -76,7 +76,7 @@ fn fips_verify_operational() -> Result<()> {
     Ok(())
 }
 
-use arc_validation::resource_limits::{
+use arc_types::resource_limits::{
     validate_decryption_size, validate_encryption_size, validate_signature_size,
 };
 
@@ -89,11 +89,11 @@ fn select_encryption_scheme(data: &[u8], options: &CryptoConfig) -> Result<Strin
     match options.get_selection() {
         AlgorithmSelection::UseCase(use_case) => {
             let config = CoreConfig::default();
-            CryptoPolicyEngine::select_encryption_scheme(data, &config, Some(use_case))
+            Ok(CryptoPolicyEngine::select_encryption_scheme(data, &config, Some(use_case))?)
         }
         AlgorithmSelection::SecurityLevel(level) => {
             let config = CoreConfig::default().with_security_level(level.clone());
-            CryptoPolicyEngine::select_encryption_scheme(data, &config, None)
+            Ok(CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?)
         }
     }
 }
@@ -103,11 +103,11 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
     match options.get_selection() {
         AlgorithmSelection::UseCase(use_case) => {
             // For use cases, recommend based on the use case
-            CryptoPolicyEngine::recommend_scheme(use_case, &CoreConfig::default())
+            Ok(CryptoPolicyEngine::recommend_scheme(use_case, &CoreConfig::default())?)
         }
         AlgorithmSelection::SecurityLevel(level) => {
             let config = CoreConfig::default().with_security_level(level.clone());
-            CryptoPolicyEngine::select_signature_scheme(&config)
+            Ok(CryptoPolicyEngine::select_signature_scheme(&config)?)
         }
     }
 }

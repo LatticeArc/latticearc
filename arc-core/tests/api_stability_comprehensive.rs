@@ -83,7 +83,7 @@ use arc_core::{
     encrypt_aes_gcm_unverified,
     encrypt_hybrid_unverified,
     // Error types
-    error::{CoreError, Result},
+    error::{CoreError, Result, TypeError},
     generate_hybrid_keypair,
     generate_keypair,
     generate_keypair_with_config,
@@ -824,19 +824,21 @@ fn test_crypto_policy_engine_method_return_types() {
     let config = CoreConfig::default();
     let data = b"test data";
 
-    // Static method return types
-    let _: Result<String> = CryptoPolicyEngine::recommend_scheme(&UseCase::FileStorage, &config);
+    // Static method return types (CryptoPolicyEngine returns TypeError, not CoreError)
+    type TypeResult<T> = std::result::Result<T, TypeError>;
+    let _: TypeResult<String> =
+        CryptoPolicyEngine::recommend_scheme(&UseCase::FileStorage, &config);
     let _: String = CryptoPolicyEngine::force_scheme(&CryptoScheme::Hybrid);
-    let _: Result<String> = CryptoPolicyEngine::select_pq_encryption_scheme(&config);
-    let _: Result<String> = CryptoPolicyEngine::select_pq_signature_scheme(&config);
+    let _: TypeResult<String> = CryptoPolicyEngine::select_pq_encryption_scheme(&config);
+    let _: TypeResult<String> = CryptoPolicyEngine::select_pq_signature_scheme(&config);
     let _: DataCharacteristics = CryptoPolicyEngine::analyze_data_characteristics(data);
-    let _: Result<String> = CryptoPolicyEngine::select_encryption_scheme(data, &config, None);
-    let _: Result<String> = CryptoPolicyEngine::select_signature_scheme(&config);
-    let _: Result<String> = CryptoPolicyEngine::select_for_context(data, &config);
+    let _: TypeResult<String> = CryptoPolicyEngine::select_encryption_scheme(data, &config, None);
+    let _: TypeResult<String> = CryptoPolicyEngine::select_signature_scheme(&config);
+    let _: TypeResult<String> = CryptoPolicyEngine::select_for_context(data, &config);
     let _: &str = CryptoPolicyEngine::default_scheme();
 
     let metrics = PerformanceMetrics::default();
-    let _: Result<String> = CryptoPolicyEngine::adaptive_selection(data, &metrics, &config);
+    let _: TypeResult<String> = CryptoPolicyEngine::adaptive_selection(data, &metrics, &config);
 }
 
 /// Test 3.9: ZeroTrustAuth methods return expected types

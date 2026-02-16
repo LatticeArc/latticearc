@@ -80,7 +80,8 @@ chrono = { workspace = true }
 # Test initialization
 ctor = "0.2.9"
 
-arc-prelude = { version = "0.1.0", path = "../arc-prelude" }
+arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
+arc-types = { version = "0.1.1", path = "../arc-types" }
 
 # Temporary directories for CAVP vector handling
 tempfile = { workspace = true }

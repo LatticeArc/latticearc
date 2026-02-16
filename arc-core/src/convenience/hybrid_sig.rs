@@ -25,7 +25,7 @@ use arc_hybrid::sig_hybrid::{
 use crate::error::{CoreError, Result};
 use crate::zero_trust::SecurityMode;
 
-use arc_validation::resource_limits::validate_signature_size;
+use arc_types::resource_limits::validate_signature_size;
 
 /// Generate a hybrid signing keypair (ML-DSA-65 + Ed25519).
 ///

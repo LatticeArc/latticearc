@@ -49,7 +49,7 @@ use crate::config::CoreConfig;
 use crate::error::{CoreError, Result};
 use crate::zero_trust::SecurityMode;
 
-use arc_validation::resource_limits::validate_encryption_size;
+use arc_types::resource_limits::validate_encryption_size;
 
 // ============================================================================
 // Internal Implementation

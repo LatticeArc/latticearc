@@ -35,7 +35,7 @@ pub struct HashCommitment {
 }
 
 /// Opening for a hash commitment
-#[derive(Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct HashOpening {
     /// The committed value
     pub value: Vec<u8>,

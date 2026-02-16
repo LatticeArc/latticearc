@@ -104,45 +104,13 @@ use crate::{
     traits::{ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable},
     types::{PrivateKey, PublicKey},
 };
+
+// Re-export TrustLevel from arc-types (pure Rust, no FFI deps)
+pub use arc_types::zero_trust::TrustLevel;
 use chrono::{DateTime, Duration, Utc};
 use rand_core::{OsRng, RngCore};
 use std::cell::RefCell;
 use subtle::ConstantTimeEq;
-
-// ============================================================================
-// Trust Level and Verified Session Types
-// ============================================================================
-
-/// Trust level achieved through Zero Trust verification.
-///
-/// Trust levels progress through successful verifications and can be downgraded
-/// on verification failures. The ordering allows comparison (e.g., `Partial < Trusted`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub enum TrustLevel {
-    /// No trust established - initial state before any verification.
-    #[default]
-    Untrusted = 0,
-    /// Partial trust - first verification has passed.
-    Partial = 1,
-    /// Trusted - multiple verifications have passed.
-    Trusted = 2,
-    /// Fully trusted - continuous verification is active and passing.
-    FullyTrusted = 3,
-}
-
-impl TrustLevel {
-    /// Returns `true` if at least partial trust has been established.
-    #[must_use]
-    pub fn is_trusted(&self) -> bool {
-        *self >= Self::Partial
-    }
-
-    /// Returns `true` if full trust has been established.
-    #[must_use]
-    pub fn is_fully_trusted(&self) -> bool {
-        *self == Self::FullyTrusted
-    }
-}
 
 // ============================================================================
 // Security Mode for Unified API

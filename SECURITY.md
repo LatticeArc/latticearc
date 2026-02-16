@@ -95,7 +95,7 @@ We recommend always using the latest version.
 | Component | Proofs | Properties Verified | Run Frequency |
 |-----------|--------|---------------------|---------------|
 | arc-hybrid | 7 | Correctness, Memory Safety, Security | Nightly + Weekly |
-| arc-core | 2 | State Machine Invariants | Nightly + Weekly |
+| arc-types | 12 | State Machine, Trust Ordering, Policy Completeness, Defaults | Nightly + Weekly + On Push |
 
 **Kani proofs verify:**
 - Encrypt→Decrypt roundtrip returns original plaintext
@@ -105,10 +105,13 @@ We recommend always using the latest version.
 - Invalid key lengths are rejected (no crashes)
 - Operations are panic-free with valid inputs
 - Secrets are zeroized correctly (no memory leaks)
-- Key lifecycle state machine enforces valid transitions
+- Key lifecycle state machine enforces valid transitions (5 proofs)
+- Trust level ordering is total and consistent (3 proofs)
+- Policy engine covers all security levels and scheme categories (3 proofs)
+- Default security level is NIST Level 3 (1 proof)
 
 **Verification approach:**
-- Proofs available in source code (`arc-hybrid/src/formal_verification.rs`, `arc-core/src/key_lifecycle.rs`)
+- Proofs available in source code (`arc-hybrid/src/formal_verification.rs`, `arc-types/src/key_lifecycle.rs`, `arc-types/src/zero_trust.rs`, `arc-types/src/types.rs`, `arc-types/src/selector.rs`)
 - Run on nightly schedule (not every commit) following AWS-LC model
 - Full suite runs weekly for comprehensive verification
 - Manual runs via GitHub Actions workflow_dispatch

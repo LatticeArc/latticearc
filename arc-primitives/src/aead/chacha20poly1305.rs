@@ -20,7 +20,7 @@
 //! - No side-channel concerns
 
 use crate::aead::{AeadCipher, AeadError, CHACHA20_POLY1305_KEY_LEN, Nonce, TAG_LEN, Tag};
-use arc_validation::resource_limits::{validate_decryption_size, validate_encryption_size};
+use arc_types::resource_limits::{validate_decryption_size, validate_encryption_size};
 use chacha20poly1305::{
     ChaCha20Poly1305,
     aead::{Aead, AeadCore, KeyInit, OsRng},
@@ -63,7 +63,7 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
         validate_encryption_size(plaintext.len()).map_err(
-            |e: arc_validation::resource_limits::ResourceError| {
+            |e: arc_types::resource_limits::ResourceError| {
                 AeadError::EncryptionFailed(e.to_string())
             },
         )?;
@@ -108,7 +108,7 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>, AeadError> {
         validate_decryption_size(ciphertext.len()).map_err(
-            |e: arc_validation::resource_limits::ResourceError| {
+            |e: arc_types::resource_limits::ResourceError| {
                 AeadError::DecryptionFailed(e.to_string())
             },
         )?;

@@ -22,16 +22,14 @@ kani = []
 saw = []
 
 [dependencies]
-arc-primitives = { path = "../arc-primitives", version = "0.1.0" }
-arc-core = { path = "../arc-core", version = "0.1.0" }
-arc-hybrid = { path = "../arc-hybrid", version = "0.1.0" }
+arc-primitives = { path = "../arc-primitives", version = "0.1.1" }
+arc-core = { path = "../arc-core", version = "0.1.1" }
+arc-hybrid = { path = "../arc-hybrid", version = "0.1.1" }
 rustls = { workspace = true }
 rustls-post-quantum = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 serde = { workspace = true }
-criterion = { workspace = true }
-tempfile = { workspace = true }
 
 # Additional TLS dependencies
 rustls-pki-types = { workspace = true }
@@ -48,6 +46,8 @@ ed25519-dalek = { workspace = true }
 [dev-dependencies]
 rcgen = { workspace = true }
 sha2 = { workspace = true }
+criterion = { workspace = true }
+tempfile = { workspace = true }
 
 [[bench]]
 name = "tls_performance"
