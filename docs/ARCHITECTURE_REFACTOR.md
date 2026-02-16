@@ -440,3 +440,35 @@ Read output files to verify. Fix any issues in a batch. Re-verify once.
 | **Total** | **~322** | **~24** | **~298** |
 
 Most changes are moving code, not writing new code. Net new code is minimal.
+
+---
+
+## Phase 11: Test Consolidation into arc-tests (Post-Commit)
+
+All integration tests consolidated into `arc-tests` crate. This eliminates test scatter
+across crates and ensures a single location for all regression/integration testing.
+
+### Task 11.1: Move arc-core integration tests
+- **Status**: [x] DONE
+- **Change**: 30 .rs files from `arc-core/tests/` → `arc-tests/tests/`
+- **Verification**: All tests use public API only (zero `crate::` imports)
+
+### Task 11.2: Move latticearc integration tests
+- **Status**: [x] DONE
+- **Change**: 7 .rs files + `nist_kat/` directory from `latticearc/tests/` → `arc-tests/tests/`
+- **Verification**: All tests use public API only (zero `crate::` imports)
+
+### Task 11.3: Update arc-tests dependencies
+- **Status**: [x] DONE
+- **Change**: Added `latticearc`, `arc-types`, `ed25519-dalek`, `sha2`, `base64`, `chrono` to deps
+- **Added**: `fips` feature flag to propagate FIPS gating for KAT tests
+
+### Task 11.4: Clean up source crate dev-deps
+- **Status**: [x] DONE
+- **Change**: Removed all 6 dev-dependencies from `latticearc/Cargo.toml`
+- **Note**: `arc-core` retains `tempfile` dev-dep (used in unit test in `src/audit.rs`)
+
+### Verification
+- `cargo check --workspace --all-features` — PASS
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` — PASS
+- `cargo fmt --all -- --check` — PASS

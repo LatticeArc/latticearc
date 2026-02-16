@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 14 unused direct dependencies removed from `latticearc` (all transitive via arc-core)
   - 3 unused dependencies removed from `arc-core` (`k256`, `async-trait`, `anyhow`)
   - `criterion` and `tempfile` moved from production to dev-deps in `arc-tls`
+- **Test consolidation into `arc-tests`**:
+  - 30 integration test files moved from `arc-core/tests/` to `arc-tests/tests/`
+  - 7 integration test files + `nist_kat/` directory moved from `latticearc/tests/` to `arc-tests/tests/`
+  - All dev-dependencies removed from `latticearc` (tests no longer in-crate)
+  - `fips` feature added to `arc-tests` to propagate FIPS gating for KAT tests
+  - `arc-tests` is now the single location for all integration and regression tests
 
 ## [Unreleased]
 

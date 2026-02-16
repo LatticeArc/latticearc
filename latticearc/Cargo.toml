@@ -30,14 +30,6 @@ default = []
 # FIPS 140-3 mode: gates non-FIPS algorithms, enables self-tests
 fips = ["arc-core/fips", "arc-primitives/fips"]
 
-[dev-dependencies]
-rand = { workspace = true }
-sha2 = { workspace = true }
-subtle = { workspace = true }
-serde = { workspace = true }
-hex = { workspace = true }
-ed25519-dalek = { workspace = true }
-
 [lib]
 path = "src/lib.rs"
 
