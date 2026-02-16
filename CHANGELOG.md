@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Property-based tests (40+ tests in 6 files)**: Comprehensive proptest coverage in `arc-tests`:
+  - `proptest_hybrid_kem.rs` — ML-KEM-768 + X25519 roundtrip, key independence, wrong-key rejection
+  - `proptest_hybrid_encrypt.rs` — hybrid encryption roundtrip, non-malleability, AAD integrity
+  - `proptest_hybrid_sig.rs` — ML-DSA-65 + Ed25519 roundtrip, determinism, size validation
+  - `proptest_unified_api.rs` — unified API AEAD + signing across all security levels
+  - `proptest_pq_kem.rs` — ML-KEM-512/768/1024 roundtrip, FIPS 203 key/ciphertext sizes
+  - `proptest_selector.rs` — CryptoPolicyEngine determinism, monotonicity, exhaustiveness
 - **`arc-types` crate**: Pure-Rust domain types, traits, config, policy engine, and key lifecycle
   management extracted from `arc-core`. Zero FFI dependencies, enabling Kani formal verification.
 - **Kani proofs expanded (2 → 12)**: Formal verification now covers all major `arc-types` modules:
@@ -21,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Kani CI for `arc-types`**: Verified tier now targets `arc-types` (pure Rust) instead of
   `arc-core` (FFI-dependent). All 12 proofs run on every push to `main`.
 - **Kani Proofs badge**: Added to README, linking to the `arc-types` verification workflow.
+
+### Fixed
+
+- **Wildcard error suppression**: `ed25519.rs` verification now logs original error before returning
+  `VerificationFailed`; recovery strategy failures now logged before `continue`.
+
+### Removed
+
+- **Fake Kani proofs in `arc-hybrid`**: Deleted `formal_verification.rs` (7 proofs that called FFI
+  crypto and could never execute under Kani; silently swallowed all errors with `Err(_) => {}`).
+  Replaced by property-based tests in `arc-tests` that cover the same properties.
+- **`formal-verification` feature flag** from `arc-hybrid`.
+- **Kani experimental CI tier** (`kani-experimental` job in `kani.yml`) — no longer needed.
 
 ### Changed
 

@@ -98,12 +98,6 @@ Recommended for any data requiring long-term confidentiality.
 
 See `docs/SECURITY_PROOFS.md` for formal analysis.
 
-## Features
-
-| Feature | Description | Default |
-|---------|-------------|---------|
-| `formal-verification` | Enable formal verification proofs (Kani) | No |
-
 ## Security
 
 - No unsafe code

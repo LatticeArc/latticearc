@@ -375,7 +375,7 @@ LatticeArc includes 12 [Kani](https://github.com/model-checking/kani) bounded mo
 - **Policy engine completeness** (3 proofs in `src/selector.rs`): every CryptoScheme/SecurityLevel has a valid algorithm
 - **Security defaults** (1 proof in `src/types.rs`): default SecurityLevel is High (NIST Level 3)
 
-Additional experimental proofs exist in `arc-hybrid/src/formal_verification.rs` (7 proofs covering encryption roundtrip, KEM consistency, key derivation) but require FFI support in Kani to execute.
+These properties are also tested with 40+ property-based tests (proptest) in `arc-tests/tests/proptest_*.rs` covering hybrid KEM, hybrid encryption, hybrid signatures, unified API, pure PQ KEM, and scheme selection.
 
 ## Documentation
 

@@ -111,7 +111,7 @@ We recommend always using the latest version.
 - Default security level is NIST Level 3 (1 proof)
 
 **Verification approach:**
-- Proofs available in source code (`arc-hybrid/src/formal_verification.rs`, `arc-types/src/key_lifecycle.rs`, `arc-types/src/zero_trust.rs`, `arc-types/src/types.rs`, `arc-types/src/selector.rs`)
+- Proofs available in source code (`arc-types/src/key_lifecycle.rs`, `arc-types/src/zero_trust.rs`, `arc-types/src/types.rs`, `arc-types/src/selector.rs`)
 - Run on nightly schedule (not every commit) following AWS-LC model
 - Full suite runs weekly for comprehensive verification
 - Manual runs via GitHub Actions workflow_dispatch

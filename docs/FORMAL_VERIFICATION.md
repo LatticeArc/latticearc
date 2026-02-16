@@ -19,24 +19,12 @@ Following the [AWS-LC model](https://github.com/awslabs/aws-lc-verification), ou
 - ❌ Are NOT run on every commit (too expensive, 30+ min)
 
 **Why not run on every commit?**
-- Full Kani verification takes 30+ minutes for 9 proofs
+- Full Kani verification takes 30+ minutes for 12 proofs
 - CI compute minutes are limited; schedules will be enabled as the library matures
 - Even AWS-LC (with Amazon's resources) doesn't run SAW proofs on every commit
 - Code changes rarely break mathematical properties that proofs verify
 
 ## Verified Components
-
-### arc-hybrid (7 proofs in `src/formal_verification.rs`)
-
-| Proof | Property | What It Guarantees |
-|-------|----------|-------------------|
-| `encrypt_decrypt_roundtrip` | Correctness | Encrypt→Decrypt returns original plaintext |
-| `kem_encapsulate_decapsulate_consistency` | Correctness | KEM shared secrets match on both sides |
-| `key_derivation_deterministic` | Correctness | KDF produces same key from same inputs |
-| `signature_verify_correctness` | Correctness | Valid signatures verify successfully |
-| `reject_invalid_key_lengths` | Security | Invalid keys are rejected (no crashes) |
-| `memory_safety_no_panics` | Memory Safety | Operations never panic with valid inputs |
-| `zeroization_testing` | Memory Safety | Secrets are completely zeroized |
 
 ### arc-types (12 proofs across 4 modules)
 
@@ -47,7 +35,7 @@ Following the [AWS-LC model](https://github.com/awslabs/aws-lc-verification), ou
 | `key_state_machine_destroyed_cannot_transition` | Security | Destroyed keys are immutable (no resurrection) |
 | `key_state_machine_no_backward_to_generation` | Security | Key lifecycle is unidirectional (no rollback) |
 | `key_state_machine_only_generation_from_none` | Security | Keys must begin in Generation state |
-| `key_state_machine_allowed_next_consistent` | Correctness | `is_valid_transition` and `allowed_next_states` always agree |
+| `key_state_machine_transitions_match_spec` | Correctness | `is_valid_transition` matches independent SP 800-57 encoding |
 | `key_state_machine_retired_only_to_destroyed` | Security | Retired keys can only be destroyed (no reactivation) |
 
 #### `src/zero_trust.rs` (3 proofs)
@@ -87,11 +75,8 @@ Following the [AWS-LC model](https://github.com/awslabs/aws-lc-verification), ou
 cargo install --locked kani-verifier
 cargo kani setup
 
-# Run all 12 verified proofs (arc-types — pure Rust, zero FFI)
+# Run all 12 proofs (arc-types — pure Rust, zero FFI)
 cargo kani -p arc-types
-
-# Run experimental proofs (arc-hybrid — FFI-dependent, may fail to compile)
-cargo kani -p arc-hybrid --all-features
 
 # Run specific proof
 cargo kani --harness key_state_machine_destroyed_cannot_transition -p arc-types
@@ -162,7 +147,7 @@ For constant-time verification, we rely on aws-lc-rs's SAW-verified primitives a
 
 | Tool | What It Verifies | Cost | Coverage |
 |------|------------------|------|----------|
-| **Kani** | Properties for all possible inputs | High (30 min) | 19 proofs (12 verified + 7 experimental) |
+| **Kani** | Properties for all possible inputs | High (30 min) | 12 proofs (arc-types, pure Rust) |
 | **Tests** | Properties for specific test cases | Low (2 min) | 977 tests |
 | **Fuzzing** | Find edge cases via randomness | Medium (5 min/day) | 9 fuzz targets |
 | **subtle** | Constant-time API comparisons | Inherited | Used in all secret comparisons |

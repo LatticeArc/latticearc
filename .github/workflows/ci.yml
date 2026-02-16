@@ -310,9 +310,8 @@ jobs:
         INTEGRATION_DURATION=$((END_TIME - START_TIME))
         echo "integration_test_duration_seconds $INTEGRATION_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/integration-test || true
 
-    # Note: Kani formal verification proofs exist in arc-types (verified, pure Rust)
-    # and arc-hybrid (experimental, FFI-dependent). Not run on every commit due to
-    # computational cost (~30+ min). Proofs run on nightly schedule. See kani.yml.
+    # Note: Kani formal verification (12 proofs in arc-types, pure Rust).
+    # Not run on every commit due to computational cost. See kani.yml.
 
     - name: Generate coverage report
       run: |
