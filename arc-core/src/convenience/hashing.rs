@@ -84,6 +84,93 @@ fn derive_key_hkdf(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8
     Ok(output)
 }
 
+/// Internal implementation of HKDF key derivation with caller-supplied info string.
+///
+/// Identical to [`derive_key_hkdf`] but uses the caller's `info` parameter
+/// instead of the hardcoded `b"latticearc"` context string, allowing domain
+/// separation for different key derivation contexts.
+fn derive_key_hkdf_with_info(
+    password: &[u8],
+    salt: &[u8],
+    length: usize,
+    info: &[u8],
+) -> Result<Vec<u8>> {
+    let hkdf_salt = Salt::new(HKDF_SHA256, salt);
+    let prk = hkdf_salt.extract(password);
+
+    let info_slices: &[&[u8]] = &[info];
+    let okm = prk
+        .expand(info_slices, HkdfOutputLen(length))
+        .map_err(|_e| CoreError::KeyDerivationFailed("HKDF expansion failed".to_string()))?;
+
+    let mut output = vec![0u8; length];
+    okm.fill(&mut output)
+        .map_err(|_e| CoreError::KeyDerivationFailed("HKDF fill failed".to_string()))?;
+
+    Ok(output)
+}
+
+/// Internal implementation of key derivation with caller-supplied info string.
+fn derive_key_with_info_internal(
+    password: &[u8],
+    salt: &[u8],
+    length: usize,
+    info: &[u8],
+) -> Result<Vec<u8>> {
+    crate::log_crypto_operation_start!(
+        "key_derivation_info",
+        algorithm = "HKDF-SHA256",
+        output_len = length,
+        info_len = info.len()
+    );
+
+    validate_key_derivation_count(1).map_err(|e| {
+        crate::log_crypto_operation_error!("key_derivation_info", e);
+        CoreError::ResourceExceeded(e.to_string())
+    })?;
+
+    if salt.is_empty() {
+        let err = CoreError::InvalidInput("Salt cannot be empty".to_string());
+        crate::log_crypto_operation_error!("key_derivation_info", err);
+        return Err(err);
+    }
+
+    if length == 0 {
+        let err = CoreError::InvalidInput("Length cannot be zero".to_string());
+        crate::log_crypto_operation_error!("key_derivation_info", err);
+        return Err(err);
+    }
+
+    if info.is_empty() {
+        let err = CoreError::InvalidInput("Info string cannot be empty".to_string());
+        crate::log_crypto_operation_error!("key_derivation_info", err);
+        return Err(err);
+    }
+
+    let result = derive_key_hkdf_with_info(password, salt, length, info);
+
+    match &result {
+        Ok(_) => {
+            crate::log_crypto_operation_complete!(
+                "key_derivation_info",
+                algorithm = "HKDF-SHA256",
+                output_len = length
+            );
+            debug!(
+                algorithm = "HKDF-SHA256",
+                output_len = length,
+                info_len = info.len(),
+                "Key derivation with custom info completed"
+            );
+        }
+        Err(e) => {
+            crate::log_crypto_operation_error!("key_derivation_info", e);
+        }
+    }
+
+    result
+}
+
 /// Internal implementation of key derivation.
 fn derive_key_internal(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
     crate::log_crypto_operation_start!(
@@ -380,6 +467,56 @@ pub fn hmac_check_with_config(
 // Unverified API (Opt-Out Functions)
 // ============================================================================
 // These functions are for scenarios where Zero Trust verification is not required or not possible.
+
+/// Derive a key using HKDF-SHA256 with a caller-supplied info string for domain separation.
+///
+/// This function is identical to [`derive_key`] except that the HKDF expansion
+/// step uses the caller-provided `info` parameter instead of the library default.
+/// Different `info` values produce different keys from the same input keying
+/// material, enabling safe domain separation across multiple derivation contexts.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The mode is `Verified` and the session has expired (`CoreError::SessionExpired`)
+/// - The resource limit for key derivation operations is exceeded
+/// - The salt is empty
+/// - The requested length is zero
+/// - The info string is empty
+/// - The HKDF expansion operation fails
+pub fn derive_key_with_info(
+    password: &[u8],
+    salt: &[u8],
+    length: usize,
+    info: &[u8],
+    mode: SecurityMode,
+) -> Result<Vec<u8>> {
+    mode.validate()?;
+    derive_key_with_info_internal(password, salt, length, info)
+}
+
+/// Derive a key using HKDF-SHA256 with a caller-supplied info string without
+/// Zero Trust verification.
+///
+/// This is an opt-out function for scenarios where Zero Trust verification
+/// is not required or not possible.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The resource limit for key derivation operations is exceeded
+/// - The salt is empty
+/// - The requested length is zero
+/// - The info string is empty
+/// - The HKDF expansion operation fails
+pub fn derive_key_with_info_unverified(
+    password: &[u8],
+    salt: &[u8],
+    length: usize,
+    info: &[u8],
+) -> Result<Vec<u8>> {
+    derive_key_with_info(password, salt, length, info, SecurityMode::Unverified)
+}
 
 /// Derive a key from a password and salt using HKDF without Zero Trust verification.
 ///
@@ -824,6 +961,75 @@ mod tests {
         // Wrong data should fail
         let valid = hmac_check_with_config_unverified(b"wrong data", key, &tag, &config)?;
         assert!(!valid);
+        Ok(())
+    }
+
+    // ================================================================
+    // derive_key_with_info tests
+    // ================================================================
+
+    #[test]
+    fn test_derive_key_with_info_basic() -> Result<()> {
+        let password = b"ikm-material";
+        let salt = b"random-salt";
+        let info = b"my-application-context";
+        let key = derive_key_with_info_unverified(password, salt, 32, info)?;
+        assert_eq!(key.len(), 32);
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_with_info_deterministic() -> Result<()> {
+        let password = b"test-ikm";
+        let salt = b"test-salt";
+        let info = b"test-info";
+        let key1 = derive_key_with_info_unverified(password, salt, 32, info)?;
+        let key2 = derive_key_with_info_unverified(password, salt, 32, info)?;
+        assert_eq!(key1, key2, "Same inputs must produce same key");
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_with_info_different_info() -> Result<()> {
+        let password = b"same-ikm";
+        let salt = b"same-salt";
+        let key_a = derive_key_with_info_unverified(password, salt, 32, b"context-a")?;
+        let key_b = derive_key_with_info_unverified(password, salt, 32, b"context-b")?;
+        assert_ne!(key_a, key_b, "Different info strings must produce different keys");
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_with_info_vs_standard() -> Result<()> {
+        let password = b"shared-ikm";
+        let salt = b"shared-salt";
+        // Using the library's default info string should match derive_key
+        let via_info = derive_key_with_info_unverified(password, salt, 32, b"latticearc")?;
+        let via_standard = derive_key_unverified(password, salt, 32)?;
+        assert_eq!(via_info, via_standard, "info=b\"latticearc\" must match derive_key output");
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive_key_with_info_empty_info_fails() {
+        let result = derive_key_with_info_unverified(b"ikm", b"salt", 32, b"");
+        assert!(result.is_err(), "Empty info string should fail");
+        match result.unwrap_err() {
+            CoreError::InvalidInput(msg) => assert!(msg.contains("Info")),
+            other => panic!("Expected InvalidInput, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_derive_key_with_info_verified_session() -> Result<()> {
+        let password = b"ikm";
+        let salt = b"salt";
+        let info = b"verified-context";
+        let (auth_pk, auth_sk) = generate_keypair()?;
+        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let key = derive_key_with_info(password, salt, 32, info, SecurityMode::Verified(&session))?;
+        assert_eq!(key.len(), 32);
         Ok(())
     }
 

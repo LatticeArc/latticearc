@@ -191,6 +191,7 @@ When deriving keys from passwords or shared secrets, follow these guidelines:
 - **Store the salt alongside the ciphertext** — salts are not secret
 - **Use HKDF-SHA256** (`derive_key()`) for key derivation from high-entropy input
 - **Use Argon2/scrypt** for password-based key derivation (not currently provided — use external crate)
+- **Use `derive_key_with_info()` for domain separation** — different info strings produce cryptographically independent keys from the same input keying material
 
 ```rust
 use arc_core::convenience::*;
@@ -199,10 +200,33 @@ use arc_core::convenience::*;
 let salt = rand::random::<[u8; 16]>();
 let derived_key = derive_key(shared_secret, &salt, 32)?;
 
+// Domain-separated key derivation (different info → independent keys)
+let enc_key = derive_key_with_info(shared_secret, &salt, 32, b"encryption", SecurityMode::Unverified)?;
+let mac_key = derive_key_with_info(shared_secret, &salt, 32, b"mac", SecurityMode::Unverified)?;
+
 // HMAC for message authentication
 let tag = hmac(data, &key, SecurityMode::Unverified)?;
 let valid = hmac_check(data, &key, &tag, SecurityMode::Unverified)?;
 ```
+
+### AES-GCM with AAD
+
+When encrypting data that must be bound to a specific context (protocol headers, session identifiers, sender/receiver metadata), use AAD:
+
+```rust
+use arc_core::convenience::*;
+
+let key = [0u8; 32];
+let header = b"version:1;sender:alice";
+
+// AAD is authenticated but NOT encrypted — tampering causes decryption failure
+let encrypted = encrypt_aes_gcm_with_aad(data, &key, header, SecurityMode::Unverified)?;
+let decrypted = decrypt_aes_gcm_with_aad(&encrypted, &key, header, SecurityMode::Unverified)?;
+```
+
+**NEVER:**
+- Use empty AAD when context binding is needed — use `encrypt_aes_gcm()` (no AAD) for context-free encryption
+- Include secret data in AAD — AAD is authenticated, not encrypted
 
 ### Encryption
 

@@ -301,13 +301,14 @@ pub use arc_core::{
 
 // Hashing (hash_data is stateless, others use SecurityMode)
 pub use arc_core::{
-    derive_key, derive_key_with_config, hash_data, hmac, hmac_check, hmac_check_with_config,
-    hmac_with_config,
+    derive_key, derive_key_with_config, derive_key_with_info, hash_data, hmac, hmac_check,
+    hmac_check_with_config, hmac_with_config,
 };
 
 // AES-GCM
 pub use arc_core::{
-    decrypt_aes_gcm, decrypt_aes_gcm_with_config, encrypt_aes_gcm, encrypt_aes_gcm_with_config,
+    decrypt_aes_gcm, decrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_config, encrypt_aes_gcm,
+    encrypt_aes_gcm_with_aad, encrypt_aes_gcm_with_config,
 };
 
 // Ed25519
@@ -336,6 +337,7 @@ pub use arc_core::{
 pub use arc_core::{
     // AES-GCM
     decrypt_aes_gcm_unverified,
+    decrypt_aes_gcm_with_aad_unverified,
     decrypt_aes_gcm_with_config_unverified,
     // Hybrid Encryption (ML-KEM-768 + X25519 + HKDF + AES-GCM)
     decrypt_hybrid_unverified,
@@ -346,7 +348,9 @@ pub use arc_core::{
     // Hashing
     derive_key_unverified,
     derive_key_with_config_unverified,
+    derive_key_with_info_unverified,
     encrypt_aes_gcm_unverified,
+    encrypt_aes_gcm_with_aad_unverified,
     encrypt_aes_gcm_with_config_unverified,
     encrypt_hybrid_unverified,
     encrypt_hybrid_with_config_unverified,

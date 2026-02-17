@@ -306,8 +306,8 @@ pub use convenience::{
 // ============================================================================
 
 pub use convenience::{
-    derive_key, derive_key_with_config, hash_data, hmac, hmac_check, hmac_check_with_config,
-    hmac_with_config,
+    derive_key, derive_key_with_config, derive_key_with_info, hash_data, hmac, hmac_check,
+    hmac_check_with_config, hmac_with_config,
 };
 
 // ============================================================================
@@ -317,11 +317,13 @@ pub use convenience::{
 pub use convenience::{
     // AES-GCM
     decrypt_aes_gcm,
+    decrypt_aes_gcm_with_aad,
     decrypt_aes_gcm_with_config,
     // PQ KEM (ML-KEM)
     decrypt_pq_ml_kem,
     decrypt_pq_ml_kem_with_config,
     encrypt_aes_gcm,
+    encrypt_aes_gcm_with_aad,
     encrypt_aes_gcm_with_config,
     encrypt_pq_ml_kem,
     encrypt_pq_ml_kem_with_config,
@@ -352,6 +354,7 @@ pub use convenience::{
 pub use convenience::{
     // AES-GCM
     decrypt_aes_gcm_unverified,
+    decrypt_aes_gcm_with_aad_unverified,
     decrypt_aes_gcm_with_config_unverified,
     // Hybrid Encryption (true hybrid ML-KEM + X25519)
     decrypt_hybrid_unverified,
@@ -362,7 +365,9 @@ pub use convenience::{
     // Hashing
     derive_key_unverified,
     derive_key_with_config_unverified,
+    derive_key_with_info_unverified,
     encrypt_aes_gcm_unverified,
+    encrypt_aes_gcm_with_aad_unverified,
     encrypt_aes_gcm_with_config_unverified,
     encrypt_hybrid_unverified,
     encrypt_hybrid_with_config_unverified,

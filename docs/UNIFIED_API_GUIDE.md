@@ -530,6 +530,25 @@ let derived = derive_key(password, salt, 32, SecurityMode::default())?;
 let mac = hmac(data, &key, SecurityMode::default())?;
 ```
 
+#### HKDF with Custom Info String
+
+For domain-specific key derivation where different contexts need cryptographically independent keys:
+
+```rust
+use latticearc::{derive_key_with_info, derive_key_with_info_unverified, SecurityMode};
+
+let ikm = b"shared-secret-material";
+let salt = b"unique-random-salt";
+
+// Derive keys for different domains — same IKM, different info → different keys
+let encryption_key = derive_key_with_info_unverified(ikm, salt, 32, b"encryption")?;
+let auth_key = derive_key_with_info_unverified(ikm, salt, 32, b"authentication")?;
+assert_ne!(encryption_key, auth_key);
+
+// With Zero Trust session
+let key = derive_key_with_info(ikm, salt, 32, b"my-domain", SecurityMode::Verified(&session))?;
+```
+
 ## Error Handling
 
 ```rust

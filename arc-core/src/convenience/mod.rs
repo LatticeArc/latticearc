@@ -90,8 +90,8 @@ pub use keygen::{
 // ============================================================================
 
 pub use hashing::{
-    derive_key, derive_key_with_config, hash_data, hmac, hmac_check, hmac_check_with_config,
-    hmac_with_config,
+    derive_key, derive_key_with_config, derive_key_with_info, hash_data, hmac, hmac_check,
+    hmac_check_with_config, hmac_with_config,
 };
 
 // ============================================================================
@@ -107,6 +107,7 @@ pub use ed25519::{
 pub use aes_gcm::{
     decrypt_aes_gcm, decrypt_aes_gcm_with_config, encrypt_aes_gcm, encrypt_aes_gcm_with_config,
 };
+pub use aes_gcm::{decrypt_aes_gcm_with_aad, encrypt_aes_gcm_with_aad};
 
 // Post-Quantum KEM (ML-KEM)
 pub use pq_kem::{
@@ -127,8 +128,9 @@ pub use pq_sig::{
 // ============================================================================
 
 pub use hashing::{
-    derive_key_unverified, derive_key_with_config_unverified, hmac_check_unverified,
-    hmac_check_with_config_unverified, hmac_unverified, hmac_with_config_unverified,
+    derive_key_unverified, derive_key_with_config_unverified, derive_key_with_info_unverified,
+    hmac_check_unverified, hmac_check_with_config_unverified, hmac_unverified,
+    hmac_with_config_unverified,
 };
 
 pub use ed25519::{
@@ -137,8 +139,9 @@ pub use ed25519::{
 };
 
 pub use aes_gcm::{
-    decrypt_aes_gcm_unverified, decrypt_aes_gcm_with_config_unverified, encrypt_aes_gcm_unverified,
-    encrypt_aes_gcm_with_config_unverified,
+    decrypt_aes_gcm_unverified, decrypt_aes_gcm_with_aad_unverified,
+    decrypt_aes_gcm_with_config_unverified, encrypt_aes_gcm_unverified,
+    encrypt_aes_gcm_with_aad_unverified, encrypt_aes_gcm_with_config_unverified,
 };
 
 pub use pq_kem::{

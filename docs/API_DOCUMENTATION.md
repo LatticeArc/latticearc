@@ -1,7 +1,7 @@
 # LatticeArc API Documentation
 
-**Version**: 0.1.3
-**Last Updated**: February 7, 2026
+**Version**: 0.1.4
+**Last Updated**: February 16, 2026
 **License**: Apache 2.0
 
 ---
@@ -270,6 +270,35 @@ let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
 
 // Decrypt
 let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
+```
+
+### AES-GCM with Additional Authenticated Data (AAD)
+
+For binding context metadata (headers, session IDs, protocol fields) to ciphertext.
+AAD is authenticated but not encrypted — tampering with AAD causes decryption to fail.
+
+```rust
+use latticearc::{encrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_aad, SecurityMode};
+
+let key = [0u8; 32];
+let plaintext = b"Sensitive payload";
+let aad = b"session-id:abc123;timestamp:1700000000";
+
+// Encrypt with AAD binding
+let encrypted = encrypt_aes_gcm_with_aad(plaintext, &key, aad, SecurityMode::Unverified)?;
+
+// Decrypt with same AAD (mismatched AAD → DecryptionFailed)
+let decrypted = decrypt_aes_gcm_with_aad(&encrypted, &key, aad, SecurityMode::Unverified)?;
+assert_eq!(plaintext, decrypted.as_slice());
+```
+
+Unverified convenience variants are also available:
+
+```rust
+use latticearc::{encrypt_aes_gcm_with_aad_unverified, decrypt_aes_gcm_with_aad_unverified};
+
+let encrypted = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, aad)?;
+let decrypted = decrypt_aes_gcm_with_aad_unverified(&encrypted, &key, aad)?;
 ```
 
 ### ChaCha20-Poly1305
@@ -629,6 +658,6 @@ let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 
 ---
 
-**Document Version**: 0.1.3
-**Last Updated**: February 7, 2026
+**Document Version**: 0.1.4
+**Last Updated**: February 16, 2026
 **Maintained By**: LatticeArc Documentation Team

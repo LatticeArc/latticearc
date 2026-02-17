@@ -128,6 +128,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **AES-GCM with Additional Authenticated Data (AAD)**: New functions for binding context to ciphertext
+  - `encrypt_aes_gcm_with_aad()` / `decrypt_aes_gcm_with_aad()` with `SecurityMode` support
+  - `_unverified` convenience variants for use without Zero Trust sessions
+  - AAD is authenticated but not encrypted — enables protocol-level binding (headers, session IDs, etc.)
+  - Re-exported through `arc-core` and `latticearc` facades
+- **HKDF with Custom Info String**: Key derivation with caller-supplied domain separation
+  - `derive_key_with_info()` / `derive_key_with_info_unverified()` for HKDF-SHA256 with custom info parameter
+  - Enables domain-specific key derivation (different info → cryptographically independent keys)
+  - Uses FIPS-validated `aws-lc-rs` HKDF implementation
+  - Compatible with existing `derive_key()` when info is `b"latticearc"`
+  - Re-exported through `arc-core` and `latticearc` facades
 - **Formal Verification Documentation**: Comprehensive documentation for Kani proofs
   - New `docs/FORMAL_VERIFICATION.md` with 155 lines of detailed verification documentation
   - README.md section explaining 9 Kani proofs and verification schedule

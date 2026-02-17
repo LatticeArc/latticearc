@@ -109,6 +109,149 @@ pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8
     Ok(result)
 }
 
+/// Internal implementation of AES-GCM encryption with Additional Authenticated Data (AAD).
+///
+/// Identical to [`encrypt_aes_gcm_internal`] but binds the AAD into the authentication
+/// tag, so decryption will fail unless the same AAD is provided.
+///
+/// Wire format: `nonce(12) || ciphertext || tag(16)` (same as without AAD).
+pub(crate) fn encrypt_aes_gcm_with_aad_internal(
+    data: &[u8],
+    key: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>> {
+    log_crypto_operation_start!(
+        "aes_gcm_encrypt_aad",
+        algorithm = "AES-256-GCM",
+        data_len = data.len(),
+        aad_len = aad.len()
+    );
+
+    if key.len() != 32 {
+        let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
+        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        return Err(err);
+    }
+
+    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
+        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
+        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        err
+    })?;
+
+    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
+        let err = CoreError::EncryptionFailed("Failed to create AES key".to_string());
+        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        err
+    })?;
+    let aes_key = LessSafeKey::new(unbound);
+
+    let mut nonce_bytes = [0u8; 12];
+    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|_e| {
+        let err = CoreError::EncryptionFailed("Failed to generate random nonce".to_string());
+        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        err
+    })?;
+
+    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+    let mut ciphertext = data.to_vec();
+    aes_key.seal_in_place_append_tag(nonce, Aad::from(aad), &mut ciphertext).map_err(|e| {
+        let err = CoreError::EncryptionFailed(e.to_string());
+        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        err
+    })?;
+
+    let mut result = nonce_bytes.to_vec();
+    result.append(&mut ciphertext);
+
+    log_crypto_operation_complete!(
+        "aes_gcm_encrypt_aad",
+        algorithm = "AES-256-GCM",
+        ciphertext_len = result.len()
+    );
+    debug!(
+        data_len = data.len(),
+        aad_len = aad.len(),
+        ciphertext_len = result.len(),
+        "AES-256-GCM encryption with AAD completed"
+    );
+
+    Ok(result)
+}
+
+/// Internal implementation of AES-GCM decryption with Additional Authenticated Data (AAD).
+///
+/// Decryption will fail unless the same AAD that was used during encryption is provided.
+pub(crate) fn decrypt_aes_gcm_with_aad_internal(
+    encrypted_data: &[u8],
+    key: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>> {
+    log_crypto_operation_start!(
+        "aes_gcm_decrypt_aad",
+        algorithm = "AES-256-GCM",
+        encrypted_len = encrypted_data.len(),
+        aad_len = aad.len()
+    );
+
+    if encrypted_data.len() < 12 {
+        let err = CoreError::InvalidInput("Data too short".to_string());
+        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+        return Err(err);
+    }
+
+    if key.len() != 32 {
+        let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
+        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+        return Err(err);
+    }
+
+    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
+        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
+        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+        err
+    })?;
+
+    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
+        let err = CoreError::DecryptionFailed("Failed to create AES key".to_string());
+        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+        err
+    })?;
+    let aes_key = LessSafeKey::new(unbound);
+
+    let (nonce_slice, ciphertext) = encrypted_data.split_at(12);
+    let nonce_bytes: [u8; 12] = nonce_slice.try_into().map_err(|_e| {
+        let err = CoreError::InvalidNonce("Nonce must be 12 bytes".to_string());
+        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+        err
+    })?;
+
+    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+    let mut in_out = ciphertext.to_vec();
+    let plaintext = aes_key.open_in_place(nonce, Aad::from(aad), &mut in_out).map_err(|e| {
+        let err = CoreError::DecryptionFailed(e.to_string());
+        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+        err
+    })?;
+
+    let result = plaintext.to_vec();
+    log_crypto_operation_complete!(
+        "aes_gcm_decrypt_aad",
+        algorithm = "AES-256-GCM",
+        plaintext_len = result.len()
+    );
+    debug!(
+        encrypted_len = encrypted_data.len(),
+        aad_len = aad.len(),
+        plaintext_len = result.len(),
+        "AES-256-GCM decryption with AAD completed"
+    );
+
+    Ok(result)
+}
+
 /// Internal implementation of AES-GCM decryption.
 pub(crate) fn decrypt_aes_gcm_internal(encrypted_data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     log_crypto_operation_start!(
@@ -333,6 +476,95 @@ pub fn encrypt_aes_gcm_unverified(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 #[inline]
 pub fn decrypt_aes_gcm_unverified(encrypted_data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     decrypt_aes_gcm(encrypted_data, key, SecurityMode::Unverified)
+}
+
+/// Encrypt data using AES-256-GCM with Additional Authenticated Data (AAD).
+///
+/// AAD is authenticated but not encrypted — it binds context (e.g., a header,
+/// key ID, or metadata) to the ciphertext so that decryption fails unless the
+/// identical AAD is supplied.
+///
+/// # Wire Format
+///
+/// Output: `nonce(12) || ciphertext || tag(16)` (same as without AAD).
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The session has expired when using `Verified` mode
+/// - The key length is not exactly 32 bytes
+/// - Random nonce generation fails
+/// - The encryption operation fails
+#[inline]
+pub fn encrypt_aes_gcm_with_aad(
+    data: &[u8],
+    key: &[u8],
+    aad: &[u8],
+    mode: SecurityMode,
+) -> Result<Vec<u8>> {
+    mode.validate()?;
+    encrypt_aes_gcm_with_aad_internal(data, key, aad)
+}
+
+/// Decrypt data using AES-256-GCM with Additional Authenticated Data (AAD).
+///
+/// The same AAD that was used during encryption must be provided; otherwise
+/// decryption will fail with `DecryptionFailed`.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The session has expired when using `Verified` mode
+/// - The encrypted data is shorter than 12 bytes (nonce size)
+/// - The key length is not exactly 32 bytes
+/// - The AAD does not match the value used during encryption
+/// - The decryption operation fails
+#[inline]
+pub fn decrypt_aes_gcm_with_aad(
+    encrypted_data: &[u8],
+    key: &[u8],
+    aad: &[u8],
+    mode: SecurityMode,
+) -> Result<Vec<u8>> {
+    mode.validate()?;
+    decrypt_aes_gcm_with_aad_internal(encrypted_data, key, aad)
+}
+
+/// Encrypt data using AES-256-GCM with AAD without Zero Trust verification.
+///
+/// This is an opt-out function for scenarios where Zero Trust verification
+/// is not required or not possible.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The key length is not exactly 32 bytes
+/// - Random nonce generation fails
+/// - The encryption operation fails
+#[inline]
+pub fn encrypt_aes_gcm_with_aad_unverified(data: &[u8], key: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
+    encrypt_aes_gcm_with_aad(data, key, aad, SecurityMode::Unverified)
+}
+
+/// Decrypt data using AES-256-GCM with AAD without Zero Trust verification.
+///
+/// This is an opt-out function for scenarios where Zero Trust verification
+/// is not required or not possible.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The encrypted data is shorter than 12 bytes (nonce size)
+/// - The key length is not exactly 32 bytes
+/// - The AAD does not match the value used during encryption
+/// - The decryption operation fails
+#[inline]
+pub fn decrypt_aes_gcm_with_aad_unverified(
+    encrypted_data: &[u8],
+    key: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>> {
+    decrypt_aes_gcm_with_aad(encrypted_data, key, aad, SecurityMode::Unverified)
 }
 
 /// Encrypt data using AES-256-GCM with configuration without Zero Trust verification.
@@ -769,6 +1001,81 @@ mod tests {
         assert!(result.is_err());
         let result = decrypt_aes_gcm_internal(&ct, &[0u8; 33]);
         assert!(result.is_err());
+    }
+
+    // ================================================================
+    // AES-GCM with AAD tests
+    // ================================================================
+
+    #[test]
+    fn test_aes_gcm_with_aad_roundtrip() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"Encrypt me with context binding";
+        let aad = b"authenticated-context-v1";
+
+        let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, aad)?;
+        let pt = decrypt_aes_gcm_with_aad_unverified(&ct, &key, aad)?;
+
+        assert_eq!(pt, plaintext, "AAD roundtrip should recover plaintext");
+        Ok(())
+    }
+
+    #[test]
+    fn test_aes_gcm_with_aad_wrong_aad_fails() {
+        let key = generate_test_key();
+        let plaintext = b"Tamper-evident data";
+        let aad = b"correct-aad";
+        let wrong_aad = b"wrong-aad";
+
+        let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, aad)
+            .expect("encryption should succeed");
+        let result = decrypt_aes_gcm_with_aad_unverified(&ct, &key, wrong_aad);
+
+        assert!(result.is_err(), "Mismatched AAD must fail decryption");
+        match result.unwrap_err() {
+            CoreError::DecryptionFailed(_) => {}
+            other => panic!("Expected DecryptionFailed, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_aes_gcm_with_empty_aad() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"Empty AAD test";
+
+        let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, b"")?;
+        let pt = decrypt_aes_gcm_with_aad_unverified(&ct, &key, b"")?;
+
+        assert_eq!(pt, plaintext, "Empty AAD should roundtrip correctly");
+        Ok(())
+    }
+
+    #[test]
+    fn test_aes_gcm_with_aad_verified_session() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"Verified AAD test";
+        let aad = b"session-bound-context";
+        let (auth_pk, auth_sk) = crate::generate_keypair()?;
+        let session = crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+
+        let ct = encrypt_aes_gcm_with_aad(plaintext, &key, aad, SecurityMode::Verified(&session))?;
+        let pt = decrypt_aes_gcm_with_aad(&ct, &key, aad, SecurityMode::Verified(&session))?;
+
+        assert_eq!(pt, plaintext.as_ref());
+        Ok(())
+    }
+
+    #[test]
+    fn test_aes_gcm_with_aad_large_aad() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"Large AAD test";
+        let aad = vec![0xBB; 1024]; // 1KB of AAD
+
+        let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, &aad)?;
+        let pt = decrypt_aes_gcm_with_aad_unverified(&ct, &key, &aad)?;
+
+        assert_eq!(pt, plaintext, "Large AAD should roundtrip correctly");
+        Ok(())
     }
 
     // Performance/size validation
