@@ -6,7 +6,8 @@
 //!
 //! ## Usage
 //!
-//! ```rust,ignore
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_core::{
 //!     generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature,
 //!     SecurityMode,
@@ -16,6 +17,8 @@
 //! let signature = sign_hybrid(b"message", &sk, SecurityMode::Unverified)?;
 //! let valid = verify_hybrid_signature(b"message", &signature, &pk, SecurityMode::Unverified)?;
 //! assert!(valid);
+//! # Ok(())
+//! # }
 //! ```
 
 use arc_hybrid::sig_hybrid::{

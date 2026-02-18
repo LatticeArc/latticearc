@@ -7,8 +7,13 @@
 //!
 //! All operations use `CryptoConfig` for configuration:
 //!
-//! ```rust,ignore
-//! use latticearc::{encrypt, decrypt, CryptoConfig, UseCase, VerifiedSession};
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use arc_core::{encrypt, decrypt, CryptoConfig, UseCase, VerifiedSession};
+//! # let data = b"example data";
+//! # let key = [0u8; 32];
+//! # let pk = [0u8; 32];
+//! # let sk = [0u8; 32];
 //!
 //! // Simple: Use defaults (High security)
 //! let encrypted = encrypt(data, &key, CryptoConfig::new())?;
@@ -22,6 +27,8 @@
 //! let encrypted = encrypt(data, &key, CryptoConfig::new()
 //!     .session(&session)
 //!     .use_case(UseCase::FileStorage))?;
+//! # Ok(())
+//! # }
 //! ```
 
 use chrono::Utc;
@@ -123,8 +130,12 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
 ///
 /// # Examples
 ///
-/// ```rust,ignore
-/// use latticearc::{encrypt, CryptoConfig, UseCase, SecurityLevel, VerifiedSession};
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use arc_core::{encrypt, CryptoConfig, UseCase, SecurityLevel, VerifiedSession};
+/// # let data = b"example data";
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
 ///
 /// let key = [0u8; 32];
 ///
@@ -144,6 +155,8 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
 /// let encrypted = encrypt(data, &key, CryptoConfig::new()
 ///     .session(&session)
 ///     .use_case(UseCase::FileStorage))?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Algorithm Selection
@@ -260,8 +273,18 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
 ///
 /// # Examples
 ///
-/// ```rust,ignore
-/// use latticearc::{decrypt, CryptoConfig, VerifiedSession};
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use arc_core::{decrypt, CryptoConfig, VerifiedSession, EncryptedData, EncryptedMetadata};
+/// # let encrypted = EncryptedData {
+/// #     data: vec![],
+/// #     metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
+/// #     scheme: "aes-256-gcm".to_string(),
+/// #     timestamp: 0,
+/// # };
+/// # let key = [0u8; 32];
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
 ///
 /// // Simple: No session
 /// let plaintext = decrypt(&encrypted, &key, CryptoConfig::new())?;
@@ -270,6 +293,8 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
 /// let session = VerifiedSession::establish(&pk, &sk)?;
 /// let plaintext = decrypt(&encrypted, &key, CryptoConfig::new()
 ///     .session(&session))?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors
@@ -599,8 +624,22 @@ pub fn sign_with_key(
 ///
 /// # Examples
 ///
-/// ```rust,ignore
-/// use latticearc::{verify, CryptoConfig, VerifiedSession};
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use arc_core::{verify, CryptoConfig, VerifiedSession, SignedData, SignedMetadata};
+/// # let signed = SignedData {
+/// #     data: vec![],
+/// #     metadata: SignedMetadata {
+/// #         signature: vec![],
+/// #         signature_algorithm: "ed25519".to_string(),
+/// #         public_key: vec![],
+/// #         key_id: None
+/// #     },
+/// #     scheme: "ed25519".to_string(),
+/// #     timestamp: 0,
+/// # };
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
 ///
 /// // Simple: No session
 /// let is_valid = verify(&signed, CryptoConfig::new())?;
@@ -609,6 +648,8 @@ pub fn sign_with_key(
 /// let session = VerifiedSession::establish(&pk, &sk)?;
 /// let is_valid = verify(&signed, CryptoConfig::new()
 ///     .session(&session))?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

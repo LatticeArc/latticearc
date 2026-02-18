@@ -123,17 +123,21 @@ use subtle::ConstantTimeEq;
 ///
 /// # Usage
 ///
-/// ```rust,ignore
-/// use latticearc::{encrypt, SecurityMode, VerifiedSession, generate_keypair};
-///
+/// ```rust,no_run
+/// # use arc_core::{encrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
+/// # fn main() -> Result<(), arc_core::error::CoreError> {
 /// let (pk, sk) = generate_keypair()?;
 ///
 /// // With Zero Trust verification (recommended)
-/// let session = VerifiedSession::establish(&pk, &sk)?;
-/// let encrypted = encrypt(data, &key, SecurityMode::Verified(&session))?;
+/// let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+/// # let data = b"secret";
+/// # let key = [0u8; 32];
+/// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
 ///
 /// // Without verification (opt-out)
-/// let encrypted = encrypt(data, &key, SecurityMode::Unverified)?;
+/// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Enterprise Behavior
@@ -167,12 +171,18 @@ impl<'a> SecurityMode<'a> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use arc_core::{SecurityMode, VerifiedSession, generate_keypair};
+    /// # fn main() -> Result<(), arc_core::error::CoreError> {
+    /// # let (pk, sk) = generate_keypair()?;
+    /// # let session = VerifiedSession::establish(&pk, sk.as_ref())?;
     /// let mode = SecurityMode::Verified(&session);
     /// assert!(mode.is_verified());
     ///
     /// let mode = SecurityMode::Unverified;
     /// assert!(!mode.is_verified());
+    /// # Ok(())
+    /// # }
     /// ```
     #[must_use]
     pub fn is_verified(&self) -> bool {
@@ -247,14 +257,19 @@ impl Default for SecurityMode<'_> {
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// use arc_core::{VerifiedSession, encrypt_hybrid};
-///
+/// ```rust,no_run
+/// # use arc_core::{VerifiedSession, encrypt_aes_gcm, SecurityMode, generate_keypair};
+/// # fn main() -> Result<(), arc_core::error::CoreError> {
+/// # let (public_key, private_key) = generate_keypair()?;
 /// // Establish a verified session (performs challenge-response)
 /// let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 ///
 /// // Use the session for cryptographic operations
-/// let result = encrypt_hybrid(data, None, &key, SecurityMode::Verified(&session))?;
+/// # let data = b"secret";
+/// # let key = [0u8; 32];
+/// let result = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct VerifiedSession {
@@ -288,9 +303,14 @@ impl VerifiedSession {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use arc_core::{VerifiedSession, generate_keypair};
+    /// # fn main() -> Result<(), arc_core::error::CoreError> {
+    /// # let (public_key, private_key) = generate_keypair()?;
     /// let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
     /// assert!(session.is_valid());
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn establish(public_key: &[u8], private_key: &[u8]) -> Result<Self> {
         // Create owned copies for the auth handler
@@ -1008,6 +1028,23 @@ impl ZeroTrustSession {
         }
 
         Ok(self.verified)
+    }
+
+    /// Generates a zero-knowledge proof for the given challenge.
+    ///
+    /// This is used in the manual authentication flow: after calling
+    /// [`initiate_authentication`](Self::initiate_authentication) to get a challenge,
+    /// generate a proof and then pass it to [`verify_response`](Self::verify_response).
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::AuthenticationFailed` if the challenge data is empty.
+    ///
+    /// Returns `CoreError::InvalidKeyLength` if the private key has incorrect length.
+    ///
+    /// Returns `CoreError::InvalidInput` if the private key format is invalid.
+    pub fn generate_proof(&self, challenge: &Challenge) -> Result<ZeroKnowledgeProof> {
+        self.auth.generate_proof(&challenge.data)
     }
 
     /// Returns `true` if the session has been successfully authenticated.

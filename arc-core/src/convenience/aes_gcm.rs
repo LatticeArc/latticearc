@@ -16,14 +16,22 @@
 //!
 //! All cryptographic operations use `SecurityMode` to specify verification behavior:
 //!
-//! ```rust,ignore
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_core::{encrypt_aes_gcm, SecurityMode, VerifiedSession};
+//! # let data = b"example data";
+//! # let key = [0u8; 32];
+//! # let pk = [0u8; 32];
+//! # let sk = [0u8; 32];
+//! # let session = VerifiedSession::establish(&pk, &sk)?;
 //!
 //! // With Zero Trust verification (recommended)
 //! let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
 //!
 //! // Without verification (opt-out)
 //! let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Unverified)?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{
@@ -329,14 +337,22 @@ pub(crate) fn decrypt_aes_gcm_internal(encrypted_data: &[u8], key: &[u8]) -> Res
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_core::{encrypt_aes_gcm, SecurityMode, VerifiedSession};
+/// # let data = b"example data";
+/// # let key = [0u8; 32];
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
+/// # let session = VerifiedSession::establish(&pk, &sk)?;
 ///
 /// // With Zero Trust verification (recommended)
 /// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
 ///
 /// // Without verification (opt-out)
 /// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Key Requirements
@@ -365,14 +381,22 @@ pub fn encrypt_aes_gcm(data: &[u8], key: &[u8], mode: SecurityMode) -> Result<Ve
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_core::{decrypt_aes_gcm, SecurityMode, VerifiedSession};
+/// # let encrypted = vec![0u8; 44]; // nonce (12) + ciphertext (16) + tag (16)
+/// # let key = [0u8; 32];
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
+/// # let session = VerifiedSession::establish(&pk, &sk)?;
 ///
 /// // With Zero Trust verification (recommended)
 /// let decrypted = decrypt_aes_gcm(&encrypted, &key, SecurityMode::Verified(&session))?;
 ///
 /// // Without verification (opt-out)
 /// let decrypted = decrypt_aes_gcm(&encrypted, &key, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

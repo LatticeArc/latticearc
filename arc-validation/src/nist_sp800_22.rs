@@ -270,7 +270,8 @@ impl NistSp800_22Tester {
     /// Serial Test
     #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
     fn serial_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
-        let log2_len = bits.len().checked_ilog2().unwrap_or(0) as usize;
+        // checked_ilog2() returns u32; safe on all Rust tier-1 targets (≥32-bit)
+        let log2_len: usize = bits.len().checked_ilog2().unwrap_or(0).try_into().unwrap_or(0);
         let m = std::cmp::min(16, log2_len.saturating_sub(3));
 
         if m < 2 {
@@ -316,7 +317,8 @@ impl NistSp800_22Tester {
     /// Approximate Entropy Test
     #[allow(clippy::arithmetic_side_effects, clippy::cast_precision_loss)] // Statistical math
     fn approximate_entropy_test(&self, bits: &[bool]) -> Result<NistStatisticalTestResult> {
-        let log2_len = bits.len().checked_ilog2().unwrap_or(0) as usize;
+        // checked_ilog2() returns u32; safe on all Rust tier-1 targets (≥32-bit)
+        let log2_len: usize = bits.len().checked_ilog2().unwrap_or(0).try_into().unwrap_or(0);
         let m = std::cmp::min(16, log2_len.saturating_sub(3));
 
         if m < 2 {

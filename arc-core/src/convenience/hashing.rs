@@ -308,8 +308,13 @@ pub fn hash_data(data: &[u8]) -> [u8; 32] {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_core::{derive_key, SecurityMode, VerifiedSession};
+/// # let password = b"password";
+/// # let salt = b"salt";
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
 ///
 /// // With Zero Trust (recommended)
 /// let session = VerifiedSession::establish(&pk, &sk)?;
@@ -317,6 +322,8 @@ pub fn hash_data(data: &[u8]) -> [u8; 32] {
 ///
 /// // Without verification (opt-out)
 /// let key = derive_key(password, salt, 32, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors
@@ -345,8 +352,13 @@ pub fn derive_key(
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_core::{hmac, SecurityMode, VerifiedSession};
+/// # let data = b"data";
+/// # let key = b"key";
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
 ///
 /// // With Zero Trust (recommended)
 /// let session = VerifiedSession::establish(&pk, &sk)?;
@@ -354,6 +366,8 @@ pub fn derive_key(
 ///
 /// // Without verification (opt-out)
 /// let tag = hmac(data, key, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors
@@ -378,8 +392,14 @@ pub fn hmac(data: &[u8], key: &[u8], mode: SecurityMode) -> Result<Vec<u8>> {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_core::{hmac_check, SecurityMode, VerifiedSession};
+/// # let data = b"data";
+/// # let key = b"key";
+/// # let tag = &[0u8; 32];
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
 ///
 /// // With Zero Trust (recommended)
 /// let session = VerifiedSession::establish(&pk, &sk)?;
@@ -387,6 +407,8 @@ pub fn hmac(data: &[u8], key: &[u8], mode: SecurityMode) -> Result<Vec<u8>> {
 ///
 /// // Without verification (opt-out)
 /// let is_valid = hmac_check(data, key, tag, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

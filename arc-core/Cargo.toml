@@ -9,7 +9,7 @@ description = "LatticeArc Core - Unified Cryptographic API with Zero-Trust Secur
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 # Inherit all lints from workspace
 [lints]
@@ -22,9 +22,9 @@ fips = ["arc-primitives/fips", "fips-self-test"]
 fips-self-test = ["arc-primitives/fips-self-test"]
 
 [dependencies]
-arc-types = { version = "0.1.1", path = "../arc-types" }
-arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
-arc-hybrid = { version = "0.1.1", path = "../arc-hybrid" }
+arc-types = { version = "0.1.2", path = "../arc-types" }
+arc-primitives = { version = "0.1.2", path = "../arc-primitives" }
+arc-hybrid = { version = "0.1.2", path = "../arc-hybrid" }
 thiserror = { workspace = true }
 
 # Tracing and logging dependencies

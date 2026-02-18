@@ -88,7 +88,8 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_hybrid::kem_hybrid::{generate_keypair, encapsulate, decapsulate};
 //! use rand::rngs::OsRng;
 //!
@@ -105,6 +106,8 @@
 //!
 //! // Both parties now have the same 64-byte shared secret
 //! assert_eq!(shared_secret.as_slice(), encapsulated.shared_secret.as_slice());
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! [`ZeroizeOnDrop`]: zeroize::ZeroizeOnDrop
@@ -174,7 +177,7 @@ pub struct HybridPublicKey {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_hybrid::kem_hybrid::generate_keypair;
 /// use rand::rngs::OsRng;
 ///

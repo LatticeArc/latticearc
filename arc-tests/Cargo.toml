@@ -10,6 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 readme.workspace = true
+publish = false
 
 # Inherit all lints from workspace
 [lints]
@@ -22,11 +23,11 @@ fips = ["arc-core/fips", "arc-primitives/fips"]
 
 [dependencies]
 # LatticeArc crates
-latticearc = { version = "0.1.1", path = "../latticearc" }
-arc-core = { version = "0.1.1", path = "../arc-core" }
-arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
-arc-types = { version = "0.1.1", path = "../arc-types" }
-arc-hybrid = { version = "0.1.1", path = "../arc-hybrid" }
+latticearc = { version = "0.1.2", path = "../latticearc" }
+arc-core = { version = "0.1.2", path = "../arc-core" }
+arc-primitives = { version = "0.1.2", path = "../arc-primitives" }
+arc-types = { version = "0.1.2", path = "../arc-types" }
+arc-hybrid = { version = "0.1.2", path = "../arc-hybrid" }
 
 # Property-based testing
 proptest = { workspace = true }

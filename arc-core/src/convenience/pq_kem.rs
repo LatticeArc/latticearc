@@ -151,9 +151,14 @@ fn decrypt_pq_ml_kem_internal(
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_core::{encrypt_pq_ml_kem, SecurityMode, VerifiedSession};
 /// use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
+/// # let data = b"example data";
+/// # let ml_kem_pk = vec![0u8; 1184]; // ML-KEM-768 public key size
+/// # let pk = [0u8; 32];
+/// # let sk = [0u8; 32];
 ///
 /// // With Zero Trust (recommended)
 /// let session = VerifiedSession::establish(&pk, &sk)?;
@@ -161,6 +166,8 @@ fn decrypt_pq_ml_kem_internal(
 ///
 /// // Without verification (opt-out)
 /// let encrypted = encrypt_pq_ml_kem(data, &ml_kem_pk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

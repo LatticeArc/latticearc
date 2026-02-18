@@ -24,7 +24,8 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_primitives::keys::KeyPair;
 //!
 //! let keypair = KeyPair::generate()?;
@@ -32,7 +33,8 @@
 //! // Access keys
 //! let public_key = keypair.public_key();
 //! let secret_key = keypair.secret_key();
-//! # Ok::<(), arc_primitives::keys::KeyError>(())
+//! # Ok(())
+//! # }
 //! ```
 
 use thiserror::Error;

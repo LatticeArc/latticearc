@@ -15,22 +15,25 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,ignore
-//! use arc_core::{encrypt, decrypt, SecurityMode, VerifiedSession, generate_keypair};
+//! ```rust,no_run
+//! use arc_core::{encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair};
 //!
+//! # fn main() -> Result<(), arc_core::error::CoreError> {
 //! // Generate a keypair for session establishment
 //! let (public_key, private_key) = generate_keypair()?;
 //!
 //! // Establish a Zero Trust verified session (recommended)
-//! let session = VerifiedSession::establish(&public_key, &private_key)?;
+//! let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 //!
 //! // Perform cryptographic operations with verification
 //! let key = [0u8; 32];
-//! let encrypted = encrypt(b"secret", &key, SecurityMode::Verified(&session))?;
-//! let decrypted = decrypt(&encrypted, &key, SecurityMode::Verified(&session))?;
+//! let encrypted = encrypt(b"secret", &key, CryptoConfig::new().session(&session))?;
+//! let decrypted = decrypt(&encrypted, &key, CryptoConfig::new().session(&session))?;
 //!
 //! // Opt-out: Without verification (for specific use cases only)
-//! let encrypted = encrypt(b"secret", &key, SecurityMode::Unverified)?;
+//! let encrypted = encrypt(b"secret", &key, CryptoConfig::new())?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## SecurityMode API
@@ -43,26 +46,29 @@
 //!
 //! Use `Verified` mode with a reference to a [`VerifiedSession`] for production use:
 //!
-//! ```rust,ignore
-//! use arc_core::{encrypt, SecurityMode, VerifiedSession, generate_keypair};
+//! ```rust,no_run
+//! use arc_core::{encrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 //!
+//! # fn main() -> Result<(), arc_core::error::CoreError> {
 //! // Step 1: Generate credentials (done once, typically at provisioning)
 //! let (public_key, private_key) = generate_keypair()?;
 //!
 //! // Step 2: Establish a verified session (performs challenge-response)
-//! let session = VerifiedSession::establish(&public_key, &private_key)?;
+//! let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 //!
 //! // Step 3: Use the session for cryptographic operations
 //! let key = [0u8; 32];
-//! let ciphertext = encrypt(b"sensitive data", &key, SecurityMode::Verified(&session))?;
+//! let ciphertext = encrypt_aes_gcm(b"sensitive data", &key, SecurityMode::Verified(&session))?;
 //!
 //! // The session can be reused for multiple operations until it expires
-//! let ciphertext2 = encrypt(b"more data", &key, SecurityMode::Verified(&session))?;
+//! let ciphertext2 = encrypt_aes_gcm(b"more data", &key, SecurityMode::Verified(&session))?;
 //!
 //! // Check session validity before long-running operations
 //! if session.is_valid() {
 //!     // Session has not expired
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! **What Verified mode provides:**
@@ -74,13 +80,16 @@
 //!
 //! Use `Unverified` mode for opt-out scenarios where Zero Trust is not applicable:
 //!
-//! ```rust,ignore
-//! use arc_core::{encrypt, SecurityMode};
+//! ```rust,no_run
+//! use arc_core::{encrypt_aes_gcm, SecurityMode};
 //!
+//! # fn main() -> Result<(), arc_core::error::CoreError> {
 //! let key = [0u8; 32];
 //!
 //! // Opt-out: No session verification performed
-//! let ciphertext = encrypt(b"data", &key, SecurityMode::Unverified)?;
+//! let ciphertext = encrypt_aes_gcm(b"data", &key, SecurityMode::Unverified)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! **When to use Unverified mode:**
@@ -101,24 +110,28 @@
 //!
 //! ### Quick Method (Recommended)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use arc_core::{VerifiedSession, generate_keypair};
 //!
+//! # fn main() -> Result<(), arc_core::error::CoreError> {
 //! let (pk, sk) = generate_keypair()?;
-//! let session = VerifiedSession::establish(&pk, &sk)?;
+//! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
 //!
 //! // Session is valid for 30 minutes by default
 //! assert!(session.is_valid());
 //! assert!(session.trust_level().is_trusted());
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Manual Method (Advanced)
 //!
 //! For custom authentication flows:
 //!
-//! ```rust,ignore
-//! use arc_core::{ZeroTrustAuth, ZeroTrustSession, generate_keypair};
-//!
+//! ```no_run
+//! # use arc_core::{ZeroTrustAuth, ZeroTrustSession, generate_keypair};
+//! # use arc_core::error::CoreError;
+//! # fn main() -> Result<(), CoreError> {
 //! let (pk, sk) = generate_keypair()?;
 //!
 //! // Create authentication handler
@@ -129,11 +142,13 @@
 //! let challenge = session.initiate_authentication()?;
 //!
 //! // Generate and verify proof (in real systems, proof is sent to verifier)
-//! let proof = session.auth.generate_proof(&challenge.data)?;
+//! let proof = session.generate_proof(&challenge)?;
 //! session.verify_response(&proof)?;
 //!
 //! // Convert to VerifiedSession
 //! let verified = session.into_verified()?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Session Lifecycle
@@ -145,8 +160,8 @@
 //! 3. **Validated** before critical operations using `session.is_valid()`
 //! 4. **Refreshed** by establishing a new session when expired
 //!
-//! ```rust,ignore
-//! use arc_core::{encrypt, SecurityMode, VerifiedSession, generate_keypair, CoreError};
+//! ```rust,no_run
+//! use arc_core::{encrypt_aes_gcm, SecurityMode, VerifiedSession, CoreError};
 //!
 //! fn perform_crypto_operation(
 //!     session: &VerifiedSession,
@@ -156,7 +171,7 @@
 //!     // Validate session before operation
 //!     session.verify_valid()?;  // Returns Err(SessionExpired) if expired
 //!
-//!     encrypt(data, key, SecurityMode::Verified(session))
+//!     encrypt_aes_gcm(data, key, SecurityMode::Verified(session))
 //! }
 //! ```
 //!

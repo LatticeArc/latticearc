@@ -34,7 +34,7 @@
 //! ## Test Coverage (Tasks 2.1.1 - 2.1.13)
 //! - Key generation for all security levels (MlKem512/768/1024)
 //! - Encapsulation for all security levels
-//! - Decapsulation with FIPS limitation handling
+//! - Decapsulation for all security levels
 //! - Shared secret equality verification
 //! - Public key serialization roundtrip
 //! - Ciphertext validation
@@ -45,8 +45,8 @@
 //! - NIST KAT vector testing (where applicable)
 //!
 //! ## FIPS 140-3 Compliance Note
-//! The aws-lc-rs library provides FIPS 140-3 validated ML-KEM. Secret key
-//! serialization is supported in aws-lc-rs v1.16.0+ for migration scenarios.
+//! The aws-lc-rs library (v1.16.0+) provides FIPS 140-3 validated ML-KEM with
+//! full key serialization support including DecapsulationKey.
 
 use arc_primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemConfig, MlKemError, MlKemPublicKey, MlKemSecretKey,

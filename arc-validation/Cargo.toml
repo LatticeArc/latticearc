@@ -9,7 +9,7 @@ description = "Input validation and security checks for LatticeArc"
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 # Inherit all lints from workspace
 [lints]
@@ -80,8 +80,8 @@ chrono = { workspace = true }
 # Test initialization
 ctor = "0.2.9"
 
-arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
-arc-types = { version = "0.1.1", path = "../arc-types" }
+arc-prelude = { version = "0.1.2", path = "../arc-prelude" }
+arc-types = { version = "0.1.2", path = "../arc-types" }
 
 # Temporary directories for CAVP vector handling
 tempfile = { workspace = true }

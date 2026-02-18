@@ -6,12 +6,15 @@
 //!
 //! ## Key Generation
 //!
-//! ```rust,ignore
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_core::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
 //!
 //! let (pk, sk) = generate_hybrid_keypair()?;
 //! let encrypted = encrypt_hybrid(b"secret", &pk, SecurityMode::Unverified)?;
 //! let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Encryption Pipeline

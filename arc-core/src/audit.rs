@@ -13,11 +13,12 @@
 //!
 //! ## Usage
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use arc_core::audit::{AuditConfig, FileAuditStorage, AuditStorage, AuditEvent, AuditEventType, AuditOutcome};
 //! use std::path::PathBuf;
 //! use std::time::Duration;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = AuditConfig {
 //!     storage_path: PathBuf::from("/var/log/latticearc/audit"),
 //!     max_file_size_bytes: 100 * 1024 * 1024, // 100MB
@@ -34,6 +35,8 @@
 //!     AuditOutcome::Success,
 //! );
 //! storage.write(&event)?;
+//! # Ok(())
+//! # }
 //! ```
 
 #![deny(unsafe_code)]
@@ -765,7 +768,7 @@ mod tests {
 
     #[test]
     fn test_audit_config_builder() {
-        let config = AuditConfig::new(PathBuf::from("/tmp/audit"))
+        let config = AuditConfig::new(std::env::temp_dir().join("audit"))
             .with_max_file_size(50 * 1024 * 1024)
             .with_max_file_age(Duration::from_secs(12 * 60 * 60))
             .with_retention_days(30);

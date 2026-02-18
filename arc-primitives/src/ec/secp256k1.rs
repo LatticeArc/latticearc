@@ -15,7 +15,9 @@ use rand::rngs::OsRng;
 use zeroize::Zeroizing;
 
 /// secp256k1 key pair implementation
-#[derive(Clone)]
+///
+/// This type intentionally does not implement `Clone` to prevent
+/// accidental duplication of secret key material.
 pub struct Secp256k1KeyPair {
     public_key: VerifyingKey,
     secret_key: SigningKey,

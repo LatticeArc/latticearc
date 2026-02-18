@@ -171,8 +171,8 @@ On any self-test failure:
 
 - No persistent key storage in the module
 - Keys exist only in volatile memory during process lifetime
-- ML-KEM `DecapsulationKey` cannot be serialized (aws-lc-rs security design)
-- Applications must implement their own key persistence using HSM/KMS
+- ML-KEM `DecapsulationKey` serialization supported via aws-lc-rs v1.16.0+ for migration scenarios
+- Applications should implement key persistence using HSM/KMS for production deployments
 
 ---
 

@@ -9,7 +9,7 @@ description = "LatticeArc - Post-Quantum Cryptography Library"
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 # Inherit all lints from workspace
 [lints]
@@ -17,13 +17,13 @@ workspace = true
 
 [dependencies]
 # Core crates - all always included
-arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
-arc-core = { version = "0.1.1", path = "../arc-core" }
-arc-prelude = { version = "0.1.1", path = "../arc-prelude" }
-arc-zkp = { version = "0.1.1", path = "../arc-zkp" }
-arc-hybrid = { version = "0.1.1", path = "../arc-hybrid" }
-arc-tls = { version = "0.1.1", path = "../arc-tls" }
-arc-perf = { version = "0.1.1", path = "../arc-perf" }
+arc-primitives = { version = "0.1.2", path = "../arc-primitives" }
+arc-core = { version = "0.1.2", path = "../arc-core" }
+arc-prelude = { version = "0.1.2", path = "../arc-prelude" }
+arc-zkp = { version = "0.1.2", path = "../arc-zkp" }
+arc-hybrid = { version = "0.1.2", path = "../arc-hybrid" }
+arc-tls = { version = "0.1.2", path = "../arc-tls" }
+arc-perf = { version = "0.1.2", path = "../arc-perf" }
 
 [features]
 default = []

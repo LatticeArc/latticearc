@@ -78,7 +78,8 @@ pub enum HmacError {
 /// - Maximum key length: no limit (will be hashed if longer than block size)
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::mac::hmac::hmac_sha256;
 ///
 /// let key = b"my secret key";
@@ -86,6 +87,8 @@ pub enum HmacError {
 ///
 /// let tag = hmac_sha256(key, data)?;
 /// assert_eq!(tag.len(), 32);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors
@@ -134,7 +137,8 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; 32]> {
 /// `true` if the tag is valid, `false` otherwise
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
 ///
 /// let key = b"my secret key";
@@ -143,6 +147,8 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; 32]> {
 /// let tag = hmac_sha256(key, data)?;
 /// let is_valid = verify_hmac_sha256(key, data, &tag);
 /// assert!(is_valid);
+/// # Ok(())
+/// # }
 /// ```
 #[must_use]
 pub fn verify_hmac_sha256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {

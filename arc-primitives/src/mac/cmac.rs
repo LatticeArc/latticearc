@@ -55,6 +55,30 @@ pub struct Cmac192 {
     tag: [u8; 16],
 }
 
+impl Cmac128 {
+    /// Returns the computed CMAC-128 tag (16 bytes).
+    #[must_use]
+    pub fn tag(&self) -> &[u8; 16] {
+        &self.tag
+    }
+}
+
+impl Cmac256 {
+    /// Returns the computed CMAC-256 tag (16 bytes).
+    #[must_use]
+    pub fn tag(&self) -> &[u8; 16] {
+        &self.tag
+    }
+}
+
+impl Cmac192 {
+    /// Returns the computed CMAC-192 tag (16 bytes).
+    #[must_use]
+    pub fn tag(&self) -> &[u8; 16] {
+        &self.tag
+    }
+}
+
 /// CMAC subkeys K1 and K2 for padding operations
 #[derive(Debug, Clone)]
 struct CmacSubkeys {
@@ -424,15 +448,18 @@ pub fn cmac_256(key: &[u8], data: &[u8]) -> Result<Cmac256, CmacError> {
 /// `true` if the tag is valid, `false` otherwise
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::mac::cmac::{cmac_128, verify_cmac_128};
 ///
 /// let key = [0u8; 16];
 /// let data = b"message to authenticate";
 ///
 /// let cmac = cmac_128(&key, data)?;
-/// let is_valid = verify_cmac_128(&key, data, &cmac.tag);
+/// let is_valid = verify_cmac_128(&key, data, cmac.tag());
 /// assert!(is_valid);
+/// # Ok(())
+/// # }
 /// ```
 #[must_use]
 pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
@@ -471,15 +498,18 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
 /// `true` if the tag is valid, `false` otherwise
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::mac::cmac::{cmac_192, verify_cmac_192};
 ///
 /// let key = [0u8; 24];
 /// let data = b"message to authenticate";
 ///
 /// let cmac = cmac_192(&key, data)?;
-/// let is_valid = verify_cmac_192(&key, data, &cmac.tag);
+/// let is_valid = verify_cmac_192(&key, data, cmac.tag());
 /// assert!(is_valid);
+/// # Ok(())
+/// # }
 /// ```
 #[must_use]
 pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
@@ -518,15 +548,18 @@ pub fn verify_cmac_192(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
 /// `true` if the tag is valid, `false` otherwise
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::mac::cmac::{cmac_256, verify_cmac_256};
 ///
 /// let key = [0u8; 32];
 /// let data = b"message to authenticate";
 ///
 /// let cmac = cmac_256(&key, data)?;
-/// let is_valid = verify_cmac_256(&key, data, &cmac.tag);
+/// let is_valid = verify_cmac_256(&key, data, cmac.tag());
 /// assert!(is_valid);
+/// # Ok(())
+/// # }
 /// ```
 #[must_use]
 pub fn verify_cmac_256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {

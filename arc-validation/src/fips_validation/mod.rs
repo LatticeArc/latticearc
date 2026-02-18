@@ -56,7 +56,8 @@
 //!
 //! ## Usage
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_validation::fips_validation::{FIPSValidator, ValidationScope};
 //!
 //! // Create FIPS validator
@@ -80,6 +81,8 @@
 //!         tracing::info!("Remediation: {}", item);
 //!     }
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 mod algorithm_tests;

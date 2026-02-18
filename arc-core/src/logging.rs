@@ -1034,7 +1034,7 @@ macro_rules! log_performance {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::{log_key_generated, logging::{KeyType, KeyPurpose}};
 ///
 /// log_key_generated!("key-001", "ML-KEM-768", KeyType::KeyPair, KeyPurpose::KeyExchange);
@@ -1067,7 +1067,7 @@ macro_rules! log_key_generated {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::{log_key_rotated, logging::RotationReason};
 ///
 /// log_key_rotated!("key-001", "key-002", "ML-KEM-768", RotationReason::Scheduled);
@@ -1098,7 +1098,7 @@ macro_rules! log_key_rotated {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::{log_key_destroyed, logging::DestructionMethod};
 ///
 /// log_key_destroyed!("key-001", DestructionMethod::Zeroization);
@@ -1127,7 +1127,7 @@ macro_rules! log_key_destroyed {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::log_key_accessed;
 ///
 /// log_key_accessed!("key-001", "encrypt");
@@ -1165,7 +1165,7 @@ macro_rules! log_key_accessed {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::log_key_deprecated;
 ///
 /// log_key_deprecated!("key-001", "Scheduled retirement per policy");
@@ -1194,7 +1194,7 @@ macro_rules! log_key_deprecated {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::log_key_suspended;
 ///
 /// log_key_suspended!("key-001", "Suspected compromise");
@@ -1224,7 +1224,7 @@ macro_rules! log_key_suspended {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::log_key_exported;
 ///
 /// log_key_exported!("key-001", "PEM", "backup-hsm-01");
@@ -1255,7 +1255,7 @@ macro_rules! log_key_exported {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::log_key_imported;
 ///
 /// log_key_imported!("key-001", "ML-KEM-768", "external-hsm-02");
@@ -1284,7 +1284,7 @@ macro_rules! log_key_imported {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_core::{log_crypto_operation, logging::{set_correlation_id, CorrelationGuard}};
 ///
 /// // Set a correlation ID

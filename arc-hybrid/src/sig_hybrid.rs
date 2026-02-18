@@ -97,7 +97,8 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_hybrid::sig_hybrid::{generate_keypair, sign, verify};
 //! use rand::rngs::OsRng;
 //!
@@ -113,6 +114,8 @@
 //! // Verify the signature
 //! let is_valid = verify(&pk, message, &signature)?;
 //! assert!(is_valid);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! [`ZeroizeOnDrop`]: zeroize::ZeroizeOnDrop
@@ -194,7 +197,7 @@ pub struct HybridPublicKey {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use arc_hybrid::sig_hybrid::generate_keypair;
 /// use rand::rngs::OsRng;
 ///

@@ -115,10 +115,14 @@ impl CounterKdfParams {
 /// Derived key material of the requested length
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use arc_primitives::kdf::sp800_108_counter_kdf::{counter_kdf, CounterKdfParams};
 /// let master_secret = b"my super secret master key";
 /// let params = CounterKdfParams::for_encryption().with_context(b"my-app-v1");
 /// let derived_key = counter_kdf(master_secret, &params, 32)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Security Considerations
@@ -235,15 +239,19 @@ pub fn counter_kdf(
 /// Vector of derived keys in the same order as specifications
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use arc_primitives::kdf::sp800_108_counter_kdf::derive_multiple_keys;
 /// let master_secret = b"my super secret master key";
 /// let context = b"my-app-v1";
 /// let key_specs = vec![
-///     (b"encryption", 32),
-///     (b"mac", 32),
-///     (b"iv", 16),
+///     (b"encryption" as &[u8], 32),
+///     (b"mac" as &[u8], 32),
+///     (b"iv" as &[u8], 16),
 /// ];
 /// let keys = derive_multiple_keys(master_secret, context, &key_specs)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

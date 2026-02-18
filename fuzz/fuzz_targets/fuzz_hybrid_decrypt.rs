@@ -92,7 +92,6 @@ fuzz_target!(|data: &[u8]| {
             info: b"Wrong-Context".to_vec(),
             aad: b"wrong aad".to_vec(),
         };
-        // Will fail due to aws-lc-rs SK limitation anyway
         let _ = decrypt(&fake_sk, &ct, Some(&wrong_context));
     }
 

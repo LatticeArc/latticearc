@@ -25,25 +25,30 @@ use crate::zero_trust::VerifiedSession;
 ///
 /// # Examples
 ///
-/// ```rust,ignore
-/// use arc_core::{encrypt, CryptoConfig, UseCase, SecurityLevel, VerifiedSession};
-///
+/// ```rust,no_run
+/// # use arc_core::{encrypt, CryptoConfig, UseCase, SecurityLevel, VerifiedSession, generate_keypair};
+/// # fn main() -> Result<(), arc_core::error::CoreError> {
+/// # let data = b"secret";
+/// # let key = [0u8; 32];
 /// // Simple - all defaults (High security, no session)
-/// encrypt(data, key, CryptoConfig::new())?;
+/// encrypt(data, &key, CryptoConfig::new())?;
 ///
 /// // With Zero Trust session
-/// let session = VerifiedSession::establish(&pk, &sk)?;
-/// encrypt(data, key, CryptoConfig::new().session(&session))?;
+/// # let (pk, sk) = generate_keypair()?;
+/// let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+/// encrypt(data, &key, CryptoConfig::new().session(&session))?;
 ///
 /// // With use case (recommended - library picks optimal algorithm)
-/// encrypt(data, key, CryptoConfig::new()
+/// encrypt(data, &key, CryptoConfig::new()
 ///     .session(&session)
 ///     .use_case(UseCase::FileStorage))?;
 ///
 /// // With security level (manual control)
-/// encrypt(data, key, CryptoConfig::new()
+/// encrypt(data, &key, CryptoConfig::new()
 ///     .session(&session)
 ///     .security_level(SecurityLevel::Maximum))?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct CryptoConfig<'a> {

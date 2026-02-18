@@ -9,14 +9,14 @@ description = "Hybrid cryptography combining post-quantum and classical algorith
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 [lints]
 workspace = true
 
 [dependencies]
 # Core primitives (includes aws-lc-rs for FIPS 140-3 validated ML-KEM, X25519, AES-GCM, HKDF)
-arc-primitives = { version = "0.1.1", path = "../arc-primitives" }
+arc-primitives = { version = "0.1.2", path = "../arc-primitives" }
 
 # FIPS 140-3 validated crypto (AES-GCM, HKDF, X25519)
 aws-lc-rs = { workspace = true }

@@ -65,11 +65,16 @@ impl HkdfResult {
 /// is used multiple times, the derived keys will be different.
 ///
 /// **Best Practice:** Generate a random salt using a cryptographically secure RNG:
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use arc_primitives::kdf::hkdf::hkdf_extract;
 /// use rand::RngCore;
+/// # let ikm = b"input key material";
 /// let mut salt = [0u8; 32];
 /// rand::rngs::OsRng.fill_bytes(&mut salt);
 /// let prk = hkdf_extract(Some(&salt), ikm)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// If salt is `None`, a string of 32 zero bytes is used (per RFC 5869 Section 2.2).
@@ -84,10 +89,14 @@ impl HkdfResult {
 /// A 32-byte pseudorandom key (PRK)
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use arc_primitives::kdf::hkdf::hkdf_extract;
 /// let ikm = b"secret input key material";
 /// let salt = b"random salt value for maximum security";
 /// let prk = hkdf_extract(Some(salt), ikm)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors
@@ -142,10 +151,16 @@ pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<[u8; 32]> {
 /// Output keying material of the requested length
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use arc_primitives::kdf::hkdf::{hkdf_extract, hkdf_expand};
+/// # let ikm = b"input key material";
+/// # let salt = b"salt";
 /// let prk = hkdf_extract(Some(salt), ikm)?;
 /// let info = b"context information";
 /// let okm = hkdf_expand(&prk, Some(info), 64)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors
@@ -222,11 +237,15 @@ pub fn hkdf_expand(prk: &[u8; 32], info: Option<&[u8]>, length: usize) -> Result
 /// Output keying material of the requested length
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use arc_primitives::kdf::hkdf::hkdf;
 /// let ikm = b"secret input key material";
 /// let salt = b"random salt";
 /// let info = b"context information";
 /// let okm = hkdf(ikm, Some(salt), Some(info), 64)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

@@ -29,11 +29,11 @@
 //!
 //! ## Usage
 //!
-//! ```rust,ignore
+//! ```no_run
 //! use arc_primitives::polynomial::simd::{polynomial_multiply, MLKEM_N};
 //!
-//! let a: [i32; MLKEM_N] = [1, 2, 3, /* ... */];
-//! let b: [i32; MLKEM_N] = [4, 5, 6, /* ... */];
+//! # let a: [i32; MLKEM_N] = [0; MLKEM_N];
+//! # let b: [i32; MLKEM_N] = [0; MLKEM_N];
 //! let result = polynomial_multiply(&a, &b);
 //! ```
 

@@ -7,11 +7,15 @@
 //!
 //! All operations use `CryptoConfig` for configuration:
 //!
-//! ```rust,ignore
-//! use latticearc::{
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use arc_core::{
 //!     encrypt, decrypt, generate_signing_keypair, sign_with_key, verify,
 //!     CryptoConfig, UseCase,
 //! };
+//! # let data = b"example data";
+//! # let key = [0u8; 32];
+//! # let message = b"example message";
 //!
 //! // Encrypt with use case (recommended)
 //! let encrypted = encrypt(data, &key, CryptoConfig::new()
@@ -22,21 +26,30 @@
 //!
 //! // Sign (generate keypair once, sign with persistent key)
 //! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
-//! let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())?;
+//! let signed = sign_with_key(message, sk.as_ref(), pk.as_ref(), CryptoConfig::new())?;
 //!
 //! // Verify
 //! let is_valid = verify(&signed, CryptoConfig::new())?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## With Zero Trust Session
 //!
-//! ```rust,ignore
-//! use latticearc::{encrypt, CryptoConfig, UseCase, VerifiedSession};
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use arc_core::{encrypt, CryptoConfig, UseCase, VerifiedSession};
+//! # let pk = [0u8; 32];
+//! # let sk = [0u8; 32];
+//! # let data = b"example data";
+//! # let key = [0u8; 32];
 //!
 //! let session = VerifiedSession::establish(&pk, &sk)?;
 //! let encrypted = encrypt(data, &key, CryptoConfig::new()
 //!     .session(&session)
 //!     .use_case(UseCase::FileStorage))?;
+//! # Ok(())
+//! # }
 //! ```
 
 mod aes_gcm;

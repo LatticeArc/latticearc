@@ -6,14 +6,22 @@
 //!
 //! All cryptographic operations use `SecurityMode` to specify verification behavior:
 //!
-//! ```rust,ignore
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_core::{sign_ed25519, verify_ed25519, SecurityMode, VerifiedSession};
+//! # let data = b"example data";
+//! # let private_key = [0u8; 32];
+//! # let pk = [0u8; 32];
+//! # let sk = [0u8; 32];
+//! # let session = VerifiedSession::establish(&pk, &sk)?;
 //!
 //! // With Zero Trust verification (recommended)
 //! let signature = sign_ed25519(data, &private_key, SecurityMode::Verified(&session))?;
 //!
 //! // Without verification (opt-out)
 //! let signature = sign_ed25519(data, &private_key, SecurityMode::Unverified)?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{
@@ -161,17 +169,21 @@ pub(crate) fn verify_ed25519_internal(
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_core::{sign_ed25519, SecurityMode, VerifiedSession, generate_keypair};
+/// # let private_key = [0u8; 32];
 ///
 /// let (pk, sk) = generate_keypair()?;
-/// let session = VerifiedSession::establish(&pk, &sk)?;
+/// let session = VerifiedSession::establish(pk.as_ref(), sk.as_ref())?;
 ///
 /// // With Zero Trust verification (recommended)
 /// let signature = sign_ed25519(b"message", &private_key, SecurityMode::Verified(&session))?;
 ///
 /// // Without verification (opt-out)
 /// let signature = sign_ed25519(b"message", &private_key, SecurityMode::Unverified)?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Errors

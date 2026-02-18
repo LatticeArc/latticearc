@@ -315,8 +315,7 @@ fn test_encrypt_pq_ml_kem_corrupted_public_key_all_zeros() {
     // Note: ML-KEM implementations may not validate public keys during encryption.
     // The all-zeros key may produce a ciphertext that cannot be decapsulated properly.
     // This test verifies the operation completes without panic. The actual cryptographic
-    // validity would be detected during decapsulation (which is not supported due to
-    // FIPS limitations).
+    // validity would be detected during decapsulation.
     // The test verifies no panic occurs with potentially invalid key material.
     let _ = result;
 }

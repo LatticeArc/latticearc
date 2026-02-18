@@ -9,7 +9,7 @@ description = "Performance profiling and benchmarking for LatticeArc"
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 # Inherit all lints from workspace
 [lints]
@@ -25,8 +25,8 @@ fips = []
 
 [dev-dependencies]
 criterion = { workspace = true }
-arc-primitives = { path = "../arc-primitives" }
-arc-core = { path = "../arc-core" }
+arc-primitives = { version = "0.1.2", path = "../arc-primitives" }
+arc-core = { version = "0.1.2", path = "../arc-core" }
 rand = { workspace = true }
 
 [lib]

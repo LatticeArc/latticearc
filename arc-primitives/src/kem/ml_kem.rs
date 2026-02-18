@@ -310,17 +310,26 @@ impl MlKemPublicKey {
     /// security level.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use arc_primitives::kem::ml_kem::{MlKemPublicKey, MlKemSecurityLevel, MlKem};
+    /// # use rand::rngs::OsRng;
+    /// # let mut rng = OsRng;
+    /// # let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
     /// // Serialize public key
     /// let pk_bytes = pk.to_bytes();
+    /// # let store_public_key = |_: &[u8]| {};
     /// store_public_key(&pk_bytes);
     ///
     /// // Later, restore from storage
+    /// # let load_public_key = || pk_bytes.clone();
     /// let stored_bytes = load_public_key();
     /// let pk = MlKemPublicKey::from_bytes(&stored_bytes, MlKemSecurityLevel::MlKem768)?;
     ///
     /// // Use for encapsulation
     /// let (ss, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn from_bytes(
         bytes: &[u8],
@@ -339,7 +348,12 @@ impl MlKemPublicKey {
     /// This is one of the key operations that works correctly with aws-lc-rs.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+    /// # use rand::rngs::OsRng;
+    /// # let mut rng = OsRng;
+    /// # let level = MlKemSecurityLevel::MlKem768;
     /// let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)?;
     ///
     /// // Serialize for storage
@@ -347,7 +361,10 @@ impl MlKemPublicKey {
     /// std::fs::write("public_key.bin", &pk_bytes)?;
     ///
     /// // Or transmit to peer
+    /// # let send_to_peer = |_: &[u8]| {};
     /// send_to_peer(&pk_bytes);
+    /// # Ok(())
+    /// # }
     /// ```
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {

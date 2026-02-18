@@ -332,7 +332,8 @@ impl std::fmt::Debug for X25519KeyPair {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::kem::ecdh::X25519StaticKeyPair;
 ///
 /// let alice = X25519StaticKeyPair::generate()?;
@@ -346,6 +347,8 @@ impl std::fmt::Debug for X25519KeyPair {
 /// // Reusable: alice can agree with multiple peers
 /// let carol = X25519StaticKeyPair::generate()?;
 /// let ss3 = alice.agree(carol.public_key_bytes())?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct X25519StaticKeyPair {
     private: PrivateKey,

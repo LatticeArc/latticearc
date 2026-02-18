@@ -26,8 +26,7 @@ fuzz_target!(|data: &[u8]| {
     // Test 1: Generate valid keypair and test with valid ciphertext
     if let Ok((pk, sk)) = MlKem::generate_keypair(&mut rng, level) {
         if let Ok((_ss1, ct)) = MlKem::encapsulate(&mut rng, &pk) {
-            // Decapsulation with aws-lc-rs limitation will error,
-            // but should not crash
+            // Decapsulation should not crash
             let _ = MlKem::decapsulate(&sk, &ct);
         }
     }

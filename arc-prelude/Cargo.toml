@@ -9,7 +9,7 @@ description = "LatticeArc Prelude - Re-exports for convenience"
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 # Inherit all lints from workspace
 [lints]
@@ -33,7 +33,7 @@ rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 backtrace = { version = "0.3", optional = true }
 getrandom = { workspace = true }
 aws-lc-rs = { workspace = true }  # For FIPS 140-3 validated crypto
-arc-types = { version = "0.1.1", path = "../arc-types" }
+arc-types = { version = "0.1.2", path = "../arc-types" }
 
 [features]
 default = ["std"]

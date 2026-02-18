@@ -133,7 +133,8 @@ impl FNDsaSecurityLevel {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::sig::fndsa::{Signature, KeyPair, FNDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
@@ -143,7 +144,8 @@ impl FNDsaSecurityLevel {
 ///
 /// let signature = keypair.sign(&mut rng, message)?;
 /// assert_eq!(signature.len(), 666); // FN-DSA-512 signature size
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature {
@@ -213,12 +215,15 @@ impl From<Vec<u8>> for Signature {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::sig::fndsa::{VerifyingKey, KeyPair, FNDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
 /// let mut rng = OsRng;
-/// let keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+/// let mut keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+/// # let message = b"test";
+/// # let signature = keypair.sign(&mut rng, message)?;
 ///
 /// // Export verifying key for distribution
 /// let vk_bytes = keypair.verifying_key().to_bytes();
@@ -226,7 +231,8 @@ impl From<Vec<u8>> for Signature {
 ///
 /// // Verify a signature
 /// let is_valid = vk_restored.verify(message, &signature)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone, Debug)]
 pub struct VerifyingKey {
@@ -303,7 +309,8 @@ impl VerifyingKey {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::sig::fndsa::{SigningKey, KeyPair, FNDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
@@ -312,7 +319,8 @@ impl VerifyingKey {
 ///
 /// // Signing key provides access to verification key
 /// let vk = keypair.signing_key().verifying_key();
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Security Note - Zeroization Limitations
@@ -450,7 +458,8 @@ impl SigningKey {
 ///
 /// # Usage
 ///
-/// ```ignore
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use arc_primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
@@ -468,7 +477,8 @@ impl SigningKey {
 /// // Export keys for storage/distribution
 /// let sk_bytes = keypair.signing_key().to_bytes();
 /// let vk_bytes = keypair.verifying_key().to_bytes();
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Security
@@ -531,7 +541,8 @@ impl KeyPair {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use arc_primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
     /// use rand::rngs::OsRng;
     ///
@@ -540,7 +551,8 @@ impl KeyPair {
     ///
     /// println!("Public key: {} bytes", keypair.verifying_key().to_bytes().len());
     /// println!("Secret key: {} bytes", keypair.signing_key().to_bytes().len());
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// # Ok(())
+    /// # }
     /// ```
     #[instrument(level = "debug", skip(rng), fields(security_level = ?security_level))]
     pub fn generate<R: RngCore + rand::CryptoRng>(
@@ -610,7 +622,8 @@ impl KeyPair {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use arc_primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
     /// use rand::rngs::OsRng;
     ///
@@ -623,7 +636,8 @@ impl KeyPair {
     /// // Verify the signature
     /// let is_valid = keypair.verify(message, &signature)?;
     /// assert!(is_valid);
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn sign<R: RngCore + rand::CryptoRng>(
         &mut self,
@@ -661,7 +675,8 @@ impl KeyPair {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use arc_primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
     /// use rand::rngs::OsRng;
     ///
@@ -679,7 +694,8 @@ impl KeyPair {
     /// let wrong_message = b"Tampered message";
     /// let is_valid = keypair.verify(wrong_message, &signature)?;
     /// assert!(!is_valid);
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn verify(&self, message: &[u8], signature: &Signature) -> Result<bool> {
         self.verifying_key.verify(message, signature)

@@ -24,9 +24,12 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use arc_hybrid::encrypt_hybrid::{encrypt, decrypt, HybridEncryptionContext};
 //! use rand::rngs::OsRng;
+//! # let ml_kem_pk = vec![0u8; 1184]; // ML-KEM-768 public key (placeholder)
+//! # let ml_kem_sk = vec![0u8; 2400]; // ML-KEM-768 secret key (placeholder)
 //!
 //! let mut rng = OsRng;
 //! let plaintext = b"Secret message";
@@ -37,6 +40,8 @@
 //!
 //! // Decrypt with ML-KEM secret key
 //! let decrypted = decrypt(&ml_kem_sk, &ciphertext, Some(&context))?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::kem_hybrid::{self, EncapsulatedKey, HybridPublicKey, HybridSecretKey};
