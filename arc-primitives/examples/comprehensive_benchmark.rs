@@ -158,15 +158,16 @@ fn main() {
     all_results.push(r);
 
     // Hybrid Decrypt: X25519 DH + HKDF combine + AES-GCM decrypt
-    // Note: ML-KEM decapsulation not benchmarked (aws-lc-rs limitation on SK serialization)
+    // Note: For simplicity, this benchmark uses X25519 only (ML-KEM decapsulation would require
+    // storing the DecapsulationKey, which is supported in aws-lc-rs v1.16.0+)
     let (ct, tag) = cipher.encrypt(&nonce, &plaintext_1kb, None).unwrap();
     let r = benchmark("Hybrid Decrypt (1KB)*", 500, || {
-        // *Decrypt shows X25519 keygen + HKDF + AES-GCM only (ML-KEM decaps not included)
+        // *Decrypt shows X25519 keygen + HKDF + AES-GCM only (ML-KEM decaps excluded for simplicity)
         // Step 1: Generate ephemeral key and derive shared secret (simulates static DH)
         let ecdh_ephemeral = X25519KeyPair::generate().unwrap();
         let ecdh_ss = ecdh_ephemeral.agree(x25519_pk.as_bytes()).unwrap();
 
-        // Step 2: Derive key (simulate with ECDH only since we can't decap ML-KEM)
+        // Step 2: Derive key (simulate with ECDH only for benchmark simplicity)
         let hkdf_result = hkdf(&ecdh_ss, None, Some(b"hybrid"), 32).unwrap();
         let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
 
@@ -175,7 +176,7 @@ fn main() {
         let _ = hybrid_cipher.decrypt(&nonce, &ct, &tag, None);
     });
     print_result(&r);
-    println!("  * ML-KEM decapsulation excluded (aws-lc-rs SK serialization limitation)");
+    println!("  * ML-KEM decapsulation excluded for benchmark simplicity");
     all_results.push(r);
 
     // ========================================================================
@@ -256,9 +257,9 @@ fn main() {
     print_result(&r);
     all_results.push(r);
 
-    // PQ-Only Decrypt (partial - ML-KEM decaps not available)
+    // PQ-Only Decrypt (simplified - ML-KEM decaps excluded for benchmark simplicity)
     let r = benchmark("PQ-Only Decrypt (1KB)*", 10000, || {
-        // *Decrypt shows HKDF + AES-GCM only (ML-KEM decaps not included)
+        // *Decrypt shows HKDF + AES-GCM only (ML-KEM decaps excluded for simplicity)
         // Simulating with pre-known key derivation
         let hkdf_result = hkdf(&[0u8; 32], None, Some(b"pq-only"), 32).unwrap();
         let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
@@ -266,7 +267,7 @@ fn main() {
         let _ = pq_cipher.decrypt(&nonce, &ct, &tag, None);
     });
     print_result(&r);
-    println!("  * ML-KEM decapsulation excluded (aws-lc-rs SK serialization limitation)");
+    println!("  * ML-KEM decapsulation excluded for benchmark simplicity");
     all_results.push(r);
 
     // ========================================================================

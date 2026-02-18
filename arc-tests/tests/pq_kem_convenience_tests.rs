@@ -9,8 +9,7 @@
 //! - Task 1.1.13: SecurityMode::Verified with expired session
 //! - Task 1.1.15: Binary data with all byte values (0x00, 0xFF, etc.)
 //!
-//! Note: Due to FIPS 140-3 aws-lc-rs limitations, ML-KEM decryption is not
-//! supported. These tests focus on encryption operations and error handling.
+//! Note: These tests focus on encryption operations and error handling.
 
 #![allow(
     clippy::panic,
@@ -250,36 +249,27 @@ fn test_security_mode_validate_with_valid_session() -> Result<()> {
 }
 
 #[test]
-fn test_decrypt_pq_ml_kem_verified_returns_not_implemented() {
+fn test_decrypt_pq_ml_kem_verified_roundtrip() {
     // Setup
+    let data = b"data";
     let (pk, sk) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
-    let encrypted = encrypt_pq_ml_kem_unverified(b"data", &pk, MlKemSecurityLevel::MlKem768)
+    let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)
         .expect("encryption should succeed");
 
     let (auth_pk, auth_sk) = generate_keypair().expect("auth keypair generation");
     let session =
         VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).expect("session establishment");
 
-    // Attempt decryption with verified mode
-    let result = decrypt_pq_ml_kem(
+    // Decrypt with verified mode (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
+    let decrypted = decrypt_pq_ml_kem(
         &encrypted,
         sk.as_ref(),
         MlKemSecurityLevel::MlKem768,
         SecurityMode::Verified(&session),
-    );
-
-    // Should return NotImplemented error (FIPS limitation)
-    assert!(result.is_err(), "Decryption should fail due to FIPS limitation");
-    match result.unwrap_err() {
-        CoreError::NotImplemented(msg) => {
-            assert!(
-                msg.contains("aws-lc-rs") || msg.contains("FIPS"),
-                "Error should mention FIPS/aws-lc-rs limitation"
-            );
-        }
-        other => panic!("Expected NotImplemented error, got: {:?}", other),
-    }
+    )
+    .expect("decryption should succeed");
+    assert_eq!(decrypted, data);
 }
 
 // ============================================================================

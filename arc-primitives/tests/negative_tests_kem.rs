@@ -302,56 +302,79 @@ fn test_ml_kem_encapsulate_with_junk_public_key() {
 #[test]
 fn test_ml_kem_decapsulate_with_junk_ciphertext() {
     let mut rng = OsRng;
-    let (_pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
+
+    // Encapsulate to get the real shared secret
+    let (real_ss, _real_ct) =
+        MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
 
     // Create junk ciphertext with correct size
     let junk_bytes = vec![0x42u8; 768]; // Correct size for MlKem512
     let junk_ct = MlKemCiphertext::new(MlKemSecurityLevel::MlKem512, junk_bytes)
         .expect("construction with correct size should succeed");
 
-    // Decapsulation should fail with junk ciphertext
-    let result = MlKem::decapsulate(&sk, &junk_ct);
-    assert!(result.is_err(), "Should fail with junk ciphertext");
-
-    match result {
-        Err(MlKemError::DecapsulationError(_)) => {
-            // Expected error
-        }
-        _ => panic!("Expected DecapsulationError, got {:?}", result),
-    }
+    // ML-KEM uses implicit rejection (FIPS 203 §7.3): invalid ciphertexts produce
+    // a different shared secret rather than returning an error
+    let junk_ss = MlKem::decapsulate(&sk, &junk_ct)
+        .expect("decapsulation succeeds even with junk (implicit rejection)");
+    assert_ne!(
+        real_ss.as_bytes(),
+        junk_ss.as_bytes(),
+        "Junk ciphertext must produce a different shared secret"
+    );
 }
 
 #[test]
 fn test_ml_kem_decapsulate_with_all_zeros_ciphertext() {
     let mut rng = OsRng;
-    let (_pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
+
+    // Encapsulate to get the real shared secret
+    let (real_ss, _real_ct) =
+        MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
 
     // Create all-zeros ciphertext
     let zero_bytes = vec![0u8; 1088]; // Correct size for MlKem768
     let zero_ct = MlKemCiphertext::new(MlKemSecurityLevel::MlKem768, zero_bytes)
         .expect("construction should succeed");
 
-    // Decapsulation should fail
-    let result = MlKem::decapsulate(&sk, &zero_ct);
-    assert!(result.is_err(), "Should fail with all-zeros ciphertext");
+    // ML-KEM uses implicit rejection (FIPS 203 §7.3): invalid ciphertexts produce
+    // a different shared secret rather than returning an error
+    let zero_ss = MlKem::decapsulate(&sk, &zero_ct)
+        .expect("decapsulation succeeds even with zeros (implicit rejection)");
+    assert_ne!(
+        real_ss.as_bytes(),
+        zero_ss.as_bytes(),
+        "All-zeros ciphertext must produce a different shared secret"
+    );
 }
 
 #[test]
 fn test_ml_kem_decapsulate_with_all_ones_ciphertext() {
     let mut rng = OsRng;
-    let (_pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
+    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
         .expect("keypair generation should succeed");
+
+    // Encapsulate to get the real shared secret
+    let (real_ss, _real_ct) =
+        MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
 
     // Create all-ones ciphertext
     let ones_bytes = vec![0xFFu8; 1568]; // Correct size for MlKem1024
     let ones_ct = MlKemCiphertext::new(MlKemSecurityLevel::MlKem1024, ones_bytes)
         .expect("construction should succeed");
 
-    // Decapsulation should fail
-    let result = MlKem::decapsulate(&sk, &ones_ct);
-    assert!(result.is_err(), "Should fail with all-ones ciphertext");
+    // ML-KEM uses implicit rejection (FIPS 203 §7.3): invalid ciphertexts produce
+    // a different shared secret rather than returning an error
+    let ones_ss = MlKem::decapsulate(&sk, &ones_ct)
+        .expect("decapsulation succeeds even with ones (implicit rejection)");
+    assert_ne!(
+        real_ss.as_bytes(),
+        ones_ss.as_bytes(),
+        "All-ones ciphertext must produce a different shared secret"
+    );
 }
 
 // ============================================================================
@@ -460,7 +483,6 @@ fn test_ml_kem_shared_secret_length_encapsulation_only() {
 }
 
 #[test]
-#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_ml_kem_shared_secret_length_full_roundtrip() {
     let mut rng = OsRng;
 

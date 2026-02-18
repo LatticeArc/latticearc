@@ -460,7 +460,6 @@ mod tests {
     // === KeyPair tests ===
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_keypair_secret_data_nonzero() {
         let keypair = KeyPair::generate().expect("Should generate keypair");
         let secret_key = keypair.secret_key();

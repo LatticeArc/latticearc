@@ -107,23 +107,8 @@ fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingK
 
 /// Generate an ML-KEM keypair
 ///
-/// # ⚠️ CRITICAL LIMITATION: Secret Key Cannot Be Used for Decryption
-///
-/// Due to FIPS 140-3 aws-lc-rs design, the returned `PrivateKey` is a **placeholder**
-/// and **cannot be used for ML-KEM decryption**. The secret key bytes are not actual
-/// cryptographic material.
-///
-/// ## Why This Limitation Exists
-///
-/// - FIPS 140-3 validated aws-lc-rs prohibits secret key serialization for security
-/// - ML-KEM decapsulation requires the original `DecapsulationKey` object from aws-lc-rs
-/// - Secret keys cannot be persisted to or restored from bytes
-///
-/// ## Recommended Usage
-///
-/// 1. **Ephemeral Keys**: Keep `DecapsulationKey` in memory for session duration
-/// 2. **Hybrid Mode**: Use X25519 for persistent keys + ML-KEM for PQ protection
-/// 3. **Encryption Only**: Use returned public key for encryption (works correctly)
+/// Returns `(public_key_bytes, private_key_bytes)` suitable for encryption and decryption.
+/// The secret key contains real key material serialized from aws-lc-rs `DecapsulationKey`.
 ///
 /// # Errors
 ///
@@ -161,10 +146,7 @@ pub fn generate_ml_kem_keypair(
 
 /// Generate an ML-KEM keypair with configuration
 ///
-/// # ⚠️ CRITICAL LIMITATION: Secret Key Cannot Be Used for Decryption
-///
-/// See [`generate_ml_kem_keypair`] for details on FIPS 140-3 limitations.
-/// The returned secret key is a placeholder and cannot be used for decryption.
+/// See [`generate_ml_kem_keypair`] for details.
 ///
 /// # Errors
 ///
@@ -422,8 +404,7 @@ mod tests {
     }
 
     // ML-KEM comprehensive tests
-    // Note: Full encryption/decryption roundtrip not tested due to aws-lc-rs limitation
-    // (cannot deserialize ML-KEM secret keys from bytes)
+    // Note: Full encryption/decryption roundtrip tested in integration tests
     #[test]
     fn test_ml_kem_512_keypair_generation() -> Result<()> {
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)?;
@@ -468,15 +449,14 @@ mod tests {
 
     #[test]
     fn test_ml_kem_keypair_uniqueness() -> Result<()> {
-        let (pk1, _sk1) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
-        let (pk2, _sk2) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+        let (pk1, sk1) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
+        let (pk2, sk2) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
         // Public keys must be unique
         assert_ne!(pk1, pk2, "ML-KEM public keys must be unique");
 
-        // Note: Cannot test secret key uniqueness due to FIPS 140-3 limitation.
-        // aws-lc-rs doesn't allow ML-KEM secret key serialization, so the returned
-        // secret keys are placeholder bytes (all zeros) and will always be identical.
+        // Secret keys must also be unique
+        assert_ne!(sk1.as_ref(), sk2.as_ref(), "ML-KEM secret keys must be unique");
         Ok(())
     }
 

@@ -205,7 +205,7 @@ fn test_hmac_check_with_config_wrong_mac() {
 
 #[test]
 fn test_ml_kem_encrypt_with_config() {
-    let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).unwrap();
+    let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     let data = b"ML-KEM with_config test data";
     let config = CoreConfig::default();
 
@@ -220,20 +220,21 @@ fn test_ml_kem_encrypt_with_config() {
     .unwrap();
     assert!(!encrypted.is_empty());
 
-    // Decrypt with serialized SK fails (FIPS limitation: DecapsulationKey not serializable)
-    let result = decrypt_pq_ml_kem_with_config(
+    // Decrypt roundtrip with serialized SK (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
+    let decrypted = decrypt_pq_ml_kem_with_config(
         &encrypted,
-        _sk.as_ref(),
+        sk.as_ref(),
         MlKemSecurityLevel::MlKem768,
         &config,
         SecurityMode::Unverified,
-    );
-    assert!(result.is_err());
+    )
+    .unwrap();
+    assert_eq!(decrypted, data);
 }
 
 #[test]
 fn test_ml_kem_encrypt_with_config_unverified() {
-    let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).unwrap();
+    let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     let data = b"ML-KEM unverified test data";
     let config = CoreConfig::default();
 
@@ -242,14 +243,15 @@ fn test_ml_kem_encrypt_with_config_unverified() {
             .unwrap();
     assert!(!encrypted.is_empty());
 
-    // Decrypt from serialized SK returns NotImplemented error
-    let result = decrypt_pq_ml_kem_with_config_unverified(
+    // Decrypt roundtrip (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
+    let decrypted = decrypt_pq_ml_kem_with_config_unverified(
         &encrypted,
-        _sk.as_ref(),
+        sk.as_ref(),
         MlKemSecurityLevel::MlKem768,
         &config,
-    );
-    assert!(result.is_err());
+    )
+    .unwrap();
+    assert_eq!(decrypted, data);
 }
 
 #[test]

@@ -87,13 +87,13 @@ fn test_ml_kem_decrypt_empty_ciphertext() {
     assert!(result.is_err(), "Should fail with empty ciphertext");
 
     match result {
+        Err(CoreError::DecryptionFailed(_)) => {
+            // Expected: "Encrypted data ... shorter than ML-KEM ciphertext size"
+        }
         Err(CoreError::InvalidInput(_)) => {
-            // Expected: "Encrypted data too short"
+            // Also valid
         }
-        Err(CoreError::NotImplemented(_)) => {
-            // Also valid: aws-lc-rs doesn't support secret key deserialization
-        }
-        _ => panic!("Expected InvalidInput or NotImplemented error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed or InvalidInput error, got {:?}", result),
     }
 }
 
@@ -259,13 +259,13 @@ fn test_ml_kem_decrypt_truncated_ciphertext() {
     assert!(result.is_err(), "Should fail with truncated ciphertext");
 
     match result {
+        Err(CoreError::DecryptionFailed(_)) => {
+            // Expected: "Encrypted data ... shorter than ML-KEM ciphertext size"
+        }
         Err(CoreError::InvalidInput(_)) => {
-            // Expected: "Encrypted data too short"
+            // Also valid
         }
-        Err(CoreError::NotImplemented(_)) => {
-            // Also valid: aws-lc-rs doesn't support secret key deserialization
-        }
-        _ => panic!("Expected InvalidInput or NotImplemented error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed or InvalidInput error, got {:?}", result),
     }
 }
 
@@ -285,13 +285,13 @@ fn test_ml_kem_decrypt_ciphertext_too_short() {
     assert!(result.is_err(), "Should fail when ciphertext is too short");
 
     match result {
-        Err(CoreError::InvalidInput(msg)) if msg.contains("too short") => {
+        Err(CoreError::DecryptionFailed(msg)) if msg.contains("shorter than") => {
             // Expected error
         }
-        Err(CoreError::NotImplemented(_)) => {
-            // Also valid: aws-lc-rs doesn't support secret key deserialization
+        Err(CoreError::InvalidInput(_)) => {
+            // Also valid
         }
-        _ => panic!("Expected 'too short' or NotImplemented error, got {:?}", result),
+        _ => panic!("Expected DecryptionFailed or InvalidInput error, got {:?}", result),
     }
 }
 
@@ -323,8 +323,7 @@ fn test_ml_kem_encrypt_with_one_key_decrypt_with_another() {
 // Boundary Condition Tests
 // ============================================================================
 // Note: Positive round-trip tests are intentionally omitted from this negative
-// test suite because aws-lc-rs doesn't support ML-KEM secret key serialization,
-// which is required for the convenience API layer to work properly.
+// test suite to focus on error conditions and edge cases.
 
 // ============================================================================
 // All Security Levels Negative Tests

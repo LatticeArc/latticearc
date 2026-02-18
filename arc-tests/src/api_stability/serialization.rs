@@ -101,7 +101,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn api_stability_shared_secret_size() {
         let mut rng = OsRng;
 

@@ -58,15 +58,16 @@ fn test_unified_api_uses_aes256gcm_by_design() {
 
 /// ML-KEM standalone decapsulation requires a live `DecapsulationKey` object.
 ///
-/// `MlKem::decapsulate()` fails because `DecapsulationKey` cannot be
-/// reconstructed from raw bytes. Use `MlKemDecapsulationKeyPair` (which holds
-/// the live aws-lc-rs object) or the hybrid API instead.
+/// ML-KEM standalone decapsulation round-trip via serialized secret key.
 #[test]
-#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_ml_kem_standalone_decapsulation() {
-    // aws-lc-rs DecapsulationKey has no from_bytes() constructor.
-    // Use encrypt_hybrid()/decrypt_hybrid() which keeps the key in memory.
-    panic!("ML-KEM DecapsulationKey cannot be deserialized from bytes");
+    use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+    let mut rng = rand::rngs::OsRng;
+    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+        .expect("keygen should succeed");
+    let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulate should succeed");
+    let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulate should succeed");
+    assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes(), "shared secrets must match");
 }
 
 /// Hybrid signing keygen uses Ed25519 `generate_keypair()` from
@@ -120,17 +121,29 @@ fn test_fn_dsa_secret_key_zeroization() {
     panic!("FN-DSA inner key zeroization not possible with current crate");
 }
 
-/// ML-KEM DecapsulationKey cannot be serialized for persistent storage.
-///
-/// In-memory usage works (encrypt_hybrid/decrypt_hybrid), but aws-lc-rs
-/// `DecapsulationKey` has no `to_bytes()`/`from_bytes()` API. Keys are
-/// ephemeral — they exist only in memory for the session.
+/// ML-KEM secret key persistence: serialize, deserialize, and decapsulate.
 #[test]
-#[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
 fn test_ml_kem_key_persistence() {
-    // Workaround: Use X25519 (which supports seed persistence via
-    // Curve25519SeedBin) alongside ML-KEM in hybrid mode.
-    panic!("ML-KEM key persistence not supported by aws-lc-rs API");
+    use arc_primitives::kem::ml_kem::{MlKem, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel};
+
+    let mut rng = rand::rngs::OsRng;
+    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+        .expect("keygen should succeed");
+
+    // Serialize both keys
+    let pk_bytes = pk.as_bytes().to_vec();
+    let sk_bytes = sk.as_bytes().to_vec();
+
+    // Restore from bytes
+    let pk2 = MlKemPublicKey::from_bytes(&pk_bytes, MlKemSecurityLevel::MlKem768)
+        .expect("pk restore should succeed");
+    let sk2 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, sk_bytes)
+        .expect("sk restore should succeed");
+
+    // Encapsulate with restored PK, decapsulate with restored SK
+    let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk2).expect("encapsulate should succeed");
+    let ss_dec = MlKem::decapsulate(&sk2, &ct).expect("decapsulate should succeed");
+    assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes(), "round-trip through serialization must match");
 }
 
 // TLS handshake integration tests are in arc-tls/tests/tls_handshake_roundtrip.rs.

@@ -24,8 +24,7 @@ fn main() {
     println!("(Release build, all measurements averaged over iterations)\n");
 
     // ML-KEM-768 Benchmarks
-    // Note: aws-lc-rs doesn't support secret key serialization/deserialization
-    // (security feature), so we measure full key exchange roundtrip
+    // Note: Using full key exchange roundtrip for realistic timing measurements
     println!("--- ML-KEM-768 (aws-lc-rs FIPS) ---");
     let iterations = 1000;
     let mut rng = OsRng;

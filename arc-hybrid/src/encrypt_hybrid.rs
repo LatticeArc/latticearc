@@ -459,7 +459,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_hybrid_encryption_roundtrip() {
         let mut rng = rand::thread_rng();
 
@@ -487,7 +486,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_hybrid_encryption_with_aad() {
         let mut rng = rand::thread_rng();
 

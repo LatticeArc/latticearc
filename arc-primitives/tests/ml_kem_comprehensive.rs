@@ -45,9 +45,8 @@
 //! - NIST KAT vector testing (where applicable)
 //!
 //! ## FIPS 140-3 Compliance Note
-//! The aws-lc-rs library provides FIPS 140-3 validated ML-KEM but does NOT
-//! expose secret key bytes for serialization. This is an intentional security
-//! design decision. Tests that require secret key deserialization are ignored.
+//! The aws-lc-rs library provides FIPS 140-3 validated ML-KEM. Secret key
+//! serialization is supported in aws-lc-rs v1.16.0+ for migration scenarios.
 
 use arc_primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemConfig, MlKemError, MlKemPublicKey, MlKemSecretKey,
@@ -306,12 +305,12 @@ fn test_encapsulation_randomness_ind_cca2() {
 }
 
 // ============================================================================
-// SECTION 3: Decapsulation Tests with FIPS Limitation (Task 2.1.3)
+// SECTION 3: Decapsulation Tests (Task 2.1.3)
 // ============================================================================
 
-/// Test decapsulation returns expected error due to aws-lc-rs limitation
+/// Test decapsulation roundtrip succeeds for all security levels
 #[test]
-fn test_decapsulation_aws_lc_rs_limitation() {
+fn test_decapsulation_roundtrip_all_levels() {
     let mut rng = OsRng;
 
     for level in
@@ -319,23 +318,16 @@ fn test_decapsulation_aws_lc_rs_limitation() {
     {
         let (pk, sk) =
             MlKem::generate_keypair(&mut rng, level).expect("key generation should succeed");
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
 
-        // Decapsulation should fail with clear error message about the limitation
-        let result = MlKem::decapsulate(&sk, &ct);
-        assert!(
-            result.is_err(),
-            "Decapsulation for {} should fail due to aws-lc-rs limitation",
+        let ss_dec = MlKem::decapsulate(&sk, &ct)
+            .unwrap_or_else(|e| panic!("Decapsulation for {} should succeed: {}", level.name(), e));
+
+        assert_eq!(
+            ss_enc.as_bytes(),
+            ss_dec.as_bytes(),
+            "Shared secrets for {} must match",
             level.name()
-        );
-
-        // Verify the error mentions the limitation
-        let err = result.unwrap_err();
-        let err_msg = err.to_string();
-        assert!(
-            err_msg.contains("aws-lc-rs") || err_msg.contains("serialization"),
-            "Error should mention aws-lc-rs limitation: {}",
-            err_msg
         );
     }
 }
@@ -633,19 +625,27 @@ fn test_decapsulate_all_zeros_ciphertext() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (_pk, sk) =
+        let (pk, sk) =
             MlKem::generate_keypair(&mut rng, level).expect("key generation should succeed");
+        let (ss_real, _ct) =
+            MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
 
         let zero_ct = MlKemCiphertext::new(level, vec![0u8; level.ciphertext_size()])
             .expect("ciphertext construction should succeed");
 
-        // Should fail (either due to aws-lc-rs limitation or invalid ciphertext)
-        let result = MlKem::decapsulate(&sk, &zero_ct);
-        assert!(result.is_err(), "Decapsulation with zeros should fail for {}", level.name());
+        // ML-KEM implicit rejection: invalid ciphertext produces a different shared secret
+        let ss_zero = MlKem::decapsulate(&sk, &zero_ct)
+            .expect("decapsulation should succeed (implicit rejection)");
+        assert_ne!(
+            ss_real.as_bytes(),
+            ss_zero.as_bytes(),
+            "All-zeros ciphertext must produce different shared secret for {}",
+            level.name()
+        );
     }
 }
 
-/// Test decapsulation with all-ones ciphertext
+/// Test decapsulation with all-ones ciphertext (implicit rejection)
 #[test]
 fn test_decapsulate_all_ones_ciphertext() {
     let mut rng = OsRng;
@@ -653,18 +653,26 @@ fn test_decapsulate_all_ones_ciphertext() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (_pk, sk) =
+        let (pk, sk) =
             MlKem::generate_keypair(&mut rng, level).expect("key generation should succeed");
+        let (ss_real, _ct) =
+            MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
 
         let ones_ct = MlKemCiphertext::new(level, vec![0xFFu8; level.ciphertext_size()])
             .expect("ciphertext construction should succeed");
 
-        let result = MlKem::decapsulate(&sk, &ones_ct);
-        assert!(result.is_err(), "Decapsulation with all-ones should fail for {}", level.name());
+        let ss_ones = MlKem::decapsulate(&sk, &ones_ct)
+            .expect("decapsulation should succeed (implicit rejection)");
+        assert_ne!(
+            ss_real.as_bytes(),
+            ss_ones.as_bytes(),
+            "All-ones ciphertext must produce different shared secret for {}",
+            level.name()
+        );
     }
 }
 
-/// Test decapsulation with random garbage ciphertext
+/// Test decapsulation with random garbage ciphertext (implicit rejection)
 #[test]
 fn test_decapsulate_random_garbage_ciphertext() {
     let mut rng = OsRng;
@@ -672,8 +680,10 @@ fn test_decapsulate_random_garbage_ciphertext() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (_pk, sk) =
+        let (pk, sk) =
             MlKem::generate_keypair(&mut rng, level).expect("key generation should succeed");
+        let (ss_real, _ct) =
+            MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
 
         let mut garbage = vec![0u8; level.ciphertext_size()];
         rng.fill_bytes(&mut garbage);
@@ -681,8 +691,14 @@ fn test_decapsulate_random_garbage_ciphertext() {
         let garbage_ct =
             MlKemCiphertext::new(level, garbage).expect("ciphertext construction should succeed");
 
-        let result = MlKem::decapsulate(&sk, &garbage_ct);
-        assert!(result.is_err(), "Decapsulation with garbage should fail for {}", level.name());
+        let ss_garbage = MlKem::decapsulate(&sk, &garbage_ct)
+            .expect("decapsulation should succeed (implicit rejection)");
+        assert_ne!(
+            ss_real.as_bytes(),
+            ss_garbage.as_bytes(),
+            "Garbage ciphertext must produce different shared secret for {}",
+            level.name()
+        );
     }
 }
 
@@ -713,7 +729,7 @@ fn test_encapsulate_with_corrupted_public_key() {
 // SECTION 8: Wrong Key Decapsulation Tests (Task 2.1.8)
 // ============================================================================
 
-/// Test decapsulation with wrong secret key (different keypair)
+/// Test decapsulation with wrong secret key produces different shared secret (implicit rejection)
 #[test]
 fn test_decapsulate_wrong_secret_key() {
     let mut rng = OsRng;
@@ -728,15 +744,17 @@ fn test_decapsulate_wrong_secret_key() {
             MlKem::generate_keypair(&mut rng, level).expect("key generation 2 should succeed");
 
         // Encapsulate with pk1
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk1).expect("encapsulation should succeed");
+        let (ss_enc, ct) =
+            MlKem::encapsulate(&mut rng, &pk1).expect("encapsulation should succeed");
 
-        // Try to decapsulate with sk2 (wrong key)
-        let result = MlKem::decapsulate(&sk2, &ct);
+        // Decapsulate with sk2 (wrong key) — implicit rejection produces different shared secret
+        let ss_wrong = MlKem::decapsulate(&sk2, &ct)
+            .expect("decapsulation should succeed (implicit rejection)");
 
-        // Should fail (aws-lc-rs limitation or wrong key detection)
-        assert!(
-            result.is_err(),
-            "Decapsulation with wrong secret key should fail for {}",
+        assert_ne!(
+            ss_enc.as_bytes(),
+            ss_wrong.as_bytes(),
+            "Wrong secret key must produce different shared secret for {}",
             level.name()
         );
     }

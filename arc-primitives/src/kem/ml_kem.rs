@@ -8,59 +8,15 @@
 //! This module provides ML-KEM implementations based on FIPS 203 standard.
 //! The implementation uses aws-lc-rs with FIPS 140-3 validation for compliance.
 //!
-//! # IMPORTANT: Secret Key Serialization Limitation
+//! # Key Serialization
 //!
-//! The underlying `aws-lc-rs` library does **NOT** expose secret key serialization
-//! for security reasons. This is an intentional design decision by AWS-LC. This means:
+//! Both public and secret keys support full serialization via aws-lc-rs v1.16.0:
 //!
-//! - **Cannot** serialize `DecapsulationKey` to bytes for storage
-//! - **Cannot** deserialize secret key bytes back to `DecapsulationKey`
-//! - **Can** serialize/deserialize `EncapsulationKey` (public key)
-//! - **Can** generate keypairs and perform encapsulation in memory
-//! - **Can** perform decapsulation only with the original `DecapsulationKey` object
+//! - **Public keys**: Serialize with [`MlKemPublicKey::to_bytes()`], restore with [`MlKemPublicKey::from_bytes()`]
+//! - **Secret keys**: Serialize with [`MlKemSecretKey::as_bytes()`], restore with [`MlKemSecretKey::new()`]
+//! - **Full round-trip**: Generate keypair, serialize both keys, restore and decapsulate
 //!
-//! ## Workarounds for Key Persistence
-//!
-//! ### Option 1: Ephemeral Keys (Simplest)
-//! Use ML-KEM for session key establishment only. Generate new keypairs for each
-//! session and keep the `DecapsulationKey` alive for the session lifetime.
-//!
-//! ```rust,ignore
-//! // Generate keypair at session start
-//! let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)?;
-//! // Share pk.to_bytes() with peer
-//! // Keep DecapsulationKey in memory for session duration
-//! ```
-//!
-//! ### Option 2: Hybrid with X25519 (Recommended for Long-Term)
-//! Use X25519 for long-term keys (which can be serialized) combined with ML-KEM
-//! for post-quantum protection in a hybrid scheme.
-//!
-//! ```rust,ignore
-//! // Long-term: X25519 key (can be serialized)
-//! let x25519_keypair = X25519KeyPair::generate()?;
-//! store_key(&x25519_keypair.secret_key_bytes());
-//!
-//! // Session: ML-KEM for PQ protection (ephemeral)
-//! let (mlkem_pk, _mlkem_sk) = MlKem::generate_keypair(&mut rng, level)?;
-//!
-//! // Combine both shared secrets using HKDF
-//! let combined_secret = hkdf_combine(&x25519_ss, &mlkem_ss)?;
-//! ```
-//!
-//! ### Option 3: HSM/KMS Integration
-//! Store keys in a hardware security module that supports ML-KEM natively.
-//! The HSM manages key persistence internally.
-//!
-//! ## Tracking
-//!
-//! aws-lc-rs intentionally does not expose SK bytes for security reasons.
-//! This design prevents accidental key material exposure and is unlikely to change.
-//! For full serialization support, consider using `pqcrypto-mlkem` crate instead,
-//! but note it is **NOT** FIPS 140-3 validated.
-//!
-//! For detailed guidance, see the `ML_KEM_KEY_PERSISTENCE.md` documentation.
-//!
+
 //! # FIPS 203 Standard
 //! FIPS 203 specifies the Module-Lattice-Based Key-Encapsulation Mechanism (ML-KEM),
 //! which provides post-quantum security against attacks from quantum computers.
@@ -116,7 +72,7 @@
 //! let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &restored_pk).unwrap();
 //! ```
 //!
-//! ## Full KEM Flow (In-Memory Only)
+//! ## Full KEM Round-Trip
 //! ```no_run
 //! use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 //! use rand::rngs::OsRng;
@@ -126,11 +82,11 @@
 //! let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
 //!
 //! // Encapsulate shared secret
-//! let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &pk).unwrap();
+//! let (ss_enc, ciphertext) = MlKem::encapsulate(&mut rng, &pk).unwrap();
 //!
-//! // NOTE: Decapsulation requires the original DecapsulationKey from aws-lc-rs.
-//! // The MlKemSecretKey wrapper cannot be used for decapsulation due to the
-//! // aws-lc-rs serialization limitation. See documentation for workarounds.
+//! // Decapsulate using secret key
+//! let ss_dec = MlKem::decapsulate(&sk, &ciphertext).unwrap();
+//! assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
 //! ```
 
 use arrayref::array_ref;
@@ -419,27 +375,9 @@ impl MlKemPublicKey {
 
 /// ML-KEM secret key wrapper
 ///
-/// # IMPORTANT: Serialization Limitation
-///
-/// This struct exists for API compatibility, but **cannot be used for actual
-/// decapsulation** due to limitations in the aws-lc-rs library. The aws-lc-rs
-/// library intentionally does not expose secret key serialization for security
-/// reasons.
-///
-/// ## What This Means
-///
-/// - The `data` field contains placeholder bytes, not actual secret key material
-/// - Calling [`MlKem::decapsulate`] with this struct will return an error
-/// - The actual decapsulation capability lives in the aws-lc-rs `DecapsulationKey`
-///   object, which cannot be serialized
-///
-/// ## Recommended Patterns
-///
-/// 1. **Ephemeral Keys**: Keep the `DecapsulationKey` in memory for session duration
-/// 2. **Hybrid Schemes**: Use X25519 for long-term keys + ML-KEM for PQ protection
-/// 3. **HSM/KMS**: Store keys in hardware security modules with native ML-KEM support
-///
-/// See the module-level documentation and `ML_KEM_KEY_PERSISTENCE.md` for details.
+/// Contains the serialized secret key bytes from aws-lc-rs `DecapsulationKey::key_bytes()`.
+/// These bytes can be used to reconstruct a `DecapsulationKey` for decapsulation via
+/// [`MlKem::decapsulate`].
 ///
 /// # Security Note
 /// - Clone is intentionally NOT implemented to prevent copies of secret key material
@@ -448,8 +386,7 @@ impl MlKemPublicKey {
 pub struct MlKemSecretKey {
     /// Security level of this key (private)
     security_level: MlKemSecurityLevel,
-    /// Placeholder bytes (zeroized on drop, private)
-    /// NOTE: These are NOT actual secret key bytes due to aws-lc-rs limitations
+    /// Serialized secret key bytes (zeroized on drop, private)
     data: Vec<u8>,
 }
 
@@ -665,19 +602,14 @@ impl Default for MlKemConfig {
     }
 }
 
-/// ML-KEM keypair that holds the actual decapsulation key for real decapsulation.
+/// ML-KEM keypair that holds the aws-lc-rs decapsulation key directly.
 ///
-/// This is the **correct** type for use in hybrid KEM and any scenario requiring
-/// both encapsulation and decapsulation. Unlike [`MlKemSecretKey`] (which holds
-/// placeholder bytes due to aws-lc-rs limitations), this type holds the real
-/// aws-lc-rs `DecapsulationKey` and can actually perform decapsulation.
+/// This type holds the in-memory `DecapsulationKey` object from aws-lc-rs,
+/// avoiding the serialization/deserialization round-trip. Both this type and
+/// [`MlKemSecretKey`] (with serialized bytes) support full decapsulation.
 ///
-/// # Key Persistence Limitation
-///
-/// aws-lc-rs does not support ML-KEM secret key serialization. This keypair
-/// is **in-memory only** — it cannot be stored to disk and restored later.
-/// For long-term key persistence, use an HSM or store the seed used for
-/// deterministic key generation.
+/// Use this type when the keypair stays in memory for the session lifetime.
+/// Use [`MlKemSecretKey`] when keys need to be serialized for persistence.
 pub struct MlKemDecapsulationKeyPair {
     /// The public key (serializable).
     public_key: MlKemPublicKey,
@@ -708,8 +640,8 @@ impl MlKemDecapsulationKeyPair {
 
     /// Decapsulate a ciphertext to recover the shared secret.
     ///
-    /// This performs **real** ML-KEM decapsulation using the aws-lc-rs
-    /// `DecapsulationKey`, unlike `MlKem::decapsulate()` which always errors.
+    /// This performs ML-KEM decapsulation using the in-memory aws-lc-rs
+    /// `DecapsulationKey`, avoiding the serialization round-trip.
     ///
     /// # Errors
     /// Returns an error if decapsulation fails (e.g., invalid ciphertext).
@@ -842,11 +774,11 @@ impl MlKem {
             MlKemError::KeyGenerationError(format!("Failed to serialize public key: {}", e))
         })?;
 
-        // Note: aws-lc-rs does not expose secret key serialization.
-        // We generate placeholder bytes that match the expected size.
-        // For actual decapsulation, you must use the DecapsulationKey directly.
-        let sk_size = config.security_level.secret_key_size();
-        let sk_bytes = vec![0u8; sk_size];
+        // Serialize secret key bytes via DecapsulationKey::key_bytes() (available since aws-lc-rs v1.16.0)
+        let sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
+            MlKemError::KeyGenerationError(format!("Failed to serialize secret key: {}", e))
+        })?;
+        let sk_bytes = sk_bytes_obj.as_ref().to_vec();
 
         let public_key = MlKemPublicKey::new(config.security_level, pk_bytes.as_ref().to_vec())?;
         let secret_key = MlKemSecretKey::new(config.security_level, sk_bytes)?;
@@ -1048,18 +980,16 @@ impl MlKem {
             )));
         }
 
-        // Note: aws-lc-rs does not support reconstructing DecapsulationKey from raw bytes.
-        // Decapsulation requires the original DecapsulationKey object from key generation.
-        // This implementation is limited - for production use, consider storing the
-        // DecapsulationKey directly or using a different KEM library that supports serialization.
-        //
-        // For now, return an error indicating this limitation.
-        let _ = secret_key; // suppress unused warning
-        Err(MlKemError::DecapsulationError(
-            "aws-lc-rs does not support secret key deserialization. \
-             Use the DecapsulationKey directly from key generation."
-                .to_string(),
-        ))
+        // Reconstruct DecapsulationKey from serialized bytes (available since aws-lc-rs v1.16.0)
+        let algorithm = secret_key.security_level.as_aws_algorithm();
+        let decaps_key = DecapsulationKey::new(algorithm, secret_key.as_bytes()).map_err(|e| {
+            MlKemError::DecapsulationError(format!("Failed to reconstruct DecapsulationKey: {}", e))
+        })?;
+        let shared_secret = decaps_key
+            .decapsulate(ciphertext.data.as_slice().into())
+            .map_err(|e| MlKemError::DecapsulationError(format!("Decapsulation failed: {}", e)))?;
+        let ss_bytes = shared_secret.as_ref();
+        MlKemSharedSecret::from_slice(ss_bytes)
     }
 
     /// Get SIMD acceleration status for ML-KEM operations
@@ -1106,7 +1036,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_key_generation_with_rng() -> Result<(), MlKemError> {
         let mut rng = OsRng;
         let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
@@ -1120,7 +1049,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_encapsulation_decapsulation_roundtrip() -> Result<(), MlKemError> {
         let mut rng = OsRng;
         let security_levels = [
@@ -1151,7 +1079,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_ml_kem_secret_key_zeroization() {
         let mut rng = OsRng;
         let (_pk, mut sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
@@ -1228,7 +1155,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "ML-KEM DecapsulationKey cannot be reconstructed from raw bytes"]
     fn test_all_security_levels_zeroization() {
         let mut rng = OsRng;
         let levels = [
@@ -1304,22 +1230,14 @@ mod tests {
     }
 
     #[test]
-    fn test_decapsulate_returns_limitation_error() -> Result<(), MlKemError> {
+    fn test_decapsulate_succeeds_with_valid_key() -> Result<(), MlKemError> {
         let mut rng = OsRng;
         let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+        let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk)?;
 
-        // Decapsulation should fail with a clear error message about the limitation
-        let result = MlKem::decapsulate(&sk, &ct);
-        assert!(result.is_err());
-
-        // Verify error message mentions the limitation
-        let err_msg = result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("aws-lc-rs") || err_msg.contains("serialization"),
-            "Error should mention aws-lc-rs limitation: {}",
-            err_msg
-        );
+        // Decapsulation should succeed and produce matching shared secret
+        let ss_dec = MlKem::decapsulate(&sk, &ct)?;
+        assert_eq!(ss_enc, ss_dec);
         Ok(())
     }
 
@@ -1343,15 +1261,15 @@ mod tests {
     fn test_corrupted_ciphertext_modified_bytes() -> Result<(), MlKemError> {
         let mut rng = OsRng;
         let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
-        let (_ss, mut ct) = MlKem::encapsulate(&mut rng, &pk)?;
+        let (ss_enc, mut ct) = MlKem::encapsulate(&mut rng, &pk)?;
 
         // Corrupt first byte
         ct.data[0] ^= 0xFF;
 
-        // Decapsulation should handle corrupted data (either error or different secret)
-        let result = MlKem::decapsulate(&sk, &ct);
-        // aws-lc-rs limitation means this will error, but that's expected
-        assert!(result.is_err());
+        // ML-KEM uses implicit rejection (FIPS 203 §7.3): corrupted ciphertext
+        // produces a different shared secret rather than an error
+        let ss_dec = MlKem::decapsulate(&sk, &ct)?;
+        assert_ne!(ss_enc, ss_dec, "Corrupted ciphertext must yield different shared secret");
         Ok(())
     }
 

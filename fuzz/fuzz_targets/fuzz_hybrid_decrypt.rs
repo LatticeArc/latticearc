@@ -26,8 +26,7 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Secret key is 2400 bytes for ML-KEM-768
-    // Note: aws-lc-rs doesn't support SK serialization, so decrypt will fail
-    // but should not crash
+    // Note: This fuzz target uses a placeholder SK for testing error handling paths
 
     // Test 1: Decrypt with completely fuzzed ciphertext
     let fuzzed_ct = HybridCiphertext {
@@ -37,10 +36,10 @@ fuzz_target!(|data: &[u8]| {
         tag: data.get(..16).unwrap_or(&[]).to_vec(),
     };
 
-    // Create placeholder secret key (will fail due to aws-lc-rs limitation)
+    // Create placeholder secret key for fuzzing error paths
     let fake_sk = vec![0u8; 2400];
 
-    // Decryption should not crash (will fail gracefully)
+    // Decryption should not crash (will fail gracefully with invalid key)
     let _ = decrypt(&fake_sk, &fuzzed_ct, None);
 
     // Test 2: Invalid ciphertext component lengths

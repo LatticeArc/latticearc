@@ -293,8 +293,7 @@ fn test_zeroize_data_function() {
 
 #[test]
 fn test_ml_kem_encap_timing_smoke() {
-    // Use generate_decapsulation_keypair to get a real DecapsulationKey
-    // (aws-lc-rs does not support secret key deserialization from bytes)
+    // Use generate_decapsulation_keypair to get a DecapsulationKey instance
     let keypair =
         MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768).expect("keygen failed");
 

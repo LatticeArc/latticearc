@@ -250,7 +250,7 @@ rand = { version = "0.8.5", features = ["std_rng", "small_rng", "serde1"] }
 rand_core = { version = "0.6" }
 rand_chacha = { version = "0.3.1" }
 # Error handling - latest stable for structured errors
-thiserror = { version = "2.0.17" }
+thiserror = { version = "2.0.18" }
 anyhow = { version = "1.0.100" }
 # Time handling - consistent version across repos
 chrono = { version = "0.4.43", features = ["serde"] }
@@ -295,17 +295,17 @@ libfuzzer-sys = { version = "0.4.8" }
 ecdsa = { version = "0.16.9", features = ["signing", "verifying"] }
 p256 = { version = "0.13.2", features = ["ecdsa", "ecdh"] }
 k256 = { version = "0.13.4", features = ["ecdsa", "std"] }
-ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
 # X25519 needed for CAVP test vector validation (deterministic key generation)
 x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
 # Post-quantum cryptography - FIPS 140-3 validated via aws-lc-rs
 # aws-lc-rs provides ML-KEM with FIPS 140-3 certification (Certificate #4631, #4759, #4816)
 # Note: FIPS mode requires cmake and go build tools
-aws-lc-rs = { version = "1.15.4", default-features = false, features = ["fips"] }
+aws-lc-rs = { version = "1.16.0", default-features = false, features = ["fips"] }
 
-# Post-quantum signatures - aws-lc-rs doesn't yet expose ML-DSA in Rust API
-# See: https://github.com/aws/aws-lc-rs/issues/773
-# Our PR: https://github.com/aws/aws-lc-rs/pull/1029 (under review)
+# Post-quantum signatures - aws-lc-rs ML-DSA is unstable and requires !fips feature
+# See: https://github.com/aws/aws-lc-rs/issues/964 (FIPS branch lacks ML-DSA)
+# Our PRs merged in v1.16.0: #1029 (DecapsulationKey serialization), #1034 (ML-DSA from_seed)
 fips204 = { version = "0.4.6" }  # ML-DSA (FIPS 204) - keep until aws-lc-rs exposes it
 fips205 = { version = "0.4.1" }  # SLH-DSA (FIPS 205) - not yet in aws-lc-rs
 fn-dsa = { version = "0.3.0" }   # FN-DSA (FIPS 206) - unique implementation
