@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="LatticeArc Core"><title>arc_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="arc_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate arc_core</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../arc_core/index.html">arc_<wbr>core</a><span class="version">0.1.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#latticearc-core" title="LatticeArc Core">LatticeArc Core</a><ul><li><a href="#key-features" title="Key Features">Key Features</a></li><li><a href="#quick-start" title="Quick Start">Quick Start</a></li><li><a href="#securitymode-api" title="SecurityMode API">SecurityMode API</a></li><li><a href="#establishing-a-verifiedsession" title="Establishing a VerifiedSession">Establishing a VerifiedSession</a></li><li><a href="#session-lifecycle" title="Session Lifecycle">Session Lifecycle</a></li><li><a href="#enterprise-features" title="Enterprise Features">Enterprise Features</a></li></ul></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>arc_<wbr>core</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/arc_core/lib.rs.html#1-569">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="latticearc-core"><a class="doc-anchor" href="#latticearc-core">§</a>LatticeArc Core</h2>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="LatticeArc Core"><title>arc_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="arc_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate arc_core</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../arc_core/index.html">arc_<wbr>core</a><span class="version">0.1.2</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#latticearc-core" title="LatticeArc Core">LatticeArc Core</a><ul><li><a href="#key-features" title="Key Features">Key Features</a></li><li><a href="#quick-start" title="Quick Start">Quick Start</a></li><li><a href="#securitymode-api" title="SecurityMode API">SecurityMode API</a></li><li><a href="#establishing-a-verifiedsession" title="Establishing a VerifiedSession">Establishing a VerifiedSession</a></li><li><a href="#session-lifecycle" title="Session Lifecycle">Session Lifecycle</a></li><li><a href="#enterprise-features" title="Enterprise Features">Enterprise Features</a></li></ul></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>arc_<wbr>core</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/arc_core/lib.rs.html#1-584">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="latticearc-core"><a class="doc-anchor" href="#latticearc-core">§</a>LatticeArc Core</h2>
 <p>Core cryptographic library for the LatticeArc post-quantum cryptography platform.
 Provides unified APIs for encryption, decryption, signing, verification, and
 use case-based scheme selection.</p>
@@ -12,41 +12,41 @@ use case-based scheme selection.</p>
 <li><strong>Unified API</strong>: Single API with <code>SecurityMode</code> parameter for verified/unverified operations</li>
 </ul>
 <h3 id="quick-start"><a class="doc-anchor" href="#quick-start">§</a>Quick Start</h3>
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt, decrypt, SecurityMode, VerifiedSession, generate_keypair};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair};
 
 <span class="comment">// Generate a keypair for session establishment
 </span><span class="kw">let </span>(public_key, private_key) = generate_keypair()<span class="question-mark">?</span>;
 
 <span class="comment">// Establish a Zero Trust verified session (recommended)
-</span><span class="kw">let </span>session = VerifiedSession::establish(<span class="kw-2">&amp;</span>public_key, <span class="kw-2">&amp;</span>private_key)<span class="question-mark">?</span>;
+</span><span class="kw">let </span>session = VerifiedSession::establish(<span class="kw-2">&amp;</span>public_key, private_key.as_ref())<span class="question-mark">?</span>;
 
 <span class="comment">// Perform cryptographic operations with verification
 </span><span class="kw">let </span>key = [<span class="number">0u8</span>; <span class="number">32</span>];
-<span class="kw">let </span>encrypted = encrypt(<span class="string">b"secret"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
-<span class="kw">let </span>decrypted = decrypt(<span class="kw-2">&amp;</span>encrypted, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+<span class="kw">let </span>encrypted = encrypt(<span class="string">b"secret"</span>, <span class="kw-2">&amp;</span>key, CryptoConfig::new().session(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+<span class="kw">let </span>decrypted = decrypt(<span class="kw-2">&amp;</span>encrypted, <span class="kw-2">&amp;</span>key, CryptoConfig::new().session(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
 
 <span class="comment">// Opt-out: Without verification (for specific use cases only)
-</span><span class="kw">let </span>encrypted = encrypt(<span class="string">b"secret"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Unverified)<span class="question-mark">?</span>;</code></pre></div><h3 id="securitymode-api"><a class="doc-anchor" href="#securitymode-api">§</a>SecurityMode API</h3>
+</span><span class="kw">let </span>encrypted = encrypt(<span class="string">b"secret"</span>, <span class="kw-2">&amp;</span>key, CryptoConfig::new())<span class="question-mark">?</span>;</code></pre></div><h3 id="securitymode-api"><a class="doc-anchor" href="#securitymode-api">§</a>SecurityMode API</h3>
 <p>The <code>SecurityMode</code> enum is the core abstraction for Zero Trust cryptographic operations.
 All cryptographic functions accept a <code>SecurityMode</code> parameter that controls verification
 behavior.</p>
 <h4 id="securitymodeverifiedsession"><a class="doc-anchor" href="#securitymodeverifiedsession">§</a>SecurityMode::Verified(&amp;session)</h4>
 <p>Use <code>Verified</code> mode with a reference to a <a href="zero_trust/struct.VerifiedSession.html" title="struct arc_core::zero_trust::VerifiedSession"><code>VerifiedSession</code></a> for production use:</p>
 
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt, SecurityMode, VerifiedSession, generate_keypair};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 
 <span class="comment">// Step 1: Generate credentials (done once, typically at provisioning)
 </span><span class="kw">let </span>(public_key, private_key) = generate_keypair()<span class="question-mark">?</span>;
 
 <span class="comment">// Step 2: Establish a verified session (performs challenge-response)
-</span><span class="kw">let </span>session = VerifiedSession::establish(<span class="kw-2">&amp;</span>public_key, <span class="kw-2">&amp;</span>private_key)<span class="question-mark">?</span>;
+</span><span class="kw">let </span>session = VerifiedSession::establish(<span class="kw-2">&amp;</span>public_key, private_key.as_ref())<span class="question-mark">?</span>;
 
 <span class="comment">// Step 3: Use the session for cryptographic operations
 </span><span class="kw">let </span>key = [<span class="number">0u8</span>; <span class="number">32</span>];
-<span class="kw">let </span>ciphertext = encrypt(<span class="string">b"sensitive data"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+<span class="kw">let </span>ciphertext = encrypt_aes_gcm(<span class="string">b"sensitive data"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
 
 <span class="comment">// The session can be reused for multiple operations until it expires
-</span><span class="kw">let </span>ciphertext2 = encrypt(<span class="string">b"more data"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
+</span><span class="kw">let </span>ciphertext2 = encrypt_aes_gcm(<span class="string">b"more data"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;
 
 <span class="comment">// Check session validity before long-running operations
 </span><span class="kw">if </span>session.is_valid() {
@@ -61,12 +61,12 @@ behavior.</p>
 <h4 id="securitymodeunverified"><a class="doc-anchor" href="#securitymodeunverified">§</a>SecurityMode::Unverified</h4>
 <p>Use <code>Unverified</code> mode for opt-out scenarios where Zero Trust is not applicable:</p>
 
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt, SecurityMode};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt_aes_gcm, SecurityMode};
 
 <span class="kw">let </span>key = [<span class="number">0u8</span>; <span class="number">32</span>];
 
 <span class="comment">// Opt-out: No session verification performed
-</span><span class="kw">let </span>ciphertext = encrypt(<span class="string">b"data"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Unverified)<span class="question-mark">?</span>;</code></pre></div>
+</span><span class="kw">let </span>ciphertext = encrypt_aes_gcm(<span class="string">b"data"</span>, <span class="kw-2">&amp;</span>key, SecurityMode::Unverified)<span class="question-mark">?</span>;</code></pre></div>
 <p><strong>When to use Unverified mode:</strong></p>
 <ul>
 <li>Legacy system integration where session management is not possible</li>
@@ -84,19 +84,17 @@ behavior.</p>
 <p>A <a href="zero_trust/struct.VerifiedSession.html" title="struct arc_core::zero_trust::VerifiedSession"><code>VerifiedSession</code></a> is created through Zero Trust authentication, which proves
 possession of the private key via challenge-response:</p>
 <h4 id="quick-method-recommended"><a class="doc-anchor" href="#quick-method-recommended">§</a>Quick Method (Recommended)</h4>
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{VerifiedSession, generate_keypair};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{VerifiedSession, generate_keypair};
 
 <span class="kw">let </span>(pk, sk) = generate_keypair()<span class="question-mark">?</span>;
-<span class="kw">let </span>session = VerifiedSession::establish(<span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>sk)<span class="question-mark">?</span>;
+<span class="kw">let </span>session = VerifiedSession::establish(<span class="kw-2">&amp;</span>pk, sk.as_ref())<span class="question-mark">?</span>;
 
 <span class="comment">// Session is valid for 30 minutes by default
 </span><span class="macro">assert!</span>(session.is_valid());
 <span class="macro">assert!</span>(session.trust_level().is_trusted());</code></pre></div><h4 id="manual-method-advanced"><a class="doc-anchor" href="#manual-method-advanced">§</a>Manual Method (Advanced)</h4>
 <p>For custom authentication flows:</p>
 
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{ZeroTrustAuth, ZeroTrustSession, generate_keypair};
-
-<span class="kw">let </span>(pk, sk) = generate_keypair()<span class="question-mark">?</span>;
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>(pk, sk) = generate_keypair()<span class="question-mark">?</span>;
 
 <span class="comment">// Create authentication handler
 </span><span class="kw">let </span>auth = ZeroTrustAuth::new(pk.clone(), sk)<span class="question-mark">?</span>;
@@ -106,7 +104,7 @@ possession of the private key via challenge-response:</p>
 </span><span class="kw">let </span>challenge = session.initiate_authentication()<span class="question-mark">?</span>;
 
 <span class="comment">// Generate and verify proof (in real systems, proof is sent to verifier)
-</span><span class="kw">let </span>proof = session.auth.generate_proof(<span class="kw-2">&amp;</span>challenge.data)<span class="question-mark">?</span>;
+</span><span class="kw">let </span>proof = session.generate_proof(<span class="kw-2">&amp;</span>challenge)<span class="question-mark">?</span>;
 session.verify_response(<span class="kw-2">&amp;</span>proof)<span class="question-mark">?</span>;
 
 <span class="comment">// Convert to VerifiedSession
@@ -119,7 +117,7 @@ session.verify_response(<span class="kw-2">&amp;</span>proof)<span class="questi
 <li><strong>Refreshed</strong> by establishing a new session when expired</li>
 </ol>
 
-<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt, SecurityMode, VerifiedSession, generate_keypair, CoreError};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>arc_core::{encrypt_aes_gcm, SecurityMode, VerifiedSession, CoreError};
 
 <span class="kw">fn </span>perform_crypto_operation(
     session: <span class="kw-2">&amp;</span>VerifiedSession,
@@ -129,7 +127,7 @@ session.verify_response(<span class="kw-2">&amp;</span>proof)<span class="questi
     <span class="comment">// Validate session before operation
     </span>session.verify_valid()<span class="question-mark">?</span>;  <span class="comment">// Returns Err(SessionExpired) if expired
 
-    </span>encrypt(data, key, SecurityMode::Verified(session))
+    </span>encrypt_aes_gcm(data, key, SecurityMode::Verified(session))
 }</code></pre></div><h3 id="enterprise-features"><a class="doc-anchor" href="#enterprise-features">§</a>Enterprise Features</h3>
 <p>In enterprise deployments (<code>arc-enterprise</code>), additional features are available:</p>
 <p><strong>Verified mode enables:</strong></p>

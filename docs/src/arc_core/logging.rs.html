@@ -1034,7 +1034,7 @@
 <a href=#1034 id=1034 data-nosnippet>1034</a>///
 <a href=#1035 id=1035 data-nosnippet>1035</a>/// # Example
 <a href=#1036 id=1036 data-nosnippet>1036</a>///
-<a href=#1037 id=1037 data-nosnippet>1037</a>/// ```rust,ignore
+<a href=#1037 id=1037 data-nosnippet>1037</a>/// ```rust,no_run
 <a href=#1038 id=1038 data-nosnippet>1038</a>/// use arc_core::{log_key_generated, logging::{KeyType, KeyPurpose}};
 <a href=#1039 id=1039 data-nosnippet>1039</a>///
 <a href=#1040 id=1040 data-nosnippet>1040</a>/// log_key_generated!("key-001", "ML-KEM-768", KeyType::KeyPair, KeyPurpose::KeyExchange);
@@ -1067,7 +1067,7 @@
 <a href=#1067 id=1067 data-nosnippet>1067</a>///
 <a href=#1068 id=1068 data-nosnippet>1068</a>/// # Example
 <a href=#1069 id=1069 data-nosnippet>1069</a>///
-<a href=#1070 id=1070 data-nosnippet>1070</a>/// ```rust,ignore
+<a href=#1070 id=1070 data-nosnippet>1070</a>/// ```rust,no_run
 <a href=#1071 id=1071 data-nosnippet>1071</a>/// use arc_core::{log_key_rotated, logging::RotationReason};
 <a href=#1072 id=1072 data-nosnippet>1072</a>///
 <a href=#1073 id=1073 data-nosnippet>1073</a>/// log_key_rotated!("key-001", "key-002", "ML-KEM-768", RotationReason::Scheduled);
@@ -1098,7 +1098,7 @@
 <a href=#1098 id=1098 data-nosnippet>1098</a>///
 <a href=#1099 id=1099 data-nosnippet>1099</a>/// # Example
 <a href=#1100 id=1100 data-nosnippet>1100</a>///
-<a href=#1101 id=1101 data-nosnippet>1101</a>/// ```rust,ignore
+<a href=#1101 id=1101 data-nosnippet>1101</a>/// ```rust,no_run
 <a href=#1102 id=1102 data-nosnippet>1102</a>/// use arc_core::{log_key_destroyed, logging::DestructionMethod};
 <a href=#1103 id=1103 data-nosnippet>1103</a>///
 <a href=#1104 id=1104 data-nosnippet>1104</a>/// log_key_destroyed!("key-001", DestructionMethod::Zeroization);
@@ -1127,7 +1127,7 @@
 <a href=#1127 id=1127 data-nosnippet>1127</a>///
 <a href=#1128 id=1128 data-nosnippet>1128</a>/// # Example
 <a href=#1129 id=1129 data-nosnippet>1129</a>///
-<a href=#1130 id=1130 data-nosnippet>1130</a>/// ```rust,ignore
+<a href=#1130 id=1130 data-nosnippet>1130</a>/// ```rust,no_run
 <a href=#1131 id=1131 data-nosnippet>1131</a>/// use arc_core::log_key_accessed;
 <a href=#1132 id=1132 data-nosnippet>1132</a>///
 <a href=#1133 id=1133 data-nosnippet>1133</a>/// log_key_accessed!("key-001", "encrypt");
@@ -1165,7 +1165,7 @@
 <a href=#1165 id=1165 data-nosnippet>1165</a>///
 <a href=#1166 id=1166 data-nosnippet>1166</a>/// # Example
 <a href=#1167 id=1167 data-nosnippet>1167</a>///
-<a href=#1168 id=1168 data-nosnippet>1168</a>/// ```rust,ignore
+<a href=#1168 id=1168 data-nosnippet>1168</a>/// ```rust,no_run
 <a href=#1169 id=1169 data-nosnippet>1169</a>/// use arc_core::log_key_deprecated;
 <a href=#1170 id=1170 data-nosnippet>1170</a>///
 <a href=#1171 id=1171 data-nosnippet>1171</a>/// log_key_deprecated!("key-001", "Scheduled retirement per policy");
@@ -1194,7 +1194,7 @@
 <a href=#1194 id=1194 data-nosnippet>1194</a>///
 <a href=#1195 id=1195 data-nosnippet>1195</a>/// # Example
 <a href=#1196 id=1196 data-nosnippet>1196</a>///
-<a href=#1197 id=1197 data-nosnippet>1197</a>/// ```rust,ignore
+<a href=#1197 id=1197 data-nosnippet>1197</a>/// ```rust,no_run
 <a href=#1198 id=1198 data-nosnippet>1198</a>/// use arc_core::log_key_suspended;
 <a href=#1199 id=1199 data-nosnippet>1199</a>///
 <a href=#1200 id=1200 data-nosnippet>1200</a>/// log_key_suspended!("key-001", "Suspected compromise");
@@ -1224,7 +1224,7 @@
 <a href=#1224 id=1224 data-nosnippet>1224</a>///
 <a href=#1225 id=1225 data-nosnippet>1225</a>/// # Example
 <a href=#1226 id=1226 data-nosnippet>1226</a>///
-<a href=#1227 id=1227 data-nosnippet>1227</a>/// ```rust,ignore
+<a href=#1227 id=1227 data-nosnippet>1227</a>/// ```rust,no_run
 <a href=#1228 id=1228 data-nosnippet>1228</a>/// use arc_core::log_key_exported;
 <a href=#1229 id=1229 data-nosnippet>1229</a>///
 <a href=#1230 id=1230 data-nosnippet>1230</a>/// log_key_exported!("key-001", "PEM", "backup-hsm-01");
@@ -1255,7 +1255,7 @@
 <a href=#1255 id=1255 data-nosnippet>1255</a>///
 <a href=#1256 id=1256 data-nosnippet>1256</a>/// # Example
 <a href=#1257 id=1257 data-nosnippet>1257</a>///
-<a href=#1258 id=1258 data-nosnippet>1258</a>/// ```rust,ignore
+<a href=#1258 id=1258 data-nosnippet>1258</a>/// ```rust,no_run
 <a href=#1259 id=1259 data-nosnippet>1259</a>/// use arc_core::log_key_imported;
 <a href=#1260 id=1260 data-nosnippet>1260</a>///
 <a href=#1261 id=1261 data-nosnippet>1261</a>/// log_key_imported!("key-001", "ML-KEM-768", "external-hsm-02");
@@ -1284,7 +1284,7 @@
 <a href=#1284 id=1284 data-nosnippet>1284</a>///
 <a href=#1285 id=1285 data-nosnippet>1285</a>/// # Example
 <a href=#1286 id=1286 data-nosnippet>1286</a>///
-<a href=#1287 id=1287 data-nosnippet>1287</a>/// ```rust,ignore
+<a href=#1287 id=1287 data-nosnippet>1287</a>/// ```rust,no_run
 <a href=#1288 id=1288 data-nosnippet>1288</a>/// use arc_core::{log_crypto_operation, logging::{set_correlation_id, CorrelationGuard}};
 <a href=#1289 id=1289 data-nosnippet>1289</a>///
 <a href=#1290 id=1290 data-nosnippet>1290</a>/// // Set a correlation ID
