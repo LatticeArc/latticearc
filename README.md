@@ -1,7 +1,5 @@
 # LatticeArc
 
-> **Evaluation Phase**: This project is currently in active development and evaluation. APIs may change without notice. Not recommended for production use yet.
-
 [![CI](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml)
 [![NIST CAVP Tests](https://github.com/LatticeArc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/fips-validation.yml)
 [![FIPS 203-206](https://img.shields.io/badge/FIPS_203--206-implemented-blue)](docs/NIST_COMPLIANCE.md)
