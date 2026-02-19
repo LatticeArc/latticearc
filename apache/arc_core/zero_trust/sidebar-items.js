@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["SecurityMode","TrustLevel"],"struct":["Challenge","ContinuousSession","ProofOfPossessionData","VerifiedSession","ZeroKnowledgeProof","ZeroTrustAuth","ZeroTrustSession"]};
