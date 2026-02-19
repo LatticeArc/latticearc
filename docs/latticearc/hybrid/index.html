@@ -43,10 +43,10 @@ and classical algorithms for enhanced security during the quantum transition per
 
 Security Guarantee: Hybrid remains secure if EITHER algorithm is secure</code></pre></div><h2 id="modules"><a class="doc-anchor" href="#modules">§</a>Modules</h2>
 <ul>
-<li><a href="../unified_api/convenience/fn.encrypt_hybrid.html" title="fn latticearc::unified_api::convenience::encrypt_hybrid"><code>encrypt_hybrid</code></a> - Hybrid encryption using ML-KEM + AES-256-GCM</li>
-<li>[<code>kem_hybrid</code>] - Hybrid key encapsulation using ML-KEM + X25519</li>
-<li>[<code>sig_hybrid</code>] - Hybrid signatures using ML-DSA + Ed25519</li>
-<li>[<code>compose</code>] - Formal security proofs for hybrid composition</li>
+<li><a href="encrypt_hybrid/index.html" title="mod latticearc::hybrid::encrypt_hybrid"><code>encrypt_hybrid</code></a> - Hybrid encryption using ML-KEM + AES-256-GCM</li>
+<li><a href="kem_hybrid/index.html" title="mod latticearc::hybrid::kem_hybrid"><code>kem_hybrid</code></a> - Hybrid key encapsulation using ML-KEM + X25519</li>
+<li><a href="sig_hybrid/index.html" title="mod latticearc::hybrid::sig_hybrid"><code>sig_hybrid</code></a> - Hybrid signatures using ML-DSA + Ed25519</li>
+<li><a href="compose/index.html" title="mod latticearc::hybrid::compose"><code>compose</code></a> - Formal security proofs for hybrid composition</li>
 </ul>
 <h2 id="security-properties"><a class="doc-anchor" href="#security-properties">§</a>Security Properties</h2><div><table><thead><tr><th>Construction</th><th>Composition</th><th>Security Guarantee</th></tr></thead><tbody>
 <tr><td>Hybrid KEM</td><td>XOR</td><td>Secure if ML-KEM OR X25519 is secure</td></tr>
