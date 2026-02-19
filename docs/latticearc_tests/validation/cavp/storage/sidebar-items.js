@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["CavpStorageManager","FileCavpStorage","MemoryCavpStorage"],"trait":["CavpStorage"]};
