@@ -5,7 +5,7 @@
 //!
 //! All types are defined in [`crate::types::key_lifecycle`] and re-exported here.
 //! The `transition()` method returns [`crate::types::TypeError`]; use
-//! `From<TypeError> for CoreError` (in [`crate::error`]) for seamless `?` conversion.
+//! `From<TypeError> for CoreError` (in [`error`](crate::unified_api::error)) for seamless `?` conversion.
 //!
 //! # Key States (SP 800-57 Section 3)
 //!

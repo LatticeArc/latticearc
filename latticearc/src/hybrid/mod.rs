@@ -50,10 +50,10 @@
 //!
 //! # Modules
 //!
-//! - [`encrypt_hybrid`] - Hybrid encryption using ML-KEM + AES-256-GCM
-//! - [`kem_hybrid`] - Hybrid key encapsulation using ML-KEM + X25519
-//! - [`sig_hybrid`] - Hybrid signatures using ML-DSA + Ed25519
-//! - [`compose`] - Formal security proofs for hybrid composition
+//! - [`encrypt_hybrid`](mod@crate::hybrid::encrypt_hybrid) - Hybrid encryption using ML-KEM + AES-256-GCM
+//! - [`kem_hybrid`](crate::hybrid::kem_hybrid) - Hybrid key encapsulation using ML-KEM + X25519
+//! - [`sig_hybrid`](crate::hybrid::sig_hybrid) - Hybrid signatures using ML-DSA + Ed25519
+//! - [`compose`](crate::hybrid::compose) - Formal security proofs for hybrid composition
 //!
 //! # Security Properties
 //!
@@ -84,7 +84,7 @@ pub mod sig {
 
 /// Hybrid encryption types and functions.
 ///
-/// Re-exports all public items from [`encrypt_hybrid`].
+/// Re-exports all public items from [`encrypt_hybrid`](mod@crate::hybrid::encrypt_hybrid).
 pub mod encrypt {
     pub use crate::hybrid::encrypt_hybrid::*;
 }

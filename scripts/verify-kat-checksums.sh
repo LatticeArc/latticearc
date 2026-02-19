@@ -13,7 +13,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-KAT_DIR="$REPO_ROOT/arc-validation/src/nist_kat"
+KAT_DIR="$REPO_ROOT/tests/src/validation/nist_kat"
 MANIFEST="$KAT_DIR/CHECKSUMS.sha256"
 
 # KAT source files to checksum (excludes mod.rs, runner.rs, PROVENANCE.md)

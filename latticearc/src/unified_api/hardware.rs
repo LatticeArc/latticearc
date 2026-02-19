@@ -1,6 +1,6 @@
 //! Hardware detection type definitions.
 //!
-//! This module re-exports hardware-related types from [`crate::traits`].
+//! This module re-exports hardware-related types from [`types::traits`](crate::types::traits).
 //!
 //! **Note:** The stub implementations (`HardwareRouter`, `CpuAccelerator`,
 //! `GpuAccelerator`, `FpgaAccelerator`, `SgxAccelerator`, `TpmAccelerator`)
