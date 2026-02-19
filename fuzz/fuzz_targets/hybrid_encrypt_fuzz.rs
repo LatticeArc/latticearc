@@ -7,9 +7,9 @@
 //! with arbitrary plaintext data using ML-KEM + AES-GCM.
 
 use libfuzzer_sys::fuzz_target;
-use arc_core::convenience::{encrypt_hybrid, decrypt_hybrid, generate_ml_kem_keypair};
-use arc_core::zero_trust::SecurityMode;
-use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
+use latticearc::unified_api::convenience::{encrypt_hybrid, decrypt_hybrid, generate_ml_kem_keypair};
+use latticearc::unified_api::zero_trust::SecurityMode;
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes for symmetric key + some plaintext

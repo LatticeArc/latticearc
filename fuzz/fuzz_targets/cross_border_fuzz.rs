@@ -7,7 +7,7 @@
 //! (Cross-border compliance features are available in LatticeArc Enterprise)
 
 use libfuzzer_sys::fuzz_target;
-use arc_core::hash_data;
+use latticearc::unified_api::hash_data;
 
 fuzz_target!(|data: &[u8]| {
     // Hash the input data

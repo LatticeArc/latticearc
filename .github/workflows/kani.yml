@@ -1,7 +1,7 @@
 # Kani - Bounded Model Checking
 # Proves absence of panics, overflow, and out-of-bounds access in pure Rust code.
 #
-# arc-types contains 12 proofs covering:
+# latticearc types module contains 12 proofs covering:
 #   - Key lifecycle state machine (SP 800-57 compliance)
 #   - Crypto policy engine exhaustiveness (all enum variants handled)
 #   - Trust level ordering invariants
@@ -27,7 +27,7 @@ env:
 jobs:
   # Tier 1: Pure Rust proofs that MUST pass — badge reflects this job
   kani-verified:
-    name: Verified Proofs (arc-types)
+    name: Verified Proofs (latticearc)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -47,10 +47,10 @@ jobs:
             ~/.kani
           key: ${{ runner.os }}-kani-verified-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run verified Kani proofs (arc-types)
+      - name: Run verified Kani proofs (latticearc)
         run: |
           set -o pipefail
-          cargo kani -p arc-types 2>&1 | tee kani-output.txt
+          cargo kani -p latticearc 2>&1 | tee kani-output.txt
         timeout-minutes: 120
 
       - name: Upload Kani results
@@ -64,7 +64,7 @@ jobs:
       - name: Verified Proofs Summary
         if: always()
         run: |
-          echo "## Kani Proofs (arc-types) — 12 proofs" >> $GITHUB_STEP_SUMMARY
+          echo "## Kani Proofs (latticearc) — 12 proofs" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ ! -f kani-output.txt ]; then
             echo "⚠️ No Kani output file — step may have been skipped" >> $GITHUB_STEP_SUMMARY
@@ -117,7 +117,7 @@ jobs:
           echo "- Out-of-bounds array access" >> $GITHUB_STEP_SUMMARY
           echo "- Invalid memory access" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## arc-types (12 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
+          echo "## latticearc (12 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Category | Proofs | What they verify |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------|------------------|" >> $GITHUB_STEP_SUMMARY
@@ -128,4 +128,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Status | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| arc-types | ${{ needs.kani-verified.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| latticearc | ${{ needs.kani-verified.result }} |" >> $GITHUB_STEP_SUMMARY

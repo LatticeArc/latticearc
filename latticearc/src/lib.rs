@@ -1,8 +1,3 @@
-#![deny(unsafe_code)]
-#![deny(missing_docs)]
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::panic)]
-
 //! LatticeArc - Post-Quantum Cryptography Library
 //!
 //! Comprehensive post-quantum cryptography library providing advanced encryption,
@@ -200,19 +195,51 @@
 //! - HSM/TPM integration for sensitive key operations
 //! - Cryptographic audit trails for compliance (SOC2, HIPAA, etc.)
 
-pub use arc_core as core;
-pub use arc_prelude as prelude;
+// ============================================================================
+// Module Declarations
+// ============================================================================
 
-// Explicit re-export of LatticeArcError for arc-primitives error compatibility.
-// All other arc-prelude types (testing infra, error recovery) are accessible via
-// `latticearc::prelude::*` for advanced users, but not glob-exported here.
-pub use arc_prelude::prelude::LatticeArcError;
+/// Pure-Rust domain types, traits, configuration, and policy engine.
+pub mod types;
+
+/// Common prelude with error handling, domain constants, and testing infrastructure.
+pub mod prelude;
+
+/// Core cryptographic primitives (KEM, signatures, AEAD, hash, KDF, MAC).
+pub mod primitives;
+
+/// Hybrid cryptography combining post-quantum and classical algorithms.
+pub mod hybrid;
+
+/// Unified cryptographic API with Zero-Trust security.
+pub mod unified_api;
+
+/// TLS 1.3 with post-quantum key exchange support.
+pub mod tls;
+
+/// Zero-knowledge proof primitives (non-FIPS: not part of the FIPS 140-3 module boundary).
+#[cfg(not(feature = "fips"))]
+pub mod zkp;
+
+/// Performance monitoring and benchmarking utilities.
+pub mod perf;
+
+// ============================================================================
+// Backward-compatible module aliases
+// ============================================================================
+
+/// Alias for `unified_api` module (backward compatibility with `latticearc::core::*`).
+pub use unified_api as core;
+
+// Explicit re-export of LatticeArcError for error compatibility.
+// All other prelude types are accessible via `latticearc::prelude::*`.
+pub use prelude::prelude::LatticeArcError;
 
 // ============================================================================
 // Core Types
 // ============================================================================
 
-pub use arc_core::{
+pub use unified_api::{
     // Algorithm selection types
     AlgorithmSelection,
     Challenge,
@@ -276,22 +303,22 @@ pub use arc_core::{
 // ============================================================================
 
 // Single entry points for all cryptographic operations
-pub use arc_core::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
+pub use unified_api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
 // Hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM)
-pub use arc_core::{
+pub use unified_api::{
     HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
     encrypt_hybrid_with_config, generate_hybrid_keypair,
 };
 
 // Hybrid signatures (ML-DSA-65 + Ed25519)
-pub use arc_core::{
+pub use unified_api::{
     generate_hybrid_signing_keypair, generate_hybrid_signing_keypair_with_config, sign_hybrid,
     sign_hybrid_with_config, verify_hybrid_signature, verify_hybrid_signature_with_config,
 };
 
 // Key generation (no SecurityMode needed - creates credentials)
-pub use arc_core::{
+pub use unified_api::{
     generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config,
     generate_fn_dsa_keypair_with_level, generate_keypair, generate_keypair_with_config,
     generate_ml_dsa_keypair, generate_ml_dsa_keypair_with_config, generate_ml_kem_keypair,
@@ -300,30 +327,30 @@ pub use arc_core::{
 };
 
 // Hashing (hash_data is stateless, others use SecurityMode)
-pub use arc_core::{
+pub use unified_api::{
     derive_key, derive_key_with_config, derive_key_with_info, hash_data, hmac, hmac_check,
     hmac_check_with_config, hmac_with_config,
 };
 
 // AES-GCM
-pub use arc_core::{
+pub use unified_api::{
     decrypt_aes_gcm, decrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_config, encrypt_aes_gcm,
     encrypt_aes_gcm_with_aad, encrypt_aes_gcm_with_config,
 };
 
 // Ed25519
-pub use arc_core::{
+pub use unified_api::{
     sign_ed25519, sign_ed25519_with_config, verify_ed25519, verify_ed25519_with_config,
 };
 
 // Post-Quantum KEM (ML-KEM)
-pub use arc_core::{
+pub use unified_api::{
     decrypt_pq_ml_kem, decrypt_pq_ml_kem_with_config, encrypt_pq_ml_kem,
     encrypt_pq_ml_kem_with_config,
 };
 
 // Post-Quantum Signatures (ML-DSA, SLH-DSA, FN-DSA)
-pub use arc_core::{
+pub use unified_api::{
     sign_pq_fn_dsa, sign_pq_fn_dsa_with_config, sign_pq_ml_dsa, sign_pq_ml_dsa_with_config,
     sign_pq_slh_dsa, sign_pq_slh_dsa_with_config, verify_pq_fn_dsa, verify_pq_fn_dsa_with_config,
     verify_pq_ml_dsa, verify_pq_ml_dsa_with_config, verify_pq_slh_dsa,
@@ -334,7 +361,7 @@ pub use arc_core::{
 // Low-Level Unverified Variants (for primitives)
 // ============================================================================
 
-pub use arc_core::{
+pub use unified_api::{
     // AES-GCM
     decrypt_aes_gcm_unverified,
     decrypt_aes_gcm_with_aad_unverified,
@@ -385,35 +412,19 @@ pub use arc_core::{
 };
 
 // ============================================================================
-// Hardware Types (trait definitions only — real detection in enterprise)
-// Re-exported from arc_core::traits above (lines 187-191)
-// ============================================================================
-
-// ============================================================================
 // Serialization Utilities
 // ============================================================================
 
-pub use arc_core::serialization::{
+pub use unified_api::serialization::{
     deserialize_encrypted_data, deserialize_keypair, deserialize_signed_data,
     serialize_encrypted_data, serialize_keypair, serialize_signed_data,
 };
 
 // ============================================================================
-// Additional Modules
+// TLS Utilities
 // ============================================================================
 
-/// ZKP primitives (non-FIPS: not part of the FIPS 140-3 module boundary)
-#[cfg(not(feature = "fips"))]
-pub use arc_zkp as zkp;
-
-/// Performance utilities
-pub use arc_perf as perf;
-
-/// Hybrid encryption
-pub use arc_hybrid as hybrid;
-
-/// TLS utilities
-pub use arc_tls::{
+pub use tls::{
     TlsConfig, TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, tls_accept,
     tls_connect,
 };

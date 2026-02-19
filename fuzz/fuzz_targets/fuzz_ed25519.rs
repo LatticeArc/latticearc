@@ -7,8 +7,8 @@
 //! without crashing and correctly verify signatures.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
-use arc_primitives::ec::traits::{EcKeyPair, EcSignature};
+use latticearc::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
+use latticearc::primitives::ec::traits::{EcKeyPair, EcSignature};
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 32 {

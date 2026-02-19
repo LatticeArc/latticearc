@@ -7,7 +7,7 @@
 //! without crashing and produce consistent outputs.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::kdf::hkdf::{hkdf, hkdf_extract, hkdf_expand, hkdf_simple};
+use latticearc::primitives::kdf::hkdf::{hkdf, hkdf_extract, hkdf_expand, hkdf_simple};
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 32 {

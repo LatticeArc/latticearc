@@ -7,8 +7,8 @@
 //! with arbitrary input data and handle all error cases gracefully.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
-use arc_primitives::aead::AeadCipher;
+use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
+use latticearc::primitives::aead::AeadCipher;
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes for key + nonce + plaintext

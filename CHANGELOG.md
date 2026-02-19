@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.2.0] - 2026-02-18
+
+### Changed
+
+- **Workspace Consolidation**: Merged 8 sub-crates into single `latticearc` crate for crates.io publishing
+  - `arc-types`, `arc-prelude`, `arc-primitives`, `arc-hybrid`, `arc-core`, `arc-tls`, `arc-zkp`, `arc-perf` are now internal modules
+  - Merged `arc-tests` and `arc-validation` into a single `latticearc-tests` crate (unpublished)
+  - Workspace reduced from 11 crates to 3: `latticearc` (published), `tests` (dev-only), `fuzz` (excluded)
+  - All public APIs remain identical — `use latticearc::*` works the same
+  - Module paths available: `latticearc::types`, `latticearc::primitives`, `latticearc::hybrid`, `latticearc::unified_api`, `latticearc::tls`, `latticearc::zkp`, `latticearc::perf`, `latticearc::prelude`
+  - Simplified release process: single `cargo publish -p latticearc` instead of 10-step layered publish
+  - CI workflows updated to reference new crate structure
 
 ---
 

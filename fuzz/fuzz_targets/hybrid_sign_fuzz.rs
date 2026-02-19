@@ -6,7 +6,7 @@
 //! Tests that sign_with_key/verify roundtrip correctly with arbitrary message data.
 
 use libfuzzer_sys::fuzz_target;
-use arc_core::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
+use latticearc::unified_api::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
 fuzz_target!(|data: &[u8]| {
     // Need at least some data to sign

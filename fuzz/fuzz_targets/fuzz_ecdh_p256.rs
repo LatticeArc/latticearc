@@ -7,7 +7,7 @@
 //! without crashing and produce valid shared secrets.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::kem::ecdh::EcdhP256KeyPair;
+use latticearc::primitives::kem::ecdh::EcdhP256KeyPair;
 
 fuzz_target!(|data: &[u8]| {
     // Test 1: Generate keypairs and perform key agreement

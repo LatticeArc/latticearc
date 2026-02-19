@@ -48,14 +48,8 @@ libfuzzer-sys = "0.4"
 subtle = "2.6"
 rand = { version = "0.8.5", features = ["std_rng"] }
 
-[dependencies.arc-core]
-path = "../arc-core"
-
-[dependencies.arc-primitives]
-path = "../arc-primitives"
-
-[dependencies.arc-hybrid]
-path = "../arc-hybrid"
+[dependencies.latticearc]
+path = "../latticearc"
 
 [dev-dependencies]
 rand = { version = "0.8.5", features = ["std_rng"] }

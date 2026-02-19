@@ -7,8 +7,8 @@
 //! with arbitrary plaintext data.
 
 use libfuzzer_sys::fuzz_target;
-use arc_core::{encrypt_aes_gcm, decrypt_aes_gcm};
-use arc_core::zero_trust::SecurityMode;
+use latticearc::unified_api::{encrypt_aes_gcm, decrypt_aes_gcm};
+use latticearc::unified_api::zero_trust::SecurityMode;
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes for key + some plaintext

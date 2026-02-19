@@ -7,7 +7,7 @@
 //! without crashing and produces valid signatures.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::sig::ml_dsa::{generate_keypair, sign, verify, MlDsaParameterSet};
+use latticearc::primitives::sig::ml_dsa::{generate_keypair, sign, verify, MlDsaParameterSet};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {

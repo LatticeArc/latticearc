@@ -7,7 +7,7 @@
 //! and verify constant-time properties.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
+use latticearc::primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes: 16 for key, 16 for message

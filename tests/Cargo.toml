@@ -1,0 +1,89 @@
+[package]
+name = "latticearc-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Comprehensive test suite for LatticeArc - regression, API stability, concurrency, and FIPS validation tests"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme.workspace = true
+publish = false
+
+# Inherit all lints from workspace
+[lints]
+workspace = true
+
+[features]
+default = []
+# FIPS 140-3 mode: gates non-FIPS algorithms (e.g., ChaCha20-Poly1305 KAT tests)
+fips = ["latticearc/fips"]
+
+[dependencies]
+# Main crate under test
+latticearc = { version = "0.2.0", path = "../latticearc" }
+
+# Property-based testing
+proptest = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Cryptographic dependencies for testing
+rand = { workspace = true }
+rand_core = { workspace = true }
+ed25519-dalek = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+hmac = { workspace = true }
+subtle = { workspace = true }
+aws-lc-rs = { workspace = true }
+x25519-dalek = { workspace = true }
+chacha20poly1305 = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Encoding
+hex = { workspace = true }
+base64 = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Concurrency / async
+parking_lot = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+# Validation-specific dependencies
+aes-gcm = "0.10.3"
+hkdf = "0.12.4"
+libm = "0.2.8"
+fips203 = { version = "=0.4.3", registry = "crates-io" }
+fips204 = { workspace = true }
+fips205 = { workspace = true }
+fn-dsa = { workspace = true }
+fn-dsa-sign = "0.3"
+fn-dsa-vrfy = "0.3"
+reqwest = { workspace = true, features = ["blocking"] }
+num_cpus = "1.16.0"
+ctor = "0.2.9"
+tempfile = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4.4"
+wycheproof = "0.6"
+criterion = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+
+[[bench]]
+name = "constant_time"
+harness = false

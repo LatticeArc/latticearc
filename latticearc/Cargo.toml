@@ -10,28 +10,129 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 readme = "README.md"
+build = "build.rs"
 
 # Inherit all lints from workspace
 [lints]
 workspace = true
 
-[dependencies]
-# Core crates - all always included
-arc-primitives = { version = "0.1.2", path = "../arc-primitives" }
-arc-core = { version = "0.1.2", path = "../arc-core" }
-arc-prelude = { version = "0.1.2", path = "../arc-prelude" }
-arc-zkp = { version = "0.1.2", path = "../arc-zkp" }
-arc-hybrid = { version = "0.1.2", path = "../arc-hybrid" }
-arc-tls = { version = "0.1.2", path = "../arc-tls" }
-arc-perf = { version = "0.1.2", path = "../arc-perf" }
-
 [features]
 default = []
 # FIPS 140-3 mode: gates non-FIPS algorithms, enables self-tests
-fips = ["arc-core/fips", "arc-primitives/fips"]
+fips = ["fips-self-test"]
+fips-self-test = []
+# ZKP serialization support (enables serde_with for ZKP types)
+zkp-serde = ["dep:serde_with"]
+# TLS formal verification features
+formal-verification = []
+kani = []
+saw = []
+# Prelude features
+std = []
+std-backtrace = ["dep:backtrace"]
+database = ["dep:tokio-postgres", "dep:rusqlite"]
+
+[dependencies]
+# =============================================================================
+# Core utilities
+# =============================================================================
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+zeroize = { workspace = true }
+subtle = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+arrayref = { workspace = true }
+
+# =============================================================================
+# Cryptography - FIPS 140-3 validated
+# =============================================================================
+# ML-KEM (FIPS 203) with FIPS certification (Certificate #4631, #4759, #4816)
+aws-lc-rs = { workspace = true }
+# ML-DSA (FIPS 204) - keep until aws-lc-rs FIPS branch includes ML-DSA
+fips204 = { workspace = true }
+# SLH-DSA (FIPS 205) - not yet in aws-lc-rs
+fips205 = { workspace = true }
+# FN-DSA (FIPS 206) - unique implementation
+fn-dsa = { workspace = true }
+
+# =============================================================================
+# Classical cryptography
+# =============================================================================
+aes = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+hmac = { workspace = true }
+chacha20poly1305 = { workspace = true }
+pbkdf2 = { workspace = true }
+ed25519-dalek = { workspace = true }
+k256 = { workspace = true, features = ["sha256"] }
+ecdsa = { workspace = true }
+blake2 = { workspace = true }
+
+# =============================================================================
+# Random number generation
+# =============================================================================
+rand = { workspace = true }
+rand_core = { workspace = true }
+rand_chacha = { workspace = true }
+getrandom = { workspace = true }
+
+# =============================================================================
+# Tracing and observability
+# =============================================================================
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-appender = { workspace = true }
+
+# =============================================================================
+# Concurrency and utilities
+# =============================================================================
+rayon = { workspace = true }
+parking_lot = { workspace = true }
+
+# =============================================================================
+# TLS
+# =============================================================================
+rustls = { workspace = true }
+rustls-post-quantum = { workspace = true }
+rustls-pki-types = { workspace = true }
+rustls-native-certs = { workspace = true }
+tokio = { workspace = true }
+tokio-rustls = { workspace = true }
+
+# =============================================================================
+# ZKP
+# =============================================================================
+elliptic-curve = { version = "0.13", features = ["sec1"] }
+# Optional: ZKP serialization
+serde_with = { version = "3.0", optional = true }
+
+# =============================================================================
+# Optional: Prelude database features
+# =============================================================================
+tokio-postgres = { version = "0.7", optional = true }
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+backtrace = { version = "0.3", optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+hex-literal = { workspace = true }
+tempfile = { workspace = true }
+rcgen = { workspace = true }
+hkdf = "0.12.4"
 
 [lib]
 path = "src/lib.rs"
+
+# =============================================================================
+# Examples
+# =============================================================================
 
 [[example]]
 name = "basic_encryption"
@@ -59,3 +160,37 @@ name = "true_hybrid_encryption"
 
 [[example]]
 name = "tls_policy"
+
+[[example]]
+name = "crypto_timing"
+
+[[example]]
+name = "comprehensive_benchmark"
+
+[[example]]
+name = "test_ml_kem"
+
+[[example]]
+name = "tls13_hybrid_client"
+
+[[example]]
+name = "tls13_custom_hybrid"
+
+[[example]]
+name = "test_rustls_compat"
+
+# =============================================================================
+# Benchmarks
+# =============================================================================
+
+[[bench]]
+name = "tls_performance"
+harness = false
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[[bench]]
+name = "constant_time"
+harness = false

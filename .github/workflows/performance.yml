@@ -85,7 +85,7 @@ jobs:
 
     - name: Run performance regression tests
       run: |
-        cargo test -p arc-tests --all-features --release regression
+        cargo test -p latticearc-tests --all-features --release regression
 
   profiling:
     name: Performance Profiling

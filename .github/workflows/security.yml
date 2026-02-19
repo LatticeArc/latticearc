@@ -173,10 +173,10 @@ jobs:
       run: cargo test --test nist_kat_tests --all-features --release
 
     - name: Run cryptographic validation tests
-      run: cargo test --package arc-validation --all-features --release
+      run: cargo test --package latticearc-tests --all-features --release
 
     - name: Run hybrid encryption tests
-      run: cargo test --package arc-hybrid --all-features --release
+      run: cargo test --package latticearc --all-features --release
 
     - name: Run zeroization tests
       run: cargo test --workspace --all-features --release -- zeroization

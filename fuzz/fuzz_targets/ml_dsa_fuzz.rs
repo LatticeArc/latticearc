@@ -7,7 +7,7 @@
 //! with arbitrary signature and message data.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::sig::ml_dsa::{generate_keypair, sign, verify, MlDsaParameterSet};
+use latticearc::primitives::sig::ml_dsa::{generate_keypair, sign, verify, MlDsaParameterSet};
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes for message

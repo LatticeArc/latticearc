@@ -40,7 +40,7 @@ jobs:
 
       - name: Run constant-time benchmarks
         run: |
-          cargo bench --package arc-validation --bench constant_time -- --noplot 2>&1 | tee bench-output.txt
+          cargo bench --package latticearc-tests --bench constant_time -- --noplot 2>&1 | tee bench-output.txt
         timeout-minutes: 30
 
       - name: Analyze timing consistency
@@ -92,7 +92,7 @@ jobs:
           echo "Checking for potential timing vulnerabilities:" >> $GITHUB_STEP_SUMMARY
 
           # Look for == on byte arrays in sensitive contexts (simplified check)
-          if grep -r "secret.*==" --include="*.rs" arc-primitives arc-core 2>/dev/null | grep -v "test" | grep -v "\.md"; then
+          if grep -r "secret.*==" --include="*.rs" latticearc/src/primitives latticearc/src/unified_api 2>/dev/null | grep -v "test" | grep -v "\.md"; then
             echo "- ⚠️ Found potential non-constant-time secret comparisons" >> $GITHUB_STEP_SUMMARY
           else
             echo "- ✅ No obvious non-constant-time secret comparisons found" >> $GITHUB_STEP_SUMMARY

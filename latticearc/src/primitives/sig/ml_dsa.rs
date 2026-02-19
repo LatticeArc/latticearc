@@ -1,0 +1,1074 @@
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::panic)]
+
+//! # ML-DSA (FIPS 204) Digital Signatures
+//!
+//! ## FIPS 140-3 Certification Notice
+//!
+//! **Current Implementation**: Uses the `fips204` crate (pure Rust, NOT independently audited)
+//!
+//! **For FIPS 140-3 certification**, this module needs to migrate to `aws-lc-rs`
+//! once its ML-DSA Rust API is stabilized. The current `fips204` crate is not
+//! independently FIPS-validated.
+//!
+//! ## Usage for Non-FIPS Applications
+//!
+//! The current implementation is functionally correct and suitable for:
+//! - Development and testing
+//! - Non-regulated applications
+//! - Applications not requiring FIPS 140-3 certification
+//!
+//! ## FIPS 204 Standard
+//!
+//! FIPS 204 specifies the Module-Lattice-Based Digital Signature Algorithm (ML-DSA),
+//! which provides post-quantum security for digital signatures.
+//!
+//! ## Security Level
+//!
+//! ML-DSA provides EUF-CMA (Existential Unforgeability under Chosen Message Attacks)
+//! security and is believed to be secure against quantum adversaries.
+//!
+//! ## Parameter Sets
+//!
+//! | Parameter Set | Public Key | Signature | NIST Level |
+//! |---------------|------------|-----------|------------|
+//! | ML-DSA-44     | ~1.3 KB    | ~2.4 KB   | 2          |
+//! | ML-DSA-65     | ~2.0 KB    | ~3.3 KB   | 3          |
+//! | ML-DSA-87     | ~2.6 KB    | ~4.6 KB   | 5          |
+//!
+//! ## Backend Selection (Future)
+//!
+//! When aws-lc-rs ML-DSA support is available, the backend will be selectable via
+//! feature flags:
+//!
+//! ```toml
+//! # Future configuration (not yet available)
+//! [dependencies]
+//! arc-primitives = { version = "0.1", features = ["ml-dsa-aws-lc"] }
+//! ```
+
+use fips204::{
+    ml_dsa_44, ml_dsa_65, ml_dsa_87,
+    traits::{SerDes, Signer, Verifier},
+};
+use subtle::{Choice, ConstantTimeEq};
+use thiserror::Error;
+use tracing::instrument;
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// ML-DSA parameter sets for different security levels
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MlDsaParameterSet {
+    /// ML-DSA-44: NIST Level 2 security (~128-bit classical security)
+    MLDSA44,
+    /// ML-DSA-65: NIST Level 3 security (~192-bit classical security)
+    MLDSA65,
+    /// ML-DSA-87: NIST Level 5 security (~256-bit classical security)
+    MLDSA87,
+}
+
+impl MlDsaParameterSet {
+    /// Returns the name of the parameter set
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::MLDSA44 => "ML-DSA-44",
+            Self::MLDSA65 => "ML-DSA-65",
+            Self::MLDSA87 => "ML-DSA-87",
+        }
+    }
+
+    /// Returns the public key size in bytes
+    #[must_use]
+    pub const fn public_key_size(&self) -> usize {
+        match self {
+            Self::MLDSA44 => 1312,
+            Self::MLDSA65 => 1952,
+            Self::MLDSA87 => 2592,
+        }
+    }
+
+    /// Returns the secret key size in bytes
+    #[must_use]
+    pub const fn secret_key_size(&self) -> usize {
+        match self {
+            Self::MLDSA44 => 2560,
+            Self::MLDSA65 => 4032,
+            Self::MLDSA87 => 4896,
+        }
+    }
+
+    /// Returns the signature size in bytes
+    #[must_use]
+    pub const fn signature_size(&self) -> usize {
+        match self {
+            Self::MLDSA44 => 2420,
+            Self::MLDSA65 => 3309,
+            Self::MLDSA87 => 4627,
+        }
+    }
+
+    /// Returns the NIST security level
+    #[must_use]
+    pub const fn nist_security_level(&self) -> u8 {
+        match self {
+            Self::MLDSA44 => 2,
+            Self::MLDSA65 => 3,
+            Self::MLDSA87 => 5,
+        }
+    }
+}
+
+/// Error types for ML-DSA operations
+#[derive(Debug, Error)]
+pub enum MlDsaError {
+    /// Key generation failed
+    #[error("Key generation failed: {0}")]
+    KeyGenerationError(String),
+
+    /// Signing failed
+    #[error("Signing failed: {0}")]
+    SigningError(String),
+
+    /// Verification failed
+    #[error("Verification failed: {0}")]
+    VerificationError(String),
+
+    /// Invalid key length
+    #[error("Invalid key length: expected {expected}, got {actual}")]
+    InvalidKeyLength {
+        /// Expected key size
+        expected: usize,
+        /// Actual key size
+        actual: usize,
+    },
+
+    /// Invalid signature length
+    #[error("Invalid signature length: expected {expected}, got {actual}")]
+    InvalidSignatureLength {
+        /// Expected signature size
+        expected: usize,
+        /// Actual signature size
+        actual: usize,
+    },
+
+    /// Invalid parameter set
+    #[error("Invalid parameter set: {0}")]
+    InvalidParameterSet(String),
+
+    /// ML-DSA feature not enabled
+    #[error("ML-DSA feature not enabled")]
+    FeatureNotEnabled,
+
+    /// Cryptographic operation failed
+    #[error("Cryptographic operation failed: {0}")]
+    CryptoError(String),
+}
+
+/// ML-DSA public key (FIPS 204 format)
+#[derive(Debug, Clone)]
+pub struct MlDsaPublicKey {
+    /// The parameter set for this key
+    pub parameter_set: MlDsaParameterSet,
+    /// Serialized public key bytes
+    pub data: Vec<u8>,
+}
+
+impl MlDsaPublicKey {
+    /// Creates a new ML-DSA public key from raw bytes
+    ///
+    /// # Errors
+    /// Returns an error if the key length does not match the expected size for the parameter set.
+    pub fn new(parameter_set: MlDsaParameterSet, data: Vec<u8>) -> Result<Self, MlDsaError> {
+        let expected_size = parameter_set.public_key_size();
+        if data.len() != expected_size {
+            return Err(MlDsaError::InvalidKeyLength {
+                expected: expected_size,
+                actual: data.len(),
+            });
+        }
+        Ok(Self { parameter_set, data })
+    }
+
+    /// Returns the size of the public key in bytes
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns true if the public key is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Serializes the public key to bytes
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
+    }
+}
+
+/// ML-DSA secret key (FIPS 204 format)
+///
+/// # Security
+///
+/// - Fields are private to prevent direct access to secret material
+/// - Implements `ZeroizeOnDrop` for automatic memory cleanup
+/// - Implements `ConstantTimeEq` for timing-safe comparisons
+/// - Does not implement `Clone` to prevent unzeroized copies
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct MlDsaSecretKey {
+    /// The parameter set for this key
+    #[zeroize(skip)]
+    parameter_set: MlDsaParameterSet,
+    /// Serialized secret key bytes (zeroized on drop)
+    data: Vec<u8>,
+}
+
+impl std::fmt::Debug for MlDsaSecretKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MlDsaSecretKey")
+            .field("parameter_set", &self.parameter_set)
+            .field("data", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl MlDsaSecretKey {
+    /// Creates a new ML-DSA secret key from raw bytes
+    ///
+    /// # Errors
+    /// Returns an error if the key length does not match the expected size for the parameter set.
+    pub fn new(parameter_set: MlDsaParameterSet, data: Vec<u8>) -> Result<Self, MlDsaError> {
+        let expected_size = parameter_set.secret_key_size();
+        if data.len() != expected_size {
+            return Err(MlDsaError::InvalidKeyLength {
+                expected: expected_size,
+                actual: data.len(),
+            });
+        }
+        Ok(Self { parameter_set, data })
+    }
+
+    /// Returns the parameter set for this key
+    #[must_use]
+    pub fn parameter_set(&self) -> MlDsaParameterSet {
+        self.parameter_set
+    }
+
+    /// Returns the size of the secret key in bytes
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns true if the secret key is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Returns a reference to the secret key bytes
+    ///
+    /// # Security Warning
+    /// Handle the returned bytes with care. Do not copy or store them
+    /// without proper zeroization.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
+    }
+}
+
+impl ConstantTimeEq for MlDsaSecretKey {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        // Compare parameter set discriminant in constant time
+        let param_eq = (self.parameter_set as u8).ct_eq(&(other.parameter_set as u8));
+        // Compare data in constant time
+        let data_eq = self.data.ct_eq(&other.data);
+        param_eq & data_eq
+    }
+}
+
+impl PartialEq for MlDsaSecretKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
+impl Eq for MlDsaSecretKey {}
+
+/// ML-DSA signature (FIPS 204 format)
+#[derive(Debug, Clone)]
+pub struct MlDsaSignature {
+    /// The parameter set used to create this signature
+    pub parameter_set: MlDsaParameterSet,
+    /// Serialized signature bytes
+    pub data: Vec<u8>,
+}
+
+impl MlDsaSignature {
+    /// Creates a new ML-DSA signature from raw bytes
+    ///
+    /// # Errors
+    /// Returns an error if the signature length does not match the expected size for the parameter set.
+    pub fn new(parameter_set: MlDsaParameterSet, data: Vec<u8>) -> Result<Self, MlDsaError> {
+        let expected_size = parameter_set.signature_size();
+        if data.len() != expected_size {
+            return Err(MlDsaError::InvalidSignatureLength {
+                expected: expected_size,
+                actual: data.len(),
+            });
+        }
+        Ok(Self { parameter_set, data })
+    }
+
+    /// Returns the size of the signature in bytes
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns true if the signature is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Serializes the signature to bytes
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
+    }
+}
+
+/// Generate an ML-DSA keypair for the specified parameter set
+///
+/// This function generates a new ML-DSA keypair and performs a FIPS 140-3
+/// Pairwise Consistency Test (PCT) to verify the keypair is valid before
+/// returning it.
+///
+/// # Errors
+/// Returns an error if key generation fails, the ml_dsa feature is not enabled,
+/// or the PCT fails (indicating a corrupted keypair).
+#[instrument(level = "debug", fields(parameter_set = ?parameter_set))]
+pub fn generate_keypair(
+    parameter_set: MlDsaParameterSet,
+) -> Result<(MlDsaPublicKey, MlDsaSecretKey), MlDsaError> {
+    let (pk, sk) = match parameter_set {
+        MlDsaParameterSet::MLDSA44 => {
+            let (pk, sk) = ml_dsa_44::try_keygen().map_err(|e| {
+                MlDsaError::KeyGenerationError(format!("ML-DSA-44 key generation failed: {}", e))
+            })?;
+            (
+                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: sk.into_bytes().to_vec() },
+            )
+        }
+        MlDsaParameterSet::MLDSA65 => {
+            let (pk, sk) = ml_dsa_65::try_keygen().map_err(|e| {
+                MlDsaError::KeyGenerationError(format!("ML-DSA-65 key generation failed: {}", e))
+            })?;
+            (
+                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: sk.into_bytes().to_vec() },
+            )
+        }
+        MlDsaParameterSet::MLDSA87 => {
+            let (pk, sk) = ml_dsa_87::try_keygen().map_err(|e| {
+                MlDsaError::KeyGenerationError(format!("ML-DSA-87 key generation failed: {}", e))
+            })?;
+            (
+                MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: sk.into_bytes().to_vec() },
+            )
+        }
+    };
+
+    // FIPS 140-3 Pairwise Consistency Test (PCT)
+    // Sign and verify a test message to ensure the keypair is consistent
+    crate::primitives::pct::pct_ml_dsa(&pk, &sk)
+        .map_err(|e| MlDsaError::KeyGenerationError(format!("PCT failed: {}", e)))?;
+
+    Ok((pk, sk))
+}
+
+/// Sign a message using ML-DSA
+///
+/// # Errors
+/// Returns an error if signing fails, the key is invalid, or the ml_dsa feature is not enabled.
+#[instrument(level = "debug", skip(secret_key, message, context), fields(parameter_set = ?secret_key.parameter_set, message_len = message.len(), context_len = context.len()))]
+pub fn sign(
+    secret_key: &MlDsaSecretKey,
+    message: &[u8],
+    context: &[u8],
+) -> Result<MlDsaSignature, MlDsaError> {
+    let parameter_set = secret_key.parameter_set();
+
+    let signature = match parameter_set {
+        MlDsaParameterSet::MLDSA44 => {
+            let sk_bytes: [u8; 2560] = secret_key.as_bytes().try_into().map_err(|_e| {
+                MlDsaError::InvalidKeyLength { expected: 2560, actual: secret_key.len() }
+            })?;
+            let sk = ml_dsa_44::PrivateKey::try_from_bytes(sk_bytes).map_err(|e| {
+                MlDsaError::SigningError(format!(
+                    "Failed to deserialize ML-DSA-44 secret key: {}",
+                    e
+                ))
+            })?;
+            let sig = sk.try_sign(message, context).map_err(|e| {
+                MlDsaError::SigningError(format!("ML-DSA-44 signing failed: {}", e))
+            })?;
+            MlDsaSignature { parameter_set, data: sig.to_vec() }
+        }
+        MlDsaParameterSet::MLDSA65 => {
+            let sk_bytes: [u8; 4032] = secret_key.as_bytes().try_into().map_err(|_e| {
+                MlDsaError::InvalidKeyLength { expected: 4032, actual: secret_key.len() }
+            })?;
+            let sk = ml_dsa_65::PrivateKey::try_from_bytes(sk_bytes).map_err(|e| {
+                MlDsaError::SigningError(format!(
+                    "Failed to deserialize ML-DSA-65 secret key: {}",
+                    e
+                ))
+            })?;
+            let sig = sk.try_sign(message, context).map_err(|e| {
+                MlDsaError::SigningError(format!("ML-DSA-65 signing failed: {}", e))
+            })?;
+            MlDsaSignature { parameter_set, data: sig.to_vec() }
+        }
+        MlDsaParameterSet::MLDSA87 => {
+            let sk_bytes: [u8; 4896] = secret_key.as_bytes().try_into().map_err(|_e| {
+                MlDsaError::InvalidKeyLength { expected: 4896, actual: secret_key.len() }
+            })?;
+            let sk = ml_dsa_87::PrivateKey::try_from_bytes(sk_bytes).map_err(|e| {
+                MlDsaError::SigningError(format!(
+                    "Failed to deserialize ML-DSA-87 secret key: {}",
+                    e
+                ))
+            })?;
+            let sig = sk.try_sign(message, context).map_err(|e| {
+                MlDsaError::SigningError(format!("ML-DSA-87 signing failed: {}", e))
+            })?;
+            MlDsaSignature { parameter_set, data: sig.to_vec() }
+        }
+    };
+
+    Ok(signature)
+}
+
+/// Verify a signature using ML-DSA
+///
+/// # Errors
+/// Returns an error if verification fails due to invalid key or signature format.
+#[instrument(level = "debug", skip(public_key, message, signature, context), fields(parameter_set = ?public_key.parameter_set, message_len = message.len(), signature_len = signature.data.len()))]
+pub fn verify(
+    public_key: &MlDsaPublicKey,
+    message: &[u8],
+    signature: &MlDsaSignature,
+    context: &[u8],
+) -> Result<bool, MlDsaError> {
+    if public_key.parameter_set != signature.parameter_set {
+        return Ok(false);
+    }
+
+    let is_valid = match public_key.parameter_set {
+        MlDsaParameterSet::MLDSA44 => {
+            let pk_bytes: [u8; 1312] = public_key.data.as_slice().try_into().map_err(|_e| {
+                MlDsaError::InvalidKeyLength { expected: 1312, actual: public_key.data.len() }
+            })?;
+            let pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes).map_err(|e| {
+                MlDsaError::VerificationError(format!(
+                    "Failed to deserialize ML-DSA-44 public key: {}",
+                    e
+                ))
+            })?;
+            let sig_bytes: [u8; 2420] = signature.data.as_slice().try_into().map_err(|_e| {
+                MlDsaError::InvalidSignatureLength { expected: 2420, actual: signature.data.len() }
+            })?;
+            pk.verify(message, &sig_bytes, context)
+        }
+        MlDsaParameterSet::MLDSA65 => {
+            let pk_bytes: [u8; 1952] = public_key.data.as_slice().try_into().map_err(|_e| {
+                MlDsaError::InvalidKeyLength { expected: 1952, actual: public_key.data.len() }
+            })?;
+            let pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes).map_err(|e| {
+                MlDsaError::VerificationError(format!(
+                    "Failed to deserialize ML-DSA-65 public key: {}",
+                    e
+                ))
+            })?;
+            let sig_bytes: [u8; 3309] = signature.data.as_slice().try_into().map_err(|_e| {
+                MlDsaError::InvalidSignatureLength { expected: 3309, actual: signature.data.len() }
+            })?;
+            pk.verify(message, &sig_bytes, context)
+        }
+        MlDsaParameterSet::MLDSA87 => {
+            let pk_bytes: [u8; 2592] = public_key.data.as_slice().try_into().map_err(|_e| {
+                MlDsaError::InvalidKeyLength { expected: 2592, actual: public_key.data.len() }
+            })?;
+            let pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes).map_err(|e| {
+                MlDsaError::VerificationError(format!(
+                    "Failed to deserialize ML-DSA-87 public key: {}",
+                    e
+                ))
+            })?;
+            let sig_bytes: [u8; 4627] = signature.data.as_slice().try_into().map_err(|_e| {
+                MlDsaError::InvalidSignatureLength { expected: 4627, actual: signature.data.len() }
+            })?;
+            pk.verify(message, &sig_bytes, context)
+        }
+    };
+
+    Ok(is_valid)
+}
+
+#[cfg(test)]
+#[allow(clippy::panic_in_result_fn)] // Tests use assertions for verification
+#[allow(clippy::expect_used)] // Tests use expect for simplicity
+#[allow(clippy::indexing_slicing)] // Tests use direct indexing
+#[allow(clippy::single_match)] // Tests use match for clarity
+#[allow(clippy::panic)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use rand::RngCore;
+
+    fn test_parameter_set(param: MlDsaParameterSet) -> Result<(), MlDsaError> {
+        let (pk, sk) = generate_keypair(param)?;
+
+        assert_eq!(pk.parameter_set, param);
+        assert_eq!(sk.parameter_set(), param);
+        assert_eq!(pk.len(), param.public_key_size());
+        assert!(!pk.is_empty());
+        assert!(!sk.is_empty());
+
+        let message = b"Test message for ML-DSA";
+        let context: &[u8] = &[];
+
+        let signature = sign(&sk, message, context)?;
+        assert_eq!(signature.parameter_set, param);
+        assert!(!signature.is_empty());
+
+        let is_valid = verify(&pk, message, &signature, context)?;
+        assert!(is_valid, "Signature should be valid");
+
+        let wrong_message = b"Wrong message";
+        let is_valid = verify(&pk, wrong_message, &signature, context)?;
+        assert!(!is_valid, "Signature should be invalid for wrong message");
+
+        let (pk2, _sk2) = generate_keypair(param)?;
+        let is_valid = verify(&pk2, message, &signature, context)?;
+        assert!(!is_valid, "Signature should be invalid for wrong public key");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_44_key_generation() -> Result<(), MlDsaError> {
+        test_parameter_set(MlDsaParameterSet::MLDSA44)
+    }
+
+    #[test]
+    fn test_ml_dsa_65_key_generation() -> Result<(), MlDsaError> {
+        test_parameter_set(MlDsaParameterSet::MLDSA65)
+    }
+
+    #[test]
+    fn test_ml_dsa_87_key_generation() -> Result<(), MlDsaError> {
+        test_parameter_set(MlDsaParameterSet::MLDSA87)
+    }
+
+    #[test]
+    fn test_ml_dsa_secret_key_zeroization() {
+        let (_pk, mut sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+
+        let sk_bytes_before = sk.as_bytes().to_vec();
+        assert!(
+            !sk_bytes_before.iter().all(|&b| b == 0),
+            "Secret key should contain non-zero data"
+        );
+
+        sk.zeroize();
+
+        let sk_bytes_after = sk.as_bytes();
+        assert!(sk_bytes_after.iter().all(|&b| b == 0), "Secret key should be zeroized");
+    }
+
+    #[test]
+    fn test_ml_dsa_parameter_set_properties() {
+        assert_eq!(MlDsaParameterSet::MLDSA44.name(), "ML-DSA-44");
+        assert_eq!(MlDsaParameterSet::MLDSA44.public_key_size(), 1312);
+        assert_eq!(MlDsaParameterSet::MLDSA44.secret_key_size(), 2560);
+        assert_eq!(MlDsaParameterSet::MLDSA44.signature_size(), 2420);
+        assert_eq!(MlDsaParameterSet::MLDSA44.nist_security_level(), 2);
+
+        assert_eq!(MlDsaParameterSet::MLDSA65.name(), "ML-DSA-65");
+        assert_eq!(MlDsaParameterSet::MLDSA65.public_key_size(), 1952);
+        assert_eq!(MlDsaParameterSet::MLDSA65.secret_key_size(), 4032);
+        assert_eq!(MlDsaParameterSet::MLDSA65.signature_size(), 3309);
+        assert_eq!(MlDsaParameterSet::MLDSA65.nist_security_level(), 3);
+
+        assert_eq!(MlDsaParameterSet::MLDSA87.name(), "ML-DSA-87");
+        assert_eq!(MlDsaParameterSet::MLDSA87.public_key_size(), 2592);
+        assert_eq!(MlDsaParameterSet::MLDSA87.secret_key_size(), 4896);
+        assert_eq!(MlDsaParameterSet::MLDSA87.signature_size(), 4627);
+        assert_eq!(MlDsaParameterSet::MLDSA87.nist_security_level(), 5);
+    }
+
+    #[test]
+    fn test_ml_dsa_empty_message() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"";
+
+        let signature = sign(&sk, message, &[]).expect("Signing should succeed");
+        let is_valid = verify(&pk, message, &signature, &[]).expect("Verification should succeed");
+
+        assert!(is_valid, "Empty message should sign and verify correctly");
+    }
+
+    #[test]
+    fn test_ml_dsa_large_message() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let mut rng = rand::thread_rng();
+        let mut message = vec![0u8; 10_000];
+        rng.fill_bytes(&mut message);
+
+        let signature = sign(&sk, &message, &[]).expect("Signing should succeed");
+        let is_valid = verify(&pk, &message, &signature, &[]).expect("Verification should succeed");
+
+        assert!(is_valid, "Large message should sign and verify correctly");
+    }
+
+    // Corrupted signature tests
+    #[test]
+    fn test_ml_dsa_corrupted_signature_first_byte() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"Test message for corruption";
+        let context: &[u8] = &[];
+
+        let mut signature = sign(&sk, message, context).expect("Signing should succeed");
+
+        // Corrupt first byte of signature
+        signature.data[0] ^= 0xFF;
+
+        let is_valid =
+            verify(&pk, message, &signature, context).expect("Verification should not error");
+        assert!(!is_valid, "Corrupted signature (first byte) must fail verification");
+    }
+
+    #[test]
+    fn test_ml_dsa_corrupted_signature_middle_byte() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"Test message for corruption";
+        let context: &[u8] = &[];
+
+        let mut signature = sign(&sk, message, context).expect("Signing should succeed");
+
+        // Corrupt middle byte of signature
+        let middle_idx = signature.data.len() / 2;
+        signature.data[middle_idx] ^= 0xFF;
+
+        let is_valid =
+            verify(&pk, message, &signature, context).expect("Verification should not error");
+        assert!(!is_valid, "Corrupted signature (middle byte) must fail verification");
+    }
+
+    #[test]
+    fn test_ml_dsa_corrupted_signature_last_byte() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"Test message for corruption";
+        let context: &[u8] = &[];
+
+        let mut signature = sign(&sk, message, context).expect("Signing should succeed");
+
+        // Corrupt last byte of signature
+        let last_idx = signature.data.len() - 1;
+        signature.data[last_idx] ^= 0xFF;
+
+        let is_valid =
+            verify(&pk, message, &signature, context).expect("Verification should not error");
+        assert!(!is_valid, "Corrupted signature (last byte) must fail verification");
+    }
+
+    #[test]
+    fn test_ml_dsa_corrupted_signature_multiple_bytes() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA65).expect("Key generation should succeed");
+        let message = b"Test message for corruption";
+        let context: &[u8] = &[];
+
+        let mut signature = sign(&sk, message, context).expect("Signing should succeed");
+
+        // Corrupt multiple bytes at different positions
+        let sig_len = signature.data.len();
+        signature.data[0] ^= 0xFF;
+        signature.data[100] ^= 0xFF;
+        signature.data[sig_len - 1] ^= 0xFF;
+
+        let is_valid =
+            verify(&pk, message, &signature, context).expect("Verification should not error");
+        assert!(!is_valid, "Corrupted signature (multiple bytes) must fail verification");
+    }
+
+    // Context string tests
+    #[test]
+    fn test_ml_dsa_context_string_variations() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"Test message with context";
+
+        // Test with non-empty context
+        let context1 = b"context string 1";
+        let signature1 = sign(&sk, message, context1).expect("Signing should succeed");
+        let is_valid =
+            verify(&pk, message, &signature1, context1).expect("Verification should succeed");
+        assert!(is_valid, "Signature with context1 should verify with same context");
+
+        // Test with different context (should fail)
+        let context2 = b"context string 2";
+        let is_valid =
+            verify(&pk, message, &signature1, context2).expect("Verification should succeed");
+        assert!(!is_valid, "Signature with context1 must fail verification with context2");
+
+        // Test with empty context (should fail)
+        let is_valid = verify(&pk, message, &signature1, &[]).expect("Verification should succeed");
+        assert!(!is_valid, "Signature with context1 must fail verification with empty context");
+    }
+
+    #[test]
+    fn test_ml_dsa_empty_vs_nonempty_context() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA87).expect("Key generation should succeed");
+        let message = b"Test message";
+
+        // Sign with empty context
+        let empty_context: &[u8] = &[];
+        let sig_empty = sign(&sk, message, empty_context).expect("Signing should succeed");
+
+        // Sign with non-empty context
+        let non_empty_context = b"test context";
+        let sig_nonempty = sign(&sk, message, non_empty_context).expect("Signing should succeed");
+
+        // Verify each signature with its own context
+        assert!(
+            verify(&pk, message, &sig_empty, empty_context).expect("Verification should succeed")
+        );
+        assert!(
+            verify(&pk, message, &sig_nonempty, non_empty_context)
+                .expect("Verification should succeed")
+        );
+
+        // Cross-verification should fail
+        assert!(
+            !verify(&pk, message, &sig_empty, non_empty_context)
+                .expect("Verification should succeed")
+        );
+        assert!(
+            !verify(&pk, message, &sig_nonempty, empty_context)
+                .expect("Verification should succeed")
+        );
+    }
+
+    #[test]
+    fn test_ml_dsa_long_context_string() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"Test message";
+
+        // Test with maximum allowed context (255 bytes)
+        let long_context = vec![0xAB; 255];
+        let signature =
+            sign(&sk, message, &long_context).expect("Signing should succeed with max context");
+        let is_valid =
+            verify(&pk, message, &signature, &long_context).expect("Verification should succeed");
+        assert!(is_valid, "Signature with max-length context should verify");
+
+        // Verify fails with different long context
+        let different_context = vec![0xCD; 255];
+        let is_valid = verify(&pk, message, &signature, &different_context)
+            .expect("Verification should succeed");
+        assert!(!is_valid, "Signature must fail with different long context");
+    }
+
+    // Signature malleability resistance tests
+    #[test]
+    fn test_ml_dsa_signature_uniqueness() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"Test message for uniqueness";
+        let context: &[u8] = &[];
+
+        // Generate two signatures for the same message
+        let sig1 = sign(&sk, message, context).expect("First signing should succeed");
+        let sig2 = sign(&sk, message, context).expect("Second signing should succeed");
+
+        // Both signatures should verify
+        assert!(verify(&pk, message, &sig1, context).expect("Verification should succeed"));
+        assert!(verify(&pk, message, &sig2, context).expect("Verification should succeed"));
+
+        // Note: ML-DSA is randomized, so signatures may differ
+        // This test verifies both are valid (no malleability exploitation)
+    }
+
+    #[test]
+    fn test_ml_dsa_cross_parameter_set_incompatibility() {
+        let (_pk44, sk44) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let (pk65, _sk65) =
+            generate_keypair(MlDsaParameterSet::MLDSA65).expect("Key generation should succeed");
+
+        let message = b"Test cross-parameter incompatibility";
+        let context: &[u8] = &[];
+
+        let signature44 =
+            sign(&sk44, message, context).expect("Signing with MLDSA44 should succeed");
+
+        // Verify signature44 fails with MLDSA65 public key (wrong parameter set)
+        let result = verify(&pk65, message, &signature44, context);
+        // Should either error or return false
+        match result {
+            Ok(is_valid) => assert!(!is_valid, "Cross-parameter verification must fail"),
+            Err(_) => {} // Error is also acceptable for incompatible parameter sets
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_invalid_signature_length() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let message = b"Test message";
+        let context: &[u8] = &[];
+
+        let mut signature = sign(&sk, message, context).expect("Signing should succeed");
+
+        // Truncate signature (invalid length)
+        signature.data.truncate(signature.data.len() - 10);
+
+        let result = verify(&pk, message, &signature, context);
+        assert!(result.is_err(), "Verification with truncated signature should error");
+    }
+
+    #[test]
+    fn test_ml_dsa_deterministic_same_message() {
+        let (pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA65).expect("Key generation should succeed");
+        let message = b"Determinism test message";
+        let context = b"test context";
+
+        // Sign the same message multiple times
+        let sig1 = sign(&sk, message, context).expect("First signing should succeed");
+        let sig2 = sign(&sk, message, context).expect("Second signing should succeed");
+        let sig3 = sign(&sk, message, context).expect("Third signing should succeed");
+
+        // All signatures should verify correctly
+        assert!(verify(&pk, message, &sig1, context).expect("Verification should succeed"));
+        assert!(verify(&pk, message, &sig2, context).expect("Verification should succeed"));
+        assert!(verify(&pk, message, &sig3, context).expect("Verification should succeed"));
+
+        // Note: ML-DSA uses randomized signing, so signatures will differ
+        // This test verifies all are valid (cryptographic soundness)
+    }
+
+    #[test]
+    fn test_ml_dsa_all_parameter_sets_comprehensive() {
+        for param in
+            [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        {
+            let (pk, sk) = generate_keypair(param).expect("Key generation should succeed");
+            let message = b"Comprehensive test for all parameter sets";
+            let context = b"test";
+
+            // Test basic sign/verify
+            let signature = sign(&sk, message, context).expect("Signing should succeed");
+            assert!(
+                verify(&pk, message, &signature, context).expect("Verification should succeed")
+            );
+
+            // Test wrong message
+            let wrong_msg = b"wrong message";
+            assert!(
+                !verify(&pk, wrong_msg, &signature, context).expect("Verification should succeed")
+            );
+
+            // Test wrong context
+            let wrong_ctx = b"wrong";
+            assert!(
+                !verify(&pk, message, &signature, wrong_ctx).expect("Verification should succeed")
+            );
+
+            // Test corrupted signature
+            let mut corrupted_sig = signature.clone();
+            corrupted_sig.data[0] ^= 0xFF;
+            assert!(
+                !verify(&pk, message, &corrupted_sig, context)
+                    .expect("Verification should succeed")
+            );
+        }
+    }
+
+    // ========================================================================
+    // Phase 4: Additional coverage tests
+    // ========================================================================
+
+    #[test]
+    fn test_ml_dsa_secret_key_constant_time_eq() {
+        let (_, sk1) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let (_, sk2) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+
+        // Same key equals itself (using PartialEq which delegates to ct_eq)
+        assert_eq!(sk1, sk1);
+        // Different keys should not be equal
+        assert_ne!(sk1, sk2);
+    }
+
+    // ========================================================================
+    // Error path coverage tests
+    // ========================================================================
+
+    #[test]
+    fn test_ml_dsa_public_key_new_wrong_length() {
+        let result = MlDsaPublicKey::new(MlDsaParameterSet::MLDSA44, vec![0u8; 100]);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MlDsaError::InvalidKeyLength { expected, actual } => {
+                assert_eq!(expected, 1312);
+                assert_eq!(actual, 100);
+            }
+            other => panic!("Expected InvalidKeyLength, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_secret_key_new_wrong_length() {
+        let result = MlDsaSecretKey::new(MlDsaParameterSet::MLDSA65, vec![0u8; 100]);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MlDsaError::InvalidKeyLength { expected, actual } => {
+                assert_eq!(expected, 4032);
+                assert_eq!(actual, 100);
+            }
+            other => panic!("Expected InvalidKeyLength, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_signature_new_wrong_length() {
+        let result = MlDsaSignature::new(MlDsaParameterSet::MLDSA87, vec![0u8; 100]);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            MlDsaError::InvalidSignatureLength { expected, actual } => {
+                assert_eq!(expected, 4627);
+                assert_eq!(actual, 100);
+            }
+            other => panic!("Expected InvalidSignatureLength, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ml_dsa_public_key_new_valid_lengths() {
+        let pk44 = MlDsaPublicKey::new(MlDsaParameterSet::MLDSA44, vec![0u8; 1312]);
+        assert!(pk44.is_ok());
+        let pk65 = MlDsaPublicKey::new(MlDsaParameterSet::MLDSA65, vec![0u8; 1952]);
+        assert!(pk65.is_ok());
+        let pk87 = MlDsaPublicKey::new(MlDsaParameterSet::MLDSA87, vec![0u8; 2592]);
+        assert!(pk87.is_ok());
+    }
+
+    #[test]
+    fn test_ml_dsa_secret_key_accessors() {
+        let (_, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        assert_eq!(sk.parameter_set(), MlDsaParameterSet::MLDSA44);
+        assert_eq!(sk.len(), 2560);
+        assert!(!sk.is_empty());
+        assert_eq!(sk.as_bytes().len(), 2560);
+    }
+
+    #[test]
+    fn test_ml_dsa_signature_accessors() {
+        let (_, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let sig = sign(&sk, b"test", &[]).expect("Signing should succeed");
+        assert_eq!(sig.parameter_set, MlDsaParameterSet::MLDSA44);
+        assert_eq!(sig.len(), 2420);
+        assert!(!sig.is_empty());
+        assert_eq!(sig.as_bytes().len(), 2420);
+    }
+
+    #[test]
+    fn test_ml_dsa_error_display() {
+        let err = MlDsaError::KeyGenerationError("test".to_string());
+        assert!(format!("{}", err).contains("test"));
+
+        let err = MlDsaError::SigningError("sign fail".to_string());
+        assert!(format!("{}", err).contains("sign fail"));
+
+        let err = MlDsaError::VerificationError("verify fail".to_string());
+        assert!(format!("{}", err).contains("verify fail"));
+
+        let err = MlDsaError::InvalidParameterSet("bad param".to_string());
+        assert!(format!("{}", err).contains("bad param"));
+
+        let err = MlDsaError::FeatureNotEnabled;
+        assert!(format!("{}", err).contains("not enabled"));
+
+        let err = MlDsaError::CryptoError("crypto fail".to_string());
+        assert!(format!("{}", err).contains("crypto fail"));
+
+        let err = MlDsaError::InvalidKeyLength { expected: 32, actual: 16 };
+        let msg = format!("{}", err);
+        assert!(msg.contains("32"));
+        assert!(msg.contains("16"));
+
+        let err = MlDsaError::InvalidSignatureLength { expected: 2420, actual: 100 };
+        let msg = format!("{}", err);
+        assert!(msg.contains("2420"));
+        assert!(msg.contains("100"));
+    }
+
+    #[test]
+    fn test_ml_dsa_parameter_set_clone_copy_eq() {
+        let p = MlDsaParameterSet::MLDSA65;
+        let p2 = p;
+        assert_eq!(p, p2);
+        let p3 = p;
+        assert_eq!(p, p3);
+        let debug = format!("{:?}", p);
+        assert!(debug.contains("MLDSA65"));
+    }
+
+    #[test]
+    fn test_ml_dsa_public_key_as_bytes() {
+        let (pk, _) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        assert_eq!(pk.as_bytes().len(), 1312);
+        assert_eq!(pk.as_bytes(), pk.data.as_slice());
+    }
+
+    #[test]
+    fn test_ml_dsa_verify_mismatched_parameter_sets_returns_false() {
+        let (pk44, sk44) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let sig44 = sign(&sk44, b"test", &[]).expect("Signing should succeed");
+
+        // Create a signature claiming to be MLDSA65 but with MLDSA44 data
+        let mismatched_sig =
+            MlDsaSignature { parameter_set: MlDsaParameterSet::MLDSA65, data: sig44.data };
+
+        // verify() should return Ok(false) for mismatched parameter sets
+        let result = verify(&pk44, b"test", &mismatched_sig, &[]);
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+    }
+}

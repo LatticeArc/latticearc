@@ -7,7 +7,7 @@
 //! with various security levels.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 32 {

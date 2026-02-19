@@ -7,7 +7,7 @@
 //! without crashing and correctly rejects invalid signatures.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::sig::ml_dsa::{
+use latticearc::primitives::sig::ml_dsa::{
     generate_keypair, sign, verify, MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature,
 };
 

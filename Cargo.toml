@@ -1,23 +1,14 @@
 [workspace]
 members = [
-    "arc-types",
-    "arc-primitives",
-    "arc-core",
     "latticearc",
-    "arc-hybrid",
-    "arc-tls",
-    "arc-validation",
-    "arc-zkp",
-    "arc-perf",
-    "arc-prelude",
-    "arc-tests",
+    "tests",
 ]
-# Exclude fuzz crate from normal workspace builds (requires nightly + specific setup)
+# Exclude fuzz crate from workspace builds (uses libfuzzer-sys which requires nightly)
 exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]

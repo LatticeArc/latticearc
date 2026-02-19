@@ -6,7 +6,7 @@
 //! Tests that ML-KEM encapsulate/decapsulate produces matching shared secrets.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
 fuzz_target!(|data: &[u8]| {
     // Use first byte to select security level

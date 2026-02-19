@@ -7,7 +7,7 @@
 //! without crashing and produce consistent outputs.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::kdf::pbkdf2::{pbkdf2, pbkdf2_simple, Pbkdf2Params, PrfType};
+use latticearc::primitives::kdf::pbkdf2::{pbkdf2, pbkdf2_simple, Pbkdf2Params, PrfType};
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 16 {

@@ -7,7 +7,7 @@
 //! without crashing and produces valid ciphertexts for valid keys.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::kem::ml_kem::{MlKem, MlKemPublicKey, MlKemSecurityLevel};
+use latticearc::primitives::kem::ml_kem::{MlKem, MlKemPublicKey, MlKemSecurityLevel};
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 800 bytes (ML-KEM-512 public key size)

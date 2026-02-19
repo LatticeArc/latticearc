@@ -7,7 +7,7 @@
 //! without crashing and produce consistent outputs.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::hash::{sha256, sha384, sha512, sha3_256, sha3_384, sha3_512};
+use latticearc::primitives::hash::{sha256, sha384, sha512, sha3_256, sha3_384, sha3_512};
 
 fuzz_target!(|data: &[u8]| {
     // Test SHA-256

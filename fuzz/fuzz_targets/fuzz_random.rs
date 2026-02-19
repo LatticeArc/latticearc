@@ -7,7 +7,7 @@
 //! without crashing and produce unique outputs.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::rand::csprng::{random_bytes, random_u32, random_u64};
+use latticearc::primitives::rand::csprng::{random_bytes, random_u32, random_u64};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {

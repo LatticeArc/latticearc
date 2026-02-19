@@ -75,16 +75,10 @@ jobs:
       with:
         filters: |
           crypto:
-            - 'arc-types/**'
-            - 'arc-primitives/**'
-            - 'arc-core/**'
-            - 'arc-hybrid/**'
-            - 'arc-tls/**'
             - 'latticearc/**'
           tests:
             - '**/tests/**'
-            - 'arc-validation/**'
-            - 'arc-tests/**'
+            - 'tests/**'
             - 'fuzz/**'
           docs:
             - 'docs/**'
@@ -308,7 +302,7 @@ jobs:
         INTEGRATION_DURATION=$((END_TIME - START_TIME))
         echo "integration_test_duration_seconds $INTEGRATION_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/profile/${{ matrix.profile }}/operation/integration-test || true
 
-    # Note: Kani formal verification (12 proofs in arc-types, pure Rust).
+    # Note: Kani formal verification (12 proofs in latticearc types module, pure Rust).
     # Not run on every commit due to computational cost. See kani.yml.
 
     - name: Generate coverage report
@@ -395,7 +389,7 @@ jobs:
     - name: Run concurrency tests
       run: |
         START_TIME=$(date +%s)
-        cargo test --package arc-primitives --test concurrency_tests --all-features --release
+        cargo test --package latticearc --test concurrency_tests --all-features --release
         cargo test --workspace --all-features --release -- concurrent parallel thread
         END_TIME=$(date +%s)
         CONCURRENCY_DURATION=$((END_TIME - START_TIME))
@@ -841,7 +835,7 @@ jobs:
       run: |
         cargo hack check --feature-powerset --exclude-all-features \
           --exclude-no-default-features \
-          -p arc-types -p arc-core -p arc-primitives -p arc-prelude -p arc-hybrid -p latticearc
+          -p latticearc
 
   # === Final Status Check ===
   status-check:

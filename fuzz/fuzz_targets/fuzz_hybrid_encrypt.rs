@@ -7,8 +7,8 @@
 //! without crashing and produces valid ciphertexts.
 
 use libfuzzer_sys::fuzz_target;
-use arc_hybrid::encrypt_hybrid::{encrypt, HybridEncryptionContext};
-use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use latticearc::hybrid::encrypt_hybrid::{encrypt, HybridEncryptionContext};
+use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {

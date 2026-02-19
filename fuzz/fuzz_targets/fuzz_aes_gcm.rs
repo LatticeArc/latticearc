@@ -7,8 +7,8 @@
 //! without crashing and correctly reject invalid inputs.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
-use arc_primitives::aead::AeadCipher;
+use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
+use latticearc::primitives::aead::AeadCipher;
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes: key (16 or 32) + nonce (12) + some plaintext

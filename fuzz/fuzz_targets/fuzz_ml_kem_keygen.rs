@@ -7,7 +7,7 @@
 //! and produces valid keypairs.
 
 use libfuzzer_sys::fuzz_target;
-use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {

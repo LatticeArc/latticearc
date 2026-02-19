@@ -59,7 +59,7 @@ jobs:
         run: |
           echo "" | tee -a benchmark_results.txt
           echo "=== LatticeArc ===" | tee -a benchmark_results.txt
-          cargo run --package arc-primitives --example crypto_timing --release 2>/dev/null | tee -a benchmark_results.txt
+          cargo run --package latticearc --example crypto_timing --release 2>/dev/null | tee -a benchmark_results.txt
 
       - name: Upload Results
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

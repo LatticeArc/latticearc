@@ -12,7 +12,7 @@ on:
       packages:
         description: 'Packages to test (comma-separated, or "all")'
         required: false
-        default: 'arc-primitives'
+        default: 'latticearc'
         type: string
       timeout:
         description: 'Timeout per mutant (seconds)'
@@ -32,7 +32,7 @@ env:
 jobs:
   # Mutation testing for core cryptographic crates
   mutate-primitives:
-    name: Mutate arc-primitives
+    name: Mutate latticearc primitives
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -54,9 +54,9 @@ jobs:
       - name: Install cargo-mutants
         run: cargo install cargo-mutants
 
-      - name: Run mutation testing on arc-primitives
+      - name: Run mutation testing on latticearc (primitives)
         run: |
-          cargo mutants -p arc-primitives \
+          cargo mutants -p latticearc \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-primitives \
@@ -66,7 +66,7 @@ jobs:
       - name: Generate mutation report
         if: always()
         run: |
-          echo "## Mutation Testing: arc-primitives" >> $GITHUB_STEP_SUMMARY
+          echo "## Mutation Testing: latticearc (primitives)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ -f "mutants-primitives/outcomes.json" ]; then
@@ -99,7 +99,7 @@ jobs:
           retention-days: 30
 
   mutate-core:
-    name: Mutate arc-core
+    name: Mutate latticearc unified_api
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -121,9 +121,9 @@ jobs:
       - name: Install cargo-mutants
         run: cargo install cargo-mutants
 
-      - name: Run mutation testing on arc-core
+      - name: Run mutation testing on latticearc (unified_api)
         run: |
-          cargo mutants -p arc-core \
+          cargo mutants -p latticearc \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-core \
@@ -133,7 +133,7 @@ jobs:
       - name: Generate mutation report
         if: always()
         run: |
-          echo "## Mutation Testing: arc-core" >> $GITHUB_STEP_SUMMARY
+          echo "## Mutation Testing: latticearc (unified_api)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ -f "mutants-core/outcomes.json" ]; then
@@ -166,7 +166,7 @@ jobs:
           retention-days: 30
 
   mutate-hybrid:
-    name: Mutate arc-hybrid
+    name: Mutate latticearc hybrid
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -188,9 +188,9 @@ jobs:
       - name: Install cargo-mutants
         run: cargo install cargo-mutants
 
-      - name: Run mutation testing on arc-hybrid
+      - name: Run mutation testing on latticearc (hybrid)
         run: |
-          cargo mutants -p arc-hybrid \
+          cargo mutants -p latticearc \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-hybrid \
@@ -200,7 +200,7 @@ jobs:
       - name: Generate mutation report
         if: always()
         run: |
-          echo "## Mutation Testing: arc-hybrid" >> $GITHUB_STEP_SUMMARY
+          echo "## Mutation Testing: latticearc (hybrid)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ -f "mutants-hybrid/outcomes.json" ]; then
@@ -252,9 +252,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Crate | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| arc-primitives | ${{ needs.mutate-primitives.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| arc-core | ${{ needs.mutate-core.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| arc-hybrid | ${{ needs.mutate-hybrid.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| latticearc (primitives) | ${{ needs.mutate-primitives.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| latticearc (unified_api) | ${{ needs.mutate-core.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| latticearc (hybrid) | ${{ needs.mutate-hybrid.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Target" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
