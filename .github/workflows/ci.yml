@@ -707,7 +707,7 @@ jobs:
     - name: Run compliance tests
       run: |
         
-        cargo test --test nist_kat_compliance --all-features
+        cargo test --test fips_nist_kat_compliance --all-features
         cargo test --test fips_140_3_compliance_tests --all-features
 
   # === Security Property Tests ===
@@ -736,12 +736,12 @@ jobs:
       run: |
         
         cargo test --test security_property_tests --all-features
-        cargo test --test side_channel_resistance --all-features
+        cargo test --test primitives_side_channel_resistance --all-features
 
     - name: Run statistical timing tests
       run: |
         
-        cargo test --test statistical_timing_tests --all-features
+        cargo test --test fips_statistical_timing_tests --all-features
 
   # === Release Validation ===
   # Uses native compilation without --target flags to avoid cross-compilation issues

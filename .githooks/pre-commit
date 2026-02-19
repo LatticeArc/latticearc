@@ -62,4 +62,29 @@ else
     echo "✅ All $TOTAL_PASSED tests passed"
 fi
 
+# Verify CI test targets match actual test files
+# Catches stale target names after renames/consolidation
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+CI_YML="$REPO_ROOT/.github/workflows/ci.yml"
+if [ -f "$CI_YML" ]; then
+    # Only run if ci.yml or test files changed
+    CHANGED=$(git diff --cached --name-only)
+    if echo "$CHANGED" | grep -qE '(ci\.yml|tests/.*\.rs)'; then
+        echo "Verifying CI test targets..."
+        FAILED_TARGETS=""
+        TARGETS=$(grep -oE 'cargo test --test [a-zA-Z_0-9]+' "$CI_YML" | awk '{print $NF}' | sort -u)
+        for target in $TARGETS; do
+            if ! cargo test --test "$target" --all-features --release -- --list > /dev/null 2>&1; then
+                FAILED_TARGETS="$FAILED_TARGETS $target"
+            fi
+        done
+        if [ -n "$FAILED_TARGETS" ]; then
+            echo "❌ CI references test targets that don't exist:$FAILED_TARGETS"
+            echo "   Fix ci.yml or rename the test files to match."
+            exit 1
+        fi
+        echo "✅ All CI test targets verified"
+    fi
+fi
+
 echo "Pre-commit checks passed."
