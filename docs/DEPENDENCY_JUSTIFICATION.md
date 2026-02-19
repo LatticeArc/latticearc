@@ -1,8 +1,8 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Enterprise Post-Quantum Cryptography Platform  
-**Version:** 0.1.1
-**Date:** 2026-02-16  
+**Version:** 0.2.0
+**Date:** 2026-02-19
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
 ## Executive Summary
@@ -33,7 +33,7 @@ This document provides comprehensive justification for all major dependencies in
   - Memory-safe Rust API over aws-lc (BoringSSL fork)
 - **License**: ISC AND (Apache-2.0 OR ISC)
 - **Security Audit**: FIPS 140-3 Level 1 validated
-- **Usage**: `arc-primitives` (KEM), `arc-core` (unified API)
+- **Usage**: `latticearc::primitives` (KEM), `latticearc::unified_api`
 
 #### 2. aws-lc-sys (v0.37.0)
 - **Purpose**: FFI bindings to AWS-LC native library
@@ -55,7 +55,7 @@ This document provides comprehensive justification for all major dependencies in
   - Awaiting aws-lc-rs Rust API (tracking: aws/aws-lc-rs#773; our PRs #1029 and #1034 shipped in v1.16.0, ML-DSA FIPS API stabilization pending)
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Independent cryptographic review
-- **Usage**: `arc-primitives` (signatures), `arc-core`
+- **Usage**: `latticearc::primitives` (signatures), `latticearc::unified_api`
 
 #### 4. fips205 (v0.4.1)
 - **Purpose**: SLH-DSA (Stateless Hash-based Digital Signature Algorithm) - FIPS 205
@@ -66,17 +66,17 @@ This document provides comprehensive justification for all major dependencies in
   - Minimal assumption security (only hash function security)
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Audited implementation
-- **Usage**: `arc-primitives` (signatures), hybrid schemes
+- **Usage**: `latticearc::primitives` (signatures), hybrid schemes
 
 #### 5. fips203 (v0.4.3)
 - **Purpose**: ML-KEM (Module-Lattice Key Encapsulation Mechanism) - FIPS 203
 - **Justification**:
   - Pure Rust ML-KEM implementation for fallback/verification
   - Complements aws-lc-rs for testing and validation
-  - Used in arc-validation for CAVP test vectors
+  - Used in `latticearc-tests` for CAVP test vectors
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Independent review
-- **Usage**: `arc-validation` (test vectors)
+- **Usage**: `latticearc-tests` (test vectors)
 
 #### 6. fn-dsa (v0.3.0)
 - **Purpose**: FN-DSA (FFT-based Lattice Signatures) - FIPS 206
@@ -87,7 +87,7 @@ This document provides comprehensive justification for all major dependencies in
   - Partial FIPS validation (in progress)
 - **License**: Unlicense (public domain)
 - **Security Audit**: Partial validation
-- **Usage**: `arc-primitives` (compact signatures)
+- **Usage**: `latticearc::primitives` (compact signatures)
 
 ---
 
@@ -103,7 +103,7 @@ This document provides comprehensive justification for all major dependencies in
   - Fallback when aws-lc-rs not available
 - **License**: Apache-2.0 OR MIT
 - **Security Audit**: RustCrypto audited
-- **Usage**: `arc-primitives` (AEAD), `arc-hybrid`
+- **Usage**: `latticearc::primitives` (AEAD), `latticearc::hybrid`
 
 #### 8. chacha20poly1305 (v0.10.1)
 - **Purpose**: ChaCha20-Poly1305 AEAD cipher
@@ -114,7 +114,7 @@ This document provides comprehensive justification for all major dependencies in
   - Constant-time software implementation
 - **License**: Apache-2.0 OR MIT
 - **Security Audit**: RustCrypto audited
-- **Usage**: `arc-primitives` (AEAD), `arc-tls`
+- **Usage**: `latticearc::primitives` (AEAD), `latticearc::tls`
 
 #### 9. aes (v0.8.4)
 - **Purpose**: Low-level AES block cipher
@@ -149,7 +149,7 @@ This document provides comprehensive justification for all major dependencies in
   - Hardware acceleration (SHA extensions)
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: RustCrypto
-- **Usage**: `arc-primitives` (hash, KDF), all crates
+- **Usage**: `latticearc::primitives` (hash, KDF)
 
 #### 12. sha3 (v0.10.8)
 - **Purpose**: SHA-3 and SHAKE hash functions
@@ -171,7 +171,7 @@ This document provides comprehensive justification for all major dependencies in
   - Keyed hashing support
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: RustCrypto
-- **Usage**: `arc-primitives` (hash options)
+- **Usage**: `latticearc::primitives` (hash options)
 
 #### 14. digest (v0.10.7)
 - **Purpose**: Common hash function traits
@@ -192,18 +192,7 @@ This document provides comprehensive justification for all major dependencies in
   - Critical for TLS 1.3
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: RustCrypto
-- **Usage**: `arc-primitives` (KDF), `arc-hybrid`, `arc-tls`
-
-#### 16. pbkdf2 (v0.12.2)
-- **Purpose**: PBKDF2 password-based KDF
-- **Justification**:
-  - RFC 8018 standard
-  - NIST SP 800-132 approved
-  - Password hashing and key stretching
-  - Slow hash defense against brute force
-- **License**: MIT OR Apache-2.0
-- **Security Audit**: RustCrypto
-- **Usage**: `arc-primitives` (KDF options)
+- **Usage**: `latticearc::primitives` (KDF), `latticearc::hybrid`, `latticearc::tls`
 
 ---
 
@@ -219,7 +208,7 @@ This document provides comprehensive justification for all major dependencies in
   - Used by all cryptographic types
 - **License**: Apache-2.0 OR MIT
 - **Security Audit**: Widely reviewed
-- **Usage**: ALL cryptographic crates (keys, secrets)
+- **Usage**: All cryptographic modules (keys, secrets)
 
 #### 18. zeroize_derive (v1.4.3)
 - **Purpose**: Derive macro for Zeroize trait
@@ -229,7 +218,7 @@ This document provides comprehensive justification for all major dependencies in
   - Ensures all fields are zeroized
 - **License**: Apache-2.0 OR MIT
 - **Security Audit**: Part of zeroize
-- **Usage**: `arc-primitives`, `arc-core`
+- **Usage**: `latticearc::primitives`, `latticearc::unified_api`
 
 #### 19. subtle (v2.6.1)
 - **Purpose**: Constant-time operations
@@ -324,101 +313,20 @@ This document provides comprehensive justification for all major dependencies in
 
 ---
 
-## Internal LatticeArc Crates
+## Workspace Structure (v0.2.0)
 
-#### 27. arc-types (v0.1.1)
-- **Purpose**: Pure-Rust domain types, traits, config, and policy engine
-- **Justification**:
-  - Layer 0 of the dependency graph — zero FFI dependencies
-  - Enables Kani formal verification (12 proofs)
-  - Contains `resource_limits`, `domains`, `key_lifecycle`, `selector`, `zero_trust`
-  - All other crates depend on arc-types for shared type definitions
-- **License**: Apache-2.0
-- **Usage**: All arc-* crates (Layer 0 foundation)
+As of v0.2.0, all 8 sub-crates have been consolidated into a single `latticearc` crate. The workspace contains:
 
-#### 28. arc-primitives (v0.1.1)
-- **Purpose**: Core cryptographic primitives
-- **Justification**:
-  - Foundation for all crypto operations
-  - Implements KEM, signatures, AEAD, hash, KDF
-  - Thin wrappers over validated libraries
+#### latticearc (v0.2.0) — Single publishable crate
+- **Purpose**: All cryptographic functionality in one crate
+- **Modules**: `types`, `prelude`, `primitives`, `hybrid`, `unified_api`, `tls`, `zkp`, `perf`
 - **License**: Apache-2.0
-- **Usage**: All higher-level arc-* crates
+- **Published to**: crates.io as `latticearc`
 
-#### 29. arc-core (v0.1.1)
-- **Purpose**: Unified API layer
-- **Justification**:
-  - Use case-based algorithm selection
-  - Simple API for complex crypto operations
-  - Zero-trust authentication integration
-  - Re-exports arc-types modules
+#### latticearc-tests (v0.2.0) — Test-only crate (publish = false)
+- **Purpose**: CAVP validation, NIST KAT vectors, integration tests, FIPS compliance
 - **License**: Apache-2.0
-- **Usage**: latticearc facade, enterprise crates
-
-#### 30. arc-prelude (v0.1.1)
-- **Purpose**: Error types and testing infrastructure
-- **Justification**:
-  - Standardized `LatticeArcError` error types
-  - Testing infrastructure (CAVP, property-based, side-channel)
-  - `domains` module re-exported from arc-types for backward compatibility
-- **License**: Apache-2.0
-- **Usage**: arc-primitives, arc-validation
-
-#### 31. arc-hybrid (v0.1.1)
-- **Purpose**: Hybrid PQC + classical encryption
-- **Justification**:
-  - Defense in depth
-  - Transition period safety
-  - Combines ML-KEM with X25519 via HKDF
-- **License**: Apache-2.0
-- **Usage**: arc-core, latticearc
-
-#### 32. arc-tls (v0.1.1)
-- **Purpose**: Post-quantum TLS integration
-- **Justification**:
-  - PQC-enabled TLS with Rustls
-  - Required for secure communications
-  - Hybrid key exchange support
-- **License**: Apache-2.0
-- **Usage**: latticearc
-
-#### 33. arc-validation (v0.1.1)
-- **Purpose**: FIPS validation and test vectors
-- **Justification**:
-  - CAVP test vector validation
-  - Compliance verification
-  - Quality assurance
-  - `resource_limits` module re-exported from arc-types for backward compatibility
-- **License**: Apache-2.0
-- **Usage**: Dev-dependency only (CI/CD, compliance audits)
-
-#### 34. arc-zkp (v0.1.1)
-- **Purpose**: Zero-knowledge proof systems
-- **Justification**:
-  - Privacy-preserving authentication
-  - Schnorr and Sigma protocols
-  - Required for zero-trust features
-- **License**: Apache-2.0
-- **Usage**: latticearc
-
-#### 35. arc-perf (v0.1.1)
-- **Purpose**: Performance benchmarking
-- **Justification**:
-  - Standardized benchmarks
-  - Performance regression detection
-  - Hardware comparison data
-- **License**: Apache-2.0
-- **Usage**: latticearc, CI/CD
-
-#### 36. arc-tests (v0.1.1)
-- **Purpose**: Consolidated integration test suite
-- **Justification**:
-  - Single location for all 37 integration test files
-  - Tests consolidated from arc-core and latticearc
-  - NIST KAT vectors, convenience API tests, zero-trust tests
-  - Reduces test scatter and simplifies CI
-- **License**: Apache-2.0
-- **Usage**: CI/CD, development
+- **Usage**: CI/CD, development only
 
 ---
 
@@ -464,7 +372,7 @@ This document provides comprehensive justification for all major dependencies in
 1. **fips204, fips205, fn-dsa** (Pure Rust PQC)
    - **Risk**: Not yet FIPS-validated
    - **Mitigation**: Regular updates, tracking aws-lc-rs integration
-   - **Timeline**: fips204 migration planned for 2026 Q2
+   - **Timeline**: fips204 migration to aws-lc-rs FIPS API targeted for 2026 Q2 (pending aws-lc-rs stable ML-DSA Rust API)
 
 2. **fn-dsa** (Unlicense)
    - **Risk**: Public domain may have patent concerns
@@ -475,8 +383,8 @@ This document provides comprehensive justification for all major dependencies in
 
 1. **Multiple rand versions** (0.8.5, 0.9.2)
    - **Risk**: Version fragmentation
-   - **Mitigation**: Consolidation planned in v0.2.0
-   - **Timeline**: 2026 Q1
+   - **Mitigation**: Workspace consolidation complete (v0.2.0)
+   - **Timeline**: Ongoing deduplication
 
 2. **Transitive dependencies** (376 total)
    - **Risk**: Supply chain complexity
@@ -524,6 +432,6 @@ For questions or concerns, contact: Security@LatticeArc.com
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2026-01-31  
-**Next Review:** 2026-04-30 (quarterly)
+**Document Version:** 2.0
+**Last Updated:** 2026-02-19
+**Next Review:** 2026-05-19 (quarterly)

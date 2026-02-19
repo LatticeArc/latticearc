@@ -643,7 +643,7 @@ let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 
 ## Further Reading
 
-- [Unified API Guide](unified_api/README.md)
+- [Unified API](../latticearc/src/unified_api/) (source module)
 - [Primitives Documentation](primitives/README.md)
 - [Security Guide](docs/SECURITY_GUIDE.md)
 - [NIST Compliance](docs/NIST_COMPLIANCE.md)

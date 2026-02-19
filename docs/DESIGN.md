@@ -45,31 +45,30 @@ graph TB
     end
 
     subgraph "High-Level APIs (Layer 3)"
-        CORE[arc-core<br/>Unified API + Zero-Trust]
-        TLS[arc-tls<br/>PQ TLS 1.3]
+        CORE[unified_api<br/>Unified API + Zero-Trust]
+        TLS[tls<br/>PQ TLS 1.3]
     end
 
     subgraph "Hybrid Constructions (Layer 2)"
-        HYBRID[arc-hybrid<br/>PQ + Classical]
+        HYBRID[hybrid<br/>PQ + Classical]
     end
 
     subgraph "Algorithms (Layer 1)"
-        PRIM[arc-primitives<br/>ML-KEM, ML-DSA, AES-GCM, ...]
-        ZKP[arc-zkp<br/>Zero-Knowledge Proofs]
+        PRIM[primitives<br/>ML-KEM, ML-DSA, AES-GCM, ...]
+        ZKP[zkp<br/>Zero-Knowledge Proofs]
     end
 
     subgraph "Domain Types (Layer 0)"
-        TYPES["arc-types<br/>Pure Rust · Zero FFI · Kani-verified<br/>types, traits, config, selector,<br/>key_lifecycle, zero_trust,<br/>resource_limits, domains"]
+        TYPES["types<br/>Pure Rust · Zero FFI · Kani-verified<br/>types, traits, config, selector,<br/>key_lifecycle, zero_trust,<br/>resource_limits, domains"]
     end
 
     subgraph "Foundation"
-        PRELUDE[arc-prelude<br/>Errors + Testing Infra]
+        PRELUDE[prelude<br/>Errors + Testing Infra]
     end
 
     subgraph "Testing & Validation (dev-deps only)"
-        VAL[arc-validation<br/>CAVP / NIST Vectors]
-        TESTS["arc-tests<br/>37 integration tests<br/>(consolidated)"]
-        PERF[arc-perf<br/>Benchmarks]
+        TESTS["latticearc-tests<br/>CAVP, KAT, integration<br/>(consolidated)"]
+        PERF[perf<br/>Benchmarks]
         FUZZ[fuzz<br/>Fuzzing]
     end
 
@@ -112,12 +111,10 @@ graph TB
     class VAL,PERF,TESTS,FUZZ testing
 ```
 
-**Key architectural properties (v0.1.1):**
-- **`arc-types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (12 proofs)
-- **`arc-core`** no longer depends on `arc-validation` or `arc-prelude` in production
-- **`latticearc`** uses explicit re-exports (no `pub use prelude::*` glob)
-- **`arc-tests`** consolidates all 37 integration tests from arc-core and latticearc
-- **`arc-validation`** is dev-deps only — never in production dependency chains
+**Key architectural properties (v0.2.0):**
+- **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (12 proofs)
+- All modules consolidated into single `latticearc` crate (was 8 separate crates)
+- **`latticearc-tests`** consolidates all integration tests, CAVP validation, and NIST KAT vectors
 - Dashed lines (-.->|dev-dep|) indicate test-only dependencies
 
 ## API Abstraction Levels
@@ -407,15 +404,15 @@ Re-exports public APIs from the workspace via explicit imports:
 
 ```rust
 use latticearc::{encrypt, decrypt, CryptoConfig, SecurityLevel};
-use latticearc::LatticeArcError; // Explicit re-export from arc-prelude
+use latticearc::LatticeArcError; // From latticearc::prelude
 ```
 
-> **Note**: As of v0.1.1, `latticearc` no longer glob-exports `arc-prelude::*`.
-> Use explicit imports from `latticearc` or access sub-crates directly (e.g., `arc_core::*`).
+> **Note**: As of v0.2.0, all modules are consolidated into a single `latticearc` crate.
+> Use explicit imports from `latticearc` (e.g., `latticearc::primitives::*`, `latticearc::unified_api::*`).
 
-### `arc-types` (Pure-Rust Domain Types)
+### `latticearc::types` (Pure-Rust Domain Types)
 
-Zero-FFI-dependency crate containing all types, traits, and configuration that can be formally verified with Kani:
+Zero-FFI-dependency module containing all types, traits, and configuration that can be formally verified with Kani:
 
 | Module | Purpose |
 |--------|---------|
@@ -427,20 +424,20 @@ Zero-FFI-dependency crate containing all types, traits, and configuration that c
 | `zero_trust` | `TrustLevel` enum |
 | `error` | `TypeError` for pure-Rust error conditions |
 
-### `arc-core`
+### `latticearc::unified_api`
 
-The Unified API layer, re-exports `arc-types` and adds cryptographic operations:
+The Unified API layer, re-exports types and adds cryptographic operations:
 
 | Module | Purpose |
 |--------|---------|
 | `convenience` | Simple encrypt/decrypt/sign/verify functions |
-| `selector` | Re-exports CryptoPolicyEngine from arc-types |
+| `selector` | Re-exports CryptoPolicyEngine from types |
 | `zero_trust` | ZeroTrustAuth, Challenge, ZeroKnowledgeProof |
 | `hardware` | Hardware trait re-exports (types only, no detection) |
-| `config` | Re-exports CoreConfig from arc-types, adds CryptoConfig |
-| `types` | Re-exports from arc-types, adds FFI-dependent types |
+| `config` | Re-exports CoreConfig from types, adds CryptoConfig |
+| `types` | Re-exports from types, adds FFI-dependent types |
 
-### `arc-primitives`
+### `latticearc::primitives`
 
 Low-level cryptographic primitives:
 
@@ -449,12 +446,12 @@ Low-level cryptographic primitives:
 | `kem/` | ML-KEM-512/768/1024 (FIPS 203) |
 | `sig/` | ML-DSA-44/65/87 (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (FIPS 206) |
 | `aead/` | AES-256-GCM, ChaCha20-Poly1305 |
-| `kdf/` | HKDF-SHA256, PBKDF2, SP800-108 |
+| `kdf/` | HKDF-SHA256, SP800-108 |
 | `hash/` | SHA-2, SHA-3 |
 | `mac/` | HMAC-SHA256, CMAC |
 | `ec/` | Ed25519, X25519, secp256k1, BLS12-381 |
 
-### `arc-hybrid`
+### `latticearc::hybrid`
 
 Hybrid cryptography combining PQ + classical:
 
@@ -464,7 +461,7 @@ Hybrid cryptography combining PQ + classical:
 | HybridSignature | ML-DSA + Ed25519 |
 | HybridEncrypt | ML-KEM + AES-GCM |
 
-### `arc-tls`
+### `latticearc::tls`
 
 Post-quantum TLS 1.3 with rustls:
 
@@ -473,27 +470,17 @@ Post-quantum TLS 1.3 with rustls:
 - Session resumption
 - Connection monitoring
 
-### `arc-prelude`
+### `latticearc::prelude`
 
 Common types and error handling:
 
 - `LatticeArcError` hierarchy
 - Error recovery (circuit breaker, graceful degradation)
 - Testing infrastructure (CAVP compliance, property-based testing)
-- `domains` module (re-exports from `arc-types` for backward compatibility)
 
-### `arc-validation`
+### `latticearc-tests`
 
-CAVP/FIPS compliance testing (dev-dependency only — not in production dep chains):
-
-- NIST test vectors
-- Self-test infrastructure
-- Timing analysis
-- `resource_limits` module (re-exports from `arc-types` for backward compatibility)
-
-### `arc-tests`
-
-Consolidated integration test suite (37 test files):
+Consolidated test suite (CAVP, KAT, integration, FIPS validation):
 
 - Convenience API tests (encryption, signing, KEM, hybrid)
 - NIST Known Answer Tests (ML-KEM, ML-DSA, SLH-DSA, AES-GCM, ChaCha20)
@@ -501,7 +488,7 @@ Consolidated integration test suite (37 test files):
 - API stability and serialization tests
 - End-to-end workflows and cross-validation tests
 
-### `arc-zkp`
+### `latticearc::zkp`
 
 Zero-knowledge proof systems:
 
@@ -565,7 +552,7 @@ DEFAULT_SIGNATURE_SCHEME  = "hybrid-ml-dsa-65-ed25519"
 
 ```mermaid
 graph TD
-    subgraph "arc-prelude"
+    subgraph "latticearc::prelude"
         CE[LatticeArcError]
     end
 

@@ -96,17 +96,9 @@ git push --tags
 
 ### Publish Order
 
-Crates are published in dependency order:
+As of v0.2.0, only one crate is published:
 
-1. `arc-prelude`
-2. `arc-primitives`
-3. `arc-core`
-4. `arc-hybrid`
-5. `arc-tls`
-6. `arc-validation`
-7. `arc-zkp`
-8. `arc-perf`
-9. `latticearc`
+1. `latticearc` (single consolidated crate)
 
 ## Fuzz Workflow
 

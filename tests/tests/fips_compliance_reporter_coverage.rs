@@ -73,11 +73,17 @@ fn test_generate_full_compliance_report_all_pass() {
         .generate_full_compliance_report(&results, &None)
         .expect("Report generation should succeed");
 
-    assert!(report.report_id.starts_with("QS-COMPLIANCE-"));
-    assert!(!report.algorithm_results.is_empty());
-    assert!(report.statistical_results.is_some());
-    assert!(!report.recommendations.is_empty());
-    assert!(report.security_level > 0);
+    assert!(
+        report.report_id.starts_with("QS-COMPLIANCE-"),
+        "report_id should have QS-COMPLIANCE- prefix"
+    );
+    assert!(
+        !report.algorithm_results.is_empty(),
+        "algorithm_results should not be empty for mixed KAT input"
+    );
+    assert!(report.statistical_results.is_some(), "statistical_results should be present");
+    assert!(!report.recommendations.is_empty(), "recommendations should not be empty");
+    assert!(report.security_level > 0, "security_level should be positive for passing tests");
 }
 
 #[test]
@@ -92,7 +98,10 @@ fn test_generate_full_compliance_report_with_fips_validation() {
         .generate_full_compliance_report(&results, &Some(fips_result))
         .expect("Report with FIPS validation should succeed");
 
-    assert!(report.fips_validation.is_some());
+    assert!(
+        report.fips_validation.is_some(),
+        "fips_validation should be present when FIPS result provided"
+    );
 }
 
 #[test]
@@ -110,9 +119,15 @@ fn test_generate_full_compliance_report_with_failures() {
         .expect("Report with failures should succeed");
 
     // Should have algorithm results for ML-KEM and AES-GCM
-    assert!(!report.algorithm_results.is_empty());
+    assert!(
+        !report.algorithm_results.is_empty(),
+        "algorithm_results should not be empty even with failures"
+    );
     // Recommendations should mention issues
-    assert!(report.recommendations.len() >= 2);
+    assert!(
+        report.recommendations.len() >= 2,
+        "should have at least 2 recommendations for 3 failures"
+    );
 }
 
 #[test]
@@ -138,12 +153,22 @@ fn test_generate_full_compliance_report_metrics() {
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
 
     let metrics = &report.detailed_metrics;
-    assert_eq!(metrics.total_test_cases, results.len());
-    assert_eq!(metrics.passed_test_cases, results.len()); // all pass
-    assert_eq!(metrics.failed_test_cases, 0);
-    assert!(metrics.pass_rate > 0.99);
-    assert!(metrics.security_coverage.post_quantum_supported);
-    assert!(metrics.security_coverage.classical_supported);
+    assert_eq!(
+        metrics.total_test_cases,
+        results.len(),
+        "total_test_cases should match input count"
+    );
+    assert_eq!(metrics.passed_test_cases, results.len(), "all test cases should pass");
+    assert_eq!(metrics.failed_test_cases, 0, "no test cases should fail");
+    assert!(metrics.pass_rate > 0.99, "pass_rate should be ~1.0 for all-passing input");
+    assert!(
+        metrics.security_coverage.post_quantum_supported,
+        "PQ support should be detected from ML-KEM/ML-DSA tests"
+    );
+    assert!(
+        metrics.security_coverage.classical_supported,
+        "classical support should be detected from AES-GCM/Ed25519 tests"
+    );
 }
 
 // ============================================================================
@@ -158,10 +183,10 @@ fn test_generate_json_report() {
 
     let json = reporter.generate_json_report(&report).expect("JSON report should succeed");
 
-    assert!(!json.is_empty());
-    assert!(json.contains("report_id"));
-    assert!(json.contains("algorithm_results"));
-    assert!(json.contains("overall_compliance"));
+    assert!(!json.is_empty(), "JSON report should not be empty");
+    assert!(json.contains("report_id"), "JSON should contain report_id field");
+    assert!(json.contains("algorithm_results"), "JSON should contain algorithm_results field");
+    assert!(json.contains("overall_compliance"), "JSON should contain overall_compliance field");
 }
 
 // ============================================================================
@@ -176,11 +201,11 @@ fn test_generate_html_report() {
 
     let html = reporter.generate_html_report(&report).expect("HTML report should succeed");
 
-    assert!(html.contains("<!DOCTYPE html>"));
-    assert!(html.contains("FIPS 140-3 Compliance Report"));
-    assert!(html.contains("Algorithm Results"));
-    assert!(html.contains("Recommendations"));
-    assert!(html.contains("</html>"));
+    assert!(html.contains("<!DOCTYPE html>"), "HTML should have DOCTYPE declaration");
+    assert!(html.contains("FIPS 140-3 Compliance Report"), "HTML should contain report title");
+    assert!(html.contains("Algorithm Results"), "HTML should contain Algorithm Results section");
+    assert!(html.contains("Recommendations"), "HTML should contain Recommendations section");
+    assert!(html.contains("</html>"), "HTML should have closing html tag");
 }
 
 #[test]
@@ -192,9 +217,12 @@ fn test_generate_html_report_with_statistical_results() {
     let html = reporter.generate_html_report(&report).unwrap();
 
     // Should include statistical testing section
-    assert!(html.contains("Statistical Testing Results"));
-    assert!(html.contains("Randomness Quality"));
-    assert!(html.contains("Entropy Estimate"));
+    assert!(
+        html.contains("Statistical Testing Results"),
+        "HTML should have Statistical Testing Results section"
+    );
+    assert!(html.contains("Randomness Quality"), "HTML should mention Randomness Quality");
+    assert!(html.contains("Entropy Estimate"), "HTML should mention Entropy Estimate");
 }
 
 // ============================================================================
@@ -221,9 +249,9 @@ fn test_save_report_to_file() {
 
     // Verify file contents
     let json_content = std::fs::read_to_string(&json_path).unwrap();
-    assert!(json_content.contains("report_id"));
+    assert!(json_content.contains("report_id"), "saved JSON file should contain report_id");
     let html_content = std::fs::read_to_string(&html_path).unwrap();
-    assert!(html_content.contains("<!DOCTYPE html>"));
+    assert!(html_content.contains("<!DOCTYPE html>"), "saved HTML file should have DOCTYPE");
 
     // Cleanup
     let _ = std::fs::remove_file(&json_path);
@@ -280,8 +308,11 @@ fn test_report_single_algorithm() {
 
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
 
-    assert_eq!(report.algorithm_results.len(), 1);
-    assert!(report.algorithm_results.contains_key("AES-GCM"));
+    assert_eq!(report.algorithm_results.len(), 1, "single algorithm should produce 1 result group");
+    assert!(
+        report.algorithm_results.contains_key("AES-GCM"),
+        "AES-GCM algorithm should be recognized and grouped"
+    );
 }
 
 #[test]
@@ -292,5 +323,8 @@ fn test_report_unknown_algorithm() {
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
 
     // Unknown algorithms should still be grouped
-    assert!(report.algorithm_results.contains_key("Unknown"));
+    assert!(
+        report.algorithm_results.contains_key("Unknown"),
+        "unrecognized algorithms should be grouped under 'Unknown'"
+    );
 }

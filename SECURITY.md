@@ -110,13 +110,13 @@ Property-based tests verify our Rust wrappers correctly compose the verified pri
 
 #### Layer 3: Kani — Type Invariants (12 proofs)
 
-Kani model checking verifies the pure-Rust policy and state management layer in `arc-types`. These proofs do **not** cover cryptographic operations (which require FFI). They verify:
+Kani model checking verifies the pure-Rust policy and state management layer in `latticearc::types`. These proofs do **not** cover cryptographic operations (which require FFI). They verify:
 - Key lifecycle state machine enforces SP 800-57 transitions (5 proofs)
 - Policy engine maps every enum variant to a valid algorithm (3 proofs)
 - Trust level ordering is total and consistent (3 proofs)
 - Default security level is NIST Level 3 (1 proof)
 
-Proofs in source code: `arc-types/src/{key_lifecycle,zero_trust,types,selector}.rs`
+Proofs in source code: `latticearc/src/types/{key_lifecycle,zero_trust,types,selector}.rs`
 
 ## Security Audits
 

@@ -23,18 +23,14 @@
 /// Unified elliptic curve traits
 pub mod traits;
 
-/// secp256k1 elliptic curve operations (non-FIPS)
-#[cfg(not(feature = "fips"))]
+/// secp256k1 elliptic curve operations
 pub mod secp256k1;
 
-/// Ed25519 signature operations (non-FIPS)
-#[cfg(not(feature = "fips"))]
+/// Ed25519 signature operations (RFC 8032)
 pub mod ed25519;
 
-// Re-exports (non-FIPS only)
-#[cfg(not(feature = "fips"))]
+// Re-exports
 pub use ed25519::*;
-#[cfg(not(feature = "fips"))]
 pub use secp256k1::*;
 
 // Traits are always available

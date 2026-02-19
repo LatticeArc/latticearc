@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 
 /// A sigma protocol proof (non-interactive via Fiat-Shamir)
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SigmaProof {
     /// Commitment (first message)
     pub commitment: Vec<u8>,

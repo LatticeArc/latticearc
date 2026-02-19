@@ -28,7 +28,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// Commitment: C = H(value || randomness)
 /// Opening: reveal value and randomness, verify C == H(value || randomness)
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HashCommitment {
     /// The commitment hash
     pub commitment: [u8; 32],
@@ -104,11 +104,11 @@ impl HashCommitment {
 /// - Computationally binding (under discrete log assumption)
 /// - Additively homomorphic: C(v1) + C(v2) = C(v1 + v2)
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(crate = "serde"))]
+#[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "zkp-serde", serde(crate = "serde"))]
 pub struct PedersenCommitment {
     /// The commitment point (compressed)
-    #[cfg_attr(feature = "serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
+    #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
     pub commitment: [u8; 33],
 }
 

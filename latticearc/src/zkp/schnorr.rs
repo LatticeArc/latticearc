@@ -29,14 +29,14 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Schnorr proof structure
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(crate = "serde"))]
+#[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "zkp-serde", serde(crate = "serde"))]
 pub struct SchnorrProof {
     /// Commitment point R = k*G
-    #[cfg_attr(feature = "serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
+    #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
     pub commitment: [u8; 33],
     /// Response s = k + c*x
-    #[cfg_attr(feature = "serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
+    #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
     pub response: [u8; 32],
 }
 

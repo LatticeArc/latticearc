@@ -574,12 +574,12 @@ LatticeArc exists within a rich ecosystem of cryptographic libraries. Rather tha
 | Component | rustls | LatticeArc |
 |-----------|--------|------------|
 | **Scope** | TLS 1.3 protocol | Broader crypto library |
-| **Hybrid KEMs** | ✅ X25519MLKEM768 (TLS only) | ✅ Standalone + TLS via `arc-tls` |
+| **Hybrid KEMs** | ✅ X25519MLKEM768 (TLS only) | ✅ Standalone + TLS via `latticearc::tls` |
 | **Signatures** | ❌ No signature API | ✅ Hybrid signatures (ML-DSA + Ed25519) |
 | **Non-TLS Crypto** | ❌ Out of scope | ✅ Encryption, signatures, ZKP |
 
 **How we work together:**
-- Our `arc-tls` crate **wraps** rustls with PQC extensions
+- Our `latticearc::tls` module **wraps** rustls with PQC extensions
 - We **provide** standalone crypto operations (encrypt, sign) rustls doesn't
 - We **reuse** their excellent TLS 1.3 implementation
 - We **complement** by adding hybrid signatures and broader crypto API

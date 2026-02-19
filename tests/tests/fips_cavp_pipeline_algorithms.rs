@@ -88,8 +88,11 @@ async fn test_mlkem_768_keygen() {
     assert!(result.is_ok(), "ML-KEM-768 keygen should succeed");
 
     let test_result = result.unwrap();
-    assert!(!test_result.actual_result.is_empty());
-    assert_eq!(test_result.algorithm.name(), "ML-KEM-768");
+    assert!(
+        !test_result.actual_result.is_empty(),
+        "ML-KEM-768 keygen should produce non-empty result"
+    );
+    assert_eq!(test_result.algorithm.name(), "ML-KEM-768", "algorithm name should be ML-KEM-768");
 }
 
 /// Test ML-KEM-768 encapsulation with invalid input (missing ek)
@@ -134,11 +137,14 @@ async fn test_mlkem_768_encapsulation_missing_key() {
     };
 
     let result = executor.execute_single_test_vector(&vector).await;
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "execute_single_test_vector should not return an error");
 
     let test_result = result.unwrap();
     // Should fail with error message
-    assert!(!test_result.passed || test_result.error_message.is_some());
+    assert!(
+        !test_result.passed || test_result.error_message.is_some(),
+        "invalid vector should either fail or have an error message"
+    );
 }
 
 /// Test ML-KEM-768 decapsulation with invalid ciphertext length
@@ -183,11 +189,14 @@ async fn test_mlkem_768_decapsulation_invalid_ciphertext() {
     };
 
     let result = executor.execute_single_test_vector(&vector).await;
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "invalid decapsulation vector should not return an error");
 
     let test_result = result.unwrap();
     // Should fail due to invalid input
-    assert!(test_result.error_message.is_some() || !test_result.passed);
+    assert!(
+        test_result.error_message.is_some() || !test_result.passed,
+        "invalid input should fail or have an error message"
+    );
 }
 
 /// Test ML-DSA-44 key generation
@@ -235,7 +244,10 @@ async fn test_mldsa_44_keygen() {
     assert!(result.is_ok(), "ML-DSA-44 keygen should succeed");
 
     let test_result = result.unwrap();
-    assert!(!test_result.actual_result.is_empty());
+    assert!(
+        !test_result.actual_result.is_empty(),
+        "ML-DSA-44 keygen should produce non-empty result"
+    );
 }
 
 /// Test ML-DSA-65 and ML-DSA-87 variants
@@ -515,11 +527,14 @@ async fn test_mlkem_unsupported_variant() {
     };
 
     let result = executor.execute_single_test_vector(&vector).await;
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "unsupported variant should not return executor error");
 
     let test_result = result.unwrap();
     // Should have error message for unsupported variant
-    assert!(test_result.error_message.is_some() || !test_result.passed);
+    assert!(
+        test_result.error_message.is_some() || !test_result.passed,
+        "unsupported variant should fail or have error message"
+    );
 }
 
 /// Test invalid test type for signature algorithm
@@ -565,11 +580,14 @@ async fn test_signature_algorithm_with_encapsulation_type() {
     };
 
     let result = executor.execute_single_test_vector(&vector).await;
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "wrong test type should not return executor error");
 
     let test_result = result.unwrap();
     // Should fail or have error
-    assert!(test_result.error_message.is_some() || !test_result.passed);
+    assert!(
+        test_result.error_message.is_some() || !test_result.passed,
+        "wrong test type for signature algorithm should fail or have error message"
+    );
 }
 
 /// Test KEM algorithm with signature type
@@ -615,11 +633,14 @@ async fn test_kem_algorithm_with_signature_type() {
     };
 
     let result = executor.execute_single_test_vector(&vector).await;
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "wrong test type should not return executor error");
 
     let test_result = result.unwrap();
     // Should fail with error about invalid operation
-    assert!(test_result.error_message.is_some() || !test_result.passed);
+    assert!(
+        test_result.error_message.is_some() || !test_result.passed,
+        "wrong test type for KEM algorithm should fail or have error message"
+    );
 }
 
 /// Test batch execution with timeout configuration
@@ -670,7 +691,7 @@ async fn test_batch_with_custom_timeout() {
     }];
 
     let batch = executor.execute_test_vector_batch(vectors).await;
-    assert!(batch.is_ok());
+    assert!(batch.is_ok(), "batch execution with custom timeout should succeed");
 }
 
 /// Test metadata capture in test results
@@ -719,10 +740,19 @@ async fn test_metadata_capture_in_results() {
     };
 
     let result = executor.execute_single_test_vector(&vector).await;
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "metadata capture test should not return executor error");
 
     let test_result = result.unwrap();
-    assert_eq!(test_result.metadata.vector_version, "2.0");
-    assert_eq!(test_result.metadata.security_level, 192);
-    assert!(!test_result.metadata.configuration.parameters.is_empty());
+    assert_eq!(
+        test_result.metadata.vector_version, "2.0",
+        "vector_version should be captured as 2.0"
+    );
+    assert_eq!(
+        test_result.metadata.security_level, 192,
+        "security_level should be captured as 192"
+    );
+    assert!(
+        !test_result.metadata.configuration.parameters.is_empty(),
+        "custom parameters should be preserved in metadata"
+    );
 }

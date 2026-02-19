@@ -7,7 +7,6 @@
 //!
 //! Run with: `cargo run --package latticearc --example zero_knowledge_proofs --release`
 //!
-//! Note: ZKP is not available in FIPS mode.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -16,10 +15,8 @@
 #![allow(clippy::panic)]
 #![allow(clippy::redundant_clone)]
 
-#[cfg(not(feature = "fips"))]
 use latticearc::zkp::{HashCommitment, PedersenCommitment, SchnorrProver, SchnorrVerifier};
 
-#[cfg(not(feature = "fips"))]
 fn main() {
     println!("=== LatticeArc: Zero-Knowledge Proofs ===\n");
 
@@ -101,9 +98,4 @@ fn main() {
     }
 
     println!("\nAll zero-knowledge proof tests passed!");
-}
-
-#[cfg(feature = "fips")]
-fn main() {
-    println!("ZKP example is not available in FIPS mode.");
 }

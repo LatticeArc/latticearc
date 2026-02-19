@@ -426,7 +426,6 @@ pub fn pct_fn_dsa_keypair(keypair: &mut crate::primitives::sig::fndsa::KeyPair) 
 ///
 /// Returns `PctError::SigningFailed` if signing the test message fails.
 /// Returns `PctError::VerificationFailed` if verification encounters an error.
-#[cfg(not(feature = "fips"))]
 pub fn pct_ed25519(keypair: &crate::primitives::ec::ed25519::Ed25519KeyPair) -> PctResult<()> {
     use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 
@@ -468,7 +467,6 @@ pub fn pct_ed25519(keypair: &crate::primitives::ec::ed25519::Ed25519KeyPair) -> 
 ///
 /// Returns `PctError::SigningFailed` if signing the test message fails.
 /// Returns `PctError::VerificationFailed` if verification encounters an error.
-#[cfg(not(feature = "fips"))]
 pub fn pct_secp256k1(
     keypair: &crate::primitives::ec::secp256k1::Secp256k1KeyPair,
 ) -> PctResult<()> {

@@ -38,7 +38,6 @@
 //! - Empty inputs
 //! - Boundary conditions
 
-#[cfg(not(feature = "fips"))]
 use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use latticearc::primitives::aead::{
     AeadCipher, AeadError,
@@ -314,7 +313,6 @@ fn test_aes_gcm_256_decrypt_all_zeros_tag() {
 // ChaCha20-Poly1305 Negative Tests
 // ============================================================================
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_empty_key() {
     let empty_key = [];
@@ -329,7 +327,6 @@ fn test_chacha20_poly1305_empty_key() {
     }
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_short_key() {
     let short_key = [0u8; 16]; // Need 32 bytes
@@ -344,7 +341,6 @@ fn test_chacha20_poly1305_short_key() {
     }
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_31_byte_key() {
     let key = [0u8; 31]; // One byte short
@@ -359,7 +355,6 @@ fn test_chacha20_poly1305_31_byte_key() {
     }
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_33_byte_key() {
     let key = [0u8; 33]; // One byte too long
@@ -374,7 +369,6 @@ fn test_chacha20_poly1305_33_byte_key() {
     }
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_decrypt_corrupted_tag() {
     let key = [0u8; 32];
@@ -399,7 +393,6 @@ fn test_chacha20_poly1305_decrypt_corrupted_tag() {
     }
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_decrypt_corrupted_ciphertext() {
     let key = [0u8; 32];
@@ -426,7 +419,6 @@ fn test_chacha20_poly1305_decrypt_corrupted_ciphertext() {
     }
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_decrypt_wrong_key() {
     let key1 = [0x00u8; 32];
@@ -456,7 +448,6 @@ fn test_chacha20_poly1305_decrypt_wrong_key() {
 // Cross-Algorithm Tests
 // ============================================================================
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_aes_128_encrypt_chacha_decrypt() {
     let key = [0u8; 32]; // Both use 32-byte keys (use first 16 for AES-128)
@@ -511,7 +502,6 @@ fn test_aes_gcm_256_decrypt_wrong_aad() {
     }
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_decrypt_missing_aad() {
     let key = [0u8; 32];
@@ -585,7 +575,6 @@ fn test_aes_gcm_256_encrypt_empty_plaintext() {
     assert!(decrypted.is_empty(), "Decrypted should be empty");
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_encrypt_single_byte() {
     let key = [0u8; 32];

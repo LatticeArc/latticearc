@@ -244,7 +244,6 @@ fn test_aes_gcm_256_decrypt_timing_bound() {
 }
 
 /// Test 12: ChaCha20-Poly1305 encryption completes within reasonable time
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_encrypt_timing_bound() {
     use latticearc::primitives::aead::AeadCipher;
@@ -354,7 +353,6 @@ fn test_aes_gcm_256_bulk_encryption_throughput() {
 }
 
 /// Test 18: ChaCha20-Poly1305 bulk encryption throughput sanity check
-#[cfg(not(feature = "fips"))]
 #[test]
 // Must run in release mode (flaky under coverage instrumentation)
 fn test_chacha20_poly1305_bulk_encryption_throughput() {
@@ -711,7 +709,6 @@ fn test_aes_gcm_ciphertext_expansion() {
 }
 
 /// Test 34: ChaCha20-Poly1305 ciphertext expansion is correct
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_chacha20_poly1305_ciphertext_expansion() {
     use latticearc::primitives::aead::AeadCipher;

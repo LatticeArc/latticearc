@@ -486,7 +486,7 @@ LatticeArc implements FIPS 203-206 algorithms but is **not** FIPS 140-3 validate
 
 For FIPS 140-3 compliance:
 1. Use algorithms as specified (no modifications)
-2. Implement power-up self-tests (see `arc-validation`)
+2. Implement power-up self-tests (see `latticearc-tests`)
 3. Use approved random number generators
 4. Consider validated modules for certification
 

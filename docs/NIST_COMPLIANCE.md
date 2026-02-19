@@ -222,7 +222,7 @@ graph TD
 
 ```bash
 # Run CAVP validation suite
-cargo test --package arc-validation --all-features
+cargo test --package latticearc-tests --all-features
 ```
 
 Test categories:
@@ -253,10 +253,10 @@ For FIPS 140-3 compliance:
 
 ### Self-Tests
 
-FIPS algorithm self-tests are implemented in `arc-primitives` (module `self_test`) and run automatically via the `fips-self-test` feature. Validation tests run through the `arc-validation` crate:
+FIPS algorithm self-tests are implemented in `latticearc::primitives` (module `self_test`) and run automatically via the `fips-self-test` feature. Validation tests run through the `latticearc-tests` crate:
 
 ```bash
-cargo test --package arc-validation --all-features
+cargo test --package latticearc-tests --all-features
 ```
 
 ## Hybrid Mode (Recommended)

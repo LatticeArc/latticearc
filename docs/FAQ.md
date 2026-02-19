@@ -140,7 +140,7 @@ No. `unsafe_code = "forbid"` is set at the workspace level. All code is safe Rus
 
 LatticeArc implements FIPS-compliant algorithms but is not itself validated. For FIPS 140-3:
 1. Use LatticeArc's algorithms as building blocks
-2. Implement required self-tests (arc-validation provides infrastructure)
+2. Implement required self-tests (`latticearc-tests` provides FIPS validation infrastructure)
 3. Consider validated hardware modules for the certification boundary
 
 ## Performance
@@ -201,7 +201,7 @@ let result = tokio::task::spawn_blocking(move || {
 
 ### Is there a C API?
 
-Not currently. C FFI bindings are planned for a future release.
+Not currently. C FFI bindings are not yet implemented. See [ALGORITHM_SELECTION.md](ALGORITHM_SELECTION.md) for current API surface.
 
 ## Troubleshooting
 

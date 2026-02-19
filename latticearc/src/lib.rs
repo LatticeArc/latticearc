@@ -1,3 +1,8 @@
+// JUSTIFICATION: Some cryptographic dependencies (fn-dsa, fips205) instantiate large
+// const arrays internally. In test builds these get monomorphized into the crate,
+// triggering large_stack_arrays. The arrays are in dependency code, not ours.
+#![cfg_attr(test, allow(clippy::large_stack_arrays))]
+
 //! LatticeArc - Post-Quantum Cryptography Library
 //!
 //! Comprehensive post-quantum cryptography library providing advanced encryption,
@@ -187,6 +192,16 @@
 //! }
 //! ```
 //!
+//! ## Feature Flags
+//!
+//! | Feature | Description |
+//! |---------|-------------|
+//! | `fips-self-test` | Power-up KAT self-tests for all FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). |
+//! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
+//! | `formal-verification` | Enables formal verification harnesses (Kani proofs for type invariants). |
+//! | `kani` | Kani bounded model checking proofs for pure-Rust type layer. |
+//! | `saw` | SAW formal verification markers (inherited from aws-lc-rs). |
+//!
 //! ## Enterprise Behavior
 //!
 //! In enterprise deployments (`arc-enterprise`), session verification enables:
@@ -217,8 +232,7 @@ pub mod unified_api;
 /// TLS 1.3 with post-quantum key exchange support.
 pub mod tls;
 
-/// Zero-knowledge proof primitives (non-FIPS: not part of the FIPS 140-3 module boundary).
-#[cfg(not(feature = "fips"))]
+/// Zero-knowledge proof primitives (Schnorr, Sigma protocols, Pedersen commitments).
 pub mod zkp;
 
 /// Performance monitoring and benchmarking utilities.

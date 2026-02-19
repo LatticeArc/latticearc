@@ -61,7 +61,7 @@ git push --no-verify     # Skip pre-push
 
 ### Test Failures
 
-- **Known issue**: arc-tls and arc-validation tests fail in sandbox environments
+- **Known issue**: TLS and validation tests may fail in sandbox environments
 - **Behavior**: Hook filters out these known failures and allows commit
 - **Rationale**: These failures are environmental, not code-related
 - **All other test failures block commit**

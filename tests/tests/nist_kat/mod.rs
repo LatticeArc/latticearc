@@ -13,7 +13,6 @@
 //! All test vectors are derived from official NIST publications and CAVP test files.
 
 mod aes_gcm_vectors;
-#[cfg(not(feature = "fips"))]
 mod chacha_vectors;
 mod common;
 mod ml_dsa_vectors;

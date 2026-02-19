@@ -231,7 +231,7 @@ pub fn decrypt_hybrid_with_config_unverified(
 // the unified API falls back to AES-256-GCM automatically.
 //
 // For true PQ+classical hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM),
-// use the typed API: encrypt_hybrid() / decrypt_hybrid() with HybridPublicKey/HybridSecretKey.
+// For true hybrid PQ+classical, call encrypt_hybrid() / decrypt_hybrid() with typed keys.
 
 #[cfg(test)]
 #[allow(

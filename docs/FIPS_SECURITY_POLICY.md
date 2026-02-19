@@ -24,7 +24,7 @@
 
 ## 2. Cryptographic Module Boundary
 
-The FIPS cryptographic boundary is defined by the `fips` feature flag in `arc-primitives/Cargo.toml`. When `fips` is enabled:
+The FIPS cryptographic boundary is defined by the `fips` feature flag in `latticearc/Cargo.toml`. When `fips` is enabled:
 
 - **Included**: All FIPS-approved algorithms (see Section 3)
 - **Excluded**: Non-approved algorithms gated by `#[cfg(not(feature = "fips"))]`:
@@ -34,19 +34,18 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `arc-pr
   - X25519 ECDH (not FIPS-approved)
   - ZKP operations (not FIPS-approved)
 
-### Boundary Crates
+### Boundary Modules
 
-| Crate | In Boundary | Role |
-|-------|-------------|------|
-| `arc-primitives` | Yes | Core cryptographic implementations |
-| `arc-core` | Yes | Unified API layer |
-| `arc-validation` | Yes | FIPS validation and self-tests |
-| `latticearc` | Yes | Public API facade |
-| `arc-prelude` | Yes | Error types, common utilities |
-| `arc-hybrid` | Partial | Hybrid KEM (ML-KEM + X25519 gated) |
-| `arc-tls` | No | TLS integration (outside boundary) |
-| `arc-zkp` | No | ZKP (non-FIPS) |
-| `arc-perf` | No | Benchmarking (non-cryptographic) |
+| Module | In Boundary | Role |
+|--------|-------------|------|
+| `latticearc::primitives` | Yes | Core cryptographic implementations |
+| `latticearc::unified_api` | Yes | Unified API layer |
+| `latticearc::prelude` | Yes | Error types, common utilities |
+| `latticearc::hybrid` | Partial | Hybrid KEM (ML-KEM + X25519 gated) |
+| `latticearc::tls` | No | TLS integration (outside boundary) |
+| `latticearc::zkp` | No | ZKP (non-FIPS) |
+| `latticearc::perf` | No | Benchmarking (non-cryptographic) |
+| `latticearc-tests` | Yes | FIPS validation and self-tests (dev-only) |
 
 ---
 
@@ -96,7 +95,7 @@ Default build without `fips` feature. All algorithms available including non-app
 
 ### 5.1 Power-Up Self-Tests
 
-Executed automatically on first cryptographic operation (lazy initialization via `std::sync::Once`). Located in `arc-primitives/src/self_test.rs`.
+Executed automatically on first cryptographic operation (lazy initialization via `std::sync::Once`). Located in `latticearc/src/primitives/self_test.rs`.
 
 | Test | Type | Algorithm | Requirement |
 |------|------|-----------|-------------|

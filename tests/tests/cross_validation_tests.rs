@@ -25,11 +25,8 @@ use latticearc::unified_api::convenience::{
     decrypt_aes_gcm_unverified, encrypt_aes_gcm_unverified,
 };
 
-#[cfg(not(feature = "fips"))]
 use latticearc::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature};
-#[cfg(not(feature = "fips"))]
 use latticearc::primitives::ec::traits::{EcKeyPair, EcSignature};
-#[cfg(not(feature = "fips"))]
 use latticearc::unified_api::convenience::{sign_ed25519_unverified, verify_ed25519_unverified};
 
 /// Helper to split wrapper-format encrypted data into (nonce, ciphertext, tag).
@@ -46,7 +43,6 @@ fn split_wrapper_format(encrypted: &[u8]) -> (&[u8; 12], &[u8], &[u8; 16]) {
 // Ed25519: wrapper vs primitives (deterministic — signatures must match)
 // ============================================================================
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_ed25519_sign_wrapper_matches_primitives() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
@@ -79,7 +75,6 @@ fn test_ed25519_sign_wrapper_matches_primitives() {
     assert!(valid, "wrapper verification of primitives signature should return true");
 }
 
-#[cfg(not(feature = "fips"))]
 #[test]
 fn test_ed25519_cross_verify_various_messages() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");

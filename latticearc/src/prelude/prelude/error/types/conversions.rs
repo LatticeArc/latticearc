@@ -76,19 +76,6 @@ impl From<tokio::task::JoinError> for LatticeArcError {
     }
 }
 
-#[cfg(feature = "database")]
-impl From<rusqlite::Error> for LatticeArcError {
-    fn from(err: rusqlite::Error) -> Self {
-        LatticeArcError::DatabaseError(err.to_string())
-    }
-}
-#[cfg(feature = "database")]
-impl From<tokio_postgres::Error> for LatticeArcError {
-    fn from(err: tokio_postgres::Error) -> Self {
-        LatticeArcError::DatabaseError(err.to_string())
-    }
-}
-
 impl From<std::alloc::LayoutError> for LatticeArcError {
     fn from(_err: std::alloc::LayoutError) -> Self {
         LatticeArcError::InvalidInput("Invalid memory layout".to_string())

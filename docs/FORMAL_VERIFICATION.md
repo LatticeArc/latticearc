@@ -8,7 +8,7 @@ LatticeArc verifies correctness at three layers, each with the right tool for th
 |-------|------|-------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
 | **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
-| **Type invariants** | [Kani](https://github.com/model-checking/kani) (12 proofs) | `arc-types` (pure Rust) | State machine rules, enum exhaustiveness, ordering, defaults |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (12 proofs) | `latticearc::types` (pure Rust) | State machine rules, enum exhaustiveness, ordering, defaults |
 
 ### Why three layers?
 
@@ -26,7 +26,7 @@ We don't run SAW ourselves. aws-lc-rs provides [mathematically verified implemen
 
 ## Layer 2: Proptest — API Crypto Correctness
 
-40+ property-based tests in `arc-tests/tests/proptest_*.rs`, each running 256 random cases:
+40+ property-based tests in `tests/tests/proptest_*.rs`, each running 256 random cases:
 
 | File | Tests | What it covers |
 |------|-------|----------------|
@@ -41,7 +41,7 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 
 ## Layer 3: Kani — Type Invariants
 
-12 bounded model checking proofs in `arc-types` (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
+12 bounded model checking proofs in `latticearc::types` (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
 
 ### What Kani verifies
 
@@ -91,7 +91,7 @@ These catch bugs when someone adds a new enum variant but forgets to handle it �
 
 ### Kani (automated)
 
-- Runs on every push to `main` (when `arc-types/src/` changes)
+- Runs on every push to `main` (when `latticearc/src/types/` changes)
 - Nightly at 3 AM UTC, weekly Sunday at 5 AM UTC
 
 ### Kani (local)
@@ -101,17 +101,17 @@ cargo install --locked kani-verifier
 cargo kani setup
 
 # Run all 12 proofs
-cargo kani -p arc-types
+cargo kani -p latticearc
 
 # Run a specific proof
-cargo kani --harness key_state_machine_transitions_match_spec -p arc-types
+cargo kani --harness key_state_machine_transitions_match_spec -p latticearc
 ```
 
 ### Proptest (local)
 
 ```bash
 # Run all property-based tests (release mode required for crypto perf)
-cargo test --package arc-tests --release -- proptest
+cargo test --package latticearc-tests --release -- proptest
 ```
 
 ## Comparison
@@ -120,7 +120,7 @@ cargo test --package arc-tests --release -- proptest
 |------|------------------|----------|------|
 | **SAW** | Primitive correctness (via aws-lc-rs) | AES-GCM, ML-KEM, SHA-2 | Inherited |
 | **Proptest** | API crypto correctness (256 random cases/property) | 40+ properties, 6 files | ~60s (release) |
-| **Kani** | Type invariants (all possible inputs) | 12 proofs in arc-types | ~10 min |
+| **Kani** | Type invariants (all possible inputs) | 12 proofs in latticearc::types | ~10 min |
 | **Unit tests** | Specific test cases | 977+ tests | ~120s (release) |
 | **Fuzzing** | Edge cases via randomness | 9 fuzz targets | 5 min/day |
 
@@ -130,4 +130,4 @@ cargo test --package arc-tests --release -- proptest
 - [AWS-LC Verification](https://github.com/awslabs/aws-lc-verification) — SAW proofs for primitives
 - [Proptest Book](https://proptest-rs.github.io/proptest/)
 - [SECURITY.md](../SECURITY.md) — Security policy and guarantees
-- [TESTING_STRATEGY.md](TESTING_STRATEGY.md) — Complete testing approach
+- [Code Audit Methodology](../../CODE_AUDIT_METHODOLOGY.md) — Complete testing and audit approach

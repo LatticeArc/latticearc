@@ -91,7 +91,7 @@ fn test_hybrid_keypair_generation_succeeds() -> Result<()> {
     let message = b"Keypair generation test";
     let encrypted = encrypt_hybrid_unverified(message, &pk)?;
     let decrypted = decrypt_hybrid_unverified(&encrypted, &sk)?;
-    assert_eq!(decrypted.as_slice(), message);
+    assert_eq!(decrypted.as_slice(), message, "decrypted plaintext should match original message");
 
     Ok(())
 }

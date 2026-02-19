@@ -1,25 +1,35 @@
 #!/bin/bash
-# Pre-push hook - Lightweight sanity check before pushing
+# Pre-push hook — Runs audit script + format check before pushing
 #
-# Heavy checks (compile, clippy, tests) run in pre-commit.
-# This hook only verifies CHANGELOG and format as a fast safety net.
+# The audit script enforces CODE_AUDIT_METHODOLOGY.md dimensions automatically.
+# Failures block the push. Warnings are displayed but don't block.
 
 set -e
 
-echo "Pre-push: Quick sanity check..."
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# Check 1: CHANGELOG.md updated (warning only)
+echo "Pre-push: Running audit checks..."
+
+# Run the quick audit (supply chain + feature flags + format + clippy)
+# Full audit is too slow for every push — run manually with ./scripts/audit.sh
+if [ -x "$REPO_ROOT/scripts/audit.sh" ]; then
+    "$REPO_ROOT/scripts/audit.sh" --quick
+else
+    echo "WARNING: scripts/audit.sh not found, falling back to basic checks"
+
+    # Fallback: basic format check
+    if ! cargo fmt --all -- --check > /dev/null 2>&1; then
+        echo "  FAILED: Code not formatted. Run: cargo fmt --all"
+        exit 1
+    fi
+fi
+
+# Check CHANGELOG.md updated (warning only)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if git diff --name-only "origin/${BRANCH}..HEAD" 2>/dev/null | grep -qE '\.(rs|toml|md)$'; then
     if ! git diff --name-only "origin/${BRANCH}..HEAD" 2>/dev/null | grep -q "CHANGELOG.md"; then
         echo "  WARNING: CHANGELOG.md not updated. Consider adding an entry."
     fi
-fi
-
-# Check 2: Format (fast, catches uncommitted format drift)
-if ! cargo fmt --all -- --check > /dev/null 2>&1; then
-    echo "  FAILED: Code not formatted. Run: cargo fmt --all"
-    exit 1
 fi
 
 echo "Pre-push checks passed."

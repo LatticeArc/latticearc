@@ -389,7 +389,8 @@ jobs:
     - name: Run concurrency tests
       run: |
         START_TIME=$(date +%s)
-        cargo test --package latticearc --test concurrency_tests --all-features --release
+        cargo test --package latticearc --test primitives_concurrency_tests --all-features --release
+        cargo test --package latticearc --test primitives_concurrency_comprehensive --all-features --release
         cargo test --workspace --all-features --release -- concurrent parallel thread
         END_TIME=$(date +%s)
         CONCURRENCY_DURATION=$((END_TIME - START_TIME))

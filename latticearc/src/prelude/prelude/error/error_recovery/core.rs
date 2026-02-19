@@ -149,20 +149,14 @@ impl EnhancedError {
         self
     }
 
-    /// Capture stack trace if available.
-    /// Returns Option to match disabled version - always returns Some when enabled.
-    #[cfg(feature = "std-backtrace")]
+    /// Capture stack trace using `std::backtrace::Backtrace`.
     #[allow(clippy::unnecessary_wraps)]
     fn capture_stack_trace() -> Option<String> {
-        Some(format!("{:?}", backtrace::Backtrace::new()))
-    }
-
-    /// Returns None when backtrace feature is disabled - Option type required
-    /// to match signature of the feature-enabled version.
-    #[cfg(not(feature = "std-backtrace"))]
-    #[allow(clippy::unnecessary_wraps)]
-    fn capture_stack_trace() -> Option<String> {
-        None
+        let bt = std::backtrace::Backtrace::capture();
+        match bt.status() {
+            std::backtrace::BacktraceStatus::Captured => Some(format!("{bt}")),
+            _ => None,
+        }
     }
 
     /// Get user-friendly error message
@@ -284,11 +278,9 @@ mod tests {
         assert!(enhanced.error_id.starts_with("ERR-"));
         assert_eq!(enhanced.severity, ErrorSeverity::Medium);
         assert!(enhanced.recovery_suggestions.is_empty());
-        // stack_trace depends on std-backtrace feature flag
-        #[cfg(feature = "std-backtrace")]
-        assert!(enhanced.stack_trace.is_some());
-        #[cfg(not(feature = "std-backtrace"))]
-        assert!(enhanced.stack_trace.is_none());
+        // stack_trace depends on RUST_BACKTRACE env var
+        // When not set, capture() returns Disabled status and we get None
+        let _ = enhanced.stack_trace; // exists but value depends on env
     }
 
     #[test]

@@ -306,19 +306,18 @@ cargo run --example digital_signatures
 
 ## Crate Structure
 
-| Crate | Description |
-|-------|-------------|
-| [`latticearc`](latticearc/) | Main API - start here |
-| [`arc-types`](arc-types/) | Pure-Rust domain types, traits, config, policy engine (zero FFI, Kani-verifiable) |
-| [`arc-core`](arc-core/) | Unified API layer (re-exports arc-types, adds crypto operations) |
-| [`arc-primitives`](arc-primitives/) | Cryptographic primitives (KEM, signatures, AEAD) |
-| [`arc-hybrid`](arc-hybrid/) | Hybrid encryption combining PQC and classical |
-| [`arc-tls`](arc-tls/) | Post-quantum TLS integration |
-| [`arc-zkp`](arc-zkp/) | Zero-knowledge proofs |
-| [`arc-prelude`](arc-prelude/) | Error types, testing infrastructure, re-exports domains from arc-types |
-| [`arc-validation`](arc-validation/) | CAVP test vectors and compliance testing (dev-dep only) |
-| [`arc-perf`](arc-perf/) | Performance benchmarking |
-| [`arc-tests`](arc-tests/) | Consolidated integration test suite (37 test files from all crates) |
+| Crate / Module | Description |
+|----------------|-------------|
+| [`latticearc`](latticearc/) | Single publishable crate — all modules below |
+| `latticearc::types` | Pure-Rust domain types, traits, config, policy engine (zero FFI, Kani-verifiable) |
+| `latticearc::unified_api` | Unified API layer with crypto operations and zero-trust |
+| `latticearc::primitives` | Cryptographic primitives (KEM, signatures, AEAD, hash, KDF) |
+| `latticearc::hybrid` | Hybrid encryption combining PQC and classical |
+| `latticearc::tls` | Post-quantum TLS integration |
+| `latticearc::zkp` | Zero-knowledge proofs (Schnorr, Sigma, Pedersen) |
+| `latticearc::prelude` | Error types and testing infrastructure |
+| `latticearc::perf` | Performance benchmarking utilities |
+| [`latticearc-tests`](tests/) | CAVP, KAT, integration tests (dev-only, not published) |
 
 ## Security
 
@@ -363,13 +362,13 @@ Correctness is verified at three layers, each with the right tool for the job:
 |-------|------|-------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
 | **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
-| **Type invariants** | [Kani](https://github.com/model-checking/kani) (12 proofs) | `arc-types` (pure Rust) | State machine rules, enum exhaustiveness, ordering, defaults |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (12 proofs) | `latticearc::types` (pure Rust) | State machine rules, enum exhaustiveness, ordering, defaults |
 
 **SAW (inherited):** We don't run SAW ourselves — aws-lc-rs provides [verified implementations](https://github.com/awslabs/aws-lc-verification) of the underlying primitives.
 
-**Proptest (API-level crypto):** 40+ property-based tests in `arc-tests/tests/proptest_*.rs`, each running 256 random cases in release mode. These verify that our Rust wrappers correctly compose the verified primitives — encrypt/decrypt roundtrip, KEM encapsulate/decapsulate consistency, signature sign/verify, FIPS 203 key sizes, and scheme selector determinism.
+**Proptest (API-level crypto):** 40+ property-based tests in `tests/tests/proptest_*.rs`, each running 256 random cases in release mode. These verify that our Rust wrappers correctly compose the verified primitives — encrypt/decrypt roundtrip, KEM encapsulate/decapsulate consistency, signature sign/verify, FIPS 203 key sizes, and scheme selector determinism.
 
-**Kani (type invariants):** 12 bounded model checking proofs in `arc-types`, run on every push to `main`. These do **not** verify cryptographic operations (which require FFI). They verify the pure-Rust policy and state management layer:
+**Kani (type invariants):** 12 bounded model checking proofs in `latticearc::types`, run on every push to `main`. These do **not** verify cryptographic operations (which require FFI). They verify the pure-Rust policy and state management layer:
 
 - **Key lifecycle** (5 proofs): SP 800-57 state machine — destroyed keys can't transition, no backward transitions, retired keys can only be destroyed
 - **Policy engine** (3 proofs): every `CryptoScheme` and `SecurityLevel` variant maps to a valid algorithm (catches missing match arms when enums grow)

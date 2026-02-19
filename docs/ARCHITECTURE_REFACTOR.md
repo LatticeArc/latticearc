@@ -331,7 +331,7 @@ forces arc-core to manually bridge between the two type systems in convenience/h
 arc-tls has several deps that should be dev-only.
 
 ### Task 8.1: Audit arc-tls production imports
-- **Status**: [ ] TODO
+- **Status**: Superseded — resolved during v0.2.0 workspace consolidation (8 crates merged into latticearc)
 - **Check**: For criterion and tempfile, verify if any non-test code imports them:
   ```
   grep -r "criterion\|tempfile" arc-tls/src/ --include="*.rs" | grep -v "#\[cfg(test)\]" | grep -v "mod tests"

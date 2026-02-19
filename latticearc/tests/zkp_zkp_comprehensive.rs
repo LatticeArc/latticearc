@@ -3,7 +3,6 @@
 //! Tests for Schnorr proofs, Pedersen commitments, Hash commitments,
 //! and Sigma protocols (DLOG equality).
 
-#![cfg(not(feature = "fips"))]
 #![allow(clippy::expect_used)] // Tests use expect for clarity
 #![allow(clippy::arithmetic_side_effects)] // Elliptic curve arithmetic in tests
 

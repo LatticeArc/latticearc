@@ -92,7 +92,7 @@ jobs:
           echo "Checking for potential timing vulnerabilities:" >> $GITHUB_STEP_SUMMARY
 
           # Look for == on byte arrays in sensitive contexts (simplified check)
-          if grep -r "secret.*==" --include="*.rs" latticearc/src/primitives latticearc/src/unified_api 2>/dev/null | grep -v "test" | grep -v "\.md"; then
+          if grep -r "secret.*==" --include="*.rs" latticearc/src/primitives latticearc/src/unified_api latticearc/src/hybrid latticearc/src/tls latticearc/src/zkp 2>/dev/null | grep -v "test" | grep -v "\.md"; then
             echo "- ⚠️ Found potential non-constant-time secret comparisons" >> $GITHUB_STEP_SUMMARY
           else
             echo "- ✅ No obvious non-constant-time secret comparisons found" >> $GITHUB_STEP_SUMMARY

@@ -82,8 +82,7 @@ pub mod ec;
 pub mod error;
 pub mod fips_error;
 
-// Non-FIPS modules: NTT polynomial arithmetic is not part of the FIPS module boundary.
-#[cfg(not(feature = "fips"))]
+// NTT polynomial arithmetic
 pub mod polynomial;
 
 // FIPS 140-3 Self-Test Module

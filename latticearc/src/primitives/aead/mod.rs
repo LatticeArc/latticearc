@@ -22,9 +22,7 @@
 
 pub mod aes_gcm;
 
-/// ChaCha20-Poly1305 is not a FIPS-approved algorithm.
-/// In FIPS mode, only AES-GCM is available for symmetric AEAD.
-#[cfg(not(feature = "fips"))]
+/// ChaCha20-Poly1305 AEAD (RFC 8439)
 pub mod chacha20poly1305;
 
 /// AEAD cipher nonce length
@@ -144,7 +142,6 @@ pub enum AeadError {
 }
 
 // Re-export ChaCha20-Poly1305 cipher types for convenience
-#[cfg(not(feature = "fips"))]
 pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher};
 
 #[cfg(test)]

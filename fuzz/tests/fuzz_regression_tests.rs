@@ -23,7 +23,6 @@
 //! ```
 
 use arc_primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
-#[cfg(not(feature = "fips"))]
 use arc_primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use arc_primitives::aead::AeadCipher;
 use arc_primitives::hash::{sha256, sha384, sha512, sha3_256};
@@ -281,8 +280,7 @@ mod aead_regression {
     }
 
     /// Regression: ChaCha20-Poly1305 nonce uniqueness
-    #[cfg(not(feature = "fips"))]
-    #[test]
+        #[test]
     fn test_chacha_nonce_produces_different_ct() {
         let key = [0x42u8; 32];
         let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
@@ -310,8 +308,7 @@ mod aead_regression {
     }
 
     /// Regression: ChaCha20-Poly1305 invalid key length rejection
-    #[cfg(not(feature = "fips"))]
-    #[test]
+        #[test]
     fn test_chacha_invalid_key_lengths() {
         assert!(ChaCha20Poly1305Cipher::new(&[0u8; 31]).is_err());
         assert!(ChaCha20Poly1305Cipher::new(&[0u8; 33]).is_err());

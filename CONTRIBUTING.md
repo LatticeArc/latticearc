@@ -42,7 +42,7 @@ cd latticearc
 cargo build --workspace --all-features
 
 # Build specific crate
-cargo build -p arc-core --all-features
+cargo build -p latticearc --all-features
 ```
 
 ### Verify Setup
@@ -89,10 +89,10 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 **Examples:**
 ```
-feat(arc-core): add ML-KEM-1024 support
-fix(arc-primitives): correct HKDF output length validation
+feat(primitives): add ML-KEM-1024 support
+fix(primitives): correct HKDF output length validation
 docs: update API documentation for encrypt function
-security(arc-hybrid): fix timing vulnerability in signature verification
+security(hybrid): fix timing vulnerability in signature verification
 ```
 
 ### What to Include
@@ -119,7 +119,7 @@ Each PR should:
 cargo test --workspace --all-features
 
 # Specific crate
-cargo test -p arc-core --all-features
+cargo test -p latticearc --all-features
 
 # With output
 cargo test --workspace --all-features -- --nocapture
@@ -131,10 +131,10 @@ cargo test --workspace --doc
 ### Test Categories
 
 1. **Unit Tests** - inline in source files (`#[cfg(test)]` modules)
-2. **Integration Tests** - consolidated in `arc-tests/tests/` (37 test files)
+2. **Integration Tests** - consolidated in `tests/tests/` (latticearc-tests crate)
 3. **Property Tests** - using proptest for invariants
 4. **Doc Tests** - examples in documentation
-5. **CAVP Vectors** - NIST test vectors in arc-validation
+5. **CAVP Vectors** - NIST test vectors in latticearc-tests
 
 ### Adding Tests
 
@@ -164,7 +164,7 @@ mod tests {
 cargo bench --workspace --all-features
 
 # Specific benchmark
-cargo bench -p arc-perf
+cargo bench -p latticearc
 ```
 
 ## Submitting Changes
