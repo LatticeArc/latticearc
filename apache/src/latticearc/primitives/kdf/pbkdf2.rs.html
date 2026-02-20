@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub struct </span>Pbkdf2Params {
 <a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// Salt value (minimum 16 bytes recommended)
 <a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">pub </span>salt: Vec&lt;u8&gt;,
-<a href=#37 id=37 data-nosnippet>37</a>    <span class="doccomment">/// Iteration count (minimum 1000, recommended 10000+)
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="doccomment">/// Iteration count (minimum 1000, default 600,000 per OWASP 2023 for HMAC-SHA256)
 <a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">pub </span>iterations: u32,
 <a href=#39 id=39 data-nosnippet>39</a>    <span class="doccomment">/// Desired key length in bytes
 <a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">pub </span>key_length: usize,
@@ -69,7 +69,7 @@
 <a href=#69 id=69 data-nosnippet>69</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>salt = <span class="macro">vec!</span>[<span class="number">0u8</span>; salt_length];
 <a href=#70 id=70 data-nosnippet>70</a>        get_random_bytes(<span class="kw-2">&amp;mut </span>salt);
 <a href=#71 id=71 data-nosnippet>71</a>
-<a href=#72 id=72 data-nosnippet>72</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ salt, iterations: <span class="number">10000</span>, key_length: <span class="number">32</span>, prf: PrfType::HmacSha256 })
+<a href=#72 id=72 data-nosnippet>72</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ salt, iterations: <span class="number">600_000</span>, key_length: <span class="number">32</span>, prf: PrfType::HmacSha256 })
 <a href=#73 id=73 data-nosnippet>73</a>    }
 <a href=#74 id=74 data-nosnippet>74</a>
 <a href=#75 id=75 data-nosnippet>75</a>    <span class="doccomment">/// Create PBKDF2 parameters with custom salt.
@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>    /// Ensure the salt is cryptographically random and unique for each password.
 <a href=#82 id=82 data-nosnippet>82</a>    </span><span class="attr">#[must_use]
 <a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub fn </span>with_salt(salt: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="self">Self </span>{
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="self">Self </span>{ salt: salt.to_vec(), iterations: <span class="number">10000</span>, key_length: <span class="number">32</span>, prf: PrfType::HmacSha256 }
+<a href=#84 id=84 data-nosnippet>84</a>        <span class="self">Self </span>{ salt: salt.to_vec(), iterations: <span class="number">600_000</span>, key_length: <span class="number">32</span>, prf: PrfType::HmacSha256 }
 <a href=#85 id=85 data-nosnippet>85</a>    }
 <a href=#86 id=86 data-nosnippet>86</a>
 <a href=#87 id=87 data-nosnippet>87</a>    <span class="doccomment">/// Set iteration count
@@ -288,14 +288,14 @@
 <a href=#288 id=288 data-nosnippet>288</a>///
 <a href=#289 id=289 data-nosnippet>289</a>/// Convenience function that uses recommended default parameters:
 <a href=#290 id=290 data-nosnippet>290</a>/// - 16-byte random salt
-<a href=#291 id=291 data-nosnippet>291</a>/// - 10,000 iterations
+<a href=#291 id=291 data-nosnippet>291</a>/// - 600,000 iterations (OWASP 2023 recommendation for HMAC-SHA256)
 <a href=#292 id=292 data-nosnippet>292</a>/// - 32-byte key length
 <a href=#293 id=293 data-nosnippet>293</a>/// - HMAC-SHA256 PRF
 <a href=#294 id=294 data-nosnippet>294</a>///
 <a href=#295 id=295 data-nosnippet>295</a>/// # Errors
 <a href=#296 id=296 data-nosnippet>296</a>/// Returns an error if key derivation fails.
 <a href=#297 id=297 data-nosnippet>297</a></span><span class="kw">pub fn </span>pbkdf2_simple(password: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Pbkdf2Result&gt; {
-<a href=#298 id=298 data-nosnippet>298</a>    <span class="kw">let </span>params = Pbkdf2Params::new(<span class="number">16</span>)<span class="question-mark">?</span>.iterations(<span class="number">10000</span>).key_length(<span class="number">32</span>).prf(PrfType::HmacSha256);
+<a href=#298 id=298 data-nosnippet>298</a>    <span class="kw">let </span>params = Pbkdf2Params::new(<span class="number">16</span>)<span class="question-mark">?</span>.iterations(<span class="number">600_000</span>).key_length(<span class="number">32</span>).prf(PrfType::HmacSha256);
 <a href=#299 id=299 data-nosnippet>299</a>
 <a href=#300 id=300 data-nosnippet>300</a>    pbkdf2(password, <span class="kw-2">&amp;</span>params)
 <a href=#301 id=301 data-nosnippet>301</a>}
@@ -519,7 +519,7 @@
 <a href=#519 id=519 data-nosnippet>519</a>    </span><span class="kw">fn </span>test_pbkdf2_params_new_valid() {
 <a href=#520 id=520 data-nosnippet>520</a>        <span class="kw">let </span>params = Pbkdf2Params::new(<span class="number">16</span>).unwrap();
 <a href=#521 id=521 data-nosnippet>521</a>        <span class="macro">assert_eq!</span>(params.salt.len(), <span class="number">16</span>);
-<a href=#522 id=522 data-nosnippet>522</a>        <span class="macro">assert_eq!</span>(params.iterations, <span class="number">10000</span>);
+<a href=#522 id=522 data-nosnippet>522</a>        <span class="macro">assert_eq!</span>(params.iterations, <span class="number">600_000</span>);
 <a href=#523 id=523 data-nosnippet>523</a>        <span class="macro">assert_eq!</span>(params.key_length, <span class="number">32</span>);
 <a href=#524 id=524 data-nosnippet>524</a>        <span class="macro">assert_eq!</span>(params.prf, PrfType::HmacSha256);
 <a href=#525 id=525 data-nosnippet>525</a>    }

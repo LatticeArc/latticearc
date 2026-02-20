@@ -535,5 +535,84 @@
 <a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, perf);
 <a href=#536 id=536 data-nosnippet>536</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"PerformanceResults"</span>));
 <a href=#537 id=537 data-nosnippet>537</a>    }
-<a href=#538 id=538 data-nosnippet>538</a>}
+<a href=#538 id=538 data-nosnippet>538</a>
+<a href=#539 id=539 data-nosnippet>539</a>    <span class="comment">// ---- Coverage: generate_report and ci_integration ----
+<a href=#540 id=540 data-nosnippet>540</a>
+<a href=#541 id=541 data-nosnippet>541</a>    </span><span class="attr">#[test]
+<a href=#542 id=542 data-nosnippet>542</a>    </span><span class="kw">fn </span>test_generate_report_all_passing() {
+<a href=#543 id=543 data-nosnippet>543</a>        <span class="kw">let </span><span class="kw-2">mut </span>suite = PreludeCiTestSuite::new();
+<a href=#544 id=544 data-nosnippet>544</a>        <span class="kw">let </span>report = suite.run_ci_tests().unwrap();
+<a href=#545 id=545 data-nosnippet>545</a>
+<a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">let </span>text = report.generate_report();
+<a href=#547 id=547 data-nosnippet>547</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"ALL TESTS PASSED"</span>));
+<a href=#548 id=548 data-nosnippet>548</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"Test Results Summary"</span>));
+<a href=#549 id=549 data-nosnippet>549</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"Performance Benchmarks"</span>));
+<a href=#550 id=550 data-nosnippet>550</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"Compliance Status"</span>));
+<a href=#551 id=551 data-nosnippet>551</a>    }
+<a href=#552 id=552 data-nosnippet>552</a>
+<a href=#553 id=553 data-nosnippet>553</a>    <span class="attr">#[test]
+<a href=#554 id=554 data-nosnippet>554</a>    </span><span class="kw">fn </span>test_all_critical_tests_passed_true() {
+<a href=#555 id=555 data-nosnippet>555</a>        <span class="kw">let </span>report = PreludeCiReport {
+<a href=#556 id=556 data-nosnippet>556</a>            unit_tests_passed: <span class="bool-val">true</span>,
+<a href=#557 id=557 data-nosnippet>557</a>            property_tests_passed: <span class="bool-val">true</span>,
+<a href=#558 id=558 data-nosnippet>558</a>            memory_safety_passed: <span class="bool-val">true</span>,
+<a href=#559 id=559 data-nosnippet>559</a>            cavp_compliance_report: <span class="prelude-val">None</span>,
+<a href=#560 id=560 data-nosnippet>560</a>            side_channel_report: <span class="prelude-val">None</span>,
+<a href=#561 id=561 data-nosnippet>561</a>            side_channel_assessments: <span class="macro">vec!</span>[],
+<a href=#562 id=562 data-nosnippet>562</a>            performance_results: PerformanceResults::default(),
+<a href=#563 id=563 data-nosnippet>563</a>        };
+<a href=#564 id=564 data-nosnippet>564</a>        <span class="macro">assert!</span>(report.all_critical_tests_passed());
+<a href=#565 id=565 data-nosnippet>565</a>    }
+<a href=#566 id=566 data-nosnippet>566</a>
+<a href=#567 id=567 data-nosnippet>567</a>    <span class="attr">#[test]
+<a href=#568 id=568 data-nosnippet>568</a>    </span><span class="kw">fn </span>test_ci_report_default_field_values() {
+<a href=#569 id=569 data-nosnippet>569</a>        <span class="kw">let </span>report = PreludeCiReport::default();
+<a href=#570 id=570 data-nosnippet>570</a>        <span class="macro">assert!</span>(!report.unit_tests_passed);
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="macro">assert!</span>(!report.property_tests_passed);
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="macro">assert!</span>(!report.memory_safety_passed);
+<a href=#573 id=573 data-nosnippet>573</a>        <span class="macro">assert!</span>(report.cavp_compliance_report.is_none());
+<a href=#574 id=574 data-nosnippet>574</a>        <span class="macro">assert!</span>(report.side_channel_report.is_none());
+<a href=#575 id=575 data-nosnippet>575</a>        <span class="macro">assert!</span>(report.side_channel_assessments.is_empty());
+<a href=#576 id=576 data-nosnippet>576</a>    }
+<a href=#577 id=577 data-nosnippet>577</a>
+<a href=#578 id=578 data-nosnippet>578</a>    <span class="attr">#[test]
+<a href=#579 id=579 data-nosnippet>579</a>    </span><span class="kw">fn </span>test_run_ci_tests_standalone_function() {
+<a href=#580 id=580 data-nosnippet>580</a>        <span class="kw">let </span>result = ci_integration::run_ci_tests();
+<a href=#581 id=581 data-nosnippet>581</a>        <span class="macro">assert!</span>(result.is_ok());
+<a href=#582 id=582 data-nosnippet>582</a>    }
+<a href=#583 id=583 data-nosnippet>583</a>
+<a href=#584 id=584 data-nosnippet>584</a>    <span class="attr">#[test]
+<a href=#585 id=585 data-nosnippet>585</a>    </span><span class="kw">fn </span>test_generate_report_with_optional_sections() {
+<a href=#586 id=586 data-nosnippet>586</a>        <span class="kw">let </span>report = PreludeCiReport {
+<a href=#587 id=587 data-nosnippet>587</a>            unit_tests_passed: <span class="bool-val">true</span>,
+<a href=#588 id=588 data-nosnippet>588</a>            property_tests_passed: <span class="bool-val">true</span>,
+<a href=#589 id=589 data-nosnippet>589</a>            memory_safety_passed: <span class="bool-val">true</span>,
+<a href=#590 id=590 data-nosnippet>590</a>            cavp_compliance_report: <span class="prelude-val">Some</span>(<span class="string">"CAVP test data"</span>.to_string()),
+<a href=#591 id=591 data-nosnippet>591</a>            side_channel_report: <span class="prelude-val">Some</span>(<span class="string">"Side-channel report data"</span>.to_string()),
+<a href=#592 id=592 data-nosnippet>592</a>            side_channel_assessments: <span class="macro">vec!</span>[],
+<a href=#593 id=593 data-nosnippet>593</a>            performance_results: PerformanceResults::default(),
+<a href=#594 id=594 data-nosnippet>594</a>        };
+<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">let </span>text = report.generate_report();
+<a href=#596 id=596 data-nosnippet>596</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"CAVP Compliance Report"</span>));
+<a href=#597 id=597 data-nosnippet>597</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"CAVP test data"</span>));
+<a href=#598 id=598 data-nosnippet>598</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"Side-Channel Analysis Report"</span>));
+<a href=#599 id=599 data-nosnippet>599</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"Side-channel report data"</span>));
+<a href=#600 id=600 data-nosnippet>600</a>    }
+<a href=#601 id=601 data-nosnippet>601</a>
+<a href=#602 id=602 data-nosnippet>602</a>    <span class="attr">#[test]
+<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="kw">fn </span>test_generate_report_issues_detected() {
+<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">let </span>report = PreludeCiReport {
+<a href=#605 id=605 data-nosnippet>605</a>            unit_tests_passed: <span class="bool-val">false</span>,
+<a href=#606 id=606 data-nosnippet>606</a>            property_tests_passed: <span class="bool-val">true</span>,
+<a href=#607 id=607 data-nosnippet>607</a>            memory_safety_passed: <span class="bool-val">true</span>,
+<a href=#608 id=608 data-nosnippet>608</a>            cavp_compliance_report: <span class="prelude-val">None</span>,
+<a href=#609 id=609 data-nosnippet>609</a>            side_channel_report: <span class="prelude-val">None</span>,
+<a href=#610 id=610 data-nosnippet>610</a>            side_channel_assessments: <span class="macro">vec!</span>[],
+<a href=#611 id=611 data-nosnippet>611</a>            performance_results: PerformanceResults::default(),
+<a href=#612 id=612 data-nosnippet>612</a>        };
+<a href=#613 id=613 data-nosnippet>613</a>        <span class="kw">let </span>text = report.generate_report();
+<a href=#614 id=614 data-nosnippet>614</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"ISSUES DETECTED"</span>));
+<a href=#615 id=615 data-nosnippet>615</a>        <span class="macro">assert!</span>(text.contains(<span class="string">"FAILED"</span>));
+<a href=#616 id=616 data-nosnippet>616</a>    }
+<a href=#617 id=617 data-nosnippet>617</a>}
 </code></pre></div></section></main></body></html>
