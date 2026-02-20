@@ -34,7 +34,7 @@ pub enum PrfType {
 pub struct Pbkdf2Params {
     /// Salt value (minimum 16 bytes recommended)
     pub salt: Vec<u8>,
-    /// Iteration count (minimum 1000, recommended 10000+)
+    /// Iteration count (minimum 1000, default 600,000 per OWASP 2023 for HMAC-SHA256)
     pub iterations: u32,
     /// Desired key length in bytes
     pub key_length: usize,
@@ -69,7 +69,7 @@ impl Pbkdf2Params {
         let mut salt = vec![0u8; salt_length];
         get_random_bytes(&mut salt);
 
-        Ok(Self { salt, iterations: 10000, key_length: 32, prf: PrfType::HmacSha256 })
+        Ok(Self { salt, iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 })
     }
 
     /// Create PBKDF2 parameters with custom salt.
@@ -81,7 +81,7 @@ impl Pbkdf2Params {
     /// Ensure the salt is cryptographically random and unique for each password.
     #[must_use]
     pub fn with_salt(salt: &[u8]) -> Self {
-        Self { salt: salt.to_vec(), iterations: 10000, key_length: 32, prf: PrfType::HmacSha256 }
+        Self { salt: salt.to_vec(), iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 }
     }
 
     /// Set iteration count
@@ -288,14 +288,14 @@ fn compute_prf(password: &[u8], data: &[u8], prf: PrfType) -> Result<Vec<u8>> {
 ///
 /// Convenience function that uses recommended default parameters:
 /// - 16-byte random salt
-/// - 10,000 iterations
+/// - 600,000 iterations (OWASP 2023 recommendation for HMAC-SHA256)
 /// - 32-byte key length
 /// - HMAC-SHA256 PRF
 ///
 /// # Errors
 /// Returns an error if key derivation fails.
 pub fn pbkdf2_simple(password: &[u8]) -> Result<Pbkdf2Result> {
-    let params = Pbkdf2Params::new(16)?.iterations(10000).key_length(32).prf(PrfType::HmacSha256);
+    let params = Pbkdf2Params::new(16)?.iterations(600_000).key_length(32).prf(PrfType::HmacSha256);
 
     pbkdf2(password, &params)
 }
@@ -519,7 +519,7 @@ mod tests {
     fn test_pbkdf2_params_new_valid() {
         let params = Pbkdf2Params::new(16).unwrap();
         assert_eq!(params.salt.len(), 16);
-        assert_eq!(params.iterations, 10000);
+        assert_eq!(params.iterations, 600_000);
         assert_eq!(params.key_length, 32);
         assert_eq!(params.prf, PrfType::HmacSha256);
     }

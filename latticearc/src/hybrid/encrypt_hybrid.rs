@@ -133,6 +133,14 @@ impl KeyType for HkdfOutputLen {
 
 /// HPKE-style key derivation for hybrid encryption.
 ///
+/// # Security
+///
+/// The context's AAD is bound in two places: (1) mixed into the HKDF info
+/// parameter here, so different AAD values derive different encryption keys,
+/// and (2) passed to AES-GCM as authenticated data during encrypt/decrypt.
+/// This dual binding ensures AAD provides both key separation and ciphertext
+/// authentication.
+///
 /// # Errors
 ///
 /// Returns an error if the shared secret is not exactly 32 bytes,
@@ -147,7 +155,7 @@ pub fn derive_encryption_key(
         ));
     }
 
-    // Create info for domain separation
+    // Create info for domain separation (AAD is also passed to AES-GCM separately)
     let mut info = Vec::new();
     info.extend_from_slice(&context.info);
     info.extend_from_slice(b"||");

@@ -22,9 +22,16 @@ This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDU
 ### Prerequisites
 
 - Rust 1.93+ (2024 edition)
+- C/C++ compiler (clang or gcc)
+- CMake (required by aws-lc-rs FIPS build)
+- Go (required by aws-lc-rs FIPS build)
 - Git
 - cargo-deny (`cargo install cargo-deny`)
 - cargo-audit (`cargo install cargo-audit`)
+
+> **Why CMake and Go?** LatticeArc uses `aws-lc-rs` with the `fips` feature for FIPS 140-3 validated
+> cryptography. The FIPS module requires CMake and Go during compilation. See
+> [aws-lc-rs build requirements](https://aws.github.io/aws-lc-rs/) for details.
 
 ### Fork and Clone
 

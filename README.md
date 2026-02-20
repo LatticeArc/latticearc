@@ -47,6 +47,28 @@ flowchart LR
 
 **Why not PQ-only?** ML-KEM/ML-DSA are new (standardized 2024). Hybrid provides defense-in-depth: if a flaw is discovered in the PQ algorithm, classical crypto still protects your data.
 
+## Build Prerequisites
+
+LatticeArc uses `aws-lc-rs` with FIPS 140-3 validation, which requires additional build tools beyond Rust:
+
+| Tool | Required | Why |
+|------|----------|-----|
+| **Rust** 1.93+ | Yes | 2024 edition, MSRV |
+| **C/C++ compiler** | Yes | aws-lc-rs compiles AWS-LC (C library) |
+| **CMake** | Yes | Required by aws-lc-rs FIPS build |
+| **Go** | Yes | Required by aws-lc-rs FIPS module (`delocate` tool) |
+
+```bash
+# macOS
+brew install cmake go
+
+# Ubuntu/Debian
+sudo apt install cmake golang build-essential
+
+# Verify
+rustc --version && cmake --version && go version
+```
+
 ## Quick Start
 
 ```toml
