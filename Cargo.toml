@@ -227,6 +227,11 @@ overflow-checks = true  # Enable for crypto safety
 debug-assertions = true  # Keep for crypto validation
 incremental = false     # Reproducible builds
 
+[profile.valgrind]
+inherits = "release"
+debug = 2               # Full debug symbols for Valgrind stack traces
+strip = false           # Do not strip — Valgrind needs symbols
+
 [profile.dev]
 overflow-checks = true  # Enable even in debug for crypto safety
 

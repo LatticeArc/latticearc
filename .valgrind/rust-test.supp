@@ -1,0 +1,88 @@
+# LatticeArc Valgrind Suppression File
+#
+# Suppresses known false positives from Rust stdlib thread-local storage.
+# Rust 1.86+ has a known issue where thread metadata allocated via
+# std::thread::Thread::new() is reported as "possibly lost" due to
+# interior pointers in Arc<Thread::Inner>.
+# See: https://github.com/rust-lang/rust/issues/135608
+#      https://github.com/rust-lang/rust/issues/141084
+#
+# Pattern: aws-lc-rs .valgrind/rust-test.supp
+# Rules:
+#   - ONLY suppress "possible" and "reachable" leak kinds
+#   - NEVER suppress "definite" or "indirect" — those are real leaks
+#   - Anchor to known patterns (pthread_create, __libc_start_main)
+#   - Use obj: patterns to limit to test binaries
+
+###############################################################################
+# Rust Standard Library — Thread-Local Storage
+###############################################################################
+
+# Thread metadata allocated during std::thread::Thread::new().
+# Interior pointers in Arc cause Valgrind to classify as "possibly lost".
+# This is NOT a real leak — the memory is reclaimed on thread exit or at
+# program termination by the OS.
+{
+   rust_thread_new_metadata
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   ...
+   fun:*pthread_create*
+}
+
+# Thread-local storage initialized via call_once during test harness setup.
+# One-time allocation that lives for program lifetime.
+{
+   rust_test_harness_call_once
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   ...
+   fun:*call_once*
+   ...
+   fun:*start_thread*
+}
+
+###############################################################################
+# Rust Test Binary — Startup Initialization
+###############################################################################
+
+# Test binary initialization allocates thread context and TLS slots.
+# Reported as "possibly lost" because scan happens before full cleanup.
+{
+   rust_test_binary_init_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   obj:*/latticearc-*
+   ...
+   fun:__libc_start_main*
+}
+
+# Still-reachable memory from test binary static initialization (OnceLock, etc.).
+# These are intentional program-lifetime allocations, not leaks.
+{
+   rust_test_binary_init_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   obj:*/latticearc-*
+   ...
+   fun:__libc_start_main*
+}
+
+###############################################################################
+# Rust std::sync::mpmc — Test Harness Channel Context
+###############################################################################
+
+# The Rust test harness uses mpmc channels internally. Context allocation
+# via call_once is reported as "possibly lost" on thread exit.
+{
+   rust_mpmc_context_init
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:*mpmc*context*
+   ...
+}
