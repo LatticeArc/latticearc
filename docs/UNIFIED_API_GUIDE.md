@@ -1,10 +1,30 @@
 # LatticeArc Unified API Guide
 
-A consistent, high-level cryptographic API with automatic algorithm selection and optional zero-trust authentication.
+A consistent, high-level cryptographic API with automatic algorithm selection and optional zero-trust authentication. 4 lines of code replace ~50 lines of manual PQ+classical crypto composition.
 
-## Why LatticeArc?
+## At a Glance
 
-### Pain Points Solved
+```mermaid
+flowchart LR
+    subgraph "You Write"
+        CODE["let config = CryptoConfig::new();\nlet (pk, sk, _) = generate_signing_keypair(config.clone())?;\nlet signed = sign_with_key(msg, &sk, &pk, config.clone())?;\nlet valid = verify(&signed, config)?;"]
+    end
+
+    subgraph "LatticeArc Does"
+        SEL["Selects ML-DSA-65 + Ed25519\nhybrid scheme"]
+        GEN["Generates both keypairs"]
+        SIGN["Signs with both algorithms"]
+        VER["Verifies both signatures"]
+    end
+
+    CODE --> SEL --> GEN --> SIGN --> VER
+
+    classDef you fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    classDef lib fill:#10b981,stroke:#059669,color:#fff
+
+    class CODE you
+    class SEL,GEN,SIGN,VER lib
+```
 
 | Problem | Without LatticeArc | With LatticeArc |
 |---------|-------------------|-----------------|
@@ -15,7 +35,7 @@ A consistent, high-level cryptographic API with automatic algorithm selection an
 | **Key Management** | Track multiple key types, parameter sets | Unified `generate_keypair()` functions |
 | **Memory Safety** | Manual zeroization of sensitive data | Automatic `Zeroize` on drop |
 
-### Architecture Overview
+### Architecture
 
 ```mermaid
 graph TB
@@ -63,40 +83,6 @@ graph TB
     class CC,TC,VS api
     class SEL engine
     class KEM,DSA,SLH,FN,AES,ED prim
-```
-
-### Signing Flow
-
-```mermaid
-flowchart LR
-    subgraph Input
-        MSG[Message]
-        CFG[CryptoConfig]
-    end
-
-    subgraph Processing
-        SIGN[sign]
-        GEN[Generate Keys]
-        SIG[Create Signatures]
-    end
-
-    subgraph Output
-        SD[SignedData]
-    end
-
-    MSG --> SIGN
-    CFG --> SIGN
-    SIGN --> GEN
-    GEN --> SIG
-    SIG --> SD
-
-    classDef input fill:#3b82f6,stroke:#2563eb,color:#fff
-    classDef process fill:#10b981,stroke:#059669,color:#fff
-    classDef output fill:#8b5cf6,stroke:#7c3aed,color:#fff
-
-    class MSG,CFG input
-    class SIGN,GEN,SIG process
-    class SD output
 ```
 
 ## Quick Start
@@ -165,7 +151,7 @@ let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
 let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
 ```
 
-Both component signatures must verify for the result to be valid — an attacker must break *both* algorithms to forge a signature.
+Both component signatures must verify — an attacker must break *both* algorithms to forge a signature.
 
 #### Hybrid Encryption Flow
 
@@ -294,20 +280,18 @@ let config = TlsConfig::new()
     .with_client_auth(true);
 ```
 
-### TLS Use Cases
-
-| Use Case | Mode | Key Exchange | Description |
-|----------|------|--------------|-------------|
-| `WebServer` | Hybrid | X25519 + ML-KEM-768 | Public-facing web servers |
-| `InternalService` | Hybrid | X25519 + ML-KEM-768 | Zero-trust microservices |
-| `ApiGateway` | Hybrid | X25519 + ML-KEM-768 | API proxies and gateways |
-| `FinancialServices` | Hybrid | X25519 + ML-KEM-768 | Banking and payments |
-| `Healthcare` | Hybrid | X25519 + ML-KEM-768 | HIPAA-compliant systems |
-| `DatabaseConnection` | Hybrid | X25519 + ML-KEM-768 | Long-lived DB connections |
-| `Government` | PQ-only | ML-KEM-1024 | Classified/high-security |
-| `IoT` | Classic | X25519 | Resource-constrained devices |
-| `LegacyIntegration` | Classic | X25519 | Older system compatibility |
-| `RealTimeStreaming` | Classic | X25519 | Low-latency video/audio |
+| Use Case | Mode | Key Exchange |
+|----------|------|--------------|
+| `WebServer` | Hybrid | X25519 + ML-KEM-768 |
+| `InternalService` | Hybrid | X25519 + ML-KEM-768 |
+| `ApiGateway` | Hybrid | X25519 + ML-KEM-768 |
+| `FinancialServices` | Hybrid | X25519 + ML-KEM-768 |
+| `Healthcare` | Hybrid | X25519 + ML-KEM-768 |
+| `DatabaseConnection` | Hybrid | X25519 + ML-KEM-768 |
+| `Government` | PQ-only | ML-KEM-1024 |
+| `IoT` | Classic | X25519 |
+| `LegacyIntegration` | Classic | X25519 |
+| `RealTimeStreaming` | Classic | X25519 |
 
 ## Algorithm Selection
 
@@ -332,66 +316,34 @@ graph TD
     class SM_ALG,FS_ALG,FT_ALG,IOT_ALG algo
 ```
 
-**Communication**
+All 24 use cases with their algorithm mappings (all hybrid PQ + classical by default):
 
-| Use Case | Scheme |
-|----------|--------|
-| `SecureMessaging` | ML-KEM-768 + AES-256-GCM |
-| `EmailEncryption` | ML-KEM-1024 + AES-256-GCM |
-| `VpnTunnel` | ML-KEM-768 + AES-256-GCM |
-| `ApiSecurity` | ML-KEM-768 + AES-256-GCM |
-
-**Storage**
-
-| Use Case | Scheme |
-|----------|--------|
-| `FileStorage` | ML-KEM-1024 + AES-256-GCM |
-| `DatabaseEncryption` | ML-KEM-768 + AES-256-GCM |
-| `CloudStorage` | ML-KEM-1024 + AES-256-GCM |
-| `BackupArchive` | ML-KEM-1024 + AES-256-GCM |
-| `ConfigSecrets` | ML-KEM-768 + AES-256-GCM |
-
-**Authentication & Identity**
-
-| Use Case | Scheme |
-|----------|--------|
-| `Authentication` | ML-DSA-87 + Ed25519 |
-| `SessionToken` | ML-KEM-768 + AES-256-GCM |
-| `DigitalCertificate` | ML-DSA-87 + Ed25519 |
-| `KeyExchange` | ML-KEM-1024 + X25519 |
-
-**Financial & Legal**
-
-| Use Case | Scheme |
-|----------|--------|
-| `FinancialTransactions` | ML-DSA-65 + Ed25519 |
-| `LegalDocuments` | ML-DSA-87 + Ed25519 |
-| `BlockchainTransaction` | ML-DSA-65 + Ed25519 |
-
-**Regulated Industries**
-
-| Use Case | Scheme |
-|----------|--------|
-| `HealthcareRecords` | ML-KEM-1024 + AES-256-GCM |
-| `GovernmentClassified` | ML-KEM-1024 + AES-256-GCM |
-| `PaymentCard` | ML-KEM-1024 + AES-256-GCM |
-
-**IoT & Embedded**
-
-| Use Case | Scheme |
-|----------|--------|
-| `IoTDevice` | ML-KEM-512 + AES-256-GCM |
-| `FirmwareSigning` | ML-DSA-65 + Ed25519 |
-
-**Advanced**
-
-| Use Case | Scheme |
-|----------|--------|
-| `SearchableEncryption` | ML-KEM-768 + AES-256-GCM |
-| `HomomorphicComputation` | ML-KEM-768 + AES-256-GCM |
-| `AuditLog` | ML-KEM-768 + AES-256-GCM |
-
-All schemes above are hybrid (PQ + classical) by default.
+| Category | Use Case | Scheme |
+|----------|----------|--------|
+| **Communication** | `SecureMessaging` | ML-KEM-768 + AES-256-GCM |
+| | `EmailEncryption` | ML-KEM-1024 + AES-256-GCM |
+| | `VpnTunnel` | ML-KEM-768 + AES-256-GCM |
+| | `ApiSecurity` | ML-KEM-768 + AES-256-GCM |
+| **Storage** | `FileStorage` | ML-KEM-1024 + AES-256-GCM |
+| | `DatabaseEncryption` | ML-KEM-768 + AES-256-GCM |
+| | `CloudStorage` | ML-KEM-1024 + AES-256-GCM |
+| | `BackupArchive` | ML-KEM-1024 + AES-256-GCM |
+| | `ConfigSecrets` | ML-KEM-768 + AES-256-GCM |
+| **Auth & Identity** | `Authentication` | ML-DSA-87 + Ed25519 |
+| | `SessionToken` | ML-KEM-768 + AES-256-GCM |
+| | `DigitalCertificate` | ML-DSA-87 + Ed25519 |
+| | `KeyExchange` | ML-KEM-1024 + X25519 |
+| **Financial & Legal** | `FinancialTransactions` | ML-DSA-65 + Ed25519 |
+| | `LegalDocuments` | ML-DSA-87 + Ed25519 |
+| | `BlockchainTransaction` | ML-DSA-65 + Ed25519 |
+| **Regulated** | `HealthcareRecords` | ML-KEM-1024 + AES-256-GCM |
+| | `GovernmentClassified` | ML-KEM-1024 + AES-256-GCM |
+| | `PaymentCard` | ML-KEM-1024 + AES-256-GCM |
+| **IoT & Embedded** | `IoTDevice` | ML-KEM-512 + AES-256-GCM |
+| | `FirmwareSigning` | ML-DSA-65 + Ed25519 |
+| **Advanced** | `SearchableEncryption` | ML-KEM-768 + AES-256-GCM |
+| | `HomomorphicComputation` | ML-KEM-768 + AES-256-GCM |
+| | `AuditLog` | ML-KEM-768 + AES-256-GCM |
 
 ### By Security Level
 
@@ -428,7 +380,7 @@ sequenceDiagram
     LA->>ZT: Sign challenge
     ZT-->>LA: Proof
     LA->>ZT: Verify proof
-    ZT-->>LA: Valid ✓
+    ZT-->>LA: Valid
     LA-->>App: VerifiedSession
 
     Note over App,ZT: Session ready for crypto operations
@@ -484,14 +436,9 @@ flowchart LR
 ```rust
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
-// Generate signing keypair
 let config = CryptoConfig::new();
 let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
-
-// Sign with generated keys
 let signed = sign_with_key(message, &sk, &pk, config.clone())?;
-
-// Verify (uses public key from SignedData)
 let is_valid = verify(&signed, config)?;
 ```
 
@@ -540,7 +487,7 @@ use latticearc::{derive_key_with_info, derive_key_with_info_unverified, Security
 let ikm = b"shared-secret-material";
 let salt = b"unique-random-salt";
 
-// Derive keys for different domains — same IKM, different info → different keys
+// Derive keys for different domains — same IKM, different info -> different keys
 let encryption_key = derive_key_with_info_unverified(ikm, salt, 32, b"encryption")?;
 let auth_key = derive_key_with_info_unverified(ikm, salt, 32, b"authentication")?;
 assert_ne!(encryption_key, auth_key);
@@ -571,7 +518,7 @@ match sign_with_key(message, &sk, &pk, config) {
 }
 ```
 
-## Comparison: Manual vs LatticeArc
+## Manual vs LatticeArc
 
 ### Manual Hybrid Signing (~50 lines)
 
@@ -586,7 +533,7 @@ let ed_sig = ed_sk.sign(message);
 // Return 4 separate components...
 ```
 
-### LatticeArc (3 lines)
+### LatticeArc (4 lines)
 
 ```rust
 let config = CryptoConfig::new();
