@@ -265,9 +265,10 @@ pub use traits::{
     ZeroTrustAuthenticable,
 };
 pub use types::{
-    AlgorithmSelection, CryptoConfig, CryptoContext, CryptoPayload, CryptoScheme, EncryptedData,
-    EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey, PublicKey,
-    SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
+    AlgorithmSelection, ComplianceMode, CryptoConfig, CryptoContext, CryptoPayload, CryptoScheme,
+    EncryptedData, EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey,
+    PublicKey, SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
+    fips_available,
 };
 pub use zero_trust::{
     Challenge, ContinuousSession, ProofOfPossessionData, SecurityMode, TrustLevel, VerifiedSession,

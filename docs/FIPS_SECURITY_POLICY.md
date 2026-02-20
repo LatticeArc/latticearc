@@ -1,9 +1,9 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.1.0
+**Module Version**: 0.2.0
 **Module Type**: Software (FIPS 140-3 Level 1)
-**Date**: 2026-02-15
+**Date**: 2026-02-20
 **Status**: Pre-submission draft — not yet CMVP validated
 
 ---
@@ -13,7 +13,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.1.0 |
+| Module Version | 0.2.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
@@ -88,6 +88,18 @@ Enabled via `--features fips` at compile time. In this mode:
 ### Non-FIPS Mode (Default)
 
 Default build without `fips` feature. All algorithms available including non-approved. Self-tests can be optionally enabled via `fips-self-test` feature.
+
+### Runtime Compliance via `ComplianceMode`
+
+The `ComplianceMode` enum (`latticearc::types::ComplianceMode`) provides runtime compliance enforcement on top of the compile-time `fips` feature:
+
+| Mode | `requires_fips()` | `allows_hybrid()` | Description |
+|------|--------------------|--------------------|-------------|
+| `Default` | `false` | `true` | No compliance restrictions — all algorithms available |
+| `Fips140_3` | `true` | `true` | Requires `fips` feature; only FIPS-validated backends |
+| `Cnsa2_0` | `true` | `false` | Requires `fips` feature; PQ-only (CNSA 2.0 mandates no classical fallback) |
+
+Both `requires_fips()` and `allows_hybrid()` are formally verified by Kani proofs to return correct values exhaustively over all variants.
 
 ---
 
@@ -227,4 +239,5 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.2.0 | 2026-02-20 | Updated for workspace consolidation, 29 Kani proofs |
 | 0.1.0 | 2026-02-15 | Initial draft |

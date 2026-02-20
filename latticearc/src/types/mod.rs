@@ -69,8 +69,9 @@ pub use traits::{
     SchemeSelector, Signable, Verifiable, VerificationStatus, ZeroTrustAuthenticable,
 };
 pub use types::{
-    AlgorithmSelection, CryptoContext, CryptoPayload, CryptoScheme, EncryptedData,
+    AlgorithmSelection, ComplianceMode, CryptoContext, CryptoPayload, CryptoScheme, EncryptedData,
     EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey, PublicKey,
     SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
+    fips_available,
 };
 pub use zero_trust::TrustLevel;

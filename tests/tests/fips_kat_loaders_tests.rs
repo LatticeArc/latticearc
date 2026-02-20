@@ -177,8 +177,8 @@ mod ml_kem_loader_tests {
         let result1 = load_ml_kem_1024_kats();
         let result2 = load_ml_kem_1024_kats();
 
-        assert!(result1.is_ok());
-        assert!(result2.is_ok());
+        assert!(result1.is_ok(), "First ML-KEM-1024 KAT load should succeed");
+        assert!(result2.is_ok(), "Second ML-KEM-1024 KAT load should succeed");
 
         let vectors1 = result1.unwrap();
         let vectors2 = result2.unwrap();
@@ -530,7 +530,7 @@ mod cavp_json_parsing_tests {
         }"#;
 
         let result = load_from_cavp_json(json_data);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "CAVP JSON parsing should succeed for non-1024 parameter sets");
 
         let vectors = result.unwrap();
         assert!(vectors.is_empty(), "Should ignore non-ML-KEM-1024 parameter sets");
@@ -778,12 +778,12 @@ mod cavp_structure_tests {
         let json = serde_json::to_string(&test_case).unwrap();
         let deserialized: CavpTestCase = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(deserialized.tc_id, test_case.tc_id);
-        assert_eq!(deserialized.seed, test_case.seed);
-        assert_eq!(deserialized.pk, test_case.pk);
-        assert_eq!(deserialized.sk, test_case.sk);
-        assert_eq!(deserialized.ct, test_case.ct);
-        assert_eq!(deserialized.ss, test_case.ss);
+        assert_eq!(deserialized.tc_id, test_case.tc_id, "tc_id roundtrip mismatch");
+        assert_eq!(deserialized.seed, test_case.seed, "seed roundtrip mismatch");
+        assert_eq!(deserialized.pk, test_case.pk, "pk roundtrip mismatch");
+        assert_eq!(deserialized.sk, test_case.sk, "sk roundtrip mismatch");
+        assert_eq!(deserialized.ct, test_case.ct, "ct roundtrip mismatch");
+        assert_eq!(deserialized.ss, test_case.ss, "ss roundtrip mismatch");
     }
 
     #[test]
@@ -807,10 +807,13 @@ mod cavp_structure_tests {
         let json = serde_json::to_string(&test_group).unwrap();
         let deserialized: CavpTestGroup = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(deserialized.tg_id, test_group.tg_id);
-        assert_eq!(deserialized.test_type, test_group.test_type);
-        assert_eq!(deserialized.parameter_set, test_group.parameter_set);
-        assert_eq!(deserialized.tests.len(), 1);
+        assert_eq!(deserialized.tg_id, test_group.tg_id, "tg_id roundtrip mismatch");
+        assert_eq!(deserialized.test_type, test_group.test_type, "test_type roundtrip mismatch");
+        assert_eq!(
+            deserialized.parameter_set, test_group.parameter_set,
+            "parameter_set roundtrip mismatch"
+        );
+        assert_eq!(deserialized.tests.len(), 1, "tests count roundtrip mismatch");
     }
 
     #[test]
@@ -826,10 +829,10 @@ mod cavp_structure_tests {
         let json = serde_json::to_string(&file).unwrap();
         let deserialized: CavpTestVectorFile = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(deserialized.vs_id, file.vs_id);
-        assert_eq!(deserialized.algorithm, file.algorithm);
-        assert_eq!(deserialized.mode, file.mode);
-        assert_eq!(deserialized.revision, file.revision);
+        assert_eq!(deserialized.vs_id, file.vs_id, "vs_id roundtrip mismatch");
+        assert_eq!(deserialized.algorithm, file.algorithm, "algorithm roundtrip mismatch");
+        assert_eq!(deserialized.mode, file.mode, "mode roundtrip mismatch");
+        assert_eq!(deserialized.revision, file.revision, "revision roundtrip mismatch");
     }
 
     #[test]
@@ -893,8 +896,8 @@ mod cavp_structure_tests {
             signature: None,
         };
         let debug_str = format!("{:?}", test_case);
-        assert!(debug_str.contains("CavpTestCase"));
-        assert!(debug_str.contains("tc_id"));
+        assert!(debug_str.contains("CavpTestCase"), "Debug output should contain type name");
+        assert!(debug_str.contains("tc_id"), "Debug output should contain tc_id field");
     }
 }
 
@@ -972,8 +975,8 @@ mod edge_case_tests {
         assert!(result.is_ok(), "Should handle empty hex strings");
 
         let vectors = result.unwrap();
-        assert_eq!(vectors.len(), 1);
-        assert!(vectors[0].seed.is_empty());
+        assert_eq!(vectors.len(), 1, "Expected exactly 1 vector from empty hex input");
+        assert!(vectors[0].seed.is_empty(), "Empty hex string should produce empty seed");
     }
 
     #[test]
@@ -998,7 +1001,11 @@ mod edge_case_tests {
         assert!(result.is_ok(), "Should handle mixed-case hex strings");
 
         let vectors = result.unwrap();
-        assert_eq!(vectors[0].seed, vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        assert_eq!(
+            vectors[0].seed,
+            vec![0xAA, 0xBB, 0xCC, 0xDD],
+            "Mixed-case hex decoding mismatch"
+        );
     }
 
     #[test]
@@ -1074,7 +1081,7 @@ mod edge_case_tests {
         assert!(result.is_ok(), "Should handle long hex strings");
 
         let vectors = result.unwrap();
-        assert_eq!(vectors[0].seed.len(), 1024);
+        assert_eq!(vectors[0].seed.len(), 1024, "Expected 1024-byte seed from large hex input");
     }
 }
 
@@ -1094,8 +1101,8 @@ mod cross_loader_tests {
         assert!(ml_kem_result.is_ok(), "ML-KEM loader should succeed");
         assert!(sha3_result.is_ok(), "SHA3 loader should succeed");
 
-        assert!(!ml_kem_result.unwrap().is_empty());
-        assert!(!sha3_result.unwrap().is_empty());
+        assert!(!ml_kem_result.unwrap().is_empty(), "ML-KEM vectors should not be empty");
+        assert!(!sha3_result.unwrap().is_empty(), "SHA3 vectors should not be empty");
     }
 
     #[test]
@@ -1177,8 +1184,8 @@ mod regression_tests {
         let result1 = load_ml_kem_1024_kats();
         let result2 = load_ml_kem_1024_kats();
 
-        assert!(result1.is_ok());
-        assert!(result2.is_ok());
+        assert!(result1.is_ok(), "First repeated ML-KEM load should succeed");
+        assert!(result2.is_ok(), "Second repeated ML-KEM load should succeed");
 
         let vectors1 = result1.unwrap();
         let vectors2 = result2.unwrap();

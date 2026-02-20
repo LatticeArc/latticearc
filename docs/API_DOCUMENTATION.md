@@ -1,7 +1,7 @@
 # LatticeArc API Documentation
 
-**Version**: 0.1.4
-**Last Updated**: February 16, 2026
+**Version**: 0.2.0
+**Last Updated**: February 20, 2026
 **License**: Apache 2.0
 
 ---
@@ -107,7 +107,7 @@ let config = CryptoConfig::new()
 |--------|------|----------|-------------|
 | `security_level` | `SecurityLevel` | `High` | Security strength level |
 | `performance_preference` | `PerformancePreference` | `Balanced` | Performance vs security trade-off |
-| `compliance_mode` | `bool` | `false` | Enable compliance checks |
+| `compliance_mode` | `ComplianceMode` | `Default` | Regulatory compliance: `Default` (no restrictions), `Fips140_3` (FIPS-validated backends, hybrid allowed), `Cnsa2_0` (PQ-only, no hybrid) |
 | `enable_zeroization` | `bool` | `true` | Auto-zeroize sensitive data |
 | `audit_logging` | `bool` | `false` | Enable audit logging |
 
@@ -185,7 +185,7 @@ let verified = auth.verify_proof(&proof, &challenge)?;
 ### Auto-Selection Engine
 
 ```rust
-use arc_core::selector::CryptoPolicyEngine;
+use latticearc::unified_api::selector::CryptoPolicyEngine;
 
 // Recommend scheme for use case
 let scheme = CryptoPolicyEngine::recommend_scheme(
@@ -207,7 +207,7 @@ let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)
 ### ML-KEM (Key Encapsulation Mechanism)
 
 ```rust
-use arc_primitives::kem::ml_kem::*;
+use latticearc::primitives::kem::ml_kem::*;
 use rand::rngs::OsRng;
 
 // Generate keypair
@@ -225,7 +225,7 @@ assert_eq!(shared_secret, recovered);
 ### ML-DSA (Digital Signature Algorithm)
 
 ```rust
-use arc_primitives::sig::ml_dsa::*;
+use latticearc::primitives::sig::ml_dsa::*;
 
 // Generate keypair
 let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)?;
@@ -242,7 +242,7 @@ assert!(verified);
 ### SLH-DSA (Stateless Hash-Based Signatures)
 
 ```rust
-use arc_primitives::sig::slh_dsa::*;
+use latticearc::primitives::sig::slh_dsa::*;
 
 // Generate keypair
 let (signing_key, verifying_key) = SigningKey::generate(SecurityLevel::Sha2128s)?;
@@ -257,8 +257,8 @@ let verified = verifying_key.verify(message, &signature, None)?;
 ### AES-GCM (AEAD Encryption)
 
 ```rust
-use arc_primitives::aead::aes_gcm::*;
-use arc_primitives::aead::AeadCipher;
+use latticearc::primitives::aead::aes_gcm::*;
+use latticearc::primitives::aead::AeadCipher;
 
 // Generate key and create cipher
 let key = AesGcm256::generate_key();
@@ -304,8 +304,8 @@ let decrypted = decrypt_aes_gcm_with_aad_unverified(&encrypted, &key, aad)?;
 ### ChaCha20-Poly1305
 
 ```rust
-use arc_primitives::aead::chacha20poly1305::*;
-use arc_primitives::aead::AeadCipher;
+use latticearc::primitives::aead::chacha20poly1305::*;
+use latticearc::primitives::aead::AeadCipher;
 
 // Generate key and create cipher
 let key = ChaCha20Poly1305Cipher::generate_key();
@@ -658,6 +658,6 @@ let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 
 ---
 
-**Document Version**: 0.1.4
-**Last Updated**: February 16, 2026
+**Document Version**: 0.2.0
+**Last Updated**: February 20, 2026
 **Maintained By**: LatticeArc Documentation Team

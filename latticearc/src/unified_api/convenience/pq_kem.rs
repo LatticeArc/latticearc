@@ -116,7 +116,7 @@ fn decrypt_pq_ml_kem_internal(
 
     let sk = MlKemSecretKey::new(security_level, ml_kem_sk.to_vec()).map_err(|e| {
         crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "invalid secret key");
-        CoreError::DecryptionFailed(format!("Invalid ML-KEM secret key: {}", e))
+        CoreError::DecryptionFailed(format!("Invalid ML-KEM decapsulation key: {}", e))
     })?;
 
     let ct = MlKemCiphertext::new(security_level, ct_bytes.to_vec()).map_err(|e| {

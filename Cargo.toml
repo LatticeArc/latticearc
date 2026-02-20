@@ -297,7 +297,7 @@ x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
 # Post-quantum cryptography - FIPS 140-3 validated via aws-lc-rs
 # aws-lc-rs provides ML-KEM with FIPS 140-3 certification (Certificate #4631, #4759, #4816)
 # Note: FIPS mode requires cmake and go build tools
-aws-lc-rs = { version = "1.16.0", default-features = false, features = ["fips"] }
+aws-lc-rs = { version = "1.16.0" }
 
 # Post-quantum signatures - aws-lc-rs ML-DSA is unstable and requires !fips feature
 # See: https://github.com/aws/aws-lc-rs/issues/964 (FIPS branch lacks ML-DSA)

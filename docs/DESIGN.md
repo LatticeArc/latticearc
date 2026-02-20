@@ -30,7 +30,7 @@ LatticeArc is available in two editions:
 2. **Hybrid by Default**: All encryption uses PQ + classical algorithms—no classical-only paths exposed
 3. **Zero Trust Framework**: Challenge-response authentication with ZKP support
 4. **Modularity**: Use only what you need, from high-level to low-level APIs
-5. **FIPS Compliance**: NIST FIPS 203-206 compliant implementations
+5. **FIPS Compliance**: NIST FIPS 203-206 compliant implementations with `ComplianceMode` (Default, Fips140_3, Cnsa2_0) and `fips` feature flag
 
 ## Architecture Overview
 
@@ -112,7 +112,7 @@ graph TB
 ```
 
 **Key architectural properties (v0.2.0):**
-- **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (12 proofs)
+- **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (29 proofs)
 - All modules consolidated into single `latticearc` crate (was 8 separate crates)
 - **`latticearc-tests`** consolidates all integration tests, CAVP validation, and NIST KAT vectors
 - Dashed lines (-.->|dev-dep|) indicate test-only dependencies
@@ -416,7 +416,7 @@ Zero-FFI-dependency module containing all types, traits, and configuration that 
 
 | Module | Purpose |
 |--------|---------|
-| `types` | `ZeroizedBytes`, `SecurityLevel`, `UseCase`, `CryptoScheme`, `CryptoContext` |
+| `types` | `ZeroizedBytes`, `SecurityLevel`, `UseCase`, `CryptoScheme`, `CryptoContext`, `ComplianceMode`, `PerformancePreference` |
 | `traits` | `Encryptable`, `Decryptable`, `Signable`, `Verifiable`, `SchemeSelector` |
 | `config` | `CoreConfig`, `EncryptionConfig`, `SignatureConfig`, `ZeroTrustConfig` |
 | `selector` | `CryptoPolicyEngine` and scheme constants |

@@ -8,7 +8,7 @@ LatticeArc verifies correctness at three layers, each with the right tool for th
 |-------|------|-------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
 | **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
-| **Type invariants** | [Kani](https://github.com/model-checking/kani) (12 proofs) | `latticearc::types` (pure Rust) | State machine rules, enum exhaustiveness, ordering, defaults |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (29 proofs) | `latticearc::types` (pure Rust) | State machine rules, config validation, domain separation, enum exhaustiveness, ordering, defaults |
 
 ### Why three layers?
 
@@ -41,11 +41,11 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 
 ## Layer 3: Kani — Type Invariants
 
-12 bounded model checking proofs in `latticearc::types` (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
+29 bounded model checking proofs across 7 files in `latticearc::types` (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
 
 ### What Kani verifies
 
-#### Key Lifecycle State Machine — `src/key_lifecycle.rs` (5 proofs)
+#### Key Lifecycle State Machine — `types/key_lifecycle.rs` (5 proofs)
 
 | Proof | What It Guarantees |
 |-------|-------------------|
@@ -55,29 +55,83 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 | `key_state_machine_only_generation_from_none` | Keys must begin in Generation state |
 | `key_state_machine_retired_only_to_destroyed` | Retired keys can only be destroyed (no reactivation) |
 
-#### Policy Engine — `src/selector.rs` (3 proofs)
+#### Configuration Validation — `types/config.rs` (6 proofs)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `core_config_default_validates` | `CoreConfig::default()` always passes validation |
+| `core_config_for_production_validates` | `CoreConfig::for_production()` always passes validation |
+| `core_config_for_development_validates` | `CoreConfig::for_development()` always passes validation |
+| `core_config_validation_biconditional` | `validate()` passes IFF both safety invariants hold (exhaustive over all 96 CoreConfig combinations) |
+| `encryption_compression_requires_integrity` | Compression without integrity check fails validation (prevents oracle attacks) |
+| `signature_chain_requires_timestamp` | Certificate chain without timestamp fails validation (revocation checking) |
+
+The bi-conditional proof (`core_config_validation_biconditional`) is the strongest — it proves validation has no false positives AND no false negatives across all 96 possible CoreConfig combinations (4 security levels × 3 performance preferences × 2³ booleans).
+
+#### Policy Engine — `types/selector.rs` (5 proofs)
 
 | Proof | What It Guarantees |
 |-------|-------------------|
 | `force_scheme_covers_all_variants` | Every `CryptoScheme` maps to a non-empty algorithm string |
 | `select_pq_encryption_covers_all_levels` | Every `SecurityLevel` has a PQ encryption algorithm |
 | `select_pq_signature_covers_all_levels` | Every `SecurityLevel` has a PQ signature algorithm |
+| `select_encryption_covers_all_levels` | Hybrid/general encryption selection succeeds for all SecurityLevels |
+| `select_signature_covers_all_levels` | Signature scheme selection succeeds for all SecurityLevels |
 
-These catch bugs when someone adds a new enum variant but forgets to handle it — Kani exhaustively checks all variants.
+These catch bugs when someone adds a new enum variant but forgets to handle it — Kani exhaustively checks all variants, including hybrid and general scheme selection paths.
 
-#### Trust Levels — `src/zero_trust.rs` (3 proofs)
+#### Compliance Mode — `types/types.rs` (3 proofs)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `compliance_mode_requires_fips_exhaustive` | `requires_fips()` is true IFF mode is Fips140_3 or Cnsa2_0 |
+| `compliance_mode_allows_hybrid_exhaustive` | `allows_hybrid()` is true IFF mode is NOT Cnsa2_0 (CNSA 2.0 mandates PQ-only) |
+| `performance_preference_default_is_balanced` | Default PerformancePreference is Balanced, not Speed (prevents accidental classical-only fallback) |
+
+#### Trust Levels — `types/zero_trust.rs` (4 proofs)
 
 | Proof | What It Guarantees |
 |-------|-------------------|
 | `trust_level_ordering_total` | Trust hierarchy has no ambiguous comparisons |
 | `trust_level_is_trusted_iff_at_least_partial` | Untrusted entities are never considered trusted |
 | `trust_level_untrusted_is_minimum` | Trust floor is well-defined (Untrusted is lowest) |
+| `trust_level_is_fully_trusted_iff_fully_trusted` | `is_fully_trusted()` returns true IFF level is FullyTrusted |
 
-#### Security Defaults — `src/types.rs` (1 proof)
+#### Domain Separation — `types/domains.rs` (1 proof)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `domain_constants_pairwise_distinct` | All 4 HKDF domain constants (HYBRID_KEM, CASCADE_OUTER, CASCADE_INNER, SIGNATURE_BIND) are pairwise distinct |
+
+This is a critical security property — if any two domain constants collide, different protocol layers derive the same keys, destroying cryptographic isolation (NIST SP 800-108).
+
+#### Verification Status — `types/traits.rs` (1 proof)
+
+| Proof | What It Guarantees |
+|-------|-------------------|
+| `verification_status_is_verified_iff_verified` | `is_verified()` returns true IFF status is Verified (expired/failed/pending sessions are never "verified") |
+
+#### Security Defaults — `types/types.rs` (4 proofs)
 
 | Proof | What It Guarantees |
 |-------|-------------------|
 | `security_level_default_is_high` | Default security is NIST Level 3, not a weaker option |
+| `compliance_mode_default_is_unrestricted` | Default compliance is Unrestricted (not FIPS-restricted) |
+| `cnsa_requires_fips` | CNSA 2.0 mode requires FIPS validation |
+| `cnsa_disallows_hybrid` | CNSA 2.0 mode disallows hybrid (PQ-only mandated) |
+
+### Proof summary by file
+
+| File | Proofs | Key Property |
+|------|--------|-------------|
+| `types/key_lifecycle.rs` | 5 | SP 800-57 state machine correctness |
+| `types/config.rs` | 6 | CoreConfig bi-conditional validation (96 combos) |
+| `types/selector.rs` | 5 | Encryption + signature selection completeness |
+| `types/types.rs` | 7 | ComplianceMode, SecurityLevel defaults and exhaustive checks |
+| `types/zero_trust.rs` | 4 | Trust level ordering + `is_fully_trusted()` |
+| `types/domains.rs` | 1 | Domain separation pairwise distinctness |
+| `types/traits.rs` | 1 | VerificationStatus correctness |
+| **Total** | **29** | |
 
 ### What Kani does NOT verify
 
@@ -100,11 +154,12 @@ These catch bugs when someone adds a new enum variant but forgets to handle it �
 cargo install --locked kani-verifier
 cargo kani setup
 
-# Run all 12 proofs
+# Run all 29 proofs
 cargo kani -p latticearc
 
 # Run a specific proof
-cargo kani --harness key_state_machine_transitions_match_spec -p latticearc
+cargo kani --harness core_config_validation_biconditional -p latticearc
+cargo kani --harness domain_constants_pairwise_distinct -p latticearc
 ```
 
 ### Proptest (local)
@@ -120,9 +175,9 @@ cargo test --package latticearc-tests --release -- proptest
 |------|------------------|----------|------|
 | **SAW** | Primitive correctness (via aws-lc-rs) | AES-GCM, ML-KEM, SHA-2 | Inherited |
 | **Proptest** | API crypto correctness (256 random cases/property) | 40+ properties, 6 files | ~60s (release) |
-| **Kani** | Type invariants (all possible inputs) | 12 proofs in latticearc::types | ~10 min |
-| **Unit tests** | Specific test cases | 977+ tests | ~120s (release) |
-| **Fuzzing** | Edge cases via randomness | 9 fuzz targets | 5 min/day |
+| **Kani** | Type invariants (all possible inputs) | 29 proofs across 7 files in latticearc::types | ~15 min |
+| **Unit tests** | Specific test cases | 8,500+ tests | ~120s (release) |
+| **Fuzzing** | Edge cases via randomness | 28 fuzz targets | 5 min/day |
 
 ## Additional Resources
 

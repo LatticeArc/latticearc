@@ -18,6 +18,9 @@ workspace = true
 
 [features]
 default = []
+# FIPS 140-3 validated backend (requires CMake + Go build tools)
+# Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only).
+fips = ["aws-lc-rs/fips"]
 # Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA)
 fips-self-test = []
 # ZKP serialization support (enables serde_with for ZKP types)

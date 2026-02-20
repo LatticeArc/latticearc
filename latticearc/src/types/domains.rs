@@ -29,3 +29,21 @@ pub const CASCADE_INNER: &[u8] = b"LatticeArc-v1-Cascade-AES256GCM";
 /// Used when binding dual signatures combining Ed25519 classical signatures
 /// with ML-DSA-87 post-quantum signatures for hybrid authentication.
 pub const SIGNATURE_BIND: &[u8] = b"LatticeArc-v1-DualSignature-Ed25519-MLDSA87";
+
+// Formal verification with Kani
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    /// Proves all 4 HKDF domain constants are pairwise distinct.
+    /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
+    #[kani::proof]
+    fn domain_constants_pairwise_distinct() {
+        kani::assert(HYBRID_KEM != CASCADE_OUTER, "HYBRID_KEM != CASCADE_OUTER");
+        kani::assert(HYBRID_KEM != CASCADE_INNER, "HYBRID_KEM != CASCADE_INNER");
+        kani::assert(HYBRID_KEM != SIGNATURE_BIND, "HYBRID_KEM != SIGNATURE_BIND");
+        kani::assert(CASCADE_OUTER != CASCADE_INNER, "CASCADE_OUTER != CASCADE_INNER");
+        kani::assert(CASCADE_OUTER != SIGNATURE_BIND, "CASCADE_OUTER != SIGNATURE_BIND");
+        kani::assert(CASCADE_INNER != SIGNATURE_BIND, "CASCADE_INNER != SIGNATURE_BIND");
+    }
+}

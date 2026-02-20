@@ -94,7 +94,7 @@ let is_valid = verify(&signed, config)?;
 ### How do I use low-level primitives?
 
 ```rust
-use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use rand::rngs::OsRng;
 
 let mut rng = OsRng;

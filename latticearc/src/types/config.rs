@@ -433,6 +433,7 @@ impl ZeroTrustConfig {
 /// Higher complexity provides stronger security guarantees but requires
 /// more computation and bandwidth.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum ProofComplexity {
     /// Low complexity: 32-byte challenges, basic verification.
     Low,
@@ -638,6 +639,90 @@ impl UseCaseConfig {
         self.zero_trust.validate()?;
         self.hardware.validate()?;
         Ok(())
+    }
+}
+
+#[cfg(kani)]
+impl kani::Arbitrary for CoreConfig {
+    fn any() -> Self {
+        Self {
+            security_level: kani::any(),
+            performance_preference: kani::any(),
+            hardware_acceleration: kani::any(),
+            fallback_enabled: kani::any(),
+            strict_validation: kani::any(),
+        }
+    }
+}
+
+// Formal verification with Kani
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    /// Proves CoreConfig::default() always passes validation.
+    /// Security: default configuration must always be safe.
+    #[kani::proof]
+    fn core_config_default_validates() {
+        let config = CoreConfig::default();
+        kani::assert(config.validate().is_ok(), "Default CoreConfig must validate");
+    }
+
+    /// Proves for_production() always passes validation.
+    #[kani::proof]
+    fn core_config_for_production_validates() {
+        let config = CoreConfig::for_production();
+        kani::assert(config.validate().is_ok(), "Production config must validate");
+    }
+
+    /// Proves for_development() always passes validation.
+    #[kani::proof]
+    fn core_config_for_development_validates() {
+        let config = CoreConfig::for_development();
+        kani::assert(config.validate().is_ok(), "Development config must validate");
+    }
+
+    /// BI-CONDITIONAL: For ANY CoreConfig, validate() succeeds IFF
+    /// both safety invariants hold. This is the most powerful proof —
+    /// it verifies validation has no false positives AND no false negatives.
+    /// Exhaustive over all 96 CoreConfig combinations.
+    #[kani::proof]
+    fn core_config_validation_biconditional() {
+        let config: CoreConfig = kani::any();
+        let result = config.validate();
+
+        let should_pass = !((matches!(config.security_level, SecurityLevel::Maximum)
+            && !config.hardware_acceleration)
+            || (matches!(config.performance_preference, PerformancePreference::Speed)
+                && !config.fallback_enabled));
+
+        kani::assert(result.is_ok() == should_pass, "validate() passes iff both invariants hold");
+    }
+
+    /// Proves compression without integrity check fails validation.
+    /// Security: compressed ciphertext without integrity enables oracle attacks.
+    #[kani::proof]
+    fn encryption_compression_requires_integrity() {
+        let config = EncryptionConfig {
+            base: CoreConfig::default(),
+            preferred_scheme: None,
+            compression_enabled: true,
+            integrity_check: false,
+        };
+        kani::assert(config.validate().is_err(), "Compression requires integrity");
+    }
+
+    /// Proves certificate chain without timestamp fails validation.
+    /// Security: certificate chains need timestamps for revocation checking.
+    #[kani::proof]
+    fn signature_chain_requires_timestamp() {
+        let config = SignatureConfig {
+            base: CoreConfig::default(),
+            preferred_scheme: None,
+            timestamp_enabled: false,
+            certificate_chain: true,
+        };
+        kani::assert(config.validate().is_err(), "Cert chain requires timestamp");
     }
 }
 

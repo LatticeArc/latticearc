@@ -79,6 +79,16 @@ mod kani_proofs {
 
         kani::assert(TrustLevel::Untrusted <= level, "Untrusted must be the minimum trust level");
     }
+
+    /// Proves is_fully_trusted() returns true IFF level is FullyTrusted.
+    /// Security: only continuously-verified sessions are fully trusted.
+    #[kani::proof]
+    fn trust_level_is_fully_trusted_iff_fully_trusted() {
+        let level: TrustLevel = kani::any();
+        let method = level.is_fully_trusted();
+        let expected = level == TrustLevel::FullyTrusted;
+        kani::assert(method == expected, "is_fully_trusted() iff FullyTrusted");
+    }
 }
 
 #[cfg(test)]

@@ -142,8 +142,8 @@ graph TD
 ### Zero-Trust Configuration
 
 ```rust
-use arc_core::config::{ZeroTrustConfig, ProofComplexity};
-use arc_core::zero_trust::ZeroTrustAuth;
+use latticearc::unified_api::config::{ZeroTrustConfig, ProofComplexity};
+use latticearc::ZeroTrustAuth;
 
 // High-security configuration using builder pattern
 let config = ZeroTrustConfig::new()
@@ -166,7 +166,7 @@ let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 ### Key Generation
 
 ```rust
-use arc_core::convenience::*;
+use latticearc::*;
 
 // Generate post-quantum keypairs
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
@@ -194,7 +194,7 @@ When deriving keys from passwords or shared secrets, follow these guidelines:
 - **Use `derive_key_with_info()` for domain separation** — different info strings produce cryptographically independent keys from the same input keying material
 
 ```rust
-use arc_core::convenience::*;
+use latticearc::*;
 
 // Derive a key from a shared secret + unique salt
 let salt = rand::random::<[u8; 16]>();
@@ -214,7 +214,7 @@ let valid = hmac_check(data, &key, &tag, SecurityMode::Unverified)?;
 When encrypting data that must be bound to a specific context (protocol headers, session identifiers, sender/receiver metadata), use AAD:
 
 ```rust
-use arc_core::convenience::*;
+use latticearc::*;
 
 let key = [0u8; 32];
 let header = b"version:1;sender:alice";
@@ -260,7 +260,7 @@ flowchart LR
 ```
 
 ```rust
-use arc_core::convenience::*;
+use latticearc::*;
 
 // Symmetric encryption with AES-256-GCM (default hybrid scheme)
 let encrypted = encrypt(data, &key, CryptoConfig::new())?;
@@ -283,8 +283,8 @@ let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)
 ### Signatures
 
 ```rust
-use arc_core::convenience::*;
-use arc_core::zero_trust::ZeroTrustAuth;
+use latticearc::*;
+use latticearc::ZeroTrustAuth;
 
 // Generate keypair + sign + verify
 let config = CryptoConfig::new();
@@ -314,7 +314,7 @@ if auth.verify_proof(&proof, &challenge.data)? {
 
 ```rust
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use arc_core::types::ZeroizedBytes;
+use latticearc::ZeroizedBytes;
 
 // Automatic zeroization with ZeroizedBytes
 let private_key = ZeroizedBytes::new(secret_bytes);
@@ -384,7 +384,7 @@ graph LR
 ### Hybrid Mode
 
 ```rust
-use arc_core::selector::*;
+use latticearc::unified_api::selector::*;
 
 // Default: Hybrid (recommended)
 DEFAULT_ENCRYPTION_SCHEME  // hybrid-ml-kem-768-aes-256-gcm
@@ -401,8 +401,8 @@ DEFAULT_SIGNATURE_SCHEME   // hybrid-ml-dsa-65-ed25519
 ### Secure Error Handling
 
 ```rust
-use arc_core::convenience::*;
-use arc_core::error::CoreError;
+use latticearc::*;
+use latticearc::CoreError;
 
 fn process_data(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, CoreError> {
     // Use ? to propagate errors - never ignore them

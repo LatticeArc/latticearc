@@ -182,8 +182,87 @@ pub enum SecurityLevel {
     Quantum,
 }
 
+/// Compliance mode for cryptographic operations.
+///
+/// Controls which regulatory compliance requirements are enforced at runtime.
+/// Some modes require specific compile-time feature flags (e.g., `fips` feature
+/// for FIPS 140-3 validated backend).
+///
+/// # Examples
+///
+/// ```rust
+/// use latticearc::types::types::{ComplianceMode, fips_available};
+///
+/// // Default mode has no restrictions
+/// let mode = ComplianceMode::Default;
+/// assert!(!mode.requires_fips());
+/// assert!(mode.allows_hybrid());
+///
+/// // FIPS mode requires the `fips` feature
+/// let fips = ComplianceMode::Fips140_3;
+/// assert!(fips.requires_fips());
+///
+/// // Check if FIPS backend is compiled in
+/// let _available = fips_available();
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
+pub enum ComplianceMode {
+    /// No compliance restrictions (default).
+    /// All algorithms and modes are available.
+    #[default]
+    Default,
+    /// FIPS 140-3 compliance.
+    /// Requires the `fips` feature at compile time for a validated backend.
+    /// Allows hybrid (PQ + classical) algorithms.
+    Fips140_3,
+    /// CNSA 2.0 compliance.
+    /// Requires the `fips` feature and `SecurityLevel::Quantum` (PQ-only).
+    /// Disallows hybrid algorithms — only pure post-quantum schemes are permitted.
+    Cnsa2_0,
+}
+
+impl ComplianceMode {
+    /// Returns `true` if this compliance mode requires the `fips` feature.
+    #[must_use]
+    pub const fn requires_fips(&self) -> bool {
+        matches!(self, Self::Fips140_3 | Self::Cnsa2_0)
+    }
+
+    /// Returns `true` if this compliance mode allows hybrid (PQ + classical) algorithms.
+    ///
+    /// CNSA 2.0 requires PQ-only algorithms; all other modes allow hybrid.
+    #[must_use]
+    pub const fn allows_hybrid(&self) -> bool {
+        !matches!(self, Self::Cnsa2_0)
+    }
+}
+
+/// Returns `true` if the FIPS 140-3 validated backend is compiled in.
+///
+/// This checks whether the crate was built with `features = ["fips"]`.
+/// When `false`, attempting to use `ComplianceMode::Fips140_3` or `ComplianceMode::Cnsa2_0`
+/// will return an error at validation time with a helpful rebuild message.
+///
+/// # Examples
+///
+/// ```rust
+/// use latticearc::types::types::fips_available;
+///
+/// if fips_available() {
+///     println!("FIPS 140-3 backend is active");
+/// } else {
+///     println!("Using default (non-FIPS) backend");
+/// }
+/// ```
+#[must_use]
+pub const fn fips_available() -> bool {
+    cfg!(feature = "fips")
+}
+
 /// Performance optimization preference.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum PerformancePreference {
     /// Prioritize throughput over memory usage.
     Speed,
@@ -381,6 +460,63 @@ mod kani_proofs {
         kani::assert(
             default == SecurityLevel::High,
             "Default SecurityLevel must be High (NIST Level 3)",
+        );
+    }
+
+    /// Proves that the default ComplianceMode has no restrictions.
+    #[kani::proof]
+    fn compliance_mode_default_is_unrestricted() {
+        let default = ComplianceMode::default();
+        kani::assert(
+            default == ComplianceMode::Default,
+            "Default ComplianceMode must be Default (unrestricted)",
+        );
+        kani::assert(!default.requires_fips(), "Default mode must not require FIPS");
+        kani::assert(default.allows_hybrid(), "Default mode must allow hybrid");
+    }
+
+    /// Proves that CNSA 2.0 requires FIPS.
+    #[kani::proof]
+    fn cnsa_requires_fips() {
+        let cnsa = ComplianceMode::Cnsa2_0;
+        kani::assert(cnsa.requires_fips(), "CNSA 2.0 must require FIPS");
+    }
+
+    /// Proves that CNSA 2.0 disallows hybrid algorithms.
+    #[kani::proof]
+    fn cnsa_disallows_hybrid() {
+        let cnsa = ComplianceMode::Cnsa2_0;
+        kani::assert(!cnsa.allows_hybrid(), "CNSA 2.0 must disallow hybrid");
+    }
+
+    /// Proves requires_fips() is true IFF mode is Fips140_3 or Cnsa2_0.
+    /// Exhaustive over all ComplianceMode variants.
+    #[kani::proof]
+    fn compliance_mode_requires_fips_exhaustive() {
+        let mode: ComplianceMode = kani::any();
+        let requires = mode.requires_fips();
+        let expected = matches!(mode, ComplianceMode::Fips140_3 | ComplianceMode::Cnsa2_0);
+        kani::assert(requires == expected, "requires_fips() iff Fips140_3 or Cnsa2_0");
+    }
+
+    /// Proves allows_hybrid() is true IFF mode is NOT Cnsa2_0.
+    /// Security: CNSA 2.0 mandates PQ-only algorithms.
+    #[kani::proof]
+    fn compliance_mode_allows_hybrid_exhaustive() {
+        let mode: ComplianceMode = kani::any();
+        let allows = mode.allows_hybrid();
+        let expected = !matches!(mode, ComplianceMode::Cnsa2_0);
+        kani::assert(allows == expected, "allows_hybrid() iff not Cnsa2_0");
+    }
+
+    /// Proves default PerformancePreference is Balanced (not Speed).
+    /// Security: prevents accidental classical-only fallback via Speed default.
+    #[kani::proof]
+    fn performance_preference_default_is_balanced() {
+        let default = PerformancePreference::default();
+        kani::assert(
+            default == PerformancePreference::Balanced,
+            "Default PerformancePreference must be Balanced",
         );
     }
 }
@@ -634,5 +770,52 @@ mod tests {
         let sel = AlgorithmSelection::UseCase(UseCase::FileStorage);
         assert_eq!(sel, AlgorithmSelection::UseCase(UseCase::FileStorage));
         assert_ne!(sel, AlgorithmSelection::default());
+    }
+
+    // --- ComplianceMode tests ---
+
+    #[test]
+    fn test_compliance_mode_default() {
+        let mode = ComplianceMode::default();
+        assert_eq!(mode, ComplianceMode::Default);
+    }
+
+    #[test]
+    fn test_compliance_mode_requires_fips() {
+        assert!(!ComplianceMode::Default.requires_fips());
+        assert!(ComplianceMode::Fips140_3.requires_fips());
+        assert!(ComplianceMode::Cnsa2_0.requires_fips());
+    }
+
+    #[test]
+    fn test_compliance_mode_allows_hybrid() {
+        assert!(ComplianceMode::Default.allows_hybrid());
+        assert!(ComplianceMode::Fips140_3.allows_hybrid());
+        assert!(!ComplianceMode::Cnsa2_0.allows_hybrid());
+    }
+
+    #[test]
+    fn test_compliance_mode_clone_eq() {
+        let mode = ComplianceMode::Fips140_3;
+        assert_eq!(mode, mode.clone());
+        assert_ne!(ComplianceMode::Default, ComplianceMode::Fips140_3);
+        assert_ne!(ComplianceMode::Fips140_3, ComplianceMode::Cnsa2_0);
+    }
+
+    #[test]
+    fn test_compliance_mode_debug() {
+        let debug = format!("{:?}", ComplianceMode::Fips140_3);
+        assert!(debug.contains("Fips140_3"));
+    }
+
+    #[test]
+    fn test_fips_available() {
+        let available = fips_available();
+        // When built with --all-features or --features fips, this is true.
+        // When built without fips feature, this is false.
+        #[cfg(feature = "fips")]
+        assert!(available);
+        #[cfg(not(feature = "fips"))]
+        assert!(!available);
     }
 }

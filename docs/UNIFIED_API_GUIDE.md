@@ -278,7 +278,7 @@ let config = CryptoConfig::new()
 TLS configuration follows the same builder pattern.
 
 ```rust
-use arc_tls::{TlsConfig, TlsUseCase};
+use latticearc::tls::{TlsConfig, TlsUseCase};
 
 // Default: Hybrid mode (X25519 + ML-KEM)
 let config = TlsConfig::new();
@@ -508,7 +508,7 @@ let plaintext = decrypt(&encrypted, &key, CryptoConfig::new())?;
 
 ```rust
 use latticearc::generate_keypair;
-use arc_core::{generate_ml_kem_keypair, generate_ml_dsa_keypair};
+use latticearc::{generate_ml_kem_keypair, generate_ml_dsa_keypair};
 
 // Ed25519
 let (pk, sk) = generate_keypair()?;

@@ -12,6 +12,7 @@ This document explains LatticeArc's algorithm choices, including what we include
 - [Included Algorithms](#included-algorithms)
 - [Excluded Algorithms](#excluded-algorithms)
 - [Backend Selection](#backend-selection)
+- [Compliance Modes](#compliance-modes)
 - [Ecosystem Positioning](#ecosystem-positioning)
 - [Performance Data](#performance-data)
 - [Roadmap](#roadmap)
@@ -432,12 +433,11 @@ Signature operations per second:
 **Current:** ML-DSA uses `fips204` crate (pure Rust, NIST-compliant)
 
 **Why not aws-lc-rs ML-DSA?**
-- ⚠️ ML-DSA in aws-lc-rs is `unstable::signature` (not stabilized as of v1.15.4)
-- ⚠️ No public Rust API yet
+- ⚠️ ML-DSA in aws-lc-rs is `unstable::signature` (FIPS API not yet stabilized)
+- ⚠️ Our PRs [#1029](https://github.com/aws/aws-lc-rs/pull/1029) and [#1034](https://github.com/aws/aws-lc-rs/pull/1034) shipped in v1.16.0, but the public ML-DSA Rust API remains unstable
 
 **Migration plan:**
-- Our PR [aws/aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034) for ML-DSA seed-based keygen was merged
-- When aws-lc-rs stabilizes ML-DSA (v1.16+), we'll migrate
+- When aws-lc-rs stabilizes ML-DSA FIPS API, we'll migrate for FIPS-validated signatures
 - Tracking: GitHub issue #17
 
 ---
@@ -484,15 +484,31 @@ We actively contribute features to aws-lc-rs that benefit the entire Rust crypto
 
 | Algorithm | Backend | Version | Status |
 |-----------|---------|---------|--------|
-| **ML-KEM** | aws-lc-rs | 1.15.4 | ✅ FIPS 140-3 validated |
+| **ML-KEM** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated |
 | **ML-DSA** | fips204 | 0.4.6 | ⚠️ Awaiting aws-lc-rs stabilization |
 | **SLH-DSA** | fips205 | 0.4.1 | ✅ NIST-compliant |
 | **FN-DSA** | fn-dsa | 0.3.0 | ✅ FIPS 206 compliant |
 | **Ed25519** | ed25519-dalek | 2.1.1 | ✅ Audited, constant-time |
-| **X25519** | aws-lc-rs | 1.15.4 | ✅ FIPS 140-3 validated |
-| **AES-GCM** | aws-lc-rs | 1.15.4 | ✅ FIPS 140-3 validated |
+| **X25519** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated |
+| **AES-GCM** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated |
 | **ChaCha20-Poly1305** | chacha20poly1305 | 0.10.1 | ✅ RustCrypto audited |
 | **HKDF** | hkdf | 0.12.4 | ✅ RustCrypto |
+
+---
+
+## Compliance Modes
+
+LatticeArc supports compliance-driven algorithm constraints via `ComplianceMode`. These constraints are formally verified by Kani (exhaustive over all variants).
+
+| Mode | FIPS Required | Hybrid Allowed | Algorithm Constraint |
+|------|---------------|----------------|---------------------|
+| `Unrestricted` (default) | No | Yes | All algorithms available |
+| `Fips140_3` | Yes | Yes | Only FIPS-validated backends (aws-lc-rs for KEM/AEAD) |
+| `Cnsa2_0` | Yes | No | PQ-only algorithms mandated (no classical fallback) |
+
+**CNSA 2.0 impact:** When `ComplianceMode::Cnsa2_0` is set, hybrid schemes (ML-KEM + X25519, ML-DSA + Ed25519) are disallowed. Only pure PQ algorithms are used, matching NSA's Commercial National Security Algorithm Suite 2.0 requirements.
+
+**Formal verification:** Kani proofs exhaustively verify that `requires_fips()` and `allows_hybrid()` return correct values for every `ComplianceMode` variant.
 
 ---
 
@@ -593,7 +609,7 @@ LatticeArc exists within a rich ecosystem of cryptographic libraries. Rather tha
 | Aspect | Bouncy Castle | LatticeArc |
 |--------|---------------|------------|
 | **Ecosystem** | Java/C# | Rust |
-| **Maturity** | 25 years, v2.x | New, v0.1.0 |
+| **Maturity** | 25 years, v2.x | New, v0.2.0 |
 | **Hybrid Sigs** | ✅ Composite sigs (X.509) | ✅ ML-DSA + Ed25519 |
 | **Use Case** | Enterprise Java applications | Rust applications, systems programming |
 
@@ -660,16 +676,17 @@ LatticeArc exists within a rich ecosystem of cryptographic libraries. Rather tha
 
 #### ML-DSA Migration to aws-lc-rs
 
-**Status:** Waiting for upstream stabilization
+**Status:** Waiting for FIPS API stabilization (PRs merged in v1.16.0, API still `unstable::signature`)
 
 **Priority:** High - enables FIPS-validated signatures
 
 **Timeline:**
-- aws-lc-rs v1.16.0 expected Mar-Jun 2026
-- Will migrate when stable ML-DSA API is available
-- Tracking: Issue #17, PRs aws/aws-lc-rs#1029 and #1034 (both merged)
+- aws-lc-rs v1.16.0 shipped (Feb 2026) with our PRs #1029 and #1034
+- ML-DSA FIPS API stabilization expected in a future release
+- Will migrate when stable public API is available
+- Tracking: Issue #17
 
-**Benefit:** FIPS-validated ML-DSA (currently using fips204)
+**Benefit:** FIPS-validated ML-DSA (currently using fips204 crate)
 
 ---
 
@@ -689,7 +706,7 @@ LatticeArc exists within a rich ecosystem of cryptographic libraries. Rather tha
 
 #### P-256/P-384/P-521 ECDSA Hybrids
 
-**Status:** NOT planned unless users need it
+**Status:** Not included. Available on request if specific legacy constraints require it.
 
 **Our position:** Ed25519 is objectively better (5x faster, safer, FIPS 186-5 approved). We will NOT proactively add P-256 ECDSA.
 
@@ -795,5 +812,5 @@ See our [Security Policy](../SECURITY.md) or email Security@LatticeArc.com
 
 ---
 
-**Last Updated:** February 11, 2026
+**Last Updated:** February 20, 2026
 **Document Version:** 1.0

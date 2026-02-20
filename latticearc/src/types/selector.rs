@@ -503,6 +503,39 @@ mod kani_proofs {
         let result = CryptoPolicyEngine::select_pq_signature_scheme(&config);
         kani::assert(result.is_ok(), "PQ signature selection must succeed for all security levels");
     }
+
+    /// Proves hybrid/general encryption selection succeeds for all SecurityLevels
+    /// when no UseCase is specified. Security: no security level lacks a scheme.
+    #[kani::proof]
+    fn select_encryption_covers_all_levels() {
+        let level: SecurityLevel = kani::any();
+        let config = CoreConfig {
+            security_level: level,
+            performance_preference: PerformancePreference::Balanced,
+            hardware_acceleration: true,
+            fallback_enabled: true,
+            strict_validation: true,
+        };
+        let data = [0u8; 16];
+        let result = CryptoPolicyEngine::select_encryption_scheme(&data, &config, None);
+        kani::assert(result.is_ok(), "Encryption selection must succeed for all levels");
+    }
+
+    /// Proves signature scheme selection succeeds for all SecurityLevels.
+    /// Security: no security level lacks a signature algorithm.
+    #[kani::proof]
+    fn select_signature_covers_all_levels() {
+        let level: SecurityLevel = kani::any();
+        let config = CoreConfig {
+            security_level: level,
+            performance_preference: PerformancePreference::Balanced,
+            hardware_acceleration: true,
+            fallback_enabled: true,
+            strict_validation: true,
+        };
+        let result = CryptoPolicyEngine::select_signature_scheme(&config);
+        kani::assert(result.is_ok(), "Signature selection must succeed for all levels");
+    }
 }
 
 #[cfg(test)]

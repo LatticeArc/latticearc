@@ -160,8 +160,8 @@ let is_valid = verify(&signed, config)?;
 ### Post-Quantum TLS
 
 ```rust
-use arc_tls::{TlsConfig, TlsUseCase};
-use arc_core::SecurityLevel;
+use latticearc::tls::{TlsConfig, TlsUseCase};
+use latticearc::SecurityLevel;
 
 // Default: Hybrid mode (X25519 + ML-KEM)
 let config = TlsConfig::new();
@@ -178,7 +178,7 @@ let config = TlsConfig::new().security_level(SecurityLevel::Maximum);
 For direct access to NIST algorithms:
 
 ```rust
-use arc_primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use rand::rngs::OsRng;
 
 let mut rng = OsRng;

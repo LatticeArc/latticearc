@@ -51,13 +51,10 @@ pub fn basemul_simd(a: i32x8, b: i32x8, zeta: i32x8) -> i32x8 {
     let r0 = montgomery_reduce_simd(a0 * b0) + zeta_a1_b1;
     let r1 = montgomery_reduce_simd(a0 * b1) + montgomery_reduce_simd(a1 * b0);
 
-    // Interleave results for output
-    let mut result = i32x8::splat(0);
-    for i in 0..4 {
-        result[2*i] = r0[i];
-        result[2*i + 1] = r1[i];
-    }
-    result
+    // Interleave results: [r0[0], r1[0], r0[1], ..., r0[3], r1[3]]
+    i32x8::from_array([
+        r0[0], r1[0], r0[1], r1[1], r0[2], r1[2], r0[3], r1[3],
+    ])
 }
 
 /// AVX2-accelerated NTT implementation

@@ -196,6 +196,7 @@
 //!
 //! | Feature | Description |
 //! |---------|-------------|
+//! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). |
 //! | `fips-self-test` | Power-up KAT self-tests for all FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). |
 //! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
 //! | `formal-verification` | Enables formal verification harnesses (Kani proofs for type invariants). |
@@ -257,6 +258,8 @@ pub use unified_api::{
     // Algorithm selection types
     AlgorithmSelection,
     Challenge,
+    // Compliance
+    ComplianceMode,
     ContinuousSession,
     // Traits
     ContinuousVerifiable,
@@ -307,6 +310,8 @@ pub use unified_api::{
     ZeroTrustAuthenticable,
     ZeroTrustSession,
     ZeroizedBytes,
+    // Compile-time feature detection
+    fips_available,
     // Initialization
     init,
     init_with_config,

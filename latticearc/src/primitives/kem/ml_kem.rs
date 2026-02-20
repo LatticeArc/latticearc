@@ -793,7 +793,7 @@ impl MlKem {
 
         // Serialize secret key bytes via DecapsulationKey::key_bytes() (available since aws-lc-rs v1.16.0)
         let sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
-            MlKemError::KeyGenerationError(format!("Failed to serialize secret key: {}", e))
+            MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
         })?;
         let sk_bytes = sk_bytes_obj.as_ref().to_vec();
 

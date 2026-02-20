@@ -1,9 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# LatticeArc Audit Script v2.0 — CODE_AUDIT_METHODOLOGY.md v1.9
+# LatticeArc Audit Script v2.1 — CODE_AUDIT_METHODOLOGY.md v1.9
 # =============================================================================
 #
-# ~55 automated checks across all 13 audit dimensions.
+# ~70 automated checks across all 13 audit dimensions.
 # Each check references its methodology doc ID (e.g., "1.5", "2.3").
 #
 # Usage:
@@ -516,7 +516,9 @@ if [ "$QUICK" = false ]; then
         if [ -f "$md" ]; then
             LINKS=$(grep -oE '\]\([^http#][^)]*\.md[^)]*\)' "$md" 2>/dev/null | sed 's/\](//;s/)$//' || true)
             for link in $LINKS; do
-                if [ ! -f "$link" ]; then
+                # Strip anchor fragments (#section) before checking file existence
+                file_path="${link%%#*}"
+                if [ ! -f "$file_path" ]; then
                     BROKEN_LINKS="${BROKEN_LINKS}${md} -> ${link}"$'\n'
                 fi
             done
@@ -527,9 +529,11 @@ if [ "$QUICK" = false ]; then
         if [ -f "$md" ]; then
             LINKS=$(grep -oE '\]\([^http#][^)]*\.md[^)]*\)' "$md" 2>/dev/null | sed 's/\](//;s/)$//' || true)
             for link in $LINKS; do
+                # Strip anchor fragments (#section) before checking file existence
+                file_path="${link%%#*}"
                 # Resolve relative to the doc file's directory
-                target="$(dirname "$md")/$link"
-                if [ ! -f "$target" ] && [ ! -f "$link" ]; then
+                target="$(dirname "$md")/$file_path"
+                if [ ! -f "$target" ] && [ ! -f "$file_path" ]; then
                     BROKEN_LINKS="${BROKEN_LINKS}${md} -> ${link}"$'\n'
                 fi
             done
@@ -542,6 +546,89 @@ if [ "$QUICK" = false ]; then
         BLCOUNT=$(echo "$BROKEN_LINKS" | wc -l | tr -d ' ')
         warn "7.11 $BLCOUNT broken internal link(s):"
         echo "$BROKEN_LINKS" | head -5
+    fi
+
+    # 7.12: Version consistency — doc versions must match workspace Cargo.toml
+    WORKSPACE_VER=$(grep -m1 '^version = ' Cargo.toml 2>/dev/null | sed 's/version = "//;s/"//')
+    if [ -n "$WORKSPACE_VER" ]; then
+        VER_STALE=""
+        # Check FIPS Security Policy module version
+        if [ -f docs/FIPS_SECURITY_POLICY.md ]; then
+            FIPS_VER=$(grep -m1 'Module Version.*[0-9]' docs/FIPS_SECURITY_POLICY.md 2>/dev/null \
+                | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+            if [ -n "$FIPS_VER" ] && [ "$FIPS_VER" != "$WORKSPACE_VER" ]; then
+                VER_STALE="${VER_STALE}  FIPS_SECURITY_POLICY.md: $FIPS_VER (expected $WORKSPACE_VER)\n"
+            fi
+        fi
+        # Check API documentation version
+        if [ -f docs/API_DOCUMENTATION.md ]; then
+            API_VER=$(grep -m1 'Version.*[0-9]\|version.*[0-9]' docs/API_DOCUMENTATION.md 2>/dev/null \
+                | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+            if [ -n "$API_VER" ] && [ "$API_VER" != "$WORKSPACE_VER" ]; then
+                VER_STALE="${VER_STALE}  API_DOCUMENTATION.md: $API_VER (expected $WORKSPACE_VER)\n"
+            fi
+        fi
+        # Check SECURITY.md supported version
+        if [ -f SECURITY.md ]; then
+            SEC_VER=$(grep -m1 "${WORKSPACE_VER%.*}" SECURITY.md 2>/dev/null || true)
+            if [ -z "$SEC_VER" ]; then
+                VER_STALE="${VER_STALE}  SECURITY.md: no ${WORKSPACE_VER%.*}.x version line found\n"
+            fi
+        fi
+        if [ -z "$VER_STALE" ]; then
+            pass "7.12 Doc versions match workspace version ($WORKSPACE_VER)"
+        else
+            warn "7.12 Version mismatch in docs (workspace is $WORKSPACE_VER):"
+            echo -e "$VER_STALE" | head -5
+        fi
+    fi
+
+    # 7.13: Kani proof count — docs must match actual #[kani::proof] count in source
+    ACTUAL_PROOFS=$(grep -rc '#\[kani::proof\]' $SRC/types/*.rs 2>/dev/null | awk -F: '{s+=$2}END{print s}')
+    ACTUAL_PROOFS="${ACTUAL_PROOFS:-0}"
+    PROOF_STALE=""
+    for doc in README.md SECURITY.md docs/FORMAL_VERIFICATION.md docs/DESIGN.md; do
+        if [ -f "$doc" ]; then
+            # Look for the total count: largest number near "proof"/"Kani"/"bounded model"
+            # Use max to avoid matching sub-category counts like "3 proofs" in breakdown
+            DOC_COUNT=$(grep -oE '[0-9]+ (bounded model|Kani|kani|proofs)' "$doc" 2>/dev/null \
+                | grep -oE '^[0-9]+' | sort -rn | head -1 || true)
+            if [ -n "$DOC_COUNT" ] && [ "$DOC_COUNT" != "$ACTUAL_PROOFS" ]; then
+                PROOF_STALE="${PROOF_STALE}  $doc: claims $DOC_COUNT proofs (actual: $ACTUAL_PROOFS)\n"
+            fi
+        fi
+    done
+    if [ -z "$PROOF_STALE" ]; then
+        pass "7.13 Kani proof count in docs matches source ($ACTUAL_PROOFS proofs)"
+    else
+        warn "7.13 Kani proof count mismatch:"
+        echo -e "$PROOF_STALE"
+    fi
+
+    # 7.14: Backend version alignment — aws-lc-rs version in docs matches Cargo.lock
+    if [ -f Cargo.lock ]; then
+        LOCK_AWSLC=$(grep -A1 '^name = "aws-lc-rs"' Cargo.lock 2>/dev/null \
+            | grep 'version' | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+        if [ -n "$LOCK_AWSLC" ]; then
+            AWSLC_STALE=""
+            for doc in docs/ALGORITHM_SELECTION.md docs/FIPS_SECURITY_POLICY.md; do
+                if [ -f "$doc" ]; then
+                    DOC_AWSLC=$(grep -oE 'aws-lc-rs[^0-9]*[0-9]+\.[0-9]+\.[0-9]+' "$doc" 2>/dev/null \
+                        | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -u || true)
+                    for v in $DOC_AWSLC; do
+                        if [ "$v" != "$LOCK_AWSLC" ]; then
+                            AWSLC_STALE="${AWSLC_STALE}  $doc: references aws-lc-rs $v (lock: $LOCK_AWSLC)\n"
+                        fi
+                    done
+                fi
+            done
+            if [ -z "$AWSLC_STALE" ]; then
+                pass "7.14 aws-lc-rs version in docs matches Cargo.lock ($LOCK_AWSLC)"
+            else
+                warn "7.14 aws-lc-rs version mismatch in docs:"
+                echo -e "$AWSLC_STALE"
+            fi
+        fi
     fi
 fi
 
@@ -741,16 +828,19 @@ fi
 if [ "$QUICK" = false ]; then
     section "Dim 12" "Documentation Accuracy"
 
-    # 12.x: Check for stale crate references
-    STALE_REFS=$(grep -rn 'arc-types\|arc-prelude\|arc-primitives\|arc-hybrid\|arc-core\b\|arc-tls\|arc-validation\|arc-zkp\|arc-perf\|arc-tests' \
+    # 12.18: Check for stale crate references (both dash and underscore style)
+    # Dash-style: crate names in Cargo.toml, markdown text (arc-core, arc-primitives)
+    # Underscore-style: Rust imports in code examples (arc_core::, arc_primitives::)
+    STALE_REFS=$(grep -rn 'arc-types\|arc-prelude\|arc-primitives\|arc-hybrid\|arc-core\b\|arc-tls\|arc-validation\|arc-zkp\|arc-perf\|arc-tests\|arc_core::\|arc_types::\|arc_prelude::\|arc_primitives::\|arc_hybrid::\|arc_tls::\|arc_validation::\|arc_zkp::\|arc_perf::' \
         --include="*.md" --include="*.yml" --include="*.yaml" . 2>/dev/null \
         | grep -v 'node_modules' | grep -v '.git/' \
         | grep -v 'CHANGELOG' | grep -v 'CODE_AUDIT' | grep -v 'SESSION_SUMMARY' \
-        | grep -v 'ARCHITECTURE_REFACTOR' | grep -v 'latticearc-tests' || true)
+        | grep -v 'latticearc-tests' || true)
     if [ -z "$STALE_REFS" ]; then
         pass "12.18 No stale crate references in docs/CI"
     else
-        warn "12.18 Stale crate references found (old arc-* names):"
+        SRCOUNT=$(echo "$STALE_REFS" | wc -l | tr -d ' ')
+        warn "12.18 $SRCOUNT stale crate reference(s) found (old arc-*/arc_* names):"
         echo "$STALE_REFS" | head -10
     fi
 
@@ -776,6 +866,58 @@ if [ "$QUICK" = false ]; then
     else
         warn "12.7 Stale PR references found:"
         echo "$STALE_PR" | head -5
+    fi
+
+    # 12.19: Date freshness — "Last Updated" / "Date" in docs should not be >30 days stale
+    # compared to the last git commit that touched that file
+    DATE_STALE=""
+    NOW_EPOCH=$(date +%s)
+    for doc in docs/API_DOCUMENTATION.md docs/FIPS_SECURITY_POLICY.md docs/ALGORITHM_SELECTION.md; do
+        if [ -f "$doc" ]; then
+            # Extract date from doc (formats: "February 20, 2026" or "2026-02-20")
+            DOC_DATE=$(grep -iE 'last updated|^date:|^\*\*date\*\*' "$doc" 2>/dev/null | head -1 || true)
+            if [ -z "$DOC_DATE" ]; then
+                DOC_DATE=$(grep -iE 'February|January|March|April|May|June|July|August|September|October|November|December' "$doc" 2>/dev/null \
+                    | grep -iE '[0-9]{1,2},? 202[0-9]' | head -1 || true)
+            fi
+            if [ -n "$DOC_DATE" ]; then
+                # Extract ISO-ish date for comparison
+                DOC_ISO=$(echo "$DOC_DATE" | grep -oE '20[0-9]{2}-[0-9]{2}-[0-9]{2}' | head -1 || true)
+                if [ -z "$DOC_ISO" ]; then
+                    # Try "Month Day, Year" format
+                    DOC_ISO=$(echo "$DOC_DATE" | grep -oE '(January|February|March|April|May|June|July|August|September|October|November|December) [0-9]{1,2},? 20[0-9]{2}' | head -1 || true)
+                    if [ -n "$DOC_ISO" ]; then
+                        DOC_ISO=$(date -j -f "%B %d, %Y" "$(echo "$DOC_ISO" | sed 's/,//')" "+%Y-%m-%d" 2>/dev/null \
+                            || date -j -f "%B %d %Y" "$(echo "$DOC_ISO" | sed 's/,//')" "+%Y-%m-%d" 2>/dev/null || true)
+                    fi
+                fi
+                if [ -n "$DOC_ISO" ]; then
+                    DOC_EPOCH=$(date -j -f "%Y-%m-%d" "$DOC_ISO" "+%s" 2>/dev/null || true)
+                    if [ -n "$DOC_EPOCH" ]; then
+                        DAYS_OLD=$(( (NOW_EPOCH - DOC_EPOCH) / 86400 ))
+                        if [ "$DAYS_OLD" -gt 30 ]; then
+                            DATE_STALE="${DATE_STALE}  $doc: date $DOC_ISO is ${DAYS_OLD} days old\n"
+                        fi
+                    fi
+                fi
+            fi
+        fi
+    done
+    if [ -z "$DATE_STALE" ]; then
+        pass "12.19 Doc dates are fresh (within 30 days)"
+    else
+        warn "12.19 Stale dates in documentation:"
+        echo -e "$DATE_STALE"
+    fi
+
+    # 12.20: CHANGELOG has entry for current version
+    if [ -f CHANGELOG.md ]; then
+        WORKSPACE_VER_CL=$(grep -m1 '^version = ' Cargo.toml 2>/dev/null | sed 's/version = "//;s/"//')
+        if grep -q "\[${WORKSPACE_VER_CL}\]" CHANGELOG.md 2>/dev/null; then
+            pass "12.20 CHANGELOG has entry for current version ($WORKSPACE_VER_CL)"
+        else
+            warn "12.20 CHANGELOG missing entry for version $WORKSPACE_VER_CL"
+        fi
     fi
 fi
 

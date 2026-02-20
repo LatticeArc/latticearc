@@ -34,7 +34,8 @@ You can also report via [GitHub Security Advisory](https://github.com/latticearc
 
 | Version | Status | Security Updates Until |
 |---------|--------|------------------------|
-| 0.1.x | Supported | Current |
+| 0.2.x | Supported | Current |
+| 0.1.x | End of life | Superseded by 0.2.0 |
 
 We recommend always using the latest version.
 
@@ -70,6 +71,22 @@ We recommend always using the latest version.
 | SHA-3 | FIPS 202 | sha3 crate |
 | HKDF | RFC 5869 | aws-lc-rs (HMAC-based) |
 
+### FIPS Feature Flag and Compliance Modes
+
+LatticeArc supports compile-time and runtime compliance controls:
+
+**Compile-time:** The `fips` feature flag (`--features fips`) enables the FIPS 140-3 validated backend via aws-lc-rs. Without this flag, aws-lc-rs uses its default (non-FIPS) backend.
+
+**Runtime:** The `ComplianceMode` enum controls algorithm constraints:
+
+| Mode | FIPS Required | Hybrid Allowed | Description |
+|------|---------------|----------------|-------------|
+| `Default` | No | Yes | No restrictions — all algorithms available |
+| `Fips140_3` | Yes | Yes | Only FIPS-validated backends |
+| `Cnsa2_0` | Yes | No | PQ-only algorithms (NSA CNSA 2.0) |
+
+Kani formally verifies that `requires_fips()` and `allows_hybrid()` return correct values for every `ComplianceMode` variant (exhaustive proofs).
+
 ### Defense in Depth
 
 1. **Hybrid cryptography** - PQC + classical for defense against future threats
@@ -77,6 +94,7 @@ We recommend always using the latest version.
 3. **Memory safety** - Rust's ownership model + explicit zeroization
 4. **Input validation** - All public APIs validate inputs
 5. **Constant-time** - Using `subtle` crate for timing-safe operations
+6. **Compliance enforcement** - `ComplianceMode` with formal verification
 
 ## Security Testing
 
@@ -108,15 +126,19 @@ Property-based tests verify our Rust wrappers correctly compose the verified pri
 - FIPS 203 key/ciphertext size compliance across all ML-KEM parameter sets
 - 256 random cases per property, release mode
 
-#### Layer 3: Kani — Type Invariants (12 proofs)
+#### Layer 3: Kani — Type Invariants (29 proofs)
 
 Kani model checking verifies the pure-Rust policy and state management layer in `latticearc::types`. These proofs do **not** cover cryptographic operations (which require FFI). They verify:
 - Key lifecycle state machine enforces SP 800-57 transitions (5 proofs)
-- Policy engine maps every enum variant to a valid algorithm (3 proofs)
-- Trust level ordering is total and consistent (3 proofs)
-- Default security level is NIST Level 3 (1 proof)
+- Configuration validation bi-conditional over all 96 CoreConfig combinations (6 proofs)
+- Policy engine maps every enum variant to a valid algorithm, including hybrid schemes (5 proofs)
+- Compliance mode `requires_fips()` and `allows_hybrid()` exhaustive (3 proofs)
+- Trust level ordering is total and consistent, `is_fully_trusted()` correctness (4 proofs)
+- Domain separation constants are pairwise distinct (1 proof)
+- Verification status `is_verified()` iff Verified variant (1 proof)
+- Default security level is NIST Level 3, CNSA 2.0 compliance constraints (4 proofs)
 
-Proofs in source code: `latticearc/src/types/{key_lifecycle,zero_trust,types,selector}.rs`
+Proofs in source code: `latticearc/src/types/{key_lifecycle,zero_trust,types,selector,config,domains,traits}.rs`
 
 ## Security Audits
 

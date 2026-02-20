@@ -51,13 +51,8 @@ pub fn basemul_simd_neon(a: i32x4, b: i32x4, zeta: i32x4) -> i32x4 {
     let r0 = montgomery_reduce_simd_neon(a0 * b0) + zeta_a1_b1;
     let r1 = montgomery_reduce_simd_neon(a0 * b1) + montgomery_reduce_simd_neon(a1 * b0);
 
-    // Interleave results for output
-    let mut result = i32x4::splat(0);
-    for i in 0..2 {
-        result[2*i] = r0[i];
-        result[2*i + 1] = r1[i];
-    }
-    result
+    // Interleave results: [r0[0], r1[0], r0[1], r1[1]]
+    i32x4::from_array([r0[0], r1[0], r0[1], r1[1]])
 }
 
 /// NEON-accelerated NTT implementation

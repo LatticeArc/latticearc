@@ -59,8 +59,8 @@ graph LR
 ### Usage with LatticeArc API
 
 ```rust
-use arc_core::convenience::*;
-use arc_primitives::kem::ml_kem::MlKemSecurityLevel;
+use latticearc::*;
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 
 // Key generation (FIPS 203 Section 7.1)
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
@@ -94,8 +94,8 @@ let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)
 ### Usage with LatticeArc API
 
 ```rust
-use arc_core::convenience::*;
-use arc_primitives::sig::ml_dsa::MlDsaParameterSet;
+use latticearc::*;
+use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 
 // Key generation (FIPS 204 Section 6.1)
 let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
@@ -129,8 +129,8 @@ let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MLD
 ### Usage with LatticeArc API
 
 ```rust
-use arc_core::convenience::*;
-use arc_primitives::sig::slh_dsa::SecurityLevel;
+use latticearc::*;
+use latticearc::primitives::sig::slh_dsa::SecurityLevel;
 
 // Key generation (FIPS 205 Section 9.1)
 let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake128s)?;
@@ -154,7 +154,7 @@ let is_valid = verify_pq_slh_dsa(message, &signature, &pk, SecurityLevel::Shake1
 ### Usage with LatticeArc API
 
 ```rust
-use arc_core::convenience::*;
+use latticearc::*;
 
 // Key generation (FIPS 206 Section 6.1)
 let (pk, sk) = generate_fn_dsa_keypair()?;
@@ -288,8 +288,8 @@ flowchart LR
 During the transition period, use hybrid encryption:
 
 ```rust
-use arc_core::convenience::*;
-use arc_core::selector::*;
+use latticearc::*;
+use latticearc::unified_api::selector::*;
 
 // Default schemes are hybrid
 DEFAULT_ENCRYPTION_SCHEME  // "hybrid-ml-kem-768-aes-256-gcm"

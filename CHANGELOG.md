@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.2.0] - 2026-02-18
+## [0.2.0] - 2026-02-20
+
+### Added
+
+- **Kani Formal Verification Expansion (16 → 29 proofs)**: Added 13 new bounded model checking proofs across 7 files in `latticearc::types`
+  - `config.rs` (6 proofs): CoreConfig bi-conditional validation over all 96 combinations, factory presets, encryption compression/integrity, signature chain/timestamp
+  - `types.rs` (3 proofs): ComplianceMode `requires_fips()` and `allows_hybrid()` exhaustive, PerformancePreference default is Balanced
+  - `selector.rs` (2 proofs): Hybrid/general encryption and signature selection succeeds for all SecurityLevels
+  - `domains.rs` (1 proof): All 4 HKDF domain constants are pairwise distinct (collision = key reuse across protocols)
+  - `traits.rs` (1 proof): `is_verified()` returns true IFF VerificationStatus is Verified
+  - `zero_trust.rs` (1 proof): `is_fully_trusted()` returns true IFF TrustLevel is FullyTrusted
+  - Added `kani::Arbitrary` derives for ComplianceMode, PerformancePreference, ProofComplexity, VerificationStatus
+  - Added manual `kani::Arbitrary` impl for CoreConfig (96 combinations)
 
 ### Changed
 
@@ -19,6 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Module paths available: `latticearc::types`, `latticearc::primitives`, `latticearc::hybrid`, `latticearc::unified_api`, `latticearc::tls`, `latticearc::zkp`, `latticearc::perf`, `latticearc::prelude`
   - Simplified release process: single `cargo publish -p latticearc` instead of 10-step layered publish
   - CI workflows updated to reference new crate structure
+
+### Fixed
+
+- **Audit Warning Fixes (17 → 14 warnings)**: Resolved 3 warnings from 13-dimension code audit
+  - Dim 3.7: Removed "secret key" from error format strings in `ml_kem.rs` and `pq_kem.rs` (key material leak false positive)
+  - Dim 13a.2: Replaced direct array indexing with `from_array()` in SIMD basemul (neon.rs, avx2.rs) and `get_mut()` in NTT butterfly (ntt_processor.rs)
+  - Dim 12.2: Replaced aspirational language in ALGORITHM_SELECTION.md
+  - Dim 13c.27: Added descriptive messages to ~37 bare test assertions in fips_kat_loaders_tests.rs and fips_coverage_validation_summary_tests.rs
+
+### Documentation
+
+- Updated FORMAL_VERIFICATION.md with all 30 Kani proofs (was 12)
+- Updated README.md verification section with expanded proof details
+- Updated SECURITY.md Kani section from 12 to 29 proofs
+- Updated DESIGN.md architecture notes with current proof count
 
 ---
 

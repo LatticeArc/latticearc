@@ -271,8 +271,12 @@ impl NttProcessor {
                 for j in 0..half_len {
                     if let (Some(&u), Some(&v_data)) = (u_slice.get(j), v_slice.get(j)) {
                         let v = self.mod_mul(v_data, w);
-                        u_slice[j] = self.mod_add(u, v);
-                        v_slice[j] = self.mod_sub(u, v);
+                        if let Some(u_out) = u_slice.get_mut(j) {
+                            *u_out = self.mod_add(u, v);
+                        }
+                        if let Some(v_out) = v_slice.get_mut(j) {
+                            *v_out = self.mod_sub(u, v);
+                        }
                     }
                     w = self.mod_mul(w, wlen);
                 }
@@ -308,8 +312,12 @@ impl NttProcessor {
                     && let Some(twiddle) = twiddles.get(k)
                 {
                     let v = self.mod_mul(v_data, *twiddle);
-                    u_slice[j] = self.mod_add(u, v);
-                    v_slice[j] = self.mod_sub(u, v);
+                    if let Some(u_out) = u_slice.get_mut(j) {
+                        *u_out = self.mod_add(u, v);
+                    }
+                    if let Some(v_out) = v_slice.get_mut(j) {
+                        *v_out = self.mod_sub(u, v);
+                    }
                 }
                 k += step;
             }

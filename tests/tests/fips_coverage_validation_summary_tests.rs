@@ -73,10 +73,13 @@ fn test_generate_full_compliance_report_with_ml_kem_results() {
         vec![passing_kat("ML-KEM-768 KeyGen Test 1"), passing_kat("ML-KEM-768 KeyGen Test 2")];
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
-    assert!(!report.report_id.is_empty());
-    assert!(report.algorithm_results.contains_key("ML-KEM"));
-    assert!(report.statistical_results.is_some());
-    assert!(!report.recommendations.is_empty());
+    assert!(!report.report_id.is_empty(), "Report should have a non-empty ID");
+    assert!(
+        report.algorithm_results.contains_key("ML-KEM"),
+        "Report should contain ML-KEM results"
+    );
+    assert!(report.statistical_results.is_some(), "Report should include statistical results");
+    assert!(!report.recommendations.is_empty(), "Report should include recommendations");
 }
 
 #[test]
@@ -94,8 +97,11 @@ fn test_generate_full_compliance_report_with_mixed_algorithms() {
     ];
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
-    assert!(report.algorithm_results.len() >= 5);
-    assert!(report.security_level > 0);
+    assert!(
+        report.algorithm_results.len() >= 5,
+        "Report should cover at least 5 algorithm families"
+    );
+    assert!(report.security_level > 0, "Security level should be positive");
 }
 
 #[test]
@@ -108,8 +114,15 @@ fn test_generate_full_compliance_report_with_failures() {
     ];
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
-    assert_eq!(report.overall_compliance, ComplianceStatus::NonCompliant);
-    assert!(report.recommendations.iter().any(|r| r.contains("Critical") || r.contains("action")));
+    assert_eq!(
+        report.overall_compliance,
+        ComplianceStatus::NonCompliant,
+        "Failed KATs should produce NonCompliant status"
+    );
+    assert!(
+        report.recommendations.iter().any(|r| r.contains("Critical") || r.contains("action")),
+        "Failed KATs should produce critical/action recommendations"
+    );
 }
 
 #[test]
@@ -132,7 +145,7 @@ fn test_generate_full_compliance_report_with_fips_validation() {
 
     let report =
         reporter.generate_full_compliance_report(&kat_results, &Some(fips_result)).unwrap();
-    assert!(report.fips_validation.is_some());
+    assert!(report.fips_validation.is_some(), "FIPS validation result should be present");
 }
 
 // ============================================================================
@@ -146,9 +159,9 @@ fn test_generate_json_report() {
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
     let json = reporter.generate_json_report(&report).unwrap();
-    assert!(json.contains("report_id"));
-    assert!(json.contains("algorithm_results"));
-    assert!(json.contains("overall_compliance"));
+    assert!(json.contains("report_id"), "JSON report should contain report_id field");
+    assert!(json.contains("algorithm_results"), "JSON report should contain algorithm_results");
+    assert!(json.contains("overall_compliance"), "JSON report should contain overall_compliance");
 }
 
 #[test]
@@ -159,11 +172,14 @@ fn test_generate_html_report() {
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
     let html = reporter.generate_html_report(&report).unwrap();
-    assert!(html.contains("<!DOCTYPE html>"));
-    assert!(html.contains("Compliance Report"));
-    assert!(html.contains("Algorithm Results"));
-    assert!(html.contains("Recommendations"));
-    assert!(html.contains("Statistical Testing Results"));
+    assert!(html.contains("<!DOCTYPE html>"), "HTML report should be valid HTML document");
+    assert!(html.contains("Compliance Report"), "HTML should contain report title");
+    assert!(html.contains("Algorithm Results"), "HTML should contain algorithm results section");
+    assert!(html.contains("Recommendations"), "HTML should contain recommendations section");
+    assert!(
+        html.contains("Statistical Testing Results"),
+        "HTML should contain statistical section"
+    );
 }
 
 #[test]
@@ -175,7 +191,7 @@ fn test_generate_html_report_with_all_compliance_statuses() {
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
     let html = reporter.generate_html_report(&report).unwrap();
-    assert!(html.contains("class=\""));
+    assert!(html.contains("class=\""), "HTML should contain CSS class attributes");
 }
 
 // ============================================================================
@@ -184,7 +200,11 @@ fn test_generate_html_report_with_all_compliance_statuses() {
 
 #[test]
 fn test_compliance_status_variants() {
-    assert_eq!(ComplianceStatus::FullyCompliant, ComplianceStatus::FullyCompliant);
+    assert_eq!(
+        ComplianceStatus::FullyCompliant,
+        ComplianceStatus::FullyCompliant,
+        "Same variant should be equal"
+    );
     assert_ne!(ComplianceStatus::FullyCompliant, ComplianceStatus::NonCompliant);
     assert_ne!(ComplianceStatus::PartiallyCompliant, ComplianceStatus::Unknown);
 
@@ -203,7 +223,7 @@ fn test_randomness_quality_debug() {
     ];
     for q in qualities {
         let debug = format!("{:?}", q);
-        assert!(!debug.is_empty());
+        assert!(!debug.is_empty(), "RandomnessQuality Debug output should not be empty");
     }
 }
 
@@ -228,8 +248,8 @@ fn test_security_coverage_fields() {
         error_handling: true,
         memory_safety: true,
     };
-    assert!(coverage.post_quantum_supported);
-    assert!(coverage.classical_supported);
+    assert!(coverage.post_quantum_supported, "Security coverage should include PQ support");
+    assert!(coverage.classical_supported, "Security coverage should include classical support");
 
     let debug = format!("{:?}", coverage);
     assert!(debug.contains("true"));
@@ -253,8 +273,8 @@ fn test_compliance_metrics_fields() {
         fips_level: "FIPS 140-3 Level 3".to_string(),
         validation_duration: Duration::from_secs(10),
     };
-    assert_eq!(metrics.total_test_cases, 100);
-    assert_eq!(metrics.pass_rate, 0.95);
+    assert_eq!(metrics.total_test_cases, 100, "Total test cases should match");
+    assert_eq!(metrics.pass_rate, 0.95, "Pass rate should match");
 }
 
 // ============================================================================
@@ -268,8 +288,11 @@ fn test_compliance_report_clone() {
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
     let cloned = report.clone();
-    assert_eq!(cloned.report_id, report.report_id);
-    assert_eq!(cloned.overall_compliance, report.overall_compliance);
+    assert_eq!(cloned.report_id, report.report_id, "Cloned report_id should match");
+    assert_eq!(
+        cloned.overall_compliance, report.overall_compliance,
+        "Cloned compliance status should match"
+    );
 }
 
 #[test]
@@ -303,8 +326,8 @@ fn test_statistical_compliance_result_clone() {
         test_coverage: "Complete".to_string(),
     };
     let cloned = result.clone();
-    assert_eq!(cloned.entropy_estimate, 7.9);
-    assert_eq!(cloned.bits_tested, 8000);
+    assert_eq!(cloned.entropy_estimate, 7.9, "Cloned entropy estimate should match");
+    assert_eq!(cloned.bits_tested, 8000, "Cloned bits_tested should match");
 }
 
 // ============================================================================
@@ -357,8 +380,11 @@ fn test_generate_report_all_algorithms_passing() {
 
     let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
     // All KATs pass but overall compliance depends on statistical and FIPS scores too
-    assert!(report.algorithm_results.len() >= 5);
-    assert!(report.security_level > 0);
+    assert!(
+        report.algorithm_results.len() >= 5,
+        "Report should cover at least 5 algorithm families"
+    );
+    assert!(report.security_level > 0, "Security level should be positive");
 }
 
 #[test]
@@ -392,7 +418,10 @@ fn test_generate_report_fully_compliant_with_fips() {
         report.overall_compliance == ComplianceStatus::PartiallyCompliant
             || report.overall_compliance == ComplianceStatus::FullyCompliant
     );
-    assert!(report.fips_validation.is_some());
+    assert!(
+        report.fips_validation.is_some(),
+        "FIPS validation should be present in compliant report"
+    );
 }
 
 #[test]

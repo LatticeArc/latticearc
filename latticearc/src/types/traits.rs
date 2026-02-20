@@ -340,6 +340,7 @@ pub trait ContinuousVerifiable {
 
 /// Status of continuous verification.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum VerificationStatus {
     /// Session is verified and valid.
     Verified,
@@ -356,6 +357,22 @@ impl VerificationStatus {
     #[must_use]
     pub fn is_verified(&self) -> bool {
         matches!(self, Self::Verified)
+    }
+}
+
+// Formal verification with Kani
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    /// Proves is_verified() returns true IFF status is Verified.
+    /// Security: expired/failed/pending sessions must never be "verified".
+    #[kani::proof]
+    fn verification_status_is_verified_iff_verified() {
+        let status: VerificationStatus = kani::any();
+        let method = status.is_verified();
+        let expected = matches!(status, VerificationStatus::Verified);
+        kani::assert(method == expected, "is_verified() iff Verified variant");
     }
 }
 
