@@ -1316,5 +1316,36 @@
 <a href=#1316 id=1316 data-nosnippet>1316</a>        <span class="kw">let </span>result = create_server_config(<span class="kw-2">&amp;</span>config, chain, server_key_der);
 <a href=#1317 id=1317 data-nosnippet>1317</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"Server config with cert chain should succeed"</span>);
 <a href=#1318 id=1318 data-nosnippet>1318</a>    }
-<a href=#1319 id=1319 data-nosnippet>1319</a>}
+<a href=#1319 id=1319 data-nosnippet>1319</a>
+<a href=#1320 id=1320 data-nosnippet>1320</a>    <span class="comment">// ---- Coverage: config builder edge cases ----
+<a href=#1321 id=1321 data-nosnippet>1321</a>
+<a href=#1322 id=1322 data-nosnippet>1322</a>    </span><span class="attr">#[test]
+<a href=#1323 id=1323 data-nosnippet>1323</a>    </span><span class="kw">fn </span>test_tls13_config_pq_only() {
+<a href=#1324 id=1324 data-nosnippet>1324</a>        <span class="kw">let </span>config = Tls13Config::pq();
+<a href=#1325 id=1325 data-nosnippet>1325</a>        <span class="macro">assert!</span>(config.use_pq_kx);
+<a href=#1326 id=1326 data-nosnippet>1326</a>        <span class="macro">assert_eq!</span>(config.mode, TlsMode::Pq);
+<a href=#1327 id=1327 data-nosnippet>1327</a>    }
+<a href=#1328 id=1328 data-nosnippet>1328</a>
+<a href=#1329 id=1329 data-nosnippet>1329</a>    <span class="attr">#[test]
+<a href=#1330 id=1330 data-nosnippet>1330</a>    </span><span class="kw">fn </span>test_tls13_config_with_pq_kx_toggle() {
+<a href=#1331 id=1331 data-nosnippet>1331</a>        <span class="kw">let </span>config = Tls13Config::hybrid().with_pq_kx(<span class="bool-val">false</span>);
+<a href=#1332 id=1332 data-nosnippet>1332</a>        <span class="macro">assert!</span>(!config.use_pq_kx);
+<a href=#1333 id=1333 data-nosnippet>1333</a>
+<a href=#1334 id=1334 data-nosnippet>1334</a>        <span class="kw">let </span>config2 = Tls13Config::classic().with_pq_kx(<span class="bool-val">true</span>);
+<a href=#1335 id=1335 data-nosnippet>1335</a>        <span class="macro">assert!</span>(config2.use_pq_kx);
+<a href=#1336 id=1336 data-nosnippet>1336</a>    }
+<a href=#1337 id=1337 data-nosnippet>1337</a>
+<a href=#1338 id=1338 data-nosnippet>1338</a>    <span class="attr">#[test]
+<a href=#1339 id=1339 data-nosnippet>1339</a>    </span><span class="kw">fn </span>test_tls13_config_default_all_fields() {
+<a href=#1340 id=1340 data-nosnippet>1340</a>        <span class="kw">let </span>config = Tls13Config::default();
+<a href=#1341 id=1341 data-nosnippet>1341</a>        <span class="macro">assert!</span>(config.use_pq_kx);
+<a href=#1342 id=1342 data-nosnippet>1342</a>        <span class="macro">assert!</span>(!config.enable_early_data);
+<a href=#1343 id=1343 data-nosnippet>1343</a>        <span class="macro">assert_eq!</span>(config.max_early_data_size, <span class="number">0</span>);
+<a href=#1344 id=1344 data-nosnippet>1344</a>        <span class="macro">assert!</span>(config.alpn_protocols.is_empty());
+<a href=#1345 id=1345 data-nosnippet>1345</a>        <span class="macro">assert!</span>(config.max_fragment_size.is_none());
+<a href=#1346 id=1346 data-nosnippet>1346</a>        <span class="macro">assert!</span>(config.cipher_suites.is_none());
+<a href=#1347 id=1347 data-nosnippet>1347</a>        <span class="macro">assert!</span>(config.client_cert_chain.is_none());
+<a href=#1348 id=1348 data-nosnippet>1348</a>        <span class="macro">assert!</span>(config.client_private_key.is_none());
+<a href=#1349 id=1349 data-nosnippet>1349</a>    }
+<a href=#1350 id=1350 data-nosnippet>1350</a>}
 </code></pre></div></section></main></body></html>

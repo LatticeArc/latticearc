@@ -1119,5 +1119,125 @@
 <a href=#1119 id=1119 data-nosnippet>1119</a>        </span>);
 <a href=#1120 id=1120 data-nosnippet>1120</a>        <span class="prelude-val">Ok</span>(())
 <a href=#1121 id=1121 data-nosnippet>1121</a>    }
-<a href=#1122 id=1122 data-nosnippet>1122</a>}
+<a href=#1122 id=1122 data-nosnippet>1122</a>
+<a href=#1123 id=1123 data-nosnippet>1123</a>    <span class="comment">// ---- Coverage: config unverified roundtrip ----
+<a href=#1124 id=1124 data-nosnippet>1124</a>
+<a href=#1125 id=1125 data-nosnippet>1125</a>    </span><span class="attr">#[test]
+<a href=#1126 id=1126 data-nosnippet>1126</a>    </span><span class="kw">fn </span>test_encrypt_decrypt_with_config_unverified_roundtrip() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#1127 id=1127 data-nosnippet>1127</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1128 id=1128 data-nosnippet>1128</a>        <span class="kw">let </span>plaintext = <span class="string">b"Config unverified roundtrip test"</span>;
+<a href=#1129 id=1129 data-nosnippet>1129</a>        <span class="kw">let </span>config = CoreConfig::default();
+<a href=#1130 id=1130 data-nosnippet>1130</a>
+<a href=#1131 id=1131 data-nosnippet>1131</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_with_config_unverified(plaintext, <span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+<a href=#1132 id=1132 data-nosnippet>1132</a>        <span class="kw">let </span>pt = decrypt_aes_gcm_with_config_unverified(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+<a href=#1133 id=1133 data-nosnippet>1133</a>
+<a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="macro">assert_eq!</span>(pt, plaintext.to_vec());
+<a href=#1135 id=1135 data-nosnippet>1135</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1136 id=1136 data-nosnippet>1136</a>    }
+<a href=#1137 id=1137 data-nosnippet>1137</a>
+<a href=#1138 id=1138 data-nosnippet>1138</a>    <span class="attr">#[test]
+<a href=#1139 id=1139 data-nosnippet>1139</a>    </span><span class="kw">fn </span>test_config_unverified_wrong_key_length() {
+<a href=#1140 id=1140 data-nosnippet>1140</a>        <span class="kw">let </span>short_key = <span class="macro">vec!</span>[<span class="number">0x42</span>; <span class="number">16</span>]; <span class="comment">// 16 bytes instead of 32
+<a href=#1141 id=1141 data-nosnippet>1141</a>        </span><span class="kw">let </span>plaintext = <span class="string">b"Should fail"</span>;
+<a href=#1142 id=1142 data-nosnippet>1142</a>        <span class="kw">let </span>config = CoreConfig::default();
+<a href=#1143 id=1143 data-nosnippet>1143</a>
+<a href=#1144 id=1144 data-nosnippet>1144</a>        <span class="kw">let </span>result = encrypt_aes_gcm_with_config_unverified(plaintext, <span class="kw-2">&amp;</span>short_key, <span class="kw-2">&amp;</span>config);
+<a href=#1145 id=1145 data-nosnippet>1145</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1146 id=1146 data-nosnippet>1146</a>    }
+<a href=#1147 id=1147 data-nosnippet>1147</a>
+<a href=#1148 id=1148 data-nosnippet>1148</a>    <span class="attr">#[test]
+<a href=#1149 id=1149 data-nosnippet>1149</a>    </span><span class="kw">fn </span>test_config_unverified_decrypt_wrong_key() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#1150 id=1150 data-nosnippet>1150</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1151 id=1151 data-nosnippet>1151</a>        <span class="kw">let </span>wrong_key = <span class="macro">vec!</span>[<span class="number">0xFF</span>; <span class="number">32</span>];
+<a href=#1152 id=1152 data-nosnippet>1152</a>        <span class="kw">let </span>plaintext = <span class="string">b"Decrypt with wrong key"</span>;
+<a href=#1153 id=1153 data-nosnippet>1153</a>        <span class="kw">let </span>config = CoreConfig::default();
+<a href=#1154 id=1154 data-nosnippet>1154</a>
+<a href=#1155 id=1155 data-nosnippet>1155</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_with_config_unverified(plaintext, <span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+<a href=#1156 id=1156 data-nosnippet>1156</a>        <span class="kw">let </span>result = decrypt_aes_gcm_with_config_unverified(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>wrong_key, <span class="kw-2">&amp;</span>config);
+<a href=#1157 id=1157 data-nosnippet>1157</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1158 id=1158 data-nosnippet>1158</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1159 id=1159 data-nosnippet>1159</a>    }
+<a href=#1160 id=1160 data-nosnippet>1160</a>
+<a href=#1161 id=1161 data-nosnippet>1161</a>    <span class="attr">#[test]
+<a href=#1162 id=1162 data-nosnippet>1162</a>    </span><span class="kw">fn </span>test_config_unverified_decrypt_short_ciphertext() {
+<a href=#1163 id=1163 data-nosnippet>1163</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1164 id=1164 data-nosnippet>1164</a>        <span class="kw">let </span>config = CoreConfig::default();
+<a href=#1165 id=1165 data-nosnippet>1165</a>        <span class="kw">let </span>short_data = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">5</span>]; <span class="comment">// Less than 12 bytes (nonce)
+<a href=#1166 id=1166 data-nosnippet>1166</a>
+<a href=#1167 id=1167 data-nosnippet>1167</a>        </span><span class="kw">let </span>result = decrypt_aes_gcm_with_config_unverified(<span class="kw-2">&amp;</span>short_data, <span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>config);
+<a href=#1168 id=1168 data-nosnippet>1168</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1169 id=1169 data-nosnippet>1169</a>    }
+<a href=#1170 id=1170 data-nosnippet>1170</a>
+<a href=#1171 id=1171 data-nosnippet>1171</a>    <span class="attr">#[test]
+<a href=#1172 id=1172 data-nosnippet>1172</a>    </span><span class="kw">fn </span>test_config_unverified_empty_plaintext() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#1173 id=1173 data-nosnippet>1173</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1174 id=1174 data-nosnippet>1174</a>        <span class="kw">let </span>config = CoreConfig::default();
+<a href=#1175 id=1175 data-nosnippet>1175</a>        <span class="kw">let </span>plaintext = <span class="string">b""</span>;
+<a href=#1176 id=1176 data-nosnippet>1176</a>
+<a href=#1177 id=1177 data-nosnippet>1177</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_with_config_unverified(plaintext, <span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+<a href=#1178 id=1178 data-nosnippet>1178</a>        <span class="kw">let </span>pt = decrypt_aes_gcm_with_config_unverified(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+<a href=#1179 id=1179 data-nosnippet>1179</a>        <span class="macro">assert_eq!</span>(pt, plaintext.to_vec());
+<a href=#1180 id=1180 data-nosnippet>1180</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1181 id=1181 data-nosnippet>1181</a>    }
+<a href=#1182 id=1182 data-nosnippet>1182</a>
+<a href=#1183 id=1183 data-nosnippet>1183</a>    <span class="comment">// ---- Coverage: AAD with SecurityMode ----
+<a href=#1184 id=1184 data-nosnippet>1184</a>
+<a href=#1185 id=1185 data-nosnippet>1185</a>    </span><span class="attr">#[test]
+<a href=#1186 id=1186 data-nosnippet>1186</a>    </span><span class="kw">fn </span>test_aad_with_security_mode_unverified() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#1187 id=1187 data-nosnippet>1187</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1188 id=1188 data-nosnippet>1188</a>        <span class="kw">let </span>plaintext = <span class="string">b"AAD SecurityMode test"</span>;
+<a href=#1189 id=1189 data-nosnippet>1189</a>        <span class="kw">let </span>aad = <span class="string">b"authenticated-context"</span>;
+<a href=#1190 id=1190 data-nosnippet>1190</a>
+<a href=#1191 id=1191 data-nosnippet>1191</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_with_aad(plaintext, <span class="kw-2">&amp;</span>key, aad, SecurityMode::Unverified)<span class="question-mark">?</span>;
+<a href=#1192 id=1192 data-nosnippet>1192</a>        <span class="kw">let </span>pt = decrypt_aes_gcm_with_aad(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>key, aad, SecurityMode::Unverified)<span class="question-mark">?</span>;
+<a href=#1193 id=1193 data-nosnippet>1193</a>        <span class="macro">assert_eq!</span>(pt, plaintext.to_vec());
+<a href=#1194 id=1194 data-nosnippet>1194</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1195 id=1195 data-nosnippet>1195</a>    }
+<a href=#1196 id=1196 data-nosnippet>1196</a>
+<a href=#1197 id=1197 data-nosnippet>1197</a>    <span class="attr">#[test]
+<a href=#1198 id=1198 data-nosnippet>1198</a>    </span><span class="kw">fn </span>test_aad_wrong_aad_decrypt_fails() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#1199 id=1199 data-nosnippet>1199</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1200 id=1200 data-nosnippet>1200</a>        <span class="kw">let </span>plaintext = <span class="string">b"AAD mismatch test"</span>;
+<a href=#1201 id=1201 data-nosnippet>1201</a>        <span class="kw">let </span>aad = <span class="string">b"correct-aad"</span>;
+<a href=#1202 id=1202 data-nosnippet>1202</a>        <span class="kw">let </span>wrong_aad = <span class="string">b"wrong-aad"</span>;
+<a href=#1203 id=1203 data-nosnippet>1203</a>
+<a href=#1204 id=1204 data-nosnippet>1204</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_with_aad_unverified(plaintext, <span class="kw-2">&amp;</span>key, aad)<span class="question-mark">?</span>;
+<a href=#1205 id=1205 data-nosnippet>1205</a>        <span class="kw">let </span>result = decrypt_aes_gcm_with_aad_unverified(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>key, wrong_aad);
+<a href=#1206 id=1206 data-nosnippet>1206</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1207 id=1207 data-nosnippet>1207</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1208 id=1208 data-nosnippet>1208</a>    }
+<a href=#1209 id=1209 data-nosnippet>1209</a>
+<a href=#1210 id=1210 data-nosnippet>1210</a>    <span class="attr">#[test]
+<a href=#1211 id=1211 data-nosnippet>1211</a>    </span><span class="kw">fn </span>test_aad_internal_wrong_key_length() {
+<a href=#1212 id=1212 data-nosnippet>1212</a>        <span class="kw">let </span>short_key = <span class="macro">vec!</span>[<span class="number">0x42</span>; <span class="number">16</span>];
+<a href=#1213 id=1213 data-nosnippet>1213</a>        <span class="kw">let </span>plaintext = <span class="string">b"AAD key length test"</span>;
+<a href=#1214 id=1214 data-nosnippet>1214</a>        <span class="kw">let </span>aad = <span class="string">b"some-aad"</span>;
+<a href=#1215 id=1215 data-nosnippet>1215</a>
+<a href=#1216 id=1216 data-nosnippet>1216</a>        <span class="kw">let </span>result = encrypt_aes_gcm_with_aad_internal(plaintext, <span class="kw-2">&amp;</span>short_key, aad);
+<a href=#1217 id=1217 data-nosnippet>1217</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1218 id=1218 data-nosnippet>1218</a>    }
+<a href=#1219 id=1219 data-nosnippet>1219</a>
+<a href=#1220 id=1220 data-nosnippet>1220</a>    <span class="attr">#[test]
+<a href=#1221 id=1221 data-nosnippet>1221</a>    </span><span class="kw">fn </span>test_aad_internal_decrypt_short_data() {
+<a href=#1222 id=1222 data-nosnippet>1222</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1223 id=1223 data-nosnippet>1223</a>        <span class="kw">let </span>aad = <span class="string">b"some-aad"</span>;
+<a href=#1224 id=1224 data-nosnippet>1224</a>        <span class="kw">let </span>short_data = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">5</span>];
+<a href=#1225 id=1225 data-nosnippet>1225</a>
+<a href=#1226 id=1226 data-nosnippet>1226</a>        <span class="kw">let </span>result = decrypt_aes_gcm_with_aad_internal(<span class="kw-2">&amp;</span>short_data, <span class="kw-2">&amp;</span>key, aad);
+<a href=#1227 id=1227 data-nosnippet>1227</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1228 id=1228 data-nosnippet>1228</a>    }
+<a href=#1229 id=1229 data-nosnippet>1229</a>
+<a href=#1230 id=1230 data-nosnippet>1230</a>    <span class="attr">#[test]
+<a href=#1231 id=1231 data-nosnippet>1231</a>    </span><span class="kw">fn </span>test_aad_internal_decrypt_wrong_key_length() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#1232 id=1232 data-nosnippet>1232</a>        <span class="kw">let </span>key = generate_test_key();
+<a href=#1233 id=1233 data-nosnippet>1233</a>        <span class="kw">let </span>short_key = <span class="macro">vec!</span>[<span class="number">0x42</span>; <span class="number">16</span>];
+<a href=#1234 id=1234 data-nosnippet>1234</a>        <span class="kw">let </span>plaintext = <span class="string">b"test"</span>;
+<a href=#1235 id=1235 data-nosnippet>1235</a>        <span class="kw">let </span>aad = <span class="string">b"some-aad"</span>;
+<a href=#1236 id=1236 data-nosnippet>1236</a>
+<a href=#1237 id=1237 data-nosnippet>1237</a>        <span class="kw">let </span>ct = encrypt_aes_gcm_with_aad_internal(plaintext, <span class="kw-2">&amp;</span>key, aad)<span class="question-mark">?</span>;
+<a href=#1238 id=1238 data-nosnippet>1238</a>        <span class="kw">let </span>result = decrypt_aes_gcm_with_aad_internal(<span class="kw-2">&amp;</span>ct, <span class="kw-2">&amp;</span>short_key, aad);
+<a href=#1239 id=1239 data-nosnippet>1239</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#1240 id=1240 data-nosnippet>1240</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1241 id=1241 data-nosnippet>1241</a>    }
+<a href=#1242 id=1242 data-nosnippet>1242</a>}
 </code></pre></div></section></main></body></html>

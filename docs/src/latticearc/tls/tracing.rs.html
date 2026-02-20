@@ -597,5 +597,29 @@
 <a href=#597 id=597 data-nosnippet>597</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, config);
 <a href=#598 id=598 data-nosnippet>598</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"TracingConfig"</span>));
 <a href=#599 id=599 data-nosnippet>599</a>    }
-<a href=#600 id=600 data-nosnippet>600</a>}
+<a href=#600 id=600 data-nosnippet>600</a>
+<a href=#601 id=601 data-nosnippet>601</a>    <span class="comment">// ---- Coverage: TlsSpan::field method ----
+<a href=#602 id=602 data-nosnippet>602</a>
+<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="attr">#[test]
+<a href=#604 id=604 data-nosnippet>604</a>    </span><span class="kw">fn </span>test_tls_span_field_adds_metadata() {
+<a href=#605 id=605 data-nosnippet>605</a>        <span class="kw">let </span>span = TlsSpan::new(<span class="string">"test_op_with_field"</span>, <span class="prelude-val">None</span>);
+<a href=#606 id=606 data-nosnippet>606</a>        <span class="comment">// field() returns Self, chain should not panic
+<a href=#607 id=607 data-nosnippet>607</a>        </span><span class="kw">let </span>_span = span.field(<span class="string">"custom_key"</span>, <span class="string">"custom_value"</span>);
+<a href=#608 id=608 data-nosnippet>608</a>    }
+<a href=#609 id=609 data-nosnippet>609</a>
+<a href=#610 id=610 data-nosnippet>610</a>    <span class="attr">#[test]
+<a href=#611 id=611 data-nosnippet>611</a>    </span><span class="kw">fn </span>test_tls_span_field_chained() {
+<a href=#612 id=612 data-nosnippet>612</a>        <span class="kw">let </span>span = TlsSpan::new(<span class="string">"chained_fields"</span>, <span class="prelude-val">None</span>);
+<a href=#613 id=613 data-nosnippet>613</a>        <span class="kw">let </span>span = span.field(<span class="string">"key1"</span>, <span class="string">"val1"</span>);
+<a href=#614 id=614 data-nosnippet>614</a>        <span class="kw">let </span>_span = span.field(<span class="string">"key2"</span>, <span class="number">42_i64</span>);
+<a href=#615 id=615 data-nosnippet>615</a>    }
+<a href=#616 id=616 data-nosnippet>616</a>
+<a href=#617 id=617 data-nosnippet>617</a>    <span class="attr">#[test]
+<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="kw">fn </span>test_tls_metrics_default_via_trait() {
+<a href=#619 id=619 data-nosnippet>619</a>        <span class="kw">let </span>metrics = TlsMetrics::default();
+<a href=#620 id=620 data-nosnippet>620</a>        <span class="macro">assert_eq!</span>(metrics.bytes_sent, <span class="number">0</span>);
+<a href=#621 id=621 data-nosnippet>621</a>        <span class="macro">assert_eq!</span>(metrics.bytes_received, <span class="number">0</span>);
+<a href=#622 id=622 data-nosnippet>622</a>        <span class="macro">assert_eq!</span>(metrics.total_duration, Duration::ZERO);
+<a href=#623 id=623 data-nosnippet>623</a>    }
+<a href=#624 id=624 data-nosnippet>624</a>}
 </code></pre></div></section></main></body></html>
