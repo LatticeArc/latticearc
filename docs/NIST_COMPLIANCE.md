@@ -1,6 +1,6 @@
 # NIST Post-Quantum Cryptography Compliance
 
-LatticeArc's compliance with NIST FIPS 203-206 post-quantum cryptography standards.
+LatticeArc implements all four NIST post-quantum standards (FIPS 203-206) with CAVP validation and a clear FIPS 140-3 certification path.
 
 ## Standards Overview
 

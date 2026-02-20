@@ -87,9 +87,6 @@ graph TB
     ZKP --> PRIM
     PRIM --> TYPES
     PRIM --> PRELUDE
-    PRIM -.->|dev-dep| VAL
-    VAL --> PRELUDE
-    VAL --> TYPES
     TESTS --> MAIN
     TESTS --> CORE
     TESTS --> PRIM
@@ -108,14 +105,13 @@ graph TB
     class TYPES types
     class PRIM,ZKP core
     class PRELUDE foundation
-    class VAL,PERF,TESTS,FUZZ testing
+    class PERF,TESTS,FUZZ testing
 ```
 
 **Key architectural properties (v0.2.0):**
 - **`latticearc::types`** is Layer 0: zero FFI dependencies, enabling Kani formal verification (29 proofs)
 - All modules consolidated into single `latticearc` crate (was 8 separate crates)
 - **`latticearc-tests`** consolidates all integration tests, CAVP validation, and NIST KAT vectors
-- Dashed lines (-.->|dev-dep|) indicate test-only dependencies
 
 ## API Abstraction Levels
 

@@ -407,7 +407,7 @@ use latticearc::CoreError;
 fn process_data(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, CoreError> {
     // Use ? to propagate errors - never ignore them
     let encrypted = EncryptedData::deserialize(ciphertext)?;
-    let plaintext = decrypt(&encrypted, key)?;
+    let plaintext = decrypt(&encrypted, key, CryptoConfig::new())?;
 
     // Validate before use
     if plaintext.is_empty() {
@@ -456,8 +456,7 @@ use tracing_subscriber::EnvFilter;
 
 // Disable debug logging for crypto modules in production
 let filter = EnvFilter::new("warn")
-    .add_directive("arc_core=warn".parse().unwrap())
-    .add_directive("arc_primitives=warn".parse().unwrap());
+    .add_directive("latticearc=warn".parse().unwrap());
 
 tracing_subscriber::fmt()
     .with_env_filter(filter)

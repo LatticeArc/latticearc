@@ -1,22 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.2.0
-**Last Updated**: February 20, 2026
-**License**: Apache 2.0
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Core API](#core-api)
-3. [Unified API](#unified-api)
-4. [Primitives API](#primitives-api)
-5. [Hybrid API](#hybrid-api)
-6. [Error Handling](#error-handling)
-7. [Type Reference](#type-reference)
-8. [Examples](#examples)
-9. [Migration Guide](#migration-guide)
+**Version**: 0.2.0 | **License**: Apache 2.0
 
 ---
 
@@ -24,102 +8,50 @@
 
 LatticeArc provides three levels of API abstraction:
 
+```mermaid
+flowchart TB
+    subgraph "Level 1 — Unified API"
+        L1["encrypt() / decrypt()\nsign_with_key() / verify()"]
+    end
+
+    subgraph "Level 2 — Hybrid API"
+        L2["encrypt_hybrid() / decrypt_hybrid()\nsign_hybrid() / verify_hybrid_signature()"]
+    end
+
+    subgraph "Level 3 — Primitives API"
+        L3["MlKem::encapsulate()\nml_dsa::sign()\nAesGcm256::encrypt()"]
+    end
+
+    subgraph "Audited Backends"
+        L4["aws-lc-rs · fips204 · fips205 · fn-dsa · ed25519-dalek"]
+    end
+
+    L1 -->|"auto-selects"| L2
+    L2 -->|"composes"| L3
+    L3 -->|"calls"| L4
+
+    classDef simple fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    classDef hybrid fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    classDef prim fill:#f59e0b,stroke:#d97706,color:#fff
+    classDef backend fill:#6b7280,stroke:#374151,color:#fff
+
+    class L1 simple
+    class L2 hybrid
+    class L3 prim
+    class L4 backend
+```
+
 | API Level | Description | Use Case |
 |-----------|-------------|----------|
 | **Unified API** | Simple, high-level interface | Quick integration, developers new to crypto |
-| **Core API** | Mid-level abstraction | Production applications, custom configurations |
+| **Hybrid API** | Mid-level, explicit PQ+classical | Production applications, custom configurations |
 | **Primitives API** | Low-level, fine-grained control | Cryptographic experts, performance optimization |
-
-### API Hierarchy
-
-```
-Unified API (High-Level)
-    ↓ Auto-selection
-Core API (Mid-Level)
-    ↓ Direct usage
-Primitives API (Low-Level)
-    ↓ Direct implementation
-Audited Crates (fips203, fips204, fips205, etc.)
-```
-
----
-
-## Core API
-
-### Configuration
-
-```rust
-use latticearc::{CryptoConfig, SecurityLevel};
-
-// Default configuration
-let config = CryptoConfig::new();
-
-// Security level configuration
-let config = CryptoConfig::new()
-    .security_level(SecurityLevel::High);
-```
-
-### Encryption
-
-```rust
-use latticearc::{encrypt, decrypt, CryptoConfig};
-
-let key = [0u8; 32];  // 256-bit key for AES-256-GCM
-let plaintext = b"Secret message";
-
-let encrypted = encrypt(plaintext, &key, CryptoConfig::new())?;
-let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
-assert_eq!(plaintext, decrypted.as_slice());
-```
-
-### Signatures
-
-```rust
-use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
-
-// Generate signing keypair (returns public key, secret key, and scheme name)
-let config = CryptoConfig::new();
-let (public_key, secret_key, _scheme) = generate_signing_keypair(config.clone())?;
-
-// Sign message
-let message = b"Important document";
-let signed_data = sign_with_key(message, &secret_key, &public_key, config.clone())?;
-
-// Verify signature
-let is_valid = verify(&signed_data, config)?;
-assert!(is_valid);
-```
-
-### Configuration API
-
-#### CryptoConfig
-
-```rust
-use latticearc::{CryptoConfig, SecurityLevel};
-
-let config = CryptoConfig::new()
-    .security_level(SecurityLevel::High);
-```
-
-#### Configuration Options
-
-| Option | Type | Default | Description |
-|--------|------|----------|-------------|
-| `security_level` | `SecurityLevel` | `High` | Security strength level |
-| `performance_preference` | `PerformancePreference` | `Balanced` | Performance vs security trade-off |
-| `compliance_mode` | `ComplianceMode` | `Default` | Regulatory compliance: `Default` (no restrictions), `Fips140_3` (FIPS-validated backends, hybrid allowed), `Cnsa2_0` (PQ-only, no hybrid) |
-| `enable_zeroization` | `bool` | `true` | Auto-zeroize sensitive data |
-| `audit_logging` | `bool` | `false` | Enable audit logging |
 
 ---
 
 ## Unified API
 
-### Convenience Functions
-
-The Unified API provides simple functions for common operations.
-
-#### Encryption
+### Encryption
 
 ```rust
 use latticearc::{encrypt, decrypt, CryptoConfig, UseCase, SecurityLevel};
@@ -140,22 +72,18 @@ let encrypted = encrypt(data, &key, CryptoConfig::new()
 let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
 ```
 
-#### Signatures
+### Signatures
 
 ```rust
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
-// Generate keys and sign data
 let config = CryptoConfig::new();
 let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 let signed_data = sign_with_key(data, &sk, &pk, config.clone())?;
-
-// Verify signature
 let is_valid = verify(&signed_data, config)?;
-assert!(is_valid);
 ```
 
-#### Key Generation
+### Key Generation
 
 ```rust
 use latticearc::generate_keypair;
@@ -167,19 +95,13 @@ let (public_key, private_key) = generate_keypair()?;
 ### Zero-Trust Authentication
 
 ```rust
-use latticearc::{VerifiedSession, generate_keypair};
+use latticearc::{VerifiedSession, generate_keypair, CryptoConfig};
 
-// Initialize zero-trust authentication
-let auth = ZeroTrustAuth::new(public_key, private_key)?;
+let (pk, sk) = generate_keypair()?;
+let session = VerifiedSession::establish(&pk, &sk)?;
 
-// Generate challenge
-let challenge = auth.generate_challenge();
-
-// Generate proof
-let proof = auth.generate_proof(&challenge)?;
-
-// Verify proof
-let verified = auth.verify_proof(&proof, &challenge)?;
+// Use session for crypto operations
+let config = CryptoConfig::new().session(&session);
 ```
 
 ### Auto-Selection Engine
@@ -188,69 +110,112 @@ let verified = auth.verify_proof(&proof, &challenge)?;
 use latticearc::unified_api::selector::CryptoPolicyEngine;
 
 // Recommend scheme for use case
-let scheme = CryptoPolicyEngine::recommend_scheme(
-    &UseCase::SecureMessaging,
-    &config
-)?;
-
-// Analyze data characteristics
-let characteristics = CryptoPolicyEngine::analyze_data_characteristics(data);
+let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::SecureMessaging, &config)?;
 
 // Select encryption scheme
 let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?;
+```
+
+### Configuration
+
+```mermaid
+flowchart LR
+    NEW[CryptoConfig::new] --> UC[.use_case]
+    NEW --> SL[.security_level]
+    NEW --> SS[.session]
+    UC --> CFG[Configured CryptoConfig]
+    SL --> CFG
+    SS --> CFG
+
+    classDef builder fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    classDef result fill:#10b981,stroke:#059669,color:#fff
+
+    class NEW,UC,SL,SS builder
+    class CFG result
+```
+
+| Option | Type | Default | Description |
+|--------|------|----------|-------------|
+| `security_level` | `SecurityLevel` | `High` | Security strength level |
+| `performance_preference` | `PerformancePreference` | `Balanced` | Performance vs security trade-off |
+| `compliance_mode` | `ComplianceMode` | `Default` | `Default`, `Fips140_3`, or `Cnsa2_0` |
+| `enable_zeroization` | `bool` | `true` | Auto-zeroize sensitive data |
+| `audit_logging` | `bool` | `false` | Enable audit logging |
+
+---
+
+## Hybrid API
+
+### Hybrid Encryption
+
+```rust
+use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+
+// Generate hybrid keypair (ML-KEM-768 + X25519)
+let (pk, sk) = generate_hybrid_keypair()?;
+
+// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let encrypted = encrypt_hybrid(b"Sensitive data", &pk, SecurityMode::Unverified)?;
+let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+```
+
+### Hybrid Signatures
+
+**Via Unified API** (returns `SignedData`):
+
+```rust
+use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig, SecurityLevel};
+
+let config = CryptoConfig::new().security_level(SecurityLevel::High);
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed_data = sign_with_key(data, &sk, &pk, config.clone())?;
+let is_valid = verify(&signed_data, config)?;
+```
+
+**Direct Hybrid Signature API** (ML-DSA-65 + Ed25519 AND-composition):
+
+```rust
+use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
+
+let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
+let signature = sign_hybrid(b"important message", &sk, SecurityMode::Unverified)?;
+let valid = verify_hybrid_signature(b"important message", &signature, &pk, SecurityMode::Unverified)?;
 ```
 
 ---
 
 ## Primitives API
 
-### ML-KEM (Key Encapsulation Mechanism)
+### ML-KEM (Key Encapsulation)
 
 ```rust
 use latticearc::primitives::kem::ml_kem::*;
 use rand::rngs::OsRng;
 
-// Generate keypair
 let mut rng = OsRng;
 let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)?;
-
-// Encapsulate (produces shared secret + ciphertext)
 let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &pk)?;
-
-// Decapsulate (recovers same shared secret)
 let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
 assert_eq!(shared_secret, recovered);
 ```
 
-### ML-DSA (Digital Signature Algorithm)
+### ML-DSA (Digital Signatures)
 
 ```rust
 use latticearc::primitives::sig::ml_dsa::*;
 
-// Generate keypair
 let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)?;
-
-// Sign
-let message = b"Important message";
-let signature = sign(&sk, message, b"")?;
-
-// Verify
-let verified = verify(&pk, message, &signature, b"")?;
-assert!(verified);
+let signature = sign(&sk, b"Important message", b"")?;
+let verified = verify(&pk, b"Important message", &signature, b"")?;
 ```
 
-### SLH-DSA (Stateless Hash-Based Signatures)
+### SLH-DSA (Hash-Based Signatures)
 
 ```rust
 use latticearc::primitives::sig::slh_dsa::*;
 
-// Generate keypair
 let (signing_key, verifying_key) = SigningKey::generate(SecurityLevel::Sha2128s)?;
-
-// Sign
 let signature = signing_key.sign(message, None)?;
-
-// Verify
 let verified = verifying_key.verify(message, &signature, None)?;
 ```
 
@@ -260,45 +225,24 @@ let verified = verifying_key.verify(message, &signature, None)?;
 use latticearc::primitives::aead::aes_gcm::*;
 use latticearc::primitives::aead::AeadCipher;
 
-// Generate key and create cipher
 let key = AesGcm256::generate_key();
 let cipher = AesGcm256::new(&key)?;
-
-// Encrypt
 let nonce = AesGcm256::generate_nonce();
 let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
-
-// Decrypt
 let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
 ```
 
-### AES-GCM with Additional Authenticated Data (AAD)
+### AES-GCM with AAD
 
-For binding context metadata (headers, session IDs, protocol fields) to ciphertext.
-AAD is authenticated but not encrypted — tampering with AAD causes decryption to fail.
+For binding context metadata (headers, session IDs) to ciphertext:
 
 ```rust
 use latticearc::{encrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_aad, SecurityMode};
 
 let key = [0u8; 32];
-let plaintext = b"Sensitive payload";
 let aad = b"session-id:abc123;timestamp:1700000000";
-
-// Encrypt with AAD binding
-let encrypted = encrypt_aes_gcm_with_aad(plaintext, &key, aad, SecurityMode::Unverified)?;
-
-// Decrypt with same AAD (mismatched AAD → DecryptionFailed)
+let encrypted = encrypt_aes_gcm_with_aad(b"payload", &key, aad, SecurityMode::Unverified)?;
 let decrypted = decrypt_aes_gcm_with_aad(&encrypted, &key, aad, SecurityMode::Unverified)?;
-assert_eq!(plaintext, decrypted.as_slice());
-```
-
-Unverified convenience variants are also available:
-
-```rust
-use latticearc::{encrypt_aes_gcm_with_aad_unverified, decrypt_aes_gcm_with_aad_unverified};
-
-let encrypted = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, aad)?;
-let decrypted = decrypt_aes_gcm_with_aad_unverified(&encrypted, &key, aad)?;
 ```
 
 ### ChaCha20-Poly1305
@@ -307,81 +251,16 @@ let decrypted = decrypt_aes_gcm_with_aad_unverified(&encrypted, &key, aad)?;
 use latticearc::primitives::aead::chacha20poly1305::*;
 use latticearc::primitives::aead::AeadCipher;
 
-// Generate key and create cipher
 let key = ChaCha20Poly1305Cipher::generate_key();
 let cipher = ChaCha20Poly1305Cipher::new(&key)?;
-
-// Encrypt
 let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
-
-// Decrypt
 let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
 ```
 
 ---
 
-## Hybrid API
-
-### Hybrid Encryption
-
-Combines post-quantum and classical encryption for quantum-safe hybrid security.
-
-```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
-
-// Generate hybrid keypair (ML-KEM-768 + X25519)
-let (pk, sk) = generate_hybrid_keypair()?;
-
-// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
-let plaintext = b"Sensitive data";
-let encrypted = encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified)?;
-
-// Hybrid decryption
-let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
-```
-
-### Hybrid Signatures
-
-#### Via Unified API (returns `SignedData`)
-
-```rust
-use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig, SecurityLevel};
-
-// Generate hybrid signature keypair (ML-DSA + Ed25519)
-let config = CryptoConfig::new().security_level(SecurityLevel::High);
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
-
-// Sign
-let message = b"Important data";
-let signed_data = sign_with_key(message, &sk, &pk, config.clone())?;
-
-// Verify
-let is_valid = verify(&signed_data, config)?;
-```
-
-#### Direct Hybrid Signature API
-
-For direct access to ML-DSA-65 + Ed25519 AND-composition signatures:
-
-```rust
-use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
-
-// Generate hybrid signing keypair
-let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
-
-// Sign (both ML-DSA and Ed25519 signatures are generated)
-let signature = sign_hybrid(b"important message", &sk, SecurityMode::Unverified)?;
-
-// Verify (both signatures must verify)
-let valid = verify_hybrid_signature(b"important message", &signature, &pk, SecurityMode::Unverified)?;
-```
-
----
-
 ## Error Handling
-
-### Error Types
 
 ```rust
 use latticearc::CoreError;
@@ -406,8 +285,6 @@ match operation() {
 }
 ```
 
-### Error Variants
-
 | Error | Description | Common Causes |
 |--------|-------------|----------------|
 | `InvalidKeyLength` | Key length mismatch | Wrong key size for algorithm |
@@ -415,8 +292,7 @@ match operation() {
 | `DecryptionFailed` | Decryption operation failed | Wrong key, corrupted ciphertext |
 | `VerificationFailed` | Signature verification failed | Wrong key, tampered data |
 | `InvalidInput` | Input validation failed | Empty input, invalid format |
-| `HardwareError` | Hardware accelerator error (enterprise only) | Device unavailable, driver issue |
-| `ConfigurationError` | Invalid configuration | Conflicting settings, invalid parameters |
+| `ConfigurationError` | Invalid configuration | Conflicting settings |
 
 ---
 
@@ -433,141 +309,17 @@ pub enum SecurityLevel {
 }
 ```
 
-### Crypto Schemes
-
-```rust
-pub enum CryptoScheme {
-    Hybrid,       // PQC + classical for defense in depth
-    Symmetric,    // Symmetric encryption (e.g., AES-GCM)
-    Asymmetric,   // Classical asymmetric (e.g., Ed25519)
-    Homomorphic,  // Homomorphic encryption schemes
-    PostQuantum,  // Pure post-quantum without classical fallback
-}
-```
-
 ### Use Cases
 
 ```rust
 pub enum UseCase {
-    SecureMessaging,
-    EmailEncryption,
-    VpnTunnel,
-    ApiSecurity,
-    FileStorage,
-    DatabaseEncryption,
-    CloudStorage,
-    BackupArchive,
-    ConfigSecrets,
-    Authentication,
-    SessionToken,
-    DigitalCertificate,
-    KeyExchange,
-    FinancialTransactions,
-    LegalDocuments,
-    BlockchainTransaction,
-    HealthcareRecords,
-    GovernmentClassified,
-    PaymentCard,
-    IoTDevice,
-    FirmwareSigning,
-    SearchableEncryption,
-    HomomorphicComputation,
-    AuditLog,
-}
-```
-
----
-
-## Examples
-
-### Example 1: Simple Encryption
-
-```rust
-use latticearc::{encrypt, decrypt, CryptoConfig};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let key = [0u8; 32];
-    let message = b"Hello, LatticeArc!";
-
-    // Encrypt
-    let encrypted = encrypt(message, &key, CryptoConfig::new())?;
-
-    // Decrypt
-    let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
-
-    assert_eq!(message, decrypted.as_slice());
-    println!("✅ Encryption/Decryption successful!");
-
-    Ok(())
-}
-```
-
-### Example 2: Digital Signatures
-
-```rust
-use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = CryptoConfig::new();
-    let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
-
-    let document = b"Important document";
-    let signed_data = sign_with_key(document, &sk, &pk, config.clone())?;
-
-    let is_valid = verify(&signed_data, config)?;
-    assert!(is_valid);
-
-    println!("✅ Signature verified!");
-    Ok(())
-}
-```
-
-### Example 3: Hybrid Encryption
-
-```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Generate hybrid keypair
-    let (pk, sk) = generate_hybrid_keypair()?;
-
-    // Encrypt
-    let plaintext = b"Quantum-safe data";
-    let encrypted = encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified)?;
-
-    // Decrypt
-    let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
-
-    assert_eq!(plaintext, decrypted.as_slice());
-    println!("✅ Hybrid encryption successful!");
-
-    Ok(())
-}
-```
-
-### Example 4: Zero-Trust Authentication
-
-```rust
-use latticearc::{generate_keypair, VerifiedSession, generate_signing_keypair,
-                 sign_with_key, verify, CryptoConfig};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Generate keys
-    let (public_key, private_key) = generate_keypair()?;
-
-    // Establish verified session
-    let session = VerifiedSession::establish(&public_key, &private_key)?;
-
-    // Use session for crypto operations
-    let config = CryptoConfig::new().session(&session);
-    let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
-    let signed = sign_with_key(b"authenticated message", &sk, &pk, config.clone())?;
-    let is_valid = verify(&signed, config)?;
-
-    assert!(is_valid);
-    println!("✅ Zero-trust authentication successful!");
-
-    Ok(())
+    SecureMessaging, EmailEncryption, VpnTunnel, ApiSecurity,
+    FileStorage, DatabaseEncryption, CloudStorage, BackupArchive, ConfigSecrets,
+    Authentication, SessionToken, DigitalCertificate, KeyExchange,
+    FinancialTransactions, LegalDocuments, BlockchainTransaction,
+    HealthcareRecords, GovernmentClassified, PaymentCard,
+    IoTDevice, FirmwareSigning,
+    SearchableEncryption, HomomorphicComputation, AuditLog,
 }
 ```
 
@@ -577,64 +329,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### From OpenSSL
 
-**Before (OpenSSL):**
 ```c
+// Before (OpenSSL — 8 lines, manual memory management)
 EVP_PKEY *key = EVP_PKEY_new();
 EVP_PKEY_assign_RSA(key, RSA_generate_key(2048, 65537, NULL, NULL));
-
 unsigned char *encrypted = malloc(256);
-int encrypted_len = RSA_public_encrypt(
-    data_len, data, encrypted,
-    EVP_PKEY_get0_RSA(key), RSA_PKCS1_OAEP_PADDING
-);
+int encrypted_len = RSA_public_encrypt(data_len, data, encrypted,
+    EVP_PKEY_get0_RSA(key), RSA_PKCS1_OAEP_PADDING);
 ```
 
-**After (LatticeArc):**
 ```rust
-use latticearc::{encrypt, CryptoConfig};
-
+// After (LatticeArc — 2 lines, quantum-safe)
 let key = [0u8; 32];
 let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 ```
 
-### From Sodium
+### From libsodium
 
-**Before (libsodium):**
 ```c
-unsigned char public_key[crypto_box_PUBLICKEYBYTES];
-unsigned char secret_key[crypto_box_SECRETKEYBYTES];
-crypto_box_keypair(public_key, secret_key);
-
-unsigned char encrypted[crypto_box_MACBYTES + msg_len];
-crypto_box_easy(encrypted, msg, msg_len,
-                nonce, public_key, secret_key);
+// Before (libsodium)
+unsigned char pk[crypto_box_PUBLICKEYBYTES], sk[crypto_box_SECRETKEYBYTES];
+crypto_box_keypair(pk, sk);
+crypto_box_easy(encrypted, msg, msg_len, nonce, pk, sk);
 ```
 
-**After (LatticeArc):**
 ```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, SecurityMode};
-
+// After (LatticeArc — hybrid PQ + classical)
 let (pk, sk) = generate_hybrid_keypair()?;
 let encrypted = encrypt_hybrid(data, &pk, SecurityMode::Unverified)?;
 ```
 
-### From Bouncy Castle
+### From Bouncy Castle (Java)
 
-**Before (Java/Bouncy Castle):**
 ```java
+// Before (Bouncy Castle)
 KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
 keyGen.initialize(256);
-KeyPair keyPair = keyGen.generateKeyPair();
-
 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 byte[] encrypted = cipher.doFinal(plaintext);
 ```
 
-**After (LatticeArc):**
 ```rust
-use latticearc::{encrypt, CryptoConfig};
-
+// After (LatticeArc)
 let key = [0u8; 32];
 let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 ```
@@ -643,21 +380,11 @@ let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 
 ## Further Reading
 
-- [Unified API](../latticearc/src/unified_api/) (source module)
-- [Primitives Documentation](primitives/README.md)
-- [Security Guide](docs/SECURITY_GUIDE.md)
-- [NIST Compliance](docs/NIST_COMPLIANCE.md)
+- [Unified API Guide](UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
+- [Security Guide](SECURITY_GUIDE.md) — threat model, secure usage patterns
+- [NIST Compliance](NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
+- [API Reference](https://docs.rs/latticearc) — generated docs on docs.rs
 
 ---
 
-## Support
-
-- **Documentation**: https://docs.rs/latticearc
-- **GitHub Issues**: https://github.com/latticearc/latticearc/issues
-- **Security**: Security@LatticeArc.com
-
----
-
-**Document Version**: 0.2.0
-**Last Updated**: February 20, 2026
-**Maintained By**: LatticeArc Documentation Team
+**Documentation**: https://docs.rs/latticearc | **Issues**: https://github.com/latticearc/latticearc/issues | **Security**: Security@LatticeArc.com

@@ -29,6 +29,27 @@ LatticeArc implements NIST-standardized algorithms (FIPS 203-206) and follows se
 
 ### Which algorithm should I use?
 
+```mermaid
+flowchart TD
+    START([What do you need?]) --> KE{Key exchange?}
+    START --> SIG{Signatures?}
+
+    KE -->|General| KEM768["ML-KEM-768\n(NIST Level 3)"]
+    KE -->|Maximum security| KEM1024["ML-KEM-1024\n(NIST Level 5)"]
+    KE -->|Constrained device| KEM512["ML-KEM-512\n(NIST Level 1)"]
+
+    SIG -->|General| DSA65["ML-DSA-65\n(NIST Level 3)"]
+    SIG -->|Maximum security| DSA87["ML-DSA-87\n(NIST Level 5)"]
+    SIG -->|Most conservative| SLH["SLH-DSA\n(hash-based)"]
+    SIG -->|Smallest keys| FN["FN-DSA-512\n(897 byte PK)"]
+
+    classDef question fill:#f59e0b,stroke:#d97706,color:#fff
+    classDef answer fill:#10b981,stroke:#059669,color:#fff
+
+    class START,KE,SIG question
+    class KEM768,KEM1024,KEM512,DSA65,DSA87,SLH,FN answer
+```
+
 | Use Case | Recommended |
 |----------|-------------|
 | Key exchange | ML-KEM-768 |
@@ -239,17 +260,17 @@ Open a GitHub issue using the bug report template.
 
 ### How do I report a security vulnerability?
 
-**Do NOT open a public issue.** Email Security@LatticeArc.com. See [SECURITY.md](SECURITY.md).
+**Do NOT open a public issue.** Email Security@LatticeArc.com. See [SECURITY.md](../SECURITY.md).
 
 ### How do I contribute code?
 
 1. Fork the repository
 2. Create a feature branch
-3. Make changes following [CONTRIBUTING.md](CONTRIBUTING.md)
+3. Make changes following [CONTRIBUTING.md](../CONTRIBUTING.md)
 4. Submit a pull request
 
 ## More Questions?
 
 - Open a [GitHub Discussion](https://github.com/latticearc/latticearc/discussions)
 - Check the [API Documentation](https://docs.rs/latticearc)
-- Read the [Security Guide](docs/SECURITY_GUIDE.md)
+- Read the [Security Guide](SECURITY_GUIDE.md)

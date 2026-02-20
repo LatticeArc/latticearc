@@ -24,6 +24,32 @@
 
 ## 2. Cryptographic Module Boundary
 
+```mermaid
+flowchart TB
+    subgraph "FIPS Boundary (--features fips)"
+        PRIM["latticearc::primitives\nML-KEM · AES-GCM · HKDF · ML-DSA · SLH-DSA · FN-DSA"]
+        API["latticearc::unified_api\nencrypt · decrypt · sign · verify"]
+        PRE["latticearc::prelude\nError types"]
+        HYB["latticearc::hybrid (partial)\nML-KEM KEM only"]
+    end
+
+    subgraph "Outside Boundary"
+        TLS["latticearc::tls"]
+        ZKP["latticearc::zkp"]
+        PERF["latticearc::perf"]
+    end
+
+    API --> PRIM
+    HYB --> PRIM
+    API --> PRE
+
+    classDef inside fill:#10b981,stroke:#059669,color:#fff
+    classDef outside fill:#6b7280,stroke:#374151,color:#fff
+
+    class PRIM,API,PRE,HYB inside
+    class TLS,ZKP,PERF outside
+```
+
 The FIPS cryptographic boundary is defined by the `fips` feature flag in `latticearc/Cargo.toml`. When `fips` is enabled:
 
 - **Included**: All FIPS-approved algorithms (see Section 3)

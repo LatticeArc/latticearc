@@ -4,6 +4,35 @@ LatticeArc verifies correctness at three layers, each with the right tool for th
 
 ## Three-Layer Approach
 
+```mermaid
+flowchart TB
+    subgraph "Layer 3 — Type Invariants"
+        KANI["Kani (29 proofs)\nAll possible inputs"]
+        TYPES["latticearc::types\nPure Rust · Zero FFI"]
+    end
+
+    subgraph "Layer 2 — API Crypto"
+        PROP["Proptest (40+ tests)\n256 random cases each"]
+        WRAP["Rust wrappers\nHybrid KEM · encrypt · sign"]
+    end
+
+    subgraph "Layer 1 — Primitives"
+        SAW["SAW (inherited)\nMathematical proofs"]
+        AWSLC["aws-lc-rs C code\nAES-GCM · ML-KEM · X25519"]
+    end
+
+    KANI --> TYPES
+    PROP --> WRAP
+    SAW --> AWSLC
+    WRAP --> AWSLC
+
+    classDef tool fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    classDef code fill:#3b82f6,stroke:#1d4ed8,color:#fff
+
+    class KANI,PROP,SAW tool
+    class TYPES,WRAP,AWSLC code
+```
+
 | Layer | Tool | Scope | What it proves |
 |-------|------|-------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |

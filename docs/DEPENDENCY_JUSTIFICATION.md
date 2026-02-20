@@ -7,15 +7,53 @@
 
 ## Executive Summary
 
-This document provides comprehensive justification for all major dependencies in the LatticeArc project, with special focus on cryptographic libraries. All dependencies have been vetted for:
+All dependencies vetted for security (audits, memory safety), licensing (Apache/MIT/BSD — no copyleft), standards compliance (FIPS 203-206), and supply chain (crates.io only). **376 total components** including transitive dependencies.
 
-- **Security**: Cryptographic correctness, memory safety, and vulnerability history
-- **Licensing**: Apache 2.0, MIT, BSD, ISC compatibility (no copyleft)
-- **Maintenance**: Active development and security response
-- **Standards Compliance**: FIPS 203/204/205/206, NIST requirements
-- **Supply Chain**: Only crates.io and approved sources
+```mermaid
+flowchart TB
+    subgraph "latticearc"
+        LA[LatticeArc 0.2.0]
+    end
 
-**Total Dependencies:** 376 components (including transitive dependencies)
+    subgraph "FIPS-Validated"
+        AWSLC["aws-lc-rs 1.16.0\nML-KEM · AES-GCM · HKDF · X25519"]
+    end
+
+    subgraph "NIST PQ Signatures"
+        F204["fips204 0.4.6\nML-DSA"]
+        F205["fips205 0.4.1\nSLH-DSA"]
+        FNDSA["fn-dsa 0.3.0\nFN-DSA"]
+    end
+
+    subgraph "Classical Crypto"
+        DALEK["ed25519-dalek\nEd25519"]
+        CHA["chacha20poly1305\nChaCha20-Poly1305"]
+    end
+
+    subgraph "Memory Safety"
+        ZERO["zeroize · subtle"]
+    end
+
+    LA --> AWSLC
+    LA --> F204
+    LA --> F205
+    LA --> FNDSA
+    LA --> DALEK
+    LA --> CHA
+    LA --> ZERO
+
+    classDef main fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    classDef fips fill:#10b981,stroke:#059669,color:#fff
+    classDef nist fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    classDef cl fill:#f59e0b,stroke:#d97706,color:#fff
+    classDef safety fill:#ef4444,stroke:#b91c1c,color:#fff
+
+    class LA main
+    class AWSLC fips
+    class F204,F205,FNDSA nist
+    class DALEK,CHA cl
+    class ZERO safety
+```
 
 ---
 
