@@ -2017,4 +2017,71 @@ mod tests {
         }
         assert!(report.total_duration_us > 0);
     }
+
+    // ---- Coverage: direct KAT calls for SHA3-256 and HMAC-SHA256 ----
+
+    #[test]
+    fn test_kat_sha3_256_passes() {
+        assert!(kat_sha3_256().is_ok());
+    }
+
+    #[test]
+    fn test_kat_hmac_sha256_passes() {
+        assert!(kat_hmac_sha256().is_ok());
+    }
+
+    #[test]
+    fn test_self_test_report_all_fields_populated() {
+        let report = run_power_up_tests_with_report();
+        assert!(report.overall_result.is_pass());
+        // Verify we have the expected number of algorithm tests
+        assert!(report.tests.len() >= 9, "Should have at least 9 KAT results");
+        // Verify total duration is populated
+        assert!(report.total_duration_us > 0);
+        // Verify each test has algorithm name and timing
+        for test in &report.tests {
+            assert!(!test.algorithm.is_empty(), "Algorithm name should not be empty");
+            assert!(
+                test.duration_us.is_some(),
+                "Duration should be measured for {}",
+                test.algorithm
+            );
+        }
+    }
+
+    #[test]
+    fn test_error_state_timestamp_ordering() {
+        clear_error_state();
+
+        // Set first error
+        set_module_error(ModuleErrorCode::EntropyFailure);
+        let state1 = get_module_error_state();
+        let ts1 = state1.timestamp;
+
+        // Set second error (same second or later)
+        set_module_error(ModuleErrorCode::IntegrityFailure);
+        let state2 = get_module_error_state();
+        let ts2 = state2.timestamp;
+
+        // Timestamps should be non-decreasing
+        assert!(ts2 >= ts1, "Second timestamp should be >= first");
+        assert_eq!(state2.error_code, ModuleErrorCode::IntegrityFailure);
+
+        // Cleanup
+        clear_error_state();
+    }
+
+    #[test]
+    fn test_verify_operational_after_reset() {
+        // Set error state
+        set_module_error(ModuleErrorCode::HsmError);
+        assert!(verify_operational().is_err());
+
+        // Clear and re-initialize
+        clear_error_state();
+        let result = initialize_and_test();
+        assert!(result.is_pass());
+        assert!(verify_operational().is_ok());
+        assert!(is_module_operational());
+    }
 }

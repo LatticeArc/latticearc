@@ -597,4 +597,28 @@ mod tests {
         let debug = format!("{:?}", config);
         assert!(debug.contains("TracingConfig"));
     }
+
+    // ---- Coverage: TlsSpan::field method ----
+
+    #[test]
+    fn test_tls_span_field_adds_metadata() {
+        let span = TlsSpan::new("test_op_with_field", None);
+        // field() returns Self, chain should not panic
+        let _span = span.field("custom_key", "custom_value");
+    }
+
+    #[test]
+    fn test_tls_span_field_chained() {
+        let span = TlsSpan::new("chained_fields", None);
+        let span = span.field("key1", "val1");
+        let _span = span.field("key2", 42_i64);
+    }
+
+    #[test]
+    fn test_tls_metrics_default_via_trait() {
+        let metrics = TlsMetrics::default();
+        assert_eq!(metrics.bytes_sent, 0);
+        assert_eq!(metrics.bytes_received, 0);
+        assert_eq!(metrics.total_duration, Duration::ZERO);
+    }
 }

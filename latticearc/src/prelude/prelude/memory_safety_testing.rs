@@ -449,4 +449,58 @@ mod tests {
         // Should have run 1000 iterations
         assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), 1000);
     }
+
+    // ---- Coverage: monitor_leaks edge cases ----
+
+    #[test]
+    fn test_monitor_leaks_with_allocating_operation() {
+        let detector = UtilityLeakDetector::new();
+        let result = detector.monitor_leaks(|| {
+            // Allocate and free memory within the operation
+            let data = vec![0xABu8; 256];
+            let encoded = hex::encode(&data);
+            let _decoded = hex::decode(&encoded);
+            Ok(())
+        });
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_monitor_leaks_sequential_runs() {
+        let detector = UtilityLeakDetector::new();
+        // Run monitor_leaks multiple times sequentially
+        for _ in 0..3 {
+            let result = detector.monitor_leaks(|| Ok(()));
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_utility_memory_safety_tester_default() {
+        let tester = UtilityMemorySafetyTester::new();
+        assert!(tester.test_memory_safety().is_ok());
+    }
+
+    #[test]
+    fn test_hex_roundtrip_empty_and_single_byte() {
+        // Empty data
+        let empty: Vec<u8> = vec![];
+        let encoded = hex::encode(&empty);
+        assert_eq!(encoded, "");
+        let decoded = hex::decode(&encoded);
+        assert!(decoded.is_ok());
+        if let Ok(ref bytes) = decoded {
+            assert!(bytes.is_empty());
+        }
+
+        // Single byte
+        let single = vec![0xFFu8];
+        let encoded = hex::encode(&single);
+        assert_eq!(encoded, "ff");
+        let decoded = hex::decode(&encoded);
+        assert!(decoded.is_ok());
+        if let Ok(ref bytes) = decoded {
+            assert_eq!(bytes, &single);
+        }
+    }
 }

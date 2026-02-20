@@ -1316,4 +1316,35 @@ mod tests {
         let result = create_server_config(&config, chain, server_key_der);
         assert!(result.is_ok(), "Server config with cert chain should succeed");
     }
+
+    // ---- Coverage: config builder edge cases ----
+
+    #[test]
+    fn test_tls13_config_pq_only() {
+        let config = Tls13Config::pq();
+        assert!(config.use_pq_kx);
+        assert_eq!(config.mode, TlsMode::Pq);
+    }
+
+    #[test]
+    fn test_tls13_config_with_pq_kx_toggle() {
+        let config = Tls13Config::hybrid().with_pq_kx(false);
+        assert!(!config.use_pq_kx);
+
+        let config2 = Tls13Config::classic().with_pq_kx(true);
+        assert!(config2.use_pq_kx);
+    }
+
+    #[test]
+    fn test_tls13_config_default_all_fields() {
+        let config = Tls13Config::default();
+        assert!(config.use_pq_kx);
+        assert!(!config.enable_early_data);
+        assert_eq!(config.max_early_data_size, 0);
+        assert!(config.alpn_protocols.is_empty());
+        assert!(config.max_fragment_size.is_none());
+        assert!(config.cipher_suites.is_none());
+        assert!(config.client_cert_chain.is_none());
+        assert!(config.client_private_key.is_none());
+    }
 }

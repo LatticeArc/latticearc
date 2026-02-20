@@ -1071,4 +1071,68 @@ mod tests {
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
+
+    // ---- Coverage: parameter set sizes and empty message ----
+
+    #[test]
+    fn test_ml_dsa_parameter_set_sizes() {
+        // MLDSA44
+        assert_eq!(MlDsaParameterSet::MLDSA44.public_key_size(), 1312);
+        assert_eq!(MlDsaParameterSet::MLDSA44.secret_key_size(), 2560);
+        assert_eq!(MlDsaParameterSet::MLDSA44.signature_size(), 2420);
+
+        // MLDSA65
+        assert_eq!(MlDsaParameterSet::MLDSA65.public_key_size(), 1952);
+        assert_eq!(MlDsaParameterSet::MLDSA65.secret_key_size(), 4032);
+        assert_eq!(MlDsaParameterSet::MLDSA65.signature_size(), 3309);
+
+        // MLDSA87
+        assert_eq!(MlDsaParameterSet::MLDSA87.public_key_size(), 2592);
+        assert_eq!(MlDsaParameterSet::MLDSA87.secret_key_size(), 4896);
+        assert_eq!(MlDsaParameterSet::MLDSA87.signature_size(), 4627);
+    }
+
+    #[test]
+    fn test_ml_dsa_sign_empty_message() -> Result<(), MlDsaError> {
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44)?;
+        let empty_msg: &[u8] = b"";
+
+        let sig = sign(&sk, empty_msg, &[])?;
+        let valid = verify(&pk, empty_msg, &sig, &[])?;
+        assert!(valid, "Empty message signature should be valid");
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_sign_with_context() -> Result<(), MlDsaError> {
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44)?;
+        let message = b"Message with context";
+        let context = b"application-context";
+
+        let sig = sign(&sk, message, context)?;
+        let valid = verify(&pk, message, &sig, context)?;
+        assert!(valid, "Signature with context should be valid");
+
+        // Wrong context should fail
+        let valid_wrong_ctx = verify(&pk, message, &sig, b"wrong-context")?;
+        assert!(!valid_wrong_ctx, "Wrong context should fail verification");
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_dsa_signature_len_and_is_empty() {
+        let (_pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA44).expect("Key generation should succeed");
+        let sig = sign(&sk, b"test", &[]).expect("Signing should succeed");
+
+        assert_eq!(sig.len(), MlDsaParameterSet::MLDSA44.signature_size());
+        assert!(!sig.is_empty());
+    }
+
+    #[test]
+    fn test_ml_dsa_secret_key_parameter_set() {
+        let (_pk, sk) =
+            generate_keypair(MlDsaParameterSet::MLDSA65).expect("Key generation should succeed");
+        assert_eq!(sk.parameter_set(), MlDsaParameterSet::MLDSA65);
+    }
 }

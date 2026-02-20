@@ -1119,4 +1119,124 @@ mod tests {
         );
         Ok(())
     }
+
+    // ---- Coverage: config unverified roundtrip ----
+
+    #[test]
+    fn test_encrypt_decrypt_with_config_unverified_roundtrip() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"Config unverified roundtrip test";
+        let config = CoreConfig::default();
+
+        let ct = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
+        let pt = decrypt_aes_gcm_with_config_unverified(&ct, &key, &config)?;
+
+        assert_eq!(pt, plaintext.to_vec());
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_unverified_wrong_key_length() {
+        let short_key = vec![0x42; 16]; // 16 bytes instead of 32
+        let plaintext = b"Should fail";
+        let config = CoreConfig::default();
+
+        let result = encrypt_aes_gcm_with_config_unverified(plaintext, &short_key, &config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_unverified_decrypt_wrong_key() -> Result<()> {
+        let key = generate_test_key();
+        let wrong_key = vec![0xFF; 32];
+        let plaintext = b"Decrypt with wrong key";
+        let config = CoreConfig::default();
+
+        let ct = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
+        let result = decrypt_aes_gcm_with_config_unverified(&ct, &wrong_key, &config);
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_unverified_decrypt_short_ciphertext() {
+        let key = generate_test_key();
+        let config = CoreConfig::default();
+        let short_data = vec![0u8; 5]; // Less than 12 bytes (nonce)
+
+        let result = decrypt_aes_gcm_with_config_unverified(&short_data, &key, &config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_unverified_empty_plaintext() -> Result<()> {
+        let key = generate_test_key();
+        let config = CoreConfig::default();
+        let plaintext = b"";
+
+        let ct = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
+        let pt = decrypt_aes_gcm_with_config_unverified(&ct, &key, &config)?;
+        assert_eq!(pt, plaintext.to_vec());
+        Ok(())
+    }
+
+    // ---- Coverage: AAD with SecurityMode ----
+
+    #[test]
+    fn test_aad_with_security_mode_unverified() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"AAD SecurityMode test";
+        let aad = b"authenticated-context";
+
+        let ct = encrypt_aes_gcm_with_aad(plaintext, &key, aad, SecurityMode::Unverified)?;
+        let pt = decrypt_aes_gcm_with_aad(&ct, &key, aad, SecurityMode::Unverified)?;
+        assert_eq!(pt, plaintext.to_vec());
+        Ok(())
+    }
+
+    #[test]
+    fn test_aad_wrong_aad_decrypt_fails() -> Result<()> {
+        let key = generate_test_key();
+        let plaintext = b"AAD mismatch test";
+        let aad = b"correct-aad";
+        let wrong_aad = b"wrong-aad";
+
+        let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, aad)?;
+        let result = decrypt_aes_gcm_with_aad_unverified(&ct, &key, wrong_aad);
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_aad_internal_wrong_key_length() {
+        let short_key = vec![0x42; 16];
+        let plaintext = b"AAD key length test";
+        let aad = b"some-aad";
+
+        let result = encrypt_aes_gcm_with_aad_internal(plaintext, &short_key, aad);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_aad_internal_decrypt_short_data() {
+        let key = generate_test_key();
+        let aad = b"some-aad";
+        let short_data = vec![0u8; 5];
+
+        let result = decrypt_aes_gcm_with_aad_internal(&short_data, &key, aad);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_aad_internal_decrypt_wrong_key_length() -> Result<()> {
+        let key = generate_test_key();
+        let short_key = vec![0x42; 16];
+        let plaintext = b"test";
+        let aad = b"some-aad";
+
+        let ct = encrypt_aes_gcm_with_aad_internal(plaintext, &key, aad)?;
+        let result = decrypt_aes_gcm_with_aad_internal(&ct, &short_key, aad);
+        assert!(result.is_err());
+        Ok(())
+    }
 }

@@ -1531,3 +1531,45 @@ fn test_encrypt_decrypt_with_use_case_financial() {
         .join()
         .unwrap();
 }
+
+// ---- Coverage: double init, custom config, VERSION format ----
+
+#[test]
+fn test_double_init_is_safe() {
+    std::thread::Builder::new()
+        .name("double_init".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let result1 = crate::init();
+            assert!(result1.is_ok(), "First init should succeed");
+            let result2 = crate::init();
+            assert!(result2.is_ok(), "Second init should also succeed");
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn test_version_is_semver() {
+    let version = crate::VERSION;
+    let parts: Vec<&str> = version.split('.').collect();
+    assert!(parts.len() >= 2, "VERSION should have at least major.minor: {}", version);
+    // Major version should be numeric
+    assert!(parts[0].parse::<u32>().is_ok(), "Major version should be numeric: {}", parts[0]);
+}
+
+#[test]
+fn test_init_with_config_custom_security() {
+    std::thread::Builder::new()
+        .name("custom_config".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let config = crate::unified_api::CoreConfig::default();
+            let result = crate::init_with_config(&config);
+            assert!(result.is_ok(), "init_with_config with default CoreConfig should succeed");
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

@@ -535,4 +535,83 @@ mod tests {
         let debug = format!("{:?}", perf);
         assert!(debug.contains("PerformanceResults"));
     }
+
+    // ---- Coverage: generate_report and ci_integration ----
+
+    #[test]
+    fn test_generate_report_all_passing() {
+        let mut suite = PreludeCiTestSuite::new();
+        let report = suite.run_ci_tests().unwrap();
+
+        let text = report.generate_report();
+        assert!(text.contains("ALL TESTS PASSED"));
+        assert!(text.contains("Test Results Summary"));
+        assert!(text.contains("Performance Benchmarks"));
+        assert!(text.contains("Compliance Status"));
+    }
+
+    #[test]
+    fn test_all_critical_tests_passed_true() {
+        let report = PreludeCiReport {
+            unit_tests_passed: true,
+            property_tests_passed: true,
+            memory_safety_passed: true,
+            cavp_compliance_report: None,
+            side_channel_report: None,
+            side_channel_assessments: vec![],
+            performance_results: PerformanceResults::default(),
+        };
+        assert!(report.all_critical_tests_passed());
+    }
+
+    #[test]
+    fn test_ci_report_default_field_values() {
+        let report = PreludeCiReport::default();
+        assert!(!report.unit_tests_passed);
+        assert!(!report.property_tests_passed);
+        assert!(!report.memory_safety_passed);
+        assert!(report.cavp_compliance_report.is_none());
+        assert!(report.side_channel_report.is_none());
+        assert!(report.side_channel_assessments.is_empty());
+    }
+
+    #[test]
+    fn test_run_ci_tests_standalone_function() {
+        let result = ci_integration::run_ci_tests();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_generate_report_with_optional_sections() {
+        let report = PreludeCiReport {
+            unit_tests_passed: true,
+            property_tests_passed: true,
+            memory_safety_passed: true,
+            cavp_compliance_report: Some("CAVP test data".to_string()),
+            side_channel_report: Some("Side-channel report data".to_string()),
+            side_channel_assessments: vec![],
+            performance_results: PerformanceResults::default(),
+        };
+        let text = report.generate_report();
+        assert!(text.contains("CAVP Compliance Report"));
+        assert!(text.contains("CAVP test data"));
+        assert!(text.contains("Side-Channel Analysis Report"));
+        assert!(text.contains("Side-channel report data"));
+    }
+
+    #[test]
+    fn test_generate_report_issues_detected() {
+        let report = PreludeCiReport {
+            unit_tests_passed: false,
+            property_tests_passed: true,
+            memory_safety_passed: true,
+            cavp_compliance_report: None,
+            side_channel_report: None,
+            side_channel_assessments: vec![],
+            performance_results: PerformanceResults::default(),
+        };
+        let text = report.generate_report();
+        assert!(text.contains("ISSUES DETECTED"));
+        assert!(text.contains("FAILED"));
+    }
 }
