@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["CHACHA20_POLY1305_VECTORS"],"fn":["run_chacha20_poly1305_kat"],"struct":["ChaCha20Poly1305TestVector"]};

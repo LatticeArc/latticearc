@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["deserialize_encrypted_data","deserialize_keypair","deserialize_signed_data","serialize_encrypted_data","serialize_keypair","serialize_signed_data"],"struct":["SerializableEncryptedData","SerializableEncryptedMetadata","SerializableKeyPair","SerializableSignedData","SerializableSignedMetadata"]};

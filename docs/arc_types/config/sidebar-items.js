@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ProofComplexity"],"struct":["CoreConfig","EncryptionConfig","HardwareConfig","SignatureConfig","UseCaseConfig","ZeroTrustConfig"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["load_aes_gcm_kats","load_ed25519_kats","load_from_cavp_json","load_hybrid_kem_kats","load_ml_dsa_kats","load_ml_kem_1024_kats","load_sha3_kats","load_slh_dsa_kats"],"struct":["CavpTestCase","CavpTestGroup","CavpTestVectorFile"]};

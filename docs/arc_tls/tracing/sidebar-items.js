@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["init_tracing","trace_key_exchange","trace_tls_connection","trace_tls_handshake"],"struct":["TlsMetrics","TlsSpan","TracingConfig"]};

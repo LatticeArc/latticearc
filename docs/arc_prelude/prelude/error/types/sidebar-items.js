@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["LatticeArcError"],"mod":["conversions","recovery"],"type":["Result","TimeCapsuleError"]};

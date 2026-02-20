@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ValidationError"],"fn":["validate_input_size"]};

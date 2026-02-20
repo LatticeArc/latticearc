@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["CavpTestExecutor","CavpValidationPipeline","PipelineConfig"]};

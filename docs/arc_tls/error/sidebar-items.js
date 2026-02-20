@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ErrorCode","ErrorSeverity","OperationPhase","RecoveryHint","TlsError"],"struct":["ErrorContext"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["ci_integration"],"struct":["PerformanceResults","PreludeCiReport","PreludeCiTestSuite"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ComplianceStatus","TestCategory","TestResult"],"struct":["CavpComplianceGenerator","CavpComplianceReport","ComplianceCriteria","ComplianceTestResult","DetailedTestResult","MemoryUsageMetrics","PerformanceMetrics","SecurityRequirement","TestSummary","ThroughputMetrics"]};

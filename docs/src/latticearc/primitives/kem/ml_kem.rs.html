@@ -793,7 +793,7 @@
 <a href=#793 id=793 data-nosnippet>793</a>
 <a href=#794 id=794 data-nosnippet>794</a>        <span class="comment">// Serialize secret key bytes via DecapsulationKey::key_bytes() (available since aws-lc-rs v1.16.0)
 <a href=#795 id=795 data-nosnippet>795</a>        </span><span class="kw">let </span>sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
-<a href=#796 id=796 data-nosnippet>796</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Failed to serialize secret key: {}"</span>, e))
+<a href=#796 id=796 data-nosnippet>796</a>            MlKemError::KeyGenerationError(<span class="macro">format!</span>(<span class="string">"Key serialization failed: {}"</span>, e))
 <a href=#797 id=797 data-nosnippet>797</a>        })<span class="question-mark">?</span>;
 <a href=#798 id=798 data-nosnippet>798</a>        <span class="kw">let </span>sk_bytes = sk_bytes_obj.as_ref().to_vec();
 <a href=#799 id=799 data-nosnippet>799</a>

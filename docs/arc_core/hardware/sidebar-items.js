@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["HardwareType"],"struct":["HardwareCapabilities","HardwareInfo"],"trait":["HardwareAccelerator","HardwareAware"]};

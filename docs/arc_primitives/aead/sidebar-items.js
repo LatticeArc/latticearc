@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["AES_GCM_128_KEY_LEN","AES_GCM_256_KEY_LEN","CHACHA20_POLY1305_KEY_LEN","NONCE_LEN","TAG_LEN"],"enum":["AeadError"],"mod":["aes_gcm"],"trait":["AeadCipher"],"type":["Nonce","Tag"]};

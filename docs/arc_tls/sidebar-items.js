@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["VERSION"],"enum":["ClientVerificationMode","TlsMode"],"fn":["pq_enabled"],"mod":["basic_features","context","error","formal_verification","pq_key_exchange","recovery","selector","session_store","tls13","tracing"],"struct":["ClientAuthConfig","SessionPersistenceConfig","TlsConfig"]};

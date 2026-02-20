@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["compliance","documentation","enhanced_framework","integration_tests","official_vectors","pipeline","simple_tests","storage","types","vectors"]};

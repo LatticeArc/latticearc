@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["AlgorithmSelection","CryptoScheme","PerformancePreference","SecurityLevel","UseCase"],"struct":["CryptoContext","CryptoPayload","EncryptedMetadata","KeyPair","SignedMetadata","ZeroizedBytes"],"type":["EncryptedData","HashOutput","PrivateKey","PublicKey","SignedData","SymmetricKey"]};

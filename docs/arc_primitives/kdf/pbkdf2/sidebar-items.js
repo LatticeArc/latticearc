@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["PrfType"],"fn":["pbkdf2","pbkdf2_simple","verify_password"],"struct":["Pbkdf2Params","Pbkdf2Result"]};

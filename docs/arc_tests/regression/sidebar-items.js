@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["issue_001_kem_empty_ciphertext","issue_002_signature_zero_message"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["generate_kat_report","run_kat_tests"]};

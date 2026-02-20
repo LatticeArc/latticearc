@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BoundsError"],"fn":["validate_bounds"]};
