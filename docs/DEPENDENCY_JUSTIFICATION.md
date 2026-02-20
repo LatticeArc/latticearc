@@ -23,17 +23,18 @@ This document provides comprehensive justification for all major dependencies in
 
 ### Post-Quantum Cryptography (NIST Standards)
 
-#### 1. aws-lc-rs (v1.15.4)
-- **Purpose**: FIPS-validated ML-KEM implementation (FIPS 203)
-- **Justification**: 
-  - AWS's cryptographic library with FIPS 140-3 validation
-  - Production-ready ML-KEM (Kyber) for key encapsulation
-  - Provides AES-GCM and other FIPS-approved symmetric algorithms
+#### 1. aws-lc-rs (v1.16.0)
+- **Purpose**: Core crypto backend — ML-KEM (FIPS 203), AES-GCM, HKDF, X25519
+- **Justification**:
+  - AWS's cryptographic library with FIPS 140-3 validation (with `--features fips`)
+  - Production-ready ML-KEM for key encapsulation
+  - Provides AES-GCM, HKDF, and X25519 for symmetric/key-exchange operations
   - Industry-standard choice for regulated environments
   - Memory-safe Rust API over aws-lc (BoringSSL fork)
+  - Always requires a C/C++ compiler; FIPS builds additionally require CMake + Go
 - **License**: ISC AND (Apache-2.0 OR ISC)
-- **Security Audit**: FIPS 140-3 Level 1 validated
-- **Usage**: `latticearc::primitives` (KEM), `latticearc::unified_api`
+- **Security Audit**: FIPS 140-3 Level 1 validated (Certificates #4631, #4759, #4816)
+- **Usage**: `latticearc::primitives` (KEM, AEAD, HKDF), `latticearc::hybrid`, `latticearc::unified_api`
 
 #### 2. aws-lc-sys (v0.37.0)
 - **Purpose**: FFI bindings to AWS-LC native library
@@ -93,17 +94,15 @@ This document provides comprehensive justification for all major dependencies in
 
 ## Symmetric Cryptography & AEAD
 
-#### 7. aes-gcm (v0.10.3)
-- **Purpose**: AES-GCM authenticated encryption
+#### 7. aes-gcm (v0.10.3) — test-only
+- **Purpose**: AES-GCM cross-library validation in tests
 - **Justification**:
-  - NIST SP 800-38D standard
-  - FIPS-approved AEAD cipher
-  - Required for FIPS compliance
-  - Hardware-accelerated (AES-NI support)
-  - Fallback when aws-lc-rs not available
+  - NIST SP 800-38D standard implementation (RustCrypto)
+  - Used in `latticearc-tests` for cross-library AES-GCM validation against aws-lc-rs
+  - NOT used in production — all production AES-GCM goes through `aws_lc_rs::aead`
 - **License**: Apache-2.0 OR MIT
 - **Security Audit**: RustCrypto audited
-- **Usage**: `latticearc::primitives` (AEAD), `latticearc::hybrid`
+- **Usage**: `latticearc-tests` only (cross-library validation)
 
 #### 8. chacha20poly1305 (v0.10.1)
 - **Purpose**: ChaCha20-Poly1305 AEAD cipher
@@ -407,7 +406,7 @@ All RustCrypto crates (sha2, blake2, aes-gcm, etc.) - well-audited, widely used,
 | FIPS 206 (FN-DSA) | fn-dsa | 🔄 Partial |
 | FIPS 180-4 (SHA-2) | sha2, aws-lc-rs | ✅ Validated |
 | FIPS 202 (SHA-3) | sha3 | ✅ Standard |
-| SP 800-38D (AES-GCM) | aes-gcm, aws-lc-rs | ✅ Validated |
+| SP 800-38D (AES-GCM) | aws-lc-rs (production), aes-gcm (tests only) | ✅ Validated |
 | RFC 8439 (ChaCha20) | chacha20poly1305 | ✅ Standard |
 | RFC 5869 (HKDF) | hkdf | ✅ Standard |
 

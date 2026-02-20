@@ -60,17 +60,21 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 | AES-256-GCM | SP 800-38D | aws-lc-rs | Authenticated encryption |
 | SHA-256 | FIPS 180-4 | aws-lc-rs | Hashing |
 | SHA3-256 | FIPS 202 | sha3 crate | Hashing |
-| HMAC-SHA256 | FIPS 198-1 | hmac + sha2 | Message authentication |
-| HKDF-SHA256 | SP 800-56C | hkdf crate | Key derivation |
+| HMAC-SHA256 | FIPS 198-1 | hmac + sha2 crates (MAC module), aws-lc-rs (HKDF module) | Message authentication |
+| HKDF-SHA256 | SP 800-56C | aws-lc-rs HMAC-based (`aws_lc_rs::hmac::HMAC_SHA256`) | Key derivation |
 
-### Non-Approved Algorithms (excluded when `fips` enabled)
+### Non-Approved Algorithms
 
-| Algorithm | Gate |
-|-----------|------|
-| Ed25519 | `#[cfg(not(feature = "fips"))]` |
-| Secp256k1 ECDSA | `#[cfg(not(feature = "fips"))]` |
-| X25519 ECDH | `#[cfg(not(feature = "fips"))]` |
-| ChaCha20-Poly1305 | `#[cfg(not(feature = "fips"))]` |
+The following algorithms are available in the default (non-FIPS) build but are not FIPS-approved:
+
+| Algorithm | Implementation | Enforcement |
+|-----------|----------------|-------------|
+| Ed25519 | ed25519-dalek | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
+| Secp256k1 ECDSA | k256 | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
+| X25519 ECDH | aws-lc-rs | Runtime: `ComplianceMode` rejects in `Cnsa2_0` (allowed in hybrid for `Fips140_3`) |
+| ChaCha20-Poly1305 | chacha20poly1305 | Runtime: `ComplianceMode` rejects in `Fips140_3`/`Cnsa2_0` |
+
+> **Note:** Non-approved algorithms are currently enforced at runtime via `ComplianceMode`, not at compile time via `cfg` gates. When `ComplianceMode::Fips140_3` or `Cnsa2_0` is set, the `CryptoPolicyEngine` rejects non-approved algorithm selections. For future CMVP submission, compile-time `cfg(not(feature = "fips"))` gating should be implemented to fully exclude non-approved code paths from the FIPS binary.
 
 ---
 
@@ -79,11 +83,13 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 ### FIPS Mode (Approved)
 
 Enabled via `--features fips` at compile time. In this mode:
-- Only FIPS-approved algorithms are available
-- Power-up self-tests run before any crypto operation
+- `fips_available()` returns `true`, enabling `ComplianceMode::Fips140_3` and `Cnsa2_0`
+- aws-lc-rs compiles its FIPS-validated module (requires CMake + Go)
+- Power-up self-tests run before any crypto operation (via `fips-self-test` feature)
 - Self-test failure calls `std::process::abort()` — no recovery
 - Module integrity verification via HMAC-SHA256 of binary
 - Pairwise Consistency Tests (PCT) run after every key generation
+- Non-approved algorithms still compile but are rejected at runtime by `ComplianceMode`
 
 ### Non-FIPS Mode (Default)
 

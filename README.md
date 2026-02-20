@@ -49,11 +49,29 @@ flowchart LR
 
 ## Build Prerequisites
 
-LatticeArc uses **only FIPS 140-3 validated cryptographic backends**. All key encapsulation (ML-KEM), symmetric encryption (AES-256-GCM), key derivation (HKDF), and key exchange (X25519, ECDH) operations run through [aws-lc-rs](https://github.com/aws/aws-lc-rs) in FIPS mode. This is a deliberate choice — every cryptographic operation in LatticeArc uses a NIST-validated implementation, not a "good enough" alternative.
+LatticeArc uses [aws-lc-rs](https://github.com/aws/aws-lc-rs) for core cryptographic operations (ML-KEM, AES-256-GCM, HKDF, X25519). Post-quantum signatures use dedicated NIST-compliant crates (`fips204`, `fips205`, `fn-dsa`) and classical signatures use `ed25519-dalek` (audited). See [Backend Selection](#backend-selection) for the full mapping.
 
-The FIPS build of aws-lc-rs requires CMake and Go in addition to a C compiler. This is a one-time setup:
+### Default Build
+
+Requires only Rust and a C/C++ compiler:
 
 ```bash
+# Verify tools
+rustc --version && cc --version
+```
+
+| Tool | Version | Why |
+|------|---------|-----|
+| **Rust** | 1.93+ (latest stable) | 2024 edition features |
+| **C/C++ compiler** | gcc/clang/MSVC | aws-lc-rs compiles AWS-LC from C source |
+
+### FIPS Build (`--features fips`)
+
+For FIPS 140-3 compliance, enable the `fips` feature. This uses the FIPS-validated aws-lc-rs backend, which additionally requires CMake and Go:
+
+```bash
+# Install FIPS build dependencies (one-time setup)
+
 # macOS
 brew install cmake go
 
@@ -69,25 +87,21 @@ sudo pacman -S cmake go gcc
 # Windows (with Chocolatey)
 choco install cmake golang visualstudio2022-workload-vctools
 
-# Verify all tools are available
-rustc --version && cmake --version && go version
+# Build with FIPS-validated backend
+cargo build --features fips
 ```
 
 | Tool | Version | Why |
 |------|---------|-----|
-| **Rust** | 1.93+ (latest stable) | 2024 edition features |
-| **C/C++ compiler** | gcc/clang/MSVC | aws-lc-rs compiles AWS-LC from C source |
 | **CMake** | 3.x | FIPS module build system |
 | **Go** | 1.18+ | FIPS module `delocate` tool (strips relocations for integrity check) |
-
-> **Why FIPS-only?** Non-FIPS builds of aws-lc-rs need only a C compiler — no CMake or Go. We require FIPS because LatticeArc targets applications where cryptographic assurance matters: healthcare data, financial transactions, legal documents, compliance-sensitive workloads. Using a FIPS-validated backend means every `encrypt()` call goes through code that has passed NIST's Cryptographic Module Validation Program — not just "the same algorithm" but the *exact validated implementation*. The build setup takes 2 minutes; the assurance lasts forever.
 
 **Troubleshooting:**
 
 | Error | Fix |
 |-------|-----|
-| `CMake not found` | Install CMake and ensure it's on your `PATH` |
-| `Go not found` | Install Go 1.18+ and ensure `go` is on your `PATH` |
+| `CMake not found` | Install CMake and ensure it's on your `PATH` (FIPS builds only) |
+| `Go not found` | Install Go 1.18+ and ensure `go` is on your `PATH` (FIPS builds only) |
 | `cc not found` (Linux) | `sudo apt install build-essential` or `sudo dnf install gcc-c++` |
 | Linker errors on macOS | `xcode-select --install` for Command Line Tools |
 | Long initial build | First build compiles AWS-LC from source (~2-3 min). Subsequent builds use cached artifacts. |
@@ -258,7 +272,7 @@ LatticeArc uses NIST-standardized post-quantum algorithms (FIPS 203-206) with ca
 **Classical (Hybrid Mode):**
 - **Ed25519** for signatures - 5x faster than P-256 ECDSA, FIPS 186-5 approved (2023)
 - **X25519** for key exchange - TLS 1.3 standard
-- **AES-256-GCM** - Hardware-accelerated, FIPS 140-3 validated
+- **AES-256-GCM** - Hardware-accelerated via aws-lc-rs
 - **ChaCha20-Poly1305** - Software-friendly alternative
 
 ### Why Ed25519 Instead of P-256 ECDSA?
@@ -284,11 +298,13 @@ LatticeArc uses NIST-standardized post-quantum algorithms (FIPS 203-206) with ca
 
 ### Backend Selection
 
-- **ML-KEM, AES-GCM, X25519:** aws-lc-rs (FIPS 140-3 validated)
+- **ML-KEM, AES-GCM, HKDF, X25519:** aws-lc-rs
 - **ML-DSA:** fips204 (awaiting aws-lc-rs stabilization)
 - **SLH-DSA:** fips205 (NIST-compliant)
 - **FN-DSA:** fn-dsa (FIPS 206)
 - **Ed25519:** ed25519-dalek (audited, constant-time)
+
+> With `--features fips`, aws-lc-rs operations (ML-KEM, AES-GCM, HKDF, X25519) run through the FIPS 140-3 validated module. Without this flag, the same algorithms run through aws-lc-rs's default (non-FIPS) backend. See [Compliance Modes](#compliance-modes).
 
 For detailed rationale, performance comparisons, and ecosystem positioning, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md).
 
@@ -389,10 +405,10 @@ LatticeArc builds on audited cryptographic libraries:
 
 | Component | Backend | Status |
 |-----------|---------|--------|
-| ML-KEM, AES-GCM | `aws-lc-rs` | FIPS 140-3 validated |
-| ML-DSA | `fips204` | NIST compliant |
-| SLH-DSA | `fips205` | NIST compliant |
-| FN-DSA | `fn-dsa` | NIST compliant |
+| ML-KEM, AES-GCM, HKDF | `aws-lc-rs` | FIPS 140-3 validated (with `--features fips`) |
+| ML-DSA | `fips204` | NIST compliant (not FIPS-validated) |
+| SLH-DSA | `fips205` | NIST compliant (not FIPS-validated) |
+| FN-DSA | `fn-dsa` | NIST compliant (not FIPS-validated) |
 | Ed25519 | `ed25519-dalek` | Audited |
 | TLS | `rustls` | Audited by Cure53 |
 
@@ -407,7 +423,7 @@ These contributions, now shipping in aws-lc-rs v1.16.0, enable FIPS-validated se
 
 ### Limitations
 
-- **Not FIPS 140-3 certified** — We use FIPS-validated backends, but LatticeArc itself has not undergone CMVP validation
+- **Not FIPS 140-3 certified** — With `--features fips`, aws-lc-rs provides a FIPS-validated backend for ML-KEM/AES-GCM/HKDF/X25519. LatticeArc itself has not undergone CMVP validation
   - **FIPS-ready**: Module integrity test (Section 9.2.2) implemented, KAT suite complete, ready for certification when needed
 - **Not independently audited** — We welcome security researchers to review our code
 - **Pre-1.0 software** — API may change between versions

@@ -43,7 +43,7 @@ LatticeArc's algorithm selection follows these principles:
 
 **Why included:**
 - ✅ NIST-standardized (August 2024)
-- ✅ FIPS 140-3 validated in aws-lc-rs
+- ✅ FIPS 140-3 validated via aws-lc-rs (with `--features fips`)
 - ✅ Based on proven lattice mathematics (Module-LWE)
 - ✅ All three security levels (128/192/256-bit equivalent)
 - ✅ Production deployments by AWS, Google, Cloudflare
@@ -193,7 +193,7 @@ Payment processing at 10,000 tx/sec:
 #### AES-256-GCM - Authenticated Encryption
 
 **Why AES-256-GCM:**
-- ✅ FIPS 140-3 validated
+- ✅ FIPS 140-3 validated via aws-lc-rs (with `--features fips`)
 - ✅ Hardware acceleration (AES-NI) - 10x faster than software
 - ✅ Single-pass AEAD (encrypt + authenticate)
 - ✅ Industry standard
@@ -484,15 +484,15 @@ We actively contribute features to aws-lc-rs that benefit the entire Rust crypto
 
 | Algorithm | Backend | Version | Status |
 |-----------|---------|---------|--------|
-| **ML-KEM** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated |
-| **ML-DSA** | fips204 | 0.4.6 | ⚠️ Awaiting aws-lc-rs stabilization |
-| **SLH-DSA** | fips205 | 0.4.1 | ✅ NIST-compliant |
-| **FN-DSA** | fn-dsa | 0.3.0 | ✅ FIPS 206 compliant |
+| **ML-KEM** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated (with `--features fips`) |
+| **ML-DSA** | fips204 | 0.4.6 | ⚠️ NIST-compliant, awaiting aws-lc-rs stabilization |
+| **SLH-DSA** | fips205 | 0.4.1 | ✅ NIST-compliant (not FIPS-validated) |
+| **FN-DSA** | fn-dsa | 0.3.0 | ✅ FIPS 206 compliant (not FIPS-validated) |
 | **Ed25519** | ed25519-dalek | 2.1.1 | ✅ Audited, constant-time |
-| **X25519** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated |
-| **AES-GCM** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated |
+| **X25519** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated (with `--features fips`) |
+| **AES-GCM** | aws-lc-rs | 1.16.0 | ✅ FIPS 140-3 validated (with `--features fips`) |
 | **ChaCha20-Poly1305** | chacha20poly1305 | 0.10.1 | ✅ RustCrypto audited |
-| **HKDF** | hkdf | 0.12.4 | ✅ RustCrypto |
+| **HKDF** | aws-lc-rs (HMAC-based) | 1.16.0 | ✅ FIPS 140-3 validated (with `--features fips`) |
 
 ---
 

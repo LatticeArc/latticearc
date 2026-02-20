@@ -39,10 +39,10 @@ graph LR
 
 | Standard | Algorithm | Implementation | FIPS Validated | Status |
 |----------|-----------|----------------|----------------|--------|
-| FIPS 203 | ML-KEM | `aws-lc-rs` | Yes (Cert #4631, #4759, #4816) | Complete |
+| FIPS 203 | ML-KEM | `aws-lc-rs` | Yes, with `--features fips` (Cert #4631, #4759, #4816) | Complete |
 | FIPS 204 | ML-DSA | `fips204` crate | No (awaiting aws-lc-rs) | Complete* |
-| FIPS 205 | SLH-DSA | `fips205` crate | Audited | Complete |
-| FIPS 206 | FN-DSA | `fn-dsa` crate | Partial | Complete |
+| FIPS 205 | SLH-DSA | `fips205` crate | No (audited, not FIPS-validated) | Complete |
+| FIPS 206 | FN-DSA | `fn-dsa` crate | No (partial validation) | Complete |
 
 *ML-DSA uses the `fips204` pure Rust crate. For FIPS 140-3 certification, migration to `aws-lc-rs` is required once the ML-DSA Rust API is stabilized (tracking: aws/aws-lc-rs#773). Our PRs #1029 and #1034 shipped in aws-lc-rs v1.16.0; ML-DSA FIPS API stabilization is still pending.
 
