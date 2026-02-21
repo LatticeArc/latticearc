@@ -168,44 +168,13 @@ let is_valid = verify_pq_fn_dsa(message, &signature, &pk, SecurityMode::Unverifi
 
 ## Security Levels
 
-```mermaid
-graph TD
-    subgraph "NIST Security Levels"
-        L1[Level 1<br/>AES-128]
-        L2[Level 2<br/>SHA-256]
-        L3[Level 3<br/>AES-192]
-        L4[Level 4<br/>SHA-384]
-        L5[Level 5<br/>AES-256]
-    end
-
-    subgraph "LatticeArc Mapping"
-        STD[SecurityLevel::Standard]
-        HIGH[SecurityLevel::High]
-        MAX[SecurityLevel::Maximum]
-        QTM[SecurityLevel::Quantum]
-    end
-
-    L1 --> STD
-    L2 --> STD
-    L3 --> HIGH
-    L4 --> HIGH
-    L5 --> MAX
-    L5 --> QTM
-
-    classDef nist fill:#3498db,stroke:#333,color:#fff
-    classDef arc fill:#27ae60,stroke:#333,color:#fff
-
-    class L1,L2,L3,L4,L5 nist
-    class STD,HIGH,MAX,QTM arc
-```
-
-| Level | Description | Classical Equivalent |
-|-------|-------------|---------------------|
-| 1 | At least as hard as AES-128 key recovery | AES-128 |
-| 2 | At least as hard as SHA-256 collision finding | SHA-256 |
-| 3 | At least as hard as AES-192 key recovery | AES-192 |
-| 4 | At least as hard as SHA-384 collision finding | SHA-384 |
-| 5 | At least as hard as AES-256 key recovery | AES-256 |
+| NIST Level | Classical Equivalent | LatticeArc Mapping |
+|------------|---------------------|-------------------|
+| 1 | AES-128 key recovery | `SecurityLevel::Standard` |
+| 2 | SHA-256 collision | `SecurityLevel::Standard` |
+| 3 | AES-192 key recovery | `SecurityLevel::High` (default) |
+| 4 | SHA-384 collision | `SecurityLevel::High` |
+| 5 | AES-256 key recovery | `SecurityLevel::Maximum` / `SecurityLevel::Quantum` |
 
 ### Recommendations
 
@@ -243,7 +212,32 @@ Test categories:
 
 LatticeArc implements FIPS 203-206 algorithms but is **NOT** FIPS 140-3 validated.
 
-For FIPS 140-3 compliance:
+### ComplianceMode
+
+Use `ComplianceMode` to enforce FIPS algorithm constraints at runtime:
+
+```rust
+use latticearc::{encrypt, CryptoConfig, ComplianceMode, UseCase};
+
+// FIPS 140-3: only FIPS-approved algorithms, hybrid allowed
+let config = CryptoConfig::new()
+    .use_case(UseCase::HealthcareRecords)
+    .compliance(ComplianceMode::Fips140_3);
+
+// CNSA 2.0: PQ-only, no classical fallback
+let config = CryptoConfig::new()
+    .compliance(ComplianceMode::Cnsa2_0);
+```
+
+| Mode | FIPS Required | Hybrid | Use Case |
+|------|---------------|--------|----------|
+| `Default` | No | Yes | Development, general use |
+| `Fips140_3` | Yes | Yes | Healthcare, financial, government |
+| `Cnsa2_0` | Yes | No | NSA CNSA 2.0 (PQ-only) |
+
+> **Build requirement:** `ComplianceMode::Fips140_3` and `Cnsa2_0` require `cargo build --features fips`. Setting them without the `fips` feature returns a validation error.
+
+### FIPS 140-3 Certification Path
 
 1. **Use validated modules**: Consider validated hardware or software modules
 2. **Implement self-tests**: Power-up and conditional self-tests

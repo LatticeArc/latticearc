@@ -16,7 +16,6 @@ LatticeArc is a post-quantum cryptography library for Rust that implements all f
 - **24 use cases** with automatic algorithm selection — from IoT to government classified
 - **Zero-trust sessions** — per-operation authentication before any crypto operation
 - **Formal verification** — 29 Kani proofs, 40+ Proptest property tests, SAW-verified primitives (via aws-lc-rs)
-- **Upstream contributions** shipped in [aws-lc-rs v1.16.0](https://github.com/aws/aws-lc-rs) (ML-KEM serialization, ML-DSA keygen)
 - **FIPS 140-3 ready** — `--features fips` enables the validated aws-lc-rs backend
 - **Single crate, minimal API** — `cargo add latticearc` and go
 
@@ -192,8 +191,22 @@ LatticeArc provides compile-time and runtime compliance controls for regulated e
 | `ComplianceMode::Fips140_3` | Yes | Yes | Healthcare, financial, government |
 | `ComplianceMode::Cnsa2_0` | Yes | No | NSA CNSA 2.0 (PQ-only mandated) |
 
+```rust
+use latticearc::{encrypt, CryptoConfig, ComplianceMode, UseCase};
+
+// FIPS 140-3 compliant encryption for healthcare
+let config = CryptoConfig::new()
+    .use_case(UseCase::HealthcareRecords)
+    .compliance(ComplianceMode::Fips140_3);
+let encrypted = encrypt(data, &key, config)?;
+
+// CNSA 2.0 mode (PQ-only, no hybrid)
+let config = CryptoConfig::new()
+    .compliance(ComplianceMode::Cnsa2_0);
+```
+
 ```bash
-# Build with FIPS-validated backend
+# Build with FIPS-validated backend (requires CMake + Go)
 cargo build --features fips
 ```
 
@@ -203,7 +216,7 @@ For detailed compliance documentation, see [FIPS Security Policy](docs/FIPS_SECU
 
 ## Zero Trust Sessions
 
-For enterprise security, use verified sessions that enforce authentication before each operation:
+Use verified sessions to enforce authentication before each crypto operation:
 
 ```mermaid
 sequenceDiagram
@@ -468,7 +481,7 @@ Current public-key cryptography (RSA, ECC) will be broken by quantum computers r
 
 - [API Reference](https://docs.rs/latticearc)
 - [Unified API Guide](docs/UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
-- [Architecture](docs/DESIGN.md) — crate structure, design decisions, enterprise features
+- [Architecture](docs/DESIGN.md) — crate structure, design decisions
 - [Security Guide](docs/SECURITY_GUIDE.md) — threat model, secure usage patterns
 - [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
 - [FAQ](docs/FAQ.md)

@@ -4,45 +4,6 @@ Security best practices for using LatticeArc in production applications.
 
 ## Threat Model
 
-```mermaid
-flowchart TB
-    subgraph "Threats Mitigated"
-        QC[Quantum Computer<br/>Attacks]
-        CRYPTO[Classical<br/>Cryptanalysis]
-        TIMING[Timing<br/>Side-Channels]
-        MEM[Memory<br/>Disclosure]
-        REPLAY[Replay<br/>Attacks]
-    end
-
-    subgraph "Defenses"
-        HYBRID[Hybrid PQ+Classical]
-        CONST[Constant-Time Ops]
-        ZERO[Zeroization]
-        ZT[Zero-Trust Auth]
-        PROOF[ZK Proofs]
-    end
-
-    subgraph "Protection Level"
-        FULL[Full Protection]
-        BEST[Best Effort]
-    end
-
-    QC --> HYBRID --> FULL
-    CRYPTO --> HYBRID --> FULL
-    TIMING --> CONST --> BEST
-    MEM --> ZERO --> BEST
-    REPLAY --> ZT --> FULL
-    REPLAY --> PROOF --> FULL
-
-    classDef threat fill:#e74c3c,stroke:#333,color:#fff
-    classDef defense fill:#3498db,stroke:#333,color:#fff
-    classDef level fill:#27ae60,stroke:#333,color:#fff
-
-    class QC,CRYPTO,TIMING,MEM,REPLAY threat
-    class HYBRID,CONST,ZERO,ZT,PROOF defense
-    class FULL,BEST level
-```
-
 ### What LatticeArc Protects Against
 
 | Threat | Protection | Mechanism |
@@ -108,36 +69,11 @@ sequenceDiagram
 
 ### Proof Complexity Levels
 
-```mermaid
-graph TD
-    subgraph "Low - Basic Challenge"
-        L1[Challenge<br/>32 bytes] --> L2[Ed25519 Sign]
-        L2 --> L3[Signature<br/>64 bytes]
-    end
-
-    subgraph "Medium - Replay Protection"
-        M1[Challenge<br/>64 bytes] --> M2[Concatenate]
-        M1T[Timestamp<br/>8 bytes] --> M2
-        M2 --> M3[Ed25519 Sign]
-        M3 --> M4[Signature + Timestamp<br/>72 bytes]
-    end
-
-    subgraph "High - Key Binding"
-        H1[Challenge<br/>128 bytes] --> H2[Concatenate]
-        H1T[Timestamp<br/>8 bytes] --> H2
-        H1K[Public Key] --> H2
-        H2 --> H3[Ed25519 Sign]
-        H3 --> H4[Signature + Timestamp<br/>72 bytes]
-    end
-
-    classDef input fill:#3498db,stroke:#333,color:#fff
-    classDef process fill:#9b59b6,stroke:#333,color:#fff
-    classDef output fill:#27ae60,stroke:#333,color:#fff
-
-    class L1,M1,M1T,H1,H1T,H1K input
-    class L2,M2,M3,H2,H3 process
-    class L3,M4,H4 output
-```
+| Level | Challenge | Signed Data | Output | Protection |
+|-------|-----------|-------------|--------|------------|
+| **Low** | 32 bytes | Challenge only | Signature (64 bytes) | Basic |
+| **Medium** | 64 bytes | Challenge + Timestamp | Signature + Timestamp (72 bytes) | Replay protection |
+| **High** | 128 bytes | Challenge + Timestamp + Public Key | Signature + Timestamp (72 bytes) | Key binding |
 
 ### Zero-Trust Configuration
 
@@ -230,34 +166,7 @@ let decrypted = decrypt_aes_gcm_with_aad(&encrypted, &key, header, SecurityMode:
 
 ### Encryption
 
-```mermaid
-flowchart LR
-    subgraph "Secure"
-        S1[encrypt with<br/>hybrid scheme]
-        S2[Auto-generated<br/>nonces]
-        S3[Authenticated<br/>encryption]
-    end
-
-    subgraph "Insecure"
-        I1[ECB mode]
-        I2[Reused nonces]
-        I3[Unauthenticated]
-    end
-
-    S1 --> OK[Safe]
-    S2 --> OK
-    S3 --> OK
-
-    I1 --> BAD[Vulnerable]
-    I2 --> BAD
-    I3 --> BAD
-
-    classDef secure fill:#27ae60,stroke:#333,color:#fff
-    classDef insecure fill:#e74c3c,stroke:#333,color:#fff
-
-    class S1,S2,S3,OK secure
-    class I1,I2,I3,BAD insecure
-```
+LatticeArc enforces secure defaults — hybrid schemes, auto-generated nonces, authenticated encryption (AES-GCM / ChaCha20-Poly1305). ECB mode, nonce reuse, and unauthenticated encryption are not exposed.
 
 ```rust
 use latticearc::*;
@@ -337,38 +246,10 @@ secret.zeroize();
 
 ### Security Levels
 
-```mermaid
-graph LR
-    subgraph "Security Levels"
-        S[Standard<br/>128-bit]
-        H[High<br/>192-bit]
-        M[Maximum<br/>256-bit]
-        Q[Quantum<br/>256-bit PQ-only]
-    end
-
-    subgraph "Use Cases"
-        GEN[General Purpose]
-        ENT[Enterprise]
-        REG[Regulated]
-        GOV[Government]
-    end
-
-    S --> GEN
-    H --> ENT
-    M --> REG
-    Q --> GOV
-
-    classDef level fill:#3498db,stroke:#333,color:#fff
-    classDef use fill:#9b59b6,stroke:#333,color:#fff
-
-    class S,H,M,Q level
-    class GEN,ENT,REG,GOV use
-```
-
 | Level | Algorithms | Mode | NIST Level | Use Case |
 |-------|-----------|------|------------|----------|
 | `Standard` | ML-KEM-512, ML-DSA-44 | Hybrid | 1 | General purpose, IoT |
-| `High` (default) | ML-KEM-768, ML-DSA-65 | Hybrid | 3 | Enterprise, sensitive data |
+| `High` (default) | ML-KEM-768, ML-DSA-65 | Hybrid | 3 | Production, sensitive data |
 | `Maximum` | ML-KEM-1024, ML-DSA-87 | Hybrid | 5 | Financial, regulated |
 | `Quantum` | ML-KEM-1024, ML-DSA-87 | PQ-only | 5 | Government (CNSA 2.0) |
 
@@ -499,19 +380,6 @@ For Common Criteria evaluations:
 ## Incident Response
 
 ### Key Compromise
-
-```mermaid
-flowchart TD
-    DETECT[Detect Compromise] --> STOP[Stop Using Key]
-    STOP --> GENERATE[Generate New Keys]
-    GENERATE --> REVOKE[Revoke Old Keys]
-    REVOKE --> NOTIFY[Notify Affected Parties]
-    NOTIFY --> ROTATE[Rotate All Systems]
-    ROTATE --> AUDIT[Audit Logs]
-
-    classDef action fill:#3498db,stroke:#333,color:#fff
-    class DETECT,STOP,GENERATE,REVOKE,NOTIFY,ROTATE,AUDIT action
-```
 
 1. **Immediately**: Stop using the compromised key
 2. **Generate**: Create new key pairs

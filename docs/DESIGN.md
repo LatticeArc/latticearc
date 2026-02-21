@@ -2,28 +2,6 @@
 
 This document describes the architecture of LatticeArc, a post-quantum cryptography library with intelligent scheme selection and zero-trust authentication framework.
 
-## Open Source vs Enterprise
-
-LatticeArc is available in two editions:
-
-| Feature | Apache (Open Source) | Enterprise |
-|---------|---------------------|------------|
-| Core PQC primitives (ML-KEM, ML-DSA, SLH-DSA, FN-DSA) | ✅ | ✅ |
-| Hybrid encryption (PQ + Classical) | ✅ | ✅ |
-| Post-quantum TLS 1.3 | ✅ | ✅ |
-| Scheme selection by use case | ✅ | ✅ |
-| Zero-trust authentication framework | ✅ | ✅ |
-| Hardware type definitions (traits only) | ✅ | ✅ |
-| **Hardware detection & adaptive routing** | ❌ | ✅ |
-| **ML-based attack detection** | ❌ | ✅ |
-| **Self-healing security (auto key rotation)** | ❌ | ✅ |
-| **Continuous trust verification** | ❌ | ✅ |
-| **Per-operation policy enforcement** | ❌ | ✅ |
-| **Runtime performance optimization** | ❌ | ✅ |
-| **Graceful degradation system** | ❌ | ✅ |
-
-> **Note**: This document covers the Apache (open source) edition. Enterprise features are marked with 🔒.
-
 ## Design Principles
 
 1. **Security First**: Defense-in-depth with hybrid PQ+classical, constant-time operations, memory safety
@@ -119,15 +97,15 @@ LatticeArc provides multiple abstraction levels:
 
 ```mermaid
 graph LR
-    subgraph "Level 1: Simple (Apache)"
+    subgraph "Level 1: Simple"
         L1[encrypt/decrypt<br/>sign/verify]
     end
 
-    subgraph "Level 2: Use Case (Apache)"
+    subgraph "Level 2: Use Case"
         L2[CryptoPolicyEngine<br/>recommend_scheme]
     end
 
-    subgraph "Level 3: Primitives (Apache)"
+    subgraph "Level 3: Primitives"
         L3[ML-KEM/ML-DSA<br/>AES-GCM/Ed25519]
     end
 
@@ -143,13 +121,11 @@ graph LR
     class L3 primitive
 ```
 
-| Level | Apache | Enterprise |
-|-------|--------|------------|
-| **Level 1: Simple** | `encrypt()`, `decrypt()`, `sign()`, `verify()` | Same + session-aware variants |
-| **Level 2: Use Case** | `recommend_scheme()` by security level/use case | Same |
-| **Level 3: Primitives** | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-GCM | Same |
-| **Level 4: Adaptive** | ❌ | 🔒 Runtime hardware detection, performance tracking, adaptive routing |
-| **Level 5: Self-Healing** | ❌ | 🔒 Attack detection, auto key rotation, graceful degradation |
+| Level | Functions |
+|-------|----------|
+| **Level 1: Simple** | `encrypt()`, `decrypt()`, `sign()`, `verify()` |
+| **Level 2: Use Case** | `recommend_scheme()` by security level/use case |
+| **Level 3: Primitives** | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-GCM |
 
 ## Scheme Selection Flow
 
@@ -186,8 +162,6 @@ flowchart TD
 ```
 
 > **Note**: All schemes are hybrid (PQ + Classical). Classical-only encryption is not exposed in the public API.
->
-> 🔒 **Enterprise Feature**: Adaptive scheme selection based on data characteristics, entropy analysis, and runtime performance metrics is available in LatticeArc Enterprise.
 
 ## Zero-Trust Authentication Flow
 
@@ -222,122 +196,21 @@ sequenceDiagram
     end
 ```
 
-> **Apache Edition**: Provides the zero-trust authentication framework including challenge generation, proof creation, and verification. Applications integrate these primitives into their authentication flows.
-
-🔒 **Enterprise Feature: Continuous Trust Verification**
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant S as Server
-    participant P as Policy Engine
-    participant A as Audit Log
-
-    Note over C,A: Per-Operation Enforcement (Enterprise)
-    C->>S: Crypto operation request
-    S->>P: Check operation policy
-    P->>P: Evaluate trust score
-    alt Trust Score Sufficient
-        P-->>S: Approved
-        S->>S: Execute operation
-        S->>A: Log operation
-        S-->>C: Result
-    else Trust Degraded
-        P-->>S: Re-auth required
-        S-->>C: Challenge
-        C->>S: New proof
-        S->>P: Update trust score
-    end
-```
-
-Enterprise edition provides:
-- **Per-operation policy enforcement**: Every crypto operation checked against access policies
-- **Continuous trust verification**: Dynamic trust scoring with automatic reauthentication
-- **W3C DID integration**: Decentralized identity resolution (did:key, did:web)
-- **Cryptographic audit trails**: Compliance-ready operation logging
+LatticeArc provides the zero-trust authentication framework including challenge generation, proof creation, and verification. Applications integrate these primitives into their authentication flows.
 
 ## Proof Complexity Levels
 
-```mermaid
-graph TD
-    subgraph "Low Complexity (32 bytes)"
-        L_CH[Challenge] --> L_SIG[sign]
-        L_SIG --> L_OUT[Signature]
-    end
-
-    subgraph "Medium Complexity (64 bytes)"
-        M_CH[Challenge] --> M_CAT[concatenate]
-        M_TS[Timestamp] --> M_CAT
-        M_CAT --> M_SIG[sign]
-        M_SIG --> M_OUT[Signature + Timestamp]
-    end
-
-    subgraph "High Complexity (128 bytes)"
-        H_CH[Challenge] --> H_CAT[concatenate]
-        H_TS[Timestamp] --> H_CAT
-        H_PK[Public Key] --> H_CAT
-        H_CAT --> H_SIG[sign]
-        H_SIG --> H_OUT[Signature + Timestamp]
-    end
-
-    classDef input fill:#4a90d9,stroke:#333,color:#fff
-    classDef process fill:#50c878,stroke:#333,color:#fff
-    classDef output fill:#f5a623,stroke:#333,color:#fff
-
-    class L_CH,M_CH,M_TS,H_CH,H_TS,H_PK input
-    class L_SIG,M_CAT,M_SIG,H_CAT,H_SIG process
-    class L_OUT,M_OUT,H_OUT output
-```
+| Level | Challenge Size | Signed Data | Output |
+|-------|---------------|-------------|--------|
+| **Low** | 32 bytes | Challenge only | Signature |
+| **Medium** | 64 bytes | Challenge + Timestamp | Signature + Timestamp |
+| **High** | 128 bytes | Challenge + Timestamp + Public Key | Signature + Timestamp |
 
 ## Hardware Acceleration
 
-The Apache edition provides **trait definitions only** for hardware-aware operations (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`). These define the interface contract but contain no detection or routing logic.
+LatticeArc provides trait definitions for hardware-aware operations (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`). These define the interface contract for hardware integration.
 
 The underlying cryptography library (`aws-lc-rs`) handles AES-NI, SHA extensions, and SIMD acceleration automatically at the C level — no application-level hardware detection is needed for optimal performance.
-
-> **Apache Edition**: Hardware acceleration traits only. No detection, no routing. The crypto primitives (`aws-lc-rs`) already use AES-NI and SIMD internally when available.
-
-🔒 **Enterprise Feature: Hardware Detection & Adaptive Routing**
-
-The enterprise `arc-enterprise-perf` crate provides real hardware detection and adaptive routing:
-
-```mermaid
-flowchart TD
-    subgraph "AdaptiveSelector (Enterprise)"
-        DETECT[detect_hardware]
-        PERF[PerformanceTracker]
-        RISK[RiskLevel]
-        SELECT[select_optimal_scheme]
-    end
-
-    subgraph "Detected Hardware"
-        CPU[CPU<br/>AES-NI / AVX-512]
-        GPU[GPU<br/>CUDA/OpenCL]
-        HSM[HSM/TPM<br/>Hardware Keys]
-    end
-
-    DETECT --> CPU
-    DETECT --> GPU
-    DETECT --> HSM
-
-    CPU --> SELECT
-    GPU --> SELECT
-    HSM --> SELECT
-    PERF --> SELECT
-    RISK --> SELECT
-
-    classDef router fill:#4a90d9,stroke:#333,color:#fff
-    classDef accel fill:#50c878,stroke:#333,color:#fff
-
-    class DETECT,PERF,RISK,SELECT router
-    class CPU,GPU,HSM accel
-```
-
-Enterprise edition dynamically selects cryptographic algorithms based on:
-- Runtime hardware capability detection (CPU features, GPU, HSM/TPM)
-- Continuous performance metrics with feedback loop
-- Risk-level scaling (Normal → Critical, with security multipliers)
-- Data size and characteristics
 
 ## Encryption Data Flow
 
@@ -546,48 +419,19 @@ DEFAULT_SIGNATURE_SCHEME  = "hybrid-ml-dsa-65-ed25519"
 
 ## Error Handling
 
-```mermaid
-graph TD
-    subgraph "latticearc::prelude"
-        CE[LatticeArcError]
-    end
+All errors funnel into `LatticeArcError` (from `latticearc::prelude`):
 
-    subgraph "Error Variants"
-        IK[InvalidKey]
-        II[InvalidInput]
-        KL[InvalidKeyLength]
-        EF[EncryptionError]
-        AF[AuthenticationFailed]
-        ED[EntropyDepleted]
-        CF[ConfigurationError]
-    end
+| Variant | When |
+|---------|------|
+| `InvalidKey` | Wrong key type or corrupted key |
+| `InvalidInput` | Bad parameters or data |
+| `InvalidKeyLength` | Key too short/long for algorithm |
+| `EncryptionError` | Encrypt/decrypt failure |
+| `AuthenticationFailed` | Signature/session verification failed |
+| `EntropyDepleted` | System RNG unavailable |
+| `ConfigurationError` | Invalid config combination |
 
-    subgraph "Crate Errors"
-        CORE_E[CoreError]
-        PRIM_E[PrimitivesError]
-        TLS_E[TlsError]
-    end
-
-    CE --> IK
-    CE --> II
-    CE --> KL
-    CE --> EF
-    CE --> AF
-    CE --> ED
-    CE --> CF
-
-    CORE_E -->|"From"| CE
-    PRIM_E -->|"From"| CE
-    TLS_E -->|"From"| CE
-
-    classDef base fill:#4a90d9,stroke:#333,color:#fff
-    classDef variant fill:#50c878,stroke:#333,color:#fff
-    classDef crate fill:#f5a623,stroke:#333,color:#fff
-
-    class CE base
-    class IK,II,KL,EF,AF,ED,CF variant
-    class CORE_E,PRIM_E,TLS_E crate
-```
+Internal errors (`CoreError`, `PrimitivesError`, `TlsError`) auto-convert via `From`.
 
 ## Feature Flags
 
@@ -600,118 +444,16 @@ graph TD
 
 ## Testing Strategy
 
-```mermaid
-graph LR
-    subgraph "Test Types"
-        UNIT[Unit Tests]
-        INT[Integration Tests]
-        PROP[Property Tests]
-        CAVP[CAVP Vectors]
-        FUZZ[Fuzz Tests]
-        BENCH[Benchmarks]
-    end
+| Type | Tool | Scope |
+|------|------|-------|
+| Unit tests | `cargo test` | All modules |
+| Integration tests | `latticearc-tests` | CAVP vectors, KAT, end-to-end |
+| Property tests | Proptest (40+ tests) | Crypto roundtrip, key independence |
+| Formal verification | Kani (29 proofs) | Type invariants in `latticearc::types` |
+| Fuzz tests | cargo-fuzz (28 targets) | Edge cases via random mutation |
+| Benchmarks | criterion | Performance regression tracking |
 
-    subgraph "Coverage"
-        COV[80% Minimum]
-    end
-
-    subgraph "CI/CD"
-        CI[GitHub Actions]
-    end
-
-    UNIT --> COV
-    INT --> COV
-    PROP --> COV
-    CAVP --> CI
-    FUZZ --> CI
-    BENCH --> CI
-    COV --> CI
-
-    classDef test fill:#4a90d9,stroke:#333,color:#fff
-    classDef metric fill:#50c878,stroke:#333,color:#fff
-    classDef ci fill:#f5a623,stroke:#333,color:#fff
-
-    class UNIT,INT,PROP,CAVP,FUZZ,BENCH test
-    class COV metric
-    class CI ci
-```
-
-## 🔒 Enterprise Features
-
-LatticeArc Enterprise extends the open source core with advanced security capabilities:
-
-### Self-Healing Cryptographic Security
-
-```mermaid
-flowchart TD
-    subgraph "Detection"
-        MON[Runtime Monitor]
-        ML[ML-based Anomaly Detection<br/>K-Means Clustering]
-        CVE[CVE Database Integration<br/>NVD API]
-    end
-
-    subgraph "Response"
-        ROTATE[Automatic Key Rotation]
-        PATCH[Vulnerability Patching]
-        DEGRADE[Graceful Degradation]
-    end
-
-    subgraph "Levels"
-        FULL[Full Security]
-        DEG[Degraded Mode]
-        EMERG[Emergency Mode]
-    end
-
-    MON --> ML
-    MON --> CVE
-    ML -->|Anomaly| ROTATE
-    CVE -->|Vulnerability| PATCH
-    ROTATE --> DEGRADE
-    PATCH --> DEGRADE
-    DEGRADE --> FULL
-    DEGRADE --> DEG
-    DEGRADE --> EMERG
-
-    classDef detect fill:#4a90d9,stroke:#333,color:#fff
-    classDef respond fill:#e74c3c,stroke:#333,color:#fff
-    classDef level fill:#50c878,stroke:#333,color:#fff
-
-    class MON,ML,CVE detect
-    class ROTATE,PATCH,DEGRADE respond
-    class FULL,DEG,EMERG level
-```
-
-- **Attack Detection**: ML-based anomaly detection using K-Means clustering (< 100ms latency)
-- **Auto-Remediation**: Automatic key rotation and algorithm switching on vulnerability detection
-- **Graceful Degradation**: Multi-level fallback (Full → Degraded → Emergency) with security guarantees
-
-### Runtime-Adaptive Algorithm Selection
-
-The enterprise `AdaptiveSelector` performs runtime algorithm selection based on:
-
-- **Hardware Detection**: CPU instruction sets (AES-NI, AVX-512), GPU, HSM/TPM availability
-- **Performance Feedback**: Continuous measurement of algorithm latency and throughput
-- **Risk-Level Scaling**: Dynamic security multipliers under active threat conditions
-
-> **Note**: The Apache edition provides static `UseCase`-based scheme selection via `CryptoPolicyEngine` (a lookup table). Runtime-adaptive selection with hardware detection, performance feedback, and risk scaling is an enterprise-only feature.
-
-### Zero-Trust at Operation Level
-
-- **Per-Operation Policy**: Every cryptographic operation evaluated against access policies
-- **W3C DID Integration**: Decentralized identity with did:key, did:web resolution
-- **Continuous Verification**: Dynamic trust scoring with automatic reauthentication triggers
-- **Compliance Audit Trails**: Cryptographic-level logging for regulatory compliance
-
-### Performance Targets
-
-| Metric | Target |
-|--------|--------|
-| Attack detection latency | < 100ms |
-| Vulnerability patching | < 500ms |
-| Threat prediction accuracy | > 85% |
-| Degradation trigger | < 50ms |
-
-For Enterprise licensing, contact: Enterprise@LatticeArc.com
+**Coverage target:** 80% minimum, enforced in CI (GitHub Actions).
 
 ## References
 

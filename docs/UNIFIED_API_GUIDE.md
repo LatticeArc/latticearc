@@ -207,32 +207,25 @@ The central configuration type for cryptographic operations.
 
 ```mermaid
 graph LR
-    subgraph "Builder Pattern"
-        NEW[CryptoConfig::new]
-        UC[.use_case]
-        SL[.security_level]
-        SS[.session]
-    end
-
-    subgraph "Result"
-        CFG[Configured<br/>CryptoConfig]
-    end
-
-    NEW --> UC
-    NEW --> SL
-    NEW --> SS
-    UC --> CFG
+    NEW[CryptoConfig::new] --> UC[.use_case]
+    NEW --> SL[.security_level]
+    NEW --> CM[.compliance]
+    NEW --> SS[.session]
+    UC --> CFG[Configured CryptoConfig]
     SL --> CFG
+    CM --> CFG
     SS --> CFG
 
     classDef builder fill:#3b82f6,stroke:#2563eb,color:#fff
     classDef result fill:#10b981,stroke:#059669,color:#fff
 
-    class NEW,UC,SL,SS builder
+    class NEW,UC,SL,CM,SS builder
     class CFG result
 ```
 
 ```rust
+use latticearc::{CryptoConfig, UseCase, SecurityLevel, ComplianceMode};
+
 // Default: High security, hybrid mode
 let config = CryptoConfig::new();
 
@@ -244,19 +237,30 @@ let config = CryptoConfig::new()
 let config = CryptoConfig::new()
     .security_level(SecurityLevel::Maximum);
 
-// With Zero Trust session
+// With compliance mode (FIPS 140-3)
 let config = CryptoConfig::new()
-    .session(&session)
-    .use_case(UseCase::FinancialTransactions);
+    .use_case(UseCase::HealthcareRecords)
+    .compliance(ComplianceMode::Fips140_3);
+
+// CNSA 2.0 (PQ-only, no hybrid)
+let config = CryptoConfig::new()
+    .compliance(ComplianceMode::Cnsa2_0);
+
+// Full configuration with Zero Trust session
+let config = CryptoConfig::new()
+    .use_case(UseCase::FinancialTransactions)
+    .compliance(ComplianceMode::Fips140_3)
+    .session(&session);
 ```
 
 ### Builder Methods
 
 | Method | Description |
 |--------|-------------|
-| `::new()` | Create with defaults (High security) |
+| `::new()` | Create with defaults (High security, hybrid mode) |
 | `.use_case(UseCase)` | Select algorithm by use case |
 | `.security_level(SecurityLevel)` | Select algorithm by security level |
+| `.compliance(ComplianceMode)` | Set compliance mode (Default, Fips140_3, Cnsa2_0) |
 | `.session(&VerifiedSession)` | Enable Zero Trust verification |
 
 ## TlsConfig
@@ -357,7 +361,7 @@ All 24 use cases with their algorithm mappings (all hybrid PQ + classical by def
 ### Security Level Details
 
 - **Standard**: NIST Level 1 (128-bit equivalent). Hybrid mode using ML-KEM-512 + X25519, ML-DSA-44 + Ed25519. Suitable for resource-constrained devices and general use.
-- **High**: NIST Level 3 (192-bit equivalent). Hybrid mode using ML-KEM-768 + X25519, ML-DSA-65 + Ed25519. Recommended for most enterprise applications. **(Default)**
+- **High**: NIST Level 3 (192-bit equivalent). Hybrid mode using ML-KEM-768 + X25519, ML-DSA-65 + Ed25519. Recommended for most production applications. **(Default)**
 - **Maximum**: NIST Level 5 (256-bit equivalent). Hybrid mode using ML-KEM-1024 + X25519, ML-DSA-87 + Ed25519. For high-value assets and long-term security.
 - **Quantum**: NIST Level 5 (256-bit equivalent). PQ-only mode using ML-KEM-1024, ML-DSA-87 (no classical algorithms). For CNSA 2.0 compliance and government use cases. Must be explicitly selected.
 

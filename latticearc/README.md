@@ -141,7 +141,7 @@ let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::
 
 ### With Zero Trust Session
 
-For enterprise security with session-based verification:
+For high-security environments with session-based verification:
 
 ```rust
 use latticearc::{generate_signing_keypair, sign_with_key, verify, generate_keypair, CryptoConfig, VerifiedSession};

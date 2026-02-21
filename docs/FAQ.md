@@ -159,9 +159,20 @@ No. `unsafe_code = "forbid"` is set at the workspace level. All code is safe Rus
 
 ### Can I use LatticeArc for FIPS 140-3 compliance?
 
-LatticeArc implements FIPS-compliant algorithms but is not itself validated. For FIPS 140-3:
-1. Use LatticeArc's algorithms as building blocks
-2. Implement required self-tests (`latticearc-tests` provides FIPS validation infrastructure)
+LatticeArc implements FIPS-compliant algorithms but is not itself validated. Enable the FIPS backend and set `ComplianceMode`:
+
+```rust
+use latticearc::{encrypt, CryptoConfig, ComplianceMode};
+
+// Requires: cargo build --features fips
+let config = CryptoConfig::new()
+    .compliance(ComplianceMode::Fips140_3);
+let encrypted = encrypt(data, &key, config)?;
+```
+
+For full FIPS 140-3 certification:
+1. Build with `--features fips` (FIPS-validated aws-lc-rs backend)
+2. Self-tests run automatically via `fips-self-test` feature
 3. Consider validated hardware modules for the certification boundary
 
 ## Performance
