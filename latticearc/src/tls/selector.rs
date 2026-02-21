@@ -574,15 +574,11 @@ impl TlsPolicyEngine {
         // Apply security-related settings based on level
         match ctx.security_level {
             SecurityLevel::Quantum | SecurityLevel::Maximum => {
-                // Strictest settings
+                // Strictest settings: disable 0-RTT for maximum security
                 config.enable_early_data = false;
-                config.require_secure_renegotiation = true;
             }
-            SecurityLevel::High => {
-                config.require_secure_renegotiation = true;
-            }
-            SecurityLevel::Standard => {
-                // Allow more flexible settings for resource-constrained devices
+            SecurityLevel::High | SecurityLevel::Standard => {
+                // Keep defaults
             }
         }
 
@@ -1041,14 +1037,13 @@ mod tests {
         let ctx = TlsContext::default().security_level(SecurityLevel::Maximum).pq_available(true);
         let config = TlsPolicyEngine::create_config(&ctx);
         assert!(!config.enable_early_data);
-        assert!(config.require_secure_renegotiation);
     }
 
     #[test]
     fn test_create_config_high_security() {
         let ctx = TlsContext::default().security_level(SecurityLevel::High).pq_available(true);
-        let config = TlsPolicyEngine::create_config(&ctx);
-        assert!(config.require_secure_renegotiation);
+        let _config = TlsPolicyEngine::create_config(&ctx);
+        // High security keeps defaults — just verify no panic
     }
 
     #[test]

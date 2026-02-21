@@ -1079,7 +1079,6 @@ fn test_error_display_messages() {
         MlDsaError::InvalidKeyLength { expected: 1312, actual: 100 },
         MlDsaError::InvalidSignatureLength { expected: 2420, actual: 50 },
         MlDsaError::InvalidParameterSet("unknown".to_string()),
-        MlDsaError::FeatureNotEnabled,
         MlDsaError::CryptoError("test crypto error".to_string()),
     ];
 

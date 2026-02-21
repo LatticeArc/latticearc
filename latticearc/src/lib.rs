@@ -199,9 +199,9 @@
 //! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). |
 //! | `fips-self-test` | Power-up KAT self-tests for all FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). |
 //! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
-//! | `formal-verification` | Enables formal verification harnesses (Kani proofs for type invariants). |
-//! | `kani` | Kani bounded model checking proofs for pure-Rust type layer. |
-//! | `saw` | SAW formal verification markers (inherited from aws-lc-rs). |
+//! | `formal-verification` | Compilation marker: enables formal verification harness code (Kani proofs). Does not run proofs — use `cargo kani` separately. |
+//! | `kani` | Compilation marker: enables Kani bounded model checking proof harnesses. Requires `cargo kani` to execute proofs. |
+//! | `saw` | Compilation marker: enables SAW formal verification markers (inherited from aws-lc-rs). Does not run SAW proofs at build time. |
 //!
 //! ## Enterprise Behavior
 //!

@@ -50,8 +50,6 @@ fn arb_use_case() -> impl Strategy<Value = UseCase> {
         Just(UseCase::PaymentCard),
         Just(UseCase::IoTDevice),
         Just(UseCase::FirmwareSigning),
-        Just(UseCase::SearchableEncryption),
-        Just(UseCase::HomomorphicComputation),
         Just(UseCase::AuditLog),
     ]
 }

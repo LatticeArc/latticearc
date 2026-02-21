@@ -51,6 +51,7 @@ use crate::unified_api::{
 
 use super::aes_gcm::{decrypt_aes_gcm_internal, encrypt_aes_gcm_internal};
 use super::ed25519::{sign_ed25519_internal, verify_ed25519_internal};
+use crate::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 // Unified API uses AES-256-GCM for symmetric keys. For true PQ+classical hybrid
 // encryption, use encrypt_hybrid() / decrypt_hybrid() with typed keys.
 use super::keygen::{
@@ -102,6 +103,7 @@ fn select_encryption_scheme(data: &[u8], options: &CryptoConfig) -> Result<Strin
             let config = CoreConfig::default().with_security_level(level.clone());
             Ok(CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?)
         }
+        AlgorithmSelection::ForcedScheme(scheme) => Ok(CryptoPolicyEngine::force_scheme(scheme)),
     }
 }
 
@@ -116,7 +118,58 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
             let config = CoreConfig::default().with_security_level(level.clone());
             Ok(CryptoPolicyEngine::select_signature_scheme(&config)?)
         }
+        AlgorithmSelection::ForcedScheme(scheme) => Ok(CryptoPolicyEngine::force_scheme(scheme)),
     }
+}
+
+/// ChaCha20-Poly1305 encrypt (format: nonce || ciphertext || tag)
+fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    let cipher = ChaCha20Poly1305Cipher::new(key)
+        .map_err(|_e| CoreError::InvalidKeyLength { expected: 32, actual: key.len() })?;
+    let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+    let (ciphertext, tag) = cipher
+        .encrypt(&nonce, data, None)
+        .map_err(|e| CoreError::EncryptionFailed(e.to_string()))?;
+    // Format: nonce (12) || ciphertext || tag (16)
+    let mut result =
+        Vec::with_capacity(12_usize.saturating_add(ciphertext.len()).saturating_add(tag.len()));
+    result.extend_from_slice(&nonce);
+    result.extend_from_slice(&ciphertext);
+    result.extend_from_slice(&tag);
+    Ok(result)
+}
+
+/// ChaCha20-Poly1305 decrypt (expects: nonce || ciphertext || tag)
+fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    if encrypted.len() < 28 {
+        return Err(CoreError::DecryptionFailed(
+            "Encrypted data too short for ChaCha20-Poly1305 (need nonce + tag)".to_string(),
+        ));
+    }
+    let nonce_slice = encrypted
+        .get(..12)
+        .ok_or_else(|| CoreError::DecryptionFailed("Failed to extract nonce".to_string()))?;
+    let mut nonce = [0u8; 12];
+    nonce.copy_from_slice(nonce_slice);
+
+    let ciphertext_and_tag = encrypted
+        .get(12..)
+        .ok_or_else(|| CoreError::DecryptionFailed("Failed to extract ciphertext".to_string()))?;
+    let tag_start = ciphertext_and_tag.len().saturating_sub(16);
+    let ciphertext = ciphertext_and_tag
+        .get(..tag_start)
+        .ok_or_else(|| CoreError::DecryptionFailed("Failed to split ciphertext/tag".to_string()))?;
+    let tag_slice = ciphertext_and_tag
+        .get(tag_start..)
+        .ok_or_else(|| CoreError::DecryptionFailed("Failed to extract tag".to_string()))?;
+    let mut tag = [0u8; 16];
+    tag.copy_from_slice(tag_slice);
+
+    let cipher = ChaCha20Poly1305Cipher::new(key)
+        .map_err(|_e| CoreError::InvalidKeyLength { expected: 32, actual: key.len() })?;
+    cipher
+        .decrypt(&nonce, ciphertext, &tag, None)
+        .map_err(|e| CoreError::DecryptionFailed(e.to_string()))
 }
 
 // ============================================================================
@@ -161,18 +214,16 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
 ///
 /// # Algorithm Selection
 ///
-/// | Use Case | Algorithm |
-/// |----------|-----------|
-/// | `FileStorage` | ML-KEM-1024 + AES-256-GCM |
-/// | `SecureMessaging` | ML-KEM-768 + AES-256-GCM |
-/// | `IoTDevice` | ML-KEM-512 + AES-256-GCM |
+/// This function uses a symmetric key (`&[u8]`), so it performs AES-256-GCM or
+/// ChaCha20-Poly1305 encryption. For true PQ+classical hybrid encryption with
+/// ML-KEM key encapsulation, use `encrypt_hybrid()` with typed `HybridPublicKey`.
 ///
-/// | Security Level | Algorithm |
-/// |----------------|-----------|
-/// | `Maximum` | ML-KEM-1024 |
-/// | `High` | ML-KEM-768 |
-/// | `Medium` | ML-KEM-768 |
-/// | `Low` | ML-KEM-512 |
+/// | Selection | Scheme |
+/// |-----------|--------|
+/// | Default (`High`) | AES-256-GCM (hybrid scheme selected, symmetric fallback) |
+/// | `hardware_acceleration=false` | ChaCha20-Poly1305 |
+/// | `force_scheme(Symmetric)` | AES-256-GCM |
+/// | Any `UseCase` | AES-256-GCM (hybrid scheme selected, symmetric fallback) |
 ///
 /// # Errors
 ///
@@ -187,6 +238,7 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
     config.validate()?;
 
     let scheme = select_encryption_scheme(data, &config)?;
+    config.validate_scheme_compliance(&scheme)?;
 
     validate_encryption_size(data.len()).map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
@@ -204,6 +256,13 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
             ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
+        }
+        // ChaCha20-Poly1305 (preferred when hardware_acceleration=false)
+        "chacha20-poly1305" => {
+            if key.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+            }
+            ("chacha20-poly1305".to_string(), encrypt_chacha20_internal(data, key)?)
         }
         // Hybrid/PQ KEM schemes: the unified API can only do symmetric encryption
         // (HybridPublicKey is not a &[u8]), so fall back to AES-GCM.
@@ -308,6 +367,7 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
 pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> Result<Vec<u8>> {
     fips_verify_operational()?;
     config.validate()?;
+    config.validate_scheme_compliance(&encrypted.scheme)?;
 
     crate::log_crypto_operation_start!("decrypt", scheme = %encrypted.scheme, data_size = encrypted.data.len());
 
@@ -326,6 +386,13 @@ pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> R
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
             }
             decrypt_aes_gcm_internal(&encrypted.data, key)
+        }
+        // ChaCha20-Poly1305
+        "chacha20-poly1305" => {
+            if key.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+            }
+            decrypt_chacha20_internal(&encrypted.data, key)
         }
         // Any ML-KEM variant (hybrid, pq, with x25519/aes suffix) was encrypted
         // with AES-256-GCM through the unified API.
@@ -462,6 +529,7 @@ pub fn sign_with_key(
     config.validate()?;
 
     let scheme = select_signature_scheme(&config)?;
+    config.validate_scheme_compliance(&scheme)?;
 
     validate_signature_size(message.len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
@@ -663,6 +731,7 @@ pub fn sign_with_key(
 pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     fips_verify_operational()?;
     config.validate()?;
+    config.validate_scheme_compliance(&signed.scheme)?;
 
     crate::log_crypto_operation_start!("verify", scheme = %signed.scheme, message_size = signed.data.len());
 
@@ -2228,5 +2297,154 @@ mod tests {
         };
         let result = decrypt(&modified, &key, config);
         assert!(result.is_err(), "Unknown scheme should be rejected");
+    }
+
+    // ========================================================================
+    // Compliance enforcement tests
+    // ========================================================================
+
+    #[test]
+    fn test_cnsa_verify_rejects_ed25519() -> Result<()> {
+        // Sign with ed25519 (default Standard security uses ed25519-based hybrid)
+        let message = b"compliance test";
+        let config_default = CryptoConfig::new().security_level(SecurityLevel::Standard);
+        let signed = sign_message(message, config_default)?;
+
+        // If the scheme is "ed25519", CNSA 2.0 should reject it
+        // CNSA 2.0 requires SecurityLevel::Quantum to pass validate()
+        if signed.scheme == "ed25519" {
+            let cnsa_config = CryptoConfig::new()
+                .security_level(SecurityLevel::Quantum)
+                .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
+            let result = verify(&signed, cnsa_config);
+            assert!(result.is_err(), "CNSA 2.0 should reject ed25519 verification");
+            let err_msg = format!("{}", result.unwrap_err());
+            assert!(err_msg.contains("Compliance violation"));
+        }
+        // For hybrid schemes, CNSA 2.0 allows them (transitional)
+        Ok(())
+    }
+
+    #[test]
+    fn test_cnsa_verify_rejects_standalone_ed25519_signature() -> Result<()> {
+        // Manually construct a SignedData with ed25519 scheme
+        let signed = SignedData {
+            data: b"test data".to_vec(),
+            metadata: SignedMetadata {
+                signature: vec![0u8; 64],
+                signature_algorithm: "ed25519".to_string(),
+                public_key: vec![0u8; 32],
+                key_id: None,
+            },
+            scheme: "ed25519".to_string(),
+            timestamp: 0,
+        };
+
+        let cnsa_config = CryptoConfig::new()
+            .security_level(SecurityLevel::Quantum)
+            .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
+        let result = verify(&signed, cnsa_config);
+        assert!(result.is_err(), "CNSA 2.0 must reject ed25519 signatures");
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("CNSA 2.0"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_fips_decrypt_allows_aes_gcm() -> Result<()> {
+        // Encrypt with default config (produces aes-256-gcm)
+        let key = vec![0x42u8; 32];
+        let data = b"fips compliance test";
+        let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+
+        assert_eq!(encrypted.scheme, "aes-256-gcm");
+
+        // Decrypt with FIPS config should succeed (AES-256-GCM is FIPS-approved)
+        let fips_config =
+            CryptoConfig::new().compliance(crate::types::types::ComplianceMode::Fips140_3);
+        let plaintext = decrypt(&encrypted, &key, fips_config)?;
+        assert_eq!(plaintext, data);
+        Ok(())
+    }
+
+    #[test]
+    fn test_cnsa_decrypt_rejects_aes_gcm() -> Result<()> {
+        // Encrypt with default config (produces aes-256-gcm)
+        let key = vec![0x42u8; 32];
+        let data = b"cnsa decrypt test";
+        let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+
+        assert_eq!(encrypted.scheme, "aes-256-gcm");
+
+        // Decrypt with CNSA 2.0 should reject (aes-256-gcm is classical-only)
+        // CNSA 2.0 requires SecurityLevel::Quantum to pass validate()
+        let cnsa_config = CryptoConfig::new()
+            .security_level(SecurityLevel::Quantum)
+            .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
+        let result = decrypt(&encrypted, &key, cnsa_config);
+        assert!(result.is_err(), "CNSA 2.0 should reject standalone AES-256-GCM");
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("CNSA 2.0"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_default_compliance_allows_all_in_verify() -> Result<()> {
+        // Sign and verify with default compliance — should always work
+        let message = b"default compliance test";
+        let config = CryptoConfig::new();
+        let signed = sign_message(message, config)?;
+
+        let default_config = CryptoConfig::new();
+        let is_valid = verify(&signed, default_config)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_default_compliance_allows_all_in_decrypt() -> Result<()> {
+        // Encrypt and decrypt with default compliance — should always work
+        let key = vec![0x42u8; 32];
+        let data = b"default compliance decrypt test";
+        let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+
+        let default_config = CryptoConfig::new();
+        let plaintext = decrypt(&encrypted, &key, default_config)?;
+        assert_eq!(plaintext, data);
+        Ok(())
+    }
+
+    #[test]
+    fn test_fips_verify_allows_pq_signatures() -> Result<()> {
+        // Sign with PQ algorithm (ML-DSA-65)
+        let message = b"pq fips compliance test";
+        let config = CryptoConfig::new().security_level(SecurityLevel::High);
+        let signed = sign_message(message, config)?;
+
+        // FIPS config should accept PQ and hybrid signatures
+        let fips_config =
+            CryptoConfig::new().compliance(crate::types::types::ComplianceMode::Fips140_3);
+        let is_valid = verify(&signed, fips_config)?;
+        assert!(is_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn test_cnsa_verify_allows_hybrid_signatures() -> Result<()> {
+        // Sign with hybrid (default High security → hybrid-ml-dsa-65-ed25519)
+        let message = b"hybrid cnsa test";
+        let config = CryptoConfig::new().security_level(SecurityLevel::High);
+        let signed = sign_message(message, config)?;
+
+        // Hybrid schemes are allowed under CNSA 2.0 (transitional per NIST SP 800-227)
+        // Note: CNSA 2.0 config requires SecurityLevel::Quantum to pass validate()
+        if signed.scheme.contains("hybrid") {
+            let cnsa_config = CryptoConfig::new()
+                .security_level(SecurityLevel::Quantum)
+                .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
+            let is_valid = verify(&signed, cnsa_config)?;
+            assert!(is_valid);
+        }
+        Ok(())
     }
 }

@@ -120,14 +120,6 @@ pub enum AeadError {
     #[error("Invalid nonce length")]
     InvalidNonceLength,
 
-    /// Invalid tag length
-    #[error("Invalid tag length")]
-    InvalidTagLength,
-
-    /// Authentication tag verification failed
-    #[error("Authentication tag verification failed")]
-    TagVerificationFailed,
-
     /// Encryption failed
     #[error("Encryption failed: {0}")]
     EncryptionFailed(String),
@@ -207,12 +199,6 @@ mod tests {
 
         let err = AeadError::InvalidNonceLength;
         assert_eq!(format!("{}", err), "Invalid nonce length");
-
-        let err = AeadError::InvalidTagLength;
-        assert_eq!(format!("{}", err), "Invalid tag length");
-
-        let err = AeadError::TagVerificationFailed;
-        assert_eq!(format!("{}", err), "Authentication tag verification failed");
 
         let err = AeadError::EncryptionFailed("test".to_string());
         assert_eq!(format!("{}", err), "Encryption failed: test");

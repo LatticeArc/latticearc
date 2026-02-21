@@ -40,24 +40,6 @@ use sha2::Sha256;
 /// - FIPS 198-1 compliance
 pub type HmacSha256 = Hmac<Sha256>;
 
-/// Error types for HMAC operations
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum HmacError {
-    /// Invalid key length (key must be at least 1 byte)
-    #[error("Invalid HMAC key length: {actual} bytes (must be at least 1 byte)")]
-    InvalidKeyLength {
-        /// Actual key length in bytes
-        actual: usize,
-    },
-
-    /// Invalid tag length (tag must be 32 bytes for HMAC-SHA256)
-    #[error("Invalid HMAC tag length: {actual} bytes (must be 32 bytes for HMAC-SHA256)")]
-    InvalidTagLength {
-        /// Actual tag length in bytes
-        actual: usize,
-    },
-}
-
 /// Compute HMAC-SHA256 for given key and data
 ///
 /// This function computes the HMAC-SHA256 hash using the formula:

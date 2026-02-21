@@ -159,10 +159,6 @@ pub enum MlDsaError {
     #[error("Invalid parameter set: {0}")]
     InvalidParameterSet(String),
 
-    /// ML-DSA feature not enabled
-    #[error("ML-DSA feature not enabled")]
-    FeatureNotEnabled,
-
     /// Cryptographic operation failed
     #[error("Cryptographic operation failed: {0}")]
     CryptoError(String),
@@ -1019,9 +1015,6 @@ mod tests {
 
         let err = MlDsaError::InvalidParameterSet("bad param".to_string());
         assert!(format!("{}", err).contains("bad param"));
-
-        let err = MlDsaError::FeatureNotEnabled;
-        assert!(format!("{}", err).contains("not enabled"));
 
         let err = MlDsaError::CryptoError("crypto fail".to_string());
         assert!(format!("{}", err).contains("crypto fail"));

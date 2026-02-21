@@ -8,15 +8,16 @@
 //! Comprehensive Unified API Integration Tests
 //!
 //! Exercises `latticearc::encrypt()` / `latticearc::decrypt()` through the public
-//! facade with ALL 24 UseCases, ALL 4 SecurityLevels, and the TLS policy engine
+//! facade with ALL 22 UseCases, ALL 4 SecurityLevels, and the TLS policy engine
 //! with ALL 10 TlsUseCases.
 //!
 //! Run with: `cargo test --package latticearc --test unified_api_comprehensive --all-features --release`
 
 use latticearc::{
-    CryptoConfig, PerformancePreference, SecurityLevel, SecurityMode, TlsConfig, TlsConstraints,
-    TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, UseCase, decrypt, decrypt_hybrid, encrypt,
-    encrypt_hybrid, generate_hybrid_keypair, generate_signing_keypair, sign_with_key, verify,
+    ComplianceMode, CryptoConfig, PerformancePreference, SecurityLevel, SecurityMode, TlsConfig,
+    TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, UseCase, decrypt,
+    decrypt_hybrid, encrypt, encrypt_hybrid, fips_available, generate_hybrid_keypair,
+    generate_signing_keypair, sign_with_key, verify,
 };
 
 // ============================================================================
@@ -42,6 +43,8 @@ fn test_unified_api_uses_aes256gcm_by_design() {
     let config = CryptoConfig::new()
         .security_level(SecurityLevel::Quantum)
         .use_case(UseCase::GovernmentClassified);
+    // Override auto-FIPS when feature not available (test verifies AES-GCM selection, not FIPS)
+    let config = if fips_available() { config } else { config.compliance(ComplianceMode::Default) };
 
     let encrypted = encrypt(data, &key, config.clone()).expect("encrypt should succeed");
 
@@ -183,22 +186,34 @@ fn all_use_cases() -> Vec<UseCase> {
         // IoT & Embedded (2)
         UseCase::IoTDevice,
         UseCase::FirmwareSigning,
-        // Advanced (3)
-        UseCase::SearchableEncryption,
-        UseCase::HomomorphicComputation,
         UseCase::AuditLog,
     ]
 }
 
 #[test]
-fn test_encrypt_decrypt_all_24_use_cases() {
+fn test_encrypt_decrypt_all_22_use_cases() {
     let key = [0x42u8; 32];
     let plaintext = b"Unified API roundtrip for every UseCase";
     let use_cases = all_use_cases();
-    assert_eq!(use_cases.len(), 24, "Expected 24 use cases");
+    assert_eq!(use_cases.len(), 22, "Expected 22 use cases");
 
     for uc in &use_cases {
         let config = CryptoConfig::new().use_case(uc.clone());
+
+        // Regulated use cases require FIPS; skip roundtrip when feature unavailable
+        let is_regulated = matches!(
+            uc,
+            UseCase::GovernmentClassified
+                | UseCase::HealthcareRecords
+                | UseCase::PaymentCard
+                | UseCase::FinancialTransactions
+        );
+        if is_regulated && !fips_available() {
+            let result = encrypt(plaintext, &key, config);
+            assert!(result.is_err(), "Regulated {:?} should fail without FIPS", uc);
+            continue;
+        }
+
         let encrypted = encrypt(plaintext, &key, config)
             .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", uc, e));
 

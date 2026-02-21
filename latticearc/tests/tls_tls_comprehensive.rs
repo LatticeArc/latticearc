@@ -113,7 +113,6 @@ mod tls_config_tests {
         assert!(config.max_fragment_size.is_none());
         assert!(!config.enable_early_data);
         assert_eq!(config.max_early_data_size, 0);
-        assert!(config.require_secure_renegotiation);
         assert!(config.enable_resumption);
         assert_eq!(config.session_lifetime, 7200);
         assert!(!config.enable_key_logging);
@@ -193,12 +192,6 @@ mod tls_config_tests {
     fn test_tls_config_with_session_lifetime() {
         let config = TlsConfig::new().with_session_lifetime(3600);
         assert_eq!(config.session_lifetime, 3600);
-    }
-
-    #[test]
-    fn test_tls_config_with_secure_renegotiation() {
-        let config = TlsConfig::new().with_secure_renegotiation(false);
-        assert!(!config.require_secure_renegotiation);
     }
 
     #[test]

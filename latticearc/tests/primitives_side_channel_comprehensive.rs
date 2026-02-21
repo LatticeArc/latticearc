@@ -509,7 +509,7 @@ fn test_aes_gcm_encryption_timing_consistency() {
     const WARMUP: usize = 20;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
 
     // Test different plaintext sizes
@@ -648,7 +648,7 @@ fn test_aes_gcm_cache_timing_resistance() {
     const WARMUP: usize = 10;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
 
     // Test with patterns that might trigger different cache behaviors
     let patterns: Vec<Vec<u8>> = vec![
@@ -892,7 +892,7 @@ fn test_aes_gcm_key_zeroization() {
     assert!(key.iter().any(|&b| b != 0), "Generated key should be non-zero");
 
     // Zeroize
-    zeroize_data(&mut key);
+    zeroize_data(&mut *key);
 
     // Verify key is zeroed
     assert!(key.iter().all(|&b| b == 0), "Key should be zeroed after zeroization");
@@ -1068,7 +1068,7 @@ fn test_aes_gcm_decryption_failure_timing() {
     const WARMUP: usize = 10;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"Test message";
 
@@ -1328,7 +1328,7 @@ fn test_aes_gcm_timing_distribution() {
     const WARMUP: usize = 50;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0xABu8; 1024];
 
@@ -1506,7 +1506,7 @@ fn test_comprehensive_timing_bounds() {
     // AES-GCM operations
     println!("\nAES-GCM Operations (1KB message):");
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0xABu8; 1024];
 
@@ -1739,7 +1739,7 @@ fn test_chacha20poly1305_encryption_timing_consistency() {
     const WARMUP: usize = 20;
 
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
 
     // Test different plaintext sizes
     for size in [16, 64, 256, 1024] {
@@ -1836,7 +1836,7 @@ fn test_chacha20poly1305_decryption_failure_timing() {
     const WARMUP: usize = 10;
 
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"Test message";
 

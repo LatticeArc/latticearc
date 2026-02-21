@@ -201,6 +201,14 @@ pub enum CoreError {
     /// Audit storage operation failed.
     #[error("Audit error: {0}")]
     AuditError(String),
+
+    /// Operation violates the configured compliance mode.
+    ///
+    /// Returned when an algorithm or scheme is not permitted under the active
+    /// compliance policy (e.g., FIPS 140-3 rejecting ChaCha20-Poly1305, or
+    /// CNSA 2.0 rejecting classical-only algorithms like Ed25519).
+    #[error("Compliance violation: {0}")]
+    ComplianceViolation(String),
 }
 
 /// Conversion from pure-Rust `TypeError` (arc-types) into FFI-aware `CoreError`.
@@ -388,6 +396,10 @@ mod tests {
             (CoreError::InvalidSignature("sig".to_string()), "Invalid signature: sig"),
             (CoreError::InvalidKey("key".to_string()), "Invalid key: key"),
             (CoreError::SignatureFailed("sf".to_string()), "Signature failed: sf"),
+            (
+                CoreError::ComplianceViolation("FIPS rejects chacha".to_string()),
+                "Compliance violation: FIPS rejects chacha",
+            ),
         ];
 
         for (error, expected_msg) in cases {

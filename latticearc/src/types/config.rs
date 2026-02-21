@@ -5,7 +5,7 @@
 //! zero FFI dependencies.
 
 use crate::types::{
-    CryptoScheme, PerformancePreference, SecurityLevel, UseCase,
+    PerformancePreference, SecurityLevel, UseCase,
     error::{Result, TypeError},
     traits::HardwareType,
 };
@@ -153,7 +153,7 @@ impl CoreConfig {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Maximum security level is configured without hardware acceleration enabled
+    /// - Strict validation is enabled with `SecurityLevel::Standard`
     /// - Speed performance preference is configured without fallback enabled
     pub fn build(self) -> Result<Self> {
         self.validate()?;
@@ -165,12 +165,14 @@ impl CoreConfig {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Maximum security level is configured without hardware acceleration enabled
+    /// - Strict validation is enabled with `SecurityLevel::Standard` (requires at least `High`)
     /// - Speed performance preference is configured without fallback enabled
     pub fn validate(&self) -> Result<()> {
-        if matches!(self.security_level, SecurityLevel::Maximum) && !self.hardware_acceleration {
+        if self.strict_validation && matches!(self.security_level, SecurityLevel::Standard) {
             return Err(TypeError::ConfigurationError(
-                "Maximum security level requires hardware acceleration".to_string(),
+                "Strict validation mode requires SecurityLevel::High or above. \
+                 SecurityLevel::Standard (NIST Level 1) is not permitted in strict mode."
+                    .to_string(),
             ));
         }
 
@@ -188,29 +190,14 @@ impl CoreConfig {
 
 /// Configuration for encryption operations.
 ///
-/// Extends [`CoreConfig`] with encryption-specific settings like preferred
-/// cryptographic scheme, compression, and integrity checking.
-#[derive(Debug, Clone)]
+/// Wraps [`CoreConfig`] for encryption-specific use cases.
+///
+/// **Note:** Scheme selection is handled by [`CryptoConfig::force_scheme()`] and
+/// the policy engine, not by this struct. Use `CryptoConfig` for the unified API.
+#[derive(Debug, Clone, Default)]
 pub struct EncryptionConfig {
     /// Base configuration inherited from [`CoreConfig`].
     pub base: CoreConfig,
-    /// Preferred encryption scheme, or `None` for automatic selection.
-    pub preferred_scheme: Option<CryptoScheme>,
-    /// Whether to compress data before encryption.
-    pub compression_enabled: bool,
-    /// Whether to include integrity verification tags.
-    pub integrity_check: bool,
-}
-
-impl Default for EncryptionConfig {
-    fn default() -> Self {
-        Self {
-            base: CoreConfig::default(),
-            preferred_scheme: None,
-            compression_enabled: true,
-            integrity_check: true,
-        }
-    }
 }
 
 impl EncryptionConfig {
@@ -220,72 +207,26 @@ impl EncryptionConfig {
         Self::default()
     }
 
-    /// Sets the preferred encryption scheme.
-    #[must_use]
-    pub fn with_scheme(mut self, scheme: CryptoScheme) -> Self {
-        self.preferred_scheme = Some(scheme);
-        self
-    }
-
-    /// Enables or disables compression before encryption.
-    #[must_use]
-    pub fn with_compression(mut self, enabled: bool) -> Self {
-        self.compression_enabled = enabled;
-        self
-    }
-
-    /// Enables or disables integrity checking.
-    #[must_use]
-    pub fn with_integrity_check(mut self, enabled: bool) -> Self {
-        self.integrity_check = enabled;
-        self
-    }
-
     /// Validates the encryption configuration settings.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The base configuration validation fails
-    /// - Compression is enabled without integrity check enabled
+    /// Returns an error if the base configuration validation fails.
     pub fn validate(&self) -> Result<()> {
-        self.base.validate()?;
-
-        if self.compression_enabled && !self.integrity_check {
-            return Err(TypeError::ConfigurationError(
-                "Compression requires integrity check".to_string(),
-            ));
-        }
-
-        Ok(())
+        self.base.validate()
     }
 }
 
 /// Configuration for digital signature operations.
 ///
-/// Extends [`CoreConfig`] with signature-specific settings like preferred
-/// scheme, timestamping, and certificate chain support.
-#[derive(Debug, Clone)]
+/// Wraps [`CoreConfig`] for signature-specific use cases.
+///
+/// **Note:** Scheme selection is handled by [`CryptoConfig::force_scheme()`] and
+/// the policy engine, not by this struct. Use `CryptoConfig` for the unified API.
+#[derive(Debug, Clone, Default)]
 pub struct SignatureConfig {
     /// Base configuration inherited from [`CoreConfig`].
     pub base: CoreConfig,
-    /// Preferred signature scheme, or `None` for automatic selection.
-    pub preferred_scheme: Option<CryptoScheme>,
-    /// Whether to include timestamps in signatures.
-    pub timestamp_enabled: bool,
-    /// Whether to include the full certificate chain.
-    pub certificate_chain: bool,
-}
-
-impl Default for SignatureConfig {
-    fn default() -> Self {
-        Self {
-            base: CoreConfig::default(),
-            preferred_scheme: None,
-            timestamp_enabled: true,
-            certificate_chain: false,
-        }
-    }
 }
 
 impl SignatureConfig {
@@ -295,44 +236,13 @@ impl SignatureConfig {
         Self::default()
     }
 
-    /// Sets the preferred signature scheme.
-    #[must_use]
-    pub fn with_scheme(mut self, scheme: CryptoScheme) -> Self {
-        self.preferred_scheme = Some(scheme);
-        self
-    }
-
-    /// Enables or disables timestamp inclusion in signatures.
-    #[must_use]
-    pub fn with_timestamp(mut self, enabled: bool) -> Self {
-        self.timestamp_enabled = enabled;
-        self
-    }
-
-    /// Enables or disables certificate chain inclusion.
-    #[must_use]
-    pub fn with_certificate_chain(mut self, enabled: bool) -> Self {
-        self.certificate_chain = enabled;
-        self
-    }
-
     /// Validates the signature configuration settings.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The base configuration validation fails
-    /// - Certificate chain is enabled without timestamp enabled
+    /// Returns an error if the base configuration validation fails.
     pub fn validate(&self) -> Result<()> {
-        self.base.validate()?;
-
-        if self.certificate_chain && !self.timestamp_enabled {
-            return Err(TypeError::ConfigurationError(
-                "Certificate chain requires timestamp".to_string(),
-            ));
-        }
-
-        Ok(())
+        self.base.validate()
     }
 }
 
@@ -447,6 +357,11 @@ pub enum ProofComplexity {
 ///
 /// Controls which hardware accelerators are used and under what conditions
 /// software fallback is permitted.
+///
+/// **Note:** This is a configuration model only. Actual hardware routing
+/// (GPU, HSM, TPM detection and dispatch) is implemented in the enterprise
+/// layer (`arc-enterprise-perf`). In the open-source crate, `CoreConfig.hardware_acceleration`
+/// controls software-friendly algorithm selection (ChaCha20-Poly1305 vs AES-GCM).
 #[derive(Debug, Clone)]
 pub struct HardwareConfig {
     /// Whether hardware acceleration is enabled.
@@ -543,6 +458,10 @@ impl HardwareConfig {
 ///
 /// Combines encryption, signature, zero-trust, and hardware configurations
 /// with settings optimized for the given use case.
+///
+/// **Note:** `UseCaseConfig` is not yet wired to the unified `encrypt()`/`sign_with_key()` API.
+/// For use-case-based algorithm selection, use `CryptoConfig::new().use_case(UseCase::...)`.
+/// `UseCaseConfig` remains available for advanced per-component configuration.
 #[derive(Debug, Clone)]
 pub struct UseCaseConfig {
     /// The use case this configuration is optimized for.
@@ -601,24 +520,21 @@ impl UseCaseConfig {
                 CoreConfig::new().with_security_level(SecurityLevel::Maximum)
             }
 
-            // IoT & Embedded: Resource-constrained
+            // IoT & Embedded: Resource-constrained (strict validation off for Standard level)
             UseCase::IoTDevice => CoreConfig::new()
                 .with_security_level(SecurityLevel::Standard)
-                .with_performance_preference(PerformancePreference::Memory),
+                .with_performance_preference(PerformancePreference::Memory)
+                .with_strict_validation(false),
             UseCase::FirmwareSigning => CoreConfig::new().with_security_level(SecurityLevel::High),
 
-            // Advanced: Specialized requirements
-            UseCase::SearchableEncryption => CoreConfig::default(),
-            UseCase::HomomorphicComputation => CoreConfig::new()
-                .with_security_level(SecurityLevel::Maximum)
-                .with_hardware_acceleration(true),
+            // General Purpose
             UseCase::AuditLog => CoreConfig::new().with_security_level(SecurityLevel::High),
         };
 
         Self {
             use_case,
-            encryption: EncryptionConfig { base: base_config.clone(), ..Default::default() },
-            signature: SignatureConfig { base: base_config.clone(), ..Default::default() },
+            encryption: EncryptionConfig { base: base_config.clone() },
+            signature: SignatureConfig { base: base_config.clone() },
             zero_trust: ZeroTrustConfig { base: base_config, ..Default::default() },
             hardware: HardwareConfig::default(),
         }
@@ -685,44 +601,32 @@ mod kani_proofs {
     /// BI-CONDITIONAL: For ANY CoreConfig, validate() succeeds IFF
     /// both safety invariants hold. This is the most powerful proof —
     /// it verifies validation has no false positives AND no false negatives.
-    /// Exhaustive over all 96 CoreConfig combinations.
+    /// Exhaustive over all CoreConfig combinations.
     #[kani::proof]
     fn core_config_validation_biconditional() {
         let config: CoreConfig = kani::any();
         let result = config.validate();
 
-        let should_pass = !((matches!(config.security_level, SecurityLevel::Maximum)
-            && !config.hardware_acceleration)
+        let should_pass = !((config.strict_validation
+            && matches!(config.security_level, SecurityLevel::Standard))
             || (matches!(config.performance_preference, PerformancePreference::Speed)
                 && !config.fallback_enabled));
 
         kani::assert(result.is_ok() == should_pass, "validate() passes iff both invariants hold");
     }
 
-    /// Proves compression without integrity check fails validation.
-    /// Security: compressed ciphertext without integrity enables oracle attacks.
+    /// Proves EncryptionConfig delegates validation to CoreConfig.
     #[kani::proof]
-    fn encryption_compression_requires_integrity() {
-        let config = EncryptionConfig {
-            base: CoreConfig::default(),
-            preferred_scheme: None,
-            compression_enabled: true,
-            integrity_check: false,
-        };
-        kani::assert(config.validate().is_err(), "Compression requires integrity");
+    fn encryption_config_delegates_validation() {
+        let config = EncryptionConfig { base: CoreConfig::default() };
+        kani::assert(config.validate().is_ok(), "Default EncryptionConfig must validate");
     }
 
-    /// Proves certificate chain without timestamp fails validation.
-    /// Security: certificate chains need timestamps for revocation checking.
+    /// Proves SignatureConfig delegates validation to CoreConfig.
     #[kani::proof]
-    fn signature_chain_requires_timestamp() {
-        let config = SignatureConfig {
-            base: CoreConfig::default(),
-            preferred_scheme: None,
-            timestamp_enabled: false,
-            certificate_chain: true,
-        };
-        kani::assert(config.validate().is_err(), "Cert chain requires timestamp");
+    fn signature_config_delegates_validation() {
+        let config = SignatureConfig { base: CoreConfig::default() };
+        kani::assert(config.validate().is_ok(), "Default SignatureConfig must validate");
     }
 }
 
@@ -795,20 +699,26 @@ mod tests {
 
     #[test]
     fn test_core_config_validation_success() -> Result<()> {
-        let config = CoreConfig::new()
-            .with_security_level(SecurityLevel::Maximum)
-            .with_hardware_acceleration(true);
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
         config.validate()?;
         Ok(())
     }
 
     #[test]
-    fn test_core_config_validation_maximum_security_requires_hardware() {
+    fn test_core_config_strict_validation_rejects_standard() {
         let config = CoreConfig::new()
-            .with_security_level(SecurityLevel::Maximum)
-            .with_hardware_acceleration(false);
+            .with_security_level(SecurityLevel::Standard)
+            .with_strict_validation(true);
         let result = config.validate();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_core_config_strict_validation_allows_high() -> Result<()> {
+        let config =
+            CoreConfig::new().with_security_level(SecurityLevel::High).with_strict_validation(true);
+        config.validate()?;
+        Ok(())
     }
 
     #[test]
@@ -824,17 +734,15 @@ mod tests {
     #[test]
     fn test_encryption_config_default() {
         let config = EncryptionConfig::default();
-        assert!(config.preferred_scheme.is_none());
-        assert!(config.compression_enabled);
-        assert!(config.integrity_check);
+        assert_eq!(config.base.security_level, SecurityLevel::High);
+        assert!(config.validate().is_ok());
     }
 
     #[test]
     fn test_signature_config_default() {
         let config = SignatureConfig::default();
-        assert!(config.preferred_scheme.is_none());
-        assert!(config.timestamp_enabled);
-        assert!(!config.certificate_chain);
+        assert_eq!(config.base.security_level, SecurityLevel::High);
+        assert!(config.validate().is_ok());
     }
 
     #[test]
@@ -866,5 +774,35 @@ mod tests {
         let config = UseCaseConfig::new(UseCase::IoTDevice);
         assert_eq!(config.encryption.base.security_level, SecurityLevel::Standard);
         assert_eq!(config.encryption.base.performance_preference, PerformancePreference::Memory);
+    }
+
+    // =========================================================================
+    // Parameter Influence Tests (Audit 4.12)
+    // =========================================================================
+
+    #[test]
+    fn test_strict_validation_rejects_standard() {
+        // strict_validation=true + Standard → error
+        let config = CoreConfig::new()
+            .with_strict_validation(true)
+            .with_security_level(SecurityLevel::Standard);
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_strict_validation_accepts_high() {
+        // strict_validation=true + High → ok
+        let config =
+            CoreConfig::new().with_strict_validation(true).with_security_level(SecurityLevel::High);
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_strict_validation_false_accepts_standard() {
+        // strict_validation=false + Standard → ok (parameter changes outcome)
+        let config = CoreConfig::new()
+            .with_strict_validation(false)
+            .with_security_level(SecurityLevel::Standard);
+        assert!(config.validate().is_ok());
     }
 }

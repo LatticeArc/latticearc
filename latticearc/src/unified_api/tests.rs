@@ -78,9 +78,8 @@ fn test_configuration_validation() {
     let result = config.validate();
     assert!(result.is_ok(), "Default config validation failed: {:?}", result.err());
 
-    let invalid_config = CoreConfig::new()
-        .with_security_level(SecurityLevel::Maximum)
-        .with_hardware_acceleration(false);
+    let invalid_config =
+        CoreConfig::new().with_security_level(SecurityLevel::Standard).with_strict_validation(true);
     let result = invalid_config.validate();
     assert!(result.is_err(), "Invalid config should fail validation");
 }
@@ -438,9 +437,6 @@ fn test_unified_api_all_use_cases_roundtrip() {
                 // IoT & Embedded (2)
                 UseCase::IoTDevice,
                 UseCase::FirmwareSigning,
-                // Advanced (3)
-                UseCase::SearchableEncryption,
-                UseCase::HomomorphicComputation,
                 UseCase::AuditLog,
             ];
 
@@ -726,8 +722,8 @@ fn test_version_constant() {
 fn test_init_with_invalid_config() {
     // Invalid config should fail validation before self-tests
     let invalid_config = crate::unified_api::CoreConfig::new()
-        .with_security_level(SecurityLevel::Maximum)
-        .with_hardware_acceleration(false);
+        .with_security_level(SecurityLevel::Standard)
+        .with_strict_validation(true);
     let result = crate::init_with_config(&invalid_config);
     assert!(result.is_err(), "init_with_config should fail with invalid config");
 }
@@ -842,11 +838,9 @@ fn test_use_case_all_variants() {
         UseCase::PaymentCard,
         UseCase::IoTDevice,
         UseCase::FirmwareSigning,
-        UseCase::SearchableEncryption,
-        UseCase::HomomorphicComputation,
         UseCase::AuditLog,
     ];
-    assert_eq!(variants.len(), 24);
+    assert_eq!(variants.len(), 22);
 
     // Each variant should be unique
     for (i, a) in variants.iter().enumerate() {
@@ -863,13 +857,11 @@ fn test_crypto_scheme_variants() {
     let hybrid = CryptoScheme::Hybrid;
     let symmetric = CryptoScheme::Symmetric;
     let asymmetric = CryptoScheme::Asymmetric;
-    let homomorphic = CryptoScheme::Homomorphic;
     let pq = CryptoScheme::PostQuantum;
 
     assert_ne!(hybrid, symmetric);
     assert_ne!(symmetric, asymmetric);
-    assert_ne!(asymmetric, homomorphic);
-    assert_ne!(homomorphic, pq);
+    assert_ne!(asymmetric, pq);
 
     // Clone
     assert_eq!(hybrid.clone(), CryptoScheme::Hybrid);

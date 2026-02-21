@@ -17,7 +17,7 @@
 use crate::{
     log_crypto_operation_complete, log_crypto_operation_error, log_crypto_operation_start,
 };
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::primitives::sig::{
     fndsa::{
@@ -31,11 +31,54 @@ use crate::primitives::sig::{
     },
 };
 
+use crate::types::types::SecurityLevel;
 use crate::unified_api::config::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::zero_trust::SecurityMode;
 
 use crate::types::resource_limits::validate_signature_size;
+
+/// Maps `CoreConfig.security_level` to the expected `MlDsaParameterSet`.
+fn expected_ml_dsa_params(security_level: &SecurityLevel) -> MlDsaParameterSet {
+    match security_level {
+        SecurityLevel::Standard => MlDsaParameterSet::MLDSA44,
+        SecurityLevel::High => MlDsaParameterSet::MLDSA65,
+        SecurityLevel::Maximum | SecurityLevel::Quantum => MlDsaParameterSet::MLDSA87,
+    }
+}
+
+/// Warn if the explicit ML-DSA parameter set differs from the CoreConfig's security_level.
+fn check_ml_dsa_config_consistency(explicit: MlDsaParameterSet, config: &CoreConfig) {
+    let expected = expected_ml_dsa_params(&config.security_level);
+    if expected != explicit {
+        warn!(
+            "Explicit MlDsaParameterSet ({:?}) differs from CoreConfig security_level ({:?} \
+             → {:?}). Using explicit parameter.",
+            explicit, config.security_level, expected
+        );
+    }
+}
+
+/// Maps `CoreConfig.security_level` to the expected `SlhDsaSecurityLevel`.
+fn expected_slh_dsa_level(security_level: &SecurityLevel) -> SlhDsaSecurityLevel {
+    match security_level {
+        SecurityLevel::Standard => SlhDsaSecurityLevel::Shake128s,
+        SecurityLevel::High => SlhDsaSecurityLevel::Shake192s,
+        SecurityLevel::Maximum | SecurityLevel::Quantum => SlhDsaSecurityLevel::Shake256s,
+    }
+}
+
+/// Warn if the explicit SLH-DSA security level differs from the CoreConfig's security_level.
+fn check_slh_dsa_config_consistency(explicit: SlhDsaSecurityLevel, config: &CoreConfig) {
+    let expected = expected_slh_dsa_level(&config.security_level);
+    if expected != explicit {
+        warn!(
+            "Explicit SlhDsaSecurityLevel ({:?}) differs from CoreConfig security_level ({:?} \
+             → {:?}). Using explicit parameter.",
+            explicit, config.security_level, expected
+        );
+    }
+}
 
 // ============================================================================
 // Internal Implementation - ML-DSA
@@ -443,6 +486,7 @@ pub fn sign_pq_ml_dsa_with_config(
 ) -> Result<Vec<u8>> {
     mode.validate()?;
     config.validate()?;
+    check_ml_dsa_config_consistency(params, config);
     sign_pq_ml_dsa_internal(message, private_key, params)
 }
 
@@ -465,6 +509,7 @@ pub fn verify_pq_ml_dsa_with_config(
 ) -> Result<bool> {
     mode.validate()?;
     config.validate()?;
+    check_ml_dsa_config_consistency(params, config);
     verify_pq_ml_dsa_internal(message, signature, public_key, params)
 }
 
@@ -490,6 +535,7 @@ pub fn sign_pq_slh_dsa_with_config(
 ) -> Result<Vec<u8>> {
     mode.validate()?;
     config.validate()?;
+    check_slh_dsa_config_consistency(security_level, config);
     sign_pq_slh_dsa_internal(message, private_key, security_level)
 }
 
@@ -512,6 +558,7 @@ pub fn verify_pq_slh_dsa_with_config(
 ) -> Result<bool> {
     mode.validate()?;
     config.validate()?;
+    check_slh_dsa_config_consistency(security_level, config);
     verify_pq_slh_dsa_internal(message, signature, public_key, security_level)
 }
 

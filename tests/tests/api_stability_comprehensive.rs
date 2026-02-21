@@ -446,9 +446,7 @@ fn test_use_case_variants_stable() {
     let _iot = UseCase::IoTDevice;
     let _firmware = UseCase::FirmwareSigning;
 
-    // Advanced use cases
-    let _searchable = UseCase::SearchableEncryption;
-    let _homomorphic = UseCase::HomomorphicComputation;
+    // General Purpose
     let _audit = UseCase::AuditLog;
 }
 
@@ -458,7 +456,6 @@ fn test_crypto_scheme_variants_stable() {
     let _hybrid = CryptoScheme::Hybrid;
     let _symmetric = CryptoScheme::Symmetric;
     let _asymmetric = CryptoScheme::Asymmetric;
-    let _homomorphic = CryptoScheme::Homomorphic;
     let _pq = CryptoScheme::PostQuantum;
 }
 
@@ -908,17 +905,11 @@ fn test_config_builder_patterns_work() {
     assert!(config.is_ok());
 
     // EncryptionConfig builder
-    let config = EncryptionConfig::new()
-        .with_scheme(CryptoScheme::Hybrid)
-        .with_compression(true)
-        .with_integrity_check(true);
+    let config = EncryptionConfig::new();
     assert!(config.validate().is_ok());
 
     // SignatureConfig builder
-    let config = SignatureConfig::new()
-        .with_scheme(CryptoScheme::Hybrid)
-        .with_timestamp(true)
-        .with_certificate_chain(false);
+    let config = SignatureConfig::new();
     assert!(config.validate().is_ok());
 
     // ZeroTrustConfig builder

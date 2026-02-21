@@ -367,14 +367,8 @@ pub enum UseCase {
     FirmwareSigning,
 
     // ========================================================================
-    // Advanced
+    // General Purpose
     // ========================================================================
-    /// Encrypted search over ciphertext.
-    /// Uses specialized searchable encryption schemes.
-    SearchableEncryption,
-    /// Computation on encrypted data.
-    /// Uses homomorphic-compatible encryption.
-    HomomorphicComputation,
     /// Audit log encryption (append-only).
     /// Uses ML-KEM-768 with integrity verification.
     AuditLog,
@@ -390,8 +384,6 @@ pub enum CryptoScheme {
     Symmetric,
     /// Classical asymmetric (e.g., Ed25519).
     Asymmetric,
-    /// Homomorphic encryption schemes.
-    Homomorphic,
     /// Pure post-quantum without classical fallback.
     PostQuantum,
 }
@@ -428,8 +420,8 @@ impl Default for CryptoContext {
 
 /// Selection mode for cryptographic algorithm selection.
 ///
-/// Either a `UseCase` (recommended) or a `SecurityLevel` (manual control).
-/// These are mutually exclusive - set one or the other, not both.
+/// Either a `UseCase` (recommended), a `SecurityLevel` (manual control),
+/// or a `ForcedScheme` (explicit override).
 #[derive(Debug, Clone, PartialEq)]
 pub enum AlgorithmSelection {
     /// Select algorithm based on use case (recommended).
@@ -438,6 +430,9 @@ pub enum AlgorithmSelection {
     /// Select algorithm based on security level (manual control).
     /// Use this when your use case doesn't fit predefined options.
     SecurityLevel(SecurityLevel),
+    /// Force a specific cryptographic scheme category.
+    /// Bypasses automatic selection and uses the specified scheme type directly.
+    ForcedScheme(CryptoScheme),
 }
 
 impl Default for AlgorithmSelection {
@@ -710,8 +705,6 @@ mod tests {
             UseCase::PaymentCard,
             UseCase::IoTDevice,
             UseCase::FirmwareSigning,
-            UseCase::SearchableEncryption,
-            UseCase::HomomorphicComputation,
             UseCase::AuditLog,
         ];
         for c in &cases {
@@ -728,7 +721,6 @@ mod tests {
             CryptoScheme::Hybrid,
             CryptoScheme::Symmetric,
             CryptoScheme::Asymmetric,
-            CryptoScheme::Homomorphic,
             CryptoScheme::PostQuantum,
         ];
         for s in &schemes {
@@ -770,6 +762,14 @@ mod tests {
         let sel = AlgorithmSelection::UseCase(UseCase::FileStorage);
         assert_eq!(sel, AlgorithmSelection::UseCase(UseCase::FileStorage));
         assert_ne!(sel, AlgorithmSelection::default());
+    }
+
+    #[test]
+    fn test_algorithm_selection_forced_scheme() {
+        let sel = AlgorithmSelection::ForcedScheme(CryptoScheme::PostQuantum);
+        assert_eq!(sel, AlgorithmSelection::ForcedScheme(CryptoScheme::PostQuantum));
+        assert_ne!(sel, AlgorithmSelection::default());
+        assert_ne!(sel, AlgorithmSelection::UseCase(UseCase::FileStorage));
     }
 
     // --- ComplianceMode tests ---

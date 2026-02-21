@@ -215,7 +215,7 @@ fn test_aes_gcm_256_encrypt_timing_bound() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0xAB; 1024]; // 1KB
 
@@ -232,7 +232,7 @@ fn test_aes_gcm_256_decrypt_timing_bound() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0xAB; 1024]; // 1KB
     let (ciphertext, tag) = cipher.encrypt(&nonce, &plaintext, None).unwrap();
@@ -250,7 +250,7 @@ fn test_chacha20_poly1305_encrypt_timing_bound() {
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = vec![0xAB; 1024]; // 1KB
 
@@ -308,7 +308,7 @@ fn test_aes_gcm_128_encrypt_timing_bound() {
     use latticearc::primitives::aead::aes_gcm::AesGcm128;
 
     let key = AesGcm128::generate_key();
-    let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm128::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm128::generate_nonce();
     let plaintext = vec![0xAB; 1024]; // 1KB
 
@@ -329,7 +329,7 @@ fn test_aes_gcm_256_bulk_encryption_throughput() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = vec![0xAB; 1024 * 1024]; // 1MB
 
     let iterations = 10;
@@ -360,7 +360,7 @@ fn test_chacha20_poly1305_bulk_encryption_throughput() {
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let plaintext = vec![0xAB; 1024 * 1024]; // 1MB
 
     let iterations = 10;
@@ -687,7 +687,7 @@ fn test_aes_gcm_ciphertext_expansion() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
 
     // Test various plaintext sizes
@@ -715,7 +715,7 @@ fn test_chacha20_poly1305_ciphertext_expansion() {
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 
     // Test various plaintext sizes
@@ -778,7 +778,7 @@ fn test_no_memory_leak_encryption() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = vec![0xAB; 1024]; // 1KB
     let iterations = 1000;
 
@@ -801,7 +801,7 @@ fn test_aes_gcm_scaling_with_data_size() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
 
     let sizes = [1024, 4096, 16384, 65536, 262144]; // 1KB to 256KB
     let mut durations = Vec::with_capacity(sizes.len());
@@ -916,10 +916,10 @@ fn test_concurrent_aes_gcm_operations() {
 
     for _ in 0..thread_count {
         let success_count_clone = Arc::clone(&success_count);
-        let key_clone = key;
+        let key_clone = key.clone();
         let plaintext_clone = plaintext.clone();
         let handle = thread::spawn(move || {
-            let cipher = AesGcm256::new(&key_clone).expect("cipher creation should succeed");
+            let cipher = AesGcm256::new(&*key_clone).expect("cipher creation should succeed");
             for _ in 0..operations_per_thread {
                 let nonce = AesGcm256::generate_nonce();
                 if cipher.encrypt(&nonce, &plaintext_clone, None).is_ok() {
@@ -953,7 +953,7 @@ fn test_large_message_1mb() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0xAB; 1024 * 1024]; // 1MB
 
@@ -971,7 +971,7 @@ fn test_large_message_10mb() {
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0xAB; 10 * 1024 * 1024]; // 10MB
 

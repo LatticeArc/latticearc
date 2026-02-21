@@ -51,10 +51,6 @@ pub enum KeyError {
     #[error("Key generation failed: {0}")]
     GenerationFailed(String),
 
-    /// Key serialization to bytes failed.
-    #[error("Key serialization failed: {0}")]
-    SerializationFailed(String),
-
     /// Key deserialization from bytes failed.
     #[error("Key deserialization failed: {0}")]
     DeserializationFailed(String),
@@ -289,9 +285,6 @@ mod tests {
     fn test_key_error_display() {
         let e = KeyError::GenerationFailed("test".to_string());
         assert!(e.to_string().contains("Key generation failed"));
-
-        let e = KeyError::SerializationFailed("bad".to_string());
-        assert!(e.to_string().contains("serialization"));
 
         let e = KeyError::DeserializationFailed("oops".to_string());
         assert!(e.to_string().contains("deserialization"));

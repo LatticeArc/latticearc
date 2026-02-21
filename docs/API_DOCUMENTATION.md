@@ -319,7 +319,7 @@ pub enum UseCase {
     FinancialTransactions, LegalDocuments, BlockchainTransaction,
     HealthcareRecords, GovernmentClassified, PaymentCard,
     IoTDevice, FirmwareSigning,
-    SearchableEncryption, HomomorphicComputation, AuditLog,
+    AuditLog,
 }
 ```
 

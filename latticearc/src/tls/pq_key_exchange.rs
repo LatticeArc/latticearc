@@ -153,19 +153,27 @@ pub fn get_kex_info(mode: TlsMode, kex_mode: PqKexMode) -> KexInfo {
     }
 }
 
-/// Check if post-quantum key exchange is available
+/// Check if post-quantum key exchange is available.
+///
+/// This checks compile-time availability (the `aws-lc-rs` and `rustls-post-quantum`
+/// crates are linked), not runtime hardware detection. PQ key exchange is always
+/// available when this crate is compiled.
 ///
 /// # Returns
-/// Always returns true (PQ is always enabled)
+/// Always returns true (PQ support is compiled in unconditionally)
 #[must_use]
 pub fn is_pq_available() -> bool {
     true
 }
 
-/// Check if custom hybrid key exchange is available
+/// Check if custom hybrid key exchange is available.
+///
+/// Returns `true` if the custom hybrid provider can be constructed. Currently
+/// this returns the aws-lc-rs default provider (same as classical mode), as
+/// the custom X25519+ML-KEM combination is handled by `rustls-post-quantum`.
 ///
 /// # Returns
-/// Always returns true (hybrid is always enabled)
+/// Always returns true (falls back to aws-lc-rs default provider)
 #[must_use]
 pub fn is_custom_hybrid_available() -> bool {
     true

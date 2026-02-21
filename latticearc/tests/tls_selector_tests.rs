@@ -414,7 +414,6 @@ fn test_tls_policy_engine_create_config_maximum_security() {
     let config = TlsPolicyEngine::create_config(&ctx);
     // Maximum security should disable early data
     assert!(!config.enable_early_data);
-    assert!(config.require_secure_renegotiation);
 }
 
 // ============================================================================

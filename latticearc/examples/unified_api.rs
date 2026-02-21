@@ -53,13 +53,10 @@ fn main() {
         // IoT & Embedded (2)
         ("IoTDevice", UseCase::IoTDevice),
         ("FirmwareSigning", UseCase::FirmwareSigning),
-        // Advanced (3)
-        ("SearchableEncryption", UseCase::SearchableEncryption),
-        ("HomomorphicComputation", UseCase::HomomorphicComputation),
         ("AuditLog", UseCase::AuditLog),
     ];
 
-    assert_eq!(use_cases.len(), 24, "Expected 24 use cases");
+    assert_eq!(use_cases.len(), 22, "Expected 22 use cases");
 
     let mut passed = 0u32;
     for (name, uc) in use_cases {

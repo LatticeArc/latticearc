@@ -345,9 +345,7 @@ All 24 use cases with their algorithm mappings (all hybrid PQ + classical by def
 | | `PaymentCard` | ML-KEM-1024 + AES-256-GCM |
 | **IoT & Embedded** | `IoTDevice` | ML-KEM-512 + AES-256-GCM |
 | | `FirmwareSigning` | ML-DSA-65 + Ed25519 |
-| **Advanced** | `SearchableEncryption` | ML-KEM-768 + AES-256-GCM |
-| | `HomomorphicComputation` | ML-KEM-768 + AES-256-GCM |
-| | `AuditLog` | ML-KEM-768 + AES-256-GCM |
+| **General Purpose** | `AuditLog` | ML-KEM-768 + AES-256-GCM |
 
 ### By Security Level
 

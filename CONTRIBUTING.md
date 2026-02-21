@@ -165,6 +165,47 @@ mod tests {
 }
 ```
 
+### Required Test Categories
+
+Every new crypto operation or public API must have these test types.
+See [docs/DESIGN_PATTERNS.md](docs/DESIGN_PATTERNS.md) Section 3 for full rules and examples.
+
+- [ ] **Roundtrip** — `decrypt(encrypt(x)) == x` for representative inputs
+- [ ] **Negative paths** — at least one test per distinct error condition
+- [ ] **Boundary inputs** — empty, min, max, off-by-one for all parameters
+- [ ] **Property tests** — 256+ randomized inputs via proptest for invariants
+- [ ] **Error variant coverage** — every error variant in public enums has a trigger test
+- [ ] **Cross-validation** — when two implementations of the same algorithm exist
+
+### Parameter Influence Tests
+
+Every config field must have a test proving it influences its consumer's output.
+If you cannot write this test, the field is dead — wire it or remove it.
+
+```rust
+#[test]
+fn test_security_level_influences_scheme_selection() {
+    let config_a = CoreConfig::default()
+        .with_security_level(SecurityLevel::Standard);
+    let result_a = CryptoPolicyEngine::select_encryption_scheme(
+        b"test", &config_a, None,
+    ).unwrap();
+
+    let config_b = CoreConfig::default()
+        .with_security_level(SecurityLevel::Maximum);
+    let result_b = CryptoPolicyEngine::select_encryption_scheme(
+        b"test", &config_b, None,
+    ).unwrap();
+
+    assert_ne!(result_a, result_b,
+        "security_level must influence scheme selection");
+}
+```
+
+Naming convention: `test_<field>_influences_<operation>`
+
+See [docs/DESIGN_PATTERNS.md](docs/DESIGN_PATTERNS.md) Pattern 4 for details.
+
 ### Benchmarks
 
 ```bash
@@ -195,6 +236,38 @@ cargo bench -p latticearc
 - [ ] CHANGELOG.md updated
 - [ ] No security vulnerabilities introduced
 - [ ] Commit messages follow convention
+
+### Config Field Checklist (required for PRs adding config fields)
+
+All PRs that add, remove, or modify config struct fields must satisfy these rules.
+See [docs/DESIGN_PATTERNS.md](docs/DESIGN_PATTERNS.md) for detailed rationale and examples.
+
+- [ ] Field has `/// Consumer: fn_name()` doc tag naming consuming function(s)
+- [ ] No underscore-prefixed parameters in non-test functions
+- [ ] Config struct is in same module as consumer (or has documented bridge)
+- [ ] Parameter influence test exists: `test_<field>_influences_<operation>`
+- [ ] Doc claims reference specific code paths (`/// Implementation:`)
+- [ ] Field represents a capability the underlying library supports
+- [ ] Consumer function destructures the config struct (compile-time exhaustiveness)
+- [ ] Config conversions (`From`/`Into`) destructure source type
+- [ ] No banned adjectives without `/// Implementation:` proof (see DESIGN_PATTERNS.md)
+- [ ] Consumer has `// Wire <field>:` comment at consumption point
+
+### Cryptographic Safety Checklist (required for PRs touching crypto code)
+
+All PRs that add or modify types handling secret material or cryptographic operations.
+See [docs/DESIGN_PATTERNS.md](docs/DESIGN_PATTERNS.md) Section 2 for detailed rationale and examples.
+
+- [ ] Secret types have manual `Debug` impl with redacted output (not `#[derive(Debug)]`)
+- [ ] Secret comparisons use `subtle::ConstantTimeEq`, not `==`
+- [ ] Secret types derive `ZeroizeOnDrop` or wrap in `Zeroizing<>`
+- [ ] Error types don't distinguish padding failure from MAC failure
+- [ ] New crypto value types are newtypes, not type aliases for `[u8; N]`
+- [ ] Security-critical traits are sealed (or justified if public)
+- [ ] Nonce generation encapsulated in API; callers don't provide nonces at high level
+- [ ] Hybrid combiners use KDF with domain separation and key binding
+- [ ] Test: corrupted-ciphertext and corrupted-MAC produce same error variant
+- [ ] Test: `Debug` output of secret types contains no key material
 
 ### Review Process
 

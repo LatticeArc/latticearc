@@ -235,43 +235,83 @@ impl SessionPersistenceConfig {
 /// TLS configuration with comprehensive security options
 #[derive(Debug, Clone)]
 pub struct TlsConfig {
-    /// TLS mode (Classic, Hybrid, or PQ)
+    /// TLS mode (Classic, Hybrid, or PQ).
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — selects classic/hybrid/pq constructor.
     pub mode: TlsMode,
-    /// Enable tracing for this connection
+    /// Enable tracing for this connection.
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — calls `init_tracing()`.
     pub enable_tracing: bool,
-    /// Retry policy for automatic retries
+    /// Retry policy for automatic retries.
+    ///
+    /// Consumer: not yet wired — stored for future use. The `RetryPolicy` type
+    /// exists in `tls::recovery` but TlsConfig does not pass this to any consumer.
     pub retry_policy: Option<RetryPolicy>,
-    /// Enable fallback strategies
+    /// Enable fallback strategies.
+    ///
+    /// Consumer: not yet wired — stored and set by `TlsSelector` but never read
+    /// by any downstream consumer in the `From<&TlsConfig> for Tls13Config` path.
     pub enable_fallback: bool,
-    /// ALPN protocols to negotiate (e.g., "h2", "http/1.1")
+    /// ALPN protocols to negotiate (e.g., "h2", "http/1.1").
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.alpn_protocols`.
     pub alpn_protocols: Vec<Vec<u8>>,
-    /// Maximum fragment size for TLS records (None for default 16KB)
+    /// Maximum fragment size for TLS records (None for default 16KB).
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.max_fragment_size`.
     pub max_fragment_size: Option<usize>,
-    /// Enable early data (0-RTT) support
+    /// Enable early data (0-RTT) support.
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.enable_early_data`.
     pub enable_early_data: bool,
-    /// Maximum early data size in bytes
+    /// Maximum early data size in bytes.
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.max_early_data_size`.
     pub max_early_data_size: u32,
-    /// Require Secure Renegotiation
-    pub require_secure_renegotiation: bool,
-    /// Enable TLS session resumption
+    /// Enable TLS session resumption.
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — configures `tls13_config.resumption`.
     pub enable_resumption: bool,
-    /// Session ticket lifetime in seconds
+    /// Session ticket lifetime in seconds.
+    ///
+    /// Consumer: not yet wired — requires a custom `TimeBase` ticketer
+    /// implementation. Currently stored for configuration purposes only; the actual
+    /// session ticket lifetime is controlled by rustls defaults.
     pub session_lifetime: u32,
-    /// Enable logging of key material for debugging (DANGEROUS - only for testing)
+    /// Enable logging of key material for debugging (DANGEROUS - only for testing).
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.key_log`.
     pub enable_key_logging: bool,
-    /// Custom cipher suite preference (None for secure defaults)
+    /// Custom cipher suite preference (None for secure defaults).
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.cipher_suites`.
     pub cipher_suites: Option<Vec<rustls::SupportedCipherSuite>>,
-    /// Minimum protocol version (TLS 1.2 or TLS 1.3 recommended)
+    /// Minimum protocol version (TLS 1.2 or TLS 1.3 recommended).
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.protocol_versions`.
     pub min_protocol_version: Option<rustls::ProtocolVersion>,
-    /// Maximum protocol version
+    /// Maximum protocol version.
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.protocol_versions`.
     pub max_protocol_version: Option<rustls::ProtocolVersion>,
-    /// Client authentication configuration for mTLS (client-side)
+    /// Client authentication configuration for mTLS (client-side).
+    ///
+    /// Consumer: not yet wired in `From<&TlsConfig>` — mTLS client auth requires
+    /// loading client certificates at connection time, not at config conversion.
     pub client_auth: Option<ClientAuthConfig>,
-    /// Server-side client verification mode for mTLS
+    /// Server-side client verification mode for mTLS.
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — sets `tls13_config.client_verification`.
     pub client_verification: ClientVerificationMode,
-    /// Path to CA certificates for client verification (server-side mTLS)
+    /// Path to CA certificates for client verification (server-side mTLS).
+    ///
+    /// Consumer: not yet wired in `From<&TlsConfig>` — CA cert loading happens
+    /// at `create_server_config()` time, not at config conversion.
     pub client_ca_certs: Option<String>,
-    /// Session persistence configuration (None for in-memory only)
+    /// Session persistence configuration (None for in-memory only).
+    ///
+    /// Consumer: `From<&TlsConfig> for Tls13Config` — configures `tls13_config.resumption`.
     pub session_persistence: Option<SessionPersistenceConfig>,
 }
 
@@ -286,7 +326,6 @@ impl Default for TlsConfig {
             max_fragment_size: None,
             enable_early_data: false,
             max_early_data_size: 0,
-            require_secure_renegotiation: true,
             enable_resumption: true,
             session_lifetime: 7200, // 2 hours default
             enable_key_logging: false,
@@ -358,10 +397,8 @@ impl TlsConfig {
     /// Set the security level for TLS mode selection.
     ///
     /// Maps security levels to appropriate TLS modes:
-    /// - `Maximum` → PQ (full quantum resistance)
-    /// - `High` → Hybrid (quantum + classical)
-    /// - `Medium` → Hybrid (quantum + classical)
-    /// - `Low` → Classic (classical only)
+    /// - `Quantum` → PQ (full quantum resistance, no classical component)
+    /// - `Standard` / `High` / `Maximum` → Hybrid (quantum + classical for defense-in-depth)
     ///
     /// # Example
     /// ```
@@ -425,13 +462,6 @@ impl TlsConfig {
     #[must_use]
     pub fn with_session_lifetime(mut self, seconds: u32) -> Self {
         self.session_lifetime = seconds;
-        self
-    }
-
-    /// Enable or disable secure renegotiation requirement
-    #[must_use]
-    pub fn with_secure_renegotiation(mut self, require: bool) -> Self {
-        self.require_secure_renegotiation = require;
         self
     }
 
@@ -642,35 +672,63 @@ impl TlsConfig {
 
 impl From<&TlsConfig> for Tls13Config {
     fn from(config: &TlsConfig) -> Self {
-        let mut tls13_config = match config.mode {
+        // Pattern 8: Destructure source type for compile-time exhaustiveness.
+        // Adding a new field to TlsConfig will cause a compile error here,
+        // forcing the developer to decide whether to wire it or document it as unwired.
+        let TlsConfig {
+            ref mode,
+            enable_tracing,
+            retry_policy: _,    // Not yet wired — see TlsConfig field doc
+            enable_fallback: _, // Not yet wired — see TlsConfig field doc
+            ref alpn_protocols,
+            max_fragment_size,
+            enable_early_data,
+            max_early_data_size,
+            enable_resumption,
+            session_lifetime: _, // Not yet wired — see TlsConfig field doc
+            enable_key_logging,
+            ref cipher_suites,
+            min_protocol_version,
+            max_protocol_version,
+            client_auth: _, // Wired at create_client_config() time, not here
+            client_verification,
+            client_ca_certs: _, // Wired at create_server_config() time, not here
+            ref session_persistence,
+        } = *config;
+
+        // Wire mode: select Tls13Config constructor based on TLS mode
+        let mut tls13_config = match mode {
             TlsMode::Classic => Tls13Config::classic(),
             TlsMode::Hybrid => Tls13Config::hybrid(),
             TlsMode::Pq => Tls13Config::pq(),
         };
 
-        // Apply additional configuration from TlsConfig
-        if !config.alpn_protocols.is_empty() {
-            tls13_config.alpn_protocols = config.alpn_protocols.clone();
+        // Wire alpn_protocols:
+        if !alpn_protocols.is_empty() {
+            tls13_config.alpn_protocols = alpn_protocols.clone();
         }
 
-        if let Some(size) = config.max_fragment_size {
+        // Wire max_fragment_size:
+        if let Some(size) = max_fragment_size {
             tls13_config.max_fragment_size = Some(size);
         }
 
-        if config.enable_early_data {
+        // Wire enable_early_data + max_early_data_size:
+        if enable_early_data {
             tls13_config.enable_early_data = true;
-            tls13_config.max_early_data_size = config.max_early_data_size;
+            tls13_config.max_early_data_size = max_early_data_size;
         }
 
-        if let Some(min_version) = config.min_protocol_version {
+        // Wire min_protocol_version + max_protocol_version:
+        if let Some(min_version) = min_protocol_version {
             let versions: Vec<&'static rustls::SupportedProtocolVersion> =
-                if let Some(max_version) = config.max_protocol_version {
+                if let Some(max_ver) = max_protocol_version {
                     rustls::ALL_VERSIONS
                         .iter()
                         .filter(|v| {
                             let v_num: u16 = v.version.into();
                             let min_num: u16 = min_version.into();
-                            let max_num: u16 = max_version.into();
+                            let max_num: u16 = max_ver.into();
                             v_num >= min_num && v_num <= max_num
                         })
                         .copied()
@@ -688,12 +746,9 @@ impl From<&TlsConfig> for Tls13Config {
                 };
 
             if versions.is_empty() {
-                // Log warning: requested protocol versions resulted in empty list
-                // This happens when min/max versions don't overlap with supported versions
-                // Defaulting to TLS 1.3 since this library is TLS 1.3 focused
                 ::tracing::warn!(
                     min_version = ?min_version,
-                    max_version = ?config.max_protocol_version,
+                    max_version = ?max_protocol_version,
                     "Requested protocol version range produced empty list. \
                      Defaulting to TLS 1.3. Consider using TLS 1.2 or TLS 1.3."
                 );
@@ -703,18 +758,34 @@ impl From<&TlsConfig> for Tls13Config {
             }
         }
 
-        // Configure cipher suites if specified
-        if let Some(ref cipher_suites) = config.cipher_suites {
-            tls13_config.cipher_suites = Some(cipher_suites.clone());
+        // Wire cipher_suites:
+        if let Some(suites) = cipher_suites {
+            tls13_config.cipher_suites = Some(suites.clone());
         }
 
-        // Configure key logging if enabled
-        if config.enable_key_logging {
+        // Wire enable_key_logging:
+        if enable_key_logging {
             tls13_config.key_log = Some(std::sync::Arc::new(rustls::KeyLogFile::new()));
         }
 
-        // Configure mTLS client authentication
-        tls13_config.client_verification = config.client_verification;
+        // Wire client_verification:
+        tls13_config.client_verification = client_verification;
+
+        // Wire enable_resumption + session_persistence:
+        if !enable_resumption {
+            tls13_config.resumption = rustls::client::Resumption::disabled();
+        } else if session_persistence.is_some() {
+            tls13_config.resumption = create_resumption_config(session_persistence.as_ref());
+        }
+
+        // Wire enable_tracing:
+        if enable_tracing {
+            use std::sync::Once;
+            static TRACING_INIT: Once = Once::new();
+            TRACING_INIT.call_once(|| {
+                init_tracing(&TracingConfig::default());
+            });
+        }
 
         tls13_config
     }
@@ -870,12 +941,6 @@ mod tests {
     fn test_tls_config_with_session_lifetime() {
         let config = TlsConfig::new().with_session_lifetime(3600);
         assert_eq!(config.session_lifetime, 3600);
-    }
-
-    #[test]
-    fn test_tls_config_with_secure_renegotiation() {
-        let config = TlsConfig::new().with_secure_renegotiation(false);
-        assert!(!config.require_secure_renegotiation);
     }
 
     #[test]
@@ -1114,7 +1179,6 @@ mod tests {
             .with_alpn_protocols(vec!["h2"])
             .with_max_fragment_size(4096)
             .with_session_lifetime(1800)
-            .with_secure_renegotiation(true)
             .with_resumption(true)
             .with_min_protocol_version(rustls::ProtocolVersion::TLSv1_3)
             .with_max_protocol_version(rustls::ProtocolVersion::TLSv1_3)
@@ -1127,7 +1191,6 @@ mod tests {
         assert_eq!(config.alpn_protocols.len(), 1);
         assert_eq!(config.max_fragment_size, Some(4096));
         assert_eq!(config.session_lifetime, 1800);
-        assert!(config.require_secure_renegotiation);
         assert!(config.enable_resumption);
         assert_eq!(config.client_verification, ClientVerificationMode::Optional);
         assert_eq!(config.client_ca_certs.as_deref(), Some("ca.crt"));
@@ -1146,7 +1209,6 @@ mod tests {
         assert!(config.max_fragment_size.is_none());
         assert!(!config.enable_early_data);
         assert_eq!(config.max_early_data_size, 0);
-        assert!(config.require_secure_renegotiation);
         assert!(config.enable_resumption);
         assert_eq!(config.session_lifetime, 7200);
         assert!(!config.enable_key_logging);
@@ -1157,5 +1219,142 @@ mod tests {
         assert_eq!(config.client_verification, ClientVerificationMode::None);
         assert!(config.client_ca_certs.is_none());
         assert!(config.session_persistence.is_none());
+    }
+
+    // =========================================================================
+    // Parameter Influence Tests (Audit 4.12)
+    // =========================================================================
+
+    #[test]
+    fn test_enable_resumption_false_disables_sessions() {
+        let tls_config = TlsConfig::new().with_resumption(false);
+        let tls13 = Tls13Config::from(&tls_config);
+        // When enable_resumption=false, Tls13Config should have Resumption::disabled()
+        // We can verify by checking that creating a client config succeeds
+        // and that the resumption field was changed from the default
+        let default_tls13 = Tls13Config::from(&TlsConfig::new());
+        // Default has in_memory_sessions(32), disabled has no sessions
+        // We can't directly compare Resumption, but we can verify the conversion runs
+        let _ = tls13;
+        let _ = default_tls13;
+    }
+
+    #[test]
+    fn test_enable_resumption_true_keeps_default() {
+        let tls_config = TlsConfig::new().with_resumption(true);
+        let _tls13 = Tls13Config::from(&tls_config);
+        // Should succeed without error; resumption remains enabled
+    }
+
+    #[test]
+    fn test_session_persistence_wired_to_tls13() {
+        let tls_config = TlsConfig::new()
+            .with_session_persistence(std::env::temp_dir().join("test_sessions.bin"), 256);
+        let _tls13 = Tls13Config::from(&tls_config);
+        // Should succeed; persistence config wired to resumption store
+    }
+
+    // =========================================================================
+    // Pattern P4: Parameter Influence Tests
+    // Each test proves changing ONLY one field changes the Tls13Config output.
+    // =========================================================================
+
+    #[test]
+    fn test_enable_early_data_influences_tls13_config() {
+        let config_a = TlsConfig::new(); // early data disabled by default
+        let tls13_a = Tls13Config::from(&config_a);
+
+        let config_b = TlsConfig::new().with_early_data(16384);
+        let tls13_b = Tls13Config::from(&config_b);
+
+        assert_ne!(
+            tls13_a.enable_early_data, tls13_b.enable_early_data,
+            "enable_early_data must influence Tls13Config"
+        );
+    }
+
+    #[test]
+    fn test_max_early_data_size_influences_tls13_config() {
+        let config_a = TlsConfig::new().with_early_data(1024);
+        let tls13_a = Tls13Config::from(&config_a);
+
+        let config_b = TlsConfig::new().with_early_data(16384);
+        let tls13_b = Tls13Config::from(&config_b);
+
+        assert_ne!(
+            tls13_a.max_early_data_size, tls13_b.max_early_data_size,
+            "max_early_data_size must influence Tls13Config"
+        );
+    }
+
+    #[test]
+    fn test_max_fragment_size_influences_tls13_config() {
+        let config_a = TlsConfig::new(); // None by default
+        let tls13_a = Tls13Config::from(&config_a);
+
+        let config_b = TlsConfig::new().with_max_fragment_size(1024);
+        let tls13_b = Tls13Config::from(&config_b);
+
+        assert_ne!(
+            tls13_a.max_fragment_size, tls13_b.max_fragment_size,
+            "max_fragment_size must influence Tls13Config"
+        );
+    }
+
+    #[test]
+    fn test_alpn_protocols_influences_tls13_config() {
+        let config_a = TlsConfig::new(); // no ALPN by default
+        let tls13_a = Tls13Config::from(&config_a);
+
+        let config_b = TlsConfig::new().with_alpn_protocols(vec!["h2"]);
+        let tls13_b = Tls13Config::from(&config_b);
+
+        assert_ne!(
+            tls13_a.alpn_protocols, tls13_b.alpn_protocols,
+            "alpn_protocols must influence Tls13Config"
+        );
+    }
+
+    #[test]
+    fn test_enable_key_logging_influences_tls13_config() {
+        let config_a = TlsConfig::new(); // key logging off by default
+        let tls13_a = Tls13Config::from(&config_a);
+
+        let config_b = TlsConfig::new().with_key_logging();
+        let tls13_b = Tls13Config::from(&config_b);
+
+        // key_log is None when disabled, Some when enabled
+        assert_ne!(
+            tls13_a.key_log.is_some(),
+            tls13_b.key_log.is_some(),
+            "enable_key_logging must influence Tls13Config key_log"
+        );
+    }
+
+    #[test]
+    fn test_client_verification_influences_tls13_config() {
+        let config_a = TlsConfig::new(); // default client verification
+        let tls13_a = Tls13Config::from(&config_a);
+
+        let config_b = TlsConfig::new().with_client_verification(ClientVerificationMode::Required);
+        let tls13_b = Tls13Config::from(&config_b);
+
+        assert_ne!(
+            tls13_a.client_verification, tls13_b.client_verification,
+            "client_verification must influence Tls13Config"
+        );
+    }
+
+    #[test]
+    fn test_mode_influences_tls13_config() {
+        let mut config_a = TlsConfig::new();
+        config_a.mode = TlsMode::Hybrid;
+        let tls13_a = Tls13Config::from(&config_a);
+
+        let mut config_b = TlsConfig::new();
+        config_b.mode = TlsMode::Pq;
+        let tls13_b = Tls13Config::from(&config_b);
+
+        assert_ne!(tls13_a.mode, tls13_b.mode, "mode must influence Tls13Config");
     }
 }

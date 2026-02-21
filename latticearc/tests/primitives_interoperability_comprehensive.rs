@@ -667,7 +667,7 @@ fn test_arc_primitives_x25519_interface_for_hybrid() {
 #[test]
 fn test_arc_primitives_chacha_interface_compatibility() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"Test plaintext for interface check";
 
@@ -910,7 +910,7 @@ fn test_rfc5869_hkdf_test_case_3() {
 #[test]
 fn test_rfc8439_chacha20_poly1305_compliance() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"RFC 8439 ChaCha20-Poly1305 test";
 
@@ -938,7 +938,7 @@ fn test_rfc8439_chacha20_poly1305_compliance() {
 #[test]
 fn test_rfc8439_chacha20_poly1305_with_aad() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"Secret data";
     let aad = b"Additional authenticated data";
@@ -962,7 +962,7 @@ fn test_rfc8439_chacha20_poly1305_with_aad() {
 #[test]
 fn test_rfc8439_chacha20_poly1305_tag_verification() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"Secret message";
 
@@ -1121,7 +1121,7 @@ fn test_all_signatures_reject_wrong_public_key() {
 fn test_encryption_rejects_modified_ciphertext() {
     // ChaCha20-Poly1305
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let plaintext = b"Secret message";
 

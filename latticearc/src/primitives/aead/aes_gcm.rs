@@ -161,11 +161,14 @@ impl AeadCipher for AesGcm128 {
 }
 
 impl AesGcm128 {
-    /// Generate a random key for AES-GCM-128
+    /// Generate a random key for AES-GCM-128.
+    ///
+    /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop,
+    /// preventing key material from lingering in memory.
     #[must_use]
-    pub fn generate_key() -> [u8; AES_GCM_128_KEY_LEN] {
-        let mut key = [0u8; AES_GCM_128_KEY_LEN];
-        OsRng.fill_bytes(&mut key);
+    pub fn generate_key() -> zeroize::Zeroizing<[u8; AES_GCM_128_KEY_LEN]> {
+        let mut key = zeroize::Zeroizing::new([0u8; AES_GCM_128_KEY_LEN]);
+        OsRng.fill_bytes(&mut *key);
         key
     }
 }
@@ -300,11 +303,14 @@ impl AeadCipher for AesGcm256 {
 }
 
 impl AesGcm256 {
-    /// Generate a random key for AES-GCM-256
+    /// Generate a random key for AES-GCM-256.
+    ///
+    /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop,
+    /// preventing key material from lingering in memory.
     #[must_use]
-    pub fn generate_key() -> [u8; AES_GCM_256_KEY_LEN] {
-        let mut key = [0u8; AES_GCM_256_KEY_LEN];
-        OsRng.fill_bytes(&mut key);
+    pub fn generate_key() -> zeroize::Zeroizing<[u8; AES_GCM_256_KEY_LEN]> {
+        let mut key = zeroize::Zeroizing::new([0u8; AES_GCM_256_KEY_LEN]);
+        OsRng.fill_bytes(&mut *key);
         key
     }
 }
@@ -389,7 +395,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_encryption_decryption() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = b"Hello, World!";
 
@@ -402,7 +408,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_256_encryption_decryption() {
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).unwrap();
+        let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
         let plaintext = b"Hello, World!";
 
@@ -415,7 +421,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_with_aad() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = b"Secret data";
         let aad = b"Additional authenticated data";
@@ -429,7 +435,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_with_aad_verification_failure() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = b"Secret data";
         let aad = b"Correct AAD";
@@ -451,7 +457,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_invalid_tag() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = b"Secret data";
 
@@ -490,7 +496,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_empty_plaintext() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = b"";
 
@@ -505,7 +511,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_256_empty_plaintext() {
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).unwrap();
+        let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
         let plaintext = b"";
 
@@ -520,7 +526,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_large_plaintext() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = vec![0xAB; 1024 * 1024]; // 1MB
 
@@ -535,7 +541,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_256_large_plaintext() {
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).unwrap();
+        let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
         let plaintext = vec![0xAB; 1024 * 1024]; // 1MB
 
@@ -550,7 +556,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_corrupted_ciphertext() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = b"Secret data";
 
@@ -574,7 +580,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_256_with_aad() {
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).unwrap();
+        let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
         let plaintext = b"Secret data";
         let aad = b"Additional authenticated data";
@@ -588,7 +594,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_multiple_encryptions() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
 
         for i in 0..100 {
             let nonce = AesGcm128::generate_nonce();
@@ -602,7 +608,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_256_multiple_encryptions() {
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).unwrap();
+        let cipher = AesGcm256::new(&*key).unwrap();
 
         for i in 0..100 {
             let nonce = AesGcm256::generate_nonce();
@@ -659,7 +665,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_128_encryption_size_limit() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
 
         // Try to encrypt data exceeding 100MB limit (101MB)
@@ -678,7 +684,7 @@ mod tests {
     #[test]
     fn test_aes_gcm_256_decryption_size_limit() {
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).unwrap();
+        let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
 
         // Try to decrypt data exceeding 100MB limit

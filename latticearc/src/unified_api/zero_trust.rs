@@ -120,8 +120,20 @@ use subtle::ConstantTimeEq;
 
 /// Security mode for cryptographic operations.
 ///
-/// This enum provides a unified way to specify whether an operation should use
-/// Zero Trust verification or operate without session verification.
+/// This enum gates cryptographic operations on authentication state. Its purpose is
+/// **session validation** — ensuring the caller has proven possession of a private key
+/// before being allowed to perform crypto operations. It does NOT control algorithm
+/// selection (that is handled by `CryptoConfig` or the explicit algorithm parameter).
+///
+/// This follows the industry pattern where authentication and algorithm selection are
+/// separate concerns. No major crypto library (ring, RustCrypto, Tink, OpenSSL) couples
+/// "trust level" to algorithm choice — the key type or config determines the algorithm,
+/// and authentication is an orthogonal layer.
+///
+/// The `validate()` call IS the core purpose: verifying session validity before allowing
+/// crypto operations. The `_unverified()` convenience functions exist for scenarios where
+/// Zero Trust verification is not applicable (e.g., batch processing, testing, or systems
+/// that handle authentication at a different layer).
 ///
 /// # Usage
 ///
@@ -146,7 +158,7 @@ use subtle::ConstantTimeEq;
 ///
 /// In enterprise deployments:
 /// - `Verified`: Enables policy enforcement, continuous verification, and advanced features
-/// - `Unverified`: Triggers mandatory audit trail; may be blocked by enterprise policy
+/// - `Unverified`: Emits `tracing::warn` log; enterprise policy may block unverified operations
 #[derive(Debug, Clone, Copy)]
 pub enum SecurityMode<'a> {
     /// Use a verified session for Zero Trust security.

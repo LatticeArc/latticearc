@@ -739,7 +739,7 @@ fn roundtrip_aes_gcm_128() {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm128};
 
     let key = AesGcm128::generate_key();
-    let cipher = match AesGcm128::new(&key) {
+    let cipher = match AesGcm128::new(&*key) {
         Ok(c) => c,
         Err(_) => return,
     };
@@ -766,7 +766,7 @@ fn roundtrip_aes_gcm_256() {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 
     let key = AesGcm256::generate_key();
-    let cipher = match AesGcm256::new(&key) {
+    let cipher = match AesGcm256::new(&*key) {
         Ok(c) => c,
         Err(_) => return,
     };
@@ -791,7 +791,7 @@ fn roundtrip_chacha20_poly1305() {
     use latticearc::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = match ChaCha20Poly1305Cipher::new(&key) {
+    let cipher = match ChaCha20Poly1305Cipher::new(&*key) {
         Ok(c) => c,
         Err(_) => return,
     };
@@ -1016,11 +1016,11 @@ fn error_aead_wrong_key_decryption() {
     let key1 = ChaCha20Poly1305Cipher::generate_key();
     let key2 = ChaCha20Poly1305Cipher::generate_key();
 
-    let cipher1 = match ChaCha20Poly1305Cipher::new(&key1) {
+    let cipher1 = match ChaCha20Poly1305Cipher::new(&*key1) {
         Ok(c) => c,
         Err(_) => return,
     };
-    let cipher2 = match ChaCha20Poly1305Cipher::new(&key2) {
+    let cipher2 = match ChaCha20Poly1305Cipher::new(&*key2) {
         Ok(c) => c,
         Err(_) => return,
     };
@@ -1152,7 +1152,7 @@ fn perf_aead_completes() {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 
     let key = AesGcm256::generate_key();
-    let cipher = match AesGcm256::new(&key) {
+    let cipher = match AesGcm256::new(&*key) {
         Ok(c) => c,
         Err(_) => return,
     };
@@ -1208,7 +1208,7 @@ fn perf_multiple_operations_no_accumulation() {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm128};
 
     let key = AesGcm128::generate_key();
-    let cipher = match AesGcm128::new(&key) {
+    let cipher = match AesGcm128::new(&*key) {
         Ok(c) => c,
         Err(_) => return,
     };

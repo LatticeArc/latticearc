@@ -209,22 +209,6 @@ fn test_use_case_firmware_signing() {
 }
 
 #[test]
-fn test_use_case_searchable_encryption() {
-    let config = UseCaseConfig::new(UseCase::SearchableEncryption);
-    assert_eq!(config.use_case, UseCase::SearchableEncryption);
-    // Uses default config
-    assert_eq!(config.encryption.base.security_level, SecurityLevel::High);
-}
-
-#[test]
-fn test_use_case_homomorphic_computation() {
-    let config = UseCaseConfig::new(UseCase::HomomorphicComputation);
-    assert_eq!(config.use_case, UseCase::HomomorphicComputation);
-    assert_eq!(config.encryption.base.security_level, SecurityLevel::Maximum);
-    assert!(config.encryption.base.hardware_acceleration);
-}
-
-#[test]
 fn test_use_case_audit_log() {
     let config = UseCaseConfig::new(UseCase::AuditLog);
     assert_eq!(config.use_case, UseCase::AuditLog);
@@ -421,17 +405,16 @@ fn test_core_config_validation_success_high_security() {
 }
 
 #[test]
-fn test_core_config_validation_failure_max_security_no_hw() {
-    let config = CoreConfig::new()
-        .with_security_level(SecurityLevel::Maximum)
-        .with_hardware_acceleration(false);
+fn test_core_config_validation_failure_strict_with_standard() {
+    let config =
+        CoreConfig::new().with_security_level(SecurityLevel::Standard).with_strict_validation(true);
 
     let result = config.validate();
     assert!(result.is_err());
 
     match result {
         Err(TypeError::ConfigurationError(msg)) => {
-            assert!(msg.contains("hardware acceleration"));
+            assert!(msg.contains("Strict validation"));
         }
         _ => panic!("Expected ConfigurationError"),
     }
@@ -467,57 +450,25 @@ fn test_core_config_build_success() {
 }
 
 #[test]
-fn test_core_config_build_failure() {
+fn test_core_config_build_failure_strict_standard() {
     let result = CoreConfig::new()
-        .with_security_level(SecurityLevel::Maximum)
-        .with_hardware_acceleration(false)
+        .with_security_level(SecurityLevel::Standard)
+        .with_strict_validation(true)
         .build();
 
     assert!(result.is_err());
 }
 
 #[test]
-fn test_encryption_config_validation_success() {
-    let config = EncryptionConfig::new().with_compression(true).with_integrity_check(true);
-
+fn test_encryption_config_validation_delegates_to_core() {
+    let config = EncryptionConfig::new();
     assert!(config.validate().is_ok());
 }
 
 #[test]
-fn test_encryption_config_validation_failure_compression_without_integrity() {
-    let config = EncryptionConfig::new().with_compression(true).with_integrity_check(false);
-
-    let result = config.validate();
-    assert!(result.is_err());
-
-    match result {
-        Err(TypeError::ConfigurationError(msg)) => {
-            assert!(msg.contains("Compression") || msg.contains("integrity"));
-        }
-        _ => panic!("Expected ConfigurationError"),
-    }
-}
-
-#[test]
-fn test_signature_config_validation_success() {
-    let config = SignatureConfig::new().with_timestamp(true).with_certificate_chain(true);
-
+fn test_signature_config_validation_delegates_to_core() {
+    let config = SignatureConfig::new();
     assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_signature_config_validation_failure_cert_chain_without_timestamp() {
-    let config = SignatureConfig::new().with_timestamp(false).with_certificate_chain(true);
-
-    let result = config.validate();
-    assert!(result.is_err());
-
-    match result {
-        Err(TypeError::ConfigurationError(msg)) => {
-            assert!(msg.contains("timestamp") || msg.contains("Certificate"));
-        }
-        _ => panic!("Expected ConfigurationError"),
-    }
 }
 
 #[test]
@@ -783,53 +734,13 @@ fn test_performance_preference_clone() {
 #[test]
 fn test_encryption_config_default() {
     let config = EncryptionConfig::default();
-
-    assert!(config.preferred_scheme.is_none());
-    assert!(config.compression_enabled);
-    assert!(config.integrity_check);
-}
-
-#[test]
-fn test_encryption_config_with_scheme() {
-    let config = EncryptionConfig::new().with_scheme(CryptoScheme::Hybrid);
-    assert_eq!(config.preferred_scheme, Some(CryptoScheme::Hybrid));
-}
-
-#[test]
-fn test_encryption_config_all_schemes() {
-    let schemes = vec![
-        CryptoScheme::Hybrid,
-        CryptoScheme::Symmetric,
-        CryptoScheme::Asymmetric,
-        CryptoScheme::Homomorphic,
-        CryptoScheme::PostQuantum,
-    ];
-
-    for scheme in schemes {
-        let config = EncryptionConfig::new().with_scheme(scheme.clone());
-        assert_eq!(config.preferred_scheme, Some(scheme));
-    }
+    assert_eq!(config.base.security_level, SecurityLevel::High);
 }
 
 #[test]
 fn test_signature_config_default() {
     let config = SignatureConfig::default();
-
-    assert!(config.preferred_scheme.is_none());
-    assert!(config.timestamp_enabled);
-    assert!(!config.certificate_chain);
-}
-
-#[test]
-fn test_signature_config_builder() {
-    let config = SignatureConfig::new()
-        .with_scheme(CryptoScheme::PostQuantum)
-        .with_timestamp(true)
-        .with_certificate_chain(true);
-
-    assert_eq!(config.preferred_scheme, Some(CryptoScheme::PostQuantum));
-    assert!(config.timestamp_enabled);
-    assert!(config.certificate_chain);
+    assert_eq!(config.base.security_level, SecurityLevel::High);
 }
 
 #[test]
@@ -973,15 +884,18 @@ fn test_crypto_scheme_equality() {
 #[test]
 fn test_create_many_configs() {
     for i in 0..100 {
+        let is_standard = i % 3 == 0;
         let config = CoreConfig::new()
-            .with_security_level(if i % 3 == 0 {
+            .with_security_level(if is_standard {
                 SecurityLevel::Standard
             } else if i % 3 == 1 {
                 SecurityLevel::High
             } else {
                 SecurityLevel::Maximum
             })
-            .with_hardware_acceleration(true);
+            .with_hardware_acceleration(true)
+            // Standard security level is rejected under strict validation (default=true)
+            .with_strict_validation(!is_standard);
 
         assert!(config.validate().is_ok(), "Config {} should validate", i);
     }
@@ -1011,8 +925,6 @@ fn test_create_all_use_case_configs() {
         UseCase::PaymentCard,
         UseCase::IoTDevice,
         UseCase::FirmwareSigning,
-        UseCase::SearchableEncryption,
-        UseCase::HomomorphicComputation,
         UseCase::AuditLog,
     ];
 

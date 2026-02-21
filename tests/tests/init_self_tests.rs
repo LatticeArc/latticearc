@@ -130,8 +130,10 @@ fn test_init_with_maximum_security_config() {
 
 #[test]
 fn test_init_with_standard_security_config() {
-    let config =
-        CoreConfig::default().with_security_level(latticearc::unified_api::SecurityLevel::Standard);
+    let config = CoreConfig::default()
+        .with_security_level(latticearc::unified_api::SecurityLevel::Standard)
+        // Standard security level is rejected under strict validation (default=true)
+        .with_strict_validation(false);
     let result = latticearc::unified_api::init_with_config(&config);
     assert!(result.is_ok());
 }

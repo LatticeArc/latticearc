@@ -288,7 +288,7 @@ fn test_mlkem_uses_aws_lc_rs() {
 fn test_aes_gcm_uses_aws_lc_rs() {
     // AES-GCM-128 uses aws-lc-rs
     let key128 = AesGcm128::generate_key();
-    let cipher128 = AesGcm128::new(&key128).expect("cipher creation");
+    let cipher128 = AesGcm128::new(&*key128).expect("cipher creation");
     let nonce = AesGcm128::generate_nonce();
 
     let plaintext = b"test message for AES-GCM";
@@ -298,7 +298,7 @@ fn test_aes_gcm_uses_aws_lc_rs() {
 
     // AES-GCM-256 uses aws-lc-rs
     let key256 = AesGcm256::generate_key();
-    let cipher256 = AesGcm256::new(&key256).expect("cipher creation");
+    let cipher256 = AesGcm256::new(&*key256).expect("cipher creation");
     let nonce256 = AesGcm256::generate_nonce();
 
     let (ciphertext256, tag256) =
@@ -810,7 +810,7 @@ fn test_mldsa_all_parameter_sets() {
 #[test]
 fn test_chacha20poly1305_operations() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 
     let plaintext = b"Secret message for ChaCha20-Poly1305";

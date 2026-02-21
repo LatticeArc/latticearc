@@ -473,6 +473,61 @@ flowchart LR
     class COV,CI gate
 ```
 
+## Config Flow Invariants
+
+Configuration flows through a defined pipeline. Every field on these structs must have a consumer in this pipeline.
+
+### Encryption Config Pipeline
+
+```
+CryptoConfig (user-facing)
+  ├── session: Option<&VerifiedSession>  →  zero_trust::verify_session()
+  ├── selection: AlgorithmSelection      →  convenience::select_encryption_scheme()
+  ├── compliance: ComplianceMode         →  convenience::select_encryption_scheme()
+  └── compliance_explicit: bool          →  CryptoConfig::use_case() (internal flag)
+        │
+        ▼
+AlgorithmSelection (enum)
+  ├── UseCase(UseCase)                   →  CryptoPolicyEngine::recommend_scheme()
+  ├── SecurityLevel(SecurityLevel)       →  CryptoPolicyEngine::select_encryption_scheme()
+  └── ForcedScheme(SchemeType)           →  CryptoPolicyEngine::force_scheme()
+        │
+        ▼
+CryptoPolicyEngine                       →  scheme string (e.g., "hybrid-ml-kem-768-aes-256-gcm")
+        │
+        ▼
+Primitive dispatch (hybrid::encrypt, primitives::aead::encrypt, etc.)
+```
+
+### TLS Config Pipeline
+
+```
+TlsConfig (user-facing, 18 fields)
+  │
+  ├── From<&TlsConfig> for Tls13Config  →  maps: mode, alpn, fragment_size, early_data, protocol_version
+  │                                         drops: tracing, retry, fallback, resumption, session_lifetime,
+  │                                                key_logging, cipher_suites, client_auth, client_verification,
+  │                                                client_ca_certs, session_persistence
+  │
+  └── TlsConnectionBuilder              →  consumes remaining fields for connection setup
+        │
+        ▼
+rustls ServerConfig / ClientConfig
+```
+
+### Policy Engine Config
+
+```
+CoreConfig (internal to policy engine)
+  ├── security_level: SecurityLevel      →  CryptoPolicyEngine::select_encryption_scheme()
+  ├── performance_preference             →  CryptoPolicyEngine (stored in CryptoContext, not yet wired)
+  └── hardware_acceleration: bool        →  CryptoPolicyEngine (stored in CryptoContext, not yet wired)
+```
+
+### Invariant
+
+**Every field on these structs must have a consumer in this pipeline.** If a field has no consumer, it is either dead (remove it) or unwired (wire it). See [DESIGN_PATTERNS.md](DESIGN_PATTERNS.md) for the patterns that enforce this invariant.
+
 ## References
 
 - [FIPS 203: ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)

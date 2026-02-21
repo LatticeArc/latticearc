@@ -260,7 +260,7 @@ fn test_aes128_gcm_roundtrip() {
     let plaintext = b"Test message for AES-128-GCM roundtrip";
     let aad = b"Additional authenticated data";
 
-    let cipher = AesGcm128::new(&key).expect("cipher creation");
+    let cipher = AesGcm128::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).expect("encryption");
     let decrypted = cipher.decrypt(&nonce, &ct, &tag, Some(aad)).expect("decryption");
 
@@ -274,7 +274,7 @@ fn test_aes256_gcm_roundtrip() {
     let plaintext = b"Test message for AES-256-GCM roundtrip";
     let aad = b"Additional authenticated data";
 
-    let cipher = AesGcm256::new(&key).expect("cipher creation");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).expect("encryption");
     let decrypted = cipher.decrypt(&nonce, &ct, &tag, Some(aad)).expect("decryption");
 
@@ -288,7 +288,7 @@ fn test_aes_gcm_tag_tampering() {
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"Test message";
 
-    let cipher = AesGcm256::new(&key).expect("cipher creation");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation");
     let (ct, mut tag) = cipher.encrypt(&nonce, plaintext, None).expect("encryption");
 
     // Tamper with tag
@@ -305,7 +305,7 @@ fn test_aes_gcm_ciphertext_tampering() {
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"Test message for tampering";
 
-    let cipher = AesGcm256::new(&key).expect("cipher creation");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation");
     let (mut ct, tag) = cipher.encrypt(&nonce, plaintext, None).expect("encryption");
 
     // Tamper with ciphertext
@@ -326,7 +326,7 @@ fn test_aes_gcm_aad_tampering() {
     let aad = b"Original AAD";
     let tampered_aad = b"Tampered AAD";
 
-    let cipher = AesGcm256::new(&key).expect("cipher creation");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).expect("encryption");
 
     let result = cipher.decrypt(&nonce, &ct, &tag, Some(tampered_aad));
@@ -355,7 +355,7 @@ fn test_aes_gcm_empty_plaintext() {
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"";
 
-    let cipher = AesGcm256::new(&key).expect("cipher creation");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, None).expect("encryption");
 
     assert!(ct.is_empty(), "Ciphertext for empty plaintext should be empty");

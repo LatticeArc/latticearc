@@ -60,7 +60,7 @@ fn test_chacha20_poly1305_empty_message_with_aad() {
     let plaintext = b"";
     let aad = b"some authenticated data";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).expect("encryption");
 
     assert!(ct.is_empty(), "Ciphertext for empty plaintext should be empty");
@@ -79,7 +79,7 @@ fn test_chacha20_poly1305_roundtrip() {
     let plaintext = b"Test message for ChaCha20-Poly1305 roundtrip";
     let aad = b"Additional authenticated data";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).expect("encryption");
     let decrypted = cipher.decrypt(&nonce, &ct, &tag, Some(aad)).expect("decryption");
 
@@ -93,7 +93,7 @@ fn test_chacha20_poly1305_no_aad() {
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message without AAD";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, None).expect("encryption");
     let decrypted = cipher.decrypt(&nonce, &ct, &tag, None).expect("decryption");
 
@@ -107,7 +107,7 @@ fn test_chacha20_poly1305_tag_tampering() {
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct, mut tag) = cipher.encrypt(&nonce, plaintext, None).expect("encryption");
 
     // Tamper with tag
@@ -124,7 +124,7 @@ fn test_chacha20_poly1305_ciphertext_tampering() {
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message for tampering";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (mut ct, tag) = cipher.encrypt(&nonce, plaintext, None).expect("encryption");
 
     // Tamper with ciphertext
@@ -145,7 +145,7 @@ fn test_chacha20_poly1305_aad_tampering() {
     let aad = b"Original AAD";
     let tampered_aad = b"Tampered AAD";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).expect("encryption");
 
     let result = cipher.decrypt(&nonce, &ct, &tag, Some(tampered_aad));
@@ -159,7 +159,7 @@ fn test_chacha20_poly1305_empty_plaintext() {
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, plaintext, None).expect("encryption");
 
     assert!(ct.is_empty(), "Ciphertext for empty plaintext should be empty");
@@ -177,7 +177,7 @@ fn test_chacha20_poly1305_nonce_uniqueness() {
     let nonce2 = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Same message";
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct1, _tag1) = cipher.encrypt(&nonce1, plaintext, None).expect("encryption 1");
     let (ct2, _tag2) = cipher.encrypt(&nonce2, plaintext, None).expect("encryption 2");
 
@@ -192,7 +192,7 @@ fn test_chacha20_poly1305_large_message() {
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = vec![0x42u8; 1_000_000]; // 1MB message
 
-    let cipher = ChaCha20Poly1305::new(&key).expect("cipher creation");
+    let cipher = ChaCha20Poly1305::new(&*key).expect("cipher creation");
     let (ct, tag) = cipher.encrypt(&nonce, &plaintext, None).expect("encryption");
     let decrypted = cipher.decrypt(&nonce, &ct, &tag, None).expect("decryption");
 
@@ -207,8 +207,8 @@ fn test_chacha20_poly1305_wrong_key() {
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message";
 
-    let cipher1 = ChaCha20Poly1305::new(&key1).expect("cipher 1 creation");
-    let cipher2 = ChaCha20Poly1305::new(&key2).expect("cipher 2 creation");
+    let cipher1 = ChaCha20Poly1305::new(&*key1).expect("cipher 1 creation");
+    let cipher2 = ChaCha20Poly1305::new(&*key2).expect("cipher 2 creation");
 
     let (ct, tag) = cipher1.encrypt(&nonce, plaintext, None).expect("encryption");
     let result = cipher2.decrypt(&nonce, &ct, &tag, None);

@@ -22,6 +22,7 @@
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes128, Aes192, Aes256};
 use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Error types for CMAC operations
 #[derive(Debug, Error)]
@@ -80,10 +81,16 @@ impl Cmac192 {
 }
 
 /// CMAC subkeys K1 and K2 for padding operations
-#[derive(Debug, Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 struct CmacSubkeys {
     k1: [u8; 16],
     k2: [u8; 16],
+}
+
+impl core::fmt::Debug for CmacSubkeys {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("CmacSubkeys").field("k1", &"[REDACTED]").field("k2", &"[REDACTED]").finish()
+    }
 }
 
 /// Constant-time XOR of two byte arrays
@@ -1008,5 +1015,31 @@ mod tests {
             subkeys.k1.iter().any(|&b| b != 0) || subkeys.k2.iter().any(|&b| b != 0),
             "At least one subkey should be non-zero"
         );
+    }
+
+    /// Pattern 11: Debug output of secret types must not contain key material
+    #[test]
+    fn test_cmac_subkeys_debug_redacted() {
+        let key = [
+            0x2bu8, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+            0x4f, 0x3c,
+        ];
+        let subkeys = generate_subkeys(&key).unwrap();
+        let debug_output = format!("{:?}", subkeys);
+
+        // Debug must show REDACTED, not actual key bytes
+        assert!(debug_output.contains("[REDACTED]"), "CmacSubkeys Debug must redact key material");
+        // Ensure no hex representation of actual subkey bytes leaks
+        for byte in &subkeys.k1 {
+            let hex = format!("{:02x}", byte);
+            // Only check non-trivial bytes (skip 00 which appears in REDACTED text)
+            if *byte != 0 {
+                assert!(
+                    !debug_output.to_lowercase().contains(&hex),
+                    "CmacSubkeys Debug leaks K1 byte: 0x{}",
+                    hex
+                );
+            }
+        }
     }
 }

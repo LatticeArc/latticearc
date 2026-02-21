@@ -15,6 +15,7 @@
 
 use latticearc::unified_api::convenience::*;
 use latticearc::unified_api::types::{CryptoConfig, SecurityLevel, UseCase};
+use latticearc::{ComplianceMode, fips_available};
 
 // ============================================================
 // encrypt() with different CryptoConfig selections
@@ -299,6 +300,8 @@ fn test_sign_verify_authentication_use_case() {
 #[test]
 fn test_sign_verify_financial_use_case() {
     let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
+    // Override auto-FIPS only when feature not available (test verifies signing, not FIPS)
+    let config = if fips_available() { config } else { config.compliance(ComplianceMode::Default) };
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
     let message = b"Financial transaction signing test";

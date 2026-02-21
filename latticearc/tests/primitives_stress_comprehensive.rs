@@ -217,7 +217,7 @@ fn test_high_volume_mldsa_65_sign_verify() {
 #[test]
 fn test_high_volume_aes_gcm_256_encrypt_decrypt() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
@@ -246,7 +246,7 @@ fn test_high_volume_aes_gcm_256_encrypt_decrypt() {
 #[test]
 fn test_high_volume_aes_gcm_128_encrypt_decrypt() {
     let key = AesGcm128::generate_key();
-    let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm128::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
@@ -275,7 +275,7 @@ fn test_high_volume_aes_gcm_128_encrypt_decrypt() {
 #[test]
 fn test_high_volume_chacha20_poly1305_encrypt_decrypt() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
@@ -309,7 +309,7 @@ fn test_rapid_key_rotation_simulation() {
     for _ in 0..HIGH_VOLUME_ITERATIONS {
         // Generate new key
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+        let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
         let nonce = AesGcm256::generate_nonce();
 
         // Encrypt and decrypt with new key
@@ -481,7 +481,7 @@ fn test_high_volume_random_bytes() {
 #[test]
 fn test_large_buffer_encryption_100mb() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 
     // 100MB buffer - at the limit
@@ -506,7 +506,7 @@ fn test_large_buffer_encryption_100mb() {
 #[test]
 fn test_medium_buffer_encryption_10mb() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
 
     let medium_data = vec![0xCDu8; MEDIUM_BUFFER_SIZE];
@@ -573,7 +573,7 @@ fn test_maximum_key_count_handling() {
 #[test]
 fn test_memory_pressure_allocation_cycles() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
 
     // Perform many allocations and let them go out of scope
     for cycle in 0..100 {
@@ -696,7 +696,7 @@ fn test_extended_hash_operations() {
 #[test]
 fn test_state_accumulation_detection() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = b"Test data for state accumulation check";
 
     // Record timings for first and last batches
@@ -823,7 +823,7 @@ fn test_no_keygen_degradation() {
 // Must run in release mode
 fn test_extended_encryption_stability() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
 
     for i in 0..EXTENDED_ITERATIONS {
@@ -940,7 +940,7 @@ fn test_extended_sha384_operations() {
 #[test]
 fn test_empty_input_under_load() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let empty_plaintext: &[u8] = &[];
     let mut success_count = 0;
 
@@ -997,7 +997,7 @@ fn test_empty_message_signing_under_load() {
 #[test]
 fn test_maximum_size_inputs_repeatedly() {
     let key = ChaCha20Poly1305Cipher::generate_key();
-    let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
+    let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
 
     // Test with 1MB data repeatedly
     let large_data = vec![0xAAu8; 1024 * 1024];
@@ -1024,10 +1024,10 @@ fn test_maximum_size_inputs_repeatedly() {
 fn test_alternating_operation_patterns() {
     let mut rng = OsRng;
     let aes_key = AesGcm256::generate_key();
-    let aes_cipher = AesGcm256::new(&aes_key).expect("AES cipher creation should succeed");
+    let aes_cipher = AesGcm256::new(&*aes_key).expect("AES cipher creation should succeed");
     let chacha_key = ChaCha20Poly1305Cipher::generate_key();
     let chacha_cipher =
-        ChaCha20Poly1305Cipher::new(&chacha_key).expect("ChaCha cipher creation should succeed");
+        ChaCha20Poly1305Cipher::new(&*chacha_key).expect("ChaCha cipher creation should succeed");
 
     let mut success_count = 0;
 
@@ -1089,7 +1089,7 @@ fn test_random_operation_sequences() {
             2 => {
                 // AES-GCM encrypt
                 let key = AesGcm256::generate_key();
-                if let Ok(cipher) = AesGcm256::new(&key) {
+                if let Ok(cipher) = AesGcm256::new(&*key) {
                     let nonce = AesGcm256::generate_nonce();
                     cipher.encrypt(&nonce, b"test", None).is_ok()
                 } else {
@@ -1130,7 +1130,7 @@ fn test_varying_input_sizes_hash() {
 #[test]
 fn test_varying_aad_sizes() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = b"Test plaintext";
     let aad_sizes = [0, 1, 16, 64, 256, 1024, 4096, 16384];
 
@@ -1221,7 +1221,7 @@ fn test_mixed_algorithm_stress() {
     let mut hash_count = 0;
 
     let aes_key = AesGcm256::generate_key();
-    let aes_cipher = AesGcm256::new(&aes_key).expect("cipher creation should succeed");
+    let aes_cipher = AesGcm256::new(&*aes_key).expect("cipher creation should succeed");
     let (dsa_pk, dsa_sk) =
         ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
 
@@ -1290,7 +1290,7 @@ fn test_mlkem_768_performance_baseline() {
 #[test]
 fn test_aes_gcm_256_performance_baseline() {
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
+    let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = vec![0xABu8; 1024]; // 1KB
     const SAMPLE_SIZE: usize = 1000;
 
@@ -1347,7 +1347,7 @@ fn test_stress_comprehensive_summary() {
 
     // 3. AES-GCM operations
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("AES-GCM should be created");
+    let cipher = AesGcm256::new(&*key).expect("AES-GCM should be created");
     let nonce = AesGcm256::generate_nonce();
     let (ct, tag) = cipher.encrypt(&nonce, b"test", None).expect("AES-GCM encrypt should succeed");
     let pt = cipher.decrypt(&nonce, &ct, &tag, None).expect("AES-GCM decrypt should succeed");
@@ -1356,7 +1356,7 @@ fn test_stress_comprehensive_summary() {
     // 4. ChaCha20-Poly1305 operations
     let chacha_key = ChaCha20Poly1305Cipher::generate_key();
     let chacha_cipher =
-        ChaCha20Poly1305Cipher::new(&chacha_key).expect("ChaCha20 should be created");
+        ChaCha20Poly1305Cipher::new(&*chacha_key).expect("ChaCha20 should be created");
     let chacha_nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let (chacha_ct, chacha_tag) = chacha_cipher
         .encrypt(&chacha_nonce, b"test", None)

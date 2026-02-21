@@ -141,10 +141,12 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
 }
 
 impl ChaCha20Poly1305Cipher {
-    /// Generate a random key for ChaCha20-Poly1305
-    pub fn generate_key() -> [u8; CHACHA20_POLY1305_KEY_LEN] {
+    /// Generate a random key for ChaCha20-Poly1305.
+    ///
+    /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop.
+    pub fn generate_key() -> zeroize::Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
         let key_bytes = ChaCha20Poly1305::generate_key(&mut OsRng);
-        let mut result = [0u8; CHACHA20_POLY1305_KEY_LEN];
+        let mut result = zeroize::Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
         result.copy_from_slice(key_bytes.as_slice());
         result
     }
@@ -310,10 +312,12 @@ impl AeadCipher for XChaCha20Poly1305Cipher {
 }
 
 impl XChaCha20Poly1305Cipher {
-    /// Generate a random key for XChaCha20-Poly1305
-    pub fn generate_key() -> [u8; CHACHA20_POLY1305_KEY_LEN] {
+    /// Generate a random key for XChaCha20-Poly1305.
+    ///
+    /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop.
+    pub fn generate_key() -> zeroize::Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
         let key_bytes = chacha20poly1305::XChaCha20Poly1305::generate_key(&mut OsRng);
-        let mut result = [0u8; CHACHA20_POLY1305_KEY_LEN];
+        let mut result = zeroize::Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
         result.copy_from_slice(key_bytes.as_slice());
         result
     }
@@ -350,7 +354,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_encryption_decryption() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Hello, World!";
 
@@ -363,7 +367,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_with_aad() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret data";
         let aad = b"Additional authenticated data";
@@ -377,7 +381,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_with_aad_verification_failure() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret data";
         let aad = b"Correct AAD";
@@ -399,7 +403,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_invalid_tag() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret data";
 
@@ -421,7 +425,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_corrupted_ciphertext() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret data";
 
@@ -487,7 +491,7 @@ mod tests {
     #[test]
     fn test_chacha20poly1305_ciphertext_zeroization() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"secret message";
 
@@ -506,7 +510,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_empty_plaintext() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"";
 
@@ -521,7 +525,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_large_plaintext() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = vec![0xAB; 1024 * 1024]; // 1MB
 
@@ -536,7 +540,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_large_aad() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret data";
 
@@ -552,7 +556,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_multiple_encryptions() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
 
         for i in 0..100 {
             let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -576,7 +580,7 @@ mod tests {
     #[test]
     fn test_xchacha20_poly1305_encryption_decryption() {
         let key = XChaCha20Poly1305Cipher::generate_key();
-        let cipher = XChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = XChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = XChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Hello, XChaCha20!";
 
@@ -589,7 +593,7 @@ mod tests {
     #[test]
     fn test_xchacha20_poly1305_with_aad() {
         let key = XChaCha20Poly1305Cipher::generate_key();
-        let cipher = XChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = XChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = XChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret data";
         let aad = b"Additional authenticated data";
@@ -641,7 +645,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_wrong_key() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret message";
 
@@ -649,7 +653,7 @@ mod tests {
 
         // Try to decrypt with wrong key
         let wrong_key = ChaCha20Poly1305Cipher::generate_key();
-        let wrong_cipher = ChaCha20Poly1305Cipher::new(&wrong_key).unwrap();
+        let wrong_cipher = ChaCha20Poly1305Cipher::new(&*wrong_key).unwrap();
         let result = wrong_cipher.decrypt(&nonce, &ciphertext, &tag, None);
 
         assert!(result.is_err());
@@ -663,7 +667,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_empty_aad() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret data";
         let aad: [u8; 0] = [];
@@ -677,7 +681,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_wrong_nonce() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce1 = ChaCha20Poly1305Cipher::generate_nonce();
         let nonce2 = ChaCha20Poly1305Cipher::generate_nonce();
         let plaintext = b"Secret message";
@@ -698,7 +702,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_encryption_size_limit() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 
         // Try to encrypt data exceeding 100MB limit (101MB)
@@ -717,7 +721,7 @@ mod tests {
     #[test]
     fn test_chacha20_poly1305_decryption_size_limit() {
         let key = ChaCha20Poly1305Cipher::generate_key();
-        let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
+        let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
 
         // Try to decrypt data exceeding 100MB limit

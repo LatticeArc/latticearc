@@ -16,7 +16,10 @@
 //! The `_unverified` variants are opt-out functions for scenarios where Zero Trust
 //! verification is not required or not possible.
 
+use tracing::warn;
+
 use crate::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use crate::types::types::SecurityLevel;
 
 use super::aes_gcm::encrypt_aes_gcm_internal;
 use crate::unified_api::config::CoreConfig;
@@ -24,6 +27,30 @@ use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::zero_trust::SecurityMode;
 
 use crate::types::resource_limits::validate_encryption_size;
+
+/// Maps `CoreConfig.security_level` to the expected `MlKemSecurityLevel`.
+///
+/// This enables consistency validation between the explicit algorithm parameter
+/// and the config's security level.
+fn expected_ml_kem_level(security_level: &SecurityLevel) -> MlKemSecurityLevel {
+    match security_level {
+        SecurityLevel::Standard => MlKemSecurityLevel::MlKem512,
+        SecurityLevel::High => MlKemSecurityLevel::MlKem768,
+        SecurityLevel::Maximum | SecurityLevel::Quantum => MlKemSecurityLevel::MlKem1024,
+    }
+}
+
+/// Warn if the explicit ML-KEM security level differs from the CoreConfig's security_level.
+fn check_ml_kem_config_consistency(explicit: MlKemSecurityLevel, config: &CoreConfig) {
+    let expected = expected_ml_kem_level(&config.security_level);
+    if expected != explicit {
+        warn!(
+            "Explicit MlKemSecurityLevel ({:?}) differs from CoreConfig security_level ({:?} \
+             → {:?}). Using explicit parameter.",
+            explicit, config.security_level, expected
+        );
+    }
+}
 
 // ============================================================================
 // Internal Implementation
@@ -232,6 +259,7 @@ pub fn encrypt_pq_ml_kem_with_config(
 ) -> Result<Vec<u8>> {
     mode.validate()?;
     config.validate()?;
+    check_ml_kem_config_consistency(security_level, config);
     encrypt_pq_ml_kem_internal(data, ml_kem_pk, security_level)
 }
 
@@ -252,6 +280,7 @@ pub fn decrypt_pq_ml_kem_with_config(
 ) -> Result<Vec<u8>> {
     mode.validate()?;
     config.validate()?;
+    check_ml_kem_config_consistency(security_level, config);
     decrypt_pq_ml_kem_internal(encrypted_data, ml_kem_sk, security_level)
 }
 

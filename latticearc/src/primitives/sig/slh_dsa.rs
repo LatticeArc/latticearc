@@ -69,10 +69,6 @@ pub enum SlhDsaError {
     #[error("Signature verification failed")]
     VerificationFailed,
 
-    /// Serialization failed
-    #[error("Serialization failed")]
-    SerializationError,
-
     /// Deserialization failed
     #[error("Deserialization failed")]
     DeserializationError,

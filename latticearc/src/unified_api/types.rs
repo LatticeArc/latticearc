@@ -139,6 +139,30 @@ impl<'a> CryptoConfig<'a> {
         self
     }
 
+    /// Forces a specific cryptographic scheme category.
+    ///
+    /// Bypasses automatic algorithm selection (use case or security level)
+    /// and directly selects the specified scheme type.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use latticearc::unified_api::{CryptoConfig, encrypt};
+    /// # use latticearc::types::types::CryptoScheme;
+    /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
+    /// let key = [0u8; 32];
+    /// // Force post-quantum encryption
+    /// encrypt(b"data", &key, CryptoConfig::new()
+    ///     .force_scheme(CryptoScheme::PostQuantum))?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn force_scheme(mut self, scheme: CryptoScheme) -> Self {
+        self.selection = AlgorithmSelection::ForcedScheme(scheme);
+        self
+    }
+
     /// Sets the compliance mode for regulatory requirements.
     ///
     /// When set explicitly, this overrides any auto-compliance from `.use_case()`.
@@ -185,6 +209,60 @@ impl<'a> CryptoConfig<'a> {
     #[must_use]
     pub fn is_verified(&self) -> bool {
         self.session.is_some()
+    }
+
+    /// Check if a scheme string is acceptable under the current compliance mode.
+    ///
+    /// This enforces compliance policies against the algorithm encoded in
+    /// ciphertext or signature metadata. Following the OpenSSL model, compliance
+    /// is enforced on both encrypt/sign and decrypt/verify sides.
+    ///
+    /// # Scheme classification
+    ///
+    /// | Compliance | Allowed schemes | Rejected schemes |
+    /// |------------|-----------------|------------------|
+    /// | Default    | All             | None             |
+    /// | FIPS 140-3 | AES-256-GCM, ML-KEM-*, ML-DSA-*, SLH-DSA-*, hybrid-* | ChaCha20-Poly1305 |
+    /// | CNSA 2.0   | ML-KEM-*, ML-DSA-*, SLH-DSA-*, FN-DSA-*, hybrid-* | Ed25519, AES-256-GCM (pure classical) |
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::ComplianceViolation` if the scheme is not permitted
+    /// under the active compliance mode.
+    pub fn validate_scheme_compliance(
+        &self,
+        scheme: &str,
+    ) -> crate::unified_api::error::Result<()> {
+        use crate::unified_api::error::CoreError;
+
+        match self.compliance {
+            ComplianceMode::Default => Ok(()),
+            ComplianceMode::Fips140_3 => {
+                // ChaCha20-Poly1305 is not FIPS 140-3 validated
+                if scheme.contains("chacha") {
+                    return Err(CoreError::ComplianceViolation(format!(
+                        "Scheme '{}' is not FIPS 140-3 approved. \
+                         Use AES-256-GCM or a FIPS-validated algorithm.",
+                        scheme
+                    )));
+                }
+                Ok(())
+            }
+            ComplianceMode::Cnsa2_0 => {
+                // CNSA 2.0 mandates post-quantum algorithms.
+                // Pure classical schemes (ed25519, aes-256-gcm standalone) are rejected.
+                // Hybrid schemes (ml-dsa-*-ed25519, ml-kem-*-x25519) are allowed
+                // as transitional per NIST SP 800-227.
+                if scheme == "ed25519" || scheme == "aes-256-gcm" {
+                    return Err(CoreError::ComplianceViolation(format!(
+                        "Scheme '{}' is not permitted under CNSA 2.0 (post-quantum required). \
+                         Use ML-KEM, ML-DSA, SLH-DSA, FN-DSA, or a hybrid scheme.",
+                        scheme
+                    )));
+                }
+                Ok(())
+            }
+        }
     }
 
     /// Validates the configuration.
@@ -390,5 +468,110 @@ mod tests {
         let err_msg = format!("{}", result.unwrap_err());
         assert!(err_msg.contains("fips"));
         assert!(err_msg.contains("Rebuild"));
+    }
+
+    // --- validate_scheme_compliance tests ---
+
+    #[test]
+    fn test_default_compliance_allows_all_schemes() {
+        let config = CryptoConfig::new(); // Default compliance
+        assert!(config.validate_scheme_compliance("aes-256-gcm").is_ok());
+        assert!(config.validate_scheme_compliance("ed25519").is_ok());
+        assert!(config.validate_scheme_compliance("ml-dsa-65").is_ok());
+        assert!(config.validate_scheme_compliance("chacha20-poly1305").is_ok());
+        assert!(config.validate_scheme_compliance("hybrid-ml-dsa-65-ed25519").is_ok());
+    }
+
+    #[test]
+    fn test_fips_rejects_chacha() {
+        let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
+        let result = config.validate_scheme_compliance("chacha20-poly1305");
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("FIPS 140-3"));
+        assert!(err_msg.contains("chacha"));
+    }
+
+    #[test]
+    fn test_fips_allows_aes_gcm() {
+        let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
+        assert!(config.validate_scheme_compliance("aes-256-gcm").is_ok());
+    }
+
+    #[test]
+    fn test_fips_allows_pq_schemes() {
+        let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
+        assert!(config.validate_scheme_compliance("ml-kem-768").is_ok());
+        assert!(config.validate_scheme_compliance("ml-dsa-65").is_ok());
+        assert!(config.validate_scheme_compliance("slh-dsa-shake-128s").is_ok());
+        assert!(config.validate_scheme_compliance("hybrid-ml-dsa-65-ed25519").is_ok());
+    }
+
+    #[test]
+    fn test_cnsa_rejects_ed25519() {
+        let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
+        let result = config.validate_scheme_compliance("ed25519");
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("CNSA 2.0"));
+        assert!(err_msg.contains("ed25519"));
+    }
+
+    #[test]
+    fn test_cnsa_rejects_standalone_aes_gcm() {
+        let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
+        let result = config.validate_scheme_compliance("aes-256-gcm");
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("CNSA 2.0"));
+    }
+
+    #[test]
+    fn test_cnsa_allows_pq_schemes() {
+        let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
+        assert!(config.validate_scheme_compliance("ml-kem-1024").is_ok());
+        assert!(config.validate_scheme_compliance("ml-dsa-87").is_ok());
+        assert!(config.validate_scheme_compliance("slh-dsa-shake-256s").is_ok());
+        assert!(config.validate_scheme_compliance("fn-dsa").is_ok());
+    }
+
+    #[test]
+    fn test_cnsa_allows_hybrid_schemes() {
+        let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
+        assert!(config.validate_scheme_compliance("hybrid-ml-dsa-65-ed25519").is_ok());
+        assert!(config.validate_scheme_compliance("hybrid-ml-kem-768-x25519-aes-256-gcm").is_ok());
+    }
+
+    // =========================================================================
+    // Parameter Influence Tests (Audit 4.12)
+    // =========================================================================
+
+    #[test]
+    fn test_force_scheme_builder_sets_selection() {
+        let config = CryptoConfig::new().force_scheme(CryptoScheme::PostQuantum);
+        assert_eq!(
+            *config.get_selection(),
+            AlgorithmSelection::ForcedScheme(CryptoScheme::PostQuantum)
+        );
+    }
+
+    #[test]
+    fn test_force_scheme_overrides_use_case() {
+        let config = CryptoConfig::new()
+            .use_case(UseCase::FileStorage)
+            .force_scheme(CryptoScheme::Symmetric);
+        // force_scheme should override the use case
+        assert_eq!(
+            *config.get_selection(),
+            AlgorithmSelection::ForcedScheme(CryptoScheme::Symmetric)
+        );
+    }
+
+    #[test]
+    fn test_force_scheme_overrides_security_level() {
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .force_scheme(CryptoScheme::Hybrid);
+        assert_eq!(*config.get_selection(), AlgorithmSelection::ForcedScheme(CryptoScheme::Hybrid));
     }
 }

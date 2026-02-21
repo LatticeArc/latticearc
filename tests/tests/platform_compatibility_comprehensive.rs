@@ -324,19 +324,14 @@ fn test_all_security_levels_available() {
     ];
 
     for level in levels {
-        let config =
-            CoreConfig::new().with_security_level(level.clone()).with_hardware_acceleration(true);
-
-        // Maximum requires hardware acceleration
-        if matches!(level, SecurityLevel::Maximum) {
-            assert!(config.validate().is_ok());
+        // Standard level fails with strict_validation=true (default),
+        // so we disable strict validation for Standard
+        let config = if matches!(level, SecurityLevel::Standard) {
+            CoreConfig::new().with_security_level(level.clone()).with_strict_validation(false)
         } else {
-            // Other levels should validate with or without hardware
-            let no_hw_config = CoreConfig::new()
-                .with_security_level(level.clone())
-                .with_hardware_acceleration(false);
-            assert!(no_hw_config.validate().is_ok());
-        }
+            CoreConfig::new().with_security_level(level.clone())
+        };
+        assert!(config.validate().is_ok(), "SecurityLevel::{:?} should validate", level);
     }
 }
 
@@ -347,7 +342,6 @@ fn test_all_crypto_schemes_available() {
         CryptoScheme::Hybrid,
         CryptoScheme::Symmetric,
         CryptoScheme::Asymmetric,
-        CryptoScheme::Homomorphic,
         CryptoScheme::PostQuantum,
     ];
 
@@ -382,8 +376,6 @@ fn test_all_use_cases_available() {
         UseCase::PaymentCard,
         UseCase::IoTDevice,
         UseCase::FirmwareSigning,
-        UseCase::SearchableEncryption,
-        UseCase::HomomorphicComputation,
         UseCase::AuditLog,
     ];
 
@@ -808,18 +800,9 @@ fn test_config_zero_trust_configurations() {
 }
 
 #[test]
-fn test_config_encryption_with_scheme_preferences() {
-    let schemes = vec![CryptoScheme::Hybrid, CryptoScheme::Symmetric, CryptoScheme::PostQuantum];
-
-    for scheme in schemes {
-        let config = EncryptionConfig::new()
-            .with_scheme(scheme.clone())
-            .with_compression(true)
-            .with_integrity_check(true);
-
-        assert!(config.validate().is_ok());
-        assert_eq!(config.preferred_scheme, Some(scheme));
-    }
+fn test_config_encryption_validates() {
+    let config = EncryptionConfig::new();
+    assert!(config.validate().is_ok());
 }
 
 #[test]
@@ -975,7 +958,7 @@ fn test_config_types_clone() {
 
     let encryption = EncryptionConfig::default();
     let encryption_clone = encryption.clone();
-    assert_eq!(encryption.compression_enabled, encryption_clone.compression_enabled);
+    assert_eq!(encryption.base, encryption_clone.base);
 
     let hardware = HardwareConfig::default();
     let hardware_clone = hardware.clone();

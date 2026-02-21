@@ -393,7 +393,7 @@ fn test_parallel_ml_dsa_verification_same_signature() {
 #[test]
 fn test_concurrent_aes_gcm_128_encryption() {
     let key = AesGcm128::generate_key();
-    let cipher = Arc::new(AesGcm128::new(&key).expect("cipher creation should succeed"));
+    let cipher = Arc::new(AesGcm128::new(&*key).expect("cipher creation should succeed"));
     let ciphertexts = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -425,7 +425,7 @@ fn test_concurrent_aes_gcm_128_encryption() {
 #[test]
 fn test_concurrent_aes_gcm_256_encryption_decryption() {
     let key = AesGcm256::generate_key();
-    let cipher = Arc::new(AesGcm256::new(&key).expect("cipher creation should succeed"));
+    let cipher = Arc::new(AesGcm256::new(&*key).expect("cipher creation should succeed"));
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -470,7 +470,7 @@ fn test_concurrent_aes_gcm_256_encryption_decryption() {
 #[test]
 fn test_concurrent_aes_gcm_unique_nonces() {
     let key = AesGcm128::generate_key();
-    let cipher = Arc::new(AesGcm128::new(&key).expect("cipher creation should succeed"));
+    let cipher = Arc::new(AesGcm128::new(&*key).expect("cipher creation should succeed"));
     let nonces = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -1058,7 +1058,7 @@ fn test_mixed_algorithm_stress() {
                         2 => {
                             // AES-GCM
                             let key = AesGcm256::generate_key();
-                            AesGcm256::new(&key).is_ok()
+                            AesGcm256::new(&*key).is_ok()
                         }
                         3 => {
                             // X25519
@@ -1567,7 +1567,7 @@ fn test_concurrent_large_message_signing() {
 #[test]
 fn test_concurrent_encryption_empty_plaintext() {
     let key = AesGcm256::generate_key();
-    let cipher = Arc::new(AesGcm256::new(&key).expect("cipher creation should succeed"));
+    let cipher = Arc::new(AesGcm256::new(&*key).expect("cipher creation should succeed"));
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -1666,7 +1666,7 @@ fn test_miri_compatible_keygen_basic() {
 #[test]
 fn test_miri_compatible_aead_basic() {
     let key = AesGcm128::generate_key();
-    let cipher = AesGcm128::new(&key).expect("cipher should be created");
+    let cipher = AesGcm128::new(&*key).expect("cipher should be created");
     let nonce = AesGcm128::generate_nonce();
     let plaintext = b"test message";
 
@@ -1748,7 +1748,7 @@ fn test_concurrent_context_string_variations() {
 #[test]
 fn test_concurrent_aad_variations() {
     let key = AesGcm256::generate_key();
-    let cipher = Arc::new(AesGcm256::new(&key).expect("cipher creation should succeed"));
+    let cipher = Arc::new(AesGcm256::new(&*key).expect("cipher creation should succeed"));
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -1847,7 +1847,7 @@ fn test_comprehensive_concurrency_summary() {
 
     // 3. AES-GCM concurrent operations
     let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&key).expect("AES-GCM should be created");
+    let cipher = AesGcm256::new(&*key).expect("AES-GCM should be created");
     let nonce = AesGcm256::generate_nonce();
     let (ct, tag) = cipher.encrypt(&nonce, b"test", None).expect("AES-GCM encrypt should succeed");
     let pt = cipher.decrypt(&nonce, &ct, &tag, None).expect("AES-GCM decrypt should succeed");

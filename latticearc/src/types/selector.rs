@@ -108,9 +108,7 @@ impl CryptoPolicyEngine {
             UseCase::IoTDevice => Ok("hybrid-ml-kem-512-aes-256-gcm".to_string()),
             UseCase::FirmwareSigning => Ok("hybrid-ml-dsa-65-ed25519".to_string()),
 
-            // Advanced
-            UseCase::SearchableEncryption => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
-            UseCase::HomomorphicComputation => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
+            // General Purpose
             UseCase::AuditLog => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
         }
     }
@@ -125,7 +123,6 @@ impl CryptoPolicyEngine {
             crate::types::CryptoScheme::Hybrid => DEFAULT_ENCRYPTION_SCHEME.to_string(),
             crate::types::CryptoScheme::Symmetric => "hybrid-ml-kem-768-aes-256-gcm".to_string(),
             crate::types::CryptoScheme::Asymmetric => "pq-ml-dsa-65".to_string(),
-            crate::types::CryptoScheme::Homomorphic => "hybrid-ml-kem-768-aes-256-gcm".to_string(),
             crate::types::CryptoScheme::PostQuantum => DEFAULT_PQ_ENCRYPTION_SCHEME.to_string(),
         }
     }
@@ -170,12 +167,18 @@ impl CryptoPolicyEngine {
 
     /// Selects encryption scheme based on data, config, and optional use case.
     ///
+    /// When `hardware_acceleration` is `false` and no use case is specified,
+    /// prefers `chacha20-poly1305` (fast in software without AES-NI).
+    ///
+    /// When data is provided, analyzes data characteristics to optimize
+    /// scheme selection for the data's entropy and size patterns.
+    ///
     /// # Errors
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     pub fn select_encryption_scheme(
-        _data: &[u8],
+        data: &[u8],
         config: &CoreConfig,
         use_case: Option<&UseCase>,
     ) -> Result<String> {
@@ -183,11 +186,45 @@ impl CryptoPolicyEngine {
             return Self::recommend_scheme(use_case, config);
         }
 
+        // When hardware acceleration is disabled, prefer ChaCha20-Poly1305
+        // which is fast in pure software (no AES-NI needed)
+        if !config.hardware_acceleration {
+            return Ok(CHACHA20_POLY1305.to_string());
+        }
+
+        // Data-aware adjustments when data is non-empty
+        if !data.is_empty() {
+            let characteristics = Self::analyze_data_characteristics(data);
+
+            match (&config.performance_preference, &characteristics.pattern_type) {
+                // High-entropy data with speed preference: smaller KEM is sufficient
+                (PerformancePreference::Speed, PatternType::Random) => {
+                    if matches!(config.security_level, SecurityLevel::High) {
+                        return Ok(HYBRID_ENCRYPTION_512.to_string());
+                    }
+                }
+                // Memory-constrained with small data: downgrade if not at maximum
+                (PerformancePreference::Memory, _)
+                    if data.len() < CLASSICAL_FALLBACK_SIZE_THRESHOLD =>
+                {
+                    if matches!(config.security_level, SecurityLevel::High) {
+                        return Ok(HYBRID_ENCRYPTION_512.to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(Self::select_for_security_level(config))
+    }
+
+    /// Select scheme based only on security level (no data analysis).
+    fn select_for_security_level(config: &CoreConfig) -> String {
         match &config.security_level {
-            SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
-            SecurityLevel::Maximum => Ok(HYBRID_ENCRYPTION_1024.to_string()),
-            SecurityLevel::High => Ok(HYBRID_ENCRYPTION_768.to_string()),
-            SecurityLevel::Standard => Ok(HYBRID_ENCRYPTION_512.to_string()),
+            SecurityLevel::Quantum => PQ_ENCRYPTION_1024.to_string(),
+            SecurityLevel::Maximum => HYBRID_ENCRYPTION_1024.to_string(),
+            SecurityLevel::High => HYBRID_ENCRYPTION_768.to_string(),
+            SecurityLevel::Standard => HYBRID_ENCRYPTION_512.to_string(),
         }
     }
 
@@ -208,17 +245,15 @@ impl CryptoPolicyEngine {
 
     /// Context-aware scheme selection based on data characteristics and configuration.
     ///
+    /// Delegates to [`select_encryption_scheme`] without a use case,
+    /// so data characteristics and hardware preferences are applied.
+    ///
     /// # Errors
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
-    pub fn select_for_context(_data: &[u8], config: &CoreConfig) -> Result<String> {
-        match &config.security_level {
-            SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
-            SecurityLevel::Maximum => Ok(HYBRID_ENCRYPTION_1024.to_string()),
-            SecurityLevel::High => Ok(HYBRID_ENCRYPTION_768.to_string()),
-            SecurityLevel::Standard => Ok(HYBRID_ENCRYPTION_512.to_string()),
-        }
+    pub fn select_for_context(data: &[u8], config: &CoreConfig) -> Result<String> {
+        Self::select_encryption_scheme(data, config, None)
     }
 
     /// Adaptive selection based on runtime performance metrics.
@@ -423,6 +458,9 @@ pub const PQ_SIGNATURE_65: &str = "pq-ml-dsa-65";
 /// PQ-only signature variant using ML-DSA-87.
 pub const PQ_SIGNATURE_87: &str = "pq-ml-dsa-87";
 
+/// ChaCha20-Poly1305 symmetric encryption (fast without AES-NI hardware).
+pub const CHACHA20_POLY1305: &str = "chacha20-poly1305";
+
 /// Classical symmetric encryption scheme identifier (decrypt compatibility only)
 pub const CLASSICAL_AES_GCM: &str = "aes-256-gcm";
 /// Classical signature scheme identifier (decrypt compatibility only)
@@ -617,5 +655,157 @@ mod tests {
         let characteristics = CryptoPolicyEngine::analyze_data_characteristics(&data);
         assert!(characteristics.entropy < 1.0);
         assert_eq!(characteristics.pattern_type, PatternType::Repetitive);
+    }
+
+    // =========================================================================
+    // Parameter Influence Tests (Audit 4.12)
+    // =========================================================================
+
+    #[test]
+    fn test_hardware_acceleration_false_selects_chacha20() {
+        let config = CoreConfig::new().with_hardware_acceleration(false);
+        let scheme =
+            CryptoPolicyEngine::select_encryption_scheme(b"test data", &config, None).unwrap();
+        assert_eq!(scheme, CHACHA20_POLY1305);
+    }
+
+    #[test]
+    fn test_hardware_acceleration_true_selects_hybrid() {
+        let config = CoreConfig::new()
+            .with_hardware_acceleration(true)
+            .with_security_level(SecurityLevel::High);
+        let scheme =
+            CryptoPolicyEngine::select_encryption_scheme(b"test data", &config, None).unwrap();
+        // With hw_accel=true, should NOT be chacha20 — parameter changes outcome
+        assert_ne!(scheme, CHACHA20_POLY1305);
+    }
+
+    #[test]
+    fn test_data_aware_random_data_speed_selects_smaller_kem() {
+        use rand::RngCore;
+        // Need enough bytes for entropy > 7.5 (256 bytes has ~7.0 entropy)
+        let mut data = vec![0u8; 8192];
+        rand::thread_rng().fill_bytes(&mut data);
+        let config = CoreConfig::new()
+            .with_performance_preference(PerformancePreference::Speed)
+            .with_security_level(SecurityLevel::High);
+        let scheme = CryptoPolicyEngine::select_encryption_scheme(&data, &config, None).unwrap();
+        // Random data + Speed + High → HYBRID_ENCRYPTION_512 (data-aware optimization)
+        assert_eq!(scheme, HYBRID_ENCRYPTION_512);
+    }
+
+    #[test]
+    fn test_data_aware_structured_data_balanced_no_downgrade() {
+        let data = b"This is structured text data for encryption testing";
+        let config = CoreConfig::new()
+            .with_performance_preference(PerformancePreference::Balanced)
+            .with_security_level(SecurityLevel::High);
+        let scheme = CryptoPolicyEngine::select_encryption_scheme(data, &config, None).unwrap();
+        // Structured data + Balanced → default for security level, no downgrade
+        assert_eq!(scheme, HYBRID_ENCRYPTION_768);
+    }
+
+    #[test]
+    fn test_force_scheme_returns_forced_scheme() {
+        use crate::types::CryptoScheme;
+        // Symmetric maps to hybrid (bare classical is never selected)
+        let result = CryptoPolicyEngine::force_scheme(&CryptoScheme::Symmetric);
+        assert_eq!(result, "hybrid-ml-kem-768-aes-256-gcm");
+
+        let result = CryptoPolicyEngine::force_scheme(&CryptoScheme::PostQuantum);
+        assert_eq!(result, DEFAULT_PQ_ENCRYPTION_SCHEME);
+    }
+
+    // =========================================================================
+    // Pattern P4: Parameter Influence Tests
+    // Each test proves changing ONLY one field changes the output.
+    // =========================================================================
+
+    #[test]
+    fn test_security_level_influences_encryption_scheme() {
+        let data = b"test data for scheme selection";
+        let config_a = CoreConfig::new()
+            .with_security_level(SecurityLevel::Standard)
+            .with_hardware_acceleration(true);
+        let result_a = CryptoPolicyEngine::select_encryption_scheme(data, &config_a, None).unwrap();
+
+        let config_b = CoreConfig::new()
+            .with_security_level(SecurityLevel::Maximum)
+            .with_hardware_acceleration(true);
+        let result_b = CryptoPolicyEngine::select_encryption_scheme(data, &config_b, None).unwrap();
+
+        assert_ne!(result_a, result_b, "security_level must influence encryption scheme selection");
+    }
+
+    #[test]
+    fn test_security_level_influences_signature_scheme() {
+        let config_a = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let result_a = CryptoPolicyEngine::select_signature_scheme(&config_a).unwrap();
+
+        let config_b = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
+        let result_b = CryptoPolicyEngine::select_signature_scheme(&config_b).unwrap();
+
+        assert_ne!(result_a, result_b, "security_level must influence signature scheme selection");
+    }
+
+    #[test]
+    fn test_security_level_influences_pq_encryption_scheme() {
+        let config_a = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let result_a = CryptoPolicyEngine::select_pq_encryption_scheme(&config_a).unwrap();
+
+        let config_b = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
+        let result_b = CryptoPolicyEngine::select_pq_encryption_scheme(&config_b).unwrap();
+
+        assert_ne!(
+            result_a, result_b,
+            "security_level must influence PQ encryption scheme selection"
+        );
+    }
+
+    #[test]
+    fn test_performance_preference_influences_encryption_scheme() {
+        use rand::RngCore;
+        // Use random data so data-aware branch activates
+        let mut data = vec![0u8; 8192];
+        rand::thread_rng().fill_bytes(&mut data);
+
+        let config_a = CoreConfig::new()
+            .with_performance_preference(PerformancePreference::Speed)
+            .with_security_level(SecurityLevel::High)
+            .with_hardware_acceleration(true);
+        let result_a =
+            CryptoPolicyEngine::select_encryption_scheme(&data, &config_a, None).unwrap();
+
+        let config_b = CoreConfig::new()
+            .with_performance_preference(PerformancePreference::Balanced)
+            .with_security_level(SecurityLevel::High)
+            .with_hardware_acceleration(true);
+        let result_b =
+            CryptoPolicyEngine::select_encryption_scheme(&data, &config_b, None).unwrap();
+
+        assert_ne!(
+            result_a, result_b,
+            "performance_preference must influence encryption scheme for random data"
+        );
+    }
+
+    #[test]
+    fn test_hardware_acceleration_influences_encryption_scheme() {
+        let data = b"test data for hardware influence";
+
+        let config_a = CoreConfig::new()
+            .with_hardware_acceleration(false)
+            .with_security_level(SecurityLevel::High);
+        let result_a = CryptoPolicyEngine::select_encryption_scheme(data, &config_a, None).unwrap();
+
+        let config_b = CoreConfig::new()
+            .with_hardware_acceleration(true)
+            .with_security_level(SecurityLevel::High);
+        let result_b = CryptoPolicyEngine::select_encryption_scheme(data, &config_b, None).unwrap();
+
+        assert_ne!(
+            result_a, result_b,
+            "hardware_acceleration must influence encryption scheme selection"
+        );
     }
 }

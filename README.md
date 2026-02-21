@@ -13,7 +13,7 @@ LatticeArc is a post-quantum cryptography library for Rust that implements all f
 
 - **All four NIST standards** — ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (FIPS 206)
 - **Hybrid by default** — PQ + classical, per [NIST SP 800-227](https://csrc.nist.gov/pubs/sp/800/227/final). If *either* algorithm holds, your data is safe
-- **24 use cases** with automatic algorithm selection — from IoT to government classified
+- **22 use cases** with automatic algorithm selection — from IoT to government classified
 - **Zero-trust sessions** — per-operation authentication before any crypto operation
 - **Formal verification** — 29 Kani proofs, 40+ Proptest property tests, SAW-verified primitives (via aws-lc-rs)
 - **FIPS 140-3 ready** — `--features fips` enables the validated aws-lc-rs backend
@@ -161,7 +161,7 @@ let encrypted = encrypt(data, &key, CryptoConfig::new()
 | `GovernmentClassified` | Hybrid (ML-KEM-1024 + AES-256-GCM) | — |
 | `IoTDevice` | Hybrid (ML-KEM-512 + AES-256-GCM) | Hybrid (ML-DSA-44 + Ed25519) |
 
-> **24 use cases supported.** See [Unified API Guide](docs/UNIFIED_API_GUIDE.md) for the complete list including cloud storage, VPN, blockchain, firmware signing, and more.
+> **22 use cases supported.** See [Unified API Guide](docs/UNIFIED_API_GUIDE.md) for the complete list including cloud storage, VPN, blockchain, firmware signing, and more.
 
 ### By Security Level
 
