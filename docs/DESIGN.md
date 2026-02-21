@@ -200,11 +200,14 @@ LatticeArc provides the zero-trust authentication framework including challenge 
 
 ## Proof Complexity Levels
 
-| Level | Challenge Size | Signed Data | Output |
-|-------|---------------|-------------|--------|
-| **Low** | 32 bytes | Challenge only | Signature |
-| **Medium** | 64 bytes | Challenge + Timestamp | Signature + Timestamp |
-| **High** | 128 bytes | Challenge + Timestamp + Public Key | Signature + Timestamp |
+```mermaid
+flowchart LR
+    LOW["Low (32B)\nChallenge → Sign"] --> MED["Medium (64B)\nChallenge + Timestamp → Sign"]
+    MED --> HIGH["High (128B)\nChallenge + Timestamp + PubKey → Sign"]
+
+    classDef level fill:#4a90d9,stroke:#333,color:#fff
+    class LOW,MED,HIGH level
+```
 
 ## Hardware Acceleration
 
@@ -419,19 +422,19 @@ DEFAULT_SIGNATURE_SCHEME  = "hybrid-ml-dsa-65-ed25519"
 
 ## Error Handling
 
-All errors funnel into `LatticeArcError` (from `latticearc::prelude`):
+```mermaid
+flowchart LR
+    CORE[CoreError] -->|From| LA[LatticeArcError]
+    PRIM[PrimitivesError] -->|From| LA
+    TLS[TlsError] -->|From| LA
 
-| Variant | When |
-|---------|------|
-| `InvalidKey` | Wrong key type or corrupted key |
-| `InvalidInput` | Bad parameters or data |
-| `InvalidKeyLength` | Key too short/long for algorithm |
-| `EncryptionError` | Encrypt/decrypt failure |
-| `AuthenticationFailed` | Signature/session verification failed |
-| `EntropyDepleted` | System RNG unavailable |
-| `ConfigurationError` | Invalid config combination |
+    LA --> V["InvalidKey · InvalidInput\nEncryptionError · AuthenticationFailed\nConfigurationError · EntropyDepleted"]
 
-Internal errors (`CoreError`, `PrimitivesError`, `TlsError`) auto-convert via `From`.
+    classDef base fill:#4a90d9,stroke:#333,color:#fff
+    classDef src fill:#f5a623,stroke:#333,color:#fff
+    class LA base
+    class CORE,PRIM,TLS src
+```
 
 ## Feature Flags
 
@@ -444,16 +447,31 @@ Internal errors (`CoreError`, `PrimitivesError`, `TlsError`) auto-convert via `F
 
 ## Testing Strategy
 
-| Type | Tool | Scope |
-|------|------|-------|
-| Unit tests | `cargo test` | All modules |
-| Integration tests | `latticearc-tests` | CAVP vectors, KAT, end-to-end |
-| Property tests | Proptest (40+ tests) | Crypto roundtrip, key independence |
-| Formal verification | Kani (29 proofs) | Type invariants in `latticearc::types` |
-| Fuzz tests | cargo-fuzz (28 targets) | Edge cases via random mutation |
-| Benchmarks | criterion | Performance regression tracking |
+```mermaid
+flowchart LR
+    subgraph "Correctness"
+        UNIT[Unit + Integration]
+        PROP[Proptest\n40+ properties]
+        KANI[Kani\n29 proofs]
+    end
 
-**Coverage target:** 80% minimum, enforced in CI (GitHub Actions).
+    subgraph "Robustness"
+        CAVP[CAVP Vectors]
+        FUZZ[Fuzz\n28 targets]
+    end
+
+    UNIT --> COV[80% Coverage]
+    PROP --> COV
+    CAVP --> CI[GitHub Actions]
+    FUZZ --> CI
+    KANI --> CI
+    COV --> CI
+
+    classDef test fill:#4a90d9,stroke:#333,color:#fff
+    classDef gate fill:#10b981,stroke:#059669,color:#fff
+    class UNIT,PROP,KANI,CAVP,FUZZ test
+    class COV,CI gate
+```
 
 ## References
 

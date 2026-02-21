@@ -168,6 +168,19 @@ let is_valid = verify_pq_fn_dsa(message, &signature, &pk, SecurityMode::Unverifi
 
 ## Security Levels
 
+```mermaid
+flowchart LR
+    L1["Level 1-2\nAES-128"] --> STD[Standard]
+    L3["Level 3-4\nAES-192"] --> HIGH["High (default)"]
+    L5["Level 5\nAES-256"] --> MAX[Maximum]
+    L5 --> QTM[Quantum]
+
+    classDef nist fill:#3498db,stroke:#333,color:#fff
+    classDef arc fill:#27ae60,stroke:#333,color:#fff
+    class L1,L3,L5 nist
+    class STD,HIGH,MAX,QTM arc
+```
+
 | NIST Level | Classical Equivalent | LatticeArc Mapping |
 |------------|---------------------|-------------------|
 | 1 | AES-128 key recovery | `SecurityLevel::Standard` |

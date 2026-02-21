@@ -4,6 +4,19 @@ Security best practices for using LatticeArc in production applications.
 
 ## Threat Model
 
+```mermaid
+flowchart LR
+    QC[Quantum Attacks] --> HYBRID[Hybrid PQ+Classical]
+    TIMING[Side Channels] --> CONST[Constant-Time Ops]
+    MEM[Memory Disclosure] --> ZERO[Zeroization]
+    REPLAY[Replay Attacks] --> ZT[Zero-Trust Auth]
+
+    classDef threat fill:#e74c3c,stroke:#333,color:#fff
+    classDef defense fill:#3498db,stroke:#333,color:#fff
+    class QC,TIMING,MEM,REPLAY threat
+    class HYBRID,CONST,ZERO,ZT defense
+```
+
 ### What LatticeArc Protects Against
 
 | Threat | Protection | Mechanism |
@@ -69,11 +82,20 @@ sequenceDiagram
 
 ### Proof Complexity Levels
 
-| Level | Challenge | Signed Data | Output | Protection |
-|-------|-----------|-------------|--------|------------|
-| **Low** | 32 bytes | Challenge only | Signature (64 bytes) | Basic |
-| **Medium** | 64 bytes | Challenge + Timestamp | Signature + Timestamp (72 bytes) | Replay protection |
-| **High** | 128 bytes | Challenge + Timestamp + Public Key | Signature + Timestamp (72 bytes) | Key binding |
+```mermaid
+flowchart LR
+    LOW["Low (32B)\nChallenge → Sign"] --> MED["Medium (64B)\n+ Timestamp"]
+    MED --> HIGH["High (128B)\n+ Public Key"]
+
+    classDef level fill:#3498db,stroke:#333,color:#fff
+    class LOW,MED,HIGH level
+```
+
+| Level | Signed Data | Protection |
+|-------|-------------|------------|
+| **Low** | Challenge only | Basic authentication |
+| **Medium** | Challenge + Timestamp | Replay protection |
+| **High** | Challenge + Timestamp + Public Key | Key binding |
 
 ### Zero-Trust Configuration
 
@@ -166,7 +188,25 @@ let decrypted = decrypt_aes_gcm_with_aad(&encrypted, &key, header, SecurityMode:
 
 ### Encryption
 
-LatticeArc enforces secure defaults — hybrid schemes, auto-generated nonces, authenticated encryption (AES-GCM / ChaCha20-Poly1305). ECB mode, nonce reuse, and unauthenticated encryption are not exposed.
+```mermaid
+flowchart LR
+    subgraph "LatticeArc Defaults"
+        S1[Hybrid schemes]
+        S2[Auto nonces]
+        S3[Authenticated AEAD]
+    end
+
+    subgraph "Not Exposed"
+        I1[ECB mode]
+        I2[Nonce reuse]
+        I3[Unauthenticated]
+    end
+
+    classDef ok fill:#27ae60,stroke:#333,color:#fff
+    classDef bad fill:#e74c3c,stroke:#333,color:#fff
+    class S1,S2,S3 ok
+    class I1,I2,I3 bad
+```
 
 ```rust
 use latticearc::*;
@@ -245,6 +285,16 @@ secret.zeroize();
 ## Algorithm Selection
 
 ### Security Levels
+
+```mermaid
+flowchart LR
+    S["Standard\n128-bit"] --> H["High (default)\n192-bit"]
+    H --> M["Maximum\n256-bit"]
+    M --> Q["Quantum\n256-bit PQ-only"]
+
+    classDef level fill:#3498db,stroke:#333,color:#fff
+    class S,H,M,Q level
+```
 
 | Level | Algorithms | Mode | NIST Level | Use Case |
 |-------|-----------|------|------------|----------|
@@ -380,6 +430,14 @@ For Common Criteria evaluations:
 ## Incident Response
 
 ### Key Compromise
+
+```mermaid
+flowchart LR
+    D[Detect] --> S[Stop] --> G[New Keys] --> R[Revoke] --> N[Notify] --> A[Audit]
+
+    classDef step fill:#3498db,stroke:#333,color:#fff
+    class D,S,G,R,N,A step
+```
 
 1. **Immediately**: Stop using the compromised key
 2. **Generate**: Create new key pairs
