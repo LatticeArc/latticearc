@@ -72,6 +72,14 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 
 29 bounded model checking proofs across 7 files in `latticearc::types` (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
 
+### What Kani does NOT verify
+
+- Encryption/decryption correctness (requires FFI — use proptest)
+- KEM encapsulate/decapsulate consistency (requires FFI — use proptest)
+- Signature sign/verify correctness (requires FFI — use proptest)
+- Constant-time execution (CPU microarchitecture — use aws-lc-rs SAW + `subtle` crate)
+- Side channels, speculative execution, hardware attacks
+
 ### What Kani verifies
 
 #### Key Lifecycle State Machine — `types/key_lifecycle.rs` (5 proofs)
@@ -161,14 +169,6 @@ This is a critical security property — if any two domain constants collide, di
 | `types/domains.rs` | 1 | Domain separation pairwise distinctness |
 | `types/traits.rs` | 1 | VerificationStatus correctness |
 | **Total** | **29** | |
-
-### What Kani does NOT verify
-
-- Encryption/decryption correctness (requires FFI → use proptest)
-- KEM encapsulate/decapsulate consistency (requires FFI → use proptest)
-- Signature sign/verify correctness (requires FFI → use proptest)
-- Constant-time execution (CPU microarchitecture → use aws-lc-rs SAW + `subtle` crate)
-- Side channels, speculative execution, hardware attacks
 
 ## Running Proofs
 

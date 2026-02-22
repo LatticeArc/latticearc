@@ -35,6 +35,37 @@ flowchart LR
 | **Key Management** | Track multiple key types, parameter sets | Unified `generate_keypair()` functions |
 | **Memory Safety** | Manual zeroization of sensitive data | Automatic `Zeroize` on drop |
 
+## Manual vs LatticeArc
+
+### Manual Hybrid Signing (~50 lines)
+
+```rust
+// Generate ML-DSA keypair
+let (pq_pk, pq_sk) = ml_dsa_65::try_keygen()?;
+// Generate Ed25519 keypair
+let ed_sk = SigningKey::generate(&mut OsRng);
+// Sign with both algorithms
+let pq_sig = ml_dsa_65::try_sign(&pq_sk, message, &[])?;
+let ed_sig = ed_sk.sign(message);
+// Return 4 separate components...
+```
+
+### LatticeArc (4 lines)
+
+```rust
+let config = CryptoConfig::new();
+let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
+let signed = sign_with_key(message, &sk, &pk, config.clone())?;
+let is_valid = verify(&signed, config)?;
+```
+
+| Aspect | Manual | LatticeArc |
+|--------|--------|------------|
+| Lines of code | ~50 | 4 |
+| Key management | 4 separate vectors | Single `SignedData` |
+| Algorithm updates | Code changes | Config change |
+| Memory safety | Manual | Automatic |
+
 ### Architecture
 
 ```mermaid
@@ -520,37 +551,6 @@ match sign_with_key(message, &sk, &pk, config) {
     }
 }
 ```
-
-## Manual vs LatticeArc
-
-### Manual Hybrid Signing (~50 lines)
-
-```rust
-// Generate ML-DSA keypair
-let (pq_pk, pq_sk) = ml_dsa_65::try_keygen()?;
-// Generate Ed25519 keypair
-let ed_sk = SigningKey::generate(&mut OsRng);
-// Sign with both algorithms
-let pq_sig = ml_dsa_65::try_sign(&pq_sk, message, &[])?;
-let ed_sig = ed_sk.sign(message);
-// Return 4 separate components...
-```
-
-### LatticeArc (4 lines)
-
-```rust
-let config = CryptoConfig::new();
-let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
-let signed = sign_with_key(message, &sk, &pk, config.clone())?;
-let is_valid = verify(&signed, config)?;
-```
-
-| Aspect | Manual | LatticeArc |
-|--------|--------|------------|
-| Lines of code | ~50 | 4 |
-| Key management | 4 separate vectors | Single `SignedData` |
-| Algorithm updates | Code changes | Config change |
-| Memory safety | Manual | Automatic |
 
 ## Security Considerations
 

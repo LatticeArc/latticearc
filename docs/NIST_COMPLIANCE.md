@@ -46,6 +46,101 @@ graph LR
 
 *ML-DSA uses the `fips204` pure Rust crate. For FIPS 140-3 certification, migration to `aws-lc-rs` is required once the ML-DSA Rust API is stabilized (tracking: aws/aws-lc-rs#773). Our PRs #1029 and #1034 shipped in aws-lc-rs v1.16.0; ML-DSA FIPS API stabilization is still pending.
 
+## FIPS 140-3 Considerations
+
+LatticeArc implements FIPS 203-206 algorithms but is **NOT** FIPS 140-3 validated.
+
+### ComplianceMode
+
+Use `ComplianceMode` to enforce FIPS algorithm constraints at runtime:
+
+```rust
+use latticearc::{encrypt, CryptoConfig, ComplianceMode, UseCase};
+
+// FIPS 140-3: only FIPS-approved algorithms, hybrid allowed
+let config = CryptoConfig::new()
+    .use_case(UseCase::HealthcareRecords)
+    .compliance(ComplianceMode::Fips140_3);
+
+// CNSA 2.0: PQ-only, no classical fallback
+let config = CryptoConfig::new()
+    .compliance(ComplianceMode::Cnsa2_0);
+```
+
+| Mode | FIPS Required | Hybrid | Use Case |
+|------|---------------|--------|----------|
+| `Default` | No | Yes | Development, general use |
+| `Fips140_3` | Yes | Yes | Healthcare, financial, government |
+| `Cnsa2_0` | Yes | No | NSA CNSA 2.0 (PQ-only) |
+
+> **Build requirement:** `ComplianceMode::Fips140_3` and `Cnsa2_0` require `cargo build --features fips`. Setting them without the `fips` feature returns a validation error.
+
+### FIPS 140-3 Certification Path
+
+1. **Use validated modules**: Consider validated hardware or software modules
+2. **Implement self-tests**: Power-up and conditional self-tests
+3. **Approved RNG**: Use DRBG per SP 800-90A
+4. **Key management**: Follow SP 800-57 guidelines
+5. **Audit trail**: Log cryptographic operations
+
+### Self-Tests
+
+FIPS algorithm self-tests are implemented in `latticearc::primitives` (module `self_test`) and run automatically via the `fips-self-test` feature. Validation tests run through the `latticearc-tests` crate:
+
+```bash
+cargo test --package latticearc-tests --all-features
+```
+
+## Hybrid Mode (Recommended)
+
+```mermaid
+flowchart LR
+    subgraph "Hybrid Encryption"
+        PQ[ML-KEM-768]
+        CL[X25519]
+        KDF[HKDF]
+        AES[AES-256-GCM]
+    end
+
+    PQ --> KDF
+    CL --> KDF
+    KDF --> AES
+
+    classDef pq fill:#9b59b6,stroke:#333,color:#fff
+    classDef classical fill:#3498db,stroke:#333,color:#fff
+    classDef derive fill:#f5a623,stroke:#333,color:#fff
+    classDef aead fill:#27ae60,stroke:#333,color:#fff
+
+    class PQ pq
+    class CL classical
+    class KDF derive
+    class AES aead
+```
+
+During the transition period, use hybrid encryption:
+
+```rust
+use latticearc::*;
+use latticearc::unified_api::selector::*;
+
+// Default schemes are hybrid
+DEFAULT_ENCRYPTION_SCHEME  // "hybrid-ml-kem-768-aes-256-gcm"
+DEFAULT_SIGNATURE_SCHEME   // "hybrid-ml-dsa-65-ed25519"
+
+// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
+let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&hybrid_pk), CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig::new())?;
+```
+
+### Timeline Recommendations
+
+| Year | Recommendation |
+|------|----------------|
+| 2024-2026 | Hybrid mode mandatory for new systems |
+| 2027-2030 | Begin migrating existing systems |
+| 2030+ | PQC-only for most applications |
+
 ## FIPS 203: ML-KEM (Module-Lattice-Based Key Encapsulation)
 
 ### Algorithm Variants
@@ -220,101 +315,6 @@ Test categories:
 | ML-DSA | [NIST ML-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022) |
 | SLH-DSA | [NIST SLH-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022) |
 | FN-DSA | [NIST FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022) |
-
-## FIPS 140-3 Considerations
-
-LatticeArc implements FIPS 203-206 algorithms but is **NOT** FIPS 140-3 validated.
-
-### ComplianceMode
-
-Use `ComplianceMode` to enforce FIPS algorithm constraints at runtime:
-
-```rust
-use latticearc::{encrypt, CryptoConfig, ComplianceMode, UseCase};
-
-// FIPS 140-3: only FIPS-approved algorithms, hybrid allowed
-let config = CryptoConfig::new()
-    .use_case(UseCase::HealthcareRecords)
-    .compliance(ComplianceMode::Fips140_3);
-
-// CNSA 2.0: PQ-only, no classical fallback
-let config = CryptoConfig::new()
-    .compliance(ComplianceMode::Cnsa2_0);
-```
-
-| Mode | FIPS Required | Hybrid | Use Case |
-|------|---------------|--------|----------|
-| `Default` | No | Yes | Development, general use |
-| `Fips140_3` | Yes | Yes | Healthcare, financial, government |
-| `Cnsa2_0` | Yes | No | NSA CNSA 2.0 (PQ-only) |
-
-> **Build requirement:** `ComplianceMode::Fips140_3` and `Cnsa2_0` require `cargo build --features fips`. Setting them without the `fips` feature returns a validation error.
-
-### FIPS 140-3 Certification Path
-
-1. **Use validated modules**: Consider validated hardware or software modules
-2. **Implement self-tests**: Power-up and conditional self-tests
-3. **Approved RNG**: Use DRBG per SP 800-90A
-4. **Key management**: Follow SP 800-57 guidelines
-5. **Audit trail**: Log cryptographic operations
-
-### Self-Tests
-
-FIPS algorithm self-tests are implemented in `latticearc::primitives` (module `self_test`) and run automatically via the `fips-self-test` feature. Validation tests run through the `latticearc-tests` crate:
-
-```bash
-cargo test --package latticearc-tests --all-features
-```
-
-## Hybrid Mode (Recommended)
-
-```mermaid
-flowchart LR
-    subgraph "Hybrid Encryption"
-        PQ[ML-KEM-768]
-        CL[X25519]
-        KDF[HKDF]
-        AES[AES-256-GCM]
-    end
-
-    PQ --> KDF
-    CL --> KDF
-    KDF --> AES
-
-    classDef pq fill:#9b59b6,stroke:#333,color:#fff
-    classDef classical fill:#3498db,stroke:#333,color:#fff
-    classDef derive fill:#f5a623,stroke:#333,color:#fff
-    classDef aead fill:#27ae60,stroke:#333,color:#fff
-
-    class PQ pq
-    class CL classical
-    class KDF derive
-    class AES aead
-```
-
-During the transition period, use hybrid encryption:
-
-```rust
-use latticearc::*;
-use latticearc::unified_api::selector::*;
-
-// Default schemes are hybrid
-DEFAULT_ENCRYPTION_SCHEME  // "hybrid-ml-kem-768-aes-256-gcm"
-DEFAULT_SIGNATURE_SCHEME   // "hybrid-ml-dsa-65-ed25519"
-
-// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
-let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
-let encrypted = encrypt(data, EncryptKey::Hybrid(&hybrid_pk), CryptoConfig::new())?;
-let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig::new())?;
-```
-
-### Timeline Recommendations
-
-| Year | Recommendation |
-|------|----------------|
-| 2024-2026 | Hybrid mode mandatory for new systems |
-| 2027-2030 | Begin migrating existing systems |
-| 2030+ | PQC-only for most applications |
 
 ## Interoperability
 

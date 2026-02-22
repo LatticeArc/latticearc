@@ -91,6 +91,58 @@ graph TB
 - All modules consolidated into single `latticearc` crate (was 8 separate crates)
 - **`latticearc-tests`** consolidates all integration tests, CAVP validation, and NIST KAT vectors
 
+## Key Design Decisions
+
+### 1. No Unsafe Code
+
+```rust
+#![forbid(unsafe_code)]
+```
+
+All cryptographic operations use safe Rust, eliminating memory safety vulnerabilities.
+
+### 2. No Panics in Library Code
+
+```rust
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
+#![deny(clippy::panic)]
+```
+
+All operations return `Result<T, E>`. Callers must handle errors explicitly.
+
+### 3. Constant-Time by Default
+
+```rust
+use subtle::ConstantTimeEq;
+
+// All secret comparisons use constant-time operations
+fn verify_mac(computed: &[u8], received: &[u8]) -> bool {
+    computed.ct_eq(received).into()
+}
+```
+
+### 4. Automatic Zeroization
+
+```rust
+use zeroize::ZeroizeOnDrop;
+
+#[derive(ZeroizeOnDrop)]
+struct SecretKey {
+    data: [u8; 32],
+}
+// Automatically zeroized when dropped
+```
+
+### 5. Hybrid by Default
+
+All default schemes are hybrid (PQ + classical) for defense-in-depth:
+
+```
+DEFAULT_ENCRYPTION_SCHEME = "hybrid-ml-kem-768-aes-256-gcm"
+DEFAULT_SIGNATURE_SCHEME  = "hybrid-ml-dsa-65-ed25519"
+```
+
 ## API Abstraction Levels
 
 LatticeArc provides multiple abstraction levels:
@@ -367,58 +419,6 @@ Zero-knowledge proof systems:
 - Schnorr proofs
 - Sigma protocols
 - Pedersen commitments
-
-## Key Design Decisions
-
-### 1. No Unsafe Code
-
-```rust
-#![forbid(unsafe_code)]
-```
-
-All cryptographic operations use safe Rust, eliminating memory safety vulnerabilities.
-
-### 2. No Panics in Library Code
-
-```rust
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
-#![deny(clippy::panic)]
-```
-
-All operations return `Result<T, E>`. Callers must handle errors explicitly.
-
-### 3. Constant-Time by Default
-
-```rust
-use subtle::ConstantTimeEq;
-
-// All secret comparisons use constant-time operations
-fn verify_mac(computed: &[u8], received: &[u8]) -> bool {
-    computed.ct_eq(received).into()
-}
-```
-
-### 4. Automatic Zeroization
-
-```rust
-use zeroize::ZeroizeOnDrop;
-
-#[derive(ZeroizeOnDrop)]
-struct SecretKey {
-    data: [u8; 32],
-}
-// Automatically zeroized when dropped
-```
-
-### 5. Hybrid by Default
-
-All default schemes are hybrid (PQ + classical) for defense-in-depth:
-
-```
-DEFAULT_ENCRYPTION_SCHEME = "hybrid-ml-kem-768-aes-256-gcm"
-DEFAULT_SIGNATURE_SCHEME  = "hybrid-ml-dsa-65-ed25519"
-```
 
 ## Error Handling
 

@@ -49,6 +49,59 @@ flowchart TB
 
 ---
 
+## Migration Guide
+
+### From OpenSSL
+
+```c
+// Before (OpenSSL — 8 lines, manual memory management)
+EVP_PKEY *key = EVP_PKEY_new();
+EVP_PKEY_assign_RSA(key, RSA_generate_key(2048, 65537, NULL, NULL));
+unsigned char *encrypted = malloc(256);
+int encrypted_len = RSA_public_encrypt(data_len, data, encrypted,
+    EVP_PKEY_get0_RSA(key), RSA_PKCS1_OAEP_PADDING);
+```
+
+```rust
+// After (LatticeArc — 2 lines, quantum-safe)
+let key = [0u8; 32];
+let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+```
+
+### From libsodium
+
+```c
+// Before (libsodium)
+unsigned char pk[crypto_box_PUBLICKEYBYTES], sk[crypto_box_SECRETKEYBYTES];
+crypto_box_keypair(pk, sk);
+crypto_box_easy(encrypted, msg, msg_len, nonce, pk, sk);
+```
+
+```rust
+// After (LatticeArc — hybrid PQ + classical)
+let (pk, sk) = generate_hybrid_keypair()?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
+```
+
+### From Bouncy Castle (Java)
+
+```java
+// Before (Bouncy Castle)
+KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
+keyGen.initialize(256);
+Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+byte[] encrypted = cipher.doFinal(plaintext);
+```
+
+```rust
+// After (LatticeArc)
+let key = [0u8; 32];
+let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+```
+
+---
+
 ## Unified API
 
 ### Encryption
@@ -321,59 +374,6 @@ pub enum UseCase {
     IoTDevice, FirmwareSigning,
     AuditLog,
 }
-```
-
----
-
-## Migration Guide
-
-### From OpenSSL
-
-```c
-// Before (OpenSSL — 8 lines, manual memory management)
-EVP_PKEY *key = EVP_PKEY_new();
-EVP_PKEY_assign_RSA(key, RSA_generate_key(2048, 65537, NULL, NULL));
-unsigned char *encrypted = malloc(256);
-int encrypted_len = RSA_public_encrypt(data_len, data, encrypted,
-    EVP_PKEY_get0_RSA(key), RSA_PKCS1_OAEP_PADDING);
-```
-
-```rust
-// After (LatticeArc — 2 lines, quantum-safe)
-let key = [0u8; 32];
-let encrypted = encrypt(data, &key, CryptoConfig::new())?;
-```
-
-### From libsodium
-
-```c
-// Before (libsodium)
-unsigned char pk[crypto_box_PUBLICKEYBYTES], sk[crypto_box_SECRETKEYBYTES];
-crypto_box_keypair(pk, sk);
-crypto_box_easy(encrypted, msg, msg_len, nonce, pk, sk);
-```
-
-```rust
-// After (LatticeArc — hybrid PQ + classical)
-let (pk, sk) = generate_hybrid_keypair()?;
-let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
-```
-
-### From Bouncy Castle (Java)
-
-```java
-// Before (Bouncy Castle)
-KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
-keyGen.initialize(256);
-Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-byte[] encrypted = cipher.doFinal(plaintext);
-```
-
-```rust
-// After (LatticeArc)
-let key = [0u8; 32];
-let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 ```
 
 ---

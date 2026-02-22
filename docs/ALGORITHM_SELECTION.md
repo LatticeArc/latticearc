@@ -140,6 +140,43 @@ Payment processing at 10,000 tx/sec:
 
 ---
 
+## Excluded Algorithms
+
+### Pre-Standard (Superseded)
+
+| Algorithm | Replaced By | Status |
+|-----------|------------|--------|
+| CRYSTALS-Kyber | ML-KEM (FIPS 203) | AWS deprecating 2026 |
+| CRYSTALS-Dilithium | ML-DSA (FIPS 204) | Pre-standard, all vendors migrating |
+| SPHINCS+ | SLH-DSA (FIPS 205) | Parameter set changes in FIPS 205 |
+
+### NIST Alternate Candidates (Not Yet Standardized)
+
+| Algorithm | Type | Why Excluded | Future |
+|-----------|------|-------------|--------|
+| BIKE | Code-based KEM | Not standardized | Add if NIST Round 5+ |
+| HQC | Code-based KEM | Not standardized | Add if NIST Round 5+ |
+| Classic McEliece | Code-based KEM | 260 KB public key — impractical | May add as optional feature |
+
+### Broken
+
+| Algorithm | Status |
+|-----------|--------|
+| SIKE | Broken in 1 hour on single CPU (2022) |
+| Rainbow | Broken by cryptanalysis (2022) |
+
+### Legacy (Outperformed)
+
+| Algorithm | Why Excluded |
+|-----------|-------------|
+| RSA-2048/3072/4096 | 50x slower than Ed25519, huge keys |
+| P-256/P-384/P-521 ECDSA | 5x slower, timing vulnerability history, NSA curve concerns |
+| DSA | Deprecated in FIPS 186-5 |
+| secp256k1 | Bitcoin-specific, not FIPS-approved |
+| Ed448 | Ed25519 covers 99% of EdDSA usage; ML-DSA covers Level 5 |
+
+---
+
 ## Backend Selection
 
 ```mermaid
@@ -262,43 +299,6 @@ Formally verified by Kani (exhaustive over all variants).
 **Hybrid ML-DSA-65 + Ed25519:** Public key 1984 bytes (1952 + 32), signature 3373 bytes (3309 + 64).
 
 *Source: Benchmarks on Intel i7-1185G7 (Tiger Lake)*
-
----
-
-## Excluded Algorithms
-
-### Pre-Standard (Superseded)
-
-| Algorithm | Replaced By | Status |
-|-----------|------------|--------|
-| CRYSTALS-Kyber | ML-KEM (FIPS 203) | AWS deprecating 2026 |
-| CRYSTALS-Dilithium | ML-DSA (FIPS 204) | Pre-standard, all vendors migrating |
-| SPHINCS+ | SLH-DSA (FIPS 205) | Parameter set changes in FIPS 205 |
-
-### NIST Alternate Candidates (Not Yet Standardized)
-
-| Algorithm | Type | Why Excluded | Future |
-|-----------|------|-------------|--------|
-| BIKE | Code-based KEM | Not standardized | Add if NIST Round 5+ |
-| HQC | Code-based KEM | Not standardized | Add if NIST Round 5+ |
-| Classic McEliece | Code-based KEM | 260 KB public key — impractical | May add as optional feature |
-
-### Broken
-
-| Algorithm | Status |
-|-----------|--------|
-| SIKE | Broken in 1 hour on single CPU (2022) |
-| Rainbow | Broken by cryptanalysis (2022) |
-
-### Legacy (Outperformed)
-
-| Algorithm | Why Excluded |
-|-----------|-------------|
-| RSA-2048/3072/4096 | 50x slower than Ed25519, huge keys |
-| P-256/P-384/P-521 ECDSA | 5x slower, timing vulnerability history, NSA curve concerns |
-| DSA | Deprecated in FIPS 186-5 |
-| secp256k1 | Bitcoin-specific, not FIPS-approved |
-| Ed448 | Ed25519 covers 99% of EdDSA usage; ML-DSA covers Level 5 |
 
 ---
 

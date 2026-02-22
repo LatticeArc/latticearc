@@ -9,6 +9,20 @@
 
 LatticeArc is a post-quantum cryptography library for Rust that implements all four NIST FIPS 203-206 standards. It defaults to hybrid mode (PQ + classical) so your data stays protected even if a flaw is found in any single algorithm, and ships as a single crate with a minimal, use-case-driven API.
 
+## Why Post-Quantum Cryptography?
+
+Today's public-key cryptography (RSA, ECC) will be broken by quantum computers running Shor's algorithm. While large-scale quantum computers don't exist yet, **data captured today can be decrypted in the future** — a threat known as "harvest now, decrypt later." NIST has standardized four quantum-resistant algorithm families (FIPS 203-206) to address this, with a [2035 migration deadline](https://csrc.nist.gov/projects/post-quantum-cryptography).
+
+### Why Hybrid?
+
+ML-KEM and ML-DSA were standardized in 2024 — they're mathematically sound but young. [NIST SP 800-227](https://csrc.nist.gov/pubs/sp/800/227/final) recommends hybrid schemes that combine PQ + classical algorithms:
+
+- **If a flaw is found in ML-KEM** → X25519 still protects your key exchange
+- **If ECC is broken by a quantum computer** → ML-KEM still protects your key exchange
+- **Both must fail** for an attacker to succeed
+
+LatticeArc defaults to hybrid everywhere — encryption, signatures, and TLS key exchange.
+
 ## Highlights
 
 - **All four NIST standards** — ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (FIPS 206)
@@ -21,11 +35,9 @@ LatticeArc is a post-quantum cryptography library for Rust that implements all f
 
 ## Quick Start
 
-Requires Rust 1.93+ and a C compiler. See [Build Prerequisites](#build-prerequisites) for details.
-
 ```toml
 [dependencies]
-latticearc = "0.2"
+latticearc = "0.3"
 ```
 
 ### Encryption
@@ -50,49 +62,6 @@ let signed = sign_with_key(b"document", &sk, &pk, config.clone())?;
 let is_valid = verify(&signed, config)?;
 ```
 
-## Hybrid Encryption & Signatures
-
-LatticeArc defaults to **hybrid cryptography** (PQ + classical) as recommended by [NIST SP 800-227](https://csrc.nist.gov/pubs/sp/800/227/final):
-
-> "Organizations may choose to implement hybrid solutions... to provide additional assurance during the transition period."
-
-```mermaid
-flowchart LR
-    P[Plaintext]
-    KEM[ML-KEM-768]
-    AES[AES-256-GCM]
-    OUT[Protected Output]
-
-    P --> KEM
-    P --> AES
-    KEM --> OUT
-    AES --> OUT
-
-    style P fill:#3b82f6,stroke:#1d4ed8,color:#fff
-    style KEM fill:#8b5cf6,stroke:#6d28d9,color:#fff
-    style AES fill:#f59e0b,stroke:#d97706,color:#fff
-    style OUT fill:#10b981,stroke:#059669,color:#fff
-```
-
-> **Defense in depth**: If *either* algorithm remains secure, your data is protected.
-
-**Why not PQ-only?** ML-KEM/ML-DSA are new (standardized 2024). Hybrid provides defense-in-depth: if a flaw is discovered in the PQ algorithm, classical crypto still protects your data.
-
-### Hybrid Encryption
-
-```rust
-use latticearc::{encrypt, decrypt, generate_hybrid_keypair, CryptoConfig, EncryptKey, DecryptKey};
-
-// Generate hybrid keypair (ML-KEM-768 + X25519)
-let (pk, sk) = generate_hybrid_keypair()?;
-
-// Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM)
-let encrypted = encrypt(b"sensitive data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
-
-// Decrypt
-let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
-```
-
 ### Hybrid Signatures
 
 ```rust
@@ -107,6 +76,38 @@ let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
 // Verify (both must pass for signature to be valid)
 let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
 ```
+
+## Build Prerequisites
+
+Requires Rust 1.93+ and a C/C++ compiler. For FIPS builds, also CMake and Go.
+
+### Default Build
+
+```bash
+rustc --version && cc --version
+cargo build
+```
+
+### FIPS Build (`--features fips`)
+
+```bash
+# macOS
+brew install cmake go
+
+# Ubuntu/Debian
+sudo apt install cmake golang-go build-essential
+
+# Build with FIPS-validated backend
+cargo build --features fips
+```
+
+| Error | Fix |
+|-------|-----|
+| `CMake not found` | Install CMake and ensure it's on your `PATH` (FIPS builds only) |
+| `Go not found` | Install Go 1.18+ and ensure `go` is on your `PATH` (FIPS builds only) |
+| `cc not found` (Linux) | `sudo apt install build-essential` or `sudo dnf install gcc-c++` |
+| Linker errors on macOS | `xcode-select --install` for Command Line Tools |
+| Long initial build | First build compiles AWS-LC from source (~2-3 min). Subsequent builds use cached artifacts. |
 
 ## Algorithm Selection
 
@@ -167,14 +168,6 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
 
 ### By Security Level
 
-```rust
-use latticearc::{encrypt, CryptoConfig, SecurityLevel, EncryptKey};
-
-let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
-let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
-    .security_level(SecurityLevel::Maximum))?;
-```
-
 | Level | Mode | Encryption | Signatures | NIST Level |
 |-------|------|------------|------------|------------|
 | `Quantum` | PQ-only | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 | 5 |
@@ -182,11 +175,7 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
 | `High` (default) | Hybrid | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 | 3 |
 | `Standard` | Hybrid | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 | 1 |
 
-> **Note:** `Quantum` mode uses PQ-only algorithms (no classical fallback) for CNSA 2.0 compliance. For complete security level documentation, see [docs/UNIFIED_API_GUIDE.md](docs/UNIFIED_API_GUIDE.md).
-
 ### Compliance Modes
-
-LatticeArc provides compile-time and runtime compliance controls for regulated environments:
 
 | Mode | FIPS Required | Hybrid Allowed | Use Case |
 |------|---------------|----------------|----------|
@@ -203,44 +192,13 @@ let config = CryptoConfig::new()
     .use_case(UseCase::HealthcareRecords)
     .compliance(ComplianceMode::Fips140_3);
 let encrypted = encrypt(b"patient data", EncryptKey::Hybrid(&pk), config)?;
-
-// CNSA 2.0 mode (PQ-only, no hybrid)
-let config = CryptoConfig::new()
-    .compliance(ComplianceMode::Cnsa2_0);
 ```
 
-```bash
-# Build with FIPS-validated backend (requires CMake + Go)
-cargo build --features fips
-```
-
-> **Compile-time vs runtime:** The `fips` feature flag enables the FIPS 140-3 validated aws-lc-rs backend. `ComplianceMode` provides runtime algorithm constraints on top of that. Setting `Fips140_3` or `Cnsa2_0` without the `fips` feature returns a validation error with a helpful rebuild message.
-
-For detailed compliance documentation, see [FIPS Security Policy](docs/FIPS_SECURITY_POLICY.md) and [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md#compliance-modes).
+> **Compile-time vs runtime:** The `fips` feature flag enables the FIPS 140-3 validated aws-lc-rs backend. `ComplianceMode` provides runtime algorithm constraints on top of that. See [NIST Compliance](docs/NIST_COMPLIANCE.md) for details.
 
 ## Zero Trust Sessions
 
 Use verified sessions to enforce authentication before each crypto operation:
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant V as Verifier
-
-    Note over C,V: 1. Session Establishment
-    V->>C: challenge
-    C->>V: proof (signed)
-    V->>V: verify proof
-    V-->>C: VerifiedSession
-
-    Note over C,V: 2. Crypto Operation
-    C->>C: encrypt(data, config.session)
-    alt Session Valid
-        C->>C: Proceed
-    else Session Expired
-        C-->>C: Error
-    end
-```
 
 ```rust
 use latticearc::{encrypt, generate_keypair, CryptoConfig, VerifiedSession, EncryptKey};
@@ -266,93 +224,40 @@ let config = TlsConfig::new()
 | Use Case | TLS Mode | Key Exchange |
 |----------|----------|--------------|
 | `WebServer` | Hybrid | X25519 + ML-KEM-768 |
-| `InternalService` | Hybrid | X25519 + ML-KEM-768 |
-| `ApiGateway` | Hybrid | X25519 + ML-KEM-768 |
 | `FinancialServices` | Hybrid | X25519 + ML-KEM-768 |
 | `Healthcare` | Hybrid | X25519 + ML-KEM-768 |
-| `DatabaseConnection` | Hybrid | X25519 + ML-KEM-768 |
 | `Government` | PQ-only | ML-KEM-1024 |
 | `IoT` | Classic | X25519 |
-| `LegacyIntegration` | Classic | X25519 |
-| `RealTimeStreaming` | Classic | X25519 |
+
+> See [Unified API Guide](docs/UNIFIED_API_GUIDE.md) for the full 10-case TLS table.
 
 ## Algorithms & Backends
 
-LatticeArc uses NIST-standardized post-quantum algorithms (FIPS 203-206) with carefully chosen classical algorithms for hybrid mode.
+| Category | Algorithms | Backend |
+|----------|-----------|---------|
+| **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs (FIPS 140-3 validated) |
+| **PQ Signatures** | ML-DSA-44/65/87 (FIPS 204) | fips204 |
+| **PQ Hash Signatures** | SLH-DSA (FIPS 205) | fips205 |
+| **PQ Lattice Signatures** | FN-DSA-512/1024 (FIPS 206) | fn-dsa |
+| **Classical Signatures** | Ed25519 | ed25519-dalek (audited) |
+| **Classical Key Exchange** | X25519 | aws-lc-rs |
+| **Symmetric Encryption** | AES-256-GCM, ChaCha20-Poly1305 | aws-lc-rs, chacha20poly1305 |
 
-### Post-Quantum
+> With `--features fips`, aws-lc-rs operations run through the FIPS 140-3 validated module. For detailed rationale and ecosystem positioning, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md).
 
-- ML-KEM-512/768/1024 (FIPS 203) - Key encapsulation
-- ML-DSA-44/65/87 (FIPS 204) - Digital signatures
-- SLH-DSA (FIPS 205) - Stateless hash-based signatures
-- FN-DSA-512/1024 (FIPS 206) - Fast lattice signatures
+## Verification
 
-### Classical (Hybrid Mode)
+Correctness is verified at three layers:
 
-- **Ed25519** for signatures - 5x faster than P-256 ECDSA, FIPS 186-5 approved (2023)
-- **X25519** for key exchange - TLS 1.3 standard
-- **AES-256-GCM** - Hardware-accelerated via aws-lc-rs
-- **ChaCha20-Poly1305** - Software-friendly alternative
+| Layer | Tool | What it proves |
+|-------|------|----------------|
+| **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | Mathematical correctness of C implementations |
+| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Roundtrip, non-malleability, key independence |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (29 proofs) | State machine rules, config validation, domain separation |
 
-### Why Ed25519 Instead of P-256 ECDSA?
-
-| Metric | Ed25519 | P-256 ECDSA |
-|--------|---------|-------------|
-| Signing speed | 16,000 ops/sec | 3,000 ops/sec |
-| Side-channel resistance | Built-in | Requires careful implementation |
-| FIPS 186-5 approved | Yes | Yes |
-| Implementation safety | Deterministic nonces | Random nonces (RNG failure = key leak) |
-
-### What We Skip
-
-**Pre-standard algorithms:** CRYSTALS-Kyber, CRYSTALS-Dilithium (superseded by ML-KEM/ML-DSA)
-
-**Broken algorithms:** SIKE, Rainbow (cryptanalyzed)
-
-**Legacy algorithms:** RSA (50x slower), DSA (deprecated)
-
-**Why?** We follow NIST's 2026 migration timeline and focus on standardized, production-ready algorithms.
-
-### Backend Selection
-
-- **ML-KEM, AES-GCM, HKDF, X25519:** aws-lc-rs
-- **ML-DSA:** fips204 (awaiting aws-lc-rs stabilization)
-- **SLH-DSA:** fips205 (NIST-compliant)
-- **FN-DSA:** fn-dsa (FIPS 206)
-- **Ed25519:** ed25519-dalek (audited, constant-time)
-
-> With `--features fips`, aws-lc-rs operations (ML-KEM, AES-GCM, HKDF, X25519) run through the FIPS 140-3 validated module. Without this flag, the same algorithms run through aws-lc-rs's default (non-FIPS) backend. See [Compliance Modes](#compliance-modes).
-
-For detailed rationale, performance comparisons, and ecosystem positioning, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md).
-
-## Verification Strategy
-
-Correctness is verified at three layers, each with the right tool for the job:
-
-| Layer | Tool | Scope | What it proves |
-|-------|------|-------|----------------|
-| **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
-| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
-| **Type invariants** | [Kani](https://github.com/model-checking/kani) (29 proofs) | `latticearc::types` (pure Rust) | State machine rules, config validation, domain separation, enum exhaustiveness, ordering, defaults |
-
-**SAW (inherited):** We don't run SAW ourselves — aws-lc-rs provides [verified implementations](https://github.com/awslabs/aws-lc-verification) of the underlying primitives.
-
-**Proptest (API-level crypto):** 40+ property-based tests in `tests/tests/proptest_*.rs`, each running 256 random cases in release mode. These verify that our Rust wrappers correctly compose the verified primitives — encrypt/decrypt roundtrip, KEM encapsulate/decapsulate consistency, signature sign/verify, FIPS 203 key sizes, and scheme selector determinism.
-
-**Kani (type invariants):** 29 bounded model checking proofs in `latticearc::types`, run nightly and weekly via CI (plus manual dispatch). These do **not** verify cryptographic operations (which require FFI). They verify the pure-Rust policy and state management layer:
-
-- **Key lifecycle** (5 proofs): SP 800-57 state machine — destroyed keys can't transition, no backward transitions, retired keys can only be destroyed
-- **Configuration validation** (6 proofs): CoreConfig bi-conditional validation over all 96 combinations, factory presets, encryption compression/integrity, signature chain/timestamp
-- **Policy engine** (5 proofs): every `CryptoScheme` and `SecurityLevel` variant maps to a valid algorithm, hybrid/general encryption and signature selection completeness
-- **Compliance** (3 proofs): ComplianceMode `requires_fips()` and `allows_hybrid()` exhaustive, PerformancePreference default is Balanced
-- **Trust levels** (4 proofs): total ordering, `is_trusted()` iff level >= Partial, `is_fully_trusted()` correctness
-- **Domain separation** (1 proof): all 4 HKDF domain constants are pairwise distinct (collision = key reuse)
-- **Verification status** (1 proof): `is_verified()` returns true iff Verified variant
-- **Defaults** (4 proofs): `SecurityLevel::default()` is `High`, ComplianceMode default is Unrestricted, CNSA 2.0 requires FIPS, CNSA 2.0 disallows hybrid
+See [Formal Verification](docs/FORMAL_VERIFICATION.md) for the complete proof inventory.
 
 ## Security
-
-LatticeArc builds on audited cryptographic libraries:
 
 | Component | Backend | Status |
 |-----------|---------|--------|
@@ -363,27 +268,29 @@ LatticeArc builds on audited cryptographic libraries:
 | Ed25519 | `ed25519-dalek` | Audited |
 | TLS | `rustls` | Audited by Cure53 |
 
-### Upstream Contributions
+### Limitations
 
-We actively contribute to the cryptographic ecosystem:
+- **Not FIPS 140-3 certified** — aws-lc-rs provides a validated backend; LatticeArc itself has not undergone CMVP validation (FIPS-ready: module integrity test implemented, KAT suite complete)
+- **Not independently audited** — We welcome security researchers to review our code
+- **Pre-1.0 software** — API may change between versions
+
+### Upstream Contributions
 
 - **[aws-lc-rs#1029](https://github.com/aws/aws-lc-rs/pull/1029)** — ML-KEM `DecapsulationKey` serialization (shipped in v1.16.0)
 - **[aws-lc-rs#1034](https://github.com/aws/aws-lc-rs/pull/1034)** — ML-DSA seed-based deterministic keygen (shipped in v1.16.0)
 
-These contributions, now shipping in aws-lc-rs v1.16.0, enable FIPS-validated serialization and deterministic key generation for post-quantum algorithms, benefiting the entire Rust cryptography community.
+Report security issues to: Security@LatticeArc.com — see [SECURITY.md](SECURITY.md).
 
-### Limitations
+## Runnable Examples
 
-- **Not FIPS 140-3 certified** — With `--features fips`, aws-lc-rs provides a FIPS-validated backend for ML-KEM/AES-GCM/HKDF/X25519. LatticeArc itself has not undergone CMVP validation
-  - **FIPS-ready**: Module integrity test (Section 9.2.2) implemented, KAT suite complete, ready for certification when needed
-- **Not independently audited** — We welcome security researchers to review our code
-- **Pre-1.0 software** — API may change between versions
+```bash
+cargo run --example basic_encryption
+cargo run --example hybrid_encryption
+cargo run --example unified_api
+cargo run --example zero_knowledge_proofs
+```
 
-### Reporting Vulnerabilities
-
-Report security issues to: Security@LatticeArc.com
-
-See [SECURITY.md](SECURITY.md) for our security policy.
+> See `latticearc/examples/` for the full list: `digital_signatures`, `true_hybrid_encryption`, `post_quantum_signatures`, `tls_policy`, `complete_secure_workflow`, `comprehensive_benchmark`.
 
 ## Crate Structure
 
@@ -400,89 +307,6 @@ See [SECURITY.md](SECURITY.md) for our security policy.
 | `latticearc::perf` | Performance benchmarking utilities |
 | [`latticearc-tests`](tests/) | CAVP, KAT, integration tests (dev-only, not published) |
 
-## Runnable Examples
-
-The `latticearc` crate includes comprehensive examples demonstrating the API:
-
-- `basic_encryption.rs` - Simple symmetric encryption with AES-256-GCM
-- `digital_signatures.rs` - Digital signatures with ML-DSA and hybrid modes
-- `hybrid_encryption.rs` - Hybrid encryption (ML-KEM + X25519 + HKDF)
-- `true_hybrid_encryption.rs` - True hybrid KEM encryption with dual key exchange
-- `post_quantum_signatures.rs` - Post-quantum signature schemes
-- `unified_api.rs` - Unified API with use cases and security levels
-- `tls_policy.rs` - TLS policy engine and use case configuration
-- `complete_secure_workflow.rs` - End-to-end secure workflow with Zero Trust
-- `zero_knowledge_proofs.rs` - Zero-knowledge proof demonstrations
-
-Run an example with:
-```bash
-cargo run --example basic_encryption
-cargo run --example digital_signatures
-```
-
-## Build Prerequisites
-
-LatticeArc uses [aws-lc-rs](https://github.com/aws/aws-lc-rs) for core cryptographic operations (ML-KEM, AES-256-GCM, HKDF, X25519). Post-quantum signatures use dedicated NIST-compliant crates (`fips204`, `fips205`, `fn-dsa`) and classical signatures use `ed25519-dalek` (audited). See [Backend Selection](#backend-selection) for the full mapping.
-
-### Default Build
-
-Requires only Rust and a C/C++ compiler:
-
-```bash
-# Verify tools
-rustc --version && cc --version
-```
-
-| Tool | Version | Why |
-|------|---------|-----|
-| **Rust** | 1.93+ (latest stable) | 2024 edition features |
-| **C/C++ compiler** | gcc/clang/MSVC | aws-lc-rs compiles AWS-LC from C source |
-
-### FIPS Build (`--features fips`)
-
-For FIPS 140-3 compliance, enable the `fips` feature. This uses the FIPS-validated aws-lc-rs backend, which additionally requires CMake and Go:
-
-```bash
-# Install FIPS build dependencies (one-time setup)
-
-# macOS
-brew install cmake go
-
-# Ubuntu/Debian
-sudo apt install cmake golang-go build-essential
-
-# Fedora/RHEL
-sudo dnf install cmake golang gcc-c++
-
-# Arch Linux
-sudo pacman -S cmake go gcc
-
-# Windows (with Chocolatey)
-choco install cmake golang visualstudio2022-workload-vctools
-
-# Build with FIPS-validated backend
-cargo build --features fips
-```
-
-| Tool | Version | Why |
-|------|---------|-----|
-| **CMake** | 3.x | FIPS module build system |
-| **Go** | 1.18+ | FIPS module `delocate` tool (strips relocations for integrity check) |
-
-**Troubleshooting:**
-
-| Error | Fix |
-|-------|-----|
-| `CMake not found` | Install CMake and ensure it's on your `PATH` (FIPS builds only) |
-| `Go not found` | Install Go 1.18+ and ensure `go` is on your `PATH` (FIPS builds only) |
-| `cc not found` (Linux) | `sudo apt install build-essential` or `sudo dnf install gcc-c++` |
-| Linker errors on macOS | `xcode-select --install` for Command Line Tools |
-| Long initial build | First build compiles AWS-LC from source (~2-3 min). Subsequent builds use cached artifacts. |
-
-## Why Post-Quantum Cryptography?
-
-Current public-key cryptography (RSA, ECC) will be broken by quantum computers running Shor's algorithm. While large-scale quantum computers don't exist yet, encrypted data captured today can be decrypted in the future — a threat known as "harvest now, decrypt later." NIST has standardized four quantum-resistant algorithm families (FIPS 203-206) to address this threat, and LatticeArc implements all of them.
-
 ## Documentation
 
 - [API Reference](https://docs.rs/latticearc)
@@ -490,6 +314,7 @@ Current public-key cryptography (RSA, ECC) will be broken by quantum computers r
 - [Architecture](docs/DESIGN.md) — crate structure, design decisions
 - [Security Guide](docs/SECURITY_GUIDE.md) — threat model, secure usage patterns
 - [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
+- [Formal Verification](docs/FORMAL_VERIFICATION.md) — SAW, Proptest, Kani proof inventory
 - [FAQ](docs/FAQ.md)
 
 ## License

@@ -35,6 +35,22 @@ flowchart LR
 - **Implementation bugs**: Despite extensive testing, bugs may exist
 - **Misuse**: Incorrect API usage voids security guarantees
 
+## Security Checklist
+
+Before deploying to production:
+
+- [ ] Using recommended algorithm variants (Level 3+)
+- [ ] Hybrid mode enabled for long-term security
+- [ ] Zero-trust authentication configured
+- [ ] Error handling verified (no unwrap/expect)
+- [ ] Secrets not logged or exposed
+- [ ] Memory zeroization verified
+- [ ] Key rotation mechanism in place
+- [ ] Incident response plan documented
+- [ ] Dependencies audited (`cargo audit`)
+- [ ] Fuzzing performed on custom integrations
+- [ ] Continuous verification enabled for sessions
+
 ## Zero-Trust Authentication
 
 LatticeArc implements zero-trust authentication at the cryptographic operation level.
@@ -451,22 +467,6 @@ flowchart LR
 Report security vulnerabilities according to [SECURITY.md](../SECURITY.md):
 - Do NOT open public issues for security vulnerabilities
 - Expected response within 24 hours
-
-## Security Checklist
-
-Before deploying to production:
-
-- [ ] Using recommended algorithm variants (Level 3+)
-- [ ] Hybrid mode enabled for long-term security
-- [ ] Zero-trust authentication configured
-- [ ] Error handling verified (no unwrap/expect)
-- [ ] Secrets not logged or exposed
-- [ ] Memory zeroization verified
-- [ ] Key rotation mechanism in place
-- [ ] Incident response plan documented
-- [ ] Dependencies audited (`cargo audit`)
-- [ ] Fuzzing performed on custom integrations
-- [ ] Continuous verification enabled for sessions
 
 ## Further Reading
 
