@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["HybridKemError"],"fn":["decapsulate","derive_hybrid_shared_secret","encapsulate","generate_keypair"],"struct":["EncapsulatedKey","HybridPublicKey","HybridSecretKey"]};
+window.SIDEBAR_ITEMS = {"enum":["HybridKemError"],"fn":["decapsulate","derive_hybrid_shared_secret","encapsulate","generate_keypair","generate_keypair_with_level"],"struct":["EncapsulatedKey","HybridPublicKey","HybridSecretKey"]};
