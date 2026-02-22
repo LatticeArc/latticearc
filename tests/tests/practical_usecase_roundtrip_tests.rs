@@ -48,12 +48,16 @@ use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
 use latticearc::hybrid::kem::HybridPublicKey;
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 use latticearc::{
-    CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, EncryptedOutput, HybridComponents,
-    SecurityLevel, SecurityMode, UseCase, VerifiedSession, decrypt, decrypt_aes_gcm, derive_key,
-    deserialize_encrypted_data, deserialize_signed_data, encrypt, encrypt_aes_gcm, fips_available,
-    generate_hybrid_keypair, generate_keypair, generate_signing_keypair, hash_data, hmac,
-    hmac_check, serialize_encrypted_data, serialize_signed_data, sign_with_key, verify,
+    ComplianceMode, CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, EncryptedOutput,
+    EncryptionScheme, HybridComponents, SecurityLevel, SecurityMode, UseCase, VerifiedSession,
+    decrypt, decrypt_aes_gcm, decrypt_aes_gcm_with_aad, derive_key, deserialize_encrypted_data,
+    deserialize_encrypted_output, deserialize_signed_data, encrypt, encrypt_aes_gcm,
+    encrypt_aes_gcm_with_aad, fips_available, generate_hybrid_keypair,
+    generate_hybrid_keypair_with_level, generate_keypair, generate_signing_keypair, hash_data,
+    hmac, hmac_check, serialize_encrypted_data, serialize_encrypted_output, serialize_signed_data,
+    sign_with_key, verify,
 };
 
 // ============================================================================
@@ -413,6 +417,17 @@ fn security_level_maximum_roundtrip() {
         msg,
         &key,
         CryptoConfig::new().security_level(SecurityLevel::Maximum),
+    );
+}
+
+#[test]
+fn security_level_quantum_roundtrip() {
+    let key = [0x24u8; 32];
+    let msg = b"Quantum security (PQ-only, CNSA 2.0 eligible)";
+    process_isolated_roundtrip(
+        msg,
+        &key,
+        CryptoConfig::new().security_level(SecurityLevel::Quantum),
     );
 }
 
@@ -780,9 +795,9 @@ impl SerializableHybridPublicKey {
     fn from_key(pk: &HybridPublicKey) -> Self {
         use base64::{Engine, engine::general_purpose::STANDARD};
         let level_byte = match pk.security_level {
-            latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem512 => 0,
-            latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem768 => 1,
-            latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem1024 => 2,
+            MlKemSecurityLevel::MlKem512 => 0,
+            MlKemSecurityLevel::MlKem768 => 1,
+            MlKemSecurityLevel::MlKem1024 => 2,
         };
         Self {
             ml_kem_pk: STANDARD.encode(&pk.ml_kem_pk),
@@ -794,9 +809,9 @@ impl SerializableHybridPublicKey {
     fn to_key(&self) -> HybridPublicKey {
         use base64::{Engine, engine::general_purpose::STANDARD};
         let level = match self.security_level {
-            0 => latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem512,
-            2 => latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem1024,
-            _ => latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem768,
+            0 => MlKemSecurityLevel::MlKem512,
+            2 => MlKemSecurityLevel::MlKem1024,
+            _ => MlKemSecurityLevel::MlKem768,
         };
         HybridPublicKey {
             ml_kem_pk: STANDARD.decode(&self.ml_kem_pk).unwrap(),
@@ -1475,4 +1490,361 @@ fn scenario_cloud_storage_with_key_metadata() {
     let decrypted =
         decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new()).expect("decrypt");
     assert_eq!(decrypted.as_slice(), object_content);
+}
+
+// ============================================================================
+// SECTION 5: VerifiedSession × UseCase × SecurityLevel
+//
+// Tests that a VerifiedSession can drive encrypt → file → decrypt roundtrips
+// for multiple UseCases and SecurityLevels (not just SecureMessaging).
+// ============================================================================
+
+/// Helper: establish a VerifiedSession, encrypt with (session + use_case),
+/// write to file, read back, decrypt with session — process-isolated.
+fn verified_session_usecase_roundtrip(use_case: UseCase) {
+    let (pk, sk) = generate_keypair().expect("keygen failed");
+    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+    let key = [0x50u8; 32];
+    let msg = format!("VerifiedSession + UseCase::{use_case:?}");
+
+    let config = CryptoConfig::new()
+        .session(&session)
+        .use_case(use_case.clone())
+        .force_scheme(CryptoScheme::Symmetric);
+    let encrypted =
+        encrypt(msg.as_bytes(), EncryptKey::Symmetric(&key), config).expect("encrypt failed");
+    let encrypted_data: latticearc::EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
+    let path = std::env::temp_dir().join(format!("latticearc-vs-uc-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&path, json.as_bytes()).expect("write failed");
+
+    // Reader: only has file + key + session
+    let json_read = std::fs::read_to_string(&path).expect("read failed");
+    let deserialized = deserialize_encrypted_data(&json_read).expect("deserialize failed");
+    let output: EncryptedOutput = deserialized.try_into().expect("scheme should be valid");
+    let config = CryptoConfig::new().session(&session);
+    let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), config).expect("decrypt failed");
+    assert_eq!(decrypted.as_slice(), msg.as_bytes(), "VerifiedSession + {use_case:?} mismatch");
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Helper: establish a VerifiedSession, encrypt with (session + security_level),
+/// write to file, read back, decrypt with session — process-isolated.
+fn verified_session_security_level_roundtrip(level: SecurityLevel) {
+    let (pk, sk) = generate_keypair().expect("keygen failed");
+    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+    let key = [0x51u8; 32];
+    let msg = format!("VerifiedSession + SecurityLevel::{level:?}");
+
+    let config = CryptoConfig::new()
+        .session(&session)
+        .security_level(level.clone())
+        .force_scheme(CryptoScheme::Symmetric);
+    let encrypted =
+        encrypt(msg.as_bytes(), EncryptKey::Symmetric(&key), config).expect("encrypt failed");
+    let encrypted_data: latticearc::EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
+    let path = std::env::temp_dir().join(format!("latticearc-vs-sl-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&path, json.as_bytes()).expect("write failed");
+
+    let json_read = std::fs::read_to_string(&path).expect("read failed");
+    let deserialized = deserialize_encrypted_data(&json_read).expect("deserialize failed");
+    let output: EncryptedOutput = deserialized.try_into().expect("scheme should be valid");
+    let config = CryptoConfig::new().session(&session);
+    let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), config).expect("decrypt failed");
+    assert_eq!(
+        decrypted.as_slice(),
+        msg.as_bytes(),
+        "VerifiedSession + SecurityLevel::{level:?} mismatch"
+    );
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn verified_session_file_storage_roundtrip() {
+    verified_session_usecase_roundtrip(UseCase::FileStorage);
+}
+
+#[test]
+fn verified_session_database_encryption_roundtrip() {
+    verified_session_usecase_roundtrip(UseCase::DatabaseEncryption);
+}
+
+#[test]
+fn verified_session_authentication_roundtrip() {
+    verified_session_usecase_roundtrip(UseCase::Authentication);
+}
+
+#[test]
+fn verified_session_iot_device_roundtrip() {
+    verified_session_usecase_roundtrip(UseCase::IoTDevice);
+}
+
+#[test]
+fn verified_session_api_security_roundtrip() {
+    verified_session_usecase_roundtrip(UseCase::ApiSecurity);
+}
+
+#[test]
+fn verified_session_security_level_standard_roundtrip() {
+    verified_session_security_level_roundtrip(SecurityLevel::Standard);
+}
+
+#[test]
+fn verified_session_security_level_high_roundtrip() {
+    verified_session_security_level_roundtrip(SecurityLevel::High);
+}
+
+#[test]
+fn verified_session_security_level_maximum_roundtrip() {
+    verified_session_security_level_roundtrip(SecurityLevel::Maximum);
+}
+
+#[test]
+fn verified_session_security_level_quantum_roundtrip() {
+    verified_session_security_level_roundtrip(SecurityLevel::Quantum);
+}
+
+// ============================================================================
+// SECTION 6: AAD (Additional Authenticated Data) + VerifiedSession
+//
+// Tests that AES-GCM-with-AAD works correctly under a Verified session,
+// including wrong-AAD rejection and empty-AAD as valid bound context.
+// ============================================================================
+
+#[test]
+fn aad_with_verified_session_roundtrip() {
+    let (pk, sk) = generate_keypair().expect("keygen failed");
+    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+
+    let key = [0x60u8; 32];
+    let msg = b"AAD-bound payload under Verified session";
+    let aad = b"request-id:42|tenant:acme";
+
+    let ciphertext = encrypt_aes_gcm_with_aad(msg, &key, aad, SecurityMode::Verified(&session))
+        .expect("encrypt with AAD failed");
+    let decrypted =
+        decrypt_aes_gcm_with_aad(&ciphertext, &key, aad, SecurityMode::Verified(&session))
+            .expect("decrypt with AAD failed");
+    assert_eq!(decrypted.as_slice(), msg);
+}
+
+#[test]
+fn aad_with_verified_session_wrong_aad_rejected() {
+    let (pk, sk) = generate_keypair().expect("keygen failed");
+    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+
+    let key = [0x61u8; 32];
+    let msg = b"AAD mismatch test";
+    let correct_aad = b"correct-context";
+    let wrong_aad = b"wrong-context";
+
+    let ciphertext =
+        encrypt_aes_gcm_with_aad(msg, &key, correct_aad, SecurityMode::Verified(&session))
+            .expect("encrypt failed");
+    let result =
+        decrypt_aes_gcm_with_aad(&ciphertext, &key, wrong_aad, SecurityMode::Verified(&session));
+    assert!(result.is_err(), "Wrong AAD must cause decryption failure");
+}
+
+#[test]
+fn aad_with_verified_session_empty_aad_roundtrip() {
+    let (pk, sk) = generate_keypair().expect("keygen failed");
+    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+
+    let key = [0x62u8; 32];
+    let msg = b"Empty AAD is a valid bound context";
+    let empty_aad = b"";
+
+    let ciphertext =
+        encrypt_aes_gcm_with_aad(msg, &key, empty_aad, SecurityMode::Verified(&session))
+            .expect("encrypt with empty AAD failed");
+    let decrypted =
+        decrypt_aes_gcm_with_aad(&ciphertext, &key, empty_aad, SecurityMode::Verified(&session))
+            .expect("decrypt with empty AAD failed");
+    assert_eq!(decrypted.as_slice(), msg);
+}
+
+// ============================================================================
+// SECTION 7: ComplianceMode Process-Isolated Roundtrips
+//
+// Tests that each ComplianceMode variant works through the full
+// encrypt → file → decrypt path with process isolation.
+// ============================================================================
+
+#[test]
+fn compliance_mode_default_roundtrip() {
+    let key = [0x70u8; 32];
+    let msg = b"ComplianceMode::Default - no restrictions";
+    process_isolated_roundtrip(msg, &key, CryptoConfig::new().compliance(ComplianceMode::Default));
+}
+
+#[test]
+fn compliance_mode_fips140_3_roundtrip() {
+    let key = [0x71u8; 32];
+    let msg = b"ComplianceMode::Fips140_3 - FIPS-gated";
+    let config = CryptoConfig::new()
+        .compliance(ComplianceMode::Fips140_3)
+        .force_scheme(CryptoScheme::Symmetric);
+    let result = encrypt(msg, EncryptKey::Symmetric(&key), config);
+    if fips_available() {
+        let encrypted = result.expect("FIPS encrypt should succeed when FIPS available");
+        let encrypted_data: latticearc::EncryptedData = encrypted.into();
+        let json = serialize_encrypted_data(&encrypted_data).expect("serialize");
+        let path = std::env::temp_dir().join(format!("latticearc-fips-{}", uuid::Uuid::new_v4()));
+        std::fs::write(&path, json.as_bytes()).expect("write");
+        let decrypted = reader_decrypt_from_file(&path, &key);
+        assert_eq!(decrypted.as_slice(), msg);
+        let _ = std::fs::remove_file(&path);
+    } else {
+        assert!(result.is_err(), "FIPS compliance should fail without FIPS feature");
+    }
+}
+
+#[test]
+fn compliance_mode_cnsa2_0_roundtrip() {
+    // CNSA 2.0 allows hybrid as transitional (per NIST SP 800-227).
+    // Use ML-KEM-1024 hybrid keypair with Quantum security level.
+    let msg = b"ComplianceMode::Cnsa2_0 - FIPS + Quantum";
+    let level = MlKemSecurityLevel::MlKem1024;
+    let (pk, sk) = generate_hybrid_keypair_with_level(level).expect("keygen");
+    let config = CryptoConfig::new()
+        .compliance(ComplianceMode::Cnsa2_0)
+        .security_level(SecurityLevel::Quantum);
+    let encrypted = encrypt(msg, EncryptKey::Hybrid(&pk), config)
+        .expect("CNSA 2.0 + hybrid should succeed (transitional per SP 800-227)");
+
+    let json = serialize_encrypted_output(&encrypted).expect("serialize");
+    let path = std::env::temp_dir().join(format!("latticearc-cnsa-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&path, json.as_bytes()).expect("write");
+
+    let json_read = std::fs::read_to_string(&path).expect("read");
+    let deserialized = deserialize_encrypted_output(&json_read).expect("deserialize");
+    let config = CryptoConfig::new()
+        .compliance(ComplianceMode::Cnsa2_0)
+        .security_level(SecurityLevel::Quantum);
+    let decrypted = decrypt(&deserialized, DecryptKey::Hybrid(&sk), config).expect("decrypt");
+    assert_eq!(decrypted.as_slice(), msg);
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn compliance_mode_cnsa2_0_rejects_standalone_aes() {
+    // CNSA 2.0 rejects standalone classical schemes like AES-256-GCM.
+    let key = [0x73u8; 32];
+    let config = CryptoConfig::new()
+        .compliance(ComplianceMode::Cnsa2_0)
+        .security_level(SecurityLevel::Quantum)
+        .force_scheme(CryptoScheme::Symmetric);
+    let result = encrypt(b"should be rejected", EncryptKey::Symmetric(&key), config);
+    assert!(result.is_err(), "CNSA 2.0 must reject standalone AES-256-GCM");
+}
+
+// ============================================================================
+// SECTION 8: Scheme Verification Through File Serialization
+//
+// Tests that UseCase-driven scheme selection is preserved through
+// hybrid encrypt → serialize → file → deserialize → assert scheme.
+// No force_scheme() — the selector chooses the scheme.
+// ============================================================================
+
+/// Helper: expected scheme for a use case (mirrors scheme_contract_tests.rs)
+fn expected_scheme_for_use_case(uc: &UseCase) -> EncryptionScheme {
+    match uc {
+        UseCase::IoTDevice => EncryptionScheme::HybridMlKem512Aes256Gcm,
+
+        UseCase::SecureMessaging
+        | UseCase::VpnTunnel
+        | UseCase::ApiSecurity
+        | UseCase::DatabaseEncryption
+        | UseCase::ConfigSecrets
+        | UseCase::SessionToken
+        | UseCase::AuditLog
+        | UseCase::Authentication
+        | UseCase::DigitalCertificate
+        | UseCase::FinancialTransactions
+        | UseCase::LegalDocuments
+        | UseCase::BlockchainTransaction
+        | UseCase::FirmwareSigning => EncryptionScheme::HybridMlKem768Aes256Gcm,
+
+        UseCase::EmailEncryption
+        | UseCase::FileStorage
+        | UseCase::CloudStorage
+        | UseCase::BackupArchive
+        | UseCase::KeyExchange
+        | UseCase::HealthcareRecords
+        | UseCase::GovernmentClassified
+        | UseCase::PaymentCard => EncryptionScheme::HybridMlKem1024Aes256Gcm,
+    }
+}
+
+/// Helper: encrypt with hybrid key (UseCase-driven, no force_scheme),
+/// serialize to file, deserialize, assert scheme matches expected.
+fn process_isolated_hybrid_scheme_check(use_case: UseCase, expected: EncryptionScheme) {
+    let level =
+        expected.ml_kem_level().unwrap_or_else(|| panic!("scheme {expected} has no ML-KEM level"));
+    let (pk, _sk) = generate_hybrid_keypair_with_level(level)
+        .unwrap_or_else(|e| panic!("keygen failed for {use_case:?}: {e}"));
+
+    let data = b"Scheme verification through file serialization";
+    let config = CryptoConfig::new().use_case(use_case.clone());
+    let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config)
+        .unwrap_or_else(|e| panic!("encrypt failed for {use_case:?}: {e}"));
+
+    let json = serialize_encrypted_output(&encrypted)
+        .unwrap_or_else(|e| panic!("serialize failed for {use_case:?}: {e}"));
+    let path = std::env::temp_dir().join(format!("latticearc-scheme-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&path, json.as_bytes()).expect("write failed");
+
+    // Reader: deserialize from file, assert scheme
+    let json_read = std::fs::read_to_string(&path).expect("read failed");
+    let deserialized = deserialize_encrypted_output(&json_read)
+        .unwrap_or_else(|e| panic!("deserialize failed for {use_case:?}: {e}"));
+    assert_eq!(
+        deserialized.scheme, expected,
+        "UseCase::{use_case:?} scheme mismatch after file roundtrip: got {}",
+        deserialized.scheme
+    );
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn scheme_verified_iot_device() {
+    let expected = expected_scheme_for_use_case(&UseCase::IoTDevice);
+    process_isolated_hybrid_scheme_check(UseCase::IoTDevice, expected);
+}
+
+#[test]
+fn scheme_verified_secure_messaging() {
+    let expected = expected_scheme_for_use_case(&UseCase::SecureMessaging);
+    process_isolated_hybrid_scheme_check(UseCase::SecureMessaging, expected);
+}
+
+#[test]
+fn scheme_verified_file_storage() {
+    let expected = expected_scheme_for_use_case(&UseCase::FileStorage);
+    process_isolated_hybrid_scheme_check(UseCase::FileStorage, expected);
+}
+
+#[test]
+fn scheme_verified_security_level_standard() {
+    // SecurityLevel::Standard → ML-KEM-512
+    let expected = EncryptionScheme::HybridMlKem512Aes256Gcm;
+    let level = MlKemSecurityLevel::MlKem512;
+    let (pk, _sk) = generate_hybrid_keypair_with_level(level).expect("keygen");
+    let data = b"SecurityLevel::Standard scheme through file";
+    let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+    let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config).expect("encrypt");
+
+    let json = serialize_encrypted_output(&encrypted).expect("serialize");
+    let path = std::env::temp_dir().join(format!("latticearc-slscheme-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&path, json.as_bytes()).expect("write");
+
+    let json_read = std::fs::read_to_string(&path).expect("read");
+    let deserialized = deserialize_encrypted_output(&json_read).expect("deserialize");
+    assert_eq!(
+        deserialized.scheme, expected,
+        "SecurityLevel::Standard scheme mismatch after file roundtrip"
+    );
+    let _ = std::fs::remove_file(&path);
 }

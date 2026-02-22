@@ -150,15 +150,16 @@ cargo test --workspace --doc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use latticearc::CryptoConfig;
+    use latticearc::{CryptoConfig, CryptoScheme, EncryptKey, DecryptKey};
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
         let key = [0u8; 32];
         let data = b"test data";
+        let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
 
-        let encrypted = encrypt(data, &key, CryptoConfig::new()).expect("encryption failed");
-        let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()).expect("decryption failed");
+        let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).expect("encryption failed");
+        let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).expect("decryption failed");
 
         assert_eq!(data.as_slice(), decrypted.as_slice());
     }
@@ -321,13 +322,14 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 /// # Examples
 ///
 /// ```
-/// use latticearc::{encrypt, CryptoConfig};
+/// use latticearc::{encrypt, CryptoConfig, CryptoScheme, EncryptKey};
 ///
 /// let key = [0u8; 32];
-/// let encrypted = encrypt(b"secret", &key, CryptoConfig::new())?;
+/// let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+/// let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key), config)?;
 /// # Ok::<(), latticearc::CoreError>(())
 /// ```
-pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<EncryptedData> {
+pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result<EncryptedOutput> {
     // ...
 }
 ```

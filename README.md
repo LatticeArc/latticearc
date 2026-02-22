@@ -158,10 +158,10 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
 |----------|------------|------------|
 | `SecureMessaging` | Hybrid (ML-KEM-768 + AES-256-GCM) | Hybrid (ML-DSA-65 + Ed25519) |
 | `FileStorage` | Hybrid (ML-KEM-1024 + AES-256-GCM) | Hybrid (ML-DSA-87 + Ed25519) |
-| `FinancialTransactions` | — | Hybrid (ML-DSA-65 + Ed25519) |
-| `Authentication` | — | Hybrid (ML-DSA-87 + Ed25519) |
-| `HealthcareRecords` | Hybrid (ML-KEM-1024 + AES-256-GCM) | — |
-| `GovernmentClassified` | Hybrid (ML-KEM-1024 + AES-256-GCM) | — |
+| `FinancialTransactions` | *Signature-primary* | Hybrid (ML-DSA-65 + Ed25519) |
+| `Authentication` | *Signature-primary* | Hybrid (ML-DSA-87 + Ed25519) |
+| `HealthcareRecords` | Hybrid (ML-KEM-1024 + AES-256-GCM) | *Encryption-primary* |
+| `GovernmentClassified` | Hybrid (ML-KEM-1024 + AES-256-GCM) | *Encryption-primary* |
 | `IoTDevice` | Hybrid (ML-KEM-512 + AES-256-GCM) | Hybrid (ML-DSA-44 + Ed25519) |
 
 > **22 use cases supported.** See [Unified API Guide](docs/UNIFIED_API_GUIDE.md) for the complete list including cloud storage, VPN, blockchain, firmware signing, and more.

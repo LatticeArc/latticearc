@@ -161,8 +161,8 @@ use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
 // PQ encryption using ML-KEM + AES-GCM
-let ciphertext = encrypt_pq_ml_kem(data, &pk, MlKemSecurityLevel::MlKem768)?;
-let plaintext = decrypt_pq_ml_kem(&ciphertext, &sk, MlKemSecurityLevel::MlKem768)?;
+let ciphertext = encrypt_pq_ml_kem(data, &pk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
+let plaintext = decrypt_pq_ml_kem(&ciphertext, &sk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
 
 // Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
 let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
@@ -231,10 +231,10 @@ use latticearc::primitives::sig::slh_dsa::SecurityLevel;
 let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake128s)?;
 
 // Sign (FIPS 205 Section 9.2)
-let signature = sign_pq_slh_dsa(message, &sk, SecurityLevel::Shake128s)?;
+let signature = sign_pq_slh_dsa(message, &sk, SecurityLevel::Shake128s, SecurityMode::Unverified)?;
 
 // Verify (FIPS 205 Section 9.3)
-let is_valid = verify_pq_slh_dsa(message, &signature, &pk, SecurityLevel::Shake128s)?;
+let is_valid = verify_pq_slh_dsa(message, &signature, &pk, SecurityLevel::Shake128s, SecurityMode::Unverified)?;
 ```
 
 ## FIPS 206: FN-DSA (FFT over NTRU Lattice Digital Signature)

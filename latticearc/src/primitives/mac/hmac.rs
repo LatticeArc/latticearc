@@ -93,11 +93,13 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; 32]> {
     let result = mac.finalize();
     let result_bytes = result.into_bytes();
 
-    // Safe: HMAC-SHA256 always produces exactly 32 bytes
+    // HMAC-SHA256 always produces exactly 32 bytes (RFC 2104).
+    // Returning all-zeros on shorter output would be a dangerous silent failure.
+    let src = result_bytes.get(..32).ok_or_else(|| LatticeArcError::ValidationError {
+        message: format!("HMAC-SHA256 output is {} bytes, expected 32", result_bytes.len()),
+    })?;
     let mut bytes = [0u8; 32];
-    if let Some(src) = result_bytes.get(..32) {
-        bytes.copy_from_slice(src);
-    }
+    bytes.copy_from_slice(src);
     Ok(bytes)
 }
 

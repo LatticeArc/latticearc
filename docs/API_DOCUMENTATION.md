@@ -65,7 +65,8 @@ int encrypted_len = RSA_public_encrypt(data_len, data, encrypted,
 ```rust
 // After (LatticeArc — 2 lines, quantum-safe)
 let key = [0u8; 32];
-let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
+    CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
 ```
 
 ### From libsodium
@@ -97,7 +98,8 @@ byte[] encrypted = cipher.doFinal(plaintext);
 ```rust
 // After (LatticeArc)
 let key = [0u8; 32];
-let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
+    CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
 ```
 
 ---
@@ -107,22 +109,25 @@ let encrypted = encrypt(data, &key, CryptoConfig::new())?;
 ### Encryption
 
 ```rust
-use latticearc::{encrypt, decrypt, CryptoConfig, UseCase, SecurityLevel};
+use latticearc::{encrypt, decrypt, CryptoConfig, CryptoScheme, UseCase, SecurityLevel,
+                 EncryptKey, DecryptKey};
 
-// Simple encryption with default config
+// Simple symmetric encryption
 let key = [0u8; 32];
-let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)?;
 
-// Encryption with use case selection
-let encrypted = encrypt(data, &key, CryptoConfig::new()
+// Hybrid encryption with use case selection (recommended)
+let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new()
     .use_case(UseCase::FileStorage))?;
 
-// Encryption with security level
-let encrypted = encrypt(data, &key, CryptoConfig::new()
+// Hybrid encryption with security level
+let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new()
     .security_level(SecurityLevel::Maximum))?;
 
 // Decryption
-let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 ### Signatures
@@ -151,7 +156,7 @@ let (public_key, private_key) = generate_keypair()?;
 use latticearc::{VerifiedSession, generate_keypair, CryptoConfig};
 
 let (pk, sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&pk, &sk)?;
+let session = VerifiedSession::establish(&pk, sk.as_ref())?;
 
 // Use session for crypto operations
 let config = CryptoConfig::new().session(&session);
@@ -161,8 +166,11 @@ let config = CryptoConfig::new().session(&session);
 
 ```rust
 use latticearc::unified_api::selector::CryptoPolicyEngine;
+use latticearc::types::config::CoreConfig;
+use latticearc::UseCase;
 
 // Recommend scheme for use case
+let config = CoreConfig::default();
 let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::SecureMessaging, &config)?;
 
 // Select encryption scheme

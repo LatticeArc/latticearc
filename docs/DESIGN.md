@@ -327,7 +327,7 @@ flowchart LR
 Re-exports public APIs from the workspace via explicit imports:
 
 ```rust
-use latticearc::{encrypt, decrypt, CryptoConfig, SecurityLevel};
+use latticearc::{encrypt, decrypt, CryptoConfig, SecurityLevel, EncryptKey, DecryptKey};
 use latticearc::LatticeArcError; // From latticearc::prelude
 ```
 

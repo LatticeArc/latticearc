@@ -88,12 +88,13 @@ Choose based on your constraints:
 ### How do I encrypt data?
 
 ```rust
-use latticearc::{encrypt, decrypt, CryptoConfig};
+use latticearc::{encrypt, decrypt, CryptoConfig, CryptoScheme, EncryptKey, DecryptKey};
 
 // Symmetric encryption with AES-256-GCM
 let key = [0u8; 32];
-let encrypted = encrypt(b"secret data", &key, CryptoConfig::new())?;
-let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
+let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+let encrypted = encrypt(b"secret data", EncryptKey::Symmetric(&key), config)?;
+let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 ```
 
 ### How do I sign data?
@@ -162,12 +163,13 @@ No. `unsafe_code = "forbid"` is set at the workspace level. All code is safe Rus
 LatticeArc implements FIPS-compliant algorithms but is not itself validated. Enable the FIPS backend and set `ComplianceMode`:
 
 ```rust
-use latticearc::{encrypt, CryptoConfig, ComplianceMode};
+use latticearc::{encrypt, CryptoConfig, ComplianceMode, EncryptKey};
 
 // Requires: cargo build --features fips
+let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
 let config = CryptoConfig::new()
     .compliance(ComplianceMode::Fips140_3);
-let encrypted = encrypt(data, &key, config)?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config)?;
 ```
 
 For full FIPS 140-3 certification:
@@ -227,7 +229,8 @@ LatticeArc operations are synchronous. For async contexts:
 
 ```rust
 let result = tokio::task::spawn_blocking(move || {
-    encrypt(&data, &key)
+    encrypt(&data, EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))
 }).await?;
 ```
 

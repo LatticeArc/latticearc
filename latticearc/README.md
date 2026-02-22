@@ -49,7 +49,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-latticearc = "0.1"
+latticearc = "0.3"
 ```
 
 ### Digital Signatures
@@ -71,11 +71,12 @@ let is_valid = verify(&signed, config)?;
 ### Encryption
 
 ```rust
-use latticearc::{encrypt, decrypt, CryptoConfig};
+use latticearc::{encrypt, decrypt, EncryptKey, DecryptKey, CryptoConfig, CryptoScheme};
 
 let key = [0u8; 32];  // 256-bit key
-let encrypted = encrypt(b"secret message", &key, CryptoConfig::new())?;
-let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
+let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+let encrypted = encrypt(b"secret message", EncryptKey::Symmetric(&key), config)?;
+let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 ```
 
 ### With Use Case Selection
@@ -112,16 +113,16 @@ let (public_key, private_key) = generate_keypair()?;
 ### Hybrid Encryption
 
 ```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+use latticearc::{generate_hybrid_keypair, encrypt, decrypt, EncryptKey, DecryptKey, CryptoConfig};
 
 // Generate hybrid keypair (ML-KEM-768 + X25519)
 let (pk, sk) = generate_hybrid_keypair()?;
 
 // Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM)
-let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+let encrypted = encrypt(b"sensitive data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 
 // Decrypt
-let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+let plaintext = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 ### Hybrid Signatures
@@ -148,7 +149,7 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, generate_keypa
 
 // Establish verified session
 let (public_key, private_key) = generate_keypair()?;
-let session = VerifiedSession::establish(&public_key, &private_key)?;
+let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 
 // Operations with session verification
 let config = CryptoConfig::new().session(&session);
@@ -206,7 +207,7 @@ All features are included by default:
 |----------|------------|------------|
 | `SecureMessaging` | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 |
 | `FileStorage` | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 |
-| `FinancialTransactions` | N/A | ML-DSA-65 + Ed25519 |
+| `FinancialTransactions` | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 |
 | `IoTDevice` | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 |
 
 ### By Security Level

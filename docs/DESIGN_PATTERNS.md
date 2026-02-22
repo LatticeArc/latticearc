@@ -574,7 +574,7 @@ pub struct SecretKey {
 ### RIGHT
 
 ```rust
-// latticearc/src/primitives/keys/mod.rs:207-218 — SecretKey
+// latticearc/src/primitives/keys/mod.rs:203-215 — SecretKey
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey {
     pub(crate) ml_sk: Zeroizing<Vec<u8>>,
@@ -674,7 +674,7 @@ fn use_key(key_bytes: &[u8]) -> Result<Vec<u8>> {
 ### RIGHT
 
 ```rust
-// latticearc/src/primitives/keys/mod.rs:207-212 — SecretKey
+// latticearc/src/primitives/keys/mod.rs:203-209 — SecretKey
 #[derive(Zeroize, ZeroizeOnDrop)]  // Automatic zeroize on drop — works on ALL paths
 pub struct SecretKey {
     pub(crate) ml_sk: Zeroizing<Vec<u8>>,    // Double protection: field + struct
@@ -719,7 +719,7 @@ enum DecryptError {
 ### RIGHT
 
 ```rust
-// latticearc/src/primitives/aead/mod.rs:112-137 — AeadError
+// latticearc/src/primitives/aead/mod.rs:113-135 — AeadError
 #[derive(Debug, thiserror::Error)]
 pub enum AeadError {
     #[error("Decryption failed: {0}")]
@@ -956,7 +956,7 @@ fn combine_secrets_concat(pq_secret: &[u8], classical_secret: &[u8]) -> Vec<u8> 
 ### RIGHT
 
 ```rust
-// latticearc/src/hybrid/kem_hybrid.rs:414-450 — derive_hybrid_shared_secret
+// latticearc/src/hybrid/kem_hybrid.rs:451-487 — derive_hybrid_shared_secret
 pub fn derive_hybrid_shared_secret(
     ml_kem_ss: &[u8],   // ML-KEM shared secret (32 bytes)
     ecdh_ss: &[u8],      // X25519 shared secret (32 bytes)

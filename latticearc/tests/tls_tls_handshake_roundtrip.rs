@@ -13,8 +13,8 @@
 //!
 //! Run with: `cargo test --package arc-tls --test tls_handshake_roundtrip --release -- --nocapture`
 
-use latticearc::tls::TlsMode;
 use latticearc::tls::tls13::{Tls13Config, create_server_config};
+use latticearc::tls::{TlsConfig, TlsMode, TlsUseCase};
 use rcgen::{CertificateParams, KeyPair as RcgenKeyPair};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
 use rustls::{ClientConfig, RootCertStore, ServerConfig};
@@ -377,6 +377,109 @@ fn test_tls_alpn_negotiation() {
 
     let client_alpn = stream.conn.alpn_protocol();
     assert_eq!(client_alpn, Some(&b"h2"[..]), "Client should see h2 as negotiated ALPN");
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}
+
+// ============================================================================
+// TLS UseCase → Policy → Handshake E2E
+//
+// Tests that TlsConfig::new().use_case(uc) selects the correct TlsMode
+// and that mode drives an actual TCP+TLS handshake with echo roundtrip.
+// Covers all 3 TlsMode branches: PQ (Government), Hybrid (Financial, Web),
+// Classic (IoT).
+// ============================================================================
+
+/// Helper: Convert a TlsConfig into a rustls ServerConfig via Tls13Config.
+fn server_config_from_tls_config(
+    tls_config: &TlsConfig,
+    server_chain: Vec<CertificateDer<'static>>,
+    server_key: PrivateKeyDer<'static>,
+) -> ServerConfig {
+    let tls13: Tls13Config = tls_config.into();
+    create_server_config(&tls13, server_chain, server_key).unwrap()
+}
+
+#[test]
+fn test_tls_usecase_government_pq_handshake() {
+    let config = TlsConfig::new().use_case(TlsUseCase::Government);
+    assert_eq!(config.mode, TlsMode::Pq, "Government UseCase must select PQ mode");
+
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+    let server_config = server_config_from_tls_config(&config, server_chain, server_key);
+    let client_config = build_test_client_config(TlsMode::Pq, &ca.cert_der);
+
+    let (handle, addr) = spawn_echo_server(server_config);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    let msg = b"Government PQ TLS: classified data channel";
+    let response = echo_roundtrip(&mut stream, msg);
+    assert_eq!(response, msg, "Government PQ TLS roundtrip mismatch");
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}
+
+#[test]
+fn test_tls_usecase_financial_services_hybrid_handshake() {
+    let config = TlsConfig::new().use_case(TlsUseCase::FinancialServices);
+    assert_eq!(config.mode, TlsMode::Hybrid, "FinancialServices UseCase must select Hybrid mode");
+
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+    let server_config = server_config_from_tls_config(&config, server_chain, server_key);
+    let client_config = build_test_client_config(TlsMode::Hybrid, &ca.cert_der);
+
+    let (handle, addr) = spawn_echo_server(server_config);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    let msg = b"Financial services hybrid TLS: SWIFT transaction";
+    let response = echo_roundtrip(&mut stream, msg);
+    assert_eq!(response, msg, "FinancialServices hybrid TLS roundtrip mismatch");
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}
+
+#[test]
+fn test_tls_usecase_iot_classic_handshake() {
+    let config = TlsConfig::new().use_case(TlsUseCase::IoT);
+    assert_eq!(config.mode, TlsMode::Classic, "IoT UseCase must select Classic mode");
+
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+    let server_config = server_config_from_tls_config(&config, server_chain, server_key);
+    let client_config = build_test_client_config(TlsMode::Classic, &ca.cert_der);
+
+    let (handle, addr) = spawn_echo_server(server_config);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    let msg = b"IoT classic TLS: sensor telemetry";
+    let response = echo_roundtrip(&mut stream, msg);
+    assert_eq!(response, msg, "IoT classic TLS roundtrip mismatch");
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}
+
+#[test]
+fn test_tls_usecase_webserver_hybrid_handshake() {
+    let config = TlsConfig::new().use_case(TlsUseCase::WebServer);
+    assert_eq!(config.mode, TlsMode::Hybrid, "WebServer UseCase must select Hybrid mode");
+
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+    let server_config = server_config_from_tls_config(&config, server_chain, server_key);
+    let client_config = build_test_client_config(TlsMode::Hybrid, &ca.cert_der);
+
+    let (handle, addr) = spawn_echo_server(server_config);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    let msg = b"WebServer hybrid TLS: HTTPS request";
+    let response = echo_roundtrip(&mut stream, msg);
+    assert_eq!(response, msg, "WebServer hybrid TLS roundtrip mismatch");
 
     send_done(&mut stream);
     handle.join().unwrap();

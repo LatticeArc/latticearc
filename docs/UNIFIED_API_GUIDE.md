@@ -225,7 +225,7 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, generate_keypa
                  CryptoConfig, VerifiedSession};
 
 let (public_key, private_key) = generate_keypair()?;
-let session = VerifiedSession::establish(&public_key, &private_key)?;
+let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 
 let config = CryptoConfig::new().session(&session);
 let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
@@ -408,7 +408,7 @@ sequenceDiagram
     App->>LA: generate_keypair()
     LA-->>App: (public_key, private_key)
 
-    App->>LA: VerifiedSession::establish(&pk, &sk)
+    App->>LA: VerifiedSession::establish(&pk, sk.as_ref())
     LA->>ZT: Create challenge
     ZT-->>LA: Challenge data
     LA->>ZT: Sign challenge
@@ -431,7 +431,7 @@ use latticearc::{VerifiedSession, generate_keypair};
 
 // Establish session
 let (pk, sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&pk, &sk)?;
+let session = VerifiedSession::establish(&pk, sk.as_ref())?;
 
 // Check session state
 assert!(session.is_valid());
@@ -479,10 +479,12 @@ let is_valid = verify(&signed, config)?;
 ### Encryption
 
 ```rust
-use latticearc::{encrypt, decrypt, CryptoConfig};
+use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey, CryptoScheme};
 
-let encrypted = encrypt(data, &key, CryptoConfig::new())?;
-let plaintext = decrypt(&encrypted, &key, CryptoConfig::new())?;
+let key = [0u8; 32];
+let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)?;
+let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 ```
 
 ### Key Generation
@@ -490,6 +492,8 @@ let plaintext = decrypt(&encrypted, &key, CryptoConfig::new())?;
 ```rust
 use latticearc::generate_keypair;
 use latticearc::{generate_ml_kem_keypair, generate_ml_dsa_keypair};
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 
 // Ed25519
 let (pk, sk) = generate_keypair()?;

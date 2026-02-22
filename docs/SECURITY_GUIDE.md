@@ -141,6 +141,8 @@ let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
 ```rust
 use latticearc::*;
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 
 // Generate post-quantum keypairs
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
@@ -172,7 +174,7 @@ use latticearc::*;
 
 // Derive a key from a shared secret + unique salt
 let salt = rand::random::<[u8; 16]>();
-let derived_key = derive_key(shared_secret, &salt, 32)?;
+let derived_key = derive_key(shared_secret, &salt, 32, SecurityMode::Unverified)?;
 
 // Domain-separated key derivation (different info → independent keys)
 let enc_key = derive_key_with_info(shared_secret, &salt, 32, b"encryption", SecurityMode::Unverified)?;
@@ -227,12 +229,15 @@ flowchart LR
 ```rust
 use latticearc::*;
 
-// Symmetric encryption with AES-256-GCM (default hybrid scheme)
-let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+// Symmetric encryption with AES-256-GCM
+let key = [0u8; 32];
+let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)?;
 
-// Use case selection for scheme recommendation
+// Hybrid encryption with use case selection (recommended)
+let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
 let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-let encrypted = encrypt(data, &key, config)?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&hybrid_pk), config)?;
 
 // Hybrid public-key encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
 let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
@@ -369,7 +374,7 @@ fn process_data(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, CoreError>
 
 ```rust
 // DANGEROUS: Ignoring errors
-let plaintext = decrypt(&encrypted, &key).unwrap(); // May panic
+let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap(); // May panic
 
 // DANGEROUS: Logging sensitive data
 tracing::debug!("Decrypted: {:?}", plaintext); // Leaks secrets
