@@ -18,6 +18,21 @@
 //! - Uses secp256k1 curve (same as Bitcoin/Ethereum)
 //! - SHA-256 for Fiat-Shamir challenge
 //! - Constant-time operations where possible
+//! - **Nonce k is generated fresh from `OsRng` on every call to `prove()`**
+//!
+//! # Warning: Nonce Reuse is Catastrophic
+//!
+//! If the same nonce `k` is ever used with the same secret key `x` for two
+//! different challenges `c1` and `c2`, an attacker can recover `x`:
+//!
+//! ```text
+//! s1 = k + c1*x,  s2 = k + c2*x
+//! s1 - s2 = (c1 - c2)*x  →  x = (s1 - s2) / (c1 - c2)
+//! ```
+//!
+//! This implementation prevents nonce reuse by generating `k` from the OS
+//! CSPRNG (`OsRng`) on every proof. **Never modify `prove()` to accept an
+//! external nonce or to cache/reuse nonces.**
 
 use crate::zkp::error::{Result, ZkpError};
 use k256::{
