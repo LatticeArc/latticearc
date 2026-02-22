@@ -1,3 +1,7 @@
+//! Interoperability tests for non-FIPS algorithms (Ed25519, ChaCha20-Poly1305).
+
+// Skip when the `fips` feature is active.
+#![cfg(not(feature = "fips"))]
 #![allow(missing_docs)]
 #![allow(
     clippy::panic,

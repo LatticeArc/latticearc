@@ -103,23 +103,17 @@ impl EnhancedErrorHandler {
         }
     }
 
-    /// Determine error severity based on error type
+    /// Determine error severity based on error type.
     ///
-    /// Uses wildcard match intentionally: new error variants default to Low
-    /// severity until explicitly categorized.
-    #[allow(clippy::wildcard_enum_match_arm)]
+    /// Delegates to the canonical `get_error_severity()` and converts
+    /// between the two `ErrorSeverity` enum types.
     fn determine_severity(error: &LatticeArcError) -> ErrorSeverity {
-        match error {
-            LatticeArcError::InvalidKey(_) | LatticeArcError::InvalidInput(_) => {
-                ErrorSeverity::Medium
-            }
-            LatticeArcError::NetworkError(_) | LatticeArcError::EncryptionError(_) => {
-                ErrorSeverity::High
-            }
-            LatticeArcError::CircuitBreakerOpen | LatticeArcError::ResourceExhausted => {
-                ErrorSeverity::Critical
-            }
-            _ => ErrorSeverity::Low,
+        use super::super::types::recovery::ErrorSeverity as TypesSeverity;
+        match super::super::types::recovery::get_error_severity(error) {
+            TypesSeverity::Critical => ErrorSeverity::Critical,
+            TypesSeverity::High => ErrorSeverity::High,
+            TypesSeverity::Medium => ErrorSeverity::Medium,
+            TypesSeverity::Low => ErrorSeverity::Low,
         }
     }
 
@@ -226,9 +220,9 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_severity_medium() {
+    fn test_determine_severity_for_invalid_input() {
         let handler = EnhancedErrorHandler::new();
-        // InvalidKey and InvalidInput → Medium severity
+        // InvalidInput → Low severity (informational)
         let result = handler.handle_error(
             &LatticeArcError::InvalidInput("test".to_string()),
             "op".to_string(),
@@ -239,27 +233,27 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_severity_critical() {
+    fn test_determine_severity_for_circuit_breaker() {
         let handler = EnhancedErrorHandler::new();
         let result = handler.handle_error(
             &LatticeArcError::CircuitBreakerOpen,
             "op".to_string(),
             "comp".to_string(),
         );
-        // CircuitBreakerOpen → Critical severity, ManualIntervention suggestion
-        // BUT ManualIntervention not registered → fails → degradation check triggered
+        // CircuitBreakerOpen → Medium severity, ManualIntervention suggestion
+        // ManualIntervention not registered → fails → error returned
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_determine_severity_low_for_other_errors() {
+    fn test_determine_severity_for_config_error() {
         let handler = EnhancedErrorHandler::new();
         let result = handler.handle_error(
             &LatticeArcError::InvalidConfiguration("test".to_string()),
             "op".to_string(),
             "comp".to_string(),
         );
-        // ConfigError → Low severity, ManualIntervention → fails
+        // InvalidConfiguration → Low severity, ManualIntervention → fails
         assert!(result.is_err());
     }
 

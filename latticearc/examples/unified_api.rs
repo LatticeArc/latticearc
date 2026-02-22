@@ -12,7 +12,9 @@
 #![allow(clippy::panic)]
 #![allow(clippy::arithmetic_side_effects)]
 
-use latticearc::{CryptoConfig, SecurityLevel, UseCase, decrypt, encrypt};
+use latticearc::{
+    CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, SecurityLevel, UseCase, decrypt, encrypt,
+};
 
 fn main() {
     println!("=== LatticeArc: Unified API — Comprehensive Happy-Path Tests ===\n");
@@ -61,13 +63,22 @@ fn main() {
     let mut passed = 0u32;
     for (name, uc) in use_cases {
         let config = CryptoConfig::new().use_case(uc.clone());
-        let enc = encrypt(plaintext, &key, config)
-            .unwrap_or_else(|e| panic!("encrypt failed for {}: {}", name, e));
-        let dec = decrypt(&enc, &key, CryptoConfig::new())
+        let enc = encrypt(
+            plaintext,
+            EncryptKey::Symmetric(&key),
+            config.force_scheme(CryptoScheme::Symmetric),
+        )
+        .unwrap_or_else(|e| panic!("encrypt failed for {}: {}", name, e));
+        let dec = decrypt(&enc, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {}: {}", name, e));
         assert_eq!(dec.as_slice(), plaintext);
         passed += 1;
-        println!("  {:25} scheme={:40} {} bytes -> roundtrip OK", name, enc.scheme, enc.data.len());
+        println!(
+            "  {:25} scheme={:40} {} bytes -> roundtrip OK",
+            name,
+            enc.scheme,
+            enc.ciphertext.len()
+        );
     }
     println!("\n  All {} use cases passed!\n", passed);
 
@@ -85,12 +96,21 @@ fn main() {
 
     for (name, level) in levels {
         let config = CryptoConfig::new().security_level(level.clone());
-        let enc = encrypt(plaintext, &key, config)
-            .unwrap_or_else(|e| panic!("encrypt failed for {}: {}", name, e));
-        let dec = decrypt(&enc, &key, CryptoConfig::new())
+        let enc = encrypt(
+            plaintext,
+            EncryptKey::Symmetric(&key),
+            config.force_scheme(CryptoScheme::Symmetric),
+        )
+        .unwrap_or_else(|e| panic!("encrypt failed for {}: {}", name, e));
+        let dec = decrypt(&enc, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {}: {}", name, e));
         assert_eq!(dec.as_slice(), plaintext);
-        println!("  {:10} scheme={:40} {} bytes -> roundtrip OK", name, enc.scheme, enc.data.len());
+        println!(
+            "  {:10} scheme={:40} {} bytes -> roundtrip OK",
+            name,
+            enc.scheme,
+            enc.ciphertext.len()
+        );
     }
     println!("\n  All 4 security levels passed!\n");
 
@@ -99,11 +119,16 @@ fn main() {
     // ====================================================================
     println!("--- Default CryptoConfig (High security) ---\n");
 
-    let enc = encrypt(plaintext, &key, CryptoConfig::new())
-        .expect("encrypt with default config should succeed");
-    let dec = decrypt(&enc, &key, CryptoConfig::new()).expect("decrypt should succeed");
+    let enc = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt with default config should succeed");
+    let dec = decrypt(&enc, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt should succeed");
     assert_eq!(dec.as_slice(), plaintext);
-    println!("  Default: scheme={}, {} bytes -> roundtrip OK\n", enc.scheme, enc.data.len());
+    println!("  Default: scheme={}, {} bytes -> roundtrip OK\n", enc.scheme, enc.ciphertext.len());
 
     // ====================================================================
     // Section 4: Cross-matrix (UseCase x SecurityLevel) spot checks
@@ -119,9 +144,13 @@ fn main() {
 
     for (name, uc, level) in spot_checks {
         let config = CryptoConfig::new().use_case(uc.clone()).security_level(level.clone());
-        let enc = encrypt(plaintext, &key, config)
-            .unwrap_or_else(|e| panic!("encrypt failed for {}: {}", name, e));
-        let dec = decrypt(&enc, &key, CryptoConfig::new())
+        let enc = encrypt(
+            plaintext,
+            EncryptKey::Symmetric(&key),
+            config.force_scheme(CryptoScheme::Symmetric),
+        )
+        .unwrap_or_else(|e| panic!("encrypt failed for {}: {}", name, e));
+        let dec = decrypt(&enc, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {}: {}", name, e));
         assert_eq!(dec.as_slice(), plaintext);
         println!("  {:30} scheme={:40} roundtrip OK", name, enc.scheme);
@@ -129,13 +158,13 @@ fn main() {
     println!();
 
     // ====================================================================
-    // Section 5: True hybrid encryption pointer
+    // Section 5: True hybrid encryption via unified API
     // ====================================================================
-    println!("--- True Hybrid (ML-KEM-768 + X25519) ---\n");
-    println!("  For true PQ+classical hybrid, use the typed API:");
+    println!("--- True Hybrid (ML-KEM-768 + X25519) via Unified API ---\n");
+    println!("  Use EncryptKey::Hybrid / DecryptKey::Hybrid:");
     println!("    let (pk, sk) = generate_hybrid_keypair()?;");
-    println!("    let enc = encrypt_hybrid(data, &pk, SecurityMode::Unverified)?;");
-    println!("    let dec = decrypt_hybrid(&enc, &sk, SecurityMode::Unverified)?;");
+    println!("    let enc = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new())?;");
+    println!("    let dec = decrypt(&enc, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;");
     println!("  See: examples/hybrid_encryption.rs\n");
 
     println!(

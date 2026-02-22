@@ -291,14 +291,27 @@ pub enum RngHandle<'a> {
 }
 
 impl<'a> RngHandle<'a> {
-    /// Get a secure RNG handle, with thread-local fallback if global is poisoned
+    /// Get a secure RNG handle, with thread-local fallback if global is poisoned.
+    ///
+    /// In FIPS mode, ChaCha20Rng fallback is not permitted (non-FIPS DRBG).
+    /// The function returns an error instead of silently degrading.
     ///
     /// # Errors
-    /// Returns an error if all RNG sources fail
+    /// Returns an error if all RNG sources fail, or if FIPS mode rejects
+    /// the non-FIPS fallback.
     pub fn secure() -> Result<RngHandle<'a>> {
         match get_global_secure_rng() {
             Ok(global) => Ok(RngHandle::Global(global)),
-            Err(_) => Ok(RngHandle::ThreadLocal),
+            Err(_err) => {
+                #[cfg(feature = "fips")]
+                {
+                    Err(crate::prelude::error::LatticeArcError::RandomError)
+                }
+                #[cfg(not(feature = "fips"))]
+                {
+                    Ok(RngHandle::ThreadLocal)
+                }
+            }
         }
     }
 

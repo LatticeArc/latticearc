@@ -18,6 +18,8 @@
 use crate::zkp::error::{Result, ZkpError};
 use k256::elliptic_curve::{PrimeField, ops::Reduce};
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A sigma protocol proof (non-interactive via Fiat-Shamir)
 #[derive(Debug, Clone)]
@@ -146,8 +148,8 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         // Recompute challenge
         let expected_challenge = self.compute_challenge(statement, &proof.commitment, context);
 
-        // Check challenge matches
-        if expected_challenge != proof.challenge {
+        // Constant-time challenge comparison to prevent timing side-channels
+        if expected_challenge.ct_eq(&proof.challenge).unwrap_u8() == 0 {
             return Ok(false);
         }
 
@@ -200,7 +202,7 @@ impl<P: SigmaProtocol> FiatShamir<P> {
 
 /// Proof that two discrete logs are equal
 /// Given (G, H, P, Q), prove knowledge of x such that P = x*G and Q = x*H
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
 pub struct DlogEqualityProof {
     /// First commitment A = k*G
     pub a: [u8; 33],
@@ -295,9 +297,9 @@ impl DlogEqualityProof {
         let a = Self::parse_point(&self.a)?;
         let b = Self::parse_point(&self.b)?;
 
-        // Verify challenge
+        // Constant-time challenge comparison to prevent timing side-channels
         let expected_challenge = Self::compute_challenge(statement, &self.a, &self.b, context);
-        if expected_challenge != self.challenge {
+        if expected_challenge.ct_eq(&self.challenge).unwrap_u8() == 0 {
             return Ok(false);
         }
 

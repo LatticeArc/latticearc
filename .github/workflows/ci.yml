@@ -700,15 +700,15 @@ jobs:
 
     - name: Run end-to-end integration tests
       run: |
-        
-        cargo test --test e2e_integration --all-features
-        cargo test --test unified_api_integration --all-features
+
+        cargo test --test e2e_integration --all-features --release
+        cargo test --test unified_api_integration --all-features --release
 
     - name: Run compliance tests
       run: |
-        
-        cargo test --test fips_nist_kat_compliance --all-features
-        cargo test --test fips_140_3_compliance_tests --all-features
+
+        cargo test --test fips_nist_kat_compliance --all-features --release
+        cargo test --test fips_140_3_compliance_tests --all-features --release
 
   # === Security Property Tests ===
   security-tests:
@@ -734,14 +734,14 @@ jobs:
 
     - name: Run security property tests
       run: |
-        
-        cargo test --test security_property_tests --all-features
-        cargo test --test primitives_side_channel_resistance --all-features
+
+        cargo test --test security_property_tests --all-features --release
+        cargo test --test primitives_side_channel_resistance --all-features --release
 
     - name: Run statistical timing tests
       run: |
-        
-        cargo test --test fips_statistical_timing_tests --all-features
+
+        cargo test --test fips_statistical_timing_tests --all-features --release
 
   # === Release Validation ===
   # Uses native compilation without --target flags to avoid cross-compilation issues

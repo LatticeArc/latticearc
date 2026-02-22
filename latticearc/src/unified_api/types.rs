@@ -11,6 +11,10 @@
 
 // Re-export all pure-Rust types from arc-types
 pub use crate::types::types::*;
+// Re-export type-safe encryption types (EncryptKey, DecryptKey, EncryptionScheme, etc.)
+pub use crate::types::crypto_types::{
+    DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme, HybridComponents,
+};
 
 use crate::unified_api::zero_trust::VerifiedSession;
 
@@ -21,11 +25,31 @@ use crate::unified_api::zero_trust::VerifiedSession;
 /// if the `fips` feature is not enabled).
 fn default_compliance_for_use_case(use_case: &UseCase) -> ComplianceMode {
     match use_case {
+        // Regulated industries require FIPS 140-3 by default
         UseCase::GovernmentClassified
         | UseCase::HealthcareRecords
         | UseCase::PaymentCard
         | UseCase::FinancialTransactions => ComplianceMode::Fips140_3,
-        _ => ComplianceMode::Default,
+        // Non-regulated use cases — explicitly listed so new variants trigger
+        // a compile error, forcing a conscious compliance decision.
+        UseCase::SecureMessaging
+        | UseCase::EmailEncryption
+        | UseCase::VpnTunnel
+        | UseCase::ApiSecurity
+        | UseCase::FileStorage
+        | UseCase::DatabaseEncryption
+        | UseCase::CloudStorage
+        | UseCase::BackupArchive
+        | UseCase::ConfigSecrets
+        | UseCase::Authentication
+        | UseCase::SessionToken
+        | UseCase::DigitalCertificate
+        | UseCase::KeyExchange
+        | UseCase::LegalDocuments
+        | UseCase::BlockchainTransaction
+        | UseCase::IoTDevice
+        | UseCase::FirmwareSigning
+        | UseCase::AuditLog => ComplianceMode::Default,
     }
 }
 
@@ -41,31 +65,33 @@ fn default_compliance_for_use_case(use_case: &UseCase) -> ComplianceMode {
 /// # Examples
 ///
 /// ```rust,no_run
-/// # use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, SecurityLevel, VerifiedSession, generate_keypair};
+/// # use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, SecurityLevel, VerifiedSession, generate_keypair, EncryptKey};
 /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
 /// # let data = b"secret";
-/// # let key = [0u8; 32];
-/// // Simple - all defaults (High security, no session)
-/// encrypt(data, &key, CryptoConfig::new())?;
+///
+/// // Hybrid encryption (recommended - ML-KEM-768 + X25519 + AES-256-GCM)
+/// let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
+/// encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 ///
 /// // With Zero Trust session
-/// # let (pk, sk) = generate_keypair()?;
-/// let session = VerifiedSession::establish(&pk, sk.as_ref())?;
-/// encrypt(data, &key, CryptoConfig::new().session(&session))?;
+/// # let (ed_pk, ed_sk) = generate_keypair()?;
+/// let session = VerifiedSession::establish(&ed_pk, ed_sk.as_ref())?;
+/// encrypt(data, EncryptKey::Hybrid(&pk),
+///     CryptoConfig::new().session(&session))?;
 ///
 /// // With use case (recommended - library picks optimal algorithm)
-/// encrypt(data, &key, CryptoConfig::new()
+/// encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new()
 ///     .session(&session)
 ///     .use_case(UseCase::FileStorage))?;
 ///
-/// // With security level (manual control)
-/// encrypt(data, &key, CryptoConfig::new()
-///     .session(&session)
-///     .security_level(SecurityLevel::Maximum))?;
+/// // Symmetric encryption (AES-256-GCM)
+/// let key = [0u8; 32];
+/// encrypt(data, EncryptKey::Symmetric(&key), CryptoConfig::new()
+///     .force_scheme(latticearc::CryptoScheme::Symmetric))?;
 ///
 /// // With FIPS compliance (requires `fips` feature)
 /// use latticearc::types::types::ComplianceMode;
-/// encrypt(data, &key, CryptoConfig::new()
+/// encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new()
 ///     .compliance(ComplianceMode::Fips140_3))?;
 /// # Ok(())
 /// # }
@@ -147,13 +173,13 @@ impl<'a> CryptoConfig<'a> {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use latticearc::unified_api::{CryptoConfig, encrypt};
+    /// # use latticearc::unified_api::{CryptoConfig, encrypt, EncryptKey};
     /// # use latticearc::types::types::CryptoScheme;
     /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
     /// let key = [0u8; 32];
-    /// // Force post-quantum encryption
-    /// encrypt(b"data", &key, CryptoConfig::new()
-    ///     .force_scheme(CryptoScheme::PostQuantum))?;
+    /// // Force symmetric encryption
+    /// encrypt(b"data", EncryptKey::Symmetric(&key), CryptoConfig::new()
+    ///     .force_scheme(CryptoScheme::Symmetric))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -170,12 +196,12 @@ impl<'a> CryptoConfig<'a> {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use latticearc::unified_api::{CryptoConfig, encrypt};
+    /// # use latticearc::unified_api::{CryptoConfig, encrypt, EncryptKey};
     /// # use latticearc::types::types::ComplianceMode;
     /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
-    /// let key = [0u8; 32];
+    /// let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
     /// // Explicitly require FIPS compliance
-    /// encrypt(b"data", &key, CryptoConfig::new()
+    /// encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
     ///     .compliance(ComplianceMode::Fips140_3))?;
     /// # Ok(())
     /// # }
@@ -235,29 +261,33 @@ impl<'a> CryptoConfig<'a> {
     ) -> crate::unified_api::error::Result<()> {
         use crate::unified_api::error::CoreError;
 
+        /// Schemes explicitly banned under FIPS 140-3.
+        const FIPS_BANNED: &[&str] = &["chacha20-poly1305"];
+
+        /// Pure classical schemes banned under CNSA 2.0.
+        /// Hybrid schemes containing these as a component are allowed
+        /// (transitional per NIST SP 800-227).
+        const CNSA_BANNED_CLASSICAL: &[&str] = &["ed25519", "aes-256-gcm"];
+
         match self.compliance {
             ComplianceMode::Default => Ok(()),
             ComplianceMode::Fips140_3 => {
-                // ChaCha20-Poly1305 is not FIPS 140-3 validated
-                if scheme.contains("chacha") {
+                if FIPS_BANNED.contains(&scheme) {
                     return Err(CoreError::ComplianceViolation(format!(
-                        "Scheme '{}' is not FIPS 140-3 approved. \
+                        "Scheme '{scheme}' is not FIPS 140-3 approved. \
                          Use AES-256-GCM or a FIPS-validated algorithm.",
-                        scheme
                     )));
                 }
                 Ok(())
             }
             ComplianceMode::Cnsa2_0 => {
-                // CNSA 2.0 mandates post-quantum algorithms.
-                // Pure classical schemes (ed25519, aes-256-gcm standalone) are rejected.
-                // Hybrid schemes (ml-dsa-*-ed25519, ml-kem-*-x25519) are allowed
-                // as transitional per NIST SP 800-227.
-                if scheme == "ed25519" || scheme == "aes-256-gcm" {
+                // Only reject exact matches — hybrid schemes that embed a
+                // classical component (e.g. "hybrid-ml-dsa-65-ed25519") are
+                // allowed as transitional per NIST SP 800-227.
+                if CNSA_BANNED_CLASSICAL.contains(&scheme) {
                     return Err(CoreError::ComplianceViolation(format!(
-                        "Scheme '{}' is not permitted under CNSA 2.0 (post-quantum required). \
+                        "Scheme '{scheme}' is not permitted under CNSA 2.0 (post-quantum required). \
                          Use ML-KEM, ML-DSA, SLH-DSA, FN-DSA, or a hybrid scheme.",
-                        scheme
                     )));
                 }
                 Ok(())

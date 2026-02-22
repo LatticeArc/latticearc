@@ -11,18 +11,21 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::unified_api::{
 //!     encrypt, decrypt, generate_signing_keypair, sign_with_key, verify,
-//!     CryptoConfig, UseCase,
+//!     CryptoConfig, UseCase, EncryptKey, DecryptKey,
 //! };
-//! # let data = b"example data";
-//! # let key = [0u8; 32];
 //! # let message = b"example message";
 //!
-//! // Encrypt with use case (recommended)
-//! let encrypted = encrypt(data, &key, CryptoConfig::new()
-//!     .use_case(UseCase::FileStorage))?;
+//! // Hybrid encryption (recommended - ML-KEM-768 + X25519 + AES-256-GCM)
+//! let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk),
+//!     CryptoConfig::new().use_case(UseCase::FileStorage))?;
+//! let plaintext = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 //!
-//! // Decrypt
-//! let plaintext = decrypt(&encrypted, &key, CryptoConfig::new())?;
+//! // Symmetric encryption (AES-256-GCM)
+//! let key = [0u8; 32];
+//! let encrypted = encrypt(b"data", EncryptKey::Symmetric(&key),
+//!     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
+//! let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 //!
 //! // Sign (generate keypair once, sign with persistent key)
 //! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
@@ -38,16 +41,16 @@
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, VerifiedSession};
-//! # let pk = [0u8; 32];
-//! # let sk = [0u8; 32];
-//! # let data = b"example data";
-//! # let key = [0u8; 32];
+//! use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, VerifiedSession, EncryptKey};
+//! # let pk_ed = [0u8; 32];
+//! # let sk_ed = [0u8; 32];
 //!
-//! let session = VerifiedSession::establish(&pk, &sk)?;
-//! let encrypted = encrypt(data, &key, CryptoConfig::new()
-//!     .session(&session)
-//!     .use_case(UseCase::FileStorage))?;
+//! let session = VerifiedSession::establish(&pk_ed, &sk_ed)?;
+//! let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk),
+//!     CryptoConfig::new()
+//!         .session(&session)
+//!         .use_case(UseCase::FileStorage))?;
 //! # Ok(())
 //! # }
 //! ```
@@ -69,13 +72,10 @@ mod pq_sig;
 pub use api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
 // ============================================================================
-// Hybrid Encryption
+// Hybrid Key Generation (ML-KEM + X25519)
 // ============================================================================
 
-pub use hybrid::{
-    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
-    encrypt_hybrid_with_config, generate_hybrid_keypair,
-};
+pub use hybrid::{generate_hybrid_keypair, generate_hybrid_keypair_with_level};
 
 // ============================================================================
 // Hybrid Signatures (ML-DSA-65 + Ed25519)
@@ -137,7 +137,7 @@ pub use pq_sig::{
 };
 
 // ============================================================================
-// Unverified Variants (for backward compatibility with low-level primitives)
+// Unverified Variants (for low-level primitives)
 // ============================================================================
 
 pub use hashing::{
@@ -169,11 +169,6 @@ pub use pq_sig::{
     verify_pq_fn_dsa_with_config_unverified, verify_pq_ml_dsa_unverified,
     verify_pq_ml_dsa_with_config_unverified, verify_pq_slh_dsa_unverified,
     verify_pq_slh_dsa_with_config_unverified,
-};
-
-pub use hybrid::{
-    decrypt_hybrid_unverified, decrypt_hybrid_with_config_unverified, encrypt_hybrid_unverified,
-    encrypt_hybrid_with_config_unverified,
 };
 
 pub use hybrid_sig::{

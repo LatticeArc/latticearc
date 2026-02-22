@@ -115,11 +115,17 @@ pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<[u8; 32]> {
     let key = hmac::Key::new(HMAC_SHA256, salt_bytes);
     let tag = hmac::sign(&key, ikm);
 
-    let mut prk_array = [0u8; 32];
     let tag_bytes = tag.as_ref();
-    if let Some(src) = tag_bytes.get(..32) {
-        prk_array.copy_from_slice(src);
-    }
+    // HMAC-SHA256 always produces exactly 32 bytes (RFC 2104).
+    // Returning all-zeros on shorter output would be a dangerous silent failure.
+    let src = tag_bytes.get(..32).ok_or_else(|| LatticeArcError::ValidationError {
+        message: format!(
+            "HKDF-Extract: HMAC-SHA256 output is {} bytes, expected 32",
+            tag_bytes.len()
+        ),
+    })?;
+    let mut prk_array = [0u8; 32];
+    prk_array.copy_from_slice(src);
 
     Ok(prk_array)
 }

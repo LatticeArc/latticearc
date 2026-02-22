@@ -11,7 +11,9 @@
     clippy::arithmetic_side_effects
 )]
 
-use latticearc::{CryptoConfig, SecurityLevel, UseCase, decrypt, encrypt};
+use latticearc::{
+    CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, SecurityLevel, UseCase, decrypt, encrypt,
+};
 use latticearc::{generate_signing_keypair, sign_with_key, verify};
 use proptest::prelude::*;
 
@@ -22,10 +24,9 @@ proptest! {
     #[test]
     fn unified_aead_roundtrip(data in prop::collection::vec(any::<u8>(), 0..4096)) {
         let key = [0x42u8; 32]; // Fixed AES-256 key for testing
-        let config = CryptoConfig::new();
 
-        let encrypted = encrypt(&data, &key, config.clone()).unwrap();
-        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        let encrypted = encrypt(&data, EncryptKey::Symmetric(&key), CryptoConfig::new().force_scheme(CryptoScheme::Symmetric)).unwrap();
+        let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
 
         prop_assert_eq!(&decrypted, &data, "AEAD roundtrip must recover original data");
     }
@@ -36,10 +37,8 @@ proptest! {
         data in prop::collection::vec(any::<u8>(), 0..1024),
         key in prop::array::uniform32(any::<u8>()),
     ) {
-        let config = CryptoConfig::new();
-
-        let encrypted = encrypt(&data, &key, config.clone()).unwrap();
-        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        let encrypted = encrypt(&data, EncryptKey::Symmetric(&key), CryptoConfig::new().force_scheme(CryptoScheme::Symmetric)).unwrap();
+        let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
 
         prop_assert_eq!(&decrypted, &data);
     }
@@ -53,9 +52,8 @@ proptest! {
     ) {
         prop_assume!(key1 != key2);
 
-        let config = CryptoConfig::new();
-        let encrypted = encrypt(&data, &key1, config.clone()).unwrap();
-        let result = decrypt(&encrypted, &key2, config);
+        let encrypted = encrypt(&data, EncryptKey::Symmetric(&key1), CryptoConfig::new().force_scheme(CryptoScheme::Symmetric)).unwrap();
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&key2), CryptoConfig::new());
 
         prop_assert!(result.is_err(), "Wrong key must fail decryption");
     }
@@ -124,10 +122,9 @@ proptest! {
         data in prop::collection::vec(any::<u8>(), 0..256),
     ) {
         let key = [0x55u8; 32];
-        let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
 
-        let encrypted = encrypt(&data, &key, config.clone()).unwrap();
-        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        let encrypted = encrypt(&data, EncryptKey::Symmetric(&key), CryptoConfig::new().use_case(UseCase::SecureMessaging).force_scheme(CryptoScheme::Symmetric)).unwrap();
+        let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
 
         prop_assert_eq!(&decrypted, &data);
     }

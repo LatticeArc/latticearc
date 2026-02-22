@@ -199,7 +199,8 @@ impl CircuitBreaker {
             0 => CircuitState::Closed,
             1 => CircuitState::Open,
             2 => CircuitState::HalfOpen,
-            _ => CircuitState::Closed,
+            // Fail-safe: corrupted state blocks requests rather than allowing them
+            _ => CircuitState::Open,
         }
     }
 

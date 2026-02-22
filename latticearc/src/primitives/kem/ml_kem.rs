@@ -800,6 +800,16 @@ impl MlKem {
         let public_key = MlKemPublicKey::new(config.security_level, pk_bytes.as_ref().to_vec())?;
         let secret_key = MlKemSecretKey::new(config.security_level, sk_bytes)?;
 
+        // FIPS 140-3 §9.2: Pairwise Consistency Test after every key generation.
+        // Verifies encapsulation + decapsulation consistency with a fresh keypair.
+        #[cfg(feature = "fips-self-test")]
+        crate::primitives::pct::pct_ml_kem(config.security_level).map_err(|e| {
+            MlKemError::KeyGenerationError(format!(
+                "Post-keygen PCT failed (FIPS 140-3 §9.2): {}",
+                e
+            ))
+        })?;
+
         Ok((public_key, secret_key))
     }
 

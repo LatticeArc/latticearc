@@ -248,7 +248,7 @@ mod resource_limits_manager_tests {
     #[test]
     fn test_new_creates_default_limits() {
         let manager = ResourceLimitsManager::new();
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
         assert_eq!(limits.max_encryption_size_bytes, 100 * 1024 * 1024);
     }
@@ -257,7 +257,7 @@ mod resource_limits_manager_tests {
     fn test_with_limits_custom_values() {
         let custom_limits = ResourceLimits::new(50, 1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(custom_limits);
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 50);
         assert_eq!(limits.max_encryption_size_bytes, 1024);
         assert_eq!(limits.max_signature_size_bytes, 512);
@@ -268,8 +268,8 @@ mod resource_limits_manager_tests {
     fn test_update_limits() {
         let manager = ResourceLimitsManager::new();
         let new_limits = ResourceLimits::new(25, 512, 256, 1024);
-        manager.update_limits(new_limits);
-        let limits = manager.get_limits();
+        manager.update_limits(new_limits).unwrap();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 25);
         assert_eq!(limits.max_encryption_size_bytes, 512);
     }
@@ -277,7 +277,7 @@ mod resource_limits_manager_tests {
     #[test]
     fn test_default_trait() {
         let manager = ResourceLimitsManager::default();
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
     }
 
@@ -422,7 +422,7 @@ mod global_resource_limits_tests {
     #[test]
     fn test_get_global_resource_limits_returns_manager() {
         let manager = get_global_resource_limits();
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert!(limits.max_key_derivations_per_call > 0);
     }
 
@@ -431,8 +431,8 @@ mod global_resource_limits_tests {
         let manager1 = get_global_resource_limits();
         let manager2 = get_global_resource_limits();
         // Both should return the same static reference
-        let limits1 = manager1.get_limits();
-        let limits2 = manager2.get_limits();
+        let limits1 = manager1.get_limits().unwrap();
+        let limits2 = manager2.get_limits().unwrap();
         assert_eq!(limits1.max_key_derivations_per_call, limits2.max_key_derivations_per_call);
     }
 
@@ -662,7 +662,7 @@ mod edge_case_tests {
         assert!(manager.validate_key_derivation_count(500).is_ok());
 
         // Update to stricter limits
-        manager.update_limits(ResourceLimits::new(100, 1024, 512, 2048));
+        manager.update_limits(ResourceLimits::new(100, 1024, 512, 2048)).unwrap();
 
         // Now 500 should fail
         assert!(manager.validate_key_derivation_count(500).is_err());
@@ -716,7 +716,7 @@ mod concurrent_tests {
             let m = Arc::clone(&manager);
             handles.push(thread::spawn(move || {
                 for _ in 0..100 {
-                    let limits = m.get_limits();
+                    let limits = m.get_limits().unwrap();
                     assert_eq!(limits.max_key_derivations_per_call, 1000);
                 }
             }));
@@ -765,7 +765,8 @@ mod concurrent_tests {
                         limit * 1000,
                         limit * 10,
                         limit * 1000,
-                    ));
+                    ))
+                    .unwrap();
                 }
             }));
         }
@@ -775,7 +776,7 @@ mod concurrent_tests {
             let m = Arc::clone(&manager);
             handles.push(thread::spawn(move || {
                 for _ in 0..50 {
-                    let limits = m.get_limits();
+                    let limits = m.get_limits().unwrap();
                     // Just ensure we can read without panic
                     let _ = limits.max_key_derivations_per_call;
                 }
@@ -795,7 +796,7 @@ mod concurrent_tests {
             handles.push(thread::spawn(|| {
                 for _ in 0..100 {
                     let manager = get_global_resource_limits();
-                    let limits = manager.get_limits();
+                    let limits = manager.get_limits().unwrap();
                     assert!(limits.max_key_derivations_per_call > 0);
                 }
             }));
@@ -894,19 +895,16 @@ mod integration_tests {
         assert!(manager.validate_encryption_size(50 * 1024 * 1024).is_ok());
 
         // System detects low memory, tighten limits
-        manager.update_limits(ResourceLimits::new(
-            100,
-            10 * 1024 * 1024,
-            32 * 1024,
-            10 * 1024 * 1024,
-        ));
+        manager
+            .update_limits(ResourceLimits::new(100, 10 * 1024 * 1024, 32 * 1024, 10 * 1024 * 1024))
+            .unwrap();
 
         // Same operation should now fail
         assert!(manager.validate_encryption_size(50 * 1024 * 1024).is_err());
         assert!(manager.validate_encryption_size(5 * 1024 * 1024).is_ok());
 
         // Memory freed, relax limits
-        manager.update_limits(ResourceLimits::default());
+        manager.update_limits(ResourceLimits::default()).unwrap();
 
         // Original operation should work again
         assert!(manager.validate_encryption_size(50 * 1024 * 1024).is_ok());

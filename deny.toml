@@ -45,7 +45,10 @@ allow = []
 
 # Explicitly denied crates
 # Note: libc is present as a transitive dependency (via aws-lc-sys) — acceptable
-deny = []
+# and cannot be denied. nix is banned per project policy (use rustix instead).
+deny = [
+    { crate = "nix" },
+]
 
 # Skip specific crates
 skip = []

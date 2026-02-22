@@ -3,40 +3,26 @@
 
 //! Fuzz testing for hybrid encryption
 //!
-//! Tests that encrypt_hybrid/decrypt_hybrid roundtrip correctly
-//! with arbitrary plaintext data using ML-KEM + AES-GCM.
+//! Tests that the unified encrypt/decrypt API roundtrips correctly
+//! with arbitrary plaintext data using ML-KEM-768 + X25519 + AES-GCM hybrid encryption.
 
 use libfuzzer_sys::fuzz_target;
-use latticearc::unified_api::convenience::{encrypt_hybrid, decrypt_hybrid, generate_ml_kem_keypair};
-use latticearc::unified_api::zero_trust::SecurityMode;
-use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+use latticearc::{CryptoConfig, DecryptKey, EncryptKey, decrypt, encrypt, generate_hybrid_keypair};
 
 fuzz_target!(|data: &[u8]| {
-    // Need at least 32 bytes for symmetric key + some plaintext
-    if data.len() < 33 {
-        return;
-    }
+    // Use entire fuzz input as plaintext (can be empty)
+    let plaintext = data;
 
-    // Use first 32 bytes as symmetric key, rest as plaintext
-    let symmetric_key = &data[..32];
-    let plaintext = &data[32..];
-
-    // Generate ML-KEM keypair for hybrid encryption
-    let (public_key, private_key) = match generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768) {
+    // Generate hybrid keypair (ML-KEM-768 + X25519)
+    let (pk, sk) = match generate_hybrid_keypair() {
         Ok(kp) => kp,
         Err(_) => return,
     };
 
-    // Test hybrid encryption with KEM (using Unverified mode for fuzzing)
-    if let Ok(encrypted) = encrypt_hybrid(plaintext, Some(&public_key), symmetric_key, SecurityMode::Unverified) {
+    // Test hybrid encryption via unified API
+    if let Ok(encrypted) = encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()) {
         // Test hybrid decryption
-        if let Ok(decrypted) = decrypt_hybrid(
-            &encrypted.ciphertext,
-            Some(private_key.as_ref()),
-            &encrypted.encapsulated_key,
-            symmetric_key,
-            SecurityMode::Unverified,
-        ) {
+        if let Ok(decrypted) = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()) {
             // Verify roundtrip
             assert_eq!(plaintext, decrypted.as_slice());
         }

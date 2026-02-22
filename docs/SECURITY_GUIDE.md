@@ -220,8 +220,8 @@ let encrypted = encrypt(data, &key, config)?;
 
 // Hybrid public-key encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
 let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
-let encrypted = encrypt_hybrid(data, &hybrid_pk, SecurityMode::Unverified)?;
-let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&hybrid_pk), CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig::new())?;
 ```
 
 **Security constraints:**
@@ -337,8 +337,8 @@ use latticearc::CoreError;
 
 fn process_data(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, CoreError> {
     // Use ? to propagate errors - never ignore them
-    let encrypted = EncryptedData::deserialize(ciphertext)?;
-    let plaintext = decrypt(&encrypted, key, CryptoConfig::new())?;
+    let encrypted = EncryptedOutput::deserialize(ciphertext)?;
+    let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(key), CryptoConfig::new())?;
 
     // Validate before use
     if plaintext.is_empty() {
@@ -402,9 +402,9 @@ use std::sync::Semaphore;
 // Limit concurrent crypto operations
 static CRYPTO_SEMAPHORE: Semaphore = Semaphore::new(100);
 
-async fn encrypt_with_limit(data: &[u8], key: &[u8; 32]) -> Result<EncryptedData, CoreError> {
+async fn encrypt_with_limit(data: &[u8], key: &[u8; 32]) -> Result<EncryptedOutput, CoreError> {
     let _permit = CRYPTO_SEMAPHORE.acquire().await?;
-    encrypt(data, key)
+    encrypt(data, EncryptKey::Symmetric(key), CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))
 }
 ```
 

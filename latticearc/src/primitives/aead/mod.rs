@@ -22,7 +22,8 @@
 
 pub mod aes_gcm;
 
-/// ChaCha20-Poly1305 AEAD (RFC 8439)
+/// ChaCha20-Poly1305 AEAD (RFC 8439). Non-FIPS: not in NIST SP 800-38D.
+#[cfg(not(feature = "fips"))]
 pub mod chacha20poly1305;
 
 /// AEAD cipher nonce length
@@ -134,6 +135,7 @@ pub enum AeadError {
 }
 
 // Re-export ChaCha20-Poly1305 cipher types for convenience
+#[cfg(not(feature = "fips"))]
 pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher};
 
 #[cfg(test)]

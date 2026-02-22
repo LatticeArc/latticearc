@@ -1,7 +1,7 @@
 //! Hybrid Encryption Example (ML-KEM-768 + X25519)
 //!
-//! Demonstrates hybrid post-quantum + classical encryption where security
-//! holds if EITHER algorithm remains secure.
+//! Demonstrates hybrid post-quantum + classical encryption using the unified API
+//! where security holds if EITHER algorithm remains secure.
 //!
 //! Run with: `cargo run --package latticearc --example hybrid_encryption --release`
 
@@ -9,7 +9,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::print_stdout)]
 
-use latticearc::{SecurityMode, decrypt_hybrid, encrypt_hybrid, generate_hybrid_keypair};
+use latticearc::{CryptoConfig, DecryptKey, EncryptKey, generate_hybrid_keypair};
 
 fn main() {
     println!("=== LatticeArc: Hybrid Encryption (ML-KEM-768 + X25519) ===\n");
@@ -28,18 +28,21 @@ fn main() {
         std::str::from_utf8(plaintext).unwrap()
     );
 
-    let encrypted =
-        encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("encryption failed");
+    let encrypted = latticearc::encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new())
+        .expect("encryption failed");
     println!("Encrypted:");
-    println!("  KEM ciphertext:   {} bytes", encrypted.kem_ciphertext.len());
-    println!("  ECDH ephemeral:   {} bytes", encrypted.ecdh_ephemeral_pk.len());
-    println!("  Symmetric CT:     {} bytes", encrypted.symmetric_ciphertext.len());
-    println!("  Nonce:            {} bytes", encrypted.nonce.len());
-    println!("  Tag:              {} bytes", encrypted.tag.len());
+    println!("  Scheme:     {}", encrypted.scheme);
+    println!("  Ciphertext: {} bytes", encrypted.ciphertext.len());
+    println!("  Nonce:      {} bytes", encrypted.nonce.len());
+    println!("  Tag:        {} bytes", encrypted.tag.len());
+    if let Some(ref hd) = encrypted.hybrid_data {
+        println!("  ML-KEM CT:  {} bytes", hd.ml_kem_ciphertext.len());
+        println!("  ECDH ePK:   {} bytes", hd.ecdh_ephemeral_pk.len());
+    }
 
     // --- Decrypt ---
-    let decrypted =
-        decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified).expect("decryption failed");
+    let decrypted = latticearc::decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())
+        .expect("decryption failed");
     assert_eq!(decrypted.as_slice(), plaintext);
     println!("\nDecrypted: {:?}", std::str::from_utf8(&decrypted).unwrap());
     println!("  Roundtrip OK!");
@@ -48,9 +51,10 @@ fn main() {
     println!("\n--- Multiple messages with same keypair ---");
     for i in 0..5u32 {
         let msg = format!("Hybrid message #{}", i);
-        let enc =
-            encrypt_hybrid(msg.as_bytes(), &pk, SecurityMode::Unverified).expect("encrypt failed");
-        let dec = decrypt_hybrid(&enc, &sk, SecurityMode::Unverified).expect("decrypt failed");
+        let enc = latticearc::encrypt(msg.as_bytes(), EncryptKey::Hybrid(&pk), CryptoConfig::new())
+            .expect("encrypt failed");
+        let dec = latticearc::decrypt(&enc, DecryptKey::Hybrid(&sk), CryptoConfig::new())
+            .expect("decrypt failed");
         assert_eq!(dec, msg.as_bytes());
         println!("  Message {}: {} bytes -> encrypt -> decrypt OK", i, msg.len());
     }

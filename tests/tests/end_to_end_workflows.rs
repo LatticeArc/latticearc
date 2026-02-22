@@ -4,7 +4,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
 #![allow(missing_docs)]
-
 //! End-to-End Workflow Integration Tests
 //!
 //! Full roundtrip tests through the latticearc facade layer,
@@ -13,8 +12,8 @@
 //! Run with: `cargo test --package latticearc --test end_to_end_workflows --all-features --release -- --nocapture`
 
 use latticearc::{
-    CryptoConfig, SecurityLevel, SecurityMode, decrypt_aes_gcm, decrypt_hybrid, derive_key,
-    deserialize_signed_data, encrypt_aes_gcm, encrypt_hybrid, generate_hybrid_keypair,
+    CryptoConfig, DecryptKey, EncryptKey, SecurityLevel, SecurityMode, decrypt, decrypt_aes_gcm,
+    derive_key, deserialize_signed_data, encrypt, encrypt_aes_gcm, generate_hybrid_keypair,
     generate_signing_keypair, hash_data, hmac, hmac_check, serialize_signed_data, sign_ed25519,
     sign_with_key, verify, verify_ed25519,
 };
@@ -46,14 +45,15 @@ fn test_hybrid_encrypt_decrypt() {
     let plaintext = b"True hybrid ML-KEM-768 + X25519 encryption";
 
     let encrypted =
-        encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("encrypt failed");
-    assert_eq!(encrypted.kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
-    assert_eq!(encrypted.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
+        encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
+    let hybrid = encrypted.hybrid_data.as_ref().expect("should have hybrid_data");
+    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
+    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
     assert_eq!(encrypted.nonce.len(), 12, "AES-GCM nonce should be 12 bytes");
     assert_eq!(encrypted.tag.len(), 16, "AES-GCM tag should be 16 bytes");
 
     let decrypted =
-        decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified).expect("decrypt failed");
+        decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext, "Hybrid roundtrip mismatch");
 }
 
@@ -220,11 +220,11 @@ fn test_tamper_detection_comprehensive() {
 
     // Hybrid encryption tamper detection
     let (h_pk, h_sk) = generate_hybrid_keypair().unwrap();
-    let mut encrypted = encrypt_hybrid(b"secret", &h_pk, SecurityMode::Unverified).unwrap();
-    if !encrypted.symmetric_ciphertext.is_empty() {
-        encrypted.symmetric_ciphertext[0] ^= 0xFF;
+    let mut encrypted = encrypt(b"secret", EncryptKey::Hybrid(&h_pk), CryptoConfig::new()).unwrap();
+    if !encrypted.ciphertext.is_empty() {
+        encrypted.ciphertext[0] ^= 0xFF;
     }
-    let result = decrypt_hybrid(&encrypted, &h_sk, SecurityMode::Unverified);
+    let result = decrypt(&encrypted, DecryptKey::Hybrid(&h_sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered hybrid ciphertext should fail");
 }
 
@@ -248,8 +248,8 @@ fn test_cross_key_rejection() {
     let (pk_h1, _sk_h1) = generate_hybrid_keypair().unwrap();
     let (_pk_h2, sk_h2) = generate_hybrid_keypair().unwrap();
 
-    let encrypted = encrypt_hybrid(b"data", &pk_h1, SecurityMode::Unverified).unwrap();
-    let result = decrypt_hybrid(&encrypted, &sk_h2, SecurityMode::Unverified);
+    let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk_h1), CryptoConfig::new()).unwrap();
+    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk_h2), CryptoConfig::new());
     assert!(result.is_err(), "Decrypt with wrong hybrid key should fail");
 
     // AES-GCM cross-key rejection

@@ -1732,6 +1732,7 @@ fn test_secret_dependent_operation_timing() {
 /// may have high variance. The constant-time guarantees come from the underlying
 /// chacha20poly1305 crate implementation, NOT from timing measurements.
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_chacha20poly1305_encryption_timing_consistency() {
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
@@ -1770,6 +1771,7 @@ fn test_chacha20poly1305_encryption_timing_consistency() {
 
 /// Test ChaCha20-Poly1305 tag verification constant-time behavior
 #[test]
+#[cfg(not(feature = "fips"))]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
 fn test_chacha20poly1305_tag_verification_constant_time() {
     use latticearc::primitives::aead::chacha20poly1305::verify_tag_constant_time;
@@ -1829,6 +1831,7 @@ fn test_chacha20poly1305_tag_verification_constant_time() {
 
 /// Test ChaCha20-Poly1305 decryption failure timing consistency
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_chacha20poly1305_decryption_failure_timing() {
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 

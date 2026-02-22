@@ -15,7 +15,7 @@
 
 use latticearc::unified_api::convenience::*;
 use latticearc::unified_api::types::{CryptoConfig, SecurityLevel, UseCase};
-use latticearc::{ComplianceMode, fips_available};
+use latticearc::{ComplianceMode, CryptoScheme, DecryptKey, EncryptKey, fips_available};
 
 // ============================================================
 // encrypt() with different CryptoConfig selections
@@ -27,9 +27,14 @@ fn test_encrypt_default_config() {
     let data = b"Test data for default config";
     let config = CryptoConfig::new();
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
-    assert!(!encrypted.data.is_empty());
-    assert!(!encrypted.scheme.is_empty());
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.scheme.as_str().is_empty());
 }
 
 #[test]
@@ -38,8 +43,13 @@ fn test_encrypt_use_case_file_storage() {
     let data = b"File storage encryption test";
     let config = CryptoConfig::new().use_case(UseCase::FileStorage);
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
-    assert!(!encrypted.data.is_empty());
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
 }
 
 #[test]
@@ -48,8 +58,13 @@ fn test_encrypt_use_case_secure_messaging() {
     let data = b"Secure messaging encryption test";
     let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
-    assert!(!encrypted.data.is_empty());
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
 }
 
 #[test]
@@ -58,8 +73,13 @@ fn test_encrypt_use_case_iot_device() {
     let data = b"IoT device encryption test";
     let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
-    assert!(!encrypted.data.is_empty());
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
 }
 
 #[test]
@@ -68,8 +88,13 @@ fn test_encrypt_security_level_maximum() {
     let data = b"Maximum security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
-    assert!(!encrypted.data.is_empty());
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
 }
 
 #[test]
@@ -78,8 +103,13 @@ fn test_encrypt_security_level_standard() {
     let data = b"Standard security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
-    assert!(!encrypted.data.is_empty());
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
 }
 
 #[test]
@@ -88,8 +118,13 @@ fn test_encrypt_security_level_high() {
     let data = b"High security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
-    assert!(!encrypted.data.is_empty());
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
 }
 
 #[test]
@@ -98,7 +133,11 @@ fn test_encrypt_invalid_key_too_short() {
     let data = b"test data";
     let config = CryptoConfig::new();
 
-    let result = encrypt(data.as_ref(), &short_key, config);
+    let result = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(short_key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    );
     assert!(result.is_err());
 }
 
@@ -108,9 +147,14 @@ fn test_encrypt_empty_data() {
     let data = b"";
     let config = CryptoConfig::new();
 
-    let encrypted = encrypt(data.as_ref(), &key, config).unwrap();
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
     // AES-GCM produces nonce+tag even for empty plaintext
-    assert!(!encrypted.data.is_empty());
+    assert!(!encrypted.ciphertext.is_empty());
 }
 
 // ============================================================
@@ -123,8 +167,13 @@ fn test_encrypt_decrypt_roundtrip_default() {
     let data = b"Roundtrip test data with default config";
     let config = CryptoConfig::new();
 
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
-    let decrypted = decrypt(&encrypted, &key, config).unwrap();
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
     assert_eq!(decrypted, data);
 }
 
@@ -134,8 +183,13 @@ fn test_encrypt_decrypt_roundtrip_file_storage() {
     let data = b"File storage roundtrip";
     let config = CryptoConfig::new().use_case(UseCase::FileStorage);
 
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
-    let decrypted = decrypt(&encrypted, &key, config).unwrap();
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
     assert_eq!(decrypted, data);
 }
 
@@ -145,8 +199,13 @@ fn test_encrypt_decrypt_roundtrip_iot() {
     let data = b"IoT device roundtrip";
     let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
 
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
-    let decrypted = decrypt(&encrypted, &key, config).unwrap();
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
     assert_eq!(decrypted, data);
 }
 
@@ -155,8 +214,13 @@ fn test_decrypt_empty_data() {
     let key = vec![0x42u8; 32];
     let config = CryptoConfig::new();
 
-    let encrypted = encrypt(b"", &key, config.clone()).unwrap();
-    let decrypted = decrypt(&encrypted, &key, config).unwrap();
+    let encrypted = encrypt(
+        b"",
+        EncryptKey::Symmetric(key.as_ref()),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
     assert!(decrypted.is_empty());
 }
 
@@ -167,8 +231,13 @@ fn test_decrypt_invalid_key_too_short() {
     let data = b"test";
     let config = CryptoConfig::new();
 
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
-    let result = decrypt(&encrypted, &short_key, config);
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), config);
     assert!(result.is_err());
 }
 
@@ -276,9 +345,14 @@ fn test_encrypt_security_level_quantum() {
     let data = b"Quantum security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
 
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
-    assert!(!encrypted.data.is_empty());
-    let decrypted = decrypt(&encrypted, &key, config).unwrap();
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(key.as_ref()),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    assert!(!encrypted.ciphertext.is_empty());
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
     assert_eq!(decrypted, data);
 }
 
@@ -315,13 +389,13 @@ fn test_sign_verify_financial_use_case() {
 // ============================================================
 
 #[test]
-fn test_arc_core_init() {
+fn test_unified_api_init() {
     let result = latticearc::unified_api::init();
     assert!(result.is_ok(), "init() should succeed");
 }
 
 #[test]
-fn test_arc_core_init_with_default_config() {
+fn test_unified_api_init_with_default_config() {
     let config = latticearc::unified_api::config::CoreConfig::default();
     let result = latticearc::unified_api::init_with_config(&config);
     assert!(result.is_ok(), "init_with_config(default) should succeed");

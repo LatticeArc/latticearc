@@ -4,7 +4,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
 #![allow(missing_docs)]
-
 //! End-to-End Integration Tests
 //!
 //! Validates that all public `latticearc` facade APIs produce correct results
@@ -13,8 +12,8 @@
 //! Run with: `cargo test --package latticearc --test e2e_integration --all-features --release -- --nocapture`
 
 use latticearc::{
-    CryptoConfig, SecurityLevel, SecurityMode, decrypt_aes_gcm, decrypt_hybrid, derive_key,
-    deserialize_signed_data, encrypt_aes_gcm, encrypt_hybrid, generate_hybrid_keypair,
+    CryptoConfig, DecryptKey, EncryptKey, SecurityLevel, SecurityMode, decrypt, decrypt_aes_gcm,
+    derive_key, deserialize_signed_data, encrypt, encrypt_aes_gcm, generate_hybrid_keypair,
     generate_signing_keypair, hash_data, hmac, hmac_check, serialize_signed_data, sign_ed25519,
     sign_with_key, verify, verify_ed25519,
 };
@@ -109,12 +108,13 @@ fn test_hybrid_encrypt_decrypt_roundtrip() {
     let plaintext = b"True hybrid ML-KEM-768 + X25519 encryption";
 
     let encrypted =
-        encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("encrypt failed");
-    assert_eq!(encrypted.kem_ciphertext.len(), 1088, "ML-KEM-768 CT = 1088 bytes");
-    assert_eq!(encrypted.ecdh_ephemeral_pk.len(), 32, "X25519 PK = 32 bytes");
+        encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
+    let hybrid = encrypted.hybrid_data.as_ref().expect("should have hybrid_data");
+    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT = 1088 bytes");
+    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK = 32 bytes");
 
     let decrypted =
-        decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified).expect("decrypt failed");
+        decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -123,9 +123,10 @@ fn test_hybrid_different_plaintexts() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
 
     for msg in [b"short" as &[u8], b"", &[0xAA; 4096]] {
-        let encrypted = encrypt_hybrid(msg, &pk, SecurityMode::Unverified).expect("encrypt failed");
-        let decrypted =
-            decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified).expect("decrypt failed");
+        let encrypted =
+            encrypt(msg, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
+        let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())
+            .expect("decrypt failed");
         assert_eq!(decrypted.as_slice(), msg);
     }
 }
@@ -263,22 +264,21 @@ fn test_hybrid_then_sign_workflow() {
     // Hybrid encrypt
     let plaintext = b"Hybrid + signature workflow";
     let encrypted =
-        encrypt_hybrid(plaintext, &h_pk, SecurityMode::Unverified).expect("encrypt failed");
+        encrypt(plaintext, EncryptKey::Hybrid(&h_pk), CryptoConfig::new()).expect("encrypt failed");
 
     // Sign the ciphertext portion
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (s_pk, s_sk, _) = generate_signing_keypair(config).expect("keygen failed");
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let signed =
-        sign_with_key(&encrypted.symmetric_ciphertext, &s_sk, &s_pk, config).expect("sign failed");
+    let signed = sign_with_key(&encrypted.ciphertext, &s_sk, &s_pk, config).expect("sign failed");
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let is_valid = verify(&signed, config).expect("verify failed");
     assert!(is_valid);
 
     // Decrypt
-    let decrypted =
-        decrypt_hybrid(&encrypted, &h_sk, SecurityMode::Unverified).expect("decrypt failed");
+    let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&h_sk), CryptoConfig::new())
+        .expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }

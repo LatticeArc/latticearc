@@ -31,11 +31,12 @@ latticearc = "0.2"
 ### Encryption
 
 ```rust
-use latticearc::{encrypt, decrypt, CryptoConfig};
+use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 
-let key = [0u8; 32];
-let encrypted = encrypt(b"secret data", &key, CryptoConfig::new())?;
-let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
+// Hybrid encryption: ML-KEM-768 + X25519 + HKDF + AES-256-GCM
+let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+let encrypted = encrypt(b"secret data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 ### Digital Signatures
@@ -80,16 +81,16 @@ flowchart LR
 ### Hybrid Encryption
 
 ```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+use latticearc::{encrypt, decrypt, generate_hybrid_keypair, CryptoConfig, EncryptKey, DecryptKey};
 
 // Generate hybrid keypair (ML-KEM-768 + X25519)
 let (pk, sk) = generate_hybrid_keypair()?;
 
 // Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM)
-let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+let encrypted = encrypt(b"sensitive data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 
 // Decrypt
-let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 ### Hybrid Signatures
@@ -145,9 +146,10 @@ flowchart TB
 ### By Use Case (Recommended)
 
 ```rust
-use latticearc::{encrypt, CryptoConfig, UseCase};
+use latticearc::{encrypt, CryptoConfig, UseCase, EncryptKey};
 
-let encrypted = encrypt(data, &key, CryptoConfig::new()
+let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
+let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
     .use_case(UseCase::FileStorage))?;
 ```
 
@@ -166,9 +168,10 @@ let encrypted = encrypt(data, &key, CryptoConfig::new()
 ### By Security Level
 
 ```rust
-use latticearc::{encrypt, CryptoConfig, SecurityLevel};
+use latticearc::{encrypt, CryptoConfig, SecurityLevel, EncryptKey};
 
-let encrypted = encrypt(data, &key, CryptoConfig::new()
+let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
+let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
     .security_level(SecurityLevel::Maximum))?;
 ```
 
@@ -192,13 +195,14 @@ LatticeArc provides compile-time and runtime compliance controls for regulated e
 | `ComplianceMode::Cnsa2_0` | Yes | No | NSA CNSA 2.0 (PQ-only mandated) |
 
 ```rust
-use latticearc::{encrypt, CryptoConfig, ComplianceMode, UseCase};
+use latticearc::{encrypt, CryptoConfig, ComplianceMode, UseCase, EncryptKey};
 
 // FIPS 140-3 compliant encryption for healthcare
+let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
 let config = CryptoConfig::new()
     .use_case(UseCase::HealthcareRecords)
     .compliance(ComplianceMode::Fips140_3);
-let encrypted = encrypt(data, &key, config)?;
+let encrypted = encrypt(b"patient data", EncryptKey::Hybrid(&pk), config)?;
 
 // CNSA 2.0 mode (PQ-only, no hybrid)
 let config = CryptoConfig::new()
@@ -239,13 +243,15 @@ sequenceDiagram
 ```
 
 ```rust
-use latticearc::{encrypt, generate_keypair, CryptoConfig, VerifiedSession};
+use latticearc::{encrypt, generate_keypair, CryptoConfig, VerifiedSession, EncryptKey};
 
 let (pk, sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&pk, &sk)?;
+let session = VerifiedSession::establish(&pk, sk.as_ref())?;
 
 // Session is verified before each operation
-let encrypted = encrypt(data, &key, CryptoConfig::new().session(&session))?;
+let (enc_pk, _enc_sk) = latticearc::generate_hybrid_keypair()?;
+let encrypted = encrypt(b"data", EncryptKey::Hybrid(&enc_pk),
+    CryptoConfig::new().session(&session))?;
 ```
 
 ## Post-Quantum TLS
@@ -333,7 +339,7 @@ Correctness is verified at three layers, each with the right tool for the job:
 
 **Proptest (API-level crypto):** 40+ property-based tests in `tests/tests/proptest_*.rs`, each running 256 random cases in release mode. These verify that our Rust wrappers correctly compose the verified primitives — encrypt/decrypt roundtrip, KEM encapsulate/decapsulate consistency, signature sign/verify, FIPS 203 key sizes, and scheme selector determinism.
 
-**Kani (type invariants):** 29 bounded model checking proofs in `latticearc::types`, run on every push to `main`. These do **not** verify cryptographic operations (which require FFI). They verify the pure-Rust policy and state management layer:
+**Kani (type invariants):** 29 bounded model checking proofs in `latticearc::types`, run nightly and weekly via CI (plus manual dispatch). These do **not** verify cryptographic operations (which require FFI). They verify the pure-Rust policy and state management layer:
 
 - **Key lifecycle** (5 proofs): SP 800-57 state machine — destroyed keys can't transition, no backward transitions, retired keys can only be destroyed
 - **Configuration validation** (6 proofs): CoreConfig bi-conditional validation over all 96 combinations, factory presets, encryption compression/integrity, signature chain/timestamp

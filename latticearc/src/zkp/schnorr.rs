@@ -76,7 +76,7 @@ impl SchnorrProver {
     /// Returns an error if the secret key is invalid or serialization fails.
     pub fn from_secret(secret: &[u8; 32]) -> Result<(Self, [u8; 33])> {
         let secret_key = SecretKey::from_bytes(secret.into())
-            .map_err(|_e| ZkpError::SerializationError("Invalid secret key format".to_string()))?;
+            .map_err(|e| ZkpError::SerializationError(format!("Invalid secret key format: {e}")))?;
         let public_key = secret_key.public_key();
 
         let public_bytes: [u8; 33] = <[u8; 33]>::try_from(public_key.to_sec1_bytes().as_ref())

@@ -16,7 +16,10 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use latticearc::unified_api::{encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair};
+//! use latticearc::unified_api::{
+//!     encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair,
+//!     EncryptKey, DecryptKey,
+//! };
 //!
 //! # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
 //! // Generate a keypair for session establishment
@@ -25,13 +28,20 @@
 //! // Establish a Zero Trust verified session (recommended)
 //! let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 //!
-//! // Perform cryptographic operations with verification
+//! // Symmetric encryption with session verification
 //! let key = [0u8; 32];
-//! let encrypted = encrypt(b"secret", &key, CryptoConfig::new().session(&session))?;
-//! let decrypted = decrypt(&encrypted, &key, CryptoConfig::new().session(&session))?;
+//! let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
+//!     CryptoConfig::new().session(&session)
+//!         .force_scheme(latticearc::CryptoScheme::Symmetric))?;
+//! let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key),
+//!     CryptoConfig::new().session(&session))?;
 //!
-//! // Opt-out: Without verification (for specific use cases only)
-//! let encrypted = encrypt(b"secret", &key, CryptoConfig::new())?;
+//! // Hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM)
+//! let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&pk),
+//!     CryptoConfig::new().session(&session))?;
+//! let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk),
+//!     CryptoConfig::new().session(&session))?;
 //! # Ok(())
 //! # }
 //! ```
@@ -161,17 +171,17 @@
 //! 4. **Refreshed** by establishing a new session when expired
 //!
 //! ```rust,no_run
-//! use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession, CoreError};
+//! use latticearc::unified_api::{encrypt, CryptoConfig, VerifiedSession, CoreError, EncryptKey, EncryptedOutput};
 //!
 //! fn perform_crypto_operation(
 //!     session: &VerifiedSession,
 //!     data: &[u8],
-//!     key: &[u8; 32],
-//! ) -> Result<Vec<u8>, CoreError> {
+//!     pk: &latticearc::hybrid::kem_hybrid::HybridPublicKey,
+//! ) -> Result<EncryptedOutput, CoreError> {
 //!     // Validate session before operation
 //!     session.verify_valid()?;  // Returns Err(SessionExpired) if expired
 //!
-//!     encrypt_aes_gcm(data, key, SecurityMode::Verified(session))
+//!     encrypt(data, EncryptKey::Hybrid(pk), CryptoConfig::new().session(session))
 //! }
 //! ```
 //!
@@ -266,8 +276,9 @@ pub use traits::{
 };
 pub use types::{
     AlgorithmSelection, ComplianceMode, CryptoConfig, CryptoContext, CryptoPayload, CryptoScheme,
-    EncryptedData, EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey,
-    PublicKey, SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
+    DecryptKey, EncryptKey, EncryptedData, EncryptedMetadata, EncryptedOutput, EncryptionScheme,
+    HashOutput, HybridComponents, KeyPair, PerformancePreference, PrivateKey, PublicKey,
+    SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
     fips_available,
 };
 pub use zero_trust::{
@@ -282,13 +293,10 @@ pub use zero_trust::{
 pub use convenience::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
 // ============================================================================
-// Hybrid Encryption
+// Hybrid Key Generation
 // ============================================================================
 
-pub use convenience::{
-    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
-    encrypt_hybrid_with_config, generate_hybrid_keypair,
-};
+pub use convenience::{generate_hybrid_keypair, generate_hybrid_keypair_with_level};
 
 // ============================================================================
 // Hybrid Signatures (ML-DSA-65 + Ed25519)
@@ -366,9 +374,6 @@ pub use convenience::{
     decrypt_aes_gcm_unverified,
     decrypt_aes_gcm_with_aad_unverified,
     decrypt_aes_gcm_with_config_unverified,
-    // Hybrid Encryption (true hybrid ML-KEM + X25519)
-    decrypt_hybrid_unverified,
-    decrypt_hybrid_with_config_unverified,
     // PQ KEM
     decrypt_pq_ml_kem_unverified,
     decrypt_pq_ml_kem_with_config_unverified,
@@ -379,8 +384,6 @@ pub use convenience::{
     encrypt_aes_gcm_unverified,
     encrypt_aes_gcm_with_aad_unverified,
     encrypt_aes_gcm_with_config_unverified,
-    encrypt_hybrid_unverified,
-    encrypt_hybrid_with_config_unverified,
     encrypt_pq_ml_kem_unverified,
     encrypt_pq_ml_kem_with_config_unverified,
     // Hybrid Signatures (ML-DSA-65 + Ed25519)

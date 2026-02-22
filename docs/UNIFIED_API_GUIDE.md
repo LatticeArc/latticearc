@@ -106,30 +106,31 @@ let is_valid = verify(&signed, config)?;
 ### Encryption
 
 ```rust
-use latticearc::{encrypt, decrypt, CryptoConfig};
+use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 
-let key = [0u8; 32];  // 256-bit key
+// Hybrid encryption: ML-KEM-768 + X25519 + HKDF + AES-256-GCM
+let (pk, sk) = latticearc::generate_hybrid_keypair()?;
 let plaintext = b"Sensitive data";
 
-let encrypted = encrypt(plaintext, &key, CryptoConfig::new())?;
-let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
+let encrypted = encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 ### Hybrid Encryption
 
-For true hybrid key encapsulation (ML-KEM + X25519 + HKDF):
+For true hybrid key encapsulation (ML-KEM + X25519 + HKDF), use the unified API:
 
 ```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+use latticearc::{generate_hybrid_keypair, encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 
 // Generate hybrid keypair (ML-KEM-768 + X25519)
 let (pk, sk) = generate_hybrid_keypair()?;
 
-// Encrypt using hybrid KEM
-let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+// Encrypt using hybrid KEM (via unified API)
+let encrypted = encrypt(b"sensitive data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 
 // Decrypt
-let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+let plaintext = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 Security holds if **either** ML-KEM or X25519 remains secure.
@@ -171,11 +172,11 @@ flowchart TB
         SS2 --> HKDF
         HKDF --> DEK[Data Encryption Key]
         DEK --> AES
-        AES --> CT["HybridEncryptionResult<br/>(KEM CT + ECDH PK + CT + nonce + tag)"]
+        AES --> CT["EncryptedOutput<br/>(KEM CT + ECDH PK + CT + nonce + tag)"]
     end
 
     subgraph "Decryption"
-        CT2[HybridEncryptionResult] --> DAES[AES-256-GCM Decrypt]
+        CT2[EncryptedOutput] --> DAES[AES-256-GCM Decrypt]
         D_MLKEM[ML-KEM Decapsulate] --> DSS1[Shared Secret 1]
         D_X25519[X25519 Agree] --> DSS2[Shared Secret 2]
         DSS1 --> DHKDF[HKDF-SHA256]

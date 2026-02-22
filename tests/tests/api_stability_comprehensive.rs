@@ -54,7 +54,6 @@
     clippy::needless_borrows_for_generic_args,
     unused_qualifications
 )]
-
 use std::error::Error;
 use std::mem::size_of_val;
 
@@ -64,8 +63,6 @@ use latticearc::unified_api::{
     AuditEvent,
     AuditEventType,
     AuditOutcome,
-    // Hybrid encryption types
-    HybridEncryptionResult,
     // Constants
     VERSION,
     // Config types
@@ -77,11 +74,9 @@ use latticearc::unified_api::{
     decrypt,
     // Unverified variants
     decrypt_aes_gcm_unverified,
-    decrypt_hybrid_unverified,
     derive_key_unverified,
     encrypt,
     encrypt_aes_gcm_unverified,
-    encrypt_hybrid_unverified,
     // Error types
     error::{CoreError, Result, TypeError},
     generate_hybrid_keypair,
@@ -112,9 +107,9 @@ use latticearc::unified_api::{
     },
     // Core types
     types::{
-        AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, EncryptedData,
-        EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey, PublicKey,
-        SecurityLevel, SignedMetadata, UseCase, ZeroizedBytes,
+        AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, DecryptKey, EncryptKey,
+        EncryptedMetadata, EncryptedOutput, HashOutput, KeyPair, PerformancePreference, PrivateKey,
+        PublicKey, SecurityLevel, SignedMetadata, UseCase, ZeroizedBytes,
     },
     verify_ed25519_unverified,
     // Zero trust
@@ -211,18 +206,18 @@ fn test_unified_api_functions_accessible() {
     assert!(decrypted.is_ok(), "decrypt_aes_gcm_unverified() should succeed");
 
     // Verify the unified API function signatures exist (type checking)
-    // Note: These require PQ public keys, not symmetric keys
+    // Note: These require EncryptKey/DecryptKey wrappers, not raw &[u8]
     fn _assert_encrypt_signature(
         _data: &[u8],
-        _key: &[u8],
+        _key: EncryptKey<'_>,
         _config: CryptoConfig,
-    ) -> Result<EncryptedData> {
+    ) -> Result<EncryptedOutput> {
         encrypt(_data, _key, _config)
     }
 
     fn _assert_decrypt_signature(
-        _encrypted: &EncryptedData,
-        _key: &[u8],
+        _encrypted: &EncryptedOutput,
+        _key: DecryptKey<'_>,
         _config: CryptoConfig,
     ) -> Result<Vec<u8>> {
         decrypt(_encrypted, _key, _config)
@@ -293,15 +288,15 @@ fn test_aes_gcm_functions_accessible() {
     assert!(decrypted.is_ok(), "decrypt_aes_gcm_unverified() should succeed");
 }
 
-/// Test 1.11: Hybrid encryption functions are accessible
+/// Test 1.11: Hybrid encryption functions are accessible via unified API
 #[test]
 fn test_hybrid_encryption_functions_accessible() {
     let data = b"plaintext";
 
-    // generate_hybrid_keypair + encrypt_hybrid_unverified for API stability
+    // generate_hybrid_keypair + unified encrypt for API stability
     let (pk, _sk) = generate_hybrid_keypair().expect("keygen");
-    let encrypted = encrypt_hybrid_unverified(data, &pk);
-    assert!(encrypted.is_ok(), "encrypt_hybrid_unverified() should succeed");
+    let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new());
+    assert!(encrypted.is_ok(), "encrypt(Hybrid) should succeed");
 }
 
 /// Test 1.12: Ed25519 signature functions are accessible
@@ -721,9 +716,9 @@ fn test_encrypt_function_works() {
     // Verify unified encrypt() function signature exists (compile-time check)
     fn _assert_signature(
         _data: &[u8],
-        _key: &[u8],
+        _key: EncryptKey<'_>,
         _config: CryptoConfig,
-    ) -> Result<EncryptedData> {
+    ) -> Result<EncryptedOutput> {
         encrypt(_data, _key, _config)
     }
 }
@@ -744,8 +739,8 @@ fn test_decrypt_function_works() {
 
     // Verify unified decrypt() function signature exists (compile-time check)
     fn _assert_signature(
-        _encrypted: &EncryptedData,
-        _key: &[u8],
+        _encrypted: &EncryptedOutput,
+        _key: DecryptKey<'_>,
         _config: CryptoConfig,
     ) -> Result<Vec<u8>> {
         decrypt(_encrypted, _key, _config)
@@ -996,16 +991,19 @@ fn test_unverified_aes_gcm_works() {
 fn test_hybrid_encryption_works() {
     let data = b"test data";
 
-    // generate_hybrid_keypair + encrypt/decrypt roundtrip
+    // generate_hybrid_keypair + unified encrypt/decrypt roundtrip
     let (pk, sk) = generate_hybrid_keypair().expect("keygen");
-    let result: HybridEncryptionResult = encrypt_hybrid_unverified(data, &pk).expect("encrypt");
+    let encrypted: EncryptedOutput =
+        encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt");
 
-    // HybridEncryptionResult has kem_ciphertext, ecdh_ephemeral_pk, symmetric_ciphertext, nonce, tag
-    assert_eq!(result.kem_ciphertext.len(), 1088, "ML-KEM-768 CT");
-    assert_eq!(result.ecdh_ephemeral_pk.len(), 32, "X25519 PK");
+    // EncryptedOutput has hybrid_data with ml_kem_ciphertext, ecdh_ephemeral_pk
+    let hybrid = encrypted.hybrid_data.as_ref().expect("hybrid_data must be present");
+    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT");
+    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK");
 
-    let decrypted = decrypt_hybrid_unverified(&result, &sk).expect("decrypt");
-    assert_eq!(decrypted, data);
+    let decrypted =
+        decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).expect("decrypt");
+    assert_eq!(decrypted.as_slice(), data);
 }
 
 /// Test 4.3: Legacy Ed25519 signing works

@@ -238,7 +238,7 @@ flowchart LR
     end
 
     subgraph "Output"
-        CT[EncryptedData]
+        CT[EncryptedOutput]
         META[Metadata<br/>nonce, tag, scheme]
     end
 
@@ -315,13 +315,13 @@ Low-level cryptographic primitives:
 
 | Module | Algorithms |
 |--------|-----------|
-| `kem/` | ML-KEM-512/768/1024 (FIPS 203) |
+| `kem/` | ML-KEM-512/768/1024 (FIPS 203), X25519 (ECDH) |
 | `sig/` | ML-DSA-44/65/87 (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (FIPS 206) |
 | `aead/` | AES-256-GCM, ChaCha20-Poly1305 |
-| `kdf/` | HKDF-SHA256, SP800-108 |
+| `kdf/` | HKDF-SHA256, PBKDF2, SP800-108 Counter KDF |
 | `hash/` | SHA-2, SHA-3 |
 | `mac/` | HMAC-SHA256, CMAC |
-| `ec/` | Ed25519, X25519, secp256k1, BLS12-381 |
+| `ec/` | Ed25519, secp256k1, BLS12-381, BN254 |
 
 ### `latticearc::hybrid`
 
@@ -440,10 +440,12 @@ flowchart LR
 
 | Feature | Description | Default |
 |---------|-------------|---------|
-| `std` | Standard library | Yes |
-| `alloc` | Heap allocation | Yes |
-| `serde` | Serialization | No |
-| `zeroize` | Memory clearing | Yes |
+| `fips` | FIPS 140-3 validated aws-lc-rs backend (requires CMake + Go) | No |
+| `fips-self-test` | Power-up KAT self-tests for FIPS-boundary algorithms | No |
+| `zkp-serde` | ZKP serialization support (enables `serde_with`) | No |
+| `formal-verification` | TLS formal verification features | No |
+| `kani` | Kani bounded model checking proofs | No |
+| `saw` | SAW formal verification integration | No |
 
 ## Testing Strategy
 

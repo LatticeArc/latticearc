@@ -57,8 +57,8 @@ pub(crate) fn sign_ed25519_internal(data: &[u8], ed25519_sk: &[u8]) -> Result<Ve
             err
         })?
         .try_into()
-        .map_err(|_e| {
-            let err = CoreError::InvalidInput("Private key must be 32 bytes".to_string());
+        .map_err(|e| {
+            let err = CoreError::InvalidInput(format!("Private key must be 32 bytes: {e}"));
             log_crypto_operation_error!("ed25519_sign", err);
             err
         })?;
@@ -108,8 +108,8 @@ pub(crate) fn verify_ed25519_internal(
             err
         })?
         .try_into()
-        .map_err(|_e| {
-            let err = CoreError::InvalidInput("Signature must be 64 bytes".to_string());
+        .map_err(|e| {
+            let err = CoreError::InvalidInput(format!("Signature must be 64 bytes: {e}"));
             log_crypto_operation_error!("ed25519_verify", err);
             err
         })?;
@@ -124,14 +124,14 @@ pub(crate) fn verify_ed25519_internal(
             err
         })?
         .try_into()
-        .map_err(|_e| {
-            let err = CoreError::InvalidInput("Public key must be 32 bytes".to_string());
+        .map_err(|e| {
+            let err = CoreError::InvalidInput(format!("Public key must be 32 bytes: {e}"));
             log_crypto_operation_error!("ed25519_verify", err);
             err
         })?;
 
-    let verifying_key = VerifyingKey::from_bytes(&public_key_bytes).map_err(|_e| {
-        let err = CoreError::InvalidInput("Invalid public key".to_string());
+    let verifying_key = VerifyingKey::from_bytes(&public_key_bytes).map_err(|e| {
+        let err = CoreError::InvalidInput(format!("Invalid public key: {e}"));
         log_crypto_operation_error!("ed25519_verify", err);
         err
     })?;

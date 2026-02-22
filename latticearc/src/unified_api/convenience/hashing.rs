@@ -75,11 +75,11 @@ fn derive_key_hkdf(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8
 
     let okm = prk
         .expand(&[b"latticearc"], HkdfOutputLen(length))
-        .map_err(|_e| CoreError::KeyDerivationFailed("HKDF expansion failed".to_string()))?;
+        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF expansion failed: {e}")))?;
 
     let mut output = vec![0u8; length];
     okm.fill(&mut output)
-        .map_err(|_e| CoreError::KeyDerivationFailed("HKDF fill failed".to_string()))?;
+        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF fill failed: {e}")))?;
 
     Ok(output)
 }
@@ -101,11 +101,11 @@ fn derive_key_hkdf_with_info(
     let info_slices: &[&[u8]] = &[info];
     let okm = prk
         .expand(info_slices, HkdfOutputLen(length))
-        .map_err(|_e| CoreError::KeyDerivationFailed("HKDF expansion failed".to_string()))?;
+        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF expansion failed: {e}")))?;
 
     let mut output = vec![0u8; length];
     okm.fill(&mut output)
-        .map_err(|_e| CoreError::KeyDerivationFailed("HKDF fill failed".to_string()))?;
+        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF fill failed: {e}")))?;
 
     Ok(output)
 }
@@ -225,8 +225,8 @@ fn hmac_internal(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         return Err(err);
     }
 
-    let mut mac = <Hmac<Sha256> as hmac::digest::KeyInit>::new_from_slice(key).map_err(|_e| {
-        let err = CoreError::InvalidInput("Invalid HMAC key".to_string());
+    let mut mac = <Hmac<Sha256> as hmac::digest::KeyInit>::new_from_slice(key).map_err(|e| {
+        let err = CoreError::InvalidInput(format!("Invalid HMAC key: {e}"));
         crate::log_crypto_operation_error!("hmac", err);
         err
     })?;

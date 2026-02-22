@@ -4,7 +4,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
 #![allow(missing_docs)]
-
 //! Security Property Tests
 //!
 //! Validates core cryptographic security properties through the `latticearc` public API:
@@ -14,8 +13,8 @@
 //! Run with: `cargo test --package latticearc --test security_property_tests --all-features --release -- --nocapture`
 
 use latticearc::{
-    CryptoConfig, SecurityLevel, SecurityMode, decrypt_aes_gcm, decrypt_hybrid, encrypt_aes_gcm,
-    encrypt_hybrid, generate_hybrid_keypair, generate_signing_keypair, hmac, hmac_check,
+    CryptoConfig, DecryptKey, EncryptKey, SecurityLevel, SecurityMode, decrypt, decrypt_aes_gcm,
+    encrypt, encrypt_aes_gcm, generate_hybrid_keypair, generate_signing_keypair, hmac, hmac_check,
     sign_with_key, verify,
 };
 
@@ -46,13 +45,13 @@ fn test_hybrid_tampered_ciphertext_fails() {
     let plaintext = b"Hybrid integrity test";
 
     let mut encrypted =
-        encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("encrypt failed");
+        encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
 
-    if !encrypted.symmetric_ciphertext.is_empty() {
-        encrypted.symmetric_ciphertext[0] ^= 0xFF;
+    if !encrypted.ciphertext.is_empty() {
+        encrypted.ciphertext[0] ^= 0xFF;
     }
 
-    let result = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified);
+    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered hybrid ciphertext must fail decryption");
 }
 
@@ -103,10 +102,10 @@ fn test_hybrid_wrong_key_fails() {
     let (pk1, _sk1) = generate_hybrid_keypair().expect("keygen 1 failed");
     let (_pk2, sk2) = generate_hybrid_keypair().expect("keygen 2 failed");
 
-    let encrypted =
-        encrypt_hybrid(b"cross-key test", &pk1, SecurityMode::Unverified).expect("encrypt failed");
+    let encrypted = encrypt(b"cross-key test", EncryptKey::Hybrid(&pk1), CryptoConfig::new())
+        .expect("encrypt failed");
 
-    let result = decrypt_hybrid(&encrypted, &sk2, SecurityMode::Unverified);
+    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk2), CryptoConfig::new());
     assert!(result.is_err(), "Decrypt with wrong hybrid key must fail");
 }
 
@@ -180,14 +179,13 @@ fn test_hybrid_nonce_uniqueness() {
     let (pk, _sk) = generate_hybrid_keypair().expect("keygen failed");
     let plaintext = b"Hybrid nonce test";
 
-    let enc1 = encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("enc1 failed");
-    let enc2 = encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("enc2 failed");
+    let enc1 =
+        encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("enc1 failed");
+    let enc2 =
+        encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("enc2 failed");
 
     // Each encryption uses fresh KEM + nonce, so ciphertexts differ
-    assert_ne!(
-        enc1.symmetric_ciphertext, enc2.symmetric_ciphertext,
-        "Hybrid must encrypt differently each time"
-    );
+    assert_ne!(enc1.ciphertext, enc2.ciphertext, "Hybrid must encrypt differently each time");
 }
 
 // ============================================================================

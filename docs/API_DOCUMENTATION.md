@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.2.0 | **License**: Apache 2.0
+**Version**: 0.3.0 | **License**: Apache 2.0
 
 ---
 
@@ -15,7 +15,7 @@ flowchart TB
     end
 
     subgraph "Level 2 — Hybrid API"
-        L2["encrypt_hybrid() / decrypt_hybrid()\nsign_hybrid() / verify_hybrid_signature()"]
+        L2["encrypt(EncryptKey::Hybrid) / decrypt(DecryptKey::Hybrid)\nsign_hybrid() / verify_hybrid_signature()"]
     end
 
     subgraph "Level 3 — Primitives API"
@@ -149,14 +149,14 @@ flowchart LR
 ### Hybrid Encryption
 
 ```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+use latticearc::{generate_hybrid_keypair, encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 
 // Generate hybrid keypair (ML-KEM-768 + X25519)
 let (pk, sk) = generate_hybrid_keypair()?;
 
-// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
-let encrypted = encrypt_hybrid(b"Sensitive data", &pk, SecurityMode::Unverified)?;
-let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+// Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM) via unified API
+let encrypted = encrypt(b"Sensitive data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 ### Hybrid Signatures
@@ -356,7 +356,7 @@ crypto_box_easy(encrypted, msg, msg_len, nonce, pk, sk);
 ```rust
 // After (LatticeArc — hybrid PQ + classical)
 let (pk, sk) = generate_hybrid_keypair()?;
-let encrypted = encrypt_hybrid(data, &pk, SecurityMode::Unverified)?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 ```
 
 ### From Bouncy Castle (Java)

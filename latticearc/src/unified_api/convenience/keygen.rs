@@ -27,6 +27,7 @@ use crate::unified_api::error::{CoreError, Result};
 /// - The public key is the identity element (all zeros)
 /// - The keypair consistency test signature verification fails
 pub fn generate_keypair() -> Result<(PublicKey, PrivateKey)> {
+    super::api::fips_verify_operational()?;
     debug!("Generating Ed25519 keypair");
 
     let mut csprng = rand::rngs::OsRng;
@@ -95,11 +96,9 @@ fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingK
     // Perform a test signature to ensure keypair consistency
     let test_message = b"key_validation_test";
     let signature = signing_key.sign(test_message);
-    verifying_key.verify(test_message, &signature).map_err(|_e| {
-        CoreError::KeyGenerationFailed {
-            reason: "Keypair validation failed".to_string(),
-            recovery: "Regenerate keypair and retry validation".to_string(),
-        }
+    verifying_key.verify(test_message, &signature).map_err(|e| CoreError::KeyGenerationFailed {
+        reason: format!("Keypair validation failed: {e}"),
+        recovery: "Regenerate keypair and retry validation".to_string(),
     })?;
 
     Ok(())
@@ -118,6 +117,7 @@ fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingK
 pub fn generate_ml_kem_keypair(
     security_level: MlKemSecurityLevel,
 ) -> Result<(PublicKey, PrivateKey)> {
+    super::api::fips_verify_operational()?;
     debug!(security_level = ?security_level, "Generating ML-KEM keypair");
 
     let mut rng = rand::rngs::OsRng;

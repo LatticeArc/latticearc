@@ -128,6 +128,7 @@ fn regression_aead_single_byte_plaintext() {
 /// Regression: ChaCha20-Poly1305 empty AAD vs None AAD distinction
 /// Guards against: Treating empty AAD and None as different
 #[test]
+#[cfg(not(feature = "fips"))]
 fn regression_chacha_empty_aad_vs_none() {
     use latticearc::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 
@@ -365,6 +366,7 @@ fn regression_aead_nonce_produces_different_ciphertext() {
 /// Regression: AEAD key generation produces unique keys
 /// Guards against: RNG issues in key generation
 #[test]
+#[cfg(not(feature = "fips"))]
 fn regression_aead_key_generation_unique() {
     use latticearc::primitives::aead::{
         aes_gcm::AesGcm128, chacha20poly1305::ChaCha20Poly1305Cipher,
@@ -448,6 +450,7 @@ fn regression_aead_detects_corrupted_tag() {
 /// Regression: AEAD ciphertext corruption detection
 /// Guards against: Ciphertext manipulation not being detected
 #[test]
+#[cfg(not(feature = "fips"))]
 fn regression_aead_detects_corrupted_ciphertext() {
     use latticearc::primitives::aead::{
         AeadCipher, AeadError, chacha20poly1305::ChaCha20Poly1305Cipher,
@@ -787,6 +790,7 @@ fn roundtrip_aes_gcm_256() {
 /// Round-trip: ChaCha20-Poly1305 encrypt/decrypt
 /// Guards against: ChaCha20 implementation errors
 #[test]
+#[cfg(not(feature = "fips"))]
 fn roundtrip_chacha20_poly1305() {
     use latticearc::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 
@@ -1008,6 +1012,7 @@ fn error_ml_dsa_truncated_signature() {
 /// Error: AEAD decryption with wrong key returns error
 /// Guards against: Decryption succeeding with wrong key
 #[test]
+#[cfg(not(feature = "fips"))]
 fn error_aead_wrong_key_decryption() {
     use latticearc::primitives::aead::{
         AeadCipher, AeadError, chacha20poly1305::ChaCha20Poly1305Cipher,

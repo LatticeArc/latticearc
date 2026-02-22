@@ -7,6 +7,7 @@
 //!
 //! Run with: `cargo run --package latticearc --example zero_knowledge_proofs --release`
 //!
+//! Note: ZKP is not FIPS-approved. This example prints a notice and exits in FIPS mode.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -15,8 +16,15 @@
 #![allow(clippy::panic)]
 #![allow(clippy::redundant_clone)]
 
+#[cfg(not(feature = "fips"))]
 use latticearc::zkp::{HashCommitment, PedersenCommitment, SchnorrProver, SchnorrVerifier};
 
+#[cfg(feature = "fips")]
+fn main() {
+    println!("ZKP is not FIPS 140-3 approved. This example is unavailable in FIPS mode.");
+}
+
+#[cfg(not(feature = "fips"))]
 fn main() {
     println!("=== LatticeArc: Zero-Knowledge Proofs ===\n");
 
@@ -89,7 +97,7 @@ fn main() {
     println!("  Verify: VALID (value = 42)");
 
     // Different value should fail
-    let mut wrong_value = opening.clone();
+    let mut wrong_value = PedersenOpening { value: opening.value, blinding: opening.blinding };
     wrong_value.value[31] = 43; // different value
     let is_valid = commitment.verify(&wrong_value);
     match is_valid {

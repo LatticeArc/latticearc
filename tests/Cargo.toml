@@ -18,10 +18,11 @@ workspace = true
 
 [features]
 default = []
+fips = ["latticearc/fips"]
 
 [dependencies]
 # Main crate under test
-latticearc = { version = "0.2.0", path = "../latticearc" }
+latticearc = { version = "0.3.0", path = "../latticearc" }
 
 # Property-based testing
 proptest = { workspace = true }

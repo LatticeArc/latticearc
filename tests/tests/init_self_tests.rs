@@ -152,7 +152,7 @@ fn test_init_with_quantum_security_config() {
 
 #[test]
 fn test_crypto_config_reexport() {
-    // Verify CryptoConfig is accessible via arc_core
+    // Verify CryptoConfig is accessible via unified_api
     let config = latticearc::unified_api::CryptoConfig::new();
     // Just verify it exists and can be created
     let _selection = config.get_selection();
@@ -227,8 +227,18 @@ fn test_encrypt_decrypt_reexport() {
     let data = b"test reexport";
     let config = latticearc::unified_api::CryptoConfig::new();
 
-    let encrypted = latticearc::unified_api::encrypt(data, &key, config.clone()).unwrap();
-    let decrypted = latticearc::unified_api::decrypt(&encrypted, &key, config).unwrap();
+    let encrypted = latticearc::unified_api::encrypt(
+        data,
+        latticearc::EncryptKey::Symmetric(&key),
+        config.clone().force_scheme(latticearc::CryptoScheme::Symmetric),
+    )
+    .unwrap();
+    let decrypted = latticearc::unified_api::decrypt(
+        &encrypted,
+        latticearc::DecryptKey::Symmetric(&key),
+        config,
+    )
+    .unwrap();
     assert_eq!(decrypted, data);
 }
 

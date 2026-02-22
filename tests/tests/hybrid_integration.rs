@@ -31,12 +31,11 @@
     clippy::needless_borrows_for_generic_args,
     unused_qualifications
 )]
-
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 use latticearc::unified_api::{
-    convenience::generate_ml_kem_keypair, decrypt_hybrid_unverified, encrypt_hybrid_unverified,
-    error::Result, generate_hybrid_keypair,
+    convenience::generate_ml_kem_keypair, error::Result, generate_hybrid_keypair,
 };
+use latticearc::{CryptoConfig, DecryptKey, EncryptKey, decrypt, encrypt};
 
 // ============================================================================
 // ML-KEM Keypair Generation and Public Key Size Tests
@@ -89,8 +88,8 @@ fn test_hybrid_keypair_generation_succeeds() -> Result<()> {
 
     // Verify keys can encrypt/decrypt
     let message = b"Keypair generation test";
-    let encrypted = encrypt_hybrid_unverified(message, &pk)?;
-    let decrypted = decrypt_hybrid_unverified(&encrypted, &sk)?;
+    let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
+    let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
     assert_eq!(decrypted.as_slice(), message, "decrypted plaintext should match original message");
 
     Ok(())

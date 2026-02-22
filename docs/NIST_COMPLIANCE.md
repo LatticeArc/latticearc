@@ -71,8 +71,8 @@ let plaintext = decrypt_pq_ml_kem(&ciphertext, &sk, MlKemSecurityLevel::MlKem768
 
 // Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
 let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
-let encrypted = encrypt_hybrid(data, &hybrid_pk, SecurityMode::Unverified)?;
-let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&hybrid_pk), CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig::new())?;
 ```
 
 ### CAVP Validation
@@ -304,8 +304,8 @@ DEFAULT_SIGNATURE_SCHEME   // "hybrid-ml-dsa-65-ed25519"
 
 // Hybrid encryption (ML-KEM + X25519 + HKDF + AES-256-GCM)
 let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair()?;
-let encrypted = encrypt_hybrid(data, &hybrid_pk, SecurityMode::Unverified)?;
-let decrypted = decrypt_hybrid(&encrypted, &hybrid_sk, SecurityMode::Unverified)?;
+let encrypted = encrypt(data, EncryptKey::Hybrid(&hybrid_pk), CryptoConfig::new())?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig::new())?;
 ```
 
 ### Timeline Recommendations

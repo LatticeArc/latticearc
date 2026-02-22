@@ -341,30 +341,33 @@ fn test_unified_api_hybrid_scheme_falls_back_to_aes_gcm() {
         .name("test_unified_api_hybrid_fallback".to_string())
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
-            // When the selector picks a hybrid scheme but the caller provides a
-            // symmetric key, the unified API falls back to AES-256-GCM.
+            // With the typed API, symmetric keys must be declared explicitly.
             // True hybrid encryption requires encrypt_hybrid() with typed keys.
 
             let data = b"Test data for unified API hybrid fallback";
             let symmetric_key = vec![0x42u8; 32];
 
             use crate::UseCase;
-            let config = CryptoConfig::new().use_case(UseCase::FileStorage);
+            let config = CryptoConfig::new()
+                .use_case(UseCase::FileStorage)
+                .force_scheme(CryptoScheme::Symmetric);
 
-            // This should succeed — falls back to AES-256-GCM with the symmetric key
-            let encrypted = encrypt(data, &symmetric_key, config)
-                .expect("Unified API should fall back to AES-256-GCM for symmetric keys");
+            // This should succeed — explicit symmetric key with forced symmetric scheme
+            let encrypted = encrypt(data, EncryptKey::Symmetric(&symmetric_key), config)
+                .expect("Unified API should encrypt with AES-256-GCM for symmetric keys");
 
-            // The stored scheme should be aes-256-gcm (the actual encryption used)
+            // The stored scheme should be aes-256-gcm
             assert_eq!(
-                encrypted.scheme, "aes-256-gcm",
-                "Scheme should be aes-256-gcm after fallback, got: {}",
+                encrypted.scheme,
+                EncryptionScheme::Aes256Gcm,
+                "Scheme should be Aes256Gcm, got: {}",
                 encrypted.scheme
             );
 
             // Roundtrip: decrypt should work with the same key
-            let decrypted = decrypt(&encrypted, &symmetric_key, CryptoConfig::new())
-                .expect("Decryption should succeed with the same symmetric key");
+            let decrypted =
+                decrypt(&encrypted, DecryptKey::Symmetric(&symmetric_key), CryptoConfig::new())
+                    .expect("Decryption should succeed with the same symmetric key");
             assert_eq!(data.as_slice(), decrypted.as_slice());
         })
         .unwrap()
@@ -383,12 +386,16 @@ fn test_unified_api_default_encrypt_decrypt_roundtrip() {
             let data = b"Default unified API roundtrip test";
             let key = vec![0x55u8; 32];
 
-            let encrypted =
-                encrypt(data, &key, CryptoConfig::new()).expect("Default encrypt should succeed");
+            let encrypted = encrypt(
+                data,
+                EncryptKey::Symmetric(&key),
+                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+            )
+            .expect("Default encrypt should succeed");
 
-            assert_eq!(encrypted.scheme, "aes-256-gcm");
+            assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
 
-            let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
+            let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
                 .expect("Default decrypt should succeed");
 
             assert_eq!(data.as_slice(), decrypted.as_slice());
@@ -399,9 +406,9 @@ fn test_unified_api_default_encrypt_decrypt_roundtrip() {
 }
 
 #[test]
-fn test_unified_api_all_use_cases_roundtrip() {
+fn test_symmetric_roundtrip_all_use_cases() {
     std::thread::Builder::new()
-        .name("test_unified_api_all_use_cases".to_string())
+        .name("test_symmetric_roundtrip_all_use_cases".to_string())
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
             use crate::UseCase;
@@ -441,16 +448,22 @@ fn test_unified_api_all_use_cases_roundtrip() {
             ];
 
             for uc in &use_cases {
-                let config = CryptoConfig::new().use_case(uc.clone());
-                let encrypted = encrypt(data, &key, config)
+                let config =
+                    CryptoConfig::new().use_case(uc.clone()).force_scheme(CryptoScheme::Symmetric);
+                let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)
                     .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", uc, e));
 
-                // Scheme name varies by use case (some produce signature scheme names)
-                // but all paths use AES-256-GCM internally with symmetric keys
-                assert!(!encrypted.scheme.is_empty(), "UseCase {:?} should have a scheme", uc);
+                // All use cases with symmetric key forced should produce AES-256-GCM
+                assert_eq!(
+                    encrypted.scheme,
+                    EncryptionScheme::Aes256Gcm,
+                    "UseCase {:?} should have Aes256Gcm scheme",
+                    uc
+                );
 
-                let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
-                    .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", uc, e));
+                let decrypted =
+                    decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
+                        .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", uc, e));
                 assert_eq!(data.as_slice(), decrypted.as_slice(), "UseCase {:?}", uc);
             }
         })
@@ -460,9 +473,9 @@ fn test_unified_api_all_use_cases_roundtrip() {
 }
 
 #[test]
-fn test_unified_api_all_security_levels_roundtrip() {
+fn test_symmetric_roundtrip_all_security_levels() {
     std::thread::Builder::new()
-        .name("test_unified_api_all_security_levels".to_string())
+        .name("test_symmetric_roundtrip_all_security_levels".to_string())
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
             let data = b"Roundtrip test for all security levels";
@@ -476,20 +489,23 @@ fn test_unified_api_all_security_levels_roundtrip() {
             ];
 
             for level in &levels {
-                let config = CryptoConfig::new().security_level(level.clone());
-                let encrypted = encrypt(data, &key, config)
+                let config = CryptoConfig::new()
+                    .security_level(level.clone())
+                    .force_scheme(CryptoScheme::Symmetric);
+                let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)
                     .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", level, e));
 
-                // Scheme name varies by level (Quantum produces pq- prefix)
-                // but all paths use AES-256-GCM internally with symmetric keys
-                assert!(
-                    !encrypted.scheme.is_empty(),
-                    "SecurityLevel {:?} should have a scheme",
+                // All security levels with symmetric key forced should produce AES-256-GCM
+                assert_eq!(
+                    encrypted.scheme,
+                    EncryptionScheme::Aes256Gcm,
+                    "SecurityLevel {:?} should have Aes256Gcm scheme",
                     level
                 );
 
-                let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
-                    .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", level, e));
+                let decrypted =
+                    decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
+                        .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", level, e));
                 assert_eq!(data.as_slice(), decrypted.as_slice(), "SecurityLevel {:?}", level);
             }
         })
@@ -507,7 +523,11 @@ fn test_unified_api_rejects_short_key() {
             let data = b"Test data";
             let short_key = vec![0x42u8; 16]; // Too short
 
-            let result = encrypt(data, &short_key, CryptoConfig::new());
+            let result = encrypt(
+                data,
+                EncryptKey::Symmetric(&short_key),
+                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+            );
             assert!(result.is_err(), "Should reject key shorter than 32 bytes");
         })
         .unwrap()
@@ -515,19 +535,15 @@ fn test_unified_api_rejects_short_key() {
         .unwrap();
 }
 
-/// Test hybrid encryption roundtrip with ML-KEM-768 + X25519.
-///
-/// Uses the true hybrid API that combines ML-KEM + X25519 ECDH + HKDF + AES-GCM.
+/// Test hybrid encryption roundtrip with ML-KEM-768 + X25519 via unified API.
 #[test]
 fn test_hybrid_encryption_roundtrip() {
     std::thread::Builder::new()
         .name("test_hybrid_encryption_roundtrip".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
-            use crate::unified_api::convenience::{
-                decrypt_hybrid, encrypt_hybrid, generate_hybrid_keypair,
-            };
-            use crate::unified_api::zero_trust::SecurityMode;
+            use crate::types::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme};
+            use crate::unified_api::convenience::generate_hybrid_keypair;
 
             let data = b"Secret message for hybrid encryption test";
 
@@ -535,18 +551,20 @@ fn test_hybrid_encryption_roundtrip() {
             let (pk, sk) =
                 generate_hybrid_keypair().expect("Hybrid keypair generation should succeed");
 
-            // Encrypt
-            let encrypted = encrypt_hybrid(data, &pk, SecurityMode::Unverified)
+            // Encrypt via unified API
+            let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new())
                 .expect("Hybrid encryption should succeed");
 
             // Verify structure
-            assert_eq!(encrypted.kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
-            assert_eq!(encrypted.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
+            assert_eq!(encrypted.scheme, EncryptionScheme::HybridMlKem768Aes256Gcm);
+            assert!(encrypted.hybrid_data.is_some(), "Hybrid data should be present");
+            let hd = encrypted.hybrid_data.as_ref().unwrap();
+            assert_eq!(hd.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
+            assert_eq!(hd.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
             assert_eq!(encrypted.nonce.len(), 12, "AES-GCM nonce should be 12 bytes");
-            assert_eq!(encrypted.tag.len(), 16, "AES-GCM tag should be 16 bytes");
 
-            // Decrypt
-            let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)
+            // Decrypt via unified API
+            let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())
                 .expect("Hybrid decryption should succeed");
 
             assert_eq!(data.as_slice(), decrypted.as_slice());
@@ -594,33 +612,20 @@ fn test_encrypted_data_contains_scheme_metadata() {
             let data = b"Test data for metadata verification";
             let key = vec![0x42u8; 32];
 
-            // Use low-level AES-GCM to create EncryptedData
-            let ciphertext =
-                encrypt_aes_gcm_unverified(data, &key).expect("Encryption should succeed");
+            // Use the unified encrypt API to create EncryptedOutput with scheme metadata
+            let encrypted = encrypt(
+                data,
+                EncryptKey::Symmetric(&key),
+                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+            )
+            .expect("Encryption should succeed");
 
-            // Create EncryptedData with scheme
-            use crate::types::{EncryptedData, EncryptedMetadata};
-            let encrypted = EncryptedData {
-                data: ciphertext.clone(),
-                metadata: EncryptedMetadata {
-                    nonce: ciphertext.get(..12).map_or_else(Vec::new, <[u8]>::to_vec),
-                    tag: Some(
-                        ciphertext
-                            .get(ciphertext.len().saturating_sub(16)..)
-                            .map_or_else(Vec::new, <[u8]>::to_vec),
-                    ),
-                    key_id: None,
-                },
-                scheme: "aes-256-gcm".to_string(),
-                timestamp: 0,
-            };
-
-            // Verify scheme is stored correctly
-            assert_eq!(encrypted.scheme, "aes-256-gcm");
+            // Verify scheme is stored correctly as enum
+            assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
 
             // Verify decryption works
-            let decrypted =
-                decrypt(&encrypted, &key, CryptoConfig::new()).expect("Decryption should succeed");
+            let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
+                .expect("Decryption should succeed");
             assert_eq!(data.as_slice(), decrypted.as_slice());
         })
         .unwrap()
@@ -637,22 +642,20 @@ fn test_decrypt_honors_scheme_from_encrypted_data() {
             let data = b"Test that decrypt honors the scheme field";
             let key = vec![0x42u8; 32];
 
-            // Encrypt with AES-GCM
-            let ciphertext =
-                encrypt_aes_gcm_unverified(data, &key).expect("Encryption should succeed");
+            // Encrypt with the unified API to create EncryptedOutput with scheme metadata
+            let encrypted = encrypt(
+                data,
+                EncryptKey::Symmetric(&key),
+                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+            )
+            .expect("Encryption should succeed");
 
-            // Create EncryptedData with correct AES-GCM scheme
-            use crate::types::{EncryptedData, EncryptedMetadata};
-            let encrypted = EncryptedData {
-                data: ciphertext,
-                metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
-                scheme: "aes-256-gcm".to_string(),
-                timestamp: 0,
-            };
+            // Verify scheme is AES-256-GCM
+            assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
 
-            // Decrypt should use scheme from EncryptedData, not from CryptoConfig
-            let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
-                .expect("Decryption should succeed using scheme from EncryptedData");
+            // Decrypt should use scheme from EncryptedOutput, not from CryptoConfig
+            let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
+                .expect("Decryption should succeed using scheme from EncryptedOutput");
             assert_eq!(data.as_slice(), decrypted.as_slice());
         })
         .unwrap()
@@ -1370,17 +1373,21 @@ fn test_verify_hybrid_87_wrong_pk_length() {
 }
 
 #[test]
-fn test_decrypt_with_short_key_unknown_scheme() {
-    let encrypted = EncryptedData {
-        data: vec![1, 2, 3, 4],
-        metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
-        scheme: "unknown-scheme".to_string(),
+fn test_decrypt_with_short_key_fails() {
+    // Create an EncryptedOutput with AES-256-GCM scheme but malformed ciphertext
+    let encrypted = EncryptedOutput {
+        scheme: EncryptionScheme::Aes256Gcm,
+        ciphertext: vec![1, 2, 3, 4],
+        nonce: vec![0u8; 12],
+        tag: vec![0u8; 16],
+        hybrid_data: None,
         timestamp: 0,
+        key_id: None,
     };
     let short_key = vec![0x42u8; 16];
 
-    let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
-    assert!(result.is_err(), "Decrypt with short key on unknown scheme should fail");
+    let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
+    assert!(result.is_err(), "Decrypt with short key should fail");
 }
 
 #[test]
@@ -1390,11 +1397,17 @@ fn test_encrypt_empty_data() {
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
             let key = vec![0x42u8; 32];
-            let encrypted = encrypt(b"", &key, CryptoConfig::new()).unwrap();
+            let encrypted = encrypt(
+                b"",
+                EncryptKey::Symmetric(&key),
+                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+            )
+            .unwrap();
             // Empty plaintext still produces ciphertext (nonce + auth tag)
-            assert!(!encrypted.data.is_empty());
+            assert!(!encrypted.ciphertext.is_empty());
 
-            let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()).unwrap();
+            let decrypted =
+                decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
             assert!(decrypted.is_empty());
         })
         .unwrap()
@@ -1454,9 +1467,10 @@ fn test_unified_encrypt_decrypt_with_verified_session() {
             let (auth_pk, auth_sk) = generate_keypair().unwrap();
             let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
 
-            let config = CryptoConfig::new().session(&session);
-            let encrypted = encrypt(data, &key, config.clone()).unwrap();
-            let decrypted = decrypt(&encrypted, &key, config).unwrap();
+            let config =
+                CryptoConfig::new().session(&session).force_scheme(CryptoScheme::Symmetric);
+            let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config.clone()).unwrap();
+            let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
             assert_eq!(data.as_slice(), decrypted.as_slice());
         })
         .unwrap()
@@ -1494,10 +1508,12 @@ fn test_encrypt_decrypt_with_use_case_secure_messaging() {
         .spawn(|| {
             let data = b"Secure messaging test";
             let key = vec![0x42u8; 32];
-            let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
+            let config = CryptoConfig::new()
+                .use_case(UseCase::SecureMessaging)
+                .force_scheme(CryptoScheme::Symmetric);
 
-            let encrypted = encrypt(data, &key, config.clone()).unwrap();
-            let decrypted = decrypt(&encrypted, &key, config).unwrap();
+            let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config.clone()).unwrap();
+            let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
             assert_eq!(data.as_slice(), decrypted.as_slice());
         })
         .unwrap()
@@ -1513,10 +1529,12 @@ fn test_encrypt_decrypt_with_use_case_financial() {
         .spawn(|| {
             let data = b"Financial transactions test";
             let key = vec![0x42u8; 32];
-            let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
+            let config = CryptoConfig::new()
+                .use_case(UseCase::FinancialTransactions)
+                .force_scheme(CryptoScheme::Symmetric);
 
-            let encrypted = encrypt(data, &key, config.clone()).unwrap();
-            let decrypted = decrypt(&encrypted, &key, config).unwrap();
+            let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config.clone()).unwrap();
+            let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
             assert_eq!(data.as_slice(), decrypted.as_slice());
         })
         .unwrap()

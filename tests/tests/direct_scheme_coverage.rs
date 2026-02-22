@@ -15,10 +15,10 @@
 
 use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 use latticearc::primitives::sig::slh_dsa::SecurityLevel as SlhDsaSecurityLevel;
+use latticearc::types::crypto_types::{DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme};
+use latticearc::types::types::CryptoScheme;
 use latticearc::unified_api::convenience::*;
-use latticearc::unified_api::types::{
-    CryptoConfig, EncryptedData, EncryptedMetadata, SignedData, SignedMetadata,
-};
+use latticearc::unified_api::types::{CryptoConfig, SignedData, SignedMetadata};
 
 // ============================================================
 // verify() with SLH-DSA schemes (unreachable via selector)
@@ -207,23 +207,28 @@ fn test_decrypt_chacha_scheme_rejected() {
     let data = b"Test data for chacha scheme name";
     let config = CryptoConfig::new();
 
-    // Encrypt normally first
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
+    // Encrypt with AES-256-GCM (default symmetric scheme)
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(&key),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
 
-    // Re-wrap with chacha20-poly1305 scheme name — decrypt now rejects unsupported schemes
-    let rewrapped = EncryptedData {
-        data: encrypted.data.clone(),
-        metadata: EncryptedMetadata {
-            nonce: encrypted.metadata.nonce.clone(),
-            tag: encrypted.metadata.tag.clone(),
-            key_id: None,
-        },
-        scheme: "chacha20-poly1305".to_string(),
+    // Re-wrap with ChaCha20-Poly1305 scheme — decrypt will attempt ChaCha20 decryption of an
+    // AES-GCM ciphertext and fail (AEAD authentication tag mismatch).
+    let rewrapped = EncryptedOutput {
+        scheme: EncryptionScheme::ChaCha20Poly1305,
+        ciphertext: encrypted.ciphertext.clone(),
+        nonce: encrypted.nonce.clone(),
+        tag: encrypted.tag.clone(),
+        hybrid_data: None,
         timestamp: encrypted.timestamp,
+        key_id: None,
     };
 
-    let result = decrypt(&rewrapped, &key, config);
-    assert!(result.is_err(), "chacha20-poly1305 should be rejected by decrypt");
+    let result = decrypt(&rewrapped, DecryptKey::Symmetric(&key), config);
+    assert!(result.is_err(), "chacha20-poly1305 decryption of AES-GCM ciphertext should fail");
 }
 
 #[test]
@@ -232,22 +237,17 @@ fn test_decrypt_ml_kem_scheme_name_accepted() {
     let data = b"Test data for ml-kem scheme name";
     let config = CryptoConfig::new();
 
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
+    // Encrypt with AES-256-GCM (symmetric) and decrypt with the same scheme.
+    // The old test used a string "ml-kem-768" that mapped to AES-256-GCM internally;
+    // with the type-safe API we use Aes256Gcm directly and verify round-trip succeeds.
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(&key),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
 
-    // Re-wrap with ml-kem-768 scheme name — accepted because ml-kem-768
-    // is in the supported decrypt match (uses AES-256-GCM under the hood)
-    let rewrapped = EncryptedData {
-        data: encrypted.data.clone(),
-        metadata: EncryptedMetadata {
-            nonce: encrypted.metadata.nonce.clone(),
-            tag: encrypted.metadata.tag.clone(),
-            key_id: None,
-        },
-        scheme: "ml-kem-768".to_string(),
-        timestamp: encrypted.timestamp,
-    };
-
-    let decrypted = decrypt(&rewrapped, &key, config).unwrap();
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
     assert_eq!(decrypted, data);
 }
 
@@ -257,22 +257,27 @@ fn test_decrypt_unknown_scheme_rejected() {
     let data = b"Test data for unknown scheme";
     let config = CryptoConfig::new();
 
-    let encrypted = encrypt(data.as_ref(), &key, config.clone()).unwrap();
+    let encrypted = encrypt(
+        data.as_ref(),
+        EncryptKey::Symmetric(&key),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .unwrap();
 
-    // Re-wrap with unknown scheme name — decrypt now rejects unsupported schemes
-    let rewrapped = EncryptedData {
-        data: encrypted.data.clone(),
-        metadata: EncryptedMetadata {
-            nonce: encrypted.metadata.nonce.clone(),
-            tag: encrypted.metadata.tag.clone(),
-            key_id: None,
-        },
-        scheme: "unknown-scheme".to_string(),
+    // Construct an EncryptedOutput with a hybrid scheme while providing a symmetric key —
+    // the type-safe API rejects the key-scheme mismatch before attempting decryption.
+    let rewrapped = EncryptedOutput {
+        scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
+        ciphertext: encrypted.ciphertext.clone(),
+        nonce: encrypted.nonce.clone(),
+        tag: encrypted.tag.clone(),
+        hybrid_data: None,
         timestamp: encrypted.timestamp,
+        key_id: None,
     };
 
-    let result = decrypt(&rewrapped, &key, config);
-    assert!(result.is_err(), "Unknown scheme should be rejected by decrypt");
+    let result = decrypt(&rewrapped, DecryptKey::Symmetric(&key), config);
+    assert!(result.is_err(), "Hybrid scheme with symmetric key should be rejected by decrypt");
 }
 
 // ============================================================

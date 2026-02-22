@@ -70,14 +70,15 @@ pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8
         return Err(err);
     }
 
-    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
-        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
-        log_crypto_operation_error!("aes_gcm_encrypt", err);
-        err
-    })?;
+    let key_bytes: zeroize::Zeroizing<[u8; 32]> =
+        zeroize::Zeroizing::new(key.try_into().map_err(|e| {
+            let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
+            log_crypto_operation_error!("aes_gcm_encrypt", err);
+            err
+        })?);
 
-    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
-        let err = CoreError::EncryptionFailed("Failed to create AES key".to_string());
+    let unbound = UnboundKey::new(&AES_256_GCM, &*key_bytes).map_err(|e| {
+        let err = CoreError::EncryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!("aes_gcm_encrypt", err);
         err
     })?;
@@ -85,8 +86,8 @@ pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8
 
     // Generate cryptographically secure random nonce using OsRng
     let mut nonce_bytes = [0u8; 12];
-    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|_e| {
-        let err = CoreError::EncryptionFailed("Failed to generate random nonce".to_string());
+    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|e| {
+        let err = CoreError::EncryptionFailed(format!("Failed to generate random nonce: {e}"));
         log_crypto_operation_error!("aes_gcm_encrypt", err);
         err
     })?;
@@ -141,22 +142,23 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
-        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
-        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
-        err
-    })?;
+    let key_bytes: zeroize::Zeroizing<[u8; 32]> =
+        zeroize::Zeroizing::new(key.try_into().map_err(|e| {
+            let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
+            log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+            err
+        })?);
 
-    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
-        let err = CoreError::EncryptionFailed("Failed to create AES key".to_string());
+    let unbound = UnboundKey::new(&AES_256_GCM, &*key_bytes).map_err(|e| {
+        let err = CoreError::EncryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
         err
     })?;
     let aes_key = LessSafeKey::new(unbound);
 
     let mut nonce_bytes = [0u8; 12];
-    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|_e| {
-        let err = CoreError::EncryptionFailed("Failed to generate random nonce".to_string());
+    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|e| {
+        let err = CoreError::EncryptionFailed(format!("Failed to generate random nonce: {e}"));
         log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
         err
     })?;
@@ -215,22 +217,22 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
-        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
+    let key_bytes: [u8; 32] = key.try_into().map_err(|e| {
+        let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
     })?;
 
-    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
-        let err = CoreError::DecryptionFailed("Failed to create AES key".to_string());
+    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|e| {
+        let err = CoreError::DecryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
     })?;
     let aes_key = LessSafeKey::new(unbound);
 
     let (nonce_slice, ciphertext) = encrypted_data.split_at(12);
-    let nonce_bytes: [u8; 12] = nonce_slice.try_into().map_err(|_e| {
-        let err = CoreError::InvalidNonce("Nonce must be 12 bytes".to_string());
+    let nonce_bytes: [u8; 12] = nonce_slice.try_into().map_err(|e| {
+        let err = CoreError::InvalidNonce(format!("Nonce must be 12 bytes: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
     })?;
@@ -281,22 +283,22 @@ pub(crate) fn decrypt_aes_gcm_internal(encrypted_data: &[u8], key: &[u8]) -> Res
         return Err(err);
     }
 
-    let key_bytes: [u8; 32] = key.try_into().map_err(|_e| {
-        let err = CoreError::InvalidInput("Key must be exactly 32 bytes".to_string());
+    let key_bytes: [u8; 32] = key.try_into().map_err(|e| {
+        let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt", err);
         err
     })?;
 
-    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| {
-        let err = CoreError::DecryptionFailed("Failed to create AES key".to_string());
+    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|e| {
+        let err = CoreError::DecryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt", err);
         err
     })?;
     let aes_key = LessSafeKey::new(unbound);
 
     let (nonce_slice, ciphertext) = encrypted_data.split_at(12);
-    let nonce_bytes: [u8; 12] = nonce_slice.try_into().map_err(|_e| {
-        let err = CoreError::InvalidNonce("Nonce must be 12 bytes".to_string());
+    let nonce_bytes: [u8; 12] = nonce_slice.try_into().map_err(|e| {
+        let err = CoreError::InvalidNonce(format!("Nonce must be 12 bytes: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt", err);
         err
     })?;

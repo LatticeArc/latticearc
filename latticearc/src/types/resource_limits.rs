@@ -126,16 +126,21 @@ impl ResourceLimitsManager {
     }
 
     /// Returns a clone of the current resource limits.
-    #[must_use]
-    pub fn get_limits(&self) -> ResourceLimits {
-        self.limits.read().map(|guard| guard.clone()).unwrap_or_default()
+    ///
+    /// # Errors
+    /// Returns `ResourceError::LockPoisoned` if the internal lock was poisoned.
+    pub fn get_limits(&self) -> Result<ResourceLimits> {
+        self.limits.read().map(|guard| guard.clone()).map_err(|_poison| ResourceError::LockPoisoned)
     }
 
     /// Updates the resource limits to the specified values.
-    pub fn update_limits(&self, limits: ResourceLimits) {
-        if let Ok(mut guard) = self.limits.write() {
-            *guard = limits;
-        }
+    ///
+    /// # Errors
+    /// Returns `ResourceError::LockPoisoned` if the internal lock was poisoned.
+    pub fn update_limits(&self, limits: ResourceLimits) -> Result<()> {
+        let mut guard = self.limits.write().map_err(|_poison| ResourceError::LockPoisoned)?;
+        *guard = limits;
+        Ok(())
     }
 
     /// Validates that the key derivation count does not exceed the configured limit.
@@ -143,7 +148,7 @@ impl ResourceLimitsManager {
     /// # Errors
     /// Returns an error if the count exceeds the maximum allowed key derivations per call.
     pub fn validate_key_derivation_count(&self, count: usize) -> Result<()> {
-        let limits = self.get_limits();
+        let limits = self.get_limits()?;
         if count > limits.max_key_derivations_per_call {
             return Err(ResourceError::KeyDerivationLimitExceeded {
                 requested: count,
@@ -158,7 +163,7 @@ impl ResourceLimitsManager {
     /// # Errors
     /// Returns an error if the size exceeds the maximum allowed encryption size in bytes.
     pub fn validate_encryption_size(&self, size: usize) -> Result<()> {
-        let limits = self.get_limits();
+        let limits = self.get_limits()?;
         if size > limits.max_encryption_size_bytes {
             return Err(ResourceError::EncryptionSizeLimitExceeded {
                 requested: size,
@@ -173,7 +178,7 @@ impl ResourceLimitsManager {
     /// # Errors
     /// Returns an error if the size exceeds the maximum allowed signature size in bytes.
     pub fn validate_signature_size(&self, size: usize) -> Result<()> {
-        let limits = self.get_limits();
+        let limits = self.get_limits()?;
         if size > limits.max_signature_size_bytes {
             return Err(ResourceError::SignatureSizeLimitExceeded {
                 requested: size,
@@ -188,7 +193,7 @@ impl ResourceLimitsManager {
     /// # Errors
     /// Returns an error if the size exceeds the maximum allowed decryption size in bytes.
     pub fn validate_decryption_size(&self, size: usize) -> Result<()> {
-        let limits = self.get_limits();
+        let limits = self.get_limits()?;
         if size > limits.max_decryption_size_bytes {
             return Err(ResourceError::DecryptionSizeLimitExceeded {
                 requested: size,
@@ -243,6 +248,10 @@ pub enum ResourceError {
         /// Maximum allowed size in bytes.
         limit: usize,
     },
+
+    /// Internal lock was poisoned by a panicked thread.
+    #[error("Resource limits lock poisoned — a thread panicked while holding the lock")]
+    LockPoisoned,
 }
 
 /// A specialized Result type for resource limit operations.
@@ -340,7 +349,7 @@ mod tests {
     fn test_manager_with_custom_limits() {
         let custom = ResourceLimits::new(200, 1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(custom);
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 200);
         assert_eq!(limits.max_encryption_size_bytes, 1024);
     }
@@ -348,11 +357,11 @@ mod tests {
     #[test]
     fn test_manager_update_limits() {
         let manager = ResourceLimitsManager::new();
-        assert_eq!(manager.get_limits().max_key_derivations_per_call, 1000);
+        assert_eq!(manager.get_limits().unwrap().max_key_derivations_per_call, 1000);
 
         let new_limits = ResourceLimits::new(50, 1024, 512, 2048);
-        manager.update_limits(new_limits);
-        assert_eq!(manager.get_limits().max_key_derivations_per_call, 50);
+        manager.update_limits(new_limits).unwrap();
+        assert_eq!(manager.get_limits().unwrap().max_key_derivations_per_call, 50);
     }
 
     #[test]

@@ -148,16 +148,21 @@ impl SecurePrivateKey {
 
 impl Drop for SecurePrivateKey {
     fn drop(&mut self) {
-        // Zeroize key data when dropped
-        // Note: PrivateKeyDer doesn't expose raw bytes directly
-        // Zeroization is handled by the type itself
+        self.zeroize();
     }
 }
 
 impl Zeroize for SecurePrivateKey {
     fn zeroize(&mut self) {
-        // The Drop implementation handles zeroization
-        // This is called explicitly if needed
+        // PrivateKeyDer does not implement Zeroize, so we replace the key
+        // with an empty PKCS#8 container. The previous allocation will be
+        // freed by the allocator, but the DER bytes within it are dropped.
+        // Note: rustls-pki-types uses Vec<u8> internally, which does NOT
+        // zeroize on drop. This is a best-effort mitigation without unsafe.
+        // For defense-in-depth, callers should minimize SecurePrivateKey
+        // lifetime and use Zeroizing<Vec<u8>> for any extracted bytes.
+        self.key =
+            PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(Vec::<u8>::new()));
     }
 }
 
@@ -417,8 +422,8 @@ pub async fn tls_connect(
     config: &TlsConfig,
 ) -> Result<tokio_rustls::client::TlsStream<TcpStream>, TlsError> {
     let dns_name =
-        rustls_pki_types::DnsName::try_from(domain.to_owned()).map_err(|_e| TlsError::Config {
-            message: "Invalid domain name".to_string(),
+        rustls_pki_types::DnsName::try_from(domain.to_owned()).map_err(|e| TlsError::Config {
+            message: format!("Invalid domain name: {e}"),
             field: Some("domain".to_string()),
             code: crate::tls::error::ErrorCode::InvalidConfig,
             context: Box::default(),

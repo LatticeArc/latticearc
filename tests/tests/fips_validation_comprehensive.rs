@@ -373,7 +373,7 @@ mod resource_limits_manager_tests {
     #[test]
     fn test_resource_limits_manager_new() {
         let manager = ResourceLimitsManager::new();
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
     }
 
@@ -381,7 +381,7 @@ mod resource_limits_manager_tests {
     fn test_resource_limits_manager_with_limits() {
         let custom_limits = ResourceLimits::new(500, 25 * 1024 * 1024, 16 * 1024, 25 * 1024 * 1024);
         let manager = ResourceLimitsManager::with_limits(custom_limits);
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 500);
         assert_eq!(limits.max_encryption_size_bytes, 25 * 1024 * 1024);
     }
@@ -390,8 +390,8 @@ mod resource_limits_manager_tests {
     fn test_resource_limits_manager_update() {
         let manager = ResourceLimitsManager::new();
         let new_limits = ResourceLimits::new(200, 10 * 1024 * 1024, 8 * 1024, 10 * 1024 * 1024);
-        manager.update_limits(new_limits);
-        let limits = manager.get_limits();
+        manager.update_limits(new_limits).unwrap();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 200);
     }
 
@@ -426,7 +426,7 @@ mod resource_limits_manager_tests {
     #[test]
     fn test_resource_limits_manager_default() {
         let manager = ResourceLimitsManager::default();
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
     }
 }
@@ -441,7 +441,7 @@ mod global_resource_limits_tests {
     #[test]
     fn test_get_global_resource_limits() {
         let manager = get_global_resource_limits();
-        let limits = manager.get_limits();
+        let limits = manager.get_limits().unwrap();
         assert!(limits.max_key_derivations_per_call > 0);
     }
 
@@ -572,7 +572,7 @@ mod concurrent_tests {
             let manager_clone = Arc::clone(&manager);
             handles.push(thread::spawn(move || {
                 for _ in 0..100 {
-                    let limits = manager_clone.get_limits();
+                    let limits = manager_clone.get_limits().unwrap();
                     assert!(limits.max_key_derivations_per_call > 0);
                 }
             }));

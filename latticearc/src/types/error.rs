@@ -26,6 +26,10 @@ pub enum TypeError {
     /// Configuration validation error.
     #[error("Configuration error: {0}")]
     ConfigurationError(String),
+
+    /// Unrecognized encryption scheme string in legacy data.
+    #[error("Unknown encryption scheme: {0}")]
+    UnknownScheme(String),
 }
 
 /// A specialized Result type for `arc-types` operations.

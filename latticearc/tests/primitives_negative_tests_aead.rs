@@ -1,3 +1,10 @@
+//! Comprehensive negative tests for arc-primitives AEAD implementations
+//!
+//! This test suite validates error handling at the primitives layer for AES-GCM
+//! and ChaCha20-Poly1305 authenticated encryption.
+
+// Tests non-FIPS AEAD algorithms (ChaCha20-Poly1305); skip in FIPS mode.
+#![cfg(not(feature = "fips"))]
 #![allow(
     clippy::panic,
     clippy::unwrap_used,
@@ -26,10 +33,6 @@
     clippy::needless_borrows_for_generic_args,
     clippy::manual_let_else
 )]
-//! Comprehensive negative tests for arc-primitives AEAD implementations
-//!
-//! This test suite validates error handling at the primitives layer for AES-GCM
-//! and ChaCha20-Poly1305 authenticated encryption.
 //!
 //! Test coverage:
 //! - Invalid key lengths

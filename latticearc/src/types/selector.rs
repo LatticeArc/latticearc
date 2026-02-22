@@ -7,6 +7,7 @@
 use crate::types::{
     CryptoContext, PerformancePreference, SecurityLevel, UseCase,
     config::CoreConfig,
+    crypto_types::{DecryptKey, EncryptKey, EncryptionScheme},
     error::{Result, TypeError},
     traits::{DataCharacteristics, PatternType, SchemeSelector},
 };
@@ -121,7 +122,7 @@ impl CryptoPolicyEngine {
     pub fn force_scheme(scheme: &crate::types::CryptoScheme) -> String {
         match *scheme {
             crate::types::CryptoScheme::Hybrid => DEFAULT_ENCRYPTION_SCHEME.to_string(),
-            crate::types::CryptoScheme::Symmetric => "hybrid-ml-kem-768-aes-256-gcm".to_string(),
+            crate::types::CryptoScheme::Symmetric => "aes-256-gcm".to_string(),
             crate::types::CryptoScheme::Asymmetric => "pq-ml-dsa-65".to_string(),
             crate::types::CryptoScheme::PostQuantum => DEFAULT_PQ_ENCRYPTION_SCHEME.to_string(),
         }
@@ -288,6 +289,175 @@ impl CryptoPolicyEngine {
     #[must_use]
     pub fn default_scheme() -> &'static str {
         DEFAULT_ENCRYPTION_SCHEME
+    }
+
+    // =========================================================================
+    // Type-Safe API (returns EncryptionScheme enum, not String)
+    // =========================================================================
+
+    /// Recommend an encryption scheme for a use case, returning a type-safe enum.
+    ///
+    /// Only returns encryption-capable schemes. Signature-only use cases
+    /// (Authentication, DigitalCertificate, etc.) return the default hybrid
+    /// encryption scheme since they cannot be used for encryption.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeError` if the use case cannot be mapped to an encryption scheme.
+    pub fn recommend_encryption_scheme(
+        use_case: &UseCase,
+        _config: &CoreConfig,
+    ) -> Result<EncryptionScheme> {
+        match *use_case {
+            // Communication
+            UseCase::SecureMessaging | UseCase::VpnTunnel | UseCase::ApiSecurity => {
+                Ok(EncryptionScheme::HybridMlKem768Aes256Gcm)
+            }
+
+            UseCase::EmailEncryption => Ok(EncryptionScheme::HybridMlKem1024Aes256Gcm),
+
+            // Storage
+            UseCase::FileStorage | UseCase::CloudStorage | UseCase::BackupArchive => {
+                Ok(EncryptionScheme::HybridMlKem1024Aes256Gcm)
+            }
+
+            UseCase::DatabaseEncryption
+            | UseCase::ConfigSecrets
+            | UseCase::SessionToken
+            | UseCase::AuditLog => Ok(EncryptionScheme::HybridMlKem768Aes256Gcm),
+
+            // Regulated Industries
+            UseCase::HealthcareRecords | UseCase::GovernmentClassified | UseCase::PaymentCard => {
+                Ok(EncryptionScheme::HybridMlKem1024Aes256Gcm)
+            }
+
+            // Key Exchange
+            UseCase::KeyExchange => Ok(EncryptionScheme::HybridMlKem1024Aes256Gcm),
+
+            // IoT (constrained)
+            UseCase::IoTDevice => Ok(EncryptionScheme::HybridMlKem512Aes256Gcm),
+
+            // Signature-only use cases: return default encryption scheme
+            // (callers should use sign_with_key() instead, but we don't error here)
+            UseCase::Authentication
+            | UseCase::DigitalCertificate
+            | UseCase::FinancialTransactions
+            | UseCase::LegalDocuments
+            | UseCase::BlockchainTransaction
+            | UseCase::FirmwareSigning => Ok(EncryptionScheme::HybridMlKem768Aes256Gcm),
+        }
+    }
+
+    /// Select encryption scheme based on security level, returning a type-safe enum.
+    ///
+    /// When hardware acceleration is unavailable, ChaCha20-Poly1305 is preferred for
+    /// Standard/High levels. Quantum/Maximum levels always require hybrid PQC regardless
+    /// of hardware support — degrading to classical-only would violate the security contract.
+    #[must_use]
+    pub fn select_encryption_scheme_typed(config: &CoreConfig) -> EncryptionScheme {
+        match &config.security_level {
+            SecurityLevel::Quantum | SecurityLevel::Maximum => {
+                EncryptionScheme::HybridMlKem1024Aes256Gcm
+            }
+            SecurityLevel::High => {
+                if config.hardware_acceleration {
+                    EncryptionScheme::HybridMlKem768Aes256Gcm
+                } else {
+                    EncryptionScheme::ChaCha20Poly1305
+                }
+            }
+            SecurityLevel::Standard => {
+                if config.hardware_acceleration {
+                    EncryptionScheme::HybridMlKem512Aes256Gcm
+                } else {
+                    EncryptionScheme::ChaCha20Poly1305
+                }
+            }
+        }
+    }
+
+    /// Validate that the key variant matches the scheme requirements.
+    ///
+    /// Returns `Ok(())` if the key type is compatible with the scheme,
+    /// or `Err(TypeError::ConfigurationError)` describing the mismatch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - A symmetric key is provided for a hybrid scheme
+    /// - A hybrid key is provided for a symmetric scheme
+    pub fn validate_key_matches_scheme(
+        key: &EncryptKey<'_>,
+        scheme: &EncryptionScheme,
+    ) -> Result<()> {
+        match (key, scheme.requires_hybrid_key()) {
+            (EncryptKey::Symmetric(_), true) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' requires a hybrid key (EncryptKey::Hybrid), \
+                 but a symmetric key was provided. Use generate_hybrid_keypair() \
+                 to create a hybrid keypair.",
+                scheme
+            ))),
+            (EncryptKey::Hybrid(_), false) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' requires a symmetric key (EncryptKey::Symmetric), \
+                 but a hybrid key was provided.",
+                scheme
+            ))),
+            _ => {
+                // For hybrid keys, verify ML-KEM security level matches scheme
+                if let (EncryptKey::Hybrid(pk), Some(expected_level)) = (key, scheme.ml_kem_level())
+                    && pk.security_level != expected_level
+                {
+                    return Err(TypeError::ConfigurationError(format!(
+                        "Scheme '{}' requires ML-KEM-{} key, but the provided key \
+                         was generated at ML-KEM-{} level. Use \
+                         generate_hybrid_keypair_with_level({:?}).",
+                        scheme,
+                        expected_level.name(),
+                        pk.security_level.name(),
+                        expected_level
+                    )));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Validate that the decrypt key variant matches the scheme requirements.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the key type doesn't match the scheme.
+    pub fn validate_decrypt_key_matches_scheme(
+        key: &DecryptKey<'_>,
+        scheme: &EncryptionScheme,
+    ) -> Result<()> {
+        match (key, scheme.requires_hybrid_key()) {
+            (DecryptKey::Symmetric(_), true) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' requires a hybrid secret key (DecryptKey::Hybrid), \
+                 but a symmetric key was provided.",
+                scheme
+            ))),
+            (DecryptKey::Hybrid(_), false) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' requires a symmetric key (DecryptKey::Symmetric), \
+                 but a hybrid key was provided.",
+                scheme
+            ))),
+            _ => {
+                // For hybrid keys, verify ML-KEM security level matches scheme
+                if let (DecryptKey::Hybrid(sk), Some(expected_level)) = (key, scheme.ml_kem_level())
+                    && sk.security_level() != expected_level
+                {
+                    return Err(TypeError::ConfigurationError(format!(
+                        "Scheme '{}' requires ML-KEM-{} key, but the provided key \
+                         was generated at ML-KEM-{} level.",
+                        scheme,
+                        expected_level.name(),
+                        sk.security_level().name(),
+                    )));
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -708,9 +878,9 @@ mod tests {
     #[test]
     fn test_force_scheme_returns_forced_scheme() {
         use crate::types::CryptoScheme;
-        // Symmetric maps to hybrid (bare classical is never selected)
+        // Symmetric maps to AES-256-GCM (type-safe key dispatch handles hybrid separately)
         let result = CryptoPolicyEngine::force_scheme(&CryptoScheme::Symmetric);
-        assert_eq!(result, "hybrid-ml-kem-768-aes-256-gcm");
+        assert_eq!(result, "aes-256-gcm");
 
         let result = CryptoPolicyEngine::force_scheme(&CryptoScheme::PostQuantum);
         assert_eq!(result, DEFAULT_PQ_ENCRYPTION_SCHEME);

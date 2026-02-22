@@ -147,12 +147,16 @@ pub enum HybridKemError {
 ///
 /// This structure contains both public keys needed for hybrid key encapsulation.
 /// The encapsulator uses both keys to generate the combined shared secret.
+/// The `security_level` field determines which ML-KEM parameter set is used
+/// (512, 768, or 1024).
 #[derive(Debug, Clone)]
 pub struct HybridPublicKey {
-    /// ML-KEM-768 public key bytes (1184 bytes).
+    /// ML-KEM public key bytes (size depends on security level).
     pub ml_kem_pk: Vec<u8>,
     /// X25519 ECDH public key bytes (32 bytes).
     pub ecdh_pk: Vec<u8>,
+    /// ML-KEM security level (determines key/ciphertext sizes).
+    pub security_level: MlKemSecurityLevel,
 }
 
 /// Hybrid secret key combining ML-KEM and X25519 ECDH.
@@ -186,13 +190,19 @@ pub struct HybridPublicKey {
 /// drop(sk);  // ML-KEM bytes zeroized; aws-lc-rs handles X25519 cleanup
 /// ```
 pub struct HybridSecretKey {
-    /// ML-KEM-768 decapsulation keypair — holds the real aws-lc-rs `DecapsulationKey`.
+    /// ML-KEM decapsulation keypair — holds the real aws-lc-rs `DecapsulationKey`.
     ml_kem_keypair: MlKemDecapsulationKeyPair,
     /// X25519 ECDH static key pair for reusable key agreement.
     ecdh_keypair: X25519StaticKeyPair,
 }
 
 impl HybridSecretKey {
+    /// Get the ML-KEM security level of this keypair.
+    #[must_use]
+    pub fn security_level(&self) -> MlKemSecurityLevel {
+        self.ml_kem_keypair.security_level()
+    }
+
     /// Get ML-KEM public key bytes (for compatibility).
     #[must_use]
     pub fn ml_kem_pk_bytes(&self) -> Vec<u8> {
@@ -250,9 +260,9 @@ impl std::fmt::Debug for HybridSecretKey {
 /// The `ZeroizeOnDrop` derive automatically calls `Zeroize::zeroize()`
 /// on the `shared_secret` field when dropped, using volatile operations
 /// that prevent compiler optimization and ensure constant-time execution.
-#[derive(Debug, ZeroizeOnDrop)]
+#[derive(ZeroizeOnDrop)]
 pub struct EncapsulatedKey {
-    /// ML-KEM-768 ciphertext bytes (1088 bytes).
+    /// ML-KEM ciphertext bytes (size depends on security level).
     pub ml_kem_ct: Vec<u8>,
     /// Ephemeral X25519 public key bytes (32 bytes) for ECDH.
     pub ecdh_pk: Vec<u8>,
@@ -260,7 +270,17 @@ pub struct EncapsulatedKey {
     pub shared_secret: Zeroizing<Vec<u8>>,
 }
 
-/// Generate hybrid keypair (ML-KEM-768 + X25519).
+impl std::fmt::Debug for EncapsulatedKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EncapsulatedKey")
+            .field("ml_kem_ct", &format_args!("[{} bytes]", self.ml_kem_ct.len()))
+            .field("ecdh_pk", &format_args!("[{} bytes]", self.ecdh_pk.len()))
+            .field("shared_secret", &"[REDACTED]")
+            .finish()
+    }
+}
+
+/// Generate hybrid keypair (ML-KEM + X25519) at the specified security level.
 ///
 /// The X25519 component uses a real static key pair (aws-lc-rs `PrivateKey`)
 /// that supports reusable key agreement for decapsulation.
@@ -271,17 +291,34 @@ pub struct EncapsulatedKey {
 pub fn generate_keypair<R: rand::Rng + rand::CryptoRng>(
     _rng: &mut R,
 ) -> Result<(HybridPublicKey, HybridSecretKey), HybridKemError> {
-    // Generate ML-KEM keypair with real decapsulation support
-    let ml_kem_keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)
+    generate_keypair_with_level(_rng, MlKemSecurityLevel::MlKem768)
+}
+
+/// Generate hybrid keypair at a specific ML-KEM security level.
+///
+/// # Arguments
+/// * `_rng` - Random number generator (aws-lc-rs uses internal RNG)
+/// * `level` - ML-KEM security level (512, 768, or 1024)
+///
+/// # Errors
+/// Returns an error if ML-KEM or X25519 keypair generation fails.
+pub fn generate_keypair_with_level<R: rand::Rng + rand::CryptoRng>(
+    _rng: &mut R,
+    level: MlKemSecurityLevel,
+) -> Result<(HybridPublicKey, HybridSecretKey), HybridKemError> {
+    let ml_kem_keypair = MlKem::generate_decapsulation_keypair(level)
         .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
 
-    // Generate X25519 static keypair (reusable for multiple decapsulations)
     let ecdh_keypair =
         X25519StaticKeyPair::generate().map_err(|e| HybridKemError::EcdhError(e.to_string()))?;
 
     let ecdh_pk = ecdh_keypair.public_key_bytes().to_vec();
 
-    let pk = HybridPublicKey { ml_kem_pk: ml_kem_keypair.public_key_bytes().to_vec(), ecdh_pk };
+    let pk = HybridPublicKey {
+        ml_kem_pk: ml_kem_keypair.public_key_bytes().to_vec(),
+        ecdh_pk,
+        security_level: level,
+    };
 
     let sk = HybridSecretKey { ml_kem_keypair, ecdh_keypair };
 
@@ -311,8 +348,8 @@ pub fn encapsulate<R: rand::Rng + rand::CryptoRng>(
         )));
     }
 
-    // ML-KEM encapsulation
-    let ml_kem_pk_struct = MlKemPublicKey::new(MlKemSecurityLevel::MlKem768, pk.ml_kem_pk.clone())
+    // ML-KEM encapsulation at the public key's security level
+    let ml_kem_pk_struct = MlKemPublicKey::new(pk.security_level, pk.ml_kem_pk.clone())
         .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
     let (ml_kem_ss, ml_kem_ct_struct) = MlKem::encapsulate(rng, &ml_kem_pk_struct)
         .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
@@ -374,8 +411,8 @@ pub fn decapsulate(sk: &HybridSecretKey, ct: &EncapsulatedKey) -> Result<Vec<u8>
         )));
     }
 
-    // ML-KEM decapsulation using the real DecapsulationKey
-    let ml_kem_ct_struct = MlKemCiphertext::new(MlKemSecurityLevel::MlKem768, ct.ml_kem_ct.clone())
+    // ML-KEM decapsulation at the secret key's security level
+    let ml_kem_ct_struct = MlKemCiphertext::new(sk.security_level(), ct.ml_kem_ct.clone())
         .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
     let ml_kem_ss = sk.ml_kem_decapsulate(&ml_kem_ct_struct)?;
 
@@ -834,6 +871,7 @@ mod tests {
         let pk = HybridPublicKey {
             ml_kem_pk: vec![0u8; 100], // Wrong length
             ecdh_pk: vec![0u8; 32],
+            security_level: MlKemSecurityLevel::MlKem768,
         };
 
         let result = encapsulate(&mut rng, &pk);
@@ -929,6 +967,7 @@ mod tests {
         let pk = HybridPublicKey {
             ml_kem_pk: vec![0u8; 1184],
             ecdh_pk: vec![0u8; 64], // Too long (should be 32)
+            security_level: MlKemSecurityLevel::MlKem768,
         };
 
         let result = encapsulate(&mut rng, &pk);

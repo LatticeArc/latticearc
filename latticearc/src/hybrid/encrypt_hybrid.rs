@@ -167,11 +167,11 @@ pub fn derive_encryption_key(
     let info_refs: [&[u8]; 1] = [&info];
     let okm = prk
         .expand(&info_refs, HkdfOutputLen(32))
-        .map_err(|_e| HybridEncryptionError::KdfError("HKDF expansion failed".to_string()))?;
+        .map_err(|e| HybridEncryptionError::KdfError(format!("HKDF expansion failed: {e}")))?;
 
     let mut key = [0u8; 32];
     okm.fill(&mut key)
-        .map_err(|_e| HybridEncryptionError::KdfError("HKDF fill failed".to_string()))?;
+        .map_err(|e| HybridEncryptionError::KdfError(format!("HKDF fill failed: {e}")))?;
 
     Ok(key)
 }
@@ -217,16 +217,16 @@ pub fn encrypt<R: rand::Rng + rand::CryptoRng>(
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
     // Use AES-256-GCM for authenticated encryption with AAD via aws-lc-rs
-    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|_e| {
-        HybridEncryptionError::EncryptionError("Failed to create AES key".to_string())
+    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|e| {
+        HybridEncryptionError::EncryptionError(format!("Failed to create AES key: {e}"))
     })?;
     let aes_key = LessSafeKey::new(unbound_key);
 
     // Encrypt in-place: plaintext becomes ciphertext + tag
     let mut in_out = plaintext.to_vec();
     let aad = Aad::from(&ctx.aad[..]);
-    aes_key.seal_in_place_append_tag(nonce, aad, &mut in_out).map_err(|_e| {
-        HybridEncryptionError::EncryptionError("AES-GCM encryption failed".to_string())
+    aes_key.seal_in_place_append_tag(nonce, aad, &mut in_out).map_err(|e| {
+        HybridEncryptionError::EncryptionError(format!("AES-GCM encryption failed: {e}"))
     })?;
 
     // AES-GCM tag is the last 16 bytes
@@ -302,14 +302,13 @@ pub fn decrypt(
     let encryption_key = derive_encryption_key(shared_secret.as_bytes(), ctx)?;
 
     // Setup AES-256-GCM via aws-lc-rs
-    let nonce_bytes: [u8; 12] =
-        ciphertext.nonce.as_slice().try_into().map_err(|_e| {
-            HybridEncryptionError::DecryptionError("Invalid nonce length".to_string())
-        })?;
+    let nonce_bytes: [u8; 12] = ciphertext.nonce.as_slice().try_into().map_err(|e| {
+        HybridEncryptionError::DecryptionError(format!("Invalid nonce length: {e}"))
+    })?;
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
-    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|_e| {
-        HybridEncryptionError::DecryptionError("Failed to create AES key".to_string())
+    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|e| {
+        HybridEncryptionError::DecryptionError(format!("Failed to create AES key: {e}"))
     })?;
     let aes_key = LessSafeKey::new(unbound_key);
 
@@ -319,10 +318,10 @@ pub fn decrypt(
 
     // Decrypt in-place with AAD
     let aad = Aad::from(&ctx.aad[..]);
-    let plaintext = aes_key.open_in_place(nonce, aad, &mut in_out).map_err(|_e| {
-        HybridEncryptionError::DecryptionError(
-            "AES-GCM decryption/authentication failed".to_string(),
-        )
+    let plaintext = aes_key.open_in_place(nonce, aad, &mut in_out).map_err(|e| {
+        HybridEncryptionError::DecryptionError(format!(
+            "AES-GCM decryption/authentication failed: {e}"
+        ))
     })?;
 
     Ok(plaintext.to_vec())
@@ -362,15 +361,15 @@ pub fn encrypt_hybrid<R: rand::Rng + rand::CryptoRng>(
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
     // AES-256-GCM authenticated encryption
-    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|_e| {
-        HybridEncryptionError::EncryptionError("Failed to create AES key".to_string())
+    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|e| {
+        HybridEncryptionError::EncryptionError(format!("Failed to create AES key: {e}"))
     })?;
     let aes_key = LessSafeKey::new(unbound_key);
 
     let mut in_out = plaintext.to_vec();
     let aad = Aad::from(&ctx.aad[..]);
-    aes_key.seal_in_place_append_tag(nonce, aad, &mut in_out).map_err(|_e| {
-        HybridEncryptionError::EncryptionError("AES-GCM encryption failed".to_string())
+    aes_key.seal_in_place_append_tag(nonce, aad, &mut in_out).map_err(|e| {
+        HybridEncryptionError::EncryptionError(format!("AES-GCM encryption failed: {e}"))
     })?;
 
     let tag_len = 16;
@@ -389,10 +388,11 @@ pub fn encrypt_hybrid<R: rand::Rng + rand::CryptoRng>(
     })
 }
 
-/// True hybrid decryption using ML-KEM-768 + X25519 + AES-256-GCM.
+/// True hybrid decryption using ML-KEM + X25519 + AES-256-GCM.
 ///
 /// This function performs real hybrid key decapsulation (ML-KEM decapsulation +
 /// X25519 ECDH agreement, combined via HKDF) before AES-256-GCM decryption.
+/// The ML-KEM security level is determined by the secret key.
 ///
 /// # Errors
 ///
@@ -409,11 +409,15 @@ pub fn decrypt_hybrid(
     let default_ctx = HybridEncryptionContext::default();
     let ctx = context.unwrap_or(&default_ctx);
 
-    // Validate ciphertext structure
-    if ciphertext.kem_ciphertext.len() != 1088 {
-        return Err(HybridEncryptionError::InvalidInput(
-            "ML-KEM-768 ciphertext must be 1088 bytes".to_string(),
-        ));
+    // Validate ciphertext structure against the secret key's security level
+    let expected_ct_size = hybrid_sk.security_level().ciphertext_size();
+    if ciphertext.kem_ciphertext.len() != expected_ct_size {
+        return Err(HybridEncryptionError::InvalidInput(format!(
+            "{} ciphertext must be {} bytes, got {}",
+            hybrid_sk.security_level().name(),
+            expected_ct_size,
+            ciphertext.kem_ciphertext.len()
+        )));
     }
     if ciphertext.ecdh_ephemeral_pk.len() != 32 {
         return Err(HybridEncryptionError::InvalidInput(
@@ -442,14 +446,13 @@ pub fn decrypt_hybrid(
     let encryption_key = derive_encryption_key(&shared_secret, ctx)?;
 
     // AES-256-GCM authenticated decryption
-    let nonce_bytes: [u8; 12] =
-        ciphertext.nonce.as_slice().try_into().map_err(|_e| {
-            HybridEncryptionError::DecryptionError("Invalid nonce length".to_string())
-        })?;
+    let nonce_bytes: [u8; 12] = ciphertext.nonce.as_slice().try_into().map_err(|e| {
+        HybridEncryptionError::DecryptionError(format!("Invalid nonce length: {e}"))
+    })?;
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
-    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|_e| {
-        HybridEncryptionError::DecryptionError("Failed to create AES key".to_string())
+    let unbound_key = UnboundKey::new(&AES_256_GCM, &encryption_key).map_err(|e| {
+        HybridEncryptionError::DecryptionError(format!("Failed to create AES key: {e}"))
     })?;
     let aes_key = LessSafeKey::new(unbound_key);
 
@@ -457,10 +460,10 @@ pub fn decrypt_hybrid(
         ciphertext.symmetric_ciphertext.iter().chain(ciphertext.tag.iter()).copied().collect();
 
     let aad = Aad::from(&ctx.aad[..]);
-    let plaintext = aes_key.open_in_place(nonce, aad, &mut in_out).map_err(|_e| {
-        HybridEncryptionError::DecryptionError(
-            "AES-GCM decryption/authentication failed".to_string(),
-        )
+    let plaintext = aes_key.open_in_place(nonce, aad, &mut in_out).map_err(|e| {
+        HybridEncryptionError::DecryptionError(format!(
+            "AES-GCM decryption/authentication failed: {e}"
+        ))
     })?;
 
     Ok(plaintext.to_vec())

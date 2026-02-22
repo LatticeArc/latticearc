@@ -19,7 +19,7 @@
 //!
 //! 1. **Unified API**: encrypt() → serialize → file → deserialize → decrypt()
 //! 2. **AES-GCM Direct**: encrypt_aes_gcm() with serialized EncryptedData wrapper
-//! 3. **Hybrid Encryption**: encrypt_hybrid() → serialize components → file → decrypt
+//! 3. **Hybrid Encryption**: encrypt(Hybrid) → serialize components → file → decrypt
 //! 4. **Signatures**: sign_with_key() → serialize → file → deserialize → verify()
 //! 5. **Key Persistence**: keypair → serialize → file → deserialize → use
 //! 6. **Multi-Message**: multiple encrypted messages in one file, selective decrypt
@@ -39,7 +39,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
 #![allow(missing_docs)]
-
 use std::collections::HashMap;
 use std::io::{Read, Write};
 
@@ -49,10 +48,15 @@ use tempfile::NamedTempFile;
 
 use latticearc::{
     CryptoConfig,
+    CryptoScheme,
     // Types
+    DecryptKey,
+    EncryptKey,
     EncryptedData,
     EncryptedMetadata,
-    HybridEncryptionResult,
+    EncryptedOutput,
+    EncryptionScheme,
+    HybridComponents,
     SecurityLevel,
     SecurityMode,
     UseCase,
@@ -61,8 +65,6 @@ use latticearc::{
     // AES-GCM direct
     decrypt_aes_gcm,
     decrypt_aes_gcm_with_aad,
-    // Hybrid
-    decrypt_hybrid,
     // Serialization
     deserialize_encrypted_data,
     deserialize_keypair,
@@ -71,7 +73,6 @@ use latticearc::{
     encrypt_aes_gcm,
     // AES-GCM with AAD
     encrypt_aes_gcm_with_aad,
-    encrypt_hybrid,
     generate_hybrid_keypair,
     // Signing
     generate_signing_keypair,
@@ -129,25 +130,31 @@ struct SerializableHybridEncrypted {
 }
 
 impl SerializableHybridEncrypted {
-    fn from_result(result: &HybridEncryptionResult) -> Self {
+    fn from_encrypted_output(output: &EncryptedOutput) -> Self {
         use base64::{Engine, engine::general_purpose::STANDARD};
+        let hybrid = output.hybrid_data.as_ref().expect("hybrid_data must be present");
         Self {
-            kem_ciphertext: STANDARD.encode(&result.kem_ciphertext),
-            ecdh_ephemeral_pk: STANDARD.encode(&result.ecdh_ephemeral_pk),
-            symmetric_ciphertext: STANDARD.encode(&result.symmetric_ciphertext),
-            nonce: STANDARD.encode(&result.nonce),
-            tag: STANDARD.encode(&result.tag),
+            kem_ciphertext: STANDARD.encode(&hybrid.ml_kem_ciphertext),
+            ecdh_ephemeral_pk: STANDARD.encode(&hybrid.ecdh_ephemeral_pk),
+            symmetric_ciphertext: STANDARD.encode(&output.ciphertext),
+            nonce: STANDARD.encode(&output.nonce),
+            tag: STANDARD.encode(&output.tag),
         }
     }
 
-    fn to_result(&self) -> HybridEncryptionResult {
+    fn to_encrypted_output(&self) -> EncryptedOutput {
         use base64::{Engine, engine::general_purpose::STANDARD};
-        HybridEncryptionResult {
-            kem_ciphertext: STANDARD.decode(&self.kem_ciphertext).unwrap(),
-            ecdh_ephemeral_pk: STANDARD.decode(&self.ecdh_ephemeral_pk).unwrap(),
-            symmetric_ciphertext: STANDARD.decode(&self.symmetric_ciphertext).unwrap(),
+        EncryptedOutput {
+            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
+            ciphertext: STANDARD.decode(&self.symmetric_ciphertext).unwrap(),
             nonce: STANDARD.decode(&self.nonce).unwrap(),
             tag: STANDARD.decode(&self.tag).unwrap(),
+            hybrid_data: Some(HybridComponents {
+                ml_kem_ciphertext: STANDARD.decode(&self.kem_ciphertext).unwrap(),
+                ecdh_ephemeral_pk: STANDARD.decode(&self.ecdh_ephemeral_pk).unwrap(),
+            }),
+            timestamp: chrono::Utc::now().timestamp().unsigned_abs(),
+            key_id: None,
         }
     }
 }
@@ -162,10 +169,16 @@ fn roundtrip_unified_api_default_config_through_file() {
     let plaintext = b"Practical round-trip test through file system";
 
     // Step 1: Encrypt with default config
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    // Step 2: Serialize to JSON
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    // Step 2: Convert to EncryptedData and serialize to JSON
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
 
     // Step 3: Write to file
     let file = write_to_tempfile(&json);
@@ -174,10 +187,14 @@ fn roundtrip_unified_api_default_config_through_file() {
     let json_from_file = read_from_tempfile(&file);
 
     // Step 5: Deserialize
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    // Step 6: Decrypt
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    // Step 6: Convert to EncryptedOutput and decrypt
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
 
     assert_eq!(decrypted.as_slice(), plaintext);
 }
@@ -187,15 +204,22 @@ fn roundtrip_unified_api_with_use_case_through_file() {
     let key = [0xABu8; 32];
     let plaintext = b"File storage use case round-trip";
 
-    let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-    let encrypted = encrypt(plaintext, &key, config).expect("encrypt failed");
+    let config =
+        CryptoConfig::new().use_case(UseCase::FileStorage).force_scheme(CryptoScheme::Symmetric);
+    let encrypted: EncryptedOutput =
+        encrypt(plaintext, EncryptKey::Symmetric(&key), config).expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -204,15 +228,23 @@ fn roundtrip_unified_api_with_security_level_maximum() {
     let key = [0xCDu8; 32];
     let plaintext = b"Maximum security level round-trip";
 
-    let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let encrypted = encrypt(plaintext, &key, config).expect("encrypt failed");
+    let config = CryptoConfig::new()
+        .security_level(SecurityLevel::Maximum)
+        .force_scheme(CryptoScheme::Symmetric);
+    let encrypted: EncryptedOutput =
+        encrypt(plaintext, EncryptKey::Symmetric(&key), config).expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -221,14 +253,24 @@ fn roundtrip_unified_api_empty_plaintext() {
     let key = [0x11u8; 32];
     let plaintext = b"";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -237,14 +279,24 @@ fn roundtrip_unified_api_large_plaintext() {
     let key = [0x77u8; 32];
     let plaintext = vec![0xFFu8; 128 * 1024]; // 128 KiB
 
-    let encrypted = encrypt(&plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        &plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext.as_slice());
 }
 
@@ -254,14 +306,24 @@ fn roundtrip_unified_api_binary_data() {
     // All 256 byte values to test binary safety through Base64
     let plaintext: Vec<u8> = (0..=255).collect();
 
-    let encrypted = encrypt(&plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        &plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     assert_eq!(decrypted, plaintext);
 }
 
@@ -311,7 +373,7 @@ fn roundtrip_aes_gcm_direct_through_file() {
 }
 
 // ============================================================================
-// 3. Hybrid Encryption: encrypt_hybrid → serialize → file → deserialize → decrypt
+// 3. Hybrid Encryption: encrypt(Hybrid) → serialize → file → deserialize → decrypt
 // ============================================================================
 
 #[test]
@@ -319,13 +381,12 @@ fn roundtrip_hybrid_encrypt_through_file() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
     let plaintext = b"Hybrid ML-KEM-768 + X25519 through file round-trip";
 
-    // Step 1: Encrypt
-    let encrypted =
-        encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("hybrid encrypt failed");
+    // Step 1: Encrypt via unified API
+    let encrypted = encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new())
+        .expect("hybrid encrypt failed");
 
-    // Step 2: Serialize to JSON (custom serialization since HybridEncryptionResult
-    // doesn't have built-in serialization)
-    let serializable = SerializableHybridEncrypted::from_result(&encrypted);
+    // Step 2: Serialize to JSON
+    let serializable = SerializableHybridEncrypted::from_encrypted_output(&encrypted);
     let json = serde_json::to_string_pretty(&serializable).expect("serialize failed");
 
     // Step 3: Write to file
@@ -337,17 +398,19 @@ fn roundtrip_hybrid_encrypt_through_file() {
     // Step 5: Deserialize
     let deserialized: SerializableHybridEncrypted =
         serde_json::from_str(&json_from_file).expect("deserialize failed");
-    let restored = deserialized.to_result();
+    let restored = deserialized.to_encrypted_output();
 
     // Step 6: Verify component sizes survived serialization
-    assert_eq!(restored.kem_ciphertext.len(), encrypted.kem_ciphertext.len());
-    assert_eq!(restored.ecdh_ephemeral_pk.len(), encrypted.ecdh_ephemeral_pk.len());
+    let orig_hybrid = encrypted.hybrid_data.as_ref().unwrap();
+    let rest_hybrid = restored.hybrid_data.as_ref().unwrap();
+    assert_eq!(rest_hybrid.ml_kem_ciphertext.len(), orig_hybrid.ml_kem_ciphertext.len());
+    assert_eq!(rest_hybrid.ecdh_ephemeral_pk.len(), orig_hybrid.ecdh_ephemeral_pk.len());
     assert_eq!(restored.nonce.len(), encrypted.nonce.len());
     assert_eq!(restored.tag.len(), encrypted.tag.len());
 
     // Step 7: Decrypt
-    let decrypted =
-        decrypt_hybrid(&restored, &sk, SecurityMode::Unverified).expect("hybrid decrypt failed");
+    let decrypted = decrypt(&restored, DecryptKey::Hybrid(&sk), CryptoConfig::new())
+        .expect("hybrid decrypt failed");
 
     assert_eq!(decrypted.as_slice(), plaintext);
 }
@@ -365,9 +428,9 @@ fn roundtrip_hybrid_encrypt_multiple_messages() {
     // Encrypt all, serialize to a JSON array
     let mut serialized_messages = Vec::new();
     for msg in &messages {
-        let encrypted =
-            encrypt_hybrid(msg, &pk, SecurityMode::Unverified).expect("hybrid encrypt failed");
-        let serializable = SerializableHybridEncrypted::from_result(&encrypted);
+        let encrypted = encrypt(msg, EncryptKey::Hybrid(&pk), CryptoConfig::new())
+            .expect("hybrid encrypt failed");
+        let serializable = SerializableHybridEncrypted::from_encrypted_output(&encrypted);
         serialized_messages.push(serializable);
     }
 
@@ -381,8 +444,8 @@ fn roundtrip_hybrid_encrypt_multiple_messages() {
     assert_eq!(deserialized.len(), messages.len());
 
     for (i, ser) in deserialized.iter().enumerate() {
-        let restored = ser.to_result();
-        let decrypted = decrypt_hybrid(&restored, &sk, SecurityMode::Unverified)
+        let restored = ser.to_encrypted_output();
+        let decrypted = decrypt(&restored, DecryptKey::Hybrid(&sk), CryptoConfig::new())
             .expect("hybrid decrypt failed");
         assert_eq!(decrypted.as_slice(), messages[i], "message {i} mismatch");
     }
@@ -499,11 +562,19 @@ fn roundtrip_keypair_persist_and_use_for_encryption() {
 
     // Use restored key for encryption
     let plaintext = b"Encrypted with persisted key";
-    let encrypted =
-        encrypt(plaintext, &restored.public_key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&restored.public_key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    let decrypted = decrypt(&encrypted, restored.private_key.as_slice(), CryptoConfig::new())
-        .expect("decrypt failed");
+    let decrypted = decrypt(
+        &encrypted,
+        DecryptKey::Symmetric(restored.private_key.as_slice()),
+        CryptoConfig::new(),
+    )
+    .expect("decrypt failed");
 
     assert_eq!(decrypted.as_slice(), plaintext);
 }
@@ -527,8 +598,14 @@ fn roundtrip_multi_message_store_selective_decrypt() {
     let mut store = EncryptedMessageStore { version: "1.0".to_string(), messages: Vec::new() };
 
     for (label, msg) in &messages {
-        let encrypted = encrypt(msg.as_bytes(), &key, CryptoConfig::new()).expect("encrypt failed");
-        let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+        let encrypted: EncryptedOutput = encrypt(
+            msg.as_bytes(),
+            EncryptKey::Symmetric(&key),
+            CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+        )
+        .expect("encrypt failed");
+        let encrypted_data: EncryptedData = encrypted.into();
+        let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
         store.messages.push(StoredMessage { label: label.to_string(), encrypted_json: json });
     }
 
@@ -551,17 +628,24 @@ fn roundtrip_multi_message_store_selective_decrypt() {
         .find(|m| m.label == "medical-record-042")
         .expect("medical record not found");
 
-    let encrypted =
+    let deserialized: EncryptedData =
         deserialize_encrypted_data(&medical.encrypted_json).expect("deserialize failed");
-    let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
 
     assert_eq!(String::from_utf8(decrypted).unwrap(), "Patient: John Doe, Blood Type: O+");
 
     // Decrypt all and verify
     for (i, stored) in restored_store.messages.iter().enumerate() {
-        let encrypted =
+        let deserialized: EncryptedData =
             deserialize_encrypted_data(&stored.encrypted_json).expect("deserialize failed");
-        let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()).expect("decrypt failed");
+        let deserialized_output: EncryptedOutput =
+            deserialized.try_into().expect("scheme should be valid");
+        let decrypted =
+            decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+                .expect("decrypt failed");
         assert_eq!(
             String::from_utf8(decrypted).unwrap(),
             messages[i].1,
@@ -583,13 +667,17 @@ fn roundtrip_multi_message_different_keys() {
     // Encrypt each message with a different key, using key_id to track which key
     let mut stored_messages = Vec::new();
     for (i, (msg, key)) in messages.iter().zip(keys.iter()).enumerate() {
-        let mut encrypted =
-            encrypt(msg.as_bytes(), key, CryptoConfig::new()).expect("encrypt failed");
+        let mut encrypted: EncryptedOutput = encrypt(
+            msg.as_bytes(),
+            EncryptKey::Symmetric(key),
+            CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+        )
+        .expect("encrypt failed");
         // Set key_id to identify which key was used
-        encrypted.metadata.key_id =
-            Some(format!("key-{}", (b'A' + u8::try_from(i).unwrap()) as char));
+        encrypted.key_id = Some(format!("key-{}", (b'A' + u8::try_from(i).unwrap()) as char));
 
-        let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+        let encrypted_data: EncryptedData = encrypted.into();
+        let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
         stored_messages.push(json);
     }
 
@@ -609,11 +697,16 @@ fn roundtrip_multi_message_different_keys() {
 
     // Decrypt each message by looking up the correct key from key_id
     for (i, json) in restored.iter().enumerate() {
-        let encrypted = deserialize_encrypted_data(json).expect("deserialize failed");
-        let key_id = encrypted.metadata.key_id.as_ref().expect("key_id missing");
+        let deserialized: EncryptedData =
+            deserialize_encrypted_data(json).expect("deserialize failed");
+        let key_id = deserialized.metadata.key_id.as_ref().expect("key_id missing");
         let key = key_map.get(key_id).expect("key not found");
 
-        let decrypted = decrypt(&encrypted, key, CryptoConfig::new()).expect("decrypt failed");
+        let deserialized_output: EncryptedOutput =
+            deserialized.try_into().expect("scheme should be valid");
+        let decrypted =
+            decrypt(&deserialized_output, DecryptKey::Symmetric(key), CryptoConfig::new())
+                .expect("decrypt failed");
         assert_eq!(
             String::from_utf8(decrypted).unwrap(),
             messages[i],
@@ -631,10 +724,16 @@ fn metadata_readable_without_decryption_key() {
     let key = [0xDDu8; 32];
     let plaintext = b"Secret data that should not be readable from metadata";
 
-    let mut encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
-    encrypted.metadata.key_id = Some("production-key-2026".to_string());
+    let mut encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
+    encrypted.key_id = Some("production-key-2026".to_string());
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
 
@@ -668,9 +767,12 @@ fn metadata_scheme_correctly_identifies_algorithm() {
     let use_cases = vec![UseCase::FileStorage, UseCase::SecureMessaging, UseCase::IoTDevice];
 
     for use_case in use_cases {
-        let config = CryptoConfig::new().use_case(use_case.clone());
-        let encrypted = encrypt(b"test", &key, config).expect("encrypt failed");
-        let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+        let config =
+            CryptoConfig::new().use_case(use_case.clone()).force_scheme(CryptoScheme::Symmetric);
+        let encrypted: EncryptedOutput =
+            encrypt(b"test", EncryptKey::Symmetric(&key), config).expect("encrypt failed");
+        let encrypted_data: EncryptedData = encrypted.into();
+        let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
 
         let raw: serde_json::Value = serde_json::from_str(&json).expect("parse failed");
         let scheme = raw["scheme"].as_str().unwrap();
@@ -694,18 +796,26 @@ fn roundtrip_encrypt_with_usecase_decrypt_with_default() {
     let plaintext = b"Encrypt with specific config, decrypt with default";
 
     // Encrypt with use case config
-    let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
-    let encrypted = encrypt(plaintext, &key, config).expect("encrypt failed");
+    let config = CryptoConfig::new()
+        .use_case(UseCase::SecureMessaging)
+        .force_scheme(CryptoScheme::Symmetric);
+    let encrypted: EncryptedOutput =
+        encrypt(plaintext, EncryptKey::Symmetric(&key), config).expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
     // Decrypt with completely different config — should work because
     // algorithm comes from EncryptedData.scheme, not CryptoConfig
     let different_config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let decrypted = decrypt(&deserialized, &key, different_config).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), different_config)
+        .expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -714,17 +824,25 @@ fn roundtrip_encrypt_with_maximum_decrypt_with_standard() {
     let key = [0x66u8; 32];
     let plaintext = b"Security level in config doesn't affect decrypt";
 
-    let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
-    let encrypted = encrypt(plaintext, &key, config).expect("encrypt failed");
+    let config = CryptoConfig::new()
+        .security_level(SecurityLevel::Maximum)
+        .force_scheme(CryptoScheme::Symmetric);
+    let encrypted: EncryptedOutput =
+        encrypt(plaintext, EncryptKey::Symmetric(&key), config).expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
     // Different security level for decrypt — still works
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
-    let decrypted = decrypt(&deserialized, &key, config).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted =
+        decrypt(&deserialized_output, DecryptKey::Symmetric(&key), config).expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -809,8 +927,14 @@ fn tamper_detection_modified_ciphertext_in_file() {
     let key = [0xAAu8; 32];
     let plaintext = b"Tamper-evident encrypted data";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
 
     // Parse JSON and modify the encrypted data
     let mut raw: serde_json::Value = serde_json::from_str(&json).expect("parse failed");
@@ -826,10 +950,13 @@ fn tamper_detection_modified_ciphertext_in_file() {
     let tampered_json = serde_json::to_string(&raw).expect("re-serialize failed");
     let file = write_to_tempfile(&tampered_json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
     // Decrypt should fail due to authentication tag mismatch
-    let result = decrypt(&deserialized, &key, CryptoConfig::new());
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let result = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new());
     assert!(result.is_err(), "Decryption of tampered ciphertext should fail");
 }
 
@@ -838,8 +965,14 @@ fn tamper_detection_modified_nonce_in_file() {
     let key = [0xBBu8; 32];
     let plaintext = b"Nonce tamper detection";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
 
     // Parse and modify the nonce
     let mut raw: serde_json::Value = serde_json::from_str(&json).expect("parse failed");
@@ -851,13 +984,16 @@ fn tamper_detection_modified_nonce_in_file() {
     // The EncryptedData.data field contains the real nonce in the first 12 bytes,
     // so changing metadata.nonce doesn't affect decrypt (it uses data directly).
     // This test documents the current behavior.
-    let deserialized = deserialize_encrypted_data(&tampered_json).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&tampered_json).expect("deserialize failed");
 
     // Decrypt uses encrypted.data directly (which has nonce embedded), so
     // modifying metadata.nonce alone may not cause failure. This is expected
     // because the nonce in metadata is informational — the authoritative nonce
     // is inside the data blob.
-    let result = decrypt(&deserialized, &key, CryptoConfig::new());
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let result = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new());
     // Document the actual behavior: decrypt uses data blob, not metadata.nonce
     assert!(
         result.is_ok(),
@@ -871,13 +1007,23 @@ fn tamper_detection_wrong_key_fails() {
     let wrong_key = [0x22u8; 32];
     let plaintext = b"Wrong key should fail authentication";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let result = decrypt(&deserialized, &wrong_key, CryptoConfig::new());
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let result =
+        decrypt(&deserialized_output, DecryptKey::Symmetric(&wrong_key), CryptoConfig::new());
     assert!(result.is_err(), "Decryption with wrong key should fail");
 }
 
@@ -886,8 +1032,14 @@ fn tamper_detection_truncated_ciphertext() {
     let key = [0x33u8; 32];
     let plaintext = b"Truncation detection test";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
 
     // Parse and truncate the data
     let mut raw: serde_json::Value = serde_json::from_str(&json).expect("parse failed");
@@ -900,7 +1052,10 @@ fn tamper_detection_truncated_ciphertext() {
     // Deserialization may succeed (it's valid base64/JSON)
     // but decryption should fail
     if let Ok(deserialized) = deserialize_encrypted_data(&tampered_json) {
-        let result = decrypt(&deserialized, &key, CryptoConfig::new());
+        let deserialized_output: EncryptedOutput =
+            deserialized.try_into().expect("scheme should be valid");
+        let result =
+            decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new());
         assert!(result.is_err(), "Decryption of truncated data should fail");
     }
     // If deserialization itself fails, that's also acceptable
@@ -911,18 +1066,29 @@ fn tamper_detection_modified_scheme_field() {
     let key = [0x44u8; 32];
     let plaintext = b"Scheme field tamper test";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
 
-    // Change scheme to something unsupported
+    // Change scheme to a valid but wrong scheme (AES-GCM data with ChaCha20 scheme)
+    // With EncryptionScheme enum, unknown strings default to AES-256-GCM on parse,
+    // so we use a valid alternative scheme to test mismatch detection.
     let mut raw: serde_json::Value = serde_json::from_str(&json).expect("parse failed");
-    raw["scheme"] = serde_json::Value::String("fake-algorithm-999".to_string());
+    raw["scheme"] = serde_json::Value::String("chacha20-poly1305".to_string());
 
     let tampered_json = serde_json::to_string(&raw).expect("re-serialize failed");
-    let deserialized = deserialize_encrypted_data(&tampered_json).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&tampered_json).expect("deserialize failed");
 
-    let result = decrypt(&deserialized, &key, CryptoConfig::new());
-    assert!(result.is_err(), "Decryption with unknown scheme should fail");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let result = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new());
+    assert!(result.is_err(), "Decryption with wrong scheme should fail");
 }
 
 // ============================================================================
@@ -976,19 +1142,28 @@ fn interop_simulation_sender_receiver_symmetric() {
 
     // === SENDER SIDE ===
     let sender_plaintext = b"Confidential report Q4 2026";
-    let sender_encrypted =
-        encrypt(sender_plaintext, &shared_key, CryptoConfig::new()).expect("sender encrypt failed");
-    let sender_json = serialize_encrypted_data(&sender_encrypted).expect("sender serialize failed");
+    let sender_encrypted: EncryptedOutput = encrypt(
+        sender_plaintext,
+        EncryptKey::Symmetric(&shared_key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("sender encrypt failed");
+    let sender_encrypted_data: EncryptedData = sender_encrypted.into();
+    let sender_json =
+        serialize_encrypted_data(&sender_encrypted_data).expect("sender serialize failed");
     let transfer_file = write_to_tempfile(&sender_json);
 
     // === FILE TRANSFER (simulated by reading the same file) ===
 
     // === RECEIVER SIDE ===
     let receiver_json = read_from_tempfile(&transfer_file);
-    let receiver_encrypted =
+    let receiver_deserialized: EncryptedData =
         deserialize_encrypted_data(&receiver_json).expect("receiver deserialize failed");
-    let receiver_plaintext = decrypt(&receiver_encrypted, &shared_key, CryptoConfig::new())
-        .expect("receiver decrypt failed");
+    let receiver_output: EncryptedOutput =
+        receiver_deserialized.try_into().expect("scheme should be valid");
+    let receiver_plaintext =
+        decrypt(&receiver_output, DecryptKey::Symmetric(&shared_key), CryptoConfig::new())
+            .expect("receiver decrypt failed");
 
     assert_eq!(receiver_plaintext.as_slice(), sender_plaintext);
 }
@@ -1003,10 +1178,11 @@ fn interop_simulation_sender_receiver_hybrid() {
 
     // === SENDER encrypts with receiver's public key ===
     let sender_plaintext = b"Hybrid encrypted message for receiver";
-    let sender_encrypted = encrypt_hybrid(sender_plaintext, &receiver_pk, SecurityMode::Unverified)
-        .expect("sender hybrid encrypt failed");
+    let sender_encrypted =
+        encrypt(sender_plaintext, EncryptKey::Hybrid(&receiver_pk), CryptoConfig::new())
+            .expect("sender hybrid encrypt failed");
 
-    let serializable = SerializableHybridEncrypted::from_result(&sender_encrypted);
+    let serializable = SerializableHybridEncrypted::from_encrypted_output(&sender_encrypted);
     let sender_json = serde_json::to_string_pretty(&serializable).expect("serialize failed");
     let transfer_file = write_to_tempfile(&sender_json);
 
@@ -1014,10 +1190,11 @@ fn interop_simulation_sender_receiver_hybrid() {
     let receiver_json = read_from_tempfile(&transfer_file);
     let deserialized: SerializableHybridEncrypted =
         serde_json::from_str(&receiver_json).expect("deserialize failed");
-    let restored = deserialized.to_result();
+    let restored = deserialized.to_encrypted_output();
 
-    let receiver_plaintext = decrypt_hybrid(&restored, &receiver_sk, SecurityMode::Unverified)
-        .expect("receiver hybrid decrypt failed");
+    let receiver_plaintext =
+        decrypt(&restored, DecryptKey::Hybrid(&receiver_sk), CryptoConfig::new())
+            .expect("receiver hybrid decrypt failed");
 
     assert_eq!(receiver_plaintext.as_slice(), sender_plaintext);
 }
@@ -1039,18 +1216,27 @@ fn interop_simulation_sign_and_encrypt_bundle() {
 
     // Serialize the signed data, then encrypt the serialized form
     let signed_json = serialize_signed_data(&signed).expect("serialize signed failed");
-    let encrypted = encrypt(signed_json.as_bytes(), &shared_key, CryptoConfig::new())
-        .expect("encrypt signed bundle failed");
-    let encrypted_json = serialize_encrypted_data(&encrypted).expect("serialize encrypted failed");
+    let encrypted: EncryptedOutput = encrypt(
+        signed_json.as_bytes(),
+        EncryptKey::Symmetric(&shared_key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt signed bundle failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let encrypted_json =
+        serialize_encrypted_data(&encrypted_data).expect("serialize encrypted failed");
 
     let transfer_file = write_to_tempfile(&encrypted_json);
 
     // === RECEIVER: decrypt then verify ===
     let receiver_json = read_from_tempfile(&transfer_file);
-    let receiver_encrypted =
+    let receiver_deserialized: EncryptedData =
         deserialize_encrypted_data(&receiver_json).expect("deserialize encrypted failed");
-    let decrypted_bundle = decrypt(&receiver_encrypted, &shared_key, CryptoConfig::new())
-        .expect("decrypt bundle failed");
+    let receiver_output: EncryptedOutput =
+        receiver_deserialized.try_into().expect("scheme should be valid");
+    let decrypted_bundle =
+        decrypt(&receiver_output, DecryptKey::Symmetric(&shared_key), CryptoConfig::new())
+            .expect("decrypt bundle failed");
 
     let signed_json_str = String::from_utf8(decrypted_bundle).expect("UTF-8 failed");
     let restored_signed =
@@ -1070,10 +1256,16 @@ fn double_serialization_idempotent() {
     let key = [0x55u8; 32];
     let plaintext = b"Double serialization stability test";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    // Serialize → deserialize → serialize again
-    let json1 = serialize_encrypted_data(&encrypted).expect("serialize 1 failed");
+    // Serialize → deserialize → serialize again (all using EncryptedData)
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json1 = serialize_encrypted_data(&encrypted_data).expect("serialize 1 failed");
     let round1 = deserialize_encrypted_data(&json1).expect("deserialize 1 failed");
     let json2 = serialize_encrypted_data(&round1).expect("serialize 2 failed");
     let round2 = deserialize_encrypted_data(&json2).expect("deserialize 2 failed");
@@ -1084,7 +1276,9 @@ fn double_serialization_idempotent() {
     assert_eq!(json2, json3, "Second and third serialization should be identical");
 
     // And the data should still decrypt
-    let decrypted = decrypt(&round2, &key, CryptoConfig::new()).expect("decrypt failed");
+    let round2_output: EncryptedOutput = round2.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&round2_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -1103,9 +1297,14 @@ fn roundtrip_concurrent_encrypt_serialize_pattern() {
     let encrypted_jsons: Vec<String> = messages
         .iter()
         .map(|msg| {
-            let encrypted =
-                encrypt(msg.as_bytes(), &key, CryptoConfig::new()).expect("encrypt failed");
-            serialize_encrypted_data(&encrypted).expect("serialize failed")
+            let encrypted: EncryptedOutput = encrypt(
+                msg.as_bytes(),
+                EncryptKey::Symmetric(&key),
+                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+            )
+            .expect("encrypt failed");
+            let encrypted_data: EncryptedData = encrypted.into();
+            serialize_encrypted_data(&encrypted_data).expect("serialize failed")
         })
         .collect();
 
@@ -1120,8 +1319,13 @@ fn roundtrip_concurrent_encrypt_serialize_pattern() {
     assert_eq!(restored.len(), 10);
 
     for (i, json) in restored.iter().enumerate() {
-        let encrypted = deserialize_encrypted_data(json).expect("deserialize failed");
-        let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()).expect("decrypt failed");
+        let deserialized: EncryptedData =
+            deserialize_encrypted_data(json).expect("deserialize failed");
+        let deserialized_output: EncryptedOutput =
+            deserialized.try_into().expect("scheme should be valid");
+        let decrypted =
+            decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+                .expect("decrypt failed");
         assert_eq!(
             String::from_utf8(decrypted).unwrap(),
             messages[i],
@@ -1139,8 +1343,14 @@ fn forward_compat_extra_json_fields_ignored() {
     let key = [0x99u8; 32];
     let plaintext = b"Forward compatibility test";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt failed");
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
 
     // Simulate a future version adding extra fields
     let mut raw: serde_json::Value = serde_json::from_str(&json).expect("parse failed");
@@ -1153,9 +1363,11 @@ fn forward_compat_extra_json_fields_ignored() {
     let json_from_file = read_from_tempfile(&file);
 
     // Current version should ignore extra fields and still decrypt
-    let deserialized = deserialize_encrypted_data(&json_from_file)
+    let deserialized: EncryptedData = deserialize_encrypted_data(&json_from_file)
         .expect("deserialize with extra fields should succeed");
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new())
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
         .expect("decrypt should succeed despite extra fields");
 
     assert_eq!(decrypted.as_slice(), plaintext);
@@ -1170,15 +1382,24 @@ fn roundtrip_unicode_plaintext_through_file() {
     let key = [0x22u8; 32];
     let plaintext = "日本語テスト 🔐 Ñoño résumé Ελληνικά العربية";
 
-    let encrypted =
-        encrypt(plaintext.as_bytes(), &key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext.as_bytes(),
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     let decrypted_str = String::from_utf8(decrypted).expect("UTF-8 failed");
 
     assert_eq!(decrypted_str, plaintext);
@@ -1189,15 +1410,24 @@ fn roundtrip_json_plaintext_through_file() {
     let key = [0x33u8; 32];
     let plaintext = r#"{"user": "alice", "secret": "p@$$w0rd!", "data": [1, 2, 3]}"#;
 
-    let encrypted =
-        encrypt(plaintext.as_bytes(), &key, CryptoConfig::new()).expect("encrypt failed");
+    let encrypted: EncryptedOutput = encrypt(
+        plaintext.as_bytes(),
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt failed");
 
-    let json = serialize_encrypted_data(&encrypted).expect("serialize failed");
+    let encrypted_data: EncryptedData = encrypted.into();
+    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
     let file = write_to_tempfile(&json);
     let json_from_file = read_from_tempfile(&file);
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
+    let deserialized: EncryptedData =
+        deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
 
-    let decrypted = decrypt(&deserialized, &key, CryptoConfig::new()).expect("decrypt failed");
+    let deserialized_output: EncryptedOutput =
+        deserialized.try_into().expect("scheme should be valid");
+    let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt failed");
     let decrypted_str = String::from_utf8(decrypted).expect("UTF-8 failed");
 
     assert_eq!(decrypted_str, plaintext);

@@ -94,33 +94,86 @@ pub fn is_recoverable_error(error: &LatticeArcError) -> bool {
 
 /// Get error severity for compliance reporting.
 ///
-/// Uses wildcard match intentionally: new error variants default to
-/// Low severity until explicitly categorized.
+/// Every known `LatticeArcError` variant is explicitly categorized.
+/// The trailing wildcard only matches future variants added via
+/// `#[non_exhaustive]`; it defaults to **Medium** (not Low) so that
+/// unrecognized errors are investigated rather than silently ignored.
 #[must_use]
-#[allow(clippy::wildcard_enum_match_arm)]
 pub fn get_error_severity(error: &LatticeArcError) -> ErrorSeverity {
     match error {
+        // Critical: core cryptographic failures
         LatticeArcError::EncryptionError(_)
         | LatticeArcError::DecryptionError(_)
         | LatticeArcError::KeyGenerationError(_)
         | LatticeArcError::SigningError(_)
         | LatticeArcError::VerificationError
-        | LatticeArcError::InvalidSignature(_) => ErrorSeverity::Critical,
+        | LatticeArcError::InvalidSignature(_)
+        | LatticeArcError::InvalidSignatureLength { .. }
+        | LatticeArcError::SignatureVerificationError(_)
+        | LatticeArcError::RandomError
+        | LatticeArcError::SideChannelError(_) => ErrorSeverity::Critical,
 
+        // High: authentication, authorization, compliance
         LatticeArcError::AuthenticationError(_)
         | LatticeArcError::AccessDenied(_)
         | LatticeArcError::Unauthorized(_)
         | LatticeArcError::SecurityViolation(_)
         | LatticeArcError::PolicyViolation(_)
-        | LatticeArcError::ComplianceViolation(_) => ErrorSeverity::High,
+        | LatticeArcError::ComplianceViolation(_)
+        | LatticeArcError::InvalidKey(_)
+        | LatticeArcError::InvalidKeyLength { .. }
+        | LatticeArcError::KeyDerivationError(_)
+        | LatticeArcError::EncapsulationError(_)
+        | LatticeArcError::DecapsulationError(_)
+        | LatticeArcError::PinIncorrect
+        | LatticeArcError::PinLocked
+        | LatticeArcError::HsmError(_)
+        | LatticeArcError::ZkpError(_)
+        | LatticeArcError::TlsError(_) => ErrorSeverity::High,
 
+        // Medium: infrastructure and operational
         LatticeArcError::NetworkError(_)
         | LatticeArcError::DatabaseError(_)
         | LatticeArcError::IoError(_)
         | LatticeArcError::HardwareError(_)
-        | LatticeArcError::ServiceUnavailable(_) => ErrorSeverity::Medium,
+        | LatticeArcError::ServiceUnavailable(_)
+        | LatticeArcError::CircuitBreakerOpen
+        | LatticeArcError::ResourceExhausted
+        | LatticeArcError::CloudKmsError(_)
+        | LatticeArcError::MemoryError(_)
+        | LatticeArcError::ConcurrencyError(_)
+        | LatticeArcError::TimeoutError(_)
+        | LatticeArcError::Expired(_)
+        | LatticeArcError::AsyncError(_)
+        | LatticeArcError::AuditError(_) => ErrorSeverity::Medium,
 
-        _ => ErrorSeverity::Low,
+        // Low: informational, development, configuration
+        LatticeArcError::SerializationError(_)
+        | LatticeArcError::DeserializationError(_)
+        | LatticeArcError::InvalidFormat(_)
+        | LatticeArcError::InvalidEnvelope(_)
+        | LatticeArcError::InvalidConfiguration(_)
+        | LatticeArcError::InvalidData(_)
+        | LatticeArcError::InvalidInput(_)
+        | LatticeArcError::InvalidParameter(_)
+        | LatticeArcError::InvalidOperation(_)
+        | LatticeArcError::InvalidPoint
+        | LatticeArcError::UnsupportedVersion(_)
+        | LatticeArcError::NotImplemented(_)
+        | LatticeArcError::CpuFeatureNotAvailable(_)
+        | LatticeArcError::FeatureNotEnabled(_)
+        | LatticeArcError::ValidationError { .. }
+        | LatticeArcError::VerificationFailed(_)
+        | LatticeArcError::FuzzingError(_)
+        | LatticeArcError::DevToolError(_)
+        | LatticeArcError::MigrationError(_)
+        | LatticeArcError::ProfilingError(_)
+        | LatticeArcError::WasmError(_) => ErrorSeverity::Low,
+
+        // Future variants (non_exhaustive): default to Medium so they
+        // trigger investigation rather than being silently ignored.
+        #[allow(unreachable_patterns)]
+        _ => ErrorSeverity::Medium,
     }
 }
 
@@ -361,7 +414,7 @@ mod tests {
             get_error_severity(&LatticeArcError::InvalidInput("x".to_string())),
             ErrorSeverity::Low
         );
-        assert_eq!(get_error_severity(&LatticeArcError::RandomError), ErrorSeverity::Low);
+        assert_eq!(get_error_severity(&LatticeArcError::RandomError), ErrorSeverity::Critical);
     }
 
     // === requires_security_response tests ===

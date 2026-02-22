@@ -50,7 +50,7 @@ use latticearc::unified_api::{
     // Zero Trust types
     SecurityMode,
     VerifiedSession,
-    // PQ-KEM convenience functions (re-exported via arc_core)
+    // PQ-KEM convenience functions (re-exported via unified_api)
     decrypt_pq_ml_kem,
     decrypt_pq_ml_kem_unverified,
     encrypt_pq_ml_kem,

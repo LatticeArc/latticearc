@@ -74,6 +74,7 @@ use zeroize::Zeroize;
 // Import primitives
 use latticearc::primitives::aead::AeadCipher;
 use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256, verify_tag_constant_time};
+#[cfg(not(feature = "fips"))]
 use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use latticearc::primitives::kem::ecdh::{X25519KeyPair, X25519SecretKey};
 use latticearc::primitives::kem::ml_kem::{
@@ -222,6 +223,7 @@ fn test_aes_gcm_tag_verification_constant_time() {
 
 /// Test ChaCha20-Poly1305 tag verification constant-time
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_chacha20poly1305_tag_verification_constant_time() {
     use latticearc::primitives::aead::chacha20poly1305::verify_tag_constant_time as chacha_verify;
 
@@ -808,6 +810,7 @@ fn test_mldsa_all_parameter_sets() {
 
 /// Test ChaCha20-Poly1305 operations
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_chacha20poly1305_operations() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation");

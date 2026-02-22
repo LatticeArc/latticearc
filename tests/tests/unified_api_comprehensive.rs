@@ -4,7 +4,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
 #![allow(missing_docs)]
-
 //! Comprehensive Unified API Integration Tests
 //!
 //! Exercises `latticearc::encrypt()` / `latticearc::decrypt()` through the public
@@ -14,10 +13,10 @@
 //! Run with: `cargo test --package latticearc --test unified_api_comprehensive --all-features --release`
 
 use latticearc::{
-    ComplianceMode, CryptoConfig, PerformancePreference, SecurityLevel, SecurityMode, TlsConfig,
-    TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, UseCase, decrypt,
-    decrypt_hybrid, encrypt, encrypt_hybrid, fips_available, generate_hybrid_keypair,
-    generate_signing_keypair, sign_with_key, verify,
+    ComplianceMode, CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, EncryptionScheme,
+    PerformancePreference, SecurityLevel, TlsConfig, TlsConstraints, TlsContext, TlsMode,
+    TlsPolicyEngine, TlsUseCase, UseCase, decrypt, encrypt, fips_available,
+    generate_hybrid_keypair, generate_signing_keypair, sign_with_key, verify,
 };
 
 // ============================================================================
@@ -46,16 +45,23 @@ fn test_unified_api_uses_aes256gcm_by_design() {
     // Override auto-FIPS when feature not available (test verifies AES-GCM selection, not FIPS)
     let config = if fips_available() { config } else { config.compliance(ComplianceMode::Default) };
 
-    let encrypted = encrypt(data, &key, config.clone()).expect("encrypt should succeed");
+    let encrypted = encrypt(
+        data,
+        EncryptKey::Symmetric(&key),
+        config.clone().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt should succeed");
 
     // The effective scheme is AES-256-GCM (not ML-KEM), which is correct
     // because the unified API receives a symmetric key.
     assert_eq!(
-        encrypted.scheme, "aes-256-gcm",
+        encrypted.scheme,
+        EncryptionScheme::Aes256Gcm,
         "Unified API with symmetric key should use AES-256-GCM"
     );
 
-    let decrypted = decrypt(&encrypted, &key, config).expect("decrypt should succeed");
+    let decrypted =
+        decrypt(&encrypted, DecryptKey::Symmetric(&key), config).expect("decrypt should succeed");
     assert_eq!(decrypted, data);
 }
 
@@ -191,7 +197,7 @@ fn all_use_cases() -> Vec<UseCase> {
 }
 
 #[test]
-fn test_encrypt_decrypt_all_22_use_cases() {
+fn test_symmetric_encrypt_decrypt_across_all_22_use_cases() {
     let key = [0x42u8; 32];
     let plaintext = b"Unified API roundtrip for every UseCase";
     let use_cases = all_use_cases();
@@ -209,18 +215,26 @@ fn test_encrypt_decrypt_all_22_use_cases() {
                 | UseCase::FinancialTransactions
         );
         if is_regulated && !fips_available() {
-            let result = encrypt(plaintext, &key, config);
+            let result = encrypt(
+                plaintext,
+                EncryptKey::Symmetric(&key),
+                config.force_scheme(CryptoScheme::Symmetric),
+            );
             assert!(result.is_err(), "Regulated {:?} should fail without FIPS", uc);
             continue;
         }
 
-        let encrypted = encrypt(plaintext, &key, config)
-            .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", uc, e));
+        let encrypted = encrypt(
+            plaintext,
+            EncryptKey::Symmetric(&key),
+            config.force_scheme(CryptoScheme::Symmetric),
+        )
+        .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", uc, e));
 
-        assert!(!encrypted.scheme.is_empty(), "{:?} scheme should be set", uc);
-        assert!(!encrypted.data.is_empty(), "{:?} ciphertext should be non-empty", uc);
+        assert!(!encrypted.scheme.as_str().is_empty(), "{:?} scheme should be set", uc);
+        assert!(!encrypted.ciphertext.is_empty(), "{:?} ciphertext should be non-empty", uc);
 
-        let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
+        let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", uc, e));
         assert_eq!(decrypted.as_slice(), plaintext, "Roundtrip mismatch for {:?}", uc);
     }
@@ -231,7 +245,7 @@ fn test_encrypt_decrypt_all_22_use_cases() {
 // ============================================================================
 
 #[test]
-fn test_encrypt_decrypt_all_4_security_levels() {
+fn test_symmetric_encrypt_decrypt_across_all_4_security_levels() {
     let key = [0x55u8; 32];
     let plaintext = b"Unified API roundtrip for every SecurityLevel";
 
@@ -244,12 +258,16 @@ fn test_encrypt_decrypt_all_4_security_levels() {
 
     for level in &levels {
         let config = CryptoConfig::new().security_level(level.clone());
-        let encrypted = encrypt(plaintext, &key, config)
-            .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", level, e));
+        let encrypted = encrypt(
+            plaintext,
+            EncryptKey::Symmetric(&key),
+            config.force_scheme(CryptoScheme::Symmetric),
+        )
+        .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", level, e));
 
-        assert!(!encrypted.scheme.is_empty(), "{:?} scheme should be set", level);
+        assert!(!encrypted.scheme.as_str().is_empty(), "{:?} scheme should be set", level);
 
-        let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())
+        let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", level, e));
         assert_eq!(decrypted.as_slice(), plaintext, "Roundtrip mismatch for {:?}", level);
     }
@@ -264,10 +282,14 @@ fn test_encrypt_decrypt_default_config() {
     let key = [0xAAu8; 32];
     let plaintext = b"Default CryptoConfig roundtrip through facade";
 
-    let encrypted =
-        encrypt(plaintext, &key, CryptoConfig::new()).expect("default encrypt should succeed");
-    let decrypted =
-        decrypt(&encrypted, &key, CryptoConfig::new()).expect("default decrypt should succeed");
+    let encrypted = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("default encrypt should succeed");
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("default decrypt should succeed");
 
     assert_eq!(decrypted.as_slice(), plaintext);
 }
@@ -281,10 +303,14 @@ fn test_encrypt_decrypt_empty_plaintext() {
     let key = [0xBBu8; 32];
     let plaintext = b"";
 
-    let encrypted =
-        encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt empty should succeed");
-    let decrypted =
-        decrypt(&encrypted, &key, CryptoConfig::new()).expect("decrypt empty should succeed");
+    let encrypted = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt empty should succeed");
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt empty should succeed");
 
     assert_eq!(decrypted.as_slice(), plaintext);
 }
@@ -294,10 +320,14 @@ fn test_encrypt_decrypt_large_plaintext() {
     let key = [0xCCu8; 32];
     let plaintext = vec![0xFFu8; 64 * 1024]; // 64 KiB
 
-    let encrypted =
-        encrypt(&plaintext, &key, CryptoConfig::new()).expect("encrypt large should succeed");
-    let decrypted =
-        decrypt(&encrypted, &key, CryptoConfig::new()).expect("decrypt large should succeed");
+    let encrypted = encrypt(
+        &plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt large should succeed");
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
+        .expect("decrypt large should succeed");
 
     assert_eq!(decrypted.as_slice(), plaintext.as_slice());
 }
@@ -311,10 +341,23 @@ fn test_encrypt_nonce_uniqueness() {
     let key = [0xDDu8; 32];
     let plaintext = b"Same plaintext encrypted twice";
 
-    let enc1 = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt 1");
-    let enc2 = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt 2");
+    let enc1 = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt 1");
+    let enc2 = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt 2");
 
-    assert_ne!(enc1.data, enc2.data, "Random nonces should produce different ciphertexts");
+    assert_ne!(
+        enc1.ciphertext, enc2.ciphertext,
+        "Random nonces should produce different ciphertexts"
+    );
 }
 
 // ============================================================================
@@ -324,7 +367,11 @@ fn test_encrypt_nonce_uniqueness() {
 #[test]
 fn test_encrypt_rejects_short_key() {
     let short_key = [0x42u8; 16];
-    let result = encrypt(b"data", &short_key, CryptoConfig::new());
+    let result = encrypt(
+        b"data",
+        EncryptKey::Symmetric(&short_key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    );
     assert!(result.is_err(), "16-byte key should be rejected");
 }
 
@@ -334,8 +381,13 @@ fn test_decrypt_wrong_key_fails() {
     let wrong_key = [0x99u8; 32];
     let plaintext = b"Wrong key should fail decryption";
 
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt");
-    let result = decrypt(&encrypted, &wrong_key, CryptoConfig::new());
+    let encrypted = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt");
+    let result = decrypt(&encrypted, DecryptKey::Symmetric(&wrong_key), CryptoConfig::new());
     assert!(result.is_err(), "Decryption with wrong key should fail");
 }
 
@@ -348,13 +400,18 @@ fn test_decrypt_tampered_ciphertext_fails() {
     let key = [0x42u8; 32];
     let plaintext = b"Tamper detection through unified API";
 
-    let mut encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt");
+    let mut encrypted = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt");
 
-    if encrypted.data.len() > 12 {
-        encrypted.data[12] ^= 0xFF;
+    if encrypted.ciphertext.len() > 12 {
+        encrypted.ciphertext[12] ^= 0xFF;
     }
 
-    let result = decrypt(&encrypted, &key, CryptoConfig::new());
+    let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
     assert!(result.is_err(), "Tampered ciphertext should fail");
 }
 
@@ -391,11 +448,14 @@ fn test_hybrid_encrypt_decrypt_through_facade() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen");
     let plaintext = b"Hybrid ML-KEM-768 + X25519 through latticearc facade";
 
-    let encrypted = encrypt_hybrid(plaintext, &pk, SecurityMode::Unverified).expect("encrypt");
-    assert_eq!(encrypted.kem_ciphertext.len(), 1088);
-    assert_eq!(encrypted.ecdh_ephemeral_pk.len(), 32);
+    let encrypted =
+        encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt");
+    let hybrid = encrypted.hybrid_data.as_ref().expect("should have hybrid_data");
+    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088);
+    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32);
 
-    let decrypted = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified).expect("decrypt");
+    let decrypted =
+        decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).expect("decrypt");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 
@@ -404,8 +464,9 @@ fn test_hybrid_wrong_key_fails() {
     let (pk1, _sk1) = generate_hybrid_keypair().expect("keygen 1");
     let (_pk2, sk2) = generate_hybrid_keypair().expect("keygen 2");
 
-    let encrypted = encrypt_hybrid(b"data", &pk1, SecurityMode::Unverified).expect("encrypt");
-    let result = decrypt_hybrid(&encrypted, &sk2, SecurityMode::Unverified);
+    let encrypted =
+        encrypt(b"data", EncryptKey::Hybrid(&pk1), CryptoConfig::new()).expect("encrypt");
+    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk2), CryptoConfig::new());
     assert!(result.is_err(), "Decrypt with wrong hybrid key should fail");
 }
 
@@ -418,21 +479,27 @@ fn test_complete_encrypt_sign_verify_decrypt_workflow() {
     // Step 1: Encrypt
     let key = [0x42u8; 32];
     let plaintext = b"Complete workflow through facade";
-    let encrypted = encrypt(plaintext, &key, CryptoConfig::new()).expect("encrypt");
+    let encrypted = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt");
 
     // Step 2: Sign the ciphertext
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (sign_pk, sign_sk, _) = generate_signing_keypair(config).expect("keygen");
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let signed = sign_with_key(&encrypted.data, &sign_sk, &sign_pk, config).expect("sign");
+    let signed = sign_with_key(&encrypted.ciphertext, &sign_sk, &sign_pk, config).expect("sign");
 
     // Step 3: Verify
     let is_valid = verify(&signed, CryptoConfig::new()).expect("verify");
     assert!(is_valid);
 
     // Step 4: Decrypt
-    let decrypted = decrypt(&encrypted, &key, CryptoConfig::new()).expect("decrypt");
+    let decrypted =
+        decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).expect("decrypt");
     assert_eq!(decrypted.as_slice(), plaintext);
 }
 

@@ -10,11 +10,11 @@
     clippy::arithmetic_side_effects,
     clippy::cast_precision_loss
 )]
-
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 use latticearc::unified_api::config::CoreConfig;
 use latticearc::unified_api::convenience::*;
 use latticearc::unified_api::zero_trust::SecurityMode;
+use latticearc::{CryptoConfig, DecryptKey, EncryptKey};
 
 // ============================================================
 // AES-GCM with_config variants
@@ -358,29 +358,15 @@ fn test_hybrid_sign_verify_with_config() {
 }
 
 // ============================================================
-// Hybrid encryption with_config variants
+// Hybrid encryption with unified API (replaces removed _with_config variants)
 // ============================================================
 
 #[test]
-fn test_hybrid_encrypt_decrypt_with_config() {
+fn test_hybrid_encrypt_decrypt_unified_api() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
-    let plaintext = b"Hybrid encryption with_config test";
-    let config = CoreConfig::default();
+    let plaintext = b"Hybrid encryption unified API test";
 
-    let result =
-        encrypt_hybrid_with_config(plaintext, &pk, &config, SecurityMode::Unverified).unwrap();
-    let decrypted =
-        decrypt_hybrid_with_config(&result, &sk, &config, SecurityMode::Unverified).unwrap();
-    assert_eq!(decrypted, plaintext);
-}
-
-#[test]
-fn test_hybrid_encrypt_decrypt_with_config_unverified() {
-    let (pk, sk) = generate_hybrid_keypair().unwrap();
-    let plaintext = b"Hybrid encryption unverified";
-    let config = CoreConfig::default();
-
-    let result = encrypt_hybrid_with_config_unverified(plaintext, &pk, &config).unwrap();
-    let decrypted = decrypt_hybrid_with_config_unverified(&result, &sk, &config).unwrap();
-    assert_eq!(decrypted, plaintext);
+    let encrypted = encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
+    let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
+    assert_eq!(decrypted.as_slice(), plaintext);
 }

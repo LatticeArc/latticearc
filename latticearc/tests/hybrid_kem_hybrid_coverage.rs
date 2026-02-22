@@ -11,6 +11,7 @@ use latticearc::hybrid::kem_hybrid::{
     HybridKemError, HybridPublicKey, decapsulate, derive_hybrid_shared_secret, encapsulate,
     generate_keypair,
 };
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 use rand::rngs::OsRng;
 
 // ============================================================================
@@ -115,6 +116,7 @@ fn test_encapsulate_rejects_wrong_ecdh_pk_length() {
     let pk = HybridPublicKey {
         ml_kem_pk: vec![0u8; 1184],
         ecdh_pk: vec![0u8; 16], // Should be 32
+        security_level: MlKemSecurityLevel::MlKem768,
     };
     let result = encapsulate(&mut rng, &pk);
     assert!(result.is_err());
@@ -129,7 +131,11 @@ fn test_encapsulate_rejects_wrong_ecdh_pk_length() {
 #[test]
 fn test_encapsulate_rejects_empty_ecdh_pk() {
     let mut rng = OsRng;
-    let pk = HybridPublicKey { ml_kem_pk: vec![0u8; 1184], ecdh_pk: vec![] };
+    let pk = HybridPublicKey {
+        ml_kem_pk: vec![0u8; 1184],
+        ecdh_pk: vec![],
+        security_level: MlKemSecurityLevel::MlKem768,
+    };
     let result = encapsulate(&mut rng, &pk);
     assert!(result.is_err());
 }

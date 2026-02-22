@@ -30,6 +30,7 @@ use std::time::{Duration, Instant};
 
 use latticearc::primitives::aead::AeadCipher;
 use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
+#[cfg(not(feature = "fips"))]
 use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use latticearc::primitives::hash::{sha3_256, sha256, sha512};
 use latticearc::primitives::kdf::hkdf::hkdf;
@@ -550,7 +551,8 @@ fn main() {
     print_result(&r);
     all_results.push(r);
 
-    // ChaCha20-Poly1305
+    // ChaCha20-Poly1305 (non-FIPS)
+    #[cfg(not(feature = "fips"))]
     {
         println!("\n  --- ChaCha20-Poly1305 ---");
         let chacha_key = [0u8; 32];

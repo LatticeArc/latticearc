@@ -222,6 +222,9 @@ impl From<TypeError> for CoreError {
                 CoreError::InvalidStateTransition { from, to }
             }
             TypeError::ConfigurationError(msg) => CoreError::ConfigurationError(msg),
+            TypeError::UnknownScheme(scheme) => {
+                CoreError::DecryptionFailed(format!("Unknown encryption scheme: {scheme}"))
+            }
         }
     }
 }

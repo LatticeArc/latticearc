@@ -7,10 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.2.0] - 2026-02-20
+## [0.3.0] - 2026-02-22
+
+### Security Audit Fixes (44 findings)
+
+- **Critical (14)**: Fixed constant-time comparison violations in hybrid KEM/signature verification, HKDF salt handling, AES-GCM nonce reuse risk, error oracle information leaks, ECDH output validation, PCT validation gaps, resource limit enforcement, README/docs stale API examples, Kani CI frequency claims, DESIGN.md wrong feature flags, ChaCha20 test coverage gap, CI debug-mode test execution
+- **High (13)**: Fixed FIPS self-test integrity key hardcoding (documented limitation), ZKP thread_rng usage (replaced with OsRng), secret key zeroization in hybrid decapsulation/key generation, error severity classifications for crypto failures, TLS recovery error handling, ML-KEM decapsulation key serialization validation
+- **Medium (8)**: Documented FN-DSA upstream zeroization limitation, added SignatureScheme enum tracking comment, removed 5 dead workspace dependencies, strengthened error severity for RandomError/SerializationError, added error context to TLS recovery paths
+- **Low (9)**: Cleaned deny.toml (added nix ban), fixed DESIGN.md algorithm table (added PBKDF2/BN254/X25519), corrected "30 Kani proofs" → "29", replaced TODO comments with NOT WIRED, added ed25519 to sign_with_key dispatch
+
+### Changed
+
+- **Version bump**: 0.2.0 → 0.3.0
+- **CI**: Added `--release` to 7 integration/compliance/security test commands
+- **Documentation**: Updated all code examples to v0.2.0+ unified API (`EncryptKey`/`DecryptKey` enums)
+- **DESIGN_PATTERNS.md**: Promoted from internal to tracked doc
+
+---
+
+## [0.2.0] - 2026-02-21
 
 ### Added
 
+- **Type-safe unified encryption API**: New `EncryptKey`/`DecryptKey` enums, `EncryptionScheme` enum, and `EncryptedOutput` struct eliminate silent degradation
+  - `EncryptKey::Symmetric(&[u8])` for AES-256-GCM/ChaCha20Poly1305
+  - `EncryptKey::Hybrid(&HybridPublicKey)` for ML-KEM-768 + X25519 hybrid encryption
+  - `EncryptionScheme` enum replaces string-based scheme dispatch (5 variants)
+  - `EncryptedOutput` unifies `EncryptedData` and `HybridEncryptionResult` into a single type
+  - `CryptoPolicyEngine::validate_key_matches_scheme()` returns `Err` on mismatch — no silent fallback
+  - Key-scheme mismatch tests verify all invalid combinations are rejected
+- **Serialization for `EncryptedOutput`**: V2 format with `HybridComponents` support and backward-compatible V1 deserialization
 - **Kani Formal Verification Expansion (16 → 29 proofs)**: Added 13 new bounded model checking proofs across 7 files in `latticearc::types`
   - `config.rs` (6 proofs): CoreConfig bi-conditional validation over all 96 combinations, factory presets, encryption compression/integrity, signature chain/timestamp
   - `types.rs` (3 proofs): ComplianceMode `requires_fips()` and `allows_hybrid()` exhaustive, PerformancePreference default is Balanced
@@ -23,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Unified `encrypt()`/`decrypt()` signatures**: Now take `EncryptKey<'_>`/`DecryptKey<'_>` instead of `&[u8]`, enabling type-safe hybrid encryption through the same API
+- **`CryptoPolicyEngine` returns `EncryptionScheme` enum**: `select_encryption_scheme()`, `recommend_scheme()`, and `select_for_security_level()` return typed enums instead of `String`
 - **Workspace Consolidation**: Merged 8 sub-crates into single `latticearc` crate for crates.io publishing
   - `arc-types`, `arc-prelude`, `arc-primitives`, `arc-hybrid`, `arc-core`, `arc-tls`, `arc-zkp`, `arc-perf` are now internal modules
   - Merged `arc-tests` and `arc-validation` into a single `latticearc-tests` crate (unpublished)
@@ -32,8 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Simplified release process: single `cargo publish -p latticearc` instead of 10-step layered publish
   - CI workflows updated to reference new crate structure
 
+### Removed
+
+- **Hybrid convenience functions**: Removed `encrypt_hybrid`, `decrypt_hybrid`, and all `_with_config`/`_unverified` variants — use `encrypt(data, EncryptKey::Hybrid(&pk), config)` instead
+- **`HybridEncryptionResult`**: Replaced by `EncryptedOutput` with `hybrid_data: Option<HybridComponents>`
+- **Silent degradation paths**: All 8 `warn!()` fallback paths eliminated — key-scheme mismatches now return `Err`
+
 ### Fixed
 
+- **Critical: Silent degradation to AES-GCM**: All 22 `UseCase` variants recommended hybrid PQ schemes, but `encrypt()` silently fell back to AES-256-GCM because it only accepted `&[u8]` (symmetric keys). Now correctly dispatches to hybrid encryption when `EncryptKey::Hybrid` is provided
+- **CNSA 2.0 roundtrip**: Encrypt stored "aes-256-gcm" in `EncryptedData.scheme` while CNSA compliance validated against the hybrid scheme name — decrypt rejected the mismatch. Now uses `EncryptionScheme` enum (always truthful)
 - **Audit Warning Fixes (17 → 14 warnings)**: Resolved 3 warnings from 13-dimension code audit
   - Dim 3.7: Removed "secret key" from error format strings in `ml_kem.rs` and `pq_kem.rs` (key material leak false positive)
   - Dim 13a.2: Replaced direct array indexing with `from_array()` in SIMD basemul (neon.rs, avx2.rs) and `get_mut()` in NTT butterfly (ntt_processor.rs)
@@ -42,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- Updated FORMAL_VERIFICATION.md with all 30 Kani proofs (was 12)
+- Updated FORMAL_VERIFICATION.md with all 29 Kani proofs (was 12)
 - Updated README.md verification section with expanded proof details
 - Updated SECURITY.md Kani section from 12 to 29 proofs
 - Updated DESIGN.md architecture notes with current proof count
@@ -208,7 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `types.rs`: 1 proof — default `SecurityLevel` is `High` (NIST Level 3)
   - `selector.rs`: 3 proofs — `force_scheme` completeness, PQ encryption/signature coverage for all levels
 - **Kani CI for `arc-types`**: Verified tier now targets `arc-types` (pure Rust) instead of
-  `arc-core` (FFI-dependent). All 12 proofs run on every push to `main`.
+  `arc-core` (FFI-dependent). All 12 proofs run nightly/weekly via CI schedule.
 - **Kani Proofs badge**: Added to README, linking to the `arc-types` verification workflow.
 - **True Hybrid Encryption** (commit `9973d0c`): Fixed critical issue where arc-core's hybrid encryption used ML-KEM only (no X25519, no HKDF)
   - Added `encrypt_true_hybrid()` / `decrypt_true_hybrid()` / `generate_true_hybrid_keypair()` API
@@ -384,7 +420,7 @@ First public release of LatticeArc, an enterprise-grade post-quantum cryptograph
 - Comprehensive error handling (no panics)
 - Extensive documentation and examples
 
-### Crate Structure
+### Crate Structure (v0.1.x — consolidated into single `latticearc` crate in v0.2.0)
 
 | Crate | Description |
 |-------|-------------|

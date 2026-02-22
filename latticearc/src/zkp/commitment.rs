@@ -113,12 +113,18 @@ pub struct PedersenCommitment {
 }
 
 /// Opening for a Pedersen commitment
-#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct PedersenOpening {
     /// The committed value (as scalar bytes)
     pub value: [u8; 32],
     /// The blinding factor
     pub blinding: [u8; 32],
+}
+
+impl std::fmt::Debug for PedersenOpening {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PedersenOpening").field("data", &"[REDACTED]").finish()
+    }
 }
 
 impl PedersenCommitment {

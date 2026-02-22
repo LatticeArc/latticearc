@@ -9,69 +9,66 @@
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::unified_api::{encrypt, decrypt, CryptoConfig, UseCase, VerifiedSession};
-//! # let data = b"example data";
-//! # let key = [0u8; 32];
-//! # let pk = [0u8; 32];
-//! # let sk = [0u8; 32];
+//! use latticearc::unified_api::{encrypt, decrypt, CryptoConfig, UseCase};
+//! use latticearc::types::crypto_types::{EncryptKey, DecryptKey};
 //!
-//! // Simple: Use defaults (High security)
-//! let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+//! // Symmetric encryption with use case
+//! let key = [0u8; 32];
+//! let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
+//!     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
+//! let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 //!
-//! // With use case (recommended - library picks optimal algorithm)
-//! let encrypted = encrypt(data, &key, CryptoConfig::new()
-//!     .use_case(UseCase::FileStorage))?;
-//!
-//! // With Zero Trust session
-//! let session = VerifiedSession::establish(&pk, &sk)?;
-//! let encrypted = encrypt(data, &key, CryptoConfig::new()
-//!     .session(&session)
-//!     .use_case(UseCase::FileStorage))?;
+//! // Hybrid encryption (ML-KEM-768 + X25519 + AES-256-GCM)
+//! let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&pk),
+//!     CryptoConfig::new().use_case(UseCase::FileStorage))?;
+//! let plaintext = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 //! # Ok(())
 //! # }
 //! ```
 
 use chrono::Utc;
-use tracing::warn;
 use zeroize::Zeroizing;
 
 use crate::primitives::sig::{
     ml_dsa::MlDsaParameterSet, slh_dsa::SecurityLevel as SlhDsaSecurityLevel,
 };
 
+use crate::types::crypto_types::{
+    DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme, HybridComponents,
+};
 use crate::unified_api::{
     config::CoreConfig,
     error::{CoreError, Result},
     selector::CryptoPolicyEngine,
-    types::{
-        AlgorithmSelection, CryptoConfig, EncryptedData, EncryptedMetadata, SignedData,
-        SignedMetadata,
-    },
+    types::{AlgorithmSelection, CryptoConfig, SignedData, SignedMetadata},
 };
 
 use super::aes_gcm::{decrypt_aes_gcm_internal, encrypt_aes_gcm_internal};
 use super::ed25519::{sign_ed25519_internal, verify_ed25519_internal};
-use crate::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
-// Unified API uses AES-256-GCM for symmetric keys. For true PQ+classical hybrid
-// encryption, use encrypt_hybrid() / decrypt_hybrid() with typed keys.
 use super::keygen::{
     generate_fn_dsa_keypair, generate_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair,
 };
-// Unified API uses AES-256-GCM for symmetric keys; PQ KEM is via encrypt_hybrid()
 use super::pq_sig::{
     sign_pq_fn_dsa_unverified, sign_pq_ml_dsa_unverified, sign_pq_slh_dsa_unverified,
     verify_pq_fn_dsa_unverified, verify_pq_ml_dsa_unverified, verify_pq_slh_dsa_unverified,
 };
+#[cfg(not(feature = "fips"))]
+use crate::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
+
+use crate::hybrid::encrypt_hybrid::{HybridCiphertext, decrypt_hybrid, encrypt_hybrid};
 
 /// Check FIPS module is operational before any crypto operation.
 /// On first call, runs power-up self-tests (lazy initialization).
 /// No-op when `fips-self-test` feature is not enabled.
 #[cfg(feature = "fips-self-test")]
-fn fips_verify_operational() -> Result<()> {
+pub(super) fn fips_verify_operational() -> Result<()> {
     use std::sync::Once;
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        let _ = crate::primitives::self_test::initialize_and_test();
+        // initialize_and_test() calls std::process::abort() on failure (FIPS 140-3 §9.1).
+        // If execution continues past this call, self-tests passed.
+        let _passed = crate::primitives::self_test::initialize_and_test();
     });
     crate::primitives::self_test::verify_operational().map_err(|e| CoreError::SelfTestFailed {
         component: "FIPS module".to_string(),
@@ -80,7 +77,7 @@ fn fips_verify_operational() -> Result<()> {
 }
 
 #[cfg(not(feature = "fips-self-test"))]
-fn fips_verify_operational() -> Result<()> {
+pub(super) fn fips_verify_operational() -> Result<()> {
     Ok(())
 }
 
@@ -92,18 +89,28 @@ use crate::types::resource_limits::{
 // Internal Helpers
 // ============================================================================
 
-/// Select encryption scheme based on CryptoConfig.
-fn select_encryption_scheme(data: &[u8], options: &CryptoConfig) -> Result<String> {
+/// Select encryption scheme based on CryptoConfig, returning a type-safe enum.
+///
+/// This is the type-safe replacement for `select_encryption_scheme`.
+fn select_encryption_scheme_typed(options: &CryptoConfig) -> Result<EncryptionScheme> {
     match options.get_selection() {
         AlgorithmSelection::UseCase(use_case) => {
             let config = CoreConfig::default();
-            Ok(CryptoPolicyEngine::select_encryption_scheme(data, &config, Some(use_case))?)
+            Ok(CryptoPolicyEngine::recommend_encryption_scheme(use_case, &config)?)
         }
         AlgorithmSelection::SecurityLevel(level) => {
             let config = CoreConfig::default().with_security_level(level.clone());
-            Ok(CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?)
+            Ok(CryptoPolicyEngine::select_encryption_scheme_typed(&config))
         }
-        AlgorithmSelection::ForcedScheme(scheme) => Ok(CryptoPolicyEngine::force_scheme(scheme)),
+        AlgorithmSelection::ForcedScheme(scheme) => {
+            let scheme_str = CryptoPolicyEngine::force_scheme(scheme);
+            EncryptionScheme::from_str(&scheme_str).ok_or_else(|| {
+                CoreError::InvalidInput(format!(
+                    "Forced scheme '{}' is not an encryption scheme (may be a signature scheme)",
+                    scheme_str
+                ))
+            })
+        }
     }
 }
 
@@ -123,6 +130,7 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
 }
 
 /// ChaCha20-Poly1305 encrypt (format: nonce || ciphertext || tag)
+#[cfg(not(feature = "fips"))]
 fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     let cipher = ChaCha20Poly1305Cipher::new(key)
         .map_err(|_e| CoreError::InvalidKeyLength { expected: 32, actual: key.len() })?;
@@ -140,6 +148,7 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// ChaCha20-Poly1305 decrypt (expects: nonce || ciphertext || tag)
+#[cfg(not(feature = "fips"))]
 fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     if encrypted.len() < 28 {
         return Err(CoreError::DecryptionFailed(
@@ -178,180 +187,163 @@ fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 
 /// Encrypt data with automatic algorithm selection.
 ///
-/// This is the single entry point for encryption. Configure algorithm selection
-/// and optional Zero Trust session via the `CryptoConfig` builder.
+/// This is the **single entry point** for all encryption. The key type
+/// (`EncryptKey::Symmetric` or `EncryptKey::Hybrid`) determines the cipher.
+/// If the selected scheme requires a hybrid key but a symmetric key is provided
+/// (or vice versa), this function returns `Err` — it **never silently degrades**.
 ///
 /// # Examples
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, SecurityLevel, VerifiedSession};
-/// # let data = b"example data";
-/// # let pk = [0u8; 32];
-/// # let sk = [0u8; 32];
+/// use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, SecurityLevel};
+/// use latticearc::types::crypto_types::EncryptKey;
 ///
+/// // Symmetric encryption (AES-256-GCM)
 /// let key = [0u8; 32];
+/// let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
+///     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
 ///
-/// // Simple: Use defaults (High security)
-/// let encrypted = encrypt(data, &key, CryptoConfig::new())?;
-///
-/// // With use case (recommended - library picks optimal algorithm)
-/// let encrypted = encrypt(data, &key, CryptoConfig::new()
-///     .use_case(UseCase::FileStorage))?;
-///
-/// // With security level (manual control)
-/// let encrypted = encrypt(data, &key, CryptoConfig::new()
-///     .security_level(SecurityLevel::Maximum))?;
-///
-/// // With Zero Trust session
-/// let session = VerifiedSession::establish(&pk, &sk)?;
-/// let encrypted = encrypt(data, &key, CryptoConfig::new()
-///     .session(&session)
-///     .use_case(UseCase::FileStorage))?;
+/// // Hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM)
+/// let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+/// let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&pk),
+///     CryptoConfig::new().use_case(UseCase::FileStorage))?;
 /// # Ok(())
 /// # }
 /// ```
-///
-/// # Algorithm Selection
-///
-/// This function uses a symmetric key (`&[u8]`), so it performs AES-256-GCM or
-/// ChaCha20-Poly1305 encryption. For true PQ+classical hybrid encryption with
-/// ML-KEM key encapsulation, use `encrypt_hybrid()` with typed `HybridPublicKey`.
-///
-/// | Selection | Scheme |
-/// |-----------|--------|
-/// | Default (`High`) | AES-256-GCM (hybrid scheme selected, symmetric fallback) |
-/// | `hardware_acceleration=false` | ChaCha20-Poly1305 |
-/// | `force_scheme(Symmetric)` | AES-256-GCM |
-/// | Any `UseCase` | AES-256-GCM (hybrid scheme selected, symmetric fallback) |
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - Session is set and has expired (`CoreError::SessionExpired`)
+/// - Key type doesn't match the selected scheme (no silent fallback)
 /// - Data size exceeds resource limits
 /// - Key length is invalid for the selected scheme
 /// - Encryption operation fails
 #[must_use = "encryption result must be used or errors will be silently dropped"]
-pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<EncryptedData> {
+pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result<EncryptedOutput> {
     fips_verify_operational()?;
     config.validate()?;
 
-    let scheme = select_encryption_scheme(data, &config)?;
-    config.validate_scheme_compliance(&scheme)?;
+    let scheme = select_encryption_scheme_typed(&config)?;
+    config.validate_scheme_compliance(scheme.as_str())?;
+
+    // Type-safe key-scheme validation: FAIL on mismatch, never degrade
+    CryptoPolicyEngine::validate_key_matches_scheme(&key, &scheme)
+        .map_err(|e| CoreError::ConfigurationError(e.to_string()))?;
 
     validate_encryption_size(data.len()).map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
     crate::log_crypto_operation_start!("encrypt", scheme = %scheme, data_size = data.len());
 
-    // When the selector picks a hybrid/PQ scheme but the caller provides a symmetric
-    // key (≤64 bytes), fall back to AES-256-GCM. The unified API's `&[u8]` key interface
-    // cannot support asymmetric operations (HybridPublicKey/HybridSecretKey are not
-    // serializable to raw bytes). For true PQ+classical hybrid encryption, use
-    // `encrypt_hybrid()` / `decrypt_hybrid()` with typed keys.
-    let (effective_scheme, encrypted) = match scheme.as_str() {
-        // Direct AES-256-GCM
-        "aes-256-gcm" => {
-            if key.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+    let output = match (&key, &scheme) {
+        // Symmetric AES-256-GCM
+        (EncryptKey::Symmetric(k), EncryptionScheme::Aes256Gcm) => {
+            if k.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
             }
-            ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
+            let encrypted = encrypt_aes_gcm_internal(data, k)?;
+            symmetric_bytes_to_output(scheme, &encrypted)?
         }
-        // ChaCha20-Poly1305 (preferred when hardware_acceleration=false)
-        "chacha20-poly1305" => {
-            if key.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+        // Symmetric ChaCha20-Poly1305 (non-FIPS only)
+        #[cfg(not(feature = "fips"))]
+        (EncryptKey::Symmetric(k), EncryptionScheme::ChaCha20Poly1305) => {
+            if k.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
             }
-            ("chacha20-poly1305".to_string(), encrypt_chacha20_internal(data, key)?)
+            let encrypted = encrypt_chacha20_internal(data, k)?;
+            symmetric_bytes_to_output(scheme, &encrypted)?
         }
-        // Hybrid/PQ KEM schemes: the unified API can only do symmetric encryption
-        // (HybridPublicKey is not a &[u8]), so fall back to AES-GCM.
-        s if s.contains("ml-kem") => {
-            if key.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+        #[cfg(feature = "fips")]
+        (EncryptKey::Symmetric(_), EncryptionScheme::ChaCha20Poly1305) => {
+            return Err(CoreError::ComplianceViolation(
+                "ChaCha20-Poly1305 is not FIPS 140-3 approved. Use AES-256-GCM.".to_string(),
+            ));
+        }
+        // Hybrid ML-KEM + X25519 + HKDF + AES-256-GCM
+        (EncryptKey::Hybrid(pk), _) if scheme.requires_hybrid_key() => {
+            let mut rng = rand::rngs::OsRng;
+            let ct = encrypt_hybrid(&mut rng, pk, data, None).map_err(|e| {
+                CoreError::EncryptionFailed(format!("Hybrid encryption failed: {}", e))
+            })?;
+            let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
+            EncryptedOutput {
+                scheme,
+                ciphertext: ct.symmetric_ciphertext,
+                nonce: ct.nonce,
+                tag: ct.tag,
+                hybrid_data: Some(HybridComponents {
+                    ml_kem_ciphertext: ct.kem_ciphertext,
+                    ecdh_ephemeral_pk: ct.ecdh_ephemeral_pk,
+                }),
+                timestamp,
+                key_id: None,
             }
-            warn!(
-                "Scheme '{}' selected but unified API received symmetric key. \
-                 Falling back to AES-256-GCM. For true hybrid (PQ+classical) encryption, \
-                 use encrypt_hybrid() with HybridPublicKey.",
-                scheme
-            );
-            ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
         }
-        // Signature schemes: config selected a signing-oriented scheme, but
-        // encrypt() was called. Use AES-GCM for the data encryption.
-        s if s.contains("ml-dsa")
-            || s.contains("slh-dsa")
-            || s.contains("fn-dsa")
-            || s.contains("ed25519") =>
-        {
-            if key.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
-            }
-            warn!(
-                "Signature scheme '{}' selected but encrypt() was called. \
-                 Using AES-256-GCM for encryption. Use sign_with_key() for signing.",
-                scheme
-            );
-            ("aes-256-gcm".to_string(), encrypt_aes_gcm_internal(data, key)?)
-        }
+        // This arm should be unreachable due to validate_key_matches_scheme above
         _ => {
             return Err(CoreError::InvalidInput(format!(
-                "Unsupported encryption scheme: '{}'. Use a supported scheme \
-                 (aes-256-gcm, ml-kem-*, or hybrid-ml-kem-*-aes-256-gcm) or the \
-                 dedicated API for the specific algorithm.",
+                "Key type does not match scheme '{}'",
                 scheme
             )));
         }
     };
-    let scheme = effective_scheme;
 
-    let nonce = encrypted.get(..12).map_or_else(Vec::new, <[u8]>::to_vec);
+    crate::log_crypto_operation_complete!("encrypt", result_size = output.ciphertext.len(), scheme = %output.scheme);
+
+    Ok(output)
+}
+
+/// Convert raw symmetric ciphertext bytes (nonce || ciphertext || tag) into EncryptedOutput.
+fn symmetric_bytes_to_output(
+    scheme: EncryptionScheme,
+    encrypted: &[u8],
+) -> Result<EncryptedOutput> {
+    if encrypted.len() < 28 {
+        return Err(CoreError::EncryptionFailed(
+            "Encrypted data too short (need nonce + tag)".to_string(),
+        ));
+    }
+    let nonce = encrypted
+        .get(..12)
+        .ok_or_else(|| CoreError::EncryptionFailed("Failed to extract nonce".to_string()))?
+        .to_vec();
+
+    let tag_start = encrypted.len().saturating_sub(16);
     let tag = encrypted
-        .len()
-        .checked_sub(16)
-        .and_then(|start| encrypted.get(start..))
-        .filter(|_| encrypted.len() >= 28)
-        .map_or_else(Vec::new, <[u8]>::to_vec);
+        .get(tag_start..)
+        .ok_or_else(|| CoreError::EncryptionFailed("Failed to extract tag".to_string()))?
+        .to_vec();
 
-    let timestamp = u64::try_from(Utc::now().timestamp()).unwrap_or(0);
+    let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
 
-    crate::log_crypto_operation_complete!("encrypt", result_size = encrypted.len(), scheme = %scheme);
-
-    Ok(EncryptedData {
-        data: encrypted,
-        metadata: EncryptedMetadata { nonce, tag: Some(tag), key_id: None },
+    Ok(EncryptedOutput {
         scheme,
+        ciphertext: encrypted.to_vec(),
+        nonce,
+        tag,
+        hybrid_data: None,
         timestamp,
+        key_id: None,
     })
 }
 
-/// Decrypt data.
+/// Decrypt data encrypted by `encrypt()`.
 ///
-/// The decryption algorithm is determined by the `encrypted.scheme` field.
+/// The decryption algorithm is determined by `encrypted.scheme` (an enum, not a string).
+/// The key type must match the scheme — mismatches return `Err`.
 ///
 /// # Examples
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::unified_api::{decrypt, CryptoConfig, VerifiedSession, EncryptedData, EncryptedMetadata};
-/// # let encrypted = EncryptedData {
-/// #     data: vec![],
-/// #     metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
-/// #     scheme: "aes-256-gcm".to_string(),
-/// #     timestamp: 0,
-/// # };
-/// # let key = [0u8; 32];
-/// # let pk = [0u8; 32];
-/// # let sk = [0u8; 32];
+/// use latticearc::unified_api::{encrypt, decrypt, CryptoConfig};
+/// use latticearc::types::crypto_types::{EncryptKey, DecryptKey};
 ///
-/// // Simple: No session
-/// let plaintext = decrypt(&encrypted, &key, CryptoConfig::new())?;
-///
-/// // With Zero Trust session
-/// let session = VerifiedSession::establish(&pk, &sk)?;
-/// let plaintext = decrypt(&encrypted, &key, CryptoConfig::new()
-///     .session(&session))?;
+/// let key = [0u8; 32];
+/// let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
+///     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
+/// let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 /// # Ok(())
 /// # }
 /// ```
@@ -360,51 +352,74 @@ pub fn encrypt(data: &[u8], key: &[u8], config: CryptoConfig) -> Result<Encrypte
 ///
 /// Returns an error if:
 /// - Session is set and has expired (`CoreError::SessionExpired`)
+/// - Key type doesn't match the encryption scheme
 /// - Encrypted data size exceeds resource limits
-/// - Key is invalid for the encryption scheme
-/// - Decryption fails
+/// - Decryption or authentication fails
 #[must_use = "decryption result must be used or errors will be silently dropped"]
-pub fn decrypt(encrypted: &EncryptedData, key: &[u8], config: CryptoConfig) -> Result<Vec<u8>> {
+pub fn decrypt(
+    encrypted: &EncryptedOutput,
+    key: DecryptKey<'_>,
+    config: CryptoConfig,
+) -> Result<Vec<u8>> {
     fips_verify_operational()?;
     config.validate()?;
-    config.validate_scheme_compliance(&encrypted.scheme)?;
+    config.validate_scheme_compliance(encrypted.scheme.as_str())?;
 
-    crate::log_crypto_operation_start!("decrypt", scheme = %encrypted.scheme, data_size = encrypted.data.len());
+    // Type-safe key-scheme validation
+    CryptoPolicyEngine::validate_decrypt_key_matches_scheme(&key, &encrypted.scheme)
+        .map_err(|e| CoreError::ConfigurationError(e.to_string()))?;
 
-    validate_decryption_size(encrypted.data.len())
+    crate::log_crypto_operation_start!("decrypt", scheme = %encrypted.scheme, data_size = encrypted.ciphertext.len());
+
+    validate_decryption_size(encrypted.ciphertext.len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
-    let result = match encrypted.scheme.as_str() {
-        // All schemes through the unified API use AES-256-GCM with symmetric keys.
-        // The hybrid/PQ scheme names stored in metadata reflect the *selected* scheme,
-        // but the actual encryption was AES-256-GCM (see encrypt() fallback above).
-        // For true hybrid decryption, use decrypt_hybrid() with HybridSecretKey.
-        // All data encrypted through the unified API uses AES-256-GCM regardless
-        // of the selected scheme name (see encrypt() fallback logic above).
-        "aes-256-gcm" => {
-            if key.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+    let result = match (&key, &encrypted.scheme) {
+        // Symmetric AES-256-GCM
+        (DecryptKey::Symmetric(k), EncryptionScheme::Aes256Gcm) => {
+            if k.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
             }
-            decrypt_aes_gcm_internal(&encrypted.data, key)
+            decrypt_aes_gcm_internal(&encrypted.ciphertext, k)
         }
-        // ChaCha20-Poly1305
-        "chacha20-poly1305" => {
-            if key.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
+        // Symmetric ChaCha20-Poly1305 (non-FIPS only)
+        #[cfg(not(feature = "fips"))]
+        (DecryptKey::Symmetric(k), EncryptionScheme::ChaCha20Poly1305) => {
+            if k.len() != 32 {
+                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
             }
-            decrypt_chacha20_internal(&encrypted.data, key)
+            decrypt_chacha20_internal(&encrypted.ciphertext, k)
         }
-        // Any ML-KEM variant (hybrid, pq, with x25519/aes suffix) was encrypted
-        // with AES-256-GCM through the unified API.
-        s if s.contains("ml-kem") => {
-            if key.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: key.len() });
-            }
-            decrypt_aes_gcm_internal(&encrypted.data, key)
+        #[cfg(feature = "fips")]
+        (DecryptKey::Symmetric(_), EncryptionScheme::ChaCha20Poly1305) => {
+            return Err(CoreError::ComplianceViolation(
+                "ChaCha20-Poly1305 is not FIPS 140-3 approved. Use AES-256-GCM.".to_string(),
+            ));
         }
+        // Hybrid ML-KEM + X25519 + HKDF + AES-256-GCM
+        (DecryptKey::Hybrid(sk), _) if encrypted.scheme.requires_hybrid_key() => {
+            let hybrid_data = encrypted.hybrid_data.as_ref().ok_or_else(|| {
+                CoreError::DecryptionFailed(
+                    "Hybrid scheme but no hybrid_data in EncryptedOutput".to_string(),
+                )
+            })?;
+
+            let ct = HybridCiphertext {
+                kem_ciphertext: hybrid_data.ml_kem_ciphertext.clone(),
+                ecdh_ephemeral_pk: hybrid_data.ecdh_ephemeral_pk.clone(),
+                symmetric_ciphertext: encrypted.ciphertext.clone(),
+                nonce: encrypted.nonce.clone(),
+                tag: encrypted.tag.clone(),
+            };
+
+            decrypt_hybrid(sk, &ct, None).map_err(|e| {
+                CoreError::DecryptionFailed(format!("Hybrid decryption failed: {}", e))
+            })
+        }
+        // Unreachable due to validate_decrypt_key_matches_scheme above
         _ => {
             return Err(CoreError::InvalidInput(format!(
-                "Unsupported decryption scheme: {}",
+                "Key type does not match scheme '{}'",
                 encrypted.scheme
             )));
         }
@@ -536,6 +551,8 @@ pub fn sign_with_key(
 
     crate::log_crypto_operation_start!("sign_with_key", scheme = %scheme, message_size = message.len());
 
+    // Uses string-based dispatch. A future SignatureScheme enum
+    // (analogous to EncryptionScheme) would provide compile-time exhaustiveness.
     let (result_pk, signature) = match scheme.as_str() {
         "ml-dsa-44" | "pq-ml-dsa-44" => {
             let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MLDSA44)?;
@@ -566,6 +583,11 @@ pub fn sign_with_key(
         }
         "fn-dsa" => {
             let sig = sign_pq_fn_dsa_unverified(message, secret_key)?;
+            (public_key.to_vec(), sig)
+        }
+        #[cfg(not(feature = "fips"))]
+        "ed25519" => {
+            let sig = sign_ed25519_internal(message, secret_key)?;
             (public_key.to_vec(), sig)
         }
         "hybrid-ml-dsa-44-ed25519" => {
@@ -669,7 +691,7 @@ pub fn sign_with_key(
         }
     };
 
-    let timestamp = u64::try_from(Utc::now().timestamp()).unwrap_or(0);
+    let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
 
     crate::log_crypto_operation_complete!("sign_with_key", signature_size = signature.len(), scheme = %scheme);
 
@@ -976,6 +998,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
 )]
 mod tests {
     use super::*;
+    use crate::types::types::CryptoScheme;
     use crate::{CryptoConfig, SecurityLevel, UseCase};
 
     /// Helper: generate keypair + sign + return signed data
@@ -1146,24 +1169,27 @@ mod tests {
     fn test_encrypt_with_invalid_key_length() {
         let message = b"Test message";
         let short_key = vec![0x42u8; 16]; // Too short for AES-256
-        let config = CryptoConfig::new();
+        let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
 
-        let result = encrypt(message, &short_key, config);
+        let result = encrypt(message, EncryptKey::Symmetric(&short_key), config);
         assert!(result.is_err(), "Encryption with short key should fail");
     }
 
     #[test]
     fn test_decrypt_empty_ciphertext() {
         let key = vec![0x42u8; 32];
-        let empty_encrypted = EncryptedData {
-            data: vec![],
-            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
-            scheme: "aes-256-gcm".to_string(),
+        let empty_encrypted = EncryptedOutput {
+            scheme: EncryptionScheme::Aes256Gcm,
+            ciphertext: vec![],
+            nonce: vec![],
+            tag: vec![],
+            hybrid_data: None,
             timestamp: 0,
+            key_id: None,
         };
 
         // Empty ciphertext should be rejected (too short for nonce)
-        let result = decrypt(&empty_encrypted, &key, CryptoConfig::new());
+        let result = decrypt(&empty_encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
         assert!(result.is_err(), "Empty ciphertext should be rejected");
     }
 
@@ -1349,35 +1375,40 @@ mod tests {
     // Decrypt error handling (doesn't require encrypt roundtrip)
     #[test]
     fn test_decrypt_with_short_key() {
-        let encrypted = EncryptedData {
-            data: vec![1, 2, 3, 4],
-            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
-            scheme: "aes-256-gcm".to_string(),
+        let encrypted = EncryptedOutput {
+            scheme: EncryptionScheme::Aes256Gcm,
+            ciphertext: vec![1, 2, 3, 4],
+            nonce: vec![0u8; 12],
+            tag: vec![0u8; 16],
+            hybrid_data: None,
             timestamp: 0,
+            key_id: None,
         };
         let short_key = vec![0x42u8; 16]; // Too short
 
-        let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
         assert!(result.is_err(), "Decryption with short key should fail");
     }
 
     #[test]
     fn test_decrypt_unknown_scheme() {
-        let encrypted = EncryptedData {
-            data: vec![0x12u8; 40], // 40 bytes of dummy data
-            metadata: EncryptedMetadata {
-                nonce: vec![0u8; 12],
-                tag: Some(vec![0u8; 16]),
-                key_id: None,
-            },
-            scheme: "unknown-scheme".to_string(),
+        // EncryptionScheme is an enum so there are no "unknown" schemes.
+        // Instead, test that a key-scheme mismatch is rejected:
+        // use a HybridMlKem768 scheme but provide a symmetric key → should error.
+        let encrypted = EncryptedOutput {
+            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
+            ciphertext: vec![0x12u8; 40],
+            nonce: vec![0u8; 12],
+            tag: vec![0u8; 16],
+            hybrid_data: None, // missing hybrid_data — decryption must fail
             timestamp: 0,
+            key_id: None,
         };
         let key = vec![0x42u8; 32];
 
-        // Unknown schemes are explicitly rejected
-        let result = decrypt(&encrypted, &key, CryptoConfig::new());
-        assert!(result.is_err(), "Unknown scheme should be rejected");
+        // Symmetric key with hybrid scheme → key-scheme mismatch, must error
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
+        assert!(result.is_err(), "Key-scheme mismatch should be rejected");
     }
 
     // === SLH-DSA sign/verify roundtrip tests ===
@@ -1653,10 +1684,13 @@ mod tests {
             .spawn(|| {
                 let data = b"Maximum security encryption test";
                 let key = vec![0x42u8; 32];
-                let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+                let config = CryptoConfig::new()
+                    .security_level(SecurityLevel::Maximum)
+                    .force_scheme(CryptoScheme::Symmetric);
 
-                let encrypted = encrypt(data, &key, config.clone()).unwrap();
-                let decrypted = decrypt(&encrypted, &key, config).unwrap();
+                let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config.clone()).unwrap();
+                let decrypted =
+                    decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
                 assert_eq!(data.as_slice(), decrypted.as_slice());
             })
             .unwrap()
@@ -1679,9 +1713,8 @@ mod tests {
 
     #[test]
     fn test_select_encryption_scheme_with_use_case() {
-        let data = b"test data";
         let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
-        let scheme = select_encryption_scheme(data, &config);
+        let scheme = select_encryption_scheme_typed(&config);
         assert!(scheme.is_ok(), "Should select encryption scheme for SecureMessaging");
     }
 
@@ -1832,82 +1865,97 @@ mod tests {
     }
 
     // === Encrypt/Decrypt with different stored scheme names ===
-
-    #[test]
-    fn test_decrypt_with_ml_kem_scheme_name() {
-        // Tests the decrypt path where scheme is "ml-kem-768" (falls through to AES-GCM)
-        let key = vec![0x42u8; 32];
-        let config = CryptoConfig::new();
-        let data = b"test plaintext";
-
-        // First encrypt normally
-        let encrypted = encrypt(data, &key, config.clone()).unwrap();
-
-        // Modify scheme to ml-kem-768 to test the decrypt fallback path
-        let modified = EncryptedData {
-            data: encrypted.data,
-            metadata: encrypted.metadata,
-            scheme: "ml-kem-768".to_string(),
-            timestamp: encrypted.timestamp,
-        };
-        let result = decrypt(&modified, &key, config);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), data);
-    }
-
-    #[test]
-    fn test_decrypt_with_chacha_scheme_name_rejected() {
-        let key = vec![0x42u8; 32];
-        let config = CryptoConfig::new();
-        let data = b"test chacha path";
-
-        let encrypted = encrypt(data, &key, config.clone()).unwrap();
-
-        // chacha20-poly1305 is not a supported decrypt scheme in the unified API
-        let modified = EncryptedData {
-            data: encrypted.data,
-            metadata: encrypted.metadata,
-            scheme: "chacha20-poly1305".to_string(),
-            timestamp: encrypted.timestamp,
-        };
-        let result = decrypt(&modified, &key, config);
-        assert!(result.is_err(), "chacha20-poly1305 should be rejected");
-    }
+    // NOTE: test_decrypt_with_ml_kem_scheme_name and test_decrypt_with_chacha_scheme_name_rejected
+    // have been removed. EncryptionScheme is now an enum, so there are no arbitrary scheme
+    // strings to substitute. The typed scheme field prevents these scenarios at compile time.
 
     #[test]
     fn test_decrypt_unknown_scheme_short_key() {
-        let encrypted = EncryptedData {
-            data: vec![1, 2, 3, 4],
-            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
-            scheme: "unknown-fallback".to_string(),
+        // EncryptionScheme is an enum — no unknown schemes exist.
+        // Test: short symmetric key with AES-GCM scheme → key length error.
+        let encrypted = EncryptedOutput {
+            scheme: EncryptionScheme::Aes256Gcm,
+            ciphertext: vec![1, 2, 3, 4],
+            nonce: vec![0u8; 12],
+            tag: vec![0u8; 16],
+            hybrid_data: None,
             timestamp: 0,
+            key_id: None,
         };
-        let short_key = vec![0x42u8; 16]; // Too short
-        // Unknown scheme is rejected before key check
-        let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
+        let short_key = vec![0x42u8; 16]; // Too short for AES-256-GCM
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
         assert!(result.is_err());
     }
 
     #[test]
     fn test_decrypt_short_key_ml_kem_scheme() {
-        let encrypted = EncryptedData {
-            data: vec![1, 2, 3, 4],
-            metadata: EncryptedMetadata { nonce: vec![], tag: None, key_id: None },
-            scheme: "ml-kem-768".to_string(),
+        // Test: EncryptedOutput with HybridMlKem768 scheme + DecryptKey::Symmetric → mismatch error.
+        let encrypted = EncryptedOutput {
+            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
+            ciphertext: vec![1, 2, 3, 4],
+            nonce: vec![0u8; 12],
+            tag: vec![0u8; 16],
+            hybrid_data: None,
             timestamp: 0,
+            key_id: None,
         };
-        let short_key = vec![0x42u8; 16]; // Too short
-        let result = decrypt(&encrypted, &short_key, CryptoConfig::new());
+        let key = vec![0x42u8; 32];
+        // Symmetric key with hybrid scheme → key-scheme mismatch, must error
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
         assert!(result.is_err());
     }
 
     #[test]
     fn test_encrypt_empty_data() {
         let key = vec![0x42u8; 32];
-        let config = CryptoConfig::new();
-        let encrypted = encrypt(b"", &key, config.clone()).unwrap();
-        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+        let encrypted = encrypt(b"", EncryptKey::Symmetric(&key), config).unwrap();
+        let decrypted =
+            decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
         assert!(decrypted.is_empty());
+    }
+
+    // === Key-scheme mismatch tests (the core anti-degradation guarantee) ===
+
+    #[test]
+    fn test_encrypt_symmetric_key_default_config_rejects_hybrid_scheme() {
+        // CryptoConfig::new() selects a hybrid scheme by default.
+        // Passing EncryptKey::Symmetric MUST fail — never silently degrade.
+        let key = vec![0x42u8; 32];
+        let result = encrypt(b"hello", EncryptKey::Symmetric(&key), CryptoConfig::new());
+        assert!(result.is_err(), "Symmetric key + hybrid scheme (default config) must be rejected");
+        let err = format!("{}", result.unwrap_err());
+        assert!(
+            err.contains("requires a hybrid key") || err.contains("mismatch"),
+            "Error should mention key type mismatch, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_encrypt_hybrid_key_symmetric_scheme_rejects() {
+        // force_scheme(Symmetric) selects AES-256-GCM, but EncryptKey::Hybrid
+        // is provided — must fail.
+        let (pk, _sk) = crate::unified_api::convenience::generate_hybrid_keypair().unwrap();
+        let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+        let result = encrypt(b"hello", EncryptKey::Hybrid(&pk), config);
+        assert!(result.is_err(), "Hybrid key + symmetric scheme must be rejected");
+        let err = format!("{}", result.unwrap_err());
+        assert!(
+            err.contains("requires a symmetric key") || err.contains("mismatch"),
+            "Error should mention key type mismatch, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_decrypt_symmetric_key_hybrid_encrypted_data_rejects() {
+        // Encrypt with hybrid key, try to decrypt with symmetric key.
+        let (pk, _sk) = crate::unified_api::convenience::generate_hybrid_keypair().unwrap();
+        let encrypted = encrypt(b"hello", EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
+        let fake_key = vec![0x42u8; 32];
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&fake_key), CryptoConfig::new());
+        assert!(result.is_err(), "Symmetric key cannot decrypt hybrid-encrypted data");
     }
 
     // === Use case-based encryption ===
@@ -1916,10 +1964,13 @@ mod tests {
     fn test_encrypt_decrypt_with_use_case() {
         let key = vec![0x42u8; 32];
         let data = b"UseCase-based encryption test";
-        let config = CryptoConfig::new().use_case(UseCase::FileStorage);
+        let config = CryptoConfig::new()
+            .use_case(UseCase::FileStorage)
+            .force_scheme(CryptoScheme::Symmetric);
 
-        let encrypted = encrypt(data, &key, config.clone()).unwrap();
-        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
+        let decrypted =
+            decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
         assert_eq!(decrypted, data);
     }
 
@@ -1927,10 +1978,11 @@ mod tests {
     fn test_encrypt_with_iot_use_case() {
         let key = vec![0x42u8; 32];
         let data = b"IoT device data";
-        let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
+        let config =
+            CryptoConfig::new().use_case(UseCase::IoTDevice).force_scheme(CryptoScheme::Symmetric);
 
-        let encrypted = encrypt(data, &key, config).unwrap();
-        assert!(!encrypted.data.is_empty());
+        let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
+        assert!(!encrypted.ciphertext.is_empty());
     }
 
     // === Keygen through generate_signing_keypair with different use cases ===
@@ -1995,9 +2047,11 @@ mod tests {
                 let session =
                     crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
 
-                let config = CryptoConfig::new().session(&session);
-                let encrypted = encrypt(data, &key, config.clone()).unwrap();
-                let decrypted = decrypt(&encrypted, &key, config).unwrap();
+                let config =
+                    CryptoConfig::new().session(&session).force_scheme(CryptoScheme::Symmetric);
+                let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config.clone()).unwrap();
+                let decrypted =
+                    decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
                 assert_eq!(data.as_slice(), decrypted.as_slice());
             })
             .unwrap()
@@ -2091,55 +2145,30 @@ mod tests {
     }
 
     // === Verify decrypt with different scheme names for coverage ===
-
-    #[test]
-    fn test_decrypt_with_hybrid_scheme_names() {
-        let key = vec![0x42u8; 32];
-        let config = CryptoConfig::new();
-        let data = b"test plaintext for scheme coverage";
-
-        // Encrypt normally
-        let encrypted = encrypt(data, &key, config.clone()).unwrap();
-
-        // Test decrypt with each hybrid scheme name variant
-        let scheme_names = vec![
-            "ml-kem-512",
-            "ml-kem-1024",
-            "hybrid-ml-kem-512-aes-256-gcm",
-            "hybrid-ml-kem-1024-aes-256-gcm",
-        ];
-        for scheme in scheme_names {
-            let modified = EncryptedData {
-                data: encrypted.data.clone(),
-                metadata: encrypted.metadata.clone(),
-                scheme: scheme.to_string(),
-                timestamp: encrypted.timestamp,
-            };
-            let result = decrypt(&modified, &key, config.clone());
-            assert!(result.is_ok(), "Decrypt should succeed for scheme: {}", scheme);
-            assert_eq!(result.unwrap(), data);
-        }
-    }
+    // NOTE: test_decrypt_with_hybrid_scheme_names has been removed. EncryptionScheme is now an
+    // enum, so substituting arbitrary scheme strings is no longer possible. Key-scheme mismatch
+    // is caught at the type level.
 
     // === Encrypt with short key for hybrid/PQ scheme path ===
 
     #[test]
     fn test_encrypt_short_key_with_use_case() {
         let short_key = vec![0x42u8; 16]; // Too short
-        let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-        let result = encrypt(b"test", &short_key, config);
+        let config = CryptoConfig::new()
+            .use_case(UseCase::FileStorage)
+            .force_scheme(CryptoScheme::Symmetric);
+        let result = encrypt(b"test", EncryptKey::Symmetric(&short_key), config);
         assert!(result.is_err(), "Short key should fail even with use case");
     }
 
-    // === select_encryption_scheme with SecurityLevel ===
+    // === select_encryption_scheme_typed with SecurityLevel ===
 
     #[test]
     fn test_select_encryption_scheme_with_security_level() {
-        let data = b"test data";
         let levels = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
         for level in levels {
             let config = CryptoConfig::new().security_level(level.clone());
-            let scheme = select_encryption_scheme(data, &config);
+            let scheme = select_encryption_scheme_typed(&config);
             assert!(scheme.is_ok(), "Should select scheme for security level: {:?}", level);
         }
     }
@@ -2193,10 +2222,13 @@ mod tests {
     fn test_encrypt_decrypt_standard_security_level() {
         let key = vec![0x42u8; 32];
         let data = b"Standard level encryption";
-        let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Standard)
+            .force_scheme(CryptoScheme::Symmetric);
 
-        let encrypted = encrypt(data, &key, config.clone()).unwrap();
-        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
+        let decrypted =
+            decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
         assert_eq!(decrypted, data);
     }
 
@@ -2204,11 +2236,64 @@ mod tests {
     fn test_encrypt_decrypt_maximum_security_level() {
         let key = vec![0x42u8; 32];
         let data = b"Maximum level encryption";
-        let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .force_scheme(CryptoScheme::Symmetric);
 
-        let encrypted = encrypt(data, &key, config.clone()).unwrap();
-        let decrypted = decrypt(&encrypted, &key, config).unwrap();
+        let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
+        let decrypted =
+            decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
         assert_eq!(decrypted, data);
+    }
+
+    // === ChaCha20-Poly1305 unified API dispatch ===
+
+    #[cfg(not(feature = "fips"))]
+    #[test]
+    fn test_encrypt_decrypt_chacha20poly1305_roundtrip() {
+        let key = [0x55u8; 32];
+        let data = b"ChaCha20-Poly1305 roundtrip test";
+
+        // Force ChaCha20-Poly1305 via the internal scheme selection
+        let encrypted = encrypt_chacha20_internal(data, &key).unwrap();
+        let decrypted = decrypt_chacha20_internal(&encrypted, &key).unwrap();
+        assert_eq!(&decrypted, data);
+    }
+
+    #[cfg(not(feature = "fips"))]
+    #[test]
+    fn test_encrypt_decrypt_chacha20poly1305_via_unified_api() {
+        let key = [0xAAu8; 32];
+        let data = b"ChaCha20 unified dispatch test";
+
+        // Use internal function to build EncryptedOutput with ChaCha20 scheme
+        let encrypted_bytes = encrypt_chacha20_internal(data, &key).unwrap();
+        let output =
+            symmetric_bytes_to_output(EncryptionScheme::ChaCha20Poly1305, &encrypted_bytes)
+                .unwrap();
+
+        // Decrypt via unified decrypt
+        let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
+        assert_eq!(decrypted, data);
+    }
+
+    #[cfg(feature = "fips")]
+    #[test]
+    fn test_chacha20poly1305_rejected_in_fips_mode() {
+        let key = [0xBBu8; 32];
+        let encrypted_bytes = vec![0u8; 100]; // doesn't matter, should fail before decryption
+        let output = EncryptedOutput {
+            scheme: EncryptionScheme::ChaCha20Poly1305,
+            ciphertext: encrypted_bytes,
+            nonce: vec![0u8; 12],
+            tag: vec![0u8; 16],
+            hybrid_data: None,
+            timestamp: 0,
+            key_id: None,
+        };
+
+        let result = decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new());
+        assert!(result.is_err(), "ChaCha20 should be rejected in FIPS mode");
     }
 
     // === Generate signing keypair with all use cases ===
@@ -2279,25 +2364,8 @@ mod tests {
     }
 
     // === Decrypt fallback path (unknown scheme) ===
-
-    #[test]
-    fn test_decrypt_unknown_scheme_rejected() {
-        let key = vec![0x42u8; 32];
-        let config = CryptoConfig::new();
-        let data = b"test unknown scheme rejected";
-
-        let encrypted = encrypt(data, &key, config.clone()).unwrap();
-
-        // Unknown schemes are explicitly rejected
-        let modified = EncryptedData {
-            data: encrypted.data,
-            metadata: encrypted.metadata,
-            scheme: "some-future-scheme-v2".to_string(),
-            timestamp: encrypted.timestamp,
-        };
-        let result = decrypt(&modified, &key, config);
-        assert!(result.is_err(), "Unknown scheme should be rejected");
-    }
+    // NOTE: test_decrypt_unknown_scheme_rejected has been removed. EncryptionScheme is now an
+    // enum, so constructing an EncryptedOutput with an unknown scheme is impossible at compile time.
 
     // ========================================================================
     // Compliance enforcement tests
@@ -2352,36 +2420,44 @@ mod tests {
 
     #[test]
     fn test_fips_decrypt_allows_aes_gcm() -> Result<()> {
-        // Encrypt with default config (produces aes-256-gcm)
+        // Encrypt with symmetric force (produces AES-256-GCM)
         let key = vec![0x42u8; 32];
         let data = b"fips compliance test";
-        let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+        let encrypted = encrypt(
+            data,
+            EncryptKey::Symmetric(&key),
+            CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+        )?;
 
-        assert_eq!(encrypted.scheme, "aes-256-gcm");
+        assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
 
         // Decrypt with FIPS config should succeed (AES-256-GCM is FIPS-approved)
         let fips_config =
             CryptoConfig::new().compliance(crate::types::types::ComplianceMode::Fips140_3);
-        let plaintext = decrypt(&encrypted, &key, fips_config)?;
+        let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), fips_config)?;
         assert_eq!(plaintext, data);
         Ok(())
     }
 
     #[test]
     fn test_cnsa_decrypt_rejects_aes_gcm() -> Result<()> {
-        // Encrypt with default config (produces aes-256-gcm)
+        // Encrypt with symmetric force (produces AES-256-GCM)
         let key = vec![0x42u8; 32];
         let data = b"cnsa decrypt test";
-        let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+        let encrypted = encrypt(
+            data,
+            EncryptKey::Symmetric(&key),
+            CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+        )?;
 
-        assert_eq!(encrypted.scheme, "aes-256-gcm");
+        assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
 
         // Decrypt with CNSA 2.0 should reject (aes-256-gcm is classical-only)
         // CNSA 2.0 requires SecurityLevel::Quantum to pass validate()
         let cnsa_config = CryptoConfig::new()
             .security_level(SecurityLevel::Quantum)
             .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
-        let result = decrypt(&encrypted, &key, cnsa_config);
+        let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), cnsa_config);
         assert!(result.is_err(), "CNSA 2.0 should reject standalone AES-256-GCM");
         let err_msg = format!("{}", result.unwrap_err());
         assert!(err_msg.contains("CNSA 2.0"));
@@ -2406,10 +2482,14 @@ mod tests {
         // Encrypt and decrypt with default compliance — should always work
         let key = vec![0x42u8; 32];
         let data = b"default compliance decrypt test";
-        let encrypted = encrypt(data, &key, CryptoConfig::new())?;
+        let encrypted = encrypt(
+            data,
+            EncryptKey::Symmetric(&key),
+            CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+        )?;
 
         let default_config = CryptoConfig::new();
-        let plaintext = decrypt(&encrypted, &key, default_config)?;
+        let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), default_config)?;
         assert_eq!(plaintext, data);
         Ok(())
     }

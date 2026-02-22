@@ -14,15 +14,30 @@
 //! pattern provides automatic algorithm selection based on use case or security level,
 //! with optional Zero Trust session verification.
 //!
-//! ### Basic Usage
+//! ### Basic Usage (Hybrid — Recommended)
 //!
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::{encrypt, decrypt, CryptoConfig};
+//! use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 //!
-//! let key = [0u8; 32];  // 256-bit key for AES-256
-//! let encrypted = encrypt(b"secret", &key, CryptoConfig::new())?;
-//! let decrypted = decrypt(&encrypted, &key, CryptoConfig::new())?;
+//! // Hybrid encryption: ML-KEM-768 + X25519 + HKDF + AES-256-GCM
+//! let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
+//! let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Symmetric Encryption
+//!
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use latticearc::{encrypt, decrypt, CryptoConfig, CryptoScheme, EncryptKey, DecryptKey};
+//!
+//! let key = [0u8; 32];  // 256-bit key for AES-256-GCM
+//! let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
+//!     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
+//! let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
 //! # Ok(())
 //! # }
 //! ```
@@ -31,26 +46,12 @@
 //!
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::{encrypt, CryptoConfig, UseCase};
+//! use latticearc::{encrypt, CryptoConfig, UseCase, EncryptKey};
 //!
-//! let key = [0u8; 32];
-//! // Library automatically selects optimal algorithm for the use case
-//! let encrypted = encrypt(b"data", &key, CryptoConfig::new()
-//!     .use_case(UseCase::FileStorage))?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ### With Security Level
-//!
-//! ```rust,no_run
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::{encrypt, CryptoConfig, SecurityLevel};
-//!
-//! let key = [0u8; 32];
-//! // Explicit security level control
-//! let encrypted = encrypt(b"data", &key, CryptoConfig::new()
-//!     .security_level(SecurityLevel::Maximum))?;
+//! // Library selects optimal hybrid algorithm for the use case
+//! let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk),
+//!     CryptoConfig::new().use_case(UseCase::FileStorage))?;
 //! # Ok(())
 //! # }
 //! ```
@@ -62,7 +63,10 @@
 //!
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::{encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair};
+//! use latticearc::{
+//!     encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair,
+//!     EncryptKey, DecryptKey,
+//! };
 //!
 //! // Step 1: Generate a keypair (done once, typically at provisioning)
 //! let (pk, sk) = generate_keypair()?;
@@ -70,10 +74,12 @@
 //! // Step 2: Establish a verified session (performs challenge-response)
 //! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
 //!
-//! // Step 3: Operations verify session before proceeding
-//! let key = [0u8; 32];
-//! let encrypted = encrypt(b"secret", &key, CryptoConfig::new().session(&session))?;
-//! let decrypted = decrypt(&encrypted, &key, CryptoConfig::new().session(&session))?;
+//! // Step 3: Hybrid encryption with session verification
+//! let (enc_pk, enc_sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&enc_pk),
+//!     CryptoConfig::new().session(&session))?;
+//! let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&enc_sk),
+//!     CryptoConfig::new().session(&session))?;
 //! # Ok(())
 //! # }
 //! ```
@@ -106,18 +112,15 @@
 //!
 //! ## Hybrid Encryption (ML-KEM-768 + X25519)
 //!
+//! Use the unified API with `EncryptKey::Hybrid` / `DecryptKey::Hybrid`:
+//!
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+//! use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 //!
-//! // Generate a hybrid keypair (ML-KEM-768 + X25519)
-//! let (pk, sk) = generate_hybrid_keypair()?;
-//!
-//! // Encrypt (ML-KEM encapsulate + X25519 ECDH + HKDF-SHA256 + AES-256-GCM)
-//! let encrypted = encrypt_hybrid(b"secret data", &pk, SecurityMode::Unverified)?;
-//!
-//! // Decrypt
-//! let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+//! let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+//! let encrypted = encrypt(b"secret data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
+//! let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 //! # Ok(())
 //! # }
 //! ```
@@ -146,7 +149,7 @@
 //!
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::{encrypt, CryptoConfig, VerifiedSession, generate_keypair, CoreError};
+//! use latticearc::{encrypt, CryptoConfig, VerifiedSession, generate_keypair, CoreError, EncryptKey};
 //!
 //! let (pk, sk) = generate_keypair()?;
 //! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
@@ -171,16 +174,18 @@
 //!
 //! ```rust,no_run
 //! use latticearc::{
-//!     generate_signing_keypair, sign_with_key, verify,
-//!     generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid,
-//!     CryptoConfig, SecurityMode, CoreError,
+//!     encrypt, decrypt, generate_signing_keypair, sign_with_key, verify,
+//!     generate_hybrid_keypair, CryptoConfig, CoreError,
+//!     EncryptKey, DecryptKey,
 //! };
 //!
 //! fn secure_workflow() -> Result<(), CoreError> {
-//!     // --- Hybrid Encryption ---
+//!     // --- Hybrid Encryption (unified API) ---
 //!     let (enc_pk, enc_sk) = generate_hybrid_keypair()?;
-//!     let encrypted = encrypt_hybrid(b"confidential", &enc_pk, SecurityMode::Unverified)?;
-//!     let decrypted = decrypt_hybrid(&encrypted, &enc_sk, SecurityMode::Unverified)?;
+//!     let encrypted = encrypt(b"confidential", EncryptKey::Hybrid(&enc_pk),
+//!         CryptoConfig::new())?;
+//!     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&enc_sk),
+//!         CryptoConfig::new())?;
 //!
 //!     // --- Digital Signatures ---
 //!     let (sign_pk, sign_sk, _scheme) = generate_signing_keypair(CryptoConfig::new())?;
@@ -234,6 +239,8 @@ pub mod unified_api;
 pub mod tls;
 
 /// Zero-knowledge proof primitives (Schnorr, Sigma protocols, Pedersen commitments).
+/// Non-FIPS: uses non-approved EC operations.
+#[cfg(not(feature = "fips"))]
 pub mod zkp;
 
 /// Performance monitoring and benchmarking utilities.
@@ -271,16 +278,24 @@ pub use unified_api::{
     CryptoPayload,
     CryptoScheme,
     DataCharacteristics,
+    // Type-safe encryption key types (no silent degradation)
+    DecryptKey,
     Decryptable,
+    EncryptKey,
     Encryptable,
     EncryptedData,
     EncryptedMetadata,
+    // Type-safe encrypted output (replaces string-based scheme dispatch)
+    EncryptedOutput,
+    EncryptionScheme,
     HardwareAccelerator,
     HardwareAware,
     HardwareCapabilities,
     HardwareInfo,
     HardwareType,
     HashOutput,
+    // Hybrid encryption components (ML-KEM ciphertext + ECDH ephemeral key)
+    HybridComponents,
     KeyDerivable,
     KeyPair,
     PatternType,
@@ -324,11 +339,8 @@ pub use unified_api::{
 // Single entry points for all cryptographic operations
 pub use unified_api::{decrypt, encrypt, generate_signing_keypair, sign_with_key, verify};
 
-// Hybrid encryption (ML-KEM-768 + X25519 + HKDF + AES-256-GCM)
-pub use unified_api::{
-    HybridEncryptionResult, decrypt_hybrid, decrypt_hybrid_with_config, encrypt_hybrid,
-    encrypt_hybrid_with_config, generate_hybrid_keypair,
-};
+// Hybrid key generation (ML-KEM + X25519)
+pub use unified_api::{generate_hybrid_keypair, generate_hybrid_keypair_with_level};
 
 // Hybrid signatures (ML-DSA-65 + Ed25519)
 pub use unified_api::{
@@ -385,9 +397,6 @@ pub use unified_api::{
     decrypt_aes_gcm_unverified,
     decrypt_aes_gcm_with_aad_unverified,
     decrypt_aes_gcm_with_config_unverified,
-    // Hybrid Encryption (ML-KEM-768 + X25519 + HKDF + AES-GCM)
-    decrypt_hybrid_unverified,
-    decrypt_hybrid_with_config_unverified,
     // PQ KEM
     decrypt_pq_ml_kem_unverified,
     decrypt_pq_ml_kem_with_config_unverified,
@@ -398,8 +407,6 @@ pub use unified_api::{
     encrypt_aes_gcm_unverified,
     encrypt_aes_gcm_with_aad_unverified,
     encrypt_aes_gcm_with_config_unverified,
-    encrypt_hybrid_unverified,
-    encrypt_hybrid_with_config_unverified,
     encrypt_pq_ml_kem_unverified,
     encrypt_pq_ml_kem_with_config_unverified,
     // Hybrid Signatures (ML-DSA-65 + Ed25519)
@@ -435,8 +442,9 @@ pub use unified_api::{
 // ============================================================================
 
 pub use unified_api::serialization::{
-    deserialize_encrypted_data, deserialize_keypair, deserialize_signed_data,
-    serialize_encrypted_data, serialize_keypair, serialize_signed_data,
+    deserialize_encrypted_data, deserialize_encrypted_output, deserialize_keypair,
+    deserialize_signed_data, serialize_encrypted_data, serialize_encrypted_output,
+    serialize_keypair, serialize_signed_data,
 };
 
 // ============================================================================

@@ -58,6 +58,7 @@ use std::time::{Duration, Instant};
 
 use latticearc::primitives::aead::AeadCipher;
 use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
+#[cfg(not(feature = "fips"))]
 use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use latticearc::primitives::hash::sha2::{sha256, sha384, sha512};
 use latticearc::primitives::hash::sha3::{sha3_256, sha3_512};
@@ -81,6 +82,7 @@ const EXTENDED_ITERATIONS: usize = 10000;
 const STANDARD_TIMEOUT_SECS: u64 = 120;
 
 /// Size for large buffer tests (100MB)
+#[cfg(not(feature = "fips"))]
 const LARGE_BUFFER_SIZE: usize = 100 * 1024 * 1024;
 
 /// Medium buffer size for moderate stress tests (10MB)
@@ -273,6 +275,7 @@ fn test_high_volume_aes_gcm_128_encrypt_decrypt() {
 
 /// Test 1000 sequential ChaCha20-Poly1305 encrypt/decrypt cycles
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_high_volume_chacha20_poly1305_encrypt_decrypt() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
@@ -479,6 +482,7 @@ fn test_high_volume_random_bytes() {
 
 /// Test operations with large buffer (100MB encryption)
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_large_buffer_encryption_100mb() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
@@ -995,6 +999,7 @@ fn test_empty_message_signing_under_load() {
 
 /// Test maximum size inputs repeatedly
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_maximum_size_inputs_repeatedly() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
@@ -1021,6 +1026,7 @@ fn test_maximum_size_inputs_repeatedly() {
 
 /// Test alternating operation patterns
 #[test]
+#[cfg(not(feature = "fips"))]
 fn test_alternating_operation_patterns() {
     let mut rng = OsRng;
     let aes_key = AesGcm256::generate_key();
@@ -1353,18 +1359,21 @@ fn test_stress_comprehensive_summary() {
     let pt = cipher.decrypt(&nonce, &ct, &tag, None).expect("AES-GCM decrypt should succeed");
     assert_eq!(pt, b"test");
 
-    // 4. ChaCha20-Poly1305 operations
-    let chacha_key = ChaCha20Poly1305Cipher::generate_key();
-    let chacha_cipher =
-        ChaCha20Poly1305Cipher::new(&*chacha_key).expect("ChaCha20 should be created");
-    let chacha_nonce = ChaCha20Poly1305Cipher::generate_nonce();
-    let (chacha_ct, chacha_tag) = chacha_cipher
-        .encrypt(&chacha_nonce, b"test", None)
-        .expect("ChaCha20 encrypt should succeed");
-    let chacha_pt = chacha_cipher
-        .decrypt(&chacha_nonce, &chacha_ct, &chacha_tag, None)
-        .expect("ChaCha20 decrypt should succeed");
-    assert_eq!(chacha_pt, b"test");
+    // 4. ChaCha20-Poly1305 operations (non-FIPS)
+    #[cfg(not(feature = "fips"))]
+    {
+        let chacha_key = ChaCha20Poly1305Cipher::generate_key();
+        let chacha_cipher =
+            ChaCha20Poly1305Cipher::new(&*chacha_key).expect("ChaCha20 should be created");
+        let chacha_nonce = ChaCha20Poly1305Cipher::generate_nonce();
+        let (chacha_ct, chacha_tag) = chacha_cipher
+            .encrypt(&chacha_nonce, b"test", None)
+            .expect("ChaCha20 encrypt should succeed");
+        let chacha_pt = chacha_cipher
+            .decrypt(&chacha_nonce, &chacha_ct, &chacha_tag, None)
+            .expect("ChaCha20 decrypt should succeed");
+        assert_eq!(chacha_pt, b"test");
+    }
 
     // 5. ECDH operations
     let alice = X25519KeyPair::generate().expect("X25519 keygen should succeed");

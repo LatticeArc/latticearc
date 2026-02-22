@@ -1027,6 +1027,16 @@ pub fn kat_fn_dsa() -> Result<()> {
 /// module by reading the module's executable/library file and computing its hash.
 /// The expected HMAC value is embedded during the build process.
 ///
+/// # Known Limitations
+///
+/// - **Hardcoded HMAC key:** The integrity key is compiled into the binary;
+///   production FIPS requires HSM/TPM key storage.
+/// - **`current_exe()` returns the host binary, not this library:** When latticearc
+///   is loaded as a shared library, the HMAC covers the wrong file. A platform-specific
+///   `/proc/self/maps` or `dl_iterate_phdr` approach is needed.
+/// - **Debug builds skip the check:** Returns `Ok(())` when `PRODUCTION_HMAC.txt` is absent,
+///   which is intentional for development but must be enforced in certified builds.
+///
 /// **For FIPS Certification:** This implementation needs enhancement to:
 /// - Use a hardware security module (HSM) or TPM for key storage
 /// - Implement secure boot chain verification
@@ -1323,20 +1333,15 @@ pub fn is_module_operational() -> bool {
 /// In production FIPS environments, clearing error state typically requires
 /// a full module restart and successful re-execution of all self-tests.
 ///
-/// # Example
+/// Reset FIPS module error state (**testing only**).
 ///
-/// ```no_run
-/// use latticearc::primitives::self_test::{clear_error_state, initialize_and_test};
-///
-/// // Clear error state (e.g., during testing)
-/// clear_error_state();
-///
-/// // Re-run initialization
-/// let result = initialize_and_test();
-/// ```
+/// FIPS 140-3 requires full module restart to recover from error state.
+/// This function exists solely for test isolation; **never call in production**.
+#[doc(hidden)]
 pub fn clear_error_state() {
     MODULE_ERROR_CODE.store(ModuleErrorCode::NoError as u32, Ordering::SeqCst);
     MODULE_ERROR_TIMESTAMP.store(0, Ordering::SeqCst);
+    SELF_TEST_PASSED.store(false, Ordering::Release);
 }
 
 /// Check if the module has passed self-tests
@@ -1368,8 +1373,12 @@ pub fn initialize_and_test() -> SelfTestResult {
     if result.is_pass() {
         SELF_TEST_PASSED.store(true, Ordering::Release);
     } else {
-        // Enter error state — no crypto operations allowed
+        // FIPS 140-3 §9.1: Self-test failure requires module abort.
+        // Set error state first so any concurrent readers see a definitive error.
         set_module_error(ModuleErrorCode::SelfTestFailure);
+        // FIPS 140-3 §9.1 requires immediate abort on self-test failure.
+        // No logging after this point — abort is non-recoverable.
+        std::process::abort();
     }
     result
 }

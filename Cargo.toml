@@ -8,7 +8,7 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
@@ -261,17 +261,12 @@ hex = { version = "0.4.3" }
 reqwest = { version = "0.13", features = ["json"] }
 # Async traits - latest stable
 async-trait = { version = "0.1.83" }
-# Futures utilities - latest stable
-futures-util = { version = "0.3.31" }
 # Zeroize for secure memory wiping - latest stable
 zeroize = { version = "1.8.2", features = ["derive"] }
 # Tracing for observability - latest stable
 tracing = { version = "0.1.44", features = ["log"] }
-# CPU feature detection - latest stable
-cpufeatures = { version = "0.2.12" }
 # Getrandom for entropy - latest stable
 getrandom = { version = "0.2" }
-# Array reference utilities - latest stable
 # Array reference utilities - latest stable
 arrayref = { version = "0.3" }
 # Subtle constant-time operations - latest stable for crypto
@@ -314,17 +309,12 @@ rustls-pki-types = { version = "1.13" }
 # rustls-pemfile removed - using rustls-pki-types PemObject trait instead (constant-time decoding)
 rustls-native-certs = { version = "0.8" }
 tokio-rustls = { version = "0.26" }
-webpki-roots = { version = "1.0" }
 
 # Development and testing
 proptest = { version = "1.4" }
 criterion = { version = "0.8", features = ["html_reports"] }
 rayon = { version = "1.10" }
-# Standardized testing utilities
-rstest = { version = "0.23" }
 test-case = { version = "3.0" }
-# Hardware and system
-cryptoki = { version = "0.11" }
 tempfile = { version = "3.24" }
 rcgen = { version = "0.13" }
 # Tracing and observability

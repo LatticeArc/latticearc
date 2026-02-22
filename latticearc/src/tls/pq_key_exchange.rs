@@ -325,11 +325,9 @@ pub fn perform_hybrid_decapsulate_secure(
 pub fn perform_hybrid_decapsulate(
     sk: &crate::hybrid::kem::HybridSecretKey,
     ct: &crate::hybrid::kem::EncapsulatedKey,
-) -> Result<Vec<u8>, TlsError> {
+) -> Result<Zeroizing<Vec<u8>>, TlsError> {
     let secure_secret = perform_hybrid_decapsulate_secure(sk, ct)?;
-    // Use into_inner_raw() since this function returns Vec<u8> by design
-    // Callers should handle zeroization or use perform_hybrid_decapsulate_secure() instead
-    Ok(secure_secret.into_inner_raw())
+    Ok(Zeroizing::new(secure_secret.into_inner_raw()))
 }
 
 #[cfg(test)]

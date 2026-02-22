@@ -174,8 +174,8 @@ This is a critical security property — if any two domain constants collide, di
 
 ### Kani (automated)
 
-- Runs on every push to `main` (when `latticearc/src/types/` changes)
-- Nightly at 3 AM UTC, weekly Sunday at 5 AM UTC
+- Runs nightly at 3 AM UTC and weekly Sunday at 5 AM UTC (plus manual dispatch)
+- No push trigger — proofs are too expensive to run on every commit
 
 ### Kani (local)
 

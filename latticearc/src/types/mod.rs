@@ -27,6 +27,8 @@
 
 /// Configuration types for cryptographic operations.
 pub mod config;
+/// Type-safe encryption types for the unified API.
+pub mod crypto_types;
 /// Domain separation constants for HKDF key derivation.
 pub mod domains;
 /// Error types for pure-Rust operations.
@@ -50,18 +52,21 @@ pub use config::{
     CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig, UseCaseConfig,
     ZeroTrustConfig,
 };
+pub use crypto_types::{
+    DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme, HybridComponents,
+};
 pub use error::{Result, TypeError};
 pub use key_lifecycle::{
     CustodianRole, KeyCustodian, KeyLifecycleRecord, KeyLifecycleState, KeyStateMachine,
     StateTransition,
 };
 pub use selector::{
-    CHACHA20_POLY1305, CLASSICAL_AES_GCM, CLASSICAL_ED25519, CryptoPolicyEngine,
-    DEFAULT_ENCRYPTION_SCHEME, DEFAULT_PQ_ENCRYPTION_SCHEME, DEFAULT_PQ_SIGNATURE_SCHEME,
-    DEFAULT_SIGNATURE_SCHEME, HYBRID_ENCRYPTION_512, HYBRID_ENCRYPTION_768, HYBRID_ENCRYPTION_1024,
-    HYBRID_SIGNATURE_44, HYBRID_SIGNATURE_65, HYBRID_SIGNATURE_87, PQ_ENCRYPTION_512,
-    PQ_ENCRYPTION_768, PQ_ENCRYPTION_1024, PQ_SIGNATURE_44, PQ_SIGNATURE_65, PQ_SIGNATURE_87,
-    PerformanceMetrics,
+    CHACHA20_POLY1305, CLASSICAL_AES_GCM, CLASSICAL_ED25519, CLASSICAL_FALLBACK_SIZE_THRESHOLD,
+    CryptoPolicyEngine, DEFAULT_ENCRYPTION_SCHEME, DEFAULT_PQ_ENCRYPTION_SCHEME,
+    DEFAULT_PQ_SIGNATURE_SCHEME, DEFAULT_SIGNATURE_SCHEME, HYBRID_ENCRYPTION_512,
+    HYBRID_ENCRYPTION_768, HYBRID_ENCRYPTION_1024, HYBRID_SIGNATURE_44, HYBRID_SIGNATURE_65,
+    HYBRID_SIGNATURE_87, PQ_ENCRYPTION_512, PQ_ENCRYPTION_768, PQ_ENCRYPTION_1024, PQ_SIGNATURE_44,
+    PQ_SIGNATURE_65, PQ_SIGNATURE_87, PerformanceMetrics,
 };
 pub use traits::{
     AsyncDecryptable, AsyncEncryptable, AsyncSignable, AsyncVerifiable, ContinuousVerifiable,

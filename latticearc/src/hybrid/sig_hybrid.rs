@@ -224,16 +224,16 @@ impl std::fmt::Debug for HybridSecretKey {
 }
 
 impl HybridSecretKey {
-    /// Convert ml_dsa_sk to `Vec<u8>` for compatibility
+    /// Returns the ML-DSA secret key bytes wrapped in `Zeroizing`.
     #[must_use]
-    pub fn ml_dsa_sk_bytes(&self) -> Vec<u8> {
-        (*self.ml_dsa_sk).clone()
+    pub fn ml_dsa_sk_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new((*self.ml_dsa_sk).clone())
     }
 
-    /// Convert ed25519_sk to `Vec<u8>` for compatibility
+    /// Returns the Ed25519 secret key bytes wrapped in `Zeroizing`.
     #[must_use]
-    pub fn ed25519_sk_bytes(&self) -> Vec<u8> {
-        (*self.ed25519_sk).clone()
+    pub fn ed25519_sk_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new((*self.ed25519_sk).clone())
     }
 }
 
@@ -300,18 +300,21 @@ pub fn sign(sk: &HybridSecretKey, message: &[u8]) -> Result<HybridSignature, Hyb
     }
 
     // Sign with ML-DSA
-    let ml_dsa_sk_struct = MlDsaSecretKey::new(MlDsaParameterSet::MLDSA65, sk.ml_dsa_sk_bytes())
-        .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
+    let ml_dsa_sk_bytes = sk.ml_dsa_sk_bytes();
+    let ml_dsa_sk_struct =
+        MlDsaSecretKey::new(MlDsaParameterSet::MLDSA65, (*ml_dsa_sk_bytes).clone())
+            .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
     let ml_dsa_sig = ml_dsa_sign(&ml_dsa_sk_struct, message, &[])
         .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?
         .as_bytes()
         .to_vec();
 
     // Sign with Ed25519
-    let ed25519_signing_key_bytes: [u8; 32] =
-        sk.ed25519_sk_bytes().as_slice().try_into().map_err(|_e| {
-            HybridSignatureError::Ed25519Error("Ed25519 secret key must be 32 bytes".to_string())
-        })?;
+    let ed25519_sk_zeroizing = sk.ed25519_sk_bytes();
+    let ed25519_signing_key_bytes: Zeroizing<[u8; 32]> =
+        Zeroizing::new(ed25519_sk_zeroizing.as_slice().try_into().map_err(|e| {
+            HybridSignatureError::Ed25519Error(format!("Ed25519 secret key must be 32 bytes: {e}"))
+        })?);
     let ed25519_signing_key = Ed25519SigningKey::from_bytes(&ed25519_signing_key_bytes);
     let ed25519_signature = ed25519_signing_key.sign(message);
     let ed25519_sig = ed25519_signature.to_bytes().to_vec();
@@ -364,22 +367,21 @@ pub fn verify(
 
     // Verify Ed25519 signature
     let ed25519_verifying_key_bytes: [u8; 32] =
-        pk.ed25519_pk.as_slice().try_into().map_err(|_e| {
-            HybridSignatureError::InvalidKeyMaterial(
-                "Ed25519 public key has invalid format".to_string(),
-            )
+        pk.ed25519_pk.as_slice().try_into().map_err(|e| {
+            HybridSignatureError::InvalidKeyMaterial(format!(
+                "Ed25519 public key has invalid format: {e}"
+            ))
         })?;
     let ed25519_verifying_key = Ed25519VerifyingKey::from_bytes(&ed25519_verifying_key_bytes)
-        .map_err(|_e| {
-            HybridSignatureError::Ed25519Error("Invalid Ed25519 public key format".to_string())
+        .map_err(|e| {
+            HybridSignatureError::Ed25519Error(format!("Invalid Ed25519 public key format: {e}"))
         })?;
 
-    let ed25519_signature_bytes: [u8; 64] =
-        sig.ed25519_sig.as_slice().try_into().map_err(|_e| {
-            HybridSignatureError::InvalidKeyMaterial(
-                "Ed25519 signature has invalid format".to_string(),
-            )
-        })?;
+    let ed25519_signature_bytes: [u8; 64] = sig.ed25519_sig.as_slice().try_into().map_err(|e| {
+        HybridSignatureError::InvalidKeyMaterial(format!(
+            "Ed25519 signature has invalid format: {e}"
+        ))
+    })?;
     let ed25519_signature = Ed25519Signature::from_bytes(&ed25519_signature_bytes);
 
     // Perform actual Ed25519 verification
@@ -587,8 +589,8 @@ mod tests {
         );
 
         let mut secret_key_clone = HybridSecretKey {
-            ml_dsa_sk: secret_key.ml_dsa_sk_bytes().into(),
-            ed25519_sk: secret_key.ed25519_sk_bytes().into(),
+            ml_dsa_sk: secret_key.ml_dsa_sk_bytes(),
+            ed25519_sk: secret_key.ed25519_sk_bytes(),
         };
 
         secret_key_clone.zeroize();

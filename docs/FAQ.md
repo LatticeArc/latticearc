@@ -127,16 +127,16 @@ let recovered = MlKem::decapsulate(&sk, &ciphertext)?;
 ### How do I use hybrid encryption?
 
 ```rust
-use latticearc::{generate_hybrid_keypair, encrypt_hybrid, decrypt_hybrid, SecurityMode};
+use latticearc::{generate_hybrid_keypair, encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 
 // Generate hybrid keypair (ML-KEM-768 + X25519)
 let (pk, sk) = generate_hybrid_keypair()?;
 
-// Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM)
-let encrypted = encrypt_hybrid(b"sensitive data", &pk, SecurityMode::Unverified)?;
+// Encrypt using hybrid KEM (ML-KEM + X25519 + HKDF + AES-256-GCM) via unified API
+let encrypted = encrypt(b"sensitive data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 
 // Decrypt
-let plaintext = decrypt_hybrid(&encrypted, &sk, SecurityMode::Unverified)?;
+let plaintext = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
 ## Security
