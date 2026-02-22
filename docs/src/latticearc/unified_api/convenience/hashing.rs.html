@@ -75,11 +75,11 @@
 <a href=#75 id=75 data-nosnippet>75</a>
 <a href=#76 id=76 data-nosnippet>76</a>    <span class="kw">let </span>okm = prk
 <a href=#77 id=77 data-nosnippet>77</a>        .expand(<span class="kw-2">&amp;</span>[<span class="string">b"latticearc"</span>], HkdfOutputLen(length))
-<a href=#78 id=78 data-nosnippet>78</a>        .map_err(|_e| CoreError::KeyDerivationFailed(<span class="string">"HKDF expansion failed"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#78 id=78 data-nosnippet>78</a>        .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF expansion failed: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#79 id=79 data-nosnippet>79</a>
 <a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">let </span><span class="kw-2">mut </span>output = <span class="macro">vec!</span>[<span class="number">0u8</span>; length];
 <a href=#81 id=81 data-nosnippet>81</a>    okm.fill(<span class="kw-2">&amp;mut </span>output)
-<a href=#82 id=82 data-nosnippet>82</a>        .map_err(|_e| CoreError::KeyDerivationFailed(<span class="string">"HKDF fill failed"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#82 id=82 data-nosnippet>82</a>        .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF fill failed: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="prelude-val">Ok</span>(output)
 <a href=#85 id=85 data-nosnippet>85</a>}
@@ -101,11 +101,11 @@
 <a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">let </span>info_slices: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[info];
 <a href=#102 id=102 data-nosnippet>102</a>    <span class="kw">let </span>okm = prk
 <a href=#103 id=103 data-nosnippet>103</a>        .expand(info_slices, HkdfOutputLen(length))
-<a href=#104 id=104 data-nosnippet>104</a>        .map_err(|_e| CoreError::KeyDerivationFailed(<span class="string">"HKDF expansion failed"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#104 id=104 data-nosnippet>104</a>        .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF expansion failed: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#105 id=105 data-nosnippet>105</a>
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">let </span><span class="kw-2">mut </span>output = <span class="macro">vec!</span>[<span class="number">0u8</span>; length];
 <a href=#107 id=107 data-nosnippet>107</a>    okm.fill(<span class="kw-2">&amp;mut </span>output)
-<a href=#108 id=108 data-nosnippet>108</a>        .map_err(|_e| CoreError::KeyDerivationFailed(<span class="string">"HKDF fill failed"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#108 id=108 data-nosnippet>108</a>        .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF fill failed: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#109 id=109 data-nosnippet>109</a>
 <a href=#110 id=110 data-nosnippet>110</a>    <span class="prelude-val">Ok</span>(output)
 <a href=#111 id=111 data-nosnippet>111</a>}
@@ -225,8 +225,8 @@
 <a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(err);
 <a href=#226 id=226 data-nosnippet>226</a>    }
 <a href=#227 id=227 data-nosnippet>227</a>
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">let </span><span class="kw-2">mut </span>mac = &lt;Hmac&lt;Sha256&gt; <span class="kw">as </span>hmac::digest::KeyInit&gt;::new_from_slice(key).map_err(|_e| {
-<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">let </span>err = CoreError::InvalidInput(<span class="string">"Invalid HMAC key"</span>.to_string());
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">let </span><span class="kw-2">mut </span>mac = &lt;Hmac&lt;Sha256&gt; <span class="kw">as </span>hmac::digest::KeyInit&gt;::new_from_slice(key).map_err(|e| {
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">let </span>err = CoreError::InvalidInput(<span class="macro">format!</span>(<span class="string">"Invalid HMAC key: {e}"</span>));
 <a href=#230 id=230 data-nosnippet>230</a>        <span class="macro">crate::log_crypto_operation_error!</span>(<span class="string">"hmac"</span>, err);
 <a href=#231 id=231 data-nosnippet>231</a>        err
 <a href=#232 id=232 data-nosnippet>232</a>    })<span class="question-mark">?</span>;

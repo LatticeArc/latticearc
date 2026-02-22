@@ -57,8 +57,8 @@
 <a href=#57 id=57 data-nosnippet>57</a>            err
 <a href=#58 id=58 data-nosnippet>58</a>        })<span class="question-mark">?
 <a href=#59 id=59 data-nosnippet>59</a>        </span>.try_into()
-<a href=#60 id=60 data-nosnippet>60</a>        .map_err(|_e| {
-<a href=#61 id=61 data-nosnippet>61</a>            <span class="kw">let </span>err = CoreError::InvalidInput(<span class="string">"Private key must be 32 bytes"</span>.to_string());
+<a href=#60 id=60 data-nosnippet>60</a>        .map_err(|e| {
+<a href=#61 id=61 data-nosnippet>61</a>            <span class="kw">let </span>err = CoreError::InvalidInput(<span class="macro">format!</span>(<span class="string">"Private key must be 32 bytes: {e}"</span>));
 <a href=#62 id=62 data-nosnippet>62</a>            <span class="macro">log_crypto_operation_error!</span>(<span class="string">"ed25519_sign"</span>, err);
 <a href=#63 id=63 data-nosnippet>63</a>            err
 <a href=#64 id=64 data-nosnippet>64</a>        })<span class="question-mark">?</span>;
@@ -108,8 +108,8 @@
 <a href=#108 id=108 data-nosnippet>108</a>            err
 <a href=#109 id=109 data-nosnippet>109</a>        })<span class="question-mark">?
 <a href=#110 id=110 data-nosnippet>110</a>        </span>.try_into()
-<a href=#111 id=111 data-nosnippet>111</a>        .map_err(|_e| {
-<a href=#112 id=112 data-nosnippet>112</a>            <span class="kw">let </span>err = CoreError::InvalidInput(<span class="string">"Signature must be 64 bytes"</span>.to_string());
+<a href=#111 id=111 data-nosnippet>111</a>        .map_err(|e| {
+<a href=#112 id=112 data-nosnippet>112</a>            <span class="kw">let </span>err = CoreError::InvalidInput(<span class="macro">format!</span>(<span class="string">"Signature must be 64 bytes: {e}"</span>));
 <a href=#113 id=113 data-nosnippet>113</a>            <span class="macro">log_crypto_operation_error!</span>(<span class="string">"ed25519_verify"</span>, err);
 <a href=#114 id=114 data-nosnippet>114</a>            err
 <a href=#115 id=115 data-nosnippet>115</a>        })<span class="question-mark">?</span>;
@@ -124,14 +124,14 @@
 <a href=#124 id=124 data-nosnippet>124</a>            err
 <a href=#125 id=125 data-nosnippet>125</a>        })<span class="question-mark">?
 <a href=#126 id=126 data-nosnippet>126</a>        </span>.try_into()
-<a href=#127 id=127 data-nosnippet>127</a>        .map_err(|_e| {
-<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw">let </span>err = CoreError::InvalidInput(<span class="string">"Public key must be 32 bytes"</span>.to_string());
+<a href=#127 id=127 data-nosnippet>127</a>        .map_err(|e| {
+<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw">let </span>err = CoreError::InvalidInput(<span class="macro">format!</span>(<span class="string">"Public key must be 32 bytes: {e}"</span>));
 <a href=#129 id=129 data-nosnippet>129</a>            <span class="macro">log_crypto_operation_error!</span>(<span class="string">"ed25519_verify"</span>, err);
 <a href=#130 id=130 data-nosnippet>130</a>            err
 <a href=#131 id=131 data-nosnippet>131</a>        })<span class="question-mark">?</span>;
 <a href=#132 id=132 data-nosnippet>132</a>
-<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">let </span>verifying_key = VerifyingKey::from_bytes(<span class="kw-2">&amp;</span>public_key_bytes).map_err(|_e| {
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>err = CoreError::InvalidInput(<span class="string">"Invalid public key"</span>.to_string());
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">let </span>verifying_key = VerifyingKey::from_bytes(<span class="kw-2">&amp;</span>public_key_bytes).map_err(|e| {
+<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>err = CoreError::InvalidInput(<span class="macro">format!</span>(<span class="string">"Invalid public key: {e}"</span>));
 <a href=#135 id=135 data-nosnippet>135</a>        <span class="macro">log_crypto_operation_error!</span>(<span class="string">"ed25519_verify"</span>, err);
 <a href=#136 id=136 data-nosnippet>136</a>        err
 <a href=#137 id=137 data-nosnippet>137</a>    })<span class="question-mark">?</span>;
