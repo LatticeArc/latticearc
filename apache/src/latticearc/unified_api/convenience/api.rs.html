@@ -104,7 +104,7 @@
 <a href=#104 id=104 data-nosnippet>104</a>        }
 <a href=#105 id=105 data-nosnippet>105</a>        AlgorithmSelection::ForcedScheme(scheme) =&gt; {
 <a href=#106 id=106 data-nosnippet>106</a>            <span class="kw">let </span>scheme_str = CryptoPolicyEngine::force_scheme(scheme);
-<a href=#107 id=107 data-nosnippet>107</a>            EncryptionScheme::from_str(<span class="kw-2">&amp;</span>scheme_str).ok_or_else(|| {
+<a href=#107 id=107 data-nosnippet>107</a>            EncryptionScheme::parse_str(<span class="kw-2">&amp;</span>scheme_str).ok_or_else(|| {
 <a href=#108 id=108 data-nosnippet>108</a>                CoreError::InvalidInput(<span class="macro">format!</span>(
 <a href=#109 id=109 data-nosnippet>109</a>                    <span class="string">"Forced scheme '{}' is not an encryption scheme (may be a signature scheme)"</span>,
 <a href=#110 id=110 data-nosnippet>110</a>                    scheme_str

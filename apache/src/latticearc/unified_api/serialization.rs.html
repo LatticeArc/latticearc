@@ -335,7 +335,7 @@
 <a href=#335 id=335 data-nosnippet>335</a>    <span class="kw">type </span>Error = CoreError;
 <a href=#336 id=336 data-nosnippet>336</a>
 <a href=#337 id=337 data-nosnippet>337</a>    <span class="kw">fn </span>try_from(ser: SerializableEncryptedOutput) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-<a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">let </span>scheme = EncryptionScheme::from_str(<span class="kw-2">&amp;</span>ser.scheme).ok_or_else(|| {
+<a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">let </span>scheme = EncryptionScheme::parse_str(<span class="kw-2">&amp;</span>ser.scheme).ok_or_else(|| {
 <a href=#339 id=339 data-nosnippet>339</a>            CoreError::SerializationError(<span class="macro">format!</span>(<span class="string">"Unknown encryption scheme: '{}'"</span>, ser.scheme))
 <a href=#340 id=340 data-nosnippet>340</a>        })<span class="question-mark">?</span>;
 <a href=#341 id=341 data-nosnippet>341</a>
