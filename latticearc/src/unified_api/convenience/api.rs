@@ -104,7 +104,7 @@ fn select_encryption_scheme_typed(options: &CryptoConfig) -> Result<EncryptionSc
         }
         AlgorithmSelection::ForcedScheme(scheme) => {
             let scheme_str = CryptoPolicyEngine::force_scheme(scheme);
-            EncryptionScheme::from_str(&scheme_str).ok_or_else(|| {
+            EncryptionScheme::parse_str(&scheme_str).ok_or_else(|| {
                 CoreError::InvalidInput(format!(
                     "Forced scheme '{}' is not an encryption scheme (may be a signature scheme)",
                     scheme_str

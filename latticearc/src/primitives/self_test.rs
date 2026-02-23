@@ -1344,6 +1344,19 @@ pub fn clear_error_state() {
     SELF_TEST_PASSED.store(false, Ordering::Release);
 }
 
+/// Clear error state and restore module to operational (**testing only**).
+///
+/// Use this in negative tests (e.g., PCT failure tests) that intentionally trigger
+/// `set_module_error` but need to avoid poisoning the global state for other
+/// tests running in the same process. Unlike `clear_error_state`, this restores
+/// `SELF_TEST_PASSED` to `true` so the module remains operational.
+#[doc(hidden)]
+pub fn restore_operational_state() {
+    MODULE_ERROR_CODE.store(ModuleErrorCode::NoError as u32, Ordering::SeqCst);
+    MODULE_ERROR_TIMESTAMP.store(0, Ordering::SeqCst);
+    SELF_TEST_PASSED.store(true, Ordering::Release);
+}
+
 /// Check if the module has passed self-tests
 ///
 /// This function should be called before any cryptographic operation

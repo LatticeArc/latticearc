@@ -335,7 +335,7 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
     type Error = CoreError;
 
     fn try_from(ser: SerializableEncryptedOutput) -> Result<Self> {
-        let scheme = EncryptionScheme::from_str(&ser.scheme).ok_or_else(|| {
+        let scheme = EncryptionScheme::parse_str(&ser.scheme).ok_or_else(|| {
             CoreError::SerializationError(format!("Unknown encryption scheme: '{}'", ser.scheme))
         })?;
 

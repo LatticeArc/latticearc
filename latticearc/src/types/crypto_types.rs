@@ -152,7 +152,7 @@ impl EncryptionScheme {
     ///
     /// Returns `None` for unrecognized strings (e.g. signature schemes).
     #[must_use]
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s {
             "aes-256-gcm" => Some(Self::Aes256Gcm),
             "chacha20-poly1305" => Some(Self::ChaCha20Poly1305),
@@ -247,7 +247,7 @@ impl TryFrom<EncryptedData> for EncryptedOutput {
     type Error = super::error::TypeError;
 
     fn try_from(data: EncryptedData) -> Result<Self, Self::Error> {
-        let scheme = EncryptionScheme::from_str(&data.scheme)
+        let scheme = EncryptionScheme::parse_str(&data.scheme)
             .ok_or_else(|| super::error::TypeError::UnknownScheme(data.scheme.clone()))?;
         Ok(Self {
             scheme,
@@ -283,7 +283,7 @@ mod tests {
         ];
         for scheme in &schemes {
             let s = scheme.as_str();
-            let parsed = EncryptionScheme::from_str(s).unwrap();
+            let parsed = EncryptionScheme::parse_str(s).unwrap();
             assert_eq!(&parsed, scheme);
         }
     }
@@ -312,8 +312,8 @@ mod tests {
 
     #[test]
     fn test_encryption_scheme_from_str_unknown() {
-        assert!(EncryptionScheme::from_str("unknown-scheme").is_none());
-        assert!(EncryptionScheme::from_str("hybrid-ml-dsa-65-ed25519").is_none());
+        assert!(EncryptionScheme::parse_str("unknown-scheme").is_none());
+        assert!(EncryptionScheme::parse_str("hybrid-ml-dsa-65-ed25519").is_none());
     }
 
     #[test]

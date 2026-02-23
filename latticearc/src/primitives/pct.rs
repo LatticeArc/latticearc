@@ -550,6 +550,9 @@ mod tests {
 
         // Use public key from one keypair with secret key from another
         let result = pct_ml_dsa(&pk1, &sk2);
+        // Clean up global error state set by enter_pct_error_state() to avoid
+        // poisoning other tests running in the same process
+        crate::primitives::self_test::restore_operational_state();
         assert!(
             matches!(result, Err(PctError::KeyPairInconsistent)),
             "PCT should fail for mismatched keys"
@@ -614,6 +617,9 @@ mod tests {
 
         // Use verifying key from one keypair with signing key from another
         let result = pct_slh_dsa(&vk2, &sk1);
+        // Clean up global error state set by enter_pct_error_state() to avoid
+        // poisoning other tests running in the same process
+        crate::primitives::self_test::restore_operational_state();
         assert!(
             matches!(result, Err(PctError::KeyPairInconsistent)),
             "PCT should fail for mismatched keys"
