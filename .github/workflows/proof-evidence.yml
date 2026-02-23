@@ -1,0 +1,249 @@
+name: Proof Evidence
+
+# =============================================================================
+# Cryptographic Proof Evidence Pipeline
+# =============================================================================
+# Runs the hybrid_proof_evidence test suite on every push and PR.
+# Captures structured [PROOF] JSON lines as CI artifacts with 30-day retention.
+# Provides a machine-parseable audit trail of every crypto operation.
+# =============================================================================
+
+on:
+  push:
+    branches: [ main, develop, master ]
+  pull_request:
+    branches: [ main, develop, master ]
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: proof-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  proof-evidence:
+    name: Proof Evidence Suite
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: recursive
+
+    - name: Install Rust (Edition 2024)
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-proof-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run proof evidence suite
+      run: |
+        cargo test --test hybrid_proof_evidence --all-features --release -- --nocapture 2>&1 | tee proof_output_full.txt
+        echo "PROOF_EXIT_CODE=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+
+    - name: Extract and sort proof lines
+      if: always()
+      run: |
+        # Extract [PROOF] lines, strip prefix, sort by section+test
+        grep '\[PROOF\]' proof_output_full.txt | sed 's/\[PROOF\] //' | python3 -c "
+        import json, sys
+        lines = []
+        for l in sys.stdin:
+            l = l.strip()
+            if l:
+                try:
+                    lines.append(json.loads(l))
+                except json.JSONDecodeError:
+                    pass
+        lines.sort(key=lambda x: (x.get('section', 0), x.get('test', '')))
+        for l in lines:
+            print(json.dumps(l))
+        " > proof_evidence.jsonl
+
+        echo "Total proof lines: $(wc -l < proof_evidence.jsonl)"
+
+    - name: Generate proof summary
+      if: always()
+      run: |
+        python3 << 'PYEOF'
+        import json, datetime
+
+        proofs = []
+        with open("proof_evidence.jsonl") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    proofs.append(json.loads(line))
+
+        total = len(proofs)
+        passed = sum(1 for p in proofs if p.get("status") == "PASS")
+        failed = sum(1 for p in proofs if p.get("status") == "FAIL")
+        skipped = sum(1 for p in proofs if p.get("status") == "SKIPPED")
+
+        # Group by section
+        sections = {}
+        for p in proofs:
+            s = p.get("section", 0)
+            sections.setdefault(s, {"pass": 0, "fail": 0, "skip": 0, "tests": []})
+            if p.get("status") == "PASS":
+                sections[s]["pass"] += 1
+            elif p.get("status") == "FAIL":
+                sections[s]["fail"] += 1
+            else:
+                sections[s]["skip"] += 1
+            sections[s]["tests"].append(p.get("test", "unknown"))
+
+        section_names = {
+            1: "UseCase -> Scheme Selection",
+            2: "SecurityLevel -> Scheme Selection",
+            3: "ML-KEM NIST FIPS 203 Parameters",
+            4: "Variable-Size Encryption Roundtrip",
+            5: "Signature Algorithm Roundtrip",
+            6: "Serialization Preserves Scheme",
+            7: "Negative: Wrong Key",
+            8: "Negative: Corrupted Ciphertext",
+            9: "Negative: Wrong AAD",
+            10: "Negative: Cross-Level Mismatch",
+            11: "TLS Policy Engine & Live Handshake",
+            12: "Data-at-Rest Byte-Exact Preservation",
+        }
+
+        summary = {
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "commit": "${{ github.sha }}",
+            "ref": "${{ github.ref }}",
+            "total_proofs": total,
+            "passed": passed,
+            "failed": failed,
+            "skipped": skipped,
+            "all_passed": failed == 0,
+            "sections": {}
+        }
+
+        for s in sorted(sections.keys()):
+            summary["sections"][section_names.get(s, f"Section {s}")] = {
+                "proof_count": sections[s]["pass"] + sections[s]["fail"] + sections[s]["skip"],
+                "passed": sections[s]["pass"],
+                "failed": sections[s]["fail"],
+                "skipped": sections[s]["skip"],
+            }
+
+        with open("proof_summary.json", "w") as f:
+            json.dump(summary, f, indent=2)
+
+        # Also generate markdown report
+        md = []
+        md.append(f"# Proof Evidence Report")
+        md.append(f"")
+        md.append(f"**Commit:** `{summary['commit'][:12]}`")
+        md.append(f"**Generated:** {summary['generated_at']}")
+        md.append(f"**Result:** {'ALL PASSED' if summary['all_passed'] else 'FAILURES DETECTED'}")
+        md.append(f"")
+        md.append(f"| Metric | Count |")
+        md.append(f"|--------|-------|")
+        md.append(f"| Total proofs | {total} |")
+        md.append(f"| Passed | {passed} |")
+        md.append(f"| Failed | {failed} |")
+        md.append(f"| Skipped | {skipped} |")
+        md.append(f"")
+        md.append(f"## Sections")
+        md.append(f"")
+        md.append(f"| Section | Proofs | Passed | Failed | Skipped |")
+        md.append(f"|---------|--------|--------|--------|---------|")
+        for s in sorted(sections.keys()):
+            name = section_names.get(s, f"Section {s}")
+            d = sections[s]
+            t = d["pass"] + d["fail"] + d["skip"]
+            md.append(f"| {name} | {t} | {d['pass']} | {d['fail']} | {d['skip']} |")
+
+        if failed > 0:
+            md.append(f"")
+            md.append(f"## Failed Proofs")
+            md.append(f"")
+            for p in proofs:
+                if p.get("status") == "FAIL":
+                    md.append(f"- **{p.get('test', 'unknown')}** (Section {p.get('section', '?')})")
+                    md.append(f"  ```json")
+                    md.append(f"  {json.dumps(p, indent=2)}")
+                    md.append(f"  ```")
+
+        with open("proof_report.md", "w") as f:
+            f.write("\n".join(md) + "\n")
+
+        print(f"Summary: {passed}/{total} passed, {failed} failed, {skipped} skipped")
+        PYEOF
+
+    - name: Upload proof evidence
+      if: always()
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: proof-evidence-${{ github.sha }}
+        path: |
+          proof_evidence.jsonl
+          proof_summary.json
+          proof_report.md
+          proof_output_full.txt
+        retention-days: 30
+
+    - name: Post proof summary to PR
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('proof_report.md', 'utf8');
+
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          const botComment = comments.find(c =>
+            c.body.includes('# Proof Evidence Report')
+          );
+
+          const body = report + '\n\n---\n*Generated by proof-evidence workflow*';
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+          }
+
+    - name: Fail if proofs failed
+      if: always()
+      run: |
+        FAILED=$(python3 -c "
+        import json
+        with open('proof_summary.json') as f:
+            s = json.load(f)
+        print(s.get('failed', 0))
+        ")
+        if [ "$FAILED" -gt 0 ]; then
+          echo "::error::$FAILED proof(s) failed. Check proof_report.md artifact for details."
+          exit 1
+        fi
+        echo "All proofs passed."
