@@ -39,6 +39,9 @@ updates:
       github-actions-updates:
         patterns:
           - "*"
+    ignore:
+      # SHA-pinned action without tags; Dependabot can't resolve versions
+      - dependency-name: "dtolnay/rust-toolchain"
     labels:
       - "dependencies"
       - "ci"

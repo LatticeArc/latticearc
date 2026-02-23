@@ -32,6 +32,8 @@ jobs:
 
       - name: Approve PR
         if: steps.check-label.outputs.result == 'true'
+        # Org may block GITHUB_TOKEN from approving PRs; don't fail the workflow
+        continue-on-error: true
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
