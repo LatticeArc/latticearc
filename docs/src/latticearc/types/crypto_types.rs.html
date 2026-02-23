@@ -152,7 +152,7 @@
 <a href=#152 id=152 data-nosnippet>152</a>    ///
 <a href=#153 id=153 data-nosnippet>153</a>    /// Returns `None` for unrecognized strings (e.g. signature schemes).
 <a href=#154 id=154 data-nosnippet>154</a>    </span><span class="attr">#[must_use]
-<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">pub fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">pub fn </span>parse_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">match </span>s {
 <a href=#157 id=157 data-nosnippet>157</a>            <span class="string">"aes-256-gcm" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Aes256Gcm),
 <a href=#158 id=158 data-nosnippet>158</a>            <span class="string">"chacha20-poly1305" </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::ChaCha20Poly1305),
@@ -247,7 +247,7 @@
 <a href=#247 id=247 data-nosnippet>247</a>    <span class="kw">type </span>Error = <span class="kw">super</span>::error::TypeError;
 <a href=#248 id=248 data-nosnippet>248</a>
 <a href=#249 id=249 data-nosnippet>249</a>    <span class="kw">fn </span>try_from(data: EncryptedData) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
-<a href=#250 id=250 data-nosnippet>250</a>        <span class="kw">let </span>scheme = EncryptionScheme::from_str(<span class="kw-2">&amp;</span>data.scheme)
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="kw">let </span>scheme = EncryptionScheme::parse_str(<span class="kw-2">&amp;</span>data.scheme)
 <a href=#251 id=251 data-nosnippet>251</a>            .ok_or_else(|| <span class="kw">super</span>::error::TypeError::UnknownScheme(data.scheme.clone()))<span class="question-mark">?</span>;
 <a href=#252 id=252 data-nosnippet>252</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
 <a href=#253 id=253 data-nosnippet>253</a>            scheme,
@@ -283,7 +283,7 @@
 <a href=#283 id=283 data-nosnippet>283</a>        ];
 <a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">for </span>scheme <span class="kw">in </span><span class="kw-2">&amp;</span>schemes {
 <a href=#285 id=285 data-nosnippet>285</a>            <span class="kw">let </span>s = scheme.as_str();
-<a href=#286 id=286 data-nosnippet>286</a>            <span class="kw">let </span>parsed = EncryptionScheme::from_str(s).unwrap();
+<a href=#286 id=286 data-nosnippet>286</a>            <span class="kw">let </span>parsed = EncryptionScheme::parse_str(s).unwrap();
 <a href=#287 id=287 data-nosnippet>287</a>            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>parsed, scheme);
 <a href=#288 id=288 data-nosnippet>288</a>        }
 <a href=#289 id=289 data-nosnippet>289</a>    }
@@ -312,8 +312,8 @@
 <a href=#312 id=312 data-nosnippet>312</a>
 <a href=#313 id=313 data-nosnippet>313</a>    <span class="attr">#[test]
 <a href=#314 id=314 data-nosnippet>314</a>    </span><span class="kw">fn </span>test_encryption_scheme_from_str_unknown() {
-<a href=#315 id=315 data-nosnippet>315</a>        <span class="macro">assert!</span>(EncryptionScheme::from_str(<span class="string">"unknown-scheme"</span>).is_none());
-<a href=#316 id=316 data-nosnippet>316</a>        <span class="macro">assert!</span>(EncryptionScheme::from_str(<span class="string">"hybrid-ml-dsa-65-ed25519"</span>).is_none());
+<a href=#315 id=315 data-nosnippet>315</a>        <span class="macro">assert!</span>(EncryptionScheme::parse_str(<span class="string">"unknown-scheme"</span>).is_none());
+<a href=#316 id=316 data-nosnippet>316</a>        <span class="macro">assert!</span>(EncryptionScheme::parse_str(<span class="string">"hybrid-ml-dsa-65-ed25519"</span>).is_none());
 <a href=#317 id=317 data-nosnippet>317</a>    }
 <a href=#318 id=318 data-nosnippet>318</a>
 <a href=#319 id=319 data-nosnippet>319</a>    <span class="attr">#[test]
