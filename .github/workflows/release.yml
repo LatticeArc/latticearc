@@ -16,27 +16,26 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Verify release
-  verify:
-    name: Verify Release
+  # Wait for CI to pass on the tagged commit before releasing.
+  # The CI workflow runs on push to main; tags point to those commits.
+  # This gate ensures we never publish without green CI.
+  ci-gate:
+    name: Wait for CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
-      - name: Run tests
-        run: cargo test --workspace --all-features --release
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: Security audit
-        run: |
-          cargo install cargo-audit
-          cargo audit
+      - name: Wait for CI checks to succeed
+        uses: lewagon/wait-on-check-action@ccfb013c15c8afb7bf2b7c028fb74dc5a068cccc # v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          check-regexp: '^Build \('
+          wait-interval: 30
+          allowed-conclusions: success,skipped
 
   # Publish to crates.io
   publish:
     name: Publish
-    needs: verify
+    needs: ci-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -92,7 +91,7 @@ jobs:
   # Generate SBOM
   sbom:
     name: SBOM Generation
-    needs: verify
+    needs: ci-gate
     runs-on: ubuntu-latest
     outputs:
       sbom-hash: ${{ steps.hash.outputs.sbom-hash }}
@@ -129,7 +128,7 @@ jobs:
   # Build artifacts for provenance
   build-artifacts:
     name: Build Artifacts (${{ matrix.target }})
-    needs: verify
+    needs: ci-gate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -283,7 +282,7 @@ jobs:
   # Release summary
   release-summary:
     name: Release Summary
-    needs: [verify, publish, release, sbom, provenance, sign-artifacts]
+    needs: [ci-gate, publish, release, sbom, provenance, sign-artifacts]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -295,7 +294,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Verification | ${{ needs.verify.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CI Gate | ${{ needs.ci-gate.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Publish | ${{ needs.publish.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Release | ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| SBOM | ${{ needs.sbom.result }} |" >> $GITHUB_STEP_SUMMARY
