@@ -7,7 +7,7 @@
 //!
 //! This module implements post-quantum key exchange for TLS 1.3, providing:
 //! - Hybrid key exchange (X25519 + ML-KEM-768) via rustls-post-quantum
-//! - Custom hybrid implementation using arc-hybrid module
+//! - Custom hybrid implementation using the `hybrid` module
 //!
 //! ## Key Exchange Methods
 //!
@@ -18,9 +18,9 @@
 //!
 //! Security: Requires breaking BOTH components
 //!
-//! ### Custom Hybrid (via arc-hybrid)
-//! Uses arc-hybrid::kem module:
-//! - ML-KEM-768 from arc-primitives
+//! ### Custom Hybrid (via `latticearc::hybrid`)
+//! Uses `hybrid::kem` module:
+//! - ML-KEM-768 from `latticearc::primitives`
 //! - X25519 from x25519-dalek
 //! - HKDF for secret combination (NIST SP 800-56C)
 //!
@@ -42,7 +42,7 @@ use zeroize::{Zeroize, Zeroizing};
 pub enum PqKexMode {
     /// Use rustls-post-quantum (X25519MLKEM768)
     RustlsPq,
-    /// Use custom hybrid implementation (arc-hybrid)
+    /// Use custom hybrid implementation (`latticearc::hybrid`)
     CustomHybrid,
     /// Use classical ECDHE only
     Classical,
@@ -157,7 +157,7 @@ pub fn get_kex_info(mode: TlsMode, kex_mode: PqKexMode) -> KexInfo {
 ///
 /// This checks compile-time availability (the `aws-lc-rs` and `rustls-post-quantum`
 /// crates are linked), not runtime hardware detection. PQ key exchange is always
-/// available when this crate is compiled.
+/// available when `latticearc` is compiled.
 ///
 /// # Returns
 /// Always returns true (PQ support is compiled in unconditionally)

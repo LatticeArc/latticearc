@@ -1,11 +1,11 @@
 //! LatticeArc Prelude Crate
 //!
-//! This crate provides common types, traits, and utilities used throughout
+//! This module provides common types, traits, and utilities used throughout
 //! the LatticeArc post-quantum cryptography platform.
 //!
 //! # Overview
 //!
-//! The prelude crate serves as the foundation for error handling, domain constants,
+//! The prelude module serves as the foundation for error handling, domain constants,
 //! and testing infrastructure across all LatticeArc components.
 //!
 //! # Key Components

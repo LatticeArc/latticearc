@@ -8,7 +8,7 @@
 //! All cryptographic operations use `SecurityMode` to specify verification behavior:
 //!
 //! - **`SecurityMode::Verified(&session)`**: Validates session, enables policy enforcement
-//! - **`SecurityMode::Unverified`**: Skips session validation (triggers audit in enterprise)
+//! - **`SecurityMode::Unverified`**: Skips session validation
 //!
 //! The `_unverified` variants are opt-out functions for scenarios where Zero Trust
 //! verification is not required or not possible. They call the unified functions with

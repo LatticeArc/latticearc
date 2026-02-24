@@ -1,7 +1,7 @@
 //! LatticeArc Prelude Module
 //!
 //! Common types, traits, and utilities used throughout LatticeArc.
-//! This crate provides the foundation for error handling, security primitives,
+//! This module provides the foundation for error handling, security primitives,
 //! and domain constants.
 //!
 //! ## Philosophy Compliance

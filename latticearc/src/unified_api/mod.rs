@@ -8,7 +8,7 @@
 //!
 //! - **Post-Quantum Cryptography**: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205)
 //! - **Hybrid Schemes**: Combined PQC + classical for defense in depth
-//! - **Hardware Traits**: Type definitions for hardware-aware operations (detection in enterprise)
+//! - **Hardware Traits**: Type definitions for hardware-aware operations
 //! - **Zero-Trust Authentication**: Challenge-response with continuous verification
 //! - **FIPS 140-3 Compliance**: Power-up self-tests and validated implementations
 //! - **Unified API**: Single API with `SecurityMode` parameter for verified/unverified operations
@@ -84,7 +84,7 @@
 //! **What Verified mode provides:**
 //! - Session validation (checks expiration before each operation)
 //! - Audit trail with session context (session ID, trust level)
-//! - In enterprise: Policy enforcement, HSM integration, continuous verification
+//! - Extensible for policy enforcement and HSM integration
 //!
 //! ### SecurityMode::Unverified
 //!
@@ -107,11 +107,6 @@
 //! - Batch processing of non-sensitive data
 //! - Development and testing scenarios
 //! - One-off operations where session overhead is not justified
-//!
-//! **Important:** In enterprise deployments, `Unverified` mode:
-//! - Triggers mandatory audit logging (who, what, when, why)
-//! - May be blocked entirely by enterprise policy
-//! - Should be used sparingly and with documented justification
 //!
 //! ## Establishing a VerifiedSession
 //!
@@ -184,21 +179,6 @@
 //!     encrypt(data, EncryptKey::Hybrid(pk), CryptoConfig::new().session(session))
 //! }
 //! ```
-//!
-//! ## Enterprise Features
-//!
-//! In enterprise deployments (`arc-enterprise`), additional features are available:
-//!
-//! **Verified mode enables:**
-//! - Per-operation policy enforcement (ABAC/RBAC)
-//! - Continuous verification with trust level tracking
-//! - HSM/TPM integration for key operations
-//! - Cryptographic audit trails for compliance
-//!
-//! **Unverified mode triggers:**
-//! - Mandatory audit trail (cannot be disabled)
-//! - Policy evaluation (may block the operation)
-//! - Compliance alerts for sensitive operations
 
 /// Persistent audit storage with rotation and integrity verification.
 pub mod audit;
@@ -208,7 +188,7 @@ pub mod config;
 pub mod convenience;
 /// Error types and result aliases.
 pub mod error;
-/// Hardware type re-exports (trait definitions only — detection in enterprise).
+/// Hardware type re-exports (trait definitions only).
 pub mod hardware;
 /// Key lifecycle management per NIST SP 800-57.
 pub mod key_lifecycle;
@@ -422,7 +402,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 // FIPS 140-3 self-test status - must pass before any crypto operations
 static SELF_TESTS_PASSED: AtomicBool = AtomicBool::new(false);
 
-/// Initializes the arc-core library with default configuration.
+/// Initializes the LatticeArc library with default configuration.
 ///
 /// This function validates the default configuration and runs FIPS 140-3
 /// power-up self-tests to ensure cryptographic primitives are working correctly.
@@ -442,7 +422,7 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
-/// Initializes the arc-core library with a custom configuration.
+/// Initializes the LatticeArc library with a custom configuration.
 ///
 /// This function validates the provided configuration and runs FIPS 140-3
 /// power-up self-tests to ensure cryptographic primitives are working correctly.

@@ -5,7 +5,7 @@
 //! Tests (KATs) at power-up before any cryptographic operation can be performed.
 //!
 //! This is the **canonical** FIPS 140-3 self-test module for the LatticeArc
-//! cryptographic module. The `arc-validation` crate provides test/validation
+//! cryptographic module. The `latticearc-tests` workspace crate provides test/validation
 //! utilities for development; this module contains the production self-tests.
 //!
 //! ## Power-Up Self-Tests

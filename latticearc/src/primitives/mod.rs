@@ -9,7 +9,7 @@
 //! Core cryptographic primitives for LatticeArc including post-quantum and classical algorithms.
 //!
 //! All algorithms are always available. Algorithm selection is handled at runtime via
-//! `arc-core`'s auto/context-based selection based on security requirements and hardware
+//! the [`unified_api`](crate::unified_api) auto/context-based selection based on security requirements and hardware
 //! capabilities.
 //!
 //! ## Feature Flags
@@ -64,7 +64,7 @@
 //! | AES-GCM | `aws-lc-rs` | Yes |
 //! | SHA-2/3 | `sha2`/`sha3` | Audited |
 //!
-//! See `docs/FIPS_CERTIFICATION_PATH.md` for full compliance roadmap.
+//! See the `docs/` directory for full compliance details.
 
 // Core cryptographic modules
 pub mod aead;

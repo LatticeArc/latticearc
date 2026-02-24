@@ -4,7 +4,7 @@
 //! SAW (Software Analysis Workbench) cryptographic proof specifications.
 //!
 //! SAW is designed for verifying C/assembly implementations against specifications.
-//! Since arc-tls uses aws-lc-rs (which wraps BoringSSL C code), SAW proofs target
+//! Since the TLS module uses aws-lc-rs (which wraps BoringSSL C code), SAW proofs target
 //! the underlying C implementations, not the Rust wrappers.
 //!
 //! This module provides:
@@ -45,7 +45,7 @@ pub struct SawProofs {
 }
 
 impl SawProofs {
-    /// Creates a new SAW proof registry with the primitives used by arc-tls.
+    /// Creates a new SAW proof registry with the primitives used by the TLS module.
     #[must_use]
     pub fn new() -> Self {
         Self {

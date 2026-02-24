@@ -1,4 +1,4 @@
-//! Error types for arc-zkp
+//! Error types for the ZKP module.
 
 use thiserror::Error;
 

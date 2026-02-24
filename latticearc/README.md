@@ -219,7 +219,7 @@ All features are included by default:
 | `High` (default) | Hybrid | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 |
 | `Standard` | Hybrid | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 |
 
-> For complete security level documentation, see [docs/UNIFIED_API_GUIDE.md](../docs/UNIFIED_API_GUIDE.md).
+> For complete security level documentation, see the [API Reference](https://docs.rs/latticearc).
 
 ## Runnable Examples
 
@@ -248,9 +248,6 @@ cargo run --example digital_signatures
 ## Documentation
 
 - [API Reference](https://docs.rs/latticearc)
-- [Unified API Guide](../docs/UNIFIED_API_GUIDE.md)
-- [Security Guide](../docs/SECURITY_GUIDE.md)
-- [NIST Compliance](../docs/NIST_COMPLIANCE.md)
 
 ## License
 
@@ -258,4 +255,4 @@ Apache-2.0
 
 ## Contributing
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md)
+See CONTRIBUTING.md in the repository root.

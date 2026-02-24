@@ -1,4 +1,4 @@
-//! Error types for arc-primitives crate.
+//! Error types for the `primitives` module.
 
 /// Errors that can occur in cryptographic primitive operations.
 #[derive(Debug, thiserror::Error)]
@@ -52,5 +52,5 @@ pub enum Error {
     InvalidKeyFormat,
 }
 
-/// Result type alias for arc-primitives operations.
+/// Result type alias for [`primitives`](crate::primitives) operations.
 pub type Result<T> = std::result::Result<T, Error>;

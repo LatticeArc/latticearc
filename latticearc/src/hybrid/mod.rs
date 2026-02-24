@@ -1,6 +1,6 @@
 //! Hybrid Cryptography for LatticeArc
 //!
-//! This crate provides hybrid cryptographic schemes that combine post-quantum
+//! This module provides hybrid cryptographic schemes that combine post-quantum
 //! and classical algorithms for enhanced security during the quantum transition period.
 //!
 //! # Architecture Overview
@@ -34,7 +34,7 @@
 //! │                                    │                                   │
 //! │                                    ▼                                   │
 //! │  ┌─────────────────────────────────────────────────────────────────┐   │
-//! │  │                    arc-primitives (Core Algorithms)             │   │
+//! │  │                    primitives (Core Algorithms)                 │   │
 //! │  │                                                                 │   │
 //! │  │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │   │
 //! │  │   │   ML-KEM     │  │   ML-DSA     │  │     Classical        │ │   │

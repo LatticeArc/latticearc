@@ -2,7 +2,7 @@
 //!
 //! Contains the `TrustLevel` enum which has no FFI dependencies.
 //! The rest of the zero-trust module (sessions, challenges, proofs)
-//! remains in `arc-core` due to Ed25519 FFI dependencies.
+//! lives in [`unified_api`](crate::unified_api) due to Ed25519 FFI dependencies.
 
 /// Trust level for zero-trust sessions.
 ///

@@ -1,14 +1,13 @@
 //! Formal Verification for Prelude Utilities
 //!
 //! This module provides formal verification capabilities for critical utility functions.
-//! Kani formal verification proofs are available in the TLS crate.
-//! Use the arc-tls package with kani for formal verification.
+//! Kani formal verification proofs are available in the LatticeArc crate.
 //!
 //! # Usage
 //!
 //! To run formal verification:
 //! ```bash
-//! cargo kani --package arc-tls
+//! cargo kani --package latticearc
 //! ```
 //!
 //! # Requirements
@@ -36,7 +35,7 @@
 pub fn run_formal_verification() {
     tracing::info!("Formal verification requires Kani model checker");
     tracing::info!("Install with: cargo install kani-verifier");
-    tracing::info!("Run verification with: cargo kani --package arc-tls");
+    tracing::info!("Run verification with: cargo kani --package latticearc");
 }
 
 #[cfg(test)]

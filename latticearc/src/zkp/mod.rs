@@ -1,8 +1,8 @@
 #![doc = "Basic Zero-Knowledge Proof Primitives"]
 //!
-//! # arc-zkp
+//! # Zero-Knowledge Proofs
 //!
-//! Basic zero-knowledge proof primitives for LatticeArc. This crate provides
+//! Basic zero-knowledge proof primitives for LatticeArc. This module provides
 //! foundational ZKP building blocks that can be used for authentication,
 //! verification, and simple proof systems.
 //!
@@ -34,8 +34,8 @@
 //! - Simple commitments (commit to a value, reveal later)
 //! - Basic sigma protocols
 //!
-//! For advanced ZKP (zk-SNARKs, zk-STARKs, complex circuits), see
-//! `arc-enterprise-zkp` in the enterprise offering.
+//! For advanced ZKP (zk-SNARKs, zk-STARKs, complex circuits), external
+//! crates are recommended.
 
 #![deny(unsafe_code)]
 #![deny(clippy::unwrap_used)]

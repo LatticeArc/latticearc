@@ -2,23 +2,13 @@
 //!
 //! This module provides performance monitoring, benchmarking, and metrics collection
 //! for cryptographic operations. It is designed to have minimal overhead when disabled
-//! via the `perf` feature flag.
+//! and is included by default (no feature flag required).
 //!
 //! # Features
 //!
 //! - **Timing Utilities**: Measure execution times for cryptographic operations
 //! - **Histogram/Percentile**: Compute latency distribution statistics
 //! - **Metrics Collection**: Track operation counts, timings, and resource usage
-//! - **Optional Overhead**: Zero overhead when disabled (compile-time feature flag)
-//!
-//! # Usage
-//!
-//! Enable the `perf` feature in `Cargo.toml`:
-//!
-//! ```toml
-//! [dependencies]
-//! latticearc = { version = "1.0.0", features = ["perf"] }
-//! ```
 //!
 //! # Example
 //!

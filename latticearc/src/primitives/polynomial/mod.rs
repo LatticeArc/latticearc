@@ -21,7 +21,7 @@
 //!
 //! # SIMD Acceleration
 //! SIMD-accelerated polynomial operations are not currently available.
-//! The `portable_simd` feature requires nightly Rust, but this crate
+//! The `portable_simd` feature requires nightly Rust, but this library
 //! targets stable Rust only. Scalar implementations are used instead.
 //!
 

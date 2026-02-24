@@ -2,7 +2,7 @@
 //!
 //! TLS 1.3 implementation with post-quantum key exchange support.
 //!
-//! This crate provides TLS connectivity with hybrid key exchange (ECDHE + ML-KEM)
+//! This module provides TLS connectivity with hybrid key exchange (ECDHE + ML-KEM)
 //! for quantum-resistant secure communications.
 //!
 //! ## Features
@@ -33,7 +33,7 @@
 //!
 //! ## Error Handling
 //!
-//! The crate provides comprehensive error handling with:
+//! The module provides comprehensive error handling with:
 //! - Detailed error types with error codes
 //! - Error recovery mechanisms (retry, fallback, circuit breaker)
 //! - Structured logging with tracing

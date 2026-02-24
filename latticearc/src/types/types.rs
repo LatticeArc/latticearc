@@ -168,7 +168,7 @@ pub enum SecurityLevel {
     Standard,
     /// NIST Level 3 (192-bit equivalent). Hybrid mode. (default)
     /// Uses ML-KEM-768 + X25519, ML-DSA-65 + Ed25519.
-    /// Recommended for most enterprise applications.
+    /// Recommended for most applications.
     #[default]
     High,
     /// NIST Level 5 (256-bit equivalent). Hybrid mode.

@@ -358,9 +358,7 @@ pub enum ProofComplexity {
 /// Controls which hardware accelerators are used and under what conditions
 /// software fallback is permitted.
 ///
-/// **Note:** This is a configuration model only. Actual hardware routing
-/// (GPU, HSM, TPM detection and dispatch) is implemented in the enterprise
-/// layer (`arc-enterprise-perf`). In the open-source crate, `CoreConfig.hardware_acceleration`
+/// **Note:** This is a configuration model only. `CoreConfig.hardware_acceleration`
 /// controls software-friendly algorithm selection (ChaCha20-Poly1305 vs AES-GCM).
 #[derive(Debug, Clone)]
 pub struct HardwareConfig {

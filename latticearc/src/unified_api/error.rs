@@ -211,10 +211,10 @@ pub enum CoreError {
     ComplianceViolation(String),
 }
 
-/// Conversion from pure-Rust `TypeError` (arc-types) into FFI-aware `CoreError`.
+/// Conversion from pure-Rust `TypeError` into FFI-aware `CoreError`.
 ///
-/// This allows the `?` operator to work seamlessly when arc-types functions
-/// (which return `TypeError`) are called from arc-core functions (which return `CoreError`).
+/// This allows the `?` operator to work seamlessly when [`types`](crate::types) functions
+/// (which return `TypeError`) are called from [`unified_api`](crate::unified_api) functions (which return `CoreError`).
 impl From<TypeError> for CoreError {
     fn from(err: TypeError) -> Self {
         match err {

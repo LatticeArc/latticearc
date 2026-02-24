@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.1] - 2026-02-24
+
+### Fixed
+
+- **Documentation**: Removed all enterprise/proprietary references from published crate docs
+- **Documentation**: Replaced old crate names (`arc-types`, `arc-core`, `arc-primitives`, `arc-hybrid`, `arc-tls`, `arc-zkp`, `arc-validation`) with correct module paths across 20 files
+- **Documentation**: Fixed "this crate" → "this module" in 7 module-level docs
+- **Documentation**: Removed stale "Backend Selection (Future)" section from ML-DSA docs (aws-lc-rs 1.16.0 already ships ML-DSA)
+- **Documentation**: Removed non-existent `perf` feature flag from `perf` module docs
+- **Documentation**: Fixed hardcoded `version = "0.2"` in FIPS error message
+- **Documentation**: Removed broken relative `../docs/` links from README (broken on docs.rs)
+- **Documentation**: Removed reference to non-existent `docs/FIPS_CERTIFICATION_PATH.md`
+- **CI**: Use `macos-15-intel` for x86_64-apple-darwin release builds (matches aws-lc-rs upstream)
+- **CI**: Make publish step idempotent for workflow re-runs
+
+---
+
 ## [0.3.0] - 2026-02-22
 
 ### Security Audit Fixes (44 findings)

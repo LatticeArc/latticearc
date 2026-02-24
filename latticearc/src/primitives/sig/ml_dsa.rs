@@ -38,16 +38,11 @@
 //! | ML-DSA-65     | ~2.0 KB    | ~3.3 KB   | 3          |
 //! | ML-DSA-87     | ~2.6 KB    | ~4.6 KB   | 5          |
 //!
-//! ## Backend Selection (Future)
+//! ## Backend
 //!
-//! When aws-lc-rs ML-DSA support is available, the backend will be selectable via
-//! feature flags:
-//!
-//! ```toml
-//! # Future configuration (not yet available)
-//! [dependencies]
-//! arc-primitives = { version = "0.1", features = ["ml-dsa-aws-lc"] }
-//! ```
+//! Currently uses the `fips204` crate. aws-lc-rs v1.16.0+ includes ML-DSA support;
+//! future versions of LatticeArc may migrate to `aws-lc-rs` for FIPS-validated ML-DSA.
+//! No action is required from users — the migration will be transparent.
 
 use fips204::{
     ml_dsa_44, ml_dsa_65, ml_dsa_87,

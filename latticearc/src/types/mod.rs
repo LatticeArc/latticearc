@@ -3,7 +3,7 @@
 //! Pure-Rust domain types, traits, configuration, and policy engine for the
 //! LatticeArc post-quantum cryptography platform.
 //!
-//! This crate contains all types that have **zero FFI dependencies**, enabling:
+//! This module contains all types that have **zero FFI dependencies**, enabling:
 //! - Formal verification with Kani (which cannot compile C FFI)
 //! - Lightweight dependency for crates that only need types (no aws-lc-sys)
 //! - Clean separation of type definitions from cryptographic implementations
@@ -18,7 +18,7 @@
 //! - **zero_trust**: `TrustLevel` enum
 //! - **error**: `TypeError` for pure-Rust error conditions
 //!
-//! ## What's NOT Here (stays in `arc-core`)
+//! ## What's NOT Here (lives in `unified_api`)
 //!
 //! - `CryptoConfig<'a>` (references `VerifiedSession` which uses Ed25519 FFI)
 //! - `CoreError` (has `#[from]` variants for FFI error types)

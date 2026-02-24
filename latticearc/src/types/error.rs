@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::types::key_lifecycle::KeyLifecycleState;
 
-/// Errors for pure-Rust type operations in `arc-types`.
+/// Errors for pure-Rust type operations in the [`types`](crate::types) module.
 ///
 /// These errors cover non-FFI conditions like configuration validation
 /// and key lifecycle state transition violations.
@@ -32,5 +32,5 @@ pub enum TypeError {
     UnknownScheme(String),
 }
 
-/// A specialized Result type for `arc-types` operations.
+/// A specialized Result type for [`types`](crate::types) operations.
 pub type Result<T> = std::result::Result<T, TypeError>;

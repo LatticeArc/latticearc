@@ -154,11 +154,6 @@ use subtle::ConstantTimeEq;
 /// # }
 /// ```
 ///
-/// # Enterprise Behavior
-///
-/// In enterprise deployments:
-/// - `Verified`: Enables policy enforcement, continuous verification, and advanced features
-/// - `Unverified`: Emits `tracing::warn` log; enterprise policy may block unverified operations
 #[derive(Debug, Clone, Copy)]
 pub enum SecurityMode<'a> {
     /// Use a verified session for Zero Trust security.
@@ -166,7 +161,6 @@ pub enum SecurityMode<'a> {
     /// This mode:
     /// - Validates the session is not expired
     /// - Provides audit trail with session context
-    /// - Enables enterprise policy enforcement
     /// - Recommended for all production use
     Verified(&'a VerifiedSession),
 
@@ -174,8 +168,6 @@ pub enum SecurityMode<'a> {
     ///
     /// This mode:
     /// - Skips session validation
-    /// - In enterprise: triggers mandatory audit logging
-    /// - In enterprise: may be blocked by policy
     /// - Use only when Zero Trust is not applicable
     Unverified,
 }

@@ -321,7 +321,7 @@ impl<'a> CryptoConfig<'a> {
         if self.compliance.requires_fips() && !fips_available() {
             return Err(CoreError::FeatureNotAvailable(format!(
                 "{:?} compliance requires the `fips` feature. \
-                 Rebuild with: latticearc = {{ version = \"0.2\", features = [\"fips\"] }}",
+                 Rebuild with: latticearc = {{ features = [\"fips\"] }}",
                 self.compliance
             )));
         }

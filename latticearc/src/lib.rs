@@ -87,7 +87,6 @@
 //! **Benefits of session verification:**
 //! - Session expiration is checked before each operation
 //! - Provides audit context (session ID, trust level, timestamp)
-//! - Enables enterprise policy enforcement
 //! - Supports continuous verification workflows
 //!
 //! ## Digital Signatures
@@ -208,13 +207,6 @@
 //! | `kani` | Compilation marker: enables Kani bounded model checking proof harnesses. Requires `cargo kani` to execute proofs. |
 //! | `saw` | Compilation marker: enables SAW formal verification markers (inherited from aws-lc-rs). Does not run SAW proofs at build time. |
 //!
-//! ## Enterprise Behavior
-//!
-//! In enterprise deployments (`arc-enterprise`), session verification enables:
-//! - Per-operation ABAC/RBAC policy enforcement
-//! - Continuous verification with trust level tracking
-//! - HSM/TPM integration for sensitive key operations
-//! - Cryptographic audit trails for compliance (SOC2, HIPAA, etc.)
 
 // ============================================================================
 // Module Declarations
