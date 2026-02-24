@@ -2,6 +2,9 @@
 
 [![crates.io](https://img.shields.io/crates/v/latticearc.svg)](https://crates.io/crates/latticearc)
 [![docs.rs](https://docs.rs/latticearc/badge.svg)](https://docs.rs/latticearc)
+[![CI](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml)
+[![FIPS 203-206](https://img.shields.io/badge/FIPS_203--206-implemented-blue)](https://docs.rs/latticearc)
+[![codecov](https://codecov.io/gh/LatticeArc/latticearc/branch/main/graph/badge.svg)](https://codecov.io/gh/LatticeArc/latticearc)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 Post-quantum cryptography library for Rust with unified API.

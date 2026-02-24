@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.2] - 2026-02-24
+
+### Changed
+
+- **Documentation**: Improve docs.rs landing page — hide 130+ expert re-exports, 36 logging macros via `#[doc(hidden)]`
+- **Documentation**: Add "Why LatticeArc?" comparison table and "Algorithm Validation Status" table to crate root docs
+- **Documentation**: Restructure examples — keep 2 primary examples at top, move 7 others to "More Examples" section
+
+---
+
 ## [0.3.1] - 2026-02-24
 
 ### Fixed

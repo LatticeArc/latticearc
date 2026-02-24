@@ -8,18 +8,18 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
 license = "Apache-2.0"
-description = "A comprehensive post-quantum cryptography library providing advanced encryption, digital signatures, and security features for modern applications."
+description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), post-quantum TLS, and FIPS 140-3 backend — one crate, zero unsafe."
 readme = "README.md"
 homepage = "https://latticearc.com"
 documentation = "https://docs.rs/latticearc/latest/latticearc/"
 repository = "https://github.com/latticearc/latticearc"
-keywords = ["cryptography", "post-quantum", "encryption", "ml-kem", "ml-dsa"]
-categories = ["cryptography"]
+keywords = ["post-quantum", "cryptography", "ml-kem", "ml-dsa", "fips"]
+categories = ["cryptography", "authentication"]
 
 [workspace.lints.rust]
 # =============================================================================

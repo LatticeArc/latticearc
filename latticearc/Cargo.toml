@@ -5,10 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "LatticeArc - Post-Quantum Cryptography Library"
+description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), post-quantum TLS, and FIPS 140-3 backend — one crate, zero unsafe."
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 readme = "README.md"
 build = "build.rs"
 

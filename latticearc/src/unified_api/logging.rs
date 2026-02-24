@@ -924,6 +924,7 @@ fn blake2_hash(data: &[u8]) -> String {
 /// These macros automatically sanitize sensitive data and provide
 /// consistent logging across the LatticeArc codebase.
 /// Log cryptographic operation start
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_start {
     ($operation:expr) => {
@@ -935,6 +936,7 @@ macro_rules! log_crypto_start {
 }
 
 /// Log cryptographic operation completion
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_complete {
     ($operation:expr) => {
@@ -946,6 +948,7 @@ macro_rules! log_crypto_complete {
 }
 
 /// Log cryptographic operation error
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_error {
     ($operation:expr, $error:expr) => {
@@ -954,6 +957,7 @@ macro_rules! log_crypto_error {
 }
 
 /// Log key generation
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_generation {
     ($algorithm:expr, $key_type:expr) => {
@@ -962,6 +966,7 @@ macro_rules! log_key_generation {
 }
 
 /// Log encryption operation
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_encryption {
     ($algorithm:expr, $data_len:expr) => {
@@ -970,6 +975,7 @@ macro_rules! log_encryption {
 }
 
 /// Log decryption operation
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_decryption {
     ($algorithm:expr, $data_len:expr) => {
@@ -978,6 +984,7 @@ macro_rules! log_decryption {
 }
 
 /// Log signature operation
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_signature {
     ($algorithm:expr) => {
@@ -986,6 +993,7 @@ macro_rules! log_signature {
 }
 
 /// Log verification operation
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_verification {
     ($algorithm:expr, $result:expr) => {
@@ -998,6 +1006,7 @@ macro_rules! log_verification {
 }
 
 /// Log security event (always logged, never filtered)
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_security_event {
     ($event:expr) => {
@@ -1009,6 +1018,7 @@ macro_rules! log_security_event {
 }
 
 /// Log performance metrics
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_performance {
     ($operation:expr, $duration:expr) => {
@@ -1040,6 +1050,7 @@ macro_rules! log_performance {
 ///
 /// log_key_generated!("key-001", "ML-KEM-768", KeyType::KeyPair, KeyPurpose::KeyExchange);
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_generated {
     ($key_id:expr, $algorithm:expr, $key_type:expr, $purpose:expr) => {
@@ -1074,6 +1085,7 @@ macro_rules! log_key_generated {
 ///
 /// log_key_rotated!("key-001", "key-002", "ML-KEM-768", RotationReason::Scheduled);
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_rotated {
     ($old_key_id:expr, $new_key_id:expr, $algorithm:expr, $reason:expr) => {
@@ -1106,6 +1118,7 @@ macro_rules! log_key_rotated {
 ///
 /// log_key_destroyed!("key-001", DestructionMethod::Zeroization);
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_destroyed {
     ($key_id:expr, $method:expr) => {
@@ -1135,6 +1148,7 @@ macro_rules! log_key_destroyed {
 ///
 /// log_key_accessed!("key-001", "encrypt");
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_accessed {
     ($key_id:expr, $operation:expr) => {
@@ -1173,6 +1187,7 @@ macro_rules! log_key_accessed {
 ///
 /// log_key_deprecated!("key-001", "Scheduled retirement per policy");
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_deprecated {
     ($key_id:expr, $reason:expr) => {
@@ -1202,6 +1217,7 @@ macro_rules! log_key_deprecated {
 ///
 /// log_key_suspended!("key-001", "Suspected compromise");
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_suspended {
     ($key_id:expr, $reason:expr) => {
@@ -1232,6 +1248,7 @@ macro_rules! log_key_suspended {
 ///
 /// log_key_exported!("key-001", "PEM", "backup-hsm-01");
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_exported {
     ($key_id:expr, $format:expr, $destination:expr) => {
@@ -1263,6 +1280,7 @@ macro_rules! log_key_exported {
 ///
 /// log_key_imported!("key-001", "ML-KEM-768", "external-hsm-02");
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_key_imported {
     ($key_id:expr, $algorithm:expr, $source:expr) => {
@@ -1297,6 +1315,7 @@ macro_rules! log_key_imported {
 /// // Log includes correlation_id automatically
 /// log_crypto_operation!("encrypt", algorithm = "AES-256-GCM", data_size = 1024);
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_operation {
     ($op:expr, $($field:tt)*) => {
@@ -1334,6 +1353,7 @@ macro_rules! log_crypto_operation {
 /// Log a cryptographic operation start with correlation ID.
 ///
 /// Similar to [`log_crypto_operation`] but at TRACE level for detailed tracing.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_operation_start {
     ($op:expr, $($field:tt)*) => {
@@ -1375,6 +1395,7 @@ macro_rules! log_crypto_operation_start {
 /// Log a cryptographic operation completion with correlation ID.
 ///
 /// Similar to [`log_crypto_operation`] but at TRACE level for detailed tracing.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_operation_complete {
     ($op:expr, $($field:tt)*) => {
@@ -1416,6 +1437,7 @@ macro_rules! log_crypto_operation_complete {
 /// Log a cryptographic operation error with correlation ID.
 ///
 /// Logs at ERROR level and includes the correlation ID for tracing.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_operation_error {
     ($op:expr, $error:expr, $($field:tt)*) => {
@@ -1466,6 +1488,7 @@ macro_rules! log_crypto_operation_error {
 ///
 /// Logs the initiation of a Zero Trust authentication attempt with session ID.
 /// Session ID is logged as hex string for audit traceability.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_auth_attempt {
     ($session_id_hex:expr) => {
@@ -1480,6 +1503,7 @@ macro_rules! log_zero_trust_auth_attempt {
 /// Log Zero Trust authentication success.
 ///
 /// Logs successful authentication with session ID and achieved trust level.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_auth_success {
     ($session_id_hex:expr, $trust_level:expr) => {
@@ -1496,6 +1520,7 @@ macro_rules! log_zero_trust_auth_success {
 ///
 /// Logs failed authentication attempts with session ID and reason.
 /// Reason should never contain sensitive data.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_auth_failure {
     ($session_id_hex:expr, $reason:expr) => {
@@ -1511,6 +1536,7 @@ macro_rules! log_zero_trust_auth_failure {
 /// Log Zero Trust session creation.
 ///
 /// Logs the creation of a new verified session with trust level and expiration.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_session_created {
     ($session_id_hex:expr, $trust_level:expr, $expires_at:expr) => {
@@ -1527,6 +1553,7 @@ macro_rules! log_zero_trust_session_created {
 /// Log Zero Trust session verification success.
 ///
 /// Logs successful session verification for ongoing trust validation.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_session_verified {
     ($session_id_hex:expr) => {
@@ -1541,6 +1568,7 @@ macro_rules! log_zero_trust_session_verified {
 /// Log Zero Trust session verification failure.
 ///
 /// Logs failed session verification with session ID and reason.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_session_verification_failed {
     ($session_id_hex:expr, $reason:expr) => {
@@ -1556,6 +1584,7 @@ macro_rules! log_zero_trust_session_verification_failed {
 /// Log Zero Trust session expiration.
 ///
 /// Logs when a session has expired during a validation check.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_session_expired {
     ($session_id_hex:expr) => {
@@ -1570,6 +1599,7 @@ macro_rules! log_zero_trust_session_expired {
 /// Log Zero Trust trust level transition.
 ///
 /// Logs trust level changes (upgrades or downgrades) for audit trail.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_trust_level_changed {
     ($session_id_hex:expr, $from_level:expr, $to_level:expr) => {
@@ -1587,6 +1617,7 @@ macro_rules! log_zero_trust_trust_level_changed {
 ///
 /// Logs when an operation is performed in Unverified mode.
 /// This is a security-relevant event that should trigger audit review.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_unverified_mode {
     ($operation:expr) => {
@@ -1601,6 +1632,7 @@ macro_rules! log_zero_trust_unverified_mode {
 /// Log Zero Trust challenge generation.
 ///
 /// Logs challenge generation for authentication flows.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_challenge_generated {
     ($complexity:expr) => {
@@ -1615,6 +1647,7 @@ macro_rules! log_zero_trust_challenge_generated {
 /// Log Zero Trust proof verification result.
 ///
 /// Logs the outcome of proof verification attempts.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_proof_verified {
     ($result:expr) => {
@@ -1635,6 +1668,7 @@ macro_rules! log_zero_trust_proof_verified {
 /// Log Zero Trust access control decision.
 ///
 /// Logs access control decisions for audit trail compliance.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_access_decision {
     ($session_id_hex:expr, $allowed:expr, $reason:expr) => {
@@ -1661,6 +1695,7 @@ macro_rules! log_zero_trust_access_decision {
 /// Log Zero Trust session revocation.
 ///
 /// Logs when a session is explicitly revoked.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_session_revoked {
     ($session_id_hex:expr) => {
@@ -1675,6 +1710,7 @@ macro_rules! log_zero_trust_session_revoked {
 /// Log Zero Trust continuous verification status.
 ///
 /// Logs periodic verification status updates.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! log_zero_trust_continuous_verification {
     ($session_id_hex:expr, $status:expr) => {

@@ -1,10 +1,15 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.3.1
+**Module Version**: 0.3.2
 **Module Type**: Software (FIPS 140-3 Level 1)
 **Date**: 2026-02-24
 **Status**: Pre-submission draft — not yet CMVP validated
+
+> **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
+> backend algorithms (ML-KEM, AES-GCM, HKDF, SHA-2) run through a FIPS 140-3
+> validated module. ML-DSA (fips204), SLH-DSA (fips205), and FN-DSA (fn-dsa)
+> implement NIST-standard algorithms but use non-validated crate implementations.
 
 ---
 
@@ -13,7 +18,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.3.1 |
+| Module Version | 0.3.2 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
@@ -271,6 +276,7 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.3.2 | 2026-02-24 | Improve docs.rs landing page: declutter re-exports, add comparison tables |
 | 0.3.1 | 2026-02-24 | Documentation cleanup, CI fixes (macos-15-intel, idempotent publish) |
 | 0.3.0 | 2026-02-22 | Security audit fixes (44 findings), CI hardening |
 | 0.2.0 | 2026-02-20 | Updated for workspace consolidation, 29 Kani proofs |

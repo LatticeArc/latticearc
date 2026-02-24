@@ -5,8 +5,36 @@
 
 //! LatticeArc - Post-Quantum Cryptography Library
 //!
-//! Comprehensive post-quantum cryptography library providing advanced encryption,
-//! digital signatures, and security features for modern applications.
+//! Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default,
+//! all 4 NIST standards (FIPS 203–206), post-quantum TLS, and FIPS 140-3 backend
+//! — one crate, zero unsafe.
+//!
+//! > **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
+//! > backend algorithms (ML-KEM, AES-GCM, HKDF, SHA-2) run through a FIPS 140-3
+//! > validated module. ML-DSA (fips204), SLH-DSA (fips205), and FN-DSA (fn-dsa)
+//! > implement NIST-standard algorithms but use non-validated crate implementations.
+//! > Use `--features fips` to enable the validated aws-lc-rs backend.
+//!
+//! ## Why LatticeArc?
+//!
+//! | Without LatticeArc | With LatticeArc |
+//! |--------------------|-----------------|
+//! | ~50 lines for hybrid encrypt | 3 lines |
+//! | Manage 4 key vectors manually | Single [`EncryptKey::Hybrid`] |
+//! | Research NIST parameter sets | [`UseCase`] auto-selects |
+//! | Manual secret zeroization | Automatic via `Zeroize` |
+//!
+//! ## Algorithm Validation Status
+//!
+//! | Algorithm | Standard | Backend | FIPS Validated |
+//! |-----------|----------|---------|----------------|
+//! | ML-KEM | FIPS 203 | aws-lc-rs | Yes |
+//! | AES-256-GCM | SP 800-38D | aws-lc-rs | Yes |
+//! | HKDF-SHA256 | SP 800-56C | aws-lc-rs | Yes |
+//! | SHA-256 | FIPS 180-4 | aws-lc-rs | Yes |
+//! | ML-DSA | FIPS 204 | fips204 | No |
+//! | SLH-DSA | FIPS 205 | fips205 | No |
+//! | FN-DSA | FIPS 206 (draft) | fn-dsa | No |
 //!
 //! ## Unified API with CryptoConfig
 //!
@@ -27,6 +55,39 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ## Digital Signatures
+//!
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
+//!
+//! let message = b"Document to sign";
+//!
+//! // Generate a persistent signing keypair (ML-DSA-65 + Ed25519 hybrid)
+//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
+//!
+//! // Sign with the persistent keypair
+//! let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())?;
+//!
+//! // Verify (uses public key embedded in SignedData)
+//! let is_valid = verify(&signed, CryptoConfig::new())?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Feature Flags
+//!
+//! | Feature | Description |
+//! |---------|-------------|
+//! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). |
+//! | `fips-self-test` | Power-up KAT self-tests for all FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). |
+//! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
+//! | `formal-verification` | Compilation marker: enables formal verification harness code (Kani proofs). Does not run proofs — use `cargo kani` separately. |
+//! | `kani` | Compilation marker: enables Kani bounded model checking proof harnesses. Requires `cargo kani` to execute proofs. |
+//! | `saw` | Compilation marker: enables SAW formal verification markers (inherited from aws-lc-rs). Does not run SAW proofs at build time. |
+//!
+//! ## More Examples
 //!
 //! ### Symmetric Encryption
 //!
@@ -56,7 +117,7 @@
 //! # }
 //! ```
 //!
-//! ## Zero Trust Session Verification
+//! ### Zero Trust Session Verification
 //!
 //! For production deployments, use [`VerifiedSession`] to enable Zero Trust
 //! verification before each operation:
@@ -84,32 +145,7 @@
 //! # }
 //! ```
 //!
-//! **Benefits of session verification:**
-//! - Session expiration is checked before each operation
-//! - Provides audit context (session ID, trust level, timestamp)
-//! - Supports continuous verification workflows
-//!
-//! ## Digital Signatures
-//!
-//! ```rust,no_run
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
-//!
-//! let message = b"Document to sign";
-//!
-//! // Generate a persistent signing keypair (ML-DSA-65 + Ed25519 hybrid)
-//! let (pk, sk, scheme) = generate_signing_keypair(CryptoConfig::new())?;
-//!
-//! // Sign with the persistent keypair
-//! let signed = sign_with_key(message, &sk, &pk, CryptoConfig::new())?;
-//!
-//! // Verify (uses public key embedded in SignedData)
-//! let is_valid = verify(&signed, CryptoConfig::new())?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ## Hybrid Encryption (ML-KEM-768 + X25519)
+//! ### Hybrid Encryption (ML-KEM-768 + X25519)
 //!
 //! Use the unified API with `EncryptKey::Hybrid` / `DecryptKey::Hybrid`:
 //!
@@ -124,7 +160,7 @@
 //! # }
 //! ```
 //!
-//! ## Hybrid Signatures (ML-DSA-65 + Ed25519)
+//! ### Hybrid Signatures (ML-DSA-65 + Ed25519)
 //!
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -142,7 +178,7 @@
 //! # }
 //! ```
 //!
-//! ## Session Lifecycle
+//! ### Session Lifecycle
 //!
 //! Sessions have a 30-minute default lifetime:
 //!
@@ -169,7 +205,7 @@
 //! # }
 //! ```
 //!
-//! ## Complete Example
+//! ### Complete Example
 //!
 //! ```rust,no_run
 //! use latticearc::{
@@ -195,17 +231,6 @@
 //!     Ok(())
 //! }
 //! ```
-//!
-//! ## Feature Flags
-//!
-//! | Feature | Description |
-//! |---------|-------------|
-//! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). |
-//! | `fips-self-test` | Power-up KAT self-tests for all FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). |
-//! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
-//! | `formal-verification` | Compilation marker: enables formal verification harness code (Kani proofs). Does not run proofs — use `cargo kani` separately. |
-//! | `kani` | Compilation marker: enables Kani bounded model checking proof harnesses. Requires `cargo kani` to execute proofs. |
-//! | `saw` | Compilation marker: enables SAW formal verification markers (inherited from aws-lc-rs). Does not run SAW proofs at build time. |
 //!
 
 // ============================================================================
@@ -341,6 +366,7 @@ pub use unified_api::{
 };
 
 // Key generation (no SecurityMode needed - creates credentials)
+#[doc(hidden)]
 pub use unified_api::{
     generate_fn_dsa_keypair, generate_fn_dsa_keypair_with_config,
     generate_fn_dsa_keypair_with_level, generate_keypair, generate_keypair_with_config,
@@ -350,29 +376,34 @@ pub use unified_api::{
 };
 
 // Hashing (hash_data is stateless, others use SecurityMode)
+#[doc(hidden)]
 pub use unified_api::{
     derive_key, derive_key_with_config, derive_key_with_info, hash_data, hmac, hmac_check,
     hmac_check_with_config, hmac_with_config,
 };
 
 // AES-GCM
+#[doc(hidden)]
 pub use unified_api::{
     decrypt_aes_gcm, decrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_config, encrypt_aes_gcm,
     encrypt_aes_gcm_with_aad, encrypt_aes_gcm_with_config,
 };
 
 // Ed25519
+#[doc(hidden)]
 pub use unified_api::{
     sign_ed25519, sign_ed25519_with_config, verify_ed25519, verify_ed25519_with_config,
 };
 
 // Post-Quantum KEM (ML-KEM)
+#[doc(hidden)]
 pub use unified_api::{
     decrypt_pq_ml_kem, decrypt_pq_ml_kem_with_config, encrypt_pq_ml_kem,
     encrypt_pq_ml_kem_with_config,
 };
 
 // Post-Quantum Signatures (ML-DSA, SLH-DSA, FN-DSA)
+#[doc(hidden)]
 pub use unified_api::{
     sign_pq_fn_dsa, sign_pq_fn_dsa_with_config, sign_pq_ml_dsa, sign_pq_ml_dsa_with_config,
     sign_pq_slh_dsa, sign_pq_slh_dsa_with_config, verify_pq_fn_dsa, verify_pq_fn_dsa_with_config,
@@ -384,6 +415,7 @@ pub use unified_api::{
 // Low-Level Unverified Variants (for primitives)
 // ============================================================================
 
+#[doc(hidden)]
 pub use unified_api::{
     // AES-GCM
     decrypt_aes_gcm_unverified,
@@ -433,6 +465,7 @@ pub use unified_api::{
 // Serialization Utilities
 // ============================================================================
 
+#[doc(hidden)]
 pub use unified_api::serialization::{
     deserialize_encrypted_data, deserialize_encrypted_output, deserialize_keypair,
     deserialize_signed_data, serialize_encrypted_data, serialize_encrypted_output,

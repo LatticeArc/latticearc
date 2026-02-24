@@ -31,7 +31,7 @@ LatticeArc defaults to hybrid everywhere — encryption, signatures, and TLS key
 - **Hybrid by default** — PQ + classical, per [NIST SP 800-227](https://csrc.nist.gov/pubs/sp/800/227/final). If *either* algorithm holds, your data is safe
 - **22 use cases** with automatic algorithm selection — from IoT to government classified
 - **Zero-trust sessions** — per-operation authentication before any crypto operation
-- **Formal verification** — 29 Kani proofs, 40+ Proptest property tests, SAW-verified primitives (via aws-lc-rs)
+- **Formal verification** — 29 Kani proofs, 69 Proptest property tests, SAW-verified primitives (via aws-lc-rs)
 - **FIPS 140-3 ready** — `--features fips` enables the validated aws-lc-rs backend
 - **Single crate, minimal API** — `cargo add latticearc` and go
 
