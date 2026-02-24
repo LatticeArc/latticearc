@@ -18,7 +18,7 @@ readme = "README.md"
 homepage = "https://latticearc.com"
 documentation = "https://docs.rs/latticearc/latest/latticearc/"
 repository = "https://github.com/latticearc/latticearc"
-keywords = ["cryptography", "post-quantum", "encryption", "kyber", "dilithium"]
+keywords = ["cryptography", "post-quantum", "encryption", "ml-kem", "ml-dsa"]
 categories = ["cryptography"]
 
 [workspace.lints.rust]
