@@ -1,5 +1,9 @@
 # latticearc
 
+[![crates.io](https://img.shields.io/crates/v/latticearc.svg)](https://crates.io/crates/latticearc)
+[![docs.rs](https://docs.rs/latticearc/badge.svg)](https://docs.rs/latticearc)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 Post-quantum cryptography library for Rust with unified API.
 
 ## Why LatticeArc?
