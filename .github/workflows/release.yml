@@ -174,8 +174,12 @@ jobs:
       - name: Package artifacts
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/liblatticearc* artifacts/ 2>/dev/null || true
-          cp target/${{ matrix.target }}/release/checksums.txt artifacts/ 2>/dev/null || true
+          TARGET="${{ matrix.target }}"
+          cd target/${{ matrix.target }}/release
+          for f in liblatticearc*; do
+            [ -f "$f" ] && cp "$f" ../../../artifacts/"${f%.*}-${TARGET}.${f##*.}" 2>/dev/null || true
+          done
+          [ -f checksums.txt ] && cp checksums.txt ../../../artifacts/checksums-${TARGET}.txt 2>/dev/null || true
         shell: bash
         continue-on-error: true
 
