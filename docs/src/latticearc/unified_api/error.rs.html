@@ -211,10 +211,10 @@
 <a href=#211 id=211 data-nosnippet>211</a>    </span>ComplianceViolation(String),
 <a href=#212 id=212 data-nosnippet>212</a>}
 <a href=#213 id=213 data-nosnippet>213</a>
-<a href=#214 id=214 data-nosnippet>214</a><span class="doccomment">/// Conversion from pure-Rust `TypeError` (arc-types) into FFI-aware `CoreError`.
+<a href=#214 id=214 data-nosnippet>214</a><span class="doccomment">/// Conversion from pure-Rust `TypeError` into FFI-aware `CoreError`.
 <a href=#215 id=215 data-nosnippet>215</a>///
-<a href=#216 id=216 data-nosnippet>216</a>/// This allows the `?` operator to work seamlessly when arc-types functions
-<a href=#217 id=217 data-nosnippet>217</a>/// (which return `TypeError`) are called from arc-core functions (which return `CoreError`).
+<a href=#216 id=216 data-nosnippet>216</a>/// This allows the `?` operator to work seamlessly when [`types`](crate::types) functions
+<a href=#217 id=217 data-nosnippet>217</a>/// (which return `TypeError`) are called from [`unified_api`](crate::unified_api) functions (which return `CoreError`).
 <a href=#218 id=218 data-nosnippet>218</a></span><span class="kw">impl </span>From&lt;TypeError&gt; <span class="kw">for </span>CoreError {
 <a href=#219 id=219 data-nosnippet>219</a>    <span class="kw">fn </span>from(err: TypeError) -&gt; <span class="self">Self </span>{
 <a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">match </span>err {
