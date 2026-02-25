@@ -108,8 +108,9 @@ jobs:
         continue-on-error: true
       - name: Generate SBOM (CycloneDX)
         run: |
-          cargo cyclonedx --all --format json > sbom.cdx.json || echo '{}' > sbom.cdx.json
-          cargo cyclonedx --all --format xml > sbom.cdx.xml || echo '<bom/>' > sbom.cdx.xml
+          # cargo-cyclonedx writes to bom.json/bom.xml in the project dir, not stdout
+          cargo cyclonedx --all --format json && mv -f bom.json sbom.cdx.json || echo '{}' > sbom.cdx.json
+          cargo cyclonedx --all --format xml && mv -f bom.xml sbom.cdx.xml || echo '<bom/>' > sbom.cdx.xml
         continue-on-error: true
       - name: Generate hash
         id: hash
@@ -272,6 +273,9 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: release-artifacts/
+
+      - name: Remove empty files (GitHub rejects 0-byte uploads)
+        run: find release-artifacts/ -type f -empty -delete
 
       - name: Attach to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2

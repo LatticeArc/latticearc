@@ -77,6 +77,7 @@ pub(super) fn fips_verify_operational() -> Result<()> {
 }
 
 #[cfg(not(feature = "fips-self-test"))]
+#[allow(clippy::unnecessary_wraps)]
 pub(super) fn fips_verify_operational() -> Result<()> {
     Ok(())
 }
