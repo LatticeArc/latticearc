@@ -792,8 +792,8 @@ fn test_exponential_backoff_timing_simulation() {
     attempt_times.push(start.elapsed());
     let _: Result<(), _> = cb.call(|| Err(LatticeArcError::NetworkError("fail".to_string())));
 
-    // Third attempt with longer backoff
-    thread::sleep(Duration::from_millis(20));
+    // Third attempt with longer backoff (50ms vs 10ms — wide margin for CI jitter)
+    thread::sleep(Duration::from_millis(50));
     attempt_times.push(start.elapsed());
     let _: Result<(), _> = cb.call(|| Err(LatticeArcError::NetworkError("fail".to_string())));
 
