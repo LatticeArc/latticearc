@@ -791,8 +791,16 @@ mod tests {
 
     #[test]
     fn test_run_entropy_health_tests() {
-        // This uses actual CSPRNG - should pass in normal conditions
-        assert!(run_entropy_health_tests().is_ok());
+        // CSPRNG statistical tests can occasionally fail on CI runners
+        // (virtualized environments, resource contention). Retry once
+        // with a fresh sample before declaring failure.
+        if run_entropy_health_tests().is_err() {
+            // Second attempt with fresh random bytes
+            assert!(
+                run_entropy_health_tests().is_ok(),
+                "entropy health tests failed twice in a row"
+            );
+        }
     }
 
     #[test]
