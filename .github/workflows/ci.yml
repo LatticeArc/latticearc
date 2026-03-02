@@ -193,7 +193,7 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v5
+      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
       with:
         go-version: '1.22'
 
@@ -273,7 +273,7 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@7f491e26f71f4ec2e6902c7c95c73043f209ab79 # main
+      uses: taiki-e/install-action@d6e286fa45544157a02d45a43742857ebbc25d12 # main
       with:
         tool: cargo-llvm-cov
 
@@ -475,7 +475,7 @@ jobs:
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: fuzz-crash-nightly-${{ matrix.fuzz-target }}
         path: fuzz/artifacts/${{ matrix.fuzz-target }}/
@@ -530,7 +530,7 @@ jobs:
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: fuzz-crash-weekly-${{ matrix.fuzz-target }}
         path: fuzz/artifacts/${{ matrix.fuzz-target }}/
@@ -685,7 +685,7 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v5
+      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
       with:
         go-version: 'stable'
 
@@ -773,7 +773,7 @@ jobs:
     # Go is required for aws-lc-fips-sys FIPS builds
     - name: Install Go (macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v5
+      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
       with:
         go-version: 'stable'
         cache: false
@@ -785,7 +785,7 @@ jobs:
       run: cargo test --workspace --release --all-features
 
     - name: Package and upload artifacts
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: apache-${{ matrix.artifact-name }}
         path: |
@@ -819,7 +819,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@7f491e26f71f4ec2e6902c7c95c73043f209ab79 # main
+      uses: taiki-e/install-action@d6e286fa45544157a02d45a43742857ebbc25d12 # main
       with:
         tool: cargo-hack
 
@@ -895,7 +895,7 @@ jobs:
         echo "- **Telemetry**: Enabled (OpenTelemetry + Prometheus)" >> report.md
 
     - name: Upload pipeline report
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: pipeline-report
         path: report.md
