@@ -61,7 +61,7 @@ jobs:
         timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300 || true
 
     - name: Upload fuzz artifacts
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       if: failure()
       with:
         name: fuzz-artifacts-${{ matrix.target }}
@@ -104,7 +104,7 @@ jobs:
         timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600 || true
 
     - name: Upload extended fuzz artifacts
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       if: failure()
       with:
         name: extended-fuzz-artifacts-${{ matrix.target }}
@@ -128,7 +128,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@7f491e26f71f4ec2e6902c7c95c73043f209ab79 # main
+      uses: taiki-e/install-action@d6e286fa45544157a02d45a43742857ebbc25d12 # main
       with:
         tool: cargo-llvm-cov
 
@@ -150,7 +150,7 @@ jobs:
         cargo fuzz coverage encrypt_fuzz -- -max_total_time=60 || echo "Fuzz coverage skipped (no corpus)"
 
     - name: Upload fuzz coverage
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: fuzz-coverage
         path: fuzz/coverage/
