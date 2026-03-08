@@ -383,6 +383,123 @@ fn test_tls_alpn_negotiation() {
 }
 
 // ============================================================================
+// v0.3.3: Native PQ Key Exchange E2E Tests
+//
+// Verify that native rustls PQ key exchange (no rustls-post-quantum) works
+// end-to-end with actual TLS handshakes and data transfer.
+// ============================================================================
+
+#[test]
+fn test_hybrid_pq_negotiates_mlkem_kex() {
+    // E2E: Verify hybrid TLS actually negotiates a PQ key exchange group
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+
+    let tls_config = Tls13Config::hybrid();
+    let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server_cfg = Arc::new(server_config);
+
+    let handle = thread::spawn(move || {
+        let (tcp_stream, _) = listener.accept().unwrap();
+        let tls_conn = rustls::ServerConnection::new(server_cfg).unwrap();
+        let mut stream = rustls::StreamOwned::new(tls_conn, tcp_stream);
+
+        // Complete handshake by reading one message
+        let mut len_buf = [0u8; 4];
+        stream.read_exact(&mut len_buf).unwrap();
+        let msg_len = u32::from_be_bytes(len_buf) as usize;
+        let mut msg_buf = vec![0u8; msg_len];
+        stream.read_exact(&mut msg_buf).unwrap();
+
+        // Get the negotiated key exchange group from the server side
+        let kex_name = stream
+            .conn
+            .negotiated_key_exchange_group()
+            .map(|g| format!("{:?}", g.name()))
+            .unwrap_or_default();
+
+        // Send back the negotiated group name
+        let kex_bytes = kex_name.as_bytes();
+        let resp_len = (kex_bytes.len() as u32).to_be_bytes();
+        stream.write_all(&resp_len).unwrap();
+        stream.write_all(kex_bytes).unwrap();
+        stream.flush().unwrap();
+
+        // Wait for done
+        let mut done = [0u8; 4];
+        let _ = stream.read_exact(&mut done);
+        stream.conn.send_close_notify();
+        let _ = stream.flush();
+    });
+
+    let client_config = build_test_client_config(TlsMode::Hybrid, &ca.cert_der);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    // Send ping to complete handshake
+    let ping = b"kex-check";
+    let len_bytes = (ping.len() as u32).to_be_bytes();
+    stream.write_all(&len_bytes).unwrap();
+    stream.write_all(ping).unwrap();
+    stream.flush().unwrap();
+
+    // Read the server's negotiated group
+    let mut len_buf = [0u8; 4];
+    stream.read_exact(&mut len_buf).unwrap();
+    let resp_len = u32::from_be_bytes(len_buf) as usize;
+    let mut resp_buf = vec![0u8; resp_len];
+    stream.read_exact(&mut resp_buf).unwrap();
+
+    let server_kex = String::from_utf8(resp_buf).unwrap();
+
+    // Also check client side
+    let client_kex = stream
+        .conn
+        .negotiated_key_exchange_group()
+        .map(|g| format!("{:?}", g.name()))
+        .unwrap_or_default();
+
+    // Both sides must agree and it should be a PQ/hybrid group
+    assert_eq!(server_kex, client_kex, "Client and server must agree on key exchange group");
+    assert!(
+        client_kex.contains("MLKEM"),
+        "Hybrid mode should negotiate an MLKEM group, got: {client_kex}"
+    );
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}
+
+#[test]
+fn test_all_tls_modes_complete_handshake() {
+    // E2E: Every TlsMode completes a full handshake + data roundtrip
+    for mode in [TlsMode::Classic, TlsMode::Hybrid, TlsMode::Pq] {
+        let ca = generate_test_ca();
+        let (server_chain, server_key) = generate_server_cert(&ca);
+
+        let tls_config = match mode {
+            TlsMode::Classic => Tls13Config::classic(),
+            TlsMode::Hybrid => Tls13Config::hybrid(),
+            TlsMode::Pq => Tls13Config::pq(),
+        };
+        let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
+        let client_config = build_test_client_config(mode, &ca.cert_der);
+
+        let (handle, addr) = spawn_echo_server(server_config);
+        let mut stream = connect_tls_client(client_config, addr);
+
+        let msg = format!("E2E test for {:?} mode", mode);
+        let response = echo_roundtrip(&mut stream, msg.as_bytes());
+        assert_eq!(response, msg.as_bytes(), "{:?} mode roundtrip failed", mode);
+
+        send_done(&mut stream);
+        handle.join().unwrap();
+    }
+}
+
+// ============================================================================
 // TLS UseCase → Policy → Handshake E2E
 //
 // Tests that TlsConfig::new().use_case(uc) selects the correct TlsMode

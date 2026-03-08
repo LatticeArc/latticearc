@@ -441,6 +441,72 @@ mod tests {
         assert!(provider.is_ok());
     }
 
+    #[test]
+    fn test_pq_groups_preferred_in_hybrid_mode() {
+        // Verify that PQ/hybrid groups come before classical-only groups
+        let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
+            .expect("Provider should be available");
+
+        let group_names: Vec<String> =
+            provider.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+
+        // Find the position of the first MLKEM group and the last MLKEM group
+        let first_mlkem = group_names.iter().position(|n| n.contains("MLKEM"));
+        let last_classical = group_names.iter().rposition(|n| !n.contains("MLKEM"));
+
+        // All MLKEM groups must come before all classical-only groups
+        if let (Some(last_ml), Some(first_cl)) = (
+            group_names.iter().rposition(|n| n.contains("MLKEM")),
+            group_names.iter().position(|n| !n.contains("MLKEM")),
+        ) {
+            assert!(
+                last_ml < first_cl,
+                "PQ groups must be sorted before classical groups, got: {group_names:?}"
+            );
+        }
+        // Verify at least one MLKEM group exists
+        assert!(first_mlkem.is_some(), "Provider must contain at least one MLKEM group");
+        assert!(last_classical.is_some(), "Provider must contain classical groups too");
+    }
+
+    #[test]
+    fn test_pq_groups_preferred_in_pq_mode() {
+        // Same ordering guarantee for PQ-only mode
+        let provider = get_kex_provider(TlsMode::Pq, PqKexMode::RustlsPq)
+            .expect("Provider should be available");
+
+        let group_names: Vec<String> =
+            provider.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+
+        let first_mlkem = group_names.iter().position(|n| n.contains("MLKEM"));
+        assert!(
+            first_mlkem == Some(0),
+            "First group in PQ mode must be an MLKEM group, got: {group_names:?}"
+        );
+    }
+
+    #[test]
+    fn test_native_pq_groups_available() {
+        // Verify rustls 0.23.37+ default_provider() includes X25519MLKEM768
+        // natively (no rustls-post-quantum crate needed)
+        let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
+            .expect("Provider should be available");
+
+        let group_names: Vec<String> =
+            provider.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+        let joined = group_names.join(",");
+
+        // X25519MLKEM768 must be in DEFAULT_KX_GROUPS (the hybrid PQ group)
+        assert!(joined.contains("X25519MLKEM768"), "Missing X25519MLKEM768 in {joined}");
+
+        // Classical groups must also be present for fallback
+        assert!(joined.contains("X25519"), "Missing X25519 classical fallback in {joined}");
+
+        // Note: SECP256R1MLKEM768, MLKEM768, MLKEM1024 are in ALL_KX_GROUPS
+        // but NOT in DEFAULT_KX_GROUPS / default_provider(). They can be added
+        // explicitly if needed for PQ-only or P-256 hybrid modes.
+    }
+
     // === KexInfo tests ===
 
     #[test]

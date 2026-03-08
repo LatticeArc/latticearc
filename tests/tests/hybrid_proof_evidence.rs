@@ -1511,3 +1511,160 @@ fn proof_at_rest_roundtrip(
         plaintext.len(),
     );
 }
+
+// ============================================================================
+// Section 13: Native PQ Key Exchange (v0.3.3) — 5 tests
+//
+// Proves that rustls 0.23.37+ natively provides PQ key exchange groups
+// without the rustls-post-quantum crate. Verifies:
+// - X25519MLKEM768 is in default_provider()
+// - PQ groups are sorted before classical groups in Hybrid/Pq modes
+// - All TLS modes produce valid providers
+// - KexInfo is consistent with actual provider contents
+// - Hybrid mode includes classical fallback groups
+// ============================================================================
+
+#[test]
+fn proof_native_pq_x25519mlkem768_available() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_provider};
+
+    let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
+        .expect("Hybrid PQ provider must be available");
+
+    let group_names: Vec<String> =
+        provider.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+
+    let has_x25519mlkem768 = group_names.iter().any(|n| n.contains("X25519MLKEM768"));
+    assert!(has_x25519mlkem768, "X25519MLKEM768 must be natively available");
+
+    let total_groups = group_names.len();
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"native_pq_x25519mlkem768\",\
+         \"description\":\"X25519MLKEM768 available in rustls default_provider() without rustls-post-quantum\",\
+         \"group\":\"X25519MLKEM768\",\
+         \"available\":true,\
+         \"total_kx_groups\":{total_groups},\
+         \"all_groups\":\"{groups}\",\
+         \"status\":\"PASS\"}}",
+        groups = group_names.join(", "),
+    );
+}
+
+#[test]
+fn proof_pq_preference_ordering() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_provider};
+
+    let provider =
+        get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).expect("Provider must be available");
+
+    let group_names: Vec<String> =
+        provider.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+
+    let first_group = &group_names[0];
+    let pq_first = first_group.contains("MLKEM");
+
+    let last_mlkem = group_names.iter().rposition(|n| n.contains("MLKEM")).unwrap();
+    let first_classical = group_names.iter().position(|n| !n.contains("MLKEM")).unwrap();
+    let correctly_ordered = last_mlkem < first_classical;
+
+    assert!(pq_first, "First group must be PQ");
+    assert!(correctly_ordered, "All PQ groups must precede classical groups");
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"pq_preference_ordering\",\
+         \"description\":\"PQ key exchange groups sorted before classical groups in Hybrid mode\",\
+         \"first_group\":\"{first_group}\",\
+         \"pq_first\":true,\
+         \"ordering_correct\":true,\
+         \"group_order\":\"{order}\",\
+         \"status\":\"PASS\"}}",
+        order = group_names.join(" > "),
+    );
+}
+
+#[test]
+fn proof_all_tls_modes_produce_providers() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_provider};
+
+    let test_cases = [
+        (TlsMode::Hybrid, PqKexMode::RustlsPq, "hybrid_rustls_pq"),
+        (TlsMode::Pq, PqKexMode::RustlsPq, "pq_rustls_pq"),
+        (TlsMode::Classic, PqKexMode::Classical, "classic_classical"),
+        (TlsMode::Hybrid, PqKexMode::CustomHybrid, "hybrid_custom"),
+    ];
+
+    for (tls_mode, kex_mode, label) in test_cases {
+        let provider = get_kex_provider(tls_mode, kex_mode)
+            .unwrap_or_else(|e| panic!("Provider failed for {label}: {e}"));
+
+        let group_count = provider.kx_groups.len();
+        assert!(group_count > 0, "Provider for {label} must have groups");
+
+        println!(
+            "[PROOF] {{\"section\":13,\"test\":\"provider_{label}\",\
+             \"description\":\"TLS provider created for {tls_mode:?}/{kex_mode:?}\",\
+             \"tls_mode\":\"{tls_mode:?}\",\
+             \"kex_mode\":\"{kex_mode:?}\",\
+             \"kx_group_count\":{group_count},\
+             \"status\":\"PASS\"}}"
+        );
+    }
+}
+
+#[test]
+fn proof_kex_info_matches_provider() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_info, get_kex_provider};
+
+    let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
+    let provider =
+        get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).expect("Provider must be available");
+
+    let group_names: Vec<String> =
+        provider.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+
+    let method_in_provider = group_names.iter().any(|n| n.contains(&info.method));
+    assert!(method_in_provider, "KexInfo method '{}' must exist in provider groups", info.method);
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"kex_info_provider_consistency\",\
+         \"description\":\"KexInfo.method matches a real group in the CryptoProvider\",\
+         \"kex_info_method\":\"{method}\",\
+         \"method_in_provider\":true,\
+         \"is_pq_secure\":{pq},\
+         \"shared_secret_size\":{ss},\
+         \"status\":\"PASS\"}}",
+        method = info.method,
+        pq = info.is_pq_secure,
+        ss = info.ss_size,
+    );
+}
+
+#[test]
+fn proof_hybrid_includes_classical_fallback() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_provider};
+
+    let provider =
+        get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).expect("Provider must be available");
+
+    let group_names: Vec<String> =
+        provider.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+
+    let has_pq = group_names.iter().any(|n| n.contains("MLKEM"));
+    let has_x25519 = group_names.iter().any(|n| *n == "X25519");
+    let has_secp256r1 = group_names.iter().any(|n| n.contains("secp256r1"));
+
+    assert!(has_pq, "Hybrid must include PQ groups");
+    assert!(has_x25519, "Hybrid must include X25519 for classical fallback");
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"hybrid_classical_fallback\",\
+         \"description\":\"Hybrid mode includes both PQ and classical groups for backward compatibility\",\
+         \"has_mlkem\":true,\
+         \"has_x25519\":{has_x25519},\
+         \"has_secp256r1\":{has_secp256r1},\
+         \"total_groups\":{},\
+         \"status\":\"PASS\"}}",
+        group_names.len(),
+    );
+}
