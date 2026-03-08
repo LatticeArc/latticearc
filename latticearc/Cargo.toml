@@ -98,7 +98,6 @@ parking_lot = { workspace = true }
 # TLS
 # =============================================================================
 rustls = { workspace = true }
-rustls-post-quantum = { workspace = true }
 rustls-pki-types = { workspace = true }
 rustls-native-certs = { workspace = true }
 tokio = { workspace = true }
@@ -109,7 +108,7 @@ tokio-rustls = { workspace = true }
 # =============================================================================
 elliptic-curve = { version = "0.13", features = ["sec1"] }
 # Optional: ZKP serialization
-serde_with = { version = "3.0", optional = true }
+serde_with = { version = "3.17", optional = true }
 
 
 [dev-dependencies]

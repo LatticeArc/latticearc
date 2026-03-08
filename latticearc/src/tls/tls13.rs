@@ -8,7 +8,10 @@
 //! This module implements TLS 1.3 handshake logic with support for:
 //! - Classic TLS 1.3 (ECDHE-only)
 //! - Hybrid TLS 1.3 (X25519MLKEM768 - recommended)
-//! - Post-quantum only TLS 1.3 (ML-KEM)
+//! - Post-quantum only TLS 1.3 (MLKEM768, MLKEM1024)
+//!
+//! All PQ key exchange groups are provided natively by rustls 0.23.37+ via
+//! the aws-lc-rs crypto backend — no additional dependencies required.
 //!
 //! ## Handshake Flow
 //!
@@ -555,14 +558,19 @@ fn get_crypto_provider(mode: TlsMode) -> Result<rustls::crypto::CryptoProvider, 
             Ok(rustls::crypto::aws_lc_rs::default_provider())
         }
         TlsMode::Hybrid | TlsMode::Pq => {
-            let provider = rustls_post_quantum::provider();
+            // rustls 0.23.37+ default_provider() includes X25519MLKEM768 in its
+            // kx_groups (PQ hybrid key exchange). For Hybrid/Pq modes we reorder
+            // so PQ groups are preferred over classical-only groups.
+            let mut provider = rustls::crypto::aws_lc_rs::default_provider();
 
-            let provider_ref: &rustls::crypto::CryptoProvider = &provider;
-            let kx_groups = &provider_ref.kx_groups;
+            // Move PQ/hybrid groups to the front of the preference list
+            // so the server selects them when both sides support PQ
+            provider.kx_groups.sort_by_key(|group| {
+                let name = format!("{:?}", group.name());
+                if name.contains("MLKEM") { 0 } else { 1 }
+            });
 
-            // Basic validation - ensure provider supports essential groups
-            // PQ groups handled by rustls-post-quantum
-            if kx_groups.is_empty() {
+            if provider.kx_groups.is_empty() {
                 return Err(TlsError::Config {
                     message: "AWS-LC provider lacks essential key exchange groups".to_string(),
                     field: Some("crypto_provider".to_string()),

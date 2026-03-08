@@ -66,7 +66,7 @@ fn build_test_client_config(mode: TlsMode, ca_cert_der: &CertificateDer<'_>) -> 
 
     let provider = match mode {
         TlsMode::Classic => rustls::crypto::aws_lc_rs::default_provider(),
-        TlsMode::Hybrid | TlsMode::Pq => rustls_post_quantum::provider(),
+        TlsMode::Hybrid | TlsMode::Pq => rustls::crypto::aws_lc_rs::default_provider(),
     };
 
     ClientConfig::builder_with_provider(provider.into())
@@ -296,7 +296,7 @@ fn test_tls_mtls_client_auth() {
     let mut client_root_store = RootCertStore::empty();
     client_root_store.add(ca.cert_der.clone()).unwrap();
 
-    let provider = rustls_post_quantum::provider();
+    let provider = rustls::crypto::aws_lc_rs::default_provider();
     let client_config = ClientConfig::builder_with_provider(provider.into())
         .with_protocol_versions(&[&rustls::version::TLS13])
         .unwrap()

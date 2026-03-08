@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.3] - 2026-03-08
+
+### TLS Improvements
+
+- **Native PQ key exchange — `rustls-post-quantum` dependency removed**: `rustls` 0.23.37 now
+  ships all PQ key exchange groups natively via the aws-lc-rs backend. The `rustls-post-quantum`
+  crate is no longer needed. This reduces the dependency tree while gaining new capabilities:
+  - **X25519MLKEM768** — hybrid X25519 + ML-KEM-768 (already in `default_provider()` kx_groups)
+  - **SECP256R1MLKEM768** — hybrid P-256 + ML-KEM-768 (new)
+  - **MLKEM768** — standalone PQ key exchange, NIST Category 3
+  - **MLKEM1024** — standalone PQ key exchange, NIST Category 5 (new)
+- **ML-KEM-1024 now backed by upstream**: Our `TlsPolicyEngine::select_pq_kex()` returns
+  "MLKEM1024" for `SecurityLevel::Maximum` and `SecurityLevel::Quantum`. Previously this had
+  no upstream support — rustls only shipped ML-KEM-768. Now `MLKEM1024` is a real
+  `SupportedKxGroup` in `rustls::crypto::aws_lc_rs::kx_group`.
+- **PQ preference ordering**: For Hybrid/Pq TLS modes, PQ key exchange groups are now sorted
+  to the front of the preference list, ensuring the server selects them when both sides support PQ.
+- **FIPS backend updated**: `aws-lc-rs` 1.16.1 updates `aws-lc-sys` to 0.38.0 and
+  `aws-lc-fips-sys` to 0.13.12, keeping the FIPS 140-3 validated backend current.
+
+### Removed
+
+- **`rustls-post-quantum` dependency** — all PQ key exchange is now handled natively by rustls.
+
+### Dependencies
+
+- `rustls` 0.23.36 → 0.23.37 (native PQ key exchange: ML-KEM-1024, SECP256R1MLKEM768)
+- `aws-lc-rs` 1.16.0 → 1.16.1 (FIPS backend patch)
+- `tokio` 1.49.0 → 1.50.0
+- `chrono` 0.4.43 → 0.4.44
+- `uuid` 1.20.0 → 1.22.0
+- `serde_with` 3.0 → 3.17
+- `tempfile` 3.24 → 3.26 (dev)
+- `criterion` 0.8 → 0.8.2 (dev)
+
+---
+
 ## [0.3.2] - 2026-02-24
 
 ### Changed

@@ -38,7 +38,7 @@ mod pq_tests {
 
     #[test]
     fn test_pq_availability() {
-        // PQ is always available via rustls-post-quantum
+        // PQ is always available via rustls native support
         let available = is_pq_available();
         assert!(available);
     }

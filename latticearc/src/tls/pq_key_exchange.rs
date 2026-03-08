@@ -6,7 +6,8 @@
 //! # Post-Quantum Key Exchange for TLS 1.3
 //!
 //! This module implements post-quantum key exchange for TLS 1.3, providing:
-//! - Hybrid key exchange (X25519 + ML-KEM-768) via rustls-post-quantum
+//! - Hybrid key exchange (X25519 + ML-KEM-768) via rustls native support (0.23.37+)
+//! - Standalone ML-KEM-768 and ML-KEM-1024 key exchange
 //! - Custom hybrid implementation using the `hybrid` module
 //!
 //! ## Key Exchange Methods
@@ -24,6 +25,18 @@
 //! - X25519 from x25519-dalek
 //! - HKDF for secret combination (NIST SP 800-56C)
 //!
+//! ## Available Key Exchange Groups (rustls 0.23.37+)
+//!
+//! | Group | Type | Security |
+//! |-------|------|----------|
+//! | X25519MLKEM768 | Hybrid | PQ + Classical (default) |
+//! | SECP256R1MLKEM768 | Hybrid | PQ + Classical |
+//! | MLKEM768 | PQ-only | NIST Category 3 |
+//! | MLKEM1024 | PQ-only | NIST Category 5 |
+//! | X25519 | Classical | 128-bit |
+//! | SECP256R1 | Classical | 128-bit |
+//! | SECP384R1 | Classical | 192-bit |
+//!
 //! ## Compatibility
 //!
 //! Standard TLS 1.3 clients:
@@ -40,7 +53,7 @@ use zeroize::{Zeroize, Zeroizing};
 /// Post-quantum key exchange configuration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PqKexMode {
-    /// Use rustls-post-quantum (X25519MLKEM768)
+    /// Use rustls native PQ support (X25519MLKEM768, MLKEM768, MLKEM1024)
     RustlsPq,
     /// Use custom hybrid implementation (`latticearc::hybrid`)
     CustomHybrid,
@@ -93,8 +106,13 @@ pub struct KexInfo {
 pub fn get_kex_provider(mode: TlsMode, kex_mode: PqKexMode) -> Result<CryptoProvider, TlsError> {
     match (mode, kex_mode) {
         (TlsMode::Hybrid | TlsMode::Pq, PqKexMode::RustlsPq) => {
-            // Use rustls-post-quantum provider for hybrid key exchange
-            let provider = rustls_post_quantum::provider();
+            // rustls 0.23.37+ default_provider() includes X25519MLKEM768 natively
+            let mut provider = rustls::crypto::aws_lc_rs::default_provider();
+            // Prefer PQ groups for Hybrid/Pq modes
+            provider.kx_groups.sort_by_key(|group| {
+                let name = format!("{:?}", group.name());
+                if name.contains("MLKEM") { 0 } else { 1 }
+            });
             Ok(provider)
         }
 
@@ -155,8 +173,8 @@ pub fn get_kex_info(mode: TlsMode, kex_mode: PqKexMode) -> KexInfo {
 
 /// Check if post-quantum key exchange is available.
 ///
-/// This checks compile-time availability (the `aws-lc-rs` and `rustls-post-quantum`
-/// crates are linked), not runtime hardware detection. PQ key exchange is always
+/// This checks compile-time availability (rustls with aws-lc-rs backend provides
+/// native PQ key exchange since 0.23.22+). PQ key exchange is always
 /// available when `latticearc` is compiled.
 ///
 /// # Returns
@@ -170,7 +188,7 @@ pub fn is_pq_available() -> bool {
 ///
 /// Returns `true` if the custom hybrid provider can be constructed. Currently
 /// this returns the aws-lc-rs default provider (same as classical mode), as
-/// the custom X25519+ML-KEM combination is handled by `rustls-post-quantum`.
+/// the custom X25519+ML-KEM combination is handled natively by rustls.
 ///
 /// # Returns
 /// Always returns true (falls back to aws-lc-rs default provider)

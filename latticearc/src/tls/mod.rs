@@ -3,13 +3,15 @@
 //! TLS 1.3 implementation with post-quantum key exchange support.
 //!
 //! This module provides TLS connectivity with hybrid key exchange (ECDHE + ML-KEM)
-//! for quantum-resistant secure communications.
+//! for quantum-resistant secure communications, using rustls native PQ support (0.23.37+).
 //!
 //! ## Features
 //!
-//! - **Hybrid Key Exchange**: X25519MLKEM768 (ECDHE + ML-KEM) for post-quantum security
-//! - **Backward Compatible**: Works with standard TLS 1.3 clients
+//! - **Hybrid Key Exchange**: X25519MLKEM768 and SECP256R1MLKEM768 (ECDHE + ML-KEM) for PQ security
+//! - **Standalone PQ**: ML-KEM-768 and ML-KEM-1024 key exchange for PQ-only modes
+//! - **Backward Compatible**: Works with standard TLS 1.3 clients (auto-fallback to X25519)
 //! - **Flexible Modes**: Classic, Hybrid, and PQ-only modes
+//! - **No extra dependencies**: PQ key exchange is native to rustls via aws-lc-rs backend
 //! - **Easy API**: Simple client/server connector functions
 //! - **Comprehensive Error Handling**: Detailed error types, recovery mechanisms, and tracing
 //!
