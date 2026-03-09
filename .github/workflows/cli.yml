@@ -124,7 +124,7 @@ jobs:
 
       - name: Save proof evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: cli-proof-evidence
           path: proof_output.txt
@@ -164,21 +164,21 @@ jobs:
 
       - name: Upload binary (Linux)
         if: matrix.runner == 'ubuntu-latest'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: latticearc-${{ matrix.target }}
           path: target/release/latticearc
 
       - name: Upload binary (macOS)
         if: matrix.runner == 'macos-latest'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: latticearc-${{ matrix.target }}
           path: target/release/latticearc
 
       - name: Upload binary (Windows)
         if: matrix.runner == 'windows-latest'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: latticearc-${{ matrix.target }}
           path: target/release/latticearc.exe
