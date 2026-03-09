@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Severity","SideChannelType"],"struct":["SideChannelAssessment","TimingAnalysis","UtilitySideChannelTester","UtilityTimingAnalyzer"]};

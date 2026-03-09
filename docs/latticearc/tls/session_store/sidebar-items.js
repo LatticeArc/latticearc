@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["create_resumption_config","create_session_store"],"struct":["ConfigurableSessionStore","PersistentSessionStore"]};

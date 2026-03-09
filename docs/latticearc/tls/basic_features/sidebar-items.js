@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["create_client_connector","create_server_acceptor","get_config_info","load_certificates","load_certs","load_private_key","load_private_key_secure","tls_accept","tls_connect"],"struct":["SecurePrivateKey"]};

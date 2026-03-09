@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["KEK_LEN","KEYSTORE_DIR","KEYSTORE_FILE","PBKDF2_ITERATIONS","PBKDF2_SALT_LEN","SENTINEL_AAD","SENTINEL_PLAINTEXT"],"enum":["StoredKeyType"],"fn":["compute_entry_aad","default_keystore_dir","dirs_or_home","generate_key_id","restrict_file_permissions"],"struct":["KeyStore","KeyStoreFile","WrappedEntry"]};

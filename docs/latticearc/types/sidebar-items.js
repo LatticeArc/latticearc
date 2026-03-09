@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["config","crypto_types","domains","error","key_lifecycle","resource_limits","selector","traits","types","zero_trust"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["EffortLevel","ErrorSeverity","RecoveryStrategy"],"struct":["EnhancedError","ErrorContext","RecoverySuggestion"]};
