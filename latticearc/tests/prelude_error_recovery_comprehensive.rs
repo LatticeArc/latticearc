@@ -792,16 +792,16 @@ fn test_exponential_backoff_timing_simulation() {
     attempt_times.push(start.elapsed());
     let _: Result<(), _> = cb.call(|| Err(LatticeArcError::NetworkError("fail".to_string())));
 
-    // Third attempt with longer backoff (50ms vs 10ms — wide margin for CI jitter)
-    thread::sleep(Duration::from_millis(50));
+    // Third attempt with longer backoff (100ms vs 10ms — 10x margin for CI jitter)
+    thread::sleep(Duration::from_millis(100));
     attempt_times.push(start.elapsed());
     let _: Result<(), _> = cb.call(|| Err(LatticeArcError::NetworkError("fail".to_string())));
 
-    // Verify increasing gaps between attempts
+    // Verify increasing gaps between attempts (10ms vs 100ms sleep)
     assert!(attempt_times.len() == 3);
     let gap1 = attempt_times[1] - attempt_times[0];
     let gap2 = attempt_times[2] - attempt_times[1];
-    assert!(gap2 > gap1);
+    assert!(gap2 > gap1, "Backoff gaps should increase: gap1={gap1:?}, gap2={gap2:?}");
 }
 
 #[test]
