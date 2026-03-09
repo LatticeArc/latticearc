@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["KeyType"],"fn":["restrict_file_permissions"],"struct":["KeyFile"]};

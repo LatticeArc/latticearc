@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["load_sample_crypto_vectors","load_sample_utility_vectors"],"struct":["CryptoCavpTester","CryptoTestVector","UtilityCavpTester","UtilityTestVector","UtilityValidator"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Algorithm"],"fn":["decode_header","encode_len_prefix","generate_ed25519","generate_fn_dsa","generate_hybrid_kem","generate_hybrid_sign","generate_ml_dsa","generate_ml_kem","generate_slh_dsa","generate_symmetric","parse_hybrid_kem_pk","parse_hybrid_sign_pk","parse_hybrid_sign_sk","run"],"struct":["KeygenArgs"]};

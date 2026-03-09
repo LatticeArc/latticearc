@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["benchmark","time_operation"],"struct":["Histogram","MetricsCollector","ScopedTimer","Timer","TimingStatistics"]};
