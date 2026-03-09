@@ -1,0 +1,97 @@
+//! Hash command.
+
+use anyhow::{Context, Result};
+use clap::Args;
+use std::path::PathBuf;
+
+/// Hash algorithm.
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub(crate) enum HashAlgorithm {
+    /// SHA3-256 (FIPS 202, 32-byte output). Default.
+    #[value(name = "sha3-256")]
+    Sha3_256,
+    /// SHA-256 (FIPS 180-4, 32-byte output).
+    #[value(name = "sha-256")]
+    Sha256,
+    /// SHA-512 (FIPS 180-4, 64-byte output).
+    #[value(name = "sha-512")]
+    Sha512,
+    /// BLAKE2b-256 (RFC 7693, 32-byte output).
+    #[value(name = "blake2b")]
+    Blake2b,
+}
+
+/// Arguments for the `hash` subcommand.
+#[derive(Args)]
+pub(crate) struct HashArgs {
+    /// Hash algorithm to use.
+    #[arg(short, long, value_enum, default_value = "sha3-256")]
+    pub algorithm: HashAlgorithm,
+    /// Input file to hash (reads from stdin if omitted).
+    #[arg(short, long)]
+    pub input: Option<PathBuf>,
+    /// Output format: hex (default) or base64.
+    #[arg(short, long, default_value = "hex")]
+    pub format: OutputFormat,
+}
+
+/// Output encoding format.
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub(crate) enum OutputFormat {
+    /// Hexadecimal encoding.
+    Hex,
+    /// Base64 encoding.
+    Base64,
+}
+
+/// Execute the hash command.
+pub(crate) fn run(args: HashArgs) -> Result<()> {
+    let data = read_input(&args.input)?;
+
+    let (alg_label, hash_bytes) = match args.algorithm {
+        HashAlgorithm::Sha3_256 => {
+            let hash = latticearc::hash_data(&data);
+            ("SHA3-256", hash.to_vec())
+        }
+        HashAlgorithm::Sha256 => {
+            let hash = latticearc::primitives::hash::sha256(&data)
+                .map_err(|e| anyhow::anyhow!("SHA-256 hash failed: {e}"))?;
+            ("SHA-256", hash.to_vec())
+        }
+        HashAlgorithm::Sha512 => {
+            let hash = latticearc::primitives::hash::sha512(&data)
+                .map_err(|e| anyhow::anyhow!("SHA-512 hash failed: {e}"))?;
+            ("SHA-512", hash.to_vec())
+        }
+        HashAlgorithm::Blake2b => {
+            use blake2::digest::consts::U32;
+            use blake2::{Blake2b, Digest};
+            let mut hasher = Blake2b::<U32>::new();
+            hasher.update(&data);
+            let hash = hasher.finalize();
+            ("BLAKE2b-256", hash.to_vec())
+        }
+    };
+
+    let encoded = match args.format {
+        OutputFormat::Hex => hex::encode(&hash_bytes),
+        OutputFormat::Base64 => {
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD.encode(&hash_bytes)
+        }
+    };
+
+    println!("{alg_label}: {encoded}");
+    Ok(())
+}
+
+fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
+    if let Some(p) = path {
+        std::fs::read(p).with_context(|| format!("Failed to read {}", p.display()))
+    } else {
+        use std::io::Read;
+        let mut buf = Vec::new();
+        std::io::stdin().read_to_end(&mut buf).context("Failed to read from stdin")?;
+        Ok(buf)
+    }
+}

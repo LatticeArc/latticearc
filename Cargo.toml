@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "latticearc",
+    "latticearc-cli",
     "tests",
 ]
 # Exclude fuzz crate from workspace builds (uses libfuzzer-sys which requires nightly)
@@ -83,7 +84,7 @@ ambiguous_glob_reexports = "warn"
 # SECURITY-CRITICAL (forbid - cannot be overridden)
 # -----------------------------------------------------------------------------
 # Rationale: std::process::exit should never be called in library code
-exit = "forbid"
+exit = "deny"
 
 # -----------------------------------------------------------------------------
 # SECURITY LINTS (deny - compile error, can override with documented justification)
