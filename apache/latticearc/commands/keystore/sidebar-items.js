@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["KeystoreCommand"],"fn":["cmd_delete","cmd_export","cmd_export_public","cmd_import","cmd_init","cmd_list","cmd_rotate","read_password","run"],"struct":["DeleteArgs","ExportArgs","ExportPublicArgs","ImportArgs","KeystoreArgs","RotateArgs"]};
