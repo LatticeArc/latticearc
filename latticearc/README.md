@@ -167,11 +167,13 @@ let is_valid = verify(&signed, config)?;
 
 ### Post-Quantum TLS
 
+Native PQ key exchange via rustls 0.23.37+ (no extra dependencies):
+
 ```rust
 use latticearc::tls::{TlsConfig, TlsUseCase};
 use latticearc::SecurityLevel;
 
-// Default: Hybrid mode (X25519 + ML-KEM)
+// Default: Hybrid mode (X25519MLKEM768 with X25519 fallback)
 let config = TlsConfig::new();
 
 // By use case
@@ -180,6 +182,9 @@ let config = TlsConfig::new().use_case(TlsUseCase::WebServer);
 // By security level
 let config = TlsConfig::new().security_level(SecurityLevel::Maximum);
 ```
+
+Available key exchange groups: X25519MLKEM768 (hybrid, default), SECP256R1MLKEM768 (hybrid),
+MLKEM768 (PQ-only), MLKEM1024 (PQ-only), X25519 (classical fallback).
 
 ### Low-Level Primitives
 

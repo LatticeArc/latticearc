@@ -780,7 +780,44 @@ This models a healthcare system where each encrypted record is bound to a specif
 
 ---
 
-## Summary: What the 89 Proof Lines Collectively Prove
+## Section 13: Native PQ Key Exchange Verification (5 proof lines)
+
+**Added in v0.3.3** — rustls 0.23.37 natively provides PQ key exchange groups via the aws-lc-rs backend, removing the need for the `rustls-post-quantum` crate.
+
+### What these tests prove
+
+| Test | What it proves |
+|------|----------------|
+| `native_pq_x25519mlkem768` | X25519MLKEM768 is available in `default_provider()` without extra dependencies |
+| `pq_preference_ordering` | PQ groups are sorted before classical groups in Hybrid mode |
+| `all_tls_modes_produce_providers` | Every (TlsMode, PqKexMode) combination produces a non-empty provider |
+| `kex_info_matches_provider` | `KexInfo` metadata is consistent with actual provider contents |
+| `hybrid_includes_classical_fallback` | Hybrid mode includes X25519 for backward compatibility |
+
+### Why this matters
+
+Before v0.3.3, PQ key exchange required the `rustls-post-quantum` crate, which added a separate C dependency. Now PQ is built into rustls's default provider:
+
+- **Fewer dependencies** — one fewer crate in the supply chain
+- **New groups** — SECP256R1MLKEM768, MLKEM768, MLKEM1024 now available
+- **PQ preference** — servers select PQ groups first when both sides support them
+- **Backward compatible** — classical X25519 fallback always included
+
+### Example proof line
+
+```json
+{"section":13,"test":"pq_preference_ordering",
+ "description":"PQ key exchange groups sorted before classical groups in Hybrid mode",
+ "first_group":"X25519MLKEM768",
+ "pq_first":true,
+ "ordering_correct":true,
+ "group_order":"X25519MLKEM768 > X25519 > secp256r1 > secp384r1",
+ "status":"PASS"}
+```
+
+---
+
+## Summary: What the 94 Proof Lines Collectively Prove
 
 | Claim | Evidence |
 |-------|----------|
@@ -796,5 +833,6 @@ This models a healthcare system where each encrypted record is bound to a specif
 | **TLS policy engine selects correct mode for all use cases** | 10 TLS UseCase proofs + 4 SecurityLevel proofs (Section 11) |
 | **PQ key exchange works with real Internet servers** | 2 live TLS handshake proofs (Section 11) |
 | **Data-at-rest survives full pipeline byte-for-byte** | 9 SHA3-256-verified roundtrip proofs (Section 12) |
+| **Native PQ key exchange is available without extra dependencies** | 5 provider verification proofs (Section 13) |
 
 Every proof line represents a REAL cryptographic operation — not a mock, not a simulation. Keys were generated, data was encrypted/signed with those keys, and the result was verified. The structured JSON format makes these proofs machine-parseable for automated compliance reporting.

@@ -252,7 +252,7 @@ pub mod hybrid;
 /// Unified cryptographic API with Zero-Trust security.
 pub mod unified_api;
 
-/// TLS 1.3 with post-quantum key exchange support.
+/// TLS 1.3 with native post-quantum key exchange (rustls 0.23.37+, no extra dependencies).
 pub mod tls;
 
 /// Zero-knowledge proof primitives (Schnorr, Sigma protocols, Pedersen commitments).

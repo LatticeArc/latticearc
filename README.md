@@ -216,6 +216,8 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&enc_pk),
 
 ## Post-Quantum TLS
 
+Native PQ key exchange via rustls 0.23.37+ — no extra dependencies needed:
+
 ```rust
 use latticearc::tls::{TlsConfig, TlsUseCase};
 
@@ -225,11 +227,13 @@ let config = TlsConfig::new()
 
 | Use Case | TLS Mode | Key Exchange |
 |----------|----------|--------------|
-| `WebServer` | Hybrid | X25519 + ML-KEM-768 |
-| `FinancialServices` | Hybrid | X25519 + ML-KEM-768 |
-| `Healthcare` | Hybrid | X25519 + ML-KEM-768 |
+| `WebServer` | Hybrid | X25519MLKEM768 (+ X25519 fallback) |
+| `FinancialServices` | Hybrid | X25519MLKEM768 (+ X25519 fallback) |
+| `Healthcare` | Hybrid | X25519MLKEM768 (+ X25519 fallback) |
 | `Government` | PQ-only | ML-KEM-1024 |
 | `IoT` | Classic | X25519 |
+
+PQ groups are preferred when both sides support them. Clients without PQ support automatically fall back to X25519.
 
 > See [Unified API Guide](docs/UNIFIED_API_GUIDE.md) for the full 10-case TLS table.
 
