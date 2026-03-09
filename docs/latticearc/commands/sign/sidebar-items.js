@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["SignAlgorithm"],"fn":["algorithm_name","run","sign_hybrid","write_signature"],"struct":["SignArgs"]};

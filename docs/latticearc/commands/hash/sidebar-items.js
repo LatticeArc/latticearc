@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["HashAlgorithm","OutputFormat"],"fn":["read_input","run"],"struct":["HashArgs"]};
