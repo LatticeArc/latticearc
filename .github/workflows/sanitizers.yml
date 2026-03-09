@@ -26,7 +26,20 @@ env:
   RUST_BACKTRACE: 1
   # SLH-DSA PCT tests take ~28 min each under sanitizers (debug mode).
   # FN-DSA tests stack-overflow in debug mode. Skip both.
-  SANITIZER_SKIP_SLOW: --skip pct::tests::test_pct_slh_dsa --skip pct::tests::test_pct_fn_dsa
+  # Self-test power-up tests internally run SLH-DSA + FN-DSA KATs (~8-19 min each).
+  # Individual fast-algorithm KAT tests still run.
+  SANITIZER_SKIP_SLOW: >-
+    --skip pct::tests::test_pct_slh_dsa
+    --skip pct::tests::test_pct_fn_dsa
+    --skip self_test::tests::test_power_up
+    --skip self_test::tests::test_run_power_up
+    --skip self_test::tests::test_initialize_and_test
+    --skip self_test::tests::test_initialize_and_verify
+    --skip self_test::tests::test_all_error_codes_block
+    --skip self_test::tests::test_slh_dsa_kat
+    --skip self_test::tests::test_fn_dsa_kat
+    --skip self_test::tests::test_self_test_report_all_fields
+    --skip self_test::tests::test_verify_operational_after_reset
 
 jobs:
   # AddressSanitizer - Detects memory errors
@@ -74,7 +87,7 @@ jobs:
           echo "- Use-after-return" >> $GITHUB_STEP_SUMMARY
           echo "- Memory leaks" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
+          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # ThreadSanitizer - Detects data races
   tsan:
@@ -118,7 +131,7 @@ jobs:
           echo "- Deadlocks" >> $GITHUB_STEP_SUMMARY
           echo "- Thread leaks" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
+          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # MemorySanitizer - Detects uninitialized memory reads
   # Note: MSan cannot instrument C FFI code. aws-lc-rs (used for AES-GCM,
@@ -161,7 +174,13 @@ jobs:
             --skip hybrid::encrypt_hybrid \
             --skip hybrid::kem_hybrid \
             --skip tls:: \
-            --skip unified_api::
+            --skip unified_api:: \
+            --skip self_test::tests::test_aes_256_gcm_kat \
+            --skip self_test::tests::test_hkdf_sha256_kat \
+            --skip self_test::tests::test_ml_kem \
+            --skip self_test::tests::test_kat_aes \
+            --skip self_test::tests::test_kat_hkdf \
+            --skip self_test::tests::test_kat_ml_kem
         env:
           MSAN_OPTIONS: poison_in_dtor=1
         timeout-minutes: 60
@@ -176,7 +195,7 @@ jobs:
           echo "- Origin tracking for uninitialized values" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Excluded: All aws-lc-rs FFI consumers (aead, kem, kdf, hybrid, tls, unified_api) — not instrumentable by MSan" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
+          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # LeakSanitizer - Detects memory leaks (standalone)
   lsan:
@@ -219,7 +238,7 @@ jobs:
           echo "- Memory leaks" >> $GITHUB_STEP_SUMMARY
           echo "- Leaked allocations with stack traces" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
+          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # Summary job
   sanitizer-summary:
@@ -240,7 +259,7 @@ jobs:
           echo "| LeakSanitizer | Memory leaks | ${{ needs.lsan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Exclusions" >> $GITHUB_STEP_SUMMARY
-          echo "- **All sanitizers**: SLH-DSA/FN-DSA PCT tests excluded (28+ min each in debug mode)" >> $GITHUB_STEP_SUMMARY
+          echo "- **All sanitizers**: SLH-DSA/FN-DSA PCT + self-test power-up tests excluded (8-28 min each in debug mode)" >> $GITHUB_STEP_SUMMARY
           echo "- **MSan only**: All aws-lc-rs consumers excluded (aead, kem, kdf, hybrid, tls, unified_api — C FFI not instrumentable)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "These tests are covered by the main CI pipeline in release mode." >> $GITHUB_STEP_SUMMARY
