@@ -122,9 +122,10 @@ jobs:
 
   # MemorySanitizer - Detects uninitialized memory reads
   # Note: MSan cannot instrument C FFI code. aws-lc-rs (used for AES-GCM,
-  # ML-KEM, ECDH) is a C library that MSan sees as a black box. Memory
+  # ML-KEM, ECDH, HKDF) is a C library that MSan sees as a black box. Memory
   # allocated/initialized inside aws-lc-rs appears "uninitialized" to MSan.
-  # We exclude hybrid encryption tests that exercise aws-lc-rs FFI paths.
+  # We exclude ALL modules that call aws-lc-rs FFI: aead, kem, kdf, hybrid,
+  # tls, and unified_api. Pure-Rust modules (hash, signatures, zkp) still run.
   msan:
     name: MemorySanitizer
     runs-on: ubuntu-latest
@@ -153,8 +154,14 @@ jobs:
             -Z build-std --target x86_64-unknown-linux-gnu \
             --lib -- --test-threads=1 \
             $SANITIZER_SKIP_SLOW \
+            --skip primitives::aead::aes_gcm \
+            --skip primitives::kem::ecdh \
+            --skip primitives::kem::ml_kem \
+            --skip primitives::kdf::hkdf \
             --skip hybrid::encrypt_hybrid \
-            --skip hybrid::kem_hybrid
+            --skip hybrid::kem_hybrid \
+            --skip tls:: \
+            --skip unified_api::
         env:
           MSAN_OPTIONS: poison_in_dtor=1
         timeout-minutes: 60
@@ -168,7 +175,7 @@ jobs:
           echo "- Use of uninitialized memory" >> $GITHUB_STEP_SUMMARY
           echo "- Origin tracking for uninitialized values" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: hybrid encryption/KEM tests (aws-lc-rs FFI not instrumentable by MSan)" >> $GITHUB_STEP_SUMMARY
+          echo "Excluded: All aws-lc-rs FFI consumers (aead, kem, kdf, hybrid, tls, unified_api) — not instrumentable by MSan" >> $GITHUB_STEP_SUMMARY
           echo "Excluded: SLH-DSA/FN-DSA PCT tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # LeakSanitizer - Detects memory leaks (standalone)
@@ -234,6 +241,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Exclusions" >> $GITHUB_STEP_SUMMARY
           echo "- **All sanitizers**: SLH-DSA/FN-DSA PCT tests excluded (28+ min each in debug mode)" >> $GITHUB_STEP_SUMMARY
-          echo "- **MSan only**: Hybrid encryption/KEM tests excluded (aws-lc-rs C FFI not instrumentable)" >> $GITHUB_STEP_SUMMARY
+          echo "- **MSan only**: All aws-lc-rs consumers excluded (aead, kem, kdf, hybrid, tls, unified_api — C FFI not instrumentable)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "These tests are covered by the main CI pipeline in release mode." >> $GITHUB_STEP_SUMMARY
