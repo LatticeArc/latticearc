@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "latticearc",
+    "latticearc-cli",
     "tests",
 ]
 # Exclude fuzz crate from workspace builds (uses libfuzzer-sys which requires nightly)
@@ -80,10 +81,12 @@ ambiguous_glob_reexports = "warn"
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# SECURITY-CRITICAL (forbid - cannot be overridden)
+# SECURITY LINTS (deny - compile error, can override with documented justification)
 # -----------------------------------------------------------------------------
-# Rationale: std::process::exit should never be called in library code
-exit = "forbid"
+# Rationale: std::process::exit should never be called in library code.
+# deny (not forbid) because clap's derive macros emit #[allow(clippy::exit)]
+# internally, which is incompatible with forbid.
+exit = "deny"
 
 # -----------------------------------------------------------------------------
 # SECURITY LINTS (deny - compile error, can override with documented justification)
@@ -319,6 +322,9 @@ rcgen = { version = "0.13" }
 # Tracing and observability
 tracing-subscriber = { version = "0.3.22" }
 tracing-appender = { version = "0.2" }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
 
 # Common utilities
 parking_lot = { version = "0.12.3" }

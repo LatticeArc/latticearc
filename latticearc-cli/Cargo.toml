@@ -1,0 +1,36 @@
+[package]
+name = "latticearc-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Post-quantum cryptography CLI — keygen, encrypt, decrypt, sign, verify, hash, KDF"
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+
+[[bin]]
+name = "latticearc"
+path = "src/main.rs"
+
+[dependencies]
+latticearc = { path = "../latticearc" }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+zeroize = { workspace = true }
+rand = { workspace = true }
+blake2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+
+[lints]
+workspace = true
