@@ -138,10 +138,13 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            cli_binary: latticearc
           - target: x86_64-apple-darwin
             os: macos-15-intel
+            cli_binary: latticearc
           - target: aarch64-apple-darwin
             os: macos-latest
+            cli_binary: latticearc
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
@@ -162,13 +165,29 @@ jobs:
       - name: Build release
         run: cargo build --workspace --release --target ${{ matrix.target }} --all-features
 
+      - name: Verify CLI binary
+        run: |
+          CLI_BIN="target/${{ matrix.target }}/release/${{ matrix.cli_binary }}"
+          if [ -f "$CLI_BIN" ]; then
+            echo "CLI binary found: $CLI_BIN ($(wc -c < "$CLI_BIN") bytes)"
+            "$CLI_BIN" info || true
+          else
+            echo "Warning: CLI binary not found at $CLI_BIN"
+          fi
+        shell: bash
+
       - name: Generate checksums
         id: hash
         run: |
           cd target/${{ matrix.target }}/release
-          if [ -f "liblatticearc.rlib" ] || [ -f "liblatticearc.a" ]; then
-            sha256sum liblatticearc* 2>/dev/null | tee checksums.txt || true
-            echo "hashes=$(sha256sum liblatticearc* 2>/dev/null | base64 -w0 || echo '')" >> "$GITHUB_OUTPUT"
+          # Include both library and CLI binary in checksums
+          HASH_FILES=""
+          for f in liblatticearc* ${{ matrix.cli_binary }}; do
+            [ -f "$f" ] && HASH_FILES="$HASH_FILES $f"
+          done
+          if [ -n "$HASH_FILES" ]; then
+            sha256sum $HASH_FILES 2>/dev/null | tee checksums.txt || true
+            echo "hashes=$(sha256sum $HASH_FILES 2>/dev/null | base64 -w0 || echo '')" >> "$GITHUB_OUTPUT"
           fi
         shell: bash
 
@@ -176,11 +195,27 @@ jobs:
         run: |
           mkdir -p artifacts
           TARGET="${{ matrix.target }}"
+          VERSION="${GITHUB_REF#refs/tags/v}"
           cd target/${{ matrix.target }}/release
+
+          # Package library artifacts
           for f in liblatticearc*; do
             [ -f "$f" ] && cp "$f" ../../../artifacts/"${f%.*}-${TARGET}.${f##*.}" 2>/dev/null || true
           done
-          [ -f checksums.txt ] && cp checksums.txt ../../../artifacts/checksums-${TARGET}.txt 2>/dev/null || true
+
+          # Package CLI binary as tarball
+          CLI_BIN="${{ matrix.cli_binary }}"
+          if [ -f "$CLI_BIN" ]; then
+            cd ../../..
+            mkdir -p "latticearc-${VERSION}-${TARGET}"
+            cp "target/${TARGET}/release/${CLI_BIN}" "latticearc-${VERSION}-${TARGET}/"
+            cp latticearc-cli/README.md "latticearc-${VERSION}-${TARGET}/" 2>/dev/null || true
+            cp latticearc-cli/QUICK_REFERENCE.md "latticearc-${VERSION}-${TARGET}/" 2>/dev/null || true
+            tar czf "artifacts/latticearc-${VERSION}-${TARGET}.tar.gz" "latticearc-${VERSION}-${TARGET}"
+            rm -rf "latticearc-${VERSION}-${TARGET}"
+          fi
+
+          [ -f "target/${TARGET}/release/checksums.txt" ] && cp "target/${TARGET}/release/checksums.txt" "artifacts/checksums-${TARGET}.txt" 2>/dev/null || true
         shell: bash
         continue-on-error: true
 
@@ -283,7 +318,9 @@ jobs:
           files: |
             release-artifacts/sbom/*
             release-artifacts/signatures/*
-            release-artifacts/latticearc-*/*
+            release-artifacts/latticearc-*/*.tar.gz
+            release-artifacts/latticearc-*/*.txt
+            release-artifacts/latticearc-*/liblatticearc*
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

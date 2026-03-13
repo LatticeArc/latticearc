@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-03-12
+
+### Added
+
+- **`latticearc-cli` crate**: Standalone CLI binary with 8 commands — `keygen`, `sign`, `verify`,
+  `encrypt`, `decrypt`, `hash`, `kdf`, `info`. Covers all NIST-standardized post-quantum algorithms
+  (ML-DSA-44/65/87, ML-KEM-512/768/1024, SLH-DSA, FN-DSA) plus Ed25519, AES-256-GCM, hybrid
+  ML-DSA+Ed25519, hybrid ML-KEM+X25519, HKDF-SHA256, PBKDF2, and 4 hash algorithms.
+- **68 CLI integration tests** across 15 categories: signing roundtrips, encryption roundtrip,
+  NIST conformance assertions (FIPS 203/204/205/206, RFC 8032, SP 800-38D), edge cases, adversarial
+  scenarios (corrupted ciphertext/signatures, wrong keys, MITM, algorithm tampering), and key
+  isolation.
+- **CLI documentation**: README.md user guide (layman-friendly), QUICK_REFERENCE.md cheat sheet,
+  comprehensive doc comments across all CLI source files.
+- **CI: cross-platform CLI tests** on Ubuntu, macOS, and Windows.
+- **Release pipeline**: CLI binaries packaged as platform-specific tarballs
+  (`latticearc-<version>-<target>.tar.gz`) and attached to GitHub releases with checksums.
+
+### Changed
+
+- **Workspace version bump**: 0.3.3 → 0.4.0. All crates (`latticearc`, `latticearc-cli`,
+  `latticearc-tests`) share a single workspace version.
+- **`exit` lint relaxed from `forbid` to `deny`**: Required because clap's derive macros emit
+  `#[allow(clippy::exit)]` which is incompatible with `forbid`. The lint still prevents accidental
+  `std::process::exit()` in production code.
+
+---
+
 ## [0.3.3] - 2026-03-08
 
 ### TLS Improvements
