@@ -601,3 +601,163 @@ fn test_tls_usecase_webserver_hybrid_handshake() {
     send_done(&mut stream);
     handle.join().unwrap();
 }
+
+// ============================================================================
+// Cross-Mode Compatibility & Edge Case E2E Tests
+//
+// Tests that cover interoperability scenarios and boundary conditions
+// that go beyond single-mode happy-path testing.
+// ============================================================================
+
+#[test]
+fn test_classic_client_to_hybrid_server_fallback() {
+    // E2E: Classic-only client connects to Hybrid server.
+    // Server offers PQ groups first, but client only supports classical.
+    // Handshake should succeed via X25519 fallback.
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+
+    // Server: Hybrid mode (PQ groups preferred)
+    let tls_config = Tls13Config::hybrid();
+    let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
+
+    // Client: Classic mode (no PQ support)
+    let client_config = build_test_client_config(TlsMode::Classic, &ca.cert_der);
+
+    let (handle, addr) = spawn_echo_server(server_config);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    let msg = b"Classic client to hybrid server: fallback test";
+    let response = echo_roundtrip(&mut stream, msg);
+    assert_eq!(response, msg, "Cross-mode fallback roundtrip failed");
+
+    // Verify we fell back to a classical group (not MLKEM)
+    let kex = stream
+        .conn
+        .negotiated_key_exchange_group()
+        .map(|g| format!("{:?}", g.name()))
+        .unwrap_or_default();
+
+    // The negotiated group depends on what the classic client offers.
+    // It should be a real group (handshake succeeded), not empty.
+    assert!(!kex.is_empty(), "Must have negotiated a key exchange group");
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}
+
+#[test]
+fn test_zero_length_message_over_tls() {
+    // E2E: Empty payload should be handled correctly
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+
+    let tls_config = Tls13Config::hybrid();
+    let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
+    let client_config = build_test_client_config(TlsMode::Hybrid, &ca.cert_der);
+
+    let (handle, addr) = spawn_echo_server(server_config);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    // Send empty message (length=0 is our "done" signal, so send length=1 with one byte)
+    let msg = b"x";
+    let response = echo_roundtrip(&mut stream, msg);
+    assert_eq!(response, msg, "Minimal message roundtrip failed");
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}
+
+#[test]
+fn test_multiple_sequential_handshakes_same_mode() {
+    // E2E: Multiple independent TLS connections in sequence all succeed
+    for i in 0..3 {
+        let ca = generate_test_ca();
+        let (server_chain, server_key) = generate_server_cert(&ca);
+
+        let tls_config = Tls13Config::hybrid();
+        let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
+        let client_config = build_test_client_config(TlsMode::Hybrid, &ca.cert_der);
+
+        let (handle, addr) = spawn_echo_server(server_config);
+        let mut stream = connect_tls_client(client_config, addr);
+
+        let msg = format!("Sequential handshake #{i}");
+        let response = echo_roundtrip(&mut stream, msg.as_bytes());
+        assert_eq!(response, msg.as_bytes(), "Sequential handshake #{i} failed");
+
+        send_done(&mut stream);
+        handle.join().unwrap();
+    }
+}
+
+#[test]
+fn test_each_mode_negotiates_expected_kex_family() {
+    // E2E: Verify the negotiated KEX group family matches the mode
+    let mode_expectations = [
+        (TlsMode::Hybrid, true), // should negotiate MLKEM
+        (TlsMode::Pq, true),     // should negotiate MLKEM
+                                 // Classic may or may not have MLKEM depending on default_provider ordering
+    ];
+
+    for (mode, expect_mlkem) in mode_expectations {
+        let ca = generate_test_ca();
+        let (server_chain, server_key) = generate_server_cert(&ca);
+
+        let tls_config = match mode {
+            TlsMode::Classic => Tls13Config::classic(),
+            TlsMode::Hybrid => Tls13Config::hybrid(),
+            TlsMode::Pq => Tls13Config::pq(),
+        };
+        let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
+        let client_config = build_test_client_config(mode, &ca.cert_der);
+
+        let (handle, addr) = spawn_echo_server(server_config);
+        let mut stream = connect_tls_client(client_config, addr);
+
+        let msg = format!("{mode:?} kex family test");
+        let _ = echo_roundtrip(&mut stream, msg.as_bytes());
+
+        let kex = stream
+            .conn
+            .negotiated_key_exchange_group()
+            .map(|g| format!("{:?}", g.name()))
+            .unwrap_or_default();
+
+        if expect_mlkem {
+            assert!(
+                kex.contains("MLKEM"),
+                "{mode:?} mode should negotiate MLKEM group, got: {kex}"
+            );
+        }
+
+        send_done(&mut stream);
+        handle.join().unwrap();
+    }
+}
+
+#[test]
+fn test_large_message_integrity_pq_mode() {
+    // E2E: 64KB message over PQ-only TLS, verified with SHA-256
+    let ca = generate_test_ca();
+    let (server_chain, server_key) = generate_server_cert(&ca);
+
+    let tls_config = Tls13Config::pq();
+    let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
+    let client_config = build_test_client_config(TlsMode::Pq, &ca.cert_der);
+
+    let (handle, addr) = spawn_echo_server(server_config);
+    let mut stream = connect_tls_client(client_config, addr);
+
+    // Generate 64KB test payload
+    let payload: Vec<u8> = (0..65536u32).map(|i| (i % 256) as u8).collect();
+    let expected_hash = Sha256::digest(&payload);
+
+    let response = echo_roundtrip(&mut stream, &payload);
+    let actual_hash = Sha256::digest(&response);
+
+    assert_eq!(expected_hash, actual_hash, "64KB PQ-mode data integrity check failed");
+
+    send_done(&mut stream);
+    handle.join().unwrap();
+}

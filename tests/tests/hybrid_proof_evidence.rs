@@ -1668,3 +1668,145 @@ fn proof_hybrid_includes_classical_fallback() {
         group_names.len(),
     );
 }
+
+#[test]
+fn proof_classic_mode_not_pq_secure() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_info};
+
+    // Classic mode must NOT claim PQ security regardless of kex_mode
+    for kex_mode in [PqKexMode::Classical, PqKexMode::RustlsPq, PqKexMode::CustomHybrid] {
+        let info = get_kex_info(TlsMode::Classic, kex_mode);
+        assert!(!info.is_pq_secure, "Classic mode must not be PQ secure");
+    }
+
+    let info = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"classic_not_pq_secure\",\
+         \"description\":\"Classic TLS mode correctly reports non-PQ security for all kex modes\",\
+         \"tls_mode\":\"Classic\",\
+         \"is_pq_secure\":false,\
+         \"method\":\"{method}\",\
+         \"ss_size\":{ss},\
+         \"status\":\"PASS\"}}",
+        method = info.method,
+        ss = info.ss_size,
+    );
+}
+
+#[test]
+fn proof_pq_secure_flag_per_mode() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_info};
+
+    // Verify is_pq_secure flag is consistent with mode semantics
+    let test_cases = [
+        (TlsMode::Hybrid, PqKexMode::RustlsPq, true),
+        (TlsMode::Hybrid, PqKexMode::CustomHybrid, true),
+        (TlsMode::Pq, PqKexMode::RustlsPq, true),
+        (TlsMode::Classic, PqKexMode::Classical, false),
+        (TlsMode::Classic, PqKexMode::RustlsPq, false),
+    ];
+
+    let mut results = Vec::new();
+    for (tls_mode, kex_mode, expected_pq) in test_cases {
+        let info = get_kex_info(tls_mode, kex_mode);
+        assert_eq!(
+            info.is_pq_secure, expected_pq,
+            "{tls_mode:?}/{kex_mode:?}: expected is_pq_secure={expected_pq}"
+        );
+        results.push(format!("{tls_mode:?}/{kex_mode:?}={expected_pq}"));
+    }
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"pq_secure_flag_consistency\",\
+         \"description\":\"is_pq_secure flag matches mode semantics for all mode combinations\",\
+         \"test_count\":{count},\
+         \"results\":\"{results}\",\
+         \"status\":\"PASS\"}}",
+        count = results.len(),
+        results = results.join(", "),
+    );
+}
+
+#[test]
+fn proof_hybrid_ss_larger_than_classical() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_info};
+
+    let hybrid = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
+    let classical = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
+
+    assert!(
+        hybrid.ss_size > classical.ss_size,
+        "Hybrid SS ({}) must exceed classical SS ({})",
+        hybrid.ss_size,
+        classical.ss_size
+    );
+
+    // ss_size values are small (32, 64) — precision loss impossible
+    let ratio = hybrid.ss_size / classical.ss_size;
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"hybrid_ss_larger_than_classical\",\
+         \"description\":\"Hybrid X25519MLKEM768 shared secret (64B) exceeds classical X25519 (32B)\",\
+         \"hybrid_ss_size\":{hybrid_ss},\
+         \"classical_ss_size\":{classical_ss},\
+         \"ratio\":{ratio},\
+         \"status\":\"PASS\"}}",
+        hybrid_ss = hybrid.ss_size,
+        classical_ss = classical.ss_size,
+    );
+}
+
+#[test]
+fn proof_provider_deterministic() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_provider};
+
+    // Provider must produce identical group ordering across calls
+    let p1 = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).unwrap();
+    let p2 = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).unwrap();
+
+    let names1: Vec<String> = p1.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+    let names2: Vec<String> = p2.kx_groups.iter().map(|g| format!("{:?}", g.name())).collect();
+
+    assert_eq!(names1, names2, "Provider must be deterministic");
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"provider_deterministic\",\
+         \"description\":\"get_kex_provider produces identical group ordering across multiple calls\",\
+         \"call_count\":2,\
+         \"groups_match\":true,\
+         \"group_count\":{count},\
+         \"status\":\"PASS\"}}",
+        count = names1.len(),
+    );
+}
+
+#[test]
+fn proof_exhaustive_mode_matrix() {
+    use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_info, get_kex_provider};
+
+    // Every (TlsMode, PqKexMode) combination must succeed without panic
+    let tls_modes = [TlsMode::Classic, TlsMode::Hybrid, TlsMode::Pq];
+    let kex_modes = [PqKexMode::Classical, PqKexMode::RustlsPq, PqKexMode::CustomHybrid];
+
+    let mut pass_count = 0;
+    for tls_mode in &tls_modes {
+        for kex_mode in &kex_modes {
+            let provider = get_kex_provider(*tls_mode, *kex_mode);
+            assert!(provider.is_ok(), "{tls_mode:?}/{kex_mode:?} must succeed");
+            assert!(!provider.unwrap().kx_groups.is_empty());
+            let _ = get_kex_info(*tls_mode, *kex_mode);
+            pass_count += 1;
+        }
+    }
+
+    println!(
+        "[PROOF] {{\"section\":13,\"test\":\"exhaustive_mode_matrix\",\
+         \"description\":\"All 9 (TlsMode x PqKexMode) combinations produce valid providers and info\",\
+         \"total_combinations\":{pass_count},\
+         \"tls_modes\":3,\
+         \"kex_modes\":3,\
+         \"all_passed\":true,\
+         \"status\":\"PASS\"}}"
+    );
+}

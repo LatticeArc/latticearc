@@ -817,7 +817,7 @@ Before v0.3.3, PQ key exchange required the `rustls-post-quantum` crate, which a
 
 ---
 
-## Summary: What the 94 Proof Lines Collectively Prove
+## Summary: What the 99 Proof Lines Collectively Prove
 
 | Claim | Evidence |
 |-------|----------|
