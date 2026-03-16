@@ -128,7 +128,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@a37010ded18ff788be4440302bd6830b1ae50d8b # main
+      uses: taiki-e/install-action@de6bbd1333b8f331563d54a051e542c7dfef81c3 # main
       with:
         tool: cargo-llvm-cov
 
