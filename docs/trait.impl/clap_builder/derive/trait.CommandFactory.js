@@ -1,9 +1,9 @@
 (function() {
-    var implementors = Object.fromEntries([["latticearc",[["impl CommandFactory for <a class=\"struct\" href=\"latticearc/struct.Cli.html\" title=\"struct latticearc::Cli\">Cli</a>"]]]]);
+    var implementors = Object.fromEntries([["latticearc",[["impl CommandFactory for <a class=\"struct\" href=\"latticearc/struct.Cli.html\" title=\"struct latticearc::Cli\">Cli</a>"]]],["latticearc_cli",[["impl CommandFactory for <a class=\"struct\" href=\"latticearc_cli/struct.Cli.html\" title=\"struct latticearc_cli::Cli\">Cli</a>"]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":57,"fragment_lengths":[141]}
+//{"start":57,"fragment_lengths":[141,154]}
