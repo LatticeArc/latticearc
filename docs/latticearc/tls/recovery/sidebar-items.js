@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["CircuitState","FallbackStrategy"],"fn":["execute_with_circuit_breaker","execute_with_fallback","retry_with_policy"],"struct":["CircuitBreaker","DegradationConfig","RetryPolicy"]};

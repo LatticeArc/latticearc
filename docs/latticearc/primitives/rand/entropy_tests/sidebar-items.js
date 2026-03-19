@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["adaptive_proportion_test","adaptive_proportion_test_with_params","frequency_test","longest_run_test","monobit_test","repetition_test","run_entropy_health_tests","run_entropy_health_tests_on_bytes","runs_test"]};

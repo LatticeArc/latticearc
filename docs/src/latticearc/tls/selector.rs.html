@@ -530,7 +530,7 @@
 <a href=#530 id=530 data-nosnippet>530</a>        </span><span class="kw">let </span>base_mode = <span class="kw">if let </span><span class="prelude-val">Some</span>(use_case) = ctx.use_case {
 <a href=#531 id=531 data-nosnippet>531</a>            <span class="self">Self</span>::recommend_mode(use_case)
 <a href=#532 id=532 data-nosnippet>532</a>        } <span class="kw">else </span>{
-<a href=#533 id=533 data-nosnippet>533</a>            <span class="self">Self</span>::select_balanced(ctx.security_level.clone(), ctx.performance_preference.clone())
+<a href=#533 id=533 data-nosnippet>533</a>            <span class="self">Self</span>::select_balanced(ctx.security_level, ctx.performance_preference.clone())
 <a href=#534 id=534 data-nosnippet>534</a>        };
 <a href=#535 id=535 data-nosnippet>535</a>
 <a href=#536 id=536 data-nosnippet>536</a>        <span class="comment">// Apply security level override for Quantum (PQ-only)

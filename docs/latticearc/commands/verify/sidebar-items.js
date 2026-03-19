@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["VerifyAlgorithm"],"fn":["algorithm_name","detect_algorithm","run","verify_hybrid","verify_legacy","verify_standard"],"struct":["VerifyArgs"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ResourceError"],"fn":["get_global_resource_limits","validate_decryption_size","validate_encryption_size","validate_key_derivation_count","validate_signature_size"],"struct":["ResourceLimits","ResourceLimitsManager"],"type":["Result"]};

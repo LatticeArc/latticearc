@@ -34,7 +34,7 @@
 <a href=#34 id=34 data-nosnippet>34</a>//! | SHA-256 | FIPS 180-4 | aws-lc-rs | Yes |
 <a href=#35 id=35 data-nosnippet>35</a>//! | ML-DSA | FIPS 204 | fips204 | No |
 <a href=#36 id=36 data-nosnippet>36</a>//! | SLH-DSA | FIPS 205 | fips205 | No |
-<a href=#37 id=37 data-nosnippet>37</a>//! | FN-DSA | FIPS 206 (draft) | fn-dsa | No |
+<a href=#37 id=37 data-nosnippet>37</a>//! | FN-DSA | FIPS 206 | fn-dsa | No |
 <a href=#38 id=38 data-nosnippet>38</a>//!
 <a href=#39 id=39 data-nosnippet>39</a>//! ## Unified API with CryptoConfig
 <a href=#40 id=40 data-nosnippet>40</a>//!
@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>//! | Feature | Description |
 <a href=#82 id=82 data-nosnippet>82</a>//! |---------|-------------|
 <a href=#83 id=83 data-nosnippet>83</a>//! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). |
-<a href=#84 id=84 data-nosnippet>84</a>//! | `fips-self-test` | Power-up KAT self-tests for all FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). |
+<a href=#84 id=84 data-nosnippet>84</a>//! | `fips-self-test` | Power-up KAT self-tests (ML-KEM via aws-lc-rs, AES-GCM, SHA-3). ML-DSA and SLH-DSA use non-validated crate implementations — not FIPS-boundary. |
 <a href=#85 id=85 data-nosnippet>85</a>//! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
 <a href=#86 id=86 data-nosnippet>86</a>//! | `formal-verification` | Compilation marker: enables formal verification harness code (Kani proofs). Does not run proofs — use `cargo kani` separately. |
 <a href=#87 id=87 data-nosnippet>87</a>//! | `kani` | Compilation marker: enables Kani bounded model checking proof harnesses. Requires `cargo kani` to execute proofs. |
@@ -272,7 +272,7 @@
 <a href=#272 id=272 data-nosnippet>272</a>
 <a href=#273 id=273 data-nosnippet>273</a><span class="comment">// Explicit re-export of LatticeArcError for error compatibility.
 <a href=#274 id=274 data-nosnippet>274</a>// All other prelude types are accessible via `latticearc::prelude::*`.
-<a href=#275 id=275 data-nosnippet>275</a></span><span class="kw">pub use </span>prelude::prelude::LatticeArcError;
+<a href=#275 id=275 data-nosnippet>275</a></span><span class="kw">pub use </span>prelude::LatticeArcError;
 <a href=#276 id=276 data-nosnippet>276</a>
 <a href=#277 id=277 data-nosnippet>277</a><span class="comment">// ============================================================================
 <a href=#278 id=278 data-nosnippet>278</a>// Core Types
@@ -473,11 +473,17 @@
 <a href=#473 id=473 data-nosnippet>473</a>};
 <a href=#474 id=474 data-nosnippet>474</a>
 <a href=#475 id=475 data-nosnippet>475</a><span class="comment">// ============================================================================
-<a href=#476 id=476 data-nosnippet>476</a>// TLS Utilities
+<a href=#476 id=476 data-nosnippet>476</a>// Portable Key Format
 <a href=#477 id=477 data-nosnippet>477</a>// ============================================================================
 <a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a></span><span class="kw">pub use </span>tls::{
-<a href=#480 id=480 data-nosnippet>480</a>    TlsConfig, TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, tls_accept,
-<a href=#481 id=481 data-nosnippet>481</a>    tls_connect,
-<a href=#482 id=482 data-nosnippet>482</a>};
+<a href=#479 id=479 data-nosnippet>479</a></span><span class="kw">pub use </span>unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+<a href=#480 id=480 data-nosnippet>480</a>
+<a href=#481 id=481 data-nosnippet>481</a><span class="comment">// ============================================================================
+<a href=#482 id=482 data-nosnippet>482</a>// TLS Utilities
+<a href=#483 id=483 data-nosnippet>483</a>// ============================================================================
+<a href=#484 id=484 data-nosnippet>484</a>
+<a href=#485 id=485 data-nosnippet>485</a></span><span class="kw">pub use </span>tls::{
+<a href=#486 id=486 data-nosnippet>486</a>    TlsConfig, TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, tls_accept,
+<a href=#487 id=487 data-nosnippet>487</a>    tls_connect,
+<a href=#488 id=488 data-nosnippet>488</a>};
 </code></pre></div></section></main></body></html>

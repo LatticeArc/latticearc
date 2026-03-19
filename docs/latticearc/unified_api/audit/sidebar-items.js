@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["AuditEventType","AuditOutcome"],"struct":["AuditConfig","AuditEvent","AuditEventBuilder","FileAuditStorage"],"trait":["AuditStorage"]};
