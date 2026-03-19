@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   comprehensive doc comments across all CLI source files.
 - **CI: cross-platform CLI tests** on Ubuntu, macOS, and Windows.
 - **Release pipeline**: CLI binaries packaged as platform-specific tarballs
-  (`latticearc-<version>-<target>.tar.gz`) and attached to GitHub releases with checksums.
+  (`latticearc-cli-<version>-<target>.tar.gz`) and attached to GitHub releases with checksums.
 
 ### Changed
 

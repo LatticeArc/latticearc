@@ -138,13 +138,13 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            cli_binary: latticearc
+            cli_binary: latticearc-cli
           - target: x86_64-apple-darwin
             os: macos-15-intel
-            cli_binary: latticearc
+            cli_binary: latticearc-cli
           - target: aarch64-apple-darwin
             os: macos-latest
-            cli_binary: latticearc
+            cli_binary: latticearc-cli
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:

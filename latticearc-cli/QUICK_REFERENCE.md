@@ -5,13 +5,13 @@
 **Recommended** — express intent, library selects the algorithm:
 
 ```bash
-latticearc keygen --use-case <USE_CASE> [-o <dir>] [-l <label>]
+latticearc-cli keygen --use-case <USE_CASE> [-o <dir>] [-l <label>]
 ```
 
 **Expert** — specify algorithm directly:
 
 ```bash
-latticearc keygen -a <algorithm> -o <dir> [-l <label>]
+latticearc-cli keygen -a <algorithm> -o <dir> [-l <label>]
 ```
 
 | Use Case | What It Selects |
@@ -31,29 +31,29 @@ Expert algorithms: `aes256`, `ml-dsa44/65/87`, `ml-kem512/768/1024`, `slh-dsa128
 
 ```bash
 # Sign (recommended — unified API, embeds PK in signature)
-latticearc sign -i <file> -k <secret.json> --public-key <public.json>
+latticearc-cli sign -i <file> -k <secret.json> --public-key <public.json>
 
 # Sign (expert — explicit algorithm)
-latticearc sign -a <algorithm> -i <file> -k <secret.json>
+latticearc-cli sign -a <algorithm> -i <file> -k <secret.json>
 
 # Verify (algorithm auto-detected, PK embedded in SignedData)
-latticearc verify -i <file> -s <sig.json>
+latticearc-cli verify -i <file> -s <sig.json>
 
 # Verify (legacy format — requires --key)
-latticearc verify -i <file> -s <sig.json> -k <public.json>
+latticearc-cli verify -i <file> -s <sig.json> -k <public.json>
 ```
 
 ## Encrypt & Decrypt
 
 ```bash
 # Encrypt (recommended — use-case-driven)
-latticearc encrypt --use-case <USE_CASE> -i <file> -o <enc.json> -k <key.json>
+latticearc-cli encrypt --use-case <USE_CASE> -i <file> -o <enc.json> -k <key.json>
 
 # Encrypt (expert — explicit mode)
-latticearc encrypt -m aes256-gcm -i <file> -o <enc.json> -k <key.json>
+latticearc-cli encrypt -m aes256-gcm -i <file> -o <enc.json> -k <key.json>
 
 # Decrypt
-latticearc decrypt -i <enc.json> -o <file> -k <key.json>
+latticearc-cli decrypt -i <enc.json> -o <file> -k <key.json>
 ```
 
 Modes: `aes256-gcm`, `chacha20-poly1305`, `hybrid`
@@ -61,7 +61,7 @@ Modes: `aes256-gcm`, `chacha20-poly1305`, `hybrid`
 ## Hash
 
 ```bash
-latticearc hash -a <algorithm> -i <file> [-f <hex|base64>]
+latticearc-cli hash -a <algorithm> -i <file> [-f <hex|base64>]
 ```
 
 Algorithms: `sha3-256` (default), `sha-256`, `sha-512`, `blake2b`
@@ -70,38 +70,38 @@ Algorithms: `sha3-256` (default), `sha-256`, `sha-512`, `blake2b`
 
 ```bash
 # From key material (HKDF)
-latticearc kdf -a hkdf -i <hex_key> -s <hex_salt> [-l <bytes>] [--info <text>]
+latticearc-cli kdf -a hkdf -i <hex_key> -s <hex_salt> [-l <bytes>] [--info <text>]
 
 # From password (PBKDF2)
-latticearc kdf -a pbkdf2 -i <password> -s <hex_salt> [-l <bytes>] [--iterations <n>]
+latticearc-cli kdf -a pbkdf2 -i <password> -s <hex_salt> [-l <bytes>] [--iterations <n>]
 ```
 
 ## Info
 
 ```bash
-latticearc info       # Show version, FIPS status, supported algorithms
-latticearc --help     # Show all commands
-latticearc <cmd> -h   # Show help for a specific command
+latticearc-cli info       # Show version, FIPS status, supported algorithms
+latticearc-cli --help     # Show all commands
+latticearc-cli <cmd> -h   # Show help for a specific command
 ```
 
 ## Common Workflows
 
 ```bash
 # 1. Sign a legal document (use-case-driven)
-latticearc keygen --use-case legal-documents -o keys
-latticearc sign -i contract.pdf -k keys/hybrid-ml-dsa-65-ed25519.sec.json \
+latticearc-cli keygen --use-case legal-documents -o keys
+latticearc-cli sign -i contract.pdf -k keys/hybrid-ml-dsa-65-ed25519.sec.json \
   --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
-latticearc verify -i contract.pdf -s contract.pdf.sig.json
+latticearc-cli verify -i contract.pdf -s contract.pdf.sig.json
 
 # 2. Encrypt healthcare records
-latticearc keygen -a aes256 -o keys
-latticearc encrypt --use-case healthcare-records -i records.json -o records.enc.json -k keys/aes256.key.json
-latticearc decrypt -i records.enc.json -o records.json -k keys/aes256.key.json
+latticearc-cli keygen -a aes256 -o keys
+latticearc-cli encrypt --use-case healthcare-records -i records.json -o records.enc.json -k keys/aes256.key.json
+latticearc-cli decrypt -i records.enc.json -o records.json -k keys/aes256.key.json
 
 # 3. CI/CD firmware signing
-latticearc keygen --use-case firmware-signing -o ci-keys
-latticearc hash -a sha-256 -i firmware.bin
-latticearc sign -i firmware.bin -k ci-keys/hybrid-ml-dsa-65-ed25519.sec.json \
+latticearc-cli keygen --use-case firmware-signing -o ci-keys
+latticearc-cli hash -a sha-256 -i firmware.bin
+latticearc-cli sign -i firmware.bin -k ci-keys/hybrid-ml-dsa-65-ed25519.sec.json \
   --public-key ci-keys/hybrid-ml-dsa-65-ed25519.pub.json
 ```
 

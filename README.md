@@ -87,26 +87,26 @@ LatticeArc ships a CLI for key generation, signing, encryption, hashing, and key
 
 ```bash
 # Install from source
-cargo install --path latticearc-cli
+cargo install --path latticearc-cli  # installs latticearc-cli binary
 
 # Generate signing keys for a use case — library selects the optimal algorithm
-latticearc keygen --use-case legal-documents --output ./keys
+latticearc-cli keygen --use-case legal-documents --output ./keys
 
 # Sign a document (unified API — embeds scheme + timestamp + public key)
-latticearc sign --input contract.pdf \
+latticearc-cli sign --input contract.pdf \
   --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
   --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
 
 # Verify (public key is embedded in the SignedData envelope — no --key needed)
-latticearc verify --input contract.pdf --signature contract.pdf.sig.json
+latticearc-cli verify --input contract.pdf --signature contract.pdf.sig.json
 
 # Encrypt / decrypt
-latticearc keygen --algorithm aes256 --output ./keys
-latticearc encrypt --use-case file-storage --input secrets.txt --output secrets.enc.json --key keys/aes256.key.json
-latticearc decrypt --input secrets.enc.json --output secrets.txt --key keys/aes256.key.json
+latticearc-cli keygen --algorithm aes256 --output ./keys
+latticearc-cli encrypt --use-case file-storage --input secrets.txt --output secrets.enc.json --key keys/aes256.key.json
+latticearc-cli decrypt --input secrets.enc.json --output secrets.txt --key keys/aes256.key.json
 
 # Hash
-latticearc hash --algorithm sha-256 --input document.pdf
+latticearc-cli hash --algorithm sha-256 --input document.pdf
 ```
 
 The CLI mirrors the library's use-case-driven design — you express intent (`--use-case`, `--security-level`), and the policy engine selects the algorithm. Expert users can override with `--algorithm` directly. Supports all four NIST PQC standards (FIPS 203-206), hybrid modes, AES-256-GCM, Ed25519, HKDF, and PBKDF2. Keys are stored in the [LatticeArc Portable Key (LPK)](docs/KEY_FORMAT.md) format — dual JSON + CBOR with UseCase/SecurityLevel-first design. See [`latticearc-cli/README.md`](latticearc-cli/README.md) for the full command reference.

@@ -96,8 +96,8 @@ pub(crate) fn run(args: KeygenArgs) -> Result<()> {
     let Some(algorithm) = &args.algorithm else {
         bail!(
             "Either --use-case or --algorithm is required.\n\
-             Recommended: latticearc keygen --use-case <USE_CASE>\n\
-             Expert:      latticearc keygen --algorithm <ALGORITHM>"
+             Recommended: latticearc-cli keygen --use-case <USE_CASE>\n\
+             Expert:      latticearc-cli keygen --algorithm <ALGORITHM>"
         )
     };
     match algorithm {

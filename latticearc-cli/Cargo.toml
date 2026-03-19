@@ -11,7 +11,7 @@ homepage.workspace = true
 readme = "README.md"
 
 [[bin]]
-name = "latticearc"
+name = "latticearc-cli"
 path = "src/main.rs"
 
 [dependencies]

@@ -84,8 +84,8 @@ pub(crate) fn run(args: SignArgs) -> Result<()> {
     let Some(algorithm) = &args.algorithm else {
         bail!(
             "Either --public-key (recommended) or --algorithm (legacy) is required.\n\
-             Recommended: latticearc sign --input <FILE> --key <SECRET> --public-key <PUBLIC>\n\
-             Legacy:      latticearc sign --algorithm <ALG> --input <FILE> --key <SECRET>"
+             Recommended: latticearc-cli sign --input <FILE> --key <SECRET> --public-key <PUBLIC>\n\
+             Legacy:      latticearc-cli sign --algorithm <ALG> --input <FILE> --key <SECRET>"
         )
     };
 

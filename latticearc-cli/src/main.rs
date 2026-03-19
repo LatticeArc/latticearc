@@ -58,7 +58,7 @@ use clap::{Parser, Subcommand};
 /// using NIST-standard post-quantum algorithms (ML-KEM, ML-DSA, SLH-DSA, FN-DSA)
 /// and classical algorithms (AES-256-GCM, Ed25519, X25519).
 #[derive(Parser)]
-#[command(name = "latticearc", version, about, long_about = None)]
+#[command(name = "latticearc-cli", version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
     /// Subcommand to execute.

@@ -2,7 +2,7 @@
 //!
 //! These tests exercise the actual CLI binary via `std::process::Command`,
 //! validating real-world end-to-end flows. Every test runs the compiled
-//! `latticearc` binary as a subprocess — no internal API calls — so these
+//! `latticearc-cli` binary as a subprocess — no internal API calls — so these
 //! tests verify the exact same interface a user would encounter.
 //!
 //! # Test Categories (83 tests across 20 sections)
@@ -128,7 +128,7 @@ use std::process::Command;
 /// Path to the compiled CLI binary.
 fn cli_bin() -> PathBuf {
     // cargo test builds in target/debug or target/release
-    let path = PathBuf::from(env!("CARGO_BIN_EXE_latticearc"));
+    let path = PathBuf::from(env!("CARGO_BIN_EXE_latticearc-cli"));
     // Ensure the binary exists
     assert!(path.exists(), "CLI binary not found at {}", path.display());
     path

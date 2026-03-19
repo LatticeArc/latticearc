@@ -41,7 +41,7 @@ pub(crate) fn run(_args: InfoArgs) -> Result<()> {
     println!("  Signatures:");
     println!("    ML-DSA-44/65/87         (FIPS 204, lattice-based)");
     println!("    SLH-DSA-SHAKE-128s      (FIPS 205, hash-based, stateless)");
-    println!("    FN-DSA-512              (FIPS 206 draft, compact lattice)");
+    println!("    FN-DSA-512              (FIPS 206, compact lattice)");
     println!("    Ed25519                 (RFC 8032, classical)");
     println!("    Hybrid ML-DSA+Ed25519   (combined PQ + classical)");
     println!();

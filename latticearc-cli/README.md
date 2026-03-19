@@ -22,19 +22,19 @@ Download the binary for your platform from the
 
 | Platform | Architecture | File |
 |----------|-------------|------|
-| Linux | x86_64 | `latticearc-linux-x86_64` |
-| Linux | ARM64 | `latticearc-linux-aarch64` |
-| macOS | Intel | `latticearc-macos-x86_64` |
-| macOS | Apple Silicon | `latticearc-macos-aarch64` |
-| Windows | x86_64 | `latticearc-windows-x86_64.exe` |
+| Linux | x86_64 | `latticearc-cli-linux-x86_64` |
+| Linux | ARM64 | `latticearc-cli-linux-aarch64` |
+| macOS | Intel | `latticearc-cli-macos-x86_64` |
+| macOS | Apple Silicon | `latticearc-cli-macos-aarch64` |
+| Windows | x86_64 | `latticearc-cli-windows-x86_64.exe` |
 
 ```bash
 # macOS/Linux: make it executable and move to your PATH
-chmod +x latticearc-macos-aarch64
-sudo mv latticearc-macos-aarch64 /usr/local/bin/latticearc
+chmod +x latticearc-cli-macos-aarch64
+sudo mv latticearc-cli-macos-aarch64 /usr/local/bin/latticearc-cli
 
 # Verify installation
-latticearc info
+latticearc-cli info
 ```
 
 ### From Source
@@ -54,15 +54,15 @@ selects the optimal post-quantum algorithm automatically.
 
 ```bash
 # Generate keys for legal document signing
-latticearc keygen --use-case legal-documents --output ./keys
+latticearc-cli keygen --use-case legal-documents --output ./keys
 
 # Sign (provide both keys for the unified API — embeds PK in signature)
-latticearc sign --input contract.pdf \
+latticearc-cli sign --input contract.pdf \
   --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
   --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
 
 # Verify (algorithm auto-detected from signature file)
-latticearc verify --input contract.pdf \
+latticearc-cli verify --input contract.pdf \
   --signature contract.pdf.sig.json \
   --key keys/hybrid-ml-dsa-65-ed25519.pub.json
 ```
@@ -71,16 +71,16 @@ latticearc verify --input contract.pdf \
 
 ```bash
 # Generate encryption key (symmetric AES-256)
-latticearc keygen --algorithm aes256 --output ./keys
+latticearc-cli keygen --algorithm aes256 --output ./keys
 
 # Encrypt
-latticearc encrypt --use-case healthcare-records \
+latticearc-cli encrypt --use-case healthcare-records \
   --input patient-records.json \
   --output patient-records.enc.json \
   --key keys/aes256.key.json
 
 # Decrypt
-latticearc decrypt \
+latticearc-cli decrypt \
   --input patient-records.enc.json \
   --output patient-records.json \
   --key keys/aes256.key.json
@@ -89,7 +89,7 @@ latticearc decrypt \
 ### 3. Hash a File
 
 ```bash
-latticearc hash --algorithm sha-256 --input document.pdf
+latticearc-cli hash --algorithm sha-256 --input document.pdf
 # Output: SHA-256: a1b2c3d4e5f6...
 ```
 
@@ -98,8 +98,8 @@ latticearc hash --algorithm sha-256 --input document.pdf
 If you need a specific algorithm, use `--algorithm` directly:
 
 ```bash
-latticearc keygen --algorithm ml-dsa87 --output ./keys
-latticearc sign --algorithm ml-dsa87 --input file.bin --key keys/ml-dsa-87.sec.json
+latticearc-cli keygen --algorithm ml-dsa87 --output ./keys
+latticearc-cli sign --algorithm ml-dsa87 --input file.bin --key keys/ml-dsa-87.sec.json
 ```
 
 ## Commands
@@ -111,13 +111,13 @@ Creates cryptographic keys for signing, encryption, or key exchange.
 **Recommended** — let the library choose the algorithm:
 
 ```
-latticearc keygen --use-case <USE_CASE> [--security-level <LEVEL>] [--output <DIR>] [--label <TEXT>]
+latticearc-cli keygen --use-case <USE_CASE> [--security-level <LEVEL>] [--output <DIR>] [--label <TEXT>]
 ```
 
 **Expert** — specify the algorithm directly:
 
 ```
-latticearc keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
+latticearc-cli keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
 ```
 
 **Use cases** (22 available — the library selects optimal algorithms):
@@ -166,10 +166,10 @@ latticearc keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
 
 ```bash
 # Recommended: use-case-driven (library selects optimal algorithm)
-latticearc keygen --use-case firmware-signing --output ./keys --label "CI/CD Signing"
+latticearc-cli keygen --use-case firmware-signing --output ./keys --label "CI/CD Signing"
 
 # Expert: explicit algorithm
-latticearc keygen --algorithm ml-dsa65 --output ./keys --label "Production CI/CD"
+latticearc-cli keygen --algorithm ml-dsa65 --output ./keys --label "Production CI/CD"
 ```
 
 ### `sign` — Sign Data
@@ -179,14 +179,14 @@ Creates a digital signature proving a file hasn't been tampered with.
 **Recommended** — provide both secret and public key for `SignedData` output:
 
 ```
-latticearc sign --input <FILE> --key <SECRET_KEY> --public-key <PUBLIC_KEY>
+latticearc-cli sign --input <FILE> --key <SECRET_KEY> --public-key <PUBLIC_KEY>
                 [--use-case <USE_CASE>] [--output <FILE>]
 ```
 
 **Expert** — specify algorithm directly:
 
 ```
-latticearc sign --algorithm <ALGORITHM> --input <FILE> --key <SECRET_KEY>
+latticearc-cli sign --algorithm <ALGORITHM> --input <FILE> --key <SECRET_KEY>
 ```
 
 When `--public-key` is provided, the library's `sign_with_key()` API produces a
@@ -197,7 +197,7 @@ The `verify` command auto-detects the format.
 
 ```bash
 # Sign with use-case config (recommended)
-latticearc sign --input contract.pdf \
+latticearc-cli sign --input contract.pdf \
   --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
   --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json \
   --use-case legal-documents
@@ -209,7 +209,7 @@ Checks whether a signature is valid for a given file and public key. Returns
 exit code 0 if valid, non-zero if invalid.
 
 ```
-latticearc verify --input <FILE> --signature <SIG_FILE> --key <PUBLIC_KEY>
+latticearc-cli verify --input <FILE> --signature <SIG_FILE> --key <PUBLIC_KEY>
                   [--algorithm <ALGORITHM>]
 ```
 
@@ -220,7 +220,7 @@ from the signature file's `"algorithm"` field.
 
 ```bash
 # Verify (algorithm auto-detected from signature file)
-latticearc verify \
+latticearc-cli verify \
   --input firmware-v3.2.bin \
   --signature firmware-v3.2.sig.json \
   --key keys/ml-dsa-65.pub.json
@@ -238,13 +238,13 @@ self-contained JSON file.
 **Recommended** — use case-driven:
 
 ```
-latticearc encrypt --use-case <USE_CASE> --input <FILE> --key <KEY_FILE> [--output <FILE>]
+latticearc-cli encrypt --use-case <USE_CASE> --input <FILE> --key <KEY_FILE> [--output <FILE>]
 ```
 
 **Expert** — specify mode directly:
 
 ```
-latticearc encrypt --mode <MODE> --input <FILE> --key <KEY_FILE> [--output <FILE>]
+latticearc-cli encrypt --mode <MODE> --input <FILE> --key <KEY_FILE> [--output <FILE>]
 ```
 
 **Modes:** `aes256-gcm` (symmetric, SP 800-38D), `hybrid` (ML-KEM-768 + X25519 + AES-256-GCM), `chacha20-poly1305` (symmetric, RFC 8439)
@@ -253,13 +253,13 @@ latticearc encrypt --mode <MODE> --input <FILE> --key <KEY_FILE> [--output <FILE
 
 ```bash
 # Use-case driven (library selects optimal scheme)
-latticearc encrypt --use-case file-storage \
+latticearc-cli encrypt --use-case file-storage \
   --input database-backup.sql \
   --output database-backup.enc.json \
   --key keys/aes256.key.json
 
 # Expert mode
-latticearc encrypt --mode aes256-gcm \
+latticearc-cli encrypt --mode aes256-gcm \
   --input database-backup.sql \
   --output database-backup.enc.json \
   --key keys/aes256.key.json
@@ -271,7 +271,7 @@ Decrypts a file previously encrypted with `encrypt`. If the file has been
 tampered with, decryption will fail (integrity check).
 
 ```
-latticearc decrypt --input <ENCRYPTED_FILE> --key <KEY_FILE> [--output <FILE>]
+latticearc-cli decrypt --input <ENCRYPTED_FILE> --key <KEY_FILE> [--output <FILE>]
 ```
 
 If `--output` is omitted, decrypted data is printed to stdout (text) or as hex
@@ -280,7 +280,7 @@ If `--output` is omitted, decrypted data is printed to stdout (text) or as hex
 **Example:**
 
 ```bash
-latticearc decrypt \
+latticearc-cli decrypt \
   --input database-backup.enc.json \
   --output database-backup.sql \
   --key keys/aes256.key.json
@@ -293,7 +293,7 @@ identifies the file contents — even a 1-bit change produces a completely
 different hash.
 
 ```
-latticearc hash --algorithm <ALGORITHM> --input <FILE> [--format <hex|base64>]
+latticearc-cli hash --algorithm <ALGORITHM> --input <FILE> [--format <hex|base64>]
 ```
 
 **Algorithms:**
@@ -309,10 +309,10 @@ latticearc hash --algorithm <ALGORITHM> --input <FILE> [--format <hex|base64>]
 
 ```bash
 # Hash a file (default: SHA3-256, hex output)
-latticearc hash --input document.pdf
+latticearc-cli hash --input document.pdf
 
 # Hash with SHA-256, base64 output
-latticearc hash --algorithm sha-256 --input document.pdf --format base64
+latticearc-cli hash --algorithm sha-256 --input document.pdf --format base64
 ```
 
 ### `kdf` — Key Derivation
@@ -320,7 +320,7 @@ latticearc hash --algorithm sha-256 --input document.pdf --format base64
 Derives a cryptographic key from input material (a password or existing key).
 
 ```
-latticearc kdf --algorithm <ALGORITHM> --input <TEXT> --salt <HEX>
+latticearc-cli kdf --algorithm <ALGORITHM> --input <TEXT> --salt <HEX>
                [--length <BYTES>] [--info <TEXT>] [--iterations <N>]
                [--format <hex|base64>]
 ```
@@ -335,7 +335,7 @@ latticearc kdf --algorithm <ALGORITHM> --input <TEXT> --salt <HEX>
 **HKDF Example** (derive a 32-byte key from existing key material):
 
 ```bash
-latticearc kdf --algorithm hkdf \
+latticearc-cli kdf --algorithm hkdf \
   --input "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" \
   --salt "000102030405060708090a0b0c" \
   --length 32 \
@@ -345,7 +345,7 @@ latticearc kdf --algorithm hkdf \
 **PBKDF2 Example** (derive a key from a password):
 
 ```bash
-latticearc kdf --algorithm pbkdf2 \
+latticearc-cli kdf --algorithm pbkdf2 \
   --input "my-strong-password" \
   --salt "73616c7473616c74" \
   --length 32 \
@@ -360,7 +360,7 @@ latticearc kdf --algorithm pbkdf2 \
 Shows the CLI version, library version, FIPS status, and all supported algorithms.
 
 ```bash
-latticearc info
+latticearc-cli info
 ```
 
 ## Key File Format
@@ -415,17 +415,17 @@ Protect software releases from tampering:
 
 ```bash
 # One-time setup: generate a signing key for firmware
-latticearc keygen --use-case firmware-signing --output ./ci-keys \
+latticearc-cli keygen --use-case firmware-signing --output ./ci-keys \
   --label "CI/CD Release Signing"
 
 # In your CI pipeline: sign the release artifact
-latticearc hash --algorithm sha-256 --input app-v2.0.tar.gz
-latticearc sign --input app-v2.0.tar.gz \
+latticearc-cli hash --algorithm sha-256 --input app-v2.0.tar.gz
+latticearc-cli sign --input app-v2.0.tar.gz \
   --key ci-keys/hybrid-ml-dsa-65-ed25519.sec.json \
   --public-key ci-keys/hybrid-ml-dsa-65-ed25519.pub.json
 
 # Users verify the download
-latticearc verify \
+latticearc-cli verify \
   --input app-v2.0.tar.gz \
   --signature app-v2.0.tar.gz.sig.json \
   --key ci-keys/hybrid-ml-dsa-65-ed25519.pub.json
@@ -437,17 +437,17 @@ Store secrets safely in version control:
 
 ```bash
 # Generate an encryption key (store in a secure vault, not in git!)
-latticearc keygen --algorithm aes256 --output ./vault \
+latticearc-cli keygen --algorithm aes256 --output ./vault \
   --label "Production Config Key"
 
 # Encrypt config before committing
-latticearc encrypt --use-case config-secrets \
+latticearc-cli encrypt --use-case config-secrets \
   --input config/secrets.json \
   --output config/secrets.enc.json \
   --key vault/aes256.key.json
 
 # Decrypt at deployment time
-latticearc decrypt \
+latticearc-cli decrypt \
   --input config/secrets.enc.json \
   --output config/secrets.json \
   --key vault/aes256.key.json
@@ -459,16 +459,16 @@ For legal documents that need to remain valid for decades:
 
 ```bash
 # Generate a hybrid signing key for legal use
-latticearc keygen --use-case legal-documents --output ./notary \
+latticearc-cli keygen --use-case legal-documents --output ./notary \
   --label "Notary 2026"
 
 # Sign with both ML-DSA-65 AND Ed25519 (unified API)
-latticearc sign --input deed-of-trust.pdf \
+latticearc-cli sign --input deed-of-trust.pdf \
   --key notary/hybrid-ml-dsa-65-ed25519.sec.json \
   --public-key notary/hybrid-ml-dsa-65-ed25519.pub.json
 
 # Verify — algorithm auto-detected from signature file
-latticearc verify \
+latticearc-cli verify \
   --input deed-of-trust.pdf \
   --signature deed-of-trust.pdf.sig.json \
   --key notary/hybrid-ml-dsa-65-ed25519.pub.json
