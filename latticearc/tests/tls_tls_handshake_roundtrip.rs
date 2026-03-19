@@ -647,8 +647,8 @@ fn test_classic_client_to_hybrid_server_fallback() {
 }
 
 #[test]
-fn test_zero_length_message_over_tls() {
-    // E2E: Empty payload should be handled correctly
+fn test_minimal_message_over_tls() {
+    // E2E: Smallest possible payload (1 byte; 0-length is the "done" signal)
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);
 
@@ -671,8 +671,8 @@ fn test_zero_length_message_over_tls() {
 #[test]
 fn test_multiple_sequential_handshakes_same_mode() {
     // E2E: Multiple independent TLS connections in sequence all succeed
+    let ca = generate_test_ca();
     for i in 0..3 {
-        let ca = generate_test_ca();
         let (server_chain, server_key) = generate_server_cert(&ca);
 
         let tls_config = Tls13Config::hybrid();
@@ -697,7 +697,8 @@ fn test_each_mode_negotiates_expected_kex_family() {
     let mode_expectations = [
         (TlsMode::Hybrid, true), // should negotiate MLKEM
         (TlsMode::Pq, true),     // should negotiate MLKEM
-                                 // Classic may or may not have MLKEM depending on default_provider ordering
+                                 // Classic excluded: default_provider() includes X25519MLKEM768, so
+                                 // Classic mode may still negotiate MLKEM — that's correct behavior.
     ];
 
     for (mode, expect_mlkem) in mode_expectations {

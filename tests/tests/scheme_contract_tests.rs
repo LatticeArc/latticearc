@@ -37,7 +37,7 @@ use latticearc::{
 // Helper: UseCase → Expected Scheme mapping (mirrors selector.rs exactly)
 // ============================================================================
 
-fn expected_scheme_for_use_case(uc: &UseCase) -> EncryptionScheme {
+fn expected_scheme_for_use_case(uc: UseCase) -> EncryptionScheme {
     match uc {
         UseCase::IoTDevice => EncryptionScheme::HybridMlKem512Aes256Gcm,
 
@@ -77,7 +77,7 @@ fn expected_ciphertext_size(level: MlKemSecurityLevel) -> usize {
     level.ciphertext_size()
 }
 
-fn is_regulated(uc: &UseCase) -> bool {
+fn is_regulated(uc: UseCase) -> bool {
     matches!(
         uc,
         UseCase::GovernmentClassified
@@ -125,12 +125,12 @@ fn test_all_22_usecases_select_correct_hybrid_scheme() {
     assert_eq!(use_cases.len(), 22, "Must test all 22 UseCase variants");
 
     for uc in &use_cases {
-        let expected = expected_scheme_for_use_case(uc);
+        let expected = expected_scheme_for_use_case(*uc);
         let level = ml_kem_level_for_scheme(&expected);
         let ct_size = expected_ciphertext_size(level);
 
         // Skip regulated use cases when FIPS is not available
-        if is_regulated(uc) && !fips_available() {
+        if is_regulated(*uc) && !fips_available() {
             continue;
         }
 
@@ -139,9 +139,9 @@ fn test_all_22_usecases_select_correct_hybrid_scheme() {
             .unwrap_or_else(|e| panic!("keypair gen failed for {uc:?} at {level:?}: {e}"));
 
         // Encrypt with UseCase-driven config (NO force_scheme)
-        let config = CryptoConfig::new().use_case(uc.clone());
+        let config = CryptoConfig::new().use_case(*uc);
         // Override FIPS compliance for regulated use cases in test env
-        let config = if is_regulated(uc) && !fips_available() {
+        let config = if is_regulated(*uc) && !fips_available() {
             config.compliance(ComplianceMode::Default)
         } else {
             config
@@ -173,8 +173,8 @@ fn test_all_22_usecases_select_correct_hybrid_scheme() {
         );
 
         // Decrypt roundtrip
-        let config = CryptoConfig::new().use_case(uc.clone());
-        let config = if is_regulated(uc) && !fips_available() {
+        let config = CryptoConfig::new().use_case(*uc);
+        let config = if is_regulated(*uc) && !fips_available() {
             config.compliance(ComplianceMode::Default)
         } else {
             config
@@ -207,7 +207,7 @@ fn test_all_4_security_levels_select_correct_scheme() {
         let (pk, sk) = generate_hybrid_keypair_with_level(ml_kem_level)
             .unwrap_or_else(|e| panic!("keypair gen failed for {level:?}: {e}"));
 
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(*level);
         let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config)
             .unwrap_or_else(|e| panic!("encrypt failed for {level:?}: {e}"));
 
@@ -227,7 +227,7 @@ fn test_all_4_security_levels_select_correct_scheme() {
             "SecurityLevel::{level:?} ML-KEM CT size mismatch"
         );
 
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(*level);
         let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), config)
             .unwrap_or_else(|e| panic!("decrypt failed for {level:?}: {e}"));
         assert_eq!(decrypted.as_slice(), data, "SecurityLevel::{level:?} roundtrip failed");
@@ -329,7 +329,7 @@ fn test_key_level_mismatch_rejected() {
         let (pk, _sk) = generate_hybrid_keypair_with_level(*wrong_key_level)
             .unwrap_or_else(|e| panic!("keypair gen failed for {label}: {e}"));
 
-        let config = CryptoConfig::new().security_level(security_level.clone());
+        let config = CryptoConfig::new().security_level(*security_level);
         let result = encrypt(data, EncryptKey::Hybrid(&pk), config);
 
         assert!(result.is_err(), "Mismatch {label} should fail, but encrypt() succeeded");
@@ -386,7 +386,7 @@ fn test_hybrid_encrypted_output_serialization_preserves_scheme() {
         let (pk, sk) = generate_hybrid_keypair_with_level(*key_level)
             .unwrap_or_else(|e| panic!("keypair gen failed for {key_level:?}: {e}"));
 
-        let config = CryptoConfig::new().security_level(security_level.clone());
+        let config = CryptoConfig::new().security_level(*security_level);
         let original = encrypt(data, EncryptKey::Hybrid(&pk), config)
             .unwrap_or_else(|e| panic!("encrypt failed for {key_level:?}: {e}"));
 
@@ -419,7 +419,7 @@ fn test_hybrid_encrypted_output_serialization_preserves_scheme() {
         );
 
         // Decrypt from deserialized output
-        let config = CryptoConfig::new().security_level(security_level.clone());
+        let config = CryptoConfig::new().security_level(*security_level);
         let decrypted = decrypt(&restored, DecryptKey::Hybrid(&sk), config)
             .unwrap_or_else(|e| panic!("decrypt-after-deserialize failed for {key_level:?}: {e}"));
         assert_eq!(

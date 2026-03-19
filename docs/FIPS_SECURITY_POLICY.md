@@ -87,7 +87,7 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 | ML-KEM-512/768/1024 | FIPS 203 | aws-lc-rs | Key encapsulation |
 | ML-DSA-44/65/87 | FIPS 204 | fips204 crate | Digital signatures |
 | SLH-DSA-SHAKE-128s/f, 192s/f, 256s/f | FIPS 205 | fips205 crate | Hash-based signatures |
-| FN-DSA-512/1024 | FIPS 206 (draft) | fn-dsa crate | Lattice signatures |
+| FN-DSA-512/1024 | FIPS 206 | fn-dsa crate | Lattice signatures |
 | AES-256-GCM | SP 800-38D | aws-lc-rs | Authenticated encryption |
 | SHA-256 | FIPS 180-4 | aws-lc-rs | Hashing |
 | SHA3-256 | FIPS 202 | sha3 crate | Hashing |

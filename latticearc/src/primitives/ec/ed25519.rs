@@ -10,7 +10,7 @@
 
 use super::traits::{EcKeyPair, EcSignature};
 use crate::prelude::error::{LatticeArcError, Result};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::rngs::OsRng;
 use zeroize::Zeroizing;
 
@@ -45,7 +45,7 @@ impl EcKeyPair for Ed25519KeyPair {
             });
         }
 
-        let mut sk_bytes = [0u8; 32];
+        let mut sk_bytes = Zeroizing::new([0u8; 32]);
         sk_bytes.copy_from_slice(secret_key_bytes);
         let secret_key = SigningKey::from_bytes(&sk_bytes);
 
@@ -77,21 +77,15 @@ pub struct Ed25519Signature;
 impl EcSignature for Ed25519Signature {
     type Signature = Signature;
 
-    fn sign(&self, _message: &[u8]) -> Result<Self::Signature> {
-        // Note: This method expects self to be a keypair, but trait doesn't allow that
-        // In practice, you'd call sign on a keypair instance
-        Err(LatticeArcError::InvalidOperation(
-            "Use Ed25519KeyPair::sign method instead".to_string(),
-        ))
-    }
-
     fn verify(public_key_bytes: &[u8], message: &[u8], signature: &Self::Signature) -> Result<()> {
         let mut pk_bytes = [0u8; 32];
         pk_bytes.copy_from_slice(public_key_bytes);
         let public_key = VerifyingKey::from_bytes(&pk_bytes)
             .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
 
-        public_key.verify(message, signature).map_err(|_e| LatticeArcError::VerificationError)
+        public_key
+            .verify_strict(message, signature)
+            .map_err(|_e| LatticeArcError::VerificationError)
     }
 
     fn signature_len() -> usize {
@@ -392,13 +386,6 @@ mod tests {
         assert_eq!(pk.to_bytes().to_vec(), keypair.public_key_bytes());
         assert_eq!(sk.to_bytes().to_vec(), *keypair.secret_key_bytes());
         Ok(())
-    }
-
-    #[test]
-    fn test_ed25519_sign_trait_returns_error() {
-        let signer = Ed25519Signature;
-        let result = signer.sign(b"test");
-        assert!(result.is_err());
     }
 
     #[test]

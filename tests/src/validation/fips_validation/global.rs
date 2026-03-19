@@ -185,32 +185,10 @@ pub fn get_fips_validation_result() -> Option<ValidationResult> {
     FIPS_VALIDATION_RESULT.lock().ok().and_then(|result| result.clone())
 }
 
-/// Auto-initialize FIPS on library load
-/// Can be disabled by setting FIPS_SKIP_AUTO_INIT=1 environment variable
-///
-/// # Note
-/// Auto-init is DISABLED by default in library builds to avoid interfering with
-/// test harnesses and applications that need control over initialization timing.
-/// Applications should call `init()` explicitly when FIPS mode is required.
-#[ctor::ctor]
-fn fips_auto_init() {
-    // Skip auto-init when explicitly disabled (default behavior)
-    // To enable auto-init, set FIPS_ENABLE_AUTO_INIT=1
-    if std::env::var("FIPS_ENABLE_AUTO_INIT").is_err() {
-        return;
-    }
-
-    // Allow explicit skip as well
-    if std::env::var("FIPS_SKIP_AUTO_INIT").is_ok() {
-        return;
-    }
-
-    if let Err(e) = init() {
-        // Use tracing instead of eprintln! for library code
-        tracing::error!("FIPS initialization failed: {}", e);
-        std::process::abort();
-    }
-}
+// Note: The previous `#[ctor::ctor] fn fips_auto_init()` was removed because
+// ctor 0.6.x requires unsafe internally, incompatible with #![forbid(unsafe_code)].
+// The constructor was disabled by default anyway (required FIPS_ENABLE_AUTO_INIT=1).
+// Tests that need FIPS call `ensure_initialized_for_test()` explicitly.
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
@@ -588,21 +566,32 @@ mod tests {
     }
 
     // ========================================================================
-    // Tests for fips_auto_init() env var logic -- lines 188-205
+    // Tests for fips_auto_init() env var logic
     // ========================================================================
 
-    /// Test that the FIPS_ENABLE_AUTO_INIT env var check works.
-    /// Covers line 191.
-    #[test]
-    fn test_auto_init_env_var_enable_check() {
-        let enable_result = std::env::var("FIPS_ENABLE_AUTO_INIT");
-        if enable_result.is_err() {
-            // This is the expected default path (auto-init disabled)
+    /// Env-var-gated FIPS auto-init (formerly `#[ctor::ctor]`).
+    /// Now a plain function, called only from tests.
+    fn fips_auto_init() {
+        if std::env::var("FIPS_ENABLE_AUTO_INIT").is_err() {
+            return;
+        }
+        if std::env::var("FIPS_SKIP_AUTO_INIT").is_ok() {
+            return;
+        }
+        if let Err(e) = init() {
+            tracing::error!("FIPS initialization failed: {}", e);
+            std::process::abort();
         }
     }
 
-    /// Test that the FIPS_SKIP_AUTO_INIT env var check works.
-    /// Covers line 196.
+    /// Test that fips_auto_init() returns immediately when FIPS_ENABLE_AUTO_INIT is unset.
+    #[test]
+    fn test_auto_init_env_var_enable_check() {
+        // Default path: FIPS_ENABLE_AUTO_INIT is not set, so auto-init is a no-op
+        fips_auto_init();
+    }
+
+    /// Test that fips_auto_init() respects FIPS_SKIP_AUTO_INIT.
     #[test]
     fn test_auto_init_env_var_skip_check() {
         let skip_result = std::env::var("FIPS_SKIP_AUTO_INIT");

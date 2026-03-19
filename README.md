@@ -11,6 +11,8 @@
 
 LatticeArc is a post-quantum cryptography library for Rust that implements all four NIST FIPS 203-206 standards. It defaults to hybrid mode (PQ + classical) so your data stays protected even if a flaw is found in any single algorithm, and ships as a single crate with a minimal, use-case-driven API.
 
+> **New in 0.4 — `latticearc-cli`**: Post-quantum cryptography from the command line. Generate keys, sign, encrypt, and verify — driven by **22 use cases**, not algorithm names. Tell it *what* you're protecting (`--use-case healthcare-records`, `--use-case legal-documents`), and the policy engine selects the right NIST algorithm, hybrid mode, and security level automatically. No cryptography expertise required. [Quick start →](latticearc-cli/README.md) | [Cheat sheet →](latticearc-cli/QUICK_REFERENCE.md)
+
 ## Why Post-Quantum Cryptography?
 
 Today's public-key cryptography (RSA, ECC) will be broken by quantum computers running Shor's algorithm. While large-scale quantum computers don't exist yet, **data captured today can be decrypted in the future** — a threat known as "harvest now, decrypt later." NIST has standardized four quantum-resistant algorithm families (FIPS 203-206) to address this, with a [2035 migration deadline](https://csrc.nist.gov/projects/post-quantum-cryptography).
@@ -31,7 +33,7 @@ LatticeArc defaults to hybrid everywhere — encryption, signatures, and TLS key
 - **Hybrid by default** — PQ + classical, per [NIST SP 800-227](https://csrc.nist.gov/pubs/sp/800/227/final). If *either* algorithm holds, your data is safe
 - **22 use cases** with automatic algorithm selection — from IoT to government classified
 - **Zero-trust sessions** — per-operation authentication before any crypto operation
-- **Formal verification** — 29 Kani proofs, 69 Proptest property tests, SAW-verified primitives (via aws-lc-rs)
+- **Formal verification** — 27 Kani proofs, 69 Proptest property tests, SAW-verified primitives (via aws-lc-rs)
 - **FIPS 140-3 ready** — `--features fips` enables the validated aws-lc-rs backend
 - **Single crate, minimal API** — `cargo add latticearc` and go
 
@@ -39,7 +41,7 @@ LatticeArc defaults to hybrid everywhere — encryption, signatures, and TLS key
 
 ```toml
 [dependencies]
-latticearc = "0.3"
+latticearc = "0.4"
 ```
 
 ### Encryption
@@ -78,6 +80,36 @@ let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
 // Verify (both must pass for signature to be valid)
 let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
 ```
+
+## Command-Line Tool
+
+LatticeArc ships a CLI for key generation, signing, encryption, hashing, and key derivation — no code required. Download a prebuilt binary from the [releases page](https://github.com/latticearc/latticearc/releases), or build from source:
+
+```bash
+# Install from source
+cargo install --path latticearc-cli
+
+# Generate signing keys for a use case — library selects the optimal algorithm
+latticearc keygen --use-case legal-documents --output ./keys
+
+# Sign a document (unified API — embeds scheme + timestamp + public key)
+latticearc sign --input contract.pdf \
+  --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
+
+# Verify (public key is embedded in the SignedData envelope — no --key needed)
+latticearc verify --input contract.pdf --signature contract.pdf.sig.json
+
+# Encrypt / decrypt
+latticearc keygen --algorithm aes256 --output ./keys
+latticearc encrypt --use-case file-storage --input secrets.txt --output secrets.enc.json --key keys/aes256.key.json
+latticearc decrypt --input secrets.enc.json --output secrets.txt --key keys/aes256.key.json
+
+# Hash
+latticearc hash --algorithm sha-256 --input document.pdf
+```
+
+The CLI mirrors the library's use-case-driven design — you express intent (`--use-case`, `--security-level`), and the policy engine selects the algorithm. Expert users can override with `--algorithm` directly. Supports all four NIST PQC standards (FIPS 203-206), hybrid modes, AES-256-GCM, Ed25519, HKDF, and PBKDF2. Keys are stored in the [LatticeArc Portable Key (LPK)](docs/KEY_FORMAT.md) format — dual JSON + CBOR with UseCase/SecurityLevel-first design. See [`latticearc-cli/README.md`](latticearc-cli/README.md) for the full command reference.
 
 ## Build Prerequisites
 
@@ -258,8 +290,8 @@ Correctness is verified at three layers:
 | Layer | Tool | What it proves |
 |-------|------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | Mathematical correctness of C implementations |
-| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Roundtrip, non-malleability, key independence |
-| **Type invariants** | [Kani](https://github.com/model-checking/kani) (29 proofs) | State machine rules, config validation, domain separation |
+| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (69 tests) | Roundtrip, non-malleability, key independence |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (27 proofs) | State machine rules, config validation, domain separation |
 
 See [Formal Verification](docs/FORMAL_VERIFICATION.md) for the complete proof inventory.
 

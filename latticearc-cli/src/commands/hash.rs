@@ -79,11 +79,7 @@ pub(crate) fn run(args: HashArgs) -> Result<()> {
             ("SHA-512", hash.to_vec())
         }
         HashAlgorithm::Blake2b => {
-            use blake2::digest::consts::U32;
-            use blake2::{Blake2b, Digest};
-            let mut hasher = Blake2b::<U32>::new();
-            hasher.update(&data);
-            let hash = hasher.finalize();
+            let hash = latticearc::primitives::hash::blake2b_256(&data);
             ("BLAKE2b-256", hash.to_vec())
         }
     };

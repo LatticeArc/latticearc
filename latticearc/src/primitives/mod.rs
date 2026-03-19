@@ -59,10 +59,10 @@
 //! |-----------|----------------|----------------|
 //! | ML-KEM | `aws-lc-rs` | Yes (Cert #4631, #4759, #4816) |
 //! | ML-DSA | `fips204` crate | No (aws-lc-rs API not yet stable) |
-//! | SLH-DSA | `fips205` crate | Audited |
-//! | FN-DSA | `fn-dsa` crate | Partial |
+//! | SLH-DSA | `fips205` crate | No |
+//! | FN-DSA | `fn-dsa` crate | No |
 //! | AES-GCM | `aws-lc-rs` | Yes |
-//! | SHA-2/3 | `sha2`/`sha3` | Audited |
+//! | SHA-2/3 | `sha2`/`sha3` crates | No (RustCrypto, widely reviewed) |
 //!
 //! See the `docs/` directory for full compliance details.
 

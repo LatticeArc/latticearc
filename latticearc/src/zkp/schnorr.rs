@@ -42,6 +42,18 @@ use k256::{
 use sha2::{Digest, Sha256};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+/// Compute Fiat-Shamir challenge: `H("arc-zkp/schnorr-v1" || "secp256k1" || pk || R || ctx)`
+fn fiat_shamir_challenge(public_key: &[u8; 33], r_bytes: &[u8; 33], context: &[u8]) -> Scalar {
+    let mut hasher = Sha256::new();
+    hasher.update(b"arc-zkp/schnorr-v1");
+    hasher.update(b"secp256k1");
+    hasher.update(public_key);
+    hasher.update(r_bytes);
+    hasher.update(context);
+    let hash = hasher.finalize();
+    <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&hash))
+}
+
 /// Schnorr proof structure
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
@@ -127,36 +139,13 @@ impl SchnorrProver {
             .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize R: {}", e)))?;
 
         // Compute challenge c = H(G || P || R || context)
-        let c = self.compute_challenge(&r_bytes, context);
+        let c = fiat_shamir_challenge(&self.public_key, &r_bytes, context);
 
         // Compute response s = k + c*x
         let s = k + c * x;
         let s_bytes: [u8; 32] = s.to_bytes().into();
 
         Ok(SchnorrProof { commitment: r_bytes, response: s_bytes })
-    }
-
-    /// Compute Fiat-Shamir challenge
-    fn compute_challenge(&self, r_bytes: &[u8; 33], context: &[u8]) -> Scalar {
-        let mut hasher = Sha256::new();
-
-        // Domain separation
-        hasher.update(b"arc-zkp/schnorr-v1");
-
-        // Include generator (implicit - using secp256k1)
-        hasher.update(b"secp256k1");
-
-        // Include public key
-        hasher.update(self.public_key);
-
-        // Include commitment
-        hasher.update(r_bytes);
-
-        // Include context
-        hasher.update(context);
-
-        let hash = hasher.finalize();
-        <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&hash))
     }
 
     /// Get the public key
@@ -200,7 +189,7 @@ impl SchnorrVerifier {
         let s = s.ok_or(ZkpError::InvalidScalar)?;
 
         // Compute challenge c = H(G || P || R || context)
-        let c = self.compute_challenge(&proof.commitment, context);
+        let c = fiat_shamir_challenge(&self.public_key, &proof.commitment, context);
 
         // Verify: s*G == R + c*P
         let lhs = ProjectivePoint::GENERATOR * s;
@@ -218,29 +207,6 @@ impl SchnorrVerifier {
             .map_err(|e| ZkpError::SerializationError(format!("Invalid point encoding: {}", e)))?;
         let point: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
         point.ok_or(ZkpError::InvalidPublicKey)
-    }
-
-    /// Compute Fiat-Shamir challenge
-    fn compute_challenge(&self, r_bytes: &[u8; 33], context: &[u8]) -> Scalar {
-        let mut hasher = Sha256::new();
-
-        // Domain separation
-        hasher.update(b"arc-zkp/schnorr-v1");
-
-        // Include generator (implicit - using secp256k1)
-        hasher.update(b"secp256k1");
-
-        // Include public key
-        hasher.update(self.public_key);
-
-        // Include commitment
-        hasher.update(r_bytes);
-
-        // Include context
-        hasher.update(context);
-
-        let hash = hasher.finalize();
-        <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&hash))
     }
 }
 

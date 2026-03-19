@@ -208,7 +208,7 @@ fn test_select_signature_scheme_various_levels() {
     ];
     for level in &levels {
         let config = CoreConfig {
-            security_level: level.clone(),
+            security_level: *level,
             performance_preference: PerformancePreference::Balanced,
             hardware_acceleration: false,
             fallback_enabled: true,

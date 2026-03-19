@@ -655,6 +655,48 @@ impl MlKemDecapsulationKeyPair {
         self.security_level
     }
 
+    /// Export the decapsulation (secret) key bytes for serialization.
+    ///
+    /// Uses `DecapsulationKey::key_bytes()` (available since aws-lc-rs v1.16.0).
+    ///
+    /// # Errors
+    /// Returns an error if key serialization fails.
+    pub fn decaps_key_bytes(&self) -> Result<Vec<u8>, MlKemError> {
+        let sk_bytes = self.decaps_key.key_bytes().map_err(|e| {
+            MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
+        })?;
+        Ok(sk_bytes.as_ref().to_vec())
+    }
+
+    /// Reconstruct a `MlKemDecapsulationKeyPair` from serialized secret key
+    /// and public key bytes.
+    ///
+    /// This is the reverse of [`decaps_key_bytes()`](Self::decaps_key_bytes) —
+    /// it takes the raw bytes from serialization and reconstructs the
+    /// aws-lc-rs `DecapsulationKey` for decapsulation operations.
+    ///
+    /// # Arguments
+    /// * `security_level` - ML-KEM security level (must match the original key)
+    /// * `sk_bytes` - Secret key bytes from `decaps_key_bytes()`
+    /// * `pk_bytes` - Public key bytes (needed to reconstruct the full keypair)
+    ///
+    /// # Errors
+    /// Returns an error if the bytes are invalid or the wrong length.
+    pub fn from_key_bytes(
+        security_level: MlKemSecurityLevel,
+        sk_bytes: &[u8],
+        pk_bytes: &[u8],
+    ) -> Result<Self, MlKemError> {
+        let algorithm = security_level.as_aws_algorithm();
+        let decaps_key = DecapsulationKey::new(algorithm, sk_bytes).map_err(|e| {
+            MlKemError::KeyGenerationError(format!("Failed to reconstruct DecapsulationKey: {}", e))
+        })?;
+
+        let public_key = MlKemPublicKey::new(security_level, pk_bytes.to_vec())?;
+
+        Ok(Self { public_key, decaps_key, security_level })
+    }
+
     /// Decapsulate a ciphertext to recover the shared secret.
     ///
     /// This performs ML-KEM decapsulation using the in-memory aws-lc-rs

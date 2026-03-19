@@ -79,12 +79,6 @@ pub struct Secp256k1Signature;
 impl EcSignature for Secp256k1Signature {
     type Signature = Signature;
 
-    fn sign(&self, _message: &[u8]) -> Result<Self::Signature> {
-        Err(LatticeArcError::InvalidOperation(
-            "Use Secp256k1KeyPair::sign method instead".to_string(),
-        ))
-    }
-
     fn verify(public_key_bytes: &[u8], message: &[u8], signature: &Self::Signature) -> Result<()> {
         let public_key = VerifyingKey::from_sec1_bytes(public_key_bytes)
             .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
@@ -217,13 +211,6 @@ mod tests {
     #[test]
     fn test_secp256k1_signature_len() {
         assert_eq!(Secp256k1Signature::signature_len(), 64);
-    }
-
-    #[test]
-    fn test_secp256k1_sign_trait_returns_error() {
-        let signer = Secp256k1Signature;
-        let result = signer.sign(b"test");
-        assert!(result.is_err());
     }
 
     #[test]

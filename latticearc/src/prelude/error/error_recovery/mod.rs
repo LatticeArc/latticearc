@@ -1,7 +1,7 @@
 //! Error Recovery Module
 //!
 //! This module provides comprehensive error handling with recovery mechanisms,
-//! circuit breakers, graceful degradation, and system health monitoring.
+//! circuit breakers, and system health monitoring.
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]

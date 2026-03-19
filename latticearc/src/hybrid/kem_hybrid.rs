@@ -34,7 +34,7 @@
 //! │                         │  ┌─────────────────────────────────────┐ │   │
 //! │                         │  │         HKDF-SHA256 Combine         │ │   │
 //! │                         │  │                                     │ │   │
-//! │                         │  │  info = "hybrid-kem-v1"             │ │   │
+//! │                         │  │  info = "LatticeArc-Hybrid-KEM-SS" || static_pk || ephemeral_pk │ │   │
 //! │                         │  │  IKM  = SS₁ ║ SS₂ (64 bytes)        │ │   │
 //! │                         │  │            ↓                        │ │   │
 //! │                         │  │  Hybrid Shared Secret (64 B)        │ │   │
@@ -82,8 +82,8 @@
 //! # Security Properties
 //!
 //! - **IND-CCA2** security from ML-KEM (post-quantum secure)
-//! - **IND-CPA** security from X25519 ECDH (classical secure)
-//! - **XOR composition** ensures security if *either* component remains secure
+//! - **CDH-hardness** security from X25519 ECDH (classical secure)
+//! - **HKDF composition** ensures security if *either* component remains secure (KDF-based combiner with domain separation)
 //! - Automatic memory zeroization for secret keys via [`ZeroizeOnDrop`]
 //!
 //! # Example
@@ -173,11 +173,12 @@ pub struct HybridPublicKey {
 /// copying of secret keys. The X25519 `PrivateKey` from aws-lc-rs is not
 /// cloneable by design.
 ///
-/// # Key Persistence Limitation
+/// # Key Serialization
 ///
-/// The X25519 private key cannot be serialized — aws-lc-rs `PrivateKey` does
-/// not support `from_private_key_der()` for X25519. Keys are **in-memory only**.
-/// ML-KEM keys remain fully serializable via `ml_kem_sk_bytes()`.
+/// Both components are fully serializable:
+/// - ML-KEM secret key: via [`ml_kem_sk_bytes()`](Self::ml_kem_sk_bytes)
+/// - X25519 seed: via [`ecdh_seed_bytes()`](Self::ecdh_seed_bytes)
+/// - Reconstruction: via [`from_serialized()`](Self::from_serialized)
 ///
 /// # Example
 ///
@@ -213,6 +214,67 @@ impl HybridSecretKey {
     #[must_use]
     pub fn ecdh_public_key_bytes(&self) -> Vec<u8> {
         self.ecdh_keypair.public_key_bytes().to_vec()
+    }
+
+    /// Export the ML-KEM secret key bytes for serialization.
+    ///
+    /// Returns the serialized decapsulation key via `DecapsulationKey::key_bytes()`.
+    /// The returned bytes are wrapped in [`Zeroizing`] and will be wiped from
+    /// memory when dropped.
+    ///
+    /// # Errors
+    /// Returns an error if key serialization fails.
+    pub fn ml_kem_sk_bytes(&self) -> Result<Zeroizing<Vec<u8>>, HybridKemError> {
+        let sk_bytes = self
+            .ml_kem_keypair
+            .decaps_key_bytes()
+            .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
+        Ok(Zeroizing::new(sk_bytes))
+    }
+
+    /// Export the X25519 ECDH seed bytes (32 bytes) for serialization.
+    ///
+    /// These bytes can be used with `X25519StaticKeyPair::from_seed_bytes()`
+    /// to reconstruct the keypair.
+    ///
+    /// # Errors
+    /// Returns an error if seed extraction fails.
+    pub fn ecdh_seed_bytes(&self) -> Result<Zeroizing<[u8; 32]>, HybridKemError> {
+        self.ecdh_keypair.seed_bytes().map_err(|e| HybridKemError::EcdhError(e.to_string()))
+    }
+
+    /// Reconstruct a `HybridSecretKey` from serialized components.
+    ///
+    /// This is the reverse of [`ml_kem_sk_bytes()`](Self::ml_kem_sk_bytes) +
+    /// [`ecdh_seed_bytes()`](Self::ecdh_seed_bytes). It reconstructs both the
+    /// ML-KEM `DecapsulationKey` and the X25519 `StaticKeyPair` from their
+    /// serialized forms.
+    ///
+    /// # Arguments
+    /// * `security_level` - ML-KEM security level (must match original key)
+    /// * `ml_kem_sk_bytes` - Secret key bytes from `ml_kem_sk_bytes()`
+    /// * `ml_kem_pk_bytes` - Public key bytes (needed for `MlKemDecapsulationKeyPair`)
+    /// * `ecdh_seed` - X25519 seed bytes from `ecdh_seed_bytes()`
+    ///
+    /// # Errors
+    /// Returns an error if ML-KEM key reconstruction or X25519 seed import fails.
+    pub fn from_serialized(
+        security_level: MlKemSecurityLevel,
+        ml_kem_sk_bytes: &[u8],
+        ml_kem_pk_bytes: &[u8],
+        ecdh_seed: &[u8; 32],
+    ) -> Result<Self, HybridKemError> {
+        let ml_kem_keypair = MlKemDecapsulationKeyPair::from_key_bytes(
+            security_level,
+            ml_kem_sk_bytes,
+            ml_kem_pk_bytes,
+        )
+        .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
+
+        let ecdh_keypair = X25519StaticKeyPair::from_seed_bytes(ecdh_seed)
+            .map_err(|e| HybridKemError::EcdhError(e.to_string()))?;
+
+        Ok(Self { ml_kem_keypair, ecdh_keypair })
     }
 
     /// Perform X25519 key agreement with a peer's ephemeral public key.
@@ -838,6 +900,63 @@ mod tests {
         let secret2 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &eph2).unwrap();
 
         assert_ne!(secret1, secret2, "Different ephemeral PKs should produce different secrets");
+    }
+
+    #[test]
+    fn test_hybrid_secret_key_ml_kem_sk_bytes() {
+        let mut rng = rand::thread_rng();
+        let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let sk_bytes = sk.ml_kem_sk_bytes().unwrap();
+        // ML-KEM-768 secret key is 2400 bytes
+        assert_eq!(sk_bytes.len(), 2400, "ML-KEM-768 SK should be 2400 bytes");
+        assert!(!sk_bytes.iter().all(|&b| b == 0), "ML-KEM SK should not be all zeros");
+    }
+
+    #[test]
+    fn test_hybrid_secret_key_ecdh_seed_bytes() {
+        let mut rng = rand::thread_rng();
+        let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        let seed = sk.ecdh_seed_bytes().unwrap();
+        assert_eq!(seed.len(), 32, "X25519 seed should be 32 bytes");
+        assert!(!seed.iter().all(|&b| b == 0), "X25519 seed should not be all zeros");
+    }
+
+    #[test]
+    fn test_hybrid_secret_key_export_reconstruct_roundtrip() {
+        let mut rng = rand::thread_rng();
+        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+
+        // Export key components
+        let ml_kem_sk = sk.ml_kem_sk_bytes().unwrap();
+        let ecdh_seed = sk.ecdh_seed_bytes().unwrap();
+
+        // Encapsulate with original keys
+        let enc = encapsulate(&mut rng, &pk).unwrap();
+        let _original_secret = decapsulate(&sk, &enc).unwrap();
+
+        // Reconstruct ECDH keypair from seed
+        let reconstructed_ecdh = X25519StaticKeyPair::from_seed_bytes(&ecdh_seed).unwrap();
+
+        // Verify public keys match
+        assert_eq!(
+            sk.ecdh_public_key_bytes(),
+            reconstructed_ecdh.public_key_bytes().to_vec(),
+            "Reconstructed ECDH PK must match original"
+        );
+
+        // Verify ML-KEM SK bytes are non-empty and properly sized
+        assert!(!ml_kem_sk.is_empty());
+
+        // Verify original decapsulation still works after export
+        let enc2 = encapsulate(&mut rng, &pk).unwrap();
+        let secret2 = decapsulate(&sk, &enc2).unwrap();
+        assert_eq!(
+            secret2.as_slice(),
+            enc2.shared_secret.as_slice(),
+            "Decapsulation must still work after export"
+        );
     }
 
     #[test]

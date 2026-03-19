@@ -2,48 +2,61 @@
 
 ## Generate Keys
 
+**Recommended** — express intent, library selects the algorithm:
+
+```bash
+latticearc keygen --use-case <USE_CASE> [-o <dir>] [-l <label>]
+```
+
+**Expert** — specify algorithm directly:
+
 ```bash
 latticearc keygen -a <algorithm> -o <dir> [-l <label>]
 ```
 
-| Short Flag | Algorithm | What It Does |
-|------------|-----------|--------------|
-| `-a ml-dsa65` | ML-DSA-65 | Signing key (recommended) |
-| `-a ml-dsa44` | ML-DSA-44 | Signing key (faster) |
-| `-a ml-dsa87` | ML-DSA-87 | Signing key (strongest) |
-| `-a slh-dsa128s` | SLH-DSA | Signing key (hash-based) |
-| `-a fn-dsa512` | FN-DSA-512 | Signing key (compact) |
-| `-a ed25519` | Ed25519 | Signing key (classical) |
-| `-a hybrid-sign` | ML-DSA-65+Ed25519 | Dual signing key |
-| `-a aes256` | AES-256 | Symmetric encryption key |
-| `-a ml-kem768` | ML-KEM-768 | Key exchange (default) |
-| `-a ml-kem512` | ML-KEM-512 | Key exchange (fast) |
-| `-a ml-kem1024` | ML-KEM-1024 | Key exchange (strongest) |
-| `-a hybrid` | ML-KEM+X25519 | Hybrid encryption |
+| Use Case | What It Selects |
+|----------|----------------|
+| `secure-messaging` | ML-KEM-768 + X25519, ML-DSA-65 + Ed25519 |
+| `file-storage` | ML-KEM-1024 + X25519, ML-DSA-87 + Ed25519 |
+| `healthcare-records` | ML-KEM-1024 + X25519 (HIPAA-grade) |
+| `iot-device` | ML-KEM-512 + X25519 (resource-constrained) |
+| `legal-documents` | ML-DSA-87 + Ed25519 (long-term validity) |
+| `financial-transactions` | ML-DSA-65 + Ed25519 (compliance) |
+| `firmware-signing` | ML-DSA-65 + Ed25519 (CI/CD) |
+| ... | [22 use cases total](../docs/KEY_FORMAT.md#algorithm-resolution) |
+
+Expert algorithms: `aes256`, `ml-dsa44/65/87`, `ml-kem512/768/1024`, `slh-dsa128s`, `fn-dsa512`, `ed25519`, `hybrid`, `hybrid-sign`
 
 ## Sign & Verify
 
 ```bash
-# Sign
-latticearc sign -a <algorithm> -i <file> -k <secret.key.json> [-o <sig.json>]
+# Sign (recommended — unified API, embeds PK in signature)
+latticearc sign -i <file> -k <secret.json> --public-key <public.json>
 
-# Verify (algorithm auto-detected from signature file)
-latticearc verify -i <file> -s <sig.json> -k <public.key.json>
+# Sign (expert — explicit algorithm)
+latticearc sign -a <algorithm> -i <file> -k <secret.json>
+
+# Verify (algorithm auto-detected, PK embedded in SignedData)
+latticearc verify -i <file> -s <sig.json>
+
+# Verify (legacy format — requires --key)
+latticearc verify -i <file> -s <sig.json> -k <public.json>
 ```
-
-Sign algorithms: `ml-dsa65`, `ml-dsa44`, `ml-dsa87`, `slh-dsa`, `fn-dsa`, `ed25519`, `hybrid`
 
 ## Encrypt & Decrypt
 
 ```bash
-# Encrypt
+# Encrypt (recommended — use-case-driven)
+latticearc encrypt --use-case <USE_CASE> -i <file> -o <enc.json> -k <key.json>
+
+# Encrypt (expert — explicit mode)
 latticearc encrypt -m aes256-gcm -i <file> -o <enc.json> -k <key.json>
 
 # Decrypt
 latticearc decrypt -i <enc.json> -o <file> -k <key.json>
 ```
 
-Modes: `aes256-gcm`, `hybrid`
+Modes: `aes256-gcm`, `chacha20-poly1305`, `hybrid`
 
 ## Hash
 
@@ -74,29 +87,32 @@ latticearc <cmd> -h   # Show help for a specific command
 ## Common Workflows
 
 ```bash
-# 1. Sign a release artifact
-latticearc keygen -a ml-dsa65 -o keys
-latticearc sign -a ml-dsa65 -i app.tar.gz -k keys/ml-dsa-65.sec.json
-latticearc verify -i app.tar.gz -s app.tar.gz.sig.json -k keys/ml-dsa-65.pub.json
+# 1. Sign a legal document (use-case-driven)
+latticearc keygen --use-case legal-documents -o keys
+latticearc sign -i contract.pdf -k keys/hybrid-ml-dsa-65-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
+latticearc verify -i contract.pdf -s contract.pdf.sig.json
 
-# 2. Encrypt a config file
+# 2. Encrypt healthcare records
 latticearc keygen -a aes256 -o keys
-latticearc encrypt -m aes256-gcm -i secrets.json -o secrets.enc.json -k keys/aes256.key.json
-latticearc decrypt -i secrets.enc.json -o secrets.json -k keys/aes256.key.json
+latticearc encrypt --use-case healthcare-records -i records.json -o records.enc.json -k keys/aes256.key.json
+latticearc decrypt -i records.enc.json -o records.json -k keys/aes256.key.json
 
-# 3. Hash + sign (verify integrity chain)
+# 3. CI/CD firmware signing
+latticearc keygen --use-case firmware-signing -o ci-keys
 latticearc hash -a sha-256 -i firmware.bin
-latticearc sign -a ml-dsa87 -i firmware.bin -k keys/ml-dsa-87.sec.json
+latticearc sign -i firmware.bin -k ci-keys/hybrid-ml-dsa-65-ed25519.sec.json \
+  --public-key ci-keys/hybrid-ml-dsa-65-ed25519.pub.json
 ```
 
 ## Output Files
 
-| Input | Output | Description |
-|-------|--------|-------------|
-| `keygen -a ml-dsa65` | `ml-dsa-65.pub.json`, `ml-dsa-65.sec.json` | Key pair |
+| Command | Output | Description |
+|---------|--------|-------------|
+| `keygen --use-case firmware-signing` | `hybrid-ml-dsa-65-ed25519.{pub,sec}.json` | Signing keypair |
 | `keygen -a aes256` | `aes256.key.json` | Symmetric key |
-| `sign -i doc.pdf` | `doc.pdf.sig.json` | Signature |
-| `encrypt -i data.txt` | Specified via `-o` | Encrypted JSON |
+| `sign -i doc.pdf --public-key ...` | `doc.pdf.sig.json` | SignedData envelope |
+| `encrypt -i data.txt -o ...` | Specified via `-o` | Encrypted JSON |
 
 ## Exit Codes
 

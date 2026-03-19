@@ -41,7 +41,7 @@ fn main() {
     for uc in use_cases {
         let mode = TlsPolicyEngine::recommend_mode(*uc);
         let level = SecurityLevel::High;
-        let scheme = TlsPolicyEngine::get_scheme_identifier(mode, level.clone());
+        let scheme = TlsPolicyEngine::get_scheme_identifier(mode, level);
         let kex = TlsPolicyEngine::get_kex_algorithm(mode, level);
         println!("  {:25} mode={:?}  scheme={:35} kex={}", format!("{:?}", uc), mode, scheme, kex);
     }
@@ -60,9 +60,9 @@ fn main() {
     ];
 
     for (name, level) in levels {
-        let mode = TlsPolicyEngine::select_by_security_level(level.clone());
-        let scheme = TlsPolicyEngine::get_scheme_identifier(mode, level.clone());
-        let kex = TlsPolicyEngine::get_kex_algorithm(mode, level.clone());
+        let mode = TlsPolicyEngine::select_by_security_level(*level);
+        let scheme = TlsPolicyEngine::get_scheme_identifier(mode, *level);
+        let kex = TlsPolicyEngine::get_kex_algorithm(mode, *level);
         println!("  {:10} -> {:?}  scheme={:35} kex={}", name, mode, scheme, kex);
     }
     println!("\n  All 4 security levels produce valid TLS modes!\n");
@@ -103,7 +103,7 @@ fn main() {
     println!("--- TlsConfig builder: all 4 security levels ---\n");
 
     for (name, level) in levels {
-        let config = TlsConfig::new().security_level(level.clone());
+        let config = TlsConfig::new().security_level(*level);
         println!("  {:10} mode={:?}", name, config.mode);
     }
     println!("\n  TlsConfig builder works for all 4 security levels!\n");
@@ -118,7 +118,7 @@ fn main() {
         config.validate().unwrap_or_else(|e| panic!("validate failed for {:?}: {}", uc, e));
     }
     for (name, level) in levels {
-        let config = TlsConfig::new().security_level(level.clone());
+        let config = TlsConfig::new().security_level(*level);
         config.validate().unwrap_or_else(|e| panic!("validate failed for {}: {}", name, e));
     }
     println!("  All configurations pass validation!\n");
@@ -177,7 +177,7 @@ fn main() {
 
     for (level_name, level) in levels {
         for (pref_name, pref) in prefs {
-            let mode = TlsPolicyEngine::select_balanced(level.clone(), pref.clone());
+            let mode = TlsPolicyEngine::select_balanced(*level, pref.clone());
             println!("  {:10} x {:10} -> {:?}", level_name, pref_name, mode);
         }
     }
@@ -189,10 +189,10 @@ fn main() {
     println!("--- PQ-only and Hybrid scheme selectors ---\n");
 
     for (name, level) in levels {
-        let pq = TlsPolicyEngine::select_pq_scheme(level.clone());
-        let hybrid = TlsPolicyEngine::select_hybrid_scheme(level.clone());
-        let pq_kex = TlsPolicyEngine::select_pq_kex(level.clone());
-        let hybrid_kex = TlsPolicyEngine::select_hybrid_kex(level.clone());
+        let pq = TlsPolicyEngine::select_pq_scheme(*level);
+        let hybrid = TlsPolicyEngine::select_hybrid_scheme(*level);
+        let pq_kex = TlsPolicyEngine::select_pq_kex(*level);
+        let hybrid_kex = TlsPolicyEngine::select_hybrid_kex(*level);
         println!(
             "  {:10} PQ={:20} Hybrid={:30} PQ_KEX={:12} Hybrid_KEX={}",
             name, pq, hybrid, pq_kex, hybrid_kex

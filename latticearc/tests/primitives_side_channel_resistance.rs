@@ -261,7 +261,7 @@ fn test_aes_gcm_decrypt_timing_consistency() {
 
 #[test]
 fn test_aes_gcm_tag_verification_constant_time() {
-    use latticearc::primitives::aead::aes_gcm::verify_tag_constant_time;
+    use latticearc::primitives::aead::verify_tag_constant_time;
 
     // Matching tags
     let tag_a = [0x11u8; 16];
@@ -280,7 +280,7 @@ fn test_aes_gcm_tag_verification_constant_time() {
 
 #[test]
 fn test_zeroize_data_function() {
-    use latticearc::primitives::aead::aes_gcm::zeroize_data;
+    use latticearc::primitives::aead::zeroize_data;
 
     let mut data = vec![0xFFu8; 128];
     zeroize_data(&mut data);

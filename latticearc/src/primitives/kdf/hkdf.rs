@@ -19,7 +19,7 @@
 use crate::prelude::error::{LatticeArcError, Result};
 use aws_lc_rs::hmac::{self, HMAC_SHA256};
 use tracing::instrument;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 /// HKDF result containing the derived key
 pub struct HkdfResult {
@@ -102,7 +102,7 @@ impl HkdfResult {
 /// # Errors
 /// Returns an error if the extraction operation fails.
 #[instrument(level = "debug", skip(salt, ikm), fields(has_salt = salt.is_some(), ikm_len = ikm.len()))]
-pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<[u8; 32]> {
+pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<Zeroizing<[u8; 32]>> {
     // Per RFC 5869: If salt is not provided, use a string of HashLen zeros
     const DEFAULT_SALT: [u8; 32] = [0u8; 32];
     let salt_bytes = match salt {
@@ -124,7 +124,7 @@ pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<[u8; 32]> {
             tag_bytes.len()
         ),
     })?;
-    let mut prk_array = [0u8; 32];
+    let mut prk_array = Zeroizing::new([0u8; 32]);
     prk_array.copy_from_slice(src);
 
     Ok(prk_array)
@@ -287,11 +287,7 @@ pub fn hkdf_simple(ikm: &[u8], length: usize) -> Result<HkdfResult> {
     hkdf(ikm, Some(&salt), None, length)
 }
 
-/// Get random bytes for salt generation
-fn get_random_bytes(bytes: &mut [u8]) {
-    use rand::RngCore;
-    rand::rngs::OsRng.fill_bytes(bytes);
-}
+use super::get_random_bytes;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
@@ -317,7 +313,7 @@ mod tests {
             0xd7, 0xc2, 0xb3, 0xe5,
         ];
 
-        assert_eq!(prk, expected_prk);
+        assert_eq!(*prk, expected_prk);
     }
 
     #[test]

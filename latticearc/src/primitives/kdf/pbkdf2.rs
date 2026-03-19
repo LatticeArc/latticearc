@@ -18,6 +18,7 @@
 use crate::prelude::error::{LatticeArcError, Result};
 use hmac::{Hmac, Mac};
 use sha2::{Sha256, Sha512};
+use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
 /// PBKDF2 pseudorandom function types
@@ -139,7 +140,13 @@ impl Pbkdf2Result {
     /// Returns an error if the password derivation fails.
     pub fn verify_password(&self, password: &[u8]) -> Result<bool> {
         let derived = pbkdf2(password, &self.params)?;
-        Ok(constant_time_eq(&self.key, &derived.key))
+        let len_eq = self.key.len().ct_eq(&derived.key.len());
+        let bytes_eq = self
+            .key
+            .iter()
+            .zip(derived.key.iter())
+            .fold(subtle::Choice::from(1u8), |acc, (x, y)| acc & x.ct_eq(y));
+        Ok((len_eq & bytes_eq).into())
     }
 }
 
@@ -316,25 +323,15 @@ pub fn verify_password(
         .prf(PrfType::HmacSha256);
 
     let result = pbkdf2(password, &params)?;
-    Ok(constant_time_eq(derived_key, &result.key))
+    let len_eq = derived_key.len().ct_eq(&result.key.len());
+    let bytes_eq = derived_key
+        .iter()
+        .zip(result.key.iter())
+        .fold(subtle::Choice::from(1u8), |acc, (x, y)| acc & x.ct_eq(y));
+    Ok((len_eq & bytes_eq).into())
 }
 
-/// Get random bytes for salt generation
-fn get_random_bytes(bytes: &mut [u8]) {
-    use rand::RngCore;
-    rand::rngs::OsRng.fill_bytes(bytes);
-}
-
-/// Constant-time equality check
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    use subtle::ConstantTimeEq;
-    let len_eq = a.len().ct_eq(&b.len());
-    let mut result = len_eq;
-    for (x, y) in a.iter().zip(b.iter()) {
-        result &= x.ct_eq(y);
-    }
-    result.into()
-}
+use super::get_random_bytes;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity

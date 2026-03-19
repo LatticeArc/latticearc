@@ -107,7 +107,7 @@ use crate::{
     types::{PrivateKey, PublicKey},
 };
 
-// Re-export TrustLevel from arc-types (pure Rust, no FFI deps)
+// Re-export TrustLevel from types module (pure Rust, no FFI deps)
 pub use crate::types::zero_trust::TrustLevel;
 use chrono::{DateTime, Duration, Utc};
 use rand_core::{OsRng, RngCore};
@@ -277,7 +277,7 @@ impl Default for SecurityMode<'_> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct VerifiedSession {
     /// Unique session identifier.
     session_id: [u8; 32],
@@ -361,8 +361,13 @@ impl VerifiedSession {
         })?;
 
         let now = Utc::now();
-        let expires_at =
-            now.checked_add_signed(Duration::seconds(DEFAULT_SESSION_LIFETIME_SECS)).unwrap_or(now);
+        let expires_at = now
+            .checked_add_signed(Duration::seconds(DEFAULT_SESSION_LIFETIME_SECS))
+            .ok_or_else(|| {
+            CoreError::ConfigurationError(
+                "Cannot compute session expiry: timestamp overflow".to_string(),
+            )
+        })?;
 
         let trust_level = TrustLevel::Trusted;
 
@@ -431,6 +436,23 @@ impl VerifiedSession {
         } else {
             log_zero_trust_session_expired!(session_id_hex);
             Err(CoreError::SessionExpired)
+        }
+    }
+
+    /// Create a copy of this session that is already expired.
+    ///
+    /// This is only available in tests so that code outside this module can
+    /// exercise the `SessionExpired` error path without accessing private fields.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn expired_clone(&self) -> Self {
+        // Use Unix epoch as a guaranteed-past timestamp
+        Self {
+            session_id: self.session_id,
+            authenticated_at: self.authenticated_at,
+            trust_level: self.trust_level,
+            public_key: self.public_key.clone(),
+            expires_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_else(Utc::now),
         }
     }
 }
@@ -1756,14 +1778,12 @@ mod tests {
     }
 
     #[test]
-    fn test_verified_session_clone_and_debug() -> Result<()> {
+    fn test_verified_session_debug() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
 
-        let cloned = session.clone();
-        assert_eq!(cloned.trust_level(), session.trust_level());
-        assert_eq!(cloned.session_id(), session.session_id());
-
+        // VerifiedSession does not implement Clone (sessions are non-cloneable by design).
+        // Verify Debug output instead.
         let debug = format!("{:?}", session);
         assert!(debug.contains("VerifiedSession"));
         Ok(())
@@ -1815,7 +1835,7 @@ mod tests {
             authenticated_at: session.authenticated_at(),
             trust_level: session.trust_level(),
             public_key: session.public_key().clone(),
-            expires_at: chrono::Utc::now() - chrono::Duration::seconds(1),
+            expires_at: Utc::now() - Duration::seconds(1),
         };
         assert!(!expired_session.is_valid());
 
@@ -1838,7 +1858,7 @@ mod tests {
             authenticated_at: session.authenticated_at(),
             trust_level: session.trust_level(),
             public_key: session.public_key().clone(),
-            expires_at: chrono::Utc::now() - chrono::Duration::seconds(1),
+            expires_at: Utc::now() - Duration::seconds(1),
         };
 
         let mode = SecurityMode::Verified(&expired_session);

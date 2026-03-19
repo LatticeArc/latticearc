@@ -59,14 +59,8 @@ pub fn generate_keypair_with_config(config: &CoreConfig) -> Result<(PublicKey, P
 
 /// Validate Ed25519 keypair per FIPS 186-5 requirements
 fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingKey) -> Result<()> {
-    // Validate public key format (32 bytes)
+    // Validate public key format (32 bytes guaranteed by type)
     let public_bytes = verifying_key.to_bytes();
-    if public_bytes.len() != 32 {
-        return Err(CoreError::KeyGenerationFailed {
-            reason: "Invalid public key length".to_string(),
-            recovery: "Ensure public key is exactly 32 bytes".to_string(),
-        });
-    }
 
     // Validate that public key is not the identity element (all zeros)
     if public_bytes.iter().all(|&b| b == 0) {
@@ -76,14 +70,8 @@ fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingK
         });
     }
 
-    // Validate private key format (32 bytes)
+    // Validate private key format (32 bytes guaranteed by type)
     let private_bytes = signing_key.to_bytes();
-    if private_bytes.len() != 32 {
-        return Err(CoreError::KeyGenerationFailed {
-            reason: "Invalid private key length".to_string(),
-            recovery: "Ensure private key is exactly 32 bytes".to_string(),
-        });
-    }
 
     // Validate private key is not zero
     if private_bytes.iter().all(|&b| b == 0) {

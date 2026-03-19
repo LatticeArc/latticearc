@@ -56,66 +56,9 @@ use crate::unified_api::zero_trust::SecurityMode;
 /// Uses a 96-bit random nonce generated from `OsRng`. Per NIST SP 800-38D
 /// Section 8.2.2, with random nonces the key should be rotated after 2^32
 /// encryptions to maintain the birthday bound safety margin.
+/// Delegates to [`encrypt_aes_gcm_with_aad_internal`] with empty AAD.
 pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
-    log_crypto_operation_start!(
-        "aes_gcm_encrypt",
-        algorithm = "AES-256-GCM",
-        data_len = data.len()
-    );
-
-    // Validate key length - must be exactly 32 bytes (AES-256)
-    if key.len() != 32 {
-        let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
-        log_crypto_operation_error!("aes_gcm_encrypt", err);
-        return Err(err);
-    }
-
-    let key_bytes: zeroize::Zeroizing<[u8; 32]> =
-        zeroize::Zeroizing::new(key.try_into().map_err(|e| {
-            let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
-            log_crypto_operation_error!("aes_gcm_encrypt", err);
-            err
-        })?);
-
-    let unbound = UnboundKey::new(&AES_256_GCM, &*key_bytes).map_err(|e| {
-        let err = CoreError::EncryptionFailed(format!("Failed to create AES key: {e}"));
-        log_crypto_operation_error!("aes_gcm_encrypt", err);
-        err
-    })?;
-    let aes_key = LessSafeKey::new(unbound);
-
-    // Generate cryptographically secure random nonce using OsRng
-    let mut nonce_bytes = [0u8; 12];
-    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|e| {
-        let err = CoreError::EncryptionFailed(format!("Failed to generate random nonce: {e}"));
-        log_crypto_operation_error!("aes_gcm_encrypt", err);
-        err
-    })?;
-
-    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-
-    let mut ciphertext = data.to_vec();
-    aes_key.seal_in_place_append_tag(nonce, Aad::empty(), &mut ciphertext).map_err(|e| {
-        let err = CoreError::EncryptionFailed(e.to_string());
-        log_crypto_operation_error!("aes_gcm_encrypt", err);
-        err
-    })?;
-
-    let mut result = nonce_bytes.to_vec();
-    result.append(&mut ciphertext);
-
-    log_crypto_operation_complete!(
-        "aes_gcm_encrypt",
-        algorithm = "AES-256-GCM",
-        ciphertext_len = result.len()
-    );
-    debug!(
-        data_len = data.len(),
-        ciphertext_len = result.len(),
-        "AES-256-GCM encryption completed"
-    );
-
-    Ok(result)
+    encrypt_aes_gcm_with_aad_internal(data, key, b"")
 }
 
 /// Internal implementation of AES-GCM encryption with Additional Authenticated Data (AAD).
@@ -217,13 +160,14 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    let key_bytes: [u8; 32] = key.try_into().map_err(|e| {
-        let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
-        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
-        err
-    })?;
+    let key_bytes: zeroize::Zeroizing<[u8; 32]> =
+        zeroize::Zeroizing::new(key.try_into().map_err(|e| {
+            let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
+            log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+            err
+        })?);
 
-    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|e| {
+    let unbound = UnboundKey::new(&AES_256_GCM, &*key_bytes).map_err(|e| {
         let err = CoreError::DecryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
@@ -262,69 +206,9 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
     Ok(result)
 }
 
-/// Internal implementation of AES-GCM decryption.
+/// Delegates to [`decrypt_aes_gcm_with_aad_internal`] with empty AAD.
 pub(crate) fn decrypt_aes_gcm_internal(encrypted_data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
-    log_crypto_operation_start!(
-        "aes_gcm_decrypt",
-        algorithm = "AES-256-GCM",
-        encrypted_len = encrypted_data.len()
-    );
-
-    if encrypted_data.len() < 12 {
-        let err = CoreError::InvalidInput("Data too short".to_string());
-        log_crypto_operation_error!("aes_gcm_decrypt", err);
-        return Err(err);
-    }
-
-    // Validate key length - must be exactly 32 bytes (AES-256)
-    if key.len() != 32 {
-        let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
-        log_crypto_operation_error!("aes_gcm_decrypt", err);
-        return Err(err);
-    }
-
-    let key_bytes: [u8; 32] = key.try_into().map_err(|e| {
-        let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
-        log_crypto_operation_error!("aes_gcm_decrypt", err);
-        err
-    })?;
-
-    let unbound = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|e| {
-        let err = CoreError::DecryptionFailed(format!("Failed to create AES key: {e}"));
-        log_crypto_operation_error!("aes_gcm_decrypt", err);
-        err
-    })?;
-    let aes_key = LessSafeKey::new(unbound);
-
-    let (nonce_slice, ciphertext) = encrypted_data.split_at(12);
-    let nonce_bytes: [u8; 12] = nonce_slice.try_into().map_err(|e| {
-        let err = CoreError::InvalidNonce(format!("Nonce must be 12 bytes: {e}"));
-        log_crypto_operation_error!("aes_gcm_decrypt", err);
-        err
-    })?;
-
-    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-
-    let mut in_out = ciphertext.to_vec();
-    let plaintext = aes_key.open_in_place(nonce, Aad::empty(), &mut in_out).map_err(|e| {
-        let err = CoreError::DecryptionFailed(e.to_string());
-        log_crypto_operation_error!("aes_gcm_decrypt", err);
-        err
-    })?;
-
-    let result = plaintext.to_vec();
-    log_crypto_operation_complete!(
-        "aes_gcm_decrypt",
-        algorithm = "AES-256-GCM",
-        plaintext_len = result.len()
-    );
-    debug!(
-        encrypted_len = encrypted_data.len(),
-        plaintext_len = result.len(),
-        "AES-256-GCM decryption completed"
-    );
-
-    Ok(result)
+    decrypt_aes_gcm_with_aad_internal(encrypted_data, key, b"")
 }
 
 // ============================================================================

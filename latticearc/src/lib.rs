@@ -34,7 +34,7 @@
 //! | SHA-256 | FIPS 180-4 | aws-lc-rs | Yes |
 //! | ML-DSA | FIPS 204 | fips204 | No |
 //! | SLH-DSA | FIPS 205 | fips205 | No |
-//! | FN-DSA | FIPS 206 (draft) | fn-dsa | No |
+//! | FN-DSA | FIPS 206 | fn-dsa | No |
 //!
 //! ## Unified API with CryptoConfig
 //!
@@ -81,7 +81,7 @@
 //! | Feature | Description |
 //! |---------|-------------|
 //! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). |
-//! | `fips-self-test` | Power-up KAT self-tests for all FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA). |
+//! | `fips-self-test` | Power-up KAT self-tests (ML-KEM via aws-lc-rs, AES-GCM, SHA-3). ML-DSA and SLH-DSA use non-validated crate implementations — not FIPS-boundary. |
 //! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
 //! | `formal-verification` | Compilation marker: enables formal verification harness code (Kani proofs). Does not run proofs — use `cargo kani` separately. |
 //! | `kani` | Compilation marker: enables Kani bounded model checking proof harnesses. Requires `cargo kani` to execute proofs. |
@@ -272,7 +272,7 @@ pub use unified_api as core;
 
 // Explicit re-export of LatticeArcError for error compatibility.
 // All other prelude types are accessible via `latticearc::prelude::*`.
-pub use prelude::prelude::LatticeArcError;
+pub use prelude::LatticeArcError;
 
 // ============================================================================
 // Core Types
@@ -471,6 +471,12 @@ pub use unified_api::serialization::{
     deserialize_signed_data, serialize_encrypted_data, serialize_encrypted_output,
     serialize_keypair, serialize_signed_data,
 };
+
+// ============================================================================
+// Portable Key Format
+// ============================================================================
+
+pub use unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
 
 // ============================================================================
 // TLS Utilities

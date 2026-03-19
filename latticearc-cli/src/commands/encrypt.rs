@@ -34,16 +34,28 @@ pub(crate) enum EncryptMode {
 /// Arguments for the `encrypt` subcommand.
 #[derive(Args)]
 pub(crate) struct EncryptArgs {
-    /// Encryption mode.
-    #[arg(short, long, value_enum, default_value = "aes256-gcm")]
-    pub mode: EncryptMode,
+    /// Encryption mode (expert override). Ignored when --use-case is provided.
+    #[arg(short, long, value_enum)]
+    pub mode: Option<EncryptMode>,
+    /// Use case for automatic algorithm selection (recommended).
+    #[arg(long, value_parser = super::common::parse_use_case,
+          value_name = "USE_CASE")]
+    pub use_case: Option<latticearc::types::types::UseCase>,
+    /// Security level override (default: high).
+    #[arg(long, value_parser = super::common::parse_security_level,
+          value_name = "LEVEL")]
+    pub security_level: Option<latticearc::types::types::SecurityLevel>,
+    /// Compliance mode (default, fips, cnsa-2.0).
+    #[arg(long, value_parser = super::common::parse_compliance,
+          value_name = "MODE")]
+    pub compliance: Option<latticearc::types::types::ComplianceMode>,
     /// Input file to encrypt (reads from stdin if omitted).
     #[arg(short, long)]
     pub input: Option<PathBuf>,
     /// Output file for encrypted data (writes to stdout if omitted).
     #[arg(short, long)]
     pub output: Option<PathBuf>,
-    /// Key file path (symmetric key for AES/ChaCha20, public key for hybrid).
+    /// Key file path (symmetric key for AES, public key for hybrid).
     #[arg(short, long)]
     pub key: PathBuf,
 }
@@ -53,13 +65,61 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
     let plaintext = read_input(&args.input)?;
     let key_file = KeyFile::read_from(&args.key)?;
 
-    let json_output = match args.mode {
+    // Use-case-driven path
+    if args.use_case.is_some() {
+        if args.mode.is_some() {
+            eprintln!(
+                "Warning: --mode is ignored when --use-case is provided. \
+                 The library selects the optimal encryption scheme automatically."
+            );
+        }
+        let json_output = encrypt_with_config(&plaintext, &key_file, &args)?;
+        return write_output(&args.output, &json_output);
+    }
+
+    // Expert path (or default)
+    let mode = args.mode.unwrap_or(EncryptMode::Aes256Gcm);
+    let json_output = match mode {
         EncryptMode::Aes256Gcm => encrypt_symmetric(&plaintext, &key_file)?,
         EncryptMode::Chacha20Poly1305 => encrypt_chacha20(&plaintext, &key_file)?,
         EncryptMode::Hybrid => encrypt_hybrid(&plaintext, &key_file)?,
     };
 
     write_output(&args.output, &json_output)
+}
+
+/// Encrypt using the library's unified API with use-case-driven config.
+fn encrypt_with_config(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs) -> Result<String> {
+    let config = super::common::build_config(args.use_case, args.security_level, &args.compliance);
+
+    // Determine key type from the key file and encrypt
+    match key_file.key_type {
+        KeyType::Symmetric => {
+            let key_bytes = key_file.key_bytes()?;
+            let config = config.force_scheme(latticearc::CryptoScheme::Symmetric);
+            let encrypted = latticearc::encrypt(
+                plaintext,
+                latticearc::EncryptKey::Symmetric(&key_bytes),
+                config,
+            )
+            .map_err(|e| anyhow::anyhow!("Encryption failed: {e}"))?;
+            latticearc::unified_api::serialization::serialize_encrypted_output(&encrypted)
+                .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
+        }
+        KeyType::Public => {
+            let pk_bytes = key_file.key_bytes()?;
+            let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes)?;
+            let encrypted =
+                latticearc::encrypt(plaintext, latticearc::EncryptKey::Hybrid(&pk), config)
+                    .map_err(|e| anyhow::anyhow!("Encryption failed: {e}"))?;
+            latticearc::unified_api::serialization::serialize_encrypted_output(&encrypted)
+                .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
+        }
+        _ => bail!(
+            "Expected symmetric or public key file for encryption, got {:?}",
+            key_file.key_type
+        ),
+    }
 }
 
 fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
@@ -83,16 +143,21 @@ fn encrypt_symmetric(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
         .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
 }
 
-fn encrypt_chacha20(_plaintext: &[u8], _key_file: &KeyFile) -> Result<String> {
-    if latticearc::fips_available() {
-        bail!(
-            "ChaCha20-Poly1305 is not FIPS 140-3 approved.\n\
-             Use --mode aes256-gcm for FIPS-compliant symmetric encryption.\n\
-             ChaCha20-Poly1305 is available via the library API in non-FIPS builds."
-        );
+fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
+    if key_file.key_type != KeyType::Symmetric {
+        bail!("Expected symmetric key file for ChaCha20 encryption, got {:?}", key_file.key_type);
     }
+    let key_bytes = key_file.key_bytes()?;
 
-    bail!("ChaCha20-Poly1305 encryption is not available in this build.");
+    let encrypted = latticearc::encrypt(
+        plaintext,
+        latticearc::EncryptKey::Symmetric(&key_bytes),
+        latticearc::CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric),
+    )
+    .map_err(|e| anyhow::anyhow!("ChaCha20-Poly1305 encryption failed: {e}"))?;
+
+    latticearc::unified_api::serialization::serialize_encrypted_output(&encrypted)
+        .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
 }
 
 fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
@@ -101,7 +166,7 @@ fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     }
 
     let pk_bytes = key_file.key_bytes()?;
-    let pk = super::keygen::parse_hybrid_kem_pk(&pk_bytes)?;
+    let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes)?;
 
     let encrypted = latticearc::encrypt(
         plaintext,

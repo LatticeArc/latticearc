@@ -32,7 +32,7 @@ use crate::types::resource_limits::validate_encryption_size;
 ///
 /// This enables consistency validation between the explicit algorithm parameter
 /// and the config's security level.
-fn expected_ml_kem_level(security_level: &SecurityLevel) -> MlKemSecurityLevel {
+fn expected_ml_kem_level(security_level: SecurityLevel) -> MlKemSecurityLevel {
     match security_level {
         SecurityLevel::Standard => MlKemSecurityLevel::MlKem512,
         SecurityLevel::High => MlKemSecurityLevel::MlKem768,
@@ -42,7 +42,7 @@ fn expected_ml_kem_level(security_level: &SecurityLevel) -> MlKemSecurityLevel {
 
 /// Warn if the explicit ML-KEM security level differs from the CoreConfig's security_level.
 fn check_ml_kem_config_consistency(explicit: MlKemSecurityLevel, config: &CoreConfig) {
-    let expected = expected_ml_kem_level(&config.security_level);
+    let expected = expected_ml_kem_level(config.security_level);
     if expected != explicit {
         warn!(
             "Explicit MlKemSecurityLevel ({:?}) differs from CoreConfig security_level ({:?} \

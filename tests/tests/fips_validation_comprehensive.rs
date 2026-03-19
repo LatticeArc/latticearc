@@ -292,12 +292,12 @@ mod resource_limits_tests {
 
     #[test]
     fn test_validate_key_derivation_count_valid() {
-        assert!(ResourceLimits::validate_key_derivation_count(100).is_ok());
+        assert!(validate_key_derivation_count(100).is_ok());
     }
 
     #[test]
     fn test_validate_key_derivation_count_exceeded() {
-        let result = ResourceLimits::validate_key_derivation_count(2000);
+        let result = validate_key_derivation_count(2000);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::KeyDerivationLimitExceeded { requested, limit } => {
@@ -310,12 +310,12 @@ mod resource_limits_tests {
 
     #[test]
     fn test_validate_encryption_size_valid() {
-        assert!(ResourceLimits::validate_encryption_size(1024 * 1024).is_ok());
+        assert!(validate_encryption_size(1024 * 1024).is_ok());
     }
 
     #[test]
     fn test_validate_encryption_size_exceeded() {
-        let result = ResourceLimits::validate_encryption_size(200 * 1024 * 1024);
+        let result = validate_encryption_size(200 * 1024 * 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::EncryptionSizeLimitExceeded { requested, limit } => {
@@ -328,12 +328,12 @@ mod resource_limits_tests {
 
     #[test]
     fn test_validate_signature_size_valid() {
-        assert!(ResourceLimits::validate_signature_size(1024).is_ok());
+        assert!(validate_signature_size(1024).is_ok());
     }
 
     #[test]
     fn test_validate_signature_size_exceeded() {
-        let result = ResourceLimits::validate_signature_size(100 * 1024);
+        let result = validate_signature_size(100 * 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::SignatureSizeLimitExceeded { requested, limit } => {
@@ -346,12 +346,12 @@ mod resource_limits_tests {
 
     #[test]
     fn test_validate_decryption_size_valid() {
-        assert!(ResourceLimits::validate_decryption_size(1024 * 1024).is_ok());
+        assert!(validate_decryption_size(1024 * 1024).is_ok());
     }
 
     #[test]
     fn test_validate_decryption_size_exceeded() {
-        let result = ResourceLimits::validate_decryption_size(200 * 1024 * 1024);
+        let result = validate_decryption_size(200 * 1024 * 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::DecryptionSizeLimitExceeded { requested, limit } => {

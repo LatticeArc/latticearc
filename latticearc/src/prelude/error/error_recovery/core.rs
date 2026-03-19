@@ -8,7 +8,7 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use crate::prelude::prelude::error::LatticeArcError;
+use crate::prelude::error::LatticeArcError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -66,18 +66,8 @@ pub struct RecoverySuggestion {
     pub steps: Vec<String>,
 }
 
-/// Error severity levels for classification and handling
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum ErrorSeverity {
-    /// Low severity - informational, no immediate action required
-    Low,
-    /// Medium severity - requires attention but not urgent
-    Medium,
-    /// High severity - requires immediate attention
-    High,
-    /// Critical severity - system stability at risk, immediate action required
-    Critical,
-}
+// ErrorSeverity is defined in types::recovery (canonical, with integer discriminants).
+pub use super::super::types::recovery::ErrorSeverity;
 
 /// Recovery strategy types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

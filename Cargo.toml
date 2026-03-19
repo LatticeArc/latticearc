@@ -329,6 +329,7 @@ clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
 # Common utilities
 parking_lot = { version = "0.12.3" }
 blake2 = { version = "0.10" }
+ciborium = { version = "0.2" }
 
 [profile.bench]
  lto = true

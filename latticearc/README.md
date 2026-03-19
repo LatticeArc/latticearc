@@ -56,7 +56,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-latticearc = "0.3"
+latticearc = "0.4"
 ```
 
 ### Digital Signatures
@@ -210,6 +210,28 @@ All features are included by default:
 - Zero-knowledge proofs (Schnorr, Pedersen)
 - TLS 1.3 integration
 - Use case-based scheme selection
+- Portable key format (JSON + CBOR) with UseCase/SecurityLevel-first design
+
+## Key Serialization
+
+Keys are serialized using the **LatticeArc Portable Key (LPK)** format — dual JSON + CBOR
+encoding identified by use case or security level. See [`docs/KEY_FORMAT.md`](../docs/KEY_FORMAT.md).
+
+```rust
+use latticearc::{PortableKey, KeyData, KeyType, UseCase};
+
+// Generate → wrap → serialize → deserialize → use
+let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+let (portable_pk, portable_sk) =
+    PortableKey::from_hybrid_kem_keypair(UseCase::FileStorage, &pk, &sk)?;
+
+// JSON for files/REST, CBOR for wire/storage
+let json = portable_pk.to_json()?;
+let cbor = portable_pk.to_cbor()?;
+
+// Reconstruct for crypto operations
+let restored_pk = PortableKey::from_json(&json)?.to_hybrid_public_key()?;
+```
 
 ## Algorithm Selection
 

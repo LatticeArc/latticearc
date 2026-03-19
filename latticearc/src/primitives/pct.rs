@@ -95,6 +95,17 @@ fn enter_pct_error_state() {
 #[cfg(not(feature = "fips-self-test"))]
 fn enter_pct_error_state() {}
 
+/// Finalize a PCT: if verification passed return `Ok(())`, otherwise enter
+/// error state and return `Err(PctError::KeyPairInconsistent)`.
+fn pct_finalize(is_valid: bool) -> PctResult<()> {
+    if is_valid {
+        Ok(())
+    } else {
+        enter_pct_error_state();
+        Err(PctError::KeyPairInconsistent)
+    }
+}
+
 // =============================================================================
 // ML-DSA Pairwise Consistency Test
 // =============================================================================
@@ -152,12 +163,7 @@ pub fn pct_ml_dsa(
     let is_valid = verify(public_key, PCT_TEST_MESSAGE, &signature, PCT_EMPTY_CONTEXT)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid {
-        Ok(())
-    } else {
-        enter_pct_error_state();
-        Err(PctError::KeyPairInconsistent)
-    }
+    pct_finalize(is_valid)
 }
 
 // =============================================================================
@@ -208,12 +214,8 @@ pub fn pct_ml_kem(
         .map_err(|e| PctError::VerificationFailed(format!("ML-KEM decapsulation failed: {}", e)))?;
 
     // Constant-time comparison
-    if bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes())) {
-        Ok(())
-    } else {
-        enter_pct_error_state();
-        Err(PctError::KeyPairInconsistent)
-    }
+    let is_valid = bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes()));
+    pct_finalize(is_valid)
 }
 
 // =============================================================================
@@ -273,12 +275,7 @@ pub fn pct_slh_dsa(
         .verify(PCT_TEST_MESSAGE, &signature, None)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid {
-        Ok(())
-    } else {
-        enter_pct_error_state();
-        Err(PctError::KeyPairInconsistent)
-    }
+    pct_finalize(is_valid)
 }
 
 // =============================================================================
@@ -342,12 +339,7 @@ pub fn pct_fn_dsa(
         .verify(PCT_TEST_MESSAGE, &signature)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid {
-        Ok(())
-    } else {
-        enter_pct_error_state();
-        Err(PctError::KeyPairInconsistent)
-    }
+    pct_finalize(is_valid)
 }
 
 /// Performs a Pairwise Consistency Test for an FN-DSA KeyPair
@@ -395,12 +387,7 @@ pub fn pct_fn_dsa_keypair(keypair: &mut crate::primitives::sig::fndsa::KeyPair) 
         .verify(PCT_TEST_MESSAGE, &signature)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
-    if is_valid {
-        Ok(())
-    } else {
-        enter_pct_error_state();
-        Err(PctError::KeyPairInconsistent)
-    }
+    pct_finalize(is_valid)
 }
 
 // =============================================================================

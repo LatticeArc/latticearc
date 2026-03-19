@@ -9,6 +9,8 @@
 //! All cryptographic operations are delegated to the `latticearc` library.
 //! Command modules handle only I/O, serialization, and user-facing output.
 
+/// Shared types for use-case and security-level driven operations.
+pub(crate) mod common;
 /// Symmetric and hybrid decryption (AES-256-GCM).
 pub(crate) mod decrypt;
 /// Symmetric and hybrid encryption (AES-256-GCM, ML-KEM+X25519).

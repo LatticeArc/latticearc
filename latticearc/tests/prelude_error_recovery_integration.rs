@@ -15,8 +15,8 @@
     clippy::arithmetic_side_effects
 )]
 
-use latticearc::prelude::prelude::error::LatticeArcError;
-use latticearc::prelude::prelude::error::error_recovery::{
+use latticearc::prelude::error::LatticeArcError;
+use latticearc::prelude::error::error_recovery::{
     CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, DegradationStrategy, EffortLevel,
     EnhancedError, EnhancedErrorHandler, ErrorContext, ErrorRecoveryHandler, ErrorSeverity,
     GracefulDegradationManager, RecoveryStrategy, RecoverySuggestion, ServiceDegradationInfo,

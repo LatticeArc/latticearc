@@ -41,7 +41,10 @@ pub enum ErrorRecoveryStrategy {
 /// Error severity level for NIST compliance.
 ///
 /// Used to classify errors by their impact on security and operations.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+/// Canonical definition — imported by `error_recovery::core` to avoid duplication.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum ErrorSeverity {
     /// Low severity - minimal impact.
     Low = 1,

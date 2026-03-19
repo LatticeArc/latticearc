@@ -11,7 +11,7 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use crate::prelude::prelude::error::Result;
+use crate::prelude::error::Result;
 use std::time::{Duration, Instant};
 
 /// Timing analyzer for utility functions.

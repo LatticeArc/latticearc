@@ -1,21 +1,13 @@
-//! Verify command — check digital signatures with auto-detection.
+//! Verify command — check digital signatures.
 //!
-//! Verifies that a signature file is valid for a given input file and public key.
+//! Supports two signature formats:
 //!
-//! **Algorithm auto-detection:** If `--algorithm` is omitted, the algorithm is
-//! read from the signature file's `"algorithm"` JSON field. This means users
-//! don't need to remember which algorithm was used to sign.
+//! **SignedData (recommended):** Produced by `sign --public-key`. Contains scheme
+//! metadata, timestamp, and public key — the library's `verify()` handles everything.
+//! No `--algorithm` or `--key` flags needed (both are embedded in the signature).
 //!
-//! **Verification flow:**
-//! 1. Read the original file and the signature JSON
-//! 2. Auto-detect or validate the algorithm
-//! 3. Validate the public key matches the expected algorithm
-//! 4. Verify the signature using the `latticearc` library
-//! 5. Print `VALID` (exit 0) or `INVALID` (exit 1)
-//!
-//! **Security:** The verifier validates algorithm/key consistency before
-//! performing cryptographic verification. Algorithm field tampering in the
-//! signature file is detected because the key won't match.
+//! **Legacy JSON:** Produced by `sign --algorithm`. Requires `--key` (public key)
+//! and optionally `--algorithm` (auto-detected from the signature file).
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, ValueEnum};
@@ -23,7 +15,7 @@ use std::path::PathBuf;
 
 use crate::keyfile::{KeyFile, KeyType};
 
-/// Verification algorithm.
+/// Verification algorithm (legacy mode only).
 #[derive(Debug, Clone, ValueEnum)]
 pub(crate) enum VerifyAlgorithm {
     /// ML-DSA-65 (FIPS 204).
@@ -34,7 +26,7 @@ pub(crate) enum VerifyAlgorithm {
     MlDsa87,
     /// SLH-DSA-SHAKE-128s (FIPS 205).
     SlhDsa,
-    /// FN-DSA-512 (FIPS 206 draft).
+    /// FN-DSA-512 (FIPS 206).
     FnDsa,
     /// Ed25519.
     Ed25519,
@@ -45,21 +37,114 @@ pub(crate) enum VerifyAlgorithm {
 /// Arguments for the `verify` subcommand.
 #[derive(Args)]
 pub(crate) struct VerifyArgs {
-    /// Verification algorithm. If omitted, auto-detected from the signature file.
+    /// Verification algorithm (legacy mode). Auto-detected from signature file if omitted.
     #[arg(short, long, value_enum)]
     pub algorithm: Option<VerifyAlgorithm>,
+    /// Use case for configuration (optional).
+    #[arg(long, value_parser = super::common::parse_use_case,
+          value_name = "USE_CASE")]
+    pub use_case: Option<latticearc::types::types::UseCase>,
+    /// Security level override (default: high).
+    #[arg(long, value_parser = super::common::parse_security_level,
+          value_name = "LEVEL")]
+    pub security_level: Option<latticearc::types::types::SecurityLevel>,
+    /// Compliance mode (default, fips, cnsa-2.0).
+    #[arg(long, value_parser = super::common::parse_compliance,
+          value_name = "MODE")]
+    pub compliance: Option<latticearc::types::types::ComplianceMode>,
     /// Input file that was signed.
     #[arg(short, long)]
     pub input: PathBuf,
-    /// Signature JSON file.
+    /// Signature file (SignedData JSON or legacy JSON).
     #[arg(short, long)]
     pub signature: PathBuf,
-    /// Public key file for verification.
+    /// Public key file (required for legacy format, optional for SignedData).
     #[arg(short, long)]
-    pub key: PathBuf,
+    pub key: Option<PathBuf>,
 }
 
-/// Detect algorithm from the "algorithm" field in a .sig.json file.
+/// Execute the verify command.
+pub(crate) fn run(args: VerifyArgs) -> Result<()> {
+    let sig_json = std::fs::read_to_string(&args.signature)
+        .with_context(|| format!("Failed to read {}", args.signature.display()))?;
+
+    // Try SignedData format first (produced by sign --public-key)
+    if let Ok(signed) = latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
+        let data = std::fs::read(&args.input)
+            .with_context(|| format!("Failed to read {}", args.input.display()))?;
+
+        // Verify the signed data matches the input file
+        if signed.data != data {
+            bail!(
+                "Signature was created over different data than the input file.\n\
+                 The SignedData envelope contains the original data — it does not match \
+                 the file at '{}'.",
+                args.input.display()
+            );
+        }
+
+        let config =
+            super::common::build_config(args.use_case, args.security_level, &args.compliance);
+        let valid = latticearc::verify(&signed, config)
+            .map_err(|e| anyhow::anyhow!("Verification failed: {e}"))?;
+
+        return if valid {
+            println!("Signature is VALID. (scheme: {})", signed.scheme);
+            Ok(())
+        } else {
+            bail!("Signature is INVALID.")
+        };
+    }
+
+    // Fall back to legacy format (requires --key)
+    let key_path = args.key.as_ref().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Public key file (--key) is required for legacy signature format.\n\
+             Signatures created with 'sign --public-key' embed the public key \
+             and don't need --key."
+        )
+    })?;
+
+    verify_legacy(&args, &sig_json, key_path)
+}
+
+/// Legacy verification path — custom JSON format + primitive-level API.
+fn verify_legacy(args: &VerifyArgs, sig_json: &str, key_path: &std::path::Path) -> Result<()> {
+    let data = std::fs::read(&args.input)
+        .with_context(|| format!("Failed to read {}", args.input.display()))?;
+
+    let key_file = KeyFile::read_from(key_path)?;
+    if key_file.key_type != KeyType::Public {
+        bail!("Expected public key file for verification, got {:?}", key_file.key_type);
+    }
+
+    let algorithm = if let Some(alg) = &args.algorithm {
+        alg.clone()
+    } else {
+        let detected = detect_algorithm(sig_json)?;
+        eprintln!("Auto-detected algorithm: {}", algorithm_name(&detected));
+        detected
+    };
+
+    let expected_alg = algorithm_name(&algorithm);
+    key_file.validate_algorithm(expected_alg)?;
+
+    let pk_bytes = key_file.key_bytes()?;
+
+    let valid = match algorithm {
+        VerifyAlgorithm::Hybrid => verify_hybrid(&data, sig_json, &pk_bytes)?,
+        _ => verify_standard(&data, sig_json, &pk_bytes, &algorithm)?,
+    };
+
+    if valid {
+        println!("Signature is VALID.");
+        Ok(())
+    } else {
+        bail!("Signature is INVALID.")
+    }
+}
+
+/// Detect algorithm from the "algorithm" field in a legacy .sig.json file.
 fn detect_algorithm(sig_json: &str) -> Result<VerifyAlgorithm> {
     let sig: serde_json::Value =
         serde_json::from_str(sig_json).context("Failed to parse signature JSON")?;
@@ -76,47 +161,6 @@ fn detect_algorithm(sig_json: &str) -> Result<VerifyAlgorithm> {
         "ed25519" => Ok(VerifyAlgorithm::Ed25519),
         "hybrid-ml-dsa-65-ed25519" => Ok(VerifyAlgorithm::Hybrid),
         other => bail!("Unknown algorithm in signature file: '{other}'"),
-    }
-}
-
-/// Execute the verify command.
-pub(crate) fn run(args: VerifyArgs) -> Result<()> {
-    let data = std::fs::read(&args.input)
-        .with_context(|| format!("Failed to read {}", args.input.display()))?;
-
-    let key_file = KeyFile::read_from(&args.key)?;
-    if key_file.key_type != KeyType::Public {
-        bail!("Expected public key file for verification, got {:?}", key_file.key_type);
-    }
-
-    let sig_json = std::fs::read_to_string(&args.signature)
-        .with_context(|| format!("Failed to read {}", args.signature.display()))?;
-
-    // Auto-detect algorithm from signature file if not specified
-    let algorithm = if let Some(alg) = args.algorithm {
-        alg
-    } else {
-        let detected = detect_algorithm(&sig_json)?;
-        eprintln!("Auto-detected algorithm: {:?}", algorithm_name(&detected));
-        detected
-    };
-
-    // Validate algorithm matches key file
-    let expected_alg = algorithm_name(&algorithm);
-    key_file.validate_algorithm(expected_alg)?;
-
-    let pk_bytes = key_file.key_bytes()?;
-
-    let valid = match algorithm {
-        VerifyAlgorithm::Hybrid => verify_hybrid(&data, &sig_json, &pk_bytes)?,
-        _ => verify_standard(&data, &sig_json, &pk_bytes, &algorithm)?,
-    };
-
-    if valid {
-        println!("Signature is VALID.");
-        Ok(())
-    } else {
-        bail!("Signature is INVALID.")
     }
 }
 
@@ -159,7 +203,7 @@ fn verify_standard(
             latticearc::primitives::sig::MlDsaParameterSet::MLDSA65,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("ML-DSA-65 verification failed: {e}")),
+        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
         VerifyAlgorithm::MlDsa44 => latticearc::verify_pq_ml_dsa(
             data,
             &sig_bytes,
@@ -167,7 +211,7 @@ fn verify_standard(
             latticearc::primitives::sig::MlDsaParameterSet::MLDSA44,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("ML-DSA-44 verification failed: {e}")),
+        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
         VerifyAlgorithm::MlDsa87 => latticearc::verify_pq_ml_dsa(
             data,
             &sig_bytes,
@@ -175,7 +219,7 @@ fn verify_standard(
             latticearc::primitives::sig::MlDsaParameterSet::MLDSA87,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("ML-DSA-87 verification failed: {e}")),
+        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
         VerifyAlgorithm::SlhDsa => latticearc::verify_pq_slh_dsa(
             data,
             &sig_bytes,
@@ -183,21 +227,21 @@ fn verify_standard(
             latticearc::primitives::sig::slh_dsa::SecurityLevel::Shake128s,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("SLH-DSA verification failed: {e}")),
+        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
         VerifyAlgorithm::FnDsa => latticearc::verify_pq_fn_dsa(
             data,
             &sig_bytes,
             pk_bytes,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("FN-DSA verification failed: {e}")),
+        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
         VerifyAlgorithm::Ed25519 => latticearc::verify_ed25519(
             data,
             &sig_bytes,
             pk_bytes,
             latticearc::SecurityMode::Unverified,
         )
-        .map_err(|e| anyhow::anyhow!("Ed25519 verification failed: {e}")),
+        .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
         VerifyAlgorithm::Hybrid => bail!("Internal error: hybrid handled separately"),
     }
 }
@@ -223,8 +267,7 @@ fn verify_hybrid(data: &[u8], sig_json: &str, pk_bytes: &[u8]) -> Result<bool> {
         .decode(ed25519_b64)
         .context("Invalid base64 in ed25519_sig")?;
 
-    let pk = super::keygen::parse_hybrid_sign_pk(pk_bytes)?;
-
+    let pk = crate::keyfile::parse_hybrid_sign_pk_from_bytes(pk_bytes)?;
     let hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature { ml_dsa_sig, ed25519_sig };
 
     latticearc::verify_hybrid_signature(

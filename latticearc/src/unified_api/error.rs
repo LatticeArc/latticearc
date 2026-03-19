@@ -10,7 +10,7 @@
 
 use thiserror::Error;
 
-// Re-export TypeError from arc-types so downstream consumers can handle it
+// Re-export TypeError from types module so downstream consumers can handle it
 // (returned by config validate() methods and CryptoPolicyEngine methods)
 pub use crate::types::error::TypeError;
 

@@ -42,6 +42,9 @@ pub mod reduction;
 pub mod ntt;
 pub mod multiply;
 
+#[cfg(test)]
+pub(crate) mod test_utils;
+
 #[cfg(target_feature = "avx2")]
 pub mod avx2;
 

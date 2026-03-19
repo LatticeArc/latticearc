@@ -9,7 +9,7 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use crate::prelude::prelude::error::{LatticeArcError, Result};
+use crate::prelude::error::{LatticeArcError, Result};
 
 /// Memory safety tester for utilities.
 ///
@@ -162,7 +162,7 @@ impl UtilityMemorySafetyTester {
     ///
     /// Returns an error if error serialization/deserialization fails.
     pub fn test_error_memory_safety(&self) -> Result<()> {
-        use crate::prelude::prelude::error::{
+        use crate::prelude::error::{
             attempt_error_recovery, get_error_severity, is_recoverable_error,
         };
 

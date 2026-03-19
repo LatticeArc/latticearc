@@ -73,9 +73,12 @@ use zeroize::Zeroize;
 
 // Import primitives
 use latticearc::primitives::aead::AeadCipher;
-use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256, verify_tag_constant_time};
 #[cfg(not(feature = "fips"))]
 use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
+use latticearc::primitives::aead::{
+    aes_gcm::{AesGcm128, AesGcm256},
+    verify_tag_constant_time,
+};
 use latticearc::primitives::kem::ecdh::{X25519KeyPair, X25519SecretKey};
 use latticearc::primitives::kem::ml_kem::{
     MlKem, MlKemSecretKey, MlKemSecurityLevel, MlKemSharedSecret,

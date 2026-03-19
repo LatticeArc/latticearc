@@ -18,6 +18,7 @@ use crate::unified_api::{
 };
 
 /// Serializable form of encrypted data
+#[deprecated(since = "0.4.0", note = "Use EncryptedOutput instead")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerializableEncryptedData {
     /// Base64-encoded encrypted data
@@ -85,6 +86,7 @@ impl std::fmt::Debug for SerializableKeyPair {
     }
 }
 
+#[allow(deprecated)]
 impl From<&EncryptedData> for SerializableEncryptedData {
     fn from(encrypted: &EncryptedData) -> Self {
         Self {
@@ -100,6 +102,7 @@ impl From<&EncryptedData> for SerializableEncryptedData {
     }
 }
 
+#[allow(deprecated)]
 impl TryFrom<SerializableEncryptedData> for EncryptedData {
     type Error = CoreError;
 
@@ -210,6 +213,7 @@ impl TryFrom<SerializableKeyPair> for KeyPair {
 /// # Errors
 ///
 /// Returns an error if JSON serialization fails.
+#[allow(deprecated)]
 pub fn serialize_encrypted_data(encrypted: &EncryptedData) -> Result<String> {
     let serializable = SerializableEncryptedData::from(encrypted);
     serde_json::to_string(&serializable).map_err(|e| CoreError::SerializationError(e.to_string()))
@@ -222,6 +226,7 @@ pub fn serialize_encrypted_data(encrypted: &EncryptedData) -> Result<String> {
 /// Returns an error if:
 /// - JSON parsing fails
 /// - Base64 decoding of the encrypted data, nonce, or tag fails
+#[allow(deprecated)]
 pub fn deserialize_encrypted_data(data: &str) -> Result<EncryptedData> {
     let serializable: SerializableEncryptedData =
         serde_json::from_str(data).map_err(|e| CoreError::SerializationError(e.to_string()))?;
@@ -413,7 +418,7 @@ pub fn deserialize_encrypted_output(data: &str) -> Result<EncryptedOutput> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, deprecated)]
 mod tests {
     use super::*;
     use crate::types::crypto_types::{EncryptedOutput, EncryptionScheme, HybridComponents};

@@ -192,9 +192,10 @@ impl AsRef<[u8]> for Signature {
     }
 }
 
-impl From<Vec<u8>> for Signature {
-    fn from(bytes: Vec<u8>) -> Self {
-        Self { bytes }
+impl TryFrom<Vec<u8>> for Signature {
+    type Error = LatticeArcError;
+    fn try_from(bytes: Vec<u8>) -> std::result::Result<Self, Self::Error> {
+        Self::from_bytes(bytes)
     }
 }
 
@@ -351,7 +352,7 @@ pub struct SigningKey {
     /// Serialized key bytes for secure storage (zeroized on drop)
     bytes: Vec<u8>,
     /// Associated verifying key (public key)
-    pub verifying_key: VerifyingKey,
+    verifying_key: VerifyingKey,
 }
 
 impl Drop for SigningKey {
@@ -490,9 +491,9 @@ impl SigningKey {
 #[derive(Debug)]
 pub struct KeyPair {
     /// Secret signing key component
-    pub signing_key: SigningKey,
+    signing_key: SigningKey,
     /// Public verifying key component
-    pub verifying_key: VerifyingKey,
+    verifying_key: VerifyingKey,
 }
 
 impl Drop for KeyPair {
@@ -705,11 +706,9 @@ impl KeyPair {
 // Type aliases for convenience
 
 /// FN-DSA signing key using the standard format
-pub type FnDsaSigningKeyStandard = fn_dsa::SigningKeyStandard;
+pub(crate) type FnDsaSigningKeyStandard = fn_dsa::SigningKeyStandard;
 /// FN-DSA verifying key using the standard format
-pub type FnDsaVerifyingKeyStandard = fn_dsa::VerifyingKeyStandard;
-/// FN-DSA keypair generator using the standard format
-pub type FnDsaKeyPairGeneratorStandard = KeyPairGeneratorStandard;
+pub(crate) type FnDsaVerifyingKeyStandard = fn_dsa::VerifyingKeyStandard;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity

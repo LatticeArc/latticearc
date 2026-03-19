@@ -816,14 +816,14 @@ fn test_config_use_case_nested_validation() {
     ];
 
     for use_case in use_cases {
-        let config = UseCaseConfig::new(use_case.clone());
+        let config = UseCaseConfig::new(use_case);
 
         // Should validate encryption, signature, zero_trust, and hardware
         assert!(config.validate().is_ok(), "UseCaseConfig for {:?} should validate", use_case);
 
         // Nested configs should be consistent
         assert_eq!(
-            config.encryption.base.security_level, config.signature.base.security_level,
+            config.encryption.security_level, config.signature.security_level,
             "Encryption and signature should have same security level"
         );
     }
@@ -958,7 +958,7 @@ fn test_config_types_clone() {
 
     let encryption = EncryptionConfig::default();
     let encryption_clone = encryption.clone();
-    assert_eq!(encryption.base, encryption_clone.base);
+    assert_eq!(encryption, encryption_clone);
 
     let hardware = HardwareConfig::default();
     let hardware_clone = hardware.clone();

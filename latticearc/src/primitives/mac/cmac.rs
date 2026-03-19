@@ -38,47 +38,28 @@ pub enum CmacError {
     ComputationError(String),
 }
 
-/// CMAC-128 (using AES-128)
+/// CMAC authentication tag (16 bytes for all AES key sizes).
 #[derive(Debug, Clone)]
-pub struct Cmac128 {
+pub struct CmacTag {
     tag: [u8; 16],
 }
 
-/// CMAC-256 (using AES-256)
-#[derive(Debug, Clone)]
-pub struct Cmac256 {
-    tag: [u8; 16],
-}
-
-/// CMAC-192 (using AES-192)
-#[derive(Debug, Clone)]
-pub struct Cmac192 {
-    tag: [u8; 16],
-}
-
-impl Cmac128 {
-    /// Returns the computed CMAC-128 tag (16 bytes).
+impl CmacTag {
+    /// Returns the computed CMAC tag (16 bytes).
     #[must_use]
     pub fn tag(&self) -> &[u8; 16] {
         &self.tag
     }
 }
 
-impl Cmac256 {
-    /// Returns the computed CMAC-256 tag (16 bytes).
-    #[must_use]
-    pub fn tag(&self) -> &[u8; 16] {
-        &self.tag
-    }
-}
+/// CMAC-128 result (using AES-128). Alias for [`CmacTag`].
+pub type Cmac128 = CmacTag;
 
-impl Cmac192 {
-    /// Returns the computed CMAC-192 tag (16 bytes).
-    #[must_use]
-    pub fn tag(&self) -> &[u8; 16] {
-        &self.tag
-    }
-}
+/// CMAC-192 result (using AES-192). Alias for [`CmacTag`].
+pub type Cmac192 = CmacTag;
+
+/// CMAC-256 result (using AES-256). Alias for [`CmacTag`].
+pub type Cmac256 = CmacTag;
 
 /// CMAC subkeys K1 and K2 for padding operations
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]

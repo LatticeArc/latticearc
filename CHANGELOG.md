@@ -7,15 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.4.0] - 2026-03-12
+## [0.4.0] - 2026-03-19
 
 ### Added
+
+- **Portable Key Format (LPK v1)**: Library-level standardized key serialization with dual
+  JSON + CBOR (RFC 8949) encoding. Keys are identified by `UseCase` or `SecurityLevel` —
+  mirroring the library's API — with algorithm auto-derived for version-stability.
+  - `PortableKey::for_use_case()`, `for_security_level()` — primary constructors
+  - `to_json()` / `from_json()` — human-readable format for CLI and REST APIs
+  - `to_cbor()` / `from_cbor()` — compact binary format for wire protocol and storage
+  - `from_hybrid_kem_keypair()`, `to_hybrid_public_key()`, `to_hybrid_secret_key()` — bridge
+    methods connecting key generation to serialization to crypto operations
+  - `from_hybrid_sig_keypair()`, `to_hybrid_sig_public_key()`, `to_hybrid_sig_secret_key()`
+  - File I/O with 0600 Unix permissions for secret/symmetric keys
+  - Legacy CLI v1 format reader (`from_legacy_json()`)
+  - Open `metadata` map for enterprise extensions (preserved during roundtrips)
+  - `docs/KEY_FORMAT.md` — complete specification with algorithm resolution tables,
+    size comparisons, standards references, and enterprise extension model
+- **BLAKE2b-256 hash function**: `blake2b_256()` in `latticearc::primitives::hash` following
+  the SHA-3 pattern (infallible, `#[must_use]`, fixed `[u8; 32]` return). RFC 7693 KAT test.
+- **Hybrid KEM secret key export**: `HybridSecretKey::ml_kem_sk_bytes()` and
+  `ecdh_seed_bytes()` enable full key serialization. `MlKemDecapsulationKeyPair::from_key_bytes()`
+  and `HybridSecretKey::from_serialized()` enable reconstruction from serialized form.
+- **Serde support for UseCase and SecurityLevel**: Both enums now derive `Serialize`,
+  `Deserialize`, `Copy` for use in key format and configs.
+- **ciborium dependency**: CBOR serialization (RFC 8949) for compact binary key encoding.
 
 - **`latticearc-cli` crate**: Standalone CLI binary with 8 commands — `keygen`, `sign`, `verify`,
   `encrypt`, `decrypt`, `hash`, `kdf`, `info`. Covers all NIST-standardized post-quantum algorithms
   (ML-DSA-44/65/87, ML-KEM-512/768/1024, SLH-DSA, FN-DSA) plus Ed25519, AES-256-GCM, hybrid
   ML-DSA+Ed25519, hybrid ML-KEM+X25519, HKDF-SHA256, PBKDF2, and 4 hash algorithms.
-- **68 CLI integration tests** across 15 categories: signing roundtrips, encryption roundtrip,
+- **83 CLI integration tests** across 15 categories: signing roundtrips, encryption roundtrip,
   NIST conformance assertions (FIPS 203/204/205/206, RFC 8032, SP 800-38D), edge cases, adversarial
   scenarios (corrupted ciphertext/signatures, wrong keys, MITM, algorithm tampering), and key
   isolation.

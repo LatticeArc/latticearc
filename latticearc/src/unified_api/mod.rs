@@ -1,6 +1,6 @@
-//! # LatticeArc Core
+//! # LatticeArc Unified API
 //!
-//! Core cryptographic library for the LatticeArc post-quantum cryptography platform.
+//! Unified cryptographic API for the LatticeArc post-quantum cryptography platform.
 //! Provides unified APIs for encryption, decryption, signing, verification, and
 //! use case-based scheme selection.
 //!
@@ -190,6 +190,8 @@ pub mod convenience;
 pub mod error;
 /// Hardware type re-exports (trait definitions only).
 pub mod hardware;
+/// Portable key serialization format (v1).
+pub mod key_format;
 /// Key lifecycle management per NIST SP 800-57.
 pub mod key_lifecycle;
 /// Security-conscious logging utilities.

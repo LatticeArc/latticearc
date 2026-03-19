@@ -826,7 +826,7 @@ fn test_crypto_policy_engine_method_return_types() {
     let _: DataCharacteristics = CryptoPolicyEngine::analyze_data_characteristics(data);
     let _: TypeResult<String> = CryptoPolicyEngine::select_encryption_scheme(data, &config, None);
     let _: TypeResult<String> = CryptoPolicyEngine::select_signature_scheme(&config);
-    let _: TypeResult<String> = CryptoPolicyEngine::select_for_context(data, &config);
+    let _: TypeResult<String> = CryptoPolicyEngine::select_encryption_scheme(data, &config, None);
     let _: &str = CryptoPolicyEngine::default_scheme();
 
     let metrics = PerformanceMetrics::default();
@@ -1286,7 +1286,7 @@ fn test_use_case_config_stable() {
     assert!(config.validate().is_ok());
 
     // Fields should be accessible (clone to avoid move)
-    let _use_case: UseCase = config.use_case.clone();
+    let _use_case: UseCase = config.use_case;
     let _encryption: EncryptionConfig = config.encryption.clone();
     let _signature: SignatureConfig = config.signature.clone();
     let _zero_trust: ZeroTrustConfig = config.zero_trust.clone();

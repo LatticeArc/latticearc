@@ -38,6 +38,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::indexing_slicing)]
+#![allow(clippy::print_stdout)]
 #![allow(missing_docs)]
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -580,6 +581,166 @@ fn roundtrip_keypair_persist_and_use_for_encryption() {
 }
 
 // ============================================================================
+// 5b. Key Persistence via PortableKey — the standard key format
+// ============================================================================
+
+/// E2E: Generate signing keypair → persist as PortableKey JSON → load from
+/// file → sign → verify. Two-process simulation: original keys are dropped
+/// before the signing/verifying process loads from the file.
+#[test]
+fn roundtrip_portable_key_persist_and_sign() {
+    use latticearc::hybrid::sig_hybrid;
+    use latticearc::{KeyAlgorithm, PortableKey};
+
+    let mut rng = rand::rngs::OsRng;
+
+    // === Process A: Generate keypair, export to files ===
+    let (pk, sk) = sig_hybrid::generate_keypair(&mut rng).expect("sig keygen");
+    let (portable_pk, portable_sk) =
+        PortableKey::from_hybrid_sig_keypair(UseCase::LegalDocuments, &pk, &sk)
+            .expect("from_hybrid_sig_keypair");
+
+    let pk_file = write_to_tempfile(&portable_pk.to_json().unwrap());
+    let sk_file = write_to_tempfile(&portable_sk.to_json().unwrap());
+    drop(pk);
+    drop(sk);
+    drop(portable_pk);
+    drop(portable_sk);
+
+    // === Process B: Load SK from file, sign ===
+    let sk_json = read_from_tempfile(&sk_file);
+    let sk_portable = PortableKey::from_json(&sk_json).expect("deserialize SK");
+    assert_eq!(sk_portable.algorithm(), KeyAlgorithm::HybridMlDsa65Ed25519);
+    assert_eq!(sk_portable.use_case(), Some(UseCase::LegalDocuments));
+
+    let restored_sk = sk_portable.to_hybrid_sig_secret_key().expect("extract SK");
+
+    let message = b"Contract signed via PortableKey format";
+    let signature = sig_hybrid::sign(&restored_sk, message).expect("sign");
+
+    // === Process C: Load PK from file, verify ===
+    let pk_json = read_from_tempfile(&pk_file);
+    let pk_portable = PortableKey::from_json(&pk_json).expect("deserialize PK");
+    let hybrid_pk = pk_portable.to_hybrid_sig_public_key().expect("extract PK");
+    let valid = sig_hybrid::verify(&hybrid_pk, message, &signature).expect("verify");
+
+    assert!(valid, "Signature must verify with PortableKey-restored keys");
+
+    println!(
+        "[PROOF] {{\"test\":\"roundtrip_portable_key_persist_and_sign\",\
+         \"category\":\"practical-roundtrip\",\
+         \"use_case\":\"legal-documents\",\
+         \"algorithm\":\"hybrid-ml-dsa-65-ed25519\",\
+         \"cross_process_verify\":{valid},\
+         \"status\":\"PASS\"}}"
+    );
+}
+
+/// E2E: Generate hybrid KEM keypair → persist as PortableKey JSON → load
+/// from file → encapsulate → decapsulate. Two-process simulation.
+#[test]
+fn roundtrip_portable_key_persist_and_encrypt() {
+    use latticearc::hybrid::kem_hybrid;
+    use latticearc::{KeyAlgorithm, PortableKey};
+
+    let mut rng = rand::rngs::OsRng;
+
+    // === Process A: Generate keypair, export to files ===
+    let (pk, sk) = kem_hybrid::generate_keypair(&mut rng).expect("kem keygen");
+    let (portable_pk, portable_sk) =
+        PortableKey::from_hybrid_kem_keypair(UseCase::FileStorage, &pk, &sk).unwrap();
+
+    let pk_file = write_to_tempfile(&portable_pk.to_json().unwrap());
+    let sk_file = write_to_tempfile(&portable_sk.to_json().unwrap());
+    drop(pk);
+    drop(sk);
+    drop(portable_pk);
+    drop(portable_sk);
+
+    // === Process B: Load PK from file, encapsulate ===
+    let pk_json = read_from_tempfile(&pk_file);
+    let pk_portable = PortableKey::from_json(&pk_json).expect("deserialize PK");
+    assert_eq!(pk_portable.algorithm(), KeyAlgorithm::HybridMlKem768X25519);
+    assert_eq!(pk_portable.use_case(), Some(UseCase::FileStorage));
+
+    let hybrid_pk = pk_portable.to_hybrid_public_key().expect("extract PK");
+    let encapsulated = kem_hybrid::encapsulate(&mut rng, &hybrid_pk).expect("encapsulate");
+    let sender_ss = encapsulated.shared_secret.as_slice().to_vec();
+
+    // === Process A: Load SK + PK from files, decapsulate ===
+    let sk_json = read_from_tempfile(&sk_file);
+    let sk_portable = PortableKey::from_json(&sk_json).expect("deserialize SK");
+    let pk_for_sk = PortableKey::from_json(&pk_json).expect("deserialize PK again");
+    let hybrid_sk = sk_portable.to_hybrid_secret_key(&pk_for_sk).expect("reconstruct SK");
+    let receiver_ss = kem_hybrid::decapsulate(&hybrid_sk, &encapsulated).expect("decapsulate");
+
+    let match_ok = receiver_ss.as_slice() == sender_ss.as_slice();
+    assert!(match_ok, "Shared secrets must match via PortableKey persistence");
+
+    println!(
+        "[PROOF] {{\"test\":\"roundtrip_portable_key_persist_and_encrypt\",\
+         \"category\":\"practical-roundtrip\",\
+         \"use_case\":\"file-storage\",\
+         \"algorithm\":\"hybrid-ml-kem-768-x25519\",\
+         \"shared_secret_bytes\":{},\
+         \"cross_process_kem_match\":{match_ok},\
+         \"status\":\"PASS\"}}",
+        receiver_ss.len(),
+    );
+}
+
+/// E2E: PortableKey symmetric key persistence — store AES-256 key,
+/// load from file, encrypt, decrypt.
+#[test]
+fn roundtrip_portable_key_symmetric_encrypt() {
+    use latticearc::{KeyAlgorithm, KeyData, KeyType, PortableKey};
+
+    // === Process A: Create symmetric key, save to file ===
+    // Symmetric keys use explicit algorithm (not UseCase resolution,
+    // which resolves to KEM/signature algorithms)
+    let sym_key = [0xEEu8; 32];
+    let portable =
+        PortableKey::new(KeyAlgorithm::Aes256, KeyType::Symmetric, KeyData::from_raw(&sym_key));
+    let key_file = write_to_tempfile(&portable.to_json().unwrap());
+    drop(portable);
+
+    // === Process B: Load key from file, encrypt ===
+    let key_json = read_from_tempfile(&key_file);
+    let loaded = PortableKey::from_json(&key_json).expect("deserialize");
+    // UseCase::DatabaseEncryption resolves to HybridMlKem768X25519 for KEM,
+    // but for symmetric keys we use the raw algorithm
+    assert_eq!(loaded.key_type(), KeyType::Symmetric);
+
+    let restored_key = loaded.key_data().decode_raw().unwrap();
+    assert_eq!(restored_key.len(), 32);
+
+    let plaintext = b"Database row encrypted with PortableKey";
+    let encrypted = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&restored_key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("encrypt");
+
+    let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&restored_key), CryptoConfig::new())
+        .expect("decrypt");
+
+    let match_ok = decrypted.as_slice() == plaintext;
+    assert!(match_ok);
+
+    println!(
+        "[PROOF] {{\"test\":\"roundtrip_portable_key_symmetric_encrypt\",\
+         \"category\":\"practical-roundtrip\",\
+         \"use_case\":\"database-encryption\",\
+         \"key_type\":\"symmetric\",\
+         \"plaintext_len\":{},\
+         \"roundtrip_match\":{match_ok},\
+         \"status\":\"PASS\"}}",
+        plaintext.len(),
+    );
+}
+
+// ============================================================================
 // 6. Multi-Message Store: multiple encrypted messages in one file
 // ============================================================================
 
@@ -767,8 +928,7 @@ fn metadata_scheme_correctly_identifies_algorithm() {
     let use_cases = vec![UseCase::FileStorage, UseCase::SecureMessaging, UseCase::IoTDevice];
 
     for use_case in use_cases {
-        let config =
-            CryptoConfig::new().use_case(use_case.clone()).force_scheme(CryptoScheme::Symmetric);
+        let config = CryptoConfig::new().use_case(use_case).force_scheme(CryptoScheme::Symmetric);
         let encrypted: EncryptedOutput =
             encrypt(b"test", EncryptKey::Symmetric(&key), config).expect("encrypt failed");
         let encrypted_data: EncryptedData = encrypted.into();

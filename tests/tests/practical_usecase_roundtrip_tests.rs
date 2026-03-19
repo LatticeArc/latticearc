@@ -1509,7 +1509,7 @@ fn verified_session_usecase_roundtrip(use_case: UseCase) {
 
     let config = CryptoConfig::new()
         .session(&session)
-        .use_case(use_case.clone())
+        .use_case(use_case)
         .force_scheme(CryptoScheme::Symmetric);
     let encrypted =
         encrypt(msg.as_bytes(), EncryptKey::Symmetric(&key), config).expect("encrypt failed");
@@ -1538,7 +1538,7 @@ fn verified_session_security_level_roundtrip(level: SecurityLevel) {
 
     let config = CryptoConfig::new()
         .session(&session)
-        .security_level(level.clone())
+        .security_level(level)
         .force_scheme(CryptoScheme::Symmetric);
     let encrypted =
         encrypt(msg.as_bytes(), EncryptKey::Symmetric(&key), config).expect("encrypt failed");
@@ -1749,7 +1749,7 @@ fn compliance_mode_cnsa2_0_rejects_standalone_aes() {
 // ============================================================================
 
 /// Helper: expected scheme for a use case (mirrors scheme_contract_tests.rs)
-fn expected_scheme_for_use_case(uc: &UseCase) -> EncryptionScheme {
+fn expected_scheme_for_use_case(uc: UseCase) -> EncryptionScheme {
     match uc {
         UseCase::IoTDevice => EncryptionScheme::HybridMlKem512Aes256Gcm,
 
@@ -1787,7 +1787,7 @@ fn process_isolated_hybrid_scheme_check(use_case: UseCase, expected: EncryptionS
         .unwrap_or_else(|e| panic!("keygen failed for {use_case:?}: {e}"));
 
     let data = b"Scheme verification through file serialization";
-    let config = CryptoConfig::new().use_case(use_case.clone());
+    let config = CryptoConfig::new().use_case(use_case);
     let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt failed for {use_case:?}: {e}"));
 
@@ -1810,19 +1810,19 @@ fn process_isolated_hybrid_scheme_check(use_case: UseCase, expected: EncryptionS
 
 #[test]
 fn scheme_verified_iot_device() {
-    let expected = expected_scheme_for_use_case(&UseCase::IoTDevice);
+    let expected = expected_scheme_for_use_case(UseCase::IoTDevice);
     process_isolated_hybrid_scheme_check(UseCase::IoTDevice, expected);
 }
 
 #[test]
 fn scheme_verified_secure_messaging() {
-    let expected = expected_scheme_for_use_case(&UseCase::SecureMessaging);
+    let expected = expected_scheme_for_use_case(UseCase::SecureMessaging);
     process_isolated_hybrid_scheme_check(UseCase::SecureMessaging, expected);
 }
 
 #[test]
 fn scheme_verified_file_storage() {
-    let expected = expected_scheme_for_use_case(&UseCase::FileStorage);
+    let expected = expected_scheme_for_use_case(UseCase::FileStorage);
     process_isolated_hybrid_scheme_check(UseCase::FileStorage, expected);
 }
 

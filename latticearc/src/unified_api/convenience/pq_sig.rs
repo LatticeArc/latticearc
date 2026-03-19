@@ -39,7 +39,7 @@ use crate::unified_api::zero_trust::SecurityMode;
 use crate::types::resource_limits::validate_signature_size;
 
 /// Maps `CoreConfig.security_level` to the expected `MlDsaParameterSet`.
-fn expected_ml_dsa_params(security_level: &SecurityLevel) -> MlDsaParameterSet {
+fn expected_ml_dsa_params(security_level: SecurityLevel) -> MlDsaParameterSet {
     match security_level {
         SecurityLevel::Standard => MlDsaParameterSet::MLDSA44,
         SecurityLevel::High => MlDsaParameterSet::MLDSA65,
@@ -49,7 +49,7 @@ fn expected_ml_dsa_params(security_level: &SecurityLevel) -> MlDsaParameterSet {
 
 /// Warn if the explicit ML-DSA parameter set differs from the CoreConfig's security_level.
 fn check_ml_dsa_config_consistency(explicit: MlDsaParameterSet, config: &CoreConfig) {
-    let expected = expected_ml_dsa_params(&config.security_level);
+    let expected = expected_ml_dsa_params(config.security_level);
     if expected != explicit {
         warn!(
             "Explicit MlDsaParameterSet ({:?}) differs from CoreConfig security_level ({:?} \
@@ -60,7 +60,7 @@ fn check_ml_dsa_config_consistency(explicit: MlDsaParameterSet, config: &CoreCon
 }
 
 /// Maps `CoreConfig.security_level` to the expected `SlhDsaSecurityLevel`.
-fn expected_slh_dsa_level(security_level: &SecurityLevel) -> SlhDsaSecurityLevel {
+fn expected_slh_dsa_level(security_level: SecurityLevel) -> SlhDsaSecurityLevel {
     match security_level {
         SecurityLevel::Standard => SlhDsaSecurityLevel::Shake128s,
         SecurityLevel::High => SlhDsaSecurityLevel::Shake192s,
@@ -70,7 +70,7 @@ fn expected_slh_dsa_level(security_level: &SecurityLevel) -> SlhDsaSecurityLevel
 
 /// Warn if the explicit SLH-DSA security level differs from the CoreConfig's security_level.
 fn check_slh_dsa_config_consistency(explicit: SlhDsaSecurityLevel, config: &CoreConfig) {
-    let expected = expected_slh_dsa_level(&config.security_level);
+    let expected = expected_slh_dsa_level(config.security_level);
     if expected != explicit {
         warn!(
             "Explicit SlhDsaSecurityLevel ({:?}) differs from CoreConfig security_level ({:?} \

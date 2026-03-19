@@ -72,6 +72,7 @@ ed25519-dalek = { workspace = true }
 k256 = { workspace = true, features = ["sha256"] }
 ecdsa = { workspace = true }
 blake2 = { workspace = true }
+ciborium = { workspace = true }
 
 # =============================================================================
 # Random number generation
@@ -91,7 +92,6 @@ tracing-appender = { workspace = true }
 # =============================================================================
 # Concurrency and utilities
 # =============================================================================
-rayon = { workspace = true }
 parking_lot = { workspace = true }
 
 # =============================================================================

@@ -269,7 +269,7 @@ impl Default for GracefulDegradationManager {
 mod tests {
     use super::super::core::{EnhancedError, ErrorContext, ErrorSeverity};
     use super::*;
-    use crate::prelude::prelude::error::LatticeArcError;
+    use crate::prelude::error::LatticeArcError;
 
     #[test]
     fn test_graceful_degradation_manager_new() {

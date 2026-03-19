@@ -7,5 +7,5 @@
 //! Validation methods return [`crate::types::TypeError`]; use
 //! `From<TypeError> for CoreError` (in [`error`](crate::unified_api::error)) for seamless `?` conversion.
 
-// Re-export all config types from arc-types (zero FFI deps)
+// Re-export all config types from types module (zero FFI deps)
 pub use crate::types::config::*;

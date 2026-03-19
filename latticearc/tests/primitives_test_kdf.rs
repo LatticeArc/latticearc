@@ -201,7 +201,7 @@ mod hkdf_tests {
             0xd7, 0xc2, 0xb3, 0xe5,
         ];
 
-        assert_eq!(prk, expected);
+        assert_eq!(*prk, expected);
     }
 
     #[test]

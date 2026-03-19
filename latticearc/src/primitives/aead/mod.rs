@@ -134,6 +134,19 @@ pub enum AeadError {
     Other(String),
 }
 
+/// Constant-time comparison of two authentication tags.
+#[must_use]
+pub fn verify_tag_constant_time(expected: &Tag, actual: &Tag) -> bool {
+    use subtle::ConstantTimeEq;
+    expected.ct_eq(actual).into()
+}
+
+/// Zeroize sensitive data in memory.
+pub fn zeroize_data(data: &mut [u8]) {
+    use zeroize::Zeroize;
+    data.zeroize();
+}
+
 // Re-export ChaCha20-Poly1305 cipher types for convenience
 #[cfg(not(feature = "fips"))]
 pub use self::chacha20poly1305::{ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher};

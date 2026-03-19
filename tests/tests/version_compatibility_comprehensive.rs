@@ -56,7 +56,8 @@
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    deprecated
 )]
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};

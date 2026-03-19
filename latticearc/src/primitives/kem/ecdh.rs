@@ -18,8 +18,8 @@
 //! # Performance
 //!
 //! aws-lc-rs provides ~4x speedup over pure-Rust implementations:
-//! - Key generation: ~6µs (vs ~24µs for x25519-dalek)
-//! - Key agreement: ~6µs (vs ~20µs for x25519-dalek)
+//! - Key generation: ~6µs (vs ~24µs for pure-Rust x25519)
+//! - Key agreement: ~6µs (vs ~20µs for pure-Rust x25519)
 //!
 //! # Example
 //!
@@ -535,7 +535,8 @@ impl EcdhP256PublicKey {
         self.bytes.clone()
     }
 
-    /// Validate that this public key represents a valid point on P-256
+    /// Validate public key format (length and uncompressed point prefix).
+    /// Full curve-point validation is performed by aws-lc-rs during key agreement.
     ///
     /// # Errors
     /// Returns an error if point validation fails.
@@ -667,7 +668,8 @@ impl EcdhP384PublicKey {
         self.bytes.clone()
     }
 
-    /// Validate that this public key represents a valid point on P-384
+    /// Validate public key format (length and uncompressed point prefix).
+    /// Full curve-point validation is performed by aws-lc-rs during key agreement.
     ///
     /// # Errors
     /// Returns an error if point validation fails.
@@ -798,7 +800,8 @@ impl EcdhP521PublicKey {
         self.bytes.clone()
     }
 
-    /// Validate that this public key represents a valid point on P-521
+    /// Validate public key format (length and uncompressed point prefix).
+    /// Full curve-point validation is performed by aws-lc-rs during key agreement.
     ///
     /// # Errors
     /// Returns an error if point validation fails.

@@ -587,7 +587,7 @@ impl FipsError for FipsCompliantError {
 }
 
 // ============================================================================
-// Implementations of FipsError for arc-primitives error types
+// Implementations of FipsError for primitives error types
 // ============================================================================
 
 impl FipsError for crate::primitives::error::Error {

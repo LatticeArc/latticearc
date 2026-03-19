@@ -41,7 +41,7 @@ use latticearc::{
 // Helpers
 // ============================================================================
 
-fn expected_scheme_for_use_case(uc: &UseCase) -> EncryptionScheme {
+fn expected_scheme_for_use_case(uc: UseCase) -> EncryptionScheme {
     match uc {
         UseCase::IoTDevice => EncryptionScheme::HybridMlKem512Aes256Gcm,
 
@@ -74,7 +74,7 @@ fn ml_kem_level_for_scheme(scheme: &EncryptionScheme) -> MlKemSecurityLevel {
     scheme.ml_kem_level().unwrap_or_else(|| panic!("scheme {scheme} has no ML-KEM level"))
 }
 
-fn is_regulated(uc: &UseCase) -> bool {
+fn is_regulated(uc: UseCase) -> bool {
     matches!(
         uc,
         UseCase::GovernmentClassified
@@ -111,7 +111,7 @@ fn all_use_cases() -> Vec<UseCase> {
     ]
 }
 
-fn uc_name(uc: &UseCase) -> &'static str {
+fn uc_name(uc: UseCase) -> &'static str {
     match uc {
         UseCase::SecureMessaging => "SecureMessaging",
         UseCase::EmailEncryption => "EmailEncryption",
@@ -149,13 +149,13 @@ fn proof_all_22_usecases_select_correct_scheme() {
     assert_eq!(use_cases.len(), 22, "Must test all 22 UseCase variants");
 
     for uc in &use_cases {
-        let expected = expected_scheme_for_use_case(uc);
+        let expected = expected_scheme_for_use_case(*uc);
         let level = ml_kem_level_for_scheme(&expected);
         let ct_size = level.ciphertext_size();
-        let name = uc_name(uc);
+        let name = uc_name(*uc);
 
         // Skip regulated use cases when FIPS is not available
-        if is_regulated(uc) && !fips_available() {
+        if is_regulated(*uc) && !fips_available() {
             println!(
                 "[PROOF] {{\"section\":1,\"test\":\"usecase_scheme_{name}\",\
                  \"use_case\":\"{name}\",\"status\":\"SKIPPED\",\
@@ -167,8 +167,8 @@ fn proof_all_22_usecases_select_correct_scheme() {
         let (pk, sk) = generate_hybrid_keypair_with_level(level)
             .unwrap_or_else(|e| panic!("keypair gen failed for {name} at {level:?}: {e}"));
 
-        let config = CryptoConfig::new().use_case(uc.clone());
-        let config = if is_regulated(uc) && !fips_available() {
+        let config = CryptoConfig::new().use_case(*uc);
+        let config = if is_regulated(*uc) && !fips_available() {
             config.compliance(ComplianceMode::Default)
         } else {
             config
@@ -198,8 +198,8 @@ fn proof_all_22_usecases_select_correct_scheme() {
         );
 
         // Decrypt roundtrip
-        let config = CryptoConfig::new().use_case(uc.clone());
-        let config = if is_regulated(uc) && !fips_available() {
+        let config = CryptoConfig::new().use_case(*uc);
+        let config = if is_regulated(*uc) && !fips_available() {
             config.compliance(ComplianceMode::Default)
         } else {
             config
@@ -276,7 +276,7 @@ fn proof_security_level(level: SecurityLevel, expected_scheme: EncryptionScheme,
     let (pk, sk) = generate_hybrid_keypair_with_level(ml_kem_level)
         .unwrap_or_else(|e| panic!("keypair gen failed for {level_name}: {e}"));
 
-    let config = CryptoConfig::new().security_level(level.clone());
+    let config = CryptoConfig::new().security_level(level);
     let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt failed for {level_name}: {e}"));
 
@@ -354,7 +354,7 @@ fn proof_ml_kem_nist_params(
         MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
         MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
     };
-    let config = CryptoConfig::new().security_level(security_level.clone());
+    let config = CryptoConfig::new().security_level(security_level);
     let encrypted = encrypt(b"NIST param proof", EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt for {level_name}: {e}"));
 
@@ -668,7 +668,7 @@ fn proof_serialization_roundtrip(
     let (pk, sk) = generate_hybrid_keypair_with_level(key_level)
         .unwrap_or_else(|e| panic!("keypair gen for {level_name}: {e}"));
 
-    let config = CryptoConfig::new().security_level(security_level.clone());
+    let config = CryptoConfig::new().security_level(security_level);
     let original = encrypt(data, EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt for {level_name}: {e}"));
 
@@ -1074,10 +1074,10 @@ fn proof_tls_security_levels_select_correct_mode() {
     ];
 
     for (level, expected_mode, name) in &cases {
-        let actual_mode = TlsPolicyEngine::select_by_security_level(level.clone());
+        let actual_mode = TlsPolicyEngine::select_by_security_level(*level);
         assert_eq!(actual_mode, *expected_mode);
 
-        let config = TlsConfig::new().security_level(level.clone());
+        let config = TlsConfig::new().security_level(*level);
         assert_eq!(config.mode, *expected_mode);
 
         let mode_str = match actual_mode {
@@ -1449,7 +1449,7 @@ fn proof_at_rest_roundtrip(
     let (pk, sk) = generate_hybrid_keypair_with_level(key_level)
         .unwrap_or_else(|e| panic!("keypair gen for {test_name}: {e}"));
 
-    let config = CryptoConfig::new().security_level(security_level.clone());
+    let config = CryptoConfig::new().security_level(security_level);
     let encrypted = encrypt(plaintext, EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt for {test_name}: {e}"));
 
@@ -1676,9 +1676,10 @@ fn proof_classic_mode_not_pq_secure() {
     // Classic mode must NOT claim PQ security regardless of kex_mode
     for kex_mode in [PqKexMode::Classical, PqKexMode::RustlsPq, PqKexMode::CustomHybrid] {
         let info = get_kex_info(TlsMode::Classic, kex_mode);
-        assert!(!info.is_pq_secure, "Classic mode must not be PQ secure");
+        assert!(!info.is_pq_secure, "Classic+{kex_mode:?} must not be PQ secure");
     }
 
+    // Reuse Classical result for proof output (already verified above)
     let info = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
 
     println!(
@@ -1790,12 +1791,12 @@ fn proof_exhaustive_mode_matrix() {
     let kex_modes = [PqKexMode::Classical, PqKexMode::RustlsPq, PqKexMode::CustomHybrid];
 
     let mut pass_count = 0;
-    for tls_mode in &tls_modes {
-        for kex_mode in &kex_modes {
-            let provider = get_kex_provider(*tls_mode, *kex_mode);
+    for tls_mode in tls_modes {
+        for kex_mode in kex_modes {
+            let provider = get_kex_provider(tls_mode, kex_mode);
             assert!(provider.is_ok(), "{tls_mode:?}/{kex_mode:?} must succeed");
             assert!(!provider.unwrap().kx_groups.is_empty());
-            let _ = get_kex_info(*tls_mode, *kex_mode);
+            let _ = get_kex_info(tls_mode, kex_mode);
             pass_count += 1;
         }
     }

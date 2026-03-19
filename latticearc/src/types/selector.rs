@@ -65,16 +65,7 @@ impl CryptoPolicyEngine {
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
-    pub fn recommend_scheme(use_case: &UseCase, config: &CoreConfig) -> Result<String> {
-        let use_case_clone = use_case.clone();
-        let _ctx = CryptoContext {
-            security_level: config.security_level.clone(),
-            performance_preference: config.performance_preference.clone(),
-            use_case: Some(use_case_clone),
-            hardware_acceleration: config.hardware_acceleration,
-            timestamp: chrono::Utc::now(),
-        };
-
+    pub fn recommend_scheme(use_case: &UseCase, _config: &CoreConfig) -> Result<String> {
         match *use_case {
             // Communication
             UseCase::SecureMessaging => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
@@ -244,19 +235,6 @@ impl CryptoPolicyEngine {
         }
     }
 
-    /// Context-aware scheme selection based on data characteristics and configuration.
-    ///
-    /// Delegates to [`select_encryption_scheme`] without a use case,
-    /// so data characteristics and hardware preferences are applied.
-    ///
-    /// # Errors
-    ///
-    /// This function currently does not return errors, but returns `Result`
-    /// for future compatibility with validation logic.
-    pub fn select_for_context(data: &[u8], config: &CoreConfig) -> Result<String> {
-        Self::select_encryption_scheme(data, config, None)
-    }
-
     /// Adaptive selection based on runtime performance metrics.
     ///
     /// # Errors
@@ -269,7 +247,7 @@ impl CryptoPolicyEngine {
         config: &CoreConfig,
     ) -> Result<String> {
         let characteristics = Self::analyze_data_characteristics(data);
-        let base_scheme = Self::select_for_context(data, config)?;
+        let base_scheme = Self::select_encryption_scheme(data, config, None)?;
 
         match (&config.performance_preference, performance_metrics) {
             (PerformancePreference::Memory, metrics) if metrics.memory_usage_mb > 500.0 => {
@@ -471,7 +449,7 @@ impl SchemeSelector for CryptoPolicyEngine {
         Self::select_encryption_scheme(
             data,
             &CoreConfig {
-                security_level: ctx.security_level.clone(),
+                security_level: ctx.security_level,
                 performance_preference: ctx.performance_preference.clone(),
                 hardware_acceleration: ctx.hardware_acceleration,
                 fallback_enabled: true,
@@ -486,7 +464,7 @@ impl SchemeSelector for CryptoPolicyEngine {
         ctx: &CryptoContext,
     ) -> std::result::Result<String, Self::Error> {
         Self::select_signature_scheme(&CoreConfig {
-            security_level: ctx.security_level.clone(),
+            security_level: ctx.security_level,
             performance_preference: ctx.performance_preference.clone(),
             hardware_acceleration: ctx.hardware_acceleration,
             fallback_enabled: true,

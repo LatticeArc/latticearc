@@ -90,15 +90,15 @@ fn test_ed25519_sign_verify() {
 #[test]
 fn test_ml_dsa_sign_verify_all_levels() {
     for level in [SecurityLevel::High, SecurityLevel::Maximum] {
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(level);
         let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
 
         let message = b"ML-DSA signature at different security levels";
 
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(level);
         let signed = sign_with_key(message, &sk, &pk, config).expect("sign failed");
 
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(level);
         let is_valid = verify(&signed, config).expect("verify failed");
         assert!(is_valid, "ML-DSA should verify (scheme: {})", scheme);
     }

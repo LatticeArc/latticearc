@@ -25,7 +25,6 @@ chrono = { workspace = true }
 anyhow = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
-blake2 = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

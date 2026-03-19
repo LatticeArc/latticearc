@@ -22,7 +22,7 @@
 //! ### Custom Hybrid (via `latticearc::hybrid`)
 //! Uses `hybrid::kem` module:
 //! - ML-KEM-768 from `latticearc::primitives`
-//! - X25519 from x25519-dalek
+//! - X25519 from aws-lc-rs
 //! - HKDF for secret combination (NIST SP 800-56C)
 //!
 //! ## Available Key Exchange Groups (rustls 0.23.37+)

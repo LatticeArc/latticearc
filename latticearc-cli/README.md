@@ -18,7 +18,7 @@ protect your data today against tomorrow's threats.
 ### From Prebuilt Binaries (Recommended)
 
 Download the binary for your platform from the
-[releases page](https://github.com/ArcTechnologies-AI/latticearc/releases):
+[releases page](https://github.com/latticearc/latticearc/releases):
 
 | Platform | Architecture | File |
 |----------|-------------|------|
@@ -47,61 +47,59 @@ cargo install --path .
 
 ## Quick Start
 
-### 1. Generate a Signing Key
+Express **what you want to do**, not which algorithm to use. The library
+selects the optimal post-quantum algorithm automatically.
+
+### 1. Sign a Legal Document
 
 ```bash
-latticearc keygen --algorithm ml-dsa65 --output ./keys
-```
+# Generate keys for legal document signing
+latticearc keygen --use-case legal-documents --output ./keys
 
-This creates two files:
-- `keys/ml-dsa-65.pub.json` — Public key (share freely)
-- `keys/ml-dsa-65.sec.json` — Secret key (keep private, auto-set to 0600 permissions)
+# Sign (provide both keys for the unified API — embeds PK in signature)
+latticearc sign --input contract.pdf \
+  --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
 
-### 2. Sign a Document
-
-```bash
-latticearc sign --algorithm ml-dsa65 \
-  --input contract.pdf \
-  --key keys/ml-dsa-65.sec.json
-```
-
-Creates `contract.pdf.sig.json` containing the digital signature.
-
-### 3. Verify a Signature
-
-```bash
-latticearc verify \
-  --input contract.pdf \
+# Verify (algorithm auto-detected from signature file)
+latticearc verify --input contract.pdf \
   --signature contract.pdf.sig.json \
-  --key keys/ml-dsa-65.pub.json
+  --key keys/hybrid-ml-dsa-65-ed25519.pub.json
 ```
 
-Output: `Signature is VALID.`
-
-### 4. Encrypt a File
+### 2. Encrypt Healthcare Records
 
 ```bash
-# Generate a symmetric key
+# Generate encryption key (symmetric AES-256)
 latticearc keygen --algorithm aes256 --output ./keys
 
 # Encrypt
-latticearc encrypt --mode aes256-gcm \
-  --input secrets.txt \
-  --output secrets.enc.json \
+latticearc encrypt --use-case healthcare-records \
+  --input patient-records.json \
+  --output patient-records.enc.json \
   --key keys/aes256.key.json
 
 # Decrypt
 latticearc decrypt \
-  --input secrets.enc.json \
-  --output secrets.txt \
+  --input patient-records.enc.json \
+  --output patient-records.json \
   --key keys/aes256.key.json
 ```
 
-### 5. Hash a File
+### 3. Hash a File
 
 ```bash
 latticearc hash --algorithm sha-256 --input document.pdf
 # Output: SHA-256: a1b2c3d4e5f6...
+```
+
+### Expert Mode
+
+If you need a specific algorithm, use `--algorithm` directly:
+
+```bash
+latticearc keygen --algorithm ml-dsa87 --output ./keys
+latticearc sign --algorithm ml-dsa87 --input file.bin --key keys/ml-dsa-87.sec.json
 ```
 
 ## Commands
@@ -110,41 +108,51 @@ latticearc hash --algorithm sha-256 --input document.pdf
 
 Creates cryptographic keys for signing, encryption, or key exchange.
 
+**Recommended** — let the library choose the algorithm:
+
+```
+latticearc keygen --use-case <USE_CASE> [--security-level <LEVEL>] [--output <DIR>] [--label <TEXT>]
+```
+
+**Expert** — specify the algorithm directly:
+
 ```
 latticearc keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
 ```
 
-**Algorithms:**
+**Use cases** (22 available — the library selects optimal algorithms):
 
-| Algorithm | Type | Standard | Use Case |
-|-----------|------|----------|----------|
-| `aes256` | Symmetric | FIPS 197 | File encryption |
-| `ml-kem512` | KEM | FIPS 203 | Key exchange (fast) |
-| `ml-kem768` | KEM | FIPS 203 | Key exchange (default) |
-| `ml-kem1024` | KEM | FIPS 203 | Key exchange (highest security) |
-| `ml-dsa44` | Signature | FIPS 204 | Signing (fast) |
-| `ml-dsa65` | Signature | FIPS 204 | Signing (default, recommended) |
-| `ml-dsa87` | Signature | FIPS 204 | Signing (highest security) |
-| `slh-dsa128s` | Signature | FIPS 205 | Signing (hash-based, conservative) |
-| `fn-dsa512` | Signature | FIPS 206 (draft) | Signing (compact signatures) |
-| `ed25519` | Signature | RFC 8032 | Signing (classical, fast) |
-| `hybrid` | KEM | FIPS 203 + X25519 | Hybrid encryption |
-| `hybrid-sign` | Signature | FIPS 204 + RFC 8032 | Hybrid signing (PQ + classical) |
+| Use Case | What it selects | Security Level |
+|----------|----------------|----------------|
+| `secure-messaging` | ML-KEM-768 + X25519 (enc), ML-DSA-65 + Ed25519 (sig) | Level 3 |
+| `file-storage` | ML-KEM-1024 + X25519 (enc), ML-DSA-87 + Ed25519 (sig) | Level 5 |
+| `healthcare-records` | ML-KEM-1024 + X25519 (HIPAA-grade) | Level 5 |
+| `iot-device` | ML-KEM-512 + X25519 (resource-constrained) | Level 1 |
+| `legal-documents` | ML-DSA-87 + Ed25519 (long-term validity) | Level 5 |
+| `financial-transactions` | ML-DSA-65 + Ed25519 (compliance) | Level 3 |
+| ... | [22 use cases total](../docs/KEY_FORMAT.md#algorithm-resolution) | |
 
-**Which algorithm should I use?**
+**Security levels** (override the use case's default):
 
-- **Signing documents?** Use `ml-dsa65` — it's the NIST default, quantum-resistant,
-  and widely supported.
-- **Need maximum security?** Use `ml-dsa87` (NIST Category 5, equivalent to AES-256).
-- **Need backward compatibility?** Use `hybrid-sign` — signs with BOTH ML-DSA-65
-  (quantum-safe) AND Ed25519 (classical). If either algorithm is ever broken, the
-  other still protects you.
-- **Encrypting files?** Use `aes256` for symmetric encryption (you share the key
-  securely out-of-band).
-- **Firmware/IoT?** Use `fn-dsa512` for compact signatures that save bandwidth.
-- **Worried about unknown future attacks?** Use `slh-dsa128s` — it's based purely
-  on hash functions, so its security relies only on the hash being collision-resistant
-  (the most conservative assumption possible).
+| Level | What it means |
+|-------|--------------|
+| `standard` | NIST Level 1 (128-bit equivalent) |
+| `high` | NIST Level 3 (192-bit, **default**) |
+| `maximum` | NIST Level 5 (256-bit) |
+| `quantum` | NIST Level 5, PQ-only (no classical hybrid, CNSA 2.0) |
+
+**Expert algorithms** (12 available):
+
+| Algorithm | Type | Standard |
+|-----------|------|----------|
+| `aes256` | Symmetric | FIPS 197 |
+| `ml-kem512/768/1024` | KEM | FIPS 203 |
+| `ml-dsa44/65/87` | Signature | FIPS 204 |
+| `slh-dsa128s` | Signature | FIPS 205 |
+| `fn-dsa512` | Signature | FIPS 206 |
+| `ed25519` | Signature | RFC 8032 |
+| `hybrid` | KEM | FIPS 203 + X25519 |
+| `hybrid-sign` | Signature | FIPS 204 + RFC 8032 |
 
 **Output files:**
 
@@ -154,54 +162,45 @@ latticearc keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
 | Secret key | `<algorithm>.sec.json` | Owner-only (0600) |
 | Symmetric key | `aes256.key.json` | Owner-only (0600) |
 
-**Example:**
+**Examples:**
 
 ```bash
-# Generate keys with a human-readable label
+# Recommended: use-case-driven (library selects optimal algorithm)
+latticearc keygen --use-case firmware-signing --output ./keys --label "CI/CD Signing"
+
+# Expert: explicit algorithm
 latticearc keygen --algorithm ml-dsa65 --output ./keys --label "Production CI/CD"
 ```
 
 ### `sign` — Sign Data
 
-Creates a digital signature proving a file hasn't been tampered with and was
-signed by the owner of the secret key.
+Creates a digital signature proving a file hasn't been tampered with.
+
+**Recommended** — provide both secret and public key for `SignedData` output:
+
+```
+latticearc sign --input <FILE> --key <SECRET_KEY> --public-key <PUBLIC_KEY>
+                [--use-case <USE_CASE>] [--output <FILE>]
+```
+
+**Expert** — specify algorithm directly:
 
 ```
 latticearc sign --algorithm <ALGORITHM> --input <FILE> --key <SECRET_KEY>
-                [--output <FILE>]
 ```
 
-**Algorithms:** `ml-dsa65`, `ml-dsa44`, `ml-dsa87`, `slh-dsa`, `fn-dsa`, `ed25519`, `hybrid`
-
-If `--output` is omitted, the signature is written to `<input>.sig.json`.
+When `--public-key` is provided, the library's `sign_with_key()` API produces a
+`SignedData` envelope with scheme metadata, timestamp, and embedded public key.
+The `verify` command auto-detects the format.
 
 **Example:**
 
 ```bash
-# Sign a firmware binary with the strongest post-quantum algorithm
-latticearc sign --algorithm ml-dsa87 \
-  --input firmware-v3.2.bin \
-  --key keys/ml-dsa-87.sec.json \
-  --output firmware-v3.2.sig.json
-```
-
-**Signature file format (JSON):**
-
-```json
-{
-  "algorithm": "ml-dsa-65",
-  "signature": "Base64EncodedSignatureBytes..."
-}
-```
-
-For hybrid signatures, the file contains both signature components:
-
-```json
-{
-  "algorithm": "hybrid-ml-dsa-65-ed25519",
-  "ml_dsa_sig": "Base64...",
-  "ed25519_sig": "Base64..."
-}
+# Sign with use-case config (recommended)
+latticearc sign --input contract.pdf \
+  --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json \
+  --use-case legal-documents
 ```
 
 ### `verify` — Verify a Signature
@@ -233,29 +232,33 @@ latticearc verify \
 
 ### `encrypt` — Encrypt Data
 
-Encrypts a file using authenticated encryption (AES-256-GCM). The encrypted
-output is a self-contained JSON file.
+Encrypts a file using authenticated encryption. The encrypted output is a
+self-contained JSON file.
+
+**Recommended** — use case-driven:
 
 ```
-latticearc encrypt --mode <MODE> --input <FILE> --key <KEY_FILE>
-                   [--output <FILE>]
+latticearc encrypt --use-case <USE_CASE> --input <FILE> --key <KEY_FILE> [--output <FILE>]
 ```
 
-**Modes:**
+**Expert** — specify mode directly:
 
-| Mode | Algorithm | Key Type | Standard |
-|------|-----------|----------|----------|
-| `aes256-gcm` | AES-256-GCM | Symmetric | SP 800-38D |
-| `hybrid` | ML-KEM-768 + X25519 + AES-256-GCM | Public | FIPS 203 + RFC 7748 |
+```
+latticearc encrypt --mode <MODE> --input <FILE> --key <KEY_FILE> [--output <FILE>]
+```
 
-**Security properties of AES-256-GCM:**
-- **Confidentiality** — data is unreadable without the key
-- **Integrity** — any modification is detected (authentication tag)
-- **Unique nonces** — each encryption uses a random 12-byte nonce (never reused)
+**Modes:** `aes256-gcm` (symmetric, SP 800-38D), `hybrid` (ML-KEM-768 + X25519 + AES-256-GCM), `chacha20-poly1305` (symmetric, RFC 8439)
 
 **Example:**
 
 ```bash
+# Use-case driven (library selects optimal scheme)
+latticearc encrypt --use-case file-storage \
+  --input database-backup.sql \
+  --output database-backup.enc.json \
+  --key keys/aes256.key.json
+
+# Expert mode
 latticearc encrypt --mode aes256-gcm \
   --input database-backup.sql \
   --output database-backup.enc.json \
@@ -362,31 +365,46 @@ latticearc info
 
 ## Key File Format
 
-All keys are stored as JSON files with the following structure:
+Keys are stored using the **LatticeArc Portable Key (LPK)** format — the library's standard
+key serialization. Keys are identified by **use case** or **security level** (matching how
+the library API works), with the algorithm auto-derived. Both JSON and CBOR formats are supported.
+
+See [`docs/KEY_FORMAT.md`](../docs/KEY_FORMAT.md) for the full specification.
 
 ```json
 {
   "version": 1,
-  "algorithm": "ml-dsa-65",
+  "use_case": "legal-documents",
+  "algorithm": "hybrid-ml-dsa-65-ed25519",
   "key_type": "public",
-  "key": "Base64EncodedKeyMaterial...",
-  "created": "2026-03-12T10:30:00.000Z",
-  "label": "Production signing key"
+  "key_data": {
+    "pq": "Base64-ML-DSA-public-key...",
+    "classical": "Base64-Ed25519-public-key..."
+  },
+  "created": "2026-03-19T10:30:00.000Z",
+  "metadata": {
+    "label": "Production signing key"
+  }
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `version` | File format version (always `1`) |
-| `algorithm` | Algorithm identifier (e.g., `ml-dsa-65`, `aes-256`) |
+| `version` | Format version (currently `1`) |
+| `use_case` | Use case that selected the algorithm (e.g., `file-storage`, `legal-documents`) |
+| `security_level` | Alternative to use_case: `standard`, `high`, `maximum`, `quantum` |
+| `algorithm` | Auto-derived algorithm (e.g., `hybrid-ml-kem-768-x25519`) |
 | `key_type` | `public`, `secret`, or `symmetric` |
-| `key` | Base64-encoded raw key bytes |
+| `key_data` | Single (`raw`) or composite (`pq` + `classical`) base64-encoded key bytes |
 | `created` | ISO 8601 timestamp of key generation |
-| `label` | Optional human-readable description |
+| `metadata` | Optional map — `label`, enterprise extensions, etc. |
+
+> The CLI reads both the current LPK format and legacy v1 key files for
+> backward compatibility.
 
 **Security features:**
 - Secret and symmetric key files are created with **0600 permissions** (owner-only) on Unix
-- Key material is **zeroized from memory** when no longer needed (FIPS 140-3 compliance)
+- Key material is **zeroized from memory** when no longer needed
 - Secret key `Debug` output **redacts** the key material (shows `[REDACTED]`)
 
 ## Real-World Workflows
@@ -396,21 +414,21 @@ All keys are stored as JSON files with the following structure:
 Protect software releases from tampering:
 
 ```bash
-# One-time setup: generate a signing key
-latticearc keygen --algorithm ml-dsa65 --output ./ci-keys \
+# One-time setup: generate a signing key for firmware
+latticearc keygen --use-case firmware-signing --output ./ci-keys \
   --label "CI/CD Release Signing"
 
 # In your CI pipeline: sign the release artifact
 latticearc hash --algorithm sha-256 --input app-v2.0.tar.gz
-latticearc sign --algorithm ml-dsa65 \
-  --input app-v2.0.tar.gz \
-  --key ci-keys/ml-dsa-65.sec.json
+latticearc sign --input app-v2.0.tar.gz \
+  --key ci-keys/hybrid-ml-dsa-65-ed25519.sec.json \
+  --public-key ci-keys/hybrid-ml-dsa-65-ed25519.pub.json
 
 # Users verify the download
 latticearc verify \
   --input app-v2.0.tar.gz \
   --signature app-v2.0.tar.gz.sig.json \
-  --key ci-keys/ml-dsa-65.pub.json
+  --key ci-keys/hybrid-ml-dsa-65-ed25519.pub.json
 ```
 
 ### Encrypted Configuration Files
@@ -423,7 +441,7 @@ latticearc keygen --algorithm aes256 --output ./vault \
   --label "Production Config Key"
 
 # Encrypt config before committing
-latticearc encrypt --mode aes256-gcm \
+latticearc encrypt --use-case config-secrets \
   --input config/secrets.json \
   --output config/secrets.enc.json \
   --key vault/aes256.key.json
@@ -440,20 +458,20 @@ latticearc decrypt \
 For legal documents that need to remain valid for decades:
 
 ```bash
-# Generate a hybrid key (quantum-safe + classical fallback)
-latticearc keygen --algorithm hybrid-sign --output ./notary \
+# Generate a hybrid signing key for legal use
+latticearc keygen --use-case legal-documents --output ./notary \
   --label "Notary 2026"
 
-# Sign the document with BOTH algorithms
-latticearc sign --algorithm hybrid \
-  --input deed-of-trust.pdf \
-  --key notary/hybrid-sign.sec.json
+# Sign with both ML-DSA-65 AND Ed25519 (unified API)
+latticearc sign --input deed-of-trust.pdf \
+  --key notary/hybrid-ml-dsa-65-ed25519.sec.json \
+  --public-key notary/hybrid-ml-dsa-65-ed25519.pub.json
 
-# Verify — both ML-DSA-65 AND Ed25519 must pass
-latticearc verify --algorithm hybrid \
+# Verify — algorithm auto-detected from signature file
+latticearc verify \
   --input deed-of-trust.pdf \
   --signature deed-of-trust.pdf.sig.json \
-  --key notary/hybrid-sign.pub.json
+  --key notary/hybrid-ml-dsa-65-ed25519.pub.json
 ```
 
 ## Algorithm Reference
@@ -461,7 +479,7 @@ latticearc verify --algorithm hybrid \
 ### Key & Signature Sizes
 
 Every value below is verified against the official NIST standard and
-enforced by our test suite (68 tests, all passing).
+enforced by our test suite (83 tests, all passing).
 
 **Digital Signatures (FIPS 204 — ML-DSA):**
 
@@ -476,7 +494,7 @@ enforced by our test suite (68 tests, all passing).
 | Algorithm | Standard | Public Key | Secret Key | Signature |
 |-----------|----------|------------|------------|-----------|
 | SLH-DSA-SHAKE-128s | FIPS 205 | 32 B | 64 B | 7,856 B |
-| FN-DSA-512 | FIPS 206 (draft) | 897 B | 1,281 B | ~666 B (variable) |
+| FN-DSA-512 | FIPS 206 | 897 B | 1,281 B | ~666 B (variable) |
 | Ed25519 | RFC 8032 | 32 B | 32 B | 64 B |
 
 **Key Encapsulation (FIPS 203 — ML-KEM):**
@@ -526,7 +544,7 @@ enforced by our test suite (68 tests, all passing).
 
 ## Testing
 
-The CLI includes 68 integration tests covering:
+The CLI includes 83 integration tests covering:
 
 - **E2E roundtrips** — keygen → sign → verify, keygen → encrypt → decrypt
 - **NIST conformance** — key/signature sizes verified against FIPS 203/204/205/206

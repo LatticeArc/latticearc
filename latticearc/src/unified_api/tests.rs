@@ -192,7 +192,7 @@ fn test_context_aware_selection() {
     let config = CoreConfig::default();
     let data = b"test data for context-aware selection";
 
-    let result = CryptoPolicyEngine::select_for_context(data, &config);
+    let result = CryptoPolicyEngine::select_encryption_scheme(data, &config, None);
     assert!(result.is_ok(), "Context-aware selection failed: {:?}", result.err());
 
     let scheme = result.unwrap();
@@ -273,13 +273,13 @@ fn test_hmac() {
     let key = b"test_hmac_key";
     let data = b"test data for hmac";
 
-    let result = hmac_unverified(key, data);
+    let result = hmac_unverified(data, key);
     assert!(result.is_ok(), "HMAC generation failed: {:?}", result.err());
 
     let hmac_tag = result.unwrap();
     assert_eq!(hmac_tag.len(), 32);
 
-    let verification = hmac_check_unverified(key, data, &hmac_tag);
+    let verification = hmac_check_unverified(data, key, &hmac_tag);
     assert!(verification.is_ok(), "HMAC verification failed: {:?}", verification.err());
     assert!(verification.unwrap());
 }

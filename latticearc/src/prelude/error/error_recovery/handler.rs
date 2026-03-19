@@ -12,7 +12,7 @@ use super::core::{
     EffortLevel, EnhancedError, ErrorContext, ErrorSeverity, RecoveryStrategy, RecoverySuggestion,
 };
 use super::recovery::{ErrorRecoveryHandler, SystemHealth};
-use crate::prelude::prelude::error::{LatticeArcError, Result};
+use crate::prelude::error::{LatticeArcError, Result};
 
 /// Enhanced error handler that integrates all error recovery components
 pub struct EnhancedErrorHandler {
@@ -104,17 +104,8 @@ impl EnhancedErrorHandler {
     }
 
     /// Determine error severity based on error type.
-    ///
-    /// Delegates to the canonical `get_error_severity()` and converts
-    /// between the two `ErrorSeverity` enum types.
     fn determine_severity(error: &LatticeArcError) -> ErrorSeverity {
-        use super::super::types::recovery::ErrorSeverity as TypesSeverity;
-        match super::super::types::recovery::get_error_severity(error) {
-            TypesSeverity::Critical => ErrorSeverity::Critical,
-            TypesSeverity::High => ErrorSeverity::High,
-            TypesSeverity::Medium => ErrorSeverity::Medium,
-            TypesSeverity::Low => ErrorSeverity::Low,
-        }
+        super::super::types::recovery::get_error_severity(error)
     }
 
     /// Get system health status

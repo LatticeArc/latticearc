@@ -11,7 +11,7 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use crate::prelude::prelude::error::{LatticeArcError, Result};
+use crate::prelude::error::{LatticeArcError, Result};
 use ed25519_dalek::{
     Signer, SigningKey as Ed25519SigningKey, Verifier, VerifyingKey as Ed25519VerifyingKey,
 };
@@ -607,7 +607,7 @@ mod tests {
 
     #[test]
     fn test_version_constant() {
-        const { assert!(crate::prelude::prelude::VERSION > 0) };
+        const { assert!(crate::prelude::VERSION > 0) };
     }
 
     #[test]
@@ -711,7 +711,7 @@ mod tests {
 
     #[test]
     fn test_utility_cavp_domain_constant_vectors() {
-        use crate::prelude::prelude::domains;
+        use crate::prelude::domains;
         for (name, expected) in [
             ("HYBRID_KEM", domains::HYBRID_KEM.to_vec()),
             ("CASCADE_OUTER", domains::CASCADE_OUTER.to_vec()),

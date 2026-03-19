@@ -39,5 +39,5 @@
 //! assert!(record.is_valid_for_use());
 //! ```
 
-// Re-export all key lifecycle types from arc-types (zero FFI deps, Kani-verifiable)
+// Re-export all key lifecycle types from types module (zero FFI deps, Kani-verifiable)
 pub use crate::types::key_lifecycle::*;

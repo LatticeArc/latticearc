@@ -204,7 +204,7 @@ fn test_symmetric_encrypt_decrypt_across_all_22_use_cases() {
     assert_eq!(use_cases.len(), 22, "Expected 22 use cases");
 
     for uc in &use_cases {
-        let config = CryptoConfig::new().use_case(uc.clone());
+        let config = CryptoConfig::new().use_case(*uc);
 
         // Regulated use cases require FIPS; skip roundtrip when feature unavailable
         let is_regulated = matches!(
@@ -257,7 +257,7 @@ fn test_symmetric_encrypt_decrypt_across_all_4_security_levels() {
     ];
 
     for level in &levels {
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(*level);
         let encrypted = encrypt(
             plaintext,
             EncryptKey::Symmetric(&key),
@@ -424,12 +424,12 @@ fn test_sign_verify_all_security_levels() {
     let message = b"Sign/verify at every security level through facade";
 
     for level in [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum] {
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(level);
         let (pk, sk, scheme) = generate_signing_keypair(config)
             .unwrap_or_else(|e| panic!("keygen {:?}: {}", level, e));
         assert!(!scheme.is_empty());
 
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(level);
         let signed = sign_with_key(message, &sk, &pk, config)
             .unwrap_or_else(|e| panic!("sign {:?}: {}", level, e));
 
@@ -544,7 +544,7 @@ fn test_tls_scheme_and_kex_all_use_cases() {
     for uc in TlsUseCase::all() {
         let mode = TlsPolicyEngine::recommend_mode(*uc);
         let level = SecurityLevel::High;
-        let scheme = TlsPolicyEngine::get_scheme_identifier(mode, level.clone());
+        let scheme = TlsPolicyEngine::get_scheme_identifier(mode, level);
         let kex = TlsPolicyEngine::get_kex_algorithm(mode, level);
 
         assert!(!scheme.is_empty(), "Scheme should be set for {:?}", uc);
@@ -583,10 +583,10 @@ fn test_tls_config_builder_all_security_levels() {
         SecurityLevel::Maximum,
         SecurityLevel::Quantum,
     ] {
-        let config = TlsConfig::new().security_level(level.clone());
+        let config = TlsConfig::new().security_level(level);
         config.validate().unwrap_or_else(|e| panic!("validate failed for {:?}: {}", level, e));
 
-        let expected = TlsPolicyEngine::select_by_security_level(level.clone());
+        let expected = TlsPolicyEngine::select_by_security_level(level);
         assert_eq!(config.mode, expected, "TlsConfig mode mismatch for {:?}", level);
     }
 }
@@ -633,7 +633,7 @@ fn test_tls_balanced_selection_all_combinations() {
 
     for level in &levels {
         for pref in &prefs {
-            let mode = TlsPolicyEngine::select_balanced(level.clone(), pref.clone());
+            let mode = TlsPolicyEngine::select_balanced(*level, pref.clone());
 
             if *level == SecurityLevel::Quantum {
                 assert_eq!(mode, TlsMode::Pq, "Quantum should always be PQ");

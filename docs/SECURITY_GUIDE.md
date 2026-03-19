@@ -479,4 +479,4 @@ Report security vulnerabilities according to [SECURITY.md](../SECURITY.md):
 - [FIPS 203: ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
 - [FIPS 204: ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
 - [FIPS 205: SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final)
-- [FIPS 206: FN-DSA (Draft)](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022)
+- [FIPS 206: FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final)

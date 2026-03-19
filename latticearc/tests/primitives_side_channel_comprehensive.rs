@@ -353,7 +353,7 @@ fn test_mldsa_secret_key_constant_time_comparison() {
 /// Test AES-GCM tag verification constant-time
 #[test]
 fn test_aes_gcm_tag_verification_constant_time() {
-    use latticearc::primitives::aead::aes_gcm::verify_tag_constant_time;
+    use latticearc::primitives::aead::verify_tag_constant_time;
 
     const ITERATIONS: usize = 2000;
     const WARMUP: usize = 200;
@@ -884,7 +884,7 @@ fn test_mldsa_zeroization_all_parameter_sets() {
 /// Test AES-GCM key zeroization
 #[test]
 fn test_aes_gcm_key_zeroization() {
-    use latticearc::primitives::aead::aes_gcm::zeroize_data;
+    use latticearc::primitives::aead::zeroize_data;
 
     let mut key = AesGcm256::generate_key();
 

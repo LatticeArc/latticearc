@@ -2,9 +2,6 @@
 #![warn(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
-// JUSTIFICATION: Key management module
-// - items_after_test_module: impl blocks placed after embedded tests for code organization
-#![allow(clippy::items_after_test_module)]
 
 //! # Cryptographic Key Management
 //!
@@ -271,6 +268,46 @@ impl SecretKey {
     }
 }
 
+impl KeyPair {
+    /// Generate a new hybrid keypair (ML-KEM + X25519)
+    ///
+    /// # Errors
+    /// Returns an error if key generation fails.
+    pub fn generate() -> Result<Self, KeyError> {
+        let mut rng = rand::rngs::OsRng;
+        let (ml_pk, ml_sk) = crate::primitives::kem::ml_kem::MlKem::generate_keypair(
+            &mut rng,
+            crate::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem768,
+        )
+        .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+
+        let x25519_kp = X25519StaticKeyPair::generate()
+            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+        let ecc_pk = EccPublicKey::from_bytes(x25519_kp.public_key_bytes())
+            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+        let seed = x25519_kp.seed_bytes().map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+        let ecc_sk = EccSecretKey::from_bytes(seed.as_ref())
+            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
+
+        Ok(Self {
+            public_key: PublicKey { ml_pk: ml_pk.into_bytes(), ecc_pk },
+            secret_key: SecretKey { ml_sk: ml_sk.into_bytes(), ecc_sk: Zeroizing::new(ecc_sk) },
+        })
+    }
+
+    /// Get the public key
+    #[must_use]
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public_key
+    }
+
+    /// Get the secret key
+    #[must_use]
+    pub fn secret_key(&self) -> &SecretKey {
+        &self.secret_key
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
 #[allow(clippy::unwrap_used)]
@@ -526,45 +563,5 @@ mod tests {
         let err = KeyError::InvalidKey("bad".to_string());
         let cloned = err.clone();
         assert_eq!(err, cloned);
-    }
-}
-
-impl KeyPair {
-    /// Generate a new hybrid keypair (ML-KEM + X25519)
-    ///
-    /// # Errors
-    /// Returns an error if key generation fails.
-    pub fn generate() -> Result<Self, KeyError> {
-        let mut rng = rand::rngs::OsRng;
-        let (ml_pk, ml_sk) = crate::primitives::kem::ml_kem::MlKem::generate_keypair(
-            &mut rng,
-            crate::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem768,
-        )
-        .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
-
-        let x25519_kp = X25519StaticKeyPair::generate()
-            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
-        let ecc_pk = EccPublicKey::from_bytes(x25519_kp.public_key_bytes())
-            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
-        let seed = x25519_kp.seed_bytes().map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
-        let ecc_sk = EccSecretKey::from_bytes(seed.as_ref())
-            .map_err(|e| KeyError::GenerationFailed(e.to_string()))?;
-
-        Ok(Self {
-            public_key: PublicKey { ml_pk: ml_pk.into_bytes(), ecc_pk },
-            secret_key: SecretKey { ml_sk: ml_sk.into_bytes(), ecc_sk: Zeroizing::new(ecc_sk) },
-        })
-    }
-
-    /// Get the public key
-    #[must_use]
-    pub fn public_key(&self) -> &PublicKey {
-        &self.public_key
-    }
-
-    /// Get the secret key
-    #[must_use]
-    pub fn secret_key(&self) -> &SecretKey {
-        &self.secret_key
     }
 }

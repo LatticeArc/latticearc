@@ -572,9 +572,10 @@ fn test_fndsa_signature_construction() {
     assert_eq!(sig.to_bytes(), valid_bytes, "to_bytes should return original bytes");
     assert_eq!(sig.as_ref(), valid_bytes.as_slice(), "as_ref should return slice");
 
-    // From Vec<u8> conversion
-    let from_vec: Signature = vec![0x11u8; 50].into();
-    assert_eq!(from_vec.len(), 50, "From conversion should preserve length");
+    // TryFrom Vec<u8> conversion
+    let from_vec: Signature =
+        Signature::from_bytes(vec![0x11u8; 50]).expect("Non-empty bytes should succeed");
+    assert_eq!(from_vec.len(), 50, "TryFrom conversion should preserve length");
 }
 
 /// Test verifying key maintains security level

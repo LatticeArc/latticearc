@@ -28,7 +28,7 @@
 /// # Example
 ///
 /// ```rust
-/// use latticearc::prelude::prelude::formal_verification::run_formal_verification;
+/// use latticearc::prelude::formal_verification::run_formal_verification;
 ///
 /// run_formal_verification();
 /// ```

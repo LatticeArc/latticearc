@@ -18,7 +18,7 @@
 use proptest::prelude::*;
 
 #[cfg(test)]
-use crate::prelude::prelude::error::LatticeArcError;
+use crate::prelude::error::LatticeArcError;
 
 /// Strategy for generating valid error messages.
 #[cfg(test)]
@@ -78,7 +78,7 @@ proptest! {
 proptest! {
     #[test]
     fn prop_error_recovery_appropriate(error in arb_quantum_shield_error()) {
-        use crate::prelude::prelude::error::is_recoverable_error;
+        use crate::prelude::error::is_recoverable_error;
 
         // For most custom errors, recovery should be possible
         let recoverable = is_recoverable_error(&error);
@@ -94,7 +94,7 @@ proptest! {
 proptest! {
     #[test]
     fn prop_error_severity_consistent(error in arb_quantum_shield_error()) {
-        use crate::prelude::prelude::error::get_error_severity;
+        use crate::prelude::error::get_error_severity;
 
         let severity1 = get_error_severity(&error);
         let severity2 = get_error_severity(&error);
@@ -188,9 +188,9 @@ fn test_domain_constants_valid() {
 #[test]
 fn test_version_constant_reasonable() {
     // Version should be non-zero and reasonable
-    const { assert!(crate::prelude::prelude::VERSION > 0) };
-    let version1 = crate::prelude::prelude::VERSION;
-    let version2 = crate::prelude::prelude::VERSION;
+    const { assert!(crate::prelude::VERSION > 0) };
+    let version1 = crate::prelude::VERSION;
+    let version2 = crate::prelude::VERSION;
     assert_eq!(version1, version2);
 }
 
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_version_constant() {
-        const { assert!(crate::prelude::prelude::VERSION > 0) };
+        const { assert!(crate::prelude::VERSION > 0) };
         // VERSION is u8, so the upper bound check is inherent
     }
 

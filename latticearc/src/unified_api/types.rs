@@ -9,7 +9,7 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-// Re-export all pure-Rust types from arc-types
+// Re-export all pure-Rust types from types module
 pub use crate::types::types::*;
 // Re-export type-safe encryption types (EncryptKey, DecryptKey, EncryptionScheme, etc.)
 pub use crate::types::crypto_types::{
@@ -23,7 +23,7 @@ use crate::unified_api::zero_trust::VerifiedSession;
 /// Regulated use cases automatically get FIPS 140-3 compliance,
 /// which will be validated at operation time (failing gracefully
 /// if the `fips` feature is not enabled).
-fn default_compliance_for_use_case(use_case: &UseCase) -> ComplianceMode {
+fn default_compliance_for_use_case(use_case: UseCase) -> ComplianceMode {
     match use_case {
         // Regulated industries require FIPS 140-3 by default
         UseCase::GovernmentClassified
@@ -54,7 +54,7 @@ fn default_compliance_for_use_case(use_case: &UseCase) -> ComplianceMode {
 }
 
 // ============================================================================
-// Unified Crypto Configuration (stays in arc-core due to VerifiedSession FFI dep)
+// Unified Crypto Configuration (stays in unified_api due to VerifiedSession FFI dep)
 // ============================================================================
 
 /// Unified configuration for cryptographic operations.
@@ -149,7 +149,7 @@ impl<'a> CryptoConfig<'a> {
     pub fn use_case(mut self, use_case: UseCase) -> Self {
         // Auto-set compliance for regulated use cases, unless explicitly overridden
         if !self.compliance_explicit {
-            self.compliance = default_compliance_for_use_case(&use_case);
+            self.compliance = default_compliance_for_use_case(use_case);
         }
         self.selection = AlgorithmSelection::UseCase(use_case);
         self
@@ -345,7 +345,7 @@ impl<'a> CryptoConfig<'a> {
 mod tests {
     use super::*;
 
-    // Tests for types that moved to arc-types
+    // Tests for types that moved to types module
 
     #[test]
     fn test_zeroized_bytes_new() {
@@ -370,7 +370,7 @@ mod tests {
         assert_eq!(sel, AlgorithmSelection::SecurityLevel(SecurityLevel::High));
     }
 
-    // Tests for CryptoConfig (stays in arc-core)
+    // Tests for CryptoConfig (stays in unified_api)
 
     #[test]
     fn test_crypto_config_new() {

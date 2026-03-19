@@ -27,8 +27,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305,
     aead::{Aead, AeadCore, KeyInit, OsRng},
 };
-use subtle::ConstantTimeEq;
-use zeroize::Zeroize;
+use rand::RngCore;
 
 /// ChaCha20-Poly1305 AEAD cipher
 #[derive(Clone)]
@@ -152,33 +151,6 @@ impl ChaCha20Poly1305Cipher {
     }
 }
 
-/// Constant-time tag verification for ChaCha20-Poly1305
-///
-/// This function verifies an authentication tag using constant-time comparison
-/// to prevent timing attacks that could leak information about the tag.
-///
-/// # Arguments
-///
-/// * `expected` - The expected tag value
-/// * `actual` - The actual tag to verify
-///
-/// # Returns
-///
-/// `true` if tags match, `false` otherwise
-#[must_use]
-pub fn verify_tag_constant_time(expected: &Tag, actual: &Tag) -> bool {
-    expected.ct_eq(actual).into()
-}
-
-/// Zeroizes sensitive data in memory
-///
-/// # Arguments
-///
-/// * `data` - The data to zeroize
-pub fn zeroize_data(data: &mut [u8]) {
-    data.zeroize();
-}
-
 /// XChaCha20-Poly1305 AEAD cipher (extended nonce variant)
 ///
 /// Uses XChaCha20 stream cipher with 192-bit nonce for better nonce reuse safety.
@@ -221,14 +193,19 @@ impl AeadCipher for XChaCha20Poly1305Cipher {
         Ok(XChaCha20Poly1305Cipher { cipher })
     }
 
+    /// Generate a 12-byte random nonce.
+    ///
+    /// **Warning:** The `AeadCipher` trait constrains nonces to 12 bytes, but
+    /// XChaCha20-Poly1305 natively uses 24-byte nonces. This method returns a
+    /// 12-byte nonce that `encrypt`/`decrypt` will zero-pad to 24 bytes,
+    /// effectively reducing the nonce space from 2^192 to 2^96.
+    /// For full 24-byte nonce entropy, use [`XChaCha20Poly1305Cipher::generate_xnonce`]
+    /// with [`encrypt_x`](XChaCha20Poly1305Cipher::encrypt_x) /
+    /// [`decrypt_x`](XChaCha20Poly1305Cipher::decrypt_x) instead.
     fn generate_nonce() -> Nonce {
-        let nonce_bytes = chacha20poly1305::XChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let mut result = [0u8; 12];
-        // XChaCha20 nonce is 24 bytes, we only use first 12 for compatibility
-        if let Some(src) = nonce_bytes.as_slice().get(..12) {
-            result.copy_from_slice(src);
-        }
-        result
+        let mut nonce = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce);
+        nonce
     }
 
     fn encrypt(
@@ -320,6 +297,93 @@ impl XChaCha20Poly1305Cipher {
         let mut result = zeroize::Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
         result.copy_from_slice(key_bytes.as_slice());
         result
+    }
+
+    /// Generate a full 24-byte random nonce for XChaCha20-Poly1305.
+    ///
+    /// This provides the full 2^192 nonce space that XChaCha was designed for.
+    /// Use with [`encrypt_x`](Self::encrypt_x) and [`decrypt_x`](Self::decrypt_x).
+    #[must_use]
+    pub fn generate_xnonce() -> XNonce {
+        let mut nonce = [0u8; XNONCE_LEN];
+        OsRng.fill_bytes(&mut nonce);
+        nonce
+    }
+
+    /// Encrypt with a full 24-byte XNonce (recommended over trait-based API).
+    ///
+    /// # Errors
+    ///
+    /// Returns `AeadError` if encryption fails.
+    pub fn encrypt_x(
+        &self,
+        nonce: &XNonce,
+        plaintext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<(Vec<u8>, Tag), AeadError> {
+        let xnonce = (*nonce).into();
+
+        let ciphertext_with_tag = match aad {
+            Some(aad) => self
+                .cipher
+                .encrypt(&xnonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
+                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
+            None => self
+                .cipher
+                .encrypt(&xnonce, plaintext)
+                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
+        };
+
+        if ciphertext_with_tag.len() < TAG_LEN {
+            return Err(AeadError::EncryptionFailed("ciphertext too short".to_string()));
+        }
+        let ct_len = ciphertext_with_tag.len().saturating_sub(TAG_LEN);
+        let ciphertext = ciphertext_with_tag
+            .get(..ct_len)
+            .ok_or_else(|| AeadError::EncryptionFailed("invalid ciphertext length".to_string()))?
+            .to_vec();
+        let mut tag = [0u8; TAG_LEN];
+        let tag_slice = ciphertext_with_tag
+            .get(ct_len..)
+            .ok_or_else(|| AeadError::EncryptionFailed("invalid tag offset".to_string()))?;
+        tag.copy_from_slice(tag_slice);
+
+        Ok((ciphertext, tag))
+    }
+
+    /// Decrypt with a full 24-byte XNonce (recommended over trait-based API).
+    ///
+    /// # Errors
+    ///
+    /// Returns `AeadError` if decryption or authentication fails.
+    pub fn decrypt_x(
+        &self,
+        nonce: &XNonce,
+        ciphertext: &[u8],
+        tag: &Tag,
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>, AeadError> {
+        let xnonce = (*nonce).into();
+
+        let mut ciphertext_with_tag = Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN));
+        ciphertext_with_tag.extend_from_slice(ciphertext);
+        ciphertext_with_tag.extend_from_slice(tag);
+
+        let plaintext = match aad {
+            Some(aad) => self
+                .cipher
+                .decrypt(
+                    &xnonce,
+                    chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
+                )
+                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
+            None => self
+                .cipher
+                .decrypt(&xnonce, ciphertext_with_tag.as_ref())
+                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
+        };
+
+        Ok(plaintext)
     }
 }
 

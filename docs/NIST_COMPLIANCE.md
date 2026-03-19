@@ -311,10 +311,10 @@ Test categories:
 
 | Algorithm | Source |
 |-----------|--------|
-| ML-KEM | [NIST ML-KEM](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022) |
-| ML-DSA | [NIST ML-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022) |
-| SLH-DSA | [NIST SLH-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022) |
-| FN-DSA | [NIST FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022) |
+| ML-KEM | [NIST ML-KEM](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
+| ML-DSA | [NIST ML-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
+| SLH-DSA | [NIST SLH-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
+| FN-DSA | [NIST FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
 
 ## Interoperability
 
@@ -342,6 +342,6 @@ LatticeArc uses standard encodings per FIPS specifications:
 - [FIPS 203: ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
 - [FIPS 204: ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
 - [FIPS 205: SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final)
-- [FIPS 206: FN-DSA (Draft)](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms-2022)
+- [FIPS 206: FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final)
 - [SP 800-208: Hash-Based Signatures](https://csrc.nist.gov/pubs/sp/800/208/final)
 - [NIST PQC Project](https://csrc.nist.gov/projects/post-quantum-cryptography)

@@ -17,7 +17,6 @@ use tracing::debug;
 
 use aws_lc_rs::hkdf::{HKDF_SHA256, KeyType, Salt};
 use hmac::{Hmac, Mac};
-use rayon::prelude::*;
 use sha2::Sha256;
 use sha3::{Digest, Sha3_256};
 use subtle::ConstantTimeEq;
@@ -37,28 +36,8 @@ impl KeyType for HkdfOutputLen {
     }
 }
 
-fn hash_parallel(data: &[u8], chunk_size: usize) -> Vec<[u8; 32]> {
-    data.par_chunks(chunk_size)
-        .map(|chunk| {
-            let mut hasher = Sha3_256::new();
-            hasher.update(chunk);
-            hasher.finalize().into()
-        })
-        .collect()
-}
-
 #[inline]
 fn hash_sha3_256(data: &[u8]) -> [u8; 32] {
-    // Use parallel hashing for large data
-    if data.len() > 65536 {
-        let results = hash_parallel(data, 4096);
-        let mut final_hasher = Sha3_256::new();
-        for hash in &results {
-            final_hasher.update(hash);
-        }
-        return final_hasher.finalize().into();
-    }
-
     let mut hasher = Sha3_256::new();
     hasher.update(data);
     hasher.finalize().into()
@@ -566,7 +545,7 @@ pub fn derive_key_unverified(password: &[u8], salt: &[u8], length: usize) -> Res
 /// Returns an error if:
 /// - The HMAC key is empty
 #[inline]
-pub fn hmac_unverified(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+pub fn hmac_unverified(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     hmac(data, key, SecurityMode::Unverified)
 }
 
@@ -581,7 +560,7 @@ pub fn hmac_unverified(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 /// - The HMAC key is empty
 /// - The tag is not exactly 32 bytes
 #[inline]
-pub fn hmac_check_unverified(key: &[u8], data: &[u8], tag: &[u8]) -> Result<bool> {
+pub fn hmac_check_unverified(data: &[u8], key: &[u8], tag: &[u8]) -> Result<bool> {
     hmac_check(data, key, tag, SecurityMode::Unverified)
 }
 
@@ -798,7 +777,7 @@ mod tests {
     fn test_hmac_unverified_basic() -> Result<()> {
         let key = b"secret_key_1234567890";
         let data = b"Message to authenticate";
-        let tag = hmac_unverified(key, data)?;
+        let tag = hmac_unverified(data, key)?;
         assert!(!tag.is_empty());
         assert_eq!(tag.len(), 32, "HMAC-SHA256 should produce 32-byte tag");
         Ok(())
@@ -808,8 +787,8 @@ mod tests {
     fn test_hmac_unverified_deterministic() -> Result<()> {
         let key = b"key";
         let data = b"data";
-        let tag1 = hmac_unverified(key, data)?;
-        let tag2 = hmac_unverified(key, data)?;
+        let tag1 = hmac_unverified(data, key)?;
+        let tag2 = hmac_unverified(data, key)?;
         assert_eq!(tag1, tag2, "HMAC should be deterministic");
         Ok(())
     }
@@ -818,8 +797,8 @@ mod tests {
     fn test_hmac_check_unverified_valid() -> Result<()> {
         let key = b"authentication_key";
         let data = b"Important message";
-        let tag = hmac_unverified(key, data)?;
-        let is_valid = hmac_check_unverified(key, data, &tag)?;
+        let tag = hmac_unverified(data, key)?;
+        let is_valid = hmac_check_unverified(data, key, &tag)?;
         assert!(is_valid, "Valid HMAC should verify successfully");
         Ok(())
     }
@@ -829,8 +808,8 @@ mod tests {
         let key1 = b"key1";
         let key2 = b"key2";
         let data = b"data";
-        let tag = hmac_unverified(key1, data)?;
-        let is_valid = hmac_check_unverified(key2, data, &tag)?;
+        let tag = hmac_unverified(data, key1)?;
+        let is_valid = hmac_check_unverified(data, key2, &tag)?;
         assert!(!is_valid, "Wrong key should fail verification");
         Ok(())
     }
@@ -840,8 +819,8 @@ mod tests {
         let key = b"key";
         let data1 = b"original data";
         let data2 = b"modified data";
-        let tag = hmac_unverified(key, data1)?;
-        let is_valid = hmac_check_unverified(key, data2, &tag)?;
+        let tag = hmac_unverified(data1, key)?;
+        let is_valid = hmac_check_unverified(data2, key, &tag)?;
         assert!(!is_valid, "Wrong data should fail verification");
         Ok(())
     }
@@ -851,7 +830,7 @@ mod tests {
         let key = b"key";
         let data = b"data";
         let invalid_tag = vec![0u8; 32];
-        let is_valid = hmac_check_unverified(key, data, &invalid_tag)?;
+        let is_valid = hmac_check_unverified(data, key, &invalid_tag)?;
         assert!(!is_valid, "Invalid tag should fail verification");
         Ok(())
     }
@@ -930,7 +909,7 @@ mod tests {
 
     #[test]
     fn test_hmac_empty_key_fails() {
-        let result = hmac_unverified(&[], b"data");
+        let result = hmac_unverified(b"data", &[]);
         assert!(result.is_err(), "Empty HMAC key should fail");
         match result.unwrap_err() {
             CoreError::InvalidInput(msg) => assert!(msg.contains("key")),
@@ -940,7 +919,7 @@ mod tests {
 
     #[test]
     fn test_hmac_check_wrong_tag_length() {
-        let result = hmac_check_unverified(b"key", b"data", &[0u8; 16]);
+        let result = hmac_check_unverified(b"data", b"key", &[0u8; 16]);
         assert!(result.is_err(), "Wrong tag length should fail");
         match result.unwrap_err() {
             CoreError::InvalidInput(msg) => assert!(msg.contains("32 bytes")),
@@ -950,7 +929,7 @@ mod tests {
 
     #[test]
     fn test_hmac_check_empty_key_fails() {
-        let result = hmac_check_unverified(&[], b"data", &[0u8; 32]);
+        let result = hmac_check_unverified(b"data", &[], &[0u8; 32]);
         assert!(result.is_err(), "Empty key for HMAC check should fail");
     }
 
@@ -1070,8 +1049,8 @@ mod tests {
     fn test_hmac_empty_data() -> Result<()> {
         let key = b"key";
         let data = b"";
-        let tag = hmac_unverified(key, data)?;
-        let is_valid = hmac_check_unverified(key, data, &tag)?;
+        let tag = hmac_unverified(data, key)?;
+        let is_valid = hmac_check_unverified(data, key, &tag)?;
         assert!(is_valid);
         Ok(())
     }
@@ -1080,8 +1059,8 @@ mod tests {
     fn test_hmac_large_data() -> Result<()> {
         let key = b"key";
         let data = vec![0x42; 100000];
-        let tag = hmac_unverified(key, &data)?;
-        let is_valid = hmac_check_unverified(key, &data, &tag)?;
+        let tag = hmac_unverified(&data, key)?;
+        let is_valid = hmac_check_unverified(&data, key, &tag)?;
         assert!(is_valid);
         Ok(())
     }
@@ -1092,11 +1071,11 @@ mod tests {
         let key16 = b"1234567890123456"; // 16 bytes
         let key32 = b"12345678901234567890123456789012"; // 32 bytes
 
-        let tag16 = hmac_unverified(key16, data)?;
-        let tag32 = hmac_unverified(key32, data)?;
+        let tag16 = hmac_unverified(data, key16)?;
+        let tag32 = hmac_unverified(data, key32)?;
 
-        assert!(hmac_check_unverified(key16, data, &tag16)?);
-        assert!(hmac_check_unverified(key32, data, &tag32)?);
+        assert!(hmac_check_unverified(data, key16, &tag16)?);
+        assert!(hmac_check_unverified(data, key32, &tag32)?);
         assert_ne!(tag16, tag32, "Different keys should produce different tags");
         Ok(())
     }

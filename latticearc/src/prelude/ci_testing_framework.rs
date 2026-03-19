@@ -8,8 +8,8 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use crate::prelude::prelude::domains;
-use crate::prelude::prelude::error::LatticeArcError;
+use crate::prelude::domains;
+use crate::prelude::error::LatticeArcError;
 use rand::RngCore;
 use rand::rngs::OsRng;
 
@@ -233,7 +233,7 @@ impl PreludeCiTestSuite {
 
     /// Test error handling.
     fn test_error_handling() -> Result<(), LatticeArcError> {
-        use crate::prelude::prelude::error::{get_error_severity, is_recoverable_error};
+        use crate::prelude::error::{get_error_severity, is_recoverable_error};
 
         let test_errors = vec![
             LatticeArcError::InvalidInput("test".to_string()),
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_generate_report_with_side_channel_assessments() {
-        use crate::prelude::prelude::side_channel_analysis::{
+        use crate::prelude::side_channel_analysis::{
             Severity, SideChannelAssessment, SideChannelType,
         };
 
@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_all_critical_tests_passed_with_high_severity() {
-        use crate::prelude::prelude::side_channel_analysis::{
+        use crate::prelude::side_channel_analysis::{
             Severity, SideChannelAssessment, SideChannelType,
         };
 

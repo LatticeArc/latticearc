@@ -9,7 +9,7 @@
 #![deny(clippy::panic)]
 
 use super::core::{EnhancedError, ErrorSeverity, RecoveryStrategy};
-use crate::prelude::prelude::error::Result;
+use crate::prelude::error::Result;
 use chrono::Utc;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -441,7 +441,7 @@ mod tests {
         RecoverySuggestion,
     };
     use super::*;
-    use crate::prelude::prelude::error::LatticeArcError;
+    use crate::prelude::error::LatticeArcError;
 
     // --- SystemHealth tests ---
 

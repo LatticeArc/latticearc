@@ -24,8 +24,8 @@
 #![allow(clippy::useless_vec)] // vec! in tests improves readability
 #![allow(clippy::arithmetic_side_effects)] // Arithmetic in tests is safe
 
-use latticearc::prelude::prelude::error::LatticeArcError;
-use latticearc::prelude::prelude::error::error_recovery::{
+use latticearc::prelude::error::LatticeArcError;
+use latticearc::prelude::error::error_recovery::{
     CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, DegradationStrategy, EffortLevel,
     EnhancedError, EnhancedErrorHandler, ErrorContext, ErrorRecoveryHandler, ErrorSeverity,
     GracefulDegradationManager, RecoveryStrategy, RecoverySuggestion, ServiceDegradationInfo,

@@ -192,59 +192,11 @@ impl CoreConfig {
 ///
 /// Wraps [`CoreConfig`] for encryption-specific use cases.
 ///
-/// **Note:** Scheme selection is handled by [`CryptoConfig::force_scheme()`] and
-/// the policy engine, not by this struct. Use `CryptoConfig` for the unified API.
-#[derive(Debug, Clone, Default)]
-pub struct EncryptionConfig {
-    /// Base configuration inherited from [`CoreConfig`].
-    pub base: CoreConfig,
-}
+/// Backwards-compatible alias (was a single-field wrapper around `CoreConfig`).
+pub type EncryptionConfig = CoreConfig;
 
-impl EncryptionConfig {
-    /// Creates a new encryption configuration with default settings.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Validates the encryption configuration settings.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the base configuration validation fails.
-    pub fn validate(&self) -> Result<()> {
-        self.base.validate()
-    }
-}
-
-/// Configuration for digital signature operations.
-///
-/// Wraps [`CoreConfig`] for signature-specific use cases.
-///
-/// **Note:** Scheme selection is handled by [`CryptoConfig::force_scheme()`] and
-/// the policy engine, not by this struct. Use `CryptoConfig` for the unified API.
-#[derive(Debug, Clone, Default)]
-pub struct SignatureConfig {
-    /// Base configuration inherited from [`CoreConfig`].
-    pub base: CoreConfig,
-}
-
-impl SignatureConfig {
-    /// Creates a new signature configuration with default settings.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Validates the signature configuration settings.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the base configuration validation fails.
-    pub fn validate(&self) -> Result<()> {
-        self.base.validate()
-    }
-}
+/// Backwards-compatible alias (was a single-field wrapper around `CoreConfig`).
+pub type SignatureConfig = CoreConfig;
 
 /// Configuration for zero-trust authentication operations.
 ///
@@ -465,9 +417,9 @@ pub struct UseCaseConfig {
     /// The use case this configuration is optimized for.
     pub use_case: UseCase,
     /// Encryption configuration for this use case.
-    pub encryption: EncryptionConfig,
+    pub encryption: CoreConfig,
     /// Signature configuration for this use case.
-    pub signature: SignatureConfig,
+    pub signature: CoreConfig,
     /// Zero-trust configuration for this use case.
     pub zero_trust: ZeroTrustConfig,
     /// Hardware configuration for this use case.
@@ -531,8 +483,8 @@ impl UseCaseConfig {
 
         Self {
             use_case,
-            encryption: EncryptionConfig { base: base_config.clone() },
-            signature: SignatureConfig { base: base_config.clone() },
+            encryption: base_config.clone(),
+            signature: base_config.clone(),
             zero_trust: ZeroTrustConfig { base: base_config, ..Default::default() },
             hardware: HardwareConfig::default(),
         }
@@ -543,8 +495,8 @@ impl UseCaseConfig {
     /// # Errors
     ///
     /// Returns an error if any of the nested configurations fail validation:
-    /// - Encryption configuration validation fails
-    /// - Signature configuration validation fails
+    /// - Encryption `CoreConfig` validation fails
+    /// - Signature `CoreConfig` validation fails
     /// - Zero-trust configuration validation fails
     /// - Hardware configuration validation fails
     pub fn validate(&self) -> Result<()> {
@@ -613,19 +565,8 @@ mod kani_proofs {
         kani::assert(result.is_ok() == should_pass, "validate() passes iff both invariants hold");
     }
 
-    /// Proves EncryptionConfig delegates validation to CoreConfig.
-    #[kani::proof]
-    fn encryption_config_delegates_validation() {
-        let config = EncryptionConfig { base: CoreConfig::default() };
-        kani::assert(config.validate().is_ok(), "Default EncryptionConfig must validate");
-    }
-
-    /// Proves SignatureConfig delegates validation to CoreConfig.
-    #[kani::proof]
-    fn signature_config_delegates_validation() {
-        let config = SignatureConfig { base: CoreConfig::default() };
-        kani::assert(config.validate().is_ok(), "Default SignatureConfig must validate");
-    }
+    // EncryptionConfig/SignatureConfig Kani proofs removed — they are now type
+    // aliases for CoreConfig, so core_config_validates_with_valid_inputs already covers them.
 }
 
 #[cfg(test)]
@@ -730,16 +671,18 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_config_default() {
+    fn test_encryption_config_is_core_config() {
+        // EncryptionConfig is now a type alias for CoreConfig
         let config = EncryptionConfig::default();
-        assert_eq!(config.base.security_level, SecurityLevel::High);
+        assert_eq!(config.security_level, SecurityLevel::High);
         assert!(config.validate().is_ok());
     }
 
     #[test]
-    fn test_signature_config_default() {
+    fn test_signature_config_is_core_config() {
+        // SignatureConfig is now a type alias for CoreConfig
         let config = SignatureConfig::default();
-        assert_eq!(config.base.security_level, SecurityLevel::High);
+        assert_eq!(config.security_level, SecurityLevel::High);
         assert!(config.validate().is_ok());
     }
 
@@ -764,14 +707,14 @@ mod tests {
     fn test_use_case_config_financial_transactions() {
         let config = UseCaseConfig::new(UseCase::FinancialTransactions);
         assert_eq!(config.use_case, UseCase::FinancialTransactions);
-        assert_eq!(config.encryption.base.security_level, SecurityLevel::Maximum);
+        assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
     }
 
     #[test]
     fn test_use_case_config_iot_device() {
         let config = UseCaseConfig::new(UseCase::IoTDevice);
-        assert_eq!(config.encryption.base.security_level, SecurityLevel::Standard);
-        assert_eq!(config.encryption.base.performance_preference, PerformancePreference::Memory);
+        assert_eq!(config.encryption.security_level, SecurityLevel::Standard);
+        assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
     }
 
     // =========================================================================

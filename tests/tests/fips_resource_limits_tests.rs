@@ -115,22 +115,22 @@ mod resource_limits_static_validation_tests {
     // Key Derivation Count Tests
     #[test]
     fn test_validate_key_derivation_count_zero() {
-        assert!(ResourceLimits::validate_key_derivation_count(0).is_ok());
+        assert!(validate_key_derivation_count(0).is_ok());
     }
 
     #[test]
     fn test_validate_key_derivation_count_one() {
-        assert!(ResourceLimits::validate_key_derivation_count(1).is_ok());
+        assert!(validate_key_derivation_count(1).is_ok());
     }
 
     #[test]
     fn test_validate_key_derivation_count_at_limit() {
-        assert!(ResourceLimits::validate_key_derivation_count(1000).is_ok());
+        assert!(validate_key_derivation_count(1000).is_ok());
     }
 
     #[test]
     fn test_validate_key_derivation_count_just_over_limit() {
-        let result = ResourceLimits::validate_key_derivation_count(1001);
+        let result = validate_key_derivation_count(1001);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::KeyDerivationLimitExceeded { requested, limit } => {
@@ -143,30 +143,30 @@ mod resource_limits_static_validation_tests {
 
     #[test]
     fn test_validate_key_derivation_count_way_over_limit() {
-        let result = ResourceLimits::validate_key_derivation_count(usize::MAX);
+        let result = validate_key_derivation_count(usize::MAX);
         assert!(result.is_err());
     }
 
     // Encryption Size Tests
     #[test]
     fn test_validate_encryption_size_zero() {
-        assert!(ResourceLimits::validate_encryption_size(0).is_ok());
+        assert!(validate_encryption_size(0).is_ok());
     }
 
     #[test]
     fn test_validate_encryption_size_one() {
-        assert!(ResourceLimits::validate_encryption_size(1).is_ok());
+        assert!(validate_encryption_size(1).is_ok());
     }
 
     #[test]
     fn test_validate_encryption_size_at_limit() {
-        assert!(ResourceLimits::validate_encryption_size(100 * 1024 * 1024).is_ok());
+        assert!(validate_encryption_size(100 * 1024 * 1024).is_ok());
     }
 
     #[test]
     fn test_validate_encryption_size_just_over_limit() {
         let limit = 100 * 1024 * 1024;
-        let result = ResourceLimits::validate_encryption_size(limit + 1);
+        let result = validate_encryption_size(limit + 1);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::EncryptionSizeLimitExceeded { requested, limit: l } => {
@@ -180,23 +180,23 @@ mod resource_limits_static_validation_tests {
     // Signature Size Tests
     #[test]
     fn test_validate_signature_size_zero() {
-        assert!(ResourceLimits::validate_signature_size(0).is_ok());
+        assert!(validate_signature_size(0).is_ok());
     }
 
     #[test]
     fn test_validate_signature_size_one() {
-        assert!(ResourceLimits::validate_signature_size(1).is_ok());
+        assert!(validate_signature_size(1).is_ok());
     }
 
     #[test]
     fn test_validate_signature_size_at_limit() {
-        assert!(ResourceLimits::validate_signature_size(64 * 1024).is_ok());
+        assert!(validate_signature_size(64 * 1024).is_ok());
     }
 
     #[test]
     fn test_validate_signature_size_just_over_limit() {
         let limit = 64 * 1024;
-        let result = ResourceLimits::validate_signature_size(limit + 1);
+        let result = validate_signature_size(limit + 1);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::SignatureSizeLimitExceeded { requested, limit: l } => {
@@ -210,23 +210,23 @@ mod resource_limits_static_validation_tests {
     // Decryption Size Tests
     #[test]
     fn test_validate_decryption_size_zero() {
-        assert!(ResourceLimits::validate_decryption_size(0).is_ok());
+        assert!(validate_decryption_size(0).is_ok());
     }
 
     #[test]
     fn test_validate_decryption_size_one() {
-        assert!(ResourceLimits::validate_decryption_size(1).is_ok());
+        assert!(validate_decryption_size(1).is_ok());
     }
 
     #[test]
     fn test_validate_decryption_size_at_limit() {
-        assert!(ResourceLimits::validate_decryption_size(100 * 1024 * 1024).is_ok());
+        assert!(validate_decryption_size(100 * 1024 * 1024).is_ok());
     }
 
     #[test]
     fn test_validate_decryption_size_just_over_limit() {
         let limit = 100 * 1024 * 1024;
-        let result = ResourceLimits::validate_decryption_size(limit + 1);
+        let result = validate_decryption_size(limit + 1);
         assert!(result.is_err());
         match result.unwrap_err() {
             ResourceError::DecryptionSizeLimitExceeded { requested, limit: l } => {
@@ -639,19 +639,19 @@ mod edge_case_tests {
     #[test]
     fn test_all_validations_at_exact_limits() {
         // Test that exact limit values are accepted
-        assert!(ResourceLimits::validate_key_derivation_count(1000).is_ok());
-        assert!(ResourceLimits::validate_encryption_size(100 * 1024 * 1024).is_ok());
-        assert!(ResourceLimits::validate_signature_size(64 * 1024).is_ok());
-        assert!(ResourceLimits::validate_decryption_size(100 * 1024 * 1024).is_ok());
+        assert!(validate_key_derivation_count(1000).is_ok());
+        assert!(validate_encryption_size(100 * 1024 * 1024).is_ok());
+        assert!(validate_signature_size(64 * 1024).is_ok());
+        assert!(validate_decryption_size(100 * 1024 * 1024).is_ok());
     }
 
     #[test]
     fn test_all_validations_one_over_limits() {
         // Test that limit + 1 is rejected
-        assert!(ResourceLimits::validate_key_derivation_count(1001).is_err());
-        assert!(ResourceLimits::validate_encryption_size(100 * 1024 * 1024 + 1).is_err());
-        assert!(ResourceLimits::validate_signature_size(64 * 1024 + 1).is_err());
-        assert!(ResourceLimits::validate_decryption_size(100 * 1024 * 1024 + 1).is_err());
+        assert!(validate_key_derivation_count(1001).is_err());
+        assert!(validate_encryption_size(100 * 1024 * 1024 + 1).is_err());
+        assert!(validate_signature_size(64 * 1024 + 1).is_err());
+        assert!(validate_decryption_size(100 * 1024 * 1024 + 1).is_err());
     }
 
     #[test]

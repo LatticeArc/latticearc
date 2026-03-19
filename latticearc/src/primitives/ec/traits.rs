@@ -48,16 +48,13 @@ pub trait EcKeyPair: Send + Sync {
     fn secret_key_bytes(&self) -> Zeroizing<Vec<u8>>;
 }
 
-/// Unified elliptic curve signature trait
+/// Unified elliptic curve signature verification trait
+///
+/// Signing requires access to a secret key and is handled by [`EcKeyPair`]
+/// implementations directly (e.g., `Ed25519KeyPair::sign`).
 pub trait EcSignature: Send + Sync {
     /// Signature type
     type Signature: Clone + Send + Sync;
-
-    /// Sign a message using the secret key
-    ///
-    /// # Errors
-    /// Returns an error if signing fails.
-    fn sign(&self, message: &[u8]) -> Result<Self::Signature>;
 
     /// Verify a signature against a message and public key
     ///

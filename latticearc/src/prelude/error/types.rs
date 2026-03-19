@@ -230,9 +230,6 @@ pub enum LatticeArcError {
     ZkpError(String),
 }
 
-/// Type alias for TimeCapsuleError
-pub type TimeCapsuleError = LatticeArcError;
-
 // Re-export recovery types and functions
 pub use recovery::{
     ErrorRecoveryStrategy, ErrorSeverity, attempt_error_recovery, get_error_severity,
@@ -417,12 +414,5 @@ mod tests {
         for (error, expected) in remaining {
             assert_eq!(format!("{error}"), expected, "Failed for: {:?}", error);
         }
-    }
-
-    #[test]
-    fn test_time_capsule_error_alias() {
-        // TimeCapsuleError is just an alias for LatticeArcError
-        let err: TimeCapsuleError = LatticeArcError::InvalidInput("test".to_string());
-        assert_eq!(format!("{err}"), "Invalid input: test");
     }
 }

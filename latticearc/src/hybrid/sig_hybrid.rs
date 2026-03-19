@@ -211,7 +211,7 @@ pub struct HybridPublicKey {
 /// ```
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct HybridSecretKey {
-    /// ML-DSA-65 secret key bytes (4032 bytes), automatically zeroized on drop.
+    /// ML-DSA secret key bytes (size depends on parameter set), automatically zeroized on drop.
     pub ml_dsa_sk: Zeroizing<Vec<u8>>,
     /// Ed25519 secret key bytes (32 bytes), automatically zeroized on drop.
     pub ed25519_sk: Zeroizing<Vec<u8>>,
@@ -246,7 +246,7 @@ impl HybridSecretKey {
 /// [`Zeroize`]: zeroize::Zeroize
 #[derive(Debug, Clone, Zeroize)]
 pub struct HybridSignature {
-    /// ML-DSA-65 signature bytes (3309 bytes for ML-DSA-65).
+    /// ML-DSA signature bytes (size depends on parameter set).
     pub ml_dsa_sig: Vec<u8>,
     /// Ed25519 signature bytes (64 bytes).
     pub ed25519_sig: Vec<u8>,

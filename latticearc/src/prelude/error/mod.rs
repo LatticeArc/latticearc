@@ -19,6 +19,6 @@ pub use error_recovery::{
     SystemHealth, get_error_handler,
 };
 pub use types::{
-    ErrorRecoveryStrategy, LatticeArcError, Result, TimeCapsuleError, attempt_error_recovery,
-    get_error_severity, is_recoverable_error, requires_security_response,
+    ErrorRecoveryStrategy, LatticeArcError, Result, attempt_error_recovery, get_error_severity,
+    is_recoverable_error, requires_security_response,
 };

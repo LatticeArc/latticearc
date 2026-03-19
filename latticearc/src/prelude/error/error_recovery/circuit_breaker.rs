@@ -8,7 +8,7 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use crate::prelude::prelude::error::{LatticeArcError, Result};
+use crate::prelude::error::{LatticeArcError, Result};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 

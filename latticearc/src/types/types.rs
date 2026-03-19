@@ -159,7 +159,10 @@ impl KeyPair {
 /// during the post-quantum transition period, except `Quantum` which is PQ-only.
 ///
 /// Higher levels provide stronger protection but may impact performance.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum SecurityLevel {
     /// NIST Level 1 (128-bit equivalent). Hybrid mode.
@@ -277,7 +280,8 @@ pub enum PerformancePreference {
 ///
 /// The library selects optimal algorithms based on the use case requirements:
 /// security level, performance characteristics, and compliance needs.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum UseCase {
     // ========================================================================
     // Communication

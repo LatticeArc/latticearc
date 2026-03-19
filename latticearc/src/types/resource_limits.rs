@@ -45,66 +45,6 @@ impl ResourceLimits {
             max_decryption_size_bytes: max_decryption_size,
         }
     }
-
-    /// Validates that the key derivation count does not exceed the limit.
-    ///
-    /// # Errors
-    /// Returns an error if the count exceeds the maximum allowed key derivations per call.
-    pub fn validate_key_derivation_count(count: usize) -> Result<()> {
-        let limits = ResourceLimits::default();
-        if count > limits.max_key_derivations_per_call {
-            return Err(ResourceError::KeyDerivationLimitExceeded {
-                requested: count,
-                limit: limits.max_key_derivations_per_call,
-            });
-        }
-        Ok(())
-    }
-
-    /// Validates that the encryption size does not exceed the limit.
-    ///
-    /// # Errors
-    /// Returns an error if the size exceeds the maximum allowed encryption size in bytes.
-    pub fn validate_encryption_size(size: usize) -> Result<()> {
-        let limits = ResourceLimits::default();
-        if size > limits.max_encryption_size_bytes {
-            return Err(ResourceError::EncryptionSizeLimitExceeded {
-                requested: size,
-                limit: limits.max_encryption_size_bytes,
-            });
-        }
-        Ok(())
-    }
-
-    /// Validates that the signature size does not exceed the limit.
-    ///
-    /// # Errors
-    /// Returns an error if the size exceeds the maximum allowed signature size in bytes.
-    pub fn validate_signature_size(size: usize) -> Result<()> {
-        let limits = ResourceLimits::default();
-        if size > limits.max_signature_size_bytes {
-            return Err(ResourceError::SignatureSizeLimitExceeded {
-                requested: size,
-                limit: limits.max_signature_size_bytes,
-            });
-        }
-        Ok(())
-    }
-
-    /// Validates that the decryption size does not exceed the limit.
-    ///
-    /// # Errors
-    /// Returns an error if the size exceeds the maximum allowed decryption size in bytes.
-    pub fn validate_decryption_size(size: usize) -> Result<()> {
-        let limits = ResourceLimits::default();
-        if size > limits.max_decryption_size_bytes {
-            return Err(ResourceError::DecryptionSizeLimitExceeded {
-                requested: size,
-                limit: limits.max_decryption_size_bytes,
-            });
-        }
-        Ok(())
-    }
 }
 
 /// Thread-safe manager for runtime-configurable resource limits.
@@ -319,30 +259,6 @@ mod tests {
         assert_eq!(limits.max_encryption_size_bytes, 50 * 1024 * 1024);
         assert_eq!(limits.max_signature_size_bytes, 32 * 1024);
         assert_eq!(limits.max_decryption_size_bytes, 50 * 1024 * 1024);
-    }
-
-    #[test]
-    fn test_validate_within_limits() {
-        assert!(ResourceLimits::validate_key_derivation_count(100).is_ok());
-        assert!(ResourceLimits::validate_encryption_size(1024).is_ok());
-        assert!(ResourceLimits::validate_signature_size(1024).is_ok());
-        assert!(ResourceLimits::validate_decryption_size(1024).is_ok());
-    }
-
-    #[test]
-    fn test_validate_exceeds_limits() {
-        assert!(ResourceLimits::validate_key_derivation_count(1001).is_err());
-        assert!(ResourceLimits::validate_encryption_size(100 * 1024 * 1024 + 1).is_err());
-        assert!(ResourceLimits::validate_signature_size(64 * 1024 + 1).is_err());
-        assert!(ResourceLimits::validate_decryption_size(100 * 1024 * 1024 + 1).is_err());
-    }
-
-    #[test]
-    fn test_validate_zero_values() {
-        assert!(ResourceLimits::validate_key_derivation_count(0).is_ok());
-        assert!(ResourceLimits::validate_encryption_size(0).is_ok());
-        assert!(ResourceLimits::validate_signature_size(0).is_ok());
-        assert!(ResourceLimits::validate_decryption_size(0).is_ok());
     }
 
     #[test]

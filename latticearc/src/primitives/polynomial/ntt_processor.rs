@@ -286,43 +286,6 @@ impl NttProcessor {
         }
         Ok(())
     }
-
-    /// Scalar NTT implementation using precomputed twiddle factors
-    ///
-    /// This is a low-level method for custom NTT implementations.
-    /// For standard use, prefer `forward()` and `inverse()`.
-    #[inline]
-    pub fn ntt_scalar(
-        &self,
-        data: &mut [i32],
-        twiddles: &[i32],
-        size: usize,
-        half_size: usize,
-        step: usize,
-    ) {
-        for i in (0..data.len()).step_by(size) {
-            let mut k = 0;
-            let (first_half, second_half) = data.split_at_mut(i + size);
-            let (first_part, _) = first_half.split_at_mut(i);
-            let u_slice = &mut first_part[i..i + half_size];
-            let v_slice = &mut second_half[..half_size];
-
-            for j in 0..half_size {
-                if let (Some(&u), Some(&v_data)) = (u_slice.get(j), v_slice.get(j))
-                    && let Some(twiddle) = twiddles.get(k)
-                {
-                    let v = self.mod_mul(v_data, *twiddle);
-                    if let Some(u_out) = u_slice.get_mut(j) {
-                        *u_out = self.mod_add(u, v);
-                    }
-                    if let Some(v_out) = v_slice.get_mut(j) {
-                        *v_out = self.mod_sub(u, v);
-                    }
-                }
-                k += step;
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -503,11 +466,6 @@ mod tests {
         assert_eq!(ntt.forward_twiddles().len(), 256);
         assert_eq!(ntt.inverse_twiddles().len(), 256);
     }
-
-    // NOTE: ntt_scalar has a slice indexing bug when i=0 (first_part is empty
-    // but code indexes first_part[i..i+half_size]). This is an existing code issue
-    // in a low-level helper. The public API (forward/inverse/multiply) works correctly
-    // without using ntt_scalar.
 
     // === Forward NTT preserves zero polynomial ===
 

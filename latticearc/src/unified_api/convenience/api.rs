@@ -58,6 +58,60 @@ use crate::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Ciph
 
 use crate::hybrid::encrypt_hybrid::{HybridCiphertext, decrypt_hybrid, encrypt_hybrid};
 
+/// Generate a hybrid ML-DSA + Ed25519 keypair for the given parameter set.
+fn generate_hybrid_signing_keypair_for(
+    params: MlDsaParameterSet,
+) -> Result<(Vec<u8>, crate::types::PrivateKey)> {
+    let (pq_pk, pq_sk) = generate_ml_dsa_keypair(params)?;
+    let (ed_pk, ed_sk) = generate_keypair()?;
+    let combined_pk = [pq_pk, ed_pk].concat();
+    let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+    Ok((combined_pk, crate::types::PrivateKey::new(combined_sk)))
+}
+
+/// Sign a message with a hybrid ML-DSA + Ed25519 key.
+fn sign_hybrid_ml_dsa_ed25519(
+    message: &[u8],
+    secret_key: &[u8],
+    public_key: &[u8],
+    params: MlDsaParameterSet,
+) -> Result<(Vec<u8>, Vec<u8>)> {
+    let pq_sk_len = params.secret_key_size();
+    let pq_pk_len = params.public_key_size();
+    const ED25519_SK_LEN: usize = 32;
+
+    let expected_sk_len = pq_sk_len
+        .checked_add(ED25519_SK_LEN)
+        .ok_or_else(|| CoreError::InvalidKey("Secret key length overflow".to_string()))?;
+    if secret_key.len() != expected_sk_len {
+        return Err(CoreError::InvalidKey(format!(
+            "Hybrid secret key length mismatch: expected {expected_sk_len}, got {}",
+            secret_key.len()
+        )));
+    }
+    let expected_pk_len = pq_pk_len
+        .checked_add(32)
+        .ok_or_else(|| CoreError::InvalidKey("Public key length overflow".to_string()))?;
+    if public_key.len() != expected_pk_len {
+        return Err(CoreError::InvalidKey(format!(
+            "Hybrid public key length mismatch: expected {expected_pk_len}, got {}",
+            public_key.len()
+        )));
+    }
+
+    let pq_sk = secret_key
+        .get(..pq_sk_len)
+        .ok_or_else(|| CoreError::InvalidKey("Failed to split hybrid secret key".to_string()))?;
+    let ed_sk = secret_key
+        .get(pq_sk_len..)
+        .ok_or_else(|| CoreError::InvalidKey("Failed to split hybrid secret key".to_string()))?;
+
+    let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, params)?;
+    let ed_sig = sign_ed25519_internal(message, ed_sk)?;
+    let combined_sig = [pq_sig, ed_sig].concat();
+    Ok((public_key.to_vec(), combined_sig))
+}
+
 /// Check FIPS module is operational before any crypto operation.
 /// On first call, runs power-up self-tests (lazy initialization).
 /// No-op when `fips-self-test` feature is not enabled.
@@ -100,7 +154,7 @@ fn select_encryption_scheme_typed(options: &CryptoConfig) -> Result<EncryptionSc
             Ok(CryptoPolicyEngine::recommend_encryption_scheme(use_case, &config)?)
         }
         AlgorithmSelection::SecurityLevel(level) => {
-            let config = CoreConfig::default().with_security_level(level.clone());
+            let config = CoreConfig::default().with_security_level(*level);
             Ok(CryptoPolicyEngine::select_encryption_scheme_typed(&config))
         }
         AlgorithmSelection::ForcedScheme(scheme) => {
@@ -123,7 +177,7 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
             Ok(CryptoPolicyEngine::recommend_scheme(use_case, &CoreConfig::default())?)
         }
         AlgorithmSelection::SecurityLevel(level) => {
-            let config = CoreConfig::default().with_security_level(level.clone());
+            let config = CoreConfig::default().with_security_level(*level);
             Ok(CryptoPolicyEngine::select_signature_scheme(&config)?)
         }
         AlgorithmSelection::ForcedScheme(scheme) => Ok(CryptoPolicyEngine::force_scheme(scheme)),
@@ -493,25 +547,13 @@ pub fn generate_signing_keypair(
             (pk, sk)
         }
         "hybrid-ml-dsa-44-ed25519" => {
-            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
-            let (ed_pk, ed_sk) = generate_keypair()?;
-            let combined_pk = [pq_pk, ed_pk].concat();
-            let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
-            (combined_pk, crate::types::PrivateKey::new(combined_sk))
+            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MLDSA44)?
         }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
-            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
-            let (ed_pk, ed_sk) = generate_keypair()?;
-            let combined_pk = [pq_pk, ed_pk].concat();
-            let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
-            (combined_pk, crate::types::PrivateKey::new(combined_sk))
+            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MLDSA65)?
         }
         "hybrid-ml-dsa-87-ed25519" => {
-            let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
-            let (ed_pk, ed_sk) = generate_keypair()?;
-            let combined_pk = [pq_pk, ed_pk].concat();
-            let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
-            (combined_pk, crate::types::PrivateKey::new(combined_sk))
+            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MLDSA87)?
         }
         _ => {
             return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
@@ -592,100 +634,13 @@ pub fn sign_with_key(
             (public_key.to_vec(), sig)
         }
         "hybrid-ml-dsa-44-ed25519" => {
-            let pq_sk_len = MlDsaParameterSet::MLDSA44.secret_key_size();
-            let pq_pk_len = MlDsaParameterSet::MLDSA44.public_key_size();
-            const ED25519_SK_LEN: usize = 32;
-
-            if secret_key.len() != pq_sk_len + ED25519_SK_LEN {
-                return Err(CoreError::InvalidKey(format!(
-                    "Hybrid secret key length mismatch: expected {}, got {}",
-                    pq_sk_len + ED25519_SK_LEN,
-                    secret_key.len()
-                )));
-            }
-            if public_key.len() != pq_pk_len + 32 {
-                return Err(CoreError::InvalidKey(format!(
-                    "Hybrid public key length mismatch: expected {}, got {}",
-                    pq_pk_len + 32,
-                    public_key.len()
-                )));
-            }
-
-            let pq_sk = secret_key.get(..pq_sk_len).ok_or_else(|| {
-                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
-            })?;
-            let ed_sk = secret_key.get(pq_sk_len..).ok_or_else(|| {
-                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
-            })?;
-
-            let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, MlDsaParameterSet::MLDSA44)?;
-            let ed_sig = sign_ed25519_internal(message, ed_sk)?;
-            let combined_sig = [pq_sig, ed_sig].concat();
-            (public_key.to_vec(), combined_sig)
+            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MLDSA44)?
         }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
-            let pq_sk_len = MlDsaParameterSet::MLDSA65.secret_key_size();
-            let pq_pk_len = MlDsaParameterSet::MLDSA65.public_key_size();
-            const ED25519_SK_LEN: usize = 32;
-
-            if secret_key.len() != pq_sk_len + ED25519_SK_LEN {
-                return Err(CoreError::InvalidKey(format!(
-                    "Hybrid secret key length mismatch: expected {}, got {}",
-                    pq_sk_len + ED25519_SK_LEN,
-                    secret_key.len()
-                )));
-            }
-            if public_key.len() != pq_pk_len + 32 {
-                return Err(CoreError::InvalidKey(format!(
-                    "Hybrid public key length mismatch: expected {}, got {}",
-                    pq_pk_len + 32,
-                    public_key.len()
-                )));
-            }
-
-            let pq_sk = secret_key.get(..pq_sk_len).ok_or_else(|| {
-                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
-            })?;
-            let ed_sk = secret_key.get(pq_sk_len..).ok_or_else(|| {
-                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
-            })?;
-
-            let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, MlDsaParameterSet::MLDSA65)?;
-            let ed_sig = sign_ed25519_internal(message, ed_sk)?;
-            let combined_sig = [pq_sig, ed_sig].concat();
-            (public_key.to_vec(), combined_sig)
+            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MLDSA65)?
         }
         "hybrid-ml-dsa-87-ed25519" => {
-            let pq_sk_len = MlDsaParameterSet::MLDSA87.secret_key_size();
-            let pq_pk_len = MlDsaParameterSet::MLDSA87.public_key_size();
-            const ED25519_SK_LEN: usize = 32;
-
-            if secret_key.len() != pq_sk_len + ED25519_SK_LEN {
-                return Err(CoreError::InvalidKey(format!(
-                    "Hybrid secret key length mismatch: expected {}, got {}",
-                    pq_sk_len + ED25519_SK_LEN,
-                    secret_key.len()
-                )));
-            }
-            if public_key.len() != pq_pk_len + 32 {
-                return Err(CoreError::InvalidKey(format!(
-                    "Hybrid public key length mismatch: expected {}, got {}",
-                    pq_pk_len + 32,
-                    public_key.len()
-                )));
-            }
-
-            let pq_sk = secret_key.get(..pq_sk_len).ok_or_else(|| {
-                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
-            })?;
-            let ed_sk = secret_key.get(pq_sk_len..).ok_or_else(|| {
-                CoreError::InvalidKey("Failed to split hybrid secret key".to_string())
-            })?;
-
-            let pq_sig = sign_pq_ml_dsa_unverified(message, pq_sk, MlDsaParameterSet::MLDSA87)?;
-            let ed_sig = sign_ed25519_internal(message, ed_sk)?;
-            let combined_sig = [pq_sig, ed_sig].concat();
-            (public_key.to_vec(), combined_sig)
+            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MLDSA87)?
         }
         _ => {
             return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
@@ -2078,6 +2033,131 @@ mod tests {
                 let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
                 let valid = verify(&signed, config).unwrap();
                 assert!(valid);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // === Expired session API tests (T-008) ===
+
+    #[test]
+    fn test_encrypt_with_expired_session_returns_session_expired() {
+        std::thread::Builder::new()
+            .name("enc_expired".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let (auth_pk, auth_sk) =
+                    crate::unified_api::convenience::keygen::generate_keypair().unwrap();
+                let session =
+                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                let expired = session.expired_clone();
+
+                let key = vec![0x42u8; 32];
+                let config =
+                    CryptoConfig::new().session(&expired).force_scheme(CryptoScheme::Symmetric);
+                let result = encrypt(b"test", EncryptKey::Symmetric(&key), config);
+
+                assert!(result.is_err(), "Encrypt with expired session should fail");
+                match result.unwrap_err() {
+                    CoreError::SessionExpired => {}
+                    other => panic!("Expected SessionExpired, got: {other:?}"),
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_decrypt_with_expired_session_returns_session_expired() {
+        std::thread::Builder::new()
+            .name("dec_expired".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let key = vec![0x42u8; 32];
+
+                // First encrypt with no session
+                let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
+                let encrypted = encrypt(b"test data", EncryptKey::Symmetric(&key), config).unwrap();
+
+                // Now try to decrypt with an expired session
+                let (auth_pk, auth_sk) =
+                    crate::unified_api::convenience::keygen::generate_keypair().unwrap();
+                let session =
+                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                let expired = session.expired_clone();
+
+                let config = CryptoConfig::new().session(&expired);
+                let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), config);
+
+                assert!(result.is_err(), "Decrypt with expired session should fail");
+                match result.unwrap_err() {
+                    CoreError::SessionExpired => {}
+                    other => panic!("Expected SessionExpired, got: {other:?}"),
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_sign_with_expired_session_returns_session_expired() {
+        std::thread::Builder::new()
+            .name("sign_expired".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let (auth_pk, auth_sk) =
+                    crate::unified_api::convenience::keygen::generate_keypair().unwrap();
+                let session =
+                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+
+                // Generate a valid keypair first
+                let (pk, sk, _scheme) = generate_signing_keypair(CryptoConfig::new()).unwrap();
+
+                let expired = session.expired_clone();
+                let config = CryptoConfig::new().session(&expired);
+                let result = sign_with_key(b"test message", &sk, &pk, config);
+
+                assert!(result.is_err(), "Sign with expired session should fail");
+                match result.unwrap_err() {
+                    CoreError::SessionExpired => {}
+                    other => panic!("Expected SessionExpired, got: {other:?}"),
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_verify_with_expired_session_returns_session_expired() {
+        std::thread::Builder::new()
+            .name("verify_expired".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                // Sign with no session first
+                let message = b"test message";
+                let config = CryptoConfig::new();
+                let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
+                let signed = sign_with_key(message, &sk, &pk, config).unwrap();
+
+                // Now try to verify with an expired session
+                let (auth_pk, auth_sk) =
+                    crate::unified_api::convenience::keygen::generate_keypair().unwrap();
+                let session =
+                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                let expired = session.expired_clone();
+
+                let config = CryptoConfig::new().session(&expired);
+                let result = verify(&signed, config);
+
+                assert!(result.is_err(), "Verify with expired session should fail");
+                match result.unwrap_err() {
+                    CoreError::SessionExpired => {}
+                    other => panic!("Expected SessionExpired, got: {other:?}"),
+                }
             })
             .unwrap()
             .join()

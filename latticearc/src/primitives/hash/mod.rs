@@ -5,10 +5,12 @@
 
 //! Hash Functions
 //!
-//! Cryptographic hash functions (SHA2, SHA3).
+//! Cryptographic hash functions (SHA2, SHA3, BLAKE2b).
 
+pub mod blake2;
 pub mod sha2;
 pub mod sha3;
 
+pub use blake2::*;
 pub use sha2::*;
 pub use sha3::*;

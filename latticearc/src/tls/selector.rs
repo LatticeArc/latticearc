@@ -530,7 +530,7 @@ impl TlsPolicyEngine {
         let base_mode = if let Some(use_case) = ctx.use_case {
             Self::recommend_mode(use_case)
         } else {
-            Self::select_balanced(ctx.security_level.clone(), ctx.performance_preference.clone())
+            Self::select_balanced(ctx.security_level, ctx.performance_preference.clone())
         };
 
         // Apply security level override for Quantum (PQ-only)

@@ -62,7 +62,7 @@ fn main() {
 
     let mut passed = 0u32;
     for (name, uc) in use_cases {
-        let config = CryptoConfig::new().use_case(uc.clone());
+        let config = CryptoConfig::new().use_case(*uc);
         let enc = encrypt(
             plaintext,
             EncryptKey::Symmetric(&key),
@@ -95,7 +95,7 @@ fn main() {
     ];
 
     for (name, level) in levels {
-        let config = CryptoConfig::new().security_level(level.clone());
+        let config = CryptoConfig::new().security_level(*level);
         let enc = encrypt(
             plaintext,
             EncryptKey::Symmetric(&key),
@@ -143,7 +143,7 @@ fn main() {
     ];
 
     for (name, uc, level) in spot_checks {
-        let config = CryptoConfig::new().use_case(uc.clone()).security_level(level.clone());
+        let config = CryptoConfig::new().use_case(*uc).security_level(*level);
         let enc = encrypt(
             plaintext,
             EncryptKey::Symmetric(&key),
