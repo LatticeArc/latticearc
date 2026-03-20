@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["error_recovery","types"]};
+window.SIDEBAR_ITEMS = {"mod":["types"]};
