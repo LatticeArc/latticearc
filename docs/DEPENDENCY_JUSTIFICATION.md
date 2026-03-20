@@ -350,22 +350,22 @@ flowchart TB
 
 ---
 
-## Workspace Structure (v0.4.0)
+## Workspace Structure (v0.4.1)
 
 The workspace contains 3 crates (consolidated from 11 in v0.1.0):
 
-#### latticearc (v0.4.0) — Single publishable crate
+#### latticearc (v0.4.1) — Single publishable crate
 - **Purpose**: All cryptographic functionality in one crate
 - **Modules**: `types`, `prelude`, `primitives`, `hybrid`, `unified_api`, `tls`, `zkp`, `perf`
 - **License**: Apache-2.0
 - **Published to**: crates.io as `latticearc`
 
-#### latticearc-cli (v0.4.0) — CLI binary (publish = false)
+#### latticearc-cli (v0.4.1) — CLI binary (publish = false)
 - **Purpose**: Command-line tool for key generation, signing, encryption, hashing
 - **License**: Apache-2.0
 - **Usage**: End-user binary, CI/CD pipelines
 
-#### latticearc-tests (v0.4.0) — Test-only crate (publish = false)
+#### latticearc-tests (v0.4.1) — Test-only crate (publish = false)
 - **Purpose**: CAVP validation, NIST KAT vectors, integration tests, FIPS compliance
 - **License**: Apache-2.0
 - **Usage**: CI/CD, development only

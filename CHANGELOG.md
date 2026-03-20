@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] - 2026-03-19
+
+### Changed
+
+- **CLI binary renamed** from `latticearc` to `latticearc-cli` (reserves `latticearc` for enterprise CLI)
+- **13 security audit findings fixed**: Ed25519 `verify_strict`, HKDF PRK zeroization,
+  AES-GCM decrypt key zeroization, TOCTOU-safe file I/O, PortableKey validation
+- **Documentation accuracy**: ML-DSA-87 SK size, hybrid sig SK sizes, SLH-DSA identifier,
+  HKDF diagram, FIPS 206 "(draft)" removed, all JSON examples validated
+- **Dependencies upgraded**: aws-lc-rs 1.16.2, clap 4.6, anyhow 1.0.102,
+  tracing-subscriber 0.3.23, rayon 1.11, parking_lot 0.12.5, rustls-pki-types 1.14
+
+---
+
 ## [0.4.0] - 2026-03-19
 
 ### Added
