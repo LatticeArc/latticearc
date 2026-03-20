@@ -183,6 +183,40 @@ impl KeyAlgorithm {
     pub fn is_symmetric(&self) -> bool {
         matches!(self, Self::Aes256 | Self::ChaCha20)
     }
+
+    /// Returns `true` if this algorithm is a KEM type (hybrid, PQ-only, or classical).
+    #[must_use]
+    pub fn is_kem(&self) -> bool {
+        matches!(
+            self,
+            Self::X25519
+                | Self::MlKem512
+                | Self::MlKem768
+                | Self::MlKem1024
+                | Self::HybridMlKem512X25519
+                | Self::HybridMlKem768X25519
+                | Self::HybridMlKem1024X25519
+        )
+    }
+
+    /// Returns `true` if this algorithm is a signature type.
+    #[must_use]
+    pub fn is_signature(&self) -> bool {
+        matches!(
+            self,
+            Self::Ed25519
+                | Self::MlDsa44
+                | Self::MlDsa65
+                | Self::MlDsa87
+                | Self::SlhDsaShake128s
+                | Self::SlhDsaShake256f
+                | Self::FnDsa512
+                | Self::FnDsa1024
+                | Self::HybridMlDsa44Ed25519
+                | Self::HybridMlDsa65Ed25519
+                | Self::HybridMlDsa87Ed25519
+        )
+    }
 }
 
 // ============================================================================
@@ -992,6 +1026,246 @@ impl PortableKey {
         };
 
         (pub_key, sec_key)
+    }
+
+    // --- Bridge: Ed25519 keypair ---
+
+    /// Wrap an Ed25519 keypair into a pair of `PortableKey`s (public + secret).
+    ///
+    /// Convenience wrapper around [`from_keypair`](Self::from_keypair) that
+    /// sets the algorithm to `Ed25519`.
+    #[must_use]
+    pub fn from_ed25519_keypair(
+        use_case: crate::types::types::UseCase,
+        verifying_key: &[u8],
+        signing_key: &[u8],
+    ) -> (Self, Self) {
+        Self::from_keypair(use_case, KeyAlgorithm::Ed25519, verifying_key, signing_key)
+    }
+
+    /// Extract Ed25519 verifying key bytes (32 bytes).
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not Ed25519 or key type is not Public.
+    pub fn to_ed25519_verifying_key_bytes(&self) -> Result<Vec<u8>> {
+        if self.algorithm != KeyAlgorithm::Ed25519 {
+            return Err(CoreError::InvalidKey(format!("Not an Ed25519 key: {:?}", self.algorithm)));
+        }
+        if self.key_type != KeyType::Public {
+            return Err(CoreError::InvalidKey(
+                "Ed25519 verifying key requires Public key type".to_string(),
+            ));
+        }
+        self.key_data.decode_raw()
+    }
+
+    /// Extract Ed25519 signing key bytes (zeroized on drop).
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not Ed25519 or key type is not Secret.
+    pub fn to_ed25519_signing_key_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+        if self.algorithm != KeyAlgorithm::Ed25519 {
+            return Err(CoreError::InvalidKey(format!("Not an Ed25519 key: {:?}", self.algorithm)));
+        }
+        if self.key_type != KeyType::Secret {
+            return Err(CoreError::InvalidKey(
+                "Ed25519 signing key requires Secret key type".to_string(),
+            ));
+        }
+        self.key_data.decode_raw_zeroized()
+    }
+
+    // --- Bridge: X25519 keypair ---
+
+    /// Wrap an X25519 keypair into a pair of `PortableKey`s (public + secret).
+    ///
+    /// The secret key is stored as the 32-byte seed
+    /// (from [`X25519StaticKeyPair::seed_bytes()`](crate::primitives::kem::ecdh::X25519StaticKeyPair::seed_bytes)).
+    #[must_use]
+    pub fn from_x25519_keypair(
+        use_case: crate::types::types::UseCase,
+        public_key: &[u8; 32],
+        seed: &[u8; 32],
+    ) -> (Self, Self) {
+        Self::from_keypair(use_case, KeyAlgorithm::X25519, public_key, seed)
+    }
+
+    /// Extract X25519 public key bytes (32 bytes).
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not X25519 or key type is not Public.
+    pub fn to_x25519_public_key_bytes(&self) -> Result<Vec<u8>> {
+        if self.algorithm != KeyAlgorithm::X25519 {
+            return Err(CoreError::InvalidKey(format!("Not an X25519 key: {:?}", self.algorithm)));
+        }
+        if self.key_type != KeyType::Public {
+            return Err(CoreError::InvalidKey(
+                "X25519 public key requires Public key type".to_string(),
+            ));
+        }
+        self.key_data.decode_raw()
+    }
+
+    /// Extract X25519 secret key seed bytes (32 bytes, zeroized on drop).
+    ///
+    /// Use with [`X25519StaticKeyPair::from_seed_bytes()`](crate::primitives::kem::ecdh::X25519StaticKeyPair::from_seed_bytes)
+    /// to reconstruct the key pair for agreement operations.
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not X25519 or key type is not Secret.
+    pub fn to_x25519_secret_key_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+        if self.algorithm != KeyAlgorithm::X25519 {
+            return Err(CoreError::InvalidKey(format!("Not an X25519 key: {:?}", self.algorithm)));
+        }
+        if self.key_type != KeyType::Secret {
+            return Err(CoreError::InvalidKey(
+                "X25519 secret key requires Secret key type".to_string(),
+            ));
+        }
+        self.key_data.decode_raw_zeroized()
+    }
+
+    // --- Bridge: ML-KEM keypair ---
+
+    /// Wrap an ML-KEM keypair into a pair of `PortableKey`s (public + secret).
+    ///
+    /// Algorithm is auto-detected from the public key's security level.
+    #[must_use]
+    pub fn from_ml_kem_keypair(
+        use_case: crate::types::types::UseCase,
+        pk: &crate::primitives::kem::ml_kem::MlKemPublicKey,
+        sk: &crate::primitives::kem::ml_kem::MlKemSecretKey,
+    ) -> (Self, Self) {
+        let algorithm = match pk.security_level {
+            crate::primitives::kem::MlKemSecurityLevel::MlKem512 => KeyAlgorithm::MlKem512,
+            crate::primitives::kem::MlKemSecurityLevel::MlKem768 => KeyAlgorithm::MlKem768,
+            crate::primitives::kem::MlKemSecurityLevel::MlKem1024 => KeyAlgorithm::MlKem1024,
+        };
+        Self::from_keypair(use_case, algorithm, pk.as_bytes(), sk.as_bytes())
+    }
+
+    /// Extract ML-KEM public (encapsulation) key.
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not a standalone ML-KEM variant,
+    /// key type is not Public, or the key data is malformed.
+    pub fn to_ml_kem_public_key(&self) -> Result<crate::primitives::kem::ml_kem::MlKemPublicKey> {
+        let level = match self.algorithm {
+            KeyAlgorithm::MlKem512 => crate::primitives::kem::MlKemSecurityLevel::MlKem512,
+            KeyAlgorithm::MlKem768 => crate::primitives::kem::MlKemSecurityLevel::MlKem768,
+            KeyAlgorithm::MlKem1024 => crate::primitives::kem::MlKemSecurityLevel::MlKem1024,
+            other => {
+                return Err(CoreError::InvalidKey(format!(
+                    "Not a standalone ML-KEM algorithm: {other:?}"
+                )));
+            }
+        };
+        if self.key_type != KeyType::Public {
+            return Err(CoreError::InvalidKey(
+                "ML-KEM public key requires Public key type".to_string(),
+            ));
+        }
+        let bytes = self.key_data.decode_raw()?;
+        crate::primitives::kem::ml_kem::MlKemPublicKey::new(level, bytes)
+            .map_err(|e| CoreError::InvalidKey(format!("ML-KEM public key: {e}")))
+    }
+
+    /// Extract ML-KEM secret (decapsulation) key.
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not a standalone ML-KEM variant,
+    /// key type is not Secret, or the key data is malformed.
+    pub fn to_ml_kem_secret_key(&self) -> Result<crate::primitives::kem::ml_kem::MlKemSecretKey> {
+        let level = match self.algorithm {
+            KeyAlgorithm::MlKem512 => crate::primitives::kem::MlKemSecurityLevel::MlKem512,
+            KeyAlgorithm::MlKem768 => crate::primitives::kem::MlKemSecurityLevel::MlKem768,
+            KeyAlgorithm::MlKem1024 => crate::primitives::kem::MlKemSecurityLevel::MlKem1024,
+            other => {
+                return Err(CoreError::InvalidKey(format!(
+                    "Not a standalone ML-KEM algorithm: {other:?}"
+                )));
+            }
+        };
+        if self.key_type != KeyType::Secret {
+            return Err(CoreError::InvalidKey(
+                "ML-KEM secret key requires Secret key type".to_string(),
+            ));
+        }
+        let bytes = self.key_data.decode_raw()?;
+        crate::primitives::kem::ml_kem::MlKemSecretKey::new(level, bytes)
+            .map_err(|e| CoreError::InvalidKey(format!("ML-KEM secret key: {e}")))
+    }
+
+    // --- Bridge: ML-DSA keypair ---
+
+    /// Extract ML-DSA verifying (public) key bytes.
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not a standalone ML-DSA variant
+    /// or key type is not Public.
+    pub fn to_ml_dsa_verifying_key_bytes(&self) -> Result<Vec<u8>> {
+        if !matches!(
+            self.algorithm,
+            KeyAlgorithm::MlDsa44 | KeyAlgorithm::MlDsa65 | KeyAlgorithm::MlDsa87
+        ) {
+            return Err(CoreError::InvalidKey(format!(
+                "Not a standalone ML-DSA algorithm: {:?}",
+                self.algorithm
+            )));
+        }
+        if self.key_type != KeyType::Public {
+            return Err(CoreError::InvalidKey(
+                "ML-DSA verifying key requires Public key type".to_string(),
+            ));
+        }
+        self.key_data.decode_raw()
+    }
+
+    /// Extract ML-DSA signing (secret) key bytes (zeroized on drop).
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not a standalone ML-DSA variant
+    /// or key type is not Secret.
+    pub fn to_ml_dsa_signing_key_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+        if !matches!(
+            self.algorithm,
+            KeyAlgorithm::MlDsa44 | KeyAlgorithm::MlDsa65 | KeyAlgorithm::MlDsa87
+        ) {
+            return Err(CoreError::InvalidKey(format!(
+                "Not a standalone ML-DSA algorithm: {:?}",
+                self.algorithm
+            )));
+        }
+        if self.key_type != KeyType::Secret {
+            return Err(CoreError::InvalidKey(
+                "ML-DSA signing key requires Secret key type".to_string(),
+            ));
+        }
+        self.key_data.decode_raw_zeroized()
+    }
+
+    // --- Bridge: Symmetric key ---
+
+    /// Create a `PortableKey` from raw symmetric key bytes.
+    ///
+    /// # Errors
+    /// Returns an error if the algorithm is not symmetric (AES-256 or ChaCha20).
+    pub fn from_symmetric_key(algorithm: KeyAlgorithm, key: &[u8]) -> Result<Self> {
+        if !algorithm.is_symmetric() {
+            return Err(CoreError::InvalidKey(format!(
+                "{algorithm:?} is not a symmetric algorithm"
+            )));
+        }
+        Ok(Self {
+            version: Self::CURRENT_VERSION,
+            use_case: None,
+            security_level: None,
+            algorithm,
+            key_type: KeyType::Symmetric,
+            key_data: KeyData::from_raw(key),
+            created: Utc::now(),
+            metadata: BTreeMap::new(),
+        })
     }
 
     // --- Validation ---
