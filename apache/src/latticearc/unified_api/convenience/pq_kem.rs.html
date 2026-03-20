@@ -32,7 +32,7 @@
 <a href=#32 id=32 data-nosnippet>32</a>///
 <a href=#33 id=33 data-nosnippet>33</a>/// This enables consistency validation between the explicit algorithm parameter
 <a href=#34 id=34 data-nosnippet>34</a>/// and the config's security level.
-<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">fn </span>expected_ml_kem_level(security_level: <span class="kw-2">&amp;</span>SecurityLevel) -&gt; MlKemSecurityLevel {
+<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">fn </span>expected_ml_kem_level(security_level: SecurityLevel) -&gt; MlKemSecurityLevel {
 <a href=#36 id=36 data-nosnippet>36</a>    <span class="kw">match </span>security_level {
 <a href=#37 id=37 data-nosnippet>37</a>        SecurityLevel::Standard =&gt; MlKemSecurityLevel::MlKem512,
 <a href=#38 id=38 data-nosnippet>38</a>        SecurityLevel::High =&gt; MlKemSecurityLevel::MlKem768,
@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>
 <a href=#43 id=43 data-nosnippet>43</a><span class="doccomment">/// Warn if the explicit ML-KEM security level differs from the CoreConfig's security_level.
 <a href=#44 id=44 data-nosnippet>44</a></span><span class="kw">fn </span>check_ml_kem_config_consistency(explicit: MlKemSecurityLevel, config: <span class="kw-2">&amp;</span>CoreConfig) {
-<a href=#45 id=45 data-nosnippet>45</a>    <span class="kw">let </span>expected = expected_ml_kem_level(<span class="kw-2">&amp;</span>config.security_level);
+<a href=#45 id=45 data-nosnippet>45</a>    <span class="kw">let </span>expected = expected_ml_kem_level(config.security_level);
 <a href=#46 id=46 data-nosnippet>46</a>    <span class="kw">if </span><span class="macro">expected !</span>= explicit {
 <a href=#47 id=47 data-nosnippet>47</a>        <span class="macro">warn!</span>(
 <a href=#48 id=48 data-nosnippet>48</a>            <span class="string">"Explicit MlKemSecurityLevel ({:?}) differs from CoreConfig security_level ({:?} \

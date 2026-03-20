@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ProofComplexity"],"struct":["CoreConfig","EncryptionConfig","HardwareConfig","SignatureConfig","UseCaseConfig","ZeroTrustConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["ProofComplexity"],"struct":["CoreConfig","HardwareConfig","UseCaseConfig","ZeroTrustConfig"],"type":["EncryptionConfig","SignatureConfig"]};

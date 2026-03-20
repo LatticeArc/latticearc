@@ -211,7 +211,7 @@
 <a href=#211 id=211 data-nosnippet>211</a>/// ```
 <a href=#212 id=212 data-nosnippet>212</a></span><span class="attr">#[derive(Zeroize, ZeroizeOnDrop)]
 <a href=#213 id=213 data-nosnippet>213</a></span><span class="kw">pub struct </span>HybridSecretKey {
-<a href=#214 id=214 data-nosnippet>214</a>    <span class="doccomment">/// ML-DSA-65 secret key bytes (4032 bytes), automatically zeroized on drop.
+<a href=#214 id=214 data-nosnippet>214</a>    <span class="doccomment">/// ML-DSA secret key bytes (size depends on parameter set), automatically zeroized on drop.
 <a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">pub </span>ml_dsa_sk: Zeroizing&lt;Vec&lt;u8&gt;&gt;,
 <a href=#216 id=216 data-nosnippet>216</a>    <span class="doccomment">/// Ed25519 secret key bytes (32 bytes), automatically zeroized on drop.
 <a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">pub </span>ed25519_sk: Zeroizing&lt;Vec&lt;u8&gt;&gt;,
@@ -246,7 +246,7 @@
 <a href=#246 id=246 data-nosnippet>246</a>/// [`Zeroize`]: zeroize::Zeroize
 <a href=#247 id=247 data-nosnippet>247</a></span><span class="attr">#[derive(Debug, Clone, Zeroize)]
 <a href=#248 id=248 data-nosnippet>248</a></span><span class="kw">pub struct </span>HybridSignature {
-<a href=#249 id=249 data-nosnippet>249</a>    <span class="doccomment">/// ML-DSA-65 signature bytes (3309 bytes for ML-DSA-65).
+<a href=#249 id=249 data-nosnippet>249</a>    <span class="doccomment">/// ML-DSA signature bytes (size depends on parameter set).
 <a href=#250 id=250 data-nosnippet>250</a>    </span><span class="kw">pub </span>ml_dsa_sig: Vec&lt;u8&gt;,
 <a href=#251 id=251 data-nosnippet>251</a>    <span class="doccomment">/// Ed25519 signature bytes (64 bytes).
 <a href=#252 id=252 data-nosnippet>252</a>    </span><span class="kw">pub </span>ed25519_sig: Vec&lt;u8&gt;,
