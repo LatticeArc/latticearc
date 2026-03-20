@@ -162,11 +162,7 @@ impl UtilityMemorySafetyTester {
     ///
     /// Returns an error if error serialization/deserialization fails.
     pub fn test_error_memory_safety(&self) -> Result<()> {
-        use crate::prelude::error::{
-            attempt_error_recovery, get_error_severity, is_recoverable_error,
-        };
-
-        // Test various error types
+        // Test various error types for serialization safety
         let errors = vec![
             LatticeArcError::InvalidInput("test".to_string()),
             LatticeArcError::NetworkError("connection failed".to_string()),
@@ -175,12 +171,7 @@ impl UtilityMemorySafetyTester {
         ];
 
         for error in errors {
-            // These should not panic or leak memory
-            let _recovery = attempt_error_recovery(&error);
-            let _severity = get_error_severity(&error);
-            let _recoverable = is_recoverable_error(&error);
-
-            // Test serialization
+            // Test serialization roundtrip — should not panic or leak memory
             let json = serde_json::to_string(&error)?;
             let deserialized: LatticeArcError = serde_json::from_str(&json)?;
             if error != deserialized {

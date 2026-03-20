@@ -114,6 +114,7 @@ impl CryptoPolicyEngine {
         match *scheme {
             crate::types::CryptoScheme::Hybrid => DEFAULT_ENCRYPTION_SCHEME.to_string(),
             crate::types::CryptoScheme::Symmetric => "aes-256-gcm".to_string(),
+            crate::types::CryptoScheme::SymmetricChaCha20 => "chacha20-poly1305".to_string(),
             crate::types::CryptoScheme::Asymmetric => "pq-ml-dsa-65".to_string(),
             crate::types::CryptoScheme::PostQuantum => DEFAULT_PQ_ENCRYPTION_SCHEME.to_string(),
         }

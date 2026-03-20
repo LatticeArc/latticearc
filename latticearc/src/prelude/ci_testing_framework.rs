@@ -233,8 +233,6 @@ impl PreludeCiTestSuite {
 
     /// Test error handling.
     fn test_error_handling() -> Result<(), LatticeArcError> {
-        use crate::prelude::error::{get_error_severity, is_recoverable_error};
-
         let test_errors = vec![
             LatticeArcError::InvalidInput("test".to_string()),
             LatticeArcError::NetworkError("connection failed".to_string()),
@@ -242,7 +240,7 @@ impl PreludeCiTestSuite {
         ];
 
         for error in test_errors {
-            // Test serialization
+            // Test serialization roundtrip
             let json = serde_json::to_string(&error)?;
             let deserialized: LatticeArcError = serde_json::from_str(&json)?;
             if error != deserialized {
@@ -250,10 +248,6 @@ impl PreludeCiTestSuite {
                     message: "Deserialized error should match original".to_string(),
                 });
             }
-
-            // Test severity and recovery
-            let _severity = get_error_severity(&error);
-            let _recoverable = is_recoverable_error(&error);
         }
 
         Ok(())

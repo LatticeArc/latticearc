@@ -152,7 +152,7 @@ fn encrypt_chacha20(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     let encrypted = latticearc::encrypt(
         plaintext,
         latticearc::EncryptKey::Symmetric(&key_bytes),
-        latticearc::CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric),
+        latticearc::CryptoConfig::new().force_scheme(latticearc::CryptoScheme::SymmetricChaCha20),
     )
     .map_err(|e| anyhow::anyhow!("ChaCha20-Poly1305 encryption failed: {e}"))?;
 

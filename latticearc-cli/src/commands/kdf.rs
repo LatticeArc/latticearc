@@ -107,6 +107,12 @@ fn derive_pbkdf2(args: &KdfArgs, salt: &[u8]) -> Result<Vec<u8>> {
         bail!("Output length must be > 0");
     }
 
-    latticearc::derive_key(password, salt, args.length, latticearc::SecurityMode::Unverified)
-        .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))
+    let params = latticearc::primitives::kdf::Pbkdf2Params::with_salt(salt)
+        .iterations(args.iterations)
+        .key_length(args.length);
+
+    let result = latticearc::primitives::kdf::pbkdf2(password, &params)
+        .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?;
+
+    Ok(result.key().to_vec())
 }

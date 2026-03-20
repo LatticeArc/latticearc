@@ -39,7 +39,6 @@ const SECURITY_LEVELS: &[(&str, SecurityLevel)] = &[
     ("quantum", SecurityLevel::Quantum),
 ];
 
-#[allow(dead_code)] // CLI-04: used when --compliance flag is wired to commands
 const COMPLIANCE_MODES: &[(&str, ComplianceMode)] = &[
     ("default", ComplianceMode::Default),
     ("fips", ComplianceMode::Fips140_3),
@@ -63,7 +62,6 @@ pub(crate) fn parse_security_level(s: &str) -> Result<SecurityLevel, String> {
 }
 
 /// Parse a compliance mode from a CLI string.
-#[allow(dead_code)] // CLI-04: used when --compliance flag is wired
 pub(crate) fn parse_compliance(s: &str) -> Result<ComplianceMode, String> {
     COMPLIANCE_MODES.iter().find(|(name, _)| *name == s).map(|(_, cm)| cm.clone()).ok_or_else(
         || {
@@ -71,22 +69,6 @@ pub(crate) fn parse_compliance(s: &str) -> Result<ComplianceMode, String> {
             format!("Unknown compliance mode '{s}'. Valid: {}", valid.join(", "))
         },
     )
-}
-
-/// Possible values strings for clap help text.
-#[allow(dead_code)] // Available for future help text enhancement
-pub(crate) fn use_case_possible_values() -> Vec<clap::builder::PossibleValue> {
-    USE_CASES.iter().map(|(name, _)| clap::builder::PossibleValue::new(*name)).collect()
-}
-
-#[allow(dead_code)]
-pub(crate) fn security_level_possible_values() -> Vec<clap::builder::PossibleValue> {
-    SECURITY_LEVELS.iter().map(|(name, _)| clap::builder::PossibleValue::new(*name)).collect()
-}
-
-#[allow(dead_code)]
-pub(crate) fn compliance_possible_values() -> Vec<clap::builder::PossibleValue> {
-    COMPLIANCE_MODES.iter().map(|(name, _)| clap::builder::PossibleValue::new(*name)).collect()
 }
 
 /// Build a `CryptoConfig` from optional CLI values.

@@ -73,37 +73,6 @@ proptest! {
     }
 }
 
-// Property: Error recovery strategies are appropriate
-#[cfg(test)]
-proptest! {
-    #[test]
-    fn prop_error_recovery_appropriate(error in arb_quantum_shield_error()) {
-        use crate::prelude::error::is_recoverable_error;
-
-        // For most custom errors, recovery should be possible
-        let recoverable = is_recoverable_error(&error);
-
-        // Recovery decision should be deterministic
-        let recoverable2 = is_recoverable_error(&error);
-        prop_assert_eq!(recoverable, recoverable2);
-    }
-}
-
-// Property: Error severity levels are consistent
-#[cfg(test)]
-proptest! {
-    #[test]
-    fn prop_error_severity_consistent(error in arb_quantum_shield_error()) {
-        use crate::prelude::error::get_error_severity;
-
-        let severity1 = get_error_severity(&error);
-        let severity2 = get_error_severity(&error);
-
-        // Severity should be deterministic
-        prop_assert_eq!(severity1, severity2);
-    }
-}
-
 /// Test that UUID generation produces valid UUIDs.
 #[cfg(test)]
 #[test]

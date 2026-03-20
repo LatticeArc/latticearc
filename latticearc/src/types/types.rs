@@ -384,8 +384,10 @@ pub enum UseCase {
 pub enum CryptoScheme {
     /// Hybrid PQC + classical for defense in depth.
     Hybrid,
-    /// Symmetric encryption (e.g., AES-GCM).
+    /// Symmetric AES-256-GCM encryption (FIPS validated).
     Symmetric,
+    /// Symmetric ChaCha20-Poly1305 encryption (non-FIPS, RFC 8439).
+    SymmetricChaCha20,
     /// Classical asymmetric (e.g., Ed25519).
     Asymmetric,
     /// Pure post-quantum without classical fallback.

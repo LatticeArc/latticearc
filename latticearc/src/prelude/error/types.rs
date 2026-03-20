@@ -12,8 +12,6 @@ use thiserror::Error;
 
 /// Error type conversion implementations.
 pub mod conversions;
-/// Error recovery strategies and utilities.
-pub mod recovery;
 
 /// Result type alias for `LatticeArc` operations
 pub type Result<T> = std::result::Result<T, LatticeArcError>;
@@ -229,12 +227,6 @@ pub enum LatticeArcError {
     #[error("ZKP error: {0}")]
     ZkpError(String),
 }
-
-// Re-export recovery types and functions
-pub use recovery::{
-    ErrorRecoveryStrategy, ErrorSeverity, attempt_error_recovery, get_error_severity,
-    is_recoverable_error, requires_security_response,
-};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]

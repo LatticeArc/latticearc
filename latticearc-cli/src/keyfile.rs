@@ -29,42 +29,6 @@ pub(crate) struct KeyFile {
 }
 
 impl KeyFile {
-    /// Create a new key file with the given parameters.
-    #[allow(dead_code)]
-    pub fn new(
-        algorithm: impl Into<String>,
-        key_type: LpkKeyType,
-        key_bytes: &[u8],
-        label: Option<String>,
-    ) -> Self {
-        let alg_str: String = algorithm.into();
-        let key_alg = parse_algorithm_name(&alg_str).unwrap_or(KeyAlgorithm::Ed25519);
-        let mut inner = PortableKey::new(key_alg, key_type, KeyData::from_raw(key_bytes));
-        if let Some(l) = label {
-            inner.set_label(l);
-        }
-        Self { inner, algorithm: alg_str, key_type }
-    }
-
-    /// Create a composite (hybrid) key file.
-    #[allow(dead_code)]
-    pub fn new_composite(
-        algorithm: impl Into<String>,
-        key_type: LpkKeyType,
-        pq_bytes: &[u8],
-        classical_bytes: &[u8],
-        label: Option<String>,
-    ) -> Self {
-        let alg_str: String = algorithm.into();
-        let key_alg = parse_algorithm_name(&alg_str).unwrap_or(KeyAlgorithm::Ed25519);
-        let mut inner =
-            PortableKey::new(key_alg, key_type, KeyData::from_composite(pq_bytes, classical_bytes));
-        if let Some(l) = label {
-            inner.set_label(l);
-        }
-        Self { inner, algorithm: alg_str, key_type }
-    }
-
     /// Decode the key bytes (single-component keys).
     pub fn key_bytes(&self) -> Result<zeroize::Zeroizing<Vec<u8>>> {
         // Try single first, fall back to composite (concatenated for backward compat)
@@ -83,14 +47,6 @@ impl KeyFile {
             combined.extend_from_slice(&cl);
             Ok(zeroize::Zeroizing::new(combined))
         }
-    }
-
-    /// Write this key file to disk as pretty-printed JSON.
-    #[allow(dead_code)]
-    pub fn write_to(&self, path: &std::path::Path) -> Result<()> {
-        self.inner
-            .write_to_file(path)
-            .with_context(|| format!("Failed to write {}", path.display()))
     }
 
     /// Read a key file from disk (supports both PortableKey and legacy formats).
@@ -147,28 +103,7 @@ impl std::fmt::Debug for KeyFile {
 // Hybrid key parsing (PortableKey bridge)
 // ============================================================================
 
-/// Parse a hybrid KEM public key from a `KeyFile`.
-#[allow(dead_code)]
-pub(crate) fn parse_hybrid_kem_pk(
-    key: &KeyFile,
-) -> Result<latticearc::hybrid::kem_hybrid::HybridPublicKey> {
-    key.portable_key()
-        .to_hybrid_public_key()
-        .map_err(|e| anyhow::anyhow!("Failed to parse hybrid KEM public key: {e}"))
-}
-
-/// Parse a hybrid signing public key from a `KeyFile`.
-#[allow(dead_code)]
-pub(crate) fn parse_hybrid_sign_pk(
-    key: &KeyFile,
-) -> Result<latticearc::hybrid::sig_hybrid::HybridPublicKey> {
-    key.portable_key()
-        .to_hybrid_sig_public_key()
-        .map_err(|e| anyhow::anyhow!("Failed to parse hybrid signing public key: {e}"))
-}
-
 /// Parse a hybrid signing secret key from a `KeyFile`.
-#[allow(dead_code)]
 pub(crate) fn parse_hybrid_sign_sk(
     key: &KeyFile,
 ) -> Result<latticearc::hybrid::sig_hybrid::HybridSecretKey> {
