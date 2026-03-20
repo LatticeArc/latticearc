@@ -41,7 +41,22 @@ if ! cargo clippy --workspace --all-targets --all-features -- -D warnings > /dev
     echo "   Run: cargo clippy --workspace --all-targets --all-features -- -D warnings"
     exit 1
 fi
-echo "Clippy passed"
+echo "✅ Clippy passed"
+
+# Block #[allow(dead_code)] in production code (non-test files)
+echo "Checking for dead code suppressions..."
+DEAD_CODE_HITS=$(grep -rn '#\[allow(dead_code)\]' latticearc/src/ latticearc-cli/src/ --include='*.rs' \
+    | grep -v '#\[cfg(test)\]' \
+    | grep -v '_tests\.rs' \
+    | grep -v '/tests/' \
+    | grep -v 'mod tests' || true)
+
+if [ -n "$DEAD_CODE_HITS" ]; then
+    echo "❌ #[allow(dead_code)] found in production code. Use it or delete it:"
+    echo "$DEAD_CODE_HITS"
+    exit 1
+fi
+echo "✅ No dead code suppressions in production"
 
 echo "Running tests (release mode)..."
 TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1)
