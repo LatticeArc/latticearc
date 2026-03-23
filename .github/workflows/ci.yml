@@ -112,7 +112,7 @@ jobs:
         echo "OpenTelemetry tracing enabled for CI quality checks"
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -186,7 +186,7 @@ jobs:
         targets: ${{ matrix.target }}
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -276,12 +276,12 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@de6bbd1333b8f331563d54a051e542c7dfef81c3 # main
+      uses: taiki-e/install-action@0d865d5cc6d507df4765f1f866bfae8bab4e2a73 # main
       with:
         tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -319,7 +319,7 @@ jobs:
         echo "test_coverage_percent $COVERAGE" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/test-coverage || true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+      uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
       with:
         files: lcov.info
         fail_ci_if_error: false
@@ -343,7 +343,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -381,7 +381,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -414,7 +414,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -467,7 +467,7 @@ jobs:
         go-version: 'stable'
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -511,7 +511,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -566,7 +566,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -607,7 +607,7 @@ jobs:
       run: cargo install cargo-fuzz
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -638,7 +638,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -691,7 +691,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -741,7 +741,7 @@ jobs:
         go-version: 'stable'
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -775,7 +775,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -870,12 +870,12 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@de6bbd1333b8f331563d54a051e542c7dfef81c3 # main
+      uses: taiki-e/install-action@0d865d5cc6d507df4765f1f866bfae8bab4e2a73 # main
       with:
         tool: cargo-hack
 
     - name: Cache Cargo registry
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
