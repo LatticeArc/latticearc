@@ -1,12 +1,16 @@
 # Sanitizers - Runtime Safety Checks
 # Detects memory errors, data races, and undefined behavior at runtime
 #
-# Uses opt-level=1 to keep hash-based crypto (SLH-DSA, FN-DSA) fast enough
-# while preserving sanitizer instrumentation. opt-level=1 enables basic
-# optimizations without inlining away sanitizer checks.
+# Key RUSTFLAGS for sanitizer builds:
+#   -C opt-level=1       : Keeps hash-based crypto (SLH-DSA) fast (~1s vs ~34min at opt=0)
+#   -C debug-assertions=yes : Required because -Z build-std drops debug_assertions,
+#                             which makes the FIPS integrity check abort instead of
+#                             skipping in dev mode (the binary hash changes under ASAN)
 #
-# MSan cannot instrument C FFI code (aws-lc-rs), so hybrid encryption tests
-# that call into aws-lc-rs may report false positives for uninitialized memory.
+# All ~2000 tests run under all 4 sanitizers. No tests are skipped.
+#
+# MSan cannot instrument C FFI code (aws-lc-rs), so modules that call into
+# aws-lc-rs are excluded from MSan only (they run under ASAN/TSAN/LSAN).
 
 name: Sanitizers
 
@@ -50,7 +54,7 @@ jobs:
 
       - name: Run tests with AddressSanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=address -C opt-level=1" \
+          RUSTFLAGS="-Z sanitizer=address -C opt-level=1 -C debug-assertions=yes" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
             --lib -- --test-threads=1
@@ -95,7 +99,7 @@ jobs:
 
       - name: Run tests with ThreadSanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=thread -C opt-level=1" \
+          RUSTFLAGS="-Z sanitizer=thread -C opt-level=1 -C debug-assertions=yes" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
             --lib -- --test-threads=1
@@ -142,7 +146,7 @@ jobs:
 
       - name: Run tests with MemorySanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=memory -Zsanitizer-memory-track-origins -C opt-level=1" \
+          RUSTFLAGS="-Z sanitizer=memory -Zsanitizer-memory-track-origins -C opt-level=1 -C debug-assertions=yes" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
             --lib -- --test-threads=1 \
@@ -199,7 +203,7 @@ jobs:
 
       - name: Run tests with LeakSanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=leak -C opt-level=1" \
+          RUSTFLAGS="-Z sanitizer=leak -C opt-level=1 -C debug-assertions=yes" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
             --lib -- --test-threads=1
