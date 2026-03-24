@@ -25,12 +25,18 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   # Skip slow tests under sanitizer instrumentation (debug mode, no optimization):
-  # - SLH-DSA/FN-DSA PCT: ~28 min each, FN-DSA stack-overflows in debug mode
-  # - self_test module: Many tests call initialize_and_test() which re-runs ALL KATs
-  #   including SLH-DSA/FN-DSA (~35 min per call under TSAN). The self-test harness
-  #   is thoroughly tested by the FIPS Validation workflow in release mode.
-  #   Individual crypto primitives are still tested by other modules.
+  # - SLH-DSA: Hash-based signatures, ~34 min PER TEST under TSAN. Pure Rust (fips205),
+  #   no FFI memory issues to catch. Thoroughly tested in release mode CI.
+  # - FN-DSA: Lattice signatures, stack-overflows in debug mode. Pure Rust (fn-dsa).
+  # - PCT: Pairwise consistency tests that run full keygen+sign+verify cycles.
+  # - self_test module: Tests call initialize_and_test() which re-runs ALL KATs
+  #   including SLH-DSA/FN-DSA. Tested by FIPS Validation workflow in release mode.
+  #
+  # Remaining ~1900 tests cover: AES-GCM, ChaCha20, ML-KEM, ML-DSA, SHA, HKDF,
+  # hybrid encryption, ZKP, TLS, unified API — all run under all 4 sanitizers.
   SANITIZER_SKIP_SLOW: >-
+    --skip slh_dsa::tests::
+    --skip fn_dsa::tests::
     --skip pct::tests::test_pct_slh_dsa
     --skip pct::tests::test_pct_fn_dsa
     --skip self_test::tests::
@@ -253,7 +259,7 @@ jobs:
           echo "| LeakSanitizer | Memory leaks | ${{ needs.lsan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Exclusions" >> $GITHUB_STEP_SUMMARY
-          echo "- **All sanitizers**: SLH-DSA/FN-DSA PCT + self-test power-up tests excluded (8-28 min each in debug mode)" >> $GITHUB_STEP_SUMMARY
+          echo "- **All sanitizers**: SLH-DSA + FN-DSA unit/PCT tests + self_test module excluded (pure Rust, 28-34 min each in debug mode, tested in release CI)" >> $GITHUB_STEP_SUMMARY
           echo "- **MSan only**: All aws-lc-rs consumers excluded (aead, kem, kdf, hybrid, tls, unified_api — C FFI not instrumentable)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "These tests are covered by the main CI pipeline in release mode." >> $GITHUB_STEP_SUMMARY
