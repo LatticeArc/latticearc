@@ -24,22 +24,16 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # SLH-DSA PCT tests take ~28 min each under sanitizers (debug mode).
-  # FN-DSA tests stack-overflow in debug mode. Skip both.
-  # Self-test power-up tests internally run SLH-DSA + FN-DSA KATs (~8-19 min each).
-  # Individual fast-algorithm KAT tests still run.
+  # Skip slow tests under sanitizer instrumentation (debug mode, no optimization):
+  # - SLH-DSA/FN-DSA PCT: ~28 min each, FN-DSA stack-overflows in debug mode
+  # - self_test module: Many tests call initialize_and_test() which re-runs ALL KATs
+  #   including SLH-DSA/FN-DSA (~35 min per call under TSAN). The self-test harness
+  #   is thoroughly tested by the FIPS Validation workflow in release mode.
+  #   Individual crypto primitives are still tested by other modules.
   SANITIZER_SKIP_SLOW: >-
     --skip pct::tests::test_pct_slh_dsa
     --skip pct::tests::test_pct_fn_dsa
-    --skip self_test::tests::test_power_up
-    --skip self_test::tests::test_run_power_up
-    --skip self_test::tests::test_initialize_and_test
-    --skip self_test::tests::test_initialize_and_verify
-    --skip self_test::tests::test_all_error_codes_block
-    --skip self_test::tests::test_slh_dsa_kat
-    --skip self_test::tests::test_fn_dsa_kat
-    --skip self_test::tests::test_self_test_report_all_fields
-    --skip self_test::tests::test_verify_operational_after_reset
+    --skip self_test::tests::
 
 jobs:
   # AddressSanitizer - Detects memory errors
@@ -72,7 +66,7 @@ jobs:
             --lib -- --test-threads=1 $SANITIZER_SKIP_SLOW
         env:
           ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1:check_initialization_order=1
-        timeout-minutes: 60
+        timeout-minutes: 90
 
       - name: ASan Summary
         if: always()
@@ -119,7 +113,7 @@ jobs:
             --lib -- --test-threads=1 $SANITIZER_SKIP_SLOW
         env:
           TSAN_OPTIONS: second_deadlock_stack=1:history_size=7
-        timeout-minutes: 60
+        timeout-minutes: 90
 
       - name: TSan Summary
         if: always()
@@ -183,7 +177,7 @@ jobs:
             --skip self_test::tests::test_kat_ml_kem
         env:
           MSAN_OPTIONS: poison_in_dtor=1
-        timeout-minutes: 60
+        timeout-minutes: 90
 
       - name: MSan Summary
         if: always()
@@ -227,7 +221,7 @@ jobs:
             --lib -- --test-threads=1 $SANITIZER_SKIP_SLOW
         env:
           LSAN_OPTIONS: report_objects=1
-        timeout-minutes: 60
+        timeout-minutes: 90
 
       - name: LSan Summary
         if: always()

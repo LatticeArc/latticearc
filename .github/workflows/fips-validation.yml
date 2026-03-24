@@ -74,6 +74,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-fips-selftest-
 
+      - name: Verify non-FIPS code compiles (catches chacha20poly1305 etc.)
+        run: cargo check -p latticearc --features fips-self-test --tests
+
       - name: Run FIPS power-up self-tests (release)
         run: cargo test -p latticearc --release --features fips-self-test self_test
 

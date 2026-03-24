@@ -882,7 +882,7 @@ fn test_rfc5869_hkdf_test_case_1() {
 
     // Test Extract
     let prk = hkdf_extract(Some(&salt), &ikm).expect("extract should succeed");
-    assert_eq!(prk, expected_prk, "RFC 5869: PRK should match test vector");
+    assert_eq!(*prk, expected_prk, "RFC 5869: PRK should match test vector");
 
     // Test full HKDF
     let okm = hkdf(&ikm, Some(&salt), Some(&info), 42).expect("hkdf should succeed");

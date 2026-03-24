@@ -392,6 +392,8 @@ impl XChaCha20Poly1305Cipher {
 #[allow(clippy::panic)] // Tests use panic! for error case validation
 mod tests {
     use super::*;
+    use crate::primitives::aead::{verify_tag_constant_time, zeroize_data};
+    use zeroize::Zeroize;
 
     #[test]
     fn test_chacha20_poly1305_key_generation() {

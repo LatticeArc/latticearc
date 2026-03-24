@@ -17,7 +17,9 @@
 #![allow(clippy::redundant_clone)]
 
 #[cfg(not(feature = "fips"))]
-use latticearc::zkp::{HashCommitment, PedersenCommitment, SchnorrProver, SchnorrVerifier};
+use latticearc::zkp::{
+    HashCommitment, PedersenCommitment, PedersenOpening, SchnorrProver, SchnorrVerifier,
+};
 
 #[cfg(feature = "fips")]
 fn main() {

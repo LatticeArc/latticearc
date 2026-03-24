@@ -228,7 +228,7 @@ fn test_aes_gcm_tag_verification_constant_time() {
 #[test]
 #[cfg(not(feature = "fips"))]
 fn test_chacha20poly1305_tag_verification_constant_time() {
-    use latticearc::primitives::aead::chacha20poly1305::verify_tag_constant_time as chacha_verify;
+    use latticearc::primitives::aead::verify_tag_constant_time as chacha_verify;
 
     let tag1 = [0x00u8; 16];
     let tag2 = [0x00u8; 16];
