@@ -1,9 +1,9 @@
 # Sanitizers - Runtime Safety Checks
 # Detects memory errors, data races, and undefined behavior at runtime
 #
-# Note: Sanitizers run in debug mode (no optimization), making hash-based
-# signature tests (SLH-DSA) extremely slow (~28 min per test vs ~1s in release).
-# These are excluded to stay within the 60-minute timeout.
+# Uses opt-level=1 to keep hash-based crypto (SLH-DSA, FN-DSA) fast enough
+# while preserving sanitizer instrumentation. opt-level=1 enables basic
+# optimizations without inlining away sanitizer checks.
 #
 # MSan cannot instrument C FFI code (aws-lc-rs), so hybrid encryption tests
 # that call into aws-lc-rs may report false positives for uninitialized memory.
@@ -24,22 +24,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Skip slow tests under sanitizer instrumentation (debug mode, no optimization):
-  # - SLH-DSA: Hash-based signatures, ~34 min PER TEST under TSAN. Pure Rust (fips205),
-  #   no FFI memory issues to catch. Thoroughly tested in release mode CI.
-  # - FN-DSA: Lattice signatures, stack-overflows in debug mode. Pure Rust (fn-dsa).
-  # - PCT: Pairwise consistency tests that run full keygen+sign+verify cycles.
-  # - self_test module: Tests call initialize_and_test() which re-runs ALL KATs
-  #   including SLH-DSA/FN-DSA. Tested by FIPS Validation workflow in release mode.
-  #
-  # Remaining ~1900 tests cover: AES-GCM, ChaCha20, ML-KEM, ML-DSA, SHA, HKDF,
-  # hybrid encryption, ZKP, TLS, unified API — all run under all 4 sanitizers.
-  SANITIZER_SKIP_SLOW: >-
-    --skip slh_dsa::tests::
-    --skip fn_dsa::tests::
-    --skip pct::tests::test_pct_slh_dsa
-    --skip pct::tests::test_pct_fn_dsa
-    --skip self_test::tests::
 
 jobs:
   # AddressSanitizer - Detects memory errors
@@ -66,10 +50,10 @@ jobs:
 
       - name: Run tests with AddressSanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=address" \
+          RUSTFLAGS="-Z sanitizer=address -C opt-level=1" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
-            --lib -- --test-threads=1 $SANITIZER_SKIP_SLOW
+            --lib -- --test-threads=1
         env:
           ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1:check_initialization_order=1
         timeout-minutes: 90
@@ -86,8 +70,6 @@ jobs:
           echo "- Global buffer overflow" >> $GITHUB_STEP_SUMMARY
           echo "- Use-after-return" >> $GITHUB_STEP_SUMMARY
           echo "- Memory leaks" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # ThreadSanitizer - Detects data races
   tsan:
@@ -113,10 +95,10 @@ jobs:
 
       - name: Run tests with ThreadSanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=thread" \
+          RUSTFLAGS="-Z sanitizer=thread -C opt-level=1" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
-            --lib -- --test-threads=1 $SANITIZER_SKIP_SLOW
+            --lib -- --test-threads=1
         env:
           TSAN_OPTIONS: second_deadlock_stack=1:history_size=7
         timeout-minutes: 90
@@ -130,8 +112,6 @@ jobs:
           echo "- Data races" >> $GITHUB_STEP_SUMMARY
           echo "- Deadlocks" >> $GITHUB_STEP_SUMMARY
           echo "- Thread leaks" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # MemorySanitizer - Detects uninitialized memory reads
   # Note: MSan cannot instrument C FFI code. aws-lc-rs (used for AES-GCM,
@@ -162,11 +142,10 @@ jobs:
 
       - name: Run tests with MemorySanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=memory -Zsanitizer-memory-track-origins" \
+          RUSTFLAGS="-Z sanitizer=memory -Zsanitizer-memory-track-origins -C opt-level=1" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
             --lib -- --test-threads=1 \
-            $SANITIZER_SKIP_SLOW \
             --skip primitives::aead::aes_gcm \
             --skip primitives::kem::ecdh \
             --skip primitives::kem::ml_kem \
@@ -194,8 +173,7 @@ jobs:
           echo "- Use of uninitialized memory" >> $GITHUB_STEP_SUMMARY
           echo "- Origin tracking for uninitialized values" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: All aws-lc-rs FFI consumers (aead, kem, kdf, hybrid, tls, unified_api) — not instrumentable by MSan" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
+          echo "Excluded: All aws-lc-rs FFI consumers (aead, kem, kdf, hybrid, tls, unified_api) — C FFI not instrumentable by MSan" >> $GITHUB_STEP_SUMMARY
 
   # LeakSanitizer - Detects memory leaks (standalone)
   lsan:
@@ -221,10 +199,10 @@ jobs:
 
       - name: Run tests with LeakSanitizer
         run: |
-          RUSTFLAGS="-Z sanitizer=leak" \
+          RUSTFLAGS="-Z sanitizer=leak -C opt-level=1" \
           cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
-            --lib -- --test-threads=1 $SANITIZER_SKIP_SLOW
+            --lib -- --test-threads=1
         env:
           LSAN_OPTIONS: report_objects=1
         timeout-minutes: 90
@@ -237,8 +215,6 @@ jobs:
           echo "LeakSanitizer detects:" >> $GITHUB_STEP_SUMMARY
           echo "- Memory leaks" >> $GITHUB_STEP_SUMMARY
           echo "- Leaked allocations with stack traces" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: SLH-DSA/FN-DSA PCT + self-test power-up tests (too slow in debug mode)" >> $GITHUB_STEP_SUMMARY
 
   # Summary job
   sanitizer-summary:
@@ -258,8 +234,8 @@ jobs:
           echo "| MemorySanitizer | Uninitialized reads | ${{ needs.msan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| LeakSanitizer | Memory leaks | ${{ needs.lsan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Exclusions" >> $GITHUB_STEP_SUMMARY
-          echo "- **All sanitizers**: SLH-DSA + FN-DSA unit/PCT tests + self_test module excluded (pure Rust, 28-34 min each in debug mode, tested in release CI)" >> $GITHUB_STEP_SUMMARY
-          echo "- **MSan only**: All aws-lc-rs consumers excluded (aead, kem, kdf, hybrid, tls, unified_api — C FFI not instrumentable)" >> $GITHUB_STEP_SUMMARY
+          echo "### Notes" >> $GITHUB_STEP_SUMMARY
+          echo "- All sanitizers use \`-C opt-level=1\` to keep hash-based crypto fast while preserving instrumentation" >> $GITHUB_STEP_SUMMARY
+          echo "- **MSan only**: aws-lc-rs FFI consumers excluded (C code not instrumentable by MSan)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "These tests are covered by the main CI pipeline in release mode." >> $GITHUB_STEP_SUMMARY
+          echo "All tests run. No tests skipped (except MSan FFI exclusions)." >> $GITHUB_STEP_SUMMARY
