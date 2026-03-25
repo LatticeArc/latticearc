@@ -121,8 +121,9 @@ jobs:
   # Note: MSan cannot instrument C FFI code. aws-lc-rs (used for AES-GCM,
   # ML-KEM, ECDH, HKDF) is a C library that MSan sees as a black box. Memory
   # allocated/initialized inside aws-lc-rs appears "uninitialized" to MSan.
-  # We exclude ALL modules that call aws-lc-rs FFI: aead, kem, kdf, hybrid,
-  # tls, and unified_api. Pure-Rust modules (hash, signatures, zkp) still run.
+  # We exclude modules/tests that call aws-lc-rs FFI. Pure-Rust modules
+  # (hash, signatures, zkp, keys::roundtrip) still run under MSan.
+  # Tracking: #36 (upstream: aws/aws-lc-rs#1077 — msan feature flag)
   msan:
     name: MemorySanitizer
     runs-on: ubuntu-latest
@@ -154,6 +155,12 @@ jobs:
             --skip primitives::kem::ecdh \
             --skip primitives::kem::ml_kem \
             --skip primitives::kdf::hkdf \
+            --skip primitives::keys::tests::test_keypair_secret_data_nonzero \
+            --skip primitives::keys::tests::test_keypair_generate_and_accessors \
+            --skip primitives::keys::tests::test_keypair_public_key_serialization \
+            --skip primitives::keys::tests::test_keypair_debug \
+            --skip primitives::keys::tests::test_secret_key_serialization \
+            --skip primitives::pct::tests::test_pct_ml_kem \
             --skip hybrid::encrypt_hybrid \
             --skip hybrid::kem_hybrid \
             --skip tls:: \
