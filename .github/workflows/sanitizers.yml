@@ -121,8 +121,9 @@ jobs:
   # Note: MSan cannot instrument C FFI code. aws-lc-rs (used for AES-GCM,
   # ML-KEM, ECDH, HKDF) is a C library that MSan sees as a black box. Memory
   # allocated/initialized inside aws-lc-rs appears "uninitialized" to MSan.
-  # We exclude modules/tests that call aws-lc-rs FFI, including self_test
-  # (all KATs transitively invoke aws-lc-rs). Pure-Rust modules
+  # We run MSan on latticearc only (not --workspace) because latticearc-tests
+  # is almost entirely integration tests calling aws-lc-rs. Within latticearc,
+  # we exclude modules that call aws-lc-rs FFI. Pure-Rust modules
   # (hash, signatures, zkp, keys::roundtrip) still run under MSan.
   # Tracking: #36 (upstream: aws/aws-lc-rs#1077 — msan feature flag)
   msan:
@@ -149,7 +150,7 @@ jobs:
       - name: Run tests with MemorySanitizer
         run: |
           RUSTFLAGS="-Z sanitizer=memory -Zsanitizer-memory-track-origins -C opt-level=1 -C debug-assertions=yes" \
-          cargo +nightly test --workspace --all-features \
+          cargo +nightly test -p latticearc --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
             --lib -- --test-threads=1 \
             --skip primitives::aead::aes_gcm \
@@ -180,7 +181,8 @@ jobs:
           echo "- Use of uninitialized memory" >> $GITHUB_STEP_SUMMARY
           echo "- Origin tracking for uninitialized values" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded: All aws-lc-rs FFI consumers (aead, kem, kdf, hybrid, tls, unified_api, self_test) — C FFI not instrumentable by MSan" >> $GITHUB_STEP_SUMMARY
+          echo "Scope: latticearc crate only (latticearc-tests excluded — nearly all tests call aws-lc-rs FFI)" >> $GITHUB_STEP_SUMMARY
+          echo "Excluded within latticearc: aead, kem, kdf, hybrid, tls, unified_api, self_test — C FFI not instrumentable by MSan" >> $GITHUB_STEP_SUMMARY
 
   # LeakSanitizer - Detects memory leaks (standalone)
   lsan:
