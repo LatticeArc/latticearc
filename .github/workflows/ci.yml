@@ -196,7 +196,7 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
       with:
         go-version: '1.22'
 
@@ -276,7 +276,7 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@0d865d5cc6d507df4765f1f866bfae8bab4e2a73 # main
+      uses: taiki-e/install-action@e9e8e031bcd90cdbe8ac6bb1d376f8596e587fbf # main
       with:
         tool: cargo-llvm-cov
 
@@ -319,7 +319,7 @@ jobs:
         echo "test_coverage_percent $COVERAGE" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-test/instance/${{ github.run_id }}/operation/test-coverage || true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+      uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
       with:
         files: lcov.info
         fail_ci_if_error: false
@@ -462,7 +462,7 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
       with:
         go-version: 'stable'
 
@@ -736,7 +736,7 @@ jobs:
 
     - name: Install Go (required for aws-lc-fips-sys on macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
       with:
         go-version: 'stable'
 
@@ -824,7 +824,7 @@ jobs:
     # Go is required for aws-lc-fips-sys FIPS builds
     - name: Install Go (macOS)
       if: runner.os == 'macOS'
-      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
       with:
         go-version: 'stable'
         cache: false
@@ -870,7 +870,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@0d865d5cc6d507df4765f1f866bfae8bab4e2a73 # main
+      uses: taiki-e/install-action@e9e8e031bcd90cdbe8ac6bb1d376f8596e587fbf # main
       with:
         tool: cargo-hack
 
