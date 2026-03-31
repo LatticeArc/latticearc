@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.3] - 2026-03-30
+
+### Security
+
+- **2 security advisories patched**: `aws-lc-fips-sys` 0.13.12 → 0.13.13
+  (RUSTSEC-2026-0042, CRL Distribution Point scope check, severity 7.4 HIGH),
+  `rustls-webpki` 0.103.9 → 0.103.10 (RUSTSEC-2026-0049, CRL authority matching)
+
+### Changed
+
+- **32 dependency updates** via `cargo update`: proptest 1.11, zerocopy 0.8.48,
+  cc 1.2.58, uuid 1.23, tempfile 3.27, wasm-bindgen 0.2.116, and others
+- **Cargo.toml version floors bumped**: async-trait 0.1.89, uuid 1.23.0,
+  proptest 1.11, tempfile 3.27, tokio-rustls 0.26.4, rustls-native-certs 0.8.3,
+  rcgen 0.13.2
+
+---
+
 ## [0.4.1] - 2026-03-19
 
 ### Changed

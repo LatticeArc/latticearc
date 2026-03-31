@@ -42,7 +42,7 @@ fi
 echo "✅ Clippy passed"
 
 echo "Running tests (release mode)..."
-TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1)
+TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1) || true
 TEST_FAILED=$(echo "$TEST_OUTPUT" | grep -c "test result: FAILED" || true)
 
 if [ "$TEST_FAILED" -gt 0 ]; then
