@@ -281,7 +281,7 @@ impl HybridSecretKey {
     ///
     /// # Errors
     /// Returns an error if key agreement fails.
-    pub fn ecdh_agree(&self, peer_pk: &[u8]) -> Result<[u8; 32], HybridKemError> {
+    pub fn ecdh_agree(&self, peer_pk: &[u8]) -> Result<Zeroizing<[u8; 32]>, HybridKemError> {
         self.ecdh_keypair.agree(peer_pk).map_err(|e| HybridKemError::EcdhError(e.to_string()))
     }
 
@@ -436,7 +436,7 @@ pub fn encapsulate<R: rand::Rng + rand::CryptoRng>(
     // Derive hybrid shared secret using HPKE-style KDF
     let shared_secret = derive_hybrid_shared_secret(
         ml_kem_ss.as_bytes(),
-        &ecdh_shared_secret,
+        &*ecdh_shared_secret,
         pk.ecdh_pk.as_slice(),
         &ecdh_ephemeral_public,
     )
@@ -492,7 +492,7 @@ pub fn decapsulate(sk: &HybridSecretKey, ct: &EncapsulatedKey) -> Result<Vec<u8>
     let static_public = sk.ecdh_public_key_bytes();
     derive_hybrid_shared_secret(
         ml_kem_ss.as_bytes(),
-        &ecdh_shared_secret,
+        &*ecdh_shared_secret,
         &static_public,
         ct.ecdh_pk.as_slice(),
     )

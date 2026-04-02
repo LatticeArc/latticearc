@@ -79,7 +79,10 @@ fn test_alice_shared_secret() {
 
     let shared = alice.agree(&BOB_PUBLIC).expect("Key agreement should succeed");
 
-    assert_eq!(shared, SHARED_SECRET, "Alice's shared secret must match RFC 7748 §6.1 test vector");
+    assert_eq!(
+        *shared, SHARED_SECRET,
+        "Alice's shared secret must match RFC 7748 §6.1 test vector"
+    );
 }
 
 /// Test 4: Bob computes the same shared secret with Alice's public key.
@@ -90,7 +93,7 @@ fn test_bob_shared_secret() {
 
     let shared = bob.agree(&ALICE_PUBLIC).expect("Key agreement should succeed");
 
-    assert_eq!(shared, SHARED_SECRET, "Bob's shared secret must match RFC 7748 §6.1 test vector");
+    assert_eq!(*shared, SHARED_SECRET, "Bob's shared secret must match RFC 7748 §6.1 test vector");
 }
 
 /// Test 5: Bidirectional agreement — Alice and Bob compute the same secret.
@@ -110,7 +113,7 @@ fn test_bidirectional_agreement() {
         alice_shared, bob_shared,
         "Bidirectional key agreement must produce identical shared secrets"
     );
-    assert_eq!(alice_shared, SHARED_SECRET, "Both must match the RFC 7748 test vector");
+    assert_eq!(*alice_shared, SHARED_SECRET, "Both must match the RFC 7748 test vector");
 }
 
 /// RFC 7748 Section 6.1 — Iterative X25519 test.
@@ -138,7 +141,7 @@ fn test_iterative_dh_1() {
             .expect("valid hex");
 
     assert_eq!(
-        new_k.as_ref(),
+        &new_k[..],
         expected_after_1.as_slice(),
         "After 1 iteration, k must match RFC 7748 test vector"
     );
@@ -157,7 +160,7 @@ fn test_iterative_dh_1000() {
             X25519StaticKeyPair::from_seed_bytes(&k).expect("key construction should succeed");
         let new_k = key.agree(&u).expect("DH should succeed");
         u = k;
-        k = new_k;
+        k = *new_k;
     }
 
     let expected_after_1000 =

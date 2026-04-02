@@ -292,7 +292,10 @@ impl X25519KeyPair {
     ///
     /// # Errors
     /// Returns an error if key agreement fails.
-    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<[u8; X25519_KEY_SIZE], EcdhError> {
+    pub fn agree(
+        self,
+        peer_public_bytes: &[u8],
+    ) -> Result<Zeroizing<[u8; X25519_KEY_SIZE]>, EcdhError> {
         let peer_public = UnparsedPublicKey::new(&X25519, peer_public_bytes);
 
         agreement::agree_ephemeral(
@@ -302,7 +305,7 @@ impl X25519KeyPair {
             |shared_secret| {
                 let mut result = [0u8; X25519_KEY_SIZE];
                 result.copy_from_slice(shared_secret);
-                Ok(result)
+                Ok(Zeroizing::new(result))
             },
         )
     }
@@ -419,13 +422,16 @@ impl X25519StaticKeyPair {
     ///
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
-    pub fn agree(&self, peer_public_bytes: &[u8]) -> Result<[u8; X25519_KEY_SIZE], EcdhError> {
+    pub fn agree(
+        &self,
+        peer_public_bytes: &[u8],
+    ) -> Result<Zeroizing<[u8; X25519_KEY_SIZE]>, EcdhError> {
         let peer_public = UnparsedPublicKey::new(&X25519, peer_public_bytes);
 
         agreement::agree(&self.private, peer_public, EcdhError::AgreementFailed, |shared_secret| {
             let mut result = [0u8; X25519_KEY_SIZE];
             result.copy_from_slice(shared_secret);
-            Ok(result)
+            Ok(Zeroizing::new(result))
         })
     }
 }
@@ -481,7 +487,7 @@ pub fn validate_secret_key(secret_key: &X25519SecretKey) -> Result<(), EcdhError
 /// Returns an error if key agreement fails.
 pub fn agree_ephemeral(
     peer_public_bytes: &[u8],
-) -> Result<([u8; X25519_KEY_SIZE], [u8; X25519_KEY_SIZE]), EcdhError> {
+) -> Result<(Zeroizing<[u8; X25519_KEY_SIZE]>, [u8; X25519_KEY_SIZE]), EcdhError> {
     let keypair = X25519KeyPair::generate()?;
     let our_public = *keypair.public_key_bytes();
     let shared_secret = keypair.agree(peer_public_bytes)?;
@@ -600,14 +606,14 @@ impl EcdhP256KeyPair {
     ///
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
-    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Vec<u8>, EcdhError> {
+    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
         let peer_public = UnparsedPublicKey::new(&ECDH_P256, peer_public_bytes);
 
         agreement::agree_ephemeral(
             self.private,
             peer_public,
             EcdhError::AgreementFailed,
-            |shared_secret| Ok(shared_secret.to_vec()),
+            |shared_secret| Ok(Zeroizing::new(shared_secret.to_vec())),
         )
     }
 }
@@ -732,14 +738,14 @@ impl EcdhP384KeyPair {
     ///
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
-    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Vec<u8>, EcdhError> {
+    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
         let peer_public = UnparsedPublicKey::new(&ECDH_P384, peer_public_bytes);
 
         agreement::agree_ephemeral(
             self.private,
             peer_public,
             EcdhError::AgreementFailed,
-            |shared_secret| Ok(shared_secret.to_vec()),
+            |shared_secret| Ok(Zeroizing::new(shared_secret.to_vec())),
         )
     }
 }
@@ -864,14 +870,14 @@ impl EcdhP521KeyPair {
     ///
     /// # Errors
     /// Returns an error if key agreement fails (e.g., invalid peer public key).
-    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Vec<u8>, EcdhError> {
+    pub fn agree(self, peer_public_bytes: &[u8]) -> Result<Zeroizing<Vec<u8>>, EcdhError> {
         let peer_public = UnparsedPublicKey::new(&ECDH_P521, peer_public_bytes);
 
         agreement::agree_ephemeral(
             self.private,
             peer_public,
             EcdhError::AgreementFailed,
-            |shared_secret| Ok(shared_secret.to_vec()),
+            |shared_secret| Ok(Zeroizing::new(shared_secret.to_vec())),
         )
     }
 }
@@ -898,7 +904,9 @@ impl std::fmt::Debug for EcdhP521KeyPair {
 ///
 /// # Errors
 /// Returns an error if key generation or agreement fails.
-pub fn agree_ephemeral_p256(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), EcdhError> {
+pub fn agree_ephemeral_p256(
+    peer_public_bytes: &[u8],
+) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), EcdhError> {
     let keypair = EcdhP256KeyPair::generate()?;
     let our_public = keypair.public_key_bytes().to_vec();
     let shared_secret = keypair.agree(peer_public_bytes)?;
@@ -914,7 +922,9 @@ pub fn agree_ephemeral_p256(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8
 ///
 /// # Errors
 /// Returns an error if key generation or agreement fails.
-pub fn agree_ephemeral_p384(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), EcdhError> {
+pub fn agree_ephemeral_p384(
+    peer_public_bytes: &[u8],
+) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), EcdhError> {
     let keypair = EcdhP384KeyPair::generate()?;
     let our_public = keypair.public_key_bytes().to_vec();
     let shared_secret = keypair.agree(peer_public_bytes)?;
@@ -930,7 +940,9 @@ pub fn agree_ephemeral_p384(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8
 ///
 /// # Errors
 /// Returns an error if key generation or agreement fails.
-pub fn agree_ephemeral_p521(peer_public_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), EcdhError> {
+pub fn agree_ephemeral_p521(
+    peer_public_bytes: &[u8],
+) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), EcdhError> {
     let keypair = EcdhP521KeyPair::generate()?;
     let our_public = keypair.public_key_bytes().to_vec();
     let shared_secret = keypair.agree(peer_public_bytes)?;

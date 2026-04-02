@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.4] - 2026-04-01
+
+### Security
+
+- **ECDH shared secret zeroization**: All `agree()` methods now return
+  `Zeroizing<...>` ensuring intermediate shared secrets are zeroed on drop
+  (SP 800-56A compliance for intermediate DH values)
+
+### Fixed
+
+- **PCT tests compile without `fips-self-test` feature**: Added `#[cfg]` gate
+  to `restore_operational_state()` calls in test cleanup
+
+### Changed
+
+- Documentation version references updated from 0.3.2 to 0.4.4
+
+---
+
 ## [0.4.3] - 2026-03-30
 
 ### Security
