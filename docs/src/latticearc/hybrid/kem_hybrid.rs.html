@@ -281,7 +281,7 @@
 <a href=#281 id=281 data-nosnippet>281</a>    ///
 <a href=#282 id=282 data-nosnippet>282</a>    /// # Errors
 <a href=#283 id=283 data-nosnippet>283</a>    /// Returns an error if key agreement fails.
-<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="kw">pub fn </span>ecdh_agree(<span class="kw-2">&amp;</span><span class="self">self</span>, peer_pk: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; <span class="number">32</span>], HybridKemError&gt; {
+<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="kw">pub fn </span>ecdh_agree(<span class="kw-2">&amp;</span><span class="self">self</span>, peer_pk: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Zeroizing&lt;[u8; <span class="number">32</span>]&gt;, HybridKemError&gt; {
 <a href=#285 id=285 data-nosnippet>285</a>        <span class="self">self</span>.ecdh_keypair.agree(peer_pk).map_err(|e| HybridKemError::EcdhError(e.to_string()))
 <a href=#286 id=286 data-nosnippet>286</a>    }
 <a href=#287 id=287 data-nosnippet>287</a>
@@ -436,7 +436,7 @@
 <a href=#436 id=436 data-nosnippet>436</a>    <span class="comment">// Derive hybrid shared secret using HPKE-style KDF
 <a href=#437 id=437 data-nosnippet>437</a>    </span><span class="kw">let </span>shared_secret = derive_hybrid_shared_secret(
 <a href=#438 id=438 data-nosnippet>438</a>        ml_kem_ss.as_bytes(),
-<a href=#439 id=439 data-nosnippet>439</a>        <span class="kw-2">&amp;</span>ecdh_shared_secret,
+<a href=#439 id=439 data-nosnippet>439</a>        <span class="kw-2">&amp;*</span>ecdh_shared_secret,
 <a href=#440 id=440 data-nosnippet>440</a>        pk.ecdh_pk.as_slice(),
 <a href=#441 id=441 data-nosnippet>441</a>        <span class="kw-2">&amp;</span>ecdh_ephemeral_public,
 <a href=#442 id=442 data-nosnippet>442</a>    )
@@ -492,7 +492,7 @@
 <a href=#492 id=492 data-nosnippet>492</a>    </span><span class="kw">let </span>static_public = sk.ecdh_public_key_bytes();
 <a href=#493 id=493 data-nosnippet>493</a>    derive_hybrid_shared_secret(
 <a href=#494 id=494 data-nosnippet>494</a>        ml_kem_ss.as_bytes(),
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="kw-2">&amp;</span>ecdh_shared_secret,
+<a href=#495 id=495 data-nosnippet>495</a>        <span class="kw-2">&amp;*</span>ecdh_shared_secret,
 <a href=#496 id=496 data-nosnippet>496</a>        <span class="kw-2">&amp;</span>static_public,
 <a href=#497 id=497 data-nosnippet>497</a>        ct.ecdh_pk.as_slice(),
 <a href=#498 id=498 data-nosnippet>498</a>    )
