@@ -18,6 +18,7 @@
 
 use crate::prelude::error::{LatticeArcError, Result};
 use aws_lc_rs::hmac::{self, HMAC_SHA256};
+use subtle::ConstantTimeEq;
 use tracing::instrument;
 use zeroize::{Zeroize, Zeroizing};
 
@@ -33,6 +34,12 @@ pub struct HkdfResult {
 impl std::fmt::Debug for HkdfResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HkdfResult").field("key", &"[REDACTED]").finish()
+    }
+}
+
+impl ConstantTimeEq for HkdfResult {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.key.ct_eq(&*other.key)
     }
 }
 

@@ -326,12 +326,26 @@ pub struct KeyPair {
     private_key: PrivateKey,
 }
 
+impl Drop for KeyPair {
+    fn drop(&mut self) {
+        // PrivateKey's inner ZeroizedBytes handles byte zeroization.
+        // Explicit drop ensures the struct boundary is covered.
+    }
+}
+
 impl fmt::Debug for KeyPair {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeyPair")
             .field("public_key", &self.public_key)
             .field("private_key", &"[REDACTED]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for KeyPair {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.private_key.ct_eq(&other.private_key)
+            & self.public_key.as_slice().ct_eq(other.public_key.as_slice())
     }
 }
 

@@ -76,7 +76,16 @@ fn fiat_shamir_challenge(
 }
 
 /// Schnorr proof structure
-#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
+///
+/// # Security
+///
+/// The response scalar is derived from the prover's secret key. Although proofs
+/// are shared with verifiers, the raw bytes are redacted in `Debug` output to
+/// prevent accidental logging of proof material that could be correlated with
+/// the prover's secret.
+// AUDIT-ACCEPTED: Clone is required because proofs must be transmitted to verifiers.
+// Proof material is not long-term secret — it is ephemeral per proof session.
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "zkp-serde", serde(crate = "serde"))]
 pub struct SchnorrProof {
@@ -88,6 +97,21 @@ pub struct SchnorrProof {
     /// Consumer: verify(), response()
     #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
     response: [u8; 32],
+}
+
+impl std::fmt::Debug for SchnorrProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SchnorrProof")
+            .field("commitment", &"[REDACTED]")
+            .field("response", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl subtle::ConstantTimeEq for SchnorrProof {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.commitment.ct_eq(&other.commitment) & self.response.ct_eq(&other.response)
+    }
 }
 
 impl SchnorrProof {
@@ -127,8 +151,14 @@ impl std::fmt::Debug for SchnorrProver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SchnorrProver")
             .field("secret", &"[REDACTED]")
-            .field("public_key", &self.public_key)
+            .field("public_key", &"[public]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for SchnorrProver {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.secret.ct_eq(&other.secret) & self.public_key.ct_eq(&other.public_key)
     }
 }
 

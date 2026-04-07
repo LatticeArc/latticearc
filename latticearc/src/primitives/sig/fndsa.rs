@@ -538,12 +538,20 @@ impl SigningKey {
 /// - The verifying key component can be freely distributed
 /// - Both keys are encoded according to draft FIPS 206
 /// - Signing key material is zeroized on drop (see [`SigningKey`] for limitations)
-#[derive(Debug)]
 pub struct KeyPair {
     /// Secret signing key component
     signing_key: SigningKey,
     /// Public verifying key component
     verifying_key: VerifyingKey,
+}
+
+impl std::fmt::Debug for KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyPair")
+            .field("signing_key", &"[REDACTED]")
+            .field("verifying_key", &"[public]")
+            .finish()
+    }
 }
 
 impl Drop for KeyPair {

@@ -122,17 +122,17 @@ impl std::fmt::Debug for SecureBytes {
     }
 }
 
+impl subtle::ConstantTimeEq for SecureBytes {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let len_equal = self.inner.len().ct_eq(&other.inner.len());
+        len_equal & self.inner.ct_eq(&other.inner)
+    }
+}
+
 impl PartialEq for SecureBytes {
     fn eq(&self, other: &Self) -> bool {
-        // Use constant-time comparison to prevent timing attacks
-        // This is critical for sensitive data like keys and secrets
         use subtle::ConstantTimeEq;
-
-        // First check lengths in constant time, then compare contents
-        let len_equal = self.inner.len().ct_eq(&other.inner.len());
-        let content_equal = self.inner.ct_eq(&other.inner);
-
-        (len_equal & content_equal).into()
+        self.ct_eq(other).into()
     }
 }
 

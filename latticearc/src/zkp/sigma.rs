@@ -22,6 +22,8 @@ use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A sigma protocol proof (non-interactive via Fiat-Shamir)
+// AUDIT-ACCEPTED: Clone is required because proofs are transmitted to verifiers.
+// Proof material is not long-term secret — it is ephemeral per proof session.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SigmaProof {
@@ -74,6 +76,14 @@ impl std::fmt::Debug for SigmaProof {
             .field("challenge", &"[REDACTED]")
             .field("response", &"[REDACTED]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for SigmaProof {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.commitment.ct_eq(&other.commitment)
+            & self.challenge.ct_eq(&other.challenge)
+            & self.response.ct_eq(&other.response)
     }
 }
 
@@ -255,6 +265,8 @@ impl<P: SigmaProtocol> FiatShamir<P> {
 
 /// Proof that two discrete logs are equal
 /// Given (G, H, P, Q), prove knowledge of x such that P = x*G and Q = x*H
+// AUDIT-ACCEPTED: Clone is required because proofs are transmitted to verifiers.
+// Proof material is not long-term secret — it is ephemeral per proof session.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct DlogEqualityProof {
     /// First commitment A = k*G
@@ -309,11 +321,20 @@ impl DlogEqualityProof {
 impl std::fmt::Debug for DlogEqualityProof {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DlogEqualityProof")
-            .field("a", &self.a)
-            .field("b", &self.b)
+            .field("a", &"[REDACTED]")
+            .field("b", &"[REDACTED]")
             .field("challenge", &"[REDACTED]")
             .field("response", &"[REDACTED]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for DlogEqualityProof {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.a.ct_eq(&other.a)
+            & self.b.ct_eq(&other.b)
+            & self.challenge.ct_eq(&other.challenge)
+            & self.response.ct_eq(&other.response)
     }
 }
 

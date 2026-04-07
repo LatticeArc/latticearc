@@ -130,6 +130,12 @@ impl std::fmt::Debug for Pbkdf2Result {
     }
 }
 
+impl ConstantTimeEq for Pbkdf2Result {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.key.ct_eq(&*other.key)
+    }
+}
+
 impl Pbkdf2Result {
     /// Get the derived key
     #[must_use]

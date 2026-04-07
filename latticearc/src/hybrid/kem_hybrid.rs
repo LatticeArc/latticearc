@@ -421,6 +421,7 @@ impl ConstantTimeEq for EncapsulatedKey {
 /// # Errors
 ///
 /// Returns an error if ML-KEM or X25519 keypair generation fails.
+#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
 pub fn generate_keypair() -> Result<(HybridKemPublicKey, HybridKemSecretKey), HybridKemError> {
     generate_keypair_with_level(MlKemSecurityLevel::MlKem768)
 }
@@ -435,6 +436,7 @@ pub fn generate_keypair() -> Result<(HybridKemPublicKey, HybridKemSecretKey), Hy
 ///
 /// # Errors
 /// Returns an error if ML-KEM or X25519 keypair generation fails.
+#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
 pub fn generate_keypair_with_level(
     level: MlKemSecurityLevel,
 ) -> Result<(HybridKemPublicKey, HybridKemSecretKey), HybridKemError> {

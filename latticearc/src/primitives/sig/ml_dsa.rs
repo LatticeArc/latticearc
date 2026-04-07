@@ -445,6 +445,7 @@ impl MlDsaSignature {
 /// # Errors
 /// Returns an error if key generation fails, the ml_dsa feature is not enabled,
 /// or the PCT fails (indicating a corrupted keypair).
+#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
 #[instrument(level = "debug", fields(parameter_set = ?parameter_set))]
 pub fn generate_keypair(
     parameter_set: MlDsaParameterSet,

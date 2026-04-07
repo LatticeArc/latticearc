@@ -20,6 +20,7 @@
 
 use crate::prelude::error::{LatticeArcError, Result};
 use aws_lc_rs::hmac::{self, HMAC_SHA256};
+use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
 /// SP 800-108 Counter KDF result
@@ -37,6 +38,12 @@ impl std::fmt::Debug for CounterKdfResult {
             .field("key", &"[REDACTED]")
             .field("key_length", &self.key.len())
             .finish()
+    }
+}
+
+impl ConstantTimeEq for CounterKdfResult {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.key.ct_eq(&*other.key)
     }
 }
 

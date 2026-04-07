@@ -28,6 +28,7 @@ use chacha20poly1305::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
 };
 use rand::RngCore;
+use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// ChaCha20-Poly1305 AEAD cipher
@@ -157,6 +158,18 @@ impl ChaCha20Poly1305Cipher {
         let mut result = Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
         result.copy_from_slice(key_bytes.as_slice());
         result
+    }
+}
+
+impl std::fmt::Debug for ChaCha20Poly1305Cipher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChaCha20Poly1305Cipher").field("key_bytes", &"[REDACTED]").finish()
+    }
+}
+
+impl subtle::ConstantTimeEq for ChaCha20Poly1305Cipher {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.key_bytes.ct_eq(&other.key_bytes)
     }
 }
 
@@ -311,6 +324,18 @@ impl XChaCha20Poly1305Cipher {
         };
 
         Ok(Zeroizing::new(plaintext))
+    }
+}
+
+impl std::fmt::Debug for XChaCha20Poly1305Cipher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("XChaCha20Poly1305Cipher").field("key_bytes", &"[REDACTED]").finish()
+    }
+}
+
+impl subtle::ConstantTimeEq for XChaCha20Poly1305Cipher {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.key_bytes.ct_eq(&other.key_bytes)
     }
 }
 
