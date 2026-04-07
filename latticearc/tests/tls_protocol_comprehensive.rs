@@ -861,7 +861,8 @@ mod error_handling_tests {
     #[test]
     fn test_degradation_config_default_succeeds() {
         let config = DegradationConfig::default();
-        assert!(config.enable_fallback);
+        // Default is fallback disabled — secure by default
+        assert!(!config.enable_fallback);
         assert!(!config.allow_reduced_security);
         assert_eq!(config.max_degradation_attempts, 2);
     }

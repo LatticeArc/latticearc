@@ -167,7 +167,7 @@ impl std::fmt::Debug for ChaCha20Poly1305Cipher {
     }
 }
 
-impl subtle::ConstantTimeEq for ChaCha20Poly1305Cipher {
+impl ConstantTimeEq for ChaCha20Poly1305Cipher {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
         self.key_bytes.ct_eq(&other.key_bytes)
     }
@@ -333,7 +333,7 @@ impl std::fmt::Debug for XChaCha20Poly1305Cipher {
     }
 }
 
-impl subtle::ConstantTimeEq for XChaCha20Poly1305Cipher {
+impl ConstantTimeEq for XChaCha20Poly1305Cipher {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
         self.key_bytes.ct_eq(&other.key_bytes)
     }

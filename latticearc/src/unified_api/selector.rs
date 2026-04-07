@@ -65,6 +65,7 @@ impl CryptoPolicyEngine {
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
+    #[must_use = "scheme recommendation should be used for algorithm selection"]
     pub fn recommend_scheme(use_case: &UseCase, _config: &CoreConfig) -> Result<String> {
         // _config is retained for API stability; scheme selection is use-case-driven.
         match *use_case {
@@ -127,6 +128,7 @@ impl CryptoPolicyEngine {
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
+    #[must_use = "scheme selection should be used for algorithm configuration"]
     pub fn select_pq_encryption_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
             SecurityLevel::Standard => Ok(PQ_ENCRYPTION_512.to_string()),
@@ -141,6 +143,7 @@ impl CryptoPolicyEngine {
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
+    #[must_use = "scheme selection should be used for algorithm configuration"]
     pub fn select_pq_signature_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
             SecurityLevel::Standard => Ok(PQ_SIGNATURE_44.to_string()),
@@ -228,6 +231,7 @@ impl CryptoPolicyEngine {
     ///
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
+    #[must_use = "scheme selection should be used for algorithm configuration"]
     pub fn select_signature_scheme(config: &CoreConfig) -> Result<String> {
         match &config.security_level {
             SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),

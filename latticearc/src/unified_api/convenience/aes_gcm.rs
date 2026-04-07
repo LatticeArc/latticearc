@@ -178,8 +178,9 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
 
     let aad_opt = if aad.is_empty() { None } else { Some(aad) };
 
-    let result = cipher.decrypt(&nonce, ciphertext, &tag, aad_opt).map_err(|e| {
-        let err = CoreError::DecryptionFailed(e.to_string());
+    let result = cipher.decrypt(&nonce, ciphertext, &tag, aad_opt).map_err(|_aead_err| {
+        // SECURITY: Opaque error per SP 800-38D §5.2.2
+        let err = CoreError::DecryptionFailed("decryption failed".to_string());
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
     })?;

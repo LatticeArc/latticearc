@@ -131,7 +131,7 @@ pub(super) fn fips_verify_operational() -> Result<()> {
 }
 
 #[cfg(not(feature = "fips-self-test"))]
-#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::unnecessary_wraps)] // No-op when FIPS self-test disabled; Result for API parity with enabled path
 pub(super) fn fips_verify_operational() -> Result<()> {
     Ok(())
 }
@@ -231,9 +231,10 @@ fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<V
 
     let cipher = ChaCha20Poly1305Cipher::new(key)
         .map_err(|_e| CoreError::InvalidKeyLength { expected: 32, actual: key.len() })?;
-    cipher
-        .decrypt(&nonce, ciphertext, &tag, None)
-        .map_err(|e| CoreError::DecryptionFailed(e.to_string()))
+    cipher.decrypt(&nonce, ciphertext, &tag, None).map_err(|_aead_err| {
+        // SECURITY: Opaque error per SP 800-38D §5.2.2
+        CoreError::DecryptionFailed("decryption failed".to_string())
+    })
 }
 
 // ============================================================================

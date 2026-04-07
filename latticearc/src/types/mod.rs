@@ -44,6 +44,7 @@ pub mod zero_trust;
 
 // Re-export commonly used items at crate root
 #[allow(deprecated)]
+// HardwareConfig is deprecated but still re-exported for backward compatibility
 pub use config::{
     CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig, UseCaseConfig,
     ZeroTrustConfig,

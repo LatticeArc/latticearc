@@ -108,7 +108,7 @@ impl std::fmt::Debug for SchnorrProof {
     }
 }
 
-impl subtle::ConstantTimeEq for SchnorrProof {
+impl ConstantTimeEq for SchnorrProof {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
         self.commitment.ct_eq(&other.commitment) & self.response.ct_eq(&other.response)
     }
@@ -219,9 +219,7 @@ impl SchnorrProver {
 
         // Generate random nonce k via primitives layer
         let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
-        let k = <Scalar as k256::elliptic_curve::ops::Reduce<k256::U256>>::reduce_bytes(
-            k256::FieldBytes::from_slice(&nonce_bytes),
-        );
+        let k = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&nonce_bytes));
 
         // Compute commitment R = k*G
         let r_point = ProjectivePoint::GENERATOR * k;

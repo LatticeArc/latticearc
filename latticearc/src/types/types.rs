@@ -711,14 +711,24 @@ impl std::str::FromStr for SignatureScheme {
 #[derive(Debug, Clone)]
 pub struct CryptoContext {
     /// Security level for operations.
+    ///
+    /// Consumer: `SchemeSelector::select_encryption_scheme()`, `select_signature_scheme()`
     pub security_level: SecurityLevel,
     /// Performance optimization preference.
+    ///
+    /// Consumer: `SchemeSelector::select_encryption_scheme()`
     pub performance_preference: PerformancePreference,
     /// Optional use case for automatic scheme selection.
+    ///
+    /// Consumer: `CryptoPolicyEngine::select_encryption_scheme_typed()`
     pub use_case: Option<UseCase>,
     /// Whether hardware acceleration is enabled.
+    ///
+    /// Consumer: None — reserved for future hardware-aware selection
     pub hardware_acceleration: bool,
     /// Timestamp when the context was created.
+    ///
+    /// Consumer: `unified_api::audit::AuditEvent` — operation timestamping
     pub timestamp: DateTime<Utc>,
 }
 
