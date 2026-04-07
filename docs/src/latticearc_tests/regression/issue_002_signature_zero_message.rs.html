@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a>    <span class="attr">#[test]
 <a href=#25 id=25 data-nosnippet>25</a>    </span><span class="kw">fn </span>regression_issue_002_empty_message_sign_verify() {
-<a href=#26 id=26 data-nosnippet>26</a>        <span class="kw">let </span>(pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)
+<a href=#26 id=26 data-nosnippet>26</a>        <span class="kw">let </span>(pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)
 <a href=#27 id=27 data-nosnippet>27</a>            .expect(<span class="string">"keypair generation should succeed"</span>);
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a>        <span class="kw">let </span>empty_message: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[];
@@ -40,7 +40,7 @@
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="attr">#[test]
 <a href=#41 id=41 data-nosnippet>41</a>    </span><span class="kw">fn </span>regression_issue_002_empty_message_all_security_levels() {
 <a href=#42 id=42 data-nosnippet>42</a>        <span class="kw">let </span>levels =
-<a href=#43 id=43 data-nosnippet>43</a>            [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87];
+<a href=#43 id=43 data-nosnippet>43</a>            [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87];
 <a href=#44 id=44 data-nosnippet>44</a>
 <a href=#45 id=45 data-nosnippet>45</a>        <span class="kw">let </span>empty_message: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[];
 <a href=#46 id=46 data-nosnippet>46</a>
@@ -57,7 +57,7 @@
 <a href=#57 id=57 data-nosnippet>57</a>
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="attr">#[test]
 <a href=#59 id=59 data-nosnippet>59</a>    </span><span class="kw">fn </span>regression_issue_002_empty_vs_nonempty_different() {
-<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>(pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>(pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)
 <a href=#61 id=61 data-nosnippet>61</a>            .expect(<span class="string">"keypair generation should succeed"</span>);
 <a href=#62 id=62 data-nosnippet>62</a>
 <a href=#63 id=63 data-nosnippet>63</a>        <span class="kw">let </span>empty_message: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[];

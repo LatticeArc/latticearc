@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="doccomment">/// Positive test: Verify CAVP framework basic functionality
 <a href=#11 id=11 data-nosnippet>11</a></span><span class="attr">#[test]
-<a href=#12 id=12 data-nosnippet>12</a></span><span class="kw">fn </span>test_cavp_framework_basic_functionality() {
+<a href=#12 id=12 data-nosnippet>12</a></span><span class="kw">fn </span>test_cavp_framework_basic_functionality_succeeds() {
 <a href=#13 id=13 data-nosnippet>13</a>    <span class="kw">let </span>storage = <span class="kw">crate</span>::validation::cavp::MemoryCavpStorage::new();
 <a href=#14 id=14 data-nosnippet>14</a>
 <a href=#15 id=15 data-nosnippet>15</a>    <span class="kw">let </span>algorithm = <span class="kw">crate</span>::validation::cavp::CavpAlgorithm::MlKem { variant: <span class="string">"768"</span>.to_string() };
@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>
 <a href=#36 id=36 data-nosnippet>36</a><span class="doccomment">/// Positive test: Verify CAVP pipeline configuration
 <a href=#37 id=37 data-nosnippet>37</a></span><span class="attr">#[test]
-<a href=#38 id=38 data-nosnippet>38</a></span><span class="kw">fn </span>test_cavp_pipeline_configuration() {
+<a href=#38 id=38 data-nosnippet>38</a></span><span class="kw">fn </span>test_cavp_pipeline_configuration_succeeds() {
 <a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">let </span>config = PipelineConfig {
 <a href=#40 id=40 data-nosnippet>40</a>        max_concurrent_tests: <span class="number">4</span>,
 <a href=#41 id=41 data-nosnippet>41</a>        test_timeout: std::time::Duration::from_secs(<span class="number">30</span>),
@@ -53,7 +53,7 @@
 <a href=#53 id=53 data-nosnippet>53</a>
 <a href=#54 id=54 data-nosnippet>54</a><span class="doccomment">/// Positive test: Verify CAVP compliance generator creation
 <a href=#55 id=55 data-nosnippet>55</a></span><span class="attr">#[test]
-<a href=#56 id=56 data-nosnippet>56</a></span><span class="kw">fn </span>test_cavp_compliance_generator_creation() {
+<a href=#56 id=56 data-nosnippet>56</a></span><span class="kw">fn </span>test_cavp_compliance_generator_creation_succeeds() {
 <a href=#57 id=57 data-nosnippet>57</a>    <span class="kw">let </span>generator = <span class="kw">crate</span>::validation::cavp::CavpComplianceGenerator::new();
 <a href=#58 id=58 data-nosnippet>58</a>
 <a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">let </span>algorithm = <span class="kw">crate</span>::validation::cavp::CavpAlgorithm::MlKem { variant: <span class="string">"1024"</span>.to_string() };
@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>
 <a href=#82 id=82 data-nosnippet>82</a><span class="doccomment">/// Positive test: Verify NIST documentation generator creation
 <a href=#83 id=83 data-nosnippet>83</a></span><span class="attr">#[test]
-<a href=#84 id=84 data-nosnippet>84</a></span><span class="kw">fn </span>test_nist_documentation_generator_creation() {
+<a href=#84 id=84 data-nosnippet>84</a></span><span class="kw">fn </span>test_nist_documentation_generator_creation_is_documented() {
 <a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">let </span>generator = NistDocumentationGenerator::new(
 <a href=#86 id=86 data-nosnippet>86</a>        <span class="string">"Test Organization"</span>.to_string(),
 <a href=#87 id=87 data-nosnippet>87</a>        <span class="string">"Test Module"</span>.to_string(),
@@ -125,7 +125,7 @@
 <a href=#125 id=125 data-nosnippet>125</a>
 <a href=#126 id=126 data-nosnippet>126</a><span class="doccomment">/// Negative test: Verify CAVP framework handles errors correctly
 <a href=#127 id=127 data-nosnippet>127</a></span><span class="attr">#[test]
-<a href=#128 id=128 data-nosnippet>128</a></span><span class="kw">fn </span>test_cavp_framework_error_handling() {
+<a href=#128 id=128 data-nosnippet>128</a></span><span class="kw">fn </span>test_cavp_framework_error_handling_fails() {
 <a href=#129 id=129 data-nosnippet>129</a>    <span class="kw">let </span>storage = <span class="kw">crate</span>::validation::cavp::MemoryCavpStorage::new();
 <a href=#130 id=130 data-nosnippet>130</a>
 <a href=#131 id=131 data-nosnippet>131</a>    <span class="kw">let </span>algorithm = <span class="kw">crate</span>::validation::cavp::CavpAlgorithm::SlhDsa { variant: <span class="string">"128"</span>.to_string() };
@@ -153,7 +153,7 @@
 <a href=#153 id=153 data-nosnippet>153</a>
 <a href=#154 id=154 data-nosnippet>154</a><span class="doccomment">/// Positive test: Verify CAVP framework algorithm enumeration
 <a href=#155 id=155 data-nosnippet>155</a></span><span class="attr">#[test]
-<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">fn </span>test_cavp_algorithm_enumeration() {
+<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">fn </span>test_cavp_algorithm_enumeration_succeeds() {
 <a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">let </span>mlkem_768 = <span class="kw">crate</span>::validation::cavp::CavpAlgorithm::MlKem { variant: <span class="string">"768"</span>.to_string() };
 <a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">let </span>mldsa_65 = <span class="kw">crate</span>::validation::cavp::CavpAlgorithm::MlDsa { variant: <span class="string">"65"</span>.to_string() };
 <a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">let </span>slhdsa_128 = <span class="kw">crate</span>::validation::cavp::CavpAlgorithm::SlhDsa { variant: <span class="string">"128"</span>.to_string() };

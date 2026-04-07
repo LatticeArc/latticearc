@@ -257,7 +257,7 @@
 <a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#258 id=258 data-nosnippet>258</a>
 <a href=#259 id=259 data-nosnippet>259</a>    <span class="attr">#[test]
-<a href=#260 id=260 data-nosnippet>260</a>    </span><span class="kw">fn </span>test_constant_time_eq_correctness() {
+<a href=#260 id=260 data-nosnippet>260</a>    </span><span class="kw">fn </span>test_constant_time_eq_correctness_succeeds() {
 <a href=#261 id=261 data-nosnippet>261</a>        <span class="comment">// Test that constant_time_eq returns correct results
 <a href=#262 id=262 data-nosnippet>262</a>        </span><span class="kw">let </span>a = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
 <a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">let </span>b = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
@@ -270,7 +270,7 @@
 <a href=#270 id=270 data-nosnippet>270</a>    }
 <a href=#271 id=271 data-nosnippet>271</a>
 <a href=#272 id=272 data-nosnippet>272</a>    <span class="attr">#[test]
-<a href=#273 id=273 data-nosnippet>273</a>    </span><span class="kw">fn </span>test_timing_validator_construction() {
+<a href=#273 id=273 data-nosnippet>273</a>    </span><span class="kw">fn </span>test_timing_validator_construction_succeeds() {
 <a href=#274 id=274 data-nosnippet>274</a>        <span class="comment">// Test that TimingValidator can be constructed and configured
 <a href=#275 id=275 data-nosnippet>275</a>        </span><span class="kw">let </span>validator = TimingValidator::new(<span class="number">50</span>, <span class="number">0.2</span>);
 <a href=#276 id=276 data-nosnippet>276</a>
@@ -285,7 +285,7 @@
 <a href=#285 id=285 data-nosnippet>285</a>    }
 <a href=#286 id=286 data-nosnippet>286</a>
 <a href=#287 id=287 data-nosnippet>287</a>    <span class="attr">#[test]
-<a href=#288 id=288 data-nosnippet>288</a>    </span><span class="kw">fn </span>test_timing_validator_insufficient_samples() {
+<a href=#288 id=288 data-nosnippet>288</a>    </span><span class="kw">fn </span>test_timing_validator_insufficient_samples_succeeds() {
 <a href=#289 id=289 data-nosnippet>289</a>        <span class="comment">// Test that validator rejects insufficient sample counts
 <a href=#290 id=290 data-nosnippet>290</a>        </span><span class="kw">let </span>validator = TimingValidator::new(<span class="number">5</span>, <span class="number">0.2</span>); <span class="comment">// Too few samples
 <a href=#291 id=291 data-nosnippet>291</a>
@@ -299,7 +299,7 @@
 <a href=#299 id=299 data-nosnippet>299</a>
 <a href=#300 id=300 data-nosnippet>300</a>    <span class="attr">#[test]
 <a href=#301 id=301 data-nosnippet>301</a>    </span><span class="comment">// Must run in release mode for reliable timing
-<a href=#302 id=302 data-nosnippet>302</a>    </span><span class="kw">fn </span>test_constant_time_compare_with_subtle() {
+<a href=#302 id=302 data-nosnippet>302</a>    </span><span class="kw">fn </span>test_constant_time_compare_with_subtle_succeeds() {
 <a href=#303 id=303 data-nosnippet>303</a>        <span class="comment">// Test that subtle::ConstantTimeEq comparisons pass constant-time validation.
 <a href=#304 id=304 data-nosnippet>304</a>        // Use CI-friendly threshold: 100% difference ratio.
 <a href=#305 id=305 data-nosnippet>305</a>        // Real timing leaks show &gt;5x difference; this catches real issues
@@ -326,7 +326,7 @@
 <a href=#326 id=326 data-nosnippet>326</a>
 <a href=#327 id=327 data-nosnippet>327</a>    <span class="attr">#[test]
 <a href=#328 id=328 data-nosnippet>328</a>    </span><span class="comment">// Must run in release mode for reliable timing
-<a href=#329 id=329 data-nosnippet>329</a>    </span><span class="kw">fn </span>test_validate_constant_time_function() {
+<a href=#329 id=329 data-nosnippet>329</a>    </span><span class="kw">fn </span>test_validate_constant_time_function_succeeds() {
 <a href=#330 id=330 data-nosnippet>330</a>        <span class="comment">// Test the top-level validate_constant_time function
 <a href=#331 id=331 data-nosnippet>331</a>        // Use a CI-friendly validator with generous threshold.
 <a href=#332 id=332 data-nosnippet>332</a>        // Real timing leaks show &gt;5x (500%) difference; 100% threshold catches
@@ -352,7 +352,7 @@
 <a href=#352 id=352 data-nosnippet>352</a>
 <a href=#353 id=353 data-nosnippet>353</a>    <span class="attr">#[test]
 <a href=#354 id=354 data-nosnippet>354</a>    </span><span class="comment">// Must run in release mode for reliable timing
-<a href=#355 id=355 data-nosnippet>355</a>    </span><span class="kw">fn </span>test_compare_timings_similar_operations() {
+<a href=#355 id=355 data-nosnippet>355</a>    </span><span class="kw">fn </span>test_compare_timings_similar_operations_succeeds() {
 <a href=#356 id=356 data-nosnippet>356</a>        <span class="comment">// Test that two similar operations have similar timing.
 <a href=#357 id=357 data-nosnippet>357</a>        // Use CI-friendly threshold: 100% difference ratio.
 <a href=#358 id=358 data-nosnippet>358</a>        // Real timing leaks show &gt;5x difference; this catches real issues

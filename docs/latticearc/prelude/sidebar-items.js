@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["VERSION"],"mod":["cavp_compliance","ci_testing_framework","domains","error","formal_verification","memory_safety_testing","property_based_testing","side_channel_analysis"]};
+window.SIDEBAR_ITEMS = {"constant":["ENVELOPE_FORMAT_VERSION"],"mod":["cavp_compliance","ci_testing_framework","error","formal_verification","memory_safety_testing","property_based_testing","side_channel_analysis"]};

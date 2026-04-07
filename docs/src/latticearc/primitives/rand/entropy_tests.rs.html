@@ -38,7 +38,7 @@
 <a href=#38 id=38 data-nosnippet>38</a>//! - Statistical quality assurance (monobit, runs, longest run)
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a></span><span class="attr">#![deny(unsafe_code)]
-<a href=#41 id=41 data-nosnippet>41</a>#![warn(missing_docs)]
+<a href=#41 id=41 data-nosnippet>41</a>#![deny(missing_docs)]
 <a href=#42 id=42 data-nosnippet>42</a>#![deny(clippy::unwrap_used)]
 <a href=#43 id=43 data-nosnippet>43</a>#![deny(clippy::panic)]
 <a href=#44 id=44 data-nosnippet>44</a>
@@ -690,20 +690,20 @@
 <a href=#690 id=690 data-nosnippet>690</a>    // -------------------------------------------------------------------------
 <a href=#691 id=691 data-nosnippet>691</a>
 <a href=#692 id=692 data-nosnippet>692</a>    </span><span class="attr">#[test]
-<a href=#693 id=693 data-nosnippet>693</a>    </span><span class="kw">fn </span>test_repetition_test_passes_on_varied_input() {
+<a href=#693 id=693 data-nosnippet>693</a>    </span><span class="kw">fn </span>test_repetition_test_passes_on_varied_input_succeeds() {
 <a href=#694 id=694 data-nosnippet>694</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>, <span class="number">0x05</span>, <span class="number">0x06</span>, <span class="number">0x07</span>, <span class="number">0x08</span>];
 <a href=#695 id=695 data-nosnippet>695</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
 <a href=#696 id=696 data-nosnippet>696</a>    }
 <a href=#697 id=697 data-nosnippet>697</a>
 <a href=#698 id=698 data-nosnippet>698</a>    <span class="attr">#[test]
-<a href=#699 id=699 data-nosnippet>699</a>    </span><span class="kw">fn </span>test_repetition_test_passes_with_max_allowed_consecutive() {
+<a href=#699 id=699 data-nosnippet>699</a>    </span><span class="kw">fn </span>test_repetition_test_passes_with_max_allowed_consecutive_succeeds() {
 <a href=#700 id=700 data-nosnippet>700</a>        <span class="comment">// 5 consecutive identical bytes should pass
 <a href=#701 id=701 data-nosnippet>701</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
 <a href=#702 id=702 data-nosnippet>702</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
 <a href=#703 id=703 data-nosnippet>703</a>    }
 <a href=#704 id=704 data-nosnippet>704</a>
 <a href=#705 id=705 data-nosnippet>705</a>    <span class="attr">#[test]
-<a href=#706 id=706 data-nosnippet>706</a>    </span><span class="kw">fn </span>test_repetition_test_fails_with_6_consecutive() {
+<a href=#706 id=706 data-nosnippet>706</a>    </span><span class="kw">fn </span>test_repetition_test_fails_with_6_consecutive_fails() {
 <a href=#707 id=707 data-nosnippet>707</a>        <span class="comment">// 6 consecutive identical bytes should fail
 <a href=#708 id=708 data-nosnippet>708</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x01</span>, <span class="number">0x02</span>];
 <a href=#709 id=709 data-nosnippet>709</a>        <span class="kw">let </span>result = repetition_test(<span class="kw-2">&amp;</span>bytes);
@@ -712,25 +712,25 @@
 <a href=#712 id=712 data-nosnippet>712</a>    }
 <a href=#713 id=713 data-nosnippet>713</a>
 <a href=#714 id=714 data-nosnippet>714</a>    <span class="attr">#[test]
-<a href=#715 id=715 data-nosnippet>715</a>    </span><span class="kw">fn </span>test_repetition_test_fails_on_all_same() {
+<a href=#715 id=715 data-nosnippet>715</a>    </span><span class="kw">fn </span>test_repetition_test_fails_on_all_same_fails() {
 <a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0xFF</span>; <span class="number">100</span>];
 <a href=#717 id=717 data-nosnippet>717</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
 <a href=#718 id=718 data-nosnippet>718</a>    }
 <a href=#719 id=719 data-nosnippet>719</a>
 <a href=#720 id=720 data-nosnippet>720</a>    <span class="attr">#[test]
-<a href=#721 id=721 data-nosnippet>721</a>    </span><span class="kw">fn </span>test_repetition_test_empty_input() {
+<a href=#721 id=721 data-nosnippet>721</a>    </span><span class="kw">fn </span>test_repetition_test_empty_input_fails() {
 <a href=#722 id=722 data-nosnippet>722</a>        <span class="kw">let </span>bytes: Vec&lt;u8&gt; = <span class="macro">vec!</span>[];
 <a href=#723 id=723 data-nosnippet>723</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_err());
 <a href=#724 id=724 data-nosnippet>724</a>    }
 <a href=#725 id=725 data-nosnippet>725</a>
 <a href=#726 id=726 data-nosnippet>726</a>    <span class="attr">#[test]
-<a href=#727 id=727 data-nosnippet>727</a>    </span><span class="kw">fn </span>test_repetition_test_single_byte() {
+<a href=#727 id=727 data-nosnippet>727</a>    </span><span class="kw">fn </span>test_repetition_test_single_byte_succeeds() {
 <a href=#728 id=728 data-nosnippet>728</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>];
 <a href=#729 id=729 data-nosnippet>729</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
 <a href=#730 id=730 data-nosnippet>730</a>    }
 <a href=#731 id=731 data-nosnippet>731</a>
 <a href=#732 id=732 data-nosnippet>732</a>    <span class="attr">#[test]
-<a href=#733 id=733 data-nosnippet>733</a>    </span><span class="kw">fn </span>test_repetition_test_two_same_bytes() {
+<a href=#733 id=733 data-nosnippet>733</a>    </span><span class="kw">fn </span>test_repetition_test_two_same_bytes_succeeds() {
 <a href=#734 id=734 data-nosnippet>734</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>, <span class="number">0x42</span>];
 <a href=#735 id=735 data-nosnippet>735</a>        <span class="macro">assert!</span>(repetition_test(<span class="kw-2">&amp;</span>bytes).is_ok());
 <a href=#736 id=736 data-nosnippet>736</a>    }
@@ -740,7 +740,7 @@
 <a href=#740 id=740 data-nosnippet>740</a>    // -------------------------------------------------------------------------
 <a href=#741 id=741 data-nosnippet>741</a>
 <a href=#742 id=742 data-nosnippet>742</a>    </span><span class="attr">#[test]
-<a href=#743 id=743 data-nosnippet>743</a>    </span><span class="kw">fn </span>test_frequency_test_passes_on_uniform() {
+<a href=#743 id=743 data-nosnippet>743</a>    </span><span class="kw">fn </span>test_frequency_test_passes_on_uniform_succeeds() {
 <a href=#744 id=744 data-nosnippet>744</a>        <span class="comment">// Create a roughly uniform distribution
 <a href=#745 id=745 data-nosnippet>745</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(<span class="number">256</span>);
 <a href=#746 id=746 data-nosnippet>746</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..=<span class="number">255u8 </span>{
@@ -750,13 +750,13 @@
 <a href=#750 id=750 data-nosnippet>750</a>    }
 <a href=#751 id=751 data-nosnippet>751</a>
 <a href=#752 id=752 data-nosnippet>752</a>    <span class="attr">#[test]
-<a href=#753 id=753 data-nosnippet>753</a>    </span><span class="kw">fn </span>test_frequency_test_fails_on_all_same() {
+<a href=#753 id=753 data-nosnippet>753</a>    </span><span class="kw">fn </span>test_frequency_test_fails_on_all_same_fails() {
 <a href=#754 id=754 data-nosnippet>754</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>; <span class="number">256</span>];
 <a href=#755 id=755 data-nosnippet>755</a>        <span class="macro">assert!</span>(frequency_test(<span class="kw-2">&amp;</span>bytes).is_err());
 <a href=#756 id=756 data-nosnippet>756</a>    }
 <a href=#757 id=757 data-nosnippet>757</a>
 <a href=#758 id=758 data-nosnippet>758</a>    <span class="attr">#[test]
-<a href=#759 id=759 data-nosnippet>759</a>    </span><span class="kw">fn </span>test_frequency_test_too_small_sample() {
+<a href=#759 id=759 data-nosnippet>759</a>    </span><span class="kw">fn </span>test_frequency_test_too_small_sample_fails() {
 <a href=#760 id=760 data-nosnippet>760</a>        <span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>];
 <a href=#761 id=761 data-nosnippet>761</a>        <span class="kw">let </span>result = frequency_test(<span class="kw-2">&amp;</span>bytes);
 <a href=#762 id=762 data-nosnippet>762</a>        <span class="macro">assert!</span>(result.is_err());
@@ -767,7 +767,7 @@
 <a href=#767 id=767 data-nosnippet>767</a>
 <a href=#768 id=768 data-nosnippet>768</a>    <span class="attr">#[test]
 <a href=#769 id=769 data-nosnippet>769</a>    #[allow(clippy::cast_possible_truncation)]
-<a href=#770 id=770 data-nosnippet>770</a>    </span><span class="kw">fn </span>test_frequency_test_min_sample_size() {
+<a href=#770 id=770 data-nosnippet>770</a>    </span><span class="kw">fn </span>test_frequency_test_min_sample_size_has_correct_size() {
 <a href=#771 id=771 data-nosnippet>771</a>        <span class="comment">// Create a sample at exactly minimum size with some variation
 <a href=#772 id=772 data-nosnippet>772</a>        // Cast is safe: i % 256 always fits in u8
 <a href=#773 id=773 data-nosnippet>773</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(MIN_SAMPLE_SIZE);
@@ -778,7 +778,7 @@
 <a href=#778 id=778 data-nosnippet>778</a>    }
 <a href=#779 id=779 data-nosnippet>779</a>
 <a href=#780 id=780 data-nosnippet>780</a>    <span class="attr">#[test]
-<a href=#781 id=781 data-nosnippet>781</a>    </span><span class="kw">fn </span>test_frequency_test_heavily_biased() {
+<a href=#781 id=781 data-nosnippet>781</a>    </span><span class="kw">fn </span>test_frequency_test_heavily_biased_succeeds() {
 <a href=#782 id=782 data-nosnippet>782</a>        <span class="comment">// Create a heavily biased distribution
 <a href=#783 id=783 data-nosnippet>783</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x00</span>; <span class="number">200</span>];
 <a href=#784 id=784 data-nosnippet>784</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0x01</span>; <span class="number">56</span>]);
@@ -790,7 +790,7 @@
 <a href=#790 id=790 data-nosnippet>790</a>    // -------------------------------------------------------------------------
 <a href=#791 id=791 data-nosnippet>791</a>
 <a href=#792 id=792 data-nosnippet>792</a>    </span><span class="attr">#[test]
-<a href=#793 id=793 data-nosnippet>793</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests() {
+<a href=#793 id=793 data-nosnippet>793</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_passes_on_csprng_output_succeeds() {
 <a href=#794 id=794 data-nosnippet>794</a>        <span class="comment">// CSPRNG statistical tests can occasionally fail on CI runners
 <a href=#795 id=795 data-nosnippet>795</a>        // (virtualized environments, resource contention). Retry once
 <a href=#796 id=796 data-nosnippet>796</a>        // with a fresh sample before declaring failure.
@@ -804,7 +804,7 @@
 <a href=#804 id=804 data-nosnippet>804</a>    }
 <a href=#805 id=805 data-nosnippet>805</a>
 <a href=#806 id=806 data-nosnippet>806</a>    <span class="attr">#[test]
-<a href=#807 id=807 data-nosnippet>807</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_good_bytes() {
+<a href=#807 id=807 data-nosnippet>807</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_good_bytes_succeeds() {
 <a href=#808 id=808 data-nosnippet>808</a>        <span class="comment">// Create a good sample with no repetitions and reasonable distribution
 <a href=#809 id=809 data-nosnippet>809</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::with_capacity(<span class="number">256</span>);
 <a href=#810 id=810 data-nosnippet>810</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..=<span class="number">255u8 </span>{
@@ -819,14 +819,14 @@
 <a href=#819 id=819 data-nosnippet>819</a>    }
 <a href=#820 id=820 data-nosnippet>820</a>
 <a href=#821 id=821 data-nosnippet>821</a>    <span class="attr">#[test]
-<a href=#822 id=822 data-nosnippet>822</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_bad_bytes() {
+<a href=#822 id=822 data-nosnippet>822</a>    </span><span class="kw">fn </span>test_run_entropy_health_tests_on_bad_bytes_returns_error() {
 <a href=#823 id=823 data-nosnippet>823</a>        <span class="comment">// Create a bad sample with many repetitions
 <a href=#824 id=824 data-nosnippet>824</a>        </span><span class="kw">let </span>bytes = <span class="macro">vec!</span>[<span class="number">0x42</span>; <span class="number">256</span>];
 <a href=#825 id=825 data-nosnippet>825</a>        <span class="macro">assert!</span>(run_entropy_health_tests_on_bytes(<span class="kw-2">&amp;</span>bytes).is_err());
 <a href=#826 id=826 data-nosnippet>826</a>    }
 <a href=#827 id=827 data-nosnippet>827</a>
 <a href=#828 id=828 data-nosnippet>828</a>    <span class="attr">#[test]
-<a href=#829 id=829 data-nosnippet>829</a>    </span><span class="kw">fn </span>test_repetition_at_end() {
+<a href=#829 id=829 data-nosnippet>829</a>    </span><span class="kw">fn </span>test_repetition_at_end_fails_detection_fails() {
 <a href=#830 id=830 data-nosnippet>830</a>        <span class="comment">// Test repetition detection at the end of the sequence
 <a href=#831 id=831 data-nosnippet>831</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>];
 <a href=#832 id=832 data-nosnippet>832</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0xFF</span>; <span class="number">6</span>]); <span class="comment">// 6 consecutive at end
@@ -834,7 +834,7 @@
 <a href=#834 id=834 data-nosnippet>834</a>    }
 <a href=#835 id=835 data-nosnippet>835</a>
 <a href=#836 id=836 data-nosnippet>836</a>    <span class="attr">#[test]
-<a href=#837 id=837 data-nosnippet>837</a>    </span><span class="kw">fn </span>test_repetition_in_middle() {
+<a href=#837 id=837 data-nosnippet>837</a>    </span><span class="kw">fn </span>test_repetition_in_middle_fails_detection_fails() {
 <a href=#838 id=838 data-nosnippet>838</a>        <span class="comment">// Test repetition detection in the middle of the sequence
 <a href=#839 id=839 data-nosnippet>839</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0x01</span>, <span class="number">0x02</span>];
 <a href=#840 id=840 data-nosnippet>840</a>        bytes.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="number">0xAA</span>; <span class="number">6</span>]); <span class="comment">// 6 consecutive in middle

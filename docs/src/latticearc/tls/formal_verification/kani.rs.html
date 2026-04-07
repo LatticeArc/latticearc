@@ -75,31 +75,31 @@
 <a href=#75 id=75 data-nosnippet>75</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#76 id=76 data-nosnippet>76</a>
 <a href=#77 id=77 data-nosnippet>77</a>    <span class="attr">#[test]
-<a href=#78 id=78 data-nosnippet>78</a>    </span><span class="kw">fn </span>test_kani_proofs_harness_list() {
+<a href=#78 id=78 data-nosnippet>78</a>    </span><span class="kw">fn </span>test_kani_proofs_harness_list_succeeds() {
 <a href=#79 id=79 data-nosnippet>79</a>        <span class="kw">let </span>proofs = KaniProofs::new();
 <a href=#80 id=80 data-nosnippet>80</a>        <span class="macro">assert_eq!</span>(proofs.harnesses().len(), <span class="number">3</span>);
 <a href=#81 id=81 data-nosnippet>81</a>        <span class="macro">assert!</span>(proofs.harnesses().contains(<span class="kw-2">&amp;</span><span class="string">"verify_mode_selection_deterministic"</span>));
 <a href=#82 id=82 data-nosnippet>82</a>    }
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="attr">#[test]
-<a href=#85 id=85 data-nosnippet>85</a>    </span><span class="kw">fn </span>test_verify_mode_determinism_all_modes() {
+<a href=#85 id=85 data-nosnippet>85</a>    </span><span class="kw">fn </span>test_verify_mode_determinism_all_modes_is_deterministic() {
 <a href=#86 id=86 data-nosnippet>86</a>        <span class="macro">assert!</span>(KaniProofs::verify_mode_determinism(TlsMode::Classic));
 <a href=#87 id=87 data-nosnippet>87</a>        <span class="macro">assert!</span>(KaniProofs::verify_mode_determinism(TlsMode::Hybrid));
 <a href=#88 id=88 data-nosnippet>88</a>        <span class="macro">assert!</span>(KaniProofs::verify_mode_determinism(TlsMode::Pq));
 <a href=#89 id=89 data-nosnippet>89</a>    }
 <a href=#90 id=90 data-nosnippet>90</a>
 <a href=#91 id=91 data-nosnippet>91</a>    <span class="attr">#[test]
-<a href=#92 id=92 data-nosnippet>92</a>    </span><span class="kw">fn </span>test_verify_default_is_hybrid() {
+<a href=#92 id=92 data-nosnippet>92</a>    </span><span class="kw">fn </span>test_verify_default_is_hybrid_succeeds() {
 <a href=#93 id=93 data-nosnippet>93</a>        <span class="macro">assert!</span>(KaniProofs::verify_default_is_hybrid());
 <a href=#94 id=94 data-nosnippet>94</a>    }
 <a href=#95 id=95 data-nosnippet>95</a>
 <a href=#96 id=96 data-nosnippet>96</a>    <span class="attr">#[test]
-<a href=#97 id=97 data-nosnippet>97</a>    </span><span class="kw">fn </span>test_verify_default_validates() {
+<a href=#97 id=97 data-nosnippet>97</a>    </span><span class="kw">fn </span>test_verify_default_validates_succeeds() {
 <a href=#98 id=98 data-nosnippet>98</a>        <span class="macro">assert!</span>(KaniProofs::verify_default_validates());
 <a href=#99 id=99 data-nosnippet>99</a>    }
 <a href=#100 id=100 data-nosnippet>100</a>
 <a href=#101 id=101 data-nosnippet>101</a>    <span class="attr">#[test]
-<a href=#102 id=102 data-nosnippet>102</a>    </span><span class="kw">fn </span>test_kani_proofs_default() {
+<a href=#102 id=102 data-nosnippet>102</a>    </span><span class="kw">fn </span>test_kani_proofs_default_succeeds() {
 <a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">let </span>proofs = KaniProofs::default();
 <a href=#104 id=104 data-nosnippet>104</a>        <span class="macro">assert!</span>(!proofs.harnesses().is_empty());
 <a href=#105 id=105 data-nosnippet>105</a>    }

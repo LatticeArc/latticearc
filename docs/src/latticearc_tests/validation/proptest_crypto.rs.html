@@ -62,7 +62,7 @@
 <a href=#62 id=62 data-nosnippet>62</a>                <span class="kw-2">&amp;mut </span>ciphertext
 <a href=#63 id=63 data-nosnippet>63</a>            ).unwrap();
 <a href=#64 id=64 data-nosnippet>64</a>
-<a href=#65 id=65 data-nosnippet>65</a>            <span class="macro">prop_assert_eq!</span>(decrypted, plaintext.as_slice());
+<a href=#65 id=65 data-nosnippet>65</a>            <span class="macro">prop_assert_eq!</span>(<span class="kw-2">&amp;*</span>decrypted, plaintext.as_slice());
 <a href=#66 id=66 data-nosnippet>66</a>        }
 <a href=#67 id=67 data-nosnippet>67</a>
 <a href=#68 id=68 data-nosnippet>68</a>        <span class="doccomment">/// AES-GCM different keys produce different ciphertexts
@@ -150,7 +150,7 @@
 <a href=#150 id=150 data-nosnippet>150</a>            <span class="kw">let </span>ciphertext = cipher.encrypt(<span class="kw-2">&amp;</span>nonce.into(), plaintext.as_slice()).unwrap();
 <a href=#151 id=151 data-nosnippet>151</a>            <span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>nonce.into(), ciphertext.as_slice()).unwrap();
 <a href=#152 id=152 data-nosnippet>152</a>
-<a href=#153 id=153 data-nosnippet>153</a>            <span class="macro">prop_assert_eq!</span>(decrypted, plaintext);
+<a href=#153 id=153 data-nosnippet>153</a>            <span class="macro">prop_assert_eq!</span>(<span class="kw-2">&amp;*</span>decrypted, plaintext.as_slice());
 <a href=#154 id=154 data-nosnippet>154</a>        }
 <a href=#155 id=155 data-nosnippet>155</a>
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="doccomment">/// ChaCha20-Poly1305 ciphertext is larger than plaintext (by tag size)

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["assert_bytes_eq","assert_bytes_ne","test_rng"]};
+window.SIDEBAR_ITEMS = {"fn":["assert_bytes_eq","assert_bytes_ne","test_rng_succeeds"]};

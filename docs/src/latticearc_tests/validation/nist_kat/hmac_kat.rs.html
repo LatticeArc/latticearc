@@ -241,25 +241,25 @@
 <a href=#241 id=241 data-nosnippet>241</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#242 id=242 data-nosnippet>242</a>
 <a href=#243 id=243 data-nosnippet>243</a>    <span class="attr">#[test]
-<a href=#244 id=244 data-nosnippet>244</a>    </span><span class="kw">fn </span>test_hmac_sha256_kat() {
+<a href=#244 id=244 data-nosnippet>244</a>    </span><span class="kw">fn </span>test_hmac_sha256_kat_matches_rfc_vector_matches_expected() {
 <a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">let </span>result = run_hmac_sha256_kat();
 <a href=#246 id=246 data-nosnippet>246</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"HMAC-SHA256 KAT failed: {:?}"</span>, result);
 <a href=#247 id=247 data-nosnippet>247</a>    }
 <a href=#248 id=248 data-nosnippet>248</a>
 <a href=#249 id=249 data-nosnippet>249</a>    <span class="attr">#[test]
-<a href=#250 id=250 data-nosnippet>250</a>    </span><span class="kw">fn </span>test_hmac_sha224_kat() {
+<a href=#250 id=250 data-nosnippet>250</a>    </span><span class="kw">fn </span>test_hmac_sha224_kat_matches_rfc_vector_matches_expected() {
 <a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">let </span>result = run_hmac_sha224_kat();
 <a href=#252 id=252 data-nosnippet>252</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"HMAC-SHA224 KAT failed: {:?}"</span>, result);
 <a href=#253 id=253 data-nosnippet>253</a>    }
 <a href=#254 id=254 data-nosnippet>254</a>
 <a href=#255 id=255 data-nosnippet>255</a>    <span class="attr">#[test]
-<a href=#256 id=256 data-nosnippet>256</a>    </span><span class="kw">fn </span>test_hmac_sha384_kat() {
+<a href=#256 id=256 data-nosnippet>256</a>    </span><span class="kw">fn </span>test_hmac_sha384_kat_matches_rfc_vector_matches_expected() {
 <a href=#257 id=257 data-nosnippet>257</a>        <span class="kw">let </span>result = run_hmac_sha384_kat();
 <a href=#258 id=258 data-nosnippet>258</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"HMAC-SHA384 KAT failed: {:?}"</span>, result);
 <a href=#259 id=259 data-nosnippet>259</a>    }
 <a href=#260 id=260 data-nosnippet>260</a>
 <a href=#261 id=261 data-nosnippet>261</a>    <span class="attr">#[test]
-<a href=#262 id=262 data-nosnippet>262</a>    </span><span class="kw">fn </span>test_hmac_sha512_kat() {
+<a href=#262 id=262 data-nosnippet>262</a>    </span><span class="kw">fn </span>test_hmac_sha512_kat_matches_rfc_vector_matches_expected() {
 <a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">let </span>result = run_hmac_sha512_kat();
 <a href=#264 id=264 data-nosnippet>264</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"HMAC-SHA512 KAT failed: {:?}"</span>, result);
 <a href=#265 id=265 data-nosnippet>265</a>    }
@@ -407,7 +407,7 @@
 <a href=#407 id=407 data-nosnippet>407</a>    <span class="comment">// --- MAC mismatch tests (TestFailed error path) ---
 <a href=#408 id=408 data-nosnippet>408</a>
 <a href=#409 id=409 data-nosnippet>409</a>    </span><span class="attr">#[test]
-<a href=#410 id=410 data-nosnippet>410</a>    </span><span class="kw">fn </span>test_hmac_sha256_mac_mismatch() {
+<a href=#410 id=410 data-nosnippet>410</a>    </span><span class="kw">fn </span>test_hmac_sha256_mac_mismatch_returns_error() {
 <a href=#411 id=411 data-nosnippet>411</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#412 id=412 data-nosnippet>412</a>        <span class="comment">// Use a wrong expected MAC (flip the last byte)
 <a href=#413 id=413 data-nosnippet>413</a>        </span><span class="kw">let </span>wrong_expected = <span class="string">"b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cfff"</span>;
@@ -423,7 +423,7 @@
 <a href=#423 id=423 data-nosnippet>423</a>    }
 <a href=#424 id=424 data-nosnippet>424</a>
 <a href=#425 id=425 data-nosnippet>425</a>    <span class="attr">#[test]
-<a href=#426 id=426 data-nosnippet>426</a>    </span><span class="kw">fn </span>test_hmac_sha224_mac_mismatch() {
+<a href=#426 id=426 data-nosnippet>426</a>    </span><span class="kw">fn </span>test_hmac_sha224_mac_mismatch_returns_error() {
 <a href=#427 id=427 data-nosnippet>427</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#428 id=428 data-nosnippet>428</a>        <span class="comment">// Wrong expected MAC for SHA-224
 <a href=#429 id=429 data-nosnippet>429</a>        </span><span class="kw">let </span>wrong_expected = <span class="string">"896fb1128abbdf196832107cd49df33f47b4b1169912ba4f53684b00"</span>;
@@ -437,7 +437,7 @@
 <a href=#437 id=437 data-nosnippet>437</a>    }
 <a href=#438 id=438 data-nosnippet>438</a>
 <a href=#439 id=439 data-nosnippet>439</a>    <span class="attr">#[test]
-<a href=#440 id=440 data-nosnippet>440</a>    </span><span class="kw">fn </span>test_hmac_sha384_mac_mismatch() {
+<a href=#440 id=440 data-nosnippet>440</a>    </span><span class="kw">fn </span>test_hmac_sha384_mac_mismatch_returns_error() {
 <a href=#441 id=441 data-nosnippet>441</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#442 id=442 data-nosnippet>442</a>        <span class="comment">// Wrong expected MAC for SHA-384
 <a href=#443 id=443 data-nosnippet>443</a>        </span><span class="kw">let </span>wrong_expected = <span class="string">"afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9c00"</span>;
@@ -451,7 +451,7 @@
 <a href=#451 id=451 data-nosnippet>451</a>    }
 <a href=#452 id=452 data-nosnippet>452</a>
 <a href=#453 id=453 data-nosnippet>453</a>    <span class="attr">#[test]
-<a href=#454 id=454 data-nosnippet>454</a>    </span><span class="kw">fn </span>test_hmac_sha512_mac_mismatch() {
+<a href=#454 id=454 data-nosnippet>454</a>    </span><span class="kw">fn </span>test_hmac_sha512_mac_mismatch_returns_error() {
 <a href=#455 id=455 data-nosnippet>455</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#456 id=456 data-nosnippet>456</a>        <span class="comment">// Wrong expected MAC for SHA-512
 <a href=#457 id=457 data-nosnippet>457</a>        </span><span class="kw">let </span>wrong_expected = <span class="string">"87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a12685f"</span>;
@@ -467,7 +467,7 @@
 <a href=#467 id=467 data-nosnippet>467</a>    <span class="comment">// --- Hex decode error paths ---
 <a href=#468 id=468 data-nosnippet>468</a>
 <a href=#469 id=469 data-nosnippet>469</a>    </span><span class="attr">#[test]
-<a href=#470 id=470 data-nosnippet>470</a>    </span><span class="kw">fn </span>test_hmac_sha256_invalid_key_hex() {
+<a href=#470 id=470 data-nosnippet>470</a>    </span><span class="kw">fn </span>test_hmac_sha256_invalid_key_hex_returns_error() {
 <a href=#471 id=471 data-nosnippet>471</a>        <span class="kw">let </span>result = run_single_hmac_sha256(<span class="string">"ZZZZ"</span>, <span class="string">"aa"</span>, <span class="string">"bb"</span>, <span class="string">"bad-key-test"</span>);
 <a href=#472 id=472 data-nosnippet>472</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#473 id=473 data-nosnippet>473</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -475,7 +475,7 @@
 <a href=#475 id=475 data-nosnippet>475</a>    }
 <a href=#476 id=476 data-nosnippet>476</a>
 <a href=#477 id=477 data-nosnippet>477</a>    <span class="attr">#[test]
-<a href=#478 id=478 data-nosnippet>478</a>    </span><span class="kw">fn </span>test_hmac_sha256_invalid_message_hex() {
+<a href=#478 id=478 data-nosnippet>478</a>    </span><span class="kw">fn </span>test_hmac_sha256_invalid_message_hex_returns_error() {
 <a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>result = run_single_hmac_sha256(<span class="string">"aabb"</span>, <span class="string">"XXXX"</span>, <span class="string">"bb"</span>, <span class="string">"bad-msg-test"</span>);
 <a href=#480 id=480 data-nosnippet>480</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#481 id=481 data-nosnippet>481</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -483,7 +483,7 @@
 <a href=#483 id=483 data-nosnippet>483</a>    }
 <a href=#484 id=484 data-nosnippet>484</a>
 <a href=#485 id=485 data-nosnippet>485</a>    <span class="attr">#[test]
-<a href=#486 id=486 data-nosnippet>486</a>    </span><span class="kw">fn </span>test_hmac_sha256_invalid_expected_hex() {
+<a href=#486 id=486 data-nosnippet>486</a>    </span><span class="kw">fn </span>test_hmac_sha256_invalid_expected_hex_returns_error() {
 <a href=#487 id=487 data-nosnippet>487</a>        <span class="kw">let </span>result = run_single_hmac_sha256(<span class="string">"aabb"</span>, <span class="string">"ccdd"</span>, <span class="string">"GGGG"</span>, <span class="string">"bad-expected-test"</span>);
 <a href=#488 id=488 data-nosnippet>488</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#489 id=489 data-nosnippet>489</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -491,7 +491,7 @@
 <a href=#491 id=491 data-nosnippet>491</a>    }
 <a href=#492 id=492 data-nosnippet>492</a>
 <a href=#493 id=493 data-nosnippet>493</a>    <span class="attr">#[test]
-<a href=#494 id=494 data-nosnippet>494</a>    </span><span class="kw">fn </span>test_hmac_sha224_invalid_key_hex() {
+<a href=#494 id=494 data-nosnippet>494</a>    </span><span class="kw">fn </span>test_hmac_sha224_invalid_key_hex_returns_error() {
 <a href=#495 id=495 data-nosnippet>495</a>        <span class="kw">let </span>result = run_single_hmac_sha224(<span class="string">"ZZZZ"</span>, <span class="string">"aa"</span>, <span class="string">"bb"</span>, <span class="string">"bad-key-test"</span>);
 <a href=#496 id=496 data-nosnippet>496</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#497 id=497 data-nosnippet>497</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -499,7 +499,7 @@
 <a href=#499 id=499 data-nosnippet>499</a>    }
 <a href=#500 id=500 data-nosnippet>500</a>
 <a href=#501 id=501 data-nosnippet>501</a>    <span class="attr">#[test]
-<a href=#502 id=502 data-nosnippet>502</a>    </span><span class="kw">fn </span>test_hmac_sha224_invalid_message_hex() {
+<a href=#502 id=502 data-nosnippet>502</a>    </span><span class="kw">fn </span>test_hmac_sha224_invalid_message_hex_returns_error() {
 <a href=#503 id=503 data-nosnippet>503</a>        <span class="kw">let </span>result = run_single_hmac_sha224(<span class="string">"aabb"</span>, <span class="string">"XXXX"</span>, <span class="string">"bb"</span>, <span class="string">"bad-msg-test"</span>);
 <a href=#504 id=504 data-nosnippet>504</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#505 id=505 data-nosnippet>505</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -507,7 +507,7 @@
 <a href=#507 id=507 data-nosnippet>507</a>    }
 <a href=#508 id=508 data-nosnippet>508</a>
 <a href=#509 id=509 data-nosnippet>509</a>    <span class="attr">#[test]
-<a href=#510 id=510 data-nosnippet>510</a>    </span><span class="kw">fn </span>test_hmac_sha384_invalid_key_hex() {
+<a href=#510 id=510 data-nosnippet>510</a>    </span><span class="kw">fn </span>test_hmac_sha384_invalid_key_hex_returns_error() {
 <a href=#511 id=511 data-nosnippet>511</a>        <span class="kw">let </span>result = run_single_hmac_sha384(<span class="string">"ZZZZ"</span>, <span class="string">"aa"</span>, <span class="string">"bb"</span>, <span class="string">"bad-key-test"</span>);
 <a href=#512 id=512 data-nosnippet>512</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#513 id=513 data-nosnippet>513</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -515,7 +515,7 @@
 <a href=#515 id=515 data-nosnippet>515</a>    }
 <a href=#516 id=516 data-nosnippet>516</a>
 <a href=#517 id=517 data-nosnippet>517</a>    <span class="attr">#[test]
-<a href=#518 id=518 data-nosnippet>518</a>    </span><span class="kw">fn </span>test_hmac_sha384_invalid_message_hex() {
+<a href=#518 id=518 data-nosnippet>518</a>    </span><span class="kw">fn </span>test_hmac_sha384_invalid_message_hex_returns_error() {
 <a href=#519 id=519 data-nosnippet>519</a>        <span class="kw">let </span>result = run_single_hmac_sha384(<span class="string">"aabb"</span>, <span class="string">"XXXX"</span>, <span class="string">"bb"</span>, <span class="string">"bad-msg-test"</span>);
 <a href=#520 id=520 data-nosnippet>520</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#521 id=521 data-nosnippet>521</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -523,7 +523,7 @@
 <a href=#523 id=523 data-nosnippet>523</a>    }
 <a href=#524 id=524 data-nosnippet>524</a>
 <a href=#525 id=525 data-nosnippet>525</a>    <span class="attr">#[test]
-<a href=#526 id=526 data-nosnippet>526</a>    </span><span class="kw">fn </span>test_hmac_sha512_invalid_key_hex() {
+<a href=#526 id=526 data-nosnippet>526</a>    </span><span class="kw">fn </span>test_hmac_sha512_invalid_key_hex_returns_error() {
 <a href=#527 id=527 data-nosnippet>527</a>        <span class="kw">let </span>result = run_single_hmac_sha512(<span class="string">"ZZZZ"</span>, <span class="string">"aa"</span>, <span class="string">"bb"</span>, <span class="string">"bad-key-test"</span>);
 <a href=#528 id=528 data-nosnippet>528</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#529 id=529 data-nosnippet>529</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -531,7 +531,7 @@
 <a href=#531 id=531 data-nosnippet>531</a>    }
 <a href=#532 id=532 data-nosnippet>532</a>
 <a href=#533 id=533 data-nosnippet>533</a>    <span class="attr">#[test]
-<a href=#534 id=534 data-nosnippet>534</a>    </span><span class="kw">fn </span>test_hmac_sha512_invalid_message_hex() {
+<a href=#534 id=534 data-nosnippet>534</a>    </span><span class="kw">fn </span>test_hmac_sha512_invalid_message_hex_returns_error() {
 <a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span>result = run_single_hmac_sha512(<span class="string">"aabb"</span>, <span class="string">"XXXX"</span>, <span class="string">"bb"</span>, <span class="string">"bad-msg-test"</span>);
 <a href=#536 id=536 data-nosnippet>536</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#537 id=537 data-nosnippet>537</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -541,7 +541,7 @@
 <a href=#541 id=541 data-nosnippet>541</a>    <span class="comment">// --- Test vector struct field access ---
 <a href=#542 id=542 data-nosnippet>542</a>
 <a href=#543 id=543 data-nosnippet>543</a>    </span><span class="attr">#[test]
-<a href=#544 id=544 data-nosnippet>544</a>    </span><span class="kw">fn </span>test_hmac_vector_fields_accessible() {
+<a href=#544 id=544 data-nosnippet>544</a>    </span><span class="kw">fn </span>test_hmac_vector_fields_are_accessible_and_correct() {
 <a href=#545 id=545 data-nosnippet>545</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#546 id=546 data-nosnippet>546</a>        <span class="macro">assert_eq!</span>(vector.test_name, <span class="string">"RFC-4231-Test-Case-1"</span>);
 <a href=#547 id=547 data-nosnippet>547</a>        <span class="macro">assert_eq!</span>(vector.key, <span class="string">"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"</span>);
@@ -553,13 +553,13 @@
 <a href=#553 id=553 data-nosnippet>553</a>    }
 <a href=#554 id=554 data-nosnippet>554</a>
 <a href=#555 id=555 data-nosnippet>555</a>    <span class="attr">#[test]
-<a href=#556 id=556 data-nosnippet>556</a>    </span><span class="kw">fn </span>test_hmac_vector_count() {
+<a href=#556 id=556 data-nosnippet>556</a>    </span><span class="kw">fn </span>test_hmac_vector_count_is_correct() {
 <a href=#557 id=557 data-nosnippet>557</a>        <span class="comment">// Verify all expected test vectors are present (cases 1-4, 6, 7)
 <a href=#558 id=558 data-nosnippet>558</a>        </span><span class="macro">assert_eq!</span>(HMAC_VECTORS.len(), <span class="number">6</span>);
 <a href=#559 id=559 data-nosnippet>559</a>    }
 <a href=#560 id=560 data-nosnippet>560</a>
 <a href=#561 id=561 data-nosnippet>561</a>    <span class="attr">#[test]
-<a href=#562 id=562 data-nosnippet>562</a>    </span><span class="kw">fn </span>test_hmac_vectors_all_names() {
+<a href=#562 id=562 data-nosnippet>562</a>    </span><span class="kw">fn </span>test_hmac_vectors_all_names_are_present_matches_expected() {
 <a href=#563 id=563 data-nosnippet>563</a>        <span class="kw">let </span>names: Vec&lt;<span class="kw-2">&amp;</span>str&gt; = HMAC_VECTORS.iter().map(|v| v.test_name).collect();
 <a href=#564 id=564 data-nosnippet>564</a>        <span class="macro">assert!</span>(names.contains(<span class="kw-2">&amp;</span><span class="string">"RFC-4231-Test-Case-1"</span>));
 <a href=#565 id=565 data-nosnippet>565</a>        <span class="macro">assert!</span>(names.contains(<span class="kw-2">&amp;</span><span class="string">"RFC-4231-Test-Case-2"</span>));
@@ -572,7 +572,7 @@
 <a href=#572 id=572 data-nosnippet>572</a>    <span class="comment">// --- Edge case: empty message ---
 <a href=#573 id=573 data-nosnippet>573</a>
 <a href=#574 id=574 data-nosnippet>574</a>    </span><span class="attr">#[test]
-<a href=#575 id=575 data-nosnippet>575</a>    </span><span class="kw">fn </span>test_hmac_sha256_empty_message() {
+<a href=#575 id=575 data-nosnippet>575</a>    </span><span class="kw">fn </span>test_hmac_sha256_empty_message_succeeds() {
 <a href=#576 id=576 data-nosnippet>576</a>        <span class="comment">// HMAC with empty message should produce a valid MAC (not an error)
 <a href=#577 id=577 data-nosnippet>577</a>        </span><span class="kw">let </span>result = run_single_hmac_sha256(
 <a href=#578 id=578 data-nosnippet>578</a>            <span class="string">"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"</span>,
@@ -592,7 +592,7 @@
 <a href=#592 id=592 data-nosnippet>592</a>    }
 <a href=#593 id=593 data-nosnippet>593</a>
 <a href=#594 id=594 data-nosnippet>594</a>    <span class="attr">#[test]
-<a href=#595 id=595 data-nosnippet>595</a>    </span><span class="kw">fn </span>test_hmac_sha512_empty_message() {
+<a href=#595 id=595 data-nosnippet>595</a>    </span><span class="kw">fn </span>test_hmac_sha512_empty_message_succeeds() {
 <a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">let </span>result = run_single_hmac_sha512(
 <a href=#597 id=597 data-nosnippet>597</a>            <span class="string">"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"</span>,
 <a href=#598 id=598 data-nosnippet>598</a>            <span class="string">""</span>,
@@ -607,7 +607,7 @@
 <a href=#607 id=607 data-nosnippet>607</a>    <span class="comment">// --- Odd-length hex string (invalid hex) ---
 <a href=#608 id=608 data-nosnippet>608</a>
 <a href=#609 id=609 data-nosnippet>609</a>    </span><span class="attr">#[test]
-<a href=#610 id=610 data-nosnippet>610</a>    </span><span class="kw">fn </span>test_hmac_sha256_odd_length_hex_key() {
+<a href=#610 id=610 data-nosnippet>610</a>    </span><span class="kw">fn </span>test_hmac_sha256_odd_length_hex_key_returns_error() {
 <a href=#611 id=611 data-nosnippet>611</a>        <span class="kw">let </span>result = run_single_hmac_sha256(<span class="string">"aab"</span>, <span class="string">"ccdd"</span>, <span class="string">"eeff"</span>, <span class="string">"odd-hex-test"</span>);
 <a href=#612 id=612 data-nosnippet>612</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#613 id=613 data-nosnippet>613</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -615,7 +615,7 @@
 <a href=#615 id=615 data-nosnippet>615</a>    }
 <a href=#616 id=616 data-nosnippet>616</a>
 <a href=#617 id=617 data-nosnippet>617</a>    <span class="attr">#[test]
-<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="kw">fn </span>test_hmac_sha512_odd_length_hex_key() {
+<a href=#618 id=618 data-nosnippet>618</a>    </span><span class="kw">fn </span>test_hmac_sha512_odd_length_hex_key_returns_error() {
 <a href=#619 id=619 data-nosnippet>619</a>        <span class="kw">let </span>result = run_single_hmac_sha512(<span class="string">"aab"</span>, <span class="string">"ccdd"</span>, <span class="string">"eeff"</span>, <span class="string">"odd-hex-test"</span>);
 <a href=#620 id=620 data-nosnippet>620</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#621 id=621 data-nosnippet>621</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -625,7 +625,7 @@
 <a href=#625 id=625 data-nosnippet>625</a>    <span class="comment">// --- Verify each vector individually for SHA-256 ---
 <a href=#626 id=626 data-nosnippet>626</a>
 <a href=#627 id=627 data-nosnippet>627</a>    </span><span class="attr">#[test]
-<a href=#628 id=628 data-nosnippet>628</a>    </span><span class="kw">fn </span>test_hmac_sha256_individual_vectors() {
+<a href=#628 id=628 data-nosnippet>628</a>    </span><span class="kw">fn </span>test_hmac_sha256_individual_vectors_match_expected_matches_expected() {
 <a href=#629 id=629 data-nosnippet>629</a>        <span class="kw">for </span>vector <span class="kw">in </span>HMAC_VECTORS {
 <a href=#630 id=630 data-nosnippet>630</a>            <span class="kw">let </span>result = run_single_hmac_sha256(
 <a href=#631 id=631 data-nosnippet>631</a>                vector.key,
@@ -640,7 +640,7 @@
 <a href=#640 id=640 data-nosnippet>640</a>    <span class="comment">// --- Verify each vector individually for SHA-224 ---
 <a href=#641 id=641 data-nosnippet>641</a>
 <a href=#642 id=642 data-nosnippet>642</a>    </span><span class="attr">#[test]
-<a href=#643 id=643 data-nosnippet>643</a>    </span><span class="kw">fn </span>test_hmac_sha224_individual_vectors() {
+<a href=#643 id=643 data-nosnippet>643</a>    </span><span class="kw">fn </span>test_hmac_sha224_individual_vectors_match_expected_matches_expected() {
 <a href=#644 id=644 data-nosnippet>644</a>        <span class="kw">for </span>vector <span class="kw">in </span>HMAC_VECTORS {
 <a href=#645 id=645 data-nosnippet>645</a>            <span class="kw">let </span>result = run_single_hmac_sha224(
 <a href=#646 id=646 data-nosnippet>646</a>                vector.key,
@@ -655,7 +655,7 @@
 <a href=#655 id=655 data-nosnippet>655</a>    <span class="comment">// --- Verify each vector individually for SHA-384 ---
 <a href=#656 id=656 data-nosnippet>656</a>
 <a href=#657 id=657 data-nosnippet>657</a>    </span><span class="attr">#[test]
-<a href=#658 id=658 data-nosnippet>658</a>    </span><span class="kw">fn </span>test_hmac_sha384_individual_vectors() {
+<a href=#658 id=658 data-nosnippet>658</a>    </span><span class="kw">fn </span>test_hmac_sha384_individual_vectors_match_expected_matches_expected() {
 <a href=#659 id=659 data-nosnippet>659</a>        <span class="kw">for </span>vector <span class="kw">in </span>HMAC_VECTORS {
 <a href=#660 id=660 data-nosnippet>660</a>            <span class="kw">let </span>result = run_single_hmac_sha384(
 <a href=#661 id=661 data-nosnippet>661</a>                vector.key,
@@ -670,7 +670,7 @@
 <a href=#670 id=670 data-nosnippet>670</a>    <span class="comment">// --- Verify each vector individually for SHA-512 ---
 <a href=#671 id=671 data-nosnippet>671</a>
 <a href=#672 id=672 data-nosnippet>672</a>    </span><span class="attr">#[test]
-<a href=#673 id=673 data-nosnippet>673</a>    </span><span class="kw">fn </span>test_hmac_sha512_individual_vectors() {
+<a href=#673 id=673 data-nosnippet>673</a>    </span><span class="kw">fn </span>test_hmac_sha512_individual_vectors_match_expected_matches_expected() {
 <a href=#674 id=674 data-nosnippet>674</a>        <span class="kw">for </span>vector <span class="kw">in </span>HMAC_VECTORS {
 <a href=#675 id=675 data-nosnippet>675</a>            <span class="kw">let </span>result = run_single_hmac_sha512(
 <a href=#676 id=676 data-nosnippet>676</a>                vector.key,
@@ -685,7 +685,7 @@
 <a href=#685 id=685 data-nosnippet>685</a>    <span class="comment">// --- NistKatError display coverage ---
 <a href=#686 id=686 data-nosnippet>686</a>
 <a href=#687 id=687 data-nosnippet>687</a>    </span><span class="attr">#[test]
-<a href=#688 id=688 data-nosnippet>688</a>    </span><span class="kw">fn </span>test_nist_kat_error_test_failed_display() {
+<a href=#688 id=688 data-nosnippet>688</a>    </span><span class="kw">fn </span>test_nist_kat_error_test_failed_display_contains_fields_matches_expected() {
 <a href=#689 id=689 data-nosnippet>689</a>        <span class="kw">let </span>err = NistKatError::TestFailed {
 <a href=#690 id=690 data-nosnippet>690</a>            algorithm: <span class="string">"HMAC-SHA256"</span>.to_string(),
 <a href=#691 id=691 data-nosnippet>691</a>            test_name: <span class="string">"test-1"</span>.to_string(),
@@ -698,7 +698,7 @@
 <a href=#698 id=698 data-nosnippet>698</a>    }
 <a href=#699 id=699 data-nosnippet>699</a>
 <a href=#700 id=700 data-nosnippet>700</a>    <span class="attr">#[test]
-<a href=#701 id=701 data-nosnippet>701</a>    </span><span class="kw">fn </span>test_nist_kat_error_hex_error_display() {
+<a href=#701 id=701 data-nosnippet>701</a>    </span><span class="kw">fn </span>test_nist_kat_error_hex_error_display_has_correct_format() {
 <a href=#702 id=702 data-nosnippet>702</a>        <span class="kw">let </span>err = NistKatError::HexError(<span class="string">"invalid character"</span>.to_string());
 <a href=#703 id=703 data-nosnippet>703</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, err);
 <a href=#704 id=704 data-nosnippet>704</a>        <span class="macro">assert!</span>(display.contains(<span class="string">"Hex decode error"</span>));
@@ -706,7 +706,7 @@
 <a href=#706 id=706 data-nosnippet>706</a>    }
 <a href=#707 id=707 data-nosnippet>707</a>
 <a href=#708 id=708 data-nosnippet>708</a>    <span class="attr">#[test]
-<a href=#709 id=709 data-nosnippet>709</a>    </span><span class="kw">fn </span>test_nist_kat_error_implementation_error_display() {
+<a href=#709 id=709 data-nosnippet>709</a>    </span><span class="kw">fn </span>test_nist_kat_error_implementation_error_display_has_correct_format() {
 <a href=#710 id=710 data-nosnippet>710</a>        <span class="kw">let </span>err = NistKatError::ImplementationError(<span class="string">"HMAC creation failed"</span>.to_string());
 <a href=#711 id=711 data-nosnippet>711</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, err);
 <a href=#712 id=712 data-nosnippet>712</a>        <span class="macro">assert!</span>(display.contains(<span class="string">"Implementation error"</span>));
@@ -714,7 +714,7 @@
 <a href=#714 id=714 data-nosnippet>714</a>    }
 <a href=#715 id=715 data-nosnippet>715</a>
 <a href=#716 id=716 data-nosnippet>716</a>    <span class="attr">#[test]
-<a href=#717 id=717 data-nosnippet>717</a>    </span><span class="kw">fn </span>test_nist_kat_error_debug() {
+<a href=#717 id=717 data-nosnippet>717</a>    </span><span class="kw">fn </span>test_nist_kat_error_debug_matches_expected() {
 <a href=#718 id=718 data-nosnippet>718</a>        <span class="kw">let </span>err = NistKatError::TestFailed {
 <a href=#719 id=719 data-nosnippet>719</a>            algorithm: <span class="string">"HMAC-SHA256"</span>.to_string(),
 <a href=#720 id=720 data-nosnippet>720</a>            test_name: <span class="string">"test-1"</span>.to_string(),
@@ -727,27 +727,27 @@
 <a href=#727 id=727 data-nosnippet>727</a>    <span class="comment">// --- decode_hex coverage ---
 <a href=#728 id=728 data-nosnippet>728</a>
 <a href=#729 id=729 data-nosnippet>729</a>    </span><span class="attr">#[test]
-<a href=#730 id=730 data-nosnippet>730</a>    </span><span class="kw">fn </span>test_decode_hex_valid() {
+<a href=#730 id=730 data-nosnippet>730</a>    </span><span class="kw">fn </span>test_decode_hex_valid_succeeds() {
 <a href=#731 id=731 data-nosnippet>731</a>        <span class="kw">let </span>result = decode_hex(<span class="string">"48656c6c6f"</span>);
 <a href=#732 id=732 data-nosnippet>732</a>        <span class="macro">assert!</span>(result.is_ok());
 <a href=#733 id=733 data-nosnippet>733</a>        <span class="macro">assert_eq!</span>(result.expect(<span class="string">"valid hex"</span>), <span class="string">b"Hello"</span>);
 <a href=#734 id=734 data-nosnippet>734</a>    }
 <a href=#735 id=735 data-nosnippet>735</a>
 <a href=#736 id=736 data-nosnippet>736</a>    <span class="attr">#[test]
-<a href=#737 id=737 data-nosnippet>737</a>    </span><span class="kw">fn </span>test_decode_hex_empty() {
+<a href=#737 id=737 data-nosnippet>737</a>    </span><span class="kw">fn </span>test_decode_hex_empty_succeeds() {
 <a href=#738 id=738 data-nosnippet>738</a>        <span class="kw">let </span>result = decode_hex(<span class="string">""</span>);
 <a href=#739 id=739 data-nosnippet>739</a>        <span class="macro">assert!</span>(result.is_ok());
 <a href=#740 id=740 data-nosnippet>740</a>        <span class="macro">assert!</span>(result.expect(<span class="string">"empty hex"</span>).is_empty());
 <a href=#741 id=741 data-nosnippet>741</a>    }
 <a href=#742 id=742 data-nosnippet>742</a>
 <a href=#743 id=743 data-nosnippet>743</a>    <span class="attr">#[test]
-<a href=#744 id=744 data-nosnippet>744</a>    </span><span class="kw">fn </span>test_decode_hex_invalid() {
+<a href=#744 id=744 data-nosnippet>744</a>    </span><span class="kw">fn </span>test_decode_hex_invalid_returns_error() {
 <a href=#745 id=745 data-nosnippet>745</a>        <span class="kw">let </span>result = decode_hex(<span class="string">"ZZZZ"</span>);
 <a href=#746 id=746 data-nosnippet>746</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#747 id=747 data-nosnippet>747</a>    }
 <a href=#748 id=748 data-nosnippet>748</a>
 <a href=#749 id=749 data-nosnippet>749</a>    <span class="attr">#[test]
-<a href=#750 id=750 data-nosnippet>750</a>    </span><span class="kw">fn </span>test_decode_hex_odd_length() {
+<a href=#750 id=750 data-nosnippet>750</a>    </span><span class="kw">fn </span>test_decode_hex_odd_length_returns_error() {
 <a href=#751 id=751 data-nosnippet>751</a>        <span class="kw">let </span>result = decode_hex(<span class="string">"abc"</span>);
 <a href=#752 id=752 data-nosnippet>752</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#753 id=753 data-nosnippet>753</a>    }
@@ -755,7 +755,7 @@
 <a href=#755 id=755 data-nosnippet>755</a>    <span class="comment">// --- Cross-variant consistency: same key/message produces different MACs ---
 <a href=#756 id=756 data-nosnippet>756</a>
 <a href=#757 id=757 data-nosnippet>757</a>    </span><span class="attr">#[test]
-<a href=#758 id=758 data-nosnippet>758</a>    </span><span class="kw">fn </span>test_hmac_variants_produce_different_macs() {
+<a href=#758 id=758 data-nosnippet>758</a>    </span><span class="kw">fn </span>test_hmac_variants_produce_different_macs_succeeds() {
 <a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#760 id=760 data-nosnippet>760</a>        <span class="kw">let </span>key = decode_hex(vector.key).expect(<span class="string">"valid key hex"</span>);
 <a href=#761 id=761 data-nosnippet>761</a>        <span class="kw">let </span>message = decode_hex(vector.message).expect(<span class="string">"valid message hex"</span>);
@@ -773,7 +773,7 @@
 <a href=#773 id=773 data-nosnippet>773</a>    }
 <a href=#774 id=774 data-nosnippet>774</a>
 <a href=#775 id=775 data-nosnippet>775</a>    <span class="attr">#[test]
-<a href=#776 id=776 data-nosnippet>776</a>    </span><span class="kw">fn </span>test_hmac_sha224_vs_sha256_different_output_lengths() {
+<a href=#776 id=776 data-nosnippet>776</a>    </span><span class="kw">fn </span>test_hmac_sha224_vs_sha256_different_output_lengths_has_correct_size() {
 <a href=#777 id=777 data-nosnippet>777</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#778 id=778 data-nosnippet>778</a>        <span class="kw">let </span>key = decode_hex(vector.key).expect(<span class="string">"valid key hex"</span>);
 <a href=#779 id=779 data-nosnippet>779</a>        <span class="kw">let </span>message = decode_hex(vector.message).expect(<span class="string">"valid message hex"</span>);
@@ -791,7 +791,7 @@
 <a href=#791 id=791 data-nosnippet>791</a>    }
 <a href=#792 id=792 data-nosnippet>792</a>
 <a href=#793 id=793 data-nosnippet>793</a>    <span class="attr">#[test]
-<a href=#794 id=794 data-nosnippet>794</a>    </span><span class="kw">fn </span>test_hmac_sha384_output_length() {
+<a href=#794 id=794 data-nosnippet>794</a>    </span><span class="kw">fn </span>test_hmac_sha384_output_has_correct_length_has_correct_size() {
 <a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>HMAC_VECTORS[<span class="number">0</span>];
 <a href=#796 id=796 data-nosnippet>796</a>        <span class="kw">let </span>key = decode_hex(vector.key).expect(<span class="string">"valid key hex"</span>);
 <a href=#797 id=797 data-nosnippet>797</a>        <span class="kw">let </span>message = decode_hex(vector.message).expect(<span class="string">"valid message hex"</span>);
@@ -806,7 +806,7 @@
 <a href=#806 id=806 data-nosnippet>806</a>    <span class="comment">// --- Test with single-byte key and message ---
 <a href=#807 id=807 data-nosnippet>807</a>
 <a href=#808 id=808 data-nosnippet>808</a>    </span><span class="attr">#[test]
-<a href=#809 id=809 data-nosnippet>809</a>    </span><span class="kw">fn </span>test_hmac_sha256_single_byte_inputs() {
+<a href=#809 id=809 data-nosnippet>809</a>    </span><span class="kw">fn </span>test_hmac_sha256_single_byte_inputs_succeed_succeeds() {
 <a href=#810 id=810 data-nosnippet>810</a>        <span class="comment">// Single-byte key and message: HMAC should succeed (no errors),
 <a href=#811 id=811 data-nosnippet>811</a>        // but the MAC will not match the fabricated expected value.
 <a href=#812 id=812 data-nosnippet>812</a>        </span><span class="kw">let </span>result = run_single_hmac_sha256(
@@ -821,7 +821,7 @@
 <a href=#821 id=821 data-nosnippet>821</a>    }
 <a href=#822 id=822 data-nosnippet>822</a>
 <a href=#823 id=823 data-nosnippet>823</a>    <span class="attr">#[test]
-<a href=#824 id=824 data-nosnippet>824</a>    </span><span class="kw">fn </span>test_hmac_sha224_single_byte_inputs() {
+<a href=#824 id=824 data-nosnippet>824</a>    </span><span class="kw">fn </span>test_hmac_sha224_single_byte_inputs_succeed_succeeds() {
 <a href=#825 id=825 data-nosnippet>825</a>        <span class="kw">let </span>result = run_single_hmac_sha224(
 <a href=#826 id=826 data-nosnippet>826</a>            <span class="string">"aa"</span>,
 <a href=#827 id=827 data-nosnippet>827</a>            <span class="string">"bb"</span>,
@@ -834,7 +834,7 @@
 <a href=#834 id=834 data-nosnippet>834</a>    }
 <a href=#835 id=835 data-nosnippet>835</a>
 <a href=#836 id=836 data-nosnippet>836</a>    <span class="attr">#[test]
-<a href=#837 id=837 data-nosnippet>837</a>    </span><span class="kw">fn </span>test_hmac_sha384_single_byte_inputs() {
+<a href=#837 id=837 data-nosnippet>837</a>    </span><span class="kw">fn </span>test_hmac_sha384_single_byte_inputs_succeed_succeeds() {
 <a href=#838 id=838 data-nosnippet>838</a>        <span class="kw">let </span>result = run_single_hmac_sha384(
 <a href=#839 id=839 data-nosnippet>839</a>            <span class="string">"aa"</span>,
 <a href=#840 id=840 data-nosnippet>840</a>            <span class="string">"bb"</span>,
@@ -847,7 +847,7 @@
 <a href=#847 id=847 data-nosnippet>847</a>    }
 <a href=#848 id=848 data-nosnippet>848</a>
 <a href=#849 id=849 data-nosnippet>849</a>    <span class="attr">#[test]
-<a href=#850 id=850 data-nosnippet>850</a>    </span><span class="kw">fn </span>test_hmac_sha512_single_byte_inputs() {
+<a href=#850 id=850 data-nosnippet>850</a>    </span><span class="kw">fn </span>test_hmac_sha512_single_byte_inputs_succeed_succeeds() {
 <a href=#851 id=851 data-nosnippet>851</a>        <span class="kw">let </span>result = run_single_hmac_sha512(
 <a href=#852 id=852 data-nosnippet>852</a>            <span class="string">"aa"</span>,
 <a href=#853 id=853 data-nosnippet>853</a>            <span class="string">"bb"</span>,
@@ -862,7 +862,7 @@
 <a href=#862 id=862 data-nosnippet>862</a>    <span class="comment">// --- Test invalid hex on expected_mac field for each variant ---
 <a href=#863 id=863 data-nosnippet>863</a>
 <a href=#864 id=864 data-nosnippet>864</a>    </span><span class="attr">#[test]
-<a href=#865 id=865 data-nosnippet>865</a>    </span><span class="kw">fn </span>test_hmac_sha224_invalid_expected_hex() {
+<a href=#865 id=865 data-nosnippet>865</a>    </span><span class="kw">fn </span>test_hmac_sha224_invalid_expected_hex_returns_error() {
 <a href=#866 id=866 data-nosnippet>866</a>        <span class="kw">let </span>result = run_single_hmac_sha224(<span class="string">"aabb"</span>, <span class="string">"ccdd"</span>, <span class="string">"GGGG"</span>, <span class="string">"bad-expected-224"</span>);
 <a href=#867 id=867 data-nosnippet>867</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#868 id=868 data-nosnippet>868</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -870,7 +870,7 @@
 <a href=#870 id=870 data-nosnippet>870</a>    }
 <a href=#871 id=871 data-nosnippet>871</a>
 <a href=#872 id=872 data-nosnippet>872</a>    <span class="attr">#[test]
-<a href=#873 id=873 data-nosnippet>873</a>    </span><span class="kw">fn </span>test_hmac_sha384_invalid_expected_hex() {
+<a href=#873 id=873 data-nosnippet>873</a>    </span><span class="kw">fn </span>test_hmac_sha384_invalid_expected_hex_returns_error() {
 <a href=#874 id=874 data-nosnippet>874</a>        <span class="kw">let </span>result = run_single_hmac_sha384(<span class="string">"aabb"</span>, <span class="string">"ccdd"</span>, <span class="string">"GGGG"</span>, <span class="string">"bad-expected-384"</span>);
 <a href=#875 id=875 data-nosnippet>875</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#876 id=876 data-nosnippet>876</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));
@@ -878,7 +878,7 @@
 <a href=#878 id=878 data-nosnippet>878</a>    }
 <a href=#879 id=879 data-nosnippet>879</a>
 <a href=#880 id=880 data-nosnippet>880</a>    <span class="attr">#[test]
-<a href=#881 id=881 data-nosnippet>881</a>    </span><span class="kw">fn </span>test_hmac_sha512_invalid_expected_hex() {
+<a href=#881 id=881 data-nosnippet>881</a>    </span><span class="kw">fn </span>test_hmac_sha512_invalid_expected_hex_returns_error() {
 <a href=#882 id=882 data-nosnippet>882</a>        <span class="kw">let </span>result = run_single_hmac_sha512(<span class="string">"aabb"</span>, <span class="string">"ccdd"</span>, <span class="string">"GGGG"</span>, <span class="string">"bad-expected-512"</span>);
 <a href=#883 id=883 data-nosnippet>883</a>        <span class="macro">assert!</span>(result.is_err());
 <a href=#884 id=884 data-nosnippet>884</a>        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{}"</span>, result.err().expect(<span class="string">"error expected"</span>));

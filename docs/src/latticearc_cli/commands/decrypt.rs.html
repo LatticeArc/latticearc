@@ -53,55 +53,60 @@
 <a href=#53 id=53 data-nosnippet>53</a>        KeyType::Public =&gt; {
 <a href=#54 id=54 data-nosnippet>54</a>            <span class="macro">bail!</span>(<span class="string">"Cannot decrypt with a public key. Provide the secret key."</span>);
 <a href=#55 id=55 data-nosnippet>55</a>        }
-<a href=#56 id=56 data-nosnippet>56</a>    };
-<a href=#57 id=57 data-nosnippet>57</a>
-<a href=#58 id=58 data-nosnippet>58</a>    write_output(<span class="kw-2">&amp;</span>args.output, <span class="kw-2">&amp;</span>plaintext)
-<a href=#59 id=59 data-nosnippet>59</a>}
-<a href=#60 id=60 data-nosnippet>60</a>
-<a href=#61 id=61 data-nosnippet>61</a><span class="kw">fn </span>decrypt_symmetric(
-<a href=#62 id=62 data-nosnippet>62</a>    encrypted: <span class="kw-2">&amp;</span>latticearc::EncryptedOutput,
-<a href=#63 id=63 data-nosnippet>63</a>    key_file: <span class="kw-2">&amp;</span>KeyFile,
-<a href=#64 id=64 data-nosnippet>64</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
-<a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">let </span>key_bytes = key_file.key_bytes()<span class="question-mark">?</span>;
-<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">if </span>key_bytes.len() != <span class="number">32 </span>{
-<a href=#67 id=67 data-nosnippet>67</a>        <span class="macro">bail!</span>(<span class="string">"AES-256 requires a 32-byte key, got {} bytes"</span>, key_bytes.len());
-<a href=#68 id=68 data-nosnippet>68</a>    }
-<a href=#69 id=69 data-nosnippet>69</a>
-<a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">let </span>decrypted = latticearc::decrypt(
-<a href=#71 id=71 data-nosnippet>71</a>        encrypted,
-<a href=#72 id=72 data-nosnippet>72</a>        latticearc::DecryptKey::Symmetric(<span class="kw-2">&amp;</span>key_bytes),
-<a href=#73 id=73 data-nosnippet>73</a>        latticearc::CryptoConfig::new(),
-<a href=#74 id=74 data-nosnippet>74</a>    )
-<a href=#75 id=75 data-nosnippet>75</a>    .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Decryption failed: {e}"</span>))<span class="question-mark">?</span>;
-<a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="prelude-val">Ok</span>(decrypted)
-<a href=#78 id=78 data-nosnippet>78</a>}
-<a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a><span class="kw">fn </span>read_input_string(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
-<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = path {
-<a href=#82 id=82 data-nosnippet>82</a>        std::fs::read_to_string(p).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to read {}"</span>, p.display()))
-<a href=#83 id=83 data-nosnippet>83</a>    } <span class="kw">else </span>{
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">use </span>std::io::Read;
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf = String::new();
-<a href=#86 id=86 data-nosnippet>86</a>        std::io::stdin().read_to_string(<span class="kw-2">&amp;mut </span>buf).context(<span class="string">"Failed to read from stdin"</span>)<span class="question-mark">?</span>;
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="prelude-val">Ok</span>(buf)
-<a href=#88 id=88 data-nosnippet>88</a>    }
-<a href=#89 id=89 data-nosnippet>89</a>}
-<a href=#90 id=90 data-nosnippet>90</a>
-<a href=#91 id=91 data-nosnippet>91</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">match </span>path {
-<a href=#93 id=93 data-nosnippet>93</a>        <span class="prelude-val">Some</span>(p) =&gt; {
-<a href=#94 id=94 data-nosnippet>94</a>            std::fs::write(p, data).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
-<a href=#95 id=95 data-nosnippet>95</a>            <span class="macro">println!</span>(<span class="string">"Decrypted data written to: {}"</span>, p.display());
-<a href=#96 id=96 data-nosnippet>96</a>        }
-<a href=#97 id=97 data-nosnippet>97</a>        <span class="prelude-val">None </span>=&gt; {
-<a href=#98 id=98 data-nosnippet>98</a>            <span class="comment">// Try to print as UTF-8, fall back to hex
-<a href=#99 id=99 data-nosnippet>99</a>            </span><span class="kw">match </span>std::str::from_utf8(data) {
-<a href=#100 id=100 data-nosnippet>100</a>                <span class="prelude-val">Ok</span>(s) =&gt; <span class="macro">print!</span>(<span class="string">"{s}"</span>),
-<a href=#101 id=101 data-nosnippet>101</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">print!</span>(<span class="string">"{}"</span>, hex::encode(data)),
-<a href=#102 id=102 data-nosnippet>102</a>            }
-<a href=#103 id=103 data-nosnippet>103</a>        }
-<a href=#104 id=104 data-nosnippet>104</a>    }
-<a href=#105 id=105 data-nosnippet>105</a>    <span class="prelude-val">Ok</span>(())
-<a href=#106 id=106 data-nosnippet>106</a>}
+<a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">_ </span>=&gt; <span class="macro">anyhow::bail!</span>(<span class="string">"Unsupported KeyType variant"</span>),
+<a href=#57 id=57 data-nosnippet>57</a>    };
+<a href=#58 id=58 data-nosnippet>58</a>
+<a href=#59 id=59 data-nosnippet>59</a>    write_output(<span class="kw-2">&amp;</span>args.output, <span class="kw-2">&amp;</span>plaintext)
+<a href=#60 id=60 data-nosnippet>60</a>}
+<a href=#61 id=61 data-nosnippet>61</a>
+<a href=#62 id=62 data-nosnippet>62</a><span class="kw">fn </span>decrypt_symmetric(
+<a href=#63 id=63 data-nosnippet>63</a>    encrypted: <span class="kw-2">&amp;</span>latticearc::EncryptedOutput,
+<a href=#64 id=64 data-nosnippet>64</a>    key_file: <span class="kw-2">&amp;</span>KeyFile,
+<a href=#65 id=65 data-nosnippet>65</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span>key_bytes = key_file.key_bytes()<span class="question-mark">?</span>;
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">if </span>key_bytes.len() != <span class="number">32 </span>{
+<a href=#68 id=68 data-nosnippet>68</a>        <span class="macro">bail!</span>(<span class="string">"AES-256 requires a 32-byte key, got {} bytes"</span>, key_bytes.len());
+<a href=#69 id=69 data-nosnippet>69</a>    }
+<a href=#70 id=70 data-nosnippet>70</a>
+<a href=#71 id=71 data-nosnippet>71</a>    <span class="comment">// `latticearc::decrypt` returns `Zeroizing&lt;Vec&lt;u8&gt;&gt;`; for the CLI we hand
+<a href=#72 id=72 data-nosnippet>72</a>    // back an owned `Vec&lt;u8&gt;` since the caller immediately writes to stdout
+<a href=#73 id=73 data-nosnippet>73</a>    // or a file. The brief plaintext copy here is acceptable because the
+<a href=#74 id=74 data-nosnippet>74</a>    // original buffer is still scrubbed on drop at the library boundary.
+<a href=#75 id=75 data-nosnippet>75</a>    </span><span class="kw">let </span>decrypted = latticearc::decrypt(
+<a href=#76 id=76 data-nosnippet>76</a>        encrypted,
+<a href=#77 id=77 data-nosnippet>77</a>        latticearc::DecryptKey::Symmetric(<span class="kw-2">&amp;</span>key_bytes),
+<a href=#78 id=78 data-nosnippet>78</a>        latticearc::CryptoConfig::new(),
+<a href=#79 id=79 data-nosnippet>79</a>    )
+<a href=#80 id=80 data-nosnippet>80</a>    .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Decryption failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#81 id=81 data-nosnippet>81</a>
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="prelude-val">Ok</span>(decrypted.to_vec())
+<a href=#83 id=83 data-nosnippet>83</a>}
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a><span class="kw">fn </span>read_input_string(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = path {
+<a href=#87 id=87 data-nosnippet>87</a>        std::fs::read_to_string(p).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to read {}"</span>, p.display()))
+<a href=#88 id=88 data-nosnippet>88</a>    } <span class="kw">else </span>{
+<a href=#89 id=89 data-nosnippet>89</a>        <span class="kw">use </span>std::io::Read;
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf = String::new();
+<a href=#91 id=91 data-nosnippet>91</a>        std::io::stdin().read_to_string(<span class="kw-2">&amp;mut </span>buf).context(<span class="string">"Failed to read from stdin"</span>)<span class="question-mark">?</span>;
+<a href=#92 id=92 data-nosnippet>92</a>        <span class="prelude-val">Ok</span>(buf)
+<a href=#93 id=93 data-nosnippet>93</a>    }
+<a href=#94 id=94 data-nosnippet>94</a>}
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">match </span>path {
+<a href=#98 id=98 data-nosnippet>98</a>        <span class="prelude-val">Some</span>(p) =&gt; {
+<a href=#99 id=99 data-nosnippet>99</a>            std::fs::write(p, data).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="macro">println!</span>(<span class="string">"Decrypted data written to: {}"</span>, p.display());
+<a href=#101 id=101 data-nosnippet>101</a>        }
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="prelude-val">None </span>=&gt; {
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="comment">// Try to print as UTF-8, fall back to hex
+<a href=#104 id=104 data-nosnippet>104</a>            </span><span class="kw">match </span>std::str::from_utf8(data) {
+<a href=#105 id=105 data-nosnippet>105</a>                <span class="prelude-val">Ok</span>(s) =&gt; <span class="macro">print!</span>(<span class="string">"{s}"</span>),
+<a href=#106 id=106 data-nosnippet>106</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">print!</span>(<span class="string">"{}"</span>, hex::encode(data)),
+<a href=#107 id=107 data-nosnippet>107</a>            }
+<a href=#108 id=108 data-nosnippet>108</a>        }
+<a href=#109 id=109 data-nosnippet>109</a>    }
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="prelude-val">Ok</span>(())
+<a href=#111 id=111 data-nosnippet>111</a>}
 </code></pre></div></section></main></body></html>

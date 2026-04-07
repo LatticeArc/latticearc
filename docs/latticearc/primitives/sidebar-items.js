@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["aead","ec","error","fips_error","hash","kdf","kem","keys","mac","pct","polynomial","rand","security","self_test","sig"]};
+window.SIDEBAR_ITEMS = {"mod":["aead","ec","error","fips_error","hash","kdf","kem","mac","pct","polynomial","rand","resource_limits","security","self_test","sig"]};

@@ -590,7 +590,7 @@
 <a href=#590 id=590 data-nosnippet>590</a>// Implementations of FipsError for primitives error types
 <a href=#591 id=591 data-nosnippet>591</a>// ============================================================================
 <a href=#592 id=592 data-nosnippet>592</a>
-<a href=#593 id=593 data-nosnippet>593</a></span><span class="kw">impl </span>FipsError <span class="kw">for </span><span class="kw">crate</span>::primitives::error::Error {
+<a href=#593 id=593 data-nosnippet>593</a></span><span class="kw">impl </span>FipsError <span class="kw">for </span><span class="kw">crate</span>::primitives::error::PrimitivesError {
 <a href=#594 id=594 data-nosnippet>594</a>    <span class="kw">fn </span>fips_code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FipsErrorCode {
 <a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">match </span><span class="self">self </span>{
 <a href=#596 id=596 data-nosnippet>596</a>            <span class="self">Self</span>::FeatureNotAvailable(<span class="kw">_</span>) =&gt; FipsErrorCode::FeatureNotAvailable,
@@ -633,8 +633,8 @@
 <a href=#633 id=633 data-nosnippet>633</a>    }
 <a href=#634 id=634 data-nosnippet>634</a>}
 <a href=#635 id=635 data-nosnippet>635</a>
-<a href=#636 id=636 data-nosnippet>636</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="kw">crate</span>::primitives::error::Error&gt; <span class="kw">for </span>FipsErrorCode {
-<a href=#637 id=637 data-nosnippet>637</a>    <span class="kw">fn </span>from(error: <span class="kw-2">&amp;</span><span class="kw">crate</span>::primitives::error::Error) -&gt; <span class="self">Self </span>{
+<a href=#636 id=636 data-nosnippet>636</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="kw">crate</span>::primitives::error::PrimitivesError&gt; <span class="kw">for </span>FipsErrorCode {
+<a href=#637 id=637 data-nosnippet>637</a>    <span class="kw">fn </span>from(error: <span class="kw-2">&amp;</span><span class="kw">crate</span>::primitives::error::PrimitivesError) -&gt; <span class="self">Self </span>{
 <a href=#638 id=638 data-nosnippet>638</a>        error.fips_code()
 <a href=#639 id=639 data-nosnippet>639</a>    }
 <a href=#640 id=640 data-nosnippet>640</a>}
@@ -654,7 +654,7 @@
 <a href=#654 id=654 data-nosnippet>654</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#655 id=655 data-nosnippet>655</a>
 <a href=#656 id=656 data-nosnippet>656</a>    <span class="attr">#[test]
-<a href=#657 id=657 data-nosnippet>657</a>    </span><span class="kw">fn </span>test_error_code_values() {
+<a href=#657 id=657 data-nosnippet>657</a>    </span><span class="kw">fn </span>test_error_code_values_match_fips_spec_fails() {
 <a href=#658 id=658 data-nosnippet>658</a>        <span class="comment">// Self-test errors: 0x0001-0x00FF
 <a href=#659 id=659 data-nosnippet>659</a>        </span><span class="macro">assert_eq!</span>(FipsErrorCode::SelfTestFailed.code(), <span class="number">0x0001</span>);
 <a href=#660 id=660 data-nosnippet>660</a>        <span class="macro">assert_eq!</span>(FipsErrorCode::IntegrityCheckFailed.code(), <span class="number">0x0002</span>);
@@ -680,7 +680,7 @@
 <a href=#680 id=680 data-nosnippet>680</a>    }
 <a href=#681 id=681 data-nosnippet>681</a>
 <a href=#682 id=682 data-nosnippet>682</a>    <span class="attr">#[test]
-<a href=#683 id=683 data-nosnippet>683</a>    </span><span class="kw">fn </span>test_critical_errors() {
+<a href=#683 id=683 data-nosnippet>683</a>    </span><span class="kw">fn </span>test_critical_errors_identified_correctly_fails() {
 <a href=#684 id=684 data-nosnippet>684</a>        <span class="comment">// Critical errors
 <a href=#685 id=685 data-nosnippet>685</a>        </span><span class="macro">assert!</span>(FipsErrorCode::SelfTestFailed.is_critical());
 <a href=#686 id=686 data-nosnippet>686</a>        <span class="macro">assert!</span>(FipsErrorCode::IntegrityCheckFailed.is_critical());
@@ -697,7 +697,7 @@
 <a href=#697 id=697 data-nosnippet>697</a>    }
 <a href=#698 id=698 data-nosnippet>698</a>
 <a href=#699 id=699 data-nosnippet>699</a>    <span class="attr">#[test]
-<a href=#700 id=700 data-nosnippet>700</a>    </span><span class="kw">fn </span>test_error_categories() {
+<a href=#700 id=700 data-nosnippet>700</a>    </span><span class="kw">fn </span>test_error_categories_classified_correctly_fails() {
 <a href=#701 id=701 data-nosnippet>701</a>        <span class="comment">// Self-test errors
 <a href=#702 id=702 data-nosnippet>702</a>        </span><span class="macro">assert!</span>(FipsErrorCode::SelfTestFailed.is_self_test_error());
 <a href=#703 id=703 data-nosnippet>703</a>        <span class="macro">assert!</span>(FipsErrorCode::IntegrityCheckFailed.is_self_test_error());
@@ -721,7 +721,7 @@
 <a href=#721 id=721 data-nosnippet>721</a>    }
 <a href=#722 id=722 data-nosnippet>722</a>
 <a href=#723 id=723 data-nosnippet>723</a>    <span class="attr">#[test]
-<a href=#724 id=724 data-nosnippet>724</a>    </span><span class="kw">fn </span>test_category_strings() {
+<a href=#724 id=724 data-nosnippet>724</a>    </span><span class="kw">fn </span>test_category_strings_match_expected_succeeds() {
 <a href=#725 id=725 data-nosnippet>725</a>        <span class="macro">assert_eq!</span>(FipsErrorCode::SelfTestFailed.category(), <span class="string">"SELF_TEST"</span>);
 <a href=#726 id=726 data-nosnippet>726</a>        <span class="macro">assert_eq!</span>(FipsErrorCode::InvalidKeyLength.category(), <span class="string">"ALGORITHM"</span>);
 <a href=#727 id=727 data-nosnippet>727</a>        <span class="macro">assert_eq!</span>(FipsErrorCode::RngFailure.category(), <span class="string">"OPERATIONAL"</span>);
@@ -729,7 +729,7 @@
 <a href=#729 id=729 data-nosnippet>729</a>    }
 <a href=#730 id=730 data-nosnippet>730</a>
 <a href=#731 id=731 data-nosnippet>731</a>    <span class="attr">#[test]
-<a href=#732 id=732 data-nosnippet>732</a>    </span><span class="kw">fn </span>test_display_format() {
+<a href=#732 id=732 data-nosnippet>732</a>    </span><span class="kw">fn </span>test_display_format_matches_expected() {
 <a href=#733 id=733 data-nosnippet>733</a>        <span class="kw">let </span>code = FipsErrorCode::InvalidKeyLength;
 <a href=#734 id=734 data-nosnippet>734</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, code);
 <a href=#735 id=735 data-nosnippet>735</a>        <span class="macro">assert_eq!</span>(display, <span class="string">"FIPS-0100: Invalid key length"</span>);
@@ -740,7 +740,7 @@
 <a href=#740 id=740 data-nosnippet>740</a>    }
 <a href=#741 id=741 data-nosnippet>741</a>
 <a href=#742 id=742 data-nosnippet>742</a>    <span class="attr">#[test]
-<a href=#743 id=743 data-nosnippet>743</a>    </span><span class="kw">fn </span>test_fips_compliant_error() {
+<a href=#743 id=743 data-nosnippet>743</a>    </span><span class="kw">fn </span>test_fips_compliant_error_construction_succeeds() {
 <a href=#744 id=744 data-nosnippet>744</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
 <a href=#745 id=745 data-nosnippet>745</a>        <span class="macro">assert_eq!</span>(error.code(), FipsErrorCode::InvalidKeyLength);
 <a href=#746 id=746 data-nosnippet>746</a>        <span class="macro">assert!</span>(error.context().is_none());
@@ -756,8 +756,8 @@
 <a href=#756 id=756 data-nosnippet>756</a>    }
 <a href=#757 id=757 data-nosnippet>757</a>
 <a href=#758 id=758 data-nosnippet>758</a>    <span class="attr">#[test]
-<a href=#759 id=759 data-nosnippet>759</a>    </span><span class="kw">fn </span>test_fips_error_trait() {
-<a href=#760 id=760 data-nosnippet>760</a>        <span class="kw">let </span>error = <span class="kw">crate</span>::primitives::error::Error::InvalidInput(<span class="string">"test"</span>.to_string());
+<a href=#759 id=759 data-nosnippet>759</a>    </span><span class="kw">fn </span>test_fips_error_trait_maps_codes_correctly_fails() {
+<a href=#760 id=760 data-nosnippet>760</a>        <span class="kw">let </span>error = <span class="kw">crate</span>::primitives::error::PrimitivesError::InvalidInput(<span class="string">"test"</span>.to_string());
 <a href=#761 id=761 data-nosnippet>761</a>        <span class="macro">assert_eq!</span>(error.fips_code(), FipsErrorCode::InvalidParameter);
 <a href=#762 id=762 data-nosnippet>762</a>        <span class="macro">assert!</span>(!error.is_fips_critical());
 <a href=#763 id=763 data-nosnippet>763</a>
@@ -777,263 +777,270 @@
 <a href=#777 id=777 data-nosnippet>777</a>    }
 <a href=#778 id=778 data-nosnippet>778</a>
 <a href=#779 id=779 data-nosnippet>779</a>    <span class="attr">#[test]
-<a href=#780 id=780 data-nosnippet>780</a>    </span><span class="kw">fn </span>test_error_from_conversions() {
-<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span>error = <span class="kw">crate</span>::primitives::error::Error::DecryptionFailed(<span class="string">"auth failed"</span>.to_string());
-<a href=#782 id=782 data-nosnippet>782</a>        <span class="kw">let </span>fips_code: FipsErrorCode = (<span class="kw-2">&amp;</span>error).into();
-<a href=#783 id=783 data-nosnippet>783</a>        <span class="macro">assert_eq!</span>(fips_code, FipsErrorCode::DecryptionFailed);
-<a href=#784 id=784 data-nosnippet>784</a>    }
-<a href=#785 id=785 data-nosnippet>785</a>
-<a href=#786 id=786 data-nosnippet>786</a>    <span class="attr">#[test]
-<a href=#787 id=787 data-nosnippet>787</a>    </span><span class="kw">fn </span>test_messages_no_sensitive_data() {
-<a href=#788 id=788 data-nosnippet>788</a>        <span class="comment">// Verify messages don't contain sensitive patterns
-<a href=#789 id=789 data-nosnippet>789</a>        </span><span class="kw">let </span>sensitive_patterns = [<span class="string">"key="</span>, <span class="string">"password"</span>, <span class="string">"secret"</span>, <span class="string">"private"</span>, <span class="string">"0x"</span>];
-<a href=#790 id=790 data-nosnippet>790</a>
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">for </span>code <span class="kw">in </span>[
-<a href=#792 id=792 data-nosnippet>792</a>            FipsErrorCode::SelfTestFailed,
-<a href=#793 id=793 data-nosnippet>793</a>            FipsErrorCode::InvalidKeyLength,
-<a href=#794 id=794 data-nosnippet>794</a>            FipsErrorCode::DecryptionFailed,
-<a href=#795 id=795 data-nosnippet>795</a>            FipsErrorCode::RngFailure,
-<a href=#796 id=796 data-nosnippet>796</a>            FipsErrorCode::ModuleNotInitialized,
-<a href=#797 id=797 data-nosnippet>797</a>        ] {
-<a href=#798 id=798 data-nosnippet>798</a>            <span class="kw">let </span>message = code.message().to_lowercase();
-<a href=#799 id=799 data-nosnippet>799</a>            <span class="kw">for </span>pattern <span class="kw">in </span><span class="kw-2">&amp;</span>sensitive_patterns {
-<a href=#800 id=800 data-nosnippet>800</a>                <span class="macro">assert!</span>(
-<a href=#801 id=801 data-nosnippet>801</a>                    !message.contains(pattern),
-<a href=#802 id=802 data-nosnippet>802</a>                    <span class="string">"Message for {:?} contains sensitive pattern '{}': {}"</span>,
-<a href=#803 id=803 data-nosnippet>803</a>                    code,
-<a href=#804 id=804 data-nosnippet>804</a>                    pattern,
-<a href=#805 id=805 data-nosnippet>805</a>                    message
-<a href=#806 id=806 data-nosnippet>806</a>                );
-<a href=#807 id=807 data-nosnippet>807</a>            }
-<a href=#808 id=808 data-nosnippet>808</a>        }
-<a href=#809 id=809 data-nosnippet>809</a>    }
-<a href=#810 id=810 data-nosnippet>810</a>
-<a href=#811 id=811 data-nosnippet>811</a>    <span class="attr">#[test]
-<a href=#812 id=812 data-nosnippet>812</a>    </span><span class="kw">fn </span>test_all_messages_non_empty() {
-<a href=#813 id=813 data-nosnippet>813</a>        <span class="kw">let </span>all_codes = [
-<a href=#814 id=814 data-nosnippet>814</a>            FipsErrorCode::SelfTestFailed,
-<a href=#815 id=815 data-nosnippet>815</a>            FipsErrorCode::IntegrityCheckFailed,
-<a href=#816 id=816 data-nosnippet>816</a>            FipsErrorCode::ConditionalTestFailed,
-<a href=#817 id=817 data-nosnippet>817</a>            FipsErrorCode::KatFailed,
-<a href=#818 id=818 data-nosnippet>818</a>            FipsErrorCode::ContinuousRngTestFailed,
-<a href=#819 id=819 data-nosnippet>819</a>            FipsErrorCode::InvalidKeyLength,
-<a href=#820 id=820 data-nosnippet>820</a>            FipsErrorCode::InvalidNonce,
-<a href=#821 id=821 data-nosnippet>821</a>            FipsErrorCode::DecryptionFailed,
-<a href=#822 id=822 data-nosnippet>822</a>            FipsErrorCode::SignatureInvalid,
-<a href=#823 id=823 data-nosnippet>823</a>            FipsErrorCode::InvalidParameter,
-<a href=#824 id=824 data-nosnippet>824</a>            FipsErrorCode::UnsupportedAlgorithm,
-<a href=#825 id=825 data-nosnippet>825</a>            FipsErrorCode::KeyGenerationFailed,
-<a href=#826 id=826 data-nosnippet>826</a>            FipsErrorCode::EncapsulationFailed,
-<a href=#827 id=827 data-nosnippet>827</a>            FipsErrorCode::DecapsulationFailed,
-<a href=#828 id=828 data-nosnippet>828</a>            FipsErrorCode::SigningFailed,
-<a href=#829 id=829 data-nosnippet>829</a>            FipsErrorCode::InvalidCiphertext,
-<a href=#830 id=830 data-nosnippet>830</a>            FipsErrorCode::InvalidPublicKey,
-<a href=#831 id=831 data-nosnippet>831</a>            FipsErrorCode::InvalidSecretKey,
-<a href=#832 id=832 data-nosnippet>832</a>            FipsErrorCode::EncryptionFailed,
-<a href=#833 id=833 data-nosnippet>833</a>            FipsErrorCode::HashFailed,
-<a href=#834 id=834 data-nosnippet>834</a>            FipsErrorCode::MacFailed,
-<a href=#835 id=835 data-nosnippet>835</a>            FipsErrorCode::KeyDerivationFailed,
-<a href=#836 id=836 data-nosnippet>836</a>            FipsErrorCode::RngFailure,
-<a href=#837 id=837 data-nosnippet>837</a>            FipsErrorCode::ZeroizationFailed,
-<a href=#838 id=838 data-nosnippet>838</a>            FipsErrorCode::ResourceExhausted,
-<a href=#839 id=839 data-nosnippet>839</a>            FipsErrorCode::InternalError,
-<a href=#840 id=840 data-nosnippet>840</a>            FipsErrorCode::IoError,
-<a href=#841 id=841 data-nosnippet>841</a>            FipsErrorCode::SerializationFailed,
-<a href=#842 id=842 data-nosnippet>842</a>            FipsErrorCode::DeserializationFailed,
-<a href=#843 id=843 data-nosnippet>843</a>            FipsErrorCode::BufferTooSmall,
-<a href=#844 id=844 data-nosnippet>844</a>            FipsErrorCode::Timeout,
-<a href=#845 id=845 data-nosnippet>845</a>            FipsErrorCode::ModuleNotInitialized,
-<a href=#846 id=846 data-nosnippet>846</a>            FipsErrorCode::OperationNotPermitted,
-<a href=#847 id=847 data-nosnippet>847</a>            FipsErrorCode::ModuleInErrorState,
-<a href=#848 id=848 data-nosnippet>848</a>            FipsErrorCode::FeatureNotAvailable,
-<a href=#849 id=849 data-nosnippet>849</a>            FipsErrorCode::KeyValidationFailed,
-<a href=#850 id=850 data-nosnippet>850</a>            FipsErrorCode::WeakKeyDetected,
-<a href=#851 id=851 data-nosnippet>851</a>        ];
-<a href=#852 id=852 data-nosnippet>852</a>
-<a href=#853 id=853 data-nosnippet>853</a>        <span class="kw">for </span>code <span class="kw">in </span><span class="kw-2">&amp;</span>all_codes {
-<a href=#854 id=854 data-nosnippet>854</a>            <span class="kw">let </span>msg = code.message();
-<a href=#855 id=855 data-nosnippet>855</a>            <span class="macro">assert!</span>(!msg.is_empty(), <span class="string">"Message for {:?} is empty"</span>, code);
-<a href=#856 id=856 data-nosnippet>856</a>            <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, code);
-<a href=#857 id=857 data-nosnippet>857</a>            <span class="macro">assert!</span>(
-<a href=#858 id=858 data-nosnippet>858</a>                display.starts_with(<span class="string">"FIPS-"</span>),
-<a href=#859 id=859 data-nosnippet>859</a>                <span class="string">"Display for {:?} doesn't start with FIPS-"</span>,
-<a href=#860 id=860 data-nosnippet>860</a>                code
-<a href=#861 id=861 data-nosnippet>861</a>            );
-<a href=#862 id=862 data-nosnippet>862</a>        }
-<a href=#863 id=863 data-nosnippet>863</a>    }
-<a href=#864 id=864 data-nosnippet>864</a>
-<a href=#865 id=865 data-nosnippet>865</a>    <span class="attr">#[test]
-<a href=#866 id=866 data-nosnippet>866</a>    </span><span class="kw">fn </span>test_fips_error_trait_all_error_variants() {
-<a href=#867 id=867 data-nosnippet>867</a>        <span class="comment">// Test all crate::primitives::error::Error variants for fips_code coverage
-<a href=#868 id=868 data-nosnippet>868</a>        </span><span class="kw">let </span>cases: Vec&lt;(<span class="kw">crate</span>::primitives::error::Error, FipsErrorCode)&gt; = <span class="macro">vec!</span>[
-<a href=#869 id=869 data-nosnippet>869</a>            (
-<a href=#870 id=870 data-nosnippet>870</a>                <span class="kw">crate</span>::primitives::error::Error::FeatureNotAvailable(<span class="string">"test"</span>.into()),
-<a href=#871 id=871 data-nosnippet>871</a>                FipsErrorCode::FeatureNotAvailable,
-<a href=#872 id=872 data-nosnippet>872</a>            ),
-<a href=#873 id=873 data-nosnippet>873</a>            (
-<a href=#874 id=874 data-nosnippet>874</a>                <span class="kw">crate</span>::primitives::error::Error::InvalidInput(<span class="string">"test"</span>.into()),
-<a href=#875 id=875 data-nosnippet>875</a>                FipsErrorCode::InvalidParameter,
-<a href=#876 id=876 data-nosnippet>876</a>            ),
-<a href=#877 id=877 data-nosnippet>877</a>            (
-<a href=#878 id=878 data-nosnippet>878</a>                <span class="kw">crate</span>::primitives::error::Error::EncryptionFailed(<span class="string">"test"</span>.into()),
-<a href=#879 id=879 data-nosnippet>879</a>                FipsErrorCode::EncryptionFailed,
-<a href=#880 id=880 data-nosnippet>880</a>            ),
-<a href=#881 id=881 data-nosnippet>881</a>            (
-<a href=#882 id=882 data-nosnippet>882</a>                <span class="kw">crate</span>::primitives::error::Error::DecryptionFailed(<span class="string">"test"</span>.into()),
-<a href=#883 id=883 data-nosnippet>883</a>                FipsErrorCode::DecryptionFailed,
-<a href=#884 id=884 data-nosnippet>884</a>            ),
-<a href=#885 id=885 data-nosnippet>885</a>            (
-<a href=#886 id=886 data-nosnippet>886</a>                <span class="kw">crate</span>::primitives::error::Error::SerializationError(<span class="string">"test"</span>.into()),
-<a href=#887 id=887 data-nosnippet>887</a>                FipsErrorCode::SerializationFailed,
-<a href=#888 id=888 data-nosnippet>888</a>            ),
-<a href=#889 id=889 data-nosnippet>889</a>            (
-<a href=#890 id=890 data-nosnippet>890</a>                <span class="kw">crate</span>::primitives::error::Error::DeserializationError(<span class="string">"test"</span>.into()),
-<a href=#891 id=891 data-nosnippet>891</a>                FipsErrorCode::DeserializationFailed,
-<a href=#892 id=892 data-nosnippet>892</a>            ),
-<a href=#893 id=893 data-nosnippet>893</a>            (<span class="kw">crate</span>::primitives::error::Error::Other(<span class="string">"test"</span>.into()), FipsErrorCode::InternalError),
+<a href=#780 id=780 data-nosnippet>780</a>    </span><span class="kw">fn </span>test_error_from_conversions_map_correctly_fails() {
+<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span>error =
+<a href=#782 id=782 data-nosnippet>782</a>            <span class="kw">crate</span>::primitives::error::PrimitivesError::DecryptionFailed(<span class="string">"auth failed"</span>.to_string());
+<a href=#783 id=783 data-nosnippet>783</a>        <span class="kw">let </span>fips_code: FipsErrorCode = (<span class="kw-2">&amp;</span>error).into();
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="macro">assert_eq!</span>(fips_code, FipsErrorCode::DecryptionFailed);
+<a href=#785 id=785 data-nosnippet>785</a>    }
+<a href=#786 id=786 data-nosnippet>786</a>
+<a href=#787 id=787 data-nosnippet>787</a>    <span class="attr">#[test]
+<a href=#788 id=788 data-nosnippet>788</a>    </span><span class="kw">fn </span>test_messages_no_sensitive_data_present_succeeds() {
+<a href=#789 id=789 data-nosnippet>789</a>        <span class="comment">// Verify messages don't contain sensitive patterns
+<a href=#790 id=790 data-nosnippet>790</a>        </span><span class="kw">let </span>sensitive_patterns = [<span class="string">"key="</span>, <span class="string">"password"</span>, <span class="string">"secret"</span>, <span class="string">"private"</span>, <span class="string">"0x"</span>];
+<a href=#791 id=791 data-nosnippet>791</a>
+<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">for </span>code <span class="kw">in </span>[
+<a href=#793 id=793 data-nosnippet>793</a>            FipsErrorCode::SelfTestFailed,
+<a href=#794 id=794 data-nosnippet>794</a>            FipsErrorCode::InvalidKeyLength,
+<a href=#795 id=795 data-nosnippet>795</a>            FipsErrorCode::DecryptionFailed,
+<a href=#796 id=796 data-nosnippet>796</a>            FipsErrorCode::RngFailure,
+<a href=#797 id=797 data-nosnippet>797</a>            FipsErrorCode::ModuleNotInitialized,
+<a href=#798 id=798 data-nosnippet>798</a>        ] {
+<a href=#799 id=799 data-nosnippet>799</a>            <span class="kw">let </span>message = code.message().to_lowercase();
+<a href=#800 id=800 data-nosnippet>800</a>            <span class="kw">for </span>pattern <span class="kw">in </span><span class="kw-2">&amp;</span>sensitive_patterns {
+<a href=#801 id=801 data-nosnippet>801</a>                <span class="macro">assert!</span>(
+<a href=#802 id=802 data-nosnippet>802</a>                    !message.contains(pattern),
+<a href=#803 id=803 data-nosnippet>803</a>                    <span class="string">"Message for {:?} contains sensitive pattern '{}': {}"</span>,
+<a href=#804 id=804 data-nosnippet>804</a>                    code,
+<a href=#805 id=805 data-nosnippet>805</a>                    pattern,
+<a href=#806 id=806 data-nosnippet>806</a>                    message
+<a href=#807 id=807 data-nosnippet>807</a>                );
+<a href=#808 id=808 data-nosnippet>808</a>            }
+<a href=#809 id=809 data-nosnippet>809</a>        }
+<a href=#810 id=810 data-nosnippet>810</a>    }
+<a href=#811 id=811 data-nosnippet>811</a>
+<a href=#812 id=812 data-nosnippet>812</a>    <span class="attr">#[test]
+<a href=#813 id=813 data-nosnippet>813</a>    </span><span class="kw">fn </span>test_all_messages_non_empty_for_all_codes_succeeds() {
+<a href=#814 id=814 data-nosnippet>814</a>        <span class="kw">let </span>all_codes = [
+<a href=#815 id=815 data-nosnippet>815</a>            FipsErrorCode::SelfTestFailed,
+<a href=#816 id=816 data-nosnippet>816</a>            FipsErrorCode::IntegrityCheckFailed,
+<a href=#817 id=817 data-nosnippet>817</a>            FipsErrorCode::ConditionalTestFailed,
+<a href=#818 id=818 data-nosnippet>818</a>            FipsErrorCode::KatFailed,
+<a href=#819 id=819 data-nosnippet>819</a>            FipsErrorCode::ContinuousRngTestFailed,
+<a href=#820 id=820 data-nosnippet>820</a>            FipsErrorCode::InvalidKeyLength,
+<a href=#821 id=821 data-nosnippet>821</a>            FipsErrorCode::InvalidNonce,
+<a href=#822 id=822 data-nosnippet>822</a>            FipsErrorCode::DecryptionFailed,
+<a href=#823 id=823 data-nosnippet>823</a>            FipsErrorCode::SignatureInvalid,
+<a href=#824 id=824 data-nosnippet>824</a>            FipsErrorCode::InvalidParameter,
+<a href=#825 id=825 data-nosnippet>825</a>            FipsErrorCode::UnsupportedAlgorithm,
+<a href=#826 id=826 data-nosnippet>826</a>            FipsErrorCode::KeyGenerationFailed,
+<a href=#827 id=827 data-nosnippet>827</a>            FipsErrorCode::EncapsulationFailed,
+<a href=#828 id=828 data-nosnippet>828</a>            FipsErrorCode::DecapsulationFailed,
+<a href=#829 id=829 data-nosnippet>829</a>            FipsErrorCode::SigningFailed,
+<a href=#830 id=830 data-nosnippet>830</a>            FipsErrorCode::InvalidCiphertext,
+<a href=#831 id=831 data-nosnippet>831</a>            FipsErrorCode::InvalidPublicKey,
+<a href=#832 id=832 data-nosnippet>832</a>            FipsErrorCode::InvalidSecretKey,
+<a href=#833 id=833 data-nosnippet>833</a>            FipsErrorCode::EncryptionFailed,
+<a href=#834 id=834 data-nosnippet>834</a>            FipsErrorCode::HashFailed,
+<a href=#835 id=835 data-nosnippet>835</a>            FipsErrorCode::MacFailed,
+<a href=#836 id=836 data-nosnippet>836</a>            FipsErrorCode::KeyDerivationFailed,
+<a href=#837 id=837 data-nosnippet>837</a>            FipsErrorCode::RngFailure,
+<a href=#838 id=838 data-nosnippet>838</a>            FipsErrorCode::ZeroizationFailed,
+<a href=#839 id=839 data-nosnippet>839</a>            FipsErrorCode::ResourceExhausted,
+<a href=#840 id=840 data-nosnippet>840</a>            FipsErrorCode::InternalError,
+<a href=#841 id=841 data-nosnippet>841</a>            FipsErrorCode::IoError,
+<a href=#842 id=842 data-nosnippet>842</a>            FipsErrorCode::SerializationFailed,
+<a href=#843 id=843 data-nosnippet>843</a>            FipsErrorCode::DeserializationFailed,
+<a href=#844 id=844 data-nosnippet>844</a>            FipsErrorCode::BufferTooSmall,
+<a href=#845 id=845 data-nosnippet>845</a>            FipsErrorCode::Timeout,
+<a href=#846 id=846 data-nosnippet>846</a>            FipsErrorCode::ModuleNotInitialized,
+<a href=#847 id=847 data-nosnippet>847</a>            FipsErrorCode::OperationNotPermitted,
+<a href=#848 id=848 data-nosnippet>848</a>            FipsErrorCode::ModuleInErrorState,
+<a href=#849 id=849 data-nosnippet>849</a>            FipsErrorCode::FeatureNotAvailable,
+<a href=#850 id=850 data-nosnippet>850</a>            FipsErrorCode::KeyValidationFailed,
+<a href=#851 id=851 data-nosnippet>851</a>            FipsErrorCode::WeakKeyDetected,
+<a href=#852 id=852 data-nosnippet>852</a>        ];
+<a href=#853 id=853 data-nosnippet>853</a>
+<a href=#854 id=854 data-nosnippet>854</a>        <span class="kw">for </span>code <span class="kw">in </span><span class="kw-2">&amp;</span>all_codes {
+<a href=#855 id=855 data-nosnippet>855</a>            <span class="kw">let </span>msg = code.message();
+<a href=#856 id=856 data-nosnippet>856</a>            <span class="macro">assert!</span>(!msg.is_empty(), <span class="string">"Message for {:?} is empty"</span>, code);
+<a href=#857 id=857 data-nosnippet>857</a>            <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, code);
+<a href=#858 id=858 data-nosnippet>858</a>            <span class="macro">assert!</span>(
+<a href=#859 id=859 data-nosnippet>859</a>                display.starts_with(<span class="string">"FIPS-"</span>),
+<a href=#860 id=860 data-nosnippet>860</a>                <span class="string">"Display for {:?} doesn't start with FIPS-"</span>,
+<a href=#861 id=861 data-nosnippet>861</a>                code
+<a href=#862 id=862 data-nosnippet>862</a>            );
+<a href=#863 id=863 data-nosnippet>863</a>        }
+<a href=#864 id=864 data-nosnippet>864</a>    }
+<a href=#865 id=865 data-nosnippet>865</a>
+<a href=#866 id=866 data-nosnippet>866</a>    <span class="attr">#[test]
+<a href=#867 id=867 data-nosnippet>867</a>    </span><span class="kw">fn </span>test_fips_error_trait_all_error_variants_map_correctly_fails() {
+<a href=#868 id=868 data-nosnippet>868</a>        <span class="comment">// Test all crate::primitives::error::PrimitivesError variants for fips_code coverage
+<a href=#869 id=869 data-nosnippet>869</a>        </span><span class="kw">let </span>cases: Vec&lt;(<span class="kw">crate</span>::primitives::error::PrimitivesError, FipsErrorCode)&gt; = <span class="macro">vec!</span>[
+<a href=#870 id=870 data-nosnippet>870</a>            (
+<a href=#871 id=871 data-nosnippet>871</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::FeatureNotAvailable(<span class="string">"test"</span>.into()),
+<a href=#872 id=872 data-nosnippet>872</a>                FipsErrorCode::FeatureNotAvailable,
+<a href=#873 id=873 data-nosnippet>873</a>            ),
+<a href=#874 id=874 data-nosnippet>874</a>            (
+<a href=#875 id=875 data-nosnippet>875</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::InvalidInput(<span class="string">"test"</span>.into()),
+<a href=#876 id=876 data-nosnippet>876</a>                FipsErrorCode::InvalidParameter,
+<a href=#877 id=877 data-nosnippet>877</a>            ),
+<a href=#878 id=878 data-nosnippet>878</a>            (
+<a href=#879 id=879 data-nosnippet>879</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::EncryptionFailed(<span class="string">"test"</span>.into()),
+<a href=#880 id=880 data-nosnippet>880</a>                FipsErrorCode::EncryptionFailed,
+<a href=#881 id=881 data-nosnippet>881</a>            ),
+<a href=#882 id=882 data-nosnippet>882</a>            (
+<a href=#883 id=883 data-nosnippet>883</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::DecryptionFailed(<span class="string">"test"</span>.into()),
+<a href=#884 id=884 data-nosnippet>884</a>                FipsErrorCode::DecryptionFailed,
+<a href=#885 id=885 data-nosnippet>885</a>            ),
+<a href=#886 id=886 data-nosnippet>886</a>            (
+<a href=#887 id=887 data-nosnippet>887</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::SerializationError(<span class="string">"test"</span>.into()),
+<a href=#888 id=888 data-nosnippet>888</a>                FipsErrorCode::SerializationFailed,
+<a href=#889 id=889 data-nosnippet>889</a>            ),
+<a href=#890 id=890 data-nosnippet>890</a>            (
+<a href=#891 id=891 data-nosnippet>891</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::DeserializationError(<span class="string">"test"</span>.into()),
+<a href=#892 id=892 data-nosnippet>892</a>                FipsErrorCode::DeserializationFailed,
+<a href=#893 id=893 data-nosnippet>893</a>            ),
 <a href=#894 id=894 data-nosnippet>894</a>            (
-<a href=#895 id=895 data-nosnippet>895</a>                <span class="kw">crate</span>::primitives::error::Error::ResourceExceeded(<span class="string">"test"</span>.into()),
-<a href=#896 id=896 data-nosnippet>896</a>                FipsErrorCode::ResourceExhausted,
+<a href=#895 id=895 data-nosnippet>895</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::Other(<span class="string">"test"</span>.into()),
+<a href=#896 id=896 data-nosnippet>896</a>                FipsErrorCode::InternalError,
 <a href=#897 id=897 data-nosnippet>897</a>            ),
 <a href=#898 id=898 data-nosnippet>898</a>            (
-<a href=#899 id=899 data-nosnippet>899</a>                <span class="kw">crate</span>::primitives::error::Error::KeyValidationFailed,
-<a href=#900 id=900 data-nosnippet>900</a>                FipsErrorCode::KeyValidationFailed,
+<a href=#899 id=899 data-nosnippet>899</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::ResourceExceeded(<span class="string">"test"</span>.into()),
+<a href=#900 id=900 data-nosnippet>900</a>                FipsErrorCode::ResourceExhausted,
 <a href=#901 id=901 data-nosnippet>901</a>            ),
-<a href=#902 id=902 data-nosnippet>902</a>            (<span class="kw">crate</span>::primitives::error::Error::WeakKey, FipsErrorCode::WeakKeyDetected),
-<a href=#903 id=903 data-nosnippet>903</a>            (<span class="kw">crate</span>::primitives::error::Error::InvalidKeyFormat, FipsErrorCode::InvalidParameter),
-<a href=#904 id=904 data-nosnippet>904</a>        ];
-<a href=#905 id=905 data-nosnippet>905</a>
-<a href=#906 id=906 data-nosnippet>906</a>        <span class="kw">for </span>(error, expected_code) <span class="kw">in </span><span class="kw-2">&amp;</span>cases {
-<a href=#907 id=907 data-nosnippet>907</a>            <span class="macro">assert_eq!</span>(error.fips_code(), <span class="kw-2">*</span>expected_code, <span class="string">"Wrong FIPS code for {:?}"</span>, error);
-<a href=#908 id=908 data-nosnippet>908</a>        }
-<a href=#909 id=909 data-nosnippet>909</a>    }
-<a href=#910 id=910 data-nosnippet>910</a>
-<a href=#911 id=911 data-nosnippet>911</a>    <span class="attr">#[test]
-<a href=#912 id=912 data-nosnippet>912</a>    </span><span class="kw">fn </span>test_fips_error_trait_all_ml_kem_variants() {
-<a href=#913 id=913 data-nosnippet>913</a>        <span class="kw">use </span><span class="kw">crate</span>::primitives::kem::ml_kem::MlKemError;
-<a href=#914 id=914 data-nosnippet>914</a>        <span class="kw">let </span>cases: Vec&lt;(MlKemError, FipsErrorCode)&gt; = <span class="macro">vec!</span>[
-<a href=#915 id=915 data-nosnippet>915</a>            (MlKemError::KeyGenerationError(<span class="string">"test"</span>.into()), FipsErrorCode::KeyGenerationFailed),
-<a href=#916 id=916 data-nosnippet>916</a>            (MlKemError::EncapsulationError(<span class="string">"test"</span>.into()), FipsErrorCode::EncapsulationFailed),
-<a href=#917 id=917 data-nosnippet>917</a>            (MlKemError::DecapsulationError(<span class="string">"test"</span>.into()), FipsErrorCode::DecapsulationFailed),
-<a href=#918 id=918 data-nosnippet>918</a>            (
-<a href=#919 id=919 data-nosnippet>919</a>                MlKemError::InvalidKeyLength {
-<a href=#920 id=920 data-nosnippet>920</a>                    variant: <span class="string">"ML-KEM-768"</span>.into(),
-<a href=#921 id=921 data-nosnippet>921</a>                    size: <span class="number">32</span>,
-<a href=#922 id=922 data-nosnippet>922</a>                    actual: <span class="number">16</span>,
-<a href=#923 id=923 data-nosnippet>923</a>                    key_type: <span class="string">"public"</span>.into(),
-<a href=#924 id=924 data-nosnippet>924</a>                },
-<a href=#925 id=925 data-nosnippet>925</a>                FipsErrorCode::InvalidKeyLength,
-<a href=#926 id=926 data-nosnippet>926</a>            ),
-<a href=#927 id=927 data-nosnippet>927</a>            (
-<a href=#928 id=928 data-nosnippet>928</a>                MlKemError::InvalidCiphertextLength {
-<a href=#929 id=929 data-nosnippet>929</a>                    variant: <span class="string">"ML-KEM-768"</span>.into(),
-<a href=#930 id=930 data-nosnippet>930</a>                    expected: <span class="number">1088</span>,
-<a href=#931 id=931 data-nosnippet>931</a>                    actual: <span class="number">100</span>,
-<a href=#932 id=932 data-nosnippet>932</a>                },
-<a href=#933 id=933 data-nosnippet>933</a>                FipsErrorCode::InvalidCiphertext,
-<a href=#934 id=934 data-nosnippet>934</a>            ),
-<a href=#935 id=935 data-nosnippet>935</a>            (
-<a href=#936 id=936 data-nosnippet>936</a>                MlKemError::UnsupportedSecurityLevel(<span class="string">"test"</span>.into()),
-<a href=#937 id=937 data-nosnippet>937</a>                FipsErrorCode::UnsupportedAlgorithm,
-<a href=#938 id=938 data-nosnippet>938</a>            ),
-<a href=#939 id=939 data-nosnippet>939</a>            (MlKemError::CryptoError(<span class="string">"test"</span>.into()), FipsErrorCode::InternalError),
-<a href=#940 id=940 data-nosnippet>940</a>        ];
-<a href=#941 id=941 data-nosnippet>941</a>
-<a href=#942 id=942 data-nosnippet>942</a>        <span class="kw">for </span>(error, expected_code) <span class="kw">in </span><span class="kw-2">&amp;</span>cases {
-<a href=#943 id=943 data-nosnippet>943</a>            <span class="macro">assert_eq!</span>(error.fips_code(), <span class="kw-2">*</span>expected_code, <span class="string">"Wrong FIPS code for {:?}"</span>, error);
-<a href=#944 id=944 data-nosnippet>944</a>            <span class="comment">// Also test From conversion
-<a href=#945 id=945 data-nosnippet>945</a>            </span><span class="kw">let </span>converted: FipsErrorCode = error.into();
-<a href=#946 id=946 data-nosnippet>946</a>            <span class="macro">assert_eq!</span>(converted, <span class="kw-2">*</span>expected_code);
-<a href=#947 id=947 data-nosnippet>947</a>        }
-<a href=#948 id=948 data-nosnippet>948</a>    }
-<a href=#949 id=949 data-nosnippet>949</a>
-<a href=#950 id=950 data-nosnippet>950</a>    <span class="attr">#[test]
-<a href=#951 id=951 data-nosnippet>951</a>    </span><span class="kw">fn </span>test_fips_error_trait_default_methods() {
-<a href=#952 id=952 data-nosnippet>952</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::SelfTestFailed);
-<a href=#953 id=953 data-nosnippet>953</a>        <span class="macro">assert!</span>(error.is_fips_critical());
-<a href=#954 id=954 data-nosnippet>954</a>        <span class="kw">let </span>msg = error.fips_message();
-<a href=#955 id=955 data-nosnippet>955</a>        <span class="macro">assert!</span>(msg.contains(<span class="string">"FIPS-0001"</span>));
+<a href=#902 id=902 data-nosnippet>902</a>            (
+<a href=#903 id=903 data-nosnippet>903</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::KeyValidationFailed,
+<a href=#904 id=904 data-nosnippet>904</a>                FipsErrorCode::KeyValidationFailed,
+<a href=#905 id=905 data-nosnippet>905</a>            ),
+<a href=#906 id=906 data-nosnippet>906</a>            (<span class="kw">crate</span>::primitives::error::PrimitivesError::WeakKey, FipsErrorCode::WeakKeyDetected),
+<a href=#907 id=907 data-nosnippet>907</a>            (
+<a href=#908 id=908 data-nosnippet>908</a>                <span class="kw">crate</span>::primitives::error::PrimitivesError::InvalidKeyFormat,
+<a href=#909 id=909 data-nosnippet>909</a>                FipsErrorCode::InvalidParameter,
+<a href=#910 id=910 data-nosnippet>910</a>            ),
+<a href=#911 id=911 data-nosnippet>911</a>        ];
+<a href=#912 id=912 data-nosnippet>912</a>
+<a href=#913 id=913 data-nosnippet>913</a>        <span class="kw">for </span>(error, expected_code) <span class="kw">in </span><span class="kw-2">&amp;</span>cases {
+<a href=#914 id=914 data-nosnippet>914</a>            <span class="macro">assert_eq!</span>(error.fips_code(), <span class="kw-2">*</span>expected_code, <span class="string">"Wrong FIPS code for {:?}"</span>, error);
+<a href=#915 id=915 data-nosnippet>915</a>        }
+<a href=#916 id=916 data-nosnippet>916</a>    }
+<a href=#917 id=917 data-nosnippet>917</a>
+<a href=#918 id=918 data-nosnippet>918</a>    <span class="attr">#[test]
+<a href=#919 id=919 data-nosnippet>919</a>    </span><span class="kw">fn </span>test_fips_error_trait_all_ml_kem_variants_map_correctly_fails() {
+<a href=#920 id=920 data-nosnippet>920</a>        <span class="kw">use </span><span class="kw">crate</span>::primitives::kem::ml_kem::MlKemError;
+<a href=#921 id=921 data-nosnippet>921</a>        <span class="kw">let </span>cases: Vec&lt;(MlKemError, FipsErrorCode)&gt; = <span class="macro">vec!</span>[
+<a href=#922 id=922 data-nosnippet>922</a>            (MlKemError::KeyGenerationError(<span class="string">"test"</span>.into()), FipsErrorCode::KeyGenerationFailed),
+<a href=#923 id=923 data-nosnippet>923</a>            (MlKemError::EncapsulationError(<span class="string">"test"</span>.into()), FipsErrorCode::EncapsulationFailed),
+<a href=#924 id=924 data-nosnippet>924</a>            (MlKemError::DecapsulationError(<span class="string">"test"</span>.into()), FipsErrorCode::DecapsulationFailed),
+<a href=#925 id=925 data-nosnippet>925</a>            (
+<a href=#926 id=926 data-nosnippet>926</a>                MlKemError::InvalidKeyLength {
+<a href=#927 id=927 data-nosnippet>927</a>                    variant: <span class="string">"ML-KEM-768"</span>.into(),
+<a href=#928 id=928 data-nosnippet>928</a>                    size: <span class="number">32</span>,
+<a href=#929 id=929 data-nosnippet>929</a>                    actual: <span class="number">16</span>,
+<a href=#930 id=930 data-nosnippet>930</a>                    key_type: <span class="string">"public"</span>.into(),
+<a href=#931 id=931 data-nosnippet>931</a>                },
+<a href=#932 id=932 data-nosnippet>932</a>                FipsErrorCode::InvalidKeyLength,
+<a href=#933 id=933 data-nosnippet>933</a>            ),
+<a href=#934 id=934 data-nosnippet>934</a>            (
+<a href=#935 id=935 data-nosnippet>935</a>                MlKemError::InvalidCiphertextLength {
+<a href=#936 id=936 data-nosnippet>936</a>                    variant: <span class="string">"ML-KEM-768"</span>.into(),
+<a href=#937 id=937 data-nosnippet>937</a>                    expected: <span class="number">1088</span>,
+<a href=#938 id=938 data-nosnippet>938</a>                    actual: <span class="number">100</span>,
+<a href=#939 id=939 data-nosnippet>939</a>                },
+<a href=#940 id=940 data-nosnippet>940</a>                FipsErrorCode::InvalidCiphertext,
+<a href=#941 id=941 data-nosnippet>941</a>            ),
+<a href=#942 id=942 data-nosnippet>942</a>            (
+<a href=#943 id=943 data-nosnippet>943</a>                MlKemError::UnsupportedSecurityLevel(<span class="string">"test"</span>.into()),
+<a href=#944 id=944 data-nosnippet>944</a>                FipsErrorCode::UnsupportedAlgorithm,
+<a href=#945 id=945 data-nosnippet>945</a>            ),
+<a href=#946 id=946 data-nosnippet>946</a>            (MlKemError::CryptoError(<span class="string">"test"</span>.into()), FipsErrorCode::InternalError),
+<a href=#947 id=947 data-nosnippet>947</a>        ];
+<a href=#948 id=948 data-nosnippet>948</a>
+<a href=#949 id=949 data-nosnippet>949</a>        <span class="kw">for </span>(error, expected_code) <span class="kw">in </span><span class="kw-2">&amp;</span>cases {
+<a href=#950 id=950 data-nosnippet>950</a>            <span class="macro">assert_eq!</span>(error.fips_code(), <span class="kw-2">*</span>expected_code, <span class="string">"Wrong FIPS code for {:?}"</span>, error);
+<a href=#951 id=951 data-nosnippet>951</a>            <span class="comment">// Also test From conversion
+<a href=#952 id=952 data-nosnippet>952</a>            </span><span class="kw">let </span>converted: FipsErrorCode = error.into();
+<a href=#953 id=953 data-nosnippet>953</a>            <span class="macro">assert_eq!</span>(converted, <span class="kw-2">*</span>expected_code);
+<a href=#954 id=954 data-nosnippet>954</a>        }
+<a href=#955 id=955 data-nosnippet>955</a>    }
 <a href=#956 id=956 data-nosnippet>956</a>
-<a href=#957 id=957 data-nosnippet>957</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
-<a href=#958 id=958 data-nosnippet>958</a>        <span class="macro">assert!</span>(!error.is_fips_critical());
-<a href=#959 id=959 data-nosnippet>959</a>    }
-<a href=#960 id=960 data-nosnippet>960</a>
-<a href=#961 id=961 data-nosnippet>961</a>    <span class="attr">#[test]
-<a href=#962 id=962 data-nosnippet>962</a>    </span><span class="kw">fn </span>test_fips_compliant_error_display_without_context() {
-<a href=#963 id=963 data-nosnippet>963</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::RngFailure);
-<a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, error);
-<a href=#965 id=965 data-nosnippet>965</a>        <span class="macro">assert_eq!</span>(display, <span class="string">"FIPS-0200: Random number generation failed"</span>);
+<a href=#957 id=957 data-nosnippet>957</a>    <span class="attr">#[test]
+<a href=#958 id=958 data-nosnippet>958</a>    </span><span class="kw">fn </span>test_fips_error_trait_default_methods_return_correctly_fails() {
+<a href=#959 id=959 data-nosnippet>959</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::SelfTestFailed);
+<a href=#960 id=960 data-nosnippet>960</a>        <span class="macro">assert!</span>(error.is_fips_critical());
+<a href=#961 id=961 data-nosnippet>961</a>        <span class="kw">let </span>msg = error.fips_message();
+<a href=#962 id=962 data-nosnippet>962</a>        <span class="macro">assert!</span>(msg.contains(<span class="string">"FIPS-0001"</span>));
+<a href=#963 id=963 data-nosnippet>963</a>
+<a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
+<a href=#965 id=965 data-nosnippet>965</a>        <span class="macro">assert!</span>(!error.is_fips_critical());
 <a href=#966 id=966 data-nosnippet>966</a>    }
 <a href=#967 id=967 data-nosnippet>967</a>
 <a href=#968 id=968 data-nosnippet>968</a>    <span class="attr">#[test]
-<a href=#969 id=969 data-nosnippet>969</a>    </span><span class="kw">fn </span>test_fips_compliant_error_from_code() {
-<a href=#970 id=970 data-nosnippet>970</a>        <span class="kw">let </span>error: FipsCompliantError = FipsErrorCode::Timeout.into();
-<a href=#971 id=971 data-nosnippet>971</a>        <span class="macro">assert_eq!</span>(error.code(), FipsErrorCode::Timeout);
-<a href=#972 id=972 data-nosnippet>972</a>        <span class="macro">assert!</span>(error.context().is_none());
+<a href=#969 id=969 data-nosnippet>969</a>    </span><span class="kw">fn </span>test_fips_compliant_error_display_without_context_succeeds() {
+<a href=#970 id=970 data-nosnippet>970</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::RngFailure);
+<a href=#971 id=971 data-nosnippet>971</a>        <span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, error);
+<a href=#972 id=972 data-nosnippet>972</a>        <span class="macro">assert_eq!</span>(display, <span class="string">"FIPS-0200: Random number generation failed"</span>);
 <a href=#973 id=973 data-nosnippet>973</a>    }
 <a href=#974 id=974 data-nosnippet>974</a>
 <a href=#975 id=975 data-nosnippet>975</a>    <span class="attr">#[test]
-<a href=#976 id=976 data-nosnippet>976</a>    </span><span class="kw">fn </span>test_fips_compliant_error_is_std_error() {
-<a href=#977 id=977 data-nosnippet>977</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::BufferTooSmall);
-<a href=#978 id=978 data-nosnippet>978</a>        <span class="kw">let _</span>: <span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error = <span class="kw-2">&amp;</span>error;
-<a href=#979 id=979 data-nosnippet>979</a>    }
-<a href=#980 id=980 data-nosnippet>980</a>
-<a href=#981 id=981 data-nosnippet>981</a>    <span class="attr">#[test]
-<a href=#982 id=982 data-nosnippet>982</a>    </span><span class="kw">fn </span>test_fips_error_ml_kem_from_error() {
-<a href=#983 id=983 data-nosnippet>983</a>        <span class="comment">// Test FipsError for Error wrapping MlKemError
-<a href=#984 id=984 data-nosnippet>984</a>        </span><span class="kw">use </span><span class="kw">crate</span>::primitives::kem::ml_kem::MlKemError;
-<a href=#985 id=985 data-nosnippet>985</a>        <span class="kw">let </span>ml_kem_err = MlKemError::KeyGenerationError(<span class="string">"test"</span>.into());
-<a href=#986 id=986 data-nosnippet>986</a>        <span class="kw">let </span>error = <span class="kw">crate</span>::primitives::error::Error::MlKem(ml_kem_err);
-<a href=#987 id=987 data-nosnippet>987</a>        <span class="macro">assert_eq!</span>(error.fips_code(), FipsErrorCode::KeyGenerationFailed);
-<a href=#988 id=988 data-nosnippet>988</a>    }
-<a href=#989 id=989 data-nosnippet>989</a>
-<a href=#990 id=990 data-nosnippet>990</a>    <span class="attr">#[test]
-<a href=#991 id=991 data-nosnippet>991</a>    </span><span class="kw">fn </span>test_error_code_uniqueness() {
-<a href=#992 id=992 data-nosnippet>992</a>        <span class="comment">// Collect all error codes to verify uniqueness
-<a href=#993 id=993 data-nosnippet>993</a>        </span><span class="kw">let </span>codes = [
-<a href=#994 id=994 data-nosnippet>994</a>            FipsErrorCode::SelfTestFailed,
-<a href=#995 id=995 data-nosnippet>995</a>            FipsErrorCode::IntegrityCheckFailed,
-<a href=#996 id=996 data-nosnippet>996</a>            FipsErrorCode::ConditionalTestFailed,
-<a href=#997 id=997 data-nosnippet>997</a>            FipsErrorCode::KatFailed,
-<a href=#998 id=998 data-nosnippet>998</a>            FipsErrorCode::ContinuousRngTestFailed,
-<a href=#999 id=999 data-nosnippet>999</a>            FipsErrorCode::InvalidKeyLength,
-<a href=#1000 id=1000 data-nosnippet>1000</a>            FipsErrorCode::InvalidNonce,
-<a href=#1001 id=1001 data-nosnippet>1001</a>            FipsErrorCode::DecryptionFailed,
-<a href=#1002 id=1002 data-nosnippet>1002</a>            FipsErrorCode::SignatureInvalid,
-<a href=#1003 id=1003 data-nosnippet>1003</a>            FipsErrorCode::InvalidParameter,
-<a href=#1004 id=1004 data-nosnippet>1004</a>            FipsErrorCode::UnsupportedAlgorithm,
-<a href=#1005 id=1005 data-nosnippet>1005</a>            FipsErrorCode::KeyGenerationFailed,
-<a href=#1006 id=1006 data-nosnippet>1006</a>            FipsErrorCode::EncapsulationFailed,
-<a href=#1007 id=1007 data-nosnippet>1007</a>            FipsErrorCode::DecapsulationFailed,
-<a href=#1008 id=1008 data-nosnippet>1008</a>            FipsErrorCode::SigningFailed,
-<a href=#1009 id=1009 data-nosnippet>1009</a>            FipsErrorCode::InvalidCiphertext,
-<a href=#1010 id=1010 data-nosnippet>1010</a>            FipsErrorCode::InvalidPublicKey,
-<a href=#1011 id=1011 data-nosnippet>1011</a>            FipsErrorCode::InvalidSecretKey,
-<a href=#1012 id=1012 data-nosnippet>1012</a>            FipsErrorCode::EncryptionFailed,
-<a href=#1013 id=1013 data-nosnippet>1013</a>            FipsErrorCode::HashFailed,
-<a href=#1014 id=1014 data-nosnippet>1014</a>            FipsErrorCode::MacFailed,
-<a href=#1015 id=1015 data-nosnippet>1015</a>            FipsErrorCode::KeyDerivationFailed,
-<a href=#1016 id=1016 data-nosnippet>1016</a>            FipsErrorCode::RngFailure,
-<a href=#1017 id=1017 data-nosnippet>1017</a>            FipsErrorCode::ZeroizationFailed,
-<a href=#1018 id=1018 data-nosnippet>1018</a>            FipsErrorCode::ResourceExhausted,
-<a href=#1019 id=1019 data-nosnippet>1019</a>            FipsErrorCode::InternalError,
-<a href=#1020 id=1020 data-nosnippet>1020</a>            FipsErrorCode::IoError,
-<a href=#1021 id=1021 data-nosnippet>1021</a>            FipsErrorCode::SerializationFailed,
-<a href=#1022 id=1022 data-nosnippet>1022</a>            FipsErrorCode::DeserializationFailed,
-<a href=#1023 id=1023 data-nosnippet>1023</a>            FipsErrorCode::BufferTooSmall,
-<a href=#1024 id=1024 data-nosnippet>1024</a>            FipsErrorCode::Timeout,
-<a href=#1025 id=1025 data-nosnippet>1025</a>            FipsErrorCode::ModuleNotInitialized,
-<a href=#1026 id=1026 data-nosnippet>1026</a>            FipsErrorCode::OperationNotPermitted,
-<a href=#1027 id=1027 data-nosnippet>1027</a>            FipsErrorCode::ModuleInErrorState,
-<a href=#1028 id=1028 data-nosnippet>1028</a>            FipsErrorCode::FeatureNotAvailable,
-<a href=#1029 id=1029 data-nosnippet>1029</a>            FipsErrorCode::KeyValidationFailed,
-<a href=#1030 id=1030 data-nosnippet>1030</a>            FipsErrorCode::WeakKeyDetected,
-<a href=#1031 id=1031 data-nosnippet>1031</a>        ];
-<a href=#1032 id=1032 data-nosnippet>1032</a>
-<a href=#1033 id=1033 data-nosnippet>1033</a>        <span class="kw">let </span><span class="kw-2">mut </span>seen = std::collections::HashSet::new();
-<a href=#1034 id=1034 data-nosnippet>1034</a>        <span class="kw">for </span>code <span class="kw">in </span>codes {
-<a href=#1035 id=1035 data-nosnippet>1035</a>            <span class="macro">assert!</span>(seen.insert(code.code()), <span class="string">"Duplicate error code: {:04X}"</span>, code.code());
-<a href=#1036 id=1036 data-nosnippet>1036</a>        }
-<a href=#1037 id=1037 data-nosnippet>1037</a>    }
-<a href=#1038 id=1038 data-nosnippet>1038</a>}
+<a href=#976 id=976 data-nosnippet>976</a>    </span><span class="kw">fn </span>test_fips_compliant_error_from_code_succeeds() {
+<a href=#977 id=977 data-nosnippet>977</a>        <span class="kw">let </span>error: FipsCompliantError = FipsErrorCode::Timeout.into();
+<a href=#978 id=978 data-nosnippet>978</a>        <span class="macro">assert_eq!</span>(error.code(), FipsErrorCode::Timeout);
+<a href=#979 id=979 data-nosnippet>979</a>        <span class="macro">assert!</span>(error.context().is_none());
+<a href=#980 id=980 data-nosnippet>980</a>    }
+<a href=#981 id=981 data-nosnippet>981</a>
+<a href=#982 id=982 data-nosnippet>982</a>    <span class="attr">#[test]
+<a href=#983 id=983 data-nosnippet>983</a>    </span><span class="kw">fn </span>test_fips_compliant_error_is_std_error_compatible_fails() {
+<a href=#984 id=984 data-nosnippet>984</a>        <span class="kw">let </span>error = FipsCompliantError::new(FipsErrorCode::BufferTooSmall);
+<a href=#985 id=985 data-nosnippet>985</a>        <span class="kw">let _</span>: <span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error = <span class="kw-2">&amp;</span>error;
+<a href=#986 id=986 data-nosnippet>986</a>    }
+<a href=#987 id=987 data-nosnippet>987</a>
+<a href=#988 id=988 data-nosnippet>988</a>    <span class="attr">#[test]
+<a href=#989 id=989 data-nosnippet>989</a>    </span><span class="kw">fn </span>test_fips_error_ml_kem_from_error_maps_correctly_fails() {
+<a href=#990 id=990 data-nosnippet>990</a>        <span class="comment">// Test FipsError for Error wrapping MlKemError
+<a href=#991 id=991 data-nosnippet>991</a>        </span><span class="kw">use </span><span class="kw">crate</span>::primitives::kem::ml_kem::MlKemError;
+<a href=#992 id=992 data-nosnippet>992</a>        <span class="kw">let </span>ml_kem_err = MlKemError::KeyGenerationError(<span class="string">"test"</span>.into());
+<a href=#993 id=993 data-nosnippet>993</a>        <span class="kw">let </span>error = <span class="kw">crate</span>::primitives::error::PrimitivesError::MlKem(ml_kem_err);
+<a href=#994 id=994 data-nosnippet>994</a>        <span class="macro">assert_eq!</span>(error.fips_code(), FipsErrorCode::KeyGenerationFailed);
+<a href=#995 id=995 data-nosnippet>995</a>    }
+<a href=#996 id=996 data-nosnippet>996</a>
+<a href=#997 id=997 data-nosnippet>997</a>    <span class="attr">#[test]
+<a href=#998 id=998 data-nosnippet>998</a>    </span><span class="kw">fn </span>test_error_code_uniqueness_verified_fails() {
+<a href=#999 id=999 data-nosnippet>999</a>        <span class="comment">// Collect all error codes to verify uniqueness
+<a href=#1000 id=1000 data-nosnippet>1000</a>        </span><span class="kw">let </span>codes = [
+<a href=#1001 id=1001 data-nosnippet>1001</a>            FipsErrorCode::SelfTestFailed,
+<a href=#1002 id=1002 data-nosnippet>1002</a>            FipsErrorCode::IntegrityCheckFailed,
+<a href=#1003 id=1003 data-nosnippet>1003</a>            FipsErrorCode::ConditionalTestFailed,
+<a href=#1004 id=1004 data-nosnippet>1004</a>            FipsErrorCode::KatFailed,
+<a href=#1005 id=1005 data-nosnippet>1005</a>            FipsErrorCode::ContinuousRngTestFailed,
+<a href=#1006 id=1006 data-nosnippet>1006</a>            FipsErrorCode::InvalidKeyLength,
+<a href=#1007 id=1007 data-nosnippet>1007</a>            FipsErrorCode::InvalidNonce,
+<a href=#1008 id=1008 data-nosnippet>1008</a>            FipsErrorCode::DecryptionFailed,
+<a href=#1009 id=1009 data-nosnippet>1009</a>            FipsErrorCode::SignatureInvalid,
+<a href=#1010 id=1010 data-nosnippet>1010</a>            FipsErrorCode::InvalidParameter,
+<a href=#1011 id=1011 data-nosnippet>1011</a>            FipsErrorCode::UnsupportedAlgorithm,
+<a href=#1012 id=1012 data-nosnippet>1012</a>            FipsErrorCode::KeyGenerationFailed,
+<a href=#1013 id=1013 data-nosnippet>1013</a>            FipsErrorCode::EncapsulationFailed,
+<a href=#1014 id=1014 data-nosnippet>1014</a>            FipsErrorCode::DecapsulationFailed,
+<a href=#1015 id=1015 data-nosnippet>1015</a>            FipsErrorCode::SigningFailed,
+<a href=#1016 id=1016 data-nosnippet>1016</a>            FipsErrorCode::InvalidCiphertext,
+<a href=#1017 id=1017 data-nosnippet>1017</a>            FipsErrorCode::InvalidPublicKey,
+<a href=#1018 id=1018 data-nosnippet>1018</a>            FipsErrorCode::InvalidSecretKey,
+<a href=#1019 id=1019 data-nosnippet>1019</a>            FipsErrorCode::EncryptionFailed,
+<a href=#1020 id=1020 data-nosnippet>1020</a>            FipsErrorCode::HashFailed,
+<a href=#1021 id=1021 data-nosnippet>1021</a>            FipsErrorCode::MacFailed,
+<a href=#1022 id=1022 data-nosnippet>1022</a>            FipsErrorCode::KeyDerivationFailed,
+<a href=#1023 id=1023 data-nosnippet>1023</a>            FipsErrorCode::RngFailure,
+<a href=#1024 id=1024 data-nosnippet>1024</a>            FipsErrorCode::ZeroizationFailed,
+<a href=#1025 id=1025 data-nosnippet>1025</a>            FipsErrorCode::ResourceExhausted,
+<a href=#1026 id=1026 data-nosnippet>1026</a>            FipsErrorCode::InternalError,
+<a href=#1027 id=1027 data-nosnippet>1027</a>            FipsErrorCode::IoError,
+<a href=#1028 id=1028 data-nosnippet>1028</a>            FipsErrorCode::SerializationFailed,
+<a href=#1029 id=1029 data-nosnippet>1029</a>            FipsErrorCode::DeserializationFailed,
+<a href=#1030 id=1030 data-nosnippet>1030</a>            FipsErrorCode::BufferTooSmall,
+<a href=#1031 id=1031 data-nosnippet>1031</a>            FipsErrorCode::Timeout,
+<a href=#1032 id=1032 data-nosnippet>1032</a>            FipsErrorCode::ModuleNotInitialized,
+<a href=#1033 id=1033 data-nosnippet>1033</a>            FipsErrorCode::OperationNotPermitted,
+<a href=#1034 id=1034 data-nosnippet>1034</a>            FipsErrorCode::ModuleInErrorState,
+<a href=#1035 id=1035 data-nosnippet>1035</a>            FipsErrorCode::FeatureNotAvailable,
+<a href=#1036 id=1036 data-nosnippet>1036</a>            FipsErrorCode::KeyValidationFailed,
+<a href=#1037 id=1037 data-nosnippet>1037</a>            FipsErrorCode::WeakKeyDetected,
+<a href=#1038 id=1038 data-nosnippet>1038</a>        ];
+<a href=#1039 id=1039 data-nosnippet>1039</a>
+<a href=#1040 id=1040 data-nosnippet>1040</a>        <span class="kw">let </span><span class="kw-2">mut </span>seen = std::collections::HashSet::new();
+<a href=#1041 id=1041 data-nosnippet>1041</a>        <span class="kw">for </span>code <span class="kw">in </span>codes {
+<a href=#1042 id=1042 data-nosnippet>1042</a>            <span class="macro">assert!</span>(seen.insert(code.code()), <span class="string">"Duplicate error code: {:04X}"</span>, code.code());
+<a href=#1043 id=1043 data-nosnippet>1043</a>        }
+<a href=#1044 id=1044 data-nosnippet>1044</a>    }
+<a href=#1045 id=1045 data-nosnippet>1045</a>}
 </code></pre></div></section></main></body></html>

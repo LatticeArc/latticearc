@@ -258,13 +258,13 @@
 <a href=#258 id=258 data-nosnippet>258</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#259 id=259 data-nosnippet>259</a>
 <a href=#260 id=260 data-nosnippet>260</a>    <span class="attr">#[test]
-<a href=#261 id=261 data-nosnippet>261</a>    </span><span class="kw">fn </span>test_aes_128_gcm_kat() {
+<a href=#261 id=261 data-nosnippet>261</a>    </span><span class="kw">fn </span>test_aes_128_gcm_kat_succeeds() {
 <a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">let </span>result = run_aes_128_gcm_kat();
 <a href=#263 id=263 data-nosnippet>263</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"AES-128-GCM KAT failed: {:?}"</span>, result);
 <a href=#264 id=264 data-nosnippet>264</a>    }
 <a href=#265 id=265 data-nosnippet>265</a>
 <a href=#266 id=266 data-nosnippet>266</a>    <span class="attr">#[test]
-<a href=#267 id=267 data-nosnippet>267</a>    </span><span class="kw">fn </span>test_aes_256_gcm_kat() {
+<a href=#267 id=267 data-nosnippet>267</a>    </span><span class="kw">fn </span>test_aes_256_gcm_kat_succeeds() {
 <a href=#268 id=268 data-nosnippet>268</a>        <span class="kw">let </span>result = run_aes_256_gcm_kat();
 <a href=#269 id=269 data-nosnippet>269</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"AES-256-GCM KAT failed: {:?}"</span>, result);
 <a href=#270 id=270 data-nosnippet>270</a>    }
@@ -274,7 +274,7 @@
 <a href=#274 id=274 data-nosnippet>274</a>    // =========================================================================
 <a href=#275 id=275 data-nosnippet>275</a>
 <a href=#276 id=276 data-nosnippet>276</a>    </span><span class="attr">#[test]
-<a href=#277 id=277 data-nosnippet>277</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_key_hex() {
+<a href=#277 id=277 data-nosnippet>277</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_key_hex_fails() {
 <a href=#278 id=278 data-nosnippet>278</a>        <span class="comment">// Trigger decode_hex error on the key field (line 122)
 <a href=#279 id=279 data-nosnippet>279</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#280 id=280 data-nosnippet>280</a>            test_name: <span class="string">"ERR-128-bad-key-hex"</span>,
@@ -294,7 +294,7 @@
 <a href=#294 id=294 data-nosnippet>294</a>    }
 <a href=#295 id=295 data-nosnippet>295</a>
 <a href=#296 id=296 data-nosnippet>296</a>    <span class="attr">#[test]
-<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_nonce_hex() {
+<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_nonce_hex_fails() {
 <a href=#298 id=298 data-nosnippet>298</a>        <span class="comment">// Trigger decode_hex error on the nonce field (line 123)
 <a href=#299 id=299 data-nosnippet>299</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#300 id=300 data-nosnippet>300</a>            test_name: <span class="string">"ERR-128-bad-nonce-hex"</span>,
@@ -314,7 +314,7 @@
 <a href=#314 id=314 data-nosnippet>314</a>    }
 <a href=#315 id=315 data-nosnippet>315</a>
 <a href=#316 id=316 data-nosnippet>316</a>    <span class="attr">#[test]
-<a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_aad_hex() {
+<a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_aad_hex_fails() {
 <a href=#318 id=318 data-nosnippet>318</a>        <span class="comment">// Trigger decode_hex error on the aad field (line 124)
 <a href=#319 id=319 data-nosnippet>319</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#320 id=320 data-nosnippet>320</a>            test_name: <span class="string">"ERR-128-bad-aad-hex"</span>,
@@ -334,7 +334,7 @@
 <a href=#334 id=334 data-nosnippet>334</a>    }
 <a href=#335 id=335 data-nosnippet>335</a>
 <a href=#336 id=336 data-nosnippet>336</a>    <span class="attr">#[test]
-<a href=#337 id=337 data-nosnippet>337</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_plaintext_hex() {
+<a href=#337 id=337 data-nosnippet>337</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_plaintext_hex_fails() {
 <a href=#338 id=338 data-nosnippet>338</a>        <span class="comment">// Trigger decode_hex error on the plaintext field (line 125)
 <a href=#339 id=339 data-nosnippet>339</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#340 id=340 data-nosnippet>340</a>            test_name: <span class="string">"ERR-128-bad-pt-hex"</span>,
@@ -354,7 +354,7 @@
 <a href=#354 id=354 data-nosnippet>354</a>    }
 <a href=#355 id=355 data-nosnippet>355</a>
 <a href=#356 id=356 data-nosnippet>356</a>    <span class="attr">#[test]
-<a href=#357 id=357 data-nosnippet>357</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_expected_ciphertext_hex() {
+<a href=#357 id=357 data-nosnippet>357</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_expected_ciphertext_hex_fails() {
 <a href=#358 id=358 data-nosnippet>358</a>        <span class="comment">// Trigger decode_hex error on expected_ciphertext field (line 126)
 <a href=#359 id=359 data-nosnippet>359</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#360 id=360 data-nosnippet>360</a>            test_name: <span class="string">"ERR-128-bad-ct-hex"</span>,
@@ -374,7 +374,7 @@
 <a href=#374 id=374 data-nosnippet>374</a>    }
 <a href=#375 id=375 data-nosnippet>375</a>
 <a href=#376 id=376 data-nosnippet>376</a>    <span class="attr">#[test]
-<a href=#377 id=377 data-nosnippet>377</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_expected_tag_hex() {
+<a href=#377 id=377 data-nosnippet>377</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_expected_tag_hex_fails() {
 <a href=#378 id=378 data-nosnippet>378</a>        <span class="comment">// Trigger decode_hex error on expected_tag field (line 127)
 <a href=#379 id=379 data-nosnippet>379</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#380 id=380 data-nosnippet>380</a>            test_name: <span class="string">"ERR-128-bad-tag-hex"</span>,
@@ -394,7 +394,7 @@
 <a href=#394 id=394 data-nosnippet>394</a>    }
 <a href=#395 id=395 data-nosnippet>395</a>
 <a href=#396 id=396 data-nosnippet>396</a>    <span class="attr">#[test]
-<a href=#397 id=397 data-nosnippet>397</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_key_length() {
+<a href=#397 id=397 data-nosnippet>397</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_key_length_fails() {
 <a href=#398 id=398 data-nosnippet>398</a>        <span class="comment">// Trigger UnboundKey::new error: key is wrong size for AES-128 (line 131)
 <a href=#399 id=399 data-nosnippet>399</a>        // Valid hex but wrong key length (8 bytes instead of 16)
 <a href=#400 id=400 data-nosnippet>400</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
@@ -417,7 +417,7 @@
 <a href=#417 id=417 data-nosnippet>417</a>    }
 <a href=#418 id=418 data-nosnippet>418</a>
 <a href=#419 id=419 data-nosnippet>419</a>    <span class="attr">#[test]
-<a href=#420 id=420 data-nosnippet>420</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_nonce_length() {
+<a href=#420 id=420 data-nosnippet>420</a>    </span><span class="kw">fn </span>test_aes_128_gcm_invalid_nonce_length_fails() {
 <a href=#421 id=421 data-nosnippet>421</a>        <span class="comment">// Trigger nonce try_into error: nonce is wrong size (line 136)
 <a href=#422 id=422 data-nosnippet>422</a>        // Valid hex but wrong nonce length (8 bytes instead of 12)
 <a href=#423 id=423 data-nosnippet>423</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
@@ -440,7 +440,7 @@
 <a href=#440 id=440 data-nosnippet>440</a>    }
 <a href=#441 id=441 data-nosnippet>441</a>
 <a href=#442 id=442 data-nosnippet>442</a>    <span class="attr">#[test]
-<a href=#443 id=443 data-nosnippet>443</a>    </span><span class="kw">fn </span>test_aes_128_gcm_ciphertext_mismatch() {
+<a href=#443 id=443 data-nosnippet>443</a>    </span><span class="kw">fn </span>test_aes_128_gcm_ciphertext_mismatch_fails() {
 <a href=#444 id=444 data-nosnippet>444</a>        <span class="comment">// Trigger TestFailed: ciphertext output mismatch (lines 148-157)
 <a href=#445 id=445 data-nosnippet>445</a>        // Use valid key/nonce/plaintext but wrong expected_ciphertext
 <a href=#446 id=446 data-nosnippet>446</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
@@ -466,7 +466,7 @@
 <a href=#466 id=466 data-nosnippet>466</a>    }
 <a href=#467 id=467 data-nosnippet>467</a>
 <a href=#468 id=468 data-nosnippet>468</a>    <span class="attr">#[test]
-<a href=#469 id=469 data-nosnippet>469</a>    </span><span class="kw">fn </span>test_aes_128_gcm_decryption_nonce_hex_error() {
+<a href=#469 id=469 data-nosnippet>469</a>    </span><span class="kw">fn </span>test_aes_128_gcm_decryption_nonce_hex_error_fails() {
 <a href=#470 id=470 data-nosnippet>470</a>        <span class="comment">// Trigger the decode_hex error for nonce on the decryption path (line 164)
 <a href=#471 id=471 data-nosnippet>471</a>        // This is hard to trigger because the same nonce was already decoded on line 123.
 <a href=#472 id=472 data-nosnippet>472</a>        // However, the code calls decode_hex(vector.nonce) again on line 164 for decryption.
@@ -484,7 +484,7 @@
 <a href=#484 id=484 data-nosnippet>484</a>    // =========================================================================
 <a href=#485 id=485 data-nosnippet>485</a>
 <a href=#486 id=486 data-nosnippet>486</a>    </span><span class="attr">#[test]
-<a href=#487 id=487 data-nosnippet>487</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_key_hex() {
+<a href=#487 id=487 data-nosnippet>487</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_key_hex_fails() {
 <a href=#488 id=488 data-nosnippet>488</a>        <span class="comment">// Trigger decode_hex error on the key field (line 185)
 <a href=#489 id=489 data-nosnippet>489</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#490 id=490 data-nosnippet>490</a>            test_name: <span class="string">"ERR-256-bad-key-hex"</span>,
@@ -504,7 +504,7 @@
 <a href=#504 id=504 data-nosnippet>504</a>    }
 <a href=#505 id=505 data-nosnippet>505</a>
 <a href=#506 id=506 data-nosnippet>506</a>    <span class="attr">#[test]
-<a href=#507 id=507 data-nosnippet>507</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_nonce_hex() {
+<a href=#507 id=507 data-nosnippet>507</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_nonce_hex_fails() {
 <a href=#508 id=508 data-nosnippet>508</a>        <span class="comment">// Trigger decode_hex error on the nonce field (line 186)
 <a href=#509 id=509 data-nosnippet>509</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#510 id=510 data-nosnippet>510</a>            test_name: <span class="string">"ERR-256-bad-nonce-hex"</span>,
@@ -524,7 +524,7 @@
 <a href=#524 id=524 data-nosnippet>524</a>    }
 <a href=#525 id=525 data-nosnippet>525</a>
 <a href=#526 id=526 data-nosnippet>526</a>    <span class="attr">#[test]
-<a href=#527 id=527 data-nosnippet>527</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_aad_hex() {
+<a href=#527 id=527 data-nosnippet>527</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_aad_hex_fails() {
 <a href=#528 id=528 data-nosnippet>528</a>        <span class="comment">// Trigger decode_hex error on the aad field (line 187)
 <a href=#529 id=529 data-nosnippet>529</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#530 id=530 data-nosnippet>530</a>            test_name: <span class="string">"ERR-256-bad-aad-hex"</span>,
@@ -544,7 +544,7 @@
 <a href=#544 id=544 data-nosnippet>544</a>    }
 <a href=#545 id=545 data-nosnippet>545</a>
 <a href=#546 id=546 data-nosnippet>546</a>    <span class="attr">#[test]
-<a href=#547 id=547 data-nosnippet>547</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_plaintext_hex() {
+<a href=#547 id=547 data-nosnippet>547</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_plaintext_hex_fails() {
 <a href=#548 id=548 data-nosnippet>548</a>        <span class="comment">// Trigger decode_hex error on the plaintext field (line 188)
 <a href=#549 id=549 data-nosnippet>549</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#550 id=550 data-nosnippet>550</a>            test_name: <span class="string">"ERR-256-bad-pt-hex"</span>,
@@ -564,7 +564,7 @@
 <a href=#564 id=564 data-nosnippet>564</a>    }
 <a href=#565 id=565 data-nosnippet>565</a>
 <a href=#566 id=566 data-nosnippet>566</a>    <span class="attr">#[test]
-<a href=#567 id=567 data-nosnippet>567</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_expected_ciphertext_hex() {
+<a href=#567 id=567 data-nosnippet>567</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_expected_ciphertext_hex_fails() {
 <a href=#568 id=568 data-nosnippet>568</a>        <span class="comment">// Trigger decode_hex error on expected_ciphertext field (line 189)
 <a href=#569 id=569 data-nosnippet>569</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#570 id=570 data-nosnippet>570</a>            test_name: <span class="string">"ERR-256-bad-ct-hex"</span>,
@@ -584,7 +584,7 @@
 <a href=#584 id=584 data-nosnippet>584</a>    }
 <a href=#585 id=585 data-nosnippet>585</a>
 <a href=#586 id=586 data-nosnippet>586</a>    <span class="attr">#[test]
-<a href=#587 id=587 data-nosnippet>587</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_expected_tag_hex() {
+<a href=#587 id=587 data-nosnippet>587</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_expected_tag_hex_fails() {
 <a href=#588 id=588 data-nosnippet>588</a>        <span class="comment">// Trigger decode_hex error on expected_tag field (line 190)
 <a href=#589 id=589 data-nosnippet>589</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#590 id=590 data-nosnippet>590</a>            test_name: <span class="string">"ERR-256-bad-tag-hex"</span>,
@@ -604,7 +604,7 @@
 <a href=#604 id=604 data-nosnippet>604</a>    }
 <a href=#605 id=605 data-nosnippet>605</a>
 <a href=#606 id=606 data-nosnippet>606</a>    <span class="attr">#[test]
-<a href=#607 id=607 data-nosnippet>607</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_key_length() {
+<a href=#607 id=607 data-nosnippet>607</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_key_length_fails() {
 <a href=#608 id=608 data-nosnippet>608</a>        <span class="comment">// Trigger UnboundKey::new error: key is wrong size for AES-256 (line 193)
 <a href=#609 id=609 data-nosnippet>609</a>        // Valid hex but wrong key length (8 bytes instead of 32)
 <a href=#610 id=610 data-nosnippet>610</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
@@ -627,7 +627,7 @@
 <a href=#627 id=627 data-nosnippet>627</a>    }
 <a href=#628 id=628 data-nosnippet>628</a>
 <a href=#629 id=629 data-nosnippet>629</a>    <span class="attr">#[test]
-<a href=#630 id=630 data-nosnippet>630</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_nonce_length() {
+<a href=#630 id=630 data-nosnippet>630</a>    </span><span class="kw">fn </span>test_aes_256_gcm_invalid_nonce_length_fails() {
 <a href=#631 id=631 data-nosnippet>631</a>        <span class="comment">// Trigger nonce try_into error: nonce is wrong size (line 198)
 <a href=#632 id=632 data-nosnippet>632</a>        // Valid hex but wrong nonce length (8 bytes instead of 12)
 <a href=#633 id=633 data-nosnippet>633</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
@@ -650,7 +650,7 @@
 <a href=#650 id=650 data-nosnippet>650</a>    }
 <a href=#651 id=651 data-nosnippet>651</a>
 <a href=#652 id=652 data-nosnippet>652</a>    <span class="attr">#[test]
-<a href=#653 id=653 data-nosnippet>653</a>    </span><span class="kw">fn </span>test_aes_256_gcm_ciphertext_mismatch() {
+<a href=#653 id=653 data-nosnippet>653</a>    </span><span class="kw">fn </span>test_aes_256_gcm_ciphertext_mismatch_fails() {
 <a href=#654 id=654 data-nosnippet>654</a>        <span class="comment">// Trigger TestFailed: ciphertext output mismatch (lines 211-219)
 <a href=#655 id=655 data-nosnippet>655</a>        // Use valid key/nonce/plaintext but wrong expected_tag
 <a href=#656 id=656 data-nosnippet>656</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
@@ -676,7 +676,7 @@
 <a href=#676 id=676 data-nosnippet>676</a>    }
 <a href=#677 id=677 data-nosnippet>677</a>
 <a href=#678 id=678 data-nosnippet>678</a>    <span class="attr">#[test]
-<a href=#679 id=679 data-nosnippet>679</a>    </span><span class="kw">fn </span>test_aes_256_gcm_decryption_path_all_vectors() {
+<a href=#679 id=679 data-nosnippet>679</a>    </span><span class="kw">fn </span>test_aes_256_gcm_decryption_path_all_vectors_succeeds() {
 <a href=#680 id=680 data-nosnippet>680</a>        <span class="comment">// Ensure decryption path (lines 222-244) is fully exercised for all vectors
 <a href=#681 id=681 data-nosnippet>681</a>        </span><span class="kw">for </span>vector <span class="kw">in </span>AES_256_GCM_VECTORS {
 <a href=#682 id=682 data-nosnippet>682</a>            <span class="kw">let </span>result = run_aes_256_gcm_test(vector);
@@ -689,7 +689,7 @@
 <a href=#689 id=689 data-nosnippet>689</a>    // =========================================================================
 <a href=#690 id=690 data-nosnippet>690</a>
 <a href=#691 id=691 data-nosnippet>691</a>    </span><span class="attr">#[test]
-<a href=#692 id=692 data-nosnippet>692</a>    </span><span class="kw">fn </span>test_aes_128_gcm_ciphertext_mismatch_with_plaintext() {
+<a href=#692 id=692 data-nosnippet>692</a>    </span><span class="kw">fn </span>test_aes_128_gcm_ciphertext_mismatch_with_plaintext_fails() {
 <a href=#693 id=693 data-nosnippet>693</a>        <span class="comment">// Trigger TestFailed for ciphertext mismatch with non-empty plaintext
 <a href=#694 id=694 data-nosnippet>694</a>        // This covers the format! branch with non-empty hex output (lines 148-157)
 <a href=#695 id=695 data-nosnippet>695</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
@@ -717,7 +717,7 @@
 <a href=#717 id=717 data-nosnippet>717</a>    }
 <a href=#718 id=718 data-nosnippet>718</a>
 <a href=#719 id=719 data-nosnippet>719</a>    <span class="attr">#[test]
-<a href=#720 id=720 data-nosnippet>720</a>    </span><span class="kw">fn </span>test_aes_256_gcm_ciphertext_mismatch_with_plaintext() {
+<a href=#720 id=720 data-nosnippet>720</a>    </span><span class="kw">fn </span>test_aes_256_gcm_ciphertext_mismatch_with_plaintext_fails() {
 <a href=#721 id=721 data-nosnippet>721</a>        <span class="comment">// Same as above but for AES-256 (lines 211-219)
 <a href=#722 id=722 data-nosnippet>722</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#723 id=723 data-nosnippet>723</a>            test_name: <span class="string">"ERR-256-ct-mismatch-pt"</span>,
@@ -743,7 +743,7 @@
 <a href=#743 id=743 data-nosnippet>743</a>    }
 <a href=#744 id=744 data-nosnippet>744</a>
 <a href=#745 id=745 data-nosnippet>745</a>    <span class="attr">#[test]
-<a href=#746 id=746 data-nosnippet>746</a>    </span><span class="kw">fn </span>test_aes_128_gcm_vector_struct_fields() {
+<a href=#746 id=746 data-nosnippet>746</a>    </span><span class="kw">fn </span>test_aes_128_gcm_vector_struct_fields_matches_expected() {
 <a href=#747 id=747 data-nosnippet>747</a>        <span class="comment">// Exercise the AesGcmTestVector struct to ensure all fields are covered
 <a href=#748 id=748 data-nosnippet>748</a>        </span><span class="kw">let </span>vector = AesGcmTestVector {
 <a href=#749 id=749 data-nosnippet>749</a>            test_name: <span class="string">"field-test"</span>,
@@ -764,7 +764,7 @@
 <a href=#764 id=764 data-nosnippet>764</a>    }
 <a href=#765 id=765 data-nosnippet>765</a>
 <a href=#766 id=766 data-nosnippet>766</a>    <span class="attr">#[test]
-<a href=#767 id=767 data-nosnippet>767</a>    </span><span class="kw">fn </span>test_aes_128_gcm_kat_iterates_all_vectors() {
+<a href=#767 id=767 data-nosnippet>767</a>    </span><span class="kw">fn </span>test_aes_128_gcm_kat_iterates_all_vectors_matches_expected() {
 <a href=#768 id=768 data-nosnippet>768</a>        <span class="comment">// Verify run_aes_128_gcm_kat processes all 3 vectors successfully
 <a href=#769 id=769 data-nosnippet>769</a>        // covering the Ok(()) return at line 110
 <a href=#770 id=770 data-nosnippet>770</a>        </span><span class="macro">assert_eq!</span>(AES_128_GCM_VECTORS.len(), <span class="number">3</span>);
@@ -773,7 +773,7 @@
 <a href=#773 id=773 data-nosnippet>773</a>    }
 <a href=#774 id=774 data-nosnippet>774</a>
 <a href=#775 id=775 data-nosnippet>775</a>    <span class="attr">#[test]
-<a href=#776 id=776 data-nosnippet>776</a>    </span><span class="kw">fn </span>test_aes_256_gcm_kat_iterates_all_vectors() {
+<a href=#776 id=776 data-nosnippet>776</a>    </span><span class="kw">fn </span>test_aes_256_gcm_kat_iterates_all_vectors_matches_expected() {
 <a href=#777 id=777 data-nosnippet>777</a>        <span class="comment">// Verify run_aes_256_gcm_kat processes all 3 vectors successfully
 <a href=#778 id=778 data-nosnippet>778</a>        // covering the Ok(()) return at line 118
 <a href=#779 id=779 data-nosnippet>779</a>        </span><span class="macro">assert_eq!</span>(AES_256_GCM_VECTORS.len(), <span class="number">3</span>);

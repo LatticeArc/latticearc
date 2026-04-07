@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span><span class="kw">super</span>::types::TestResult;
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a><span class="doccomment">/// Test self-tests for FIPS 140-3 Section 7 compliance
-<a href=#30 id=30 data-nosnippet>30</a></span><span class="kw">pub fn </span>test_self_tests() -&gt; <span class="prelude-ty">Result</span>&lt;TestResult, LatticeArcError&gt; {
+<a href=#30 id=30 data-nosnippet>30</a></span><span class="kw">pub fn </span>test_self_tests_succeeds() -&gt; <span class="prelude-ty">Result</span>&lt;TestResult, LatticeArcError&gt; {
 <a href=#31 id=31 data-nosnippet>31</a>    <span class="kw">let </span>start_time = std::time::Instant::now();
 <a href=#32 id=32 data-nosnippet>32</a>    <span class="kw">let </span><span class="kw-2">mut </span>test_details = Vec::new();
 <a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span><span class="kw-2">mut </span>all_passed = <span class="bool-val">true</span>;
@@ -216,7 +216,7 @@
 <a href=#216 id=216 data-nosnippet>216</a>}
 <a href=#217 id=217 data-nosnippet>217</a>
 <a href=#218 id=218 data-nosnippet>218</a><span class="doccomment">/// Test error handling for FIPS 140-3 Section 7 compliance
-<a href=#219 id=219 data-nosnippet>219</a></span><span class="kw">pub fn </span>test_error_handling() -&gt; <span class="prelude-ty">Result</span>&lt;TestResult, LatticeArcError&gt; {
+<a href=#219 id=219 data-nosnippet>219</a></span><span class="kw">pub fn </span>test_error_handling_fails() -&gt; <span class="prelude-ty">Result</span>&lt;TestResult, LatticeArcError&gt; {
 <a href=#220 id=220 data-nosnippet>220</a>    <span class="kw">let </span>start_time = std::time::Instant::now();
 <a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">let </span><span class="kw-2">mut </span>test_details = Vec::new();
 <a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">let </span><span class="kw-2">mut </span>all_passed = <span class="bool-val">true</span>;
