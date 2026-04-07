@@ -31,6 +31,7 @@
 //! match result {
 //!     SelfTestResult::Pass => println!("All self-tests passed"),
 //!     SelfTestResult::Fail(msg) => panic!("Self-test failed: {}", msg),
+//!     _ => println!("Unexpected result"),
 //! }
 //! ```
 //!
