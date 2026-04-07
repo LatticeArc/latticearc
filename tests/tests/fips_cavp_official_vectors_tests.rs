@@ -348,7 +348,7 @@ mod official_cavp_vector_tests {
     use super::*;
 
     #[test]
-    fn test_vector_creation_mlkem_keygen() {
+    fn test_vector_creation_mlkem_keygen_has_correct_fields_matches_expected() {
         let vector = create_valid_mlkem_keygen_vector();
 
         assert_eq!(vector.tg_id, 1);
@@ -362,7 +362,7 @@ mod official_cavp_vector_tests {
     }
 
     #[test]
-    fn test_vector_creation_mldsa_siggen() {
+    fn test_vector_creation_mldsa_siggen_has_correct_fields_matches_expected() {
         let vector = create_valid_mldsa_siggen_vector();
 
         assert_eq!(vector.algorithm, "ML-DSA");
@@ -374,7 +374,7 @@ mod official_cavp_vector_tests {
     }
 
     #[test]
-    fn test_vector_creation_mldsa_sigver() {
+    fn test_vector_creation_mldsa_sigver_has_correct_fields_matches_expected() {
         let vector = create_valid_mldsa_sigver_vector();
 
         assert_eq!(vector.algorithm, "ML-DSA");
@@ -387,7 +387,7 @@ mod official_cavp_vector_tests {
     }
 
     #[test]
-    fn test_vector_creation_slhdsa() {
+    fn test_vector_creation_slhdsa_has_correct_fields_matches_expected() {
         let vector = create_valid_slhdsa_keygen_vector();
 
         assert_eq!(vector.algorithm, "SLH-DSA");
@@ -396,7 +396,7 @@ mod official_cavp_vector_tests {
     }
 
     #[test]
-    fn test_vector_creation_fndsa() {
+    fn test_vector_creation_fndsa_has_correct_fields_matches_expected() {
         let vector = create_valid_fndsa_siggen_vector();
 
         assert_eq!(vector.algorithm, "FN-DSA");
@@ -405,7 +405,7 @@ mod official_cavp_vector_tests {
     }
 
     #[test]
-    fn test_vector_serialization() {
+    fn test_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = create_valid_mlkem_keygen_vector();
 
         let serialized = serde_json::to_string(&vector).unwrap();
@@ -419,7 +419,7 @@ mod official_cavp_vector_tests {
     }
 
     #[test]
-    fn test_vector_clone() {
+    fn test_vector_clone_produces_equal_value_matches_expected() {
         let vector = create_valid_mlkem_keygen_vector();
         let cloned = vector.clone();
 
@@ -430,7 +430,7 @@ mod official_cavp_vector_tests {
     }
 
     #[test]
-    fn test_vector_debug() {
+    fn test_vector_debug_has_correct_format() {
         let vector = create_valid_mlkem_keygen_vector();
         let debug_str = format!("{:?}", vector);
 
@@ -448,7 +448,7 @@ mod cavp_test_inputs_tests {
     use super::*;
 
     #[test]
-    fn test_inputs_empty() {
+    fn test_inputs_empty_has_none_fields_succeeds() {
         let inputs = CavpTestInputs {
             seed: None,
             pk: None,
@@ -469,7 +469,7 @@ mod cavp_test_inputs_tests {
     }
 
     #[test]
-    fn test_inputs_with_all_fields() {
+    fn test_inputs_with_all_fields_are_accessible() {
         let mut additional = HashMap::new();
         additional.insert("custom_field".to_string(), json!("custom_value"));
 
@@ -497,7 +497,7 @@ mod cavp_test_inputs_tests {
     }
 
     #[test]
-    fn test_inputs_serialization() {
+    fn test_inputs_serialization_round_trips_correctly_roundtrip() {
         let inputs = CavpTestInputs {
             seed: Some("0123456789abcdef".to_string()),
             pk: None,
@@ -517,7 +517,7 @@ mod cavp_test_inputs_tests {
     }
 
     #[test]
-    fn test_inputs_clone() {
+    fn test_inputs_clone_produces_equal_value_succeeds() {
         let inputs = CavpTestInputs {
             seed: Some("test_seed".to_string()),
             pk: Some("test_pk".to_string()),
@@ -544,7 +544,7 @@ mod cavp_test_outputs_tests {
     use super::*;
 
     #[test]
-    fn test_outputs_empty() {
+    fn test_outputs_empty_has_none_fields_succeeds() {
         let outputs = CavpTestOutputs {
             pk: None,
             sk: None,
@@ -562,7 +562,7 @@ mod cavp_test_outputs_tests {
     }
 
     #[test]
-    fn test_outputs_with_all_fields() {
+    fn test_outputs_with_all_fields_are_accessible() {
         let mut additional = HashMap::new();
         additional.insert("extra".to_string(), json!(42));
 
@@ -586,7 +586,7 @@ mod cavp_test_outputs_tests {
     }
 
     #[test]
-    fn test_outputs_test_passed_variants() {
+    fn test_outputs_test_passed_variants_are_accessible() {
         let outputs_pass = CavpTestOutputs {
             pk: None,
             sk: None,
@@ -612,7 +612,7 @@ mod cavp_test_outputs_tests {
     }
 
     #[test]
-    fn test_outputs_serialization() {
+    fn test_outputs_serialization_round_trips_correctly_roundtrip() {
         let outputs = CavpTestOutputs {
             pk: Some("0123456789".to_string()),
             sk: None,
@@ -640,7 +640,7 @@ mod cavp_test_collection_tests {
     use super::*;
 
     #[test]
-    fn test_collection_creation() {
+    fn test_collection_creation_has_correct_fields_succeeds() {
         let collection = CavpTestCollection {
             vs_id: 12345,
             algorithm: "ML-KEM".to_string(),
@@ -657,7 +657,7 @@ mod cavp_test_collection_tests {
     }
 
     #[test]
-    fn test_collection_with_groups() {
+    fn test_collection_with_groups_has_correct_fields_succeeds() {
         let group = CavpTestGroup {
             tg_id: 1,
             test_type: "keyGen".to_string(),
@@ -679,7 +679,7 @@ mod cavp_test_collection_tests {
     }
 
     #[test]
-    fn test_collection_serialization() {
+    fn test_collection_serialization_round_trips_correctly_roundtrip() {
         let collection = CavpTestCollection {
             vs_id: 99999,
             algorithm: "ML-DSA".to_string(),
@@ -697,7 +697,7 @@ mod cavp_test_collection_tests {
     }
 
     #[test]
-    fn test_collection_clone() {
+    fn test_collection_clone_produces_equal_value_succeeds() {
         let collection = CavpTestCollection {
             vs_id: 11111,
             algorithm: "SLH-DSA".to_string(),
@@ -720,7 +720,7 @@ mod cavp_test_group_tests {
     use super::*;
 
     #[test]
-    fn test_group_creation() {
+    fn test_group_creation_has_correct_fields_succeeds() {
         let group = CavpTestGroup {
             tg_id: 1,
             test_type: "keyGen".to_string(),
@@ -735,7 +735,7 @@ mod cavp_test_group_tests {
     }
 
     #[test]
-    fn test_group_with_tests() {
+    fn test_group_with_tests_has_correct_fields_succeeds() {
         let tests =
             vec![json!({"tcId": 1, "seed": "abc123"}), json!({"tcId": 2, "seed": "def456"})];
 
@@ -752,7 +752,7 @@ mod cavp_test_group_tests {
     }
 
     #[test]
-    fn test_group_serialization() {
+    fn test_group_serialization_round_trips_correctly_roundtrip() {
         let group = CavpTestGroup {
             tg_id: 10,
             test_type: "sigVer".to_string(),
@@ -769,7 +769,7 @@ mod cavp_test_group_tests {
     }
 
     #[test]
-    fn test_group_clone() {
+    fn test_group_clone_produces_equal_value_succeeds() {
         let group = CavpTestGroup {
             tg_id: 3,
             test_type: "keyGen".to_string(),
@@ -791,7 +791,7 @@ mod vector_validation_result_tests {
     use super::*;
 
     #[test]
-    fn test_result_valid() {
+    fn test_result_valid_has_no_errors_fails() {
         let result = VectorValidationResult {
             is_valid: true,
             errors: vec![],
@@ -806,7 +806,7 @@ mod vector_validation_result_tests {
     }
 
     #[test]
-    fn test_result_with_errors() {
+    fn test_result_with_errors_has_correct_errors_fails() {
         let result = VectorValidationResult {
             is_valid: false,
             errors: vec!["Invalid hex".to_string(), "Missing seed".to_string()],
@@ -821,7 +821,7 @@ mod vector_validation_result_tests {
     }
 
     #[test]
-    fn test_result_with_warnings() {
+    fn test_result_with_warnings_has_correct_warnings_succeeds() {
         let result = VectorValidationResult {
             is_valid: true,
             errors: vec![],
@@ -835,7 +835,7 @@ mod vector_validation_result_tests {
     }
 
     #[test]
-    fn test_result_with_both_errors_and_warnings() {
+    fn test_result_with_both_errors_and_warnings_has_correct_fields_fails() {
         let result = VectorValidationResult {
             is_valid: false,
             errors: vec!["Critical error".to_string()],
@@ -849,7 +849,7 @@ mod vector_validation_result_tests {
     }
 
     #[test]
-    fn test_result_clone() {
+    fn test_result_clone_produces_equal_value_succeeds() {
         let result = VectorValidationResult {
             is_valid: true,
             errors: vec![],
@@ -864,7 +864,7 @@ mod vector_validation_result_tests {
     }
 
     #[test]
-    fn test_result_debug() {
+    fn test_result_debug_has_correct_format() {
         let result = VectorValidationResult {
             is_valid: false,
             errors: vec!["error".to_string()],
@@ -886,7 +886,7 @@ mod cavp_vector_downloader_tests {
     use super::*;
 
     #[test]
-    fn test_downloader_creation_success() {
+    fn test_downloader_creation_success_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path());
 
@@ -894,7 +894,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_creation_with_string_path() {
+    fn test_downloader_creation_with_string_path_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let path_string = temp_dir.path().to_string_lossy().to_string();
         let downloader = CavpVectorDownloader::new(&path_string);
@@ -903,7 +903,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_creates_cache_dir() {
+    fn test_downloader_creates_cache_dir_on_creation_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let cache_path = temp_dir.path().join("nested").join("cache").join("dir");
 
@@ -914,7 +914,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_keygen_valid() {
+    fn test_downloader_vector_validation_keygen_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -926,7 +926,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_siggen_valid() {
+    fn test_downloader_vector_validation_siggen_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -937,7 +937,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_sigver_valid() {
+    fn test_downloader_vector_validation_sigver_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -948,7 +948,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_keygen_missing_seed() {
+    fn test_downloader_vector_validation_keygen_missing_seed_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -988,7 +988,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_keygen_missing_pk() {
+    fn test_downloader_vector_validation_keygen_missing_pk_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1028,7 +1028,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_keygen_missing_sk() {
+    fn test_downloader_vector_validation_keygen_missing_sk_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1068,7 +1068,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_siggen_missing_sk() {
+    fn test_downloader_vector_validation_siggen_missing_sk_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1108,7 +1108,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_siggen_missing_message() {
+    fn test_downloader_vector_validation_siggen_missing_message_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1148,7 +1148,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_siggen_missing_signature() {
+    fn test_downloader_vector_validation_siggen_missing_signature_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1188,7 +1188,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_sigver_missing_pk() {
+    fn test_downloader_vector_validation_sigver_missing_pk_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1228,7 +1228,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_sigver_missing_message() {
+    fn test_downloader_vector_validation_sigver_missing_message_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1268,7 +1268,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_sigver_missing_signature() {
+    fn test_downloader_vector_validation_sigver_missing_signature_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1308,7 +1308,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_sigver_missing_test_passed() {
+    fn test_downloader_vector_validation_sigver_missing_test_passed_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1350,7 +1350,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_unknown_test_type() {
+    fn test_downloader_vector_validation_unknown_test_type_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1391,7 +1391,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_invalid_hex_in_seed() {
+    fn test_downloader_vector_validation_invalid_hex_in_seed_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1431,7 +1431,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_invalid_hex_in_pk() {
+    fn test_downloader_vector_validation_invalid_hex_in_pk_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1471,7 +1471,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_invalid_hex_in_sk() {
+    fn test_downloader_vector_validation_invalid_hex_in_sk_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1511,7 +1511,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_invalid_hex_in_message() {
+    fn test_downloader_vector_validation_invalid_hex_in_message_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1551,7 +1551,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_invalid_hex_in_signature() {
+    fn test_downloader_vector_validation_invalid_hex_in_signature_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1591,7 +1591,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_invalid_parameter_set() {
+    fn test_downloader_vector_validation_invalid_parameter_set_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1631,7 +1631,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_vector_validation_vector_id_format() {
+    fn test_downloader_vector_validation_vector_id_format_is_correct() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1670,7 +1670,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_parse_vector_content_valid() {
+    fn test_downloader_parse_vector_content_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1685,7 +1685,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_parse_vector_content_siggen() {
+    fn test_downloader_parse_vector_content_siggen_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1700,7 +1700,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_parse_vector_content_sigver() {
+    fn test_downloader_parse_vector_content_sigver_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1715,7 +1715,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_parse_vector_content_invalid_utf8() {
+    fn test_downloader_parse_vector_content_invalid_utf8_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1730,7 +1730,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_parse_vector_content_invalid_json() {
+    fn test_downloader_parse_vector_content_invalid_json_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1744,7 +1744,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_load_vectors_from_file() {
+    fn test_downloader_load_vectors_from_file_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1761,7 +1761,7 @@ mod cavp_vector_downloader_tests {
     }
 
     #[test]
-    fn test_downloader_load_vectors_from_nonexistent_file() {
+    fn test_downloader_load_vectors_from_nonexistent_file_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1783,7 +1783,7 @@ mod hex_validation_tests {
     use super::*;
 
     #[test]
-    fn test_is_valid_hex_lowercase() {
+    fn test_is_valid_hex_lowercase_returns_true_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let _downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1821,7 +1821,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_uppercase() {
+    fn test_is_valid_hex_uppercase_returns_true_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1858,7 +1858,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_mixed_case() {
+    fn test_is_valid_hex_mixed_case_returns_true_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1895,7 +1895,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_empty() {
+    fn test_is_valid_hex_empty_returns_true_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1934,7 +1934,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_with_spaces() {
+    fn test_is_valid_hex_with_spaces_returns_false_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -1971,7 +1971,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_with_special_chars() {
+    fn test_is_valid_hex_with_special_chars_returns_false_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2017,7 +2017,7 @@ mod parameter_set_validation_tests {
 
     // ML-KEM parameter sets
     #[test]
-    fn test_mlkem_512_valid() {
+    fn test_mlkem_512_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2029,7 +2029,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_mlkem_768_valid() {
+    fn test_mlkem_768_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2041,7 +2041,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_mlkem_1024_valid() {
+    fn test_mlkem_1024_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2053,7 +2053,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_mlkem_invalid_variant() {
+    fn test_mlkem_invalid_variant_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2068,7 +2068,7 @@ mod parameter_set_validation_tests {
 
     // ML-DSA parameter sets
     #[test]
-    fn test_mldsa_44_valid() {
+    fn test_mldsa_44_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2080,7 +2080,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_mldsa_65_valid() {
+    fn test_mldsa_65_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2092,7 +2092,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_mldsa_87_valid() {
+    fn test_mldsa_87_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2104,7 +2104,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_mldsa_128_valid() {
+    fn test_mldsa_128_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2116,7 +2116,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_mldsa_invalid_variant() {
+    fn test_mldsa_invalid_variant_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2129,7 +2129,7 @@ mod parameter_set_validation_tests {
 
     // SLH-DSA parameter sets
     #[test]
-    fn test_slhdsa_sha2_128s_valid() {
+    fn test_slhdsa_sha2_128s_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2141,7 +2141,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_sha2_128f_valid() {
+    fn test_slhdsa_sha2_128f_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2153,7 +2153,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_sha2_192s_valid() {
+    fn test_slhdsa_sha2_192s_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2165,7 +2165,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_sha2_192f_valid() {
+    fn test_slhdsa_sha2_192f_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2177,7 +2177,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_sha2_256s_valid() {
+    fn test_slhdsa_sha2_256s_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2189,7 +2189,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_sha2_256f_valid() {
+    fn test_slhdsa_sha2_256f_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2201,7 +2201,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_shake_128s_valid() {
+    fn test_slhdsa_shake_128s_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2213,7 +2213,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_shake_128f_valid() {
+    fn test_slhdsa_shake_128f_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2225,7 +2225,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_shake_192s_valid() {
+    fn test_slhdsa_shake_192s_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2237,7 +2237,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_shake_192f_valid() {
+    fn test_slhdsa_shake_192f_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2249,7 +2249,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_shake_256s_valid() {
+    fn test_slhdsa_shake_256s_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2261,7 +2261,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_shake_256f_valid() {
+    fn test_slhdsa_shake_256f_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2273,7 +2273,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_slhdsa_invalid_variant() {
+    fn test_slhdsa_invalid_variant_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2286,7 +2286,7 @@ mod parameter_set_validation_tests {
 
     // FN-DSA parameter sets
     #[test]
-    fn test_fndsa_falcon_512_valid() {
+    fn test_fndsa_falcon_512_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2298,7 +2298,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_fndsa_falcon_1024_valid() {
+    fn test_fndsa_falcon_1024_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2310,7 +2310,7 @@ mod parameter_set_validation_tests {
     }
 
     #[test]
-    fn test_fndsa_invalid_variant() {
+    fn test_fndsa_invalid_variant_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2323,7 +2323,7 @@ mod parameter_set_validation_tests {
 
     // Unknown algorithm
     #[test]
-    fn test_unknown_algorithm() {
+    fn test_unknown_algorithm_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2370,7 +2370,7 @@ mod async_download_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_download_caching_behavior() {
+    async fn test_download_caching_behavior_persists_correctly_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2388,7 +2388,7 @@ mod async_download_tests {
     }
 
     #[tokio::test]
-    async fn test_downloader_exists_after_creation() {
+    async fn test_downloader_exists_after_creation_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path());
 
@@ -2410,7 +2410,7 @@ mod edge_cases_tests {
     use super::*;
 
     #[test]
-    fn test_empty_additional_fields() {
+    fn test_empty_additional_fields_are_accepted_succeeds() {
         let inputs = CavpTestInputs {
             seed: None,
             pk: None,
@@ -2427,7 +2427,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_additional_fields_with_various_types() {
+    fn test_additional_fields_with_various_types_are_accepted_succeeds() {
         let mut additional = HashMap::new();
         additional.insert("string_field".to_string(), json!("string_value"));
         additional.insert("number_field".to_string(), json!(42));
@@ -2454,7 +2454,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_very_long_hex_string() {
+    fn test_very_long_hex_string_is_accepted() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2494,7 +2494,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_multiple_validation_errors() {
+    fn test_multiple_validation_errors_are_reported_fails() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2533,7 +2533,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_vector_with_all_none_inputs() {
+    fn test_vector_with_all_none_inputs_is_accepted() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2573,7 +2573,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_large_tg_id_and_tc_id() {
+    fn test_large_tg_id_and_tc_id_are_accepted_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2619,7 +2619,7 @@ mod json_parsing_tests {
     use super::*;
 
     #[test]
-    fn test_parse_complete_collection() {
+    fn test_parse_complete_collection_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2675,7 +2675,7 @@ mod json_parsing_tests {
     }
 
     #[test]
-    fn test_parse_empty_test_groups() {
+    fn test_parse_empty_test_groups_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2696,7 +2696,7 @@ mod json_parsing_tests {
     }
 
     #[test]
-    fn test_parse_empty_tests_in_group() {
+    fn test_parse_empty_tests_in_group_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2724,7 +2724,7 @@ mod json_parsing_tests {
     }
 
     #[test]
-    fn test_parse_missing_required_fields() {
+    fn test_parse_missing_required_fields_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2743,7 +2743,7 @@ mod json_parsing_tests {
     }
 
     #[test]
-    fn test_parse_with_default_tc_id() {
+    fn test_parse_with_default_tc_id_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2791,7 +2791,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_full_workflow_mlkem() {
+    fn test_full_workflow_mlkem_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2810,7 +2810,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_full_workflow_mldsa() {
+    fn test_full_workflow_mldsa_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2829,7 +2829,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_cache_file_creation() {
+    fn test_cache_file_creation_persists_correctly_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let _downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -2839,7 +2839,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_multiple_downloader_instances() {
+    fn test_multiple_downloader_instances_succeed_succeeds() {
         let temp_dir1 = TempDir::new().unwrap();
         let temp_dir2 = TempDir::new().unwrap();
 
@@ -2864,22 +2864,22 @@ mod static_method_tests {
 
     // Tests for is_valid_hex static method
     #[test]
-    fn test_is_valid_hex_direct_call_valid_lowercase() {
+    fn test_is_valid_hex_direct_call_valid_lowercase_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_hex("0123456789abcdef"));
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_valid_uppercase() {
+    fn test_is_valid_hex_direct_call_valid_uppercase_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_hex("0123456789ABCDEF"));
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_valid_mixed() {
+    fn test_is_valid_hex_direct_call_valid_mixed_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_hex("aAbBcCdDeEfF0123"));
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_single_char() {
+    fn test_is_valid_hex_direct_call_single_char_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_hex("a"));
         assert!(CavpVectorDownloader::is_valid_hex("F"));
         assert!(CavpVectorDownloader::is_valid_hex("0"));
@@ -2887,18 +2887,18 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_empty() {
+    fn test_is_valid_hex_direct_call_empty_returns_true_succeeds() {
         assert!(!CavpVectorDownloader::is_valid_hex(""));
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_invalid_g() {
+    fn test_is_valid_hex_direct_call_invalid_g_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_hex("g"));
         assert!(!CavpVectorDownloader::is_valid_hex("abcdG123"));
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_invalid_special() {
+    fn test_is_valid_hex_direct_call_invalid_special_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_hex("!"));
         assert!(!CavpVectorDownloader::is_valid_hex("@"));
         assert!(!CavpVectorDownloader::is_valid_hex("#"));
@@ -2908,7 +2908,7 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_invalid_whitespace() {
+    fn test_is_valid_hex_direct_call_invalid_whitespace_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_hex(" "));
         assert!(!CavpVectorDownloader::is_valid_hex("\t"));
         assert!(!CavpVectorDownloader::is_valid_hex("\n"));
@@ -2917,7 +2917,7 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_hex_direct_call_invalid_unicode() {
+    fn test_is_valid_hex_direct_call_invalid_unicode_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_hex("\u{00e9}")); // e with acute
         assert!(!CavpVectorDownloader::is_valid_hex("\u{03B1}")); // alpha
         assert!(!CavpVectorDownloader::is_valid_hex("\u{4e2d}")); // Chinese character
@@ -2925,14 +2925,14 @@ mod static_method_tests {
 
     // Tests for is_valid_parameter_set static method
     #[test]
-    fn test_is_valid_parameter_set_mlkem_all_valid() {
+    fn test_is_valid_parameter_set_mlkem_all_valid_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-512"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-768"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-1024"));
     }
 
     #[test]
-    fn test_is_valid_parameter_set_mlkem_invalid() {
+    fn test_is_valid_parameter_set_mlkem_invalid_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-128"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-256"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-2048"));
@@ -2941,7 +2941,7 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_parameter_set_mldsa_all_valid() {
+    fn test_is_valid_parameter_set_mldsa_all_valid_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-DSA", "ML-DSA-44"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-DSA", "ML-DSA-65"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-DSA", "ML-DSA-87"));
@@ -2949,14 +2949,14 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_parameter_set_mldsa_invalid() {
+    fn test_is_valid_parameter_set_mldsa_invalid_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-DSA", "ML-DSA-32"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-DSA", "ML-DSA-256"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-DSA", ""));
     }
 
     #[test]
-    fn test_is_valid_parameter_set_slhdsa_sha2_all() {
+    fn test_is_valid_parameter_set_slhdsa_sha2_all_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHA2-128s"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHA2-128f"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHA2-192s"));
@@ -2966,7 +2966,7 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_parameter_set_slhdsa_shake_all() {
+    fn test_is_valid_parameter_set_slhdsa_shake_all_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHAKE-128s"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHAKE-128f"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHAKE-192s"));
@@ -2976,7 +2976,7 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_parameter_set_slhdsa_invalid() {
+    fn test_is_valid_parameter_set_slhdsa_invalid_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHA2-64s"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHAKE-512s"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-MD5-128s"));
@@ -2984,13 +2984,13 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_parameter_set_fndsa_all_valid() {
+    fn test_is_valid_parameter_set_fndsa_all_valid_returns_true_succeeds() {
         assert!(CavpVectorDownloader::is_valid_parameter_set("FN-DSA", "Falcon-512"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("FN-DSA", "Falcon-1024"));
     }
 
     #[test]
-    fn test_is_valid_parameter_set_fndsa_invalid() {
+    fn test_is_valid_parameter_set_fndsa_invalid_returns_false_fails() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("FN-DSA", "Falcon-256"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("FN-DSA", "Falcon-2048"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("FN-DSA", "Dilithium-512"));
@@ -2998,7 +2998,7 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_parameter_set_unknown_algorithm() {
+    fn test_is_valid_parameter_set_unknown_algorithm_returns_false_succeeds() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("UNKNOWN", "any-param"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("", "ML-KEM-768"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("RSA", "RSA-2048"));
@@ -3006,7 +3006,7 @@ mod static_method_tests {
     }
 
     #[test]
-    fn test_is_valid_parameter_set_case_sensitivity() {
+    fn test_is_valid_parameter_set_case_sensitivity_returns_false_succeeds() {
         // The implementation is case-sensitive
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ml-kem", "ML-KEM-768"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ml-kem-768"));
@@ -3022,7 +3022,7 @@ mod convert_test_case_tests {
     use super::*;
 
     #[test]
-    fn test_parse_vector_with_missing_testcase() {
+    fn test_parse_vector_with_missing_testcase_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3058,7 +3058,7 @@ mod convert_test_case_tests {
     }
 
     #[test]
-    fn test_parse_vector_with_missing_results() {
+    fn test_parse_vector_with_missing_results_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3093,7 +3093,7 @@ mod convert_test_case_tests {
     }
 
     #[test]
-    fn test_parse_vector_with_null_testcase() {
+    fn test_parse_vector_with_null_testcase_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3129,7 +3129,7 @@ mod convert_test_case_tests {
     }
 
     #[test]
-    fn test_parse_vector_with_null_results() {
+    fn test_parse_vector_with_null_results_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3164,7 +3164,7 @@ mod convert_test_case_tests {
     }
 
     #[test]
-    fn test_parse_vector_with_wrong_type_in_testcase() {
+    fn test_parse_vector_with_wrong_type_in_testcase_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3201,7 +3201,7 @@ mod convert_test_case_tests {
     }
 
     #[test]
-    fn test_parse_vector_with_numeric_tcid() {
+    fn test_parse_vector_with_numeric_tcid_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3241,7 +3241,7 @@ mod convert_test_case_tests {
     }
 
     #[test]
-    fn test_parse_vector_tcid_as_string() {
+    fn test_parse_vector_tcid_as_string_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3291,7 +3291,7 @@ mod file_io_error_tests {
     use super::*;
 
     #[test]
-    fn test_load_from_empty_file() {
+    fn test_load_from_empty_file_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3307,7 +3307,7 @@ mod file_io_error_tests {
     }
 
     #[test]
-    fn test_load_from_corrupted_json() {
+    fn test_load_from_corrupted_json_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3323,7 +3323,7 @@ mod file_io_error_tests {
     }
 
     #[test]
-    fn test_load_from_valid_json_wrong_schema() {
+    fn test_load_from_valid_json_wrong_schema_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3337,7 +3337,7 @@ mod file_io_error_tests {
     }
 
     #[test]
-    fn test_load_from_array_json() {
+    fn test_load_from_array_json_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3351,7 +3351,7 @@ mod file_io_error_tests {
     }
 
     #[test]
-    fn test_load_from_binary_file() {
+    fn test_load_from_binary_file_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3366,7 +3366,7 @@ mod file_io_error_tests {
     }
 
     #[test]
-    fn test_cache_file_with_invalid_content_fallback() {
+    fn test_cache_file_with_invalid_content_fallback_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3382,7 +3382,7 @@ mod file_io_error_tests {
     }
 
     #[test]
-    fn test_file_stem_extraction_with_extension() {
+    fn test_file_stem_extraction_with_extension_is_correct() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3403,7 +3403,7 @@ mod file_io_error_tests {
     }
 
     #[test]
-    fn test_file_without_extension() {
+    fn test_file_without_extension_is_correct() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3432,7 +3432,7 @@ mod validation_edge_cases {
     use super::*;
 
     #[test]
-    fn test_validate_sigver_with_test_passed_false() {
+    fn test_validate_sigver_with_test_passed_false_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3470,7 +3470,7 @@ mod validation_edge_cases {
     }
 
     #[test]
-    fn test_validate_encapdecap_test_type() {
+    fn test_validate_encapdecap_test_type_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3512,7 +3512,7 @@ mod validation_edge_cases {
     }
 
     #[test]
-    fn test_validate_with_extra_additional_inputs() {
+    fn test_validate_with_extra_additional_inputs_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3554,7 +3554,7 @@ mod validation_edge_cases {
     }
 
     #[test]
-    fn test_validate_with_extra_additional_outputs() {
+    fn test_validate_with_extra_additional_outputs_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3595,7 +3595,7 @@ mod validation_edge_cases {
     }
 
     #[test]
-    fn test_validate_all_hex_fields_invalid() {
+    fn test_validate_all_hex_fields_invalid_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3634,7 +3634,7 @@ mod validation_edge_cases {
     }
 
     #[test]
-    fn test_validate_keygen_with_only_seed() {
+    fn test_validate_keygen_with_only_seed_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3682,7 +3682,7 @@ mod serialization_tests {
     use super::*;
 
     #[test]
-    fn test_vector_roundtrip_serialization() {
+    fn test_vector_roundtrip_serialization_succeeds() {
         let vector = OfficialCavpVector {
             tg_id: 42,
             tc_id: 99,
@@ -3723,7 +3723,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_collection_roundtrip_serialization() {
+    fn test_collection_roundtrip_serialization_succeeds() {
         let collection = CavpTestCollection {
             vs_id: 12345,
             algorithm: "ML-DSA".to_string(),
@@ -3758,7 +3758,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_inputs_with_additional_fields_serialization() {
+    fn test_inputs_with_additional_fields_serialization_succeeds() {
         let mut additional = HashMap::new();
         additional.insert("custom1".to_string(), json!("value1"));
         additional.insert("custom2".to_string(), json!(123));
@@ -3785,7 +3785,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_outputs_with_additional_fields_serialization() {
+    fn test_outputs_with_additional_fields_serialization_succeeds() {
         let mut additional = HashMap::new();
         additional.insert("extra_output".to_string(), json!([1, 2, 3]));
         additional.insert("flag".to_string(), json!(false));
@@ -3809,7 +3809,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_deserialize_from_external_json_format() {
+    fn test_deserialize_from_external_json_format_has_correct_size() {
         // Simulate external JSON format that might come from NIST
         let external_json = r#"{
             "vs_id": 99999,
@@ -3844,7 +3844,7 @@ mod multiple_test_groups_tests {
     use super::*;
 
     #[test]
-    fn test_parse_multiple_groups_different_param_sets() {
+    fn test_parse_multiple_groups_different_param_sets_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3906,7 +3906,7 @@ mod multiple_test_groups_tests {
     }
 
     #[test]
-    fn test_parse_multiple_tests_in_single_group() {
+    fn test_parse_multiple_tests_in_single_group_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -3954,7 +3954,7 @@ mod multiple_test_groups_tests {
     }
 
     #[test]
-    fn test_parse_mixed_valid_invalid_vectors() {
+    fn test_parse_mixed_valid_invalid_vectors_returns_partial_errors_matches_expected() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4009,7 +4009,7 @@ mod vector_id_tests {
     use super::*;
 
     #[test]
-    fn test_vector_id_format_basic() {
+    fn test_vector_id_format_basic_matches_expected() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4046,7 +4046,7 @@ mod vector_id_tests {
     }
 
     #[test]
-    fn test_vector_id_format_different_algorithms() {
+    fn test_vector_id_format_different_algorithms_matches_expected() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4080,7 +4080,7 @@ mod vector_id_tests {
     }
 
     #[test]
-    fn test_vector_id_with_zero_ids() {
+    fn test_vector_id_with_zero_ids_is_accepted() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4093,7 +4093,7 @@ mod vector_id_tests {
     }
 
     #[test]
-    fn test_vector_id_with_large_ids() {
+    fn test_vector_id_with_large_ids_is_accepted() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4114,7 +4114,7 @@ mod downloader_creation_tests {
     use super::*;
 
     #[test]
-    fn test_downloader_with_existing_directory() {
+    fn test_downloader_with_existing_directory_succeeds() {
         let temp_dir = TempDir::new().unwrap();
 
         // Create directory first
@@ -4127,7 +4127,7 @@ mod downloader_creation_tests {
     }
 
     #[test]
-    fn test_downloader_with_deeply_nested_path() {
+    fn test_downloader_with_deeply_nested_path_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let deep_path = temp_dir
             .path()
@@ -4143,7 +4143,7 @@ mod downloader_creation_tests {
     }
 
     #[test]
-    fn test_downloader_with_path_string() {
+    fn test_downloader_with_path_string_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let path_str = temp_dir.path().to_string_lossy().to_string();
 
@@ -4152,7 +4152,7 @@ mod downloader_creation_tests {
     }
 
     #[test]
-    fn test_downloader_with_pathbuf() {
+    fn test_downloader_with_pathbuf_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let path_buf = temp_dir.path().to_path_buf();
 
@@ -4161,7 +4161,7 @@ mod downloader_creation_tests {
     }
 
     #[test]
-    fn test_downloader_with_unicode_path() {
+    fn test_downloader_with_unicode_path_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         // Note: Some systems may not support all unicode characters in paths
         let unicode_path = temp_dir.path().join("test_cache_dir");
@@ -4179,7 +4179,7 @@ mod parse_content_edge_cases {
     use super::*;
 
     #[test]
-    fn test_parse_content_with_bom() {
+    fn test_parse_content_with_bom_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4198,7 +4198,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_with_trailing_whitespace() {
+    fn test_parse_content_with_trailing_whitespace_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4211,7 +4211,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_with_unicode_in_strings() {
+    fn test_parse_content_with_unicode_in_strings_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4230,7 +4230,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_large_vs_id() {
+    fn test_parse_content_large_vs_id_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4249,7 +4249,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_empty_algorithm() {
+    fn test_parse_content_empty_algorithm_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4285,7 +4285,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_whitespace_only() {
+    fn test_parse_content_whitespace_only_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4296,7 +4296,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_null_json() {
+    fn test_parse_content_null_json_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4307,7 +4307,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_boolean_json() {
+    fn test_parse_content_boolean_json_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4318,7 +4318,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_number_json() {
+    fn test_parse_content_number_json_returns_error() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4329,7 +4329,7 @@ mod parse_content_edge_cases {
     }
 
     #[test]
-    fn test_parse_content_string_json() {
+    fn test_parse_content_string_json_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4348,7 +4348,7 @@ mod test_type_validation_tests {
     use super::*;
 
     #[test]
-    fn test_keygen_all_required_fields_present() {
+    fn test_keygen_all_required_fields_present_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4387,7 +4387,7 @@ mod test_type_validation_tests {
     }
 
     #[test]
-    fn test_siggen_all_required_fields_present() {
+    fn test_siggen_all_required_fields_present_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4425,7 +4425,7 @@ mod test_type_validation_tests {
     }
 
     #[test]
-    fn test_sigver_all_required_fields_present() {
+    fn test_sigver_all_required_fields_present_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4464,7 +4464,7 @@ mod test_type_validation_tests {
     }
 
     #[test]
-    fn test_custom_test_type_with_warning() {
+    fn test_custom_test_type_with_warning_returns_warning_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4518,7 +4518,7 @@ mod slhdsa_specific_tests {
     use super::*;
 
     #[test]
-    fn test_slhdsa_keygen_valid() {
+    fn test_slhdsa_keygen_valid_returns_ok() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4529,7 +4529,7 @@ mod slhdsa_specific_tests {
     }
 
     #[test]
-    fn test_slhdsa_siggen() {
+    fn test_slhdsa_siggen_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4566,7 +4566,7 @@ mod slhdsa_specific_tests {
     }
 
     #[test]
-    fn test_slhdsa_sigver() {
+    fn test_slhdsa_sigver_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4611,7 +4611,7 @@ mod fndsa_specific_tests {
     use super::*;
 
     #[test]
-    fn test_fndsa_keygen() {
+    fn test_fndsa_keygen_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4648,7 +4648,7 @@ mod fndsa_specific_tests {
     }
 
     #[test]
-    fn test_fndsa_siggen() {
+    fn test_fndsa_siggen_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 
@@ -4659,7 +4659,7 @@ mod fndsa_specific_tests {
     }
 
     #[test]
-    fn test_fndsa_sigver() {
+    fn test_fndsa_sigver_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let downloader = CavpVectorDownloader::new(temp_dir.path()).unwrap();
 

@@ -6,7 +6,7 @@
 use latticearc_tests::validation::nist_kat::{KatTestResult, NistKatError, decode_hex};
 
 #[test]
-fn test_kat_test_result_passed() {
+fn test_kat_test_result_passed_matches_expected() {
     let result = KatTestResult::passed("test-1".to_string(), "AES-GCM".to_string(), 42);
     assert!(result.passed);
     assert_eq!(result.test_case, "test-1");
@@ -16,7 +16,7 @@ fn test_kat_test_result_passed() {
 }
 
 #[test]
-fn test_kat_test_result_failed() {
+fn test_kat_test_result_failed_matches_expected() {
     let result = KatTestResult::failed(
         "test-2".to_string(),
         "ML-KEM".to_string(),
@@ -31,7 +31,7 @@ fn test_kat_test_result_failed() {
 }
 
 #[test]
-fn test_kat_test_result_clone_debug() {
+fn test_kat_test_result_clone_debug_matches_expected() {
     let result = KatTestResult::passed("tc".to_string(), "SHA-256".to_string(), 10);
     let cloned = result.clone();
     assert_eq!(cloned.test_case, result.test_case);
@@ -40,25 +40,25 @@ fn test_kat_test_result_clone_debug() {
 }
 
 #[test]
-fn test_decode_hex_valid() {
+fn test_decode_hex_valid_succeeds() {
     let bytes = decode_hex("48656c6c6f").unwrap();
     assert_eq!(bytes, b"Hello");
 }
 
 #[test]
-fn test_decode_hex_empty() {
+fn test_decode_hex_empty_succeeds() {
     let bytes = decode_hex("").unwrap();
     assert!(bytes.is_empty());
 }
 
 #[test]
-fn test_decode_hex_invalid() {
+fn test_decode_hex_invalid_fails() {
     let result = decode_hex("xyz");
     assert!(result.is_err());
 }
 
 #[test]
-fn test_nist_kat_error_display() {
+fn test_nist_kat_error_display_matches_expected() {
     let e1 = NistKatError::TestFailed {
         algorithm: "AES".to_string(),
         test_name: "tc1".to_string(),

@@ -59,7 +59,7 @@ mod type_construction_tests {
     use super::*;
 
     #[test]
-    fn test_validation_scope_variants() {
+    fn test_validation_scope_variants_passes_validation() {
         let scope1 = ValidationScope::AlgorithmsOnly;
         let scope2 = ValidationScope::ModuleInterfaces;
         let scope3 = ValidationScope::FullModule;
@@ -79,7 +79,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_fips_level_ordering() {
+    fn test_fips_level_ordering_passes_validation() {
         assert!(FIPSLevel::Level1 < FIPSLevel::Level2);
         assert!(FIPSLevel::Level2 < FIPSLevel::Level3);
         assert!(FIPSLevel::Level3 < FIPSLevel::Level4);
@@ -92,7 +92,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_issue_severity_variants() {
+    fn test_issue_severity_variants_passes_validation() {
         let severities = vec![
             IssueSeverity::Critical,
             IssueSeverity::High,
@@ -109,7 +109,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_validation_issue_construction() {
+    fn test_validation_issue_construction_passes_validation() {
         let issue = ValidationIssue {
             id: "TEST-001".to_string(),
             description: "Test issue description".to_string(),
@@ -131,7 +131,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_test_result_construction() {
+    fn test_test_result_construction_passes_validation() {
         let result = TestResult {
             test_id: "test-123".to_string(),
             passed: true,
@@ -156,7 +156,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_validation_result_construction() {
+    fn test_validation_result_construction_passes_validation() {
         let result = ValidationResult {
             validation_id: "val-001".to_string(),
             timestamp: Utc::now(),
@@ -173,7 +173,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_validation_result_issues_by_severity() {
+    fn test_validation_result_issues_by_severity_passes_validation() {
         let issues = vec![
             ValidationIssue {
                 id: "CRIT-001".to_string(),
@@ -222,7 +222,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_validation_certificate_construction() {
+    fn test_validation_certificate_construction_passes_validation() {
         let cert = ValidationCertificate {
             id: "cert-001".to_string(),
             module_name: "Test Module".to_string(),
@@ -244,7 +244,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_self_test_type_variants() {
+    fn test_self_test_type_variants_passes_validation() {
         let types =
             vec![SelfTestType::PowerUp, SelfTestType::Conditional, SelfTestType::Continuous];
 
@@ -258,7 +258,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_self_test_result_construction() {
+    fn test_self_test_result_construction_passes_validation() {
         let result = SelfTestResult {
             test_type: SelfTestType::PowerUp,
             test_name: "AES Test".to_string(),
@@ -275,7 +275,7 @@ mod type_construction_tests {
     }
 
     #[test]
-    fn test_fips140_3_validation_result_construction() {
+    fn test_fips140_3_validation_result_construction_passes_validation() {
         let result = Fips140_3ValidationResult {
             validation_id: "FIPS-001".to_string(),
             timestamp: Utc::now(),
@@ -301,7 +301,7 @@ mod validator_tests {
     use super::*;
 
     #[test]
-    fn test_fips_validator_creation_algorithms_only() {
+    fn test_fips_validator_creation_algorithms_only_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         // Validator created successfully - scope is private, verify via validate_module
         let result = validator.validate_module().unwrap();
@@ -309,7 +309,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_creation_module_interfaces() {
+    fn test_fips_validator_creation_module_interfaces_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::ModuleInterfaces);
         // Validator created successfully - scope is private, verify via validate_module
         let result = validator.validate_module().unwrap();
@@ -317,7 +317,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_creation_full_module() {
+    fn test_fips_validator_creation_full_module_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         // Validator created successfully - scope is private, verify via validate_module
         let result = validator.validate_module().unwrap();
@@ -325,7 +325,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_validate_module_algorithms_only() {
+    fn test_fips_validator_validate_module_algorithms_only_passes_validation() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().unwrap();
 
@@ -336,7 +336,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_validate_module_interfaces() {
+    fn test_fips_validator_validate_module_interfaces_passes_validation() {
         let validator = FIPSValidator::new(ValidationScope::ModuleInterfaces);
         let result = validator.validate_module().unwrap();
 
@@ -347,7 +347,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_validate_module_full() {
+    fn test_fips_validator_validate_module_full_passes_validation() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().unwrap();
 
@@ -359,7 +359,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_certificate_generation_success() {
+    fn test_fips_validator_certificate_generation_success_passes_validation() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().unwrap();
 
@@ -372,7 +372,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_certificate_generation_failure() {
+    fn test_fips_validator_certificate_generation_failure_fails() {
         // Create a failed validation result
         let failed_result = ValidationResult {
             validation_id: "val-fail".to_string(),
@@ -400,7 +400,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_remediation_guidance_with_issues() {
+    fn test_fips_validator_remediation_guidance_with_issues_passes_validation() {
         let result = ValidationResult {
             validation_id: "val-issues".to_string(),
             timestamp: Utc::now(),
@@ -440,7 +440,7 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_remediation_guidance_no_issues() {
+    fn test_fips_validator_remediation_guidance_no_issues_passes_validation() {
         let result = ValidationResult {
             validation_id: "val-ok".to_string(),
             timestamp: Utc::now(),
@@ -460,19 +460,19 @@ mod validator_tests {
     }
 
     #[test]
-    fn test_fips_validator_individual_algorithm_tests() {
+    fn test_fips_validator_individual_algorithm_tests_passes_validation() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
 
-        let aes_result = validator.test_aes_algorithm().unwrap();
+        let aes_result = validator.test_aes_algorithm_succeeds().unwrap();
         assert!(!aes_result.test_id.is_empty());
 
-        let sha3_result = validator.test_sha3_algorithm().unwrap();
+        let sha3_result = validator.test_sha3_algorithm_succeeds().unwrap();
         assert!(!sha3_result.test_id.is_empty());
 
-        let mlkem_result = validator.test_mlkem_algorithm().unwrap();
+        let mlkem_result = validator.test_mlkem_algorithm_succeeds().unwrap();
         assert!(!mlkem_result.test_id.is_empty());
 
-        let self_tests_result = validator.test_self_tests().unwrap();
+        let self_tests_result = validator.test_self_tests_succeeds().unwrap();
         assert!(!self_tests_result.test_id.is_empty());
     }
 }
@@ -485,19 +485,19 @@ mod fips140_3_validator_tests {
     use super::*;
 
     #[test]
-    fn test_fips140_3_validator_default() {
+    fn test_fips140_3_validator_default_passes_validation() {
         let validator = Fips140_3Validator::default();
         assert!(!validator.is_power_up_completed());
     }
 
     #[test]
-    fn test_fips140_3_validator_new() {
+    fn test_fips140_3_validator_new_succeeds() {
         let validator = Fips140_3Validator::new("TestModule".to_string(), 3);
         assert!(!validator.is_power_up_completed());
     }
 
     #[test]
-    fn test_fips140_3_validator_power_up_tests() {
+    fn test_fips140_3_validator_power_up_tests_passes_validation() {
         let mut validator = Fips140_3Validator::default();
         // Note: run_power_up_tests may panic due to overflow bug in test_rng_quality
         // when arithmetic_side_effects lint is active. Using catch_unwind for robustness.
@@ -524,7 +524,7 @@ mod fips140_3_validator_tests {
     }
 
     #[test]
-    fn test_fips140_3_validator_conditional_tests() {
+    fn test_fips140_3_validator_conditional_tests_passes_validation() {
         let mut validator = Fips140_3Validator::default();
         let result = validator.run_conditional_tests().unwrap();
 
@@ -534,7 +534,7 @@ mod fips140_3_validator_tests {
     }
 
     #[test]
-    fn test_fips140_3_validator_should_run_conditional_tests() {
+    fn test_fips140_3_validator_should_run_conditional_tests_passes_validation() {
         let validator = Fips140_3Validator::default();
         // Since we just created the validator, conditional tests shouldn't be needed yet
         // (unless 60 minutes have passed, which won't happen in a test)
@@ -542,15 +542,15 @@ mod fips140_3_validator_tests {
     }
 
     #[test]
-    fn test_fips140_3_validator_test_vectors_accessor() {
+    fn test_fips140_3_validator_test_vectors_accessor_passes_validation() {
         let validator = Fips140_3Validator::default();
-        let vectors = validator.test_vectors();
+        let vectors = validator.test_vectors_matches_expected();
         // Initially empty
         assert!(vectors.is_empty());
     }
 
     #[test]
-    fn test_fips140_3_validator_compliance_certificate_passed() {
+    fn test_fips140_3_validator_compliance_certificate_passed_passes_validation() {
         let mut validator = Fips140_3Validator::default();
         // Note: run_power_up_tests may panic due to overflow bug in test_rng_quality
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -595,7 +595,7 @@ mod fips140_3_validator_tests {
     }
 
     #[test]
-    fn test_fips140_3_validator_compliance_certificate_with_tests() {
+    fn test_fips140_3_validator_compliance_certificate_with_tests_passes_validation() {
         let power_up_test = SelfTestResult {
             test_type: SelfTestType::PowerUp,
             test_name: "Test 1".to_string(),
@@ -640,7 +640,7 @@ mod fips140_3_validator_tests {
     }
 
     #[test]
-    fn test_fips140_3_validator_compliance_certificate_failed_tests() {
+    fn test_fips140_3_validator_compliance_certificate_failed_tests_fails() {
         let failed_test = SelfTestResult {
             test_type: SelfTestType::PowerUp,
             test_name: "Failed Test".to_string(),
@@ -687,7 +687,7 @@ mod global_state_tests {
     use super::*;
 
     #[test]
-    fn test_is_fips_initialized_api() {
+    fn test_is_fips_initialized_api_passes_validation() {
         // Test that is_fips_initialized() is callable and returns a bool
         let result = is_fips_initialized();
         // Result can be true or false depending on test order
@@ -695,7 +695,7 @@ mod global_state_tests {
     }
 
     #[test]
-    fn test_get_fips_validation_result_api() {
+    fn test_get_fips_validation_result_api_passes_validation() {
         // Test that get_fips_validation_result() is callable
         let result = get_fips_validation_result();
         // May be None if not initialized
@@ -726,7 +726,7 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_validation_result_with_no_level() {
+    fn test_validation_result_with_no_level_passes_validation() {
         let result = ValidationResult {
             validation_id: "no-level".to_string(),
             timestamp: Utc::now(),
@@ -745,7 +745,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_validation_result_invalid_with_level() {
+    fn test_validation_result_invalid_with_level_passes_validation() {
         let result = ValidationResult {
             validation_id: "invalid-with-level".to_string(),
             timestamp: Utc::now(),
@@ -764,7 +764,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_test_result_with_error_message() {
+    fn test_test_result_with_error_message_passes_validation() {
         let result = TestResult {
             test_id: "error-test".to_string(),
             passed: false,
@@ -778,7 +778,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_self_test_result_with_error() {
+    fn test_self_test_result_with_error_passes_validation() {
         let result = SelfTestResult {
             test_type: SelfTestType::PowerUp,
             test_name: "Failed Test".to_string(),
@@ -803,7 +803,7 @@ mod serialization_tests {
     use super::*;
 
     #[test]
-    fn test_validation_result_serialization() {
+    fn test_validation_result_serialization_passes_validation() {
         let mut test_results = HashMap::new();
         test_results.insert(
             "test1".to_string(),
@@ -839,7 +839,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_fips140_3_validation_result_serialization() {
+    fn test_fips140_3_validation_result_serialization_passes_validation() {
         let result = Fips140_3ValidationResult {
             validation_id: "FIPS-SER".to_string(),
             timestamp: Utc::now(),
@@ -860,7 +860,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_self_test_result_serialization() {
+    fn test_self_test_result_serialization_passes_validation() {
         let result = SelfTestResult {
             test_type: SelfTestType::Conditional,
             test_name: "Test".to_string(),
@@ -880,7 +880,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_validation_certificate_serialization() {
+    fn test_validation_certificate_serialization_passes_validation() {
         let mut details = HashMap::new();
         details.insert("test".to_string(), "value".to_string());
 
@@ -911,7 +911,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_empty_validation_result() {
+    fn test_empty_validation_result_passes_validation() {
         let result = ValidationResult {
             validation_id: String::new(),
             timestamp: Utc::now(),
@@ -928,7 +928,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_validation_result_many_issues() {
+    fn test_validation_result_many_issues_passes_validation() {
         let mut issues = Vec::new();
         for i in 0..100 {
             issues.push(ValidationIssue {
@@ -968,7 +968,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_very_long_validation_id() {
+    fn test_very_long_validation_id_passes_validation() {
         let long_id = "x".repeat(10000);
         let result = ValidationResult {
             validation_id: long_id.clone(),
@@ -990,7 +990,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_test_result_zero_duration() {
+    fn test_test_result_zero_duration_passes_validation() {
         let result = TestResult {
             test_id: "zero-duration".to_string(),
             passed: true,
@@ -1003,7 +1003,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_test_result_max_duration() {
+    fn test_test_result_max_duration_passes_validation() {
         let result = TestResult {
             test_id: "max-duration".to_string(),
             passed: true,
@@ -1016,7 +1016,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_self_test_result_zero_duration() {
+    fn test_self_test_result_zero_duration_passes_validation() {
         let result = SelfTestResult {
             test_type: SelfTestType::PowerUp,
             test_name: "Zero".to_string(),
@@ -1032,7 +1032,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_fips_level_equality() {
+    fn test_fips_level_equality_passes_validation() {
         assert_eq!(FIPSLevel::Level1, FIPSLevel::Level1);
         assert_ne!(FIPSLevel::Level1, FIPSLevel::Level2);
         assert_ne!(FIPSLevel::Level2, FIPSLevel::Level3);
@@ -1040,14 +1040,14 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_validation_scope_clone() {
+    fn test_validation_scope_clone_succeeds() {
         let scope = ValidationScope::FullModule;
         let cloned = scope;
         assert_eq!(scope, cloned);
     }
 
     #[test]
-    fn test_issue_severity_clone() {
+    fn test_issue_severity_clone_succeeds() {
         let severity = IssueSeverity::Critical;
         let cloned = severity;
         assert_eq!(severity, cloned);
@@ -1062,7 +1062,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_full_validation_workflow() {
+    fn test_full_validation_workflow_passes_validation() {
         // 1. Create validator
         let validator = FIPSValidator::new(ValidationScope::FullModule);
 
@@ -1086,7 +1086,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_fips140_3_full_workflow() {
+    fn test_fips140_3_full_workflow_passes_validation() {
         // 1. Create validator
         let mut validator = Fips140_3Validator::new("IntegrationTest".to_string(), 3);
 
@@ -1128,7 +1128,7 @@ mod integration_tests {
     // the process if validation fails due to overflow bug in test_rng_quality.
     // The workflow is tested through individual validator tests above.
     #[test]
-    fn test_global_fips_workflow_api_surface() {
+    fn test_global_fips_workflow_api_surface_passes_validation() {
         // Test that the API functions exist and have correct signatures
         // without actually calling init() which might abort
 

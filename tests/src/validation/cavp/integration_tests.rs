@@ -9,7 +9,7 @@ use crate::validation::documentation::NistDocumentationGenerator;
 
 /// Positive test: Verify CAVP framework basic functionality
 #[test]
-fn test_cavp_framework_basic_functionality() {
+fn test_cavp_framework_basic_functionality_succeeds() {
     let storage = crate::validation::cavp::MemoryCavpStorage::new();
 
     let algorithm = crate::validation::cavp::CavpAlgorithm::MlKem { variant: "768".to_string() };
@@ -52,7 +52,7 @@ fn test_cavp_framework_basic_functionality() {
 
 /// Positive test: Verify CAVP pipeline configuration
 #[test]
-fn test_cavp_pipeline_configuration() {
+fn test_cavp_pipeline_configuration_succeeds() {
     let config = PipelineConfig {
         max_concurrent_tests: 4,
         test_timeout: std::time::Duration::from_secs(30),
@@ -70,7 +70,7 @@ fn test_cavp_pipeline_configuration() {
 
 /// Positive test: Verify CAVP compliance generator creation
 #[test]
-fn test_cavp_compliance_generator_creation() {
+fn test_cavp_compliance_generator_creation_succeeds() {
     let generator = crate::validation::cavp::CavpComplianceGenerator::new();
 
     let algorithm = crate::validation::cavp::CavpAlgorithm::MlKem { variant: "1024".to_string() };
@@ -98,7 +98,7 @@ fn test_cavp_compliance_generator_creation() {
 
 /// Positive test: Verify NIST documentation generator creation
 #[test]
-fn test_nist_documentation_generator_creation() {
+fn test_nist_documentation_generator_creation_is_documented() {
     let generator = NistDocumentationGenerator::new(
         "Test Organization".to_string(),
         "Test Module".to_string(),
@@ -149,7 +149,7 @@ fn test_nist_documentation_generator_creation() {
 
 /// Negative test: Verify CAVP framework handles errors correctly
 #[test]
-fn test_cavp_framework_error_handling() {
+fn test_cavp_framework_error_handling_fails() {
     let storage = crate::validation::cavp::MemoryCavpStorage::new();
 
     let algorithm = crate::validation::cavp::CavpAlgorithm::SlhDsa { variant: "128".to_string() };
@@ -177,7 +177,7 @@ fn test_cavp_framework_error_handling() {
 
 /// Positive test: Verify CAVP framework algorithm enumeration
 #[test]
-fn test_cavp_algorithm_enumeration() {
+fn test_cavp_algorithm_enumeration_succeeds() {
     let mlkem_768 = crate::validation::cavp::CavpAlgorithm::MlKem { variant: "768".to_string() };
     let mldsa_65 = crate::validation::cavp::CavpAlgorithm::MlDsa { variant: "65".to_string() };
     let slhdsa_128 = crate::validation::cavp::CavpAlgorithm::SlhDsa { variant: "128".to_string() };

@@ -23,8 +23,6 @@
 pub mod cavp_compliance;
 /// CI/CD testing framework and automation.
 pub mod ci_testing_framework;
-/// Domain separation constants for HKDF and cryptographic operations.
-pub mod domains;
 /// Comprehensive error handling and recovery systems.
 pub mod error;
 /// Formal verification infrastructure using Kani model checker.
@@ -39,5 +37,9 @@ pub mod side_channel_analysis;
 // Re-export common error types
 pub use error::{LatticeArcError, Result};
 
-/// Library version for envelope format.
-pub const VERSION: u8 = 1;
+/// Envelope / wire-format version number for serialized cryptographic payloads.
+///
+/// Distinct from `latticearc::VERSION` (the Cargo package version string).
+/// Bumped when the on-disk or over-the-wire serialized format changes in a
+/// non-backward-compatible way.
+pub const ENVELOPE_FORMAT_VERSION: u8 = 1;

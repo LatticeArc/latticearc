@@ -4,7 +4,7 @@
 
 //! TLS Policy Engine
 //!
-//! Provides intelligent policy-based selection of TLS modes (Classic, Hybrid, PQ)
+//! Provides policy-based selection of TLS modes (Classic, Hybrid, PQ)
 //! based on use case, security requirements, performance preferences, and
 //! connection constraints.
 //!
@@ -71,6 +71,7 @@ pub const CLASSICAL_TLS_SCHEME: &str = "classic-x25519";
 /// - Performance constraints
 /// - Compatibility needs
 /// - Regulatory requirements
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TlsUseCase {
     /// Web server serving public clients - Hybrid recommended
@@ -228,7 +229,7 @@ impl TlsConstraints {
 /// Context for TLS mode selection
 ///
 /// Combines security level, performance preference, use case,
-/// and constraints for intelligent mode selection.
+/// and constraints for policy-based mode selection.
 #[derive(Debug, Clone)]
 pub struct TlsContext {
     /// Desired security level
@@ -318,7 +319,7 @@ impl TlsContext {
 
 /// TLS Mode Selector
 ///
-/// Provides intelligent automatic selection of TLS modes based on
+/// Provides policy-based automatic selection of TLS modes based on
 /// various factors including use case, security level, performance
 /// requirements, and connection constraints.
 pub struct TlsPolicyEngine;
@@ -591,28 +592,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_recommend_mode_webserver() {
+    fn test_recommend_mode_webserver_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::WebServer), TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_recommend_mode_iot() {
+    fn test_recommend_mode_iot_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::IoT), TlsMode::Classic);
     }
 
     #[test]
-    fn test_recommend_mode_government() {
+    fn test_recommend_mode_government_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::Government), TlsMode::Pq);
     }
 
     #[test]
-    fn test_select_by_security_level_quantum() {
+    fn test_select_by_security_level_quantum_selects_correctly_succeeds() {
         // Quantum is PQ-only
         assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Quantum), TlsMode::Pq);
     }
 
     #[test]
-    fn test_select_by_security_level_maximum() {
+    fn test_select_by_security_level_maximum_selects_correctly_succeeds() {
         // Maximum is Hybrid (not PQ-only) for defense-in-depth
         assert_eq!(
             TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum),
@@ -621,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn test_select_by_security_level_standard() {
+    fn test_select_by_security_level_standard_selects_correctly_succeeds() {
         // Standard is Hybrid
         assert_eq!(
             TlsPolicyEngine::select_by_security_level(SecurityLevel::Standard),
@@ -630,7 +631,7 @@ mod tests {
     }
 
     #[test]
-    fn test_select_balanced_quantum_security() {
+    fn test_select_balanced_quantum_security_selects_correctly_succeeds() {
         // Quantum always uses PQ-only
         assert_eq!(
             TlsPolicyEngine::select_balanced(SecurityLevel::Quantum, PerformancePreference::Speed),
@@ -639,7 +640,7 @@ mod tests {
     }
 
     #[test]
-    fn test_select_balanced_standard_security() {
+    fn test_select_balanced_standard_security_selects_correctly_succeeds() {
         // Standard uses Hybrid for defense-in-depth
         assert_eq!(
             TlsPolicyEngine::select_balanced(
@@ -651,70 +652,70 @@ mod tests {
     }
 
     #[test]
-    fn test_context_default() {
+    fn test_context_default_returns_expected_scheme_succeeds() {
         let ctx = TlsContext::default();
         assert_eq!(ctx.security_level, SecurityLevel::High);
         assert_eq!(ctx.performance_preference, PerformancePreference::Balanced);
     }
 
     #[test]
-    fn test_constraints_requires_classic() {
+    fn test_constraints_requires_classic_selects_correctly_succeeds() {
         let constraints = TlsConstraints::maximum_compatibility();
         assert!(constraints.requires_classic());
     }
 
     #[test]
-    fn test_constraints_allows_pq() {
+    fn test_constraints_allows_pq_selects_correctly_succeeds() {
         let constraints = TlsConstraints::high_security();
         assert!(constraints.allows_pq());
     }
 
     #[test]
-    fn test_use_case_all() {
+    fn test_use_case_all_selects_correctly_succeeds() {
         let all = TlsUseCase::all();
         assert_eq!(all.len(), 10);
     }
 
     // PQ-only selector tests
     #[test]
-    fn test_select_pq_scheme_maximum() {
+    fn test_select_pq_scheme_maximum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Maximum), PQ_TLS_1024);
     }
 
     #[test]
-    fn test_select_pq_scheme_high() {
+    fn test_select_pq_scheme_high_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::High), PQ_TLS_768);
     }
 
     #[test]
-    fn test_select_pq_scheme_standard() {
+    fn test_select_pq_scheme_standard_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Standard), PQ_TLS_512);
     }
 
     #[test]
-    fn test_select_pq_kex_maximum() {
+    fn test_select_pq_kex_maximum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::Maximum), "MLKEM1024");
     }
 
     // Hybrid selector tests
     #[test]
-    fn test_select_hybrid_scheme_maximum() {
+    fn test_select_hybrid_scheme_maximum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::Maximum), HYBRID_TLS_1024);
     }
 
     #[test]
-    fn test_select_hybrid_scheme_high() {
+    fn test_select_hybrid_scheme_high_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::High), HYBRID_TLS_768);
     }
 
     #[test]
-    fn test_select_hybrid_kex_high() {
+    fn test_select_hybrid_kex_high_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_kex(SecurityLevel::High), "X25519MLKEM768");
     }
 
     // Scheme utilities tests
     #[test]
-    fn test_get_scheme_identifier_classic() {
+    fn test_get_scheme_identifier_classic_returns_expected_scheme_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_scheme_identifier(TlsMode::Classic, SecurityLevel::High),
             CLASSICAL_TLS_SCHEME
@@ -722,7 +723,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_scheme_identifier_hybrid() {
+    fn test_get_scheme_identifier_hybrid_returns_expected_scheme_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_scheme_identifier(TlsMode::Hybrid, SecurityLevel::High),
             HYBRID_TLS_768
@@ -730,7 +731,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_scheme_identifier_pq() {
+    fn test_get_scheme_identifier_pq_returns_expected_scheme_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_scheme_identifier(TlsMode::Pq, SecurityLevel::Maximum),
             PQ_TLS_1024
@@ -738,7 +739,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_kex_algorithm_classic() {
+    fn test_get_kex_algorithm_classic_returns_expected_scheme_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_kex_algorithm(TlsMode::Classic, SecurityLevel::High),
             CLASSICAL_TLS_KEX
@@ -746,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_kex_algorithm_pq() {
+    fn test_get_kex_algorithm_pq_returns_expected_scheme_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_kex_algorithm(TlsMode::Pq, SecurityLevel::High),
             "MLKEM768"
@@ -754,18 +755,18 @@ mod tests {
     }
 
     #[test]
-    fn test_default_scheme() {
+    fn test_default_scheme_returns_expected_scheme_succeeds() {
         assert_eq!(TlsPolicyEngine::default_scheme(), DEFAULT_TLS_SCHEME);
     }
 
     #[test]
-    fn test_default_pq_scheme() {
+    fn test_default_pq_scheme_returns_expected_scheme_succeeds() {
         assert_eq!(TlsPolicyEngine::default_pq_scheme(), DEFAULT_PQ_TLS_SCHEME);
     }
 
     // Constants tests
     #[test]
-    fn test_constants_contain_expected_values() {
+    fn test_constants_contain_expected_values_returns_expected_scheme_succeeds() {
         assert!(DEFAULT_TLS_SCHEME.contains("hybrid"));
         assert!(DEFAULT_PQ_TLS_SCHEME.contains("pq"));
         assert!(CLASSICAL_TLS_SCHEME.contains("classic"));
@@ -777,7 +778,7 @@ mod tests {
 
     // TlsUseCase::description() coverage
     #[test]
-    fn test_use_case_descriptions() {
+    fn test_use_case_descriptions_returns_expected_scheme_is_documented() {
         assert_eq!(TlsUseCase::WebServer.description(), "Web server serving public clients");
         assert_eq!(
             TlsUseCase::InternalService.description(),
@@ -795,7 +796,7 @@ mod tests {
 
     // TlsPolicyEngine::recommend_mode() all variants
     #[test]
-    fn test_recommend_mode_all_use_cases() {
+    fn test_recommend_mode_all_use_cases_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::InternalService), TlsMode::Hybrid);
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::ApiGateway), TlsMode::Hybrid);
         assert_eq!(
@@ -816,20 +817,20 @@ mod tests {
 
     // TlsContext builder methods
     #[test]
-    fn test_tls_context_with_security_level() {
+    fn test_tls_context_with_security_level_selects_correctly_succeeds() {
         let ctx = TlsContext::with_security_level(SecurityLevel::Maximum);
         assert_eq!(ctx.security_level, SecurityLevel::Maximum);
         assert!(ctx.use_case.is_none());
     }
 
     #[test]
-    fn test_tls_context_with_use_case() {
+    fn test_tls_context_with_use_case_selects_correctly_succeeds() {
         let ctx = TlsContext::with_use_case(TlsUseCase::WebServer);
         assert_eq!(ctx.use_case, Some(TlsUseCase::WebServer));
     }
 
     #[test]
-    fn test_tls_context_new_full() {
+    fn test_tls_context_new_full_selects_correctly_succeeds() {
         let constraints = TlsConstraints::high_security();
         let ctx = TlsContext::new(
             SecurityLevel::Quantum,
@@ -845,7 +846,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_context_builder_chain() {
+    fn test_tls_context_builder_chain_selects_correctly_succeeds() {
         let ctx = TlsContext::default()
             .security_level(SecurityLevel::Standard)
             .performance_preference(PerformancePreference::Memory)
@@ -861,14 +862,14 @@ mod tests {
 
     // TlsConstraints branch coverage
     #[test]
-    fn test_constraints_default_allows_pq() {
+    fn test_constraints_default_allows_pq_selects_correctly_succeeds() {
         let c = TlsConstraints::default();
         assert!(!c.requires_classic());
         assert!(c.allows_pq());
     }
 
     #[test]
-    fn test_constraints_latency_requires_classic() {
+    fn test_constraints_latency_requires_classic_selects_correctly_succeeds() {
         let c = TlsConstraints {
             max_handshake_latency_ms: Some(10), // < 20ms
             client_supports_pq: None,
@@ -879,7 +880,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constraints_large_latency_does_not_require_classic() {
+    fn test_constraints_large_latency_does_not_require_classic_selects_correctly_succeeds() {
         let c = TlsConstraints {
             max_handshake_latency_ms: Some(100), // > 20ms
             client_supports_pq: None,
@@ -890,7 +891,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constraints_small_client_hello_requires_classic() {
+    fn test_constraints_small_client_hello_requires_classic_selects_correctly_succeeds() {
         let c = TlsConstraints {
             max_handshake_latency_ms: None,
             client_supports_pq: None,
@@ -901,7 +902,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constraints_large_client_hello_does_not_require_classic() {
+    fn test_constraints_large_client_hello_does_not_require_classic_selects_correctly_succeeds() {
         let c = TlsConstraints {
             max_handshake_latency_ms: None,
             client_supports_pq: None,
@@ -912,7 +913,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constraints_compatibility_blocks_pq() {
+    fn test_constraints_compatibility_blocks_pq_selects_correctly_succeeds() {
         let c = TlsConstraints {
             max_handshake_latency_ms: None,
             client_supports_pq: Some(true),
@@ -924,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constraints_no_pq_support_blocks_pq() {
+    fn test_constraints_no_pq_support_blocks_pq_selects_correctly_succeeds() {
         let c = TlsConstraints {
             max_handshake_latency_ms: None,
             client_supports_pq: Some(false),
@@ -937,32 +938,32 @@ mod tests {
 
     // select_with_context comprehensive tests
     #[test]
-    fn test_select_with_context_constraints_force_classic() {
+    fn test_select_with_context_constraints_force_classic_selects_correctly_succeeds() {
         let ctx = TlsContext::default().constraints(TlsConstraints::maximum_compatibility());
         assert_eq!(TlsPolicyEngine::select_with_context(&ctx), TlsMode::Classic);
     }
 
     #[test]
-    fn test_select_with_context_pq_unavailable() {
+    fn test_select_with_context_pq_unavailable_selects_correctly_succeeds() {
         let ctx = TlsContext::default().pq_available(false);
         assert_eq!(TlsPolicyEngine::select_with_context(&ctx), TlsMode::Classic);
     }
 
     #[test]
-    fn test_select_with_context_use_case() {
+    fn test_select_with_context_use_case_selects_correctly_succeeds() {
         let ctx = TlsContext::default().use_case(TlsUseCase::Government).pq_available(true);
         // Government recommends PQ, and Quantum override doesn't apply (High default)
         assert_eq!(TlsPolicyEngine::select_with_context(&ctx), TlsMode::Pq);
     }
 
     #[test]
-    fn test_select_with_context_quantum_security() {
+    fn test_select_with_context_quantum_security_selects_correctly_succeeds() {
         let ctx = TlsContext::default().security_level(SecurityLevel::Quantum).pq_available(true);
         assert_eq!(TlsPolicyEngine::select_with_context(&ctx), TlsMode::Pq);
     }
 
     #[test]
-    fn test_select_with_context_no_use_case_balanced() {
+    fn test_select_with_context_no_use_case_balanced_selects_correctly_succeeds() {
         let ctx = TlsContext::default().pq_available(true);
         // No use case, High security, Balanced perf → Hybrid
         assert_eq!(TlsPolicyEngine::select_with_context(&ctx), TlsMode::Hybrid);
@@ -970,7 +971,7 @@ mod tests {
 
     // select_balanced coverage
     #[test]
-    fn test_select_balanced_all_combos() {
+    fn test_select_balanced_all_combos_selects_correctly_succeeds() {
         // Speed preference
         assert_eq!(
             TlsPolicyEngine::select_balanced(SecurityLevel::Standard, PerformancePreference::Speed),
@@ -1015,7 +1016,7 @@ mod tests {
 
     // create_config tests
     #[test]
-    fn test_create_config_speed_preference() {
+    fn test_create_config_speed_preference_selects_correctly_succeeds() {
         let ctx = TlsContext::default()
             .performance_preference(PerformancePreference::Speed)
             .pq_available(true);
@@ -1024,7 +1025,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_config_memory_preference() {
+    fn test_create_config_memory_preference_selects_correctly_succeeds() {
         let ctx = TlsContext::default()
             .performance_preference(PerformancePreference::Memory)
             .pq_available(true);
@@ -1033,21 +1034,21 @@ mod tests {
     }
 
     #[test]
-    fn test_create_config_maximum_security() {
+    fn test_create_config_maximum_security_selects_correctly_succeeds() {
         let ctx = TlsContext::default().security_level(SecurityLevel::Maximum).pq_available(true);
         let config = TlsPolicyEngine::create_config(&ctx);
         assert!(!config.enable_early_data);
     }
 
     #[test]
-    fn test_create_config_high_security() {
+    fn test_create_config_high_security_selects_correctly_succeeds() {
         let ctx = TlsContext::default().security_level(SecurityLevel::High).pq_available(true);
         let _config = TlsPolicyEngine::create_config(&ctx);
         // High security keeps defaults — just verify no panic
     }
 
     #[test]
-    fn test_create_config_standard_security() {
+    fn test_create_config_standard_security_selects_correctly_succeeds() {
         let ctx = TlsContext::default().security_level(SecurityLevel::Standard).pq_available(true);
         let _config = TlsPolicyEngine::create_config(&ctx);
         // Standard allows more flexibility - just verify it doesn't panic
@@ -1055,53 +1056,53 @@ mod tests {
 
     // PQ selectors for missing variants
     #[test]
-    fn test_select_pq_scheme_quantum() {
+    fn test_select_pq_scheme_quantum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Quantum), PQ_TLS_1024);
     }
 
     #[test]
-    fn test_select_pq_kex_standard() {
+    fn test_select_pq_kex_standard_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::Standard), "MLKEM512");
     }
 
     #[test]
-    fn test_select_pq_kex_high() {
+    fn test_select_pq_kex_high_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::High), "MLKEM768");
     }
 
     #[test]
-    fn test_select_pq_kex_quantum() {
+    fn test_select_pq_kex_quantum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::Quantum), "MLKEM1024");
     }
 
     #[test]
-    fn test_select_hybrid_scheme_standard() {
+    fn test_select_hybrid_scheme_standard_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::Standard), HYBRID_TLS_512);
     }
 
     #[test]
-    fn test_select_hybrid_scheme_quantum() {
+    fn test_select_hybrid_scheme_quantum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::Quantum), HYBRID_TLS_1024);
     }
 
     #[test]
-    fn test_select_hybrid_kex_standard() {
+    fn test_select_hybrid_kex_standard_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_kex(SecurityLevel::Standard), "X25519MLKEM512");
     }
 
     #[test]
-    fn test_select_hybrid_kex_maximum() {
+    fn test_select_hybrid_kex_maximum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_kex(SecurityLevel::Maximum), "X25519MLKEM1024");
     }
 
     #[test]
-    fn test_select_hybrid_kex_quantum() {
+    fn test_select_hybrid_kex_quantum_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_kex(SecurityLevel::Quantum), "X25519MLKEM1024");
     }
 
     // get_kex_algorithm hybrid
     #[test]
-    fn test_get_kex_algorithm_hybrid() {
+    fn test_get_kex_algorithm_hybrid_returns_expected_scheme_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_kex_algorithm(TlsMode::Hybrid, SecurityLevel::High),
             "X25519MLKEM768"
@@ -1110,7 +1111,7 @@ mod tests {
 
     // select_by_security_level High
     #[test]
-    fn test_select_by_security_level_high() {
+    fn test_select_by_security_level_high_selects_correctly_succeeds() {
         assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::High), TlsMode::Hybrid);
     }
 }

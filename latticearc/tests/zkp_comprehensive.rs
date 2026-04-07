@@ -10,7 +10,7 @@
 
 use latticearc::zkp::{
     DlogEqualityProof, DlogEqualityStatement, HashCommitment, HashOpening, PedersenCommitment,
-    PedersenOpening, SchnorrProver, SchnorrVerifier,
+    PedersenOpening, SchnorrProof, SchnorrProver, SchnorrVerifier,
 };
 
 // ============================================================================
@@ -21,7 +21,7 @@ mod schnorr_tests {
     use super::*;
 
     #[test]
-    fn test_schnorr_basic_prove_verify() {
+    fn test_schnorr_basic_prove_verify_succeeds() {
         let (prover, public_key) = SchnorrProver::new().expect("prover creation should succeed");
         let proof = prover.prove(b"test context").expect("prove should succeed");
 
@@ -43,7 +43,7 @@ mod schnorr_tests {
     }
 
     #[test]
-    fn test_schnorr_empty_context() {
+    fn test_schnorr_empty_context_succeeds() {
         let (prover, public_key) = SchnorrProver::new().expect("prover creation should succeed");
         let proof = prover.prove(b"").expect("prove with empty context should succeed");
 
@@ -54,7 +54,7 @@ mod schnorr_tests {
     }
 
     #[test]
-    fn test_schnorr_large_context() {
+    fn test_schnorr_large_context_succeeds() {
         let large_context = vec![0xABu8; 10000];
 
         let (prover, public_key) = SchnorrProver::new().expect("prover creation should succeed");
@@ -67,7 +67,7 @@ mod schnorr_tests {
     }
 
     #[test]
-    fn test_schnorr_multiple_proofs_same_prover() {
+    fn test_schnorr_multiple_proofs_same_prover_succeeds() {
         let (prover, public_key) = SchnorrProver::new().expect("prover creation should succeed");
         let verifier = SchnorrVerifier::new(public_key);
 
@@ -81,7 +81,7 @@ mod schnorr_tests {
     }
 
     #[test]
-    fn test_schnorr_different_provers_different_keys() {
+    fn test_schnorr_different_provers_different_keys_succeeds() {
         let (prover1, pk1) = SchnorrProver::new().expect("prover1 creation should succeed");
         let (_prover2, pk2) = SchnorrProver::new().expect("prover2 creation should succeed");
 
@@ -97,7 +97,7 @@ mod schnorr_tests {
     }
 
     #[test]
-    fn test_schnorr_proof_uniqueness() {
+    fn test_schnorr_proof_uniqueness_are_unique() {
         let (prover, _pk) = SchnorrProver::new().expect("prover creation should succeed");
 
         let proof1 = prover.prove(b"same context").expect("prove should succeed");
@@ -105,13 +105,14 @@ mod schnorr_tests {
 
         // Proofs should be different due to randomness (different commitments)
         assert_ne!(
-            proof1.commitment, proof2.commitment,
+            proof1.commitment(),
+            proof2.commitment(),
             "Different proofs for same context should have unique commitments"
         );
     }
 
     #[test]
-    fn test_schnorr_from_secret_deterministic() {
+    fn test_schnorr_from_secret_is_deterministic() {
         let secret = [42u8; 32];
         let (prover1, pk1) =
             SchnorrProver::from_secret(&secret).expect("from_secret should succeed");
@@ -128,7 +129,7 @@ mod schnorr_tests {
     }
 
     #[test]
-    fn test_schnorr_public_key_accessor() {
+    fn test_schnorr_public_key_accessor_succeeds() {
         let (prover, pk) = SchnorrProver::new().expect("prover creation should succeed");
         assert_eq!(prover.public_key(), &pk, "public_key() should return the same key");
     }
@@ -142,7 +143,7 @@ mod hash_commitment_tests {
     use super::*;
 
     #[test]
-    fn test_hash_commitment_basic() {
+    fn test_hash_commitment_basic_succeeds() {
         let message = b"secret message";
         let (commitment, opening) = HashCommitment::commit(message).expect("commit should succeed");
 
@@ -165,7 +166,7 @@ mod hash_commitment_tests {
     }
 
     #[test]
-    fn test_hash_commitment_empty_message() {
+    fn test_hash_commitment_empty_message_succeeds() {
         let message = b"";
         let (commitment, opening) = HashCommitment::commit(message).expect("commit should succeed");
 
@@ -174,7 +175,7 @@ mod hash_commitment_tests {
     }
 
     #[test]
-    fn test_hash_commitment_large_message() {
+    fn test_hash_commitment_large_message_succeeds() {
         let message = vec![0xFFu8; 100000];
         let (commitment, opening) =
             HashCommitment::commit(&message).expect("commit should succeed");
@@ -184,7 +185,7 @@ mod hash_commitment_tests {
     }
 
     #[test]
-    fn test_hash_commitment_hiding() {
+    fn test_hash_commitment_hiding_succeeds() {
         let message = b"secret";
 
         let (commitment1, _) = HashCommitment::commit(message).expect("commit should succeed");
@@ -192,32 +193,36 @@ mod hash_commitment_tests {
 
         // Due to randomness, commitments to same message should be different
         assert_ne!(
-            commitment1.commitment, commitment2.commitment,
+            commitment1.commitment(),
+            commitment2.commitment(),
             "Commitments should be hiding (different for same message)"
         );
     }
 
     #[test]
-    fn test_hash_commitment_deterministic_with_randomness() {
+    fn test_hash_commitment_deterministic_with_randomness_is_deterministic() {
         let message = b"test";
         let randomness = [42u8; 32];
 
         let c1 = HashCommitment::commit_with_randomness(message, randomness);
         let c2 = HashCommitment::commit_with_randomness(message, randomness);
 
-        assert_eq!(c1.commitment, c2.commitment, "Same randomness should produce same commitment");
+        assert_eq!(
+            c1.commitment(),
+            c2.commitment(),
+            "Same randomness should produce same commitment"
+        );
     }
 
     #[test]
     fn test_hash_commitment_modified_value_fails() {
         let message = b"original";
-        let (commitment, mut opening) =
-            HashCommitment::commit(message).expect("commit should succeed");
+        let (commitment, opening) = HashCommitment::commit(message).expect("commit should succeed");
 
-        // Modify the value in the opening
-        opening.value = b"modified".to_vec();
+        // Modify the value in the opening by constructing a new one with different value
+        let modified_opening = HashOpening::new(b"modified".to_vec(), *opening.randomness());
 
-        let result = commitment.verify(&opening).expect("verify should return result");
+        let result = commitment.verify(&modified_opening).expect("verify should return result");
         assert!(!result, "Modified value should fail verification");
     }
 
@@ -227,10 +232,9 @@ mod hash_commitment_tests {
         let (commitment, opening) = HashCommitment::commit(message).expect("commit should succeed");
 
         // Create new opening with different randomness
-        let mut new_randomness = opening.randomness;
+        let mut new_randomness = *opening.randomness();
         new_randomness[0] ^= 0xFF;
-        let wrong_opening =
-            HashOpening { value: opening.value.clone(), randomness: new_randomness };
+        let wrong_opening = HashOpening::new(opening.value().to_vec(), new_randomness);
 
         let result = commitment.verify(&wrong_opening).expect("verify should return result");
         assert!(!result, "Wrong randomness should fail verification");
@@ -245,7 +249,7 @@ mod pedersen_commitment_tests {
     use super::*;
 
     #[test]
-    fn test_pedersen_commitment_basic() {
+    fn test_pedersen_commitment_basic_succeeds() {
         let value: [u8; 32] = [1u8; 32];
         let (commitment, opening) =
             PedersenCommitment::commit(&value).expect("commit should succeed");
@@ -255,7 +259,7 @@ mod pedersen_commitment_tests {
     }
 
     #[test]
-    fn test_pedersen_commitment_zero() {
+    fn test_pedersen_commitment_zero_succeeds() {
         let value: [u8; 32] = [0u8; 32];
         let (commitment, opening) =
             PedersenCommitment::commit(&value).expect("commit should succeed");
@@ -265,7 +269,7 @@ mod pedersen_commitment_tests {
     }
 
     #[test]
-    fn test_pedersen_commitment_large_value() {
+    fn test_pedersen_commitment_large_value_succeeds() {
         // Use a large but valid scalar (not all 0xFF which exceeds curve order)
         let mut value: [u8; 32] = [0xFEu8; 32];
         value[31] = 0x00; // Ensure it's within curve order
@@ -283,7 +287,7 @@ mod pedersen_commitment_tests {
             PedersenCommitment::commit(&value).expect("commit should succeed");
 
         // Create opening with wrong value
-        let wrong_opening = PedersenOpening { value: [2u8; 32], blinding: opening.blinding };
+        let wrong_opening = PedersenOpening::new([2u8; 32], *opening.blinding());
 
         let result = commitment.verify(&wrong_opening).expect("verify should return result");
         assert!(!result, "Wrong value should fail verification");
@@ -296,26 +300,26 @@ mod pedersen_commitment_tests {
             PedersenCommitment::commit(&value).expect("commit should succeed");
 
         // Create opening with wrong blinding factor
-        let mut wrong_blinding = opening.blinding;
+        let mut wrong_blinding = *opening.blinding();
         wrong_blinding[0] ^= 0xFF;
-        let wrong_opening = PedersenOpening { value: opening.value, blinding: wrong_blinding };
+        let wrong_opening = PedersenOpening::new(*opening.value(), wrong_blinding);
 
         let result = commitment.verify(&wrong_opening).expect("verify should return result");
         assert!(!result, "Wrong blinding factor should fail verification");
     }
 
     #[test]
-    fn test_pedersen_commitment_hiding() {
+    fn test_pedersen_commitment_hiding_succeeds() {
         let value: [u8; 32] = [42u8; 32];
 
         let (c1, _) = PedersenCommitment::commit(&value).expect("commit should succeed");
         let (c2, _) = PedersenCommitment::commit(&value).expect("commit should succeed");
 
-        assert_ne!(c1.commitment, c2.commitment, "Pedersen commitments should be hiding");
+        assert_ne!(c1.commitment(), c2.commitment(), "Pedersen commitments should be hiding");
     }
 
     #[test]
-    fn test_pedersen_commitment_deterministic_with_blinding() {
+    fn test_pedersen_commitment_deterministic_with_blinding_is_deterministic() {
         let value: [u8; 32] = [1u8; 32];
         let blinding: [u8; 32] = [10u8; 32];
 
@@ -324,11 +328,15 @@ mod pedersen_commitment_tests {
         let (c2, _) = PedersenCommitment::commit_with_blinding(&value, &blinding)
             .expect("commit should succeed");
 
-        assert_eq!(c1.commitment, c2.commitment, "Same blinding should produce same commitment");
+        assert_eq!(
+            c1.commitment(),
+            c2.commitment(),
+            "Same blinding should produce same commitment"
+        );
     }
 
     #[test]
-    fn test_pedersen_commitment_homomorphic_addition() {
+    fn test_pedersen_commitment_homomorphic_addition_succeeds() {
         let v1: [u8; 32] = [1u8; 32];
         let v2: [u8; 32] = [2u8; 32];
         let b1: [u8; 32] = [10u8; 32];
@@ -343,7 +351,7 @@ mod pedersen_commitment_tests {
         let c_sum = c1.add(&c2).expect("add should succeed");
 
         // Verify the sum is a valid commitment
-        assert_eq!(c_sum.commitment.len(), 33, "Sum commitment should be 33 bytes");
+        assert_eq!(c_sum.commitment().len(), 33, "Sum commitment should be 33 bytes");
     }
 }
 
@@ -385,7 +393,7 @@ mod dlog_equality_tests {
     }
 
     #[test]
-    fn test_dlog_equality_basic() {
+    fn test_dlog_equality_basic_succeeds() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
@@ -411,7 +419,7 @@ mod dlog_equality_tests {
     }
 
     #[test]
-    fn test_dlog_equality_empty_context() {
+    fn test_dlog_equality_empty_context_succeeds() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
@@ -424,7 +432,7 @@ mod dlog_equality_tests {
     }
 
     #[test]
-    fn test_dlog_equality_large_context() {
+    fn test_dlog_equality_large_context_succeeds() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
         let large_context = vec![0xABu8; 10000];
@@ -457,7 +465,7 @@ mod dlog_equality_tests {
     }
 
     #[test]
-    fn test_dlog_equality_proof_uniqueness() {
+    fn test_dlog_equality_proof_uniqueness_are_unique() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
@@ -469,7 +477,7 @@ mod dlog_equality_tests {
             DlogEqualityProof::prove(&statement, &secret, b"same").expect("prove should succeed");
 
         // Proofs should be different due to randomness
-        assert_ne!(proof1.a, proof2.a, "Proofs should have different commitments");
+        assert_ne!(proof1.a(), proof2.a(), "Proofs should have different commitments");
     }
 }
 
@@ -481,7 +489,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_schnorr_and_hash_commitment_together() {
+    fn test_schnorr_and_hash_commitment_together_succeeds() {
         // Commit to a message
         let message = b"my secret message";
         let (commitment, _opening) =
@@ -489,17 +497,17 @@ mod integration_tests {
 
         // Create Schnorr proof using commitment as context
         let (prover, pk) = SchnorrProver::new().expect("prover should succeed");
-        let proof = prover.prove(&commitment.commitment).expect("prove should succeed");
+        let proof = prover.prove(commitment.commitment()).expect("prove should succeed");
 
         let verifier = SchnorrVerifier::new(pk);
         assert!(
-            verifier.verify(&proof, &commitment.commitment).expect("verify"),
+            verifier.verify(&proof, commitment.commitment()).expect("verify"),
             "Proof with commitment as context should verify"
         );
     }
 
     #[test]
-    fn test_concurrent_schnorr_proofs() {
+    fn test_concurrent_schnorr_proofs_succeeds() {
         use std::thread;
 
         let handles: Vec<_> = (0..4)
@@ -522,7 +530,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_concurrent_hash_commitments() {
+    fn test_concurrent_hash_commitments_succeeds() {
         use std::sync::Arc;
         use std::sync::Mutex;
         use std::thread;
@@ -551,7 +559,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_concurrent_pedersen_commitments() {
+    fn test_concurrent_pedersen_commitments_succeeds() {
         use std::thread;
 
         let handles: Vec<_> = (0..4)
@@ -581,7 +589,7 @@ mod error_tests {
     use super::*;
 
     #[test]
-    fn test_invalid_pedersen_scalar() {
+    fn test_invalid_pedersen_scalar_fails() {
         // All 0xFF bytes is not a valid secp256k1 scalar (too large)
         let invalid_value = [0xFFu8; 32];
         let blinding = [1u8; 32];
@@ -591,15 +599,17 @@ mod error_tests {
     }
 
     #[test]
-    fn test_schnorr_corrupted_proof_commitment() {
+    fn test_schnorr_corrupted_proof_commitment_fails() {
         let (prover, pk) = SchnorrProver::new().expect("prover should succeed");
-        let mut proof = prover.prove(b"test").expect("prove should succeed");
+        let proof = prover.prove(b"test").expect("prove should succeed");
 
         // Corrupt the commitment
-        proof.commitment[0] ^= 0xFF;
+        let mut corrupted_commitment = *proof.commitment();
+        corrupted_commitment[0] ^= 0xFF;
+        let corrupted_proof = SchnorrProof::new(corrupted_commitment, *proof.response());
 
         let verifier = SchnorrVerifier::new(pk);
-        let result = verifier.verify(&proof, b"test");
+        let result = verifier.verify(&corrupted_proof, b"test");
 
         // Should either error or return false
         if let Ok(valid) = result {
@@ -608,15 +618,17 @@ mod error_tests {
     }
 
     #[test]
-    fn test_schnorr_corrupted_proof_response() {
+    fn test_schnorr_corrupted_proof_response_fails() {
         let (prover, pk) = SchnorrProver::new().expect("prover should succeed");
-        let mut proof = prover.prove(b"test").expect("prove should succeed");
+        let proof = prover.prove(b"test").expect("prove should succeed");
 
         // Corrupt the response
-        proof.response[0] ^= 0xFF;
+        let mut corrupted_response = *proof.response();
+        corrupted_response[0] ^= 0xFF;
+        let corrupted_proof = SchnorrProof::new(*proof.commitment(), corrupted_response);
 
         let verifier = SchnorrVerifier::new(pk);
-        let result = verifier.verify(&proof, b"test");
+        let result = verifier.verify(&corrupted_proof, b"test");
 
         // Should either error or return false
         if let Ok(valid) = result {
@@ -661,7 +673,7 @@ mod sigma_protocol_tests {
     }
 
     #[test]
-    fn test_dlog_proof_different_generators() {
+    fn test_dlog_proof_different_generators_succeeds() {
         // Test with different generator multipliers
         for multiplier in [2u64, 3, 5, 7] {
             let secret_key = SecretKey::random(&mut rand::thread_rng());
@@ -698,12 +710,15 @@ mod sigma_protocol_tests {
     #[test]
     fn test_dlog_proof_corrupted_a_fails() {
         let (statement, secret) = create_valid_statement_and_secret();
-        let mut proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
+        let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt commitment A
-        proof.a[0] ^= 0xFF;
+        let mut corrupted_a = *proof.a();
+        corrupted_a[0] ^= 0xFF;
+        let corrupted =
+            DlogEqualityProof::new(corrupted_a, *proof.b(), *proof.challenge(), *proof.response());
 
-        let result = proof.verify(&statement, b"test");
+        let result = corrupted.verify(&statement, b"test");
         if let Ok(valid) = result {
             assert!(!valid, "Corrupted A should fail");
         }
@@ -712,12 +727,15 @@ mod sigma_protocol_tests {
     #[test]
     fn test_dlog_proof_corrupted_b_fails() {
         let (statement, secret) = create_valid_statement_and_secret();
-        let mut proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
+        let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt commitment B
-        proof.b[0] ^= 0xFF;
+        let mut corrupted_b = *proof.b();
+        corrupted_b[0] ^= 0xFF;
+        let corrupted =
+            DlogEqualityProof::new(*proof.a(), corrupted_b, *proof.challenge(), *proof.response());
 
-        let result = proof.verify(&statement, b"test");
+        let result = corrupted.verify(&statement, b"test");
         if let Ok(valid) = result {
             assert!(!valid, "Corrupted B should fail");
         }
@@ -726,12 +744,15 @@ mod sigma_protocol_tests {
     #[test]
     fn test_dlog_proof_corrupted_response_fails() {
         let (statement, secret) = create_valid_statement_and_secret();
-        let mut proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
+        let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt response
-        proof.response[0] ^= 0xFF;
+        let mut corrupted_response = *proof.response();
+        corrupted_response[0] ^= 0xFF;
+        let corrupted =
+            DlogEqualityProof::new(*proof.a(), *proof.b(), *proof.challenge(), corrupted_response);
 
-        let result = proof.verify(&statement, b"test");
+        let result = corrupted.verify(&statement, b"test");
         if let Ok(valid) = result {
             assert!(!valid, "Corrupted response should fail");
         }
@@ -740,12 +761,15 @@ mod sigma_protocol_tests {
     #[test]
     fn test_dlog_proof_corrupted_challenge_fails() {
         let (statement, secret) = create_valid_statement_and_secret();
-        let mut proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
+        let proof = DlogEqualityProof::prove(&statement, &secret, b"test").expect("prove");
 
         // Corrupt challenge
-        proof.challenge[0] ^= 0xFF;
+        let mut corrupted_challenge = *proof.challenge();
+        corrupted_challenge[0] ^= 0xFF;
+        let corrupted =
+            DlogEqualityProof::new(*proof.a(), *proof.b(), corrupted_challenge, *proof.response());
 
-        let result = proof.verify(&statement, b"test").expect("verify should return result");
+        let result = corrupted.verify(&statement, b"test").expect("verify should return result");
         assert!(!result, "Corrupted challenge should fail");
     }
 
@@ -806,7 +830,7 @@ mod sigma_protocol_tests {
     }
 
     #[test]
-    fn test_dlog_proof_multiple_proofs_same_statement() {
+    fn test_dlog_proof_multiple_proofs_same_statement_succeeds() {
         let (statement, secret) = create_valid_statement_and_secret();
 
         // Generate multiple proofs for same statement
@@ -823,7 +847,7 @@ mod sigma_protocol_tests {
     }
 
     #[test]
-    fn test_dlog_proof_stress_rapid_generation() {
+    fn test_dlog_proof_stress_rapid_generation_succeeds() {
         let (statement, secret) = create_valid_statement_and_secret();
 
         // Rapid proof generation and verification
@@ -842,7 +866,7 @@ mod property_tests {
     use super::*;
 
     #[test]
-    fn test_schnorr_soundness() {
+    fn test_schnorr_soundness_succeeds() {
         // Soundness: Cannot forge proof without knowing secret
         let (_prover, pk) = SchnorrProver::new().expect("prover should succeed");
         let (other_prover, _) = SchnorrProver::new().expect("other prover should succeed");
@@ -857,28 +881,27 @@ mod property_tests {
     }
 
     #[test]
-    fn test_hash_commitment_binding() {
+    fn test_hash_commitment_binding_succeeds() {
         // Binding: Cannot find two openings for same commitment
         let message = b"original";
         let (commitment, opening) = HashCommitment::commit(message).expect("commit should succeed");
 
         // Try to create opening with different message but same randomness
-        let wrong_opening =
-            HashOpening { value: b"different".to_vec(), randomness: opening.randomness };
+        let wrong_opening = HashOpening::new(b"different".to_vec(), *opening.randomness());
 
         let result = commitment.verify(&wrong_opening).expect("verify");
         assert!(!result, "Different message with same randomness should fail");
     }
 
     #[test]
-    fn test_pedersen_commitment_binding() {
+    fn test_pedersen_commitment_binding_succeeds() {
         // Binding: Cannot find two openings for same commitment
         let value = [1u8; 32];
         let (commitment, opening) =
             PedersenCommitment::commit(&value).expect("commit should succeed");
 
         // Try opening with different value
-        let wrong_opening = PedersenOpening { value: [2u8; 32], blinding: opening.blinding };
+        let wrong_opening = PedersenOpening::new([2u8; 32], *opening.blinding());
 
         let result = commitment.verify(&wrong_opening).expect("verify");
         assert!(!result, "Different value should fail binding test");

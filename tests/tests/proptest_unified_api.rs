@@ -28,7 +28,7 @@ proptest! {
         let encrypted = encrypt(&data, EncryptKey::Symmetric(&key), CryptoConfig::new().force_scheme(CryptoScheme::Symmetric)).unwrap();
         let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
 
-        prop_assert_eq!(&decrypted, &data, "AEAD roundtrip must recover original data");
+        prop_assert_eq!(decrypted.as_slice(), data.as_slice(), "AEAD roundtrip must recover original data");
     }
 
     /// AEAD roundtrip with random keys.
@@ -40,7 +40,7 @@ proptest! {
         let encrypted = encrypt(&data, EncryptKey::Symmetric(&key), CryptoConfig::new().force_scheme(CryptoScheme::Symmetric)).unwrap();
         let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
 
-        prop_assert_eq!(&decrypted, &data);
+        prop_assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
     /// Wrong key cannot decrypt.
@@ -126,6 +126,6 @@ proptest! {
         let encrypted = encrypt(&data, EncryptKey::Symmetric(&key), CryptoConfig::new().use_case(UseCase::SecureMessaging).force_scheme(CryptoScheme::Symmetric)).unwrap();
         let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
 
-        prop_assert_eq!(&decrypted, &data);
+        prop_assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 }

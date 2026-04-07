@@ -65,7 +65,6 @@ use latticearc::primitives::kem::ecdh::{
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use latticearc::primitives::rand::{random_bytes, random_u32, random_u64};
 use latticearc::primitives::sig::ml_dsa::{self, MlDsaParameterSet};
-use rand::rngs::OsRng;
 
 // ============================================================================
 // Configuration Constants
@@ -91,16 +90,15 @@ const MAX_TEST_DURATION_SECS: u64 = 60;
 // ============================================================================
 
 #[test]
-fn test_concurrent_ml_kem_keygen_512() {
+fn test_concurrent_ml_kem_keygen_512_succeeds() {
     let keys = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
         .map(|_| {
             let keys = Arc::clone(&keys);
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..STANDARD_ITERATIONS {
-                    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+                    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
                         .expect("keypair generation should succeed");
                     let mut keys_guard = keys.lock().expect("mutex should not be poisoned");
                     keys_guard.push(pk.to_bytes());
@@ -123,16 +121,15 @@ fn test_concurrent_ml_kem_keygen_512() {
 }
 
 #[test]
-fn test_concurrent_ml_kem_keygen_768() {
+fn test_concurrent_ml_kem_keygen_768_succeeds() {
     let keys = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
         .map(|_| {
             let keys = Arc::clone(&keys);
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..STANDARD_ITERATIONS {
-                    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+                    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
                         .expect("keypair generation should succeed");
                     let mut keys_guard = keys.lock().expect("mutex should not be poisoned");
                     keys_guard.push(pk.to_bytes());
@@ -150,18 +147,16 @@ fn test_concurrent_ml_kem_keygen_768() {
 }
 
 #[test]
-fn test_concurrent_ml_kem_keygen_1024() {
+fn test_concurrent_ml_kem_keygen_1024_succeeds() {
     let keys = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
         .map(|_| {
             let keys = Arc::clone(&keys);
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..STANDARD_ITERATIONS {
-                    let (pk, _sk) =
-                        MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
-                            .expect("keypair generation should succeed");
+                    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)
+                        .expect("keypair generation should succeed");
                     let mut keys_guard = keys.lock().expect("mutex should not be poisoned");
                     keys_guard.push(pk.to_bytes());
                 }
@@ -178,9 +173,8 @@ fn test_concurrent_ml_kem_keygen_1024() {
 }
 
 #[test]
-fn test_concurrent_ml_kem_encapsulation_same_key() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+fn test_concurrent_ml_kem_encapsulation_same_key_succeeds() {
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
     let pk = Arc::new(pk);
@@ -193,10 +187,8 @@ fn test_concurrent_ml_kem_encapsulation_same_key() {
             let ciphertexts = Arc::clone(&ciphertexts);
             let shared_secrets = Arc::clone(&shared_secrets);
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..STANDARD_ITERATIONS {
-                    let (ss, ct) =
-                        MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+                    let (ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
                     let mut cts = ciphertexts.lock().expect("mutex should not be poisoned");
                     cts.push(ct.into_bytes());
                     let mut secrets = shared_secrets.lock().expect("mutex should not be poisoned");
@@ -223,7 +215,7 @@ fn test_concurrent_ml_kem_encapsulation_same_key() {
 }
 
 #[test]
-fn test_concurrent_ml_kem_mixed_security_levels() {
+fn test_concurrent_ml_kem_mixed_security_levels_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
     let levels =
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024];
@@ -233,10 +225,9 @@ fn test_concurrent_ml_kem_mixed_security_levels() {
             let success_count = Arc::clone(&success_count);
             let level = levels[i % 3];
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..5 {
-                    if let Ok((pk, _sk)) = MlKem::generate_keypair(&mut rng, level) {
-                        if MlKem::encapsulate(&mut rng, &pk).is_ok() {
+                    if let Ok((pk, _sk)) = MlKem::generate_keypair(level) {
+                        if MlKem::encapsulate(&pk).is_ok() {
                             success_count.fetch_add(1, Ordering::SeqCst);
                         }
                     }
@@ -261,10 +252,10 @@ fn test_concurrent_ml_kem_mixed_security_levels() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_ml_dsa_keygen_all_levels() {
+fn test_concurrent_ml_dsa_keygen_all_levels_succeeds() {
     let keys = Arc::new(Mutex::new(Vec::new()));
     let params =
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87];
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87];
 
     let handles: Vec<_> = (0..9)
         .map(|i| {
@@ -289,9 +280,9 @@ fn test_concurrent_ml_dsa_keygen_all_levels() {
 }
 
 #[test]
-fn test_parallel_ml_dsa_signing_same_key() {
+fn test_parallel_ml_dsa_signing_same_key_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
 
     let pk = Arc::new(pk);
     let sk = Arc::new(sk);
@@ -316,7 +307,7 @@ fn test_parallel_ml_dsa_signing_same_key() {
                                 success_count.fetch_add(1, Ordering::SeqCst);
                                 let mut sigs =
                                     signatures.lock().expect("mutex should not be poisoned");
-                                sigs.push(sig.data.clone());
+                                sigs.push(sig.as_bytes().to_vec());
                             }
                         }
                     }
@@ -344,9 +335,9 @@ fn test_parallel_ml_dsa_signing_same_key() {
 }
 
 #[test]
-fn test_parallel_ml_dsa_verification_same_signature() {
+fn test_parallel_ml_dsa_verification_same_signature_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
     let message = b"Test message for parallel verification";
     let context: &[u8] = &[];
@@ -391,7 +382,7 @@ fn test_parallel_ml_dsa_verification_same_signature() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_aes_gcm_128_encryption() {
+fn test_concurrent_aes_gcm_128_encryption_succeeds() {
     let key = AesGcm128::generate_key();
     let cipher = Arc::new(AesGcm128::new(&*key).expect("cipher creation should succeed"));
     let ciphertexts = Arc::new(Mutex::new(Vec::new()));
@@ -423,7 +414,7 @@ fn test_concurrent_aes_gcm_128_encryption() {
 }
 
 #[test]
-fn test_concurrent_aes_gcm_256_encryption_decryption() {
+fn test_concurrent_aes_gcm_256_encryption_decryption_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = Arc::new(AesGcm256::new(&*key).expect("cipher creation should succeed"));
     let success_count = Arc::new(AtomicUsize::new(0));
@@ -444,7 +435,7 @@ fn test_concurrent_aes_gcm_256_encryption_decryption() {
                         if let Ok(decrypted) =
                             cipher.decrypt(&nonce, &ct, &tag, Some(aad.as_bytes()))
                         {
-                            if decrypted == plaintext.as_bytes() {
+                            if decrypted.as_slice() == plaintext.as_bytes() {
                                 success_count.fetch_add(1, Ordering::SeqCst);
                             }
                         }
@@ -468,7 +459,7 @@ fn test_concurrent_aes_gcm_256_encryption_decryption() {
 }
 
 #[test]
-fn test_concurrent_aes_gcm_unique_nonces() {
+fn test_concurrent_aes_gcm_unique_nonces_are_unique() {
     let key = AesGcm128::generate_key();
     let cipher = Arc::new(AesGcm128::new(&*key).expect("cipher creation should succeed"));
     let nonces = Arc::new(Mutex::new(Vec::new()));
@@ -505,7 +496,7 @@ fn test_concurrent_aes_gcm_unique_nonces() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_x25519_key_generation() {
+fn test_concurrent_x25519_key_generation_succeeds() {
     let keys = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -531,7 +522,7 @@ fn test_concurrent_x25519_key_generation() {
 }
 
 #[test]
-fn test_concurrent_p256_key_agreement() {
+fn test_concurrent_p256_key_agreement_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -570,7 +561,7 @@ fn test_concurrent_p256_key_agreement() {
 }
 
 #[test]
-fn test_concurrent_p384_key_agreement() {
+fn test_concurrent_p384_key_agreement_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..4)
@@ -607,7 +598,7 @@ fn test_concurrent_p384_key_agreement() {
 }
 
 #[test]
-fn test_concurrent_p521_key_agreement() {
+fn test_concurrent_p521_key_agreement_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..4)
@@ -648,7 +639,7 @@ fn test_concurrent_p521_key_agreement() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_rng_bytes_unique() {
+fn test_concurrent_rng_bytes_are_unique() {
     let random_values = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -674,7 +665,7 @@ fn test_concurrent_rng_bytes_unique() {
 }
 
 #[test]
-fn test_concurrent_rng_u32_distribution() {
+fn test_concurrent_rng_u32_distribution_succeeds() {
     let values = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -707,7 +698,7 @@ fn test_concurrent_rng_u32_distribution() {
 }
 
 #[test]
-fn test_concurrent_rng_u64_unique() {
+fn test_concurrent_rng_u64_are_unique() {
     let values = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -737,7 +728,7 @@ fn test_concurrent_rng_u64_unique() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_sha256_same_input() {
+fn test_concurrent_sha256_same_input_succeeds() {
     let input = b"Test message for concurrent hashing";
     let expected_hash = sha256(input).expect("hash should succeed");
     let success_count = Arc::new(AtomicUsize::new(0));
@@ -772,7 +763,7 @@ fn test_concurrent_sha256_same_input() {
 }
 
 #[test]
-fn test_concurrent_hash_different_inputs() {
+fn test_concurrent_hash_different_inputs_succeeds() {
     let hashes = Arc::new(Mutex::new(Vec::new()));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -802,7 +793,7 @@ fn test_concurrent_hash_different_inputs() {
 }
 
 #[test]
-fn test_concurrent_sha384_sha512() {
+fn test_concurrent_sha384_sha512_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
@@ -841,10 +832,9 @@ fn test_concurrent_sha384_sha512() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_key_serialization_deserialization() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+fn test_concurrent_key_serialization_deserialization_succeeds() {
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     let pk_bytes = pk.to_bytes();
     let pk_bytes = Arc::new(pk_bytes);
@@ -864,8 +854,7 @@ fn test_concurrent_key_serialization_deserialization() {
                         )
                     {
                         // Verify we can encapsulate with restored key
-                        let mut rng = OsRng;
-                        if MlKem::encapsulate(&mut rng, &restored_pk).is_ok() {
+                        if MlKem::encapsulate(&restored_pk).is_ok() {
                             success_count.fetch_add(1, Ordering::SeqCst);
                         }
                     }
@@ -888,10 +877,10 @@ fn test_concurrent_key_serialization_deserialization() {
 }
 
 #[test]
-fn test_concurrent_signature_verification_race() {
+fn test_concurrent_signature_verification_race_succeeds() {
     // Pre-generate multiple signatures
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
     let messages: Vec<String> = (0..10).map(|i| format!("Message {}", i)).collect();
     let context: &[u8] = &[];
@@ -940,7 +929,7 @@ fn test_concurrent_signature_verification_race() {
 }
 
 #[test]
-fn test_rwlock_concurrent_config_access() {
+fn test_rwlock_concurrent_config_access_succeeds() {
     // Simulate shared config with RwLock
     let config = Arc::new(RwLock::new(MlKemSecurityLevel::MlKem512));
     let success_count = Arc::new(AtomicUsize::new(0));
@@ -954,8 +943,7 @@ fn test_rwlock_concurrent_config_access() {
                     // Readers
                     if thread_id % 2 == 0 {
                         let level = config.read().expect("read lock should succeed");
-                        let mut rng = OsRng;
-                        if MlKem::generate_keypair(&mut rng, *level).is_ok() {
+                        if MlKem::generate_keypair(*level).is_ok() {
                             success_count.fetch_add(1, Ordering::SeqCst);
                         }
                     } else {
@@ -965,6 +953,7 @@ fn test_rwlock_concurrent_config_access() {
                             MlKemSecurityLevel::MlKem512 => MlKemSecurityLevel::MlKem768,
                             MlKemSecurityLevel::MlKem768 => MlKemSecurityLevel::MlKem1024,
                             MlKemSecurityLevel::MlKem1024 => MlKemSecurityLevel::MlKem512,
+                            _ => MlKemSecurityLevel::MlKem768,
                         };
                         success_count.fetch_add(1, Ordering::SeqCst);
                     }
@@ -991,7 +980,7 @@ fn test_rwlock_concurrent_config_access() {
 // ============================================================================
 
 #[test]
-fn test_high_volume_concurrent_operations() {
+fn test_high_volume_concurrent_operations_succeeds() {
     let operation_count = Arc::new(AtomicUsize::new(0));
     let error_count = Arc::new(AtomicUsize::new(0));
 
@@ -1000,11 +989,9 @@ fn test_high_volume_concurrent_operations() {
             let operation_count = Arc::clone(&operation_count);
             let error_count = Arc::clone(&error_count);
             thread::spawn(move || {
-                let mut rng = OsRng;
-
                 for _ in 0..STRESS_OPS_PER_THREAD {
-                    match MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768) {
-                        Ok((pk, _sk)) => match MlKem::encapsulate(&mut rng, &pk) {
+                    match MlKem::generate_keypair(MlKemSecurityLevel::MlKem768) {
+                        Ok((pk, _sk)) => match MlKem::encapsulate(&pk) {
                             Ok((_ss, _ct)) => {
                                 operation_count.fetch_add(1, Ordering::SeqCst);
                             }
@@ -1034,26 +1021,24 @@ fn test_high_volume_concurrent_operations() {
 }
 
 #[test]
-fn test_mixed_algorithm_stress() {
+fn test_mixed_algorithm_stress_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..STRESS_THREAD_COUNT)
         .map(|thread_id| {
             let success_count = Arc::clone(&success_count);
             thread::spawn(move || {
-                let mut rng = OsRng;
-
                 for i in 0..STRESS_OPS_PER_THREAD {
                     let op = (thread_id + i) % 5;
 
                     let success = match op {
                         0 => {
                             // ML-KEM
-                            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512).is_ok()
+                            MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).is_ok()
                         }
                         1 => {
                             // ML-DSA
-                            ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).is_ok()
+                            ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).is_ok()
                         }
                         2 => {
                             // AES-GCM
@@ -1092,23 +1077,20 @@ fn test_mixed_algorithm_stress() {
 }
 
 #[test]
-fn test_rapid_key_generation_destruction_cycles() {
+fn test_rapid_key_generation_destruction_cycles_succeeds() {
     let cycles_completed = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
         .map(|_| {
             let cycles_completed = Arc::clone(&cycles_completed);
             thread::spawn(move || {
-                let mut rng = OsRng;
-
                 for _ in 0..STANDARD_ITERATIONS * 3 {
                     // Generate and immediately drop (destroy) keys
                     {
-                        let (pk, sk) =
-                            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
-                                .expect("keygen should succeed");
+                        let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
+                            .expect("keygen should succeed");
                         // Use the keys briefly
-                        let _ = MlKem::encapsulate(&mut rng, &pk);
+                        let _ = MlKem::encapsulate(&pk);
                         // pk and sk are dropped here
                         drop(sk);
                         drop(pk);
@@ -1116,9 +1098,8 @@ fn test_rapid_key_generation_destruction_cycles() {
 
                     // Immediately generate new keys
                     {
-                        let (_pk2, _sk2) =
-                            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-                                .expect("keygen should succeed");
+                        let (_pk2, _sk2) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
+                            .expect("keygen should succeed");
                         // Keys dropped at end of scope
                     }
 
@@ -1146,7 +1127,7 @@ fn test_rapid_key_generation_destruction_cycles() {
 // ============================================================================
 
 #[test]
-fn test_barrier_synchronized_operations() {
+fn test_barrier_synchronized_operations_succeeds() {
     let barrier = Arc::new(Barrier::new(STANDARD_THREAD_COUNT));
     let start_times = Arc::new(Mutex::new(Vec::new()));
     let end_times = Arc::new(Mutex::new(Vec::new()));
@@ -1163,8 +1144,7 @@ fn test_barrier_synchronized_operations() {
                 let start = Instant::now();
 
                 // Perform operation
-                let mut rng = OsRng;
-                let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+                let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
 
                 let end = Instant::now();
 
@@ -1199,7 +1179,7 @@ fn test_barrier_synchronized_operations() {
 }
 
 #[test]
-fn test_atomic_counter_correctness() {
+fn test_atomic_counter_correctness_succeeds() {
     let counter = Arc::new(AtomicUsize::new(0));
     let expected_increments = STANDARD_THREAD_COUNT * STANDARD_ITERATIONS * 100;
 
@@ -1228,7 +1208,7 @@ fn test_atomic_counter_correctness() {
 }
 
 #[test]
-fn test_lock_free_read_pattern() {
+fn test_lock_free_read_pattern_succeeds() {
     // Pre-compute some reference data
     let reference_hash = sha256(b"reference data").expect("hash should succeed");
     let reference_hash = Arc::new(reference_hash);
@@ -1267,7 +1247,7 @@ fn test_lock_free_read_pattern() {
 // ============================================================================
 
 #[test]
-fn test_no_data_races_during_parallel_keygen() {
+fn test_no_data_races_during_parallel_keygen_succeeds() {
     let panic_count = Arc::new(AtomicUsize::new(0));
 
     for _ in 0..10 {
@@ -1277,7 +1257,6 @@ fn test_no_data_races_during_parallel_keygen() {
             .map(|i| {
                 let panic_count = Arc::clone(&panic_count);
                 thread::spawn(move || {
-                    let mut rng = OsRng;
                     let level = match i % 3 {
                         0 => MlKemSecurityLevel::MlKem512,
                         1 => MlKemSecurityLevel::MlKem768,
@@ -1285,9 +1264,9 @@ fn test_no_data_races_during_parallel_keygen() {
                     };
 
                     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)
-                            .expect("keygen should succeed");
-                        let _ = MlKem::encapsulate(&mut rng, &pk).expect("encap should succeed");
+                        let (pk, _sk) =
+                            MlKem::generate_keypair(level).expect("keygen should succeed");
+                        let _ = MlKem::encapsulate(&pk).expect("encap should succeed");
                     })) {
                         Ok(()) => {}
                         Err(_) => {
@@ -1311,10 +1290,10 @@ fn test_no_data_races_during_parallel_keygen() {
 }
 
 #[test]
-fn test_no_data_races_during_concurrent_signing() {
+fn test_no_data_races_during_concurrent_signing_succeeds() {
     let panic_count = Arc::new(AtomicUsize::new(0));
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
 
     let pk = Arc::new(pk);
     let sk = Arc::new(sk);
@@ -1362,7 +1341,7 @@ fn test_no_data_races_during_concurrent_signing() {
 }
 
 #[test]
-fn test_concurrent_mutation_detection() {
+fn test_concurrent_mutation_detection_succeeds() {
     // Test that we can detect if shared state is being mutated unsafely
     let shared_flag = Arc::new(AtomicBool::new(false));
     let mutation_detected = Arc::new(AtomicBool::new(false));
@@ -1405,17 +1384,16 @@ fn test_concurrent_mutation_detection() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_operations_complete_in_reasonable_time() {
+fn test_concurrent_operations_complete_in_reasonable_time_succeeds() {
     let start = Instant::now();
 
     let handles: Vec<_> = (0..STANDARD_THREAD_COUNT)
         .map(|_| {
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..STANDARD_ITERATIONS {
-                    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+                    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
                         .expect("keygen should succeed");
-                    let _ = MlKem::encapsulate(&mut rng, &pk).expect("encap should succeed");
+                    let _ = MlKem::encapsulate(&pk).expect("encap should succeed");
                 }
             })
         })
@@ -1435,14 +1413,13 @@ fn test_concurrent_operations_complete_in_reasonable_time() {
 
 #[test]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_throughput_scales_with_threads() {
+fn test_throughput_scales_with_threads_succeeds() {
     // Single-threaded baseline
     let single_start = Instant::now();
-    let mut rng = OsRng;
     for _ in 0..STANDARD_ITERATIONS {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
-            .expect("keygen should succeed");
-        let _ = MlKem::encapsulate(&mut rng, &pk).expect("encap should succeed");
+        let (pk, _sk) =
+            MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).expect("keygen should succeed");
+        let _ = MlKem::encapsulate(&pk).expect("encap should succeed");
     }
     let single_duration = single_start.elapsed();
 
@@ -1451,11 +1428,10 @@ fn test_throughput_scales_with_threads() {
     let handles: Vec<_> = (0..4)
         .map(|_| {
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..STANDARD_ITERATIONS {
-                    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+                    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
                         .expect("keygen should succeed");
-                    let _ = MlKem::encapsulate(&mut rng, &pk).expect("encap should succeed");
+                    let _ = MlKem::encapsulate(&pk).expect("encap should succeed");
                 }
             })
         })
@@ -1478,9 +1454,9 @@ fn test_throughput_scales_with_threads() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_empty_message_signing() {
+fn test_concurrent_empty_message_signing_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
     let pk = Arc::new(pk);
     let sk = Arc::new(sk);
@@ -1522,9 +1498,9 @@ fn test_concurrent_empty_message_signing() {
 }
 
 #[test]
-fn test_concurrent_large_message_signing() {
+fn test_concurrent_large_message_signing_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
     let pk = Arc::new(pk);
     let sk = Arc::new(sk);
@@ -1565,7 +1541,7 @@ fn test_concurrent_large_message_signing() {
 }
 
 #[test]
-fn test_concurrent_encryption_empty_plaintext() {
+fn test_concurrent_encryption_empty_plaintext_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = Arc::new(AesGcm256::new(&*key).expect("cipher creation should succeed"));
     let success_count = Arc::new(AtomicUsize::new(0));
@@ -1605,9 +1581,8 @@ fn test_concurrent_encryption_empty_plaintext() {
 }
 
 #[test]
-fn test_shared_public_key_concurrent_read() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
+fn test_shared_public_key_concurrent_read_succeeds() {
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)
         .expect("keypair generation should succeed");
 
     let pk = Arc::new(pk);
@@ -1649,13 +1624,11 @@ fn test_shared_public_key_concurrent_read() {
 
 /// MIRI-compatible test subset - no threading, validates memory safety
 #[test]
-fn test_miri_compatible_keygen_basic() {
-    let mut rng = OsRng;
-
+fn test_miri_compatible_keygen_basic_succeeds() {
     // Basic ML-KEM keygen and encapsulation
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
-        .expect("keygen should succeed");
-    let (ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulate should succeed");
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).expect("keygen should succeed");
+    let (ss, ct) = MlKem::encapsulate(&pk).expect("encapsulate should succeed");
 
     assert_eq!(pk.as_bytes().len(), 800);
     assert_eq!(ss.as_bytes().len(), 32);
@@ -1664,7 +1637,7 @@ fn test_miri_compatible_keygen_basic() {
 
 /// MIRI-compatible test for AEAD operations
 #[test]
-fn test_miri_compatible_aead_basic() {
+fn test_miri_compatible_aead_basic_succeeds() {
     let key = AesGcm128::generate_key();
     let cipher = AesGcm128::new(&*key).expect("cipher should be created");
     let nonce = AesGcm128::generate_nonce();
@@ -1675,12 +1648,12 @@ fn test_miri_compatible_aead_basic() {
     let decrypted =
         cipher.decrypt(&nonce, &ciphertext, &tag, None).expect("decryption should succeed");
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
 }
 
 /// MIRI-compatible test for hash functions
 #[test]
-fn test_miri_compatible_hash_basic() {
+fn test_miri_compatible_hash_basic_succeeds() {
     let input = b"test input for hashing";
 
     let hash256 = sha256(input).expect("sha256 should succeed");
@@ -1700,9 +1673,9 @@ fn test_miri_compatible_hash_basic() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_context_string_variations() {
+fn test_concurrent_context_string_variations_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
     let pk = Arc::new(pk);
     let sk = Arc::new(sk);
@@ -1746,7 +1719,7 @@ fn test_concurrent_context_string_variations() {
 }
 
 #[test]
-fn test_concurrent_aad_variations() {
+fn test_concurrent_aad_variations_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = Arc::new(AesGcm256::new(&*key).expect("cipher creation should succeed"));
     let success_count = Arc::new(AtomicUsize::new(0));
@@ -1767,7 +1740,7 @@ fn test_concurrent_aad_variations() {
                         if let Ok(decrypted) =
                             cipher.decrypt(&nonce, &ct, &tag, Some(aad.as_bytes()))
                         {
-                            if decrypted == plaintext.as_bytes() {
+                            if decrypted.as_slice() == plaintext.as_bytes() {
                                 success_count.fetch_add(1, Ordering::SeqCst);
                             }
                         }
@@ -1791,7 +1764,7 @@ fn test_concurrent_aad_variations() {
 }
 
 #[test]
-fn test_concurrent_hash_large_inputs() {
+fn test_concurrent_hash_large_inputs_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let handles: Vec<_> = (0..4)
@@ -1827,20 +1800,18 @@ fn test_concurrent_hash_large_inputs() {
 // ============================================================================
 
 #[test]
-fn test_comprehensive_concurrency_summary() {
+fn test_comprehensive_concurrency_summary_succeeds() {
     // This test provides a summary of all concurrency scenarios covered
-    let mut rng = OsRng;
 
     // 1. ML-KEM concurrent operations
-    let (pk_kem, _sk_kem) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (pk_kem, _sk_kem) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("ML-KEM keygen should succeed");
-    let (ss, _ct) =
-        MlKem::encapsulate(&mut rng, &pk_kem).expect("ML-KEM encapsulate should succeed");
+    let (ss, _ct) = MlKem::encapsulate(&pk_kem).expect("ML-KEM encapsulate should succeed");
     assert_eq!(ss.as_bytes().len(), 32);
 
     // 2. ML-DSA concurrent operations
     let (pk_dsa, sk_dsa) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA65).expect("ML-DSA keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65).expect("ML-DSA keygen should succeed");
     let sig = ml_dsa::sign(&sk_dsa, b"test", &[]).expect("ML-DSA sign should succeed");
     let valid = ml_dsa::verify(&pk_dsa, b"test", &sig, &[]).expect("ML-DSA verify should succeed");
     assert!(valid);
@@ -1851,7 +1822,7 @@ fn test_comprehensive_concurrency_summary() {
     let nonce = AesGcm256::generate_nonce();
     let (ct, tag) = cipher.encrypt(&nonce, b"test", None).expect("AES-GCM encrypt should succeed");
     let pt = cipher.decrypt(&nonce, &ct, &tag, None).expect("AES-GCM decrypt should succeed");
-    assert_eq!(pt, b"test");
+    assert_eq!(pt.as_slice(), b"test");
 
     // 4. ECDH concurrent operations
     let alice = X25519KeyPair::generate().expect("X25519 keygen should succeed");

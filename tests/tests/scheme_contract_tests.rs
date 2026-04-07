@@ -13,6 +13,7 @@
 
 #![allow(
     clippy::panic,
+    clippy::unreachable,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -63,6 +64,8 @@ fn expected_scheme_for_use_case(uc: UseCase) -> EncryptionScheme {
         | UseCase::HealthcareRecords
         | UseCase::GovernmentClassified
         | UseCase::PaymentCard => EncryptionScheme::HybridMlKem1024Aes256Gcm,
+
+        _ => unreachable!("unexpected UseCase variant"),
     }
 }
 
@@ -119,7 +122,7 @@ fn all_use_cases() -> Vec<UseCase> {
 // ============================================================================
 
 #[test]
-fn test_all_22_usecases_select_correct_hybrid_scheme() {
+fn test_all_22_usecases_select_correct_hybrid_scheme_succeeds() {
     let data = b"Contract test: UseCase -> Scheme selection";
     let use_cases = all_use_cases();
     assert_eq!(use_cases.len(), 22, "Must test all 22 UseCase variants");
@@ -152,14 +155,15 @@ fn test_all_22_usecases_select_correct_hybrid_scheme() {
 
         // THE KEY ASSERTIONS: scheme matches expected for this UseCase
         assert_eq!(
-            encrypted.scheme, expected,
+            encrypted.scheme(),
+            &expected,
             "UseCase::{uc:?} should select {expected}, got {}",
-            encrypted.scheme
+            encrypted.scheme()
         );
 
         // Structural validation
-        assert!(encrypted.hybrid_data.is_some(), "UseCase::{uc:?} must produce hybrid_data");
-        let hybrid = encrypted.hybrid_data.as_ref().unwrap();
+        assert!(encrypted.hybrid_data().is_some(), "UseCase::{uc:?} must produce hybrid_data");
+        let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
             hybrid.ml_kem_ciphertext.len(),
             ct_size,
@@ -190,7 +194,7 @@ fn test_all_22_usecases_select_correct_hybrid_scheme() {
 // ============================================================================
 
 #[test]
-fn test_all_4_security_levels_select_correct_scheme() {
+fn test_all_4_security_levels_select_correct_scheme_succeeds() {
     let data = b"Contract test: SecurityLevel -> Scheme selection";
 
     let cases: Vec<(SecurityLevel, EncryptionScheme)> = vec![
@@ -212,15 +216,16 @@ fn test_all_4_security_levels_select_correct_scheme() {
             .unwrap_or_else(|e| panic!("encrypt failed for {level:?}: {e}"));
 
         assert_eq!(
-            &encrypted.scheme, expected_scheme,
+            encrypted.scheme(),
+            expected_scheme,
             "SecurityLevel::{level:?} should select {expected_scheme}, got {}",
-            encrypted.scheme
+            encrypted.scheme()
         );
         assert!(
-            encrypted.hybrid_data.is_some(),
+            encrypted.hybrid_data().is_some(),
             "SecurityLevel::{level:?} must produce hybrid_data"
         );
-        let hybrid = encrypted.hybrid_data.as_ref().unwrap();
+        let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
             hybrid.ml_kem_ciphertext.len(),
             ct_size,
@@ -239,7 +244,7 @@ fn test_all_4_security_levels_select_correct_scheme() {
 // ============================================================================
 
 #[test]
-fn test_scheme_metadata_matches_ciphertext_structure() {
+fn test_scheme_metadata_matches_ciphertext_structure_succeeds() {
     let data = b"Contract test: scheme metadata vs ciphertext structure";
 
     let hybrid_schemes = [
@@ -257,6 +262,7 @@ fn test_scheme_metadata_matches_ciphertext_structure() {
             MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,
             MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
             MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+            _ => unreachable!("unexpected MlKemSecurityLevel variant"),
         };
 
         let config = CryptoConfig::new().security_level(security_level);
@@ -265,16 +271,19 @@ fn test_scheme_metadata_matches_ciphertext_structure() {
 
         // Verify scheme metadata
         assert_eq!(
-            encrypted.scheme.ml_kem_level(),
+            encrypted.scheme().ml_kem_level(),
             Some(*key_level),
             "Scheme {scheme} should report ML-KEM level {key_level:?}"
         );
 
         // Verify hybrid_data invariant
-        assert!(encrypted.scheme.requires_hybrid_key(), "Scheme {scheme} must require hybrid key");
-        assert!(encrypted.hybrid_data.is_some(), "Scheme {scheme} must have hybrid_data");
+        assert!(
+            encrypted.scheme().requires_hybrid_key(),
+            "Scheme {scheme} must require hybrid key"
+        );
+        assert!(encrypted.hybrid_data().is_some(), "Scheme {scheme} must have hybrid_data");
 
-        let hybrid = encrypted.hybrid_data.as_ref().unwrap();
+        let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
             hybrid.ml_kem_ciphertext.len(),
             *ct_size,
@@ -288,14 +297,15 @@ fn test_scheme_metadata_matches_ciphertext_structure() {
         );
 
         // Nonce and tag sizes
-        assert_eq!(encrypted.nonce.len(), 12, "Nonce must be 12 bytes");
-        assert_eq!(encrypted.tag.len(), 16, "Tag must be 16 bytes");
+        assert_eq!(encrypted.nonce().len(), 12, "Nonce must be 12 bytes");
+        assert_eq!(encrypted.tag().len(), 16, "Tag must be 16 bytes");
 
         // Decrypt roundtrip
         let security_level = match key_level {
             MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,
             MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
             MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+            _ => unreachable!("unexpected MlKemSecurityLevel variant"),
         };
         let config = CryptoConfig::new().security_level(security_level);
         let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), config)
@@ -309,7 +319,7 @@ fn test_scheme_metadata_matches_ciphertext_structure() {
 // ============================================================================
 
 #[test]
-fn test_key_level_mismatch_rejected() {
+fn test_key_level_mismatch_rejected_fails() {
     let data = b"Contract test: key level mismatch must fail";
 
     // Test all 6 mismatch combinations (3 scheme levels × 2 wrong key levels each)
@@ -347,7 +357,7 @@ fn test_key_level_mismatch_rejected() {
 // ============================================================================
 
 #[test]
-fn test_symmetric_scheme_roundtrip_with_metadata() {
+fn test_symmetric_scheme_roundtrip_with_metadata_roundtrip() {
     let data = b"Contract test: symmetric roundtrip with scheme assertion";
     let key = [0x42u8; 32];
 
@@ -356,13 +366,13 @@ fn test_symmetric_scheme_roundtrip_with_metadata() {
     let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
 
     assert_eq!(
-        encrypted.scheme,
-        EncryptionScheme::Aes256Gcm,
+        encrypted.scheme(),
+        &EncryptionScheme::Aes256Gcm,
         "force_scheme(Symmetric) must select AES-256-GCM"
     );
-    assert!(encrypted.hybrid_data.is_none(), "Symmetric scheme must not have hybrid_data");
-    assert!(!encrypted.scheme.requires_hybrid_key());
-    assert!(encrypted.scheme.requires_symmetric_key());
+    assert!(encrypted.hybrid_data().is_none(), "Symmetric scheme must not have hybrid_data");
+    assert!(!encrypted.scheme().requires_hybrid_key());
+    assert!(encrypted.scheme().requires_symmetric_key());
 
     let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
     assert_eq!(decrypted.as_slice(), data);
@@ -373,7 +383,7 @@ fn test_symmetric_scheme_roundtrip_with_metadata() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_encrypted_output_serialization_preserves_scheme() {
+fn test_hybrid_encrypted_output_serialization_preserves_scheme_succeeds() {
     let data = b"Contract test: serialization preserves scheme";
 
     let variants = [
@@ -398,17 +408,18 @@ fn test_hybrid_encrypted_output_serialization_preserves_scheme() {
 
         // Scheme preserved
         assert_eq!(
-            restored.scheme, original.scheme,
+            restored.scheme(),
+            original.scheme(),
             "Serialization must preserve scheme for {key_level:?}"
         );
 
         // Hybrid data preserved
         assert!(
-            restored.hybrid_data.is_some(),
+            restored.hybrid_data().is_some(),
             "Deserialized output must have hybrid_data for {key_level:?}"
         );
-        let orig_hybrid = original.hybrid_data.as_ref().unwrap();
-        let rest_hybrid = restored.hybrid_data.as_ref().unwrap();
+        let orig_hybrid = original.hybrid_data().unwrap();
+        let rest_hybrid = restored.hybrid_data().unwrap();
         assert_eq!(
             orig_hybrid.ml_kem_ciphertext, rest_hybrid.ml_kem_ciphertext,
             "ML-KEM ciphertext must survive serialization for {key_level:?}"
@@ -435,7 +446,7 @@ fn test_hybrid_encrypted_output_serialization_preserves_scheme() {
 // ============================================================================
 
 #[test]
-fn test_serialized_scheme_field_is_correct_string() {
+fn test_serialized_scheme_field_is_correct_string_succeeds() {
     let data = b"Contract test: JSON scheme field";
 
     // Test all scheme string representations via actual encryption
@@ -454,6 +465,7 @@ fn test_serialized_scheme_field_is_correct_string() {
             MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,
             MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
             MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+            _ => unreachable!("unexpected MlKemSecurityLevel variant"),
         };
 
         let config = CryptoConfig::new().security_level(security_level);

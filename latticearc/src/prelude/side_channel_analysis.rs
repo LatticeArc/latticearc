@@ -69,7 +69,7 @@ impl UtilityTimingAnalyzer {
     /// # Errors
     ///
     /// Returns an error if hex decoding fails during timing analysis.
-    pub fn test_hex_timing(&self) -> Result<Vec<SideChannelAssessment>> {
+    pub fn test_hex_timing_succeeds(&self) -> Result<Vec<SideChannelAssessment>> {
         let mut assessments = Vec::new();
 
         // Test different input sizes for timing variations
@@ -135,7 +135,7 @@ impl UtilityTimingAnalyzer {
     /// # Errors
     ///
     /// Returns an error if UUID timing analysis fails.
-    pub fn test_uuid_timing(&self) -> Result<Vec<SideChannelAssessment>> {
+    pub fn test_uuid_timing_succeeds(&self) -> Result<Vec<SideChannelAssessment>> {
         let mut assessments = Vec::new();
 
         let analysis = self.analyze_utility_timing(|| {
@@ -194,6 +194,7 @@ pub struct SideChannelAssessment {
 }
 
 /// Types of side-channel vulnerabilities.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum SideChannelType {
     /// Timing-based side-channel.
@@ -211,6 +212,7 @@ pub enum SideChannelType {
 }
 
 /// Severity levels for side-channel vulnerabilities.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Severity {
     /// Low severity - minimal security impact.
@@ -288,30 +290,30 @@ impl UtilitySideChannelTester {
         let mut assessments = Vec::new();
 
         // Test hex encoding/decoding timing
-        let hex_assessments = self.timing_analyzer.test_hex_timing()?;
+        let hex_assessments = self.timing_analyzer.test_hex_timing_succeeds()?;
         assessments.extend(hex_assessments);
 
         // Test UUID generation timing
-        let uuid_assessments = self.timing_analyzer.test_uuid_timing()?;
+        let uuid_assessments = self.timing_analyzer.test_uuid_timing_succeeds()?;
         assessments.extend(uuid_assessments);
 
         // Test domain constant access (should be constant time)
-        let domain_assessments = self.test_domain_access_timing()?;
+        let domain_assessments = self.test_domain_access_timing_succeeds()?;
         assessments.extend(domain_assessments);
 
         Ok(assessments)
     }
 
     /// Test domain constant access timing.
-    fn test_domain_access_timing(&self) -> Result<Vec<SideChannelAssessment>> {
+    fn test_domain_access_timing_succeeds(&self) -> Result<Vec<SideChannelAssessment>> {
         let mut assessments = Vec::new();
 
         // Test access to domain constants (should be constant time)
         let analysis = self.timing_analyzer.analyze_utility_timing(|| {
-            let _domain = crate::prelude::domains::HYBRID_KEM;
-            let _domain = crate::prelude::domains::CASCADE_OUTER;
-            let _domain = crate::prelude::domains::CASCADE_INNER;
-            let _domain = crate::prelude::domains::SIGNATURE_BIND;
+            let _domain = crate::types::domains::HYBRID_KEM;
+            let _domain = crate::types::domains::CASCADE_OUTER;
+            let _domain = crate::types::domains::CASCADE_INNER;
+            let _domain = crate::types::domains::SIGNATURE_BIND;
             Ok(())
         })?;
 
@@ -379,7 +381,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_timing_analyzer() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_timing_analyzer_produces_valid_statistics_succeeds()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
         let analyzer = UtilityTimingAnalyzer::new(10, 5);
 
         // Test with a simple operation
@@ -396,25 +399,28 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_timing_analysis() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_hex_timing_analysis_has_no_critical_issues_succeeds()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
         let analyzer = UtilityTimingAnalyzer::new(10, 5);
-        let assessments = analyzer.test_hex_timing()?;
+        let assessments = analyzer.test_hex_timing_succeeds()?;
         // Should not have critical issues
         assert!(assessments.iter().all(|a| a.severity != Severity::Critical));
         Ok(())
     }
 
     #[test]
-    fn test_uuid_timing_analysis() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_uuid_timing_analysis_has_no_critical_issues_succeeds()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
         let analyzer = UtilityTimingAnalyzer::new(10, 5);
-        let assessments = analyzer.test_uuid_timing()?;
+        let assessments = analyzer.test_uuid_timing_succeeds()?;
         // Should not have critical issues
         assert!(assessments.iter().all(|a| a.severity != Severity::Critical));
         Ok(())
     }
 
     #[test]
-    fn test_side_channel_tester() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_side_channel_tester_has_no_critical_vulnerabilities_succeeds()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
         let tester = UtilitySideChannelTester::new();
         let assessments = tester.run_analysis()?;
 

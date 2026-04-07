@@ -17,7 +17,6 @@ use latticearc::primitives::hash::sha256;
 use latticearc::primitives::kdf::hkdf;
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
-use rand::rngs::OsRng;
 
 fn main() {
     println!("=== LatticeArc Crypto Timing Benchmarks ===\n");
@@ -27,21 +26,20 @@ fn main() {
     // Note: Using full key exchange roundtrip for realistic timing measurements
     println!("--- ML-KEM-768 (aws-lc-rs FIPS) ---");
     let iterations = 1000;
-    let mut rng = OsRng;
 
     // Key generation
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
     }
     let keygen_time = start.elapsed() / iterations;
     println!("KeyGen:       {:?}", keygen_time);
 
     // Encapsulation (using public key from keygen)
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = MlKem::encapsulate(&mut rng, &pk);
+        let _ = MlKem::encapsulate(&pk);
     }
     let encaps_time = start.elapsed() / iterations;
     println!("Encapsulate:  {:?}", encaps_time);
@@ -53,7 +51,7 @@ fn main() {
     let start = Instant::now();
     for _ in 0..roundtrip_iterations {
         // This measures what a real key exchange would look like
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
     }
     let _roundtrip_keygen = start.elapsed() / roundtrip_iterations;
 
@@ -69,13 +67,13 @@ fn main() {
     // Key generation
     let start = Instant::now();
     for _ in 0..sign_iterations {
-        let _ = generate_keypair(MlDsaParameterSet::MLDSA65);
+        let _ = generate_keypair(MlDsaParameterSet::MlDsa65);
     }
     let dsa_keygen_time = start.elapsed() / sign_iterations;
     println!("KeyGen:       {:?}", dsa_keygen_time);
 
     // Sign
-    let (vk, dsa_sk) = generate_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+    let (vk, dsa_sk) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let msg = b"Test message for benchmark";
 
     let start = Instant::now();
@@ -127,7 +125,7 @@ fn main() {
 
     // Verify correctness
     let decrypted = cipher.decrypt(&nonce, &ciphertext_aead, &tag, None).unwrap();
-    assert_eq!(plaintext, decrypted);
+    assert_eq!(plaintext.as_slice(), decrypted.as_slice());
     println!("(Verified: decryption matches)\n");
 
     // SHA-256 Benchmarks

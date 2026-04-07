@@ -63,7 +63,7 @@ mod run_ml_kem_kats_tests {
     use super::*;
 
     #[test]
-    fn test_run_ml_kem_kats_returns_results() {
+    fn test_run_ml_kem_kats_returns_results_matches_expected() {
         let results = run_ml_kem_kats();
         assert!(results.is_ok(), "run_ml_kem_kats should not return an error");
 
@@ -72,7 +72,7 @@ mod run_ml_kem_kats_tests {
     }
 
     #[test]
-    fn test_ml_kem_kat_result_fields() {
+    fn test_ml_kem_kat_result_fields_matches_expected() {
         let results = run_ml_kem_kats().unwrap();
 
         for result in &results {
@@ -96,7 +96,7 @@ mod run_ml_kem_kats_tests {
     }
 
     #[test]
-    fn test_ml_kem_vectors_loaded_correctly() {
+    fn test_ml_kem_vectors_loaded_correctly_matches_expected() {
         let vectors = load_ml_kem_1024_kats();
         assert!(vectors.is_ok(), "Should be able to load ML-KEM vectors");
 
@@ -137,7 +137,7 @@ mod run_hybrid_kem_kats_tests {
     use std::panic;
 
     #[test]
-    fn test_hybrid_kem_loader_panics_on_malformed_data() {
+    fn test_hybrid_kem_loader_panics_on_malformed_data_succeeds() {
         // The load_hybrid_kem_kats function uses unwrap() internally on malformed hex,
         // which causes a panic. This test documents that behavior.
         let result = panic::catch_unwind(|| load_hybrid_kem_kats());
@@ -160,7 +160,7 @@ mod run_hybrid_kem_kats_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_runner_handles_loader_panic() {
+    fn test_hybrid_kem_runner_handles_loader_panic_succeeds() {
         // The runner calls load_hybrid_kem_kats which may panic
         let result = panic::catch_unwind(|| run_hybrid_kem_kats());
 
@@ -192,7 +192,7 @@ mod run_sha3_kats_tests {
     use sha3::{Digest, Sha3_256};
 
     #[test]
-    fn test_run_sha3_kats_returns_results() {
+    fn test_run_sha3_kats_returns_results_matches_expected() {
         let results = run_sha3_kats();
         assert!(results.is_ok(), "run_sha3_kats should not return an error");
 
@@ -201,7 +201,7 @@ mod run_sha3_kats_tests {
     }
 
     #[test]
-    fn test_sha3_vectors_loaded_correctly() {
+    fn test_sha3_vectors_loaded_correctly_matches_expected() {
         let vectors = load_sha3_kats();
         assert!(vectors.is_ok(), "Should be able to load SHA-3 vectors");
 
@@ -218,7 +218,7 @@ mod run_sha3_kats_tests {
     }
 
     #[test]
-    fn test_sha3_empty_message() {
+    fn test_sha3_empty_message_matches_expected() {
         let vectors = load_sha3_kats().unwrap();
 
         // Find the empty message test vector
@@ -236,7 +236,7 @@ mod run_sha3_kats_tests {
     }
 
     #[test]
-    fn test_sha3_abc_message() {
+    fn test_sha3_abc_message_matches_expected() {
         let vectors = load_sha3_kats().unwrap();
 
         // Find the "abc" message test vector
@@ -262,7 +262,7 @@ mod run_ml_dsa_kats_tests {
     use super::*;
 
     #[test]
-    fn test_ml_dsa_loader_result() {
+    fn test_ml_dsa_loader_result_succeeds() {
         let vectors = load_ml_dsa_kats();
         // The loader may return Ok or Err depending on hex data validity
         // This test documents the behavior
@@ -284,7 +284,7 @@ mod run_ml_dsa_kats_tests {
     }
 
     #[test]
-    fn test_ml_dsa_runner_handles_loader_result() {
+    fn test_ml_dsa_runner_handles_loader_result_succeeds() {
         let result = run_ml_dsa_kats();
         // Document the runner behavior
         match result {
@@ -312,7 +312,7 @@ mod run_slh_dsa_kats_tests {
     use super::*;
 
     #[test]
-    fn test_slh_dsa_loader_result() {
+    fn test_slh_dsa_loader_result_succeeds() {
         let vectors = load_slh_dsa_kats();
         match vectors {
             Ok(vecs) => {
@@ -332,7 +332,7 @@ mod run_slh_dsa_kats_tests {
     }
 
     #[test]
-    fn test_slh_dsa_runner_handles_loader_result() {
+    fn test_slh_dsa_runner_handles_loader_result_succeeds() {
         let result = run_slh_dsa_kats();
         match result {
             Ok(results) => {
@@ -360,7 +360,7 @@ mod kat_result_tests {
     use super::*;
 
     #[test]
-    fn test_kat_result_passed_constructor() {
+    fn test_kat_result_passed_constructor_executes_correctly_matches_expected() {
         let duration = Duration::from_millis(100);
         let result = KatResult::passed("TEST-001".to_string(), duration);
 
@@ -371,7 +371,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_failed_constructor() {
+    fn test_kat_result_failed_constructor_executes_correctly_matches_expected() {
         let duration = Duration::from_millis(50);
         let result =
             KatResult::failed("TEST-002".to_string(), duration, "Validation mismatch".to_string());
@@ -383,7 +383,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_serialization() {
+    fn test_kat_result_serialization_executes_correctly_matches_expected() {
         let duration = Duration::from_millis(75);
         let result = KatResult::passed("SERIALIZE-TEST".to_string(), duration);
 
@@ -405,7 +405,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_equality() {
+    fn test_kat_result_equality_matches_expected() {
         let duration = Duration::from_millis(100);
         let result1 = KatResult::passed("TEST-EQ".to_string(), duration);
         let result2 = KatResult::passed("TEST-EQ".to_string(), duration);
@@ -414,7 +414,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_clone() {
+    fn test_kat_result_clone_matches_expected() {
         let duration = Duration::from_millis(100);
         let result = KatResult::passed("TEST-CLONE".to_string(), duration);
         let cloned = result.clone();
@@ -431,7 +431,7 @@ mod kat_config_tests {
     use super::*;
 
     #[test]
-    fn test_kat_config_default() {
+    fn test_kat_config_default_matches_expected() {
         let config = KatConfig::default();
 
         assert_eq!(config.test_count, 100);
@@ -441,7 +441,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_ml_kem() {
+    fn test_kat_config_ml_kem_matches_expected() {
         let config = KatConfig::ml_kem("768", 50);
 
         match config.algorithm {
@@ -454,7 +454,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_ml_dsa() {
+    fn test_kat_config_ml_dsa_matches_expected() {
         let config = KatConfig::ml_dsa("44", 25);
 
         match config.algorithm {
@@ -467,7 +467,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_slh_dsa() {
+    fn test_kat_config_slh_dsa_matches_expected() {
         let config = KatConfig::slh_dsa("128", 10);
 
         match config.algorithm {
@@ -482,7 +482,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_serialization() {
+    fn test_kat_config_serialization_executes_correctly_matches_expected() {
         let config = KatConfig::ml_kem("1024", 100);
 
         let json = serde_json::to_string(&config);
@@ -502,7 +502,7 @@ mod algorithm_type_tests {
     use super::*;
 
     #[test]
-    fn test_algorithm_type_name() {
+    fn test_algorithm_type_name_matches_expected() {
         let ml_kem = AlgorithmType::MlKem { variant: "1024".to_string() };
         assert_eq!(ml_kem.name(), "ML-KEM-1024");
 
@@ -526,7 +526,7 @@ mod algorithm_type_tests {
     }
 
     #[test]
-    fn test_algorithm_type_security_level() {
+    fn test_algorithm_type_security_level_matches_expected() {
         let ml_kem_512 = AlgorithmType::MlKem { variant: "512".to_string() };
         assert_eq!(ml_kem_512.security_level(), 128);
 
@@ -547,7 +547,7 @@ mod algorithm_type_tests {
     }
 
     #[test]
-    fn test_algorithm_type_serialization() {
+    fn test_algorithm_type_serialization_executes_correctly_succeeds() {
         let algo = AlgorithmType::MlKem { variant: "768".to_string() };
 
         let json = serde_json::to_string(&algo);
@@ -614,7 +614,7 @@ mod mock_vector_tests {
     }
 
     #[test]
-    fn test_mock_ml_kem_vector_creation() {
+    fn test_mock_ml_kem_vector_creation_succeeds() {
         let vector = create_mock_ml_kem_vector("MOCK-TEST-001", 64, 1568, 3168, 1568, 32);
 
         assert_eq!(vector.test_case, "MOCK-TEST-001");
@@ -626,7 +626,7 @@ mod mock_vector_tests {
     }
 
     #[test]
-    fn test_mock_aes_128_vector() {
+    fn test_mock_aes_128_vector_matches_expected() {
         let vector = create_mock_aes_gcm_vector("MOCK-AES-128", 16, 12);
 
         assert_eq!(vector.key.len(), 16);
@@ -634,7 +634,7 @@ mod mock_vector_tests {
     }
 
     #[test]
-    fn test_mock_aes_256_vector() {
+    fn test_mock_aes_256_vector_matches_expected() {
         let vector = create_mock_aes_gcm_vector("MOCK-AES-256", 32, 12);
 
         assert_eq!(vector.key.len(), 32);
@@ -642,7 +642,7 @@ mod mock_vector_tests {
     }
 
     #[test]
-    fn test_mock_sha3_vector_validation() {
+    fn test_mock_sha3_vector_validation_matches_expected() {
         use sha3::{Digest, Sha3_256};
 
         let message = b"test message";
@@ -654,7 +654,7 @@ mod mock_vector_tests {
     }
 
     #[test]
-    fn test_mock_vector_serialization() {
+    fn test_mock_vector_serialization_executes_correctly_matches_expected() {
         let vector = create_mock_ml_kem_vector("SERIALIZE-TEST", 64, 1568, 3168, 1568, 32);
 
         let json = serde_json::to_string(&vector);
@@ -673,7 +673,7 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_invalid_ed25519_vector_small_seed() {
+    fn test_invalid_ed25519_vector_small_seed_fails() {
         let vector = Ed25519KatVector {
             test_case: "INVALID-SEED".to_string(),
             seed: vec![0x00; 16], // Too small (should be 32 bytes)
@@ -691,7 +691,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_invalid_ed25519_vector_small_pubkey() {
+    fn test_invalid_ed25519_vector_small_pubkey_fails() {
         let vector = Ed25519KatVector {
             test_case: "INVALID-PUBKEY".to_string(),
             seed: vec![0x00; 32],
@@ -708,7 +708,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_invalid_ed25519_vector_small_signature() {
+    fn test_invalid_ed25519_vector_small_signature_fails() {
         let vector = Ed25519KatVector {
             test_case: "INVALID-SIG".to_string(),
             seed: vec![0x00; 32],
@@ -725,7 +725,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_ed25519_validation_with_valid_sizes() {
+    fn test_ed25519_validation_with_valid_sizes_succeeds() {
         let vector = Ed25519KatVector {
             test_case: "VALID-SIZES".to_string(),
             seed: vec![0x00; 32],
@@ -752,7 +752,7 @@ mod performance_tests {
     use std::time::Instant;
 
     #[test]
-    fn test_ml_kem_performance() {
+    fn test_ml_kem_performance_executes_correctly_succeeds() {
         let start = Instant::now();
         let results = run_ml_kem_kats().unwrap();
         let duration = start.elapsed();
@@ -767,7 +767,7 @@ mod performance_tests {
     }
 
     #[test]
-    fn test_sha3_performance() {
+    fn test_sha3_performance_executes_correctly_succeeds() {
         let start = Instant::now();
         let results = run_sha3_kats().unwrap();
         let duration = start.elapsed();
@@ -790,7 +790,7 @@ mod data_integrity_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_vector_immutability() {
+    fn test_ml_kem_vector_immutability_matches_expected() {
         let vectors1 = load_ml_kem_1024_kats().unwrap();
         let vectors2 = load_ml_kem_1024_kats().unwrap();
 
@@ -840,7 +840,7 @@ mod boundary_tests {
     use super::*;
 
     #[test]
-    fn test_empty_message_handling() {
+    fn test_empty_message_handling_succeeds() {
         let vectors = load_sha3_kats().unwrap();
 
         // Check if empty message is handled
@@ -849,7 +849,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_maximum_message_sizes() {
+    fn test_maximum_message_sizes_matches_expected() {
         let sha3_vectors = load_sha3_kats().unwrap();
         let max_message_len = sha3_vectors.iter().map(|v| v.message.len()).max().unwrap_or(0);
 
@@ -857,7 +857,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_ml_kem_seed_sizes() {
+    fn test_ml_kem_seed_sizes_matches_expected() {
         let vectors = load_ml_kem_1024_kats().unwrap();
 
         for vector in &vectors {
@@ -871,7 +871,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_zero_execution_time_not_possible() {
+    fn test_zero_execution_time_not_possible_succeeds() {
         // Execution time should never be exactly zero
         let results = run_ml_kem_kats().unwrap();
         for result in &results {
@@ -892,7 +892,7 @@ mod result_collection_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_result_collection() {
+    fn test_ml_kem_result_collection_executes_correctly_succeeds() {
         let results = run_ml_kem_kats().unwrap();
 
         let passed_count = results.iter().filter(|r| r.passed).count();
@@ -908,7 +908,7 @@ mod result_collection_tests {
     }
 
     #[test]
-    fn test_sha3_result_collection() {
+    fn test_sha3_result_collection_executes_correctly_succeeds() {
         let results = run_sha3_kats().unwrap();
 
         let passed_count = results.iter().filter(|r| r.passed).count();
@@ -923,7 +923,7 @@ mod result_collection_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_result_collection() {
+    fn test_hybrid_kem_result_collection_executes_correctly_succeeds() {
         use std::panic;
 
         // The runner may panic due to malformed hex in the loader

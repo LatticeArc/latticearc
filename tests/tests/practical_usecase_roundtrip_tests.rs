@@ -38,6 +38,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
+#![allow(clippy::unreachable)]
 #![allow(clippy::indexing_slicing)]
 #![allow(missing_docs)]
 use std::convert::TryInto;
@@ -47,7 +48,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
-use latticearc::hybrid::kem::HybridPublicKey;
+use latticearc::hybrid::HybridKemPublicKey;
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 use latticearc::{
     ComplianceMode, CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, EncryptedOutput,
@@ -95,6 +96,7 @@ fn reader_decrypt_from_file(file_path: &Path, key: &[u8; 32]) -> Vec<u8> {
     let output: EncryptedOutput = deserialized.try_into().expect("scheme should be valid");
     decrypt(&output, DecryptKey::Symmetric(key), CryptoConfig::new())
         .expect("reader: decrypt failed")
+        .to_vec()
 }
 
 /// Full process-isolated round-trip: writer encrypts to file, reader decrypts from file.
@@ -144,31 +146,31 @@ struct SerializableHybridEncrypted {
 impl SerializableHybridEncrypted {
     fn from_encrypted_output(output: &EncryptedOutput) -> Self {
         use base64::{Engine, engine::general_purpose::STANDARD};
-        let hybrid = output.hybrid_data.as_ref().expect("hybrid_data must be present");
+        let hybrid = output.hybrid_data().expect("hybrid_data must be present");
         Self {
             kem_ciphertext: STANDARD.encode(&hybrid.ml_kem_ciphertext),
             ecdh_ephemeral_pk: STANDARD.encode(&hybrid.ecdh_ephemeral_pk),
-            symmetric_ciphertext: STANDARD.encode(&output.ciphertext),
-            nonce: STANDARD.encode(&output.nonce),
-            tag: STANDARD.encode(&output.tag),
+            symmetric_ciphertext: STANDARD.encode(output.ciphertext()),
+            nonce: STANDARD.encode(output.nonce()),
+            tag: STANDARD.encode(output.tag()),
         }
     }
 
     fn to_encrypted_output(&self) -> EncryptedOutput {
         use base64::{Engine, engine::general_purpose::STANDARD};
         use latticearc::EncryptionScheme;
-        EncryptedOutput {
-            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
-            ciphertext: STANDARD.decode(&self.symmetric_ciphertext).unwrap(),
-            nonce: STANDARD.decode(&self.nonce).unwrap(),
-            tag: STANDARD.decode(&self.tag).unwrap(),
-            hybrid_data: Some(HybridComponents {
+        EncryptedOutput::new(
+            EncryptionScheme::HybridMlKem768Aes256Gcm,
+            STANDARD.decode(&self.symmetric_ciphertext).unwrap(),
+            STANDARD.decode(&self.nonce).unwrap(),
+            STANDARD.decode(&self.tag).unwrap(),
+            Some(HybridComponents {
                 ml_kem_ciphertext: STANDARD.decode(&self.kem_ciphertext).unwrap(),
                 ecdh_ephemeral_pk: STANDARD.decode(&self.ecdh_ephemeral_pk).unwrap(),
             }),
-            timestamp: chrono::Utc::now().timestamp().unsigned_abs(),
-            key_id: None,
-        }
+            chrono::Utc::now().timestamp().unsigned_abs(),
+            None,
+        )
     }
 }
 
@@ -329,7 +331,7 @@ fn usecase_audit_log_roundtrip() {
 // --- FIPS-Requiring Use Cases (test that they correctly require FIPS feature) ---
 
 #[test]
-fn usecase_financial_transactions_requires_fips() {
+fn usecase_financial_transactions_requires_fips_succeeds() {
     let key = [0x15u8; 32];
     let msg = b"WIRE: $1,000,000 to account 123456789";
     let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
@@ -346,7 +348,7 @@ fn usecase_financial_transactions_requires_fips() {
 }
 
 #[test]
-fn usecase_healthcare_records_requires_fips() {
+fn usecase_healthcare_records_requires_fips_succeeds() {
     let key = [0x16u8; 32];
     let msg = b"Patient: Jane Doe, MRN: 12345, Diagnosis: ...";
     let config = CryptoConfig::new().use_case(UseCase::HealthcareRecords);
@@ -360,7 +362,7 @@ fn usecase_healthcare_records_requires_fips() {
 }
 
 #[test]
-fn usecase_government_classified_requires_fips() {
+fn usecase_government_classified_requires_fips_succeeds() {
     let key = [0x17u8; 32];
     let msg = b"TOP SECRET: Operation details...";
     let config = CryptoConfig::new().use_case(UseCase::GovernmentClassified);
@@ -374,7 +376,7 @@ fn usecase_government_classified_requires_fips() {
 }
 
 #[test]
-fn usecase_payment_card_requires_fips() {
+fn usecase_payment_card_requires_fips_succeeds() {
     let key = [0x18u8; 32];
     let msg = b"PAN: 4111-1111-1111-1111, CVV: 123, Exp: 12/28";
     let config = CryptoConfig::new().use_case(UseCase::PaymentCard);
@@ -432,7 +434,7 @@ fn security_level_quantum_roundtrip() {
 }
 
 #[test]
-fn security_level_default_is_high() {
+fn security_level_default_is_high_verified() {
     let key = [0x23u8; 32];
     let msg = b"Default config should use High security level";
     // CryptoConfig::new() defaults to High
@@ -457,8 +459,8 @@ fn security_mode_unverified_roundtrip() {
 #[test]
 fn security_mode_verified_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session =
-        VerifiedSession::establish(&pk, sk.as_ref()).expect("session establishment failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())
+        .expect("session establishment failed");
 
     let key = [0x31u8; 32];
     let msg = b"AES-GCM with Verified security mode (Zero Trust session)";
@@ -473,8 +475,8 @@ fn security_mode_verified_roundtrip() {
 #[test]
 fn security_mode_verified_unified_api_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session =
-        VerifiedSession::establish(&pk, sk.as_ref()).expect("session establishment failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())
+        .expect("session establishment failed");
 
     let key = [0x32u8; 32];
     let msg = b"Unified API with verified session through file";
@@ -500,8 +502,8 @@ fn security_mode_verified_unified_api_roundtrip() {
 #[test]
 fn security_mode_verified_hybrid_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session =
-        VerifiedSession::establish(&pk, sk.as_ref()).expect("session establishment failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())
+        .expect("session establishment failed");
 
     let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair().expect("hybrid keygen failed");
     let msg = b"Hybrid encryption with verified session";
@@ -522,7 +524,7 @@ fn security_mode_verified_hybrid_roundtrip() {
 /// Scenario: Encrypt a file at rest, store it, retrieve and decrypt later.
 /// Writer (backup process) and reader (restore process) are fully isolated.
 #[test]
-fn scenario_file_encryption_at_rest() {
+fn scenario_file_encryption_at_rest_succeeds() {
     let key = [0x40u8; 32];
     let file_content = b"This is a sensitive document.\nPage 1 of 50.\nConfidential.";
 
@@ -553,7 +555,7 @@ fn scenario_file_encryption_at_rest() {
 
 /// Scenario: Database column encryption (multiple fields, same key)
 #[test]
-fn scenario_database_column_encryption() {
+fn scenario_database_column_encryption_succeeds() {
     let key = [0x41u8; 32];
 
     #[derive(Serialize, Deserialize)]
@@ -620,7 +622,7 @@ fn scenario_database_column_encryption() {
         .expect("scheme should be valid");
     let ssn_plain = decrypt(&ssn_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
         .expect("decrypt ssn");
-    assert_eq!(String::from_utf8(ssn_plain).unwrap(), "987-65-4321");
+    assert_eq!(String::from_utf8(ssn_plain.to_vec()).unwrap(), "987-65-4321");
 
     // Decrypt all names
     for (i, row) in loaded_rows.iter().enumerate() {
@@ -630,13 +632,13 @@ fn scenario_database_column_encryption() {
             .expect("scheme should be valid");
         let name_plain = decrypt(&name_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .expect("decrypt");
-        assert_eq!(String::from_utf8(name_plain).unwrap(), rows[i].0);
+        assert_eq!(String::from_utf8(name_plain.to_vec()).unwrap(), rows[i].0);
     }
 }
 
 /// Scenario: Sign a financial transaction document and persist
 #[test]
-fn scenario_signed_transaction() {
+fn scenario_signed_transaction_succeeds() {
     let transaction = br#"{
         "from": "account_001",
         "to": "account_002",
@@ -672,7 +674,7 @@ fn scenario_signed_transaction() {
 
 /// Scenario: IoT device sends encrypted sensor readings
 #[test]
-fn scenario_iot_sensor_data() {
+fn scenario_iot_sensor_data_succeeds() {
     let device_key = [0x43u8; 32];
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -741,7 +743,7 @@ fn scenario_iot_sensor_data() {
 /// Manufacturer (signer) and device (verifier) are completely independent processes.
 /// Device only has: the signed firmware file + manufacturer's public key.
 #[test]
-fn scenario_firmware_update_signing() {
+fn scenario_firmware_update_signing_succeeds() {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let firmware: Vec<u8> = (0..512).map(|i: i32| (i % 256) as u8).collect();
 
@@ -792,32 +794,33 @@ struct SerializableHybridPublicKey {
 }
 
 impl SerializableHybridPublicKey {
-    fn from_key(pk: &HybridPublicKey) -> Self {
+    fn from_key(pk: &HybridKemPublicKey) -> Self {
         use base64::{Engine, engine::general_purpose::STANDARD};
-        let level_byte = match pk.security_level {
+        let level_byte = match pk.security_level() {
             MlKemSecurityLevel::MlKem512 => 0,
             MlKemSecurityLevel::MlKem768 => 1,
             MlKemSecurityLevel::MlKem1024 => 2,
+            _ => unreachable!("unexpected MlKemSecurityLevel variant"),
         };
         Self {
-            ml_kem_pk: STANDARD.encode(&pk.ml_kem_pk),
-            ecdh_pk: STANDARD.encode(&pk.ecdh_pk),
+            ml_kem_pk: STANDARD.encode(pk.ml_kem_pk()),
+            ecdh_pk: STANDARD.encode(pk.ecdh_pk()),
             security_level: level_byte,
         }
     }
 
-    fn to_key(&self) -> HybridPublicKey {
+    fn to_key(&self) -> HybridKemPublicKey {
         use base64::{Engine, engine::general_purpose::STANDARD};
         let level = match self.security_level {
             0 => MlKemSecurityLevel::MlKem512,
             2 => MlKemSecurityLevel::MlKem1024,
             _ => MlKemSecurityLevel::MlKem768,
         };
-        HybridPublicKey {
-            ml_kem_pk: STANDARD.decode(&self.ml_kem_pk).unwrap(),
-            ecdh_pk: STANDARD.decode(&self.ecdh_pk).unwrap(),
-            security_level: level,
-        }
+        HybridKemPublicKey::new(
+            STANDARD.decode(&self.ml_kem_pk).unwrap(),
+            STANDARD.decode(&self.ecdh_pk).unwrap(),
+            level,
+        )
     }
 }
 
@@ -831,7 +834,7 @@ impl SerializableHybridPublicKey {
 /// BOB'S DEVICE:   read ciphertext.json → decrypt with private key → plaintext
 /// ```
 #[test]
-fn e2e_secure_messaging_alice_to_bob() {
+fn e2e_secure_messaging_alice_to_bob_succeeds() {
     let original_message = b"Hi Bob, the quarterly security audit passed. All clear.";
 
     // ── BOB'S DEVICE: Generate keypair, publish public key to file ──
@@ -897,7 +900,7 @@ fn e2e_secure_messaging_alice_to_bob() {
 ///   Alice: read msg2.json → decrypt with alice_sk → assert correct
 /// ```
 #[test]
-fn e2e_bidirectional_secure_channel() {
+fn e2e_bidirectional_secure_channel_succeeds() {
     // ── SETUP: Both parties generate keypairs and publish public keys ──
     let (alice_sk, alice_pubkey_path) = {
         let (pk, sk) = generate_hybrid_keypair().expect("alice keygen");
@@ -1032,7 +1035,7 @@ fn e2e_wrong_recipient_key_rejected() {
 /// (confidentiality). Bob decrypts, then verifies the signature.
 /// All key exchange and data transfer happens via files.
 #[test]
-fn e2e_sign_then_encrypt_full_channel() {
+fn e2e_sign_then_encrypt_full_channel_succeeds() {
     let message = b"Transfer $50,000 to account 9876543210. Authorization code: ALPHA-7.";
 
     // ── SETUP: Both parties generate encryption + signing keypairs ──
@@ -1121,7 +1124,7 @@ fn e2e_sign_then_encrypt_full_channel() {
 
 /// Scenario: Encrypted audit log (append-only pattern)
 #[test]
-fn scenario_encrypted_audit_log() {
+fn scenario_encrypted_audit_log_succeeds() {
     let log_key = [0x45u8; 32];
     let config = CryptoConfig::new().use_case(UseCase::AuditLog);
 
@@ -1161,13 +1164,13 @@ fn scenario_encrypted_audit_log() {
             .expect("scheme should be valid");
         let decrypted = decrypt(&output, DecryptKey::Symmetric(&log_key), CryptoConfig::new())
             .expect("decrypt");
-        assert_eq!(String::from_utf8(decrypted).unwrap(), log_entries[i]);
+        assert_eq!(String::from_utf8(decrypted.to_vec()).unwrap(), log_entries[i]);
     }
 }
 
 /// Scenario: Config/secrets vault (encrypted key-value store)
 #[test]
-fn scenario_config_secrets_vault() {
+fn scenario_config_secrets_vault_succeeds() {
     let vault_key = [0x46u8; 32];
     let config = CryptoConfig::new().use_case(UseCase::ConfigSecrets);
 
@@ -1223,12 +1226,12 @@ fn scenario_config_secrets_vault() {
     let decrypted =
         decrypt(&output, DecryptKey::Symmetric(&vault_key), CryptoConfig::new()).expect("decrypt");
 
-    assert_eq!(String::from_utf8(decrypted).unwrap(), "test_api_key_not_real_abc123xyz");
+    assert_eq!(String::from_utf8(decrypted.to_vec()).unwrap(), "test_api_key_not_real_abc123xyz");
 }
 
 /// Scenario: Key rotation — old ciphertexts remain decryptable with old key
 #[test]
-fn scenario_key_rotation() {
+fn scenario_key_rotation_succeeds() {
     let old_key = [0x47u8; 32];
     let new_key = [0x48u8; 32];
 
@@ -1296,7 +1299,7 @@ fn scenario_key_rotation() {
 
 /// Scenario: Multi-party document signing (multiple signatures on same document)
 #[test]
-fn scenario_multi_party_signing() {
+fn scenario_multi_party_signing_succeeds() {
     let document = b"AGREEMENT: All parties agree to the terms described herein.";
 
     // Party A signs
@@ -1351,7 +1354,7 @@ fn scenario_multi_party_signing() {
 
 /// Scenario: Encrypted backup with integrity verification
 #[test]
-fn scenario_encrypted_backup_with_hmac() {
+fn scenario_encrypted_backup_with_hmac_succeeds() {
     let encryption_key = [0x49u8; 32];
     let hmac_key = [0x4Au8; 32];
 
@@ -1410,7 +1413,7 @@ fn scenario_encrypted_backup_with_hmac() {
 
 /// Scenario: Session token encrypted with derived key
 #[test]
-fn scenario_session_token_with_derived_key() {
+fn scenario_session_token_with_derived_key_succeeds() {
     let master_key = [0x4Bu8; 32];
     let salt = b"session-key-derivation-salt-2026";
 
@@ -1446,7 +1449,7 @@ fn scenario_session_token_with_derived_key() {
 
     let decrypted = decrypt(&restored, DecryptKey::Symmetric(&re_key), CryptoConfig::new())
         .expect("decrypt token");
-    let token_str = String::from_utf8(decrypted).unwrap();
+    let token_str = String::from_utf8(decrypted.to_vec()).unwrap();
     let token: serde_json::Value = serde_json::from_str(&token_str).unwrap();
 
     assert_eq!(token["user_id"], 42);
@@ -1455,21 +1458,20 @@ fn scenario_session_token_with_derived_key() {
 
 /// Scenario: Cloud storage with metadata for key management
 #[test]
-fn scenario_cloud_storage_with_key_metadata() {
+fn scenario_cloud_storage_with_key_metadata_succeeds() {
     let key = [0x4Cu8; 32];
     let config = CryptoConfig::new().use_case(UseCase::CloudStorage);
 
     let object_content = b"Cloud object: quarterly_report_2026_Q1.xlsx (binary)";
 
-    let mut encrypted_output = encrypt(
+    let encrypted_output = encrypt(
         object_content,
         EncryptKey::Symmetric(&key),
         config.force_scheme(CryptoScheme::Symmetric),
     )
-    .expect("encrypt");
-
+    .expect("encrypt")
     // Tag with key management metadata
-    encrypted_output.key_id = Some("arn:aws:kms:us-east-1:123456789:key/mrk-abc123".to_string());
+    .with_key_id(Some("arn:aws:kms:us-east-1:123456789:key/mrk-abc123".to_string()));
 
     let encrypted_data: latticearc::EncryptedData = encrypted_output.into();
     let json = serialize_encrypted_data(&encrypted_data).expect("serialize");
@@ -1503,7 +1505,7 @@ fn scenario_cloud_storage_with_key_metadata() {
 /// write to file, read back, decrypt with session — process-isolated.
 fn verified_session_usecase_roundtrip(use_case: UseCase) {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
     let key = [0x50u8; 32];
     let msg = format!("VerifiedSession + UseCase::{use_case:?}");
 
@@ -1532,7 +1534,7 @@ fn verified_session_usecase_roundtrip(use_case: UseCase) {
 /// write to file, read back, decrypt with session — process-isolated.
 fn verified_session_security_level_roundtrip(level: SecurityLevel) {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
     let key = [0x51u8; 32];
     let msg = format!("VerifiedSession + SecurityLevel::{level:?}");
 
@@ -1615,7 +1617,7 @@ fn verified_session_security_level_quantum_roundtrip() {
 #[test]
 fn aad_with_verified_session_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
 
     let key = [0x60u8; 32];
     let msg = b"AAD-bound payload under Verified session";
@@ -1632,7 +1634,7 @@ fn aad_with_verified_session_roundtrip() {
 #[test]
 fn aad_with_verified_session_wrong_aad_rejected() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
 
     let key = [0x61u8; 32];
     let msg = b"AAD mismatch test";
@@ -1650,7 +1652,7 @@ fn aad_with_verified_session_wrong_aad_rejected() {
 #[test]
 fn aad_with_verified_session_empty_aad_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(&pk, sk.as_ref()).expect("session failed");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
 
     let key = [0x62u8; 32];
     let msg = b"Empty AAD is a valid bound context";
@@ -1775,6 +1777,8 @@ fn expected_scheme_for_use_case(uc: UseCase) -> EncryptionScheme {
         | UseCase::HealthcareRecords
         | UseCase::GovernmentClassified
         | UseCase::PaymentCard => EncryptionScheme::HybridMlKem1024Aes256Gcm,
+
+        _ => unreachable!("unexpected UseCase variant"),
     }
 }
 
@@ -1801,33 +1805,34 @@ fn process_isolated_hybrid_scheme_check(use_case: UseCase, expected: EncryptionS
     let deserialized = deserialize_encrypted_output(&json_read)
         .unwrap_or_else(|e| panic!("deserialize failed for {use_case:?}: {e}"));
     assert_eq!(
-        deserialized.scheme, expected,
+        deserialized.scheme(),
+        &expected,
         "UseCase::{use_case:?} scheme mismatch after file roundtrip: got {}",
-        deserialized.scheme
+        deserialized.scheme()
     );
     let _ = std::fs::remove_file(&path);
 }
 
 #[test]
-fn scheme_verified_iot_device() {
+fn scheme_verified_iot_device_succeeds() {
     let expected = expected_scheme_for_use_case(UseCase::IoTDevice);
     process_isolated_hybrid_scheme_check(UseCase::IoTDevice, expected);
 }
 
 #[test]
-fn scheme_verified_secure_messaging() {
+fn scheme_verified_secure_messaging_succeeds() {
     let expected = expected_scheme_for_use_case(UseCase::SecureMessaging);
     process_isolated_hybrid_scheme_check(UseCase::SecureMessaging, expected);
 }
 
 #[test]
-fn scheme_verified_file_storage() {
+fn scheme_verified_file_storage_succeeds() {
     let expected = expected_scheme_for_use_case(UseCase::FileStorage);
     process_isolated_hybrid_scheme_check(UseCase::FileStorage, expected);
 }
 
 #[test]
-fn scheme_verified_security_level_standard() {
+fn scheme_verified_security_level_standard_succeeds() {
     // SecurityLevel::Standard → ML-KEM-512
     let expected = EncryptionScheme::HybridMlKem512Aes256Gcm;
     let level = MlKemSecurityLevel::MlKem512;
@@ -1843,7 +1848,8 @@ fn scheme_verified_security_level_standard() {
     let json_read = std::fs::read_to_string(&path).expect("read");
     let deserialized = deserialize_encrypted_output(&json_read).expect("deserialize");
     assert_eq!(
-        deserialized.scheme, expected,
+        deserialized.scheme(),
+        &expected,
         "SecurityLevel::Standard scheme mismatch after file roundtrip"
     );
     let _ = std::fs::remove_file(&path);

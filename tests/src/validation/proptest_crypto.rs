@@ -62,7 +62,7 @@ mod tests {
                 &mut ciphertext
             ).unwrap();
 
-            prop_assert_eq!(decrypted, plaintext.as_slice());
+            prop_assert_eq!(&*decrypted, plaintext.as_slice());
         }
 
         /// AES-GCM different keys produce different ciphertexts
@@ -150,7 +150,7 @@ mod tests {
             let ciphertext = cipher.encrypt(&nonce.into(), plaintext.as_slice()).unwrap();
             let decrypted = cipher.decrypt(&nonce.into(), ciphertext.as_slice()).unwrap();
 
-            prop_assert_eq!(decrypted, plaintext);
+            prop_assert_eq!(&*decrypted, plaintext.as_slice());
         }
 
         /// ChaCha20-Poly1305 ciphertext is larger than plaintext (by tag size)

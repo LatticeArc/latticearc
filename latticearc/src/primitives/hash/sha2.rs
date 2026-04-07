@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -7,7 +7,7 @@
 //!
 //! This module provides SHA-2 implementations (SHA-256, SHA-384, SHA-512).
 
-use crate::primitives::error::Error;
+use crate::primitives::error::PrimitivesError;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 use tracing::instrument;
 
@@ -20,9 +20,9 @@ const MAX_HASH_INPUT_SIZE: usize = 1_000_000_000;
 /// # Errors
 /// Returns `Error::ResourceExceeded` if input exceeds 1 GB
 #[instrument(level = "debug", skip(data), fields(data_len = data.len()))]
-pub fn sha256(data: &[u8]) -> Result<[u8; 32], Error> {
+pub fn sha256(data: &[u8]) -> Result<[u8; 32], PrimitivesError> {
     if data.len() > MAX_HASH_INPUT_SIZE {
-        return Err(Error::ResourceExceeded(format!(
+        return Err(PrimitivesError::ResourceExceeded(format!(
             "Hash input too large: {} bytes (max {} bytes)",
             data.len(),
             MAX_HASH_INPUT_SIZE
@@ -39,9 +39,9 @@ pub fn sha256(data: &[u8]) -> Result<[u8; 32], Error> {
 /// # Errors
 /// Returns `Error::ResourceExceeded` if input exceeds 1 GB
 #[instrument(level = "debug", skip(data), fields(data_len = data.len()))]
-pub fn sha384(data: &[u8]) -> Result<[u8; 48], Error> {
+pub fn sha384(data: &[u8]) -> Result<[u8; 48], PrimitivesError> {
     if data.len() > MAX_HASH_INPUT_SIZE {
-        return Err(Error::ResourceExceeded(format!(
+        return Err(PrimitivesError::ResourceExceeded(format!(
             "Hash input too large: {} bytes (max {} bytes)",
             data.len(),
             MAX_HASH_INPUT_SIZE
@@ -58,9 +58,9 @@ pub fn sha384(data: &[u8]) -> Result<[u8; 48], Error> {
 /// # Errors
 /// Returns `Error::ResourceExceeded` if input exceeds 1 GB
 #[instrument(level = "debug", skip(data), fields(data_len = data.len()))]
-pub fn sha512(data: &[u8]) -> Result<[u8; 64], Error> {
+pub fn sha512(data: &[u8]) -> Result<[u8; 64], PrimitivesError> {
     if data.len() > MAX_HASH_INPUT_SIZE {
-        return Err(Error::ResourceExceeded(format!(
+        return Err(PrimitivesError::ResourceExceeded(format!(
             "Hash input too large: {} bytes (max {} bytes)",
             data.len(),
             MAX_HASH_INPUT_SIZE
@@ -78,51 +78,51 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sha256() {
+    fn test_sha256_returns_32_byte_digest_succeeds() {
         let result = sha256(b"hello").unwrap();
         assert_eq!(result.len(), 32);
     }
 
     #[test]
-    fn test_sha384() {
+    fn test_sha384_returns_48_byte_digest_succeeds() {
         let result = sha384(b"hello").unwrap();
         assert_eq!(result.len(), 48);
     }
 
     #[test]
-    fn test_sha512() {
+    fn test_sha512_returns_64_byte_digest_succeeds() {
         let result = sha512(b"hello").unwrap();
         assert_eq!(result.len(), 64);
     }
 
     #[test]
-    fn test_sha256_size_limit() {
+    fn test_sha256_size_limit_returns_error_when_exceeded_fails() {
         // Create a large input that exceeds the limit
         let large_input = vec![0u8; MAX_HASH_INPUT_SIZE + 1];
         let result = sha256(&large_input);
         assert!(result.is_err());
-        assert!(matches!(result, Err(Error::ResourceExceeded(_))));
+        assert!(matches!(result, Err(PrimitivesError::ResourceExceeded(_))));
     }
 
     #[test]
-    fn test_sha384_size_limit() {
+    fn test_sha384_size_limit_returns_error_when_exceeded_fails() {
         let large_input = vec![0u8; MAX_HASH_INPUT_SIZE + 1];
         let result = sha384(&large_input);
         assert!(result.is_err());
-        assert!(matches!(result, Err(Error::ResourceExceeded(_))));
+        assert!(matches!(result, Err(PrimitivesError::ResourceExceeded(_))));
     }
 
     #[test]
-    fn test_sha512_size_limit() {
+    fn test_sha512_size_limit_returns_error_when_exceeded_fails() {
         let large_input = vec![0u8; MAX_HASH_INPUT_SIZE + 1];
         let result = sha512(&large_input);
         assert!(result.is_err());
-        assert!(matches!(result, Err(Error::ResourceExceeded(_))));
+        assert!(matches!(result, Err(PrimitivesError::ResourceExceeded(_))));
     }
 
     // Empty input tests
     #[test]
-    fn test_sha256_empty() {
+    fn test_sha256_empty_matches_nist_vector_matches_expected() {
         let result = sha256(b"").unwrap();
         // NIST test vector for empty input
         let expected = [
@@ -134,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha384_empty() {
+    fn test_sha384_empty_matches_nist_vector_matches_expected() {
         let result = sha384(b"").unwrap();
         // NIST test vector for empty input
         let expected = [
@@ -147,7 +147,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_empty() {
+    fn test_sha512_empty_matches_nist_vector_matches_expected() {
         let result = sha512(b"").unwrap();
         // NIST test vector for empty input
         let expected = [
@@ -162,7 +162,7 @@ mod tests {
 
     // Single byte tests
     #[test]
-    fn test_sha256_single_byte() {
+    fn test_sha256_single_byte_matches_known_vector_matches_expected() {
         let result = sha256(b"a").unwrap();
         let expected = [
             0xca, 0x97, 0x81, 0x12, 0xca, 0x1b, 0xbd, 0xca, 0xfa, 0xc2, 0x31, 0xb3, 0x9a, 0x23,
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_single_byte() {
+    fn test_sha512_single_byte_matches_known_vector_matches_expected() {
         let result = sha512(b"a").unwrap();
         let expected = [
             0x1f, 0x40, 0xfc, 0x92, 0xda, 0x24, 0x16, 0x94, 0x75, 0x09, 0x79, 0xee, 0x6c, 0xf5,
@@ -187,7 +187,7 @@ mod tests {
 
     // Multi-block message tests (> 64 bytes for SHA-256/384, > 128 bytes for SHA-512)
     #[test]
-    fn test_sha256_multi_block() {
+    fn test_sha256_multi_block_is_deterministic() {
         // 100 bytes - requires 2 blocks
         let input = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?/~`";
         let result = sha256(input).unwrap();
@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_multi_block() {
+    fn test_sha512_multi_block_is_deterministic() {
         // 150 bytes - requires 2 blocks for SHA-512
         let input = vec![b'a'; 150];
         let result = sha512(&input).unwrap();
@@ -210,7 +210,7 @@ mod tests {
 
     // NIST test vector: "abc"
     #[test]
-    fn test_sha256_abc() {
+    fn test_sha256_abc_matches_nist_vector_matches_expected() {
         let result = sha256(b"abc").unwrap();
         let expected = [
             0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
@@ -221,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha384_abc() {
+    fn test_sha384_abc_matches_nist_vector_matches_expected() {
         let result = sha384(b"abc").unwrap();
         let expected = [
             0xcb, 0x00, 0x75, 0x3f, 0x45, 0xa3, 0x5e, 0x8b, 0xb5, 0xa0, 0x3d, 0x69, 0x9a, 0xc6,
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_abc() {
+    fn test_sha512_abc_matches_nist_vector_matches_expected() {
         let result = sha512(b"abc").unwrap();
         let expected = [
             0xdd, 0xaf, 0x35, 0xa1, 0x93, 0x61, 0x7a, 0xba, 0xcc, 0x41, 0x73, 0x49, 0xae, 0x20,
@@ -247,7 +247,7 @@ mod tests {
 
     // Large input test (1MB)
     #[test]
-    fn test_sha256_large_input() {
+    fn test_sha256_large_input_is_deterministic() {
         let input = vec![0x42; 1024 * 1024]; // 1MB
         let result = sha256(&input).unwrap();
         assert_eq!(result.len(), 32);
@@ -258,7 +258,7 @@ mod tests {
 
     // Test all three functions with same input
     #[test]
-    fn test_all_sha2_functions() {
+    fn test_all_sha2_functions_return_correct_digest_sizes_has_correct_size() {
         let input = b"The quick brown fox jumps over the lazy dog";
 
         let sha256_result = sha256(input).unwrap();

@@ -587,7 +587,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_all_sha256_vectors_valid_hex() {
+    fn test_all_sha256_vectors_valid_hex_matches_expected() {
         for (i, (input, expected)) in SHA256_VECTORS.iter().enumerate() {
             assert!(is_valid_hex(input), "SHA256 vector {} has invalid input hex", i);
             assert!(is_valid_hex(expected), "SHA256 vector {} has invalid expected hex", i);
@@ -601,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_sha512_vectors_valid_hex() {
+    fn test_all_sha512_vectors_valid_hex_matches_expected() {
         for (i, (input, expected)) in SHA512_VECTORS.iter().enumerate() {
             assert!(is_valid_hex(input), "SHA512 vector {} has invalid input hex", i);
             assert!(is_valid_hex(expected), "SHA512 vector {} has invalid expected hex", i);
@@ -615,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_sha3_256_vectors_valid_hex() {
+    fn test_all_sha3_256_vectors_valid_hex_matches_expected() {
         for (i, (input, expected)) in SHA3_256_VECTORS.iter().enumerate() {
             assert!(is_valid_hex(input), "SHA3-256 vector {} has invalid input hex", i);
             assert!(is_valid_hex(expected), "SHA3-256 vector {} has invalid expected hex", i);
@@ -629,7 +629,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_aes_gcm_vectors_valid_hex() {
+    fn test_all_aes_gcm_vectors_valid_hex_matches_expected() {
         for (i, vector) in AES_256_GCM_VECTORS.iter().enumerate() {
             assert!(is_valid_hex(vector.key), "AES-256-GCM vector {} has invalid key hex", i);
             assert!(is_valid_hex(vector.iv), "AES-256-GCM vector {} has invalid iv hex", i);
@@ -666,7 +666,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_hkdf_vectors_valid_hex() {
+    fn test_all_hkdf_vectors_valid_hex_matches_expected() {
         for (i, vector) in HKDF_SHA256_VECTORS.iter().enumerate() {
             assert!(is_valid_hex(vector.ikm), "HKDF-SHA256 vector {} has invalid IKM hex", i);
             assert!(
@@ -691,7 +691,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_x25519_vectors_valid_hex() {
+    fn test_all_x25519_vectors_valid_hex_matches_expected() {
         for (i, vector) in X25519_VECTORS.iter().enumerate() {
             assert!(
                 is_valid_hex(vector.private_key),
@@ -730,7 +730,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_hmac_vectors_valid_hex() {
+    fn test_all_hmac_vectors_valid_hex_matches_expected() {
         for (i, vector) in HMAC_SHA256_VECTORS.iter().enumerate() {
             assert!(is_valid_hex(vector.key), "HMAC-SHA256 vector {} has invalid key hex", i);
             assert!(is_valid_hex(vector.data), "HMAC-SHA256 vector {} has invalid data hex", i);
@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_chacha20_poly1305_vectors_valid_hex() {
+    fn test_all_chacha20_poly1305_vectors_valid_hex_matches_expected() {
         for (i, vector) in CHACHA20_POLY1305_VECTORS.iter().enumerate() {
             assert!(is_valid_hex(vector.key), "ChaCha20-Poly1305 vector {} has invalid key hex", i);
             assert!(
@@ -786,14 +786,14 @@ mod tests {
     }
 
     #[test]
-    fn test_total_vector_count() {
+    fn test_total_vector_count_matches_expected() {
         let count = total_vector_count();
         // Ensure we have a substantial number of test vectors
         assert!(count >= 40, "Expected at least 40 test vectors, got {}", count);
     }
 
     #[test]
-    fn test_decode_hex_vector_with_whitespace() {
+    fn test_decode_hex_vector_with_whitespace_matches_expected() {
         let hex_with_spaces = "ab cd ef 01 23";
         let decoded = decode_hex_vector(hex_with_spaces);
         assert!(decoded.is_some());
@@ -801,7 +801,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_hex_vector_invalid() {
+    fn test_decode_hex_vector_invalid_matches_expected() {
         assert!(decode_hex_vector("invalid").is_none());
         assert!(decode_hex_vector("0g").is_none());
     }

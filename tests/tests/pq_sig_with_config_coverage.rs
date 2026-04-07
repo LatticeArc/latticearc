@@ -11,9 +11,10 @@
     clippy::cast_precision_loss
 )]
 
+use latticearc::primitives::sig::fndsa::FnDsaSecurityLevel;
 use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
-use latticearc::primitives::sig::slh_dsa::SecurityLevel as SlhDsaSecurityLevel;
-use latticearc::unified_api::config::CoreConfig;
+use latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel;
+use latticearc::unified_api::CoreConfig;
 use latticearc::unified_api::convenience::{
     generate_fn_dsa_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair, sign_pq_fn_dsa,
     sign_pq_fn_dsa_with_config, sign_pq_fn_dsa_with_config_unverified, sign_pq_ml_dsa,
@@ -30,23 +31,23 @@ use latticearc::unified_api::zero_trust::SecurityMode;
 // ============================================================
 
 #[test]
-fn test_ml_dsa_44_sign_verify_with_config_unverified() {
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+fn test_ml_dsa_44_sign_verify_with_config_unverified_roundtrip() {
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let config = CoreConfig::default();
     let message = b"ML-DSA-44 config unverified test";
 
     let sig = sign_pq_ml_dsa_with_config_unverified(
         message,
         sk.as_ref(),
-        MlDsaParameterSet::MLDSA44,
+        MlDsaParameterSet::MlDsa44,
         &config,
     )
     .unwrap();
     let valid = verify_pq_ml_dsa_with_config_unverified(
         message,
         &sig,
-        &pk,
-        MlDsaParameterSet::MLDSA44,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa44,
         &config,
     )
     .unwrap();
@@ -54,23 +55,23 @@ fn test_ml_dsa_44_sign_verify_with_config_unverified() {
 }
 
 #[test]
-fn test_ml_dsa_65_sign_verify_with_config_unverified() {
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+fn test_ml_dsa_65_sign_verify_with_config_unverified_roundtrip() {
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let config = CoreConfig::default();
     let message = b"ML-DSA-65 config unverified test";
 
     let sig = sign_pq_ml_dsa_with_config_unverified(
         message,
         sk.as_ref(),
-        MlDsaParameterSet::MLDSA65,
+        MlDsaParameterSet::MlDsa65,
         &config,
     )
     .unwrap();
     let valid = verify_pq_ml_dsa_with_config_unverified(
         message,
         &sig,
-        &pk,
-        MlDsaParameterSet::MLDSA65,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa65,
         &config,
     )
     .unwrap();
@@ -78,23 +79,23 @@ fn test_ml_dsa_65_sign_verify_with_config_unverified() {
 }
 
 #[test]
-fn test_ml_dsa_87_sign_verify_with_config_unverified() {
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87).unwrap();
+fn test_ml_dsa_87_sign_verify_with_config_unverified_roundtrip() {
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87).unwrap();
     let config = CoreConfig::default();
     let message = b"ML-DSA-87 config unverified test";
 
     let sig = sign_pq_ml_dsa_with_config_unverified(
         message,
         sk.as_ref(),
-        MlDsaParameterSet::MLDSA87,
+        MlDsaParameterSet::MlDsa87,
         &config,
     )
     .unwrap();
     let valid = verify_pq_ml_dsa_with_config_unverified(
         message,
         &sig,
-        &pk,
-        MlDsaParameterSet::MLDSA87,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa87,
         &config,
     )
     .unwrap();
@@ -106,29 +107,34 @@ fn test_ml_dsa_87_sign_verify_with_config_unverified() {
 // ============================================================
 
 #[test]
-fn test_ml_dsa_sign_verify_explicit_mode() {
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+fn test_ml_dsa_sign_verify_explicit_mode_roundtrip() {
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let message = b"ML-DSA explicit SecurityMode::Unverified";
 
     let sig =
-        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MLDSA44, SecurityMode::Unverified)
+        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MlDsa44, SecurityMode::Unverified)
             .unwrap();
-    let valid =
-        verify_pq_ml_dsa(message, &sig, &pk, MlDsaParameterSet::MLDSA44, SecurityMode::Unverified)
-            .unwrap();
+    let valid = verify_pq_ml_dsa(
+        message,
+        &sig,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa44,
+        SecurityMode::Unverified,
+    )
+    .unwrap();
     assert!(valid);
 }
 
 #[test]
-fn test_ml_dsa_with_config_explicit_mode() {
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+fn test_ml_dsa_with_config_explicit_mode_succeeds() {
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let config = CoreConfig::default();
     let message = b"ML-DSA with config + explicit SecurityMode";
 
     let sig = sign_pq_ml_dsa_with_config(
         message,
         sk.as_ref(),
-        MlDsaParameterSet::MLDSA44,
+        MlDsaParameterSet::MlDsa44,
         &config,
         SecurityMode::Unverified,
     )
@@ -136,8 +142,8 @@ fn test_ml_dsa_with_config_explicit_mode() {
     let valid = verify_pq_ml_dsa_with_config(
         message,
         &sig,
-        &pk,
-        MlDsaParameterSet::MLDSA44,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa44,
         &config,
         SecurityMode::Unverified,
     )
@@ -150,7 +156,7 @@ fn test_ml_dsa_with_config_explicit_mode() {
 // ============================================================
 
 #[test]
-fn test_slh_dsa_128s_sign_verify_with_security_mode() {
+fn test_slh_dsa_128s_sign_verify_with_security_mode_roundtrip() {
     std::thread::Builder::new()
         .name("slh_128s_mode".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -168,7 +174,7 @@ fn test_slh_dsa_128s_sign_verify_with_security_mode() {
             let valid = verify_pq_slh_dsa(
                 message,
                 &sig,
-                &pk,
+                pk.as_slice(),
                 SlhDsaSecurityLevel::Shake128s,
                 SecurityMode::Unverified,
             )
@@ -181,7 +187,7 @@ fn test_slh_dsa_128s_sign_verify_with_security_mode() {
 }
 
 #[test]
-fn test_slh_dsa_128s_sign_verify_with_config_unverified() {
+fn test_slh_dsa_128s_sign_verify_with_config_unverified_roundtrip() {
     std::thread::Builder::new()
         .name("slh_128s_cfg".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -200,7 +206,7 @@ fn test_slh_dsa_128s_sign_verify_with_config_unverified() {
             let valid = verify_pq_slh_dsa_with_config_unverified(
                 message,
                 &sig,
-                &pk,
+                pk.as_slice(),
                 SlhDsaSecurityLevel::Shake128s,
                 &config,
             )
@@ -213,7 +219,7 @@ fn test_slh_dsa_128s_sign_verify_with_config_unverified() {
 }
 
 #[test]
-fn test_slh_dsa_with_config_explicit_mode() {
+fn test_slh_dsa_with_config_explicit_mode_succeeds() {
     std::thread::Builder::new()
         .name("slh_cfg_mode".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -233,7 +239,7 @@ fn test_slh_dsa_with_config_explicit_mode() {
             let valid = verify_pq_slh_dsa_with_config(
                 message,
                 &sig,
-                &pk,
+                pk.as_slice(),
                 SlhDsaSecurityLevel::Shake128s,
                 &config,
                 SecurityMode::Unverified,
@@ -251,7 +257,7 @@ fn test_slh_dsa_with_config_explicit_mode() {
 // ============================================================
 
 #[test]
-fn test_fn_dsa_sign_verify_with_security_mode() {
+fn test_fn_dsa_sign_verify_with_security_mode_roundtrip() {
     std::thread::Builder::new()
         .name("fn_dsa_mode".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -259,8 +265,21 @@ fn test_fn_dsa_sign_verify_with_security_mode() {
             let (pk, sk) = generate_fn_dsa_keypair().unwrap();
             let message = b"FN-DSA SecurityMode test";
 
-            let sig = sign_pq_fn_dsa(message, sk.as_ref(), SecurityMode::Unverified).unwrap();
-            let valid = verify_pq_fn_dsa(message, &sig, &pk, SecurityMode::Unverified).unwrap();
+            let sig = sign_pq_fn_dsa(
+                message,
+                sk.as_ref(),
+                FnDsaSecurityLevel::Level512,
+                SecurityMode::Unverified,
+            )
+            .unwrap();
+            let valid = verify_pq_fn_dsa(
+                message,
+                &sig,
+                pk.as_slice(),
+                FnDsaSecurityLevel::Level512,
+                SecurityMode::Unverified,
+            )
+            .unwrap();
             assert!(valid);
         })
         .unwrap()
@@ -269,7 +288,7 @@ fn test_fn_dsa_sign_verify_with_security_mode() {
 }
 
 #[test]
-fn test_fn_dsa_sign_verify_with_config_unverified() {
+fn test_fn_dsa_sign_verify_with_config_unverified_roundtrip() {
     std::thread::Builder::new()
         .name("fn_dsa_cfg".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -278,9 +297,21 @@ fn test_fn_dsa_sign_verify_with_config_unverified() {
             let config = CoreConfig::default();
             let message = b"FN-DSA config unverified";
 
-            let sig = sign_pq_fn_dsa_with_config_unverified(message, sk.as_ref(), &config).unwrap();
-            let valid =
-                verify_pq_fn_dsa_with_config_unverified(message, &sig, &pk, &config).unwrap();
+            let sig = sign_pq_fn_dsa_with_config_unverified(
+                message,
+                sk.as_ref(),
+                FnDsaSecurityLevel::Level512,
+                &config,
+            )
+            .unwrap();
+            let valid = verify_pq_fn_dsa_with_config_unverified(
+                message,
+                &sig,
+                pk.as_slice(),
+                FnDsaSecurityLevel::Level512,
+                &config,
+            )
+            .unwrap();
             assert!(valid);
         })
         .unwrap()
@@ -289,7 +320,7 @@ fn test_fn_dsa_sign_verify_with_config_unverified() {
 }
 
 #[test]
-fn test_fn_dsa_with_config_explicit_mode() {
+fn test_fn_dsa_with_config_explicit_mode_succeeds() {
     std::thread::Builder::new()
         .name("fn_dsa_cfg_m".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -298,12 +329,23 @@ fn test_fn_dsa_with_config_explicit_mode() {
             let config = CoreConfig::default();
             let message = b"FN-DSA explicit config + mode";
 
-            let sig =
-                sign_pq_fn_dsa_with_config(message, sk.as_ref(), &config, SecurityMode::Unverified)
-                    .unwrap();
-            let valid =
-                verify_pq_fn_dsa_with_config(message, &sig, &pk, &config, SecurityMode::Unverified)
-                    .unwrap();
+            let sig = sign_pq_fn_dsa_with_config(
+                message,
+                sk.as_ref(),
+                FnDsaSecurityLevel::Level512,
+                &config,
+                SecurityMode::Unverified,
+            )
+            .unwrap();
+            let valid = verify_pq_fn_dsa_with_config(
+                message,
+                &sig,
+                pk.as_slice(),
+                FnDsaSecurityLevel::Level512,
+                &config,
+                SecurityMode::Unverified,
+            )
+            .unwrap();
             assert!(valid);
         })
         .unwrap()
@@ -316,17 +358,17 @@ fn test_fn_dsa_with_config_explicit_mode() {
 // ============================================================
 
 #[test]
-fn test_ml_dsa_sign_with_invalid_key() {
+fn test_ml_dsa_sign_with_invalid_key_fails() {
     let bad_sk = vec![0xAA; 10];
     let message = b"test";
 
     let result =
-        sign_pq_ml_dsa(message, &bad_sk, MlDsaParameterSet::MLDSA44, SecurityMode::Unverified);
+        sign_pq_ml_dsa(message, &bad_sk, MlDsaParameterSet::MlDsa44, SecurityMode::Unverified);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_ml_dsa_verify_with_invalid_key() {
+fn test_ml_dsa_verify_with_invalid_key_fails() {
     let bad_pk = vec![0xBB; 10];
     let bad_sig = vec![0xCC; 100];
     let message = b"test";
@@ -335,14 +377,14 @@ fn test_ml_dsa_verify_with_invalid_key() {
         message,
         &bad_sig,
         &bad_pk,
-        MlDsaParameterSet::MLDSA44,
+        MlDsaParameterSet::MlDsa44,
         SecurityMode::Unverified,
     );
     assert!(result.is_err());
 }
 
 #[test]
-fn test_slh_dsa_sign_with_invalid_key() {
+fn test_slh_dsa_sign_with_invalid_key_fails() {
     std::thread::Builder::new()
         .name("slh_bad_key".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -364,7 +406,7 @@ fn test_slh_dsa_sign_with_invalid_key() {
 }
 
 #[test]
-fn test_fn_dsa_sign_with_invalid_key() {
+fn test_fn_dsa_sign_with_invalid_key_fails() {
     std::thread::Builder::new()
         .name("fn_bad_key".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -372,7 +414,12 @@ fn test_fn_dsa_sign_with_invalid_key() {
             let bad_sk = vec![0xAA; 10];
             let message = b"test";
 
-            let result = sign_pq_fn_dsa(message, &bad_sk, SecurityMode::Unverified);
+            let result = sign_pq_fn_dsa(
+                message,
+                &bad_sk,
+                FnDsaSecurityLevel::Level512,
+                SecurityMode::Unverified,
+            );
             assert!(result.is_err());
         })
         .unwrap()
@@ -381,7 +428,7 @@ fn test_fn_dsa_sign_with_invalid_key() {
 }
 
 #[test]
-fn test_fn_dsa_verify_with_invalid_key() {
+fn test_fn_dsa_verify_with_invalid_key_fails() {
     std::thread::Builder::new()
         .name("fn_bad_vk".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -390,7 +437,13 @@ fn test_fn_dsa_verify_with_invalid_key() {
             let bad_sig = vec![0xCC; 100];
             let message = b"test";
 
-            let result = verify_pq_fn_dsa(message, &bad_sig, &bad_pk, SecurityMode::Unverified);
+            let result = verify_pq_fn_dsa(
+                message,
+                &bad_sig,
+                &bad_pk,
+                FnDsaSecurityLevel::Level512,
+                SecurityMode::Unverified,
+            );
             assert!(result.is_err());
         })
         .unwrap()
@@ -403,7 +456,7 @@ fn test_fn_dsa_verify_with_invalid_key() {
 // ============================================================
 
 #[test]
-fn test_ml_dsa_with_config_invalid_key() {
+fn test_ml_dsa_with_config_invalid_key_fails() {
     let bad_sk = vec![0xAA; 10];
     let config = CoreConfig::default();
     let message = b"test";
@@ -411,14 +464,14 @@ fn test_ml_dsa_with_config_invalid_key() {
     let result = sign_pq_ml_dsa_with_config_unverified(
         message,
         &bad_sk,
-        MlDsaParameterSet::MLDSA44,
+        MlDsaParameterSet::MlDsa44,
         &config,
     );
     assert!(result.is_err());
 }
 
 #[test]
-fn test_ml_dsa_verify_with_config_invalid() {
+fn test_ml_dsa_verify_with_config_invalid_fails() {
     let bad_pk = vec![0xBB; 10];
     let bad_sig = vec![0xCC; 100];
     let config = CoreConfig::default();
@@ -428,7 +481,7 @@ fn test_ml_dsa_verify_with_config_invalid() {
         message,
         &bad_sig,
         &bad_pk,
-        MlDsaParameterSet::MLDSA44,
+        MlDsaParameterSet::MlDsa44,
         &config,
     );
     assert!(result.is_err());

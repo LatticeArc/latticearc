@@ -238,20 +238,12 @@ impl Histogram {
         let percentile_99 = Self::percentile(&sorted, 99.0);
 
         // Calculate standard deviation
-        let mean = if average.as_nanos() <= f64::MAX.to_bits() as u128 {
-            f64::from_bits(average.as_nanos() as u64)
-        } else {
-            0.0
-        };
+        let mean = average.as_nanos() as f64;
         let variance = if count > 0 {
             sorted
                 .iter()
                 .map(|&x| {
-                    let x_f64 = if x <= f64::MAX.to_bits() as u128 {
-                        f64::from_bits(x as u64)
-                    } else {
-                        0.0
-                    };
+                    let x_f64 = x as f64;
                     let diff = x_f64 - mean;
                     diff * diff
                 })
@@ -495,7 +487,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_timer_basic() {
+    fn test_timer_basic_is_correct() {
         let mut timer = Timer::new();
         assert!(!timer.is_running());
 
@@ -509,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timer_elapsed_while_running() {
+    fn test_timer_elapsed_while_running_is_correct() {
         let timer = Timer::start();
         std::thread::sleep(Duration::from_millis(5));
         let elapsed = timer.elapsed();
@@ -518,7 +510,7 @@ mod tests {
     }
 
     #[test]
-    fn test_histogram_basic() {
+    fn test_histogram_basic_is_correct() {
         let mut histogram = Histogram::new(10);
         histogram.record(Duration::from_millis(10));
         histogram.record(Duration::from_millis(20));
@@ -534,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn test_histogram_empty() {
+    fn test_histogram_empty_has_zero_count_succeeds() {
         let histogram = Histogram::new(10);
         let stats = histogram.calculate_statistics();
         assert_eq!(stats.count, 0);
@@ -542,7 +534,7 @@ mod tests {
     }
 
     #[test]
-    fn test_histogram_merge() {
+    fn test_histogram_merge_is_correct() {
         let mut hist1 = Histogram::new(5);
         hist1.record(Duration::from_millis(10));
         hist1.record(Duration::from_millis(20));
@@ -560,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn test_metrics_collector() {
+    fn test_metrics_collector_is_correct() {
         let collector = MetricsCollector::new();
 
         collector.record_operation("test", Duration::from_millis(10));
@@ -577,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn test_metrics_collector_clone() {
+    fn test_metrics_collector_clone_is_correct() {
         let collector1 = MetricsCollector::new();
         let collector2 = collector1.clone();
 
@@ -586,7 +578,7 @@ mod tests {
     }
 
     #[test]
-    fn test_benchmark() {
+    fn test_benchmark_is_correct() {
         let stats = benchmark(100, || {
             // Simple operation
             let _ = 1 + 1;
@@ -599,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn test_time_operation() {
+    fn test_time_operation_returns_elapsed_duration_succeeds() {
         let duration = time_operation(|| {
             std::thread::sleep(Duration::from_millis(5));
         });
@@ -608,7 +600,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scoped_timer_basic() {
+    fn test_scoped_timer_basic_is_correct() {
         let collector = MetricsCollector::new();
 
         {
@@ -622,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scoped_timer_timing_only() {
+    fn test_scoped_timer_timing_only_returns_elapsed_duration_succeeds() {
         let timer = ScopedTimer::timing_only();
         std::thread::sleep(Duration::from_millis(5));
         let elapsed = timer.elapsed();
@@ -630,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn test_percentile_calculation() {
+    fn test_percentile_calculation_is_correct() {
         let mut histogram = Histogram::new(100);
 
         // Add samples from 0 to 99 nanoseconds
@@ -651,7 +643,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timing_statistics_default() {
+    fn test_timing_statistics_default_has_zero_values_succeeds() {
         let stats = TimingStatistics::default();
         assert_eq!(stats.count, 0);
         assert_eq!(stats.min, Duration::ZERO);
@@ -659,7 +651,7 @@ mod tests {
     }
 
     #[test]
-    fn test_histogram_clear() {
+    fn test_histogram_clear_succeeds() {
         let mut histogram = Histogram::new(10);
         histogram.record(Duration::from_millis(10));
         histogram.record(Duration::from_millis(20));
@@ -671,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    fn test_metrics_collector_clear() {
+    fn test_metrics_collector_clear_succeeds() {
         let collector = MetricsCollector::new();
         collector.record_operation("test", Duration::from_millis(10));
         collector.record_operation("other", Duration::from_millis(20));

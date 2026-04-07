@@ -75,31 +75,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_kani_proofs_harness_list() {
+    fn test_kani_proofs_harness_list_succeeds() {
         let proofs = KaniProofs::new();
         assert_eq!(proofs.harnesses().len(), 3);
         assert!(proofs.harnesses().contains(&"verify_mode_selection_deterministic"));
     }
 
     #[test]
-    fn test_verify_mode_determinism_all_modes() {
+    fn test_verify_mode_determinism_all_modes_is_deterministic() {
         assert!(KaniProofs::verify_mode_determinism(TlsMode::Classic));
         assert!(KaniProofs::verify_mode_determinism(TlsMode::Hybrid));
         assert!(KaniProofs::verify_mode_determinism(TlsMode::Pq));
     }
 
     #[test]
-    fn test_verify_default_is_hybrid() {
+    fn test_verify_default_is_hybrid_succeeds() {
         assert!(KaniProofs::verify_default_is_hybrid());
     }
 
     #[test]
-    fn test_verify_default_validates() {
+    fn test_verify_default_validates_succeeds() {
         assert!(KaniProofs::verify_default_validates());
     }
 
     #[test]
-    fn test_kani_proofs_default() {
+    fn test_kani_proofs_default_succeeds() {
         let proofs = KaniProofs::default();
         assert!(!proofs.harnesses().is_empty());
     }

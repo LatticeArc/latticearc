@@ -22,29 +22,36 @@
 //!
 //! ## Hybrid KEM Security
 //!
-//! The hybrid KEM combines ML-KEM (IND-CCA2) with ECDH (IND-CPA) using XOR
-//! composition. The XOR lemma guarantees that if either component's shared
-//! secret is indistinguishable from random, the combined secret is also
-//! indistinguishable from random.
+//! The hybrid KEM combines ML-KEM (IND-CCA2) with X25519 ECDH (IND-CPA) using
+//! **HKDF-SHA256 combination**, not XOR. The two shared secrets are
+//! concatenated and passed as IKM to `HKDF-Extract`, then domain-separated via
+//! `HKDF-Expand` (see [`kem_hybrid::derive_hybrid_shared_secret`]). HKDF
+//! behaves as a dual-PRF: if either input component remains pseudorandom, the
+//! extracted secret is pseudorandom, preserving IND-CCA2 under the HKDF/HMAC
+//! PRF assumption. This is the "dual-PRF combiner" construction analysed in
+//! Bindel et al., "Hybrid Key Encapsulation Mechanisms and Authenticated Key
+//! Exchange" (PQCrypto 2019).
 //!
 //! ## Hybrid Signature Security
 //!
-//! The hybrid signature requires both ML-DSA and ECDSA signatures to verify.
-//! This AND-composition means an attacker must forge both signatures to
-//! break the hybrid scheme.
+//! The hybrid signature requires both ML-DSA-65 and Ed25519 signatures to
+//! verify. This AND-composition means an attacker must forge both signatures
+//! to break the hybrid scheme.
+//!
+//! [`kem_hybrid::derive_hybrid_shared_secret`]: crate::hybrid::kem_hybrid::derive_hybrid_shared_secret
 //!
 //! # Example
 //!
 //! ```rust
-//! use latticearc::hybrid::compose::{verify_hybrid_kem_security, verify_hybrid_signature_security, SecurityLevel};
+//! use latticearc::hybrid::compose::{verify_hybrid_kem_security, verify_hybrid_signature_security, HybridSecurityLevel};
 //!
 //! // Verify hybrid KEM security
 //! let kem_proof = verify_hybrid_kem_security().expect("KEM security verification failed");
-//! assert_eq!(kem_proof.security_level, SecurityLevel::PostQuantum);
+//! assert_eq!(kem_proof.security_level, HybridSecurityLevel::PostQuantum);
 //!
 //! // Verify hybrid signature security
 //! let sig_proof = verify_hybrid_signature_security().expect("Signature security verification failed");
-//! assert_eq!(sig_proof.security_level, SecurityLevel::PostQuantum);
+//! assert_eq!(sig_proof.security_level, HybridSecurityLevel::PostQuantum);
 //! ```
 
 /// Error types for composition security verification.
@@ -52,6 +59,7 @@
 /// These errors indicate failures during the formal security analysis
 /// of hybrid cryptographic constructions.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum CompositionError {
     /// Security verification failed for one or more components.
     #[error("Failed to verify composition security")]
@@ -63,8 +71,9 @@ pub enum CompositionError {
 }
 
 /// Security levels for composition
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SecurityLevel {
+pub enum HybridSecurityLevel {
     /// Classical security (no quantum resistance)
     Classical,
     /// Quantum resistance (quantum computer attacks)
@@ -81,7 +90,7 @@ pub enum SecurityLevel {
 #[derive(Debug, Clone)]
 pub struct HybridSecurityProof {
     /// The security level achieved by the hybrid construction.
-    pub security_level: SecurityLevel,
+    pub security_level: HybridSecurityLevel,
     /// Human-readable description of the security analysis.
     pub description: String,
     /// Detailed proof steps documenting the security verification.
@@ -94,117 +103,62 @@ pub struct HybridSecurityProof {
 /// when both ML-KEM and classical components are secure.
 ///
 /// Security proof analysis:
-/// - The hybrid KEM combines ML-KEM (IND-CCA2 secure) with classical ECDH (IND-CPA secure)
+/// - The hybrid KEM combines ML-KEM (IND-CCA2 secure) with classical X25519 ECDH (IND-CPA secure)
 /// - Composition theorem: If both components are secure, the hybrid is at least as secure
 /// - Quantum resistance: ML-KEM's security is based on Module-LWE, a hard lattice problem
 /// - Classical security: ECDH provides IND-CPA security under the Computational Diffie-Hellman assumption
-/// - The hybrid construction uses XOR of shared secrets, which is secure if at least one component is secure
+/// - The hybrid construction feeds both shared secrets through HKDF-SHA256 as
+///   a dual-PRF combiner (Bindel et al., PQCrypto 2019). If either input
+///   remains pseudorandom, the extracted secret is pseudorandom.
 ///
 /// # Errors
 ///
 /// Returns an error if composition security verification fails, which occurs when
 /// either the ML-KEM or ECDH component security cannot be verified.
 pub fn verify_hybrid_kem_security() -> Result<HybridSecurityProof, CompositionError> {
-    // Verify ML-KEM IND-CCA2 security preservation
-    let ml_kem_secure = verify_ml_kem_ind_cca2();
-
-    // Verify ECDH IND-CPA security preservation
-    let ecdh_secure = verify_ecdh_ind_cpa();
-
-    // Verify composition security
-    let composition_secure = verify_composition_security(ml_kem_secure, ecdh_secure);
-
-    // Overall security is the minimum of component securities
-    let security_level = if ml_kem_secure && ecdh_secure && composition_secure {
-        SecurityLevel::PostQuantum
-    } else {
-        return Err(CompositionError::VerificationFailed);
-    };
-
-    let mut proof_steps = Vec::new();
-
-    // ML-KEM security verification
-    proof_steps.push(format!(
-        "ML-KEM IND-CCA2 security: {}",
-        if ml_kem_secure { "VERIFIED" } else { "FAILED" }
-    ));
-    proof_steps.push(
-        "Proof: ML-KEM's IND-CCA2 security is based on Module-LWE hardness. The hybrid construction preserves this property by using ML-KEM's shared secret directly without modification.".to_string()
-    );
-
-    // ECDH security verification
-    proof_steps.push(format!(
-        "ECDH IND-CPA security: {}",
-        if ecdh_secure { "VERIFIED" } else { "FAILED" }
-    ));
-    proof_steps.push(
-        "Proof: ECDH provides IND-CPA security under the Computational Diffie-Hellman (CDH) assumption. The hybrid preserves this by using the ECDH shared secret unmodified.".to_string()
-    );
-
-    // Composition security verification
-    proof_steps.push(format!(
-        "Composition security: {}",
-        if composition_secure { "VERIFIED" } else { "FAILED" }
-    ));
-    proof_steps.push(
-        "Proof: The hybrid KEM uses shared_secret = ML-KEM_ss ⊕ ECDH_ss. By the XOR lemma, if either ML-KEM or ECDH is secure, the XOR remains secure. Since both are secure, the composition is post-quantum secure.".to_string()
-    );
-
-    proof_steps.push(
-        "Conclusion: The hybrid KEM maintains IND-CCA2 security against quantum adversaries because breaking it requires breaking both ML-KEM (quantum-hard) and ECDH (classical-hard).".to_string()
-    );
+    // These are documented security claims about the construction, not runtime proofs.
+    // The claims hold by inspection of the code paths in kem_hybrid.rs:
+    // - ML-KEM encaps/decaps are used directly without modification
+    // - X25519 ECDH is used directly without modification
+    // - Both shared secrets are combined via HKDF-SHA256 (dual-PRF combiner)
+    let proof_steps = vec![
+        "ML-KEM IND-CCA2 claim: ML-KEM (FIPS 203) encaps/decaps are used directly; Module-LWE hardness is preserved.".to_string(),
+        "ECDH IND-CPA claim: X25519 key agreement is used directly; CDH hardness is preserved.".to_string(),
+        "Composition claim: HKDF-SHA256(ML-KEM_ss || ECDH_ss) is a dual-PRF combiner (Bindel et al., PQCrypto 2019). Security holds if either component secret is pseudorandom.".to_string(),
+        "Conclusion: Breaking the hybrid KEM requires breaking BOTH ML-KEM and ECDH simultaneously.".to_string(),
+    ];
 
     Ok(HybridSecurityProof {
-        security_level,
-        description: "Hybrid KEM combines ML-KEM (IND-CCA2, Module-LWE based) with ECDH (IND-CPA, CDH based) to provide post-quantum security. The XOR composition theorem guarantees security if at least one component remains secure.".to_string(),
+        security_level: HybridSecurityLevel::PostQuantum,
+        description: "Hybrid KEM combines ML-KEM (IND-CCA2, Module-LWE) with X25519 ECDH (IND-CPA, CDH) through HKDF-SHA256 dual-PRF combiner. These are documented security claims, not runtime proofs.".to_string(),
         proof: proof_steps,
     })
 }
 
-/// Verify that ML-KEM's IND-CCA2 security is preserved in the hybrid construction
-fn verify_ml_kem_ind_cca2() -> bool {
-    // ML-KEM (FIPS 203) provides IND-CCA2 security based on Module-LWE hardness
-    // The hybrid uses ML-KEM encapsulation/decapsulation directly without modification
-    // Therefore, IND-CCA2 security is preserved
+/// Security claim: ML-KEM IND-CCA2 preservation.
+///
+/// ML-KEM (FIPS 203) provides IND-CCA2 security based on Module-LWE hardness.
+/// The hybrid uses ML-KEM encapsulation/decapsulation directly without modification:
+/// - ML-KEM ciphertext is used directly
+/// - ML-KEM shared secret is fed to HKDF unmodified, then combined with the
+///   ECDH secret via HKDF-Extract
+/// - No additional exposure of ML-KEM internal state
+///
+/// This is a documented claim, not a runtime proof.
+const _ML_KEM_IND_CCA2_CLAIM: &str = "ML-KEM IND-CCA2 security is preserved: \
+    the hybrid construction uses ML-KEM encaps/decaps directly without modification.";
 
-    // Check that the construction doesn't modify ML-KEM internals
-    // - ML-KEM ciphertext is used directly
-    // - ML-KEM shared secret is used directly (only XORed with ECDH secret)
-    // - No additional exposure of ML-KEM internal state
-
-    true
-}
-
-/// Verify that ECDH's IND-CPA security is preserved in the hybrid construction
-fn verify_ecdh_ind_cpa() -> bool {
-    // ECDH provides IND-CPA security under the Computational Diffie-Hellman assumption
-    // The hybrid uses ECDH key agreement directly without modification
-    // Therefore, IND-CPA security is preserved
-
-    // Check that the construction doesn't modify ECDH internals
-    // - ECDH public/private keys are used directly
-    // - ECDH shared secret is used directly (only XORed with ML-KEM secret)
-    // - No additional exposure of ECDH internal state
-
-    true
-}
-
-/// Verify that the composition maintains security properties
-fn verify_composition_security(ml_kem_secure: bool, ecdh_secure: bool) -> bool {
-    // Composition analysis using the XOR lemma
-    // If shared_secret = s1 ⊕ s2, then:
-    // - If s1 is uniformly random (computationally indistinguishable), s1 ⊕ s2 is also random
-    // - Breaking the hybrid requires distinguishing s1 ⊕ s2 from random
-    // - This requires distinguishing both s1 and s2 from random simultaneously
-
-    if !ml_kem_secure || !ecdh_secure {
-        return false;
-    }
-
-    // The XOR composition is secure if at least one component is secure
-    // Since both ML-KEM and ECDH are secure, the composition is doubly secure
-    true
-}
+/// Security claim: ECDH IND-CPA preservation.
+///
+/// X25519 ECDH provides IND-CPA security under the CDH assumption.
+/// The hybrid uses ECDH key agreement directly without modification:
+/// - ECDH shared secret is fed to HKDF unmodified and combined with the
+///   ML-KEM secret via HKDF-Extract (dual-PRF combiner)
+/// - No additional exposure of ECDH internal state
+///
+/// This is a documented claim, not a runtime proof.
+const _ECDH_IND_CPA_CLAIM: &str = "ECDH IND-CPA security is preserved: \
+    the hybrid construction uses X25519 key agreement directly without modification.";
 
 /// Verify hybrid signature security
 ///
@@ -212,122 +166,34 @@ fn verify_composition_security(ml_kem_secure: bool, ecdh_secure: bool) -> bool {
 /// when both ML-DSA and classical components are secure.
 ///
 /// Security proof analysis:
-/// - The hybrid signature combines ML-DSA (EUF-CMA secure) with classical ECDSA (EUF-CMA secure)
+/// - The hybrid signature combines ML-DSA (EUF-CMA secure) with classical Ed25519 (EUF-CMA secure)
 /// - Composition: Both signatures must be forged to forge the hybrid signature
 /// - Quantum resistance: ML-DSA's security is based on Module-SIS, a hard lattice problem
-/// - Classical security: ECDSA provides EUF-CMA security under the Elliptic Curve Discrete Logarithm assumption
+/// - Classical security: Ed25519 provides EUF-CMA security under the Elliptic Curve Discrete Logarithm assumption
 /// - The hybrid construction requires verifying both signatures, forking requires breaking both
 ///
 /// # Errors
 ///
 /// Returns an error if composition security verification fails, which occurs when
-/// either the ML-DSA or ECDSA component security cannot be verified.
+/// either the ML-DSA or Ed25519 component security cannot be verified.
 pub fn verify_hybrid_signature_security() -> Result<HybridSecurityProof, CompositionError> {
-    // Verify ML-DSA EUF-CMA security preservation
-    let ml_dsa_secure = verify_ml_dsa_euf_cma();
-
-    // Verify ECDSA EUF-CMA security preservation
-    let ecdsa_secure = verify_ecdsa_euf_cma();
-
-    // Verify composition security
-    let composition_secure = verify_signature_composition_security(ml_dsa_secure, ecdsa_secure);
-
-    // Overall security is the minimum of component securities
-    let security_level = if ml_dsa_secure && ecdsa_secure && composition_secure {
-        SecurityLevel::PostQuantum
-    } else {
-        return Err(CompositionError::VerificationFailed);
-    };
-
-    let mut proof_steps = Vec::new();
-
-    // ML-DSA security verification
-    proof_steps.push(format!(
-        "ML-DSA EUF-CMA security: {}",
-        if ml_dsa_secure { "VERIFIED" } else { "FAILED" }
-    ));
-    proof_steps.push(
-        "Proof: ML-DSA's EUF-CMA security is based on Module-SIS hardness. The hybrid construction preserves this by using ML-DSA signatures directly without modification.".to_string()
-    );
-
-    // ECDSA security verification
-    proof_steps.push(format!(
-        "ECDSA EUF-CMA security: {}",
-        if ecdsa_secure { "VERIFIED" } else { "FAILED" }
-    ));
-    proof_steps.push(
-        "Proof: ECDSA provides EUF-CMA security under the Elliptic Curve Discrete Logarithm (ECDLP) assumption. The hybrid preserves this by using ECDSA signatures unmodified.".to_string()
-    );
-
-    // Composition security verification
-    proof_steps.push(format!(
-        "Composition security: {}",
-        if composition_secure { "VERIFIED" } else { "FAILED" }
-    ));
-    proof_steps.push(
-        "Proof: The hybrid signature is (σ_MLDSA, σ_ECDSA). A successful forgery requires both signatures to be valid for the same message under different keys. This requires breaking both EUF-CMA securities simultaneously.".to_string()
-    );
-
-    proof_steps.push(
-        "Conclusion: The hybrid signature maintains EUF-CMA security against quantum adversaries because forging requires breaking both ML-DSA (quantum-hard) and ECDSA (classical-hard).".to_string()
-    );
+    // These are documented security claims about the construction, not runtime proofs.
+    // The claims hold by inspection of the code paths in sig_hybrid.rs:
+    // - ML-DSA sign/verify are used directly without modification
+    // - Ed25519 sign/verify are used directly without modification
+    // - Both signatures are verified (AND-composition)
+    let proof_steps = vec![
+        "ML-DSA EUF-CMA claim: ML-DSA (FIPS 204) sign/verify are used directly; Module-SIS hardness is preserved.".to_string(),
+        "Ed25519 EUF-CMA claim: Ed25519 sign/verify are used directly; ECDLP hardness is preserved.".to_string(),
+        "Composition claim: Hybrid signature is (σ_MLDSA, σ_Ed25519) with AND-verification. Forgery requires breaking both EUF-CMA schemes simultaneously.".to_string(),
+        "Conclusion: Breaking the hybrid signature requires breaking BOTH ML-DSA and Ed25519 simultaneously.".to_string(),
+    ];
 
     Ok(HybridSecurityProof {
-        security_level,
-        description: "Hybrid signature combines ML-DSA (EUF-CMA, Module-SIS based) with ECDSA (EUF-CMA, ECDLP based) to provide post-quantum security. The AND-composition guarantees security as both signatures must be forged.".to_string(),
+        security_level: HybridSecurityLevel::PostQuantum,
+        description: "Hybrid signature combines ML-DSA (EUF-CMA, Module-SIS) with Ed25519 (EUF-CMA, ECDLP) via AND-composition. These are documented security claims, not runtime proofs.".to_string(),
         proof: proof_steps,
     })
-}
-
-/// Verify that ML-DSA's EUF-CMA security is preserved in the hybrid construction
-fn verify_ml_dsa_euf_cma() -> bool {
-    // ML-DSA (FIPS 204) provides EUF-CMA security based on Module-SIS hardness
-    // The hybrid uses ML-DSA signing/verification directly without modification
-    // Therefore, EUF-CMA security is preserved
-
-    // Check that the construction doesn't modify ML-DSA internals
-    // - ML-DSA signature is used directly
-    // - ML-DSA public/private keys are used directly
-    // - No additional exposure of ML-DSA internal state
-
-    true
-}
-
-/// Verify that ECDSA's EUF-CMA security is preserved in the hybrid construction
-fn verify_ecdsa_euf_cma() -> bool {
-    // ECDSA provides EUF-CMA security under the Elliptic Curve Discrete Logarithm assumption
-    // The hybrid uses ECDSA signing/verification directly without modification
-    // Therefore, EUF-CMA security is preserved
-
-    // Check that the construction doesn't modify ECDSA internals
-    // - ECDSA signature is used directly
-    // - ECDSA public/private keys are used directly
-    // - No additional exposure of ECDSA internal state
-
-    true
-}
-
-/// Verify that the signature composition maintains security properties
-fn verify_signature_composition_security(ml_dsa_secure: bool, ecdsa_secure: bool) -> bool {
-    // Composition analysis for hybrid signatures
-    // Hybrid signature = (σ_MLDSA, σ_ECDSA)
-    // Verification: Verify_MLDSA(msg, σ_MLDSA) AND Verify_ECDSA(msg, σ_ECDSA)
-    //
-    // Security: To forge, adversary must produce valid (σ_MLDSA, σ_ECDSA)
-    // This requires:
-    // 1. Breaking ML-DSA EUF-CMA (forge σ_MLDSA)
-    // AND
-    // 2. Breaking ECDSA EUF-CMA (forge σ_ECDSA)
-    //
-    // Probability of breaking both = P(break ML-DSA) × P(break ECDSA)
-    // Since both are negligible, product is negligible
-
-    if !ml_dsa_secure || !ecdsa_secure {
-        return false;
-    }
-
-    // The AND-composition is secure if both components are secure
-    true
 }
 
 #[cfg(test)]
@@ -337,12 +203,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_verify_hybrid_kem_security() {
+    fn test_verify_hybrid_kem_security_succeeds() {
         let result = verify_hybrid_kem_security();
         assert!(result.is_ok(), "Hybrid KEM security verification should succeed");
 
         let proof = result.unwrap();
-        assert_eq!(proof.security_level, SecurityLevel::PostQuantum);
+        assert_eq!(proof.security_level, HybridSecurityLevel::PostQuantum);
         assert!(!proof.description.is_empty());
         assert!(!proof.proof.is_empty());
         assert!(proof.proof.len() >= 4); // At least verification steps
@@ -351,17 +217,16 @@ mod tests {
         let proof_text = proof.proof.join(" ");
         assert!(proof_text.contains("ML-KEM IND-CCA2"));
         assert!(proof_text.contains("ECDH IND-CPA"));
-        assert!(proof_text.contains("Composition security"));
-        assert!(proof_text.contains("VERIFIED"));
+        assert!(proof_text.contains("Composition claim"));
     }
 
     #[test]
-    fn test_verify_hybrid_signature_security() {
+    fn test_verify_hybrid_signature_security_succeeds() {
         let result = verify_hybrid_signature_security();
         assert!(result.is_ok(), "Hybrid signature security verification should succeed");
 
         let proof = result.unwrap();
-        assert_eq!(proof.security_level, SecurityLevel::PostQuantum);
+        assert_eq!(proof.security_level, HybridSecurityLevel::PostQuantum);
         assert!(!proof.description.is_empty());
         assert!(!proof.proof.is_empty());
         assert!(proof.proof.len() >= 4); // At least verification steps
@@ -369,89 +234,33 @@ mod tests {
         // Verify all proof steps are present
         let proof_text = proof.proof.join(" ");
         assert!(proof_text.contains("ML-DSA EUF-CMA"));
-        assert!(proof_text.contains("ECDSA EUF-CMA"));
-        assert!(proof_text.contains("Composition security"));
-        assert!(proof_text.contains("VERIFIED"));
+        assert!(proof_text.contains("Ed25519 EUF-CMA"));
+        assert!(proof_text.contains("Composition claim"));
     }
 
     #[test]
-    fn test_verify_ml_kem_ind_cca2() {
-        assert!(verify_ml_kem_ind_cca2(), "ML-KEM IND-CCA2 security should be verified");
+    fn test_security_claims_exist_and_are_non_empty_succeeds() {
+        // Verify the documented security claims are present and non-empty
+        assert!(!_ML_KEM_IND_CCA2_CLAIM.is_empty());
+        assert!(!_ECDH_IND_CPA_CLAIM.is_empty());
+        assert!(_ML_KEM_IND_CCA2_CLAIM.contains("IND-CCA2"));
+        assert!(_ECDH_IND_CPA_CLAIM.contains("IND-CPA"));
     }
 
     #[test]
-    fn test_verify_ecdh_ind_cpa() {
-        assert!(verify_ecdh_ind_cpa(), "ECDH IND-CPA security should be verified");
-    }
-
-    #[test]
-    fn test_verify_ml_dsa_euf_cma() {
-        assert!(verify_ml_dsa_euf_cma(), "ML-DSA EUF-CMA security should be verified");
-    }
-
-    #[test]
-    fn test_verify_ecdsa_euf_cma() {
-        assert!(verify_ecdsa_euf_cma(), "ECDSA EUF-CMA security should be verified");
-    }
-
-    #[test]
-    fn test_verify_composition_security_kem() {
-        let ml_kem_secure = true;
-        let ecdh_secure = true;
-
-        assert!(
-            verify_composition_security(ml_kem_secure, ecdh_secure),
-            "Composition security should be verified when both components are secure"
-        );
-    }
-
-    #[test]
-    fn test_verify_composition_security_kem_fail() {
-        let ml_kem_secure = true;
-        let ecdh_secure = false;
-
-        assert!(
-            !verify_composition_security(ml_kem_secure, ecdh_secure),
-            "Composition security should fail when one component is insecure"
-        );
-    }
-
-    #[test]
-    fn test_verify_signature_composition_security() {
-        let ml_dsa_secure = true;
-        let ecdsa_secure = true;
-
-        assert!(
-            verify_signature_composition_security(ml_dsa_secure, ecdsa_secure),
-            "Signature composition security should be verified when both components are secure"
-        );
-    }
-
-    #[test]
-    fn test_verify_signature_composition_security_fail() {
-        let ml_dsa_secure = false;
-        let ecdsa_secure = true;
-
-        assert!(
-            !verify_signature_composition_security(ml_dsa_secure, ecdsa_secure),
-            "Signature composition security should fail when one component is insecure"
-        );
-    }
-
-    #[test]
-    fn test_hybrid_kem_security_level() {
+    fn test_hybrid_kem_security_level_succeeds() {
         let proof = verify_hybrid_kem_security().unwrap();
-        assert_eq!(proof.security_level, SecurityLevel::PostQuantum);
+        assert_eq!(proof.security_level, HybridSecurityLevel::PostQuantum);
     }
 
     #[test]
-    fn test_hybrid_signature_security_level() {
+    fn test_hybrid_signature_security_level_succeeds() {
         let proof = verify_hybrid_signature_security().unwrap();
-        assert_eq!(proof.security_level, SecurityLevel::PostQuantum);
+        assert_eq!(proof.security_level, HybridSecurityLevel::PostQuantum);
     }
 
     #[test]
-    fn test_hybrid_kem_proof_structure() {
+    fn test_hybrid_kem_proof_structure_has_non_empty_steps_succeeds() {
         let proof = verify_hybrid_kem_security().unwrap();
         assert!(!proof.proof.is_empty());
 
@@ -463,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_signature_proof_structure() {
+    fn test_hybrid_signature_proof_structure_succeeds() {
         let proof = verify_hybrid_signature_security().unwrap();
         assert!(!proof.proof.is_empty());
 
@@ -475,15 +284,15 @@ mod tests {
     }
 
     #[test]
-    fn test_security_level_variants() {
+    fn test_security_level_variants_succeeds() {
         // Test that we can create different security levels
-        let _classical = SecurityLevel::Classical;
-        let _quantum_resistant = SecurityLevel::QuantumResistant;
-        let _post_quantum = SecurityLevel::PostQuantum;
+        let _classical = HybridSecurityLevel::Classical;
+        let _quantum_resistant = HybridSecurityLevel::QuantumResistant;
+        let _post_quantum = HybridSecurityLevel::PostQuantum;
     }
 
     #[test]
-    fn test_composition_error_types() {
+    fn test_composition_error_types_fails() {
         // Test error creation
         let err1 = CompositionError::VerificationFailed;
         assert_eq!(err1.to_string(), "Failed to verify composition security");
@@ -493,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_security_proof_clone() {
+    fn test_hybrid_security_proof_clone_succeeds() {
         let proof = verify_hybrid_kem_security().unwrap();
         let proof_clone = proof.clone();
         assert_eq!(proof.security_level, proof_clone.security_level);
@@ -502,40 +311,26 @@ mod tests {
     }
 
     #[test]
-    fn test_full_hybrid_kem_verification() {
-        // Integration test: verify full KEM security verification
+    fn test_full_hybrid_kem_verification_succeeds() {
         let result = verify_hybrid_kem_security();
         assert!(result.is_ok());
-
         let proof = result.unwrap();
-
-        // Check all expected verification steps
         let proof_text = proof.proof.join("\n");
-        assert!(proof_text.contains("ML-KEM IND-CCA2 security: VERIFIED"));
-        assert!(proof_text.contains("ECDH IND-CPA security: VERIFIED"));
-        assert!(proof_text.contains("Composition security: VERIFIED"));
-        assert!(proof_text.contains("Module-LWE"));
-        assert!(proof_text.contains("Computational Diffie-Hellman"));
-        assert!(proof_text.contains("XOR lemma"));
-        assert!(proof_text.contains("post-quantum secure"));
+        assert!(proof_text.contains("ML-KEM IND-CCA2 claim"));
+        assert!(proof_text.contains("ECDH IND-CPA claim"));
+        assert!(proof_text.contains("dual-PRF combiner"));
+        assert!(proof_text.contains("breaking BOTH"));
     }
 
     #[test]
-    fn test_full_hybrid_signature_verification() {
-        // Integration test: verify full signature security verification
+    fn test_full_hybrid_signature_verification_succeeds() {
         let result = verify_hybrid_signature_security();
         assert!(result.is_ok());
-
         let proof = result.unwrap();
-
-        // Check all expected verification steps
         let proof_text = proof.proof.join("\n");
-        assert!(proof_text.contains("ML-DSA EUF-CMA security: VERIFIED"));
-        assert!(proof_text.contains("ECDSA EUF-CMA security: VERIFIED"));
-        assert!(proof_text.contains("Composition security: VERIFIED"));
-        assert!(proof_text.contains("Module-SIS"));
-        assert!(proof_text.contains("Elliptic Curve Discrete Logarithm"));
-        // AND-composition is documented in the description field
+        assert!(proof_text.contains("ML-DSA EUF-CMA claim"));
+        assert!(proof_text.contains("Ed25519 EUF-CMA claim"));
+        assert!(proof_text.contains("AND-verification"));
         assert!(proof.description.contains("AND-composition"));
     }
 }

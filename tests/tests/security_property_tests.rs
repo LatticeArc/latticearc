@@ -13,9 +13,9 @@
 //! Run with: `cargo test --package latticearc --test security_property_tests --all-features --release -- --nocapture`
 
 use latticearc::{
-    CryptoConfig, DecryptKey, EncryptKey, SecurityLevel, SecurityMode, decrypt, decrypt_aes_gcm,
-    encrypt, encrypt_aes_gcm, generate_hybrid_keypair, generate_signing_keypair, hmac, hmac_check,
-    sign_with_key, verify,
+    CryptoConfig, DecryptKey, EncryptKey, EncryptedData, EncryptedOutput, SecurityLevel,
+    SecurityMode, decrypt, decrypt_aes_gcm, encrypt, encrypt_aes_gcm, generate_hybrid_keypair,
+    generate_signing_keypair, hmac, hmac_check, sign_with_key, verify,
 };
 
 // ============================================================================
@@ -44,14 +44,16 @@ fn test_hybrid_tampered_ciphertext_fails() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
     let plaintext = b"Hybrid integrity test";
 
-    let mut encrypted =
+    let encrypted =
         encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
 
-    if !encrypted.ciphertext.is_empty() {
-        encrypted.ciphertext[0] ^= 0xFF;
+    let mut legacy_data = EncryptedData::from(encrypted);
+    if !legacy_data.data.is_empty() {
+        legacy_data.data[0] ^= 0xFF;
     }
+    let tampered = EncryptedOutput::try_from(legacy_data).expect("conversion");
 
-    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new());
+    let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered hybrid ciphertext must fail decryption");
 }
 
@@ -137,7 +139,7 @@ fn test_signature_tampered_message_fails() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_different_keys_different_output() {
+fn test_aes_gcm_different_keys_different_output_succeeds() {
     let plaintext = b"Key uniqueness test";
 
     let ct1 =
@@ -149,7 +151,7 @@ fn test_aes_gcm_different_keys_different_output() {
 }
 
 #[test]
-fn test_signing_keypair_uniqueness() {
+fn test_signing_keypair_uniqueness_are_unique() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (pk1, _sk1, _) = generate_signing_keypair(config).expect("keygen1 failed");
 
@@ -164,7 +166,7 @@ fn test_signing_keypair_uniqueness() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_nonce_uniqueness() {
+fn test_aes_gcm_nonce_uniqueness_are_unique() {
     let key = [0xBBu8; 32];
     let plaintext = b"Same plaintext, different nonce";
 
@@ -175,7 +177,7 @@ fn test_aes_gcm_nonce_uniqueness() {
 }
 
 #[test]
-fn test_hybrid_nonce_uniqueness() {
+fn test_hybrid_nonce_uniqueness_are_unique() {
     let (pk, _sk) = generate_hybrid_keypair().expect("keygen failed");
     let plaintext = b"Hybrid nonce test";
 
@@ -185,7 +187,7 @@ fn test_hybrid_nonce_uniqueness() {
         encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("enc2 failed");
 
     // Each encryption uses fresh KEM + nonce, so ciphertexts differ
-    assert_ne!(enc1.ciphertext, enc2.ciphertext, "Hybrid must encrypt differently each time");
+    assert_ne!(enc1.ciphertext(), enc2.ciphertext(), "Hybrid must encrypt differently each time");
 }
 
 // ============================================================================

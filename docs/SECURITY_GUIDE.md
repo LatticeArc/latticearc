@@ -146,7 +146,7 @@ use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 
 // Generate post-quantum keypairs
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
-let (vk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+let (vk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 
 // Generate classical keypairs
 let (pk, sk) = generate_keypair()?;  // Ed25519
@@ -263,8 +263,8 @@ let signed = sign_with_key(message, &sk, &pk, config.clone())?;
 let is_valid = verify(&signed, config)?;
 
 // Post-quantum signatures (ML-DSA only, no classical)
-let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
-let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
+let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
+let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
 
 // Zero-trust authenticated signing
 let auth = ZeroTrustAuth::new(public_key, private_key)?;
@@ -301,6 +301,20 @@ struct SecretData {
 let mut secret = [0u8; 32];
 // ... use secret ...
 secret.zeroize();
+```
+
+### Sealed Traits
+
+Security-critical traits such as `AeadCipher`, `EcKeyPair`, and `EcSignature` are **sealed** — they cannot be implemented by code outside this crate. This guarantees that LatticeArc's safety invariants (constant-time operations, zeroization, authenticated encryption) cannot be bypassed by a downstream implementation.
+
+```rust
+// This will not compile — AeadCipher is sealed:
+// struct MyCipher;
+// impl AeadCipher for MyCipher { ... }  // error: trait `sealed::Sealed` is private
+
+// Only use the provided implementations:
+use latticearc::primitives::aead::aes_gcm::AesGcm256;
+use latticearc::primitives::aead::AeadCipher;
 ```
 
 ## Algorithm Selection

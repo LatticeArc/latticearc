@@ -169,14 +169,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_constant_time_eq() {
+    fn test_constant_time_eq_succeeds() {
         assert!(constant_time_eq(b"hello", b"hello"));
         assert!(!constant_time_eq(b"hello", b"world"));
         assert!(!constant_time_eq(b"hello", b"hell"));
     }
 
     #[test]
-    fn test_constant_time_compare() {
+    fn test_constant_time_compare_succeeds() {
         assert_eq!(constant_time_compare(b"abc", b"abc"), 0);
         assert!(constant_time_compare(b"abc", b"abd") < 0);
         assert!(constant_time_compare(b"abd", b"abc") > 0);
@@ -184,13 +184,13 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_select() {
+    fn test_constant_time_select_succeeds() {
         assert_eq!(constant_time_select(true, 1, 2), 1);
         assert_eq!(constant_time_select(false, 1, 2), 2);
     }
 
     #[test]
-    fn test_constant_time_select_array() {
+    fn test_constant_time_select_array_succeeds() {
         let a = [1, 2, 3];
         let b = [4, 5, 6];
         assert_eq!(constant_time_select_array(true, &a, &b), [1, 2, 3]);
@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_min_max() {
+    fn test_constant_time_min_max_succeeds() {
         assert_eq!(constant_time_min(5, 3), 3);
         assert_eq!(constant_time_max(5, 3), 5);
         assert_eq!(constant_time_min(3, 5), 3);
@@ -206,20 +206,20 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_array_eq() {
+    fn test_constant_time_array_eq_succeeds() {
         assert!(constant_time_array_eq(b"hello", b"hello"));
         assert!(!constant_time_array_eq(b"hello", b"world"));
         assert!(!constant_time_array_eq(b"hello", b"hell"));
     }
 
     #[test]
-    fn test_secure_compare() {
+    fn test_secure_compare_succeeds() {
         assert!(secure_compare(b"secret", b"secret"));
         assert!(!secure_compare(b"secret", b"public"));
     }
 
     #[test]
-    fn test_constant_time_conditional_move() {
+    fn test_constant_time_conditional_move_succeeds() {
         let mut dest = [1, 2, 3];
         let src = [4, 5, 6];
 
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_verify_basic() {
+    fn test_constant_time_verify_basic_succeeds() {
         let signature = vec![0u8; 64];
         let public_key = vec![0u8; 32];
         let message = b"test message";
@@ -242,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_verify_wrong_signature_length() {
+    fn test_constant_time_verify_wrong_signature_length_fails() {
         let signature = vec![0u8; 32];
         let public_key = vec![0u8; 32];
         let message = b"test message";
@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_verify_wrong_key_length() {
+    fn test_constant_time_verify_wrong_key_length_fails() {
         let signature = vec![0u8; 64];
         let public_key = vec![0u8; 16];
         let message = b"test message";
@@ -264,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_verify_empty_message() {
+    fn test_constant_time_verify_empty_message_succeeds() {
         let signature = vec![0u8; 64];
         let public_key = vec![0u8; 32];
         let message = b"";
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_verify_different_inputs() {
+    fn test_constant_time_verify_different_inputs_succeeds() {
         let signature1 = vec![1u8; 64];
         let signature2 = vec![2u8; 64];
         let public_key = vec![0u8; 32];

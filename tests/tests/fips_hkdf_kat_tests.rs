@@ -63,14 +63,14 @@ mod hkdf_test_vector_tests {
     use super::*;
 
     #[test]
-    fn test_vector_slice_type() {
+    fn test_vector_slice_type_matches_rfc5869_vector_matches_expected() {
         // Verify the slice type is correctly exported
         let vectors: TestVectorSlice = HKDF_SHA256_VECTORS;
         assert_eq!(vectors.len(), 3);
     }
 
     #[test]
-    fn test_vector_struct_fields_accessible() {
+    fn test_vector_struct_fields_accessible_matches_rfc5869_vector_matches_expected() {
         // Test that all fields of HkdfTestVector are publicly accessible
         let vector = &HKDF_SHA256_VECTORS[0];
 
@@ -85,13 +85,13 @@ mod hkdf_test_vector_tests {
     }
 
     #[test]
-    fn test_vector_count() {
+    fn test_vector_count_matches_expected() {
         // RFC 5869 defines 3 SHA-256 test vectors
         assert_eq!(HKDF_SHA256_VECTORS.len(), 3, "HKDF-SHA256 should have exactly 3 test vectors");
     }
 
     #[test]
-    fn test_vector_test_names() {
+    fn test_vector_test_names_matches_expected() {
         // Verify all test vectors have proper RFC names
         assert_eq!(HKDF_SHA256_VECTORS[0].test_name, "RFC-5869-Test-Case-1");
         assert_eq!(HKDF_SHA256_VECTORS[1].test_name, "RFC-5869-Test-Case-2");
@@ -99,7 +99,7 @@ mod hkdf_test_vector_tests {
     }
 
     #[test]
-    fn test_vector_lengths() {
+    fn test_vector_lengths_matches_rfc5869_vector_matches_expected() {
         // Verify OKM lengths match expected values
         assert_eq!(HKDF_SHA256_VECTORS[0].length, 42);
         assert_eq!(HKDF_SHA256_VECTORS[1].length, 82);
@@ -107,7 +107,7 @@ mod hkdf_test_vector_tests {
     }
 
     #[test]
-    fn test_vector_ikm_decode() {
+    fn test_vector_ikm_decode_matches_rfc5869_vector_matches_expected() {
         for (i, vector) in HKDF_SHA256_VECTORS.iter().enumerate() {
             let result = decode_hex(vector.ikm);
             assert!(
@@ -120,7 +120,7 @@ mod hkdf_test_vector_tests {
     }
 
     #[test]
-    fn test_vector_salt_decode() {
+    fn test_vector_salt_decode_matches_rfc5869_vector_matches_expected() {
         for (i, vector) in HKDF_SHA256_VECTORS.iter().enumerate() {
             let result = decode_hex(vector.salt);
             assert!(
@@ -133,7 +133,7 @@ mod hkdf_test_vector_tests {
     }
 
     #[test]
-    fn test_vector_info_decode() {
+    fn test_vector_info_decode_matches_rfc5869_vector_matches_expected() {
         for (i, vector) in HKDF_SHA256_VECTORS.iter().enumerate() {
             let result = decode_hex(vector.info);
             assert!(
@@ -146,7 +146,7 @@ mod hkdf_test_vector_tests {
     }
 
     #[test]
-    fn test_vector_prk_decode() {
+    fn test_vector_prk_decode_matches_rfc5869_vector_matches_expected() {
         for (i, vector) in HKDF_SHA256_VECTORS.iter().enumerate() {
             let result = decode_hex(vector.expected_prk);
             assert!(
@@ -168,7 +168,7 @@ mod hkdf_test_vector_tests {
     }
 
     #[test]
-    fn test_vector_okm_decode() {
+    fn test_vector_okm_decode_matches_rfc5869_vector_matches_expected() {
         for (i, vector) in HKDF_SHA256_VECTORS.iter().enumerate() {
             let result = decode_hex(vector.expected_okm);
             assert!(
@@ -197,13 +197,13 @@ mod hkdf_runner_tests {
     use super::*;
 
     #[test]
-    fn test_run_hkdf_sha256_kat_passes() {
+    fn test_run_hkdf_sha256_kat_passes_matches_rfc5869_vector_matches_expected() {
         let result = hkdf_kat::run_hkdf_sha256_kat();
         assert!(result.is_ok(), "HKDF-SHA256 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_run_hkdf_sha256_kat_returns_ok() {
+    fn test_run_hkdf_sha256_kat_returns_ok_matches_rfc5869_vector_matches_expected() {
         // Explicit test that the function returns Ok(()) on success
         match hkdf_kat::run_hkdf_sha256_kat() {
             Ok(()) => {} // Expected
@@ -212,7 +212,7 @@ mod hkdf_runner_tests {
     }
 
     #[test]
-    fn test_all_vectors_pass() {
+    fn test_all_vectors_pass_matches_rfc5869_vector_matches_expected() {
         // Run each vector directly using the hkdf crate
         for vector in HKDF_SHA256_VECTORS {
             let ikm = decode_hex(vector.ikm).unwrap();
@@ -251,7 +251,7 @@ mod test_case_1_basic {
     use super::*;
 
     #[test]
-    fn test_case_1_ikm() {
+    fn test_case_1_ikm_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[0];
         let ikm = decode_hex(vector.ikm).unwrap();
         assert_eq!(ikm.len(), 22, "Test case 1 IKM should be 22 bytes");
@@ -262,7 +262,7 @@ mod test_case_1_basic {
     }
 
     #[test]
-    fn test_case_1_salt() {
+    fn test_case_1_salt_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[0];
         let salt = decode_hex(vector.salt).unwrap();
         assert_eq!(salt.len(), 13, "Test case 1 salt should be 13 bytes");
@@ -273,7 +273,7 @@ mod test_case_1_basic {
     }
 
     #[test]
-    fn test_case_1_info() {
+    fn test_case_1_info_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[0];
         let info = decode_hex(vector.info).unwrap();
         assert_eq!(info.len(), 10, "Test case 1 info should be 10 bytes");
@@ -284,7 +284,7 @@ mod test_case_1_basic {
     }
 
     #[test]
-    fn test_case_1_prk_extraction() {
+    fn test_case_1_prk_extraction_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[0];
         let ikm = decode_hex(vector.ikm).unwrap();
         let salt = decode_hex(vector.salt).unwrap();
@@ -295,7 +295,7 @@ mod test_case_1_basic {
     }
 
     #[test]
-    fn test_case_1_okm_expansion() {
+    fn test_case_1_okm_expansion_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[0];
         let ikm = decode_hex(vector.ikm).unwrap();
         let salt = decode_hex(vector.salt).unwrap();
@@ -318,34 +318,34 @@ mod test_case_2_longer {
     use super::*;
 
     #[test]
-    fn test_case_2_ikm_length() {
+    fn test_case_2_ikm_length_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[1];
         let ikm = decode_hex(vector.ikm).unwrap();
         assert_eq!(ikm.len(), 80, "Test case 2 IKM should be 80 bytes");
     }
 
     #[test]
-    fn test_case_2_salt_length() {
+    fn test_case_2_salt_length_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[1];
         let salt = decode_hex(vector.salt).unwrap();
         assert_eq!(salt.len(), 80, "Test case 2 salt should be 80 bytes");
     }
 
     #[test]
-    fn test_case_2_info_length() {
+    fn test_case_2_info_length_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[1];
         let info = decode_hex(vector.info).unwrap();
         assert_eq!(info.len(), 80, "Test case 2 info should be 80 bytes");
     }
 
     #[test]
-    fn test_case_2_okm_length() {
+    fn test_case_2_okm_length_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[1];
         assert_eq!(vector.length, 82, "Test case 2 OKM should be 82 bytes");
     }
 
     #[test]
-    fn test_case_2_full_flow() {
+    fn test_case_2_full_flow_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[1];
         let ikm = decode_hex(vector.ikm).unwrap();
         let salt = decode_hex(vector.salt).unwrap();
@@ -373,21 +373,21 @@ mod test_case_3_empty_salt_info {
     use super::*;
 
     #[test]
-    fn test_case_3_empty_salt() {
+    fn test_case_3_empty_salt_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[2];
         let salt = decode_hex(vector.salt).unwrap();
         assert!(salt.is_empty(), "Test case 3 salt should be empty");
     }
 
     #[test]
-    fn test_case_3_empty_info() {
+    fn test_case_3_empty_info_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[2];
         let info = decode_hex(vector.info).unwrap();
         assert!(info.is_empty(), "Test case 3 info should be empty");
     }
 
     #[test]
-    fn test_case_3_prk_with_empty_salt() {
+    fn test_case_3_prk_with_empty_salt_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[2];
         let ikm = decode_hex(vector.ikm).unwrap();
         let expected_prk = decode_hex(vector.expected_prk).unwrap();
@@ -398,7 +398,7 @@ mod test_case_3_empty_salt_info {
     }
 
     #[test]
-    fn test_case_3_okm_with_empty_info() {
+    fn test_case_3_okm_with_empty_info_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[2];
         let ikm = decode_hex(vector.ikm).unwrap();
         let expected_okm = decode_hex(vector.expected_okm).unwrap();
@@ -412,7 +412,7 @@ mod test_case_3_empty_salt_info {
     }
 
     #[test]
-    fn test_case_3_full_flow_empty_params() {
+    fn test_case_3_full_flow_empty_params_matches_rfc5869_vector_matches_expected() {
         let vector = &HKDF_SHA256_VECTORS[2];
         let ikm = decode_hex(vector.ikm).unwrap();
         let salt = decode_hex(vector.salt).unwrap();
@@ -445,7 +445,7 @@ mod hkdf_properties {
     use super::*;
 
     #[test]
-    fn test_hkdf_deterministic() {
+    fn test_hkdf_deterministic_matches_rfc5869_vector_matches_expected() {
         // Same inputs should produce same outputs
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
@@ -466,7 +466,7 @@ mod hkdf_properties {
     }
 
     #[test]
-    fn test_hkdf_different_info_different_output() {
+    fn test_hkdf_different_info_different_output_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
 
@@ -485,7 +485,7 @@ mod hkdf_properties {
     }
 
     #[test]
-    fn test_hkdf_different_salt_different_prk() {
+    fn test_hkdf_different_salt_different_prk_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let salt1 = decode_hex("000102030405060708090a0b0c").unwrap();
         let salt2 = decode_hex("000102030405060708090a0b0d").unwrap(); // Different last byte
@@ -497,7 +497,7 @@ mod hkdf_properties {
     }
 
     #[test]
-    fn test_hkdf_different_ikm_different_prk() {
+    fn test_hkdf_different_ikm_different_prk_matches_rfc5869_vector_matches_expected() {
         let ikm1 = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let ikm2 = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0c").unwrap(); // Different last byte
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
@@ -509,7 +509,7 @@ mod hkdf_properties {
     }
 
     #[test]
-    fn test_hkdf_prk_length() {
+    fn test_hkdf_prk_length_matches_rfc5869_vector_matches_expected() {
         // PRK should always be hash output length (32 bytes for SHA-256)
         for vector in HKDF_SHA256_VECTORS {
             let prk = decode_hex(vector.expected_prk).unwrap();
@@ -518,7 +518,7 @@ mod hkdf_properties {
     }
 
     #[test]
-    fn test_hkdf_okm_max_length() {
+    fn test_hkdf_okm_max_length_matches_rfc5869_vector_matches_expected() {
         // HKDF-SHA256 can generate up to 255 * 32 = 8160 bytes
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
@@ -530,7 +530,7 @@ mod hkdf_properties {
     }
 
     #[test]
-    fn test_hkdf_empty_ikm() {
+    fn test_hkdf_empty_ikm_matches_rfc5869_vector_matches_expected() {
         // Empty IKM should still work
         let ikm: Vec<u8> = vec![];
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
@@ -545,7 +545,7 @@ mod hkdf_properties {
     }
 
     #[test]
-    fn test_hkdf_single_byte_ikm() {
+    fn test_hkdf_single_byte_ikm_matches_rfc5869_vector_matches_expected() {
         let ikm = vec![0xab];
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
 
@@ -567,7 +567,7 @@ mod hkdf_extract_tests {
     use super::*;
 
     #[test]
-    fn test_extract_returns_hkdf_instance() {
+    fn test_extract_returns_hkdf_instance_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
 
@@ -584,7 +584,7 @@ mod hkdf_extract_tests {
     }
 
     #[test]
-    fn test_extract_with_none_salt() {
+    fn test_extract_with_none_salt_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
 
         let (prk, _) = Hkdf::<Sha256>::extract(None, &ikm);
@@ -597,7 +597,7 @@ mod hkdf_extract_tests {
     }
 
     #[test]
-    fn test_extract_prk_matches_expected() {
+    fn test_extract_prk_matches_rfc5869_vector_matches_expected() {
         // Test all vectors for PRK correctness
         for vector in HKDF_SHA256_VECTORS {
             let ikm = decode_hex(vector.ikm).unwrap();
@@ -625,7 +625,7 @@ mod hkdf_expand_tests {
     use super::*;
 
     #[test]
-    fn test_expand_zero_length() {
+    fn test_expand_zero_length_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -635,7 +635,7 @@ mod hkdf_expand_tests {
     }
 
     #[test]
-    fn test_expand_one_byte() {
+    fn test_expand_one_byte_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -646,7 +646,7 @@ mod hkdf_expand_tests {
     }
 
     #[test]
-    fn test_expand_exactly_hash_length() {
+    fn test_expand_exactly_hash_length_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -656,7 +656,7 @@ mod hkdf_expand_tests {
     }
 
     #[test]
-    fn test_expand_multiple_hash_lengths() {
+    fn test_expand_multiple_hash_lengths_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -672,7 +672,7 @@ mod hkdf_expand_tests {
     }
 
     #[test]
-    fn test_expand_with_info() {
+    fn test_expand_with_info_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
         let info = decode_hex("f0f1f2f3f4f5f6f7f8f9").unwrap();
@@ -689,7 +689,7 @@ mod hkdf_expand_tests {
     }
 
     #[test]
-    fn test_expand_without_info() {
+    fn test_expand_without_info_matches_rfc5869_vector_matches_expected() {
         // Test case 3 uses empty info
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let expected_okm = decode_hex(
@@ -705,7 +705,7 @@ mod hkdf_expand_tests {
     }
 
     #[test]
-    fn test_expand_okm_matches_expected() {
+    fn test_expand_okm_matches_rfc5869_vector_matches_expected() {
         // Test all vectors for OKM correctness
         for vector in HKDF_SHA256_VECTORS {
             let ikm = decode_hex(vector.ikm).unwrap();
@@ -731,7 +731,7 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_invalid_hex_in_ikm() {
+    fn test_invalid_hex_in_ikm_matches_expected() {
         let result = decode_hex("invalid_hex");
         assert!(result.is_err());
         match result {
@@ -741,7 +741,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_odd_length_hex() {
+    fn test_odd_length_hex_matches_expected() {
         let result = decode_hex("123");
         assert!(result.is_err());
         match result {
@@ -751,7 +751,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_test_failed_display() {
+    fn test_nist_kat_error_test_failed_display_matches_expected() {
         let error = NistKatError::TestFailed {
             algorithm: "HKDF-SHA256".to_string(),
             test_name: "test-case-1".to_string(),
@@ -764,21 +764,21 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_hex_error_display() {
+    fn test_nist_kat_error_hex_error_display_matches_expected() {
         let error = NistKatError::HexError("invalid character".to_string());
         let display = format!("{}", error);
         assert!(display.contains("invalid character"));
     }
 
     #[test]
-    fn test_nist_kat_error_implementation_error_display() {
+    fn test_nist_kat_error_implementation_error_display_matches_expected() {
         let error = NistKatError::ImplementationError("expand failed".to_string());
         let display = format!("{}", error);
         assert!(display.contains("expand failed"));
     }
 
     #[test]
-    fn test_hkdf_expand_too_long() {
+    fn test_hkdf_expand_too_long_matches_expected() {
         // HKDF can produce at most 255 * HashLen bytes (8160 for SHA-256)
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
@@ -798,7 +798,7 @@ mod rfc_5869_compliance {
     use super::*;
 
     #[test]
-    fn test_rfc_appendix_a_test_case_1() {
+    fn test_rfc_appendix_a_test_case_1_matches_rfc5869_vector_matches_expected() {
         // RFC 5869 Appendix A - Test Case 1
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
@@ -820,7 +820,7 @@ mod rfc_5869_compliance {
     }
 
     #[test]
-    fn test_rfc_appendix_a_test_case_2() {
+    fn test_rfc_appendix_a_test_case_2_matches_rfc5869_vector_matches_expected() {
         // RFC 5869 Appendix A - Test Case 2 (longer inputs)
         let ikm = decode_hex(
             "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\
@@ -859,7 +859,7 @@ mod rfc_5869_compliance {
     }
 
     #[test]
-    fn test_rfc_appendix_a_test_case_3() {
+    fn test_rfc_appendix_a_test_case_3_matches_rfc5869_vector_matches_expected() {
         // RFC 5869 Appendix A - Test Case 3 (zero-length salt/info)
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let expected_prk =
@@ -887,14 +887,14 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_hkdf_kat_module_integration() {
+    fn test_hkdf_kat_module_integration_matches_rfc5869_vector_matches_expected() {
         // Test that the KAT module integrates properly with the validation framework
         let result = hkdf_kat::run_hkdf_sha256_kat();
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_vectors_accessible_from_module() {
+    fn test_vectors_accessible_from_module_matches_rfc5869_vector_matches_expected() {
         // Test that vectors are properly exported
         let vectors = HKDF_SHA256_VECTORS;
         assert_eq!(vectors.len(), 3);
@@ -910,7 +910,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_decode_hex_from_module() {
+    fn test_decode_hex_from_module_matches_expected() {
         // Test that decode_hex is properly exported from nist_kat
         let result = decode_hex("0123456789abcdef");
         assert!(result.is_ok());
@@ -918,7 +918,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_full_hkdf_workflow() {
+    fn test_full_hkdf_workflow_matches_rfc5869_vector_matches_expected() {
         // End-to-end test of the HKDF workflow
         for vector in HKDF_SHA256_VECTORS {
             // 1. Decode all hex values
@@ -953,7 +953,7 @@ mod additional_edge_cases {
     use super::*;
 
     #[test]
-    fn test_very_short_info() {
+    fn test_very_short_info_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -965,7 +965,7 @@ mod additional_edge_cases {
     }
 
     #[test]
-    fn test_very_long_info() {
+    fn test_very_long_info_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -977,7 +977,7 @@ mod additional_edge_cases {
     }
 
     #[test]
-    fn test_all_zeros_ikm() {
+    fn test_all_zeros_ikm_matches_rfc5869_vector_matches_expected() {
         let ikm = vec![0u8; 32];
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
 
@@ -991,7 +991,7 @@ mod additional_edge_cases {
     }
 
     #[test]
-    fn test_all_ones_ikm() {
+    fn test_all_ones_ikm_matches_rfc5869_vector_matches_expected() {
         let ikm = vec![0xff; 32];
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
 
@@ -1005,7 +1005,7 @@ mod additional_edge_cases {
     }
 
     #[test]
-    fn test_repeated_expand_calls() {
+    fn test_repeated_expand_calls_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -1023,7 +1023,7 @@ mod additional_edge_cases {
     }
 
     #[test]
-    fn test_boundary_okm_lengths() {
+    fn test_boundary_okm_lengths_matches_rfc5869_vector_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let hk = Hkdf::<Sha256>::new(None, &ikm);
 
@@ -1048,7 +1048,7 @@ mod performance_tests {
     use std::time::Instant;
 
     #[test]
-    fn test_hkdf_performance_reasonable() {
+    fn test_hkdf_performance_reasonable_matches_expected() {
         let ikm = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let salt = decode_hex("000102030405060708090a0b0c").unwrap();
         let info = decode_hex("f0f1f2f3f4f5f6f7f8f9").unwrap();
@@ -1070,7 +1070,7 @@ mod performance_tests {
     }
 
     #[test]
-    fn test_kat_runner_performance() {
+    fn test_kat_runner_performance_matches_expected() {
         let iterations = 100;
         let start = Instant::now();
 

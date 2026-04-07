@@ -48,7 +48,7 @@ use latticearc_tests::validation::timing::{
 // ============================================================================
 
 #[test]
-fn test_timing_error_display_variation() {
+fn test_timing_error_display_variation_fails() {
     let e = TimingError::TimingVariation;
     let d = format!("{}", e);
     assert!(!d.is_empty(), "TimingVariation display must not be empty");
@@ -56,7 +56,7 @@ fn test_timing_error_display_variation() {
 }
 
 #[test]
-fn test_timing_error_display_insufficient() {
+fn test_timing_error_display_insufficient_fails() {
     let e = TimingError::InsufficientSamples;
     let d = format!("{}", e);
     assert!(!d.is_empty(), "InsufficientSamples display must not be empty");
@@ -64,14 +64,14 @@ fn test_timing_error_display_insufficient() {
 }
 
 #[test]
-fn test_timing_error_display_constant_time_failed() {
+fn test_timing_error_display_constant_time_failed_fails() {
     let e = TimingError::ConstantTimeFailed;
     let d = format!("{}", e);
     assert!(!d.is_empty());
 }
 
 #[test]
-fn test_timing_error_variants_distinct() {
+fn test_timing_error_variants_distinct_fails() {
     let d1 = format!("{}", TimingError::TimingVariation);
     let d2 = format!("{}", TimingError::InsufficientSamples);
     let d3 = format!("{}", TimingError::ConstantTimeFailed);
@@ -81,7 +81,7 @@ fn test_timing_error_variants_distinct() {
 }
 
 #[test]
-fn test_timing_error_debug() {
+fn test_timing_error_debug_fails() {
     let e = TimingError::TimingVariation;
     let debug = format!("{:?}", e);
     assert!(!debug.is_empty());
@@ -92,7 +92,7 @@ fn test_timing_error_debug() {
 // ============================================================================
 
 #[test]
-fn test_timing_validator_construction() {
+fn test_timing_validator_construction_succeeds() {
     // new(sample_count, max_timing_difference_ratio)
     let validator = TimingValidator::new(100, 0.20);
     // Should construct without panic; verify by using it
@@ -104,14 +104,14 @@ fn test_timing_validator_construction() {
 }
 
 #[test]
-fn test_timing_validator_default() {
+fn test_timing_validator_default_succeeds() {
     let validator = TimingValidator::default();
     let result = validator.validate_constant_time_operation(|| true);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_timing_validator_insufficient_samples() {
+fn test_timing_validator_insufficient_samples_succeeds() {
     let validator = TimingValidator::new(5, 0.2); // Too few samples (< 10)
     let result = validator.validate_constant_time_operation(|| true);
     assert!(
@@ -126,28 +126,28 @@ fn test_timing_validator_insufficient_samples() {
 // ============================================================================
 
 #[test]
-fn test_constant_time_eq_equal() {
+fn test_constant_time_eq_equal_succeeds() {
     let a = [0x42u8; 32];
     let b = [0x42u8; 32];
     assert!(constant_time_eq(&a, &b), "Equal slices must return true");
 }
 
 #[test]
-fn test_constant_time_eq_different() {
+fn test_constant_time_eq_different_succeeds() {
     let a = [0x42u8; 32];
     let b = [0x43u8; 32];
     assert!(!constant_time_eq(&a, &b), "Different slices must return false");
 }
 
 #[test]
-fn test_constant_time_eq_empty() {
+fn test_constant_time_eq_empty_succeeds() {
     let a: [u8; 0] = [];
     let b: [u8; 0] = [];
     assert!(constant_time_eq(&a, &b), "Empty slices must return true");
 }
 
 #[test]
-fn test_constant_time_eq_single_byte_diff() {
+fn test_constant_time_eq_single_byte_diff_succeeds() {
     let a = [0x00u8; 64];
     let mut b = [0x00u8; 64];
     b[63] = 0x01;
@@ -155,14 +155,14 @@ fn test_constant_time_eq_single_byte_diff() {
 }
 
 #[test]
-fn test_constant_time_eq_different_lengths() {
+fn test_constant_time_eq_different_lengths_has_correct_size() {
     let a = [0x42u8; 16];
     let b = [0x42u8; 32];
     assert!(!constant_time_eq(&a, &b), "Different lengths must return false");
 }
 
 #[test]
-fn test_constant_time_eq_first_byte_diff() {
+fn test_constant_time_eq_first_byte_diff_succeeds() {
     let mut a = [0x00u8; 32];
     let b = [0x00u8; 32];
     a[0] = 0xFF;
@@ -184,14 +184,14 @@ fn test_validate_constant_time_passes() {
 // ============================================================================
 
 #[test]
-fn test_validate_noop_operation() {
+fn test_validate_noop_operation_succeeds() {
     let validator = TimingValidator::new(50, 0.5);
     let result = validator.validate_constant_time_operation(|| std::hint::black_box(true));
     assert!(result.is_ok(), "No-op operation must succeed: {:?}", result);
 }
 
 #[test]
-fn test_validate_xor_operation() {
+fn test_validate_xor_operation_succeeds() {
     let validator = TimingValidator::new(50, 0.5);
     let a = [0xAAu8; 32];
     let b = [0xBBu8; 32];
@@ -211,7 +211,7 @@ fn test_validate_xor_operation() {
 // ============================================================================
 
 #[test]
-fn test_compare_timings_similar_ops() {
+fn test_compare_timings_similar_ops_succeeds() {
     let validator = TimingValidator::new(50, 0.5); // generous threshold
 
     let a = [0x00u8; 64];
@@ -229,7 +229,7 @@ fn test_compare_timings_similar_ops() {
 // ============================================================================
 
 #[test]
-fn test_validate_constant_time_compare() {
+fn test_validate_constant_time_compare_succeeds() {
     let validator = TimingValidator::new(100, 0.3);
 
     let data_a = vec![0x41u8; 32];
@@ -241,7 +241,7 @@ fn test_validate_constant_time_compare() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_last_byte() {
+fn test_validate_constant_time_compare_last_byte_succeeds() {
     let validator = TimingValidator::new(100, 0.3);
 
     let data_a = vec![0x41u8; 32];

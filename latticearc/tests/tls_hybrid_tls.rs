@@ -13,7 +13,7 @@
 use latticearc::tls::*;
 
 #[test]
-fn test_tls_modes() {
+fn test_tls_modes_succeeds() {
     use latticearc::unified_api::SecurityLevel;
 
     // Test default mode
@@ -38,7 +38,7 @@ fn test_tls_modes() {
 }
 
 #[test]
-fn test_tls13_config_default() {
+fn test_tls13_config_default_succeeds() {
     let config = Tls13Config::default();
     assert_eq!(config.mode, TlsMode::Hybrid);
     assert!(config.use_pq_kx);
@@ -46,7 +46,7 @@ fn test_tls13_config_default() {
 }
 
 #[test]
-fn test_tls13_config_variants() {
+fn test_tls13_config_variants_succeeds() {
     let classic = Tls13Config::classic();
     assert_eq!(classic.mode, TlsMode::Classic);
     assert!(!classic.use_pq_kx);
@@ -61,14 +61,14 @@ fn test_tls13_config_variants() {
 }
 
 #[test]
-fn test_early_data_config() {
+fn test_early_data_config_succeeds() {
     let config = Tls13Config::hybrid().with_early_data(4096);
     assert!(config.enable_early_data);
     assert_eq!(config.max_early_data_size, 4096);
 }
 
 #[test]
-fn test_handshake_state_transitions() {
+fn test_handshake_state_transitions_succeeds() {
     let states = vec![
         HandshakeState::Start,
         HandshakeState::ClientHelloSent,
@@ -89,7 +89,7 @@ fn test_handshake_state_transitions() {
 }
 
 #[test]
-fn test_handshake_stats_default() {
+fn test_handshake_stats_default_succeeds() {
     let stats = HandshakeStats::default();
     assert_eq!(stats.duration_ms, 0);
     assert_eq!(stats.round_trips, 2);
@@ -100,7 +100,7 @@ fn test_handshake_stats_default() {
 }
 
 #[test]
-fn test_get_cipher_suites() {
+fn test_get_cipher_suites_succeeds() {
     let classic_suites = get_cipher_suites(TlsMode::Classic);
     assert!(!classic_suites.is_empty());
     assert_eq!(classic_suites.len(), 3);
@@ -115,7 +115,7 @@ fn test_get_cipher_suites() {
 }
 
 #[test]
-fn test_verify_config() {
+fn test_verify_config_succeeds() {
     // Valid configurations
     assert!(verify_config(&Tls13Config::classic()).is_ok());
     assert!(verify_config(&Tls13Config::hybrid()).is_ok());
@@ -131,7 +131,7 @@ fn test_verify_config() {
 }
 
 #[test]
-fn test_kex_info_classical() {
+fn test_kex_info_classical_succeeds() {
     let info = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
     assert_eq!(info.method, "X25519 (ECDHE)");
     assert!(!info.is_pq_secure);
@@ -142,7 +142,7 @@ fn test_kex_info_classical() {
 }
 
 #[test]
-fn test_config_info() {
+fn test_config_info_succeeds() {
     use latticearc::unified_api::SecurityLevel;
 
     // Standard uses Hybrid mode (all non-Quantum levels use Hybrid)
@@ -165,12 +165,12 @@ fn test_config_info() {
 }
 
 #[test]
-fn test_version() {
-    assert!(!VERSION.is_empty());
+fn test_version_succeeds() {
+    assert!(!latticearc::VERSION.is_empty());
 }
 
 #[test]
-fn test_tls13_config_from_tls_config() {
+fn test_tls13_config_from_tls_config_succeeds() {
     use latticearc::unified_api::SecurityLevel;
 
     let configs = vec![
@@ -187,7 +187,7 @@ fn test_tls13_config_from_tls_config() {
 }
 
 #[test]
-fn test_kex_info_hybrid() {
+fn test_kex_info_hybrid_succeeds() {
     // Test hybrid mode key exchange info
     let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
     assert_eq!(info.method, "X25519MLKEM768");
@@ -199,27 +199,27 @@ fn test_kex_info_hybrid() {
 }
 
 #[test]
-fn test_pq_availability() {
+fn test_pq_availability_succeeds() {
     // PQ is always available via rustls native support
     let available = is_pq_available();
     assert!(available);
 }
 
 #[test]
-fn test_custom_hybrid_availability() {
+fn test_custom_hybrid_availability_succeeds() {
     // Custom hybrid is always available
     let available = is_custom_hybrid_available();
     assert!(available);
 }
 
 #[test]
-fn test_get_kex_provider_hybrid() {
+fn test_get_kex_provider_hybrid_succeeds() {
     let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq);
     assert!(provider.is_ok());
 }
 
 #[test]
-fn test_get_kex_provider_classical() {
+fn test_get_kex_provider_classical_succeeds() {
     let provider = get_kex_provider(TlsMode::Classic, PqKexMode::Classical);
     assert!(provider.is_ok());
 }

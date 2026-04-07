@@ -48,7 +48,7 @@ fn split_wrapper_format(encrypted: &[u8]) -> (&[u8; 12], &[u8], &[u8; 16]) {
 
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_ed25519_sign_wrapper_matches_primitives() {
+fn test_ed25519_sign_wrapper_matches_primitives_succeeds() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let sk_bytes = keypair.secret_key_bytes();
     let pk_bytes = keypair.public_key_bytes();
@@ -81,7 +81,7 @@ fn test_ed25519_sign_wrapper_matches_primitives() {
 
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_ed25519_cross_verify_various_messages() {
+fn test_ed25519_cross_verify_various_messages_succeeds() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let sk_bytes = keypair.secret_key_bytes();
     let pk_bytes = keypair.public_key_bytes();
@@ -118,7 +118,7 @@ fn test_ed25519_cross_verify_various_messages() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_wrapper_encrypt_primitives_decrypt() {
+fn test_aes_gcm_wrapper_encrypt_primitives_decrypt_succeeds() {
     let key = [0x42u8; 32];
     let plaintext = b"cross-validation AES-GCM test";
 
@@ -144,7 +144,7 @@ fn test_aes_gcm_wrapper_encrypt_primitives_decrypt() {
 }
 
 #[test]
-fn test_aes_gcm_primitives_encrypt_wrapper_decrypt() {
+fn test_aes_gcm_primitives_encrypt_wrapper_decrypt_succeeds() {
     let key = [0x42u8; 32];
     let plaintext = b"cross-validation AES-GCM test (reverse)";
 
@@ -172,7 +172,7 @@ fn test_aes_gcm_primitives_encrypt_wrapper_decrypt() {
 }
 
 #[test]
-fn test_aes_gcm_cross_validation_various_sizes() {
+fn test_aes_gcm_cross_validation_various_sizes_has_correct_size() {
     let key = [0xAB; 32];
 
     for size in [0, 1, 15, 16, 17, 64, 256, 1024] {
@@ -185,7 +185,8 @@ fn test_aes_gcm_cross_validation_various_sizes() {
         let cipher = AesGcm256::new(&key).expect("cipher creation");
         let decrypted = cipher.decrypt(nonce, ciphertext, tag, None).expect("primitives decrypt");
         assert_eq!(
-            decrypted, plaintext,
+            decrypted.as_slice(),
+            plaintext.as_slice(),
             "Cross-validation failed for size={} (wrapper->primitives)",
             size
         );
@@ -200,7 +201,8 @@ fn test_aes_gcm_cross_validation_various_sizes() {
 
         let dec2 = decrypt_aes_gcm_unverified(&enc2, &key).expect("wrapper decrypt");
         assert_eq!(
-            dec2, plaintext,
+            dec2.as_slice(),
+            plaintext.as_slice(),
             "Cross-validation failed for size={} (primitives->wrapper)",
             size
         );

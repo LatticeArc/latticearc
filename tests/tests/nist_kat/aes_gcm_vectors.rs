@@ -64,7 +64,7 @@ const AES_256_TAG_3: &str = "b094dac5d93471bdec1a502270e3cc6c";
 
 /// Test AES-128-GCM with NIST test vector 1 (empty plaintext)
 #[test]
-fn test_aes128_gcm_nist_vector_1() {
+fn test_aes128_gcm_nist_vector_1_matches_expected() {
     let key = decode_hex(AES_128_KEY_1).expect("key decode");
     let nonce = decode_hex(AES_128_IV_1).expect("nonce decode");
     let plaintext = decode_hex(AES_128_PT_1).expect("plaintext decode");
@@ -93,7 +93,7 @@ fn test_aes128_gcm_nist_vector_1() {
 
 /// Test AES-128-GCM with NIST test vector 2 (with plaintext)
 #[test]
-fn test_aes128_gcm_nist_vector_2() {
+fn test_aes128_gcm_nist_vector_2_matches_expected() {
     let key = decode_hex(AES_128_KEY_2).expect("key decode");
     let nonce = decode_hex(AES_128_IV_2).expect("nonce decode");
     let plaintext = decode_hex(AES_128_PT_2).expect("plaintext decode");
@@ -121,12 +121,12 @@ fn test_aes128_gcm_nist_vector_2() {
 
     // Test decryption
     let decrypted = cipher.decrypt(&nonce_arr, &ct, &tag, aad_opt).expect("decryption");
-    assert_eq!(decrypted, plaintext, "Decryption mismatch");
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Decryption mismatch");
 }
 
 /// Test AES-128-GCM with NIST test vector 3 (longer plaintext)
 #[test]
-fn test_aes128_gcm_nist_vector_3() {
+fn test_aes128_gcm_nist_vector_3_matches_expected() {
     let key = decode_hex(AES_128_KEY_3).expect("key decode");
     let nonce = decode_hex(AES_128_IV_3).expect("nonce decode");
     let plaintext = decode_hex(AES_128_PT_3).expect("plaintext decode");
@@ -154,12 +154,12 @@ fn test_aes128_gcm_nist_vector_3() {
 
     // Test decryption
     let decrypted = cipher.decrypt(&nonce_arr, &ct, &tag, aad_opt).expect("decryption");
-    assert_eq!(decrypted, plaintext, "Decryption mismatch");
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Decryption mismatch");
 }
 
 /// Test AES-256-GCM with NIST test vector 1 (empty plaintext)
 #[test]
-fn test_aes256_gcm_nist_vector_1() {
+fn test_aes256_gcm_nist_vector_1_matches_expected() {
     let key = decode_hex(AES_256_KEY_1).expect("key decode");
     let nonce = decode_hex(AES_256_IV_1).expect("nonce decode");
     let plaintext = decode_hex(AES_256_PT_1).expect("plaintext decode");
@@ -188,7 +188,7 @@ fn test_aes256_gcm_nist_vector_1() {
 
 /// Test AES-256-GCM with NIST test vector 2 (with plaintext)
 #[test]
-fn test_aes256_gcm_nist_vector_2() {
+fn test_aes256_gcm_nist_vector_2_matches_expected() {
     let key = decode_hex(AES_256_KEY_2).expect("key decode");
     let nonce = decode_hex(AES_256_IV_2).expect("nonce decode");
     let plaintext = decode_hex(AES_256_PT_2).expect("plaintext decode");
@@ -216,12 +216,12 @@ fn test_aes256_gcm_nist_vector_2() {
 
     // Test decryption
     let decrypted = cipher.decrypt(&nonce_arr, &ct, &tag, aad_opt).expect("decryption");
-    assert_eq!(decrypted, plaintext, "Decryption mismatch");
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Decryption mismatch");
 }
 
 /// Test AES-256-GCM with NIST test vector 3 (longer plaintext)
 #[test]
-fn test_aes256_gcm_nist_vector_3() {
+fn test_aes256_gcm_nist_vector_3_matches_expected() {
     let key = decode_hex(AES_256_KEY_3).expect("key decode");
     let nonce = decode_hex(AES_256_IV_3).expect("nonce decode");
     let plaintext = decode_hex(AES_256_PT_3).expect("plaintext decode");
@@ -249,7 +249,7 @@ fn test_aes256_gcm_nist_vector_3() {
 
     // Test decryption
     let decrypted = cipher.decrypt(&nonce_arr, &ct, &tag, aad_opt).expect("decryption");
-    assert_eq!(decrypted, plaintext, "Decryption mismatch");
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Decryption mismatch");
 }
 
 /// Test AES-GCM roundtrip with generated key
@@ -283,7 +283,7 @@ fn test_aes256_gcm_roundtrip() {
 
 /// Test authentication tag tampering detection
 #[test]
-fn test_aes_gcm_tag_tampering() {
+fn test_aes_gcm_tag_tampering_fails() {
     let key = AesGcm256::generate_key();
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"Test message";
@@ -300,7 +300,7 @@ fn test_aes_gcm_tag_tampering() {
 
 /// Test ciphertext tampering detection
 #[test]
-fn test_aes_gcm_ciphertext_tampering() {
+fn test_aes_gcm_ciphertext_tampering_fails() {
     let key = AesGcm256::generate_key();
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"Test message for tampering";
@@ -319,7 +319,7 @@ fn test_aes_gcm_ciphertext_tampering() {
 
 /// Test AAD tampering detection
 #[test]
-fn test_aes_gcm_aad_tampering() {
+fn test_aes_gcm_aad_tampering_fails() {
     let key = AesGcm256::generate_key();
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"Test message";
@@ -335,14 +335,14 @@ fn test_aes_gcm_aad_tampering() {
 
 /// Test invalid key length rejection
 #[test]
-fn test_aes128_invalid_key_length() {
+fn test_aes128_invalid_key_length_fails() {
     let short_key = [0u8; 8]; // Wrong size
     let result = AesGcm128::new(&short_key);
     assert!(result.is_err(), "Should reject invalid key length");
 }
 
 #[test]
-fn test_aes256_invalid_key_length() {
+fn test_aes256_invalid_key_length_fails() {
     let short_key = [0u8; 16]; // Wrong size for AES-256
     let result = AesGcm256::new(&short_key);
     assert!(result.is_err(), "Should reject invalid key length");
@@ -350,7 +350,7 @@ fn test_aes256_invalid_key_length() {
 
 /// Test empty plaintext encryption
 #[test]
-fn test_aes_gcm_empty_plaintext() {
+fn test_aes_gcm_empty_plaintext_succeeds() {
     let key = AesGcm256::generate_key();
     let nonce = AesGcm256::generate_nonce();
     let plaintext = b"";

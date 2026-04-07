@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: Polynomial arithmetic for lattice-based cryptography requires direct
@@ -42,7 +42,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ntt_processor_creation() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_ntt_processor_creation_succeeds() -> Result<(), Box<dyn std::error::Error>> {
         // Test Kyber parameters
         let processor = NttProcessor::new(256, 3329)?;
         assert_eq!(processor.n, 256);
@@ -69,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn test_polynomial_multiplication() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_polynomial_multiplication_succeeds() -> Result<(), Box<dyn std::error::Error>> {
         let processor = NttProcessor::new(256, 3329)?;
 
         // Simple polynomials: (x + 1) * (x + 1) = x² + 2x + 1
@@ -100,21 +100,22 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_processor_invalid_size() {
+    fn test_ntt_processor_invalid_size_fails() {
         // Test with invalid NTT size (not power of 2)
         let result = NttProcessor::new(255, 3329);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_ntt_processor_invalid_modulus() {
+    fn test_ntt_processor_invalid_modulus_fails() {
         // Test with modulus that has no known primitive root
         let result = NttProcessor::new(256, 12345);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_ntt_processor_different_parameters() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_ntt_processor_different_parameters_succeeds() -> Result<(), Box<dyn std::error::Error>>
+    {
         // Test Dilithium parameters
         let processor = NttProcessor::new(512, 12289)?;
         assert_eq!(processor.n, 512);
@@ -123,7 +124,8 @@ mod tests {
     }
 
     #[test]
-    fn test_polynomial_multiplication_zero() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_polynomial_multiplication_zero_returns_zero_polynomial_succeeds()
+    -> Result<(), Box<dyn std::error::Error>> {
         let processor = NttProcessor::new(256, 3329)?;
 
         let zero_poly = vec![0; 256];
@@ -137,7 +139,8 @@ mod tests {
     }
 
     #[test]
-    fn test_polynomial_multiplication_identity() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_polynomial_multiplication_identity_returns_original_succeeds()
+    -> Result<(), Box<dyn std::error::Error>> {
         let processor = NttProcessor::new(256, 3329)?;
 
         let mut identity = vec![0; 256];

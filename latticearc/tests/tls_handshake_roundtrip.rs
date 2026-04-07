@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
+#![allow(clippy::unreachable)]
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(missing_docs)]
@@ -65,8 +66,10 @@ fn build_test_client_config(mode: TlsMode, ca_cert_der: &CertificateDer<'_>) -> 
     root_store.add(ca_cert_der.clone()).unwrap();
 
     let provider = match mode {
-        TlsMode::Classic => rustls::crypto::aws_lc_rs::default_provider(),
-        TlsMode::Hybrid | TlsMode::Pq => rustls::crypto::aws_lc_rs::default_provider(),
+        TlsMode::Classic | TlsMode::Hybrid | TlsMode::Pq => {
+            rustls::crypto::aws_lc_rs::default_provider()
+        }
+        _ => rustls::crypto::aws_lc_rs::default_provider(),
     };
 
     ClientConfig::builder_with_provider(provider.into())
@@ -221,7 +224,7 @@ fn test_pq_tls_handshake_roundtrip() {
 }
 
 #[test]
-fn test_tls_large_data_transfer() {
+fn test_tls_large_data_transfer_succeeds() {
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);
 
@@ -247,7 +250,7 @@ fn test_tls_large_data_transfer() {
 }
 
 #[test]
-fn test_tls_multiple_messages() {
+fn test_tls_multiple_messages_succeeds() {
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);
 
@@ -269,7 +272,7 @@ fn test_tls_multiple_messages() {
 }
 
 #[test]
-fn test_tls_mtls_client_auth() {
+fn test_tls_mtls_client_auth_succeeds() {
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);
 
@@ -316,7 +319,7 @@ fn test_tls_mtls_client_auth() {
 }
 
 #[test]
-fn test_tls_alpn_negotiation() {
+fn test_tls_alpn_negotiation_succeeds() {
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);
 
@@ -390,7 +393,7 @@ fn test_tls_alpn_negotiation() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_pq_negotiates_mlkem_kex() {
+fn test_hybrid_pq_negotiates_mlkem_kex_succeeds() {
     // E2E: Verify hybrid TLS actually negotiates a PQ key exchange group
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);
@@ -473,7 +476,7 @@ fn test_hybrid_pq_negotiates_mlkem_kex() {
 }
 
 #[test]
-fn test_all_tls_modes_complete_handshake() {
+fn test_all_tls_modes_complete_handshake_succeeds() {
     // E2E: Every TlsMode completes a full handshake + data roundtrip
     for mode in [TlsMode::Classic, TlsMode::Hybrid, TlsMode::Pq] {
         let ca = generate_test_ca();
@@ -483,6 +486,7 @@ fn test_all_tls_modes_complete_handshake() {
             TlsMode::Classic => Tls13Config::classic(),
             TlsMode::Hybrid => Tls13Config::hybrid(),
             TlsMode::Pq => Tls13Config::pq(),
+            _ => unreachable!(),
         };
         let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
         let client_config = build_test_client_config(mode, &ca.cert_der);
@@ -519,7 +523,7 @@ fn server_config_from_tls_config(
 }
 
 #[test]
-fn test_tls_usecase_government_pq_handshake() {
+fn test_tls_usecase_government_pq_handshake_succeeds() {
     let config = TlsConfig::new().use_case(TlsUseCase::Government);
     assert_eq!(config.mode, TlsMode::Pq, "Government UseCase must select PQ mode");
 
@@ -540,7 +544,7 @@ fn test_tls_usecase_government_pq_handshake() {
 }
 
 #[test]
-fn test_tls_usecase_financial_services_hybrid_handshake() {
+fn test_tls_usecase_financial_services_hybrid_handshake_succeeds() {
     let config = TlsConfig::new().use_case(TlsUseCase::FinancialServices);
     assert_eq!(config.mode, TlsMode::Hybrid, "FinancialServices UseCase must select Hybrid mode");
 
@@ -561,7 +565,7 @@ fn test_tls_usecase_financial_services_hybrid_handshake() {
 }
 
 #[test]
-fn test_tls_usecase_iot_classic_handshake() {
+fn test_tls_usecase_iot_classic_handshake_succeeds() {
     let config = TlsConfig::new().use_case(TlsUseCase::IoT);
     assert_eq!(config.mode, TlsMode::Classic, "IoT UseCase must select Classic mode");
 
@@ -582,7 +586,7 @@ fn test_tls_usecase_iot_classic_handshake() {
 }
 
 #[test]
-fn test_tls_usecase_webserver_hybrid_handshake() {
+fn test_tls_usecase_webserver_hybrid_handshake_succeeds() {
     let config = TlsConfig::new().use_case(TlsUseCase::WebServer);
     assert_eq!(config.mode, TlsMode::Hybrid, "WebServer UseCase must select Hybrid mode");
 
@@ -610,7 +614,7 @@ fn test_tls_usecase_webserver_hybrid_handshake() {
 // ============================================================================
 
 #[test]
-fn test_classic_client_to_hybrid_server_fallback() {
+fn test_classic_client_to_hybrid_server_fallback_succeeds() {
     // E2E: Classic-only client connects to Hybrid server.
     // Server offers PQ groups first, but client only supports classical.
     // Handshake should succeed via X25519 fallback.
@@ -647,7 +651,7 @@ fn test_classic_client_to_hybrid_server_fallback() {
 }
 
 #[test]
-fn test_minimal_message_over_tls() {
+fn test_minimal_message_over_tls_succeeds() {
     // E2E: Smallest possible payload (1 byte; 0-length is the "done" signal)
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);
@@ -669,7 +673,7 @@ fn test_minimal_message_over_tls() {
 }
 
 #[test]
-fn test_multiple_sequential_handshakes_same_mode() {
+fn test_multiple_sequential_handshakes_same_mode_succeeds() {
     // E2E: Multiple independent TLS connections in sequence all succeed
     let ca = generate_test_ca();
     for i in 0..3 {
@@ -692,7 +696,7 @@ fn test_multiple_sequential_handshakes_same_mode() {
 }
 
 #[test]
-fn test_each_mode_negotiates_expected_kex_family() {
+fn test_each_mode_negotiates_expected_kex_family_succeeds() {
     // E2E: Verify the negotiated KEX group family matches the mode
     let mode_expectations = [
         (TlsMode::Hybrid, true), // should negotiate MLKEM
@@ -709,6 +713,7 @@ fn test_each_mode_negotiates_expected_kex_family() {
             TlsMode::Classic => Tls13Config::classic(),
             TlsMode::Hybrid => Tls13Config::hybrid(),
             TlsMode::Pq => Tls13Config::pq(),
+            _ => unreachable!(),
         };
         let server_config = create_server_config(&tls_config, server_chain, server_key).unwrap();
         let client_config = build_test_client_config(mode, &ca.cert_der);
@@ -738,7 +743,7 @@ fn test_each_mode_negotiates_expected_kex_family() {
 }
 
 #[test]
-fn test_large_message_integrity_pq_mode() {
+fn test_large_message_integrity_pq_mode_succeeds() {
     // E2E: 64KB message over PQ-only TLS, verified with SHA-256
     let ca = generate_test_ca();
     let (server_chain, server_key) = generate_server_cert(&ca);

@@ -67,13 +67,13 @@ mod ml_dsa_44_tests {
     use super::*;
 
     #[test]
-    fn test_run_ml_dsa_44_kat_passes() {
+    fn test_run_ml_dsa_44_kat_passes_matches_nist_vector_matches_expected() {
         let result = ml_dsa_kat::run_ml_dsa_44_kat();
         assert!(result.is_ok(), "ML-DSA-44 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_ml_dsa_44_keygen_sign_verify() {
+    fn test_ml_dsa_44_keygen_sign_verify_matches_nist_vector_roundtrip() {
         // Test basic key generation, signing, and verification
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -85,7 +85,7 @@ mod ml_dsa_44_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_empty_message() {
+    fn test_ml_dsa_44_empty_message_matches_nist_vector_matches_expected() {
         // Test signing and verifying an empty message
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -97,7 +97,7 @@ mod ml_dsa_44_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_wrong_key_verification() {
+    fn test_ml_dsa_44_wrong_key_verification_matches_expected() {
         // Test that verification fails with wrong public key
         let (pk1, sk1) = ml_dsa_44::try_keygen().expect("Key generation 1 should succeed");
         let (pk2, _sk2) = ml_dsa_44::try_keygen().expect("Key generation 2 should succeed");
@@ -115,7 +115,7 @@ mod ml_dsa_44_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_wrong_message_verification() {
+    fn test_ml_dsa_44_wrong_message_verification_matches_expected() {
         // Test that verification fails with wrong message
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -129,7 +129,7 @@ mod ml_dsa_44_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_vector_count() {
+    fn test_ml_dsa_44_vector_count_matches_expected() {
         assert!(
             ML_DSA_44_VECTORS.len() >= 2,
             "ML-DSA-44 should have at least 2 test vectors, found {}",
@@ -138,7 +138,7 @@ mod ml_dsa_44_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_all_vectors() {
+    fn test_ml_dsa_44_all_vectors_match_nist_vector_matches_expected() {
         for vector in ML_DSA_44_VECTORS {
             let message = decode_hex(vector.message).expect("Message hex decode should succeed");
             let _seed = decode_hex(vector.seed).expect("Seed hex decode should succeed");
@@ -153,7 +153,7 @@ mod ml_dsa_44_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_long_message() {
+    fn test_ml_dsa_44_long_message_matches_nist_vector_matches_expected() {
         // Test with a long message (1KB)
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -165,7 +165,7 @@ mod ml_dsa_44_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_binary_message() {
+    fn test_ml_dsa_44_binary_message_matches_nist_vector_matches_expected() {
         // Test with binary data including null bytes
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -185,13 +185,13 @@ mod ml_dsa_65_tests {
     use super::*;
 
     #[test]
-    fn test_run_ml_dsa_65_kat_passes() {
+    fn test_run_ml_dsa_65_kat_passes_matches_nist_vector_matches_expected() {
         let result = ml_dsa_kat::run_ml_dsa_65_kat();
         assert!(result.is_ok(), "ML-DSA-65 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_ml_dsa_65_keygen_sign_verify() {
+    fn test_ml_dsa_65_keygen_sign_verify_matches_nist_vector_roundtrip() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation should succeed");
 
         let message = b"Test message for ML-DSA-65";
@@ -202,7 +202,7 @@ mod ml_dsa_65_tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_empty_message() {
+    fn test_ml_dsa_65_empty_message_matches_nist_vector_matches_expected() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation should succeed");
 
         let message: &[u8] = &[];
@@ -213,7 +213,7 @@ mod ml_dsa_65_tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_wrong_key_verification() {
+    fn test_ml_dsa_65_wrong_key_verification_matches_expected() {
         let (_pk1, sk1) = ml_dsa_65::try_keygen().expect("Key generation 1 should succeed");
         let (pk2, _sk2) = ml_dsa_65::try_keygen().expect("Key generation 2 should succeed");
 
@@ -225,7 +225,7 @@ mod ml_dsa_65_tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_wrong_message_verification() {
+    fn test_ml_dsa_65_wrong_message_verification_matches_expected() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation should succeed");
 
         let message1 = b"Original message";
@@ -237,7 +237,7 @@ mod ml_dsa_65_tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_vector_count() {
+    fn test_ml_dsa_65_vector_count_matches_expected() {
         assert!(
             ML_DSA_65_VECTORS.len() >= 2,
             "ML-DSA-65 should have at least 2 test vectors, found {}",
@@ -246,7 +246,7 @@ mod ml_dsa_65_tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_all_vectors() {
+    fn test_ml_dsa_65_all_vectors_match_nist_vector_matches_expected() {
         for vector in ML_DSA_65_VECTORS {
             let message = decode_hex(vector.message).expect("Message hex decode should succeed");
             let _seed = decode_hex(vector.seed).expect("Seed hex decode should succeed");
@@ -260,7 +260,7 @@ mod ml_dsa_65_tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_long_message() {
+    fn test_ml_dsa_65_long_message_matches_nist_vector_matches_expected() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation should succeed");
 
         let message = vec![0x62u8; 2048]; // 2KB of 'b'
@@ -279,13 +279,13 @@ mod ml_dsa_87_tests {
     use super::*;
 
     #[test]
-    fn test_run_ml_dsa_87_kat_passes() {
+    fn test_run_ml_dsa_87_kat_passes_matches_nist_vector_matches_expected() {
         let result = ml_dsa_kat::run_ml_dsa_87_kat();
         assert!(result.is_ok(), "ML-DSA-87 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_ml_dsa_87_keygen_sign_verify() {
+    fn test_ml_dsa_87_keygen_sign_verify_matches_nist_vector_roundtrip() {
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation should succeed");
 
         let message = b"Test message for ML-DSA-87";
@@ -296,7 +296,7 @@ mod ml_dsa_87_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_empty_message() {
+    fn test_ml_dsa_87_empty_message_matches_nist_vector_matches_expected() {
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation should succeed");
 
         let message: &[u8] = &[];
@@ -307,7 +307,7 @@ mod ml_dsa_87_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_wrong_key_verification() {
+    fn test_ml_dsa_87_wrong_key_verification_matches_expected() {
         let (_pk1, sk1) = ml_dsa_87::try_keygen().expect("Key generation 1 should succeed");
         let (pk2, _sk2) = ml_dsa_87::try_keygen().expect("Key generation 2 should succeed");
 
@@ -319,7 +319,7 @@ mod ml_dsa_87_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_wrong_message_verification() {
+    fn test_ml_dsa_87_wrong_message_verification_matches_expected() {
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation should succeed");
 
         let message1 = b"Original message";
@@ -331,7 +331,7 @@ mod ml_dsa_87_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_vector_count() {
+    fn test_ml_dsa_87_vector_count_matches_expected() {
         assert!(
             ML_DSA_87_VECTORS.len() >= 2,
             "ML-DSA-87 should have at least 2 test vectors, found {}",
@@ -340,7 +340,7 @@ mod ml_dsa_87_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_all_vectors() {
+    fn test_ml_dsa_87_all_vectors_match_nist_vector_matches_expected() {
         for vector in ML_DSA_87_VECTORS {
             let message = decode_hex(vector.message).expect("Message hex decode should succeed");
             let _seed = decode_hex(vector.seed).expect("Seed hex decode should succeed");
@@ -354,7 +354,7 @@ mod ml_dsa_87_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_long_message() {
+    fn test_ml_dsa_87_long_message_matches_nist_vector_matches_expected() {
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation should succeed");
 
         let message = vec![0x63u8; 4096]; // 4KB of 'c'
@@ -365,7 +365,7 @@ mod ml_dsa_87_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_max_security_level() {
+    fn test_ml_dsa_87_max_security_level_matches_expected() {
         // ML-DSA-87 provides NIST Security Level 5 (256-bit classical security)
         // Verify it can handle various message patterns
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation should succeed");
@@ -396,21 +396,21 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_decode_hex_valid() {
+    fn test_decode_hex_valid_matches_expected() {
         let result = decode_hex("616263");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0x61, 0x62, 0x63]);
     }
 
     #[test]
-    fn test_decode_hex_empty() {
+    fn test_decode_hex_empty_matches_expected() {
         let result = decode_hex("");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Vec::<u8>::new());
     }
 
     #[test]
-    fn test_decode_hex_invalid_chars() {
+    fn test_decode_hex_invalid_chars_matches_expected() {
         let result = decode_hex("GHIJ"); // Invalid hex characters
         assert!(result.is_err());
         match result {
@@ -422,7 +422,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_odd_length() {
+    fn test_decode_hex_odd_length_matches_expected() {
         let result = decode_hex("abc"); // Odd number of characters
         assert!(result.is_err());
         match result {
@@ -434,21 +434,21 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_uppercase() {
+    fn test_decode_hex_uppercase_matches_expected() {
         let result = decode_hex("ABC123");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0xAB, 0xC1, 0x23]);
     }
 
     #[test]
-    fn test_decode_hex_mixed_case() {
+    fn test_decode_hex_mixed_case_matches_expected() {
         let result = decode_hex("AbCdEf");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0xAB, 0xCD, 0xEF]);
     }
 
     #[test]
-    fn test_nist_kat_error_test_failed_display() {
+    fn test_nist_kat_error_test_failed_display_matches_expected() {
         let error = NistKatError::TestFailed {
             algorithm: "ML-DSA-44".to_string(),
             test_name: "test-1".to_string(),
@@ -461,7 +461,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_hex_error_display() {
+    fn test_nist_kat_error_hex_error_display_matches_expected() {
         let error = NistKatError::HexError("invalid character".to_string());
         let display_str = format!("{}", error);
         assert!(display_str.contains("Hex decode error"));
@@ -469,7 +469,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_implementation_error_display() {
+    fn test_nist_kat_error_implementation_error_display_matches_expected() {
         let error = NistKatError::ImplementationError("KeyGen failed".to_string());
         let display_str = format!("{}", error);
         assert!(display_str.contains("Implementation error"));
@@ -477,7 +477,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_unsupported_algorithm_display() {
+    fn test_nist_kat_error_unsupported_algorithm_display_matches_expected() {
         let error = NistKatError::UnsupportedAlgorithm("ML-DSA-99".to_string());
         let display_str = format!("{}", error);
         assert!(display_str.contains("Unsupported algorithm"));
@@ -493,7 +493,7 @@ mod test_vector_structure_tests {
     use super::*;
 
     #[test]
-    fn test_ml_dsa_test_vector_fields() {
+    fn test_ml_dsa_test_vector_fields_matches_nist_vector_matches_expected() {
         // Verify test vector structure is correct for ML-DSA-44
         for vector in ML_DSA_44_VECTORS {
             assert!(!vector.test_name.is_empty(), "Test name should not be empty");
@@ -509,7 +509,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_ml_dsa_44_vector_names_unique() {
+    fn test_ml_dsa_44_vector_names_unique_matches_expected() {
         let names: Vec<&str> = ML_DSA_44_VECTORS.iter().map(|v| v.test_name).collect();
         for (i, name) in names.iter().enumerate() {
             for (j, other_name) in names.iter().enumerate() {
@@ -521,7 +521,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_vector_names_unique() {
+    fn test_ml_dsa_65_vector_names_unique_matches_expected() {
         let names: Vec<&str> = ML_DSA_65_VECTORS.iter().map(|v| v.test_name).collect();
         for (i, name) in names.iter().enumerate() {
             for (j, other_name) in names.iter().enumerate() {
@@ -533,7 +533,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_vector_names_unique() {
+    fn test_ml_dsa_87_vector_names_unique_matches_expected() {
         let names: Vec<&str> = ML_DSA_87_VECTORS.iter().map(|v| v.test_name).collect();
         for (i, name) in names.iter().enumerate() {
             for (j, other_name) in names.iter().enumerate() {
@@ -545,7 +545,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_seed_length_consistency() {
+    fn test_seed_length_consistency_matches_nist_vector_matches_expected() {
         // All seeds should be 32 bytes (64 hex chars)
         for vector in ML_DSA_44_VECTORS {
             assert_eq!(vector.seed.len(), 64, "ML-DSA-44 seed should be 64 hex chars");
@@ -559,7 +559,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_vector_hex_validity() {
+    fn test_vector_hex_validity_matches_nist_vector_matches_expected() {
         // Verify all hex strings in test vectors are valid
         for vector in ML_DSA_44_VECTORS {
             assert!(decode_hex(vector.seed).is_ok(), "Invalid seed hex in {}", vector.test_name);
@@ -595,7 +595,7 @@ mod cross_algorithm_tests {
     use super::*;
 
     #[test]
-    fn test_same_message_different_security_levels() {
+    fn test_same_message_different_security_levels_matches_nist_vector_matches_expected() {
         // The same message signed with different security levels produces different signatures
         let message = b"Test message across security levels";
 
@@ -622,7 +622,7 @@ mod cross_algorithm_tests {
     }
 
     #[test]
-    fn test_all_ml_dsa_variants_run_successfully() {
+    fn test_all_ml_dsa_variants_run_successfully_matches_nist_vector_matches_expected() {
         // Run all KAT tests and ensure they all pass
         assert!(ml_dsa_kat::run_ml_dsa_44_kat().is_ok(), "ML-DSA-44 KAT failed");
         assert!(ml_dsa_kat::run_ml_dsa_65_kat().is_ok(), "ML-DSA-65 KAT failed");
@@ -630,7 +630,7 @@ mod cross_algorithm_tests {
     }
 
     #[test]
-    fn test_total_vector_count() {
+    fn test_total_vector_count_matches_expected() {
         let total = ML_DSA_44_VECTORS.len() + ML_DSA_65_VECTORS.len() + ML_DSA_87_VECTORS.len();
 
         println!("Total ML-DSA test vectors: {}", total);
@@ -646,7 +646,7 @@ mod determinism_tests {
     use super::*;
 
     #[test]
-    fn test_verification_deterministic() {
+    fn test_verification_deterministic_matches_nist_vector_matches_expected() {
         // Verification should always produce the same result
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -661,7 +661,7 @@ mod determinism_tests {
     }
 
     #[test]
-    fn test_multiple_kat_runs_consistent() {
+    fn test_multiple_kat_runs_consistent_matches_nist_vector_matches_expected() {
         // Running KAT multiple times should always succeed
         for i in 0..3 {
             assert!(ml_dsa_kat::run_ml_dsa_44_kat().is_ok(), "ML-DSA-44 KAT run {} failed", i);
@@ -679,7 +679,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_single_byte_messages() {
+    fn test_single_byte_messages_matches_nist_vector_matches_expected() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
         // Test signing single byte messages
@@ -696,7 +696,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_large_message() {
+    fn test_large_message_matches_nist_vector_matches_expected() {
         // Test with a large message (64KB)
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -708,7 +708,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_zeros_message() {
+    fn test_all_zeros_message_matches_nist_vector_matches_expected() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation should succeed");
 
         let message = vec![0x00u8; 256];
@@ -719,7 +719,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_ones_message() {
+    fn test_all_ones_message_matches_nist_vector_matches_expected() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation should succeed");
 
         let message = vec![0xFFu8; 256];
@@ -730,7 +730,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_message_boundary_sizes() {
+    fn test_message_boundary_sizes_matches_nist_vector_matches_expected() {
         // Test messages at various boundary sizes
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation should succeed");
 
@@ -746,7 +746,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_context_parameter() {
+    fn test_context_parameter_matches_nist_vector_matches_expected() {
         // Test with non-empty context (if supported)
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -782,7 +782,7 @@ mod integration_tests {
     use latticearc_tests::validation::nist_kat::{KatRunner, KatSummary};
 
     #[test]
-    fn test_ml_dsa_kat_runner_integration() {
+    fn test_ml_dsa_kat_runner_integration_matches_nist_vector_matches_expected() {
         let mut runner = KatRunner::new();
 
         runner.run_test("ML-DSA-44", "ML-DSA", || ml_dsa_kat::run_ml_dsa_44_kat());
@@ -801,7 +801,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_comprehensive_ml_dsa_validation() {
+    fn test_comprehensive_ml_dsa_validation_matches_nist_vector_matches_expected() {
         println!("\n========================================");
         println!("Comprehensive ML-DSA Validation Suite");
         println!("========================================\n");
@@ -850,7 +850,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_ml_dsa_test_vector_struct_access() {
+    fn test_ml_dsa_test_vector_struct_access_matches_nist_vector_matches_expected() {
         // Test that MlDsaTestVector struct fields are accessible
         let vector = &ML_DSA_44_VECTORS[0];
 
@@ -874,7 +874,7 @@ mod security_property_tests {
     use super::*;
 
     #[test]
-    fn test_signature_malleability() {
+    fn test_signature_malleability_matches_expected() {
         // Test that modified signatures fail verification
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation should succeed");
 
@@ -894,7 +894,7 @@ mod security_property_tests {
     }
 
     #[test]
-    fn test_different_keys_different_signatures() {
+    fn test_different_keys_different_signatures_matches_expected() {
         // Different key pairs should produce different signatures for the same message
         let message = b"Test message";
 
@@ -917,7 +917,7 @@ mod security_property_tests {
     }
 
     #[test]
-    fn test_signature_size_consistency() {
+    fn test_signature_size_consistency_matches_nist_vector_matches_expected() {
         // Signatures should have consistent sizes for each security level
         let message = b"Test message for size check";
 

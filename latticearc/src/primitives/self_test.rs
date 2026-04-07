@@ -42,7 +42,7 @@
 //! - No cryptographic services should be provided after a self-test failure
 
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -54,6 +54,7 @@ use subtle::ConstantTimeEq;
 // =============================================================================
 
 /// Result of a self-test operation
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelfTestResult {
     /// All tests passed successfully
@@ -625,9 +626,6 @@ pub fn kat_aes_256_gcm() -> Result<()> {
 /// or if the shared secrets don't match.
 pub fn kat_ml_kem_768() -> Result<()> {
     use crate::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     // Generate a keypair with decapsulation capability
     let dk = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768).map_err(|e| {
@@ -650,7 +648,7 @@ pub fn kat_ml_kem_768() -> Result<()> {
 
     // Encapsulate a shared secret
     let (ss_encap, ciphertext) =
-        MlKem::encapsulate(&mut rng, pk).map_err(|e| LatticeArcError::ValidationError {
+        MlKem::encapsulate(pk).map_err(|e| LatticeArcError::ValidationError {
             message: format!("ML-KEM-768 KAT: encapsulation failed: {}", e),
         })?;
 
@@ -719,18 +717,18 @@ pub fn kat_ml_dsa() -> Result<()> {
     const CONTEXT: &[u8] = b"";
 
     // Generate a keypair using ML-DSA-44 (fastest variant for KAT)
-    let (public_key, secret_key) = generate_keypair(MlDsaParameterSet::MLDSA44).map_err(|e| {
+    let (public_key, secret_key) = generate_keypair(MlDsaParameterSet::MlDsa44).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("ML-DSA KAT: key generation failed: {}", e),
         }
     })?;
 
     // Verify key sizes match expected values
-    if public_key.len() != MlDsaParameterSet::MLDSA44.public_key_size() {
+    if public_key.len() != MlDsaParameterSet::MlDsa44.public_key_size() {
         return Err(LatticeArcError::ValidationError {
             message: format!(
                 "ML-DSA KAT: public key size mismatch: expected {}, got {}",
-                MlDsaParameterSet::MLDSA44.public_key_size(),
+                MlDsaParameterSet::MlDsa44.public_key_size(),
                 public_key.len()
             ),
         });
@@ -742,11 +740,11 @@ pub fn kat_ml_dsa() -> Result<()> {
     })?;
 
     // Verify signature size
-    if signature.len() != MlDsaParameterSet::MLDSA44.signature_size() {
+    if signature.len() != MlDsaParameterSet::MlDsa44.signature_size() {
         return Err(LatticeArcError::ValidationError {
             message: format!(
                 "ML-DSA KAT: signature size mismatch: expected {}, got {}",
-                MlDsaParameterSet::MLDSA44.signature_size(),
+                MlDsaParameterSet::MlDsa44.signature_size(),
                 signature.len()
             ),
         });
@@ -801,21 +799,19 @@ pub fn kat_ml_dsa() -> Result<()> {
 ///
 /// Returns error if key generation, signing, or verification fails.
 pub fn kat_slh_dsa() -> Result<()> {
-    use crate::primitives::sig::slh_dsa::{SecurityLevel, SigningKey};
+    use crate::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
 
     // Fixed test message for KAT
     const TEST_MESSAGE: &[u8] = b"FIPS 140-3 SLH-DSA Known Answer Test";
 
     // Generate a keypair using SLH-DSA-SHAKE-128s (fastest variant for KAT)
-    let (signing_key, verifying_key) =
-        SigningKey::generate(SecurityLevel::Shake128s).map_err(|e| {
-            LatticeArcError::ValidationError {
-                message: format!("SLH-DSA KAT: key generation failed: {}", e),
-            }
+    let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .map_err(|e| LatticeArcError::ValidationError {
+            message: format!("SLH-DSA KAT: key generation failed: {}", e),
         })?;
 
     // Verify key sizes match expected values
-    let expected_pk_size = SecurityLevel::Shake128s.public_key_size();
+    let expected_pk_size = SlhDsaSecurityLevel::Shake128s.public_key_size();
     if verifying_key.as_bytes().len() != expected_pk_size {
         return Err(LatticeArcError::ValidationError {
             message: format!(
@@ -826,7 +822,7 @@ pub fn kat_slh_dsa() -> Result<()> {
         });
     }
 
-    let expected_sk_size = SecurityLevel::Shake128s.secret_key_size();
+    let expected_sk_size = SlhDsaSecurityLevel::Shake128s.secret_key_size();
     if signing_key.as_bytes().len() != expected_sk_size {
         return Err(LatticeArcError::ValidationError {
             message: format!(
@@ -843,7 +839,7 @@ pub fn kat_slh_dsa() -> Result<()> {
     })?;
 
     // Verify signature size
-    let expected_sig_size = SecurityLevel::Shake128s.signature_size();
+    let expected_sig_size = SlhDsaSecurityLevel::Shake128s.signature_size();
     if signature.len() != expected_sig_size {
         return Err(LatticeArcError::ValidationError {
             message: format!(
@@ -902,7 +898,7 @@ pub fn kat_slh_dsa() -> Result<()> {
 ///
 /// Returns error if key generation, signing, or verification fails.
 pub fn kat_fn_dsa() -> Result<()> {
-    use crate::primitives::sig::fndsa::{FNDsaSecurityLevel, KeyPair};
+    use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
     use rand::rngs::OsRng;
 
     // Fixed test message for KAT
@@ -913,18 +909,15 @@ pub fn kat_fn_dsa() -> Result<()> {
     std::thread::Builder::new()
         .stack_size(32 * 1024 * 1024) // 32 MB stack
         .spawn(|| -> Result<()> {
-            let mut rng = OsRng;
-
             // Generate a keypair using FN-DSA-512 (Level I security)
-            let mut keypair =
-                KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).map_err(|e| {
-                    LatticeArcError::ValidationError {
-                        message: format!("FN-DSA KAT: key generation failed: {}", e),
-                    }
+            let mut rng = OsRng;
+            let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
+                .map_err(|e| LatticeArcError::ValidationError {
+                    message: format!("FN-DSA KAT: key generation failed: {}", e),
                 })?;
 
             // Verify key sizes match expected values
-            let expected_pk_size = FNDsaSecurityLevel::Level512.verifying_key_size();
+            let expected_pk_size = FnDsaSecurityLevel::Level512.verifying_key_size();
             if keypair.verifying_key().to_bytes().len() != expected_pk_size {
                 return Err(LatticeArcError::ValidationError {
                     message: format!(
@@ -935,7 +928,7 @@ pub fn kat_fn_dsa() -> Result<()> {
                 });
             }
 
-            let expected_sk_size = FNDsaSecurityLevel::Level512.signing_key_size();
+            let expected_sk_size = FnDsaSecurityLevel::Level512.signing_key_size();
             if keypair.signing_key().to_bytes().len() != expected_sk_size {
                 return Err(LatticeArcError::ValidationError {
                     message: format!(
@@ -947,14 +940,15 @@ pub fn kat_fn_dsa() -> Result<()> {
             }
 
             // Sign the test message
-            let signature = keypair.sign(&mut rng, TEST_MESSAGE).map_err(|e| {
+            let mut rng = OsRng;
+            let signature = keypair.sign_with_rng(&mut rng, TEST_MESSAGE).map_err(|e| {
                 LatticeArcError::ValidationError {
                     message: format!("FN-DSA KAT: signing failed: {}", e),
                 }
             })?;
 
             // Verify signature size
-            let expected_sig_size = FNDsaSecurityLevel::Level512.signature_size();
+            let expected_sig_size = FnDsaSecurityLevel::Level512.signature_size();
             if signature.len() != expected_sig_size {
                 return Err(LatticeArcError::ValidationError {
                     message: format!(
@@ -1050,13 +1044,10 @@ pub fn kat_fn_dsa() -> Result<()> {
 /// - HMAC computation fails
 /// - Computed HMAC does not match expected value (integrity violation)
 pub fn integrity_test() -> Result<()> {
-    use hmac::{Hmac, Mac};
-    use sha2::Sha256;
-
     // FIPS requires using a cryptographic key for HMAC
     // For a self-contained integrity test, we use a deterministic key derived
     // from the module identity. In production FIPS, this would come from HSM/TPM.
-    const INTEGRITY_KEY: &[u8] = b"LatticeArc-FIPS-140-3-Module-Integrity-Key-v1";
+    const INTEGRITY_KEY: &[u8] = crate::types::domains::MODULE_INTEGRITY_HMAC_KEY;
 
     // Attempt to get the current executable/library path
     // For libraries loaded dynamically, this gets the main executable,
@@ -1071,15 +1062,12 @@ pub fn integrity_test() -> Result<()> {
             message: format!("Integrity test: cannot read module binary: {}", e),
         })?;
 
-    // Compute HMAC-SHA256 over the module binary
-    let mut mac = Hmac::<Sha256>::new_from_slice(INTEGRITY_KEY).map_err(|e| {
-        LatticeArcError::ValidationError {
-            message: format!("Integrity test: HMAC initialization failed: {}", e),
-        }
-    })?;
-
-    mac.update(&module_bytes);
-    let computed_hmac = mac.finalize().into_bytes();
+    // Compute HMAC-SHA256 over the module binary via the primitives wrapper
+    // (FIPS-validated aws-lc-rs backend).
+    let computed_hmac = crate::primitives::mac::hmac::hmac_sha256(INTEGRITY_KEY, &module_bytes)
+        .map_err(|e| LatticeArcError::ValidationError {
+            message: format!("Integrity test: HMAC computation failed: {}", e),
+        })?;
 
     // In a production FIPS module, the expected HMAC would be:
     // 1. Computed in a secure build environment
@@ -1160,6 +1148,7 @@ static SELF_TEST_PASSED: AtomicBool = AtomicBool::new(false);
 ///
 /// These codes indicate various failure conditions that should prevent
 /// the cryptographic module from performing any operations.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum ModuleErrorCode {
@@ -1463,13 +1452,13 @@ mod tests {
     }
 
     #[test]
-    fn test_power_up_tests_pass() {
+    fn test_power_up_tests_pass_succeeds() {
         let result = run_power_up_tests();
         assert!(result.is_pass(), "Power-up tests should pass: {:?}", result);
     }
 
     #[test]
-    fn test_power_up_tests_with_report() {
+    fn test_power_up_tests_with_report_succeeds() {
         let report = run_power_up_tests_with_report();
         assert!(report.overall_result.is_pass(), "Overall result should pass");
         assert!(!report.tests.is_empty(), "Should have individual test results");
@@ -1481,7 +1470,7 @@ mod tests {
     }
 
     #[test]
-    fn test_self_test_result_methods() {
+    fn test_self_test_result_methods_return_correct_values_succeeds() {
         let pass = SelfTestResult::Pass;
         let fail = SelfTestResult::Fail("test failure".to_string());
 
@@ -1495,7 +1484,7 @@ mod tests {
     }
 
     #[test]
-    fn test_initialize_and_verify() {
+    fn test_initialize_and_verify_sets_passed_flag_succeeds() {
         // Reset state for test
         SELF_TEST_PASSED.store(false, Ordering::Release);
 
@@ -1539,7 +1528,7 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_module_error_code_from_u32() {
+    fn test_module_error_code_from_u32_fails() {
         assert_eq!(ModuleErrorCode::from_u32(0), ModuleErrorCode::NoError);
         assert_eq!(ModuleErrorCode::from_u32(1), ModuleErrorCode::SelfTestFailure);
         assert_eq!(ModuleErrorCode::from_u32(2), ModuleErrorCode::EntropyFailure);
@@ -1553,7 +1542,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_code_is_error() {
+    fn test_module_error_code_is_error_fails() {
         assert!(!ModuleErrorCode::NoError.is_error());
         assert!(ModuleErrorCode::SelfTestFailure.is_error());
         assert!(ModuleErrorCode::EntropyFailure.is_error());
@@ -1566,14 +1555,14 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_code_description() {
+    fn test_module_error_code_description_returns_correct_strings_fails() {
         assert_eq!(ModuleErrorCode::NoError.description(), "No error");
         assert_eq!(ModuleErrorCode::SelfTestFailure.description(), "FIPS 140-3 self-test failure");
         assert_eq!(ModuleErrorCode::EntropyFailure.description(), "Entropy source failure");
     }
 
     #[test]
-    fn test_set_and_get_module_error() {
+    fn test_set_and_get_module_error_succeeds() {
         // Clear any existing error state
         clear_error_state();
 
@@ -1598,7 +1587,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_module_operational() {
+    fn test_is_module_operational_succeeds() {
         // Clear any existing state
         clear_error_state();
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
@@ -1621,7 +1610,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_operational_with_error_state() {
+    fn test_verify_operational_with_error_state_fails() {
         // Clear any existing state and initialize
         clear_error_state();
         let result = initialize_and_test();
@@ -1648,7 +1637,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_error_clears_self_test_passed() {
+    fn test_set_error_clears_self_test_passed_fails() {
         // Initialize and verify self-tests passed
         clear_error_state();
         let result = initialize_and_test();
@@ -1664,7 +1653,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_state_struct() {
+    fn test_module_error_state_struct_is_correct() {
         let state = ModuleErrorState { error_code: ModuleErrorCode::NoError, timestamp: 0 };
         assert!(!state.is_error());
 
@@ -1678,7 +1667,7 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_module_error_code_all_descriptions() {
+    fn test_module_error_code_all_descriptions_return_correct_strings_fails() {
         // Cover every description() branch
         assert_eq!(
             ModuleErrorCode::IntegrityFailure.description(),
@@ -1701,7 +1690,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_module_error_no_error_does_not_clear_self_test() {
+    fn test_set_module_error_no_error_does_not_clear_self_test_fails() {
         // Setting NoError should not clear self_test_passed flag
         clear_error_state();
         let result = initialize_and_test();
@@ -1717,7 +1706,7 @@ mod tests {
     }
 
     #[test]
-    fn test_self_test_result_debug_clone() {
+    fn test_self_test_result_debug_clone_work_correctly_succeeds() {
         let pass = SelfTestResult::Pass;
         let cloned = pass.clone();
         assert_eq!(pass, cloned);
@@ -1732,7 +1721,7 @@ mod tests {
     }
 
     #[test]
-    fn test_individual_test_result_fields() {
+    fn test_individual_test_result_fields_succeeds() {
         let result = IndividualTestResult {
             algorithm: "SHA-256".to_string(),
             result: SelfTestResult::Pass,
@@ -1751,7 +1740,7 @@ mod tests {
     }
 
     #[test]
-    fn test_self_test_report_fields() {
+    fn test_self_test_report_fields_succeeds() {
         let report = run_power_up_tests_with_report();
         assert_eq!(report.tests.len(), 9); // SHA-256, HKDF, AES-GCM, SHA3-256, HMAC, ML-KEM, ML-DSA, SLH-DSA, FN-DSA
         assert!(report.total_duration_us > 0);
@@ -1764,7 +1753,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_code_debug() {
+    fn test_module_error_code_debug_produces_expected_output_fails() {
         let code = ModuleErrorCode::SelfTestFailure;
         let debug = format!("{:?}", code);
         assert!(debug.contains("SelfTestFailure"));
@@ -1774,7 +1763,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_state_debug_clone() {
+    fn test_module_error_state_debug_clone_work_correctly_fails() {
         let state =
             ModuleErrorState { error_code: ModuleErrorCode::EntropyFailure, timestamp: 1000 };
         let cloned = state.clone();
@@ -1786,7 +1775,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_operational_without_self_tests() {
+    fn test_verify_operational_without_self_tests_fails() {
         // Reset state: no error, but self-tests not passed
         clear_error_state();
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
@@ -1802,7 +1791,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_error_states_in_sequence() {
+    fn test_multiple_error_states_in_sequence_fails() {
         clear_error_state();
 
         // Set different errors in sequence
@@ -1828,7 +1817,7 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_self_test_result_fail_to_result_contains_message() {
+    fn test_self_test_result_fail_to_result_contains_message_fails() {
         let fail = SelfTestResult::Fail("module corrupted".to_string());
         let result = fail.to_result();
         assert!(result.is_err());
@@ -1839,7 +1828,7 @@ mod tests {
     }
 
     #[test]
-    fn test_individual_test_result_with_no_duration() {
+    fn test_individual_test_result_with_no_duration_succeeds() {
         let result = IndividualTestResult {
             algorithm: "TEST".to_string(),
             result: SelfTestResult::Fail("error".to_string()),
@@ -1852,7 +1841,7 @@ mod tests {
     }
 
     #[test]
-    fn test_self_test_report_with_failures() {
+    fn test_self_test_report_with_failures_has_correct_fields_fails() {
         // Manually build a report with mixed pass/fail results
         let report = SelfTestReport {
             overall_result: SelfTestResult::Fail("SHA-256 failed".to_string()),
@@ -1880,7 +1869,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_code_repr_values() {
+    fn test_module_error_code_repr_values_fails() {
         // Verify the repr(u32) values match expectations
         assert_eq!(ModuleErrorCode::NoError as u32, 0);
         assert_eq!(ModuleErrorCode::SelfTestFailure as u32, 1);
@@ -1894,7 +1883,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_code_from_u32_boundary() {
+    fn test_module_error_code_from_u32_boundary_fails() {
         // Values 8-254 all map to UnknownCriticalError
         assert_eq!(ModuleErrorCode::from_u32(8), ModuleErrorCode::UnknownCriticalError);
         assert_eq!(ModuleErrorCode::from_u32(128), ModuleErrorCode::UnknownCriticalError);
@@ -1903,7 +1892,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_state_no_error_timestamp_zero() {
+    fn test_module_error_state_no_error_timestamp_zero_fails() {
         clear_error_state();
         let state = get_module_error_state();
         assert!(!state.is_error());
@@ -1911,7 +1900,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_error_state_error_has_nonzero_timestamp() {
+    fn test_module_error_state_error_has_nonzero_timestamp_fails() {
         clear_error_state();
         set_module_error(ModuleErrorCode::SelfTestFailure);
         let state = get_module_error_state();
@@ -1925,7 +1914,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_operational_error_message_contains_description() {
+    fn test_verify_operational_error_message_contains_description_fails() {
         clear_error_state();
         set_module_error(ModuleErrorCode::EntropyFailure);
 
@@ -1942,7 +1931,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_error_codes_block_operations() {
+    fn test_all_error_codes_block_operations_fails() {
         let error_codes = [
             ModuleErrorCode::SelfTestFailure,
             ModuleErrorCode::EntropyFailure,
@@ -1969,7 +1958,7 @@ mod tests {
     }
 
     #[test]
-    fn test_initialize_and_test_sets_flag() {
+    fn test_initialize_and_test_sets_flag_succeeds() {
         SELF_TEST_PASSED.store(false, Ordering::SeqCst);
         clear_error_state();
         assert!(!self_tests_passed());
@@ -1980,7 +1969,7 @@ mod tests {
     }
 
     #[test]
-    fn test_current_timestamp_reasonable() {
+    fn test_current_timestamp_reasonable_succeeds() {
         let ts = current_timestamp();
         // Should be after 2020-01-01 (1577836800)
         assert!(ts > 1_577_836_800, "Timestamp should be after 2020");
@@ -2025,7 +2014,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_power_up_tests_with_report_all_pass() {
+    fn test_run_power_up_tests_with_report_all_pass_succeeds() {
         let report = run_power_up_tests_with_report();
         assert!(report.overall_result.is_pass());
         for test in &report.tests {
@@ -2053,7 +2042,7 @@ mod tests {
     }
 
     #[test]
-    fn test_self_test_report_all_fields_populated() {
+    fn test_self_test_report_all_fields_populated_succeeds() {
         let report = run_power_up_tests_with_report();
         assert!(report.overall_result.is_pass());
         // Verify we have the expected number of algorithm tests
@@ -2072,7 +2061,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_state_timestamp_ordering() {
+    fn test_error_state_timestamp_ordering_fails() {
         clear_error_state();
 
         // Set first error
@@ -2094,7 +2083,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_operational_after_reset() {
+    fn test_verify_operational_after_reset_succeeds() {
         // Set error state
         set_module_error(ModuleErrorCode::HsmError);
         assert!(verify_operational().is_err());

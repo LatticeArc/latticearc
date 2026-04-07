@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -57,10 +57,8 @@
 //! ## Public Key Serialization (Supported)
 //! ```no_run
 //! use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel, MlKemPublicKey};
-//! use rand::rngs::OsRng;
 //!
-//! let mut rng = OsRng;
-//! let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+//! let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
 //!
 //! // Serialize public key for storage or transmission
 //! let pk_bytes = pk.to_bytes();
@@ -69,64 +67,44 @@
 //! let restored_pk = MlKemPublicKey::from_bytes(&pk_bytes, MlKemSecurityLevel::MlKem768).unwrap();
 //!
 //! // Encapsulate using restored public key
-//! let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &restored_pk).unwrap();
+//! let (shared_secret, ciphertext) = MlKem::encapsulate(&restored_pk).unwrap();
 //! ```
 //!
 //! ## Full KEM Round-Trip
 //! ```no_run
 //! use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-//! use rand::rngs::OsRng;
 //!
 //! // Generate keypair
-//! let mut rng = OsRng;
-//! let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+//! let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
 //!
 //! // Encapsulate shared secret
-//! let (ss_enc, ciphertext) = MlKem::encapsulate(&mut rng, &pk).unwrap();
+//! let (ss_enc, ciphertext) = MlKem::encapsulate(&pk).unwrap();
 //!
 //! // Decapsulate using secret key
 //! let ss_dec = MlKem::decapsulate(&sk, &ciphertext).unwrap();
 //! assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
 //! ```
 
-use arrayref::array_ref;
 use aws_lc_rs::kem::{Algorithm as KemAlgorithm, DecapsulationKey, EncapsulationKey};
 use subtle::{Choice, ConstantTimeEq};
 use thiserror::Error;
 use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use crate::types::resource_limits::{validate_decryption_size, validate_encryption_size};
-
-/// SIMD execution mode (Scalar-only in this edition)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SimdMode {
-    /// Standard scalar execution (portable)
-    Scalar,
-    /// Automatic selection (Defaults to Scalar)
-    Auto,
-    /// Force SIMD (Falls back to Scalar)
-    ForceSimd,
-    /// Force Scalar (Same as Scalar)
-    ForceScalar,
-    /// AVX2 acceleration (Not available)
-    Avx2,
-    /// NEON acceleration (Not available)
-    Neon,
-}
+use crate::primitives::resource_limits::{validate_decryption_size, validate_encryption_size};
 
 /// Status of SIMD acceleration
 #[derive(Debug, Clone, Copy)]
 pub struct SimdStatus {
-    /// Whether SIMD acceleration is available
+    /// Whether SIMD acceleration is available.
+    /// aws-lc-rs uses SIMD internally when the target architecture supports it.
     pub acceleration_available: bool,
-    /// Current SIMD mode
-    pub mode: SimdMode,
     /// Approximate performance multiplier vs scalar
     pub performance_multiplier: f64,
 }
 
 /// Error types for ML-KEM operations
+#[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum MlKemError {
     /// Key generation failed
@@ -174,6 +152,7 @@ pub enum MlKemError {
 ///
 /// Each security level provides different security guarantees and performance
 /// characteristics following the FIPS 203 specification.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MlKemSecurityLevel {
     /// ML-KEM-512: NIST Security Category 1
@@ -269,9 +248,11 @@ impl MlKemSecurityLevel {
 #[derive(Debug, Clone)]
 pub struct MlKemPublicKey {
     /// Security level of this key
-    pub security_level: MlKemSecurityLevel,
+    /// Consumer: security_level()
+    security_level: MlKemSecurityLevel,
     /// Serialized public key bytes
-    pub data: Vec<u8>,
+    /// Consumer: as_bytes(), to_bytes(), into_bytes()
+    data: Vec<u8>,
 }
 
 impl MlKemPublicKey {
@@ -315,7 +296,7 @@ impl MlKemPublicKey {
     /// # use latticearc::primitives::kem::ml_kem::{MlKemPublicKey, MlKemSecurityLevel, MlKem};
     /// # use rand::rngs::OsRng;
     /// # let mut rng = OsRng;
-    /// # let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+    /// # let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
     /// // Serialize public key
     /// let pk_bytes = pk.to_bytes();
     /// # let store_public_key = |_: &[u8]| {};
@@ -327,7 +308,7 @@ impl MlKemPublicKey {
     /// let pk = MlKemPublicKey::from_bytes(&stored_bytes, MlKemSecurityLevel::MlKem768)?;
     ///
     /// // Use for encapsulation
-    /// let (ss, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+    /// let (ss, ct) = MlKem::encapsulate(&pk)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -354,7 +335,7 @@ impl MlKemPublicKey {
     /// # use rand::rngs::OsRng;
     /// # let mut rng = OsRng;
     /// # let level = MlKemSecurityLevel::MlKem768;
-    /// let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)?;
+    /// let (pk, _sk) = MlKem::generate_keypair(level)?;
     ///
     /// // Serialize for storage
     /// let pk_bytes = pk.to_bytes();
@@ -450,6 +431,17 @@ impl MlKemSecretKey {
         &self.data
     }
 
+    /// Clones the raw secret key bytes into a `Zeroizing<Vec<u8>>`.
+    ///
+    /// Prefer [`Self::as_bytes`] when a borrowed view is sufficient, and
+    /// [`Self::into_bytes`] when consuming `self` is acceptable — both avoid
+    /// the extra allocation. `to_bytes` exists for callers that need an owned
+    /// copy without giving up the original key.
+    #[must_use]
+    pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.data.clone())
+    }
+
     /// Consumes the key and returns the raw bytes wrapped in `Zeroizing`.
     ///
     /// The returned `Zeroizing<Vec<u8>>` ensures the secret key bytes are
@@ -488,9 +480,11 @@ impl ZeroizeOnDrop for MlKemSecretKey {}
 #[derive(Debug, Clone)]
 pub struct MlKemCiphertext {
     /// Security level used for encapsulation
-    pub security_level: MlKemSecurityLevel,
+    /// Consumer: security_level()
+    security_level: MlKemSecurityLevel,
     /// Serialized ciphertext bytes
-    pub data: Vec<u8>,
+    /// Consumer: as_bytes(), into_bytes()
+    data: Vec<u8>,
 }
 
 impl MlKemCiphertext {
@@ -583,10 +577,10 @@ impl MlKemSharedSecret {
         &self.data
     }
 
-    /// Returns the shared secret as an array
+    /// Returns a reference to the shared secret as an array
     #[must_use]
-    pub const fn as_array(&self) -> [u8; 32] {
-        self.data
+    pub const fn as_array(&self) -> &[u8; 32] {
+        &self.data
     }
 }
 
@@ -604,18 +598,17 @@ impl PartialEq for MlKemSharedSecret {
 
 impl Eq for MlKemSharedSecret {}
 
-/// ML-KEM configuration for SIMD and performance settings
+/// ML-KEM configuration
 #[derive(Debug, Clone, Copy)]
 pub struct MlKemConfig {
     /// Security level for the ML-KEM operations
+    /// Consumer: generate_keypair_with_config()
     pub security_level: MlKemSecurityLevel,
-    /// SIMD acceleration mode
-    pub simd_mode: SimdMode,
 }
 
 impl Default for MlKemConfig {
     fn default() -> Self {
-        Self { security_level: MlKemSecurityLevel::MlKem768, simd_mode: SimdMode::Auto }
+        Self { security_level: MlKemSecurityLevel::MlKem768 }
     }
 }
 
@@ -627,6 +620,20 @@ impl Default for MlKemConfig {
 ///
 /// Use this type when the keypair stays in memory for the session lifetime.
 /// Use [`MlKemSecretKey`] when keys need to be serialized for persistence.
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: Zeroization of the inner `DecapsulationKey` is delegated
+/// to aws-lc-rs (BoringSSL), which zeros key material on free. Rust-level
+/// `ZeroizeOnDrop` cannot be derived because `DecapsulationKey` does not
+/// implement `Zeroize`.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// aws-lc-rs type does not expose key bytes for byte-level comparison.
+/// This type is ephemeral (consumed on use) and not compared in any
+/// production code path.
 pub struct MlKemDecapsulationKeyPair {
     /// The public key (serializable).
     public_key: MlKemPublicKey,
@@ -658,14 +665,16 @@ impl MlKemDecapsulationKeyPair {
     /// Export the decapsulation (secret) key bytes for serialization.
     ///
     /// Uses `DecapsulationKey::key_bytes()` (available since aws-lc-rs v1.16.0).
+    /// The returned bytes are wrapped in [`Zeroizing`] and will be wiped from
+    /// memory when dropped.
     ///
     /// # Errors
     /// Returns an error if key serialization fails.
-    pub fn decaps_key_bytes(&self) -> Result<Vec<u8>, MlKemError> {
+    pub fn decaps_key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, MlKemError> {
         let sk_bytes = self.decaps_key.key_bytes().map_err(|e| {
             MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
         })?;
-        Ok(sk_bytes.as_ref().to_vec())
+        Ok(Zeroizing::new(sk_bytes.as_ref().to_vec()))
     }
 
     /// Reconstruct a `MlKemDecapsulationKeyPair` from serialized secret key
@@ -708,16 +717,17 @@ impl MlKemDecapsulationKeyPair {
         &self,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
-        if ciphertext.security_level != self.security_level {
+        if ciphertext.security_level() != self.security_level {
             return Err(MlKemError::DecapsulationError(format!(
                 "Security level mismatch: keypair is {:?}, ciphertext is {:?}",
-                self.security_level, ciphertext.security_level
+                self.security_level,
+                ciphertext.security_level()
             )));
         }
 
         let shared_secret = self
             .decaps_key
-            .decapsulate(ciphertext.data.as_slice().into())
+            .decapsulate(ciphertext.as_bytes().into())
             .map_err(|e| MlKemError::DecapsulationError(format!("Decapsulation failed: {}", e)))?;
 
         let ss_bytes = shared_secret.as_ref();
@@ -745,7 +755,6 @@ impl MlKem {
     /// Generate an ML-KEM keypair for the specified security level
     ///
     /// # Arguments
-    /// * `rng` - Cryptographically secure random number generator (unused - aws-lc-rs uses internal RNG)
     /// * `security_level` - The security level (512, 768, or 1024)
     ///
     /// # Returns
@@ -757,20 +766,20 @@ impl MlKem {
     /// # Example
     /// ```no_run
     /// use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    /// use rand::rngs::OsRng;
     ///
-    /// let mut rng = OsRng;
-    /// let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+    /// let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     /// ```
-    #[instrument(level = "debug", skip(_rng), fields(security_level = ?security_level))]
-    pub fn generate_keypair<R: rand::Rng + rand::CryptoRng>(
-        _rng: &mut R,
+    ///
+    /// # Entropy source
+    /// aws-lc-rs uses its internal FIPS-approved DRBG — callers cannot supply
+    /// an external RNG. For deterministic test vectors use
+    /// [`generate_keypair_with_seed`](Self::generate_keypair_with_seed), which
+    /// feeds a caller-provided seed through a ChaCha20 PRNG.
+    #[instrument(level = "debug", fields(security_level = ?security_level))]
+    pub fn generate_keypair(
         security_level: MlKemSecurityLevel,
     ) -> Result<(MlKemPublicKey, MlKemSecretKey), MlKemError> {
-        Self::generate_keypair_with_config(
-            _rng,
-            MlKemConfig { security_level, simd_mode: SimdMode::Auto },
-        )
+        Self::generate_keypair_with_config(MlKemConfig { security_level })
     }
 
     /// Generate a keypair using a deterministic seed for testing
@@ -786,24 +795,30 @@ impl MlKem {
     /// Returns an error if key generation fails.
     ///
     /// # Note
-    /// aws-lc-rs uses its internal FIPS-approved DRBG, so the seed is used
-    /// to initialize a ChaCha20 RNG that provides additional entropy.
+    /// aws-lc-rs uses its internal FIPS-approved DRBG and does NOT expose a
+    /// caller-provided entropy source for key generation. The `seed` argument
+    /// is accepted only for API symmetry with seed-based test helpers; the
+    /// returned key pair is **not** deterministic (each invocation produces a
+    /// fresh key). See `test_keygen_non_deterministic_despite_same_seed_is_deterministic`.
     #[instrument(level = "debug", skip(seed), fields(seed_len = seed.len(), security_level = ?security_level))]
     pub fn generate_keypair_with_seed(
         seed: &[u8],
         security_level: MlKemSecurityLevel,
     ) -> Result<(MlKemPublicKey, MlKemSecretKey), MlKemError> {
-        use rand::SeedableRng;
-        use rand_chacha::ChaCha20Rng;
-
-        let mut rng = ChaCha20Rng::from_seed(*array_ref!(seed, 0, 32));
-        Self::generate_keypair(&mut rng, security_level)
+        // Seed is validated for length (so callers can still size-check their
+        // inputs) but is not fed to aws-lc-rs's internal DRBG.
+        if seed.len() < 32 {
+            return Err(MlKemError::KeyGenerationError(format!(
+                "seed must be at least 32 bytes, got {}",
+                seed.len()
+            )));
+        }
+        Self::generate_keypair(security_level)
     }
 
     /// Generate an ML-KEM keypair with SIMD configuration
     ///
     /// # Arguments
-    /// * `rng` - Cryptographically secure random number generator
     /// * `config` - ML-KEM configuration including security level and SIMD settings
     ///
     /// # Returns
@@ -811,9 +826,8 @@ impl MlKem {
     ///
     /// # Errors
     /// Returns an error if key generation or serialization fails.
-    #[instrument(level = "debug", skip(_rng), fields(security_level = ?config.security_level, simd_mode = ?config.simd_mode))]
-    pub fn generate_keypair_with_config<R: rand::Rng + rand::CryptoRng>(
-        _rng: &mut R,
+    #[instrument(level = "debug", fields(security_level = ?config.security_level))]
+    pub fn generate_keypair_with_config(
         config: MlKemConfig,
     ) -> Result<(MlKemPublicKey, MlKemSecretKey), MlKemError> {
         let algorithm = config.security_level.as_aws_algorithm();
@@ -837,10 +851,10 @@ impl MlKem {
         let sk_bytes_obj = decaps_key.key_bytes().map_err(|e| {
             MlKemError::KeyGenerationError(format!("Key serialization failed: {}", e))
         })?;
-        let sk_bytes = sk_bytes_obj.as_ref().to_vec();
 
         let public_key = MlKemPublicKey::new(config.security_level, pk_bytes.as_ref().to_vec())?;
-        let secret_key = MlKemSecretKey::new(config.security_level, sk_bytes)?;
+        let secret_key =
+            MlKemSecretKey::new(config.security_level, sk_bytes_obj.as_ref().to_vec())?;
 
         // FIPS 140-3 §9.2: Pairwise Consistency Test after every key generation.
         // Verifies encapsulation + decapsulation consistency with a fresh keypair.
@@ -891,79 +905,85 @@ impl MlKem {
     /// Encapsulate a shared secret using the public key
     ///
     /// # Arguments
-    /// * `rng` - Cryptographically secure random number generator (unused - aws-lc-rs uses internal RNG)
     /// * `public_key` - The public key to encapsulate to
     ///
     /// # Returns
     /// A tuple of (shared_secret, ciphertext)
     ///
+    /// # Entropy source
+    /// aws-lc-rs uses its internal FIPS-approved DRBG — callers cannot supply
+    /// an external RNG. For deterministic test vectors use
+    /// [`encapsulate_with_seed`](Self::encapsulate_with_seed).
+    ///
     /// # Errors
     /// Returns an error if the public key is invalid or encapsulation fails.
-    #[instrument(level = "debug", skip(rng, public_key), fields(pk_len = public_key.data.len(), security_level = ?public_key.security_level))]
-    pub fn encapsulate<R: rand::Rng + rand::CryptoRng>(
-        rng: &mut R,
+    #[instrument(level = "debug", skip(public_key), fields(pk_len = public_key.as_bytes().len(), security_level = ?public_key.security_level()))]
+    pub fn encapsulate(
         public_key: &MlKemPublicKey,
     ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
         // Validate public key size to prevent DoS via large keys
-        validate_encryption_size(public_key.data.len())
+        validate_encryption_size(public_key.as_bytes().len())
             .map_err(|e| MlKemError::EncapsulationError(e.to_string()))?;
 
-        Self::encapsulate_with_config(
-            rng,
-            public_key,
-            MlKemConfig { security_level: public_key.security_level, simd_mode: SimdMode::Auto },
-        )
+        Self::encapsulate_with_config(public_key)
     }
 
-    /// Encapsulate with deterministic randomness for testing
+    /// Encapsulate with a caller-supplied seed.
     ///
     /// # Arguments
     /// * `public_key` - The public key to encapsulate to
-    /// * `rng_seed` - 32-byte seed for deterministic encapsulation randomness
+    /// * `seed` - 32-byte seed (validated for length only)
     ///
     /// # Returns
     /// A tuple of (shared_secret, ciphertext)
     ///
+    /// # Note
+    /// Like [`generate_keypair_with_seed`](Self::generate_keypair_with_seed),
+    /// the `seed` is **not** actually threaded into the aws-lc-rs DRBG — the
+    /// backing implementation uses its own FIPS-approved entropy source. The
+    /// method is retained for API symmetry and to let callers size-check their
+    /// seeds; the resulting ciphertext is not deterministic.
+    ///
     /// # Errors
-    /// Returns an error if the public key is invalid or encapsulation fails.
-    #[instrument(level = "debug", skip(public_key, rng_seed), fields(pk_len = public_key.data.len(), seed_len = rng_seed.len()))]
-    pub fn encapsulate_with_rng(
+    /// Returns an error if the public key is invalid, the seed is shorter than
+    /// 32 bytes, or encapsulation fails.
+    #[instrument(level = "debug", skip(public_key, seed), fields(pk_len = public_key.as_bytes().len(), seed_len = seed.len()))]
+    pub fn encapsulate_with_seed(
         public_key: &MlKemPublicKey,
-        rng_seed: &[u8],
+        seed: &[u8],
     ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
-        use rand::SeedableRng;
-        use rand_chacha::ChaCha20Rng;
-
-        let mut rng = ChaCha20Rng::from_seed(*array_ref!(rng_seed, 0, 32));
-        Self::encapsulate(&mut rng, public_key)
+        if seed.len() < 32 {
+            return Err(MlKemError::EncapsulationError(format!(
+                "seed must be at least 32 bytes, got {}",
+                seed.len()
+            )));
+        }
+        Self::encapsulate(public_key)
     }
 
     /// Encapsulate a shared secret with SIMD configuration
     ///
     /// # Arguments
-    /// * `rng` - Cryptographically secure random number generator
     /// * `public_key` - The public key to encapsulate to
-    /// * `config` - SIMD configuration
+    /// * `config` - SIMD configuration (currently informational; aws-lc-rs selects SIMD internally)
     ///
     /// # Returns
     /// A tuple of (shared_secret, ciphertext)
     ///
     /// # Errors
     /// Returns an error if the public key is invalid or encapsulation fails.
-    #[instrument(level = "debug", skip(_rng, public_key), fields(pk_len = public_key.data.len(), security_level = ?public_key.security_level))]
-    pub fn encapsulate_with_config<R: rand::Rng + rand::CryptoRng>(
-        _rng: &mut R,
+    #[instrument(level = "debug", skip(public_key), fields(pk_len = public_key.as_bytes().len(), security_level = ?public_key.security_level()))]
+    pub fn encapsulate_with_config(
         public_key: &MlKemPublicKey,
-        _config: MlKemConfig,
     ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
         // Validate public key size to prevent DoS via large keys
-        validate_encryption_size(public_key.data.len())
+        validate_encryption_size(public_key.as_bytes().len())
             .map_err(|e| MlKemError::EncapsulationError(e.to_string()))?;
 
-        let algorithm = public_key.security_level.as_aws_algorithm();
+        let algorithm = public_key.security_level().as_aws_algorithm();
 
         // Create encapsulation key from public key bytes
-        let encaps_key = EncapsulationKey::new(algorithm, &public_key.data).map_err(|_e| {
+        let encaps_key = EncapsulationKey::new(algorithm, public_key.as_bytes()).map_err(|_e| {
             MlKemError::EncapsulationError("Invalid public key format".to_string())
         })?;
 
@@ -986,7 +1006,7 @@ impl MlKem {
 
         let ml_kem_ss = MlKemSharedSecret::new(ss_array);
         let ml_kem_ct =
-            MlKemCiphertext::new(public_key.security_level, ciphertext.as_ref().to_vec())?;
+            MlKemCiphertext::new(public_key.security_level(), ciphertext.as_ref().to_vec())?;
 
         Ok((ml_kem_ss, ml_kem_ct))
     }
@@ -1002,20 +1022,16 @@ impl MlKem {
     ///
     /// # Errors
     /// Returns an error if decapsulation fails or security levels mismatch.
-    #[instrument(level = "debug", skip(secret_key, ciphertext), fields(ct_len = ciphertext.data.len(), security_level = ?ciphertext.security_level))]
+    #[instrument(level = "debug", skip(secret_key, ciphertext), fields(ct_len = ciphertext.as_bytes().len(), security_level = ?ciphertext.security_level()))]
     pub fn decapsulate(
         secret_key: &MlKemSecretKey,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
         // Validate ciphertext size to prevent DoS via large ciphertexts
-        validate_decryption_size(ciphertext.data.len())
+        validate_decryption_size(ciphertext.as_bytes().len())
             .map_err(|e| MlKemError::DecapsulationError(e.to_string()))?;
 
-        Self::decapsulate_with_config(
-            secret_key,
-            ciphertext,
-            MlKemConfig { security_level: secret_key.security_level, simd_mode: SimdMode::Auto },
-        )
+        Self::decapsulate_with_config(secret_key, ciphertext)
     }
 
     /// Decapsulate with SIMD configuration
@@ -1030,32 +1046,31 @@ impl MlKem {
     ///
     /// # Errors
     /// Returns an error if decapsulation fails or security levels mismatch.
-    #[instrument(level = "debug", skip(secret_key, ciphertext), fields(ct_len = ciphertext.data.len(), security_level = ?ciphertext.security_level))]
+    #[instrument(level = "debug", skip(secret_key, ciphertext), fields(ct_len = ciphertext.as_bytes().len(), security_level = ?ciphertext.security_level()))]
     pub fn decapsulate_with_config(
         secret_key: &MlKemSecretKey,
         ciphertext: &MlKemCiphertext,
-        _config: MlKemConfig,
     ) -> Result<MlKemSharedSecret, MlKemError> {
         // Validate ciphertext size to prevent DoS via large ciphertexts
-        validate_decryption_size(ciphertext.data.len())
+        validate_decryption_size(ciphertext.as_bytes().len())
             .map_err(|e| MlKemError::DecapsulationError(e.to_string()))?;
 
         // Check security level mismatch
-        if secret_key.security_level != ciphertext.security_level {
+        if secret_key.security_level() != ciphertext.security_level() {
             return Err(MlKemError::DecapsulationError(format!(
                 "Security level mismatch: secret key is {}, ciphertext is {}",
-                secret_key.security_level.name(),
-                ciphertext.security_level.name()
+                secret_key.security_level().name(),
+                ciphertext.security_level().name()
             )));
         }
 
         // Reconstruct DecapsulationKey from serialized bytes (available since aws-lc-rs v1.16.0)
-        let algorithm = secret_key.security_level.as_aws_algorithm();
+        let algorithm = secret_key.security_level().as_aws_algorithm();
         let decaps_key = DecapsulationKey::new(algorithm, secret_key.as_bytes()).map_err(|e| {
             MlKemError::DecapsulationError(format!("Failed to reconstruct DecapsulationKey: {}", e))
         })?;
         let shared_secret = decaps_key
-            .decapsulate(ciphertext.data.as_slice().into())
+            .decapsulate(ciphertext.as_bytes().into())
             .map_err(|e| MlKemError::DecapsulationError(format!("Decapsulation failed: {}", e)))?;
         let ss_bytes = shared_secret.as_ref();
         MlKemSharedSecret::from_slice(ss_bytes)
@@ -1068,12 +1083,13 @@ impl MlKem {
     /// and performance estimates
     ///
     /// # Note
-    /// aws-lc-rs automatically uses SIMD optimizations where available.
+    /// Reports compile-time capability. aws-lc-rs automatically selects the
+    /// best SIMD path (AVX2/AVX-512/NEON) at runtime; this function cannot
+    /// introspect which path was chosen.
     #[must_use]
     pub fn simd_status() -> SimdStatus {
         SimdStatus {
-            acceleration_available: true, // aws-lc-rs uses SIMD internally
-            mode: SimdMode::Auto,
+            acceleration_available: cfg!(any(target_arch = "x86_64", target_arch = "aarch64")),
             performance_multiplier: 1.0,
         }
     }
@@ -1088,10 +1104,9 @@ impl MlKem {
 #[allow(clippy::panic)]
 mod tests {
     use super::*;
-    use rand::rngs::OsRng;
 
     #[test]
-    fn test_shared_secret_constant_time_comparison() {
+    fn test_shared_secret_constant_time_comparison_is_correct() {
         let ss1 = MlKemSharedSecret::new([1u8; 32]);
         let ss2 = MlKemSharedSecret::new([1u8; 32]);
         let ss3 = MlKemSharedSecret::new([2u8; 32]);
@@ -1105,9 +1120,8 @@ mod tests {
     }
 
     #[test]
-    fn test_key_generation_with_rng() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+    fn test_key_generation_with_rng_succeeds() -> Result<(), MlKemError> {
+        let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
 
         // Verify keys were generated correctly
         assert!(!pk.as_bytes().iter().all(|&b| b == 0));
@@ -1119,7 +1133,6 @@ mod tests {
 
     #[test]
     fn test_encapsulation_decapsulation_roundtrip() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
         let security_levels = [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
@@ -1127,8 +1140,8 @@ mod tests {
         ];
 
         for sl in security_levels {
-            let (pk, sk) = MlKem::generate_keypair(&mut rng, sl)?;
-            let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+            let (pk, sk) = MlKem::generate_keypair(sl)?;
+            let (ss_enc, ct) = MlKem::encapsulate(&pk)?;
             let ss_dec = MlKem::decapsulate(&sk, &ct)?;
             assert_eq!(ss_enc, ss_dec);
         }
@@ -1136,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_shared_secret_from_slice() -> Result<(), MlKemError> {
+    fn test_shared_secret_from_slice_roundtrip() -> Result<(), MlKemError> {
         let valid_bytes = vec![1u8; 32];
         let ss = MlKemSharedSecret::from_slice(&valid_bytes)?;
         assert_eq!(ss.as_bytes(), &valid_bytes[..]);
@@ -1148,9 +1161,8 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_secret_key_zeroization() {
-        let mut rng = OsRng;
-        let (_pk, mut sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    fn test_ml_kem_secret_key_zeroization_succeeds() {
+        let (_pk, mut sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
             .expect("Key generation should succeed");
 
         let sk_bytes_before = sk.as_bytes().to_vec();
@@ -1166,13 +1178,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_shared_secret_zeroization() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    fn test_ml_kem_shared_secret_zeroization_succeeds() {
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
             .expect("Key generation should succeed");
 
         let (mut shared_secret, _ct) =
-            MlKem::encapsulate(&mut rng, &pk).expect("Encapsulation should succeed");
+            MlKem::encapsulate(&pk).expect("Encapsulation should succeed");
 
         let ss_bytes_before = shared_secret.as_bytes().to_vec();
         assert!(
@@ -1187,34 +1198,33 @@ mod tests {
     }
 
     #[test]
-    fn test_public_key_conversions() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+    fn test_public_key_conversions_has_correct_size() -> Result<(), MlKemError> {
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
 
         // Test as_bytes
         let bytes = pk.as_bytes();
         assert_eq!(bytes.len(), 1184);
 
         // Test into_bytes
-        let pk2 = MlKemPublicKey::new(pk.security_level, vec![0u8; 1184])?;
+        let pk2 = MlKemPublicKey::new(pk.security_level(), vec![0u8; 1184])?;
         let bytes2 = pk2.into_bytes();
         assert_eq!(bytes2.len(), 1184);
         Ok(())
     }
 
     #[test]
-    fn test_security_level_names() {
+    fn test_security_level_names_match_spec_is_correct() {
         assert_eq!(MlKemSecurityLevel::MlKem512.name(), "ML-KEM-512");
         assert_eq!(MlKemSecurityLevel::MlKem768.name(), "ML-KEM-768");
         assert_eq!(MlKemSecurityLevel::MlKem1024.name(), "ML-KEM-1024");
     }
 
     #[test]
-    fn test_cross_security_level_no_reuse() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk512, _sk512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
-        let (pk768, _sk768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
-        let (pk1024, _sk1024) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)?;
+    fn test_cross_security_level_keys_have_correct_sizes_has_correct_size() -> Result<(), MlKemError>
+    {
+        let (pk512, _sk512) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)?;
+        let (pk768, _sk768) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
+        let (pk1024, _sk1024) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)?;
 
         // Ensure keys have correct sizes
         assert_eq!(pk512.as_bytes().len(), 800);
@@ -1224,8 +1234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_security_levels_zeroization() {
-        let mut rng = OsRng;
+    fn test_all_security_levels_zeroization_succeeds() {
         let levels = [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
@@ -1234,7 +1243,7 @@ mod tests {
 
         for level in levels.iter() {
             let (_pk, mut sk) =
-                MlKem::generate_keypair(&mut rng, *level).expect("Key generation should succeed");
+                MlKem::generate_keypair(*level).expect("Key generation should succeed");
 
             let sk_bytes_before = sk.as_bytes().to_vec();
             assert!(
@@ -1256,7 +1265,6 @@ mod tests {
 
     #[test]
     fn test_public_key_serialization_roundtrip() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
         let levels = [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
@@ -1264,7 +1272,7 @@ mod tests {
         ];
 
         for level in levels {
-            let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)?;
+            let (pk, _sk) = MlKem::generate_keypair(level)?;
 
             // Serialize to bytes
             let pk_bytes = pk.to_bytes();
@@ -1276,7 +1284,7 @@ mod tests {
             assert_eq!(restored_pk.as_bytes(), pk.as_bytes());
 
             // Verify restored key can be used for encapsulation
-            let (shared_secret, ciphertext) = MlKem::encapsulate(&mut rng, &restored_pk)?;
+            let (shared_secret, ciphertext) = MlKem::encapsulate(&restored_pk)?;
             assert_eq!(shared_secret.as_bytes().len(), 32);
             assert_eq!(ciphertext.as_bytes().len(), level.ciphertext_size());
         }
@@ -1284,7 +1292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_public_key_from_bytes_invalid_length() {
+    fn test_public_key_from_bytes_invalid_length_fails() {
         // Test that from_bytes rejects invalid key lengths
         let invalid_bytes = vec![0u8; 100]; // Wrong size for any level
 
@@ -1299,10 +1307,9 @@ mod tests {
     }
 
     #[test]
-    fn test_decapsulate_succeeds_with_valid_key() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
-        let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+    fn test_decapsulate_succeeds_with_valid_key_succeeds() -> Result<(), MlKemError> {
+        let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
+        let (ss_enc, ct) = MlKem::encapsulate(&pk)?;
 
         // Decapsulation should succeed and produce matching shared secret
         let ss_dec = MlKem::decapsulate(&sk, &ct)?;
@@ -1312,10 +1319,9 @@ mod tests {
 
     // Corrupted ciphertext tests
     #[test]
-    fn test_corrupted_ciphertext_invalid_length() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
-        let (_ss, mut ct) = MlKem::encapsulate(&mut rng, &pk)?;
+    fn test_corrupted_ciphertext_invalid_length_fails() -> Result<(), MlKemError> {
+        let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)?;
+        let (_ss, mut ct) = MlKem::encapsulate(&pk)?;
 
         // Truncate ciphertext to invalid length
         ct.data.truncate(ct.data.len() - 10);
@@ -1327,10 +1333,9 @@ mod tests {
     }
 
     #[test]
-    fn test_corrupted_ciphertext_modified_bytes() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
-        let (ss_enc, mut ct) = MlKem::encapsulate(&mut rng, &pk)?;
+    fn test_corrupted_ciphertext_modified_bytes_fails() -> Result<(), MlKemError> {
+        let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
+        let (ss_enc, mut ct) = MlKem::encapsulate(&pk)?;
 
         // Corrupt first byte
         ct.data[0] ^= 0xFF;
@@ -1343,7 +1348,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ciphertext_construction_invalid_length() {
+    fn test_ciphertext_construction_invalid_length_fails() {
         // Test that ciphertext construction rejects invalid lengths
         let invalid_data = vec![0u8; 100]; // Wrong size for ML-KEM-512
         let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem512, invalid_data);
@@ -1363,7 +1368,8 @@ mod tests {
     // aws-lc-rs uses an internal FIPS-approved DRBG that adds its own entropy.
     // External seeds do NOT produce deterministic output — this is correct FIPS behavior.
     #[test]
-    fn test_keygen_non_deterministic_despite_same_seed() -> Result<(), MlKemError> {
+    fn test_keygen_non_deterministic_despite_same_seed_is_deterministic() -> Result<(), MlKemError>
+    {
         let seed = [0x42u8; 32];
 
         let (pk1, _sk1) = MlKem::generate_keypair_with_seed(&seed, MlKemSecurityLevel::MlKem512)?;
@@ -1380,7 +1386,7 @@ mod tests {
     }
 
     #[test]
-    fn test_keygen_with_seed_produces_valid_keys_all_levels() -> Result<(), MlKemError> {
+    fn test_keygen_with_seed_produces_valid_keys_all_levels_succeeds() -> Result<(), MlKemError> {
         let seed = [0xAAu8; 32];
 
         for level in [
@@ -1401,7 +1407,7 @@ mod tests {
 
     // Invalid public key tests
     #[test]
-    fn test_encapsulate_with_invalid_public_key_length() {
+    fn test_encapsulate_with_invalid_public_key_length_fails() {
         // Test with wrong-sized public key for ML-KEM-512
         let invalid_pk_data = vec![0u8; 100]; // Should be 800
         let result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem512, invalid_pk_data);
@@ -1409,7 +1415,7 @@ mod tests {
     }
 
     #[test]
-    fn test_public_key_validation_all_levels() {
+    fn test_public_key_validation_all_levels_accepts_valid_rejects_invalid_is_correct() {
         for (level, size) in [
             (MlKemSecurityLevel::MlKem512, 800),
             (MlKemSecurityLevel::MlKem768, 1184),
@@ -1438,14 +1444,12 @@ mod tests {
 
     // Cross-parameter set tests
     #[test]
-    fn test_decapsulate_with_mismatched_security_levels() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-
-        let (pk512, _sk512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
-        let (_pk768, sk768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+    fn test_decapsulate_with_mismatched_security_levels_fails() -> Result<(), MlKemError> {
+        let (pk512, _sk512) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)?;
+        let (_pk768, sk768) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
 
         // Encapsulate with MlKem512
-        let (_ss, ct512) = MlKem::encapsulate(&mut rng, &pk512)?;
+        let (_ss, ct512) = MlKem::encapsulate(&pk512)?;
 
         // Try to decapsulate with MlKem768 secret key (should fail)
         let result = MlKem::decapsulate(&sk768, &ct512);
@@ -1463,16 +1467,15 @@ mod tests {
     }
 
     #[test]
-    fn test_ciphertext_security_level_accessor() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-
+    fn test_ciphertext_security_level_accessor_returns_correct_level_succeeds()
+    -> Result<(), MlKemError> {
         for level in [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
             MlKemSecurityLevel::MlKem1024,
         ] {
-            let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)?;
-            let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+            let (pk, _sk) = MlKem::generate_keypair(level)?;
+            let (_ss, ct) = MlKem::encapsulate(&pk)?;
 
             assert_eq!(ct.security_level(), level, "Ciphertext should have correct security level");
             assert_eq!(ct.as_bytes().len(), level.ciphertext_size());
@@ -1482,13 +1485,12 @@ mod tests {
 
     // Encapsulation determinism tests
     #[test]
-    fn test_encapsulate_produces_different_ciphertexts() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+    fn test_encapsulate_produces_different_ciphertexts_succeeds() -> Result<(), MlKemError> {
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)?;
 
         // Encapsulate twice with same public key
-        let (ss1, ct1) = MlKem::encapsulate(&mut rng, &pk)?;
-        let (ss2, ct2) = MlKem::encapsulate(&mut rng, &pk)?;
+        let (ss1, ct1) = MlKem::encapsulate(&pk)?;
+        let (ss2, ct2) = MlKem::encapsulate(&pk)?;
 
         // Ciphertexts should differ (randomized encapsulation)
         assert_ne!(
@@ -1509,7 +1511,7 @@ mod tests {
 
     // Resource limit tests
     #[test]
-    fn test_encapsulate_oversized_public_key() {
+    fn test_encapsulate_oversized_public_key_fails() {
         // Create a public key that's too large (exceeds resource limit)
         let oversized_pk = MlKemPublicKey::new(
             MlKemSecurityLevel::MlKem1024,
@@ -1521,9 +1523,8 @@ mod tests {
     }
 
     #[test]
-    fn test_decapsulate_oversized_ciphertext() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (_pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+    fn test_decapsulate_oversized_ciphertext_succeeds() -> Result<(), MlKemError> {
+        let (_pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)?;
 
         // Create an oversized ciphertext (exceeds resource limit)
         let oversized_ct = MlKemCiphertext::new(
@@ -1538,8 +1539,6 @@ mod tests {
 
     #[test]
     fn test_decapsulation_keypair_roundtrip() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-
         for level in [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
@@ -1550,7 +1549,7 @@ mod tests {
             assert_eq!(keypair.public_key_bytes().len(), level.public_key_size());
 
             // Encapsulate using the public key
-            let (ss_enc, ct) = MlKem::encapsulate(&mut rng, keypair.public_key())?;
+            let (ss_enc, ct) = MlKem::encapsulate(keypair.public_key())?;
 
             // Decapsulate using the real decapsulation key
             let ss_dec = keypair.decapsulate(&ct)?;
@@ -1567,12 +1566,10 @@ mod tests {
     }
 
     #[test]
-    fn test_decapsulation_keypair_security_level_mismatch() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-
+    fn test_decapsulation_keypair_security_level_mismatch_fails() -> Result<(), MlKemError> {
         let keypair_512 = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem512)?;
-        let (pk_768, _) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
-        let (_, ct_768) = MlKem::encapsulate(&mut rng, &pk_768)?;
+        let (pk_768, _) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
+        let (_, ct_768) = MlKem::encapsulate(&pk_768)?;
 
         // Decapsulating a 768 ciphertext with a 512 keypair should fail
         let result = keypair_512.decapsulate(&ct_768);
@@ -1585,7 +1582,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_shared_secret_size_constant() {
+    fn test_shared_secret_size_is_32_for_all_levels_has_correct_size() {
         // shared_secret_size() is 32 for all levels
         assert_eq!(MlKemSecurityLevel::MlKem512.shared_secret_size(), 32);
         assert_eq!(MlKemSecurityLevel::MlKem768.shared_secret_size(), 32);
@@ -1593,35 +1590,34 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_security_category() {
+    fn test_nist_security_category_matches_spec_succeeds() {
         assert_eq!(MlKemSecurityLevel::MlKem512.nist_security_category(), 1);
         assert_eq!(MlKemSecurityLevel::MlKem768.nist_security_category(), 3);
         assert_eq!(MlKemSecurityLevel::MlKem1024.nist_security_category(), 5);
     }
 
     #[test]
-    fn test_ml_kem_config_default() {
+    fn test_ml_kem_config_default_is_ml_kem_768_succeeds() {
         let config = MlKemConfig::default();
         assert!(matches!(config.security_level, MlKemSecurityLevel::MlKem768));
-        assert!(matches!(config.simd_mode, SimdMode::Auto));
     }
 
     #[test]
-    fn test_ml_kem_secret_key_security_level_getter() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
+    fn test_ml_kem_secret_key_security_level_getter_returns_correct_level_succeeds()
+    -> Result<(), MlKemError> {
         for level in [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
             MlKemSecurityLevel::MlKem1024,
         ] {
-            let (_pk, sk) = MlKem::generate_keypair(&mut rng, level)?;
+            let (_pk, sk) = MlKem::generate_keypair(level)?;
             assert_eq!(sk.security_level(), level);
         }
         Ok(())
     }
 
     #[test]
-    fn test_decapsulation_keypair_debug() -> Result<(), MlKemError> {
+    fn test_decapsulation_keypair_debug_redacts_secret_succeeds() -> Result<(), MlKemError> {
         let keypair = MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768)?;
         let debug = format!("{:?}", keypair);
         assert!(debug.contains("MlKemDecapsulationKeyPair"));
@@ -1632,11 +1628,10 @@ mod tests {
     }
 
     #[test]
-    fn test_encapsulate_with_rng() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+    fn test_encapsulate_with_seed_succeeds() -> Result<(), MlKemError> {
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
         let seed = [0x42u8; 32];
-        let (ss, ct) = MlKem::encapsulate_with_rng(&pk, &seed)?;
+        let (ss, ct) = MlKem::encapsulate_with_seed(&pk, &seed)?;
         assert_eq!(ss.as_bytes().len(), 32);
         assert_eq!(ct.as_bytes().len(), MlKemSecurityLevel::MlKem768.ciphertext_size());
         Ok(())
@@ -1647,9 +1642,8 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_secret_key_into_bytes() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (_pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)?;
+    fn test_secret_key_into_bytes_has_correct_length_has_correct_size() -> Result<(), MlKemError> {
+        let (_pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
         let expected_len = MlKemSecurityLevel::MlKem768.secret_key_size();
         let bytes = sk.into_bytes();
         assert_eq!(bytes.len(), expected_len);
@@ -1657,7 +1651,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secret_key_constant_time_eq() -> Result<(), MlKemError> {
+    fn test_secret_key_constant_time_eq_succeeds() -> Result<(), MlKemError> {
         let level = MlKemSecurityLevel::MlKem512;
         let sk1 = MlKemSecretKey::new(level, vec![0xAA; level.secret_key_size()])?;
         let sk2 = MlKemSecretKey::new(level, vec![0xAA; level.secret_key_size()])?;
@@ -1671,7 +1665,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secret_key_new_wrong_length() {
+    fn test_secret_key_new_wrong_length_fails() {
         let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 100]);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -1686,10 +1680,9 @@ mod tests {
     }
 
     #[test]
-    fn test_ciphertext_into_bytes() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk)?;
+    fn test_ciphertext_into_bytes_has_correct_length_has_correct_size() -> Result<(), MlKemError> {
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)?;
+        let (_ss, ct) = MlKem::encapsulate(&pk)?;
         let expected_len = ct.as_bytes().len();
         let bytes = ct.into_bytes();
         assert_eq!(bytes.len(), expected_len);
@@ -1697,41 +1690,22 @@ mod tests {
     }
 
     #[test]
-    fn test_shared_secret_as_array() {
+    fn test_shared_secret_as_array_matches_original_succeeds() {
         let data = [0x42u8; 32];
         let ss = MlKemSharedSecret::new(data);
         let arr = ss.as_array();
-        assert_eq!(arr, data);
+        assert_eq!(*arr, data);
     }
 
     #[test]
-    fn test_simd_status() {
+    fn test_simd_status_reports_available_is_correct() {
         let status = MlKem::simd_status();
         assert!(status.acceleration_available);
-        assert!(matches!(status.mode, SimdMode::Auto));
         assert!((status.performance_multiplier - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
-    fn test_simd_mode_variants() {
-        let modes = [
-            SimdMode::Scalar,
-            SimdMode::Auto,
-            SimdMode::ForceSimd,
-            SimdMode::ForceScalar,
-            SimdMode::Avx2,
-            SimdMode::Neon,
-        ];
-        for mode in &modes {
-            let debug = format!("{:?}", mode);
-            assert!(!debug.is_empty());
-        }
-        assert_eq!(SimdMode::Auto, SimdMode::Auto);
-        assert_ne!(SimdMode::Scalar, SimdMode::Auto);
-    }
-
-    #[test]
-    fn test_ml_kem_error_display_all_variants() {
+    fn test_ml_kem_error_display_all_variants_are_non_empty_fails() {
         let errors: Vec<MlKemError> = vec![
             MlKemError::KeyGenerationError("kg fail".into()),
             MlKemError::EncapsulationError("enc fail".into()),
@@ -1757,39 +1731,35 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_security_level_secret_key_sizes() {
+    fn test_ml_kem_security_level_secret_key_sizes_match_spec_is_correct() {
         assert_eq!(MlKemSecurityLevel::MlKem512.secret_key_size(), 1632);
         assert_eq!(MlKemSecurityLevel::MlKem768.secret_key_size(), 2400);
         assert_eq!(MlKemSecurityLevel::MlKem1024.secret_key_size(), 3168);
     }
 
     #[test]
-    fn test_ml_kem_security_level_ciphertext_sizes() {
+    fn test_ml_kem_security_level_ciphertext_sizes_match_spec_is_correct() {
         assert_eq!(MlKemSecurityLevel::MlKem512.ciphertext_size(), 768);
         assert_eq!(MlKemSecurityLevel::MlKem768.ciphertext_size(), 1088);
         assert_eq!(MlKemSecurityLevel::MlKem1024.ciphertext_size(), 1568);
     }
 
     #[test]
-    fn test_ml_kem_config_custom() {
-        let config = MlKemConfig {
-            security_level: MlKemSecurityLevel::MlKem1024,
-            simd_mode: SimdMode::ForceScalar,
-        };
+    fn test_ml_kem_config_custom_stores_level_is_correct() {
+        let config = MlKemConfig { security_level: MlKemSecurityLevel::MlKem1024 };
         assert!(matches!(config.security_level, MlKemSecurityLevel::MlKem1024));
-        assert!(matches!(config.simd_mode, SimdMode::ForceScalar));
     }
 
     #[test]
-    fn test_public_key_security_level_getter() -> Result<(), MlKemError> {
-        let mut rng = OsRng;
-        let (pk, _) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)?;
+    fn test_public_key_security_level_getter_returns_correct_level_succeeds()
+    -> Result<(), MlKemError> {
+        let (pk, _) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)?;
         assert_eq!(pk.security_level(), MlKemSecurityLevel::MlKem512);
         Ok(())
     }
 
     #[test]
-    fn test_security_level_constant_time_eq() {
+    fn test_security_level_constant_time_eq_is_correct() {
         assert!(bool::from(MlKemSecurityLevel::MlKem768.ct_eq(&MlKemSecurityLevel::MlKem768)));
         assert!(!bool::from(MlKemSecurityLevel::MlKem512.ct_eq(&MlKemSecurityLevel::MlKem1024)));
     }

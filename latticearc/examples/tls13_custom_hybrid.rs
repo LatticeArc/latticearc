@@ -48,23 +48,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Demonstrate key generation
     println!("=== Key Generation ===");
-    let mut rng = rand::thread_rng();
 
     // Server generates keypair
     println!("Generating server keypair...");
-    let (server_pk, server_sk) = perform_hybrid_keygen(&mut rng)?;
+    let (server_pk, server_sk) = perform_hybrid_keygen()?;
     println!("Server keypair generated");
-    println!("  ML-KEM PK length: {} bytes", server_pk.ml_kem_pk.len());
-    println!("  X25519 PK length: {} bytes\n", server_pk.ecdh_pk.len());
+    println!("  ML-KEM PK length: {} bytes", server_pk.ml_kem_pk().len());
+    println!("  X25519 PK length: {} bytes\n", server_pk.ecdh_pk().len());
 
     // Demonstrate encapsulation (client side)
     println!("=== Encapsulation (Client) ===");
     println!("Client encapsulates to server's public key...");
-    let encapsulated = perform_hybrid_encapsulate(&mut rng, &server_pk)?;
+    let encapsulated = perform_hybrid_encapsulate(&server_pk)?;
     println!("Encapsulation completed");
-    println!("  ML-KEM CT length: {} bytes", encapsulated.ml_kem_ct.len());
-    println!("  X25519 PK length: {} bytes", encapsulated.ecdh_pk.len());
-    println!("  Shared Secret length: {} bytes\n", encapsulated.shared_secret.len());
+    println!("  ML-KEM CT length: {} bytes", encapsulated.ml_kem_ct().len());
+    println!("  X25519 PK length: {} bytes", encapsulated.ecdh_pk().len());
+    println!("  Shared Secret length: {} bytes\n", encapsulated.shared_secret().len());
 
     // Demonstrate decapsulation (server side)
     println!("=== Decapsulation (Server) ===");
@@ -75,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify shared secrets match
     println!("=== Verification ===");
-    let encapsulated_ss: &[u8] = encapsulated.shared_secret.as_ref();
+    let encapsulated_ss: &[u8] = encapsulated.shared_secret();
     if encapsulated_ss == decapsulated_ss.as_slice() {
         println!("Shared secrets match!");
         println!(

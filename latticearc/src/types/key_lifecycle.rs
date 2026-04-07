@@ -39,6 +39,7 @@ use crate::types::error::{Result, TypeError};
 use serde::{Deserialize, Serialize};
 
 /// SP 800-57 Section 3: Key Lifecycle States
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum KeyLifecycleState {
@@ -124,6 +125,7 @@ pub struct KeyCustodian {
 }
 
 /// Roles for key custodians
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CustodianRole {
     /// Authorized to generate keys
@@ -299,12 +301,17 @@ impl KeyLifecycleRecord {
     #[must_use]
     pub fn requires_rotation(&self) -> bool {
         if let Some(activated_at) = self.activated_at {
-            // Use signed_duration_since for safe duration calculation
             let duration = chrono::Utc::now().signed_duration_since(activated_at);
             let age_days_i64 = duration.num_days();
-            // Convert safely: negative ages (future activation) treated as 0
-            // Ages larger than u32::MAX are capped (would be ~11.7M years)
-            let age_days = u32::try_from(age_days_i64).unwrap_or(0);
+            if age_days_i64 < 0 {
+                // Future activation date — clock skew or misconfiguration
+                tracing::warn!(
+                    "Key has negative age ({age_days_i64} days); activation_at in the future"
+                );
+                return false;
+            }
+            // Ages larger than u32::MAX → always require rotation
+            let age_days = u32::try_from(age_days_i64).unwrap_or(u32::MAX);
             age_days >= self.rotation_interval_days
         } else {
             false
@@ -460,7 +467,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_valid_state_transitions() {
+    fn test_valid_state_transitions_succeeds() {
         // Generation -> Active
         assert!(KeyStateMachine::is_valid_transition(
             Some(KeyLifecycleState::Generation),
@@ -493,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_state_transitions() {
+    fn test_invalid_state_transitions_fails() {
         // Cannot go backwards
         assert!(!KeyStateMachine::is_valid_transition(
             Some(KeyLifecycleState::Active),
@@ -514,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn test_allowed_next_states() {
+    fn test_allowed_next_states_succeeds() {
         assert_eq!(
             KeyStateMachine::allowed_next_states(KeyLifecycleState::Generation),
             vec![KeyLifecycleState::Active]
@@ -529,7 +536,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_record() {
+    fn test_key_lifecycle_record_succeeds() {
         let mut record = KeyLifecycleRecord::new(
             "test-key-123".to_string(),
             "ML-KEM-768".to_string(),
@@ -561,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rotation_requirement() {
+    fn test_rotation_requirement_succeeds() {
         let mut record = KeyLifecycleRecord::new(
             "test-key-123".to_string(),
             "AES-256".to_string(),
@@ -578,7 +585,7 @@ mod tests {
     }
 
     #[test]
-    fn test_transition_validation() {
+    fn test_transition_validation_succeeds() {
         let mut record = KeyLifecycleRecord::new(
             "test-key-123".to_string(),
             "ML-DSA-65".to_string(),
@@ -599,7 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_approver() {
+    fn test_add_approver_succeeds() {
         let mut record = KeyLifecycleRecord::new(
             "test-key-123".to_string(),
             "ML-KEM-768".to_string(),

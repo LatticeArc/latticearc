@@ -44,30 +44,40 @@ pub struct CoreConfig {
     ///
     /// Higher security levels provide stronger protection but may impact performance.
     /// Default: `SecurityLevel::High`
+    ///
+    /// Consumer: `CryptoPolicyEngine::select_encryption_scheme()`, `select_signature_scheme()`, `select_encryption_scheme_typed()`
     pub security_level: SecurityLevel,
 
     /// Performance preference for cryptographic operations.
     ///
     /// Affects algorithm selection and optimization strategies.
     /// Default: `PerformancePreference::Balanced`
+    ///
+    /// Consumer: `CryptoPolicyEngine::select_encryption_scheme()`
     pub performance_preference: PerformancePreference,
 
     /// Whether hardware acceleration is enabled.
     ///
     /// Uses CPU features like AVX2/AVX-512 or GPU acceleration when available.
     /// Default: `true`
+    ///
+    /// Consumer: `CryptoPolicyEngine::select_encryption_scheme()` — unused since audit (all levels now return hybrid PQC)
     pub hardware_acceleration: bool,
 
     /// Whether fallback to software implementations is enabled.
     ///
     /// If hardware acceleration fails, fallback to portable software implementations.
     /// Default: `true`
+    ///
+    /// Consumer: `CoreConfig::validate()`
     pub fallback_enabled: bool,
 
     /// Whether strict validation is enabled.
     ///
     /// Performs additional validation checks that may impact performance.
     /// Default: `true`
+    ///
+    /// Consumer: `CoreConfig::validate()`
     pub strict_validation: bool,
 }
 
@@ -205,14 +215,24 @@ pub type SignatureConfig = CoreConfig;
 #[derive(Debug, Clone)]
 pub struct ZeroTrustConfig {
     /// Base configuration inherited from [`CoreConfig`].
+    ///
+    /// Consumer: `ZeroTrustAuth::new()`
     pub base: CoreConfig,
     /// Timeout in milliseconds for challenge responses.
+    ///
+    /// Consumer: `ZeroTrustAuth::initiate_authentication()`
     pub challenge_timeout_ms: u64,
     /// Complexity level for zero-knowledge proofs.
+    ///
+    /// Consumer: `ZeroTrustAuth::generate_proof()`, `verify_proof_data()`
     pub proof_complexity: ProofComplexity,
     /// Whether continuous session verification is enabled.
+    ///
+    /// Consumer: `ContinuousSession::new()`
     pub continuous_verification: bool,
     /// Interval in milliseconds between verification checks.
+    ///
+    /// Consumer: `ContinuousSession::check_session_validity()`
     pub verification_interval_ms: u64,
 }
 
@@ -294,6 +314,7 @@ impl ZeroTrustConfig {
 ///
 /// Higher complexity provides stronger security guarantees but requires
 /// more computation and bandwidth.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum ProofComplexity {
@@ -312,20 +333,35 @@ pub enum ProofComplexity {
 ///
 /// **Note:** This is a configuration model only. `CoreConfig.hardware_acceleration`
 /// controls software-friendly algorithm selection (ChaCha20-Poly1305 vs AES-GCM).
+#[deprecated(
+    since = "0.5.0",
+    note = "No active consumer. Use CoreConfig.hardware_acceleration instead."
+)]
 #[derive(Debug, Clone)]
 pub struct HardwareConfig {
     /// Whether hardware acceleration is enabled.
+    ///
+    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
     pub acceleration_enabled: bool,
     /// Whether software fallback is permitted when hardware is unavailable.
+    ///
+    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
     pub fallback_enabled: bool,
     /// Minimum data size in bytes to trigger hardware acceleration.
+    ///
+    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
     pub threshold_bytes: usize,
     /// List of preferred hardware accelerators in priority order.
+    ///
+    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
     pub preferred_accelerators: Vec<HardwareType>,
     /// Force CPU-only mode, bypassing all other accelerators.
+    ///
+    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
     pub force_cpu: bool,
 }
 
+#[allow(deprecated)]
 impl Default for HardwareConfig {
     fn default() -> Self {
         Self {
@@ -338,6 +374,7 @@ impl Default for HardwareConfig {
     }
 }
 
+#[allow(deprecated)]
 impl HardwareConfig {
     /// Creates a new hardware configuration with default settings.
     #[must_use]
@@ -412,20 +449,32 @@ impl HardwareConfig {
 /// **Note:** `UseCaseConfig` is not yet wired to the unified `encrypt()`/`sign_with_key()` API.
 /// For use-case-based algorithm selection, use `CryptoConfig::new().use_case(UseCase::...)`.
 /// `UseCaseConfig` remains available for advanced per-component configuration.
+#[allow(deprecated)] // UseCaseConfig still carries HardwareConfig; remove when UseCaseConfig is refactored
 #[derive(Debug, Clone)]
 pub struct UseCaseConfig {
     /// The use case this configuration is optimized for.
+    ///
+    /// Consumer: None — reserved for unified API integration
     pub use_case: UseCase,
     /// Encryption configuration for this use case.
+    ///
+    /// Consumer: None — reserved for unified API integration
     pub encryption: CoreConfig,
     /// Signature configuration for this use case.
+    ///
+    /// Consumer: None — reserved for unified API integration
     pub signature: CoreConfig,
     /// Zero-trust configuration for this use case.
+    ///
+    /// Consumer: None — reserved for unified API integration
     pub zero_trust: ZeroTrustConfig,
     /// Hardware configuration for this use case.
+    ///
+    /// Consumer: None — reserved for unified API integration
     pub hardware: HardwareConfig,
 }
 
+#[allow(deprecated)] // UseCaseConfig still carries HardwareConfig; remove when UseCaseConfig is refactored
 impl UseCaseConfig {
     /// Creates a new configuration optimized for the specified use case.
     #[must_use]
@@ -595,13 +644,14 @@ mod kani_proofs {
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    deprecated
 )]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_core_config_default() {
+    fn test_core_config_default_fields_are_correct() {
         let config = CoreConfig::new();
         assert_eq!(config.security_level, SecurityLevel::High);
         assert_eq!(config.performance_preference, PerformancePreference::Balanced);
@@ -611,21 +661,21 @@ mod tests {
     }
 
     #[test]
-    fn test_core_config_for_development() {
+    fn test_core_config_for_development_succeeds() {
         let config = CoreConfig::for_development();
         assert_eq!(config.security_level, SecurityLevel::Standard);
         assert!(!config.strict_validation);
     }
 
     #[test]
-    fn test_core_config_for_production() {
+    fn test_core_config_for_production_succeeds() {
         let config = CoreConfig::for_production();
         assert_eq!(config.security_level, SecurityLevel::Maximum);
         assert!(config.strict_validation);
     }
 
     #[test]
-    fn test_core_config_builder_pattern() {
+    fn test_core_config_builder_pattern_succeeds() {
         let config = CoreConfig::new()
             .with_security_level(SecurityLevel::Maximum)
             .with_performance_preference(PerformancePreference::Speed)
@@ -637,14 +687,14 @@ mod tests {
     }
 
     #[test]
-    fn test_core_config_validation_success() -> Result<()> {
+    fn test_core_config_validation_success_succeeds() -> Result<()> {
         let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
         config.validate()?;
         Ok(())
     }
 
     #[test]
-    fn test_core_config_strict_validation_rejects_standard() {
+    fn test_core_config_strict_validation_rejects_standard_fails() {
         let config = CoreConfig::new()
             .with_security_level(SecurityLevel::Standard)
             .with_strict_validation(true);
@@ -653,7 +703,7 @@ mod tests {
     }
 
     #[test]
-    fn test_core_config_strict_validation_allows_high() -> Result<()> {
+    fn test_core_config_strict_validation_allows_high_succeeds() -> Result<()> {
         let config =
             CoreConfig::new().with_security_level(SecurityLevel::High).with_strict_validation(true);
         config.validate()?;
@@ -661,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn test_core_config_build_success() -> Result<()> {
+    fn test_core_config_build_success_succeeds() -> Result<()> {
         let config = CoreConfig::new()
             .with_security_level(SecurityLevel::High)
             .with_hardware_acceleration(true)
@@ -671,7 +721,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_config_is_core_config() {
+    fn test_encryption_config_is_core_config_succeeds() {
         // EncryptionConfig is now a type alias for CoreConfig
         let config = EncryptionConfig::default();
         assert_eq!(config.security_level, SecurityLevel::High);
@@ -679,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_config_is_core_config() {
+    fn test_signature_config_is_core_config_succeeds() {
         // SignatureConfig is now a type alias for CoreConfig
         let config = SignatureConfig::default();
         assert_eq!(config.security_level, SecurityLevel::High);
@@ -687,7 +737,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_config_default() {
+    fn test_zero_trust_config_default_fields_are_correct() {
         let config = ZeroTrustConfig::default();
         assert_eq!(config.challenge_timeout_ms, 5000);
         assert_eq!(config.proof_complexity, ProofComplexity::Medium);
@@ -695,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hardware_config_default() {
+    fn test_hardware_config_default_fields_are_correct() {
         let config = HardwareConfig::default();
         assert!(config.acceleration_enabled);
         assert!(config.fallback_enabled);
@@ -704,14 +754,14 @@ mod tests {
     }
 
     #[test]
-    fn test_use_case_config_financial_transactions() {
+    fn test_use_case_config_financial_transactions_selects_maximum_security_succeeds() {
         let config = UseCaseConfig::new(UseCase::FinancialTransactions);
         assert_eq!(config.use_case, UseCase::FinancialTransactions);
         assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
     }
 
     #[test]
-    fn test_use_case_config_iot_device() {
+    fn test_use_case_config_iot_device_succeeds() {
         let config = UseCaseConfig::new(UseCase::IoTDevice);
         assert_eq!(config.encryption.security_level, SecurityLevel::Standard);
         assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
@@ -722,7 +772,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_strict_validation_rejects_standard() {
+    fn test_strict_validation_rejects_standard_security_level_fails() {
         // strict_validation=true + Standard → error
         let config = CoreConfig::new()
             .with_strict_validation(true)
@@ -731,7 +781,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strict_validation_accepts_high() {
+    fn test_strict_validation_accepts_high_security_level_succeeds() {
         // strict_validation=true + High → ok
         let config =
             CoreConfig::new().with_strict_validation(true).with_security_level(SecurityLevel::High);
@@ -739,7 +789,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strict_validation_false_accepts_standard() {
+    fn test_strict_validation_false_accepts_standard_security_level_succeeds() {
         // strict_validation=false + Standard → ok (parameter changes outcome)
         let config = CoreConfig::new()
             .with_strict_validation(false)

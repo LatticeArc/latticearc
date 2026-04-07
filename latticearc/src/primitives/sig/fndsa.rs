@@ -1,15 +1,20 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-//! FIPS 206: FN-DSA (Few-Time Digital Signature Algorithm) Implementation
+//! FN-DSA (Fast-Fourier Lattice-based Compact Signatures over NTRU) Implementation
 //!
-//! FN-DSA is a lattice-based digital signature algorithm based on the NTRU Lattice
+//! FN-DSA is a lattice-based digital signature algorithm based on the NTRU lattice
 //! problem. It provides post-quantum security with smaller signatures than ML-DSA.
 //!
 //! This implementation wraps the official `fn-dsa` crate by Thomas Pornin.
-//! FN-DSA is based on the FALCON signature scheme selected by NIST.
+//! FN-DSA is based on the Falcon signature scheme, which NIST selected for
+//! standardization as FIPS 206. **As of this writing, FIPS 206 has not been
+//! finalized** — Falcon remains in the standardization pipeline alongside the
+//! already-published ML-KEM (FIPS 203), ML-DSA (FIPS 204), and SLH-DSA (FIPS
+//! 205). Treat the algorithm as "draft FIPS 206 / Falcon" until NIST publishes
+//! the final standard.
 //!
 //! Key features:
 //! - Lattice-based security (NTRU Lattice hardness)
@@ -23,8 +28,9 @@
 
 use crate::prelude::error::{LatticeArcError, Result};
 use rand_core::RngCore;
+use subtle::ConstantTimeEq;
 use tracing::instrument;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use fn_dsa::{
     DOMAIN_NONE, FN_DSA_LOGN_512, FN_DSA_LOGN_1024, HASH_ID_RAW, KeyPairGenerator as _,
@@ -37,7 +43,7 @@ use fn_dsa::{
 /// Defines the security parameters for FN-DSA (Few-Time Digital Signature Algorithm).
 /// Based on the NTRU lattice problem with different security levels.
 ///
-/// See [FIPS 206](https://csrc.nist.gov/pubs/fips/206/final/) for specifications.
+/// See [FIPS 206 (pending)](https://csrc.nist.gov/Projects/post-quantum-cryptography) for specifications.
 ///
 /// # Security Levels
 ///
@@ -49,8 +55,10 @@ use fn_dsa::{
 /// Choose based on your security requirements and performance constraints:
 /// - **Level 512**: Suitable for most applications with standard security needs
 /// - **Level 1024**: For high-security applications requiring maximum protection
+#[non_exhaustive]
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum FNDsaSecurityLevel {
+pub enum FnDsaSecurityLevel {
     /// FN-DSA-512 (~128-bit security)
     ///
     /// Provides security comparable to AES-128 in a post-quantum setting.
@@ -64,7 +72,7 @@ pub enum FNDsaSecurityLevel {
     Level1024,
 }
 
-impl FNDsaSecurityLevel {
+impl FnDsaSecurityLevel {
     /// Returns the logn parameter for the underlying fn-dsa crate
     ///
     /// The `logn` parameter determines the degree of the NTRU lattice polynomial
@@ -77,8 +85,8 @@ impl FNDsaSecurityLevel {
     #[must_use]
     pub fn to_logn(&self) -> u32 {
         match self {
-            FNDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
-            FNDsaSecurityLevel::Level1024 => FN_DSA_LOGN_1024,
+            FnDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
+            FnDsaSecurityLevel::Level1024 => FN_DSA_LOGN_1024,
         }
     }
 
@@ -135,14 +143,14 @@ impl FNDsaSecurityLevel {
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::primitives::sig::fndsa::{Signature, KeyPair, FNDsaSecurityLevel};
+/// use latticearc::primitives::sig::fndsa::{Signature, KeyPair, FnDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
 /// let mut rng = OsRng;
-/// let mut keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+/// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
 /// let message = b"Important message";
 ///
-/// let signature = keypair.sign(&mut rng, message)?;
+/// let signature = keypair.sign_with_rng(&mut rng, message)?;
 /// assert_eq!(signature.len(), 666); // FN-DSA-512 signature size
 /// # Ok(())
 /// # }
@@ -150,7 +158,8 @@ impl FNDsaSecurityLevel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature {
     /// Raw signature bytes
-    pub bytes: Vec<u8>,
+    /// Consumer: to_bytes(), as_ref(), len(), is_empty()
+    bytes: Vec<u8>,
 }
 
 impl Signature {
@@ -158,16 +167,22 @@ impl Signature {
     ///
     /// # Errors
     /// Returns an error if the signature bytes are empty.
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.is_empty() {
             return Err(LatticeArcError::InvalidSignature(
                 "Signature bytes cannot be empty".to_string(),
             ));
         }
-        Ok(Self { bytes })
+        Ok(Self { bytes: bytes.to_vec() })
     }
 
-    /// Convert signature to bytes
+    /// Borrow the raw signature bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Copy the signature bytes into an owned vector.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.bytes.clone()
@@ -195,7 +210,7 @@ impl AsRef<[u8]> for Signature {
 impl TryFrom<Vec<u8>> for Signature {
     type Error = LatticeArcError;
     fn try_from(bytes: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        Self::from_bytes(bytes)
+        Self::from_bytes(&bytes)
     }
 }
 
@@ -212,23 +227,23 @@ impl TryFrom<Vec<u8>> for Signature {
 ///
 /// # Format
 ///
-/// The key is encoded in the format specified by FIPS 206.
+/// The key is encoded in the format specified by draft FIPS 206.
 ///
 /// # Example
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::primitives::sig::fndsa::{VerifyingKey, KeyPair, FNDsaSecurityLevel};
+/// use latticearc::primitives::sig::fndsa::{VerifyingKey, KeyPair, FnDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
 /// let mut rng = OsRng;
-/// let mut keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+/// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
 /// # let message = b"test";
-/// # let signature = keypair.sign(&mut rng, message)?;
+/// # let signature = keypair.sign_with_rng(&mut rng, message)?;
 ///
 /// // Export verifying key for distribution
 /// let vk_bytes = keypair.verifying_key().to_bytes();
-/// let vk_restored = VerifyingKey::from_bytes(vk_bytes, FNDsaSecurityLevel::Level512)?;
+/// let vk_restored = VerifyingKey::from_bytes(&vk_bytes, FnDsaSecurityLevel::Level512)?;
 ///
 /// // Verify a signature
 /// let is_valid = vk_restored.verify(message, &signature)?;
@@ -238,7 +253,7 @@ impl TryFrom<Vec<u8>> for Signature {
 #[derive(Clone, Debug)]
 pub struct VerifyingKey {
     /// Security level associated with this key
-    security_level: FNDsaSecurityLevel,
+    security_level: FnDsaSecurityLevel,
     /// Internal verifying key from fn-dsa crate
     inner: FnDsaVerifyingKeyStandard,
     /// Serialized key bytes for export/storage
@@ -248,7 +263,7 @@ pub struct VerifyingKey {
 impl VerifyingKey {
     /// Get the security level of this verifying key
     #[must_use]
-    pub fn security_level(&self) -> FNDsaSecurityLevel {
+    pub fn security_level(&self) -> FnDsaSecurityLevel {
         self.security_level
     }
 
@@ -256,23 +271,24 @@ impl VerifyingKey {
     ///
     /// # Errors
     /// Returns an error if the key length is incorrect or decoding fails.
-    pub fn from_bytes(bytes: Vec<u8>, security_level: FNDsaSecurityLevel) -> Result<Self> {
+    pub fn from_bytes(bytes: &[u8], security_level: FnDsaSecurityLevel) -> Result<Self> {
         if bytes.len() != security_level.verifying_key_size() {
             return Err(LatticeArcError::InvalidKey("Invalid verifying key length".to_string()));
         }
 
-        {
-            Ok(Self {
-                security_level,
-                inner: FnDsaVerifyingKeyStandard::decode(&bytes).ok_or_else(|| {
-                    LatticeArcError::InvalidKey("Failed to decode verifying key".to_string())
-                })?,
-                bytes,
-            })
-        }
+        let inner = FnDsaVerifyingKeyStandard::decode(bytes).ok_or_else(|| {
+            LatticeArcError::InvalidKey("Failed to decode verifying key".to_string())
+        })?;
+        Ok(Self { security_level, inner, bytes: bytes.to_vec() })
     }
 
-    /// Convert signing key to bytes
+    /// Borrow the raw verifying key bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Copy the verifying key bytes into an owned vector.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.bytes.clone()
@@ -285,7 +301,7 @@ impl VerifyingKey {
     #[instrument(level = "debug", skip(self, message, signature), fields(security_level = ?self.security_level, message_len = message.len(), signature_len = signature.len()))]
     pub fn verify(&self, message: &[u8], signature: &Signature) -> Result<bool> {
         {
-            let valid = self.inner.verify(&signature.bytes, &DOMAIN_NONE, &HASH_ID_RAW, message);
+            let valid = self.inner.verify(signature.as_ref(), &DOMAIN_NONE, &HASH_ID_RAW, message);
             Ok(valid)
         }
     }
@@ -306,17 +322,17 @@ impl VerifyingKey {
 ///
 /// FN-DSA is a "few-time" signature scheme. While more flexible than
 /// stateful schemes like LMS, it has limitations on how many signatures
-/// can be safely made. See FIPS 206 for specific guidance.
+/// can be safely made. See draft FIPS 206 for specific guidance.
 ///
 /// # Example
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::primitives::sig::fndsa::{SigningKey, KeyPair, FNDsaSecurityLevel};
+/// use latticearc::primitives::sig::fndsa::{SigningKey, KeyPair, FnDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
 /// let mut rng = OsRng;
-/// let keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+/// let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
 ///
 /// // Signing key provides access to verification key
 /// let vk = keypair.signing_key().verifying_key();
@@ -343,9 +359,10 @@ impl VerifyingKey {
 ///
 /// **For maximum security**, consider using ML-DSA (`crate::primitives::sig::mldsa`)
 /// which has full zeroization support for all key material.
+// AUDIT-ACCEPTED: H4 — Inner FnDsaSigningKeyStandard cannot be zeroized (upstream limitation).
 pub struct SigningKey {
     /// Security level for this key
-    security_level: FNDsaSecurityLevel,
+    security_level: FnDsaSecurityLevel,
     /// Internal signing key from fn-dsa crate
     /// Note: Cannot be zeroized as FnDsaSigningKeyStandard doesn't implement Zeroize
     inner: FnDsaSigningKeyStandard,
@@ -385,12 +402,24 @@ impl std::fmt::Debug for SigningKey {
     }
 }
 
+impl ConstantTimeEq for SigningKey {
+    /// Constant-time comparison of signing key bytes.
+    ///
+    /// The security level and length must match; the byte content is compared
+    /// in constant time to prevent timing side-channels.
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let level_eq = (self.security_level as u8).ct_eq(&(other.security_level as u8));
+        // ct_eq on slices of different length returns Choice::from(0)
+        level_eq & self.bytes.ct_eq(&other.bytes)
+    }
+}
+
 impl SigningKey {
     /// Create signing key from bytes
     ///
     /// # Errors
     /// Returns an error if the key length is incorrect or decoding fails.
-    pub fn from_bytes(bytes: Vec<u8>, security_level: FNDsaSecurityLevel) -> Result<Self> {
+    pub fn from_bytes(bytes: &[u8], security_level: FnDsaSecurityLevel) -> Result<Self> {
         if bytes.len() != security_level.signing_key_size() {
             return Err(LatticeArcError::InvalidKey(format!(
                 "Invalid FN-DSA signing key length: expected {}, got {}",
@@ -398,24 +427,34 @@ impl SigningKey {
                 bytes.len()
             )));
         }
-        {
-            let inner = FnDsaSigningKeyStandard::decode(&bytes).ok_or_else(|| {
-                LatticeArcError::InvalidKey("Failed to decode signing key".to_string())
-            })?;
+        let inner = FnDsaSigningKeyStandard::decode(bytes).ok_or_else(|| {
+            LatticeArcError::InvalidKey("Failed to decode signing key".to_string())
+        })?;
 
-            // Extract verifying key from signing key
-            let mut vrfy_key_bytes = vec![0u8; security_level.verifying_key_size()];
-            inner.to_verifying_key(&mut vrfy_key_bytes);
-            let verifying_key = VerifyingKey::from_bytes(vrfy_key_bytes, security_level)?;
+        // Extract verifying key from signing key
+        let mut vrfy_key_bytes = vec![0u8; security_level.verifying_key_size()];
+        inner.to_verifying_key(&mut vrfy_key_bytes);
+        let verifying_key = VerifyingKey::from_bytes(&vrfy_key_bytes, security_level)?;
 
-            Ok(Self { security_level, inner, bytes, verifying_key })
-        }
+        Ok(Self { security_level, inner, bytes: bytes.to_vec(), verifying_key })
     }
 
-    /// Convert signing key to bytes
+    /// Borrow the raw signing key bytes.
+    ///
+    /// The returned slice aliases internal key material that will be zeroized
+    /// on drop of `self`; do not persist or copy it without using a
+    /// zeroizing container.
     #[must_use]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.bytes.clone()
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Copy the signing key bytes into a zeroizing owned buffer.
+    ///
+    /// Returns `Zeroizing<Vec<u8>>` to ensure the secret key bytes are zeroized on drop.
+    #[must_use]
+    pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.bytes.clone())
     }
 
     /// Get the verifying key
@@ -426,29 +465,40 @@ impl SigningKey {
 
     /// Get the security level of this signing key
     #[must_use]
-    pub fn security_level(&self) -> FNDsaSecurityLevel {
+    pub fn security_level(&self) -> FnDsaSecurityLevel {
         self.security_level
     }
 
-    /// Sign a message
+    /// Sign a message using the OS CSPRNG ([`rand::rngs::OsRng`]).
+    ///
+    /// This is the recommended form for production signing. For deterministic
+    /// signing with a seeded RNG (e.g. KAT validation), use
+    /// [`SigningKey::sign_with_rng`].
     ///
     /// # Errors
-    /// Returns an error if the fn_dsa feature is not enabled.
+    /// Returns an error if signature encoding fails.
+    #[instrument(level = "debug", skip(self, message), fields(security_level = ?self.security_level, message_len = message.len()))]
+    pub fn sign(&mut self, message: &[u8]) -> Result<Signature> {
+        self.sign_with_rng(&mut rand::rngs::OsRng {}, message)
+    }
+
+    /// Sign a message using a caller-supplied CSPRNG.
+    ///
+    /// # Errors
+    /// Returns an error if signature encoding fails.
     #[instrument(level = "debug", skip(self, rng, message), fields(security_level = ?self.security_level, message_len = message.len()))]
-    pub fn sign<R: RngCore + rand::CryptoRng>(
+    pub fn sign_with_rng<R: RngCore + rand::CryptoRng>(
         &mut self,
         rng: &mut R,
         message: &[u8],
     ) -> Result<Signature> {
-        {
-            let logn = match self.security_level {
-                FNDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
-                FNDsaSecurityLevel::Level1024 => FN_DSA_LOGN_1024,
-            };
-            let mut sig_bytes = vec![0u8; signature_size(logn)];
-            self.inner.sign(rng, &DOMAIN_NONE, &HASH_ID_RAW, message, &mut sig_bytes);
-            Signature::from_bytes(sig_bytes)
-        }
+        let logn = match self.security_level {
+            FnDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
+            FnDsaSecurityLevel::Level1024 => FN_DSA_LOGN_1024,
+        };
+        let mut sig_bytes = vec![0u8; signature_size(logn)];
+        self.inner.sign(rng, &DOMAIN_NONE, &HASH_ID_RAW, message, &mut sig_bytes);
+        Signature::from_bytes(&sig_bytes)
     }
 }
 
@@ -461,15 +511,15 @@ impl SigningKey {
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
+/// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
 /// use rand::rngs::OsRng;
 ///
 /// let mut rng = OsRng;
-/// let mut keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+/// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
 ///
 /// // Sign a message
 /// let message = b"Important data";
-/// let signature = keypair.sign(&mut rng, message)?;
+/// let signature = keypair.sign_with_rng(&mut rng, message)?;
 ///
 /// // Verify the signature
 /// let is_valid = keypair.verify(message, &signature)?;
@@ -486,7 +536,7 @@ impl SigningKey {
 ///
 /// - The signing key component must be kept secret
 /// - The verifying key component can be freely distributed
-/// - Both keys are encoded according to FIPS 206
+/// - Both keys are encoded according to draft FIPS 206
 /// - Signing key material is zeroized on drop (see [`SigningKey`] for limitations)
 #[derive(Debug)]
 pub struct KeyPair {
@@ -511,76 +561,69 @@ impl Zeroize for KeyPair {
 }
 
 impl KeyPair {
-    /// Generates a new FN-DSA keypair for the specified security level
+    /// Generate a new FN-DSA keypair using the OS CSPRNG ([`rand::rngs::OsRng`]).
     ///
-    /// This function creates both signing and verifying keys using cryptographically
-    /// secure random number generation. The key generation follows the
-    /// specification in [FIPS 206](https://csrc.nist.gov/pubs/fips/206/final/).
+    /// This is the recommended way to produce key material for non-deterministic
+    /// use cases. For deterministic testing, pass a seeded RNG via
+    /// [`KeyPair::generate_with_rng`].
+    ///
+    /// Key generation follows the specification in
+    /// [draft FIPS 206](https://csrc.nist.gov/Projects/post-quantum-cryptography).
     /// After key generation, a FIPS 140-3 Pairwise Consistency Test (PCT)
     /// is performed to verify the keypair is valid.
-    ///
-    /// # Arguments
-    ///
-    /// * `rng` - Cryptographically secure random number generator
-    /// * `security_level` - Desired security level (Level512 or Level1024)
-    ///
-    /// # Returns
-    ///
-    /// A new [`KeyPair`] containing both signing and verifying keys.
     ///
     /// # Errors
     ///
     /// Returns an error if the `fn_dsa` feature is not enabled, if
     /// key generation fails (e.g., RNG failure), or if the PCT fails.
     ///
-    /// # Security
-    ///
-    /// - Uses only cryptographically secure randomness
-    /// - Keys are generated according to FIPS 206 specification
-    /// - Secret key data is automatically zeroized when dropped
-    /// - PCT ensures keypair consistency before use
-    ///
     /// # Example
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use latticearc::primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
-    /// use rand::rngs::OsRng;
+    /// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
     ///
-    /// let mut rng = OsRng;
-    /// let keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
-    ///
+    /// let keypair = KeyPair::generate(FnDsaSecurityLevel::Level512)?;
     /// println!("Public key: {} bytes", keypair.verifying_key().to_bytes().len());
-    /// println!("Secret key: {} bytes", keypair.signing_key().to_bytes().len());
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument(level = "debug", fields(security_level = ?security_level))]
+    pub fn generate(security_level: FnDsaSecurityLevel) -> Result<Self> {
+        Self::generate_with_rng(&mut rand::rngs::OsRng {}, security_level)
+    }
+
+    /// Generate a new FN-DSA keypair using a caller-supplied CSPRNG.
+    ///
+    /// Use this form when you need deterministic key generation (seeded RNG)
+    /// for tests or KAT validation.
+    ///
+    /// # Errors
+    /// Returns an error if the backend keygen or FIPS 140-3 PCT fails.
     #[instrument(level = "debug", skip(rng), fields(security_level = ?security_level))]
-    pub fn generate<R: RngCore + rand::CryptoRng>(
+    pub fn generate_with_rng<R: RngCore + rand::CryptoRng>(
         rng: &mut R,
-        security_level: FNDsaSecurityLevel,
+        security_level: FnDsaSecurityLevel,
     ) -> Result<Self> {
-        {
-            let mut kg = KeyPairGeneratorStandard::default();
-            let logn = security_level.to_logn();
+        let mut kg = KeyPairGeneratorStandard::default();
+        let logn = security_level.to_logn();
 
-            let mut sk_bytes = vec![0u8; sign_key_size(logn)];
-            let mut vk_bytes = vec![0u8; vrfy_key_size(logn)];
+        let mut sk_bytes = Zeroizing::new(vec![0u8; sign_key_size(logn)]);
+        let mut vk_bytes = vec![0u8; vrfy_key_size(logn)];
 
-            kg.keygen(logn, rng, &mut sk_bytes, &mut vk_bytes);
+        kg.keygen(logn, rng, &mut sk_bytes, &mut vk_bytes);
 
-            let signing_key = SigningKey::from_bytes(sk_bytes, security_level)?;
-            let verifying_key = VerifyingKey::from_bytes(vk_bytes, security_level)?;
+        let signing_key = SigningKey::from_bytes(&sk_bytes, security_level)?;
+        let verifying_key = VerifyingKey::from_bytes(&vk_bytes, security_level)?;
 
-            let mut keypair = Self { signing_key, verifying_key };
+        let mut keypair = Self { signing_key, verifying_key };
 
-            // FIPS 140-3 Pairwise Consistency Test (PCT)
-            // Sign and verify a test message to ensure the keypair is consistent
-            crate::primitives::pct::pct_fn_dsa_keypair(&mut keypair)
-                .map_err(|e| LatticeArcError::KeyGenerationError(format!("PCT failed: {}", e)))?;
+        // FIPS 140-3 Pairwise Consistency Test (PCT)
+        // Sign and verify a test message to ensure the keypair is consistent
+        crate::primitives::pct::pct_fn_dsa_keypair(&mut keypair)
+            .map_err(|e| LatticeArcError::KeyGenerationError(format!("PCT failed: {}", e)))?;
 
-            Ok(keypair)
-        }
+        Ok(keypair)
     }
 
     /// Get the signing key
@@ -595,57 +638,47 @@ impl KeyPair {
         &self.verifying_key
     }
 
-    /// Signs a message using the signing key
+    /// Sign a message using the OS CSPRNG ([`rand::rngs::OsRng`]).
     ///
-    /// Generates a digital signature for the provided message using FN-DSA.
-    /// Each signature operation requires fresh randomness from the provided RNG.
-    ///
-    /// # Arguments
-    ///
-    /// * `rng` - Cryptographically secure random number generator for nonce generation
-    /// * `message` - The message to sign (any length)
-    ///
-    /// # Returns
-    ///
-    /// A [`Signature`] that can be verified with the corresponding public key.
+    /// This is the recommended form for production signing. For deterministic
+    /// signing with a seeded RNG (KAT validation), use
+    /// [`KeyPair::sign_with_rng`].
     ///
     /// # Errors
-    ///
-    /// Returns an error if:
-    /// - `fn_dsa` feature is not enabled
-    /// - RNG operation fails
-    ///
-    /// # Security
-    ///
-    /// - Each signature uses fresh, unpredictable randomness
-    /// - Operations are constant-time to prevent timing attacks
-    /// - Signing key is never exposed during operation
+    /// Returns an error if signature encoding fails.
     ///
     /// # Example
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use latticearc::primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
-    /// use rand::rngs::OsRng;
+    /// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
     ///
-    /// let mut rng = OsRng;
-    /// let mut keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+    /// let mut keypair = KeyPair::generate(FnDsaSecurityLevel::Level512)?;
     ///
     /// let message = b"Critical transaction data";
-    /// let signature = keypair.sign(&mut rng, message)?;
+    /// let signature = keypair.sign(message)?;
     ///
-    /// // Verify the signature
     /// let is_valid = keypair.verify(message, &signature)?;
     /// assert!(is_valid);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn sign<R: RngCore + rand::CryptoRng>(
+    pub fn sign(&mut self, message: &[u8]) -> Result<Signature> {
+        self.signing_key.sign(message)
+    }
+
+    /// Sign a message using a caller-supplied CSPRNG.
+    ///
+    /// Use this for deterministic signing with a seeded RNG (e.g., KAT tests).
+    ///
+    /// # Errors
+    /// Returns an error if signature encoding fails.
+    pub fn sign_with_rng<R: RngCore + rand::CryptoRng>(
         &mut self,
         rng: &mut R,
         message: &[u8],
     ) -> Result<Signature> {
-        self.signing_key.sign(rng, message)
+        self.signing_key.sign_with_rng(rng, message)
     }
 
     /// Verifies a signature against a message using the verifying key
@@ -678,14 +711,14 @@ impl KeyPair {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use latticearc::primitives::sig::fndsa::{KeyPair, FNDsaSecurityLevel};
+    /// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
     /// use rand::rngs::OsRng;
     ///
     /// let mut rng = OsRng;
-    /// let mut keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512)?;
+    /// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
     ///
     /// let message = b"Important document";
-    /// let signature = keypair.sign(&mut rng, message)?;
+    /// let signature = keypair.sign_with_rng(&mut rng, message)?;
     ///
     /// // Verify valid signature
     /// let is_valid = keypair.verify(message, &signature)?;
@@ -718,20 +751,21 @@ mod tests {
     use rand::rngs::OsRng;
 
     #[test]
-    fn test_fndsa_key_generation_512() {
+    fn test_fndsa_key_generation_512_succeeds() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
-                let keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                let keypair =
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
                 assert_eq!(
                     keypair.signing_key().to_bytes().len(),
-                    FNDsaSecurityLevel::Level512.signing_key_size()
+                    FnDsaSecurityLevel::Level512.signing_key_size()
                 );
                 assert_eq!(
                     keypair.verifying_key().to_bytes().len(),
-                    FNDsaSecurityLevel::Level512.verifying_key_size()
+                    FnDsaSecurityLevel::Level512.verifying_key_size()
                 );
             })
             .expect("Thread spawn failed")
@@ -740,20 +774,21 @@ mod tests {
     }
 
     #[test]
-    fn test_fndsa_key_generation_1024() {
+    fn test_fndsa_key_generation_1024_succeeds() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
-                let keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level1024).unwrap();
+                let keypair =
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024).unwrap();
 
                 assert_eq!(
                     keypair.signing_key().to_bytes().len(),
-                    FNDsaSecurityLevel::Level1024.signing_key_size()
+                    FnDsaSecurityLevel::Level1024.signing_key_size()
                 );
                 assert_eq!(
                     keypair.verifying_key().to_bytes().len(),
-                    FNDsaSecurityLevel::Level1024.verifying_key_size()
+                    FnDsaSecurityLevel::Level1024.verifying_key_size()
                 );
             })
             .expect("Thread spawn failed")
@@ -762,16 +797,17 @@ mod tests {
     }
 
     #[test]
-    fn test_fndsa_signature_consistency() {
+    fn test_fndsa_signature_sign_verify_roundtrip() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
                 let message = b"Hello, FN-DSA world!";
 
-                let signature = keypair.sign(&mut rng, message).unwrap();
+                let mut rng = OsRng;
+                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
                 let verified = keypair.verify(message, &signature).unwrap();
                 assert!(verified);
             })
@@ -781,17 +817,18 @@ mod tests {
     }
 
     #[test]
-    fn test_fndsa_wrong_message() {
+    fn test_fndsa_wrong_message_fails() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
                 let message = b"Correct message";
                 let wrong_message = b"Wrong message";
 
-                let signature = keypair.sign(&mut rng, message).unwrap();
+                let mut rng = OsRng;
+                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
                 let verified = keypair.verify(wrong_message, &signature).unwrap();
                 assert!(!verified);
             })
@@ -801,23 +838,24 @@ mod tests {
     }
 
     #[test]
-    fn test_fndsa_key_serialization() {
+    fn test_fndsa_key_serialization_roundtrip() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
-                let keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                let keypair =
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
                 // Serialize/deserialize signing key
                 let sk_bytes = keypair.signing_key().to_bytes();
                 let deserialized_sk =
-                    SigningKey::from_bytes(sk_bytes, FNDsaSecurityLevel::Level512).unwrap();
+                    SigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
                 assert_eq!(keypair.signing_key().to_bytes(), deserialized_sk.to_bytes());
 
                 // Serialize/deserialize verifying key
                 let vk_bytes = keypair.verifying_key().to_bytes();
                 let deserialized_vk =
-                    VerifyingKey::from_bytes(vk_bytes, FNDsaSecurityLevel::Level512).unwrap();
+                    VerifyingKey::from_bytes(&vk_bytes, FnDsaSecurityLevel::Level512).unwrap();
                 assert_eq!(keypair.verifying_key().to_bytes(), deserialized_vk.to_bytes());
             })
             .expect("Thread spawn failed")
@@ -826,18 +864,19 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_serialization() {
+    fn test_fndsa_signature_serialization_roundtrip() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
                 let message = b"Test message";
-                let signature = keypair.sign(&mut rng, message).unwrap();
+                let mut rng = OsRng;
+                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
 
                 let sig_bytes = signature.to_bytes();
-                let deserialized_sig = Signature::from_bytes(sig_bytes).unwrap();
+                let deserialized_sig = Signature::from_bytes(&sig_bytes).unwrap();
                 assert_eq!(signature.to_bytes(), deserialized_sig.to_bytes());
             })
             .expect("Thread spawn failed")
@@ -846,9 +885,9 @@ mod tests {
     }
 
     #[test]
-    fn test_security_level_sizes() {
-        let level512 = FNDsaSecurityLevel::Level512;
-        let level1024 = FNDsaSecurityLevel::Level1024;
+    fn test_fndsa_security_level_sizes_match_spec_has_correct_size() {
+        let level512 = FnDsaSecurityLevel::Level512;
+        let level1024 = FnDsaSecurityLevel::Level1024;
 
         assert_eq!(level512.signature_size(), 666);
         assert_eq!(level512.signing_key_size(), 1281);
@@ -860,30 +899,30 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_signature() {
-        let result = Signature::from_bytes(vec![]);
+    fn test_fndsa_empty_signature_is_rejected() {
+        let result = Signature::from_bytes(&[]);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_invalid_key_length() {
-        let result = VerifyingKey::from_bytes(vec![0u8; 100], FNDsaSecurityLevel::Level512);
+    fn test_fndsa_invalid_key_length_is_rejected() {
+        let result = VerifyingKey::from_bytes(&[0u8; 100], FnDsaSecurityLevel::Level512);
         assert!(result.is_err());
 
-        let result = SigningKey::from_bytes(vec![0u8; 100], FNDsaSecurityLevel::Level512);
+        let result = SigningKey::from_bytes(&[0u8; 100], FnDsaSecurityLevel::Level512);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_security_level_default() {
-        let level = FNDsaSecurityLevel::default();
-        assert_eq!(level, FNDsaSecurityLevel::Level512);
+    fn test_fndsa_security_level_default_is_level512_succeeds() {
+        let level = FnDsaSecurityLevel::default();
+        assert_eq!(level, FnDsaSecurityLevel::Level512);
     }
 
     #[test]
-    fn test_security_level_to_logn() {
-        assert_eq!(FNDsaSecurityLevel::Level512.to_logn(), FN_DSA_LOGN_512);
-        assert_eq!(FNDsaSecurityLevel::Level1024.to_logn(), FN_DSA_LOGN_1024);
+    fn test_fndsa_security_level_to_logn_matches_spec_succeeds() {
+        assert_eq!(FnDsaSecurityLevel::Level512.to_logn(), FN_DSA_LOGN_512);
+        assert_eq!(FnDsaSecurityLevel::Level1024.to_logn(), FN_DSA_LOGN_1024);
     }
 
     /// Test that verifies the key_bytes field is properly zeroized when the signing key
@@ -896,20 +935,20 @@ mod tests {
     /// but the `inner` field from the external `fn-dsa` crate cannot be zeroized
     /// as it doesn't implement the `Zeroize` trait.
     #[test]
-    fn test_signing_key_zeroization() {
+    fn test_fndsa_signing_key_zeroization_clears_bytes_succeeds() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                let mut rng = OsRng;
-
                 // Create a signing key directly from bytes to avoid KeyPair's Drop constraint
-                let keypair = KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                let mut rng = OsRng;
+                let keypair =
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
                 let sk_bytes = keypair.signing_key().to_bytes();
                 drop(keypair);
 
                 // Create a new signing key from the bytes
                 let mut signing_key =
-                    SigningKey::from_bytes(sk_bytes, FNDsaSecurityLevel::Level512).unwrap();
+                    SigningKey::from_bytes(&sk_bytes, FnDsaSecurityLevel::Level512).unwrap();
 
                 // Store the original key bytes for comparison
                 let original_bytes = signing_key.to_bytes();
@@ -944,13 +983,13 @@ mod tests {
 
     /// Test that KeyPair properly zeroizes its signing key on drop.
     #[test]
-    fn test_keypair_zeroization() {
+    fn test_fndsa_keypair_zeroization_clears_bytes_succeeds() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
                 // Store the original key bytes for comparison
                 let original_bytes = keypair.signing_key().to_bytes();
@@ -985,19 +1024,21 @@ mod integration_tests {
     use rand::rngs::OsRng;
 
     #[test]
-    fn test_multiple_messages_same_key() {
+    fn test_fndsa_multiple_messages_same_key_all_verify_succeeds() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level512).unwrap();
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512).unwrap();
 
                 let message1 = b"Message 1";
                 let message2 = b"Message 2";
 
-                let sig1 = keypair.sign(&mut rng, message1).unwrap();
-                let sig2 = keypair.sign(&mut rng, message2).unwrap();
+                let mut rng = OsRng;
+                let sig1 = keypair.sign_with_rng(&mut rng, message1).unwrap();
+                let mut rng = OsRng;
+                let sig2 = keypair.sign_with_rng(&mut rng, message2).unwrap();
 
                 // Verify each signature with its message
                 assert!(keypair.verify(message1, &sig1).unwrap());
@@ -1013,16 +1054,17 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_level1024_signature() {
+    fn test_fndsa_level1024_signature_sign_verify_roundtrip() {
         std::thread::Builder::new()
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let mut rng = OsRng;
                 let mut keypair =
-                    KeyPair::generate(&mut rng, FNDsaSecurityLevel::Level1024).unwrap();
+                    KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024).unwrap();
                 let message = b"Test message for FN-DSA-1024";
 
-                let signature = keypair.sign(&mut rng, message).unwrap();
+                let mut rng = OsRng;
+                let signature = keypair.sign_with_rng(&mut rng, message).unwrap();
                 assert_eq!(signature.len(), 1280);
 
                 let verified = keypair.verify(message, &signature).unwrap();

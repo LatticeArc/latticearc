@@ -8,6 +8,7 @@
 
 #![allow(
     clippy::panic,
+    clippy::unreachable,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -23,18 +24,20 @@
 )]
 
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+use latticearc::primitives::sig::fndsa::FnDsaSecurityLevel;
 use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
-use latticearc::primitives::sig::slh_dsa::SecurityLevel as SlhDsaSecurityLevel;
+use latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel;
 use latticearc::tls::pq_key_exchange::{KexInfo, PqKexMode, get_kex_info, is_pq_available};
 use latticearc::tls::{TlsConfig, TlsMode, TlsPolicyEngine, TlsUseCase, tls13::Tls13Config};
 use latticearc::{
-    ComplianceMode, CryptoConfig, DecryptKey, EncryptKey, EncryptionScheme, SecurityLevel,
-    SecurityMode, UseCase, decrypt, decrypt_aes_gcm_with_aad_unverified,
-    deserialize_encrypted_output, encrypt, encrypt_aes_gcm_with_aad_unverified, fips_available,
-    generate_fn_dsa_keypair, generate_hybrid_keypair_with_level, generate_hybrid_signing_keypair,
-    generate_ml_dsa_keypair, generate_slh_dsa_keypair, hash_data, serialize_encrypted_output,
-    sign_hybrid, sign_pq_fn_dsa, sign_pq_ml_dsa, sign_pq_slh_dsa, verify_hybrid_signature,
-    verify_pq_fn_dsa, verify_pq_ml_dsa, verify_pq_slh_dsa,
+    ComplianceMode, CryptoConfig, DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme,
+    HybridComponents, SecurityLevel, SecurityMode, UseCase, decrypt,
+    decrypt_aes_gcm_with_aad_unverified, deserialize_encrypted_output, encrypt,
+    encrypt_aes_gcm_with_aad_unverified, fips_available, generate_fn_dsa_keypair,
+    generate_hybrid_keypair_with_level, generate_hybrid_signing_keypair, generate_ml_dsa_keypair,
+    generate_slh_dsa_keypair, hash_data, serialize_encrypted_output, sign_hybrid, sign_pq_fn_dsa,
+    sign_pq_ml_dsa, sign_pq_slh_dsa, verify_hybrid_signature, verify_pq_fn_dsa, verify_pq_ml_dsa,
+    verify_pq_slh_dsa,
 };
 
 // ============================================================================
@@ -67,6 +70,8 @@ fn expected_scheme_for_use_case(uc: UseCase) -> EncryptionScheme {
         | UseCase::HealthcareRecords
         | UseCase::GovernmentClassified
         | UseCase::PaymentCard => EncryptionScheme::HybridMlKem1024Aes256Gcm,
+
+        _ => unreachable!("unexpected UseCase variant"),
     }
 }
 
@@ -135,6 +140,7 @@ fn uc_name(uc: UseCase) -> &'static str {
         UseCase::IoTDevice => "IoTDevice",
         UseCase::FirmwareSigning => "FirmwareSigning",
         UseCase::AuditLog => "AuditLog",
+        _ => unreachable!("unexpected UseCase variant"),
     }
 }
 
@@ -179,12 +185,13 @@ fn proof_all_22_usecases_select_correct_scheme() {
 
         // Assertions
         assert_eq!(
-            encrypted.scheme, expected,
+            encrypted.scheme(),
+            &expected,
             "UseCase::{name} should select {expected}, got {}",
-            encrypted.scheme
+            encrypted.scheme()
         );
-        assert!(encrypted.hybrid_data.is_some(), "UseCase::{name} must produce hybrid_data");
-        let hybrid = encrypted.hybrid_data.as_ref().unwrap();
+        assert!(encrypted.hybrid_data().is_some(), "UseCase::{name} must produce hybrid_data");
+        let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
             hybrid.ml_kem_ciphertext.len(),
             ct_size,
@@ -221,13 +228,13 @@ fn proof_all_22_usecases_select_correct_scheme() {
              \"ciphertext_len\":{},\
              \"roundtrip\":\"PASS\",\
              \"status\":\"PASS\"}}",
-            encrypted.scheme,
+            encrypted.scheme(),
             hybrid.ml_kem_ciphertext.len(),
             hybrid.ecdh_ephemeral_pk.len(),
-            encrypted.nonce.len(),
-            encrypted.tag.len(),
+            encrypted.nonce().len(),
+            encrypted.tag().len(),
             data.len(),
-            encrypted.ciphertext.len(),
+            encrypted.ciphertext().len(),
         );
     }
 }
@@ -281,11 +288,12 @@ fn proof_security_level(level: SecurityLevel, expected_scheme: EncryptionScheme,
         .unwrap_or_else(|e| panic!("encrypt failed for {level_name}: {e}"));
 
     assert_eq!(
-        encrypted.scheme, expected_scheme,
+        encrypted.scheme(),
+        &expected_scheme,
         "SecurityLevel::{level_name} should select {expected_scheme}, got {}",
-        encrypted.scheme
+        encrypted.scheme()
     );
-    let hybrid = encrypted.hybrid_data.as_ref().unwrap();
+    let hybrid = encrypted.hybrid_data().unwrap();
     assert_eq!(hybrid.ml_kem_ciphertext.len(), ct_size);
 
     let config = CryptoConfig::new().security_level(level);
@@ -301,7 +309,7 @@ fn proof_security_level(level: SecurityLevel, expected_scheme: EncryptionScheme,
          \"ml_kem_ct_bytes\":{},\
          \"roundtrip\":\"PASS\",\
          \"status\":\"PASS\"}}",
-        encrypted.scheme,
+        encrypted.scheme(),
         hybrid.ml_kem_ciphertext.len(),
     );
 }
@@ -311,17 +319,17 @@ fn proof_security_level(level: SecurityLevel, expected_scheme: EncryptionScheme,
 // ============================================================================
 
 #[test]
-fn proof_ml_kem_512_nist_parameters() {
+fn proof_ml_kem_512_nist_parameters_verified() {
     proof_ml_kem_nist_params(MlKemSecurityLevel::MlKem512, 800, 768, 32, "ML-KEM-512");
 }
 
 #[test]
-fn proof_ml_kem_768_nist_parameters() {
+fn proof_ml_kem_768_nist_parameters_verified() {
     proof_ml_kem_nist_params(MlKemSecurityLevel::MlKem768, 1184, 1088, 32, "ML-KEM-768");
 }
 
 #[test]
-fn proof_ml_kem_1024_nist_parameters() {
+fn proof_ml_kem_1024_nist_parameters_verified() {
     proof_ml_kem_nist_params(MlKemSecurityLevel::MlKem1024, 1568, 1568, 32, "ML-KEM-1024");
 }
 
@@ -345,20 +353,21 @@ fn proof_ml_kem_nist_params(
     let (pk, sk) = generate_hybrid_keypair_with_level(level)
         .unwrap_or_else(|e| panic!("keypair gen for {level_name}: {e}"));
 
-    assert_eq!(pk.ml_kem_pk.len(), expected_pk, "{level_name} live PK size");
-    assert_eq!(pk.ecdh_pk.len(), 32, "{level_name} ECDH PK must be 32 bytes");
+    assert_eq!(pk.ml_kem_pk().len(), expected_pk, "{level_name} live PK size");
+    assert_eq!(pk.ecdh_pk().len(), 32, "{level_name} ECDH PK must be 32 bytes");
 
     // Encrypt to verify CT size
     let security_level = match level {
         MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,
         MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
         MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+        _ => unreachable!("unexpected MlKemSecurityLevel variant"),
     };
     let config = CryptoConfig::new().security_level(security_level);
     let encrypted = encrypt(b"NIST param proof", EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt for {level_name}: {e}"));
 
-    let hybrid = encrypted.hybrid_data.as_ref().unwrap();
+    let hybrid = encrypted.hybrid_data().unwrap();
     assert_eq!(hybrid.ml_kem_ciphertext.len(), expected_ct, "{level_name} live CT size");
 
     // Roundtrip
@@ -378,7 +387,7 @@ fn proof_ml_kem_nist_params(
          \"all_match\":true,\
          \"status\":\"PASS\"}}",
         actual_ct,
-        pk.ml_kem_pk.len(),
+        pk.ml_kem_pk().len(),
         hybrid.ml_kem_ciphertext.len(),
     );
 }
@@ -388,27 +397,27 @@ fn proof_ml_kem_nist_params(
 // ============================================================================
 
 #[test]
-fn proof_encrypt_roundtrip_empty() {
+fn proof_encrypt_roundtrip_empty_succeeds() {
     proof_variable_size_roundtrip(0, "empty");
 }
 
 #[test]
-fn proof_encrypt_roundtrip_1_byte() {
+fn proof_encrypt_roundtrip_1_byte_succeeds() {
     proof_variable_size_roundtrip(1, "1B");
 }
 
 #[test]
-fn proof_encrypt_roundtrip_1kb() {
+fn proof_encrypt_roundtrip_1kb_succeeds() {
     proof_variable_size_roundtrip(1024, "1KB");
 }
 
 #[test]
-fn proof_encrypt_roundtrip_100kb() {
+fn proof_encrypt_roundtrip_100kb_succeeds() {
     proof_variable_size_roundtrip(100 * 1024, "100KB");
 }
 
 #[test]
-fn proof_encrypt_roundtrip_1mb() {
+fn proof_encrypt_roundtrip_1mb_succeeds() {
     proof_variable_size_roundtrip(1024 * 1024, "1MB");
 }
 
@@ -423,7 +432,7 @@ fn proof_variable_size_roundtrip(size: usize, label: &str) {
     let encrypted = encrypt(&data, EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt for {label}: {e}"));
 
-    let hybrid = encrypted.hybrid_data.as_ref().unwrap();
+    let hybrid = encrypted.hybrid_data().unwrap();
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), config)
@@ -441,12 +450,12 @@ fn proof_variable_size_roundtrip(size: usize, label: &str) {
          \"scheme\":\"{}\",\
          \"roundtrip\":\"PASS\",\
          \"status\":\"PASS\"}}",
-        encrypted.ciphertext.len(),
+        encrypted.ciphertext().len(),
         hybrid.ml_kem_ciphertext.len(),
         hybrid.ecdh_ephemeral_pk.len(),
-        encrypted.nonce.len(),
-        encrypted.tag.len(),
-        encrypted.scheme,
+        encrypted.nonce().len(),
+        encrypted.tag().len(),
+        encrypted.scheme(),
     );
 }
 
@@ -455,19 +464,19 @@ fn proof_variable_size_roundtrip(size: usize, label: &str) {
 // ============================================================================
 
 #[test]
-fn proof_sig_ml_dsa_44() {
+fn proof_sig_ml_dsa_44_verified() {
     let message = b"ML-DSA-44 proof evidence";
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44).expect("ML-DSA-44 keygen");
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("ML-DSA-44 keygen");
 
     let signature =
-        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MLDSA44, SecurityMode::Unverified)
+        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MlDsa44, SecurityMode::Unverified)
             .expect("ML-DSA-44 sign");
 
     let valid = verify_pq_ml_dsa(
         message,
         &signature,
-        &pk,
-        MlDsaParameterSet::MLDSA44,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa44,
         SecurityMode::Unverified,
     )
     .expect("ML-DSA-44 verify");
@@ -485,19 +494,19 @@ fn proof_sig_ml_dsa_44() {
 }
 
 #[test]
-fn proof_sig_ml_dsa_65() {
+fn proof_sig_ml_dsa_65_verified() {
     let message = b"ML-DSA-65 proof evidence";
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65).expect("ML-DSA-65 keygen");
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65).expect("ML-DSA-65 keygen");
 
     let signature =
-        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)
+        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)
             .expect("ML-DSA-65 sign");
 
     let valid = verify_pq_ml_dsa(
         message,
         &signature,
-        &pk,
-        MlDsaParameterSet::MLDSA65,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa65,
         SecurityMode::Unverified,
     )
     .expect("ML-DSA-65 verify");
@@ -515,19 +524,19 @@ fn proof_sig_ml_dsa_65() {
 }
 
 #[test]
-fn proof_sig_ml_dsa_87() {
+fn proof_sig_ml_dsa_87_verified() {
     let message = b"ML-DSA-87 proof evidence";
-    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87).expect("ML-DSA-87 keygen");
+    let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87).expect("ML-DSA-87 keygen");
 
     let signature =
-        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MLDSA87, SecurityMode::Unverified)
+        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MlDsa87, SecurityMode::Unverified)
             .expect("ML-DSA-87 sign");
 
     let valid = verify_pq_ml_dsa(
         message,
         &signature,
-        &pk,
-        MlDsaParameterSet::MLDSA87,
+        pk.as_slice(),
+        MlDsaParameterSet::MlDsa87,
         SecurityMode::Unverified,
     )
     .expect("ML-DSA-87 verify");
@@ -545,7 +554,7 @@ fn proof_sig_ml_dsa_87() {
 }
 
 #[test]
-fn proof_sig_hybrid_ml_dsa_65_ed25519() {
+fn proof_sig_hybrid_ml_dsa_65_ed25519_verified() {
     let message = b"Hybrid ML-DSA-65+Ed25519 proof evidence";
     let (pk, sk) =
         generate_hybrid_signing_keypair(SecurityMode::Unverified).expect("Hybrid signing keygen");
@@ -556,8 +565,8 @@ fn proof_sig_hybrid_ml_dsa_65_ed25519() {
         .expect("Hybrid verify");
     assert!(valid, "Hybrid ML-DSA-65+Ed25519 signature must verify");
 
-    let total_sig_bytes = signature.ml_dsa_sig.len() + signature.ed25519_sig.len();
-    let total_pk_bytes = pk.ml_dsa_pk.len() + pk.ed25519_pk.len();
+    let total_sig_bytes = signature.ml_dsa_sig().len() + signature.ed25519_sig().len();
+    let total_pk_bytes = pk.ml_dsa_pk().len() + pk.ed25519_pk().len();
 
     println!(
         "[PROOF] {{\"section\":5,\"test\":\"sig_hybrid_ml_dsa_65_ed25519\",\
@@ -566,16 +575,16 @@ fn proof_sig_hybrid_ml_dsa_65_ed25519() {
          \"ml_dsa_sig_bytes\":{},\"ed25519_sig_bytes\":{},\"total_sig_bytes\":{total_sig_bytes},\
          \"message_len\":{},\
          \"verify\":\"PASS\",\"status\":\"PASS\"}}",
-        pk.ml_dsa_pk.len(),
-        pk.ed25519_pk.len(),
-        signature.ml_dsa_sig.len(),
-        signature.ed25519_sig.len(),
+        pk.ml_dsa_pk().len(),
+        pk.ed25519_pk().len(),
+        signature.ml_dsa_sig().len(),
+        signature.ed25519_sig().len(),
         message.len(),
     );
 }
 
 #[test]
-fn proof_sig_slh_dsa_shake_128s() {
+fn proof_sig_slh_dsa_shake_128s_verified() {
     let message = b"SLH-DSA-SHAKE-128s proof evidence";
     let (pk, sk) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("SLH-DSA keygen");
@@ -591,7 +600,7 @@ fn proof_sig_slh_dsa_shake_128s() {
     let valid = verify_pq_slh_dsa(
         message,
         &signature,
-        &pk,
+        pk.as_slice(),
         SlhDsaSecurityLevel::Shake128s,
         SecurityMode::Unverified,
     )
@@ -610,15 +619,26 @@ fn proof_sig_slh_dsa_shake_128s() {
 }
 
 #[test]
-fn proof_sig_fn_dsa_512() {
+fn proof_sig_fn_dsa_512_verified() {
     let message = b"FN-DSA-512 proof evidence";
     let (pk, sk) = generate_fn_dsa_keypair().expect("FN-DSA-512 keygen");
 
-    let signature =
-        sign_pq_fn_dsa(message, sk.as_ref(), SecurityMode::Unverified).expect("FN-DSA-512 sign");
+    let signature = sign_pq_fn_dsa(
+        message,
+        sk.as_ref(),
+        FnDsaSecurityLevel::Level512,
+        SecurityMode::Unverified,
+    )
+    .expect("FN-DSA-512 sign");
 
-    let valid = verify_pq_fn_dsa(message, &signature, &pk, SecurityMode::Unverified)
-        .expect("FN-DSA-512 verify");
+    let valid = verify_pq_fn_dsa(
+        message,
+        &signature,
+        pk.as_slice(),
+        FnDsaSecurityLevel::Level512,
+        SecurityMode::Unverified,
+    )
+    .expect("FN-DSA-512 verify");
     assert!(valid, "FN-DSA-512 signature must verify");
 
     println!(
@@ -681,13 +701,14 @@ fn proof_serialization_roundtrip(
 
     // Scheme preserved
     assert_eq!(
-        restored.scheme, original.scheme,
+        restored.scheme(),
+        original.scheme(),
         "Serialization must preserve scheme for {level_name}"
     );
 
     // Hybrid data preserved
-    let orig_hybrid = original.hybrid_data.as_ref().unwrap();
-    let rest_hybrid = restored.hybrid_data.as_ref().unwrap();
+    let orig_hybrid = original.hybrid_data().unwrap();
+    let rest_hybrid = restored.hybrid_data().unwrap();
     assert_eq!(
         orig_hybrid.ml_kem_ciphertext, rest_hybrid.ml_kem_ciphertext,
         "ML-KEM CT must survive serialization for {level_name}"
@@ -713,7 +734,8 @@ fn proof_serialization_roundtrip(
          \"ecdh_pk_preserved\":true,\
          \"decrypt_after_deserialize\":\"PASS\",\
          \"status\":\"PASS\"}}",
-        original.scheme, restored.scheme,
+        original.scheme(),
+        restored.scheme(),
     );
 }
 
@@ -722,7 +744,7 @@ fn proof_serialization_roundtrip(
 // ============================================================================
 
 #[test]
-fn proof_negative_wrong_decrypt_key() {
+fn proof_negative_wrong_decrypt_key_fails() {
     let data = b"Negative test: wrong key";
     let level = MlKemSecurityLevel::MlKem768;
 
@@ -747,7 +769,7 @@ fn proof_negative_wrong_decrypt_key() {
 }
 
 #[test]
-fn proof_negative_ml_kem_512_key_decrypt_768_ct() {
+fn proof_negative_ml_kem_512_key_decrypt_768_ct_fails() {
     let data = b"Negative test: 512 key vs 768 ciphertext";
 
     let (pk_768, _sk_768) =
@@ -773,7 +795,7 @@ fn proof_negative_ml_kem_512_key_decrypt_768_ct() {
 }
 
 #[test]
-fn proof_negative_ml_kem_768_key_decrypt_1024_ct() {
+fn proof_negative_ml_kem_768_key_decrypt_1024_ct_fails() {
     let data = b"Negative test: 768 key vs 1024 ciphertext";
 
     let (pk_1024, _sk_1024) =
@@ -799,7 +821,7 @@ fn proof_negative_ml_kem_768_key_decrypt_1024_ct() {
 }
 
 #[test]
-fn proof_negative_wrong_verify_key() {
+fn proof_negative_wrong_verify_key_fails() {
     let message = b"Negative test: wrong signature verification key";
     let (pk_a, _sk_a) =
         generate_hybrid_signing_keypair(SecurityMode::Unverified).expect("keypair A");
@@ -835,65 +857,126 @@ fn proof_negative_wrong_verify_key() {
 // ============================================================================
 
 #[test]
-fn proof_negative_corrupted_ml_kem_ct() {
+fn proof_negative_corrupted_ml_kem_ct_fails() {
     proof_corrupted_field("ml_kem_ciphertext", |enc| {
-        if let Some(ref mut h) = enc.hybrid_data
-            && !h.ml_kem_ciphertext.is_empty()
-        {
-            h.ml_kem_ciphertext[0] ^= 0xFF;
-        }
+        let tampered_hybrid = enc.hybrid_data().map(|h| {
+            let mut ml_kem_ct = h.ml_kem_ciphertext.clone();
+            if !ml_kem_ct.is_empty() {
+                ml_kem_ct[0] ^= 0xFF;
+            }
+            HybridComponents {
+                ml_kem_ciphertext: ml_kem_ct,
+                ecdh_ephemeral_pk: h.ecdh_ephemeral_pk.clone(),
+            }
+        });
+        EncryptedOutput::new(
+            enc.scheme().clone(),
+            enc.ciphertext().to_vec(),
+            enc.nonce().to_vec(),
+            enc.tag().to_vec(),
+            tampered_hybrid,
+            enc.timestamp(),
+            enc.key_id().map(str::to_owned),
+        )
     });
 }
 
 #[test]
-fn proof_negative_corrupted_ecdh_pk() {
+fn proof_negative_corrupted_ecdh_pk_fails() {
     proof_corrupted_field("ecdh_ephemeral_pk", |enc| {
-        if let Some(ref mut h) = enc.hybrid_data
-            && !h.ecdh_ephemeral_pk.is_empty()
-        {
-            h.ecdh_ephemeral_pk[0] ^= 0xFF;
-        }
+        let tampered_hybrid = enc.hybrid_data().map(|h| {
+            let mut ecdh_pk = h.ecdh_ephemeral_pk.clone();
+            if !ecdh_pk.is_empty() {
+                ecdh_pk[0] ^= 0xFF;
+            }
+            HybridComponents {
+                ml_kem_ciphertext: h.ml_kem_ciphertext.clone(),
+                ecdh_ephemeral_pk: ecdh_pk,
+            }
+        });
+        EncryptedOutput::new(
+            enc.scheme().clone(),
+            enc.ciphertext().to_vec(),
+            enc.nonce().to_vec(),
+            enc.tag().to_vec(),
+            tampered_hybrid,
+            enc.timestamp(),
+            enc.key_id().map(str::to_owned),
+        )
     });
 }
 
 #[test]
-fn proof_negative_corrupted_symmetric_ct() {
+fn proof_negative_corrupted_symmetric_ct_fails() {
     proof_corrupted_field("symmetric_ciphertext", |enc| {
-        if !enc.ciphertext.is_empty() {
-            enc.ciphertext[0] ^= 0xFF;
+        let mut ciphertext = enc.ciphertext().to_vec();
+        if !ciphertext.is_empty() {
+            ciphertext[0] ^= 0xFF;
         }
+        EncryptedOutput::new(
+            enc.scheme().clone(),
+            ciphertext,
+            enc.nonce().to_vec(),
+            enc.tag().to_vec(),
+            enc.hybrid_data().cloned(),
+            enc.timestamp(),
+            enc.key_id().map(str::to_owned),
+        )
     });
 }
 
 #[test]
-fn proof_negative_corrupted_nonce() {
+fn proof_negative_corrupted_nonce_fails() {
     proof_corrupted_field("nonce", |enc| {
-        if !enc.nonce.is_empty() {
-            enc.nonce[0] ^= 0xFF;
+        let mut nonce = enc.nonce().to_vec();
+        if !nonce.is_empty() {
+            nonce[0] ^= 0xFF;
         }
+        EncryptedOutput::new(
+            enc.scheme().clone(),
+            enc.ciphertext().to_vec(),
+            nonce,
+            enc.tag().to_vec(),
+            enc.hybrid_data().cloned(),
+            enc.timestamp(),
+            enc.key_id().map(str::to_owned),
+        )
     });
 }
 
 #[test]
-fn proof_negative_corrupted_tag() {
+fn proof_negative_corrupted_tag_fails() {
     proof_corrupted_field("tag", |enc| {
-        if !enc.tag.is_empty() {
-            enc.tag[0] ^= 0xFF;
+        let mut tag = enc.tag().to_vec();
+        if !tag.is_empty() {
+            tag[0] ^= 0xFF;
         }
+        EncryptedOutput::new(
+            enc.scheme().clone(),
+            enc.ciphertext().to_vec(),
+            enc.nonce().to_vec(),
+            tag,
+            enc.hybrid_data().cloned(),
+            enc.timestamp(),
+            enc.key_id().map(str::to_owned),
+        )
     });
 }
 
-fn proof_corrupted_field(field_name: &str, mutator: impl FnOnce(&mut latticearc::EncryptedOutput)) {
+fn proof_corrupted_field(
+    field_name: &str,
+    corrupt: impl FnOnce(EncryptedOutput) -> EncryptedOutput,
+) {
     let data = b"Corruption test data for proof evidence";
     let level = MlKemSecurityLevel::MlKem768;
 
     let (pk, sk) = generate_hybrid_keypair_with_level(level).expect("keypair");
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let mut encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config).expect("encrypt");
+    let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config).expect("encrypt");
 
     // Corrupt the specified field
-    mutator(&mut encrypted);
+    let encrypted = corrupt(encrypted);
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), config);
@@ -915,7 +998,7 @@ fn proof_corrupted_field(field_name: &str, mutator: impl FnOnce(&mut latticearc:
 // ============================================================================
 
 #[test]
-fn proof_negative_wrong_aad() {
+fn proof_negative_wrong_aad_fails() {
     let data = b"AAD mismatch proof evidence";
     let key = [0x42u8; 32];
 
@@ -937,7 +1020,7 @@ fn proof_negative_wrong_aad() {
 }
 
 #[test]
-fn proof_negative_aad_present_vs_absent() {
+fn proof_negative_aad_present_vs_absent_fails() {
     let data = b"AAD present vs absent proof evidence";
     let key = [0x42u8; 32];
 
@@ -964,7 +1047,7 @@ fn proof_negative_aad_present_vs_absent() {
 // ============================================================================
 
 #[test]
-fn proof_negative_cross_level_512_key_768_scheme() {
+fn proof_negative_cross_level_512_key_768_scheme_fails() {
     proof_cross_level_mismatch(
         MlKemSecurityLevel::MlKem512,
         SecurityLevel::High, // selects ML-KEM-768
@@ -973,7 +1056,7 @@ fn proof_negative_cross_level_512_key_768_scheme() {
 }
 
 #[test]
-fn proof_negative_cross_level_768_key_1024_scheme() {
+fn proof_negative_cross_level_768_key_1024_scheme_fails() {
     proof_cross_level_mismatch(
         MlKemSecurityLevel::MlKem768,
         SecurityLevel::Maximum, // selects ML-KEM-1024
@@ -982,7 +1065,7 @@ fn proof_negative_cross_level_768_key_1024_scheme() {
 }
 
 #[test]
-fn proof_negative_cross_level_1024_key_512_scheme() {
+fn proof_negative_cross_level_1024_key_512_scheme_fails() {
     proof_cross_level_mismatch(
         MlKemSecurityLevel::MlKem1024,
         SecurityLevel::Standard, // selects ML-KEM-512
@@ -1051,6 +1134,7 @@ fn proof_tls_all_use_cases_select_correct_mode() {
             TlsMode::Classic => "Classic",
             TlsMode::Hybrid => "Hybrid",
             TlsMode::Pq => "Pq",
+            _ => unreachable!("unexpected TlsMode variant"),
         };
 
         println!(
@@ -1084,6 +1168,7 @@ fn proof_tls_security_levels_select_correct_mode() {
             TlsMode::Classic => "Classic",
             TlsMode::Hybrid => "Hybrid",
             TlsMode::Pq => "Pq",
+            _ => unreachable!("unexpected TlsMode variant"),
         };
 
         println!(
@@ -1124,7 +1209,7 @@ fn proof_tls_config_converts_to_tls13_all_modes() {
 }
 
 #[test]
-fn proof_tls_pq_key_exchange_info() {
+fn proof_tls_pq_key_exchange_info_verified() {
     assert!(is_pq_available(), "PQ key exchange must be available");
 
     let kex_modes: Vec<(TlsMode, PqKexMode, &str, bool)> = vec![
@@ -1166,7 +1251,7 @@ fn proof_tls_pq_key_exchange_info() {
 }
 
 #[test]
-fn proof_tls_config_validation() {
+fn proof_tls_config_validation_succeeds() {
     // Valid default
     let config = TlsConfig::new();
     assert!(config.validate().is_ok(), "Default config must be valid");
@@ -1333,7 +1418,7 @@ fn proof_at_rest_empty_preserves_exactly() {
 }
 
 #[test]
-fn proof_at_rest_ml_kem_512_full_pipeline() {
+fn proof_at_rest_ml_kem_512_full_pipeline_succeeds() {
     let plaintext = b"ML-KEM-512 at-rest proof: This data must survive encrypt->serialize->deserialize->decrypt byte-for-byte.";
 
     proof_at_rest_roundtrip(
@@ -1346,7 +1431,7 @@ fn proof_at_rest_ml_kem_512_full_pipeline() {
 }
 
 #[test]
-fn proof_at_rest_ml_kem_768_full_pipeline() {
+fn proof_at_rest_ml_kem_768_full_pipeline_succeeds() {
     let plaintext = b"ML-KEM-768 at-rest proof: Enterprise-grade data preservation across the full serialization boundary.";
 
     proof_at_rest_roundtrip(
@@ -1359,7 +1444,7 @@ fn proof_at_rest_ml_kem_768_full_pipeline() {
 }
 
 #[test]
-fn proof_at_rest_ml_kem_1024_full_pipeline() {
+fn proof_at_rest_ml_kem_1024_full_pipeline_succeeds() {
     let plaintext = b"ML-KEM-1024 at-rest proof: Maximum security level data must be byte-identical after full roundtrip.";
 
     proof_at_rest_roundtrip(
@@ -1396,7 +1481,7 @@ fn proof_at_rest_large_document_roundtrip() {
 }
 
 #[test]
-fn proof_at_rest_aad_context_binding() {
+fn proof_at_rest_aad_context_binding_succeeds() {
     // Encrypt-at-rest with AAD: proves context is bound to ciphertext
     let plaintext = b"Healthcare record: Patient ID 12345, Diagnosis: Confidential";
     let key = [0x42u8; 32];
@@ -1453,7 +1538,7 @@ fn proof_at_rest_roundtrip(
     let encrypted = encrypt(plaintext, EncryptKey::Hybrid(&pk), config)
         .unwrap_or_else(|e| panic!("encrypt for {test_name}: {e}"));
 
-    let scheme = encrypted.scheme.to_string();
+    let scheme = encrypted.scheme().to_string();
 
     // Step 2: Serialize to JSON (simulates writing to disk)
     let json = serialize_encrypted_output(&encrypted)
@@ -1465,14 +1550,19 @@ fn proof_at_rest_roundtrip(
         .unwrap_or_else(|e| panic!("deserialize for {test_name}: {e}"));
 
     // Step 4: Verify scheme + structural metadata survived serialization
-    assert_eq!(restored.scheme, encrypted.scheme, "Scheme lost in serialization for {test_name}");
-    assert_eq!(restored.nonce, encrypted.nonce, "Nonce lost in serialization for {test_name}");
-    assert_eq!(restored.tag, encrypted.tag, "Tag lost in serialization for {test_name}");
     assert_eq!(
-        restored.ciphertext, encrypted.ciphertext,
+        restored.scheme(),
+        encrypted.scheme(),
+        "Scheme lost in serialization for {test_name}"
+    );
+    assert_eq!(restored.nonce(), encrypted.nonce(), "Nonce lost in serialization for {test_name}");
+    assert_eq!(restored.tag(), encrypted.tag(), "Tag lost in serialization for {test_name}");
+    assert_eq!(
+        restored.ciphertext(),
+        encrypted.ciphertext(),
         "Ciphertext lost in serialization for {test_name}"
     );
-    if let (Some(orig_h), Some(rest_h)) = (&encrypted.hybrid_data, &restored.hybrid_data) {
+    if let (Some(orig_h), Some(rest_h)) = (encrypted.hybrid_data(), restored.hybrid_data()) {
         assert_eq!(
             orig_h.ml_kem_ciphertext, rest_h.ml_kem_ciphertext,
             "ML-KEM CT lost for {test_name}"
@@ -1552,7 +1642,7 @@ fn proof_native_pq_x25519mlkem768_available() {
 }
 
 #[test]
-fn proof_pq_preference_ordering() {
+fn proof_pq_preference_ordering_verified() {
     use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_provider};
 
     let provider =
@@ -1696,7 +1786,7 @@ fn proof_classic_mode_not_pq_secure() {
 }
 
 #[test]
-fn proof_pq_secure_flag_per_mode() {
+fn proof_pq_secure_flag_per_mode_verified() {
     use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_info};
 
     // Verify is_pq_secure flag is consistent with mode semantics
@@ -1783,7 +1873,7 @@ fn proof_provider_deterministic() {
 }
 
 #[test]
-fn proof_exhaustive_mode_matrix() {
+fn proof_exhaustive_mode_matrix_succeeds() {
     use latticearc::tls::pq_key_exchange::{PqKexMode, get_kex_info, get_kex_provider};
 
     // Every (TlsMode, PqKexMode) combination must succeed without panic

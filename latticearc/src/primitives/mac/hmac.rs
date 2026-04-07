@@ -1,44 +1,26 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
 //! HMAC (Hash-based Message Authentication Code)
 //!
-//! This module provides HMAC implementations using the audited `hmac` crate from RustCrypto.
+//! HMAC-SHA256 backed by FIPS 140-3 validated `aws-lc-rs`.
 //!
-//! HMAC is specified in:
+//! Standards:
+//! - RFC 2104: HMAC: Keyed-Hashing for Message Authentication
 //! - FIPS 198-1: The Keyed-Hash Message Authentication Code (HMAC)
 //! - NIST SP 800-107: Recommendation for Applications Using Approved Hash Algorithms
 //!
 //! The HMAC formula is:
-//! H((K ⊕ opad) || H((K ⊕ ipad) || text))
+//! `H((K ⊕ opad) || H((K ⊕ ipad) || text))`
 //!
-//! Where:
-//! - H is the hash function (SHA-256 in this case)
-//! - K is the secret key (padded or hashed to match block size)
-//! - opad = 0x5c5c...5c (outer padding, repeated block_size times)
-//! - ipad = 0x3636...36 (inner padding, repeated block_size times)
-//! - || denotes concatenation
-//! - ⊕ denotes XOR
-//!
-//! The implementation follows these security requirements:
-//! - Key padding to 64-byte block size for SHA-256
-//! - Constant-time operations via the hmac crate
-//! - Proper handling of keys longer than block size (hashed first)
-//! - No custom HMAC algorithm code - all delegated to audited crate
+//! All HMAC operations in the crate share a single backend (aws-lc-rs). Key
+//! padding, constant-time tag verification, and FIPS compliance are handled
+//! by the underlying library.
 
 use crate::prelude::error::{LatticeArcError, Result};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-
-/// HMAC-SHA256 type alias using the audited hmac crate
-///
-/// This provides the standard HMAC-SHA256 implementation with:
-/// - Proper key padding (64-byte block size for SHA-256)
-/// - Constant-time operations
-/// - FIPS 198-1 compliance
-pub type HmacSha256 = Hmac<Sha256>;
+use aws_lc_rs::hmac::{self, HMAC_SHA256};
 
 /// Compute HMAC-SHA256 for given key and data
 ///
@@ -81,22 +63,19 @@ pub type HmacSha256 = Hmac<Sha256>;
 /// - Key padding handled by audited hmac crate
 /// - Supports keys of any length (properly hashed if > block size)
 pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; 32]> {
-    // Validate key length (must be at least 1 byte)
+    // Validate key length (must be at least 1 byte). aws-lc-rs accepts any
+    // nonzero key length and handles padding/hashing per RFC 2104.
     if key.is_empty() {
         return Err(LatticeArcError::InvalidInput("HMAC key cannot be empty".to_string()));
     }
 
-    // Create HMAC instance - the hmac crate handles key padding
-    let mut mac = HmacSha256::new_from_slice(key)
-        .map_err(|_e| LatticeArcError::InvalidInput("Invalid HMAC key length".to_string()))?;
-    mac.update(data);
-    let result = mac.finalize();
-    let result_bytes = result.into_bytes();
+    let hk = hmac::Key::new(HMAC_SHA256, key);
+    let tag = hmac::sign(&hk, data);
 
     // HMAC-SHA256 always produces exactly 32 bytes (RFC 2104).
     // Returning all-zeros on shorter output would be a dangerous silent failure.
-    let src = result_bytes.get(..32).ok_or_else(|| LatticeArcError::ValidationError {
-        message: format!("HMAC-SHA256 output is {} bytes, expected 32", result_bytes.len()),
+    let src = tag.as_ref().get(..32).ok_or_else(|| LatticeArcError::ValidationError {
+        message: format!("HMAC-SHA256 output is {} bytes, expected 32", tag.as_ref().len()),
     })?;
     let mut bytes = [0u8; 32];
     bytes.copy_from_slice(src);
@@ -136,24 +115,19 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; 32]> {
 /// ```
 #[must_use]
 pub fn verify_hmac_sha256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
-    use subtle::ConstantTimeEq;
+    use subtle::{Choice, ConstantTimeEq};
 
-    // Always compute MAC to prevent timing side-channels
-    // Use constant-time operations for all comparisons
-    let key_valid = !key.is_empty();
-    let tag_valid: bool = tag.len().ct_eq(&32).into();
+    // Always compute MAC to prevent timing side-channels.
+    let key_valid = Choice::from(u8::from(!key.is_empty()));
+    let tag_len_valid = tag.len().ct_eq(&32);
 
-    // Compute MAC regardless of validation status (timing-safe)
-    let expected_tag = hmac_sha256(key, data);
+    let mac_matches = match hmac_sha256(key, data) {
+        Ok(computed_tag) => computed_tag.ct_eq(tag),
+        Err(_) => Choice::from(0u8),
+    };
 
-    // Constant-time comparison: valid only if key valid AND tag length valid AND MAC matches
-    match expected_tag {
-        Ok(computed_tag) => {
-            let mac_matches = computed_tag.ct_eq(tag).into();
-            key_valid && tag_valid && mac_matches
-        }
-        Err(_) => false,
-    }
+    // Bitwise AND on subtle::Choice: no short-circuit, constant-time combine.
+    bool::from(key_valid & tag_len_valid & mac_matches)
 }
 
 #[cfg(test)]
@@ -164,7 +138,7 @@ mod tests {
 
     /// Basic HMAC-SHA256 test
     #[test]
-    fn test_hmac_sha256_basic() {
+    fn test_hmac_sha256_basic_returns_32_byte_tag_succeeds() {
         let key = b"secret_key";
         let data = b"message";
         let result = hmac_sha256(key, data).unwrap();
@@ -173,7 +147,7 @@ mod tests {
 
     /// Test that empty data produces valid HMAC
     #[test]
-    fn test_hmac_sha256_empty_data() {
+    fn test_hmac_sha256_empty_data_returns_32_byte_tag_succeeds() {
         let key = b"secret_key";
         let data = b"";
         let result = hmac_sha256(key, data).unwrap();
@@ -182,7 +156,7 @@ mod tests {
 
     /// Test that different keys produce different tags
     #[test]
-    fn test_hmac_sha256_different_keys() {
+    fn test_hmac_sha256_different_keys_produce_distinct_tags_are_unique() {
         let key1 = b"key1";
         let key2 = b"key2";
         let data = b"message";
@@ -195,7 +169,7 @@ mod tests {
 
     /// Test that different data produces different tags
     #[test]
-    fn test_hmac_sha256_different_data() {
+    fn test_hmac_sha256_different_data_produce_distinct_tags_are_unique() {
         let key = b"secret_key";
         let data1 = b"message1";
         let data2 = b"message2";
@@ -211,7 +185,7 @@ mod tests {
     /// When key is longer than block size (64 bytes for SHA-256),
     /// the key is hashed first to produce the actual HMAC key.
     #[test]
-    fn test_hmac_sha256_long_key() {
+    fn test_hmac_sha256_long_key_returns_32_byte_tag_succeeds() {
         let key = [0u8; 100]; // 100 bytes, longer than SHA-256 block size (64 bytes)
         let data = b"message";
         let result = hmac_sha256(&key, data).unwrap();
@@ -220,7 +194,7 @@ mod tests {
 
     /// Test HMAC with key exactly equal to block size (64 bytes)
     #[test]
-    fn test_hmac_sha256_block_size_key() {
+    fn test_hmac_sha256_block_size_key_returns_32_byte_tag_has_correct_size() {
         let key = [0u8; 64]; // Exactly SHA-256 block size
         let data = b"message";
         let result = hmac_sha256(&key, data).unwrap();
@@ -229,7 +203,7 @@ mod tests {
 
     /// Test constant-time verification with valid tag
     #[test]
-    fn test_verify_hmac_sha256_valid() {
+    fn test_verify_hmac_sha256_valid_tag_returns_true_succeeds() {
         let key = b"secret_key";
         let data = b"message";
 
@@ -239,7 +213,7 @@ mod tests {
 
     /// Test constant-time verification with invalid tag
     #[test]
-    fn test_verify_hmac_sha256_invalid() {
+    fn test_verify_hmac_sha256_invalid_returns_false_fails() {
         let key = b"secret_key";
         let data = b"message";
 
@@ -252,7 +226,7 @@ mod tests {
 
     /// Test verification with wrong data
     #[test]
-    fn test_verify_hmac_sha256_wrong_data() {
+    fn test_verify_hmac_sha256_wrong_data_returns_false_fails() {
         let key = b"secret_key";
         let data1 = b"message1";
         let data2 = b"message2";
@@ -263,7 +237,7 @@ mod tests {
 
     /// Test verification with wrong key
     #[test]
-    fn test_verify_hmac_sha256_wrong_key() {
+    fn test_verify_hmac_sha256_wrong_key_returns_false_fails() {
         let key1 = b"key1";
         let key2 = b"key2";
         let data = b"message";
@@ -274,7 +248,7 @@ mod tests {
 
     /// Test verification with invalid tag length
     #[test]
-    fn test_verify_hmac_sha256_invalid_tag_length() {
+    fn test_verify_hmac_sha256_invalid_tag_length_returns_false_fails() {
         let key = b"secret_key";
         let data = b"message";
         let short_tag = [0u8; 16]; // Wrong length
@@ -287,7 +261,7 @@ mod tests {
 
     /// RFC 4231 Test Case 1: Key = 20 bytes of 0x0b, Data = "Hi There"
     #[test]
-    fn test_hmac_sha256_rfc4231_test_case_1() {
+    fn test_hmac_sha256_rfc4231_test_case_1_matches_expected() {
         let key = hex!("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
 
         let data = b"Hi There";
@@ -301,7 +275,7 @@ mod tests {
 
     /// RFC 4231 Test Case 2: Key = "Jefe", Data = "what do ya want for nothing?"
     #[test]
-    fn test_hmac_sha256_rfc4231_test_case_2() {
+    fn test_hmac_sha256_rfc4231_test_case_2_matches_expected() {
         let key = b"Jefe";
 
         let data = b"what do ya want for nothing?";
@@ -315,7 +289,7 @@ mod tests {
 
     /// Test case 3: Key size = block size (20 bytes), data size = 50 bytes
     #[test]
-    fn test_hmac_sha256_fips_test_case_3() {
+    fn test_hmac_sha256_fips_test_case_3_matches_expected() {
         // Key = 0xaa repeated 20 times
         let key = [0xaa_u8; 20];
 
@@ -332,7 +306,7 @@ mod tests {
 
     /// Test case 4: Key size = 25 bytes, data size = 50 bytes
     #[test]
-    fn test_hmac_sha256_fips_test_case_4() {
+    fn test_hmac_sha256_fips_test_case_4_matches_expected() {
         // Key = 0x0102030405060708090a0b0c0d0e0f10111213141516171819
         let key = hex!("0102030405060708090a0b0c0d0e0f10111213141516171819");
 
@@ -349,7 +323,7 @@ mod tests {
 
     /// RFC 4231 Test Case 6: Key = 131 bytes of 0xaa, large key (hashed first)
     #[test]
-    fn test_hmac_sha256_rfc4231_test_case_6() {
+    fn test_hmac_sha256_rfc4231_test_case_6_matches_expected() {
         let key = [0xaa_u8; 131];
 
         let data = b"Test Using Larger Than Block-Size Key - Hash Key First";
@@ -363,7 +337,7 @@ mod tests {
 
     /// RFC 4231 Test Case 7: Key = 131 bytes of 0xaa, large key + large data
     #[test]
-    fn test_hmac_sha256_rfc4231_test_case_7() {
+    fn test_hmac_sha256_rfc4231_test_case_7_matches_expected() {
         let key = [0xaa_u8; 131];
 
         let data = b"This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.";
@@ -377,7 +351,7 @@ mod tests {
 
     /// Additional test: Verify deterministic behavior
     #[test]
-    fn test_hmac_sha256_deterministic() {
+    fn test_hmac_sha256_deterministic_returns_same_tag_is_deterministic() {
         let key = b"test_key_12345";
         let data = b"test_data_67890";
 
@@ -389,7 +363,7 @@ mod tests {
 
     /// Additional test: Verify key sensitivity
     #[test]
-    fn test_hmac_sha256_key_sensitivity() {
+    fn test_hmac_sha256_key_sensitivity_produces_avalanche_effect_succeeds() {
         let key1 = b"key123";
         let key2 = b"key124"; // Only one bit different
         let data = b"message";
@@ -409,7 +383,7 @@ mod tests {
 
     /// Additional test: Verify data sensitivity
     #[test]
-    fn test_hmac_sha256_data_sensitivity() {
+    fn test_hmac_sha256_data_sensitivity_produces_avalanche_effect_succeeds() {
         let key = b"secret_key";
         let data1 = b"message1";
         let data2 = b"message2"; // Only one character different
@@ -429,7 +403,7 @@ mod tests {
 
     /// Additional test: Large data
     #[test]
-    fn test_hmac_sha256_large_data() {
+    fn test_hmac_sha256_large_data_succeeds() {
         let key = b"secret_key";
         let data = vec![0u8; 1000000]; // 1 MB of data
 

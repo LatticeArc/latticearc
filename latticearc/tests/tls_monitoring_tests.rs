@@ -9,7 +9,7 @@
 
 #[cfg(feature = "monitoring")]
 #[test]
-fn test_monitoring_basic_functionality() {
+fn test_monitoring_basic_functionality_succeeds() {
     use latticearc::tls::monitoring::*;
 
     let collector = MetricsCollector::default();
@@ -37,7 +37,7 @@ fn test_monitoring_basic_functionality() {
 
 #[cfg(feature = "monitoring")]
 #[test]
-fn test_performance_monitoring() {
+fn test_performance_monitoring_succeeds() {
     use latticearc::tls::monitoring::*;
 
     let monitor = PerformanceMonitor::new(10);
@@ -62,7 +62,7 @@ fn test_performance_monitoring() {
 
 #[cfg(feature = "monitoring")]
 #[test]
-fn test_alert_management() {
+fn test_alert_management_succeeds() {
     use latticearc::tls::monitoring::*;
 
     let alert_manager = AlertManager::new(100);
@@ -89,7 +89,7 @@ fn test_alert_management() {
 
 #[cfg(feature = "monitoring")]
 #[test]
-fn test_prometheus_exporter() {
+fn test_prometheus_exporter_succeeds() {
     use latticearc::tls::monitoring::*;
 
     let exporter = PrometheusExporter::default();
@@ -117,7 +117,7 @@ fn test_prometheus_exporter() {
 
 #[cfg(feature = "monitoring")]
 #[test]
-fn test_elk_integration() {
+fn test_elk_integration_succeeds() {
     use latticearc::tls::monitoring::*;
 
     let elk = ElkIntegration::default();

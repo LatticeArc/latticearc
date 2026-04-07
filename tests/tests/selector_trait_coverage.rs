@@ -10,18 +10,18 @@
 
 //! Coverage tests for `CryptoPolicyEngine` trait implementations and uncovered paths.
 
-use latticearc::unified_api::key_lifecycle::{KeyLifecycleRecord, KeyLifecycleState};
-use latticearc::unified_api::traits::{PatternType, SchemeSelector};
+use latticearc::types::traits::{PatternType, SchemeSelector};
 use latticearc::unified_api::{
     CoreConfig, CryptoContext, CryptoPolicyEngine, PerformancePreference, SecurityLevel, UseCase,
 };
+use latticearc::unified_api::{KeyLifecycleRecord, KeyLifecycleState};
 
 // ============================================================================
 // SchemeSelector trait impl on CryptoPolicyEngine
 // ============================================================================
 
 #[test]
-fn test_scheme_selector_select_encryption_scheme() {
+fn test_scheme_selector_select_encryption_scheme_succeeds() {
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
         security_level: SecurityLevel::High,
@@ -37,7 +37,7 @@ fn test_scheme_selector_select_encryption_scheme() {
 }
 
 #[test]
-fn test_scheme_selector_select_encryption_scheme_with_use_case() {
+fn test_scheme_selector_select_encryption_scheme_with_use_case_succeeds() {
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
         security_level: SecurityLevel::Maximum,
@@ -51,7 +51,7 @@ fn test_scheme_selector_select_encryption_scheme_with_use_case() {
 }
 
 #[test]
-fn test_scheme_selector_select_encryption_scheme_speed() {
+fn test_scheme_selector_select_encryption_scheme_speed_succeeds() {
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
         security_level: SecurityLevel::Standard,
@@ -65,7 +65,7 @@ fn test_scheme_selector_select_encryption_scheme_speed() {
 }
 
 #[test]
-fn test_scheme_selector_select_signature_scheme() {
+fn test_scheme_selector_select_signature_scheme_succeeds() {
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
         security_level: SecurityLevel::High,
@@ -81,7 +81,7 @@ fn test_scheme_selector_select_signature_scheme() {
 }
 
 #[test]
-fn test_scheme_selector_select_signature_scheme_maximum() {
+fn test_scheme_selector_select_signature_scheme_maximum_succeeds() {
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
         security_level: SecurityLevel::Maximum,
@@ -95,7 +95,7 @@ fn test_scheme_selector_select_signature_scheme_maximum() {
 }
 
 #[test]
-fn test_scheme_selector_select_signature_scheme_quantum() {
+fn test_scheme_selector_select_signature_scheme_quantum_succeeds() {
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
         security_level: SecurityLevel::Quantum,
@@ -109,7 +109,7 @@ fn test_scheme_selector_select_signature_scheme_quantum() {
 }
 
 #[test]
-fn test_scheme_selector_analyze_data_characteristics_random() {
+fn test_scheme_selector_analyze_data_characteristics_random_is_correct() {
     let engine = CryptoPolicyEngine::new();
     // High-entropy random data
     let data: Vec<u8> = (0..256).map(|i| (i % 256) as u8).collect();
@@ -119,7 +119,7 @@ fn test_scheme_selector_analyze_data_characteristics_random() {
 }
 
 #[test]
-fn test_scheme_selector_analyze_data_characteristics_text() {
+fn test_scheme_selector_analyze_data_characteristics_text_is_correct() {
     let engine = CryptoPolicyEngine::new();
     let data = b"Hello, this is a text message with enough content to analyze properly.";
     let chars = engine.analyze_data_characteristics(data);
@@ -128,7 +128,7 @@ fn test_scheme_selector_analyze_data_characteristics_text() {
 }
 
 #[test]
-fn test_scheme_selector_analyze_data_characteristics_empty() {
+fn test_scheme_selector_analyze_data_characteristics_empty_is_correct() {
     let engine = CryptoPolicyEngine::new();
     let chars = engine.analyze_data_characteristics(b"");
     assert_eq!(chars.size, 0);
@@ -136,7 +136,7 @@ fn test_scheme_selector_analyze_data_characteristics_empty() {
 }
 
 #[test]
-fn test_scheme_selector_analyze_data_characteristics_repetitive() {
+fn test_scheme_selector_analyze_data_characteristics_repetitive_is_correct() {
     let engine = CryptoPolicyEngine::new();
     // Repetitive data: same 8-byte chunk repeated many times
     let chunk = [0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89];
@@ -153,7 +153,7 @@ fn test_scheme_selector_analyze_data_characteristics_repetitive() {
 // ============================================================================
 
 #[test]
-fn test_select_encryption_scheme_speed_preference_small_data() {
+fn test_select_encryption_scheme_speed_preference_small_data_succeeds() {
     let config = CoreConfig {
         security_level: SecurityLevel::Standard,
         performance_preference: PerformancePreference::Speed,
@@ -166,7 +166,7 @@ fn test_select_encryption_scheme_speed_preference_small_data() {
 }
 
 #[test]
-fn test_select_encryption_scheme_with_financial_use_case() {
+fn test_select_encryption_scheme_with_financial_use_case_succeeds() {
     let config = CoreConfig::default();
     let result = CryptoPolicyEngine::select_encryption_scheme(
         b"financial data",
@@ -177,7 +177,7 @@ fn test_select_encryption_scheme_with_financial_use_case() {
 }
 
 #[test]
-fn test_select_encryption_scheme_with_iot_use_case() {
+fn test_select_encryption_scheme_with_iot_use_case_succeeds() {
     let config = CoreConfig::default();
     let result = CryptoPolicyEngine::select_encryption_scheme(
         b"sensor data",
@@ -188,7 +188,7 @@ fn test_select_encryption_scheme_with_iot_use_case() {
 }
 
 #[test]
-fn test_select_encryption_scheme_with_healthcare_use_case() {
+fn test_select_encryption_scheme_with_healthcare_use_case_succeeds() {
     let config = CoreConfig::default();
     let result = CryptoPolicyEngine::select_encryption_scheme(
         b"patient data",
@@ -199,7 +199,7 @@ fn test_select_encryption_scheme_with_healthcare_use_case() {
 }
 
 #[test]
-fn test_select_signature_scheme_various_levels() {
+fn test_select_signature_scheme_various_levels_succeeds() {
     let levels = [
         SecurityLevel::Standard,
         SecurityLevel::High,
@@ -224,14 +224,14 @@ fn test_select_signature_scheme_various_levels() {
 // ============================================================================
 
 #[test]
-fn test_key_lifecycle_transition_count_initial() {
+fn test_key_lifecycle_transition_count_initial_is_correct() {
     let record =
         KeyLifecycleRecord::new("key-001".to_string(), "ML-KEM-768".to_string(), 3, 365, 30);
     assert_eq!(record.transition_count(), 0);
 }
 
 #[test]
-fn test_key_lifecycle_transition_count_after_transitions() {
+fn test_key_lifecycle_transition_count_after_transitions_is_correct() {
     let mut record =
         KeyLifecycleRecord::new("key-002".to_string(), "ML-KEM-768".to_string(), 3, 365, 30);
 
@@ -264,13 +264,13 @@ fn test_key_lifecycle_transition_count_after_transitions() {
 // ============================================================================
 
 #[test]
-fn test_default_scheme() {
+fn test_default_scheme_is_correct() {
     let scheme = CryptoPolicyEngine::default_scheme();
     assert!(!scheme.is_empty());
     assert!(scheme.contains("hybrid"));
 }
 
 #[test]
-fn test_crypto_policy_engine_default() {
+fn test_crypto_policy_engine_default_succeeds() {
     let _engine: CryptoPolicyEngine = Default::default();
 }

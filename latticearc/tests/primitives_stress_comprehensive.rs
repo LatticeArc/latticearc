@@ -66,7 +66,6 @@ use latticearc::primitives::kem::ecdh::{EcdhP256KeyPair, EcdhP384KeyPair, X25519
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use latticearc::primitives::rand::{random_bytes, random_u32, random_u64};
 use latticearc::primitives::sig::ml_dsa::{self, MlDsaParameterSet};
-use rand::rngs::OsRng;
 
 // ============================================================================
 // Configuration Constants
@@ -94,13 +93,12 @@ const MEDIUM_BUFFER_SIZE: usize = 10 * 1024 * 1024;
 
 /// Test 1000 sequential ML-KEM-512 key generations
 #[test]
-fn test_high_volume_mlkem_512_keygen() {
-    let mut rng = OsRng;
+fn test_high_volume_mlkem_512_keygen_succeeds() {
     let mut success_count = 0;
     let start = Instant::now();
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
-        let result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512);
+        let result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512);
         if result.is_ok() {
             success_count += 1;
         }
@@ -121,12 +119,11 @@ fn test_high_volume_mlkem_512_keygen() {
 
 /// Test 1000 sequential ML-KEM-768 key generations
 #[test]
-fn test_high_volume_mlkem_768_keygen() {
-    let mut rng = OsRng;
+fn test_high_volume_mlkem_768_keygen_succeeds() {
     let mut success_count = 0;
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
-        let result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
         if result.is_ok() {
             success_count += 1;
         }
@@ -141,12 +138,11 @@ fn test_high_volume_mlkem_768_keygen() {
 
 /// Test 1000 sequential ML-KEM-1024 key generations
 #[test]
-fn test_high_volume_mlkem_1024_keygen() {
-    let mut rng = OsRng;
+fn test_high_volume_mlkem_1024_keygen_succeeds() {
     let mut success_count = 0;
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
-        let result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024);
+        let result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024);
         if result.is_ok() {
             success_count += 1;
         }
@@ -161,9 +157,9 @@ fn test_high_volume_mlkem_1024_keygen() {
 
 /// Test 1000 sequential ML-DSA-44 sign/verify cycles
 #[test]
-fn test_high_volume_mldsa_44_sign_verify() {
+fn test_high_volume_mldsa_44_sign_verify_roundtrip() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let context: &[u8] = &[];
     let mut success_count = 0;
 
@@ -189,9 +185,9 @@ fn test_high_volume_mldsa_44_sign_verify() {
 
 /// Test 1000 sequential ML-DSA-65 sign/verify cycles
 #[test]
-fn test_high_volume_mldsa_65_sign_verify() {
+fn test_high_volume_mldsa_65_sign_verify_roundtrip() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
     let context: &[u8] = &[];
     let mut success_count = 0;
 
@@ -217,7 +213,7 @@ fn test_high_volume_mldsa_65_sign_verify() {
 
 /// Test 1000 sequential AES-GCM-256 encrypt/decrypt cycles
 #[test]
-fn test_high_volume_aes_gcm_256_encrypt_decrypt() {
+fn test_high_volume_aes_gcm_256_encrypt_decrypt_roundtrip() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
@@ -230,7 +226,7 @@ fn test_high_volume_aes_gcm_256_encrypt_decrypt() {
         if let Ok((ciphertext, tag)) = enc_result {
             let dec_result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
             if let Ok(decrypted) = dec_result {
-                if decrypted == plaintext.as_bytes() {
+                if decrypted.as_slice() == plaintext.as_bytes() {
                     success_count += 1;
                 }
             }
@@ -246,7 +242,7 @@ fn test_high_volume_aes_gcm_256_encrypt_decrypt() {
 
 /// Test 1000 sequential AES-GCM-128 encrypt/decrypt cycles
 #[test]
-fn test_high_volume_aes_gcm_128_encrypt_decrypt() {
+fn test_high_volume_aes_gcm_128_encrypt_decrypt_roundtrip() {
     let key = AesGcm128::generate_key();
     let cipher = AesGcm128::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
@@ -259,7 +255,7 @@ fn test_high_volume_aes_gcm_128_encrypt_decrypt() {
         if let Ok((ciphertext, tag)) = enc_result {
             let dec_result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
             if let Ok(decrypted) = dec_result {
-                if decrypted == plaintext.as_bytes() {
+                if decrypted.as_slice() == plaintext.as_bytes() {
                     success_count += 1;
                 }
             }
@@ -276,7 +272,7 @@ fn test_high_volume_aes_gcm_128_encrypt_decrypt() {
 /// Test 1000 sequential ChaCha20-Poly1305 encrypt/decrypt cycles
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_high_volume_chacha20_poly1305_encrypt_decrypt() {
+fn test_high_volume_chacha20_poly1305_encrypt_decrypt_roundtrip() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
@@ -289,7 +285,7 @@ fn test_high_volume_chacha20_poly1305_encrypt_decrypt() {
         if let Ok((ciphertext, tag)) = enc_result {
             let dec_result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
             if let Ok(decrypted) = dec_result {
-                if decrypted == plaintext.as_bytes() {
+                if decrypted.as_slice() == plaintext.as_bytes() {
                     success_count += 1;
                 }
             }
@@ -305,7 +301,7 @@ fn test_high_volume_chacha20_poly1305_encrypt_decrypt() {
 
 /// Test rapid key rotation simulation (1000 key changes)
 #[test]
-fn test_rapid_key_rotation_simulation() {
+fn test_rapid_key_rotation_simulation_succeeds() {
     let mut success_count = 0;
     let plaintext = b"Data to encrypt with rotating keys";
 
@@ -320,7 +316,7 @@ fn test_rapid_key_rotation_simulation() {
         if let Ok((ciphertext, tag)) = enc_result {
             let dec_result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
             if let Ok(decrypted) = dec_result {
-                if decrypted == plaintext {
+                if decrypted.as_slice() == plaintext.as_slice() {
                     success_count += 1;
                 }
             }
@@ -337,8 +333,7 @@ fn test_rapid_key_rotation_simulation() {
 
 /// Test burst operation handling (100 ops in quick succession)
 #[test]
-fn test_burst_operations() {
-    let mut rng = OsRng;
+fn test_burst_operations_succeeds() {
     const BURST_SIZE: usize = 100;
     const BURST_COUNT: usize = 10;
     let mut total_success = 0;
@@ -346,7 +341,7 @@ fn test_burst_operations() {
     for _ in 0..BURST_COUNT {
         // Burst of key generations
         for _ in 0..BURST_SIZE {
-            if MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512).is_ok() {
+            if MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).is_ok() {
                 total_success += 1;
             }
         }
@@ -357,7 +352,7 @@ fn test_burst_operations() {
 
 /// Test 1000 sequential X25519 key generations and agreements
 #[test]
-fn test_high_volume_x25519_key_agreement() {
+fn test_high_volume_x25519_key_agreement_succeeds() {
     let mut success_count = 0;
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
@@ -388,7 +383,7 @@ fn test_high_volume_x25519_key_agreement() {
 
 /// Test 1000 sequential P-256 key agreements
 #[test]
-fn test_high_volume_p256_key_agreement() {
+fn test_high_volume_p256_key_agreement_succeeds() {
     let mut success_count = 0;
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
@@ -419,7 +414,7 @@ fn test_high_volume_p256_key_agreement() {
 
 /// Test 1000 sequential SHA-256 hash operations
 #[test]
-fn test_high_volume_sha256_hash() {
+fn test_high_volume_sha256_hash_succeeds() {
     let mut success_count = 0;
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
@@ -438,7 +433,7 @@ fn test_high_volume_sha256_hash() {
 
 /// Test 1000 sequential SHA3-256 hash operations
 #[test]
-fn test_high_volume_sha3_256_hash() {
+fn test_high_volume_sha3_256_hash_succeeds() {
     let mut success_count = 0;
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
@@ -459,7 +454,7 @@ fn test_high_volume_sha3_256_hash() {
 
 /// Test 1000 sequential random byte generations
 #[test]
-fn test_high_volume_random_bytes() {
+fn test_high_volume_random_bytes_succeeds() {
     let mut all_values: HashSet<Vec<u8>> = HashSet::new();
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
@@ -483,7 +478,7 @@ fn test_high_volume_random_bytes() {
 /// Test operations with large buffer (100MB encryption)
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_large_buffer_encryption_100mb() {
+fn test_large_buffer_encryption_100mb_succeeds() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -508,7 +503,7 @@ fn test_large_buffer_encryption_100mb() {
 
 /// Test operations with medium buffer (10MB)
 #[test]
-fn test_medium_buffer_encryption_10mb() {
+fn test_medium_buffer_encryption_10mb_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let nonce = AesGcm256::generate_nonce();
@@ -521,12 +516,12 @@ fn test_medium_buffer_encryption_10mb() {
         cipher.decrypt(&nonce, &ciphertext, &tag, None).expect("decryption should succeed");
 
     assert_eq!(decrypted.len(), MEDIUM_BUFFER_SIZE);
-    assert_eq!(decrypted, medium_data);
+    assert_eq!(decrypted.as_slice(), medium_data.as_slice());
 }
 
 /// Test SHA-256 with large input (10MB)
 #[test]
-fn test_sha256_large_input() {
+fn test_sha256_large_input_succeeds() {
     let large_data = vec![0x42u8; MEDIUM_BUFFER_SIZE];
     let hash = sha256(&large_data).expect("hashing should succeed");
     assert_eq!(hash.len(), 32);
@@ -538,7 +533,7 @@ fn test_sha256_large_input() {
 
 /// Test SHA-512 with large input (10MB)
 #[test]
-fn test_sha512_large_input() {
+fn test_sha512_large_input_succeeds() {
     let large_data = vec![0x55u8; MEDIUM_BUFFER_SIZE];
     let hash = sha512(&large_data).expect("hashing should succeed");
     assert_eq!(hash.len(), 64);
@@ -546,7 +541,7 @@ fn test_sha512_large_input() {
 
 /// Test SHA3-512 with large input (10MB)
 #[test]
-fn test_sha3_512_large_input() {
+fn test_sha3_512_large_input_succeeds() {
     let large_data = vec![0x77u8; MEDIUM_BUFFER_SIZE];
     // sha3_512 returns [u8; 64] directly (no Result wrapper)
     let hash = sha3_512(&large_data);
@@ -555,14 +550,13 @@ fn test_sha3_512_large_input() {
 
 /// Test maximum key count handling (generate and store many keys)
 #[test]
-fn test_maximum_key_count_handling() {
-    let mut rng = OsRng;
+fn test_maximum_key_count_handling_succeeds() {
     const KEY_COUNT: usize = 500;
     let mut keys: Vec<Vec<u8>> = Vec::with_capacity(KEY_COUNT);
 
     for _ in 0..KEY_COUNT {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
-            .expect("keygen should succeed");
+        let (pk, _sk) =
+            MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).expect("keygen should succeed");
         keys.push(pk.to_bytes());
     }
 
@@ -575,7 +569,7 @@ fn test_maximum_key_count_handling() {
 
 /// Test memory pressure with repeated allocations/deallocations
 #[test]
-fn test_memory_pressure_allocation_cycles() {
+fn test_memory_pressure_allocation_cycles_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
 
@@ -595,9 +589,9 @@ fn test_memory_pressure_allocation_cycles() {
 
 /// Test signing with large messages (100KB)
 #[test]
-fn test_sign_large_message() {
+fn test_sign_large_message_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let context: &[u8] = &[];
 
     // 100KB message
@@ -612,7 +606,7 @@ fn test_sign_large_message() {
 
 /// Test random u64 generation volume
 #[test]
-fn test_high_volume_random_u64() {
+fn test_high_volume_random_u64_succeeds() {
     let mut values: HashSet<u64> = HashSet::new();
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
@@ -626,7 +620,7 @@ fn test_high_volume_random_u64() {
 
 /// Test random u32 distribution under volume
 #[test]
-fn test_high_volume_random_u32_distribution() {
+fn test_high_volume_random_u32_distribution_succeeds() {
     let mut values: HashSet<u32> = HashSet::new();
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
@@ -650,15 +644,14 @@ fn test_high_volume_random_u32_distribution() {
 /// Extended operation sequence - 10000+ ML-KEM operations
 #[test]
 // Must run in release mode
-fn test_extended_mlkem_operations() {
-    let mut rng = OsRng;
+fn test_extended_mlkem_operations_succeeds() {
     let mut success_count = 0;
     let start = Instant::now();
 
     for _ in 0..EXTENDED_ITERATIONS {
-        let keygen_result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512);
+        let keygen_result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512);
         if let Ok((pk, _sk)) = keygen_result {
-            if MlKem::encapsulate(&mut rng, &pk).is_ok() {
+            if MlKem::encapsulate(&pk).is_ok() {
                 success_count += 1;
             }
         }
@@ -679,7 +672,7 @@ fn test_extended_mlkem_operations() {
 /// Extended operation sequence - 10000+ hash operations
 #[test]
 // Must run in release mode
-fn test_extended_hash_operations() {
+fn test_extended_hash_operations_succeeds() {
     let mut success_count = 0;
 
     for i in 0..EXTENDED_ITERATIONS {
@@ -698,7 +691,7 @@ fn test_extended_hash_operations() {
 
 /// Test state accumulation detection over many operations
 #[test]
-fn test_state_accumulation_detection() {
+fn test_state_accumulation_detection_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = b"Test data for state accumulation check";
@@ -746,9 +739,9 @@ fn test_state_accumulation_detection() {
 
 /// Test consistent performance over time for signing
 #[test]
-fn test_consistent_signing_performance() {
+fn test_consistent_signing_performance_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let context: &[u8] = &[];
     let message = b"Performance consistency test message";
 
@@ -787,8 +780,7 @@ fn test_consistent_signing_performance() {
 
 /// Test no degradation over iterations for keygen
 #[test]
-fn test_no_keygen_degradation() {
-    let mut rng = OsRng;
+fn test_no_keygen_degradation_succeeds() {
     const BATCH_SIZE: usize = 50;
     const NUM_BATCHES: usize = 10;
 
@@ -797,7 +789,7 @@ fn test_no_keygen_degradation() {
     for batch in 0..NUM_BATCHES {
         let start = Instant::now();
         for _ in 0..BATCH_SIZE {
-            let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+            let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
         }
         let batch_duration = start.elapsed();
         batch_times.push(batch_duration);
@@ -825,7 +817,7 @@ fn test_no_keygen_degradation() {
 /// Extended encryption stability test
 #[test]
 // Must run in release mode
-fn test_extended_encryption_stability() {
+fn test_extended_encryption_stability_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let mut success_count = 0;
@@ -838,7 +830,7 @@ fn test_extended_encryption_stability() {
         if let Ok((ciphertext, tag)) = enc_result {
             let dec_result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
             if let Ok(decrypted) = dec_result {
-                if decrypted == plaintext.as_bytes() {
+                if decrypted.as_slice() == plaintext.as_bytes() {
                     success_count += 1;
                 }
             }
@@ -855,7 +847,7 @@ fn test_extended_encryption_stability() {
 /// Test extended ECDH operations
 #[test]
 // Must run in release mode
-fn test_extended_ecdh_operations() {
+fn test_extended_ecdh_operations_succeeds() {
     let mut success_count = 0;
     const ECDH_ITERATIONS: usize = 5000;
 
@@ -883,7 +875,7 @@ fn test_extended_ecdh_operations() {
 
 /// Test P-384 extended operations
 #[test]
-fn test_extended_p384_operations() {
+fn test_extended_p384_operations_succeeds() {
     let mut success_count = 0;
     const P384_ITERATIONS: usize = 200;
 
@@ -911,7 +903,7 @@ fn test_extended_p384_operations() {
 
 /// Test hash function consistency over extended runs
 #[test]
-fn test_extended_hash_consistency() {
+fn test_extended_hash_consistency_succeeds() {
     let test_data = b"Consistency check data";
     let reference_hash = sha256(test_data).expect("reference hash should succeed");
 
@@ -923,7 +915,7 @@ fn test_extended_hash_consistency() {
 
 /// Test extended SHA-384 operations
 #[test]
-fn test_extended_sha384_operations() {
+fn test_extended_sha384_operations_succeeds() {
     let mut success_count = 0;
 
     for i in 0..2000 {
@@ -942,7 +934,7 @@ fn test_extended_sha384_operations() {
 
 /// Test empty input handling under load
 #[test]
-fn test_empty_input_under_load() {
+fn test_empty_input_under_load_fails() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let empty_plaintext: &[u8] = &[];
@@ -971,9 +963,9 @@ fn test_empty_input_under_load() {
 
 /// Test empty message signing under load
 #[test]
-fn test_empty_message_signing_under_load() {
+fn test_empty_message_signing_under_load_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let empty_message: &[u8] = &[];
     let context: &[u8] = &[];
     let mut success_count = 0;
@@ -1000,7 +992,7 @@ fn test_empty_message_signing_under_load() {
 /// Test maximum size inputs repeatedly
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_maximum_size_inputs_repeatedly() {
+fn test_maximum_size_inputs_repeatedly_has_correct_size() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
 
@@ -1027,8 +1019,7 @@ fn test_maximum_size_inputs_repeatedly() {
 /// Test alternating operation patterns
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_alternating_operation_patterns() {
-    let mut rng = OsRng;
+fn test_alternating_operation_patterns_succeeds() {
     let aes_key = AesGcm256::generate_key();
     let aes_cipher = AesGcm256::new(&*aes_key).expect("AES cipher creation should succeed");
     let chacha_key = ChaCha20Poly1305Cipher::generate_key();
@@ -1047,7 +1038,7 @@ fn test_alternating_operation_patterns() {
             if let Ok((ciphertext, tag)) = enc_result {
                 let dec_result = aes_cipher.decrypt(&nonce, &ciphertext, &tag, None);
                 if let Ok(decrypted) = dec_result {
-                    if decrypted == plaintext.as_bytes() {
+                    if decrypted.as_slice() == plaintext.as_bytes() {
                         success_count += 1;
                     }
                 }
@@ -1059,7 +1050,7 @@ fn test_alternating_operation_patterns() {
             if let Ok((ciphertext, tag)) = enc_result {
                 let dec_result = chacha_cipher.decrypt(&nonce, &ciphertext, &tag, None);
                 if let Ok(decrypted) = dec_result {
-                    if decrypted == plaintext.as_bytes() {
+                    if decrypted.as_slice() == plaintext.as_bytes() {
                         success_count += 1;
                     }
                 }
@@ -1067,7 +1058,7 @@ fn test_alternating_operation_patterns() {
         }
 
         // Also do some key generation
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512);
     }
 
     assert_eq!(success_count, 500, "All alternating operations should succeed");
@@ -1075,8 +1066,7 @@ fn test_alternating_operation_patterns() {
 
 /// Test random operation sequences
 #[test]
-fn test_random_operation_sequences() {
-    let mut rng = OsRng;
+fn test_random_operation_sequences_succeeds() {
     let mut success_count = 0;
 
     for _ in 0..500 {
@@ -1086,7 +1076,7 @@ fn test_random_operation_sequences() {
         let success = match op_type {
             0 => {
                 // ML-KEM keygen
-                MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512).is_ok()
+                MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).is_ok()
             }
             1 => {
                 // SHA-256 hash
@@ -1122,7 +1112,7 @@ fn test_random_operation_sequences() {
 
 /// Test hash with varying input sizes
 #[test]
-fn test_varying_input_sizes_hash() {
+fn test_varying_input_sizes_hash_has_correct_size() {
     let sizes = [0, 1, 16, 64, 256, 1024, 4096, 16384, 65536];
 
     for &size in &sizes {
@@ -1134,7 +1124,7 @@ fn test_varying_input_sizes_hash() {
 
 /// Test encryption with varying AAD sizes
 #[test]
-fn test_varying_aad_sizes() {
+fn test_varying_aad_sizes_has_correct_size() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = b"Test plaintext";
@@ -1162,9 +1152,9 @@ fn test_varying_aad_sizes() {
 
 /// Test signing with varying message sizes
 #[test]
-fn test_varying_message_sizes_signing() {
+fn test_varying_message_sizes_signing_has_correct_size() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let context: &[u8] = &[];
     let sizes = [0, 1, 16, 64, 256, 1024, 4096, 16384];
 
@@ -1181,9 +1171,9 @@ fn test_varying_message_sizes_signing() {
 
 /// Test context string variations under load
 #[test]
-fn test_context_variations_under_load() {
+fn test_context_variations_under_load_succeeds() {
     let (pk, sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"Context variation test";
     let mut success_count = 0;
 
@@ -1206,7 +1196,7 @@ fn test_context_variations_under_load() {
 
 /// Test nonce uniqueness under high volume
 #[test]
-fn test_nonce_uniqueness_under_volume() {
+fn test_nonce_uniqueness_under_volume_are_unique() {
     let mut nonces: HashSet<[u8; 12]> = HashSet::new();
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
@@ -1219,8 +1209,7 @@ fn test_nonce_uniqueness_under_volume() {
 
 /// Test mixed algorithm stress
 #[test]
-fn test_mixed_algorithm_stress() {
-    let mut rng = OsRng;
+fn test_mixed_algorithm_stress_succeeds() {
     let mut ml_kem_count = 0;
     let mut ml_dsa_count = 0;
     let mut aead_count = 0;
@@ -1229,11 +1218,11 @@ fn test_mixed_algorithm_stress() {
     let aes_key = AesGcm256::generate_key();
     let aes_cipher = AesGcm256::new(&*aes_key).expect("cipher creation should succeed");
     let (dsa_pk, dsa_sk) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
     for i in 0..200 {
         // ML-KEM
-        if MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512).is_ok() {
+        if MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).is_ok() {
             ml_kem_count += 1;
         }
 
@@ -1251,7 +1240,7 @@ fn test_mixed_algorithm_stress() {
         let nonce = AesGcm256::generate_nonce();
         if let Ok((ct, tag)) = aes_cipher.encrypt(&nonce, msg.as_bytes(), None) {
             if let Ok(pt) = aes_cipher.decrypt(&nonce, &ct, &tag, None) {
-                if pt == msg.as_bytes() {
+                if pt.as_slice() == msg.as_bytes() {
                     aead_count += 1;
                 }
             }
@@ -1276,15 +1265,14 @@ fn test_mixed_algorithm_stress() {
 
 /// Establish performance baseline for ML-KEM-768
 #[test]
-fn test_mlkem_768_performance_baseline() {
-    let mut rng = OsRng;
+fn test_mlkem_768_performance_baseline_succeeds() {
     const SAMPLE_SIZE: usize = 100;
 
     let start = Instant::now();
     for _ in 0..SAMPLE_SIZE {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-            .expect("keygen should succeed");
-        let _ = MlKem::encapsulate(&mut rng, &pk).expect("encapsulate should succeed");
+        let (pk, _sk) =
+            MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
+        let _ = MlKem::encapsulate(&pk).expect("encapsulate should succeed");
     }
     let duration = start.elapsed();
 
@@ -1294,7 +1282,7 @@ fn test_mlkem_768_performance_baseline() {
 
 /// Establish performance baseline for AES-GCM-256
 #[test]
-fn test_aes_gcm_256_performance_baseline() {
+fn test_aes_gcm_256_performance_baseline_succeeds() {
     let key = AesGcm256::generate_key();
     let cipher = AesGcm256::new(&*key).expect("cipher creation should succeed");
     let plaintext = vec![0xABu8; 1024]; // 1KB
@@ -1314,7 +1302,7 @@ fn test_aes_gcm_256_performance_baseline() {
 
 /// Establish performance baseline for SHA-256
 #[test]
-fn test_sha256_performance_baseline() {
+fn test_sha256_performance_baseline_succeeds() {
     let data = vec![0xABu8; 1024]; // 1KB
     const SAMPLE_SIZE: usize = 10000;
 
@@ -1334,19 +1322,16 @@ fn test_sha256_performance_baseline() {
 
 /// Comprehensive stress test summary
 #[test]
-fn test_stress_comprehensive_summary() {
-    let mut rng = OsRng;
-
+fn test_stress_comprehensive_summary_succeeds() {
     // 1. ML-KEM operations
-    let (pk_kem, _sk_kem) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (pk_kem, _sk_kem) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("ML-KEM keygen should succeed");
-    let (ss, _ct) =
-        MlKem::encapsulate(&mut rng, &pk_kem).expect("ML-KEM encapsulate should succeed");
+    let (ss, _ct) = MlKem::encapsulate(&pk_kem).expect("ML-KEM encapsulate should succeed");
     assert_eq!(ss.as_bytes().len(), 32);
 
     // 2. ML-DSA operations
     let (pk_dsa, sk_dsa) =
-        ml_dsa::generate_keypair(MlDsaParameterSet::MLDSA65).expect("ML-DSA keygen should succeed");
+        ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65).expect("ML-DSA keygen should succeed");
     let sig = ml_dsa::sign(&sk_dsa, b"test", &[]).expect("ML-DSA sign should succeed");
     let valid = ml_dsa::verify(&pk_dsa, b"test", &sig, &[]).expect("ML-DSA verify should succeed");
     assert!(valid);
@@ -1357,7 +1342,7 @@ fn test_stress_comprehensive_summary() {
     let nonce = AesGcm256::generate_nonce();
     let (ct, tag) = cipher.encrypt(&nonce, b"test", None).expect("AES-GCM encrypt should succeed");
     let pt = cipher.decrypt(&nonce, &ct, &tag, None).expect("AES-GCM decrypt should succeed");
-    assert_eq!(pt, b"test");
+    assert_eq!(pt.as_slice(), b"test");
 
     // 4. ChaCha20-Poly1305 operations (non-FIPS)
     #[cfg(not(feature = "fips"))]

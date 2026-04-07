@@ -228,7 +228,7 @@ fn test_all_zero_key_roundtrip() {
 /// Verify that corrupting just the rho (last 32 bytes) still produces a
 /// parseable key (rho is not subject to the modulus check).
 #[test]
-fn test_corrupted_rho_accepted() {
+fn test_corrupted_rho_accepted_fails() {
     let (ek, _dk) = fips203::ml_kem_768::KG::try_keygen().expect("keygen should succeed");
     let mut ek_bytes = ek.into_bytes();
 

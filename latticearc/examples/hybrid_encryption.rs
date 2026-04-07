@@ -17,8 +17,8 @@ fn main() {
     // --- Generate hybrid keypair ---
     let (pk, sk) = generate_hybrid_keypair().expect("keypair generation failed");
     println!("Generated hybrid keypair:");
-    println!("  ML-KEM-768 PK: {} bytes", pk.ml_kem_pk.len());
-    println!("  X25519 PK:     {} bytes", pk.ecdh_pk.len());
+    println!("  ML-KEM-768 PK: {} bytes", pk.ml_kem_pk().len());
+    println!("  X25519 PK:     {} bytes", pk.ecdh_pk().len());
 
     // --- Encrypt ---
     let plaintext = b"Top secret: quantum-resistant message";
@@ -31,11 +31,11 @@ fn main() {
     let encrypted = latticearc::encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new())
         .expect("encryption failed");
     println!("Encrypted:");
-    println!("  Scheme:     {}", encrypted.scheme);
-    println!("  Ciphertext: {} bytes", encrypted.ciphertext.len());
-    println!("  Nonce:      {} bytes", encrypted.nonce.len());
-    println!("  Tag:        {} bytes", encrypted.tag.len());
-    if let Some(ref hd) = encrypted.hybrid_data {
+    println!("  Scheme:     {}", encrypted.scheme());
+    println!("  Ciphertext: {} bytes", encrypted.ciphertext().len());
+    println!("  Nonce:      {} bytes", encrypted.nonce().len());
+    println!("  Tag:        {} bytes", encrypted.tag().len());
+    if let Some(hd) = encrypted.hybrid_data() {
         println!("  ML-KEM CT:  {} bytes", hd.ml_kem_ciphertext.len());
         println!("  ECDH ePK:   {} bytes", hd.ecdh_ephemeral_pk.len());
     }
@@ -55,7 +55,7 @@ fn main() {
             .expect("encrypt failed");
         let dec = latticearc::decrypt(&enc, DecryptKey::Hybrid(&sk), CryptoConfig::new())
             .expect("decrypt failed");
-        assert_eq!(dec, msg.as_bytes());
+        assert_eq!(dec.as_slice(), msg.as_bytes());
         println!("  Message {}: {} bytes -> encrypt -> decrypt OK", i, msg.len());
     }
 

@@ -14,31 +14,31 @@ use latticearc_tests::validation::input::{ValidationError, validate_input_size};
 // ============================================================================
 
 #[test]
-fn test_valid_input_exact_min() {
+fn test_valid_input_exact_min_succeeds() {
     let data = vec![0u8; 16];
     assert!(validate_input_size(&data, 16, 64).is_ok());
 }
 
 #[test]
-fn test_valid_input_exact_max() {
+fn test_valid_input_exact_max_succeeds() {
     let data = vec![0u8; 64];
     assert!(validate_input_size(&data, 16, 64).is_ok());
 }
 
 #[test]
-fn test_valid_input_between() {
+fn test_valid_input_between_succeeds() {
     let data = vec![0u8; 32];
     assert!(validate_input_size(&data, 16, 64).is_ok());
 }
 
 #[test]
-fn test_valid_input_zero_min() {
+fn test_valid_input_zero_min_succeeds() {
     let data = vec![];
     assert!(validate_input_size(&data, 0, 100).is_ok());
 }
 
 #[test]
-fn test_valid_input_min_equals_max() {
+fn test_valid_input_min_equals_max_succeeds() {
     let data = vec![0u8; 32];
     assert!(validate_input_size(&data, 32, 32).is_ok());
 }
@@ -48,7 +48,7 @@ fn test_valid_input_min_equals_max() {
 // ============================================================================
 
 #[test]
-fn test_input_too_small() {
+fn test_input_too_small_fails() {
     let data = vec![0u8; 15];
     let result = validate_input_size(&data, 16, 64);
     assert!(result.is_err());
@@ -62,7 +62,7 @@ fn test_input_too_small() {
 }
 
 #[test]
-fn test_input_too_small_empty() {
+fn test_input_too_small_empty_fails() {
     let data = vec![];
     let result = validate_input_size(&data, 1, 100);
     assert!(result.is_err());
@@ -80,7 +80,7 @@ fn test_input_too_small_empty() {
 // ============================================================================
 
 #[test]
-fn test_input_too_large() {
+fn test_input_too_large_fails() {
     let data = vec![0u8; 65];
     let result = validate_input_size(&data, 16, 64);
     assert!(result.is_err());
@@ -94,7 +94,7 @@ fn test_input_too_large() {
 }
 
 #[test]
-fn test_input_too_large_by_one() {
+fn test_input_too_large_by_one_fails() {
     let data = vec![0u8; 33];
     let result = validate_input_size(&data, 0, 32);
     assert!(result.is_err());
@@ -112,7 +112,7 @@ fn test_input_too_large_by_one() {
 // ============================================================================
 
 #[test]
-fn test_validation_error_display_too_small() {
+fn test_validation_error_display_too_small_fails() {
     let err = ValidationError::InputTooSmall(10, 16);
     let msg = format!("{}", err);
     assert!(msg.contains("too small"));
@@ -121,7 +121,7 @@ fn test_validation_error_display_too_small() {
 }
 
 #[test]
-fn test_validation_error_display_too_large() {
+fn test_validation_error_display_too_large_fails() {
     let err = ValidationError::InputTooLarge(100, 64);
     let msg = format!("{}", err);
     assert!(msg.contains("too large"));
@@ -130,7 +130,7 @@ fn test_validation_error_display_too_large() {
 }
 
 #[test]
-fn test_validation_error_debug() {
+fn test_validation_error_debug_fails() {
     let err = ValidationError::InputTooSmall(5, 10);
     let debug = format!("{:?}", err);
     assert!(debug.contains("InputTooSmall"));

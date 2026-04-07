@@ -86,7 +86,7 @@ pub fn run_conditional_self_test(algorithm: &str) -> Result<(), LatticeArcError>
 
     match algorithm {
         "aes" | "AES" => {
-            let result = validator.test_aes_algorithm()?;
+            let result = validator.test_aes_algorithm_succeeds()?;
             if !result.passed {
                 return Err(LatticeArcError::ValidationError {
                     message: format!(
@@ -97,7 +97,7 @@ pub fn run_conditional_self_test(algorithm: &str) -> Result<(), LatticeArcError>
             }
         }
         "sha3" | "SHA3" => {
-            let result = validator.test_sha3_algorithm()?;
+            let result = validator.test_sha3_algorithm_succeeds()?;
             if !result.passed {
                 return Err(LatticeArcError::ValidationError {
                     message: format!(
@@ -108,7 +108,7 @@ pub fn run_conditional_self_test(algorithm: &str) -> Result<(), LatticeArcError>
             }
         }
         "mlkem" | "MLKEM" => {
-            let result = validator.test_mlkem_algorithm()?;
+            let result = validator.test_mlkem_algorithm_succeeds()?;
             if !result.passed {
                 return Err(LatticeArcError::ValidationError {
                     message: format!(
@@ -119,7 +119,7 @@ pub fn run_conditional_self_test(algorithm: &str) -> Result<(), LatticeArcError>
             }
         }
         _ => {
-            let result = validator.test_self_tests()?;
+            let result = validator.test_self_tests_succeeds()?;
             if !result.passed {
                 return Err(LatticeArcError::ValidationError {
                     message: format!(
@@ -222,7 +222,7 @@ mod tests {
     /// Test init() returns Ok immediately when FIPS_INITIALIZED is already true.
     /// Directly covers lines 32-34 of global.rs.
     #[test]
-    fn test_init_early_return_when_initialized() {
+    fn test_init_early_return_when_initialized_succeeds() {
         // Set up the initialized state
         ensure_initialized_for_test();
         assert!(FIPS_INITIALIZED.load(Ordering::Acquire));
@@ -235,7 +235,7 @@ mod tests {
     /// Test init() early return is idempotent with multiple calls.
     /// Covers the early return path at lines 32-34 on repeated calls.
     #[test]
-    fn test_init_idempotent_early_return() {
+    fn test_init_idempotent_early_return_is_deterministic() {
         ensure_initialized_for_test();
 
         // Multiple calls all hit the early return
@@ -252,7 +252,7 @@ mod tests {
     /// Test the FullModule validation logic that init() delegates to.
     /// Covers lines 38-39 (FIPSValidator creation and validate_module call).
     #[test]
-    fn test_init_validation_logic_via_validator() {
+    fn test_init_validation_logic_via_validator_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("FullModule should succeed");
 
@@ -264,7 +264,7 @@ mod tests {
     /// Test the lock-and-store logic that init() uses at lines 55-60.
     /// We manually replicate this by locking the mutex and replacing.
     #[test]
-    fn test_init_lock_and_store_result() {
+    fn test_init_lock_and_store_result_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -282,7 +282,7 @@ mod tests {
 
     /// Test the FIPS_INITIALIZED atomic store at line 62.
     #[test]
-    fn test_fips_initialized_atomic_store() {
+    fn test_fips_initialized_atomic_store_succeeds() {
         FIPS_INITIALIZED.store(true, Ordering::Release);
         assert!(FIPS_INITIALIZED.load(Ordering::Acquire));
     }
@@ -294,7 +294,7 @@ mod tests {
     /// Test is_fips_initialized reflects the atomic flag state.
     /// Directly covers lines 171-173.
     #[test]
-    fn test_is_fips_initialized_reflects_flag() {
+    fn test_is_fips_initialized_reflects_flag_succeeds() {
         let flag_value = FIPS_INITIALIZED.load(Ordering::Acquire);
         let fn_value = is_fips_initialized();
         assert_eq!(flag_value, fn_value);
@@ -317,7 +317,7 @@ mod tests {
     /// Test get_fips_validation_result exercises the lock-and-clone path.
     /// Directly covers lines 176-178.
     #[test]
-    fn test_get_fips_validation_result_callable() {
+    fn test_get_fips_validation_result_callable_succeeds() {
         // Exercise the function -- it accesses the mutex at line 177
         let result: Option<ValidationResult> = get_fips_validation_result();
         // Result may be None (not initialized) or Some (initialized)
@@ -327,7 +327,7 @@ mod tests {
     /// Test get_fips_validation_result after storing a result manually.
     /// Covers the .lock().ok().and_then(|result| result.clone()) at line 177.
     #[test]
-    fn test_get_fips_validation_result_after_manual_store() {
+    fn test_get_fips_validation_result_after_manual_store_succeeds() {
         // Store a result directly (same logic as init at lines 55-60)
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let val_result = validator.validate_module().expect("Should succeed");
@@ -347,7 +347,7 @@ mod tests {
 
     /// Test get_fips_validation_result returns consistent data across calls.
     #[test]
-    fn test_get_fips_validation_result_consistency() {
+    fn test_get_fips_validation_result_consistency_succeeds() {
         let r1 = get_fips_validation_result();
         let r2 = get_fips_validation_result();
 
@@ -369,7 +369,7 @@ mod tests {
     /// Test run_conditional_self_test with "aes" (lowercase).
     /// Covers lines 73-76 (init check, skipped), 79-90 (aes match arm).
     #[test]
-    fn test_run_conditional_self_test_aes_lowercase() {
+    fn test_run_conditional_self_test_aes_lowercase_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("aes");
         assert!(result.is_ok(), "AES self-test should succeed");
@@ -378,7 +378,7 @@ mod tests {
     /// Test run_conditional_self_test with "AES" (uppercase).
     /// Covers the "AES" pattern at line 80.
     #[test]
-    fn test_run_conditional_self_test_aes_uppercase() {
+    fn test_run_conditional_self_test_aes_uppercase_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("AES");
         assert!(result.is_ok(), "AES self-test (uppercase) should succeed");
@@ -387,7 +387,7 @@ mod tests {
     /// Test run_conditional_self_test with "sha3" (lowercase).
     /// Covers lines 91-101 (sha3 match arm).
     #[test]
-    fn test_run_conditional_self_test_sha3_lowercase() {
+    fn test_run_conditional_self_test_sha3_lowercase_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("sha3");
         assert!(result.is_ok(), "SHA3 self-test should succeed");
@@ -396,7 +396,7 @@ mod tests {
     /// Test run_conditional_self_test with "SHA3" (uppercase).
     /// Covers the "SHA3" pattern at line 91.
     #[test]
-    fn test_run_conditional_self_test_sha3_uppercase() {
+    fn test_run_conditional_self_test_sha3_uppercase_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("SHA3");
         assert!(result.is_ok(), "SHA3 self-test (uppercase) should succeed");
@@ -405,7 +405,7 @@ mod tests {
     /// Test run_conditional_self_test with "mlkem" (lowercase).
     /// Covers lines 102-112 (mlkem match arm).
     #[test]
-    fn test_run_conditional_self_test_mlkem_lowercase() {
+    fn test_run_conditional_self_test_mlkem_lowercase_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("mlkem");
         assert!(result.is_ok(), "MLKEM self-test should succeed");
@@ -414,7 +414,7 @@ mod tests {
     /// Test run_conditional_self_test with "MLKEM" (uppercase).
     /// Covers the "MLKEM" pattern at line 102.
     #[test]
-    fn test_run_conditional_self_test_mlkem_uppercase() {
+    fn test_run_conditional_self_test_mlkem_uppercase_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("MLKEM");
         assert!(result.is_ok(), "MLKEM self-test (uppercase) should succeed");
@@ -423,7 +423,7 @@ mod tests {
     /// Test run_conditional_self_test with an unknown algorithm (default branch).
     /// Covers lines 113-124 (the _ match arm with test_self_tests).
     #[test]
-    fn test_run_conditional_self_test_default_branch() {
+    fn test_run_conditional_self_test_default_branch_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("unknown_algorithm");
         // May fail due to HMAC KAT, but should not panic
@@ -432,7 +432,7 @@ mod tests {
 
     /// Test run_conditional_self_test with empty string (also default branch).
     #[test]
-    fn test_run_conditional_self_test_empty_string() {
+    fn test_run_conditional_self_test_empty_string_succeeds() {
         ensure_initialized_for_test();
         let result = run_conditional_self_test("");
         let _ = result;
@@ -440,7 +440,7 @@ mod tests {
 
     /// Test run_conditional_self_test default branch with various strings.
     #[test]
-    fn test_run_conditional_self_test_various_defaults() {
+    fn test_run_conditional_self_test_various_defaults_succeeds() {
         ensure_initialized_for_test();
         for alg in &["rsa", "ecdsa", "chacha20", "hmac", "ed25519"] {
             let result = run_conditional_self_test(alg);
@@ -451,7 +451,7 @@ mod tests {
     /// Test that when already initialized, run_conditional_self_test
     /// skips the init call at lines 73-75.
     #[test]
-    fn test_run_conditional_self_test_skips_init_when_initialized() {
+    fn test_run_conditional_self_test_skips_init_when_initialized_succeeds() {
         ensure_initialized_for_test();
         assert!(FIPS_INITIALIZED.load(Ordering::Acquire));
 
@@ -475,7 +475,7 @@ mod tests {
 
     /// Test continuous_rng_test multiple times for consistency.
     #[test]
-    fn test_continuous_rng_test_repeated() {
+    fn test_continuous_rng_test_repeated_succeeds() {
         ensure_initialized_for_test();
 
         for _ in 0..20 {
@@ -487,7 +487,7 @@ mod tests {
     /// Test continuous_rng_test skips init when already initialized.
     /// Covers lines 134-136.
     #[test]
-    fn test_continuous_rng_test_skips_init_when_initialized() {
+    fn test_continuous_rng_test_skips_init_when_initialized_succeeds() {
         ensure_initialized_for_test();
         assert!(FIPS_INITIALIZED.load(Ordering::Acquire));
 
@@ -498,7 +498,7 @@ mod tests {
     /// Test the RNG sample logic: two random 32-byte samples should differ.
     /// Tests the logic at lines 138-148.
     #[test]
-    fn test_rng_samples_differ() {
+    fn test_rng_samples_differ_succeeds() {
         let mut sample1 = [0u8; 32];
         let mut sample2 = [0u8; 32];
 
@@ -510,7 +510,7 @@ mod tests {
 
     /// Test the bit distribution logic at lines 150-165.
     #[test]
-    fn test_rng_bit_distribution_logic() {
+    fn test_rng_bit_distribution_logic_succeeds() {
         for _ in 0..50 {
             let mut sample1 = [0u8; 32];
             let mut sample2 = [0u8; 32];
@@ -534,7 +534,7 @@ mod tests {
     /// Test the identical-sample error path message format.
     /// Covers lines 144-148.
     #[test]
-    fn test_rng_identical_samples_error_message() {
+    fn test_rng_identical_samples_error_message_fails() {
         let sample1 = [0xABu8; 32];
         let sample2 = [0xABu8; 32];
 
@@ -550,7 +550,7 @@ mod tests {
     /// Test the bit-distribution error path message format.
     /// Covers lines 159-164.
     #[test]
-    fn test_rng_distribution_error_message() {
+    fn test_rng_distribution_error_message_fails() {
         let ones_ratio: f64 = 0.35;
         if !(0.4..=0.6).contains(&ones_ratio) {
             let err = LatticeArcError::ValidationError {
@@ -586,14 +586,14 @@ mod tests {
 
     /// Test that fips_auto_init() returns immediately when FIPS_ENABLE_AUTO_INIT is unset.
     #[test]
-    fn test_auto_init_env_var_enable_check() {
+    fn test_auto_init_env_var_enable_check_succeeds() {
         // Default path: FIPS_ENABLE_AUTO_INIT is not set, so auto-init is a no-op
         fips_auto_init();
     }
 
     /// Test that fips_auto_init() respects FIPS_SKIP_AUTO_INIT.
     #[test]
-    fn test_auto_init_env_var_skip_check() {
+    fn test_auto_init_env_var_skip_check_succeeds() {
         let skip_result = std::env::var("FIPS_SKIP_AUTO_INIT");
         let _ = skip_result;
     }
@@ -604,7 +604,7 @@ mod tests {
 
     /// Test is_fips_initialized and get_fips_validation_result from threads.
     #[test]
-    fn test_global_state_thread_safe() {
+    fn test_global_state_thread_safe_succeeds() {
         ensure_initialized_for_test();
 
         let handles: Vec<_> = (0..4)
@@ -625,7 +625,7 @@ mod tests {
 
     /// Test run_conditional_self_test from multiple threads.
     #[test]
-    fn test_run_conditional_self_test_thread_safe() {
+    fn test_run_conditional_self_test_thread_safe_succeeds() {
         ensure_initialized_for_test();
 
         let algorithms = ["aes", "AES", "sha3", "SHA3", "mlkem", "MLKEM"];
@@ -647,7 +647,7 @@ mod tests {
 
     /// Test continuous_rng_test from multiple threads.
     #[test]
-    fn test_continuous_rng_test_thread_safe() {
+    fn test_continuous_rng_test_thread_safe_succeeds() {
         ensure_initialized_for_test();
 
         let handles: Vec<_> = (0..4)
@@ -668,7 +668,7 @@ mod tests {
 
     /// Test init early return path from multiple threads.
     #[test]
-    fn test_init_early_return_thread_safe() {
+    fn test_init_early_return_thread_safe_succeeds() {
         ensure_initialized_for_test();
 
         let handles: Vec<_> = (0..4)

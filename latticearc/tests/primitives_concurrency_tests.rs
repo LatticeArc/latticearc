@@ -14,7 +14,6 @@
 #![allow(clippy::expect_used)]
 
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-use rand::rngs::OsRng;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
@@ -24,7 +23,7 @@ use std::thread;
 // ============================================================================
 
 #[test]
-fn test_parallel_keygen_produces_unique_keys() {
+fn test_parallel_keygen_produces_unique_keys_are_unique() {
     const NUM_THREADS: usize = 8;
     const KEYS_PER_THREAD: usize = 10;
 
@@ -34,11 +33,10 @@ fn test_parallel_keygen_produces_unique_keys() {
         .map(|_| {
             let keys = Arc::clone(&keys);
             thread::spawn(move || {
-                let mut rng = OsRng;
                 let mut local_keys = Vec::new();
 
                 for _ in 0..KEYS_PER_THREAD {
-                    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+                    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
                         .expect("keypair generation should succeed");
                     local_keys.push(pk.to_bytes());
                 }
@@ -70,7 +68,7 @@ fn test_parallel_keygen_produces_unique_keys() {
 }
 
 #[test]
-fn test_concurrent_keygen_different_security_levels() {
+fn test_concurrent_keygen_different_security_levels_succeeds() {
     let success_count = Arc::new(AtomicUsize::new(0));
     let levels =
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024];
@@ -80,9 +78,8 @@ fn test_concurrent_keygen_different_security_levels() {
         .map(|&level| {
             let success_count = Arc::clone(&success_count);
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..5 {
-                    let result = MlKem::generate_keypair(&mut rng, level);
+                    let result = MlKem::generate_keypair(level);
                     if result.is_ok() {
                         success_count.fetch_add(1, Ordering::SeqCst);
                     }
@@ -107,9 +104,8 @@ fn test_concurrent_keygen_different_security_levels() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_encapsulation_same_key() {
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+fn test_concurrent_encapsulation_same_key_succeeds() {
+    let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
     const NUM_THREADS: usize = 10;
@@ -123,10 +119,8 @@ fn test_concurrent_encapsulation_same_key() {
             let sk = Arc::clone(&sk);
             let success_count = Arc::clone(&success_count);
             thread::spawn(move || {
-                let mut rng = OsRng;
                 // Encapsulate with shared public key
-                let (ss_enc, ct) =
-                    MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+                let (ss_enc, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
                 // Decapsulate with shared secret key (read-only, thread-safe)
                 let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
@@ -151,9 +145,8 @@ fn test_concurrent_encapsulation_same_key() {
 }
 
 #[test]
-fn test_concurrent_different_ciphertexts_unique() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+fn test_concurrent_different_ciphertexts_are_unique() {
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
 
     const NUM_THREADS: usize = 8;
@@ -165,9 +158,7 @@ fn test_concurrent_different_ciphertexts_unique() {
             let pk = Arc::clone(&pk);
             let ciphertexts = Arc::clone(&ciphertexts);
             thread::spawn(move || {
-                let mut rng = OsRng;
-                let (_ss, ct) =
-                    MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+                let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
                 let mut cts = ciphertexts.lock().expect("mutex should not be poisoned");
                 cts.push(ct.into_bytes());
@@ -197,7 +188,7 @@ fn test_concurrent_different_ciphertexts_unique() {
 // ============================================================================
 
 #[test]
-fn test_thread_local_rng_isolation() {
+fn test_thread_local_rng_isolation_succeeds() {
     // Verify that each thread's RNG produces independent randomness
     const NUM_THREADS: usize = 4;
     let shared_secrets = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -206,12 +197,10 @@ fn test_thread_local_rng_isolation() {
         .map(|_| {
             let shared_secrets = Arc::clone(&shared_secrets);
             thread::spawn(move || {
-                let mut rng = OsRng;
-                let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+                let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
                     .expect("keypair generation should succeed");
 
-                let (ss, _ct) =
-                    MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+                let (ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
                 let mut secrets = shared_secrets.lock().expect("mutex should not be poisoned");
                 secrets.push(ss.as_bytes().to_vec());
@@ -241,7 +230,7 @@ fn test_thread_local_rng_isolation() {
 // ============================================================================
 
 #[test]
-fn test_high_concurrency_stress() {
+fn test_high_concurrency_stress_succeeds() {
     const NUM_THREADS: usize = 32;
     const OPERATIONS_PER_THREAD: usize = 5;
 
@@ -253,12 +242,10 @@ fn test_high_concurrency_stress() {
             let operation_count = Arc::clone(&operation_count);
             let error_count = Arc::clone(&error_count);
             thread::spawn(move || {
-                let mut rng = OsRng;
-
                 for _ in 0..OPERATIONS_PER_THREAD {
                     // Full KEM cycle
-                    match MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768) {
-                        Ok((pk, sk)) => match MlKem::encapsulate(&mut rng, &pk) {
+                    match MlKem::generate_keypair(MlKemSecurityLevel::MlKem768) {
+                        Ok((pk, sk)) => match MlKem::encapsulate(&pk) {
                             Ok((ss_enc, ct)) => match MlKem::decapsulate(&sk, &ct) {
                                 Ok(ss_dec) => {
                                     if ss_enc.as_bytes() == ss_dec.as_bytes() {
@@ -301,9 +288,8 @@ fn test_high_concurrency_stress() {
 // ============================================================================
 
 #[test]
-fn test_shared_public_key_concurrent_read() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
+fn test_shared_public_key_concurrent_read_succeeds() {
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)
         .expect("keypair generation should succeed");
 
     // Public key should be safely readable from multiple threads
@@ -345,7 +331,7 @@ fn test_shared_public_key_concurrent_read() {
 // ============================================================================
 
 #[test]
-fn test_no_data_races_during_operation() {
+fn test_no_data_races_during_operation_succeeds() {
     // This test verifies no undefined behavior from data races
     // by performing many concurrent operations and checking for panics
 
@@ -359,7 +345,6 @@ fn test_no_data_races_during_operation() {
             .map(|i| {
                 let panic_count = Arc::clone(&panic_count);
                 thread::spawn(move || {
-                    let mut rng = OsRng;
                     let level = match i % 3 {
                         0 => MlKemSecurityLevel::MlKem512,
                         1 => MlKemSecurityLevel::MlKem768,
@@ -367,10 +352,9 @@ fn test_no_data_races_during_operation() {
                     };
 
                     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        let (pk, sk) = MlKem::generate_keypair(&mut rng, level)
-                            .expect("keygen should succeed");
-                        let (ss_enc, ct) =
-                            MlKem::encapsulate(&mut rng, &pk).expect("encap should succeed");
+                        let (pk, sk) =
+                            MlKem::generate_keypair(level).expect("keygen should succeed");
+                        let (ss_enc, ct) = MlKem::encapsulate(&pk).expect("encap should succeed");
                         let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decap should succeed");
                         assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
                     })) {
@@ -400,7 +384,7 @@ fn test_no_data_races_during_operation() {
 // ============================================================================
 
 #[test]
-fn test_concurrent_operations_complete_in_reasonable_time() {
+fn test_concurrent_operations_complete_in_reasonable_time_succeeds() {
     use std::time::Instant;
 
     const NUM_THREADS: usize = 4;
@@ -412,11 +396,10 @@ fn test_concurrent_operations_complete_in_reasonable_time() {
     let handles: Vec<_> = (0..NUM_THREADS)
         .map(|_| {
             thread::spawn(move || {
-                let mut rng = OsRng;
                 for _ in 0..OPS_PER_THREAD {
-                    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-                        .expect("keygen");
-                    let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encap");
+                    let (pk, sk) =
+                        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen");
+                    let (_ss, ct) = MlKem::encapsulate(&pk).expect("encap");
                     let _ = MlKem::decapsulate(&sk, &ct).expect("decap");
                 }
             })

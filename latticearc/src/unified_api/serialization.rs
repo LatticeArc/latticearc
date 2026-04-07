@@ -10,8 +10,10 @@
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
 use serde::{Deserialize, Serialize};
+use subtle::ConstantTimeEq;
+use zeroize::Zeroize;
 
-use crate::types::crypto_types::{EncryptedOutput, EncryptionScheme, HybridComponents};
+use crate::unified_api::crypto_types::{EncryptedOutput, EncryptionScheme, HybridComponents};
 use crate::unified_api::{
     error::{CoreError, Result},
     types::{EncryptedData, KeyPair, SignedData},
@@ -69,6 +71,14 @@ pub struct SerializableSignedMetadata {
 }
 
 /// Serializable form of a key pair
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: `Clone` is retained because tests clone this type. When
+/// cloned, both the original and the clone call `Drop::drop` (which zeroizes
+/// `private_key`) independently on deallocation. This means cloning doubles
+/// the number of copies of the key material in memory — callers should keep
+/// lifetimes short and avoid cloning where possible.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SerializableKeyPair {
     /// Base64-encoded public key
@@ -83,6 +93,20 @@ impl std::fmt::Debug for SerializableKeyPair {
             .field("public_key", &self.public_key)
             .field("private_key", &"[REDACTED]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for SerializableKeyPair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.private_key.as_bytes().ct_eq(other.private_key.as_bytes())
+    }
+}
+
+impl Drop for SerializableKeyPair {
+    fn drop(&mut self) {
+        // Zeroize private key string bytes before deallocation to prevent
+        // sensitive key material from lingering in freed heap memory.
+        self.private_key.zeroize();
     }
 }
 
@@ -107,6 +131,16 @@ impl TryFrom<SerializableEncryptedData> for EncryptedData {
     type Error = CoreError;
 
     fn try_from(serializable: SerializableEncryptedData) -> Result<Self> {
+        // Defense-in-depth: reject excessively large serialized data before Base64 decode
+        const MAX_SERIALIZED_SIZE: usize = 10 * 1024 * 1024; // 10 MiB
+        if serializable.data.len() > MAX_SERIALIZED_SIZE {
+            return Err(CoreError::SerializationError(format!(
+                "Serialized data size {} exceeds maximum of {} bytes",
+                serializable.data.len(),
+                MAX_SERIALIZED_SIZE
+            )));
+        }
+
         let data = BASE64_ENGINE
             .decode(&serializable.data)
             .map_err(|e| CoreError::SerializationError(e.to_string()))?;
@@ -184,8 +218,8 @@ impl TryFrom<SerializableSignedData> for SignedData {
 impl From<&KeyPair> for SerializableKeyPair {
     fn from(keypair: &KeyPair) -> Self {
         Self {
-            public_key: BASE64_ENGINE.encode(&keypair.public_key),
-            private_key: BASE64_ENGINE.encode(keypair.private_key.as_slice()),
+            public_key: BASE64_ENGINE.encode(keypair.public_key().as_slice()),
+            private_key: BASE64_ENGINE.encode(keypair.private_key().as_slice()),
         }
     }
 }
@@ -194,7 +228,7 @@ impl TryFrom<SerializableKeyPair> for KeyPair {
     type Error = CoreError;
 
     fn try_from(serializable: SerializableKeyPair) -> Result<Self> {
-        let public_key = BASE64_ENGINE
+        let public_key_bytes = BASE64_ENGINE
             .decode(&serializable.public_key)
             .map_err(|e| CoreError::SerializationError(e.to_string()))?;
 
@@ -202,9 +236,10 @@ impl TryFrom<SerializableKeyPair> for KeyPair {
             .decode(&serializable.private_key)
             .map_err(|e| CoreError::SerializationError(e.to_string()))?;
 
+        let public_key = crate::types::PublicKey::new(public_key_bytes);
         let private_key = crate::types::PrivateKey::new(private_key_bytes);
 
-        Ok(KeyPair { public_key, private_key })
+        Ok(KeyPair::new(public_key, private_key))
     }
 }
 
@@ -322,16 +357,16 @@ impl From<&EncryptedOutput> for SerializableEncryptedOutput {
     fn from(output: &EncryptedOutput) -> Self {
         Self {
             version: 2,
-            scheme: output.scheme.as_str().to_string(),
-            ciphertext: BASE64_ENGINE.encode(&output.ciphertext),
-            nonce: BASE64_ENGINE.encode(&output.nonce),
-            tag: BASE64_ENGINE.encode(&output.tag),
-            hybrid_data: output.hybrid_data.as_ref().map(|hd| SerializableHybridComponents {
+            scheme: output.scheme().as_str().to_string(),
+            ciphertext: BASE64_ENGINE.encode(output.ciphertext()),
+            nonce: BASE64_ENGINE.encode(output.nonce()),
+            tag: BASE64_ENGINE.encode(output.tag()),
+            hybrid_data: output.hybrid_data().map(|hd| SerializableHybridComponents {
                 ml_kem_ciphertext: BASE64_ENGINE.encode(&hd.ml_kem_ciphertext),
                 ecdh_ephemeral_pk: BASE64_ENGINE.encode(&hd.ecdh_ephemeral_pk),
             }),
-            timestamp: output.timestamp,
-            key_id: output.key_id.clone(),
+            timestamp: output.timestamp(),
+            key_id: output.key_id().map(str::to_owned),
         }
     }
 }
@@ -377,15 +412,15 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
             })
             .transpose()?;
 
-        Ok(EncryptedOutput {
+        Ok(EncryptedOutput::new(
             scheme,
             ciphertext,
             nonce,
             tag,
             hybrid_data,
-            timestamp: ser.timestamp,
-            key_id: ser.key_id,
-        })
+            ser.timestamp,
+            ser.key_id,
+        ))
     }
 }
 
@@ -421,8 +456,8 @@ pub fn deserialize_encrypted_output(data: &str) -> Result<EncryptedOutput> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, deprecated)]
 mod tests {
     use super::*;
-    use crate::types::crypto_types::{EncryptedOutput, EncryptionScheme, HybridComponents};
     use crate::types::{CryptoPayload, EncryptedMetadata, PrivateKey, SignedMetadata};
+    use crate::unified_api::crypto_types::{EncryptedOutput, EncryptionScheme, HybridComponents};
 
     fn make_encrypted_data() -> EncryptedData {
         CryptoPayload {
@@ -461,7 +496,7 @@ mod tests {
     }
 
     fn make_keypair() -> KeyPair {
-        KeyPair { public_key: vec![1u8; 32], private_key: PrivateKey::new(vec![2u8; 64]) }
+        KeyPair::new(crate::types::PublicKey::new(vec![1u8; 32]), PrivateKey::new(vec![2u8; 64]))
     }
 
     // --- EncryptedData serialization ---
@@ -481,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_data_roundtrip_no_tag() {
+    fn test_encrypted_data_roundtrip_no_tag_roundtrip() {
         let original = make_encrypted_data_no_tag();
         let json = serialize_encrypted_data(&original).unwrap();
         let deserialized = deserialize_encrypted_data(&json).unwrap();
@@ -492,7 +527,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_data_from_trait() {
+    fn test_encrypted_data_from_trait_succeeds() {
         let original = make_encrypted_data();
         let serializable = SerializableEncryptedData::from(&original);
         assert!(!serializable.data.is_empty());
@@ -501,7 +536,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_data_try_from_invalid_base64() {
+    fn test_encrypted_data_try_from_invalid_base64_fails() {
         let bad = SerializableEncryptedData {
             data: "not-valid-base64!!!".to_string(),
             metadata: SerializableEncryptedMetadata {
@@ -517,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_data_try_from_invalid_nonce() {
+    fn test_encrypted_data_try_from_invalid_nonce_fails() {
         let bad = SerializableEncryptedData {
             data: BASE64_ENGINE.encode(b"hello"),
             metadata: SerializableEncryptedMetadata {
@@ -533,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_data_try_from_invalid_tag() {
+    fn test_encrypted_data_try_from_invalid_tag_fails() {
         let bad = SerializableEncryptedData {
             data: BASE64_ENGINE.encode(b"hello"),
             metadata: SerializableEncryptedMetadata {
@@ -549,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_encrypted_data_invalid_json() {
+    fn test_deserialize_encrypted_data_invalid_json_fails() {
         let result = deserialize_encrypted_data("not json");
         assert!(result.is_err());
     }
@@ -575,7 +610,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_data_from_trait() {
+    fn test_signed_data_from_trait_succeeds() {
         let original = make_signed_data();
         let serializable = SerializableSignedData::from(&original);
         assert!(!serializable.data.is_empty());
@@ -583,7 +618,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_data_try_from_invalid_base64() {
+    fn test_signed_data_try_from_invalid_base64_fails() {
         let bad = SerializableSignedData {
             data: "not-valid!!!".to_string(),
             metadata: SerializableSignedMetadata {
@@ -600,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_data_try_from_invalid_signature() {
+    fn test_signed_data_try_from_invalid_signature_fails() {
         let bad = SerializableSignedData {
             data: BASE64_ENGINE.encode(b"data"),
             metadata: SerializableSignedMetadata {
@@ -617,7 +652,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_data_try_from_invalid_public_key() {
+    fn test_signed_data_try_from_invalid_public_key_fails() {
         let bad = SerializableSignedData {
             data: BASE64_ENGINE.encode(b"data"),
             metadata: SerializableSignedMetadata {
@@ -634,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_signed_data_invalid_json() {
+    fn test_deserialize_signed_data_invalid_json_fails() {
         let result = deserialize_signed_data("not json");
         assert!(result.is_err());
     }
@@ -647,12 +682,12 @@ mod tests {
         let json = serialize_keypair(&original).unwrap();
         let deserialized = deserialize_keypair(&json).unwrap();
 
-        assert_eq!(original.public_key, deserialized.public_key);
-        assert_eq!(original.private_key.as_slice(), deserialized.private_key.as_slice());
+        assert_eq!(original.public_key(), deserialized.public_key());
+        assert_eq!(original.private_key().as_slice(), deserialized.private_key().as_slice());
     }
 
     #[test]
-    fn test_keypair_from_trait() {
+    fn test_keypair_from_trait_succeeds() {
         let original = make_keypair();
         let serializable = SerializableKeyPair::from(&original);
         assert!(!serializable.public_key.is_empty());
@@ -660,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn test_keypair_try_from_invalid_public_key() {
+    fn test_keypair_try_from_invalid_public_key_fails() {
         let bad = SerializableKeyPair {
             public_key: "not-valid!!!".to_string(),
             private_key: BASE64_ENGINE.encode(b"secret"),
@@ -670,7 +705,7 @@ mod tests {
     }
 
     #[test]
-    fn test_keypair_try_from_invalid_private_key() {
+    fn test_keypair_try_from_invalid_private_key_fails() {
         let bad = SerializableKeyPair {
             public_key: BASE64_ENGINE.encode(b"public"),
             private_key: "not-valid!!!".to_string(),
@@ -680,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_keypair_invalid_json() {
+    fn test_deserialize_keypair_invalid_json_fails() {
         let result = deserialize_keypair("not json");
         assert!(result.is_err());
     }
@@ -688,30 +723,30 @@ mod tests {
     // --- EncryptedOutput serialization (v2 format) ---
 
     fn make_encrypted_output_symmetric() -> EncryptedOutput {
-        EncryptedOutput {
-            scheme: EncryptionScheme::Aes256Gcm,
-            ciphertext: vec![0xDE, 0xAD, 0xBE, 0xEF],
-            nonce: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-            tag: vec![0xAA; 16],
-            hybrid_data: None,
-            timestamp: 1700000000,
-            key_id: Some("key-001".to_string()),
-        }
+        EncryptedOutput::new(
+            EncryptionScheme::Aes256Gcm,
+            vec![0xDE, 0xAD, 0xBE, 0xEF],
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            vec![0xAA; 16],
+            None,
+            1_700_000_000,
+            Some("key-001".to_string()),
+        )
     }
 
     fn make_encrypted_output_hybrid() -> EncryptedOutput {
-        EncryptedOutput {
-            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
-            ciphertext: vec![0xBE, 0xEF, 0xCA, 0xFE],
-            nonce: vec![0u8; 12],
-            tag: vec![0xBB; 16],
-            hybrid_data: Some(HybridComponents {
+        EncryptedOutput::new(
+            EncryptionScheme::HybridMlKem768Aes256Gcm,
+            vec![0xBE, 0xEF, 0xCA, 0xFE],
+            vec![0u8; 12],
+            vec![0xBB; 16],
+            Some(HybridComponents {
                 ml_kem_ciphertext: vec![0xCC; 1088],
                 ecdh_ephemeral_pk: vec![0xDD; 32],
             }),
-            timestamp: 1700000001,
-            key_id: None,
-        }
+            1_700_000_001,
+            None,
+        )
     }
 
     #[test]
@@ -720,13 +755,13 @@ mod tests {
         let json = serialize_encrypted_output(&original).unwrap();
         let deserialized = deserialize_encrypted_output(&json).unwrap();
 
-        assert_eq!(original.scheme, deserialized.scheme);
-        assert_eq!(original.ciphertext, deserialized.ciphertext);
-        assert_eq!(original.nonce, deserialized.nonce);
-        assert_eq!(original.tag, deserialized.tag);
-        assert!(deserialized.hybrid_data.is_none());
-        assert_eq!(original.timestamp, deserialized.timestamp);
-        assert_eq!(original.key_id, deserialized.key_id);
+        assert_eq!(original.scheme(), deserialized.scheme());
+        assert_eq!(original.ciphertext(), deserialized.ciphertext());
+        assert_eq!(original.nonce(), deserialized.nonce());
+        assert_eq!(original.tag(), deserialized.tag());
+        assert!(deserialized.hybrid_data().is_none());
+        assert_eq!(original.timestamp(), deserialized.timestamp());
+        assert_eq!(original.key_id(), deserialized.key_id());
     }
 
     #[test]
@@ -735,21 +770,21 @@ mod tests {
         let json = serialize_encrypted_output(&original).unwrap();
         let deserialized = deserialize_encrypted_output(&json).unwrap();
 
-        assert_eq!(original.scheme, deserialized.scheme);
-        assert_eq!(original.ciphertext, deserialized.ciphertext);
-        assert_eq!(original.nonce, deserialized.nonce);
-        assert_eq!(original.tag, deserialized.tag);
-        assert_eq!(original.timestamp, deserialized.timestamp);
-        assert_eq!(original.key_id, deserialized.key_id);
+        assert_eq!(original.scheme(), deserialized.scheme());
+        assert_eq!(original.ciphertext(), deserialized.ciphertext());
+        assert_eq!(original.nonce(), deserialized.nonce());
+        assert_eq!(original.tag(), deserialized.tag());
+        assert_eq!(original.timestamp(), deserialized.timestamp());
+        assert_eq!(original.key_id(), deserialized.key_id());
 
-        let orig_hd = original.hybrid_data.unwrap();
-        let deser_hd = deserialized.hybrid_data.unwrap();
+        let orig_hd = original.hybrid_data().unwrap();
+        let deser_hd = deserialized.hybrid_data().unwrap();
         assert_eq!(orig_hd.ml_kem_ciphertext, deser_hd.ml_kem_ciphertext);
         assert_eq!(orig_hd.ecdh_ephemeral_pk, deser_hd.ecdh_ephemeral_pk);
     }
 
     #[test]
-    fn test_encrypted_output_version_field() {
+    fn test_encrypted_output_version_field_succeeds() {
         let output = make_encrypted_output_symmetric();
         let json = serialize_encrypted_output(&output).unwrap();
         let raw: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -757,7 +792,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_output_scheme_as_string() {
+    fn test_encrypted_output_scheme_as_string_succeeds() {
         let output = make_encrypted_output_hybrid();
         let json = serialize_encrypted_output(&output).unwrap();
         let raw: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -765,7 +800,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_output_hybrid_data_omitted_when_none() {
+    fn test_encrypted_output_hybrid_data_omitted_when_none_succeeds() {
         let output = make_encrypted_output_symmetric();
         let json = serialize_encrypted_output(&output).unwrap();
         let raw: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -773,7 +808,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_output_key_id_omitted_when_none() {
+    fn test_encrypted_output_key_id_omitted_when_none_succeeds() {
         let output = make_encrypted_output_hybrid(); // key_id is None
         let json = serialize_encrypted_output(&output).unwrap();
         let raw: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -781,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_output_unknown_scheme_rejected() {
+    fn test_encrypted_output_unknown_scheme_rejected_fails() {
         let json = r#"{"version":2,"scheme":"fake-999","ciphertext":"AAAA","nonce":"AAAA","tag":"AAAA","timestamp":0}"#;
         let result = deserialize_encrypted_output(json);
         assert!(result.is_err());
@@ -790,21 +825,21 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_output_invalid_ciphertext_base64() {
+    fn test_encrypted_output_invalid_ciphertext_base64_fails() {
         let json = r#"{"version":2,"scheme":"aes-256-gcm","ciphertext":"not-valid!!!","nonce":"AAAA","tag":"AAAA","timestamp":0}"#;
         let result = deserialize_encrypted_output(json);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_encrypted_output_invalid_hybrid_base64() {
+    fn test_encrypted_output_invalid_hybrid_base64_fails() {
         let json = r#"{"version":2,"scheme":"hybrid-ml-kem-768-aes-256-gcm","ciphertext":"AAAA","nonce":"AAAA","tag":"AAAA","hybrid_data":{"ml_kem_ciphertext":"not-valid!!!","ecdh_ephemeral_pk":"AAAA"},"timestamp":0}"#;
         let result = deserialize_encrypted_output(json);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_encrypted_output_invalid_json() {
+    fn test_encrypted_output_invalid_json_fails() {
         let result = deserialize_encrypted_output("not json");
         assert!(result.is_err());
     }
@@ -819,12 +854,12 @@ mod tests {
             EncryptionScheme::HybridMlKem1024Aes256Gcm,
         ];
         for scheme in &schemes {
-            let output = EncryptedOutput {
-                scheme: scheme.clone(),
-                ciphertext: vec![1, 2, 3],
-                nonce: vec![0u8; 12],
-                tag: vec![0u8; 16],
-                hybrid_data: if scheme.requires_hybrid_key() {
+            let output = EncryptedOutput::new(
+                scheme.clone(),
+                vec![1, 2, 3],
+                vec![0u8; 12],
+                vec![0u8; 16],
+                if scheme.requires_hybrid_key() {
                     Some(HybridComponents {
                         ml_kem_ciphertext: vec![0xAA; 32],
                         ecdh_ephemeral_pk: vec![0xBB; 32],
@@ -832,17 +867,17 @@ mod tests {
                 } else {
                     None
                 },
-                timestamp: 42,
-                key_id: None,
-            };
+                42,
+                None,
+            );
             let json = serialize_encrypted_output(&output).unwrap();
             let restored = deserialize_encrypted_output(&json).unwrap();
-            assert_eq!(output.scheme, restored.scheme, "scheme mismatch for {:?}", scheme);
+            assert_eq!(output.scheme(), restored.scheme(), "scheme mismatch for {:?}", scheme);
         }
     }
 
     #[test]
-    fn test_serializable_encrypted_output_clone_debug() {
+    fn test_serializable_encrypted_output_clone_debug_work_correctly_succeeds() {
         let output = make_encrypted_output_symmetric();
         let ser = SerializableEncryptedOutput::from(&output);
         let cloned = ser.clone();
@@ -854,7 +889,7 @@ mod tests {
     // --- Serializable struct debug/clone ---
 
     #[test]
-    fn test_serializable_encrypted_data_clone_debug() {
+    fn test_serializable_encrypted_data_clone_debug_work_correctly_succeeds() {
         let original = make_encrypted_data();
         let ser = SerializableEncryptedData::from(&original);
         let cloned = ser.clone();
@@ -864,7 +899,7 @@ mod tests {
     }
 
     #[test]
-    fn test_serializable_signed_data_clone_debug() {
+    fn test_serializable_signed_data_clone_debug_work_correctly_succeeds() {
         let original = make_signed_data();
         let ser = SerializableSignedData::from(&original);
         let cloned = ser.clone();
@@ -874,7 +909,7 @@ mod tests {
     }
 
     #[test]
-    fn test_serializable_keypair_clone_debug() {
+    fn test_serializable_keypair_clone_debug_work_correctly_succeeds() {
         let original = make_keypair();
         let ser = SerializableKeyPair::from(&original);
         let cloned = ser.clone();

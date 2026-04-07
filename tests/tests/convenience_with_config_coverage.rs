@@ -11,7 +11,7 @@
     clippy::cast_precision_loss
 )]
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
-use latticearc::unified_api::config::CoreConfig;
+use latticearc::unified_api::CoreConfig;
 use latticearc::unified_api::convenience::*;
 use latticearc::unified_api::zero_trust::SecurityMode;
 use latticearc::{CryptoConfig, DecryptKey, EncryptKey};
@@ -21,7 +21,7 @@ use latticearc::{CryptoConfig, DecryptKey, EncryptKey};
 // ============================================================
 
 #[test]
-fn test_aes_gcm_encrypt_decrypt_with_config() {
+fn test_aes_gcm_encrypt_decrypt_with_config_roundtrip() {
     let key = vec![0x42u8; 32];
     let plaintext = b"AES-GCM with_config test";
     let config = CoreConfig::default();
@@ -30,22 +30,22 @@ fn test_aes_gcm_encrypt_decrypt_with_config() {
         encrypt_aes_gcm_with_config(plaintext, &key, &config, SecurityMode::Unverified).unwrap();
     let decrypted =
         decrypt_aes_gcm_with_config(&ciphertext, &key, &config, SecurityMode::Unverified).unwrap();
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
 }
 
 #[test]
-fn test_aes_gcm_encrypt_decrypt_with_config_unverified() {
+fn test_aes_gcm_encrypt_decrypt_with_config_unverified_roundtrip() {
     let key = vec![0x42u8; 32];
     let plaintext = b"AES-GCM with_config_unverified test";
     let config = CoreConfig::default();
 
     let ciphertext = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config).unwrap();
     let decrypted = decrypt_aes_gcm_with_config_unverified(&ciphertext, &key, &config).unwrap();
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
 }
 
 #[test]
-fn test_aes_gcm_with_config_invalid_key() {
+fn test_aes_gcm_with_config_invalid_key_fails() {
     let short_key = vec![0x42u8; 10];
     let plaintext = b"test";
     let config = CoreConfig::default();
@@ -56,7 +56,7 @@ fn test_aes_gcm_with_config_invalid_key() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_with_config_bad_data() {
+fn test_aes_gcm_decrypt_with_config_bad_data_fails() {
     let key = vec![0x42u8; 32];
     let config = CoreConfig::default();
     let bad_ciphertext = vec![0u8; 5]; // Too short to contain nonce+tag
@@ -71,7 +71,7 @@ fn test_aes_gcm_decrypt_with_config_bad_data() {
 // ============================================================
 
 #[test]
-fn test_ed25519_sign_verify_with_config() {
+fn test_ed25519_sign_verify_with_config_roundtrip() {
     let (pk, sk) = generate_keypair().unwrap();
     let message = b"Ed25519 with_config test";
     let config = CoreConfig::default();
@@ -79,23 +79,25 @@ fn test_ed25519_sign_verify_with_config() {
     let sig =
         sign_ed25519_with_config(message, sk.as_ref(), &config, SecurityMode::Unverified).unwrap();
     let valid =
-        verify_ed25519_with_config(message, &sig, &pk, &config, SecurityMode::Unverified).unwrap();
+        verify_ed25519_with_config(message, &sig, pk.as_slice(), &config, SecurityMode::Unverified)
+            .unwrap();
     assert!(valid);
 }
 
 #[test]
-fn test_ed25519_sign_verify_with_config_unverified() {
+fn test_ed25519_sign_verify_with_config_unverified_roundtrip() {
     let (pk, sk) = generate_keypair().unwrap();
     let message = b"Ed25519 with_config_unverified test";
     let config = CoreConfig::default();
 
     let sig = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config).unwrap();
-    let valid = verify_ed25519_with_config_unverified(message, &sig, &pk, &config).unwrap();
+    let valid =
+        verify_ed25519_with_config_unverified(message, &sig, pk.as_slice(), &config).unwrap();
     assert!(valid);
 }
 
 #[test]
-fn test_ed25519_sign_with_config_invalid_key() {
+fn test_ed25519_sign_with_config_invalid_key_fails() {
     let bad_sk = vec![0xAA; 5];
     let message = b"test";
     let config = CoreConfig::default();
@@ -105,7 +107,7 @@ fn test_ed25519_sign_with_config_invalid_key() {
 }
 
 #[test]
-fn test_ed25519_verify_with_config_invalid() {
+fn test_ed25519_verify_with_config_invalid_fails() {
     let bad_pk = vec![0xBB; 10];
     let bad_sig = vec![0xCC; 20];
     let message = b"test";
@@ -121,7 +123,7 @@ fn test_ed25519_verify_with_config_invalid() {
 // ============================================================
 
 #[test]
-fn test_derive_key_with_config() {
+fn test_derive_key_with_config_succeeds() {
     let password = b"password for config test";
     let salt = b"some salt";
     let config = CoreConfig::default();
@@ -132,7 +134,7 @@ fn test_derive_key_with_config() {
 }
 
 #[test]
-fn test_derive_key_with_config_unverified() {
+fn test_derive_key_with_config_unverified_succeeds() {
     let password = b"password for config unverified";
     let salt = b"some salt";
     let config = CoreConfig::default();
@@ -142,7 +144,7 @@ fn test_derive_key_with_config_unverified() {
 }
 
 #[test]
-fn test_hmac_with_config() {
+fn test_hmac_with_config_succeeds() {
     // hmac_with_config(data, key, config, mode)
     let key = b"hmac key for config test";
     let data = b"data to authenticate";
@@ -153,7 +155,7 @@ fn test_hmac_with_config() {
 }
 
 #[test]
-fn test_hmac_with_config_unverified() {
+fn test_hmac_with_config_unverified_succeeds() {
     // hmac_with_config_unverified(key, data, config)
     let key = b"hmac key for config unverified test";
     let data = b"data to authenticate";
@@ -164,7 +166,7 @@ fn test_hmac_with_config_unverified() {
 }
 
 #[test]
-fn test_hmac_check_with_config() {
+fn test_hmac_check_with_config_succeeds() {
     // hmac_check_with_config(data, key, tag, config, mode)
     let key = b"hmac key for check config test";
     let data = b"data to verify";
@@ -176,7 +178,7 @@ fn test_hmac_check_with_config() {
 }
 
 #[test]
-fn test_hmac_check_with_config_unverified() {
+fn test_hmac_check_with_config_unverified_succeeds() {
     // hmac_check_with_config_unverified(key, data, tag, config)
     let key = b"hmac key for check config unverified";
     let data = b"data to verify";
@@ -188,7 +190,7 @@ fn test_hmac_check_with_config_unverified() {
 }
 
 #[test]
-fn test_hmac_check_with_config_wrong_mac() {
+fn test_hmac_check_with_config_wrong_mac_fails() {
     let key = b"hmac key for wrong mac test";
     let data = b"data to verify";
     let config = CoreConfig::default();
@@ -204,7 +206,7 @@ fn test_hmac_check_with_config_wrong_mac() {
 // ============================================================
 
 #[test]
-fn test_ml_kem_encrypt_with_config() {
+fn test_ml_kem_encrypt_with_config_succeeds() {
     let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     let data = b"ML-KEM with_config test data";
     let config = CoreConfig::default();
@@ -212,7 +214,7 @@ fn test_ml_kem_encrypt_with_config() {
     // Encrypt succeeds (exercises the config validation path)
     let encrypted = encrypt_pq_ml_kem_with_config(
         data,
-        &pk,
+        pk.as_slice(),
         MlKemSecurityLevel::MlKem768,
         &config,
         SecurityMode::Unverified,
@@ -229,18 +231,22 @@ fn test_ml_kem_encrypt_with_config() {
         SecurityMode::Unverified,
     )
     .unwrap();
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 #[test]
-fn test_ml_kem_encrypt_with_config_unverified() {
+fn test_ml_kem_encrypt_with_config_unverified_succeeds() {
     let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     let data = b"ML-KEM unverified test data";
     let config = CoreConfig::default();
 
-    let encrypted =
-        encrypt_pq_ml_kem_with_config_unverified(data, &pk, MlKemSecurityLevel::MlKem768, &config)
-            .unwrap();
+    let encrypted = encrypt_pq_ml_kem_with_config_unverified(
+        data,
+        pk.as_slice(),
+        MlKemSecurityLevel::MlKem768,
+        &config,
+    )
+    .unwrap();
     assert!(!encrypted.is_empty());
 
     // Decrypt roundtrip (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
@@ -251,11 +257,11 @@ fn test_ml_kem_encrypt_with_config_unverified() {
         &config,
     )
     .unwrap();
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 #[test]
-fn test_ml_kem_encrypt_with_config_invalid_pk() {
+fn test_ml_kem_encrypt_with_config_invalid_pk_fails() {
     let bad_pk = vec![0xAA; 10];
     let data = b"test";
     let config = CoreConfig::default();
@@ -275,7 +281,7 @@ fn test_ml_kem_encrypt_with_config_invalid_pk() {
 // ============================================================
 
 #[test]
-fn test_generate_keypair_with_config() {
+fn test_generate_keypair_with_config_succeeds() {
     let config = CoreConfig::default();
     let (pk, sk) = generate_keypair_with_config(&config).unwrap();
     assert!(!pk.is_empty());
@@ -283,10 +289,10 @@ fn test_generate_keypair_with_config() {
 }
 
 #[test]
-fn test_generate_ml_dsa_keypair_with_config() {
+fn test_generate_ml_dsa_keypair_with_config_succeeds() {
     let config = CoreConfig::default();
     let (pk, sk) = generate_ml_dsa_keypair_with_config(
-        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MLDSA44,
+        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
         &config,
     )
     .unwrap();
@@ -295,14 +301,14 @@ fn test_generate_ml_dsa_keypair_with_config() {
 }
 
 #[test]
-fn test_generate_slh_dsa_keypair_with_config() {
+fn test_generate_slh_dsa_keypair_with_config_succeeds() {
     std::thread::Builder::new()
         .name("slh_keygen_cfg".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
             let config = CoreConfig::default();
             let (pk, sk) = generate_slh_dsa_keypair_with_config(
-                latticearc::primitives::sig::slh_dsa::SecurityLevel::Shake128s,
+                latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
                 &config,
             )
             .unwrap();
@@ -315,7 +321,7 @@ fn test_generate_slh_dsa_keypair_with_config() {
 }
 
 #[test]
-fn test_generate_fn_dsa_keypair_with_config() {
+fn test_generate_fn_dsa_keypair_with_config_succeeds() {
     std::thread::Builder::new()
         .name("fn_keygen_cfg".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -331,7 +337,7 @@ fn test_generate_fn_dsa_keypair_with_config() {
 }
 
 #[test]
-fn test_generate_ml_kem_keypair_with_config() {
+fn test_generate_ml_kem_keypair_with_config_succeeds() {
     let config = CoreConfig::default();
     let (pk, sk) =
         generate_ml_kem_keypair_with_config(MlKemSecurityLevel::MlKem768, &config).unwrap();
@@ -344,7 +350,7 @@ fn test_generate_ml_kem_keypair_with_config() {
 // ============================================================
 
 #[test]
-fn test_hybrid_sign_verify_with_config() {
+fn test_hybrid_sign_verify_with_config_roundtrip() {
     let config = CoreConfig::default();
     let (pk, sk) =
         generate_hybrid_signing_keypair_with_config(&config, SecurityMode::Unverified).unwrap();
@@ -362,7 +368,7 @@ fn test_hybrid_sign_verify_with_config() {
 // ============================================================
 
 #[test]
-fn test_hybrid_encrypt_decrypt_unified_api() {
+fn test_hybrid_encrypt_decrypt_unified_api_roundtrip() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let plaintext = b"Hybrid encryption unified API test";
 

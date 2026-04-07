@@ -50,7 +50,7 @@ mod resource_limits_struct_tests {
     use super::*;
 
     #[test]
-    fn test_default_creates_expected_values() {
+    fn test_default_creates_expected_values_passes_validation() {
         let limits = ResourceLimits::default();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
         assert_eq!(limits.max_encryption_size_bytes, 100 * 1024 * 1024);
@@ -59,7 +59,7 @@ mod resource_limits_struct_tests {
     }
 
     #[test]
-    fn test_new_with_custom_values() {
+    fn test_new_with_custom_values_passes_validation() {
         let limits = ResourceLimits::new(500, 50 * 1024 * 1024, 32 * 1024, 25 * 1024 * 1024);
         assert_eq!(limits.max_key_derivations_per_call, 500);
         assert_eq!(limits.max_encryption_size_bytes, 50 * 1024 * 1024);
@@ -68,7 +68,7 @@ mod resource_limits_struct_tests {
     }
 
     #[test]
-    fn test_new_with_zero_values() {
+    fn test_new_with_zero_values_passes_validation() {
         let limits = ResourceLimits::new(0, 0, 0, 0);
         assert_eq!(limits.max_key_derivations_per_call, 0);
         assert_eq!(limits.max_encryption_size_bytes, 0);
@@ -77,7 +77,7 @@ mod resource_limits_struct_tests {
     }
 
     #[test]
-    fn test_new_with_max_values() {
+    fn test_new_with_max_values_passes_validation() {
         let limits = ResourceLimits::new(usize::MAX, usize::MAX, usize::MAX, usize::MAX);
         assert_eq!(limits.max_key_derivations_per_call, usize::MAX);
         assert_eq!(limits.max_encryption_size_bytes, usize::MAX);
@@ -86,7 +86,7 @@ mod resource_limits_struct_tests {
     }
 
     #[test]
-    fn test_clone_trait() {
+    fn test_clone_trait_succeeds() {
         let original = ResourceLimits::new(100, 200, 300, 400);
         let cloned = original.clone();
         assert_eq!(cloned.max_key_derivations_per_call, 100);
@@ -96,7 +96,7 @@ mod resource_limits_struct_tests {
     }
 
     #[test]
-    fn test_debug_trait() {
+    fn test_debug_trait_passes_validation() {
         let limits = ResourceLimits::default();
         let debug_str = format!("{:?}", limits);
         assert!(debug_str.contains("ResourceLimits"));
@@ -114,22 +114,22 @@ mod resource_limits_static_validation_tests {
 
     // Key Derivation Count Tests
     #[test]
-    fn test_validate_key_derivation_count_zero() {
+    fn test_validate_key_derivation_count_zero_passes_validation() {
         assert!(validate_key_derivation_count(0).is_ok());
     }
 
     #[test]
-    fn test_validate_key_derivation_count_one() {
+    fn test_validate_key_derivation_count_one_passes_validation() {
         assert!(validate_key_derivation_count(1).is_ok());
     }
 
     #[test]
-    fn test_validate_key_derivation_count_at_limit() {
+    fn test_validate_key_derivation_count_at_limit_passes_validation() {
         assert!(validate_key_derivation_count(1000).is_ok());
     }
 
     #[test]
-    fn test_validate_key_derivation_count_just_over_limit() {
+    fn test_validate_key_derivation_count_just_over_limit_enforces_limit_succeeds() {
         let result = validate_key_derivation_count(1001);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -142,29 +142,29 @@ mod resource_limits_static_validation_tests {
     }
 
     #[test]
-    fn test_validate_key_derivation_count_way_over_limit() {
+    fn test_validate_key_derivation_count_way_over_limit_enforces_limit_succeeds() {
         let result = validate_key_derivation_count(usize::MAX);
         assert!(result.is_err());
     }
 
     // Encryption Size Tests
     #[test]
-    fn test_validate_encryption_size_zero() {
+    fn test_validate_encryption_size_zero_passes_validation() {
         assert!(validate_encryption_size(0).is_ok());
     }
 
     #[test]
-    fn test_validate_encryption_size_one() {
+    fn test_validate_encryption_size_one_passes_validation() {
         assert!(validate_encryption_size(1).is_ok());
     }
 
     #[test]
-    fn test_validate_encryption_size_at_limit() {
+    fn test_validate_encryption_size_at_limit_passes_validation() {
         assert!(validate_encryption_size(100 * 1024 * 1024).is_ok());
     }
 
     #[test]
-    fn test_validate_encryption_size_just_over_limit() {
+    fn test_validate_encryption_size_just_over_limit_enforces_limit_has_correct_size() {
         let limit = 100 * 1024 * 1024;
         let result = validate_encryption_size(limit + 1);
         assert!(result.is_err());
@@ -179,22 +179,22 @@ mod resource_limits_static_validation_tests {
 
     // Signature Size Tests
     #[test]
-    fn test_validate_signature_size_zero() {
+    fn test_validate_signature_size_zero_passes_validation() {
         assert!(validate_signature_size(0).is_ok());
     }
 
     #[test]
-    fn test_validate_signature_size_one() {
+    fn test_validate_signature_size_one_passes_validation() {
         assert!(validate_signature_size(1).is_ok());
     }
 
     #[test]
-    fn test_validate_signature_size_at_limit() {
+    fn test_validate_signature_size_at_limit_passes_validation() {
         assert!(validate_signature_size(64 * 1024).is_ok());
     }
 
     #[test]
-    fn test_validate_signature_size_just_over_limit() {
+    fn test_validate_signature_size_just_over_limit_enforces_limit_has_correct_size() {
         let limit = 64 * 1024;
         let result = validate_signature_size(limit + 1);
         assert!(result.is_err());
@@ -209,22 +209,22 @@ mod resource_limits_static_validation_tests {
 
     // Decryption Size Tests
     #[test]
-    fn test_validate_decryption_size_zero() {
+    fn test_validate_decryption_size_zero_passes_validation() {
         assert!(validate_decryption_size(0).is_ok());
     }
 
     #[test]
-    fn test_validate_decryption_size_one() {
+    fn test_validate_decryption_size_one_passes_validation() {
         assert!(validate_decryption_size(1).is_ok());
     }
 
     #[test]
-    fn test_validate_decryption_size_at_limit() {
+    fn test_validate_decryption_size_at_limit_passes_validation() {
         assert!(validate_decryption_size(100 * 1024 * 1024).is_ok());
     }
 
     #[test]
-    fn test_validate_decryption_size_just_over_limit() {
+    fn test_validate_decryption_size_just_over_limit_enforces_limit_has_correct_size() {
         let limit = 100 * 1024 * 1024;
         let result = validate_decryption_size(limit + 1);
         assert!(result.is_err());
@@ -246,7 +246,7 @@ mod resource_limits_manager_tests {
     use super::*;
 
     #[test]
-    fn test_new_creates_default_limits() {
+    fn test_new_creates_default_limits_passes_validation() {
         let manager = ResourceLimitsManager::new();
         let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
@@ -254,7 +254,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_with_limits_custom_values() {
+    fn test_with_limits_custom_values_passes_validation() {
         let custom_limits = ResourceLimits::new(50, 1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(custom_limits);
         let limits = manager.get_limits().unwrap();
@@ -265,7 +265,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_update_limits() {
+    fn test_update_limits_passes_validation() {
         let manager = ResourceLimitsManager::new();
         let new_limits = ResourceLimits::new(25, 512, 256, 1024);
         manager.update_limits(new_limits).unwrap();
@@ -275,7 +275,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_default_trait() {
+    fn test_default_trait_passes_validation() {
         let manager = ResourceLimitsManager::default();
         let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
@@ -283,7 +283,7 @@ mod resource_limits_manager_tests {
 
     // Manager Validation Tests - Success Cases
     #[test]
-    fn test_manager_validate_key_derivation_count_valid() {
+    fn test_manager_validate_key_derivation_count_valid_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_key_derivation_count(0).is_ok());
         assert!(manager.validate_key_derivation_count(500).is_ok());
@@ -291,7 +291,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_manager_validate_encryption_size_valid() {
+    fn test_manager_validate_encryption_size_valid_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_encryption_size(0).is_ok());
         assert!(manager.validate_encryption_size(50 * 1024 * 1024).is_ok());
@@ -299,7 +299,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_manager_validate_signature_size_valid() {
+    fn test_manager_validate_signature_size_valid_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_signature_size(0).is_ok());
         assert!(manager.validate_signature_size(32 * 1024).is_ok());
@@ -307,7 +307,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_manager_validate_decryption_size_valid() {
+    fn test_manager_validate_decryption_size_valid_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_decryption_size(0).is_ok());
         assert!(manager.validate_decryption_size(50 * 1024 * 1024).is_ok());
@@ -316,7 +316,7 @@ mod resource_limits_manager_tests {
 
     // Manager Validation Tests - Error Cases
     #[test]
-    fn test_manager_validate_key_derivation_count_exceeded() {
+    fn test_manager_validate_key_derivation_count_exceeded_enforces_limit_succeeds() {
         let manager = ResourceLimitsManager::new();
         let result = manager.validate_key_derivation_count(1001);
         assert!(result.is_err());
@@ -330,7 +330,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_manager_validate_encryption_size_exceeded() {
+    fn test_manager_validate_encryption_size_exceeded_enforces_limit_has_correct_size() {
         let manager = ResourceLimitsManager::new();
         let limit = 100 * 1024 * 1024;
         let result = manager.validate_encryption_size(limit + 1);
@@ -345,7 +345,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_manager_validate_signature_size_exceeded() {
+    fn test_manager_validate_signature_size_exceeded_enforces_limit_has_correct_size() {
         let manager = ResourceLimitsManager::new();
         let limit = 64 * 1024;
         let result = manager.validate_signature_size(limit + 1);
@@ -360,7 +360,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_manager_validate_decryption_size_exceeded() {
+    fn test_manager_validate_decryption_size_exceeded_enforces_limit_has_correct_size() {
         let manager = ResourceLimitsManager::new();
         let limit = 100 * 1024 * 1024;
         let result = manager.validate_decryption_size(limit + 1);
@@ -376,7 +376,7 @@ mod resource_limits_manager_tests {
 
     // Manager with Custom Limits Validation
     #[test]
-    fn test_manager_with_custom_limits_validation() {
+    fn test_manager_with_custom_limits_validation_passes_validation() {
         let custom_limits = ResourceLimits::new(10, 100, 50, 200);
         let manager = ResourceLimitsManager::with_limits(custom_limits);
 
@@ -394,7 +394,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_manager_with_zero_limits() {
+    fn test_manager_with_zero_limits_enforces_limit_succeeds() {
         let zero_limits = ResourceLimits::new(0, 0, 0, 0);
         let manager = ResourceLimitsManager::with_limits(zero_limits);
 
@@ -420,14 +420,14 @@ mod global_resource_limits_tests {
     use super::*;
 
     #[test]
-    fn test_get_global_resource_limits_returns_manager() {
+    fn test_get_global_resource_limits_returns_manager_passes_validation() {
         let manager = get_global_resource_limits();
         let limits = manager.get_limits().unwrap();
         assert!(limits.max_key_derivations_per_call > 0);
     }
 
     #[test]
-    fn test_get_global_resource_limits_same_instance() {
+    fn test_get_global_resource_limits_same_instance_passes_validation() {
         let manager1 = get_global_resource_limits();
         let manager2 = get_global_resource_limits();
         // Both should return the same static reference
@@ -438,28 +438,28 @@ mod global_resource_limits_tests {
 
     // Global Validation Functions - Success Cases
     #[test]
-    fn test_global_validate_key_derivation_count_valid() {
+    fn test_global_validate_key_derivation_count_valid_passes_validation() {
         assert!(validate_key_derivation_count(0).is_ok());
         assert!(validate_key_derivation_count(500).is_ok());
         assert!(validate_key_derivation_count(1000).is_ok());
     }
 
     #[test]
-    fn test_global_validate_encryption_size_valid() {
+    fn test_global_validate_encryption_size_valid_passes_validation() {
         assert!(validate_encryption_size(0).is_ok());
         assert!(validate_encryption_size(50 * 1024 * 1024).is_ok());
         assert!(validate_encryption_size(100 * 1024 * 1024).is_ok());
     }
 
     #[test]
-    fn test_global_validate_signature_size_valid() {
+    fn test_global_validate_signature_size_valid_passes_validation() {
         assert!(validate_signature_size(0).is_ok());
         assert!(validate_signature_size(32 * 1024).is_ok());
         assert!(validate_signature_size(64 * 1024).is_ok());
     }
 
     #[test]
-    fn test_global_validate_decryption_size_valid() {
+    fn test_global_validate_decryption_size_valid_passes_validation() {
         assert!(validate_decryption_size(0).is_ok());
         assert!(validate_decryption_size(50 * 1024 * 1024).is_ok());
         assert!(validate_decryption_size(100 * 1024 * 1024).is_ok());
@@ -467,7 +467,7 @@ mod global_resource_limits_tests {
 
     // Global Validation Functions - Error Cases
     #[test]
-    fn test_global_validate_key_derivation_count_exceeded() {
+    fn test_global_validate_key_derivation_count_exceeded_enforces_limit_succeeds() {
         let result = validate_key_derivation_count(1001);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -480,7 +480,7 @@ mod global_resource_limits_tests {
     }
 
     #[test]
-    fn test_global_validate_encryption_size_exceeded() {
+    fn test_global_validate_encryption_size_exceeded_enforces_limit_has_correct_size() {
         let limit = 100 * 1024 * 1024;
         let result = validate_encryption_size(limit + 1);
         assert!(result.is_err());
@@ -494,7 +494,7 @@ mod global_resource_limits_tests {
     }
 
     #[test]
-    fn test_global_validate_signature_size_exceeded() {
+    fn test_global_validate_signature_size_exceeded_enforces_limit_has_correct_size() {
         let limit = 64 * 1024;
         let result = validate_signature_size(limit + 1);
         assert!(result.is_err());
@@ -508,7 +508,7 @@ mod global_resource_limits_tests {
     }
 
     #[test]
-    fn test_global_validate_decryption_size_exceeded() {
+    fn test_global_validate_decryption_size_exceeded_enforces_limit_has_correct_size() {
         let limit = 100 * 1024 * 1024;
         let result = validate_decryption_size(limit + 1);
         assert!(result.is_err());
@@ -523,25 +523,25 @@ mod global_resource_limits_tests {
 
     // Global Validation Functions - Extreme Cases
     #[test]
-    fn test_global_validate_key_derivation_count_max() {
+    fn test_global_validate_key_derivation_count_max_enforces_limit_succeeds() {
         let result = validate_key_derivation_count(usize::MAX);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_global_validate_encryption_size_max() {
+    fn test_global_validate_encryption_size_max_enforces_limit_has_correct_size() {
         let result = validate_encryption_size(usize::MAX);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_global_validate_signature_size_max() {
+    fn test_global_validate_signature_size_max_enforces_limit_has_correct_size() {
         let result = validate_signature_size(usize::MAX);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_global_validate_decryption_size_max() {
+    fn test_global_validate_decryption_size_max_enforces_limit_has_correct_size() {
         let result = validate_decryption_size(usize::MAX);
         assert!(result.is_err());
     }
@@ -555,7 +555,7 @@ mod resource_error_tests {
     use super::*;
 
     #[test]
-    fn test_key_derivation_error_display() {
+    fn test_key_derivation_error_display_passes_validation() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
         let msg = format!("{}", err);
         assert!(msg.contains("Key derivation"));
@@ -564,7 +564,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_encryption_size_error_display() {
+    fn test_encryption_size_error_display_passes_validation() {
         let err = ResourceError::EncryptionSizeLimitExceeded {
             requested: 200 * 1024 * 1024,
             limit: 100 * 1024 * 1024,
@@ -574,7 +574,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_signature_size_error_display() {
+    fn test_signature_size_error_display_passes_validation() {
         let err =
             ResourceError::SignatureSizeLimitExceeded { requested: 100 * 1024, limit: 64 * 1024 };
         let msg = format!("{}", err);
@@ -582,7 +582,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_decryption_size_error_display() {
+    fn test_decryption_size_error_display_passes_validation() {
         let err = ResourceError::DecryptionSizeLimitExceeded {
             requested: 200 * 1024 * 1024,
             limit: 100 * 1024 * 1024,
@@ -592,7 +592,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_key_derivation_error_debug() {
+    fn test_key_derivation_error_debug_passes_validation() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
         let debug = format!("{:?}", err);
         assert!(debug.contains("KeyDerivationLimitExceeded"));
@@ -601,28 +601,28 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_encryption_size_error_debug() {
+    fn test_encryption_size_error_debug_passes_validation() {
         let err = ResourceError::EncryptionSizeLimitExceeded { requested: 200, limit: 100 };
         let debug = format!("{:?}", err);
         assert!(debug.contains("EncryptionSizeLimitExceeded"));
     }
 
     #[test]
-    fn test_signature_size_error_debug() {
+    fn test_signature_size_error_debug_passes_validation() {
         let err = ResourceError::SignatureSizeLimitExceeded { requested: 100, limit: 50 };
         let debug = format!("{:?}", err);
         assert!(debug.contains("SignatureSizeLimitExceeded"));
     }
 
     #[test]
-    fn test_decryption_size_error_debug() {
+    fn test_decryption_size_error_debug_passes_validation() {
         let err = ResourceError::DecryptionSizeLimitExceeded { requested: 200, limit: 100 };
         let debug = format!("{:?}", err);
         assert!(debug.contains("DecryptionSizeLimitExceeded"));
     }
 
     #[test]
-    fn test_error_is_std_error() {
+    fn test_error_is_std_error_passes_validation() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
         // Verify it implements std::error::Error
         let _: &dyn std::error::Error = &err;
@@ -637,7 +637,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_all_validations_at_exact_limits() {
+    fn test_all_validations_at_exact_limits_passes_validation() {
         // Test that exact limit values are accepted
         assert!(validate_key_derivation_count(1000).is_ok());
         assert!(validate_encryption_size(100 * 1024 * 1024).is_ok());
@@ -646,7 +646,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_validations_one_over_limits() {
+    fn test_all_validations_one_over_limits_enforces_limit_succeeds() {
         // Test that limit + 1 is rejected
         assert!(validate_key_derivation_count(1001).is_err());
         assert!(validate_encryption_size(100 * 1024 * 1024 + 1).is_err());
@@ -655,7 +655,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_manager_update_then_validate() {
+    fn test_manager_update_then_validate_enforces_limit_succeeds() {
         let manager = ResourceLimitsManager::new();
 
         // Initially valid
@@ -670,7 +670,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_limits_struct_fields_accessible() {
+    fn test_limits_struct_fields_accessible_passes_validation() {
         let limits = ResourceLimits::default();
         // Direct field access
         let _kd = limits.max_key_derivations_per_call;
@@ -680,7 +680,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_error_variants_distinct() {
+    fn test_error_variants_distinct_passes_validation() {
         let key_err = ResourceError::KeyDerivationLimitExceeded { requested: 100, limit: 50 };
         let enc_err = ResourceError::EncryptionSizeLimitExceeded { requested: 100, limit: 50 };
         let sig_err = ResourceError::SignatureSizeLimitExceeded { requested: 100, limit: 50 };
@@ -708,7 +708,7 @@ mod concurrent_tests {
     use std::thread;
 
     #[test]
-    fn test_manager_concurrent_reads() {
+    fn test_manager_concurrent_reads_succeeds() {
         let manager = Arc::new(ResourceLimitsManager::new());
         let mut handles = vec![];
 
@@ -728,7 +728,7 @@ mod concurrent_tests {
     }
 
     #[test]
-    fn test_manager_concurrent_validations() {
+    fn test_manager_concurrent_validations_succeeds() {
         let manager = Arc::new(ResourceLimitsManager::new());
         let mut handles = vec![];
 
@@ -750,7 +750,7 @@ mod concurrent_tests {
     }
 
     #[test]
-    fn test_manager_concurrent_read_write() {
+    fn test_manager_concurrent_read_write_succeeds() {
         let manager = Arc::new(ResourceLimitsManager::new());
         let mut handles = vec![];
 
@@ -789,7 +789,7 @@ mod concurrent_tests {
     }
 
     #[test]
-    fn test_global_limits_concurrent_access() {
+    fn test_global_limits_concurrent_access_succeeds() {
         let mut handles = vec![];
 
         for _ in 0..10 {
@@ -816,7 +816,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_typical_encryption_workflow() {
+    fn test_typical_encryption_workflow_passes_validation() {
         // Simulate a typical workflow
         let plaintext_size = 1024 * 1024; // 1MB
 
@@ -829,7 +829,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_typical_decryption_workflow() {
+    fn test_typical_decryption_workflow_passes_validation() {
         let ciphertext_size = 50 * 1024 * 1024; // 50MB
 
         // Validate decryption size
@@ -837,7 +837,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_key_derivation_workflow() {
+    fn test_key_derivation_workflow_passes_validation() {
         // PBKDF2-style iteration count
         let iterations = 100;
         assert!(validate_key_derivation_count(iterations).is_ok());
@@ -848,7 +848,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_signature_workflow() {
+    fn test_signature_workflow_passes_validation() {
         // Typical signature sizes
         let ed25519_sig_size = 64;
         let dilithium_sig_size = 2420;
@@ -864,7 +864,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_custom_limits_for_constrained_environment() {
+    fn test_custom_limits_for_constrained_environment_passes_validation() {
         // Simulate embedded/constrained environment
         let constrained_limits = ResourceLimits::new(
             10,        // Only 10 key derivations
@@ -888,7 +888,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_dynamic_limit_adjustment() {
+    fn test_dynamic_limit_adjustment_passes_validation() {
         let manager = ResourceLimitsManager::new();
 
         // Initial limits

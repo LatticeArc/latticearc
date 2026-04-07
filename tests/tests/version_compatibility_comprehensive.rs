@@ -117,7 +117,7 @@ fn create_signed_data(
 
 /// Creates a test keypair with specified key sizes.
 fn create_keypair(public_key: Vec<u8>, private_key: Vec<u8>) -> KeyPair {
-    KeyPair { public_key, private_key: PrivateKey::new(private_key) }
+    KeyPair::new(latticearc::PublicKey::new(public_key), PrivateKey::new(private_key))
 }
 
 /// Represents a versioned format for testing migrations.
@@ -157,7 +157,7 @@ impl VersionedFormat {
 // ============================================================================
 
 #[test]
-fn test_serialized_key_roundtrip_preserves_exact_bytes() -> Result<()> {
+fn test_serialized_key_roundtrip_preserves_exact_bytes_succeeds() -> Result<()> {
     // Test that key bytes are preserved exactly through serialization
     let original_pk = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
     let original_sk = vec![0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80];
@@ -166,9 +166,13 @@ fn test_serialized_key_roundtrip_preserves_exact_bytes() -> Result<()> {
     let json = serialize_keypair(&keypair)?;
     let deserialized = deserialize_keypair(&json)?;
 
-    assert_eq!(deserialized.public_key, original_pk, "Public key bytes must be preserved exactly");
     assert_eq!(
-        deserialized.private_key.as_slice(),
+        deserialized.public_key().as_slice(),
+        original_pk.as_slice(),
+        "Public key bytes must be preserved exactly"
+    );
+    assert_eq!(
+        deserialized.private_key().as_slice(),
         original_sk.as_slice(),
         "Private key bytes must be preserved exactly"
     );
@@ -176,7 +180,7 @@ fn test_serialized_key_roundtrip_preserves_exact_bytes() -> Result<()> {
 }
 
 #[test]
-fn test_serialized_signature_format_stability() -> Result<()> {
+fn test_serialized_signature_format_stability_is_compatible_has_correct_size() -> Result<()> {
     // Signature format must remain stable for verification
     let message = b"Important document to sign".to_vec();
     let signature = [0xDE, 0xAD, 0xBE, 0xEF].iter().cycle().take(64).copied().collect::<Vec<u8>>();
@@ -204,7 +208,7 @@ fn test_serialized_signature_format_stability() -> Result<()> {
 }
 
 #[test]
-fn test_serialized_ciphertext_format_consistency() -> Result<()> {
+fn test_serialized_ciphertext_format_consistency_is_compatible_has_correct_size() -> Result<()> {
     // Ciphertext format must remain consistent for decryption
     let ciphertext = vec![0xAB; 256];
     let nonce = vec![0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44];
@@ -230,7 +234,7 @@ fn test_serialized_ciphertext_format_consistency() -> Result<()> {
 }
 
 #[test]
-fn test_wire_format_json_field_order_independence() -> Result<()> {
+fn test_wire_format_json_field_order_independence_is_compatible_has_correct_size() -> Result<()> {
     // JSON field order should not affect deserialization
     let json_ordered = r#"{
         "data": "AQID",
@@ -260,7 +264,7 @@ fn test_wire_format_json_field_order_independence() -> Result<()> {
 }
 
 #[test]
-fn test_base64_encoding_stability() -> Result<()> {
+fn test_base64_encoding_stability_is_compatible_succeeds() -> Result<()> {
     // Base64 encoding must be deterministic
     let data = vec![0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0];
     let expected_base64 = BASE64_ENGINE.encode(&data);
@@ -273,7 +277,7 @@ fn test_base64_encoding_stability() -> Result<()> {
 }
 
 #[test]
-fn test_timestamp_precision_preserved() -> Result<()> {
+fn test_timestamp_precision_preserved_is_compatible_succeeds() -> Result<()> {
     // Timestamps must preserve full u64 precision
     let timestamps = [0u64, 1, 1_000_000, u64::MAX / 2, u64::MAX - 1, u64::MAX];
 
@@ -287,7 +291,7 @@ fn test_timestamp_precision_preserved() -> Result<()> {
 }
 
 #[test]
-fn test_ml_kem_public_key_format_stability() -> Result<()> {
+fn test_ml_kem_public_key_format_stability_is_compatible_has_correct_size() -> Result<()> {
     // ML-KEM-768 public key is 1184 bytes
     let ml_kem_768_pk = vec![0x42u8; 1184];
     let keypair = create_keypair(ml_kem_768_pk.clone(), vec![0; 2400]);
@@ -295,13 +299,17 @@ fn test_ml_kem_public_key_format_stability() -> Result<()> {
     let json = serialize_keypair(&keypair)?;
     let deserialized = deserialize_keypair(&json)?;
 
-    assert_eq!(deserialized.public_key.len(), 1184, "ML-KEM-768 public key size must be preserved");
-    assert_eq!(deserialized.public_key, ml_kem_768_pk);
+    assert_eq!(
+        deserialized.public_key().len(),
+        1184,
+        "ML-KEM-768 public key size must be preserved"
+    );
+    assert_eq!(deserialized.public_key().as_slice(), ml_kem_768_pk.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_ml_dsa_signature_format_stability() -> Result<()> {
+fn test_ml_dsa_signature_format_stability_is_compatible_has_correct_size() -> Result<()> {
     // ML-DSA-65 signature is 3309 bytes
     let ml_dsa_65_sig = vec![0xAB; 3309];
     let signed = create_signed_data(
@@ -326,7 +334,7 @@ fn test_ml_dsa_signature_format_stability() -> Result<()> {
 }
 
 #[test]
-fn test_slh_dsa_large_signature_format_stability() -> Result<()> {
+fn test_slh_dsa_large_signature_format_stability_is_compatible_has_correct_size() -> Result<()> {
     // SLH-DSA can have very large signatures (up to 49856 bytes for SHAKE-256f)
     let slh_dsa_sig = vec![0xEF; 8080]; // SLH-DSA-SHAKE-128s
     let signed = create_signed_data(
@@ -350,7 +358,7 @@ fn test_slh_dsa_large_signature_format_stability() -> Result<()> {
 }
 
 #[test]
-fn test_hybrid_scheme_format_stability() -> Result<()> {
+fn test_hybrid_scheme_format_stability_is_compatible_has_correct_size() -> Result<()> {
     // Hybrid schemes combine PQ and classical signatures
     let combined_sig = vec![0xAA; 3309 + 64]; // ML-DSA-65 + Ed25519
     let combined_pk = vec![0xBB; 1952 + 32]; // ML-DSA-65 pk + Ed25519 pk
@@ -381,7 +389,7 @@ fn test_hybrid_scheme_format_stability() -> Result<()> {
 }
 
 #[test]
-fn test_optional_fields_serialization_stability() -> Result<()> {
+fn test_optional_fields_serialization_stability_is_compatible_succeeds() -> Result<()> {
     // Test with and without optional fields
     let encrypted_with_all = create_encrypted_data(
         vec![0x01],
@@ -409,7 +417,7 @@ fn test_optional_fields_serialization_stability() -> Result<()> {
 }
 
 #[test]
-fn test_utf8_scheme_names_stability() -> Result<()> {
+fn test_utf8_scheme_names_stability_is_compatible_succeeds() -> Result<()> {
     // Scheme names with special characters must be preserved
     let schemes =
         ["AES-256-GCM", "ChaCha20-Poly1305", "ML-KEM-768+AES-256-GCM", "hybrid-ml-dsa-65-ed25519"];
@@ -425,7 +433,7 @@ fn test_utf8_scheme_names_stability() -> Result<()> {
 }
 
 #[test]
-fn test_empty_data_serialization_stability() -> Result<()> {
+fn test_empty_data_serialization_stability_is_compatible_succeeds() -> Result<()> {
     // Empty data must serialize correctly
     let encrypted = create_encrypted_data(vec![], vec![0; 12], None, None, "TEST", 0);
     let json = serialize_encrypted_data(&encrypted)?;
@@ -436,7 +444,7 @@ fn test_empty_data_serialization_stability() -> Result<()> {
 }
 
 #[test]
-fn test_binary_edge_values_in_data() -> Result<()> {
+fn test_binary_edge_values_in_data_is_compatible_succeeds() -> Result<()> {
     // Test all edge byte values: 0x00, 0x7F, 0x80, 0xFF
     let edge_bytes = vec![0x00, 0x7F, 0x80, 0xFF, 0x01, 0xFE];
     let encrypted = create_encrypted_data(
@@ -461,7 +469,7 @@ fn test_binary_edge_values_in_data() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_v1_format_key_material_remains_usable() -> Result<()> {
+fn test_v1_format_key_material_remains_usable_is_compatible_has_correct_size() -> Result<()> {
     // Simulate V1 format JSON (no version field, basic structure)
     let v1_keypair_json = r#"{
         "public_key": "AQIDBAUG",
@@ -471,13 +479,13 @@ fn test_v1_format_key_material_remains_usable() -> Result<()> {
     let keypair = deserialize_keypair(v1_keypair_json)?;
 
     // Keys should be usable in current version
-    assert_eq!(keypair.public_key, vec![1, 2, 3, 4, 5, 6]);
-    assert_eq!(keypair.private_key.as_slice(), &[16, 17, 18, 19, 20, 21]);
+    assert_eq!(keypair.public_key().as_slice(), &[1, 2, 3, 4, 5, 6]);
+    assert_eq!(keypair.private_key().as_slice(), &[16, 17, 18, 19, 20, 21]);
     Ok(())
 }
 
 #[test]
-fn test_legacy_signature_format_verification() -> Result<()> {
+fn test_legacy_signature_format_verification_is_compatible_has_correct_size() -> Result<()> {
     // Simulate legacy signature format
     let legacy_signed_json = r#"{
         "data": "SGVsbG8gV29ybGQ=",
@@ -501,7 +509,7 @@ fn test_legacy_signature_format_verification() -> Result<()> {
 }
 
 #[test]
-fn test_encrypted_data_from_older_version() -> Result<()> {
+fn test_encrypted_data_from_older_version_is_compatible_succeeds() -> Result<()> {
     // Simulate encrypted data from an older version
     let old_encrypted_json = r#"{
         "data": "cXVpY2sgYnJvd24gZm94",
@@ -524,7 +532,7 @@ fn test_encrypted_data_from_older_version() -> Result<()> {
 }
 
 #[test]
-fn test_ml_kem_512_key_upgrade_path() -> Result<()> {
+fn test_ml_kem_512_key_upgrade_path_is_compatible_succeeds() -> Result<()> {
     // ML-KEM-512 keys should work in system supporting higher levels
     let ml_kem_512_pk = vec![0x42u8; 800]; // ML-KEM-512 public key size
     let ml_kem_512_sk = vec![0x24u8; 1632]; // ML-KEM-512 private key size
@@ -534,13 +542,17 @@ fn test_ml_kem_512_key_upgrade_path() -> Result<()> {
     let deserialized = deserialize_keypair(&json)?;
 
     // Key material should be preserved for potential upgrade workflows
-    assert_eq!(deserialized.public_key.len(), 800, "ML-KEM-512 public key preserved");
-    assert_eq!(deserialized.private_key.as_slice().len(), 1632, "ML-KEM-512 private key preserved");
+    assert_eq!(deserialized.public_key().len(), 800, "ML-KEM-512 public key preserved");
+    assert_eq!(
+        deserialized.private_key().as_slice().len(),
+        1632,
+        "ML-KEM-512 private key preserved"
+    );
     Ok(())
 }
 
 #[test]
-fn test_cross_version_signature_verification_metadata() -> Result<()> {
+fn test_cross_version_signature_verification_metadata_is_compatible_succeeds() -> Result<()> {
     // Verify signature metadata is preserved for cross-version verification
     let signed = create_signed_data(
         b"cross-version-data".to_vec(),
@@ -564,7 +576,7 @@ fn test_cross_version_signature_verification_metadata() -> Result<()> {
 }
 
 #[test]
-fn test_unknown_scheme_graceful_handling() -> Result<()> {
+fn test_unknown_scheme_graceful_handling_succeeds() -> Result<()> {
     // Unknown schemes should deserialize but be identifiable
     let future_scheme_json = r#"{
         "data": "ZnV0dXJlX2RhdGE=",
@@ -586,7 +598,7 @@ fn test_unknown_scheme_graceful_handling() -> Result<()> {
 }
 
 #[test]
-fn test_mixed_version_key_ids() -> Result<()> {
+fn test_mixed_version_key_ids_is_compatible_succeeds() -> Result<()> {
     // Key IDs may have different formats across versions
     let key_id_formats = [
         "simple-key-001",
@@ -619,7 +631,7 @@ fn test_mixed_version_key_ids() -> Result<()> {
 }
 
 #[test]
-fn test_timestamp_epoch_compatibility() -> Result<()> {
+fn test_timestamp_epoch_compatibility_is_compatible_succeeds() -> Result<()> {
     // Different epoch interpretations should work
     let timestamps_and_meanings = [
         (0u64, "Unix epoch"),
@@ -639,11 +651,11 @@ fn test_timestamp_epoch_compatibility() -> Result<()> {
 }
 
 #[test]
-fn test_signature_algorithm_name_variations() -> Result<()> {
+fn test_signature_algorithm_name_variations_is_compatible_succeeds() -> Result<()> {
     // Different naming conventions for the same algorithm
     let algorithm_names = [
         ("ML-DSA-65", "ML-DSA"),
-        ("MLDSA65", "ML-DSA"),
+        ("MlDsa65", "ML-DSA"),
         ("ml-dsa-65", "ml-dsa"),
         ("Ed25519", "Ed25519"),
         ("ed25519", "ed25519"),
@@ -666,7 +678,7 @@ fn test_signature_algorithm_name_variations() -> Result<()> {
 }
 
 #[test]
-fn test_ml_kem_1024_to_768_data_structure_compatibility() -> Result<()> {
+fn test_ml_kem_1024_to_768_data_structure_compatibility_is_compatible_succeeds() -> Result<()> {
     // Higher security level data can be stored in same format
     let ml_kem_1024_pk = vec![0x42u8; 1568]; // ML-KEM-1024 public key
     let ml_kem_768_pk = vec![0x24u8; 1184]; // ML-KEM-768 public key
@@ -676,7 +688,12 @@ fn test_ml_kem_1024_to_768_data_structure_compatibility() -> Result<()> {
         let json = serialize_keypair(&keypair)?;
         let deser = deserialize_keypair(&json)?;
 
-        assert_eq!(deser.public_key.len(), pk.len(), "{} public key size must be preserved", name);
+        assert_eq!(
+            deser.public_key().len(),
+            pk.len(),
+            "{} public key size must be preserved",
+            name
+        );
     }
     Ok(())
 }
@@ -686,7 +703,7 @@ fn test_ml_kem_1024_to_768_data_structure_compatibility() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_version_detection_in_unversioned_data() -> Result<()> {
+fn test_version_detection_in_unversioned_data_succeeds() -> Result<()> {
     // Unversioned data should be treated as V1
     let unversioned_json = r#"{"public_key": "AQID", "private_key": "BAUG"}"#;
 
@@ -696,7 +713,7 @@ fn test_version_detection_in_unversioned_data() -> Result<()> {
 }
 
 #[test]
-fn test_versioned_data_detection() -> Result<()> {
+fn test_versioned_data_detection_succeeds() -> Result<()> {
     // Versioned data should be correctly identified
     let v2_json = r#"{"version": 2, "public_key": "AQID", "private_key": "BAUG"}"#;
     let v1_json = r#"{"version": 1, "public_key": "AQID", "private_key": "BAUG"}"#;
@@ -710,7 +727,7 @@ fn test_versioned_data_detection() -> Result<()> {
 }
 
 #[test]
-fn test_graceful_extra_field_handling() -> Result<()> {
+fn test_graceful_extra_field_handling_is_compatible_succeeds() -> Result<()> {
     // Future versions may add fields; current version should ignore them
     let json_with_extra_fields = r#"{
         "data": "dGVzdA==",
@@ -735,7 +752,7 @@ fn test_graceful_extra_field_handling() -> Result<()> {
 }
 
 #[test]
-fn test_key_format_migration_from_raw_to_structured() -> Result<()> {
+fn test_key_format_migration_from_raw_to_structured_succeeds() -> Result<()> {
     // Migration from raw bytes to structured format
     let raw_key_data = vec![0x42u8; 32];
 
@@ -753,14 +770,15 @@ fn test_key_format_migration_from_raw_to_structured() -> Result<()> {
     let keypair_v2 = deserialize_keypair(&v2_json)?;
 
     assert_eq!(
-        keypair.public_key, keypair_v2.public_key,
+        keypair.public_key(),
+        keypair_v2.public_key(),
         "Key material must be preserved through migration"
     );
     Ok(())
 }
 
 #[test]
-fn test_signature_format_migration() -> Result<()> {
+fn test_signature_format_migration_succeeds() -> Result<()> {
     // Older signature format migration to current
     let legacy_json = r#"{
         "data": "bGVnYWN5IG1lc3NhZ2U=",
@@ -786,7 +804,7 @@ fn test_signature_format_migration() -> Result<()> {
 }
 
 #[test]
-fn test_encrypted_data_nonce_size_variations() -> Result<()> {
+fn test_encrypted_data_nonce_size_variations_is_compatible_has_correct_size() -> Result<()> {
     // Different algorithms may have different nonce sizes
     let nonce_sizes = [
         (12, "AES-256-GCM"),        // Standard 96-bit nonce
@@ -813,7 +831,7 @@ fn test_encrypted_data_nonce_size_variations() -> Result<()> {
 }
 
 #[test]
-fn test_tag_size_migration() -> Result<()> {
+fn test_tag_size_migration_is_compatible_has_correct_size() -> Result<()> {
     // Different tag sizes for different AEAD modes
     let tag_sizes = [
         (16, "AES-256-GCM"),        // 128-bit tag
@@ -842,7 +860,7 @@ fn test_tag_size_migration() -> Result<()> {
 }
 
 #[test]
-fn test_algorithm_deprecation_awareness() -> Result<()> {
+fn test_algorithm_deprecation_awareness_is_compatible_succeeds() -> Result<()> {
     // Deprecated algorithms should still deserialize for migration
     let deprecated_algorithms = [("RSA-2048", "RSA"), ("ECDSA-P256", "ECDSA"), ("DSA-1024", "DSA")];
 
@@ -869,7 +887,7 @@ fn test_algorithm_deprecation_awareness() -> Result<()> {
 }
 
 #[test]
-fn test_key_id_format_migration() -> Result<()> {
+fn test_key_id_format_migration_is_compatible_has_correct_size() -> Result<()> {
     // Key ID formats may evolve
     let key_id_evolutions = [
         ("v1:key-001", "V1 simple format"),
@@ -901,7 +919,7 @@ fn test_key_id_format_migration() -> Result<()> {
 }
 
 #[test]
-fn test_round_trip_preserves_unknown_schemes() -> Result<()> {
+fn test_round_trip_preserves_unknown_schemes_succeeds() -> Result<()> {
     // Unknown schemes from future versions should be preserved
     let unknown_schemes = ["NTRU-HRSS-701", "BIKE-L1", "SIKE-p434", "SPHINCS+-128s"];
 
@@ -932,14 +950,14 @@ fn test_round_trip_preserves_unknown_schemes() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_current_version_constant_available() {
+fn test_current_version_constant_available_is_compatible_succeeds() {
     // VERSION constant should be available
     let version = latticearc::unified_api::VERSION;
     assert!(!version.is_empty(), "VERSION constant must be defined");
 }
 
 #[test]
-fn test_version_format_follows_semver() {
+fn test_version_format_follows_semver_is_compatible_has_correct_size() {
     let version = latticearc::unified_api::VERSION;
 
     // Should be in format X.Y.Z
@@ -955,19 +973,19 @@ fn test_version_format_follows_semver() {
 }
 
 #[test]
-fn test_patch_version_serialization_compatibility() -> Result<()> {
+fn test_patch_version_serialization_compatibility_is_compatible_succeeds() -> Result<()> {
     // Patch version changes should not break serialization
     let keypair = create_keypair(vec![0x42; 32], vec![0x24; 64]);
     let json = serialize_keypair(&keypair)?;
 
     // Serialize/deserialize should work regardless of patch version
     let deser = deserialize_keypair(&json)?;
-    assert_eq!(keypair.public_key, deser.public_key);
+    assert_eq!(keypair.public_key(), deser.public_key());
     Ok(())
 }
 
 #[test]
-fn test_api_type_exports_stable() {
+fn test_api_type_exports_stable_is_compatible_succeeds() {
     // Core types should be publicly available (compile-time check)
     // Using fully qualified names to verify exports work from external crates
     fn check_types() {
@@ -980,7 +998,7 @@ fn test_api_type_exports_stable() {
 }
 
 #[test]
-fn test_error_types_stable() {
+fn test_error_types_stable_is_compatible_fails() {
     // Error types should be stable across versions
     let _err: CoreError = CoreError::InvalidInput("test".to_string());
     let _err2: CoreError = CoreError::SerializationError("test".to_string());
@@ -990,7 +1008,7 @@ fn test_error_types_stable() {
 }
 
 #[test]
-fn test_security_level_enum_values_stable() {
+fn test_security_level_enum_values_stable_is_compatible_succeeds() {
     // SecurityLevel variants should be stable
     use latticearc::unified_api::SecurityLevel;
 
@@ -1005,7 +1023,7 @@ fn test_security_level_enum_values_stable() {
 }
 
 #[test]
-fn test_crypto_config_builder_api_stable() {
+fn test_crypto_config_builder_api_stable_is_compatible_succeeds() {
     use latticearc::unified_api::{CryptoConfig, SecurityLevel, UseCase};
 
     // Builder pattern should be stable
@@ -1017,7 +1035,7 @@ fn test_crypto_config_builder_api_stable() {
 }
 
 #[test]
-fn test_serializable_types_public() {
+fn test_serializable_types_public_is_compatible_succeeds() {
     // Serializable wrapper types should be publicly available
     let _: SerializableEncryptedData;
     let _: SerializableEncryptedMetadata;
@@ -1029,7 +1047,7 @@ fn test_serializable_types_public() {
 }
 
 #[test]
-fn test_serialize_functions_signatures_stable() -> Result<()> {
+fn test_serialize_functions_signatures_stable_is_compatible_succeeds() -> Result<()> {
     // Function signatures should be stable
     let keypair = create_keypair(vec![1, 2, 3], vec![4, 5, 6]);
     let _: Result<String> = serialize_keypair(&keypair);
@@ -1044,7 +1062,7 @@ fn test_serialize_functions_signatures_stable() -> Result<()> {
 }
 
 #[test]
-fn test_deserialize_functions_signatures_stable() -> Result<()> {
+fn test_deserialize_functions_signatures_stable_is_compatible_succeeds() -> Result<()> {
     // Deserialize function signatures should be stable
     let json = r#"{"public_key": "AQID", "private_key": "BAUG"}"#;
     let _: Result<KeyPair> = deserialize_keypair(json);
@@ -1059,7 +1077,7 @@ fn test_deserialize_functions_signatures_stable() -> Result<()> {
 }
 
 #[test]
-fn test_result_type_alias_works() -> Result<()> {
+fn test_result_type_alias_works_is_compatible_succeeds() -> Result<()> {
     // Result type alias should work correctly
     fn returning_result() -> Result<i32> {
         Ok(42)
@@ -1075,7 +1093,7 @@ fn test_result_type_alias_works() -> Result<()> {
 }
 
 #[test]
-fn test_private_key_zeroize_behavior() {
+fn test_private_key_zeroize_behavior_succeeds() {
     // PrivateKey should zeroize on drop (compile-time check for trait)
     let pk = PrivateKey::new(vec![0x42; 32]);
     assert_eq!(pk.as_slice().len(), 32);
@@ -1087,7 +1105,7 @@ fn test_private_key_zeroize_behavior() {
 // ============================================================================
 
 #[test]
-fn test_multiple_roundtrips_preserve_data() -> Result<()> {
+fn test_multiple_roundtrips_preserve_data_succeeds() -> Result<()> {
     // Multiple serialize/deserialize cycles should preserve data
     let original = create_encrypted_data(
         vec![0xAB; 100],
@@ -1109,7 +1127,7 @@ fn test_multiple_roundtrips_preserve_data() -> Result<()> {
 }
 
 #[test]
-fn test_concurrent_serialization_safety() -> Result<()> {
+fn test_concurrent_serialization_safety_succeeds() -> Result<()> {
     // Serialization should be safe for concurrent use
     use std::thread;
 
@@ -1133,7 +1151,7 @@ fn test_concurrent_serialization_safety() -> Result<()> {
 }
 
 #[test]
-fn test_large_payload_serialization() -> Result<()> {
+fn test_large_payload_serialization_succeeds() -> Result<()> {
     // Large payloads should serialize correctly
     let large_data = vec![0xAB; 1_000_000]; // 1MB
     let encrypted = create_encrypted_data(
@@ -1154,7 +1172,7 @@ fn test_large_payload_serialization() -> Result<()> {
 }
 
 #[test]
-fn test_error_message_stability() {
+fn test_error_message_stability_is_compatible_fails() {
     // Error messages should be informative and stable
     let err = CoreError::SerializationError("test error".to_string());
     let msg = err.to_string();
@@ -1164,7 +1182,7 @@ fn test_error_message_stability() {
 }
 
 #[test]
-fn test_invalid_base64_error_handling() {
+fn test_invalid_base64_error_handling_succeeds() {
     // Invalid Base64 should produce clear errors
     let invalid_json = r#"{"public_key": "!!!invalid!!!", "private_key": "AQID"}"#;
     let result = deserialize_keypair(invalid_json);

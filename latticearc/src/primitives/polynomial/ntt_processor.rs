@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: NTT (Number Theoretic Transform) is finite-field arithmetic.
@@ -301,7 +301,7 @@ mod tests {
     // === Construction tests ===
 
     #[test]
-    fn test_ntt_new_kyber_params() {
+    fn test_ntt_new_kyber_params_succeeds_with_correct_size_has_correct_size() {
         let ntt = NttProcessor::new(256, 3329).expect("Kyber params should work");
         assert_eq!(ntt.n, 256);
         assert_eq!(ntt.modulus, 3329);
@@ -310,26 +310,26 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_new_dilithium_512() {
+    fn test_ntt_new_dilithium_512_succeeds() {
         let ntt = NttProcessor::new(512, 12289).expect("Dilithium params should work");
         assert_eq!(ntt.n, 512);
         assert_eq!(ntt.modulus, 12289);
     }
 
     #[test]
-    fn test_ntt_new_dilithium_1024() {
+    fn test_ntt_new_dilithium_1024_succeeds() {
         let ntt = NttProcessor::new(1024, 12289).expect("Dilithium params should work");
         assert_eq!(ntt.n, 1024);
     }
 
     #[test]
-    fn test_ntt_new_non_power_of_two() {
+    fn test_ntt_new_non_power_of_two_returns_error() {
         let result = NttProcessor::new(100, 3329);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_ntt_new_invalid_modulus() {
+    fn test_ntt_new_invalid_modulus_returns_error() {
         let result = NttProcessor::new(256, 0);
         assert!(result.is_err());
 
@@ -338,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_new_unknown_params() {
+    fn test_ntt_new_unknown_params_returns_error() {
         let result = NttProcessor::new(256, 7681);
         assert!(result.is_err());
     }
@@ -346,7 +346,7 @@ mod tests {
     // === Forward/Inverse roundtrip tests ===
 
     #[test]
-    fn test_ntt_forward_inverse_roundtrip_kyber() {
+    fn test_ntt_forward_inverse_roundtrip_kyber_roundtrip() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
 
         // Create a simple polynomial
@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_forward_inverse_roundtrip_dilithium() {
+    fn test_ntt_forward_inverse_roundtrip_dilithium_roundtrip() {
         let ntt = NttProcessor::new(512, 12289).unwrap();
 
         let mut coeffs = vec![0i32; 512];
@@ -387,7 +387,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_forward_wrong_size() {
+    fn test_ntt_forward_wrong_size_returns_error() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
         let too_short = vec![1i32; 128];
         assert!(ntt.forward(&too_short).is_err());
@@ -397,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_inverse_wrong_size() {
+    fn test_ntt_inverse_wrong_size_returns_error() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
         let wrong = vec![1i32; 100];
         assert!(ntt.inverse(&wrong).is_err());
@@ -406,7 +406,7 @@ mod tests {
     // === Multiplication tests ===
 
     #[test]
-    fn test_ntt_multiply_identity() {
+    fn test_ntt_multiply_identity_preserves_polynomial_succeeds() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
 
         // Multiply polynomial by 1 (identity element)
@@ -426,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_multiply_zero() {
+    fn test_ntt_multiply_zero_returns_all_zeros_succeeds() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
 
         let mut a = vec![0i32; 256];
@@ -442,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_multiply_wrong_size() {
+    fn test_ntt_multiply_wrong_size_returns_error() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
         let a = vec![1i32; 256];
         let b = vec![1i32; 128];
@@ -453,7 +453,7 @@ mod tests {
     // === Twiddle factor tests ===
 
     #[test]
-    fn test_twiddle_factors_first_element() {
+    fn test_twiddle_factors_first_element_is_one_succeeds() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
         // First twiddle factor should always be 1 (w^0 = 1)
         assert_eq!(ntt.forward_twiddles()[0], 1);
@@ -461,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn test_twiddle_factors_length() {
+    fn test_twiddle_factors_length_matches_ntt_size_has_correct_size() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
         assert_eq!(ntt.forward_twiddles().len(), 256);
         assert_eq!(ntt.inverse_twiddles().len(), 256);
@@ -470,7 +470,7 @@ mod tests {
     // === Forward NTT preserves zero polynomial ===
 
     #[test]
-    fn test_ntt_forward_zero_polynomial() {
+    fn test_ntt_forward_zero_polynomial_returns_all_zeros_succeeds() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
         let zeros = vec![0i32; 256];
         let result = ntt.forward(&zeros).unwrap();
@@ -482,7 +482,7 @@ mod tests {
     // === 1024-size NTT tests ===
 
     #[test]
-    fn test_ntt_forward_inverse_roundtrip_1024() {
+    fn test_ntt_forward_inverse_roundtrip_1024_roundtrip() {
         let ntt = NttProcessor::new(1024, 12289).unwrap();
 
         let mut coeffs = vec![0i32; 1024];
@@ -502,7 +502,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_multiply_1024() {
+    fn test_ntt_multiply_1024_by_zero_returns_zeros_succeeds() {
         let ntt = NttProcessor::new(1024, 12289).unwrap();
 
         let mut a = vec![0i32; 1024];
@@ -515,13 +515,13 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_negative_modulus() {
+    fn test_ntt_negative_modulus_returns_error() {
         let result = NttProcessor::new(256, -1);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_ntt_inverse_zero_polynomial() {
+    fn test_ntt_inverse_zero_polynomial_returns_all_zeros_succeeds() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
         let zeros = vec![0i32; 256];
         let result = ntt.inverse(&zeros).unwrap();
@@ -531,7 +531,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_multiply_commutativity() {
+    fn test_ntt_multiply_commutativity_holds_succeeds() {
         let ntt = NttProcessor::new(256, 3329).unwrap();
 
         let mut a = vec![0i32; 256];
@@ -549,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_twiddle_factors_1024() {
+    fn test_ntt_twiddle_factors_1024_has_correct_length_and_first_element_has_correct_size() {
         let ntt = NttProcessor::new(1024, 12289).unwrap();
         assert_eq!(ntt.forward_twiddles().len(), 1024);
         assert_eq!(ntt.inverse_twiddles().len(), 1024);

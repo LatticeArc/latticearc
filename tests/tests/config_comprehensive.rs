@@ -39,16 +39,15 @@
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    deprecated
 )]
 
+use latticearc::types::traits::HardwareType;
 use latticearc::unified_api::{
-    config::{
-        CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig,
-        UseCaseConfig, ZeroTrustConfig,
-    },
+    CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig, UseCaseConfig,
+    ZeroTrustConfig,
     error::TypeError,
-    traits::HardwareType,
     types::{
         AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, PerformancePreference,
         SecurityLevel, UseCase,
@@ -60,21 +59,21 @@ use latticearc::unified_api::{
 // ============================================================================
 
 #[test]
-fn test_use_case_secure_messaging() {
+fn test_use_case_secure_messaging_is_accessible() {
     let config = UseCaseConfig::new(UseCase::SecureMessaging);
     assert_eq!(config.use_case, UseCase::SecureMessaging);
     assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
 }
 
 #[test]
-fn test_use_case_email_encryption() {
+fn test_use_case_email_encryption_is_accessible() {
     let config = UseCaseConfig::new(UseCase::EmailEncryption);
     assert_eq!(config.use_case, UseCase::EmailEncryption);
     assert_eq!(config.encryption.security_level, SecurityLevel::High);
 }
 
 #[test]
-fn test_use_case_vpn_tunnel() {
+fn test_use_case_vpn_tunnel_is_accessible() {
     let config = UseCaseConfig::new(UseCase::VpnTunnel);
     assert_eq!(config.use_case, UseCase::VpnTunnel);
     assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
@@ -82,119 +81,119 @@ fn test_use_case_vpn_tunnel() {
 }
 
 #[test]
-fn test_use_case_api_security() {
+fn test_use_case_api_security_is_accessible() {
     let config = UseCaseConfig::new(UseCase::ApiSecurity);
     assert_eq!(config.use_case, UseCase::ApiSecurity);
     assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
 }
 
 #[test]
-fn test_use_case_file_storage() {
+fn test_use_case_file_storage_is_accessible() {
     let config = UseCaseConfig::new(UseCase::FileStorage);
     assert_eq!(config.use_case, UseCase::FileStorage);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_database_encryption() {
+fn test_use_case_database_encryption_is_accessible() {
     let config = UseCaseConfig::new(UseCase::DatabaseEncryption);
     assert_eq!(config.use_case, UseCase::DatabaseEncryption);
     assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
 }
 
 #[test]
-fn test_use_case_cloud_storage() {
+fn test_use_case_cloud_storage_is_accessible() {
     let config = UseCaseConfig::new(UseCase::CloudStorage);
     assert_eq!(config.use_case, UseCase::CloudStorage);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_backup_archive() {
+fn test_use_case_backup_archive_is_accessible() {
     let config = UseCaseConfig::new(UseCase::BackupArchive);
     assert_eq!(config.use_case, UseCase::BackupArchive);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_config_secrets() {
+fn test_use_case_config_secrets_is_accessible() {
     let config = UseCaseConfig::new(UseCase::ConfigSecrets);
     assert_eq!(config.use_case, UseCase::ConfigSecrets);
     assert_eq!(config.encryption.performance_preference, PerformancePreference::Memory);
 }
 
 #[test]
-fn test_use_case_authentication() {
+fn test_use_case_authentication_is_accessible() {
     let config = UseCaseConfig::new(UseCase::Authentication);
     assert_eq!(config.use_case, UseCase::Authentication);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_session_token() {
+fn test_use_case_session_token_is_accessible() {
     let config = UseCaseConfig::new(UseCase::SessionToken);
     assert_eq!(config.use_case, UseCase::SessionToken);
     assert_eq!(config.encryption.performance_preference, PerformancePreference::Speed);
 }
 
 #[test]
-fn test_use_case_digital_certificate() {
+fn test_use_case_digital_certificate_is_accessible() {
     let config = UseCaseConfig::new(UseCase::DigitalCertificate);
     assert_eq!(config.use_case, UseCase::DigitalCertificate);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_key_exchange() {
+fn test_use_case_key_exchange_is_accessible() {
     let config = UseCaseConfig::new(UseCase::KeyExchange);
     assert_eq!(config.use_case, UseCase::KeyExchange);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_financial_transactions() {
+fn test_use_case_financial_transactions_is_accessible() {
     let config = UseCaseConfig::new(UseCase::FinancialTransactions);
     assert_eq!(config.use_case, UseCase::FinancialTransactions);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_legal_documents() {
+fn test_use_case_legal_documents_is_accessible() {
     let config = UseCaseConfig::new(UseCase::LegalDocuments);
     assert_eq!(config.use_case, UseCase::LegalDocuments);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_blockchain_transaction() {
+fn test_use_case_blockchain_transaction_is_accessible() {
     let config = UseCaseConfig::new(UseCase::BlockchainTransaction);
     assert_eq!(config.use_case, UseCase::BlockchainTransaction);
     assert_eq!(config.encryption.performance_preference, PerformancePreference::Balanced);
 }
 
 #[test]
-fn test_use_case_healthcare_records() {
+fn test_use_case_healthcare_records_is_accessible() {
     let config = UseCaseConfig::new(UseCase::HealthcareRecords);
     assert_eq!(config.use_case, UseCase::HealthcareRecords);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_government_classified() {
+fn test_use_case_government_classified_is_accessible() {
     let config = UseCaseConfig::new(UseCase::GovernmentClassified);
     assert_eq!(config.use_case, UseCase::GovernmentClassified);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_payment_card() {
+fn test_use_case_payment_card_is_accessible() {
     let config = UseCaseConfig::new(UseCase::PaymentCard);
     assert_eq!(config.use_case, UseCase::PaymentCard);
     assert_eq!(config.encryption.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_use_case_iot_device() {
+fn test_use_case_iot_device_is_accessible() {
     let config = UseCaseConfig::new(UseCase::IoTDevice);
     assert_eq!(config.use_case, UseCase::IoTDevice);
     assert_eq!(config.encryption.security_level, SecurityLevel::Standard);
@@ -202,14 +201,14 @@ fn test_use_case_iot_device() {
 }
 
 #[test]
-fn test_use_case_firmware_signing() {
+fn test_use_case_firmware_signing_is_accessible() {
     let config = UseCaseConfig::new(UseCase::FirmwareSigning);
     assert_eq!(config.use_case, UseCase::FirmwareSigning);
     assert_eq!(config.encryption.security_level, SecurityLevel::High);
 }
 
 #[test]
-fn test_use_case_audit_log() {
+fn test_use_case_audit_log_is_accessible() {
     let config = UseCaseConfig::new(UseCase::AuditLog);
     assert_eq!(config.use_case, UseCase::AuditLog);
     assert_eq!(config.encryption.security_level, SecurityLevel::High);
@@ -220,7 +219,7 @@ fn test_use_case_audit_log() {
 // ============================================================================
 
 #[test]
-fn test_security_level_standard() {
+fn test_security_level_standard_is_accessible() {
     let level = SecurityLevel::Standard;
     assert_ne!(level, SecurityLevel::High);
     assert_ne!(level, SecurityLevel::Maximum);
@@ -228,7 +227,7 @@ fn test_security_level_standard() {
 }
 
 #[test]
-fn test_security_level_high() {
+fn test_security_level_high_is_accessible() {
     let level = SecurityLevel::High;
     assert_ne!(level, SecurityLevel::Standard);
     assert_ne!(level, SecurityLevel::Maximum);
@@ -236,7 +235,7 @@ fn test_security_level_high() {
 }
 
 #[test]
-fn test_security_level_maximum() {
+fn test_security_level_maximum_is_accessible() {
     let level = SecurityLevel::Maximum;
     assert_ne!(level, SecurityLevel::Standard);
     assert_ne!(level, SecurityLevel::High);
@@ -244,7 +243,7 @@ fn test_security_level_maximum() {
 }
 
 #[test]
-fn test_security_level_quantum() {
+fn test_security_level_quantum_is_accessible() {
     let level = SecurityLevel::Quantum;
     assert_ne!(level, SecurityLevel::Standard);
     assert_ne!(level, SecurityLevel::High);
@@ -252,20 +251,20 @@ fn test_security_level_quantum() {
 }
 
 #[test]
-fn test_security_level_default_is_high() {
+fn test_security_level_default_is_high_matches_expected() {
     let level = SecurityLevel::default();
     assert_eq!(level, SecurityLevel::High);
 }
 
 #[test]
-fn test_security_level_clone_and_eq() {
+fn test_security_level_clone_and_eq_matches_expected() {
     let level1 = SecurityLevel::Maximum;
     let level2 = level1.clone();
     assert_eq!(level1, level2);
 }
 
 #[test]
-fn test_security_level_debug_format() {
+fn test_security_level_debug_format_has_correct_string_has_correct_size() {
     let level = SecurityLevel::High;
     let debug_str = format!("{:?}", level);
     assert!(debug_str.contains("High"));
@@ -276,7 +275,7 @@ fn test_security_level_debug_format() {
 // ============================================================================
 
 #[test]
-fn test_core_config_default_values() {
+fn test_core_config_default_values_are_correct() {
     let config = CoreConfig::default();
 
     assert_eq!(config.security_level, SecurityLevel::High);
@@ -287,7 +286,7 @@ fn test_core_config_default_values() {
 }
 
 #[test]
-fn test_core_config_new_equals_default() {
+fn test_core_config_new_equals_default_matches_expected() {
     let new_config = CoreConfig::new();
     let default_config = CoreConfig::default();
 
@@ -295,7 +294,7 @@ fn test_core_config_new_equals_default() {
 }
 
 #[test]
-fn test_core_config_for_development() {
+fn test_core_config_for_development_has_expected_values_succeeds() {
     let config = CoreConfig::for_development();
 
     assert_eq!(config.security_level, SecurityLevel::Standard);
@@ -305,7 +304,7 @@ fn test_core_config_for_development() {
 }
 
 #[test]
-fn test_core_config_for_production() {
+fn test_core_config_for_production_has_expected_values_succeeds() {
     let config = CoreConfig::for_production();
 
     assert_eq!(config.security_level, SecurityLevel::Maximum);
@@ -318,37 +317,37 @@ fn test_core_config_for_production() {
 // ============================================================================
 
 #[test]
-fn test_core_config_builder_security_level() {
+fn test_core_config_builder_security_level_sets_correctly_succeeds() {
     let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
     assert_eq!(config.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_core_config_builder_performance_preference() {
+fn test_core_config_builder_performance_preference_sets_correctly_succeeds() {
     let config = CoreConfig::new().with_performance_preference(PerformancePreference::Speed);
     assert_eq!(config.performance_preference, PerformancePreference::Speed);
 }
 
 #[test]
-fn test_core_config_builder_hardware_acceleration() {
+fn test_core_config_builder_hardware_acceleration_sets_correctly_succeeds() {
     let config = CoreConfig::new().with_hardware_acceleration(false);
     assert!(!config.hardware_acceleration);
 }
 
 #[test]
-fn test_core_config_builder_fallback() {
+fn test_core_config_builder_fallback_sets_correctly_succeeds() {
     let config = CoreConfig::new().with_fallback(false);
     assert!(!config.fallback_enabled);
 }
 
 #[test]
-fn test_core_config_builder_strict_validation() {
+fn test_core_config_builder_strict_validation_sets_correctly_succeeds() {
     let config = CoreConfig::new().with_strict_validation(false);
     assert!(!config.strict_validation);
 }
 
 #[test]
-fn test_core_config_builder_chaining() {
+fn test_core_config_builder_chaining_sets_all_values_succeeds() {
     let config = CoreConfig::new()
         .with_security_level(SecurityLevel::Maximum)
         .with_performance_preference(PerformancePreference::Speed)
@@ -364,7 +363,7 @@ fn test_core_config_builder_chaining() {
 }
 
 #[test]
-fn test_core_config_builder_overwrite() {
+fn test_core_config_builder_overwrite_replaces_previous_succeeds() {
     let config = CoreConfig::new()
         .with_security_level(SecurityLevel::Standard)
         .with_security_level(SecurityLevel::Maximum);
@@ -381,7 +380,7 @@ fn test_core_config_builder_overwrite() {
 // ============================================================================
 
 #[test]
-fn test_core_config_validation_success() {
+fn test_core_config_validation_success_returns_ok() {
     let config = CoreConfig::new()
         .with_security_level(SecurityLevel::Maximum)
         .with_hardware_acceleration(true);
@@ -393,7 +392,7 @@ fn test_core_config_validation_success() {
 }
 
 #[test]
-fn test_core_config_validation_success_high_security() {
+fn test_core_config_validation_success_high_security_returns_ok() {
     let config = CoreConfig::new()
         .with_security_level(SecurityLevel::High)
         .with_hardware_acceleration(false);
@@ -405,7 +404,7 @@ fn test_core_config_validation_success_high_security() {
 }
 
 #[test]
-fn test_core_config_validation_failure_strict_with_standard() {
+fn test_core_config_validation_failure_strict_with_standard_returns_error() {
     let config =
         CoreConfig::new().with_security_level(SecurityLevel::Standard).with_strict_validation(true);
 
@@ -421,7 +420,7 @@ fn test_core_config_validation_failure_strict_with_standard() {
 }
 
 #[test]
-fn test_core_config_validation_failure_speed_no_fallback() {
+fn test_core_config_validation_failure_speed_no_fallback_returns_error() {
     let config = CoreConfig::new()
         .with_performance_preference(PerformancePreference::Speed)
         .with_fallback(false);
@@ -438,7 +437,7 @@ fn test_core_config_validation_failure_speed_no_fallback() {
 }
 
 #[test]
-fn test_core_config_build_success() {
+fn test_core_config_build_success_returns_ok() {
     let result = CoreConfig::new()
         .with_security_level(SecurityLevel::High)
         .with_hardware_acceleration(true)
@@ -450,7 +449,7 @@ fn test_core_config_build_success() {
 }
 
 #[test]
-fn test_core_config_build_failure_strict_standard() {
+fn test_core_config_build_failure_strict_standard_returns_error() {
     let result = CoreConfig::new()
         .with_security_level(SecurityLevel::Standard)
         .with_strict_validation(true)
@@ -460,19 +459,19 @@ fn test_core_config_build_failure_strict_standard() {
 }
 
 #[test]
-fn test_encryption_config_validation_delegates_to_core() {
+fn test_encryption_config_validation_delegates_to_core_correctly_succeeds() {
     let config = EncryptionConfig::new();
     assert!(config.validate().is_ok());
 }
 
 #[test]
-fn test_signature_config_validation_delegates_to_core() {
+fn test_signature_config_validation_delegates_to_core_correctly_succeeds() {
     let config = SignatureConfig::new();
     assert!(config.validate().is_ok());
 }
 
 #[test]
-fn test_zero_trust_config_validation_success() {
+fn test_zero_trust_config_validation_success_returns_ok() {
     let config = ZeroTrustConfig::new()
         .with_timeout(5000)
         .with_continuous_verification(true)
@@ -482,7 +481,7 @@ fn test_zero_trust_config_validation_success() {
 }
 
 #[test]
-fn test_zero_trust_config_validation_failure_zero_timeout() {
+fn test_zero_trust_config_validation_failure_zero_timeout_returns_error() {
     let config = ZeroTrustConfig::new().with_timeout(0);
 
     let result = config.validate();
@@ -497,7 +496,7 @@ fn test_zero_trust_config_validation_failure_zero_timeout() {
 }
 
 #[test]
-fn test_zero_trust_config_validation_failure_continuous_zero_interval() {
+fn test_zero_trust_config_validation_failure_continuous_zero_interval_returns_error() {
     let config =
         ZeroTrustConfig::new().with_continuous_verification(true).with_verification_interval(0);
 
@@ -513,7 +512,7 @@ fn test_zero_trust_config_validation_failure_continuous_zero_interval() {
 }
 
 #[test]
-fn test_hardware_config_validation_success() {
+fn test_hardware_config_validation_success_returns_ok() {
     let config =
         HardwareConfig::new().with_acceleration(true).with_fallback(true).with_threshold(4096);
 
@@ -521,7 +520,7 @@ fn test_hardware_config_validation_success() {
 }
 
 #[test]
-fn test_hardware_config_validation_failure_zero_threshold() {
+fn test_hardware_config_validation_failure_zero_threshold_returns_error() {
     let config = HardwareConfig::new().with_threshold(0);
 
     let result = config.validate();
@@ -529,7 +528,7 @@ fn test_hardware_config_validation_failure_zero_threshold() {
 }
 
 #[test]
-fn test_hardware_config_validation_failure_force_cpu_with_acceleration() {
+fn test_hardware_config_validation_failure_force_cpu_with_acceleration_returns_error() {
     let config = HardwareConfig::new().with_acceleration(true).with_force_cpu(true);
 
     let result = config.validate();
@@ -548,7 +547,7 @@ fn test_hardware_config_validation_failure_force_cpu_with_acceleration() {
 // ============================================================================
 
 #[test]
-fn test_algorithm_selection_by_use_case() {
+fn test_algorithm_selection_by_use_case_returns_correct_algorithm_succeeds() {
     let selection = AlgorithmSelection::UseCase(UseCase::FinancialTransactions);
     match selection {
         AlgorithmSelection::UseCase(uc) => assert_eq!(uc, UseCase::FinancialTransactions),
@@ -557,7 +556,7 @@ fn test_algorithm_selection_by_use_case() {
 }
 
 #[test]
-fn test_algorithm_selection_by_security_level() {
+fn test_algorithm_selection_by_security_level_returns_correct_algorithm_succeeds() {
     let selection = AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum);
     match selection {
         AlgorithmSelection::SecurityLevel(sl) => assert_eq!(sl, SecurityLevel::Maximum),
@@ -566,7 +565,7 @@ fn test_algorithm_selection_by_security_level() {
 }
 
 #[test]
-fn test_algorithm_selection_default() {
+fn test_algorithm_selection_default_returns_correct_algorithm_succeeds() {
     let selection = AlgorithmSelection::default();
     match selection {
         AlgorithmSelection::SecurityLevel(sl) => assert_eq!(sl, SecurityLevel::High),
@@ -575,7 +574,7 @@ fn test_algorithm_selection_default() {
 }
 
 #[test]
-fn test_crypto_config_new() {
+fn test_crypto_config_new_has_correct_fields_succeeds() {
     let config = CryptoConfig::new();
     assert!(!config.is_verified());
     match config.get_selection() {
@@ -585,7 +584,7 @@ fn test_crypto_config_new() {
 }
 
 #[test]
-fn test_crypto_config_use_case_setter() {
+fn test_crypto_config_use_case_setter_updates_correctly_succeeds() {
     let config = CryptoConfig::new().use_case(UseCase::HealthcareRecords);
     match config.get_selection() {
         AlgorithmSelection::UseCase(uc) => assert_eq!(*uc, UseCase::HealthcareRecords),
@@ -594,7 +593,7 @@ fn test_crypto_config_use_case_setter() {
 }
 
 #[test]
-fn test_crypto_config_security_level_setter() {
+fn test_crypto_config_security_level_setter_updates_correctly_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     match config.get_selection() {
         AlgorithmSelection::SecurityLevel(sl) => assert_eq!(*sl, SecurityLevel::Quantum),
@@ -603,7 +602,7 @@ fn test_crypto_config_security_level_setter() {
 }
 
 #[test]
-fn test_crypto_config_use_case_overrides_security_level() {
+fn test_crypto_config_use_case_overrides_security_level_correctly_succeeds() {
     let config = CryptoConfig::new()
         .security_level(SecurityLevel::Standard)
         .use_case(UseCase::GovernmentClassified);
@@ -615,7 +614,7 @@ fn test_crypto_config_use_case_overrides_security_level() {
 }
 
 #[test]
-fn test_crypto_config_security_level_overrides_use_case() {
+fn test_crypto_config_security_level_overrides_use_case_correctly_succeeds() {
     let config =
         CryptoConfig::new().use_case(UseCase::IoTDevice).security_level(SecurityLevel::Maximum);
 
@@ -630,7 +629,7 @@ fn test_crypto_config_security_level_overrides_use_case() {
 // ============================================================================
 
 #[test]
-fn test_use_case_config_respects_security_constraints() {
+fn test_use_case_config_respects_security_constraints_correctly_succeeds() {
     // High-security use cases should have Maximum security level
     let financial = UseCaseConfig::new(UseCase::FinancialTransactions);
     assert_eq!(financial.encryption.security_level, SecurityLevel::Maximum);
@@ -647,7 +646,7 @@ fn test_use_case_config_respects_security_constraints() {
 }
 
 #[test]
-fn test_use_case_config_validates_all_nested() {
+fn test_use_case_config_validates_all_nested_configs_succeeds() {
     // All use case configs should pass validation by default
     let use_cases = vec![
         UseCase::SecureMessaging,
@@ -666,7 +665,7 @@ fn test_use_case_config_validates_all_nested() {
 }
 
 #[test]
-fn test_crypto_context_default() {
+fn test_crypto_context_default_has_expected_values_succeeds() {
     let ctx = CryptoContext::default();
 
     assert_eq!(ctx.security_level, SecurityLevel::High);
@@ -676,7 +675,7 @@ fn test_crypto_context_default() {
 }
 
 #[test]
-fn test_crypto_context_with_use_case() {
+fn test_crypto_context_with_use_case_has_expected_values_succeeds() {
     let ctx = CryptoContext {
         security_level: SecurityLevel::Maximum,
         performance_preference: PerformancePreference::Speed,
@@ -694,34 +693,34 @@ fn test_crypto_context_with_use_case() {
 // ============================================================================
 
 #[test]
-fn test_performance_preference_speed() {
+fn test_performance_preference_speed_is_accessible() {
     let pref = PerformancePreference::Speed;
     assert_ne!(pref, PerformancePreference::Balanced);
     assert_ne!(pref, PerformancePreference::Memory);
 }
 
 #[test]
-fn test_performance_preference_memory() {
+fn test_performance_preference_memory_is_accessible() {
     let pref = PerformancePreference::Memory;
     assert_ne!(pref, PerformancePreference::Balanced);
     assert_ne!(pref, PerformancePreference::Speed);
 }
 
 #[test]
-fn test_performance_preference_balanced() {
+fn test_performance_preference_balanced_is_accessible() {
     let pref = PerformancePreference::Balanced;
     assert_ne!(pref, PerformancePreference::Speed);
     assert_ne!(pref, PerformancePreference::Memory);
 }
 
 #[test]
-fn test_performance_preference_default() {
+fn test_performance_preference_default_is_correct() {
     let pref = PerformancePreference::default();
     assert_eq!(pref, PerformancePreference::Balanced);
 }
 
 #[test]
-fn test_performance_preference_clone() {
+fn test_performance_preference_clone_produces_equal_value_succeeds() {
     let pref1 = PerformancePreference::Speed;
     let pref2 = pref1.clone();
     assert_eq!(pref1, pref2);
@@ -732,19 +731,19 @@ fn test_performance_preference_clone() {
 // ============================================================================
 
 #[test]
-fn test_encryption_config_default() {
+fn test_encryption_config_default_has_expected_values_succeeds() {
     let config = EncryptionConfig::default();
     assert_eq!(config.security_level, SecurityLevel::High);
 }
 
 #[test]
-fn test_signature_config_default() {
+fn test_signature_config_default_has_expected_values_succeeds() {
     let config = SignatureConfig::default();
     assert_eq!(config.security_level, SecurityLevel::High);
 }
 
 #[test]
-fn test_zero_trust_config_default() {
+fn test_zero_trust_config_default_has_expected_values_succeeds() {
     let config = ZeroTrustConfig::default();
 
     assert_eq!(config.challenge_timeout_ms, 5000);
@@ -754,7 +753,7 @@ fn test_zero_trust_config_default() {
 }
 
 #[test]
-fn test_zero_trust_config_builder() {
+fn test_zero_trust_config_builder_sets_values_correctly_succeeds() {
     let config = ZeroTrustConfig::new()
         .with_timeout(10000)
         .with_complexity(ProofComplexity::High)
@@ -768,14 +767,14 @@ fn test_zero_trust_config_builder() {
 }
 
 #[test]
-fn test_proof_complexity_variants() {
+fn test_proof_complexity_variants_are_accessible() {
     assert_ne!(ProofComplexity::Low, ProofComplexity::Medium);
     assert_ne!(ProofComplexity::Medium, ProofComplexity::High);
     assert_ne!(ProofComplexity::Low, ProofComplexity::High);
 }
 
 #[test]
-fn test_hardware_config_default() {
+fn test_hardware_config_default_has_expected_values_succeeds() {
     let config = HardwareConfig::default();
 
     assert!(config.acceleration_enabled);
@@ -786,7 +785,7 @@ fn test_hardware_config_default() {
 }
 
 #[test]
-fn test_hardware_config_builder_with_accelerator() {
+fn test_hardware_config_builder_with_accelerator_sets_correctly_succeeds() {
     let config = HardwareConfig::new()
         .with_preferred_accelerator(HardwareType::Gpu)
         .with_preferred_accelerator(HardwareType::Fpga);
@@ -797,7 +796,7 @@ fn test_hardware_config_builder_with_accelerator() {
 }
 
 #[test]
-fn test_hardware_config_force_cpu_mode() {
+fn test_hardware_config_force_cpu_mode_sets_correctly_succeeds() {
     let config = HardwareConfig::new().with_acceleration(false).with_force_cpu(true);
 
     assert!(!config.acceleration_enabled);
@@ -811,27 +810,27 @@ fn test_hardware_config_force_cpu_mode() {
 // ============================================================================
 
 #[test]
-fn test_config_with_minimum_values() {
+fn test_config_with_minimum_values_is_accepted() {
     let config = ZeroTrustConfig::new().with_timeout(1).with_verification_interval(1);
 
     assert!(config.validate().is_ok());
 }
 
 #[test]
-fn test_config_with_maximum_values() {
+fn test_config_with_maximum_values_is_accepted() {
     let config = ZeroTrustConfig::new().with_timeout(u64::MAX).with_verification_interval(u64::MAX);
 
     assert!(config.validate().is_ok());
 }
 
 #[test]
-fn test_hardware_config_minimum_threshold() {
+fn test_hardware_config_minimum_threshold_is_accepted() {
     let config = HardwareConfig::new().with_threshold(1);
     assert!(config.validate().is_ok());
 }
 
 #[test]
-fn test_use_case_config_all_nested_configs_consistent() {
+fn test_use_case_config_all_nested_configs_consistent_is_valid() {
     let config = UseCaseConfig::new(UseCase::GovernmentClassified);
 
     // All nested configs should have the same base security level
@@ -845,7 +844,7 @@ fn test_use_case_config_all_nested_configs_consistent() {
 // ============================================================================
 
 #[test]
-fn test_core_config_clone() {
+fn test_core_config_clone_produces_equal_value_succeeds() {
     let config1 = CoreConfig::new()
         .with_security_level(SecurityLevel::Maximum)
         .with_performance_preference(PerformancePreference::Speed);
@@ -856,7 +855,7 @@ fn test_core_config_clone() {
 }
 
 #[test]
-fn test_core_config_equality() {
+fn test_core_config_equality_matches_expected() {
     let config1 = CoreConfig::new().with_security_level(SecurityLevel::High);
     let config2 = CoreConfig::new().with_security_level(SecurityLevel::High);
     let config3 = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
@@ -866,13 +865,13 @@ fn test_core_config_equality() {
 }
 
 #[test]
-fn test_use_case_equality() {
+fn test_use_case_equality_matches_expected() {
     assert_eq!(UseCase::SecureMessaging, UseCase::SecureMessaging);
     assert_ne!(UseCase::SecureMessaging, UseCase::EmailEncryption);
 }
 
 #[test]
-fn test_crypto_scheme_equality() {
+fn test_crypto_scheme_equality_matches_expected() {
     assert_eq!(CryptoScheme::Hybrid, CryptoScheme::Hybrid);
     assert_ne!(CryptoScheme::Hybrid, CryptoScheme::Symmetric);
 }
@@ -882,7 +881,7 @@ fn test_crypto_scheme_equality() {
 // ============================================================================
 
 #[test]
-fn test_create_many_configs() {
+fn test_create_many_configs_succeeds() {
     for i in 0..100 {
         let is_standard = i % 3 == 0;
         let config = CoreConfig::new()
@@ -902,7 +901,7 @@ fn test_create_many_configs() {
 }
 
 #[test]
-fn test_create_all_use_case_configs() {
+fn test_create_all_use_case_configs_succeeds() {
     let use_cases = vec![
         UseCase::SecureMessaging,
         UseCase::EmailEncryption,

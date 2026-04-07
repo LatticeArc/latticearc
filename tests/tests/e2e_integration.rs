@@ -23,7 +23,7 @@ use latticearc::{
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_roundtrip_256() {
+fn test_aes_gcm_roundtrip_256_succeeds() {
     let key = [0xABu8; 32];
     let plaintext = b"AES-256-GCM end-to-end roundtrip";
 
@@ -36,7 +36,7 @@ fn test_aes_gcm_roundtrip_256() {
 }
 
 #[test]
-fn test_aes_gcm_empty_plaintext() {
+fn test_aes_gcm_empty_plaintext_roundtrip_succeeds() {
     let key = [0x99u8; 32];
     let plaintext = b"";
 
@@ -49,7 +49,7 @@ fn test_aes_gcm_empty_plaintext() {
 }
 
 #[test]
-fn test_aes_gcm_large_plaintext() {
+fn test_aes_gcm_large_plaintext_roundtrip_succeeds() {
     let key = [0x77u8; 32];
     let plaintext = vec![0xFFu8; 64 * 1024]; // 64 KiB
 
@@ -66,7 +66,7 @@ fn test_aes_gcm_large_plaintext() {
 // ============================================================================
 
 #[test]
-fn test_sign_verify_high_security() {
+fn test_sign_verify_high_security_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
     assert!(!scheme.is_empty());
@@ -82,7 +82,7 @@ fn test_sign_verify_high_security() {
 }
 
 #[test]
-fn test_sign_verify_maximum_security() {
+fn test_sign_verify_maximum_security_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
     assert!(!scheme.is_empty());
@@ -102,14 +102,14 @@ fn test_sign_verify_maximum_security() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_encrypt_decrypt_roundtrip() {
+fn test_hybrid_encrypt_decrypt_roundtrip_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
 
     let plaintext = b"True hybrid ML-KEM-768 + X25519 encryption";
 
     let encrypted =
         encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
-    let hybrid = encrypted.hybrid_data.as_ref().expect("should have hybrid_data");
+    let hybrid = encrypted.hybrid_data().expect("should have hybrid_data");
     assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT = 1088 bytes");
     assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK = 32 bytes");
 
@@ -119,7 +119,7 @@ fn test_hybrid_encrypt_decrypt_roundtrip() {
 }
 
 #[test]
-fn test_hybrid_different_plaintexts() {
+fn test_hybrid_different_plaintexts_produce_different_ciphertexts_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
 
     for msg in [b"short" as &[u8], b"", &[0xAA; 4096]] {
@@ -136,7 +136,7 @@ fn test_hybrid_different_plaintexts() {
 // ============================================================================
 
 #[test]
-fn test_hash_deterministic() {
+fn test_hash_deterministic_for_same_input_is_deterministic() {
     let data = b"Hash determinism check";
     let h1 = hash_data(data);
     let h2 = hash_data(data);
@@ -145,14 +145,14 @@ fn test_hash_deterministic() {
 }
 
 #[test]
-fn test_hash_collision_resistance() {
+fn test_hash_collision_resistance_verified_succeeds() {
     let h1 = hash_data(b"data-a");
     let h2 = hash_data(b"data-b");
     assert_ne!(h1, h2, "Different inputs should hash differently");
 }
 
 #[test]
-fn test_hmac_roundtrip() {
+fn test_hmac_roundtrip_succeeds() {
     let key = b"hmac-secret-key-32-bytes-exact!!";
     let data = b"Message to authenticate";
 
@@ -181,7 +181,7 @@ fn test_hmac_wrong_key_fails() {
 // ============================================================================
 
 #[test]
-fn test_kdf_derive_consistent() {
+fn test_kdf_derive_consistent_for_same_inputs_succeeds() {
     let password = b"secure-password";
     let salt = b"application-salt";
 
@@ -193,7 +193,7 @@ fn test_kdf_derive_consistent() {
 }
 
 #[test]
-fn test_kdf_different_salt() {
+fn test_kdf_different_salt_produces_different_key_succeeds() {
     let password = b"secure-password";
     let k1 = derive_key(password, b"salt-a", 32, SecurityMode::Unverified).expect("derive failed");
     let k2 = derive_key(password, b"salt-b", 32, SecurityMode::Unverified).expect("derive failed");
@@ -205,7 +205,7 @@ fn test_kdf_different_salt() {
 // ============================================================================
 
 #[test]
-fn test_ed25519_roundtrip() {
+fn test_ed25519_roundtrip_succeeds() {
     let signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
     let sk_bytes = signing_key.to_bytes();
     let pk_bytes = signing_key.verifying_key().to_bytes();
@@ -224,7 +224,7 @@ fn test_ed25519_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_complete_encrypt_sign_workflow() {
+fn test_complete_encrypt_sign_workflow_succeeds() {
     // Derive encryption key
     let enc_key =
         derive_key(b"password", b"salt", 32, SecurityMode::Unverified).expect("derive failed");
@@ -258,7 +258,7 @@ fn test_complete_encrypt_sign_workflow() {
 }
 
 #[test]
-fn test_hybrid_then_sign_workflow() {
+fn test_hybrid_then_sign_workflow_succeeds() {
     let (h_pk, h_sk) = generate_hybrid_keypair().expect("keygen failed");
 
     // Hybrid encrypt
@@ -271,7 +271,7 @@ fn test_hybrid_then_sign_workflow() {
     let (s_pk, s_sk, _) = generate_signing_keypair(config).expect("keygen failed");
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let signed = sign_with_key(&encrypted.ciphertext, &s_sk, &s_pk, config).expect("sign failed");
+    let signed = sign_with_key(encrypted.ciphertext(), &s_sk, &s_pk, config).expect("sign failed");
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let is_valid = verify(&signed, config).expect("verify failed");

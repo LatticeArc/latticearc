@@ -15,7 +15,6 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Use input data to seed operations (deterministic fuzzing)
-    let mut rng = rand::thread_rng();
 
     // Test all three security levels based on input
     let level = match data[0] % 3 {

@@ -9,7 +9,7 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.4.4"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
@@ -289,7 +289,7 @@ libfuzzer-sys = { version = "0.4.8" }
 ecdsa = { version = "0.16.9", features = ["signing", "verifying"] }
 p256 = { version = "0.13.2", features = ["ecdsa", "ecdh"] }
 k256 = { version = "0.13.4", features = ["ecdsa", "std"] }
-ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
+ed25519-dalek = { version = "2.2.0", features = ["rand_core", "zeroize"] }
 # X25519 needed for CAVP test vector validation (deterministic key generation)
 x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
 # Post-quantum cryptography - FIPS 140-3 validated via aws-lc-rs

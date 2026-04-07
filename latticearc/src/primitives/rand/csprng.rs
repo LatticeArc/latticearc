@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -39,26 +39,26 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn test_random_bytes() {
+    fn test_random_bytes_has_correct_length_has_correct_size() {
         let bytes = random_bytes(32);
         assert_eq!(bytes.len(), 32);
     }
 
     #[test]
-    fn test_random_u32() {
+    fn test_random_u32_is_within_range_succeeds() {
         let val = random_u32();
         assert!(val < u32::MAX);
     }
 
     #[test]
-    fn test_random_u64() {
+    fn test_random_u64_is_within_range_succeeds() {
         let val = random_u64();
         assert!(val < u64::MAX);
     }
 
     // Non-repetition tests
     #[test]
-    fn test_random_bytes_no_repetition() {
+    fn test_random_bytes_no_repetition_are_unique() {
         let mut seen = HashSet::new();
         for _ in 0..100 {
             let bytes = random_bytes(16);
@@ -67,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn test_random_u32_no_repetition() {
+    fn test_random_u32_no_repetition_are_mostly_unique() {
         let mut seen = HashSet::new();
         for _ in 0..1000 {
             let val = random_u32();
@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn test_random_u64_no_repetition() {
+    fn test_random_u64_no_repetition_are_unique() {
         let mut seen = HashSet::new();
         for _ in 0..1000 {
             let val = random_u64();
@@ -89,13 +89,13 @@ mod tests {
 
     // Zero-byte tests (ensure output is not trivial)
     #[test]
-    fn test_random_bytes_not_all_zeros() {
+    fn test_random_bytes_not_all_zeros_is_correct() {
         let bytes = random_bytes(32);
         assert!(!bytes.iter().all(|&b| b == 0), "Random bytes should not be all zeros");
     }
 
     #[test]
-    fn test_random_bytes_not_all_same() {
+    fn test_random_bytes_not_all_same_is_correct() {
         let bytes = random_bytes(32);
         let first = bytes[0];
         assert!(
@@ -106,7 +106,7 @@ mod tests {
 
     // Distribution tests
     #[test]
-    fn test_random_bytes_distribution() {
+    fn test_random_bytes_distribution_is_correct() {
         // Generate a large sample and check basic distribution
         let sample_size = 10_000;
         let bytes = random_bytes(sample_size);
@@ -137,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn test_random_u32_distribution() {
+    fn test_random_u32_distribution_is_correct() {
         // Generate samples and check they span the range
         let sample_size = 1000;
         let mut samples = Vec::with_capacity(sample_size);
@@ -156,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_random_u64_distribution() {
+    fn test_random_u64_distribution_is_correct() {
         // Generate samples and check they span the range
         let sample_size = 1000;
         let mut samples = Vec::with_capacity(sample_size);
@@ -176,13 +176,13 @@ mod tests {
 
     // Edge case tests
     #[test]
-    fn test_random_bytes_zero_length() {
+    fn test_random_bytes_zero_length_is_correct() {
         let bytes = random_bytes(0);
         assert_eq!(bytes.len(), 0);
     }
 
     #[test]
-    fn test_random_bytes_large_count() {
+    fn test_random_bytes_large_count_has_correct_length_has_correct_size() {
         let bytes = random_bytes(1_000_000); // 1MB
         assert_eq!(bytes.len(), 1_000_000);
         // Verify it's not all zeros
@@ -191,7 +191,7 @@ mod tests {
 
     // Thread safety test (OsRng is thread-safe)
     #[test]
-    fn test_random_bytes_concurrent() {
+    fn test_random_bytes_concurrent_are_unique() {
         use std::sync::Arc;
         use std::sync::Mutex;
         use std::thread;
@@ -224,7 +224,7 @@ mod tests {
 
     // Monobit test (NIST SP 800-22 simplified version)
     #[test]
-    fn test_random_bytes_monobit() {
+    fn test_random_bytes_monobit_is_within_threshold_succeeds() {
         let bytes = random_bytes(1000);
         let mut ones = 0;
         let mut zeros = 0;

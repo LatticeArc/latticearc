@@ -52,7 +52,8 @@
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    deprecated
 )]
 use std::error::Error;
 use std::mem::size_of_val;
@@ -63,13 +64,28 @@ use latticearc::unified_api::{
     AuditEvent,
     AuditEventType,
     AuditOutcome,
+    // Config types
+    CoreConfig,
+    // Key lifecycle (re-exported at crate::unified_api level)
+    CustodianRole,
+    // Traits (re-exported at unified_api root)
+    DataCharacteristics,
+    EncryptionConfig,
+    HardwareCapabilities,
+    HardwareConfig,
+    HardwareInfo,
+    HardwareType,
+    KeyLifecycleRecord,
+    KeyLifecycleState,
+    KeyStateMachine,
+    PatternType,
+    ProofComplexity,
+    SignatureConfig,
+    UseCaseConfig,
     // Constants
     VERSION,
-    // Config types
-    config::{
-        CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig,
-        UseCaseConfig, ZeroTrustConfig,
-    },
+    VerificationStatus,
+    ZeroTrustConfig,
     // Convenience functions
     decrypt,
     // Unverified variants
@@ -88,8 +104,6 @@ use latticearc::unified_api::{
     hmac_unverified,
     init,
     init_with_config,
-    // Key lifecycle
-    key_lifecycle::{CustodianRole, KeyLifecycleRecord, KeyLifecycleState, KeyStateMachine},
     // Selector and policy
     selector::{
         CLASSICAL_AES_GCM, CLASSICAL_ED25519, CryptoPolicyEngine, DEFAULT_ENCRYPTION_SCHEME,
@@ -100,11 +114,6 @@ use latticearc::unified_api::{
     },
     self_tests_passed,
     sign_ed25519_unverified,
-    // Traits
-    traits::{
-        DataCharacteristics, HardwareCapabilities, HardwareInfo, HardwareType, PatternType,
-        VerificationStatus,
-    },
     // Core types
     types::{
         AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, DecryptKey, EncryptKey,
@@ -125,7 +134,7 @@ use latticearc::unified_api::{
 
 /// Test 1.1: VERSION constant is accessible and valid
 #[test]
-fn test_version_constant_accessible() {
+fn test_version_constant_accessible_is_stable() {
     assert!(!VERSION.is_empty(), "VERSION should not be empty");
     // Version should follow semver pattern (basic check)
     let parts: Vec<&str> = VERSION.split('.').collect();
@@ -134,7 +143,7 @@ fn test_version_constant_accessible() {
 
 /// Test 1.2: Core initialization functions are accessible
 #[test]
-fn test_init_functions_accessible() {
+fn test_init_functions_accessible_are_stable() {
     // These should compile and be callable
     let result = init();
     assert!(result.is_ok(), "init() should succeed");
@@ -146,7 +155,7 @@ fn test_init_functions_accessible() {
 
 /// Test 1.3: Self-test status function is accessible
 #[test]
-fn test_self_test_status_accessible() {
+fn test_self_test_status_accessible_is_stable() {
     // Initialize first
     let _ = init();
     let passed = self_tests_passed();
@@ -155,7 +164,7 @@ fn test_self_test_status_accessible() {
 
 /// Test 1.4: All encryption scheme constants are accessible
 #[test]
-fn test_encryption_scheme_constants_accessible() {
+fn test_encryption_scheme_constants_accessible_are_stable() {
     // Default schemes
     assert!(!DEFAULT_ENCRYPTION_SCHEME.is_empty());
     assert!(!DEFAULT_SIGNATURE_SCHEME.is_empty());
@@ -191,7 +200,7 @@ fn test_encryption_scheme_constants_accessible() {
 /// Note: The unified API with CryptoConfig defaults to PQ hybrid encryption.
 /// For symmetric encryption with 32-byte keys, use encrypt_aes_gcm_unverified.
 #[test]
-fn test_unified_api_functions_accessible() {
+fn test_unified_api_functions_accessible_are_stable() {
     let key = [0u8; 32];
     let data = b"test data";
 
@@ -219,14 +228,14 @@ fn test_unified_api_functions_accessible() {
         _encrypted: &EncryptedOutput,
         _key: DecryptKey<'_>,
         _config: CryptoConfig,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<latticearc::Zeroizing<Vec<u8>>> {
         decrypt(_encrypted, _key, _config)
     }
 }
 
 /// Test 1.6: Key generation functions are accessible
 #[test]
-fn test_keygen_functions_accessible() {
+fn test_keygen_functions_accessible_are_stable() {
     // generate_keypair() -> Result<(PublicKey, PrivateKey)>
     let result = generate_keypair();
     assert!(result.is_ok(), "generate_keypair() should succeed");
@@ -239,7 +248,7 @@ fn test_keygen_functions_accessible() {
 
 /// Test 1.7: Hashing functions are accessible
 #[test]
-fn test_hashing_functions_accessible() {
+fn test_hashing_functions_accessible_are_stable() {
     let data = b"test data";
 
     // hash_data is stateless
@@ -249,7 +258,7 @@ fn test_hashing_functions_accessible() {
 
 /// Test 1.8: HMAC functions are accessible with proper signatures
 #[test]
-fn test_hmac_functions_accessible() {
+fn test_hmac_functions_accessible_are_stable() {
     let data = b"test data";
     let key = [0u8; 32];
 
@@ -264,7 +273,7 @@ fn test_hmac_functions_accessible() {
 
 /// Test 1.9: Key derivation functions are accessible
 #[test]
-fn test_key_derivation_functions_accessible() {
+fn test_key_derivation_functions_accessible_are_stable() {
     let ikm = b"input key material";
     let info = b"context info";
 
@@ -275,7 +284,7 @@ fn test_key_derivation_functions_accessible() {
 
 /// Test 1.10: AES-GCM functions are accessible
 #[test]
-fn test_aes_gcm_functions_accessible() {
+fn test_aes_gcm_functions_accessible_are_stable() {
     let key = [0u8; 32];
     let data = b"plaintext";
 
@@ -290,7 +299,7 @@ fn test_aes_gcm_functions_accessible() {
 
 /// Test 1.11: Hybrid encryption functions are accessible via unified API
 #[test]
-fn test_hybrid_encryption_functions_accessible() {
+fn test_hybrid_encryption_functions_accessible_are_stable() {
     let data = b"plaintext";
 
     // generate_hybrid_keypair + unified encrypt for API stability
@@ -301,7 +310,7 @@ fn test_hybrid_encryption_functions_accessible() {
 
 /// Test 1.12: Ed25519 signature functions are accessible
 #[test]
-fn test_ed25519_functions_accessible() {
+fn test_ed25519_functions_accessible_are_stable() {
     let (public_key, private_key) = generate_keypair().expect("keygen");
     let message = b"message to sign";
 
@@ -310,13 +319,13 @@ fn test_ed25519_functions_accessible() {
     assert!(signature.is_ok(), "sign_ed25519_unverified() should succeed");
 
     let sig = signature.expect("signing should succeed");
-    let verified = verify_ed25519_unverified(message, &sig, &public_key);
+    let verified = verify_ed25519_unverified(message, &sig, public_key.as_slice());
     assert!(verified.is_ok(), "verify_ed25519_unverified() should succeed");
 }
 
 /// Test 1.13: CryptoPolicyEngine is accessible
 #[test]
-fn test_crypto_policy_engine_accessible() {
+fn test_crypto_policy_engine_accessible_is_stable() {
     let engine = CryptoPolicyEngine::new();
     assert_eq!(size_of_val(&engine), 0); // Zero-sized type
 
@@ -327,7 +336,7 @@ fn test_crypto_policy_engine_accessible() {
 
 /// Test 1.14: Audit module types are accessible
 #[test]
-fn test_audit_types_accessible() {
+fn test_audit_types_accessible_are_stable() {
     // AuditConfig is constructable
     let _config = AuditConfig::default();
 
@@ -348,7 +357,7 @@ fn test_audit_types_accessible() {
 
 /// Test 1.15: Hardware accelerator types are accessible
 #[test]
-fn test_hardware_types_accessible() {
+fn test_hardware_types_accessible_are_stable() {
     // Hardware type definitions are accessible (stubs removed — real detection in enterprise)
     let _info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
@@ -365,11 +374,11 @@ fn test_hardware_types_accessible() {
 
 /// Test 1.16: Zero trust types are accessible
 #[test]
-fn test_zero_trust_types_accessible() {
+fn test_zero_trust_types_accessible_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
 
     // VerifiedSession can be established
-    let session = VerifiedSession::establish(&pk, sk.as_slice());
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice());
     assert!(session.is_ok());
 
     // ZeroTrustAuth can be created
@@ -383,7 +392,7 @@ fn test_zero_trust_types_accessible() {
 
 /// Test 2.1: SecurityLevel enum variants are stable
 #[test]
-fn test_security_level_variants_stable() {
+fn test_security_level_variants_are_stable() {
     // All variants should exist
     let _standard = SecurityLevel::Standard;
     let _high = SecurityLevel::High;
@@ -396,7 +405,7 @@ fn test_security_level_variants_stable() {
 
 /// Test 2.2: PerformancePreference enum variants are stable
 #[test]
-fn test_performance_preference_variants_stable() {
+fn test_performance_preference_variants_are_stable() {
     let _speed = PerformancePreference::Speed;
     let _memory = PerformancePreference::Memory;
     let _balanced = PerformancePreference::Balanced;
@@ -407,7 +416,7 @@ fn test_performance_preference_variants_stable() {
 
 /// Test 2.3: UseCase enum has all expected variants
 #[test]
-fn test_use_case_variants_stable() {
+fn test_use_case_variants_are_stable() {
     // Communication use cases
     let _messaging = UseCase::SecureMessaging;
     let _email = UseCase::EmailEncryption;
@@ -447,7 +456,7 @@ fn test_use_case_variants_stable() {
 
 /// Test 2.4: CryptoScheme enum variants are stable
 #[test]
-fn test_crypto_scheme_variants_stable() {
+fn test_crypto_scheme_variants_are_stable() {
     let _hybrid = CryptoScheme::Hybrid;
     let _symmetric = CryptoScheme::Symmetric;
     let _asymmetric = CryptoScheme::Asymmetric;
@@ -456,7 +465,7 @@ fn test_crypto_scheme_variants_stable() {
 
 /// Test 2.5: TrustLevel enum variants and ordering are stable
 #[test]
-fn test_trust_level_variants_stable() {
+fn test_trust_level_variants_are_stable() {
     let untrusted = TrustLevel::Untrusted;
     let partial = TrustLevel::Partial;
     let trusted = TrustLevel::Trusted;
@@ -479,7 +488,7 @@ fn test_trust_level_variants_stable() {
 
 /// Test 2.6: VerificationStatus enum variants are stable
 #[test]
-fn test_verification_status_variants_stable() {
+fn test_verification_status_variants_are_stable() {
     let verified = VerificationStatus::Verified;
     let expired = VerificationStatus::Expired;
     let failed = VerificationStatus::Failed;
@@ -494,7 +503,7 @@ fn test_verification_status_variants_stable() {
 
 /// Test 2.7: ProofComplexity enum variants are stable
 #[test]
-fn test_proof_complexity_variants_stable() {
+fn test_proof_complexity_variants_are_stable() {
     let _low = ProofComplexity::Low;
     let _medium = ProofComplexity::Medium;
     let _high = ProofComplexity::High;
@@ -502,7 +511,7 @@ fn test_proof_complexity_variants_stable() {
 
 /// Test 2.8: HardwareType enum variants are stable
 #[test]
-fn test_hardware_type_variants_stable() {
+fn test_hardware_type_variants_are_stable() {
     let _cpu = HardwareType::Cpu;
     let _gpu = HardwareType::Gpu;
     let _fpga = HardwareType::Fpga;
@@ -512,7 +521,7 @@ fn test_hardware_type_variants_stable() {
 
 /// Test 2.9: PatternType enum variants are stable
 #[test]
-fn test_pattern_type_variants_stable() {
+fn test_pattern_type_variants_are_stable() {
     let _random = PatternType::Random;
     let _structured = PatternType::Structured;
     let _repetitive = PatternType::Repetitive;
@@ -522,7 +531,7 @@ fn test_pattern_type_variants_stable() {
 
 /// Test 2.10: KeyLifecycleState enum variants are stable
 #[test]
-fn test_key_lifecycle_state_variants_stable() {
+fn test_key_lifecycle_state_variants_are_stable() {
     let _generation = KeyLifecycleState::Generation;
     let _active = KeyLifecycleState::Active;
     let _rotating = KeyLifecycleState::Rotating;
@@ -532,7 +541,7 @@ fn test_key_lifecycle_state_variants_stable() {
 
 /// Test 2.11: CustodianRole enum variants are stable
 #[test]
-fn test_custodian_role_variants_stable() {
+fn test_custodian_role_variants_are_stable() {
     let _generator = CustodianRole::KeyGenerator;
     let _approver = CustodianRole::KeyApprover;
     let _destroyer = CustodianRole::KeyDestroyer;
@@ -541,7 +550,7 @@ fn test_custodian_role_variants_stable() {
 
 /// Test 2.12: AlgorithmSelection enum variants are stable
 #[test]
-fn test_algorithm_selection_variants_stable() {
+fn test_algorithm_selection_variants_are_stable() {
     let _use_case = AlgorithmSelection::UseCase(UseCase::FileStorage);
     let _security = AlgorithmSelection::SecurityLevel(SecurityLevel::High);
 
@@ -552,7 +561,7 @@ fn test_algorithm_selection_variants_stable() {
 
 /// Test 2.13: CoreError implements std::error::Error
 #[test]
-fn test_core_error_implements_error_trait() {
+fn test_core_error_implements_error_trait_correctly_fails() {
     // CoreError should implement Error trait
     let error = CoreError::InvalidInput("test".to_string());
     let _: &dyn Error = &error;
@@ -564,7 +573,7 @@ fn test_core_error_implements_error_trait() {
 
 /// Test 2.14: CoreError variants are stable
 #[test]
-fn test_core_error_variants_stable() {
+fn test_core_error_variants_are_stable() {
     // String-based errors
     let _ = CoreError::InvalidInput("test".to_string());
     let _ = CoreError::EncryptionFailed("test".to_string());
@@ -621,7 +630,7 @@ fn test_core_error_variants_stable() {
 
 /// Test 2.15: Struct field accessibility - CryptoConfig
 #[test]
-fn test_crypto_config_field_accessibility() {
+fn test_crypto_config_field_accessibility_is_stable() {
     // CryptoConfig builder methods
     let config = CryptoConfig::new();
 
@@ -633,7 +642,7 @@ fn test_crypto_config_field_accessibility() {
 
     // Builder pattern should work
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(&pk, sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
     let config = CryptoConfig::new()
         .session(&session)
         .use_case(UseCase::FileStorage)
@@ -644,7 +653,7 @@ fn test_crypto_config_field_accessibility() {
 
 /// Test 2.16: Struct field accessibility - CoreConfig
 #[test]
-fn test_core_config_field_accessibility() {
+fn test_core_config_field_accessibility_is_stable() {
     let config = CoreConfig::default();
 
     // Public fields should be accessible
@@ -667,7 +676,7 @@ fn test_core_config_field_accessibility() {
 
 /// Test 2.17: Struct field accessibility - EncryptedMetadata
 #[test]
-fn test_encrypted_metadata_field_accessibility() {
+fn test_encrypted_metadata_field_accessibility_is_stable() {
     let metadata = EncryptedMetadata {
         nonce: vec![0u8; 12],
         tag: Some(vec![0u8; 16]),
@@ -682,7 +691,7 @@ fn test_encrypted_metadata_field_accessibility() {
 
 /// Test 2.18: Struct field accessibility - SignedMetadata
 #[test]
-fn test_signed_metadata_field_accessibility() {
+fn test_signed_metadata_field_accessibility_is_stable() {
     let metadata = SignedMetadata {
         signature: vec![0u8; 64],
         signature_algorithm: "ML-DSA-65".to_string(),
@@ -705,7 +714,7 @@ fn test_signed_metadata_field_accessibility() {
 /// Note: The unified encrypt() with CryptoConfig requires PQ public keys.
 /// Use encrypt_aes_gcm_unverified() for symmetric encryption with 32-byte keys.
 #[test]
-fn test_encrypt_function_works() {
+fn test_encrypt_function_works_correctly_succeeds() {
     let key = [0u8; 32];
     let data = b"test data";
 
@@ -727,29 +736,30 @@ fn test_encrypt_function_works() {
 /// Note: The unified decrypt() with CryptoConfig requires PQ keys.
 /// Use decrypt_aes_gcm_unverified() for symmetric decryption with 32-byte keys.
 #[test]
-fn test_decrypt_function_works() {
+fn test_decrypt_function_works_correctly_succeeds() {
     let key = [0u8; 32];
     let data = b"test data";
 
     // Test symmetric encryption/decryption roundtrip
     let encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encrypt");
-    let result: Result<Vec<u8>> = decrypt_aes_gcm_unverified(&encrypted, &key);
+    let result: Result<latticearc::Zeroizing<Vec<u8>>> =
+        decrypt_aes_gcm_unverified(&encrypted, &key);
     assert!(result.is_ok());
-    assert_eq!(result.expect("decrypt"), data);
+    assert_eq!(result.expect("decrypt").as_slice(), data.as_slice());
 
     // Verify unified decrypt() function signature exists (compile-time check)
     fn _assert_signature(
         _encrypted: &EncryptedOutput,
         _key: DecryptKey<'_>,
         _config: CryptoConfig,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<latticearc::Zeroizing<Vec<u8>>> {
         decrypt(_encrypted, _key, _config)
     }
 }
 
 /// Test 3.3: generate_keypair function returns expected types
 #[test]
-fn test_generate_keypair_returns_expected_types() {
+fn test_generate_keypair_returns_expected_types_correctly_succeeds() {
     let result: Result<(PublicKey, PrivateKey)> = generate_keypair();
     assert!(result.is_ok());
 
@@ -760,25 +770,26 @@ fn test_generate_keypair_returns_expected_types() {
 
 /// Test 3.4: hash_data function returns expected type
 #[test]
-fn test_hash_data_returns_expected_type() {
+fn test_hash_data_returns_expected_type_correctly_succeeds() {
     let data = b"test data";
-    let result: HashOutput = hash_data(data);
-    assert_eq!(result.len(), 32);
+    let raw: [u8; 32] = hash_data(data);
+    let result = HashOutput::new(raw);
+    assert_eq!(result.as_slice().len(), 32);
 }
 
 /// Test 3.5: VerifiedSession::establish works with expected types
 #[test]
-fn test_verified_session_establish_works() {
+fn test_verified_session_establish_works_correctly_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let result: Result<VerifiedSession> = VerifiedSession::establish(&pk, sk.as_slice());
+    let result: Result<VerifiedSession> = VerifiedSession::establish(pk.as_slice(), sk.as_slice());
     assert!(result.is_ok());
 }
 
 /// Test 3.6: VerifiedSession methods return expected types
 #[test]
-fn test_verified_session_method_return_types() {
+fn test_verified_session_method_return_types_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(&pk, sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
 
     // Method return types should be stable
     let _: bool = session.is_valid();
@@ -792,9 +803,9 @@ fn test_verified_session_method_return_types() {
 
 /// Test 3.7: SecurityMode methods return expected types
 #[test]
-fn test_security_mode_method_return_types() {
+fn test_security_mode_method_return_types_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(&pk, sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
 
     let verified = SecurityMode::Verified(&session);
     let unverified = SecurityMode::Unverified;
@@ -812,7 +823,7 @@ fn test_security_mode_method_return_types() {
 
 /// Test 3.8: CryptoPolicyEngine static methods return expected types
 #[test]
-fn test_crypto_policy_engine_method_return_types() {
+fn test_crypto_policy_engine_method_return_types_are_stable() {
     let config = CoreConfig::default();
     let data = b"test data";
 
@@ -835,7 +846,7 @@ fn test_crypto_policy_engine_method_return_types() {
 
 /// Test 3.9: ZeroTrustAuth methods return expected types
 #[test]
-fn test_zero_trust_auth_method_return_types() {
+fn test_zero_trust_auth_method_return_types_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth");
 
@@ -848,7 +859,7 @@ fn test_zero_trust_auth_method_return_types() {
 
 /// Test 3.10: ZeroTrustSession methods return expected types
 #[test]
-fn test_zero_trust_session_method_return_types() {
+fn test_zero_trust_session_method_return_types_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth");
     let mut session = ZeroTrustSession::new(auth);
@@ -861,7 +872,7 @@ fn test_zero_trust_session_method_return_types() {
 
 /// Test 3.11: HardwareInfo methods return expected types
 #[test]
-fn test_hardware_info_method_return_types() {
+fn test_hardware_info_method_return_types_are_stable() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
         preferred_accelerator: Some(HardwareType::Cpu),
@@ -880,7 +891,7 @@ fn test_hardware_info_method_return_types() {
 
 /// Test 3.12: KeyStateMachine methods return expected types
 #[test]
-fn test_key_state_machine_method_return_types() {
+fn test_key_state_machine_method_return_types_are_stable() {
     // Static method return types
     let _: bool = KeyStateMachine::is_valid_transition(None, KeyLifecycleState::Generation);
     let _: Vec<KeyLifecycleState> = KeyStateMachine::allowed_next_states(KeyLifecycleState::Active);
@@ -888,7 +899,7 @@ fn test_key_state_machine_method_return_types() {
 
 /// Test 3.13: Config builder patterns work correctly
 #[test]
-fn test_config_builder_patterns_work() {
+fn test_config_builder_patterns_work_correctly_succeeds() {
     // CoreConfig builder
     let config = CoreConfig::new()
         .with_security_level(SecurityLevel::Maximum)
@@ -926,7 +937,7 @@ fn test_config_builder_patterns_work() {
 
 /// Test 3.14: Trait implementations on types are stable
 #[test]
-fn test_trait_implementations_stable() {
+fn test_trait_implementations_are_stable() {
     // SecurityLevel implements Debug, Clone, PartialEq, Eq, Default
     fn assert_traits<T: std::fmt::Debug + Clone + PartialEq + Eq + Default>() {}
     assert_traits::<SecurityLevel>();
@@ -943,21 +954,21 @@ fn test_trait_implementations_stable() {
     assert_debug_clone_eq::<ProofComplexity>();
 }
 
-/// Test 3.15: Type aliases work correctly
+/// Test 3.15: Public type newtypes work correctly
 #[test]
-fn test_type_aliases_work() {
-    // PublicKey = Vec<u8>
-    let pk: PublicKey = vec![0u8; 32];
+fn test_type_aliases_work_correctly_succeeds() {
+    // PublicKey wraps Vec<u8>
+    let pk: PublicKey = PublicKey::new(vec![0u8; 32]);
     assert_eq!(pk.len(), 32);
 
-    // HashOutput = [u8; 32]
-    let hash: HashOutput = [0u8; 32];
-    assert_eq!(hash.len(), 32);
+    // HashOutput wraps [u8; 32]
+    let hash: HashOutput = HashOutput::new([0u8; 32]);
+    assert_eq!(hash.as_slice().len(), 32);
 }
 
 /// Test 3.16: Result type alias works correctly
 #[test]
-fn test_result_type_alias_works() {
+fn test_result_type_alias_works_correctly_succeeds() {
     // Result<T> should be std::result::Result<T, CoreError>
     fn returns_result() -> Result<()> {
         Ok(())
@@ -976,19 +987,19 @@ fn test_result_type_alias_works() {
 
 /// Test 4.1: Unverified AES-GCM functions work as migration path
 #[test]
-fn test_unverified_aes_gcm_works() {
+fn test_unverified_aes_gcm_works_correctly_succeeds() {
     let key = [0u8; 32];
     let data = b"test data";
 
     // These unverified functions provide migration path for legacy code
     let encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encrypt");
     let decrypted = decrypt_aes_gcm_unverified(&encrypted, &key).expect("decrypt");
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 /// Test 4.2: Hybrid encryption works (ML-KEM-768 + X25519 + HKDF + AES-GCM)
 #[test]
-fn test_hybrid_encryption_works() {
+fn test_hybrid_encryption_works_correctly_succeeds() {
     let data = b"test data";
 
     // generate_hybrid_keypair + unified encrypt/decrypt roundtrip
@@ -997,7 +1008,7 @@ fn test_hybrid_encryption_works() {
         encrypt(data, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt");
 
     // EncryptedOutput has hybrid_data with ml_kem_ciphertext, ecdh_ephemeral_pk
-    let hybrid = encrypted.hybrid_data.as_ref().expect("hybrid_data must be present");
+    let hybrid = encrypted.hybrid_data().expect("hybrid_data must be present");
     assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT");
     assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK");
 
@@ -1008,18 +1019,18 @@ fn test_hybrid_encryption_works() {
 
 /// Test 4.3: Legacy Ed25519 signing works
 #[test]
-fn test_legacy_ed25519_signing_works() {
+fn test_legacy_ed25519_signing_works_correctly_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
     let message = b"test message";
 
     let signature = sign_ed25519_unverified(message, sk.as_slice()).expect("sign");
-    let verified = verify_ed25519_unverified(message, &signature, &pk).expect("verify");
+    let verified = verify_ed25519_unverified(message, &signature, pk.as_slice()).expect("verify");
     assert!(verified);
 }
 
 /// Test 4.4: Legacy HMAC functions work
 #[test]
-fn test_legacy_hmac_functions_work() {
+fn test_legacy_hmac_functions_work_correctly_succeeds() {
     let key = [0u8; 32];
     let data = b"test data";
 
@@ -1030,7 +1041,7 @@ fn test_legacy_hmac_functions_work() {
 
 /// Test 4.5: Legacy key derivation works
 #[test]
-fn test_legacy_key_derivation_works() {
+fn test_legacy_key_derivation_works_correctly_succeeds() {
     let ikm = b"input key material";
     let info = b"context";
 
@@ -1042,7 +1053,7 @@ fn test_legacy_key_derivation_works() {
 /// Note: This tests the migration path from legacy unverified functions to session-based.
 /// The unified API with CryptoConfig uses PQ hybrid encryption by default.
 #[test]
-fn test_migration_to_verified_mode() {
+fn test_migration_to_verified_mode_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
     let key = [0u8; 32];
     let data = b"sensitive data";
@@ -1051,7 +1062,7 @@ fn test_migration_to_verified_mode() {
     let encrypted_legacy = encrypt_aes_gcm_unverified(data, &key).expect("encrypt");
 
     // Step 2: New code establishes a session
-    let session = VerifiedSession::establish(&pk, sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
 
     // Step 3: New code can still use symmetric encryption but with verified session context
     // The CryptoConfig.session() validates the session is active, but the actual
@@ -1072,7 +1083,7 @@ fn test_migration_to_verified_mode() {
 /// Note: CryptoConfig defaults to PQ hybrid encryption requiring public keys.
 /// For symmetric encryption backward compatibility, use the _unverified functions.
 #[test]
-fn test_default_config_backward_compatible() {
+fn test_default_config_backward_compatible_is_stable() {
     let key = [0u8; 32];
     let data = b"test data";
 
@@ -1083,7 +1094,7 @@ fn test_default_config_backward_compatible() {
     // Symmetric operations use the unverified API for backward compatibility
     let encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encrypt");
     let decrypted = decrypt_aes_gcm_unverified(&encrypted, &key).expect("decrypt");
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 
     // CryptoConfig validation should work without session
     assert!(config.validate().is_ok());
@@ -1091,7 +1102,7 @@ fn test_default_config_backward_compatible() {
 
 /// Test 4.8: CoreConfig::for_development provides relaxed settings
 #[test]
-fn test_development_config_compatible() {
+fn test_development_config_compatible_is_stable() {
     let config = CoreConfig::for_development();
 
     // Development config should be valid
@@ -1104,7 +1115,7 @@ fn test_development_config_compatible() {
 
 /// Test 4.9: CoreConfig::for_production provides strong defaults
 #[test]
-fn test_production_config_compatible() {
+fn test_production_config_compatible_is_stable() {
     let config = CoreConfig::for_production();
 
     // Production config should be valid
@@ -1118,7 +1129,7 @@ fn test_production_config_compatible() {
 /// Test 4.10: Empty data handling is stable
 /// Note: Uses symmetric AES-GCM for empty data handling test.
 #[test]
-fn test_empty_data_handling_stable() {
+fn test_empty_data_handling_is_stable() {
     let key = [0u8; 32];
     let data = b"";
 
@@ -1135,7 +1146,7 @@ fn test_empty_data_handling_stable() {
 /// Test 4.11: Large data handling is stable
 /// Note: Uses symmetric AES-GCM for large data handling test.
 #[test]
-fn test_large_data_handling_stable() {
+fn test_large_data_handling_is_stable() {
     let key = [0u8; 32];
     let data = vec![0u8; 1024 * 1024]; // 1MB
 
@@ -1155,7 +1166,7 @@ fn test_large_data_handling_stable() {
 
 /// Test 5.1: ZeroizedBytes provides secure memory handling
 #[test]
-fn test_zeroized_bytes_api_stable() {
+fn test_zeroized_bytes_api_is_stable() {
     let data = vec![1, 2, 3, 4, 5];
     let zeroized = ZeroizedBytes::new(data);
 
@@ -1170,7 +1181,7 @@ fn test_zeroized_bytes_api_stable() {
 
 /// Test 5.2: KeyPair provides secure key storage
 #[test]
-fn test_keypair_api_stable() {
+fn test_keypair_api_is_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
 
     // Create KeyPair directly
@@ -1180,13 +1191,13 @@ fn test_keypair_api_stable() {
     let _public: &PublicKey = keypair.public_key();
     let _private: &PrivateKey = keypair.private_key();
 
-    // Public fields accessible
-    let _ = &keypair.public_key;
+    // Public key accessible via method
+    let _ = keypair.public_key();
 }
 
 /// Test 5.3: CryptoContext is constructable and usable
 #[test]
-fn test_crypto_context_api_stable() {
+fn test_crypto_context_api_is_stable() {
     // Default construction
     let context = CryptoContext::default();
 
@@ -1200,7 +1211,7 @@ fn test_crypto_context_api_stable() {
 
 /// Test 5.4: DataCharacteristics structure is stable
 #[test]
-fn test_data_characteristics_api_stable() {
+fn test_data_characteristics_api_is_stable() {
     let data = b"test data for analysis";
     let characteristics = CryptoPolicyEngine::analyze_data_characteristics(data);
 
@@ -1212,7 +1223,7 @@ fn test_data_characteristics_api_stable() {
 
 /// Test 5.5: HardwareInfo structure is stable
 #[test]
-fn test_hardware_info_api_stable() {
+fn test_hardware_info_api_is_stable() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
         preferred_accelerator: Some(HardwareType::Cpu),
@@ -1236,7 +1247,7 @@ fn test_hardware_info_api_stable() {
 
 /// Test 5.6: HardwareCapabilities structure is stable
 #[test]
-fn test_hardware_capabilities_api_stable() {
+fn test_hardware_capabilities_api_is_stable() {
     let capabilities = HardwareCapabilities {
         simd_support: true,
         aes_ni: true,
@@ -1253,33 +1264,31 @@ fn test_hardware_capabilities_api_stable() {
 
 /// Test 5.7: PerformanceMetrics default values are stable
 #[test]
-fn test_performance_metrics_defaults_stable() {
+fn test_performance_metrics_defaults_are_stable() {
     let metrics = PerformanceMetrics::default();
 
     // Fields should be accessible with sensible defaults
     assert!(metrics.encryption_speed_ms > 0.0);
-    assert!(metrics.decryption_speed_ms > 0.0);
     assert!(metrics.memory_usage_mb > 0.0);
-    assert!(metrics.cpu_usage_percent >= 0.0);
 }
 
 /// Test 5.8: Challenge structure is stable
 #[test]
-fn test_challenge_structure_stable() {
+fn test_challenge_structure_is_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
     let auth = ZeroTrustAuth::new(pk, sk).expect("auth");
     let challenge = auth.generate_challenge().expect("challenge");
 
-    // Fields should be accessible
-    let _data: Vec<u8> = challenge.data;
-    let _timestamp: chrono::DateTime<chrono::Utc> = challenge.timestamp;
-    let _complexity: ProofComplexity = challenge.complexity;
-    let _timeout: u64 = challenge.timeout_ms;
+    // Fields should be accessible via methods
+    let _data: &[u8] = challenge.data();
+    let _timestamp: chrono::DateTime<chrono::Utc> = challenge.timestamp();
+    let _complexity: &ProofComplexity = challenge.complexity();
+    let _timeout: u64 = challenge.timeout_ms();
 }
 
 /// Test 5.9: UseCaseConfig construction is stable
 #[test]
-fn test_use_case_config_stable() {
+fn test_use_case_config_is_stable() {
     let config = UseCaseConfig::new(UseCase::FileStorage);
 
     // Validation should work (call before moving fields)
@@ -1295,7 +1304,7 @@ fn test_use_case_config_stable() {
 
 /// Test 5.10: KeyLifecycleRecord construction is stable
 #[test]
-fn test_key_lifecycle_record_stable() {
+fn test_key_lifecycle_record_is_stable() {
     let record =
         KeyLifecycleRecord::new("key-123".to_string(), "ML-KEM-768".to_string(), 3, 365, 30);
 
@@ -1308,7 +1317,7 @@ fn test_key_lifecycle_record_stable() {
 
 /// Test 5.11: AuditEvent construction is stable
 #[test]
-fn test_audit_event_construction_stable() {
+fn test_audit_event_construction_is_stable() {
     let event =
         AuditEvent::new(AuditEventType::CryptoOperation, "encrypt_data", AuditOutcome::Success);
 
@@ -1320,9 +1329,9 @@ fn test_audit_event_construction_stable() {
 
 /// Test 5.12: SecurityMode conversion from VerifiedSession
 #[test]
-fn test_security_mode_from_verified_session() {
+fn test_security_mode_from_verified_session_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(&pk, sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
 
     // From trait should work
     let mode: SecurityMode = (&session).into();
@@ -1331,7 +1340,7 @@ fn test_security_mode_from_verified_session() {
 
 /// Test 5.13: SecurityMode default is Unverified
 #[test]
-fn test_security_mode_default() {
+fn test_security_mode_default_is_correct() {
     let mode = SecurityMode::default();
     assert!(mode.is_unverified());
 }

@@ -8,7 +8,6 @@ mod tests {
     use latticearc::primitives::kem::ml_kem::{
         MlKem, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
     };
-    use rand::rngs::OsRng;
 
     // ========================================================================
     // Key Size Stability Tests
@@ -16,8 +15,7 @@ mod tests {
 
     #[test]
     fn api_stability_ml_kem_512_public_key_size() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
 
         // ML-KEM-512 public key size is fixed by FIPS 203
@@ -30,8 +28,7 @@ mod tests {
 
     #[test]
     fn api_stability_ml_kem_768_public_key_size() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
             .expect("keypair generation should succeed");
 
         assert_eq!(
@@ -43,8 +40,7 @@ mod tests {
 
     #[test]
     fn api_stability_ml_kem_1024_public_key_size() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)
             .expect("keypair generation should succeed");
 
         assert_eq!(
@@ -56,8 +52,6 @@ mod tests {
 
     #[test]
     fn api_stability_ml_kem_secret_key_sizes() {
-        let mut rng = OsRng;
-
         let sizes = [
             (MlKemSecurityLevel::MlKem512, 1632),
             (MlKemSecurityLevel::MlKem768, 2400),
@@ -65,8 +59,8 @@ mod tests {
         ];
 
         for (level, expected_size) in sizes {
-            let (_pk, sk) = MlKem::generate_keypair(&mut rng, level)
-                .expect("keypair generation should succeed");
+            let (_pk, sk) =
+                MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
             assert_eq!(
                 sk.as_bytes().len(),
@@ -79,8 +73,6 @@ mod tests {
 
     #[test]
     fn api_stability_ml_kem_ciphertext_sizes() {
-        let mut rng = OsRng;
-
         let sizes = [
             (MlKemSecurityLevel::MlKem512, 768),
             (MlKemSecurityLevel::MlKem768, 1088),
@@ -88,10 +80,9 @@ mod tests {
         ];
 
         for (level, expected_size) in sizes {
-            let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)
-                .expect("keypair generation should succeed");
-            let (_ss, ct) =
-                MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+            let (pk, _sk) =
+                MlKem::generate_keypair(level).expect("keypair generation should succeed");
+            let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
             assert_eq!(
                 ct.as_bytes().len(),
@@ -104,17 +95,15 @@ mod tests {
 
     #[test]
     fn api_stability_shared_secret_size() {
-        let mut rng = OsRng;
-
         // All ML-KEM variants produce 32-byte shared secrets
         for level in [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
             MlKemSecurityLevel::MlKem1024,
         ] {
-            let (pk, sk) = MlKem::generate_keypair(&mut rng, level)
-                .expect("keypair generation should succeed");
-            let (ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+            let (pk, sk) =
+                MlKem::generate_keypair(level).expect("keypair generation should succeed");
+            let (ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
             let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
             assert_eq!(ss.as_bytes().len(), 32, "Shared secret must be 32 bytes for {:?}", level);
@@ -128,15 +117,13 @@ mod tests {
 
     #[test]
     fn api_stability_public_key_roundtrip() {
-        let mut rng = OsRng;
-
         for level in [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
             MlKemSecurityLevel::MlKem1024,
         ] {
-            let (pk, _sk) = MlKem::generate_keypair(&mut rng, level)
-                .expect("keypair generation should succeed");
+            let (pk, _sk) =
+                MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
             let bytes = pk.to_bytes();
             let restored =
@@ -153,15 +140,13 @@ mod tests {
 
     #[test]
     fn api_stability_secret_key_roundtrip() {
-        let mut rng = OsRng;
-
         for level in [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
             MlKemSecurityLevel::MlKem1024,
         ] {
-            let (_pk, sk) = MlKem::generate_keypair(&mut rng, level)
-                .expect("keypair generation should succeed");
+            let (_pk, sk) =
+                MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
             let bytes = sk.as_bytes().to_vec();
             let restored =
@@ -182,8 +167,7 @@ mod tests {
 
     #[test]
     fn api_stability_serialization_format_unchanged() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
 
         let bytes = pk.to_bytes();

@@ -52,7 +52,7 @@ use latticearc::primitives::aead::{
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_128_empty_key() {
+fn test_aes_gcm_128_empty_key_fails() {
     let empty_key = [];
     let result = AesGcm128::new(&empty_key);
     assert!(result.is_err(), "Should fail with empty key");
@@ -66,7 +66,7 @@ fn test_aes_gcm_128_empty_key() {
 }
 
 #[test]
-fn test_aes_gcm_128_short_key() {
+fn test_aes_gcm_128_short_key_succeeds() {
     let short_key = [0u8; 8]; // Need 16 bytes
     let result = AesGcm128::new(&short_key);
     assert!(result.is_err(), "Should fail with short key");
@@ -80,7 +80,7 @@ fn test_aes_gcm_128_short_key() {
 }
 
 #[test]
-fn test_aes_gcm_128_15_byte_key() {
+fn test_aes_gcm_128_15_byte_key_succeeds() {
     let key = [0u8; 15]; // One byte short
     let result = AesGcm128::new(&key);
     assert!(result.is_err(), "Should fail with 15-byte key");
@@ -94,7 +94,7 @@ fn test_aes_gcm_128_15_byte_key() {
 }
 
 #[test]
-fn test_aes_gcm_128_17_byte_key() {
+fn test_aes_gcm_128_17_byte_key_succeeds() {
     let key = [0u8; 17]; // One byte too long
     let result = AesGcm128::new(&key);
     assert!(result.is_err(), "Should fail with 17-byte key");
@@ -108,7 +108,7 @@ fn test_aes_gcm_128_17_byte_key() {
 }
 
 #[test]
-fn test_aes_gcm_128_decrypt_corrupted_tag() {
+fn test_aes_gcm_128_decrypt_corrupted_tag_fails() {
     let key = [0u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
@@ -132,7 +132,7 @@ fn test_aes_gcm_128_decrypt_corrupted_tag() {
 }
 
 #[test]
-fn test_aes_gcm_128_decrypt_corrupted_ciphertext() {
+fn test_aes_gcm_128_decrypt_corrupted_ciphertext_fails() {
     let key = [0u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
@@ -158,7 +158,7 @@ fn test_aes_gcm_128_decrypt_corrupted_ciphertext() {
 }
 
 #[test]
-fn test_aes_gcm_128_decrypt_wrong_nonce() {
+fn test_aes_gcm_128_decrypt_wrong_nonce_fails() {
     let key = [0u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
@@ -181,7 +181,7 @@ fn test_aes_gcm_128_decrypt_wrong_nonce() {
 }
 
 #[test]
-fn test_aes_gcm_128_decrypt_empty_ciphertext_corrupted_tag() {
+fn test_aes_gcm_128_decrypt_empty_ciphertext_corrupted_tag_fails() {
     let key = [0u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
@@ -209,7 +209,7 @@ fn test_aes_gcm_128_decrypt_empty_ciphertext_corrupted_tag() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_256_empty_key() {
+fn test_aes_gcm_256_empty_key_fails() {
     let empty_key = [];
     let result = AesGcm256::new(&empty_key);
     assert!(result.is_err(), "Should fail with empty key");
@@ -223,7 +223,7 @@ fn test_aes_gcm_256_empty_key() {
 }
 
 #[test]
-fn test_aes_gcm_256_short_key() {
+fn test_aes_gcm_256_short_key_succeeds() {
     let short_key = [0u8; 16]; // Need 32 bytes
     let result = AesGcm256::new(&short_key);
     assert!(result.is_err(), "Should fail with short key");
@@ -237,7 +237,7 @@ fn test_aes_gcm_256_short_key() {
 }
 
 #[test]
-fn test_aes_gcm_256_31_byte_key() {
+fn test_aes_gcm_256_31_byte_key_succeeds() {
     let key = [0u8; 31]; // One byte short
     let result = AesGcm256::new(&key);
     assert!(result.is_err(), "Should fail with 31-byte key");
@@ -251,7 +251,7 @@ fn test_aes_gcm_256_31_byte_key() {
 }
 
 #[test]
-fn test_aes_gcm_256_33_byte_key() {
+fn test_aes_gcm_256_33_byte_key_succeeds() {
     let key = [0u8; 33]; // One byte too long
     let result = AesGcm256::new(&key);
     assert!(result.is_err(), "Should fail with 33-byte key");
@@ -265,7 +265,7 @@ fn test_aes_gcm_256_33_byte_key() {
 }
 
 #[test]
-fn test_aes_gcm_256_decrypt_corrupted_tag() {
+fn test_aes_gcm_256_decrypt_corrupted_tag_fails() {
     let key = [0u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
@@ -289,7 +289,7 @@ fn test_aes_gcm_256_decrypt_corrupted_tag() {
 }
 
 #[test]
-fn test_aes_gcm_256_decrypt_all_zeros_tag() {
+fn test_aes_gcm_256_decrypt_all_zeros_tag_succeeds() {
     let key = [0u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
@@ -317,7 +317,7 @@ fn test_aes_gcm_256_decrypt_all_zeros_tag() {
 // ============================================================================
 
 #[test]
-fn test_chacha20_poly1305_empty_key() {
+fn test_chacha20_poly1305_empty_key_fails() {
     let empty_key = [];
     let result = ChaCha20Poly1305Cipher::new(&empty_key);
     assert!(result.is_err(), "Should fail with empty key");
@@ -331,7 +331,7 @@ fn test_chacha20_poly1305_empty_key() {
 }
 
 #[test]
-fn test_chacha20_poly1305_short_key() {
+fn test_chacha20_poly1305_short_key_succeeds() {
     let short_key = [0u8; 16]; // Need 32 bytes
     let result = ChaCha20Poly1305Cipher::new(&short_key);
     assert!(result.is_err(), "Should fail with short key");
@@ -345,7 +345,7 @@ fn test_chacha20_poly1305_short_key() {
 }
 
 #[test]
-fn test_chacha20_poly1305_31_byte_key() {
+fn test_chacha20_poly1305_31_byte_key_succeeds() {
     let key = [0u8; 31]; // One byte short
     let result = ChaCha20Poly1305Cipher::new(&key);
     assert!(result.is_err(), "Should fail with 31-byte key");
@@ -359,7 +359,7 @@ fn test_chacha20_poly1305_31_byte_key() {
 }
 
 #[test]
-fn test_chacha20_poly1305_33_byte_key() {
+fn test_chacha20_poly1305_33_byte_key_succeeds() {
     let key = [0u8; 33]; // One byte too long
     let result = ChaCha20Poly1305Cipher::new(&key);
     assert!(result.is_err(), "Should fail with 33-byte key");
@@ -373,7 +373,7 @@ fn test_chacha20_poly1305_33_byte_key() {
 }
 
 #[test]
-fn test_chacha20_poly1305_decrypt_corrupted_tag() {
+fn test_chacha20_poly1305_decrypt_corrupted_tag_fails() {
     let key = [0u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
@@ -397,7 +397,7 @@ fn test_chacha20_poly1305_decrypt_corrupted_tag() {
 }
 
 #[test]
-fn test_chacha20_poly1305_decrypt_corrupted_ciphertext() {
+fn test_chacha20_poly1305_decrypt_corrupted_ciphertext_fails() {
     let key = [0u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
@@ -423,7 +423,7 @@ fn test_chacha20_poly1305_decrypt_corrupted_ciphertext() {
 }
 
 #[test]
-fn test_chacha20_poly1305_decrypt_wrong_key() {
+fn test_chacha20_poly1305_decrypt_wrong_key_fails() {
     let key1 = [0x00u8; 32];
     let key2 = [0xFFu8; 32];
 
@@ -452,7 +452,7 @@ fn test_chacha20_poly1305_decrypt_wrong_key() {
 // ============================================================================
 
 #[test]
-fn test_aes_128_encrypt_chacha_decrypt() {
+fn test_aes_128_encrypt_chacha_decrypt_succeeds() {
     let key = [0u8; 32]; // Both use 32-byte keys (use first 16 for AES-128)
     let aes_key = &key[..16];
 
@@ -482,7 +482,7 @@ fn test_aes_128_encrypt_chacha_decrypt() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_256_decrypt_wrong_aad() {
+fn test_aes_gcm_256_decrypt_wrong_aad_fails() {
     let key = [0u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
@@ -506,7 +506,7 @@ fn test_aes_gcm_256_decrypt_wrong_aad() {
 }
 
 #[test]
-fn test_chacha20_poly1305_decrypt_missing_aad() {
+fn test_chacha20_poly1305_decrypt_missing_aad_fails() {
     let key = [0u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
@@ -529,7 +529,7 @@ fn test_chacha20_poly1305_decrypt_missing_aad() {
 }
 
 #[test]
-fn test_aes_gcm_128_decrypt_unexpected_aad() {
+fn test_aes_gcm_128_decrypt_unexpected_aad_succeeds() {
     let key = [0u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
@@ -557,7 +557,7 @@ fn test_aes_gcm_128_decrypt_unexpected_aad() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_256_encrypt_empty_plaintext() {
+fn test_aes_gcm_256_encrypt_empty_plaintext_succeeds() {
     let key = [0u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
@@ -579,7 +579,7 @@ fn test_aes_gcm_256_encrypt_empty_plaintext() {
 }
 
 #[test]
-fn test_chacha20_poly1305_encrypt_single_byte() {
+fn test_chacha20_poly1305_encrypt_single_byte_succeeds() {
     let key = [0u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
@@ -591,5 +591,5 @@ fn test_chacha20_poly1305_encrypt_single_byte() {
     let decrypted =
         cipher.decrypt(&nonce, &ciphertext, &tag, None).expect("decryption should succeed");
 
-    assert_eq!(decrypted, plaintext, "Single byte should round-trip");
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Single byte should round-trip");
 }

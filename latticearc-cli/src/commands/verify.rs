@@ -200,7 +200,7 @@ fn verify_standard(
             data,
             &sig_bytes,
             pk_bytes,
-            latticearc::primitives::sig::MlDsaParameterSet::MLDSA65,
+            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
@@ -208,7 +208,7 @@ fn verify_standard(
             data,
             &sig_bytes,
             pk_bytes,
-            latticearc::primitives::sig::MlDsaParameterSet::MLDSA44,
+            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
@@ -216,7 +216,7 @@ fn verify_standard(
             data,
             &sig_bytes,
             pk_bytes,
-            latticearc::primitives::sig::MlDsaParameterSet::MLDSA87,
+            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
@@ -224,7 +224,7 @@ fn verify_standard(
             data,
             &sig_bytes,
             pk_bytes,
-            latticearc::primitives::sig::slh_dsa::SecurityLevel::Shake128s,
+            latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
@@ -232,6 +232,7 @@ fn verify_standard(
             data,
             &sig_bytes,
             pk_bytes,
+            latticearc::primitives::sig::fndsa::FnDsaSecurityLevel::Level512,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Verification failed: {e}")),
@@ -268,7 +269,7 @@ fn verify_hybrid(data: &[u8], sig_json: &str, pk_bytes: &[u8]) -> Result<bool> {
         .context("Invalid base64 in ed25519_sig")?;
 
     let pk = crate::keyfile::parse_hybrid_sign_pk_from_bytes(pk_bytes)?;
-    let hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature { ml_dsa_sig, ed25519_sig };
+    let hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
 
     latticearc::verify_hybrid_signature(
         data,

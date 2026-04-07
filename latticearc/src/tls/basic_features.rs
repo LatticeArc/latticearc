@@ -85,6 +85,18 @@ pub fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, TlsError> 
 }
 
 /// Secure private key container with automatic zeroization
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: Inner `PrivateKeyDer` from rustls-pki-types does not implement `Zeroize`.
+/// The `Drop` impl below attempts best-effort zeroization but inner key material may persist.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// `PrivateKeyDer` (rustls-pki-types) does not expose key bytes for byte-level
+/// comparison. This type is ephemeral (consumed on use) and not compared in
+/// any production code path.
 pub struct SecurePrivateKey {
     key: PrivateKeyDer<'static>,
 }
@@ -115,6 +127,10 @@ impl SecurePrivateKey {
     pub fn into_inner(self) -> PrivateKeyDer<'static> {
         // We need to clone since we can't move out of a type that implements Drop
         // The zeroization will happen when the original is dropped
+        // SECURITY: clone_key() creates an unzeroized copy of the private key.
+        // The original is zeroized when `self` is dropped, but the returned
+        // PrivateKeyDer holds an independent copy that rustls-pki-types does
+        // not zeroize. Callers should minimize the lifetime of the returned value.
         self.key.clone_key()
     }
 
@@ -143,6 +159,12 @@ impl SecurePrivateKey {
             PrivateKeyDer::Sec1(key) => Some(key),
             _ => None,
         }
+    }
+}
+
+impl std::fmt::Debug for SecurePrivateKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecurePrivateKey").field("data", &"[REDACTED]").finish()
     }
 }
 
@@ -502,7 +524,7 @@ mod tests {
     use crate::unified_api::SecurityLevel;
 
     #[test]
-    fn test_config_info_standard() {
+    fn test_config_info_standard_is_correct() {
         // Standard uses Hybrid mode
         let config = TlsConfig::new().security_level(SecurityLevel::Standard);
         let info = get_config_info(&config);
@@ -511,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_info_hybrid() {
+    fn test_config_info_hybrid_is_correct() {
         // Default (High) uses Hybrid mode
         let config = TlsConfig::new();
         let info = get_config_info(&config);
@@ -520,7 +542,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_info_pq() {
+    fn test_config_info_pq_is_correct() {
         // Quantum uses PQ-only mode
         let config = TlsConfig::new().security_level(SecurityLevel::Quantum);
         let info = get_config_info(&config);
@@ -528,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_info_classic() {
+    fn test_config_info_classic_is_correct() {
         let mut config = TlsConfig::new();
         config.mode = TlsMode::Classic;
         let info = get_config_info(&config);
@@ -537,32 +559,32 @@ mod tests {
     }
 
     #[test]
-    fn test_load_certificates_nonexistent_file() {
+    fn test_load_certificates_nonexistent_file_fails() {
         let result = load_certificates("/nonexistent/path/cert.pem");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_load_certs_delegates_to_load_certificates() {
+    fn test_load_certs_delegates_to_load_certificates_fails() {
         // load_certs should return same error as load_certificates
         let result = load_certs("/nonexistent/path/cert.pem");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_load_private_key_nonexistent_file() {
+    fn test_load_private_key_nonexistent_file_fails() {
         let result = load_private_key("/nonexistent/path/key.pem");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_load_private_key_secure_nonexistent_file() {
+    fn test_load_private_key_secure_nonexistent_file_fails() {
         let result = load_private_key_secure("/nonexistent/path/key.pem");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_secure_private_key_pkcs8() {
+    fn test_secure_private_key_pkcs8_is_correct() {
         // Create a PKCS#8 key
         let key_bytes = vec![1u8; 32];
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
@@ -576,7 +598,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_private_key_pkcs1() {
+    fn test_secure_private_key_pkcs1_is_correct() {
         let key_bytes = vec![2u8; 32];
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs1KeyDer::from(key_bytes));
         let secure = SecurePrivateKey::new(key);
@@ -587,7 +609,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_private_key_sec1() {
+    fn test_secure_private_key_sec1_is_correct() {
         let key_bytes = vec![3u8; 32];
         let key = PrivateKeyDer::from(rustls_pki_types::PrivateSec1KeyDer::from(key_bytes));
         let secure = SecurePrivateKey::new(key);
@@ -598,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_private_key_into_inner() {
+    fn test_secure_private_key_into_inner_succeeds() {
         let key_bytes = vec![4u8; 32];
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
         let secure = SecurePrivateKey::new(key);
@@ -608,7 +630,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_private_key_as_ref() {
+    fn test_secure_private_key_as_ref_returns_correct_type_succeeds() {
         let key_bytes = vec![5u8; 32];
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
         let secure = SecurePrivateKey::new(key);
@@ -618,7 +640,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_private_key_zeroize() {
+    fn test_secure_private_key_zeroize_succeeds() {
         let key_bytes = vec![6u8; 32];
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
         let mut secure = SecurePrivateKey::new(key);
@@ -626,7 +648,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_private_key_drop() {
+    fn test_secure_private_key_drop_succeeds() {
         let key_bytes = vec![7u8; 32];
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(key_bytes));
         let secure = SecurePrivateKey::new(key);
@@ -650,7 +672,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_certificates_valid_pem() {
+    fn test_load_certificates_valid_pem_succeeds() {
         let (cert_path, _key_path, _dir) = generate_test_cert_and_key();
         let certs = load_certificates(&cert_path);
         assert!(certs.is_ok(), "Should load valid PEM certificate");
@@ -658,7 +680,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_certificates_empty_pem_file() {
+    fn test_load_certificates_empty_pem_file_succeeds() {
         let dir = tempfile::tempdir().unwrap();
         let cert_path = dir.path().join("empty.pem");
         std::fs::write(&cert_path, "").unwrap();
@@ -668,7 +690,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_certificates_invalid_pem_content() {
+    fn test_load_certificates_invalid_pem_content_fails() {
         let dir = tempfile::tempdir().unwrap();
         let cert_path = dir.path().join("invalid.pem");
         std::fs::write(&cert_path, "NOT A VALID PEM FILE").unwrap();
@@ -678,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_certs_valid_pem() {
+    fn test_load_certs_valid_pem_succeeds() {
         let (cert_path, _key_path, _dir) = generate_test_cert_and_key();
         let certs = load_certs(&cert_path);
         assert!(certs.is_ok());
@@ -686,14 +708,14 @@ mod tests {
     }
 
     #[test]
-    fn test_load_private_key_valid_pem() {
+    fn test_load_private_key_valid_pem_succeeds() {
         let (_cert_path, key_path, _dir) = generate_test_cert_and_key();
         let key = load_private_key(&key_path);
         assert!(key.is_ok(), "Should load valid PEM private key");
     }
 
     #[test]
-    fn test_load_private_key_secure_valid_pem() {
+    fn test_load_private_key_secure_valid_pem_succeeds() {
         let (_cert_path, key_path, _dir) = generate_test_cert_and_key();
         let secure_key = load_private_key_secure(&key_path);
         assert!(secure_key.is_ok(), "Should load valid PEM private key securely");
@@ -703,7 +725,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_private_key_secure_into_inner() {
+    fn test_load_private_key_secure_into_inner_succeeds() {
         let (_cert_path, key_path, _dir) = generate_test_cert_and_key();
         let secure_key = load_private_key_secure(&key_path).unwrap();
         let _inner = secure_key.into_inner();
@@ -711,14 +733,14 @@ mod tests {
     }
 
     #[test]
-    fn test_create_client_connector_default_config() {
+    fn test_create_client_connector_default_config_succeeds() {
         let config = TlsConfig::new();
         let connector = create_client_connector(&config);
         assert!(connector.is_ok(), "Default client connector should succeed");
     }
 
     #[test]
-    fn test_create_client_connector_classic_mode() {
+    fn test_create_client_connector_classic_mode_succeeds() {
         let mut config = TlsConfig::new();
         config.mode = TlsMode::Classic;
         let connector = create_client_connector(&config);
@@ -726,7 +748,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_acceptor_valid() {
+    fn test_create_server_acceptor_valid_succeeds() {
         let (cert_path, key_path, _dir) = generate_test_cert_and_key();
         let config = TlsConfig::new();
         let acceptor = create_server_acceptor(&config, &cert_path, &key_path);
@@ -734,7 +756,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_acceptor_classic_mode() {
+    fn test_create_server_acceptor_classic_mode_succeeds() {
         let (cert_path, key_path, _dir) = generate_test_cert_and_key();
         let mut config = TlsConfig::new();
         config.mode = TlsMode::Classic;
@@ -743,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_acceptor_nonexistent_cert() {
+    fn test_create_server_acceptor_nonexistent_cert_succeeds() {
         let config = TlsConfig::new();
         let result =
             create_server_acceptor(&config, "/nonexistent/cert.pem", "/nonexistent/key.pem");
@@ -751,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_acceptor_mtls_with_ca() {
+    fn test_create_server_acceptor_mtls_with_ca_succeeds() {
         // Generate CA
         let ca_key = rcgen::KeyPair::generate().unwrap();
         let mut ca_params = rcgen::CertificateParams::new(vec!["Test CA".to_string()]).unwrap();
@@ -784,7 +806,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_private_key_invalid_pem_content() {
+    fn test_load_private_key_invalid_pem_content_fails() {
         let dir = tempfile::tempdir().unwrap();
         let key_path = dir.path().join("invalid.pem");
         std::fs::write(&key_path, "NOT A VALID KEY").unwrap();
@@ -794,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_private_key_secure_invalid_pem_content() {
+    fn test_load_private_key_secure_invalid_pem_content_fails() {
         let dir = tempfile::tempdir().unwrap();
         let key_path = dir.path().join("invalid.pem");
         std::fs::write(&key_path, "NOT A VALID KEY").unwrap();
@@ -804,7 +826,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_certificates_multiple_certs() {
+    fn test_load_certificates_multiple_certs_succeeds() {
         // Generate two certs and concatenate PEM
         let key1 = rcgen::KeyPair::generate().unwrap();
         let params1 = rcgen::CertificateParams::new(vec!["cert1.test".to_string()]).unwrap();

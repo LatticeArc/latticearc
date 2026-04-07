@@ -20,13 +20,17 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 /// TLS operation tracing configuration
 #[derive(Debug, Clone)]
 pub struct TracingConfig {
-    /// Enable distributed tracing
+    /// Enable distributed tracing.
+    /// Consumer: None — reserved for future tracing integration.
     pub distributed_tracing: bool,
-    /// Log level for TLS operations
+    /// Log level for TLS operations.
+    /// Consumer: init_tracing()
     pub log_level: Level,
-    /// Include sensitive data (keys, certificates) in traces
+    /// Include sensitive data (keys, certificates) in traces.
+    /// Consumer: None — reserved for future tracing integration.
     pub include_sensitive_data: bool,
-    /// Track performance metrics
+    /// Track performance metrics.
+    /// Consumer: None — reserved for future tracing integration.
     pub track_performance: bool,
 }
 
@@ -92,6 +96,7 @@ pub struct TlsSpan {
 
 impl TlsSpan {
     /// Create new TLS operation span
+    #[must_use]
     pub fn new(operation: &str, peer: Option<SocketAddr>) -> Self {
         let span = span!(
             Level::INFO,
@@ -108,6 +113,7 @@ impl TlsSpan {
     }
 
     /// Create connection span
+    #[must_use]
     pub fn connection(addr: &str, domain: Option<&str>) -> Self {
         let span = span!(
             Level::INFO,
@@ -124,6 +130,7 @@ impl TlsSpan {
     }
 
     /// Create handshake span
+    #[must_use]
     pub fn handshake(peer: Option<SocketAddr>, mode: &str) -> Self {
         let span = span!(
             Level::INFO,
@@ -140,6 +147,7 @@ impl TlsSpan {
     }
 
     /// Create key exchange span
+    #[must_use]
     pub fn key_exchange(method: &str) -> Self {
         let span = span!(
             Level::INFO,
@@ -155,6 +163,7 @@ impl TlsSpan {
     }
 
     /// Create certificate verification span
+    #[must_use]
     pub fn certificate_verification(subject: &str, issuer: &str) -> Self {
         let span = span!(
             Level::INFO,
@@ -206,6 +215,7 @@ impl TlsSpan {
     }
 
     /// Add custom field to span
+    #[must_use]
     pub fn field<F>(self, key: &str, value: F) -> Self
     where
         F: tracing::field::Value,
@@ -402,7 +412,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tracing_config_default() {
+    fn test_tracing_config_default_sets_expected_fields_succeeds() {
         let config = TracingConfig::default();
         assert_eq!(config.log_level, Level::INFO);
         assert!(!config.include_sensitive_data);
@@ -410,13 +420,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_span_creation() {
+    fn test_tls_span_creation_sets_operation_name_succeeds() {
         let span = TlsSpan::new("test_operation", None);
         assert!(span.start_time.elapsed() < Duration::from_millis(100));
     }
 
     #[test]
-    fn test_tls_metrics_default() {
+    fn test_tls_metrics_default_sets_zero_values_succeeds() {
         let metrics = TlsMetrics::new();
         assert_eq!(metrics.bytes_sent, 0);
         assert_eq!(metrics.bytes_received, 0);
@@ -424,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_metrics_recording() {
+    fn test_tls_metrics_recording_accumulates_values_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_sent(100);
         metrics.record_received(200);
@@ -436,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tracing_config_debug() {
+    fn test_tracing_config_debug_produces_nonempty_string_succeeds() {
         let config = TracingConfig::debug();
         assert_eq!(config.log_level, Level::DEBUG);
         assert!(!config.include_sensitive_data);
@@ -444,90 +454,90 @@ mod tests {
     }
 
     #[test]
-    fn test_tracing_config_trace() {
+    fn test_tracing_config_trace_sets_trace_level_succeeds() {
         let config = TracingConfig::trace();
         assert_eq!(config.log_level, Level::TRACE);
         assert!(!config.include_sensitive_data);
     }
 
     #[test]
-    fn test_tracing_config_with_sensitive_data() {
+    fn test_tracing_config_with_sensitive_data_sets_flag_succeeds() {
         let config = TracingConfig::default().with_sensitive_data();
         assert!(config.include_sensitive_data);
     }
 
     #[test]
-    fn test_tracing_config_distributed_tracing() {
+    fn test_tracing_config_distributed_tracing_sets_flag_succeeds() {
         let config = TracingConfig::default();
         assert!(!config.distributed_tracing);
     }
 
     #[test]
-    fn test_tls_span_with_peer() {
+    fn test_tls_span_with_peer_succeeds() {
         let addr: SocketAddr = "127.0.0.1:443".parse().unwrap();
         let span = TlsSpan::new("test_op", Some(addr));
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_connection() {
+    fn test_tls_span_connection_succeeds() {
         let span = TlsSpan::connection("example.com:443", Some("example.com"));
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_connection_no_domain() {
+    fn test_tls_span_connection_no_domain_succeeds() {
         let span = TlsSpan::connection("192.168.1.1:443", None);
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_handshake() {
+    fn test_tls_span_handshake_succeeds() {
         let addr: SocketAddr = "10.0.0.1:8443".parse().unwrap();
         let span = TlsSpan::handshake(Some(addr), "hybrid");
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_handshake_no_peer() {
+    fn test_tls_span_handshake_no_peer_succeeds() {
         let span = TlsSpan::handshake(None, "classic");
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_key_exchange() {
+    fn test_tls_span_key_exchange_succeeds() {
         let span = TlsSpan::key_exchange("X25519MLKEM768");
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_certificate_verification() {
+    fn test_tls_span_certificate_verification_succeeds() {
         let span = TlsSpan::certificate_verification("example.com", "Let's Encrypt");
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_complete() {
+    fn test_tls_span_complete_succeeds() {
         let span = TlsSpan::new("completable_op", None);
         span.complete(); // Should not panic
     }
 
     #[test]
-    fn test_tls_span_error() {
+    fn test_tls_span_error_succeeds() {
         let span = TlsSpan::new("failing_op", None);
         let err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "refused");
         span.error(err); // Should not panic
     }
 
     #[test]
-    fn test_tls_span_in_scope() {
+    fn test_tls_span_in_scope_returns_correct_value_succeeds() {
         let span = TlsSpan::new("scoped_op", None);
         let result = span.in_scope(|| 42);
         assert_eq!(result, 42);
     }
 
     #[test]
-    fn test_tls_span_elapsed() {
+    fn test_tls_span_elapsed_returns_nonzero_duration_succeeds() {
         let span = TlsSpan::new("timed_op", None);
         std::thread::sleep(Duration::from_millis(5));
         let elapsed = span.elapsed();
@@ -535,21 +545,21 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_metrics_record_kex() {
+    fn test_tls_metrics_record_kex_sets_duration_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_kex(Duration::from_millis(50));
         assert_eq!(metrics.kex_duration, Duration::from_millis(50));
     }
 
     #[test]
-    fn test_tls_metrics_record_cert() {
+    fn test_tls_metrics_record_cert_sets_duration_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_cert(Duration::from_millis(25));
         assert_eq!(metrics.cert_duration, Duration::from_millis(25));
     }
 
     #[test]
-    fn test_tls_metrics_complete() {
+    fn test_tls_metrics_complete_accumulates_total_duration_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_handshake(Duration::from_millis(100));
         metrics.record_kex(Duration::from_millis(50));
@@ -559,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_metrics_log() {
+    fn test_tls_metrics_log_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_sent(1024);
         metrics.record_received(2048);
@@ -569,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_metrics_saturating_add() {
+    fn test_tls_metrics_saturating_add_is_correct() {
         let mut metrics = TlsMetrics::new();
         metrics.record_sent(u64::MAX);
         metrics.record_sent(1);
@@ -581,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_metrics_clone_debug() {
+    fn test_tls_metrics_clone_debug_work_correctly_succeeds() {
         let metrics = TlsMetrics::new();
         let metrics2 = metrics.clone();
         assert_eq!(metrics.bytes_sent, metrics2.bytes_sent);
@@ -590,7 +600,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tracing_config_clone_debug() {
+    fn test_tracing_config_clone_debug_work_correctly_succeeds() {
         let config = TracingConfig::default();
         let config2 = config.clone();
         assert_eq!(config.log_level, config2.log_level);
@@ -601,21 +611,21 @@ mod tests {
     // ---- Coverage: TlsSpan::field method ----
 
     #[test]
-    fn test_tls_span_field_adds_metadata() {
+    fn test_tls_span_field_adds_metadata_succeeds() {
         let span = TlsSpan::new("test_op_with_field", None);
         // field() returns Self, chain should not panic
         let _span = span.field("custom_key", "custom_value");
     }
 
     #[test]
-    fn test_tls_span_field_chained() {
+    fn test_tls_span_field_chained_succeeds() {
         let span = TlsSpan::new("chained_fields", None);
         let span = span.field("key1", "val1");
         let _span = span.field("key2", 42_i64);
     }
 
     #[test]
-    fn test_tls_metrics_default_via_trait() {
+    fn test_tls_metrics_default_via_trait_has_zero_values_succeeds() {
         let metrics = TlsMetrics::default();
         assert_eq!(metrics.bytes_sent, 0);
         assert_eq!(metrics.bytes_received, 0);

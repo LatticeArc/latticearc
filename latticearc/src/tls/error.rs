@@ -17,6 +17,7 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 /// Error severity levels for categorizing TLS errors
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ErrorSeverity {
     /// Informational - operation succeeded but with warnings
@@ -30,6 +31,7 @@ pub enum ErrorSeverity {
 }
 
 /// TLS operation phase where error occurred
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationPhase {
     /// Initial connection establishment
@@ -49,6 +51,7 @@ pub enum OperationPhase {
 }
 
 /// Standard TLS error codes for easy identification
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
     // Connection errors (1000-1099)
@@ -272,6 +275,7 @@ impl fmt::Display for ErrorCode {
 }
 
 /// Recovery hints for error handling
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum RecoveryHint {
     /// No recovery possible
@@ -356,6 +360,7 @@ fn generate_error_id() -> String {
 
 /// Comprehensive TLS error type
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum TlsError {
     /// IO operation error
     #[error("IO error: {message}")]
@@ -685,7 +690,7 @@ impl From<std::io::Error> for TlsError {
             phase: OperationPhase::ConnectionSetup,
             ..Default::default()
         };
-        context.extra.insert("io_kind".to_string(), format!("{:?}", err.kind()));
+        context.extra.insert("io_kind".to_string(), format!("{}", err.kind()));
 
         TlsError::Io {
             message: err.to_string(),
@@ -816,8 +821,8 @@ impl From<rustls::Error> for TlsError {
 }
 
 // Conversion from HybridKemError
-impl From<crate::hybrid::kem::HybridKemError> for TlsError {
-    fn from(err: crate::hybrid::kem::HybridKemError) -> Self {
+impl From<crate::hybrid::HybridKemError> for TlsError {
+    fn from(err: crate::hybrid::HybridKemError) -> Self {
         let mut context = ErrorContext {
             code: ErrorCode::HybridKemFailed,
             severity: ErrorSeverity::Error,
@@ -843,13 +848,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_error_code_display() {
+    fn test_error_code_display_fails() {
         assert_eq!(ErrorCode::ConnectionRefused.to_string(), "CONNECTION_REFUSED");
         assert_eq!(ErrorCode::HandshakeFailed.to_string(), "HANDSHAKE_FAILED");
     }
 
     #[test]
-    fn test_error_code_display_all_categories() {
+    fn test_error_code_display_all_categories_fails() {
         // Connection
         assert_eq!(ErrorCode::ConnectionTimeout.to_string(), "CONNECTION_TIMEOUT");
         assert_eq!(ErrorCode::ConnectionReset.to_string(), "CONNECTION_RESET");
@@ -955,7 +960,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_context_default() {
+    fn test_error_context_default_returns_expected_fails() {
         let context = ErrorContext::default();
         assert!(!context.error_id.is_empty());
         assert_eq!(context.code, ErrorCode::InternalError);
@@ -978,7 +983,7 @@ mod tests {
     // === IO error conversion tests ===
 
     #[test]
-    fn test_io_error_conversion() {
+    fn test_io_error_conversion_returns_expected_fails() {
         let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "test");
         let tls_err = TlsError::from(io_err);
         assert_eq!(tls_err.code(), ErrorCode::ConnectionRefused);
@@ -986,26 +991,26 @@ mod tests {
     }
 
     #[test]
-    fn test_io_error_connection_reset() {
+    fn test_io_error_connection_reset_returns_expected_fails() {
         let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::ConnectionReset, "reset"));
         assert_eq!(err.code(), ErrorCode::ConnectionReset);
         assert_eq!(err.severity(), ErrorSeverity::Warning);
     }
 
     #[test]
-    fn test_io_error_timed_out() {
+    fn test_io_error_timed_out_returns_expected_fails() {
         let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout"));
         assert_eq!(err.code(), ErrorCode::ConnectionTimeout);
     }
 
     #[test]
-    fn test_io_error_unexpected_eof() {
+    fn test_io_error_unexpected_eof_returns_expected_fails() {
         let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof"));
         assert_eq!(err.code(), ErrorCode::UnexpectedEof);
     }
 
     #[test]
-    fn test_io_error_not_found() {
+    fn test_io_error_not_found_returns_expected_fails() {
         let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::NotFound, "not found"));
         assert_eq!(err.code(), ErrorCode::IoError);
         assert_eq!(err.severity(), ErrorSeverity::Critical);
@@ -1013,7 +1018,7 @@ mod tests {
     }
 
     #[test]
-    fn test_io_error_permission_denied() {
+    fn test_io_error_permission_denied_returns_expected_fails() {
         let err =
             TlsError::from(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"));
         assert_eq!(err.code(), ErrorCode::IoError);
@@ -1021,7 +1026,7 @@ mod tests {
     }
 
     #[test]
-    fn test_io_error_other() {
+    fn test_io_error_other_returns_expected_fails() {
         let err = TlsError::from(std::io::Error::other("other"));
         assert_eq!(err.code(), ErrorCode::IoError);
         assert_eq!(err.severity(), ErrorSeverity::Error);
@@ -1030,14 +1035,14 @@ mod tests {
     // === Recoverability tests ===
 
     #[test]
-    fn test_error_recoverability() {
+    fn test_error_recoverability_returns_expected_fails() {
         let recoverable_err =
             TlsError::from(std::io::Error::new(std::io::ErrorKind::ConnectionReset, "test"));
         assert!(recoverable_err.is_recoverable());
     }
 
     #[test]
-    fn test_error_not_recoverable() {
+    fn test_error_not_recoverable_fails() {
         let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
         assert!(!err.is_recoverable());
     }
@@ -1045,7 +1050,7 @@ mod tests {
     // === Fallback support tests ===
 
     #[test]
-    fn test_error_fallback_support() {
+    fn test_error_fallback_support_returns_expected_fails() {
         let context = ErrorContext {
             code: ErrorCode::PqNotAvailable,
             severity: ErrorSeverity::Warning,
@@ -1066,7 +1071,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_no_fallback() {
+    fn test_error_no_fallback_returns_expected_fails() {
         let err = TlsError::from(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
         assert!(!err.supports_fallback());
     }
@@ -1078,7 +1083,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_handshake() {
+    fn test_tls_error_handshake_has_correct_display_fails() {
         let err = TlsError::Handshake {
             message: "failed".to_string(),
             state: "ClientHello".to_string(),
@@ -1092,7 +1097,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_certificate() {
+    fn test_tls_error_certificate_has_correct_display_fails() {
         let err = TlsError::Certificate {
             message: "expired".to_string(),
             subject: Some("CN=test".to_string()),
@@ -1106,7 +1111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_key_exchange() {
+    fn test_tls_error_key_exchange_returns_expected_fails() {
         let err = TlsError::KeyExchange {
             message: "KEM failed".to_string(),
             method: "ML-KEM-768".to_string(),
@@ -1119,7 +1124,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_config() {
+    fn test_tls_error_config_returns_expected_fails() {
         let err = TlsError::Config {
             message: "bad config".to_string(),
             field: Some("cipher_suites".to_string()),
@@ -1135,7 +1140,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_unsupported_cipher() {
+    fn test_tls_error_unsupported_cipher_has_correct_display_fails() {
         let err = TlsError::UnsupportedCipherSuite {
             cipher_suite: "TLS_NULL_NULL".to_string(),
             code: ErrorCode::InvalidCipherSuite,
@@ -1146,7 +1151,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_unsupported_version() {
+    fn test_tls_error_unsupported_version_has_correct_display_fails() {
         let err = TlsError::UnsupportedVersion {
             version: "TLS 1.0".to_string(),
             code: ErrorCode::InvalidProtocolVersion,
@@ -1157,7 +1162,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_hybrid_kem() {
+    fn test_tls_error_hybrid_kem_returns_expected_fails() {
         let err = TlsError::HybridKem {
             message: "hybrid failed".to_string(),
             component: "ML-KEM".to_string(),
@@ -1170,7 +1175,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_invalid_key_material() {
+    fn test_tls_error_invalid_key_material_returns_expected_fails() {
         let err = TlsError::InvalidKeyMaterial {
             message: "bad key".to_string(),
             key_type: "ML-KEM-768".to_string(),
@@ -1182,7 +1187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_crypto_provider() {
+    fn test_tls_error_crypto_provider_returns_expected_fails() {
         let err = TlsError::CryptoProvider {
             message: "init failed".to_string(),
             provider: "aws-lc-rs".to_string(),
@@ -1197,7 +1202,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_resource() {
+    fn test_tls_error_resource_returns_expected_fails() {
         let err = TlsError::Resource {
             message: "out of memory".to_string(),
             resource_type: "memory".to_string(),
@@ -1209,7 +1214,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_internal() {
+    fn test_tls_error_internal_returns_expected_fails() {
         let err = TlsError::Internal {
             message: "unexpected state".to_string(),
             code: ErrorCode::InternalError,
@@ -1221,7 +1226,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_error_tls_variant() {
+    fn test_tls_error_tls_variant_returns_expected_fails() {
         let err = TlsError::Tls {
             message: "protocol error".to_string(),
             code: ErrorCode::HandshakeFailed,
@@ -1234,7 +1239,7 @@ mod tests {
     // === Severity ordering tests ===
 
     #[test]
-    fn test_severity_ordering() {
+    fn test_severity_ordering_returns_expected_succeeds() {
         assert!(ErrorSeverity::Info < ErrorSeverity::Warning);
         assert!(ErrorSeverity::Warning < ErrorSeverity::Error);
         assert!(ErrorSeverity::Error < ErrorSeverity::Critical);
@@ -1243,7 +1248,7 @@ mod tests {
     // === RecoveryHint variant tests ===
 
     #[test]
-    fn test_recovery_hint_variants() {
+    fn test_recovery_hint_variants_is_available_succeeds() {
         let _ = RecoveryHint::NoRecovery;
         let _ = RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 };
         let _ = RecoveryHint::Fallback { description: "use backup".to_string() };
@@ -1261,7 +1266,7 @@ mod tests {
     // === OperationPhase tests ===
 
     #[test]
-    fn test_operation_phase_eq() {
+    fn test_operation_phase_eq_succeeds() {
         assert_eq!(OperationPhase::ConnectionSetup, OperationPhase::ConnectionSetup);
         assert_ne!(OperationPhase::Handshake, OperationPhase::DataTransfer);
         assert_eq!(
@@ -1276,7 +1281,7 @@ mod tests {
     // === rustls::Error conversion tests ===
 
     #[test]
-    fn test_from_rustls_invalid_message() {
+    fn test_from_rustls_invalid_message_returns_expected_fails() {
         let err = TlsError::from(rustls::Error::InvalidMessage(
             rustls::InvalidMessage::HandshakePayloadTooLarge,
         ));
@@ -1285,7 +1290,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_alert_received() {
+    fn test_from_rustls_alert_received_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::AlertReceived(
             rustls::AlertDescription::HandshakeFailure,
         ));
@@ -1294,14 +1299,14 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_handshake_not_complete() {
+    fn test_from_rustls_handshake_not_complete_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::HandshakeNotComplete);
         assert_eq!(err.code(), ErrorCode::HandshakeFailed);
         assert!(err.is_recoverable());
     }
 
     #[test]
-    fn test_from_rustls_peer_incompatible() {
+    fn test_from_rustls_peer_incompatible_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::PeerIncompatible(
             rustls::PeerIncompatible::ServerDoesNotSupportTls12Or13,
         ));
@@ -1310,7 +1315,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_peer_misbehaved() {
+    fn test_from_rustls_peer_misbehaved_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::PeerMisbehaved(
             rustls::PeerMisbehaved::TooMuchEarlyDataReceived,
         ));
@@ -1320,14 +1325,14 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_no_certificates_presented() {
+    fn test_from_rustls_no_certificates_presented_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::NoCertificatesPresented);
         assert_eq!(err.code(), ErrorCode::MissingCertificate);
         assert!(err.is_recoverable());
     }
 
     #[test]
-    fn test_from_rustls_cert_expired() {
+    fn test_from_rustls_cert_expired_returns_expected_succeeds() {
         let err =
             TlsError::from(rustls::Error::InvalidCertificate(rustls::CertificateError::Expired));
         assert_eq!(err.code(), ErrorCode::CertificateExpired);
@@ -1335,7 +1340,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_cert_not_valid_for_name() {
+    fn test_from_rustls_cert_not_valid_for_name_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::InvalidCertificate(
             rustls::CertificateError::NotValidForName,
         ));
@@ -1343,7 +1348,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_cert_bad_signature() {
+    fn test_from_rustls_cert_bad_signature_returns_expected_fails() {
         let err = TlsError::from(rustls::Error::InvalidCertificate(
             rustls::CertificateError::BadSignature,
         ));
@@ -1351,7 +1356,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_cert_invalid_purpose() {
+    fn test_from_rustls_cert_invalid_purpose_returns_expected_fails() {
         let err = TlsError::from(rustls::Error::InvalidCertificate(
             rustls::CertificateError::InvalidPurpose,
         ));
@@ -1359,7 +1364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_cert_unhandled_critical_extension() {
+    fn test_from_rustls_cert_unhandled_critical_extension_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::InvalidCertificate(
             rustls::CertificateError::UnhandledCriticalExtension,
         ));
@@ -1367,7 +1372,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_cert_invalid_other() {
+    fn test_from_rustls_cert_invalid_other_returns_expected_fails() {
         let err = TlsError::from(rustls::Error::InvalidCertificate(
             rustls::CertificateError::NotValidYet,
         ));
@@ -1375,14 +1380,14 @@ mod tests {
     }
 
     #[test]
-    fn test_from_rustls_general() {
+    fn test_from_rustls_general_returns_expected_succeeds() {
         let err = TlsError::from(rustls::Error::General("something went wrong".into()));
         assert_eq!(err.code(), ErrorCode::HandshakeFailed);
         assert!(err.is_recoverable()); // Retry
     }
 
     #[test]
-    fn test_from_rustls_error_context_has_extra() {
+    fn test_from_rustls_error_context_has_extra_returns_expected_fails() {
         let err = TlsError::from(rustls::Error::HandshakeNotComplete);
         let ctx = err.context();
         assert!(ctx.extra.contains_key("rustls_error"));
@@ -1391,9 +1396,9 @@ mod tests {
     // === HybridKemError conversion test ===
 
     #[test]
-    fn test_from_hybrid_kem_error() {
+    fn test_from_hybrid_kem_error_returns_expected_fails() {
         let hybrid_err =
-            crate::hybrid::kem::HybridKemError::InvalidKeyMaterial("bad key data".to_string());
+            crate::hybrid::HybridKemError::InvalidKeyMaterial("bad key data".to_string());
         let err = TlsError::from(hybrid_err);
         assert_eq!(err.code(), ErrorCode::HybridKemFailed);
         assert!(err.supports_fallback());

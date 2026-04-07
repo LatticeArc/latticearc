@@ -41,7 +41,10 @@ impl KeyFile {
                 .key_data()
                 .decode_composite()
                 .map_err(|e| anyhow::anyhow!("Failed to decode key bytes: {e}"))?;
-            let capacity = pq.len().checked_add(cl.len()).unwrap_or(pq.len());
+            let capacity = pq
+                .len()
+                .checked_add(cl.len())
+                .ok_or_else(|| anyhow::anyhow!("Key data exceeds maximum size"))?;
             let mut combined = Vec::with_capacity(capacity);
             combined.extend_from_slice(&pq);
             combined.extend_from_slice(&cl);
@@ -94,7 +97,7 @@ impl std::fmt::Debug for KeyFile {
         f.debug_struct("KeyFile")
             .field("algorithm", &self.algorithm)
             .field("key_type", &self.key_type)
-            .field("inner", &self.inner)
+            .field("inner", &"[REDACTED]")
             .finish()
     }
 }
@@ -106,7 +109,7 @@ impl std::fmt::Debug for KeyFile {
 /// Parse a hybrid signing secret key from a `KeyFile`.
 pub(crate) fn parse_hybrid_sign_sk(
     key: &KeyFile,
-) -> Result<latticearc::hybrid::sig_hybrid::HybridSecretKey> {
+) -> Result<latticearc::hybrid::sig_hybrid::HybridSigSecretKey> {
     key.portable_key()
         .to_hybrid_sig_secret_key()
         .map_err(|e| anyhow::anyhow!("Failed to parse hybrid signing secret key: {e}"))
@@ -153,7 +156,7 @@ pub(crate) fn write_composite_key(
 /// Used by legacy verify path where bytes were already extracted via `key_bytes()`.
 pub(crate) fn parse_hybrid_sign_pk_from_bytes(
     bytes: &[u8],
-) -> Result<latticearc::hybrid::sig_hybrid::HybridPublicKey> {
+) -> Result<latticearc::hybrid::sig_hybrid::HybridSigPublicKey> {
     let split = bytes
         .len()
         .checked_sub(32)
@@ -161,16 +164,16 @@ pub(crate) fn parse_hybrid_sign_pk_from_bytes(
     if split == 0 {
         bail!("Hybrid signing PK has no PQ component ({} bytes)", bytes.len());
     }
-    Ok(latticearc::hybrid::sig_hybrid::HybridPublicKey {
-        ml_dsa_pk: bytes.get(..split).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
-        ed25519_pk: bytes.get(split..).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
-    })
+    Ok(latticearc::hybrid::sig_hybrid::HybridSigPublicKey::new(
+        bytes.get(..split).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
+        bytes.get(split..).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
+    ))
 }
 
 /// Parse a hybrid KEM PK from concatenated raw bytes (pq ++ classical).
 pub(crate) fn parse_hybrid_kem_pk_from_bytes(
     bytes: &[u8],
-) -> Result<latticearc::hybrid::kem_hybrid::HybridPublicKey> {
+) -> Result<latticearc::hybrid::kem_hybrid::HybridKemPublicKey> {
     let split = bytes
         .len()
         .checked_sub(32)
@@ -178,11 +181,11 @@ pub(crate) fn parse_hybrid_kem_pk_from_bytes(
     if split == 0 {
         bail!("Hybrid KEM PK has no PQ component ({} bytes)", bytes.len());
     }
-    Ok(latticearc::hybrid::kem_hybrid::HybridPublicKey {
-        ml_kem_pk: bytes.get(..split).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
-        ecdh_pk: bytes.get(split..).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
-        security_level: latticearc::primitives::kem::MlKemSecurityLevel::MlKem768,
-    })
+    Ok(latticearc::hybrid::kem_hybrid::HybridKemPublicKey::new(
+        bytes.get(..split).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
+        bytes.get(split..).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
+        latticearc::primitives::kem::MlKemSecurityLevel::MlKem768,
+    ))
 }
 
 /// Parse an algorithm name string to `KeyAlgorithm`.

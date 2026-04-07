@@ -21,13 +21,13 @@
 //! │  │   │ X25519        │  │ Ed25519       │  │                   │  │   │
 //! │  │   └───────┬───────┘  └───────┬───────┘  └─────────┬─────────┘  │   │
 //! │  │           │                  │                    │            │   │
-//! │  │           │     XOR          │      AND           │            │   │
-//! │  │           │  Composition     │  Composition       │            │   │
+//! │  │           │   HKDF dual-PRF  │      AND           │            │   │
+//! │  │           │    combiner      │  Composition       │            │   │
 //! │  │           └──────────────────┴────────────────────┘            │   │
 //! │  │                              │                                 │   │
 //! │  │  ┌───────────────────────────┴───────────────────────────────┐ │   │
 //! │  │  │                    compose module                         │ │   │
-//! │  │  │  - XOR composition proof (breaks EITHER = breaks HYBRID)  │ │   │
+//! │  │  │  - HKDF dual-PRF combiner (secure if EITHER is secure)    │ │   │
 //! │  │  │  - AND composition proof (breaks BOTH = breaks HYBRID)    │ │   │
 //! │  │  └───────────────────────────────────────────────────────────┘ │   │
 //! │  └─────────────────────────────────────────────────────────────────┘   │
@@ -57,49 +57,30 @@
 //!
 //! # Security Properties
 //!
-//! | Construction      | Composition | Security Guarantee                    |
-//! |-------------------|-------------|---------------------------------------|
-//! | Hybrid KEM        | XOR         | Secure if ML-KEM OR X25519 is secure  |
-//! | Hybrid Signature  | AND         | Secure if ML-DSA AND Ed25519 secure   |
-//! | Hybrid Encryption | XOR (KEM)   | Secure if either KEM component secure |
+//! | Construction      | Composition     | Security Guarantee                    |
+//! |-------------------|-----------------|---------------------------------------|
+//! | Hybrid KEM        | HKDF dual-PRF   | Secure if ML-KEM OR X25519 is secure  |
+//! | Hybrid Signature  | AND             | Secure if ML-DSA AND Ed25519 secure   |
+//! | Hybrid Encryption | HKDF dual-PRF   | Secure if either KEM component secure |
 
 pub mod compose;
 pub mod encrypt_hybrid;
 pub mod kem_hybrid;
 pub mod sig_hybrid;
 
-/// Hybrid key encapsulation mechanism types and functions.
-///
-/// Re-exports all public items from [`kem_hybrid`].
-pub mod kem {
-    pub use crate::hybrid::kem_hybrid::*;
-}
-
-/// Hybrid signature types and functions.
-///
-/// Re-exports all public items from [`sig_hybrid`].
-pub mod sig {
-    pub use crate::hybrid::sig_hybrid::*;
-}
-
-/// Hybrid encryption types and functions.
-///
-/// Re-exports all public items from [`encrypt_hybrid`](mod@crate::hybrid::encrypt_hybrid).
-pub mod encrypt {
-    pub use crate::hybrid::encrypt_hybrid::*;
-}
-
-// Re-exports for convenience - use explicit exports to avoid ambiguity
+// Re-exports for convenience - use explicit exports to avoid ambiguity.
+// All hybrid types are reachable directly via `crate::hybrid::*`; the previous
+// `hybrid::kem` / `hybrid::sig` / `hybrid::encrypt` inline re-export modules
+// were removed as they duplicated this surface.
 pub use encrypt_hybrid::{
     HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, decrypt_hybrid,
     derive_encryption_key, encrypt, encrypt_hybrid,
 };
 pub use kem_hybrid::{
-    EncapsulatedKey, HybridKemError, HybridPublicKey as KemHybridPublicKey,
-    HybridSecretKey as KemHybridSecretKey, decapsulate, derive_hybrid_shared_secret, encapsulate,
-    generate_keypair as kem_generate_keypair,
+    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
+    derive_hybrid_shared_secret, encapsulate, generate_keypair as kem_generate_keypair,
 };
 pub use sig_hybrid::{
-    HybridPublicKey as SigHybridPublicKey, HybridSecretKey as SigHybridSecretKey, HybridSignature,
-    HybridSignatureError, generate_keypair as sig_generate_keypair, sign, verify,
+    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
+    generate_keypair as sig_generate_keypair, sign, verify,
 };

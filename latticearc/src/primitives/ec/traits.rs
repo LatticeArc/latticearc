@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -11,14 +11,19 @@
 use crate::prelude::error::Result;
 use zeroize::Zeroizing;
 
-/// Unified elliptic curve key pair trait
-pub trait EcKeyPair: Send + Sync {
-    /// Public key type
-    type PublicKey: Clone + Send + Sync;
+pub(super) mod sealed {
+    /// Sealing trait — prevents external implementations of [`super::EcKeyPair`]
+    /// and [`super::EcSignature`].
+    pub trait Sealed {}
+}
 
-    /// Secret key type
-    type SecretKey: Send + Sync;
-
+/// Unified elliptic curve key pair trait.
+///
+/// This trait operates purely on byte slices at its public surface to avoid
+/// leaking backing-crate types (e.g., `ed25519_dalek::SigningKey`,
+/// `k256::ecdsa::VerifyingKey`) across the API boundary. Concrete implementations
+/// may expose backend-native accessors as inherent methods if needed.
+pub trait EcKeyPair: Send + Sync + sealed::Sealed {
     /// Generate a new random key pair
     ///
     /// # Errors
@@ -35,12 +40,6 @@ pub trait EcKeyPair: Send + Sync {
     where
         Self: Sized;
 
-    /// Get the public key
-    fn public_key(&self) -> &Self::PublicKey;
-
-    /// Get the secret key (for signing/encryption operations)
-    fn secret_key(&self) -> &Self::SecretKey;
-
     /// Export public key as bytes
     fn public_key_bytes(&self) -> Vec<u8>;
 
@@ -52,7 +51,7 @@ pub trait EcKeyPair: Send + Sync {
 ///
 /// Signing requires access to a secret key and is handled by [`EcKeyPair`]
 /// implementations directly (e.g., `Ed25519KeyPair::sign`).
-pub trait EcSignature: Send + Sync {
+pub trait EcSignature: Send + Sync + sealed::Sealed {
     /// Signature type
     type Signature: Clone + Send + Sync;
 

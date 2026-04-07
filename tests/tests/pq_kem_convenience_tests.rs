@@ -66,18 +66,18 @@ use latticearc::unified_api::{
 // ============================================================================
 
 #[test]
-fn test_encrypt_pq_ml_kem_verified_valid_session_768() -> Result<()> {
+fn test_encrypt_pq_ml_kem_verified_valid_session_768_succeeds() -> Result<()> {
     let data = b"Test data with verified session for ML-KEM-768";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
     // Create verified session
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     // Encrypt with verified mode
     let encrypted = encrypt_pq_ml_kem(
         data,
-        &pk,
+        pk.as_slice(),
         MlKemSecurityLevel::MlKem768,
         SecurityMode::Verified(&session),
     )?;
@@ -88,16 +88,16 @@ fn test_encrypt_pq_ml_kem_verified_valid_session_768() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_verified_valid_session_512() -> Result<()> {
+fn test_encrypt_pq_ml_kem_verified_valid_session_512_succeeds() -> Result<()> {
     let data = b"Test data with verified session for ML-KEM-512";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     let encrypted = encrypt_pq_ml_kem(
         data,
-        &pk,
+        pk.as_slice(),
         MlKemSecurityLevel::MlKem512,
         SecurityMode::Verified(&session),
     )?;
@@ -107,16 +107,16 @@ fn test_encrypt_pq_ml_kem_verified_valid_session_512() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_verified_valid_session_1024() -> Result<()> {
+fn test_encrypt_pq_ml_kem_verified_valid_session_1024_succeeds() -> Result<()> {
     let data = b"Test data with verified session for ML-KEM-1024";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     let encrypted = encrypt_pq_ml_kem(
         data,
-        &pk,
+        pk.as_slice(),
         MlKemSecurityLevel::MlKem1024,
         SecurityMode::Verified(&session),
     )?;
@@ -126,12 +126,12 @@ fn test_encrypt_pq_ml_kem_verified_valid_session_1024() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_verified_session_trust_level() -> Result<()> {
+fn test_encrypt_pq_ml_kem_verified_session_trust_level_is_maintained_succeeds() -> Result<()> {
     let data = b"Test data checking trust level";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     // Verify trust level before operation
     assert!(
@@ -141,7 +141,7 @@ fn test_encrypt_pq_ml_kem_verified_session_trust_level() -> Result<()> {
 
     let _encrypted = encrypt_pq_ml_kem(
         data,
-        &pk,
+        pk.as_slice(),
         MlKemSecurityLevel::MlKem768,
         SecurityMode::Verified(&session),
     )?;
@@ -155,17 +155,17 @@ fn test_encrypt_pq_ml_kem_verified_session_trust_level() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_with_config_verified_session() -> Result<()> {
+fn test_encrypt_pq_ml_kem_with_config_verified_session_succeeds() -> Result<()> {
     let data = b"Test data with config and verified session";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
     let config = CoreConfig::default();
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     let encrypted = encrypt_pq_ml_kem_with_config(
         data,
-        &pk,
+        pk.as_slice(),
         MlKemSecurityLevel::MlKem768,
         &config,
         SecurityMode::Verified(&session),
@@ -176,18 +176,18 @@ fn test_encrypt_pq_ml_kem_with_config_verified_session() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_multiple_operations_same_session() -> Result<()> {
+fn test_encrypt_pq_ml_kem_multiple_operations_same_session_succeeds() -> Result<()> {
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     // Perform multiple operations with the same session
     for i in 0..5 {
         let data = format!("Test data iteration {}", i);
         let encrypted = encrypt_pq_ml_kem(
             data.as_bytes(),
-            &pk,
+            pk.as_slice(),
             MlKemSecurityLevel::MlKem768,
             SecurityMode::Verified(&session),
         )?;
@@ -210,12 +210,12 @@ fn test_encrypt_pq_ml_kem_multiple_operations_same_session() -> Result<()> {
 /// is correctly called. For full expiration testing, use integration tests
 /// with mocked time or extended test runs.
 #[test]
-fn test_encrypt_pq_ml_kem_verified_session_validation_called() -> Result<()> {
+fn test_encrypt_pq_ml_kem_verified_session_validation_called_succeeds() -> Result<()> {
     let data = b"Test session validation";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     // Verify session validity check
     session.verify_valid()?;
@@ -223,7 +223,7 @@ fn test_encrypt_pq_ml_kem_verified_session_validation_called() -> Result<()> {
     // Valid session should succeed
     let result = encrypt_pq_ml_kem(
         data,
-        &pk,
+        pk.as_slice(),
         MlKemSecurityLevel::MlKem768,
         SecurityMode::Verified(&session),
     );
@@ -233,9 +233,9 @@ fn test_encrypt_pq_ml_kem_verified_session_validation_called() -> Result<()> {
 }
 
 #[test]
-fn test_security_mode_validate_with_valid_session() -> Result<()> {
+fn test_security_mode_validate_with_valid_session_succeeds() -> Result<()> {
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     let mode = SecurityMode::Verified(&session);
 
@@ -254,12 +254,12 @@ fn test_decrypt_pq_ml_kem_verified_roundtrip() {
     let data = b"data";
     let (pk, sk) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
-    let encrypted = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)
+    let encrypted = encrypt_pq_ml_kem_unverified(data, pk.as_slice(), MlKemSecurityLevel::MlKem768)
         .expect("encryption should succeed");
 
     let (auth_pk, auth_sk) = generate_keypair().expect("auth keypair generation");
-    let session =
-        VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).expect("session establishment");
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+        .expect("session establishment");
 
     // Decrypt with verified mode (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
     let decrypted = decrypt_pq_ml_kem(
@@ -269,7 +269,7 @@ fn test_decrypt_pq_ml_kem_verified_roundtrip() {
         SecurityMode::Verified(&session),
     )
     .expect("decryption should succeed");
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 // ============================================================================
@@ -277,7 +277,7 @@ fn test_decrypt_pq_ml_kem_verified_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_encrypt_pq_ml_kem_wrong_length_public_key_too_short() {
+fn test_encrypt_pq_ml_kem_wrong_length_public_key_too_short_fails() {
     let truncated_key = vec![0u8; 100]; // Much shorter than any ML-KEM key
 
     let result =
@@ -291,11 +291,11 @@ fn test_encrypt_pq_ml_kem_wrong_length_public_key_too_short() {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_wrong_length_public_key_too_long() {
+fn test_encrypt_pq_ml_kem_wrong_length_public_key_too_long_fails() {
     let (pk, _sk) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let mut oversized_key = pk.clone();
+    let mut oversized_key = pk.as_slice().to_vec();
     oversized_key.extend_from_slice(&[0xAA; 500]); // Add extra bytes
 
     let result =
@@ -305,7 +305,7 @@ fn test_encrypt_pq_ml_kem_wrong_length_public_key_too_long() {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_corrupted_public_key_all_zeros() {
+fn test_encrypt_pq_ml_kem_corrupted_public_key_all_zeros_succeeds() {
     // ML-KEM-768 expects 1184-byte public key
     let corrupted_key = vec![0x00; 1184];
 
@@ -321,7 +321,7 @@ fn test_encrypt_pq_ml_kem_corrupted_public_key_all_zeros() {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_corrupted_public_key_all_ones() {
+fn test_encrypt_pq_ml_kem_corrupted_public_key_all_ones_fails() {
     // ML-KEM-768 expects 1184-byte public key
     let corrupted_key = vec![0xFF; 1184];
 
@@ -333,11 +333,11 @@ fn test_encrypt_pq_ml_kem_corrupted_public_key_all_ones() {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_corrupted_public_key_modified_bytes() {
+fn test_encrypt_pq_ml_kem_corrupted_public_key_modified_bytes_succeeds() {
     let (pk, _sk) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let mut corrupted_key = pk;
+    let mut corrupted_key = pk.into_bytes();
 
     // Corrupt multiple bytes in the key
     for i in (0..corrupted_key.len()).step_by(100) {
@@ -354,7 +354,7 @@ fn test_encrypt_pq_ml_kem_corrupted_public_key_modified_bytes() {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_empty_public_key_all_levels() {
+fn test_encrypt_pq_ml_kem_empty_public_key_all_levels_fails() {
     let empty_key: &[u8] = &[];
 
     for level in
@@ -366,7 +366,7 @@ fn test_encrypt_pq_ml_kem_empty_public_key_all_levels() {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_single_byte_public_key() {
+fn test_encrypt_pq_ml_kem_single_byte_public_key_fails() {
     let single_byte_key = vec![0x42];
 
     let result =
@@ -380,74 +380,81 @@ fn test_encrypt_pq_ml_kem_single_byte_public_key() {
 // ============================================================================
 
 #[test]
-fn test_encrypt_ml_kem_512_key_with_768_level() {
+fn test_encrypt_ml_kem_512_key_with_768_level_fails() {
     // Generate ML-KEM-512 keypair (800-byte public key)
     let (pk_512, _sk_512) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512).expect("keypair generation");
 
     // Try to use with ML-KEM-768 level (expects 1184-byte key)
-    let result = encrypt_pq_ml_kem_unverified(b"data", &pk_512, MlKemSecurityLevel::MlKem768);
+    let result =
+        encrypt_pq_ml_kem_unverified(b"data", pk_512.as_slice(), MlKemSecurityLevel::MlKem768);
 
     assert!(result.is_err(), "Should reject ML-KEM-512 key used with ML-KEM-768 level");
 }
 
 #[test]
-fn test_encrypt_ml_kem_512_key_with_1024_level() {
+fn test_encrypt_ml_kem_512_key_with_1024_level_fails() {
     let (pk_512, _sk_512) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512).expect("keypair generation");
 
-    let result = encrypt_pq_ml_kem_unverified(b"data", &pk_512, MlKemSecurityLevel::MlKem1024);
+    let result =
+        encrypt_pq_ml_kem_unverified(b"data", pk_512.as_slice(), MlKemSecurityLevel::MlKem1024);
 
     assert!(result.is_err(), "Should reject ML-KEM-512 key used with ML-KEM-1024 level");
 }
 
 #[test]
-fn test_encrypt_ml_kem_768_key_with_512_level() {
+fn test_encrypt_ml_kem_768_key_with_512_level_fails() {
     let (pk_768, _sk_768) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let result = encrypt_pq_ml_kem_unverified(b"data", &pk_768, MlKemSecurityLevel::MlKem512);
+    let result =
+        encrypt_pq_ml_kem_unverified(b"data", pk_768.as_slice(), MlKemSecurityLevel::MlKem512);
 
     assert!(result.is_err(), "Should reject ML-KEM-768 key used with ML-KEM-512 level");
 }
 
 #[test]
-fn test_encrypt_ml_kem_768_key_with_1024_level() {
+fn test_encrypt_ml_kem_768_key_with_1024_level_fails() {
     let (pk_768, _sk_768) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let result = encrypt_pq_ml_kem_unverified(b"data", &pk_768, MlKemSecurityLevel::MlKem1024);
+    let result =
+        encrypt_pq_ml_kem_unverified(b"data", pk_768.as_slice(), MlKemSecurityLevel::MlKem1024);
 
     assert!(result.is_err(), "Should reject ML-KEM-768 key used with ML-KEM-1024 level");
 }
 
 #[test]
-fn test_encrypt_ml_kem_1024_key_with_512_level() {
+fn test_encrypt_ml_kem_1024_key_with_512_level_fails() {
     let (pk_1024, _sk_1024) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024).expect("keypair generation");
 
-    let result = encrypt_pq_ml_kem_unverified(b"data", &pk_1024, MlKemSecurityLevel::MlKem512);
+    let result =
+        encrypt_pq_ml_kem_unverified(b"data", pk_1024.as_slice(), MlKemSecurityLevel::MlKem512);
 
     assert!(result.is_err(), "Should reject ML-KEM-1024 key used with ML-KEM-512 level");
 }
 
 #[test]
-fn test_encrypt_ml_kem_1024_key_with_768_level() {
+fn test_encrypt_ml_kem_1024_key_with_768_level_fails() {
     let (pk_1024, _sk_1024) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024).expect("keypair generation");
 
-    let result = encrypt_pq_ml_kem_unverified(b"data", &pk_1024, MlKemSecurityLevel::MlKem768);
+    let result =
+        encrypt_pq_ml_kem_unverified(b"data", pk_1024.as_slice(), MlKemSecurityLevel::MlKem768);
 
     assert!(result.is_err(), "Should reject ML-KEM-1024 key used with ML-KEM-768 level");
 }
 
 #[test]
-fn test_decrypt_ml_kem_mismatched_security_levels() {
+fn test_decrypt_ml_kem_mismatched_security_levels_fails() {
     // Encrypt with ML-KEM-768
     let (pk_768, _sk_768) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
-    let encrypted = encrypt_pq_ml_kem_unverified(b"data", &pk_768, MlKemSecurityLevel::MlKem768)
-        .expect("encryption should succeed");
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(b"data", pk_768.as_slice(), MlKemSecurityLevel::MlKem768)
+            .expect("encryption should succeed");
 
     // Generate ML-KEM-512 key and try to decrypt
     let (_pk_512, sk_512) =
@@ -468,24 +475,24 @@ fn test_decrypt_ml_kem_mismatched_security_levels() {
 // We test the boundary conditions and verify the limit check is called.
 
 #[test]
-fn test_encrypt_pq_ml_kem_data_within_limit() -> Result<()> {
+fn test_encrypt_pq_ml_kem_data_within_limit_succeeds() -> Result<()> {
     // Test with data well within the 100MB limit
     let data = vec![0xAB; 1024 * 1024]; // 1MB
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let result = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768);
+    let result = encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768);
 
     assert!(result.is_ok(), "1MB data should be within resource limits");
     Ok(())
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_moderate_data_size() -> Result<()> {
+fn test_encrypt_pq_ml_kem_moderate_data_size_succeeds() -> Result<()> {
     // Test with 10MB data
     let data = vec![0xCD; 10 * 1024 * 1024];
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let result = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768);
+    let result = encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768);
 
     assert!(result.is_ok(), "10MB data should be within resource limits");
     Ok(())
@@ -496,7 +503,7 @@ fn test_encrypt_pq_ml_kem_moderate_data_size() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_encrypt_pq_ml_kem_binary_data_all_byte_values() -> Result<()> {
+fn test_encrypt_pq_ml_kem_binary_data_all_byte_values_succeeds() -> Result<()> {
     // Create data containing all possible byte values (0x00 to 0xFF)
     let mut data: Vec<u8> = (0..=255u8).collect();
 
@@ -505,19 +512,21 @@ fn test_encrypt_pq_ml_kem_binary_data_all_byte_values() -> Result<()> {
 
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     assert!(encrypted.len() > data.len(), "Encrypted binary data should be larger than plaintext");
     Ok(())
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_binary_data_null_bytes() -> Result<()> {
+fn test_encrypt_pq_ml_kem_binary_data_null_bytes_succeeds() -> Result<()> {
     // Data with only null bytes
     let data = vec![0x00; 512];
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     assert!(encrypted.len() > data.len());
     // Verify encrypted data is not all zeros (randomized encryption)
@@ -526,31 +535,33 @@ fn test_encrypt_pq_ml_kem_binary_data_null_bytes() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_binary_data_max_bytes() -> Result<()> {
+fn test_encrypt_pq_ml_kem_binary_data_max_bytes_succeeds() -> Result<()> {
     // Data with only 0xFF bytes
     let data = vec![0xFF; 512];
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     assert!(encrypted.len() > data.len());
     Ok(())
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_binary_data_alternating_pattern() -> Result<()> {
+fn test_encrypt_pq_ml_kem_binary_data_alternating_pattern_succeeds() -> Result<()> {
     // Alternating 0x00 and 0xFF bytes
     let data: Vec<u8> = (0..512).map(|i| if i % 2 == 0 { 0x00 } else { 0xFF }).collect();
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     assert!(encrypted.len() > data.len());
     Ok(())
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_binary_data_special_patterns() -> Result<()> {
+fn test_encrypt_pq_ml_kem_binary_data_special_patterns_succeeds() -> Result<()> {
     // Test special byte patterns
     let patterns: Vec<Vec<u8>> = vec![
         vec![0x00, 0xFF, 0x00, 0xFF], // Alternating
@@ -568,7 +579,8 @@ fn test_encrypt_pq_ml_kem_binary_data_special_patterns() -> Result<()> {
         // Repeat pattern to make it reasonable size
         let data: Vec<u8> = pattern.iter().cycle().take(256).copied().collect();
 
-        let result = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768);
+        let result =
+            encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768);
 
         assert!(result.is_ok(), "Pattern {} should encrypt successfully: {:?}", i, result.err());
     }
@@ -576,14 +588,15 @@ fn test_encrypt_pq_ml_kem_binary_data_special_patterns() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_binary_data_with_embedded_nulls() -> Result<()> {
+fn test_encrypt_pq_ml_kem_binary_data_with_embedded_nulls_succeeds() -> Result<()> {
     // String-like data with embedded null bytes (would terminate C strings)
     let mut data = b"Hello\x00World\x00This\x00Has\x00Nulls".to_vec();
     data.extend_from_slice(&[0x00; 100]); // More nulls
 
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     assert!(encrypted.len() > data.len(), "Data with embedded nulls should encrypt");
     Ok(())
@@ -594,18 +607,19 @@ fn test_encrypt_pq_ml_kem_binary_data_with_embedded_nulls() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_encrypt_pq_ml_kem_stress_100kb_data() -> Result<()> {
+fn test_encrypt_pq_ml_kem_stress_100kb_data_succeeds() -> Result<()> {
     let data = vec![0x42u8; 100 * 1024]; // 100KB
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     assert!(encrypted.len() > data.len(), "100KB data should encrypt successfully");
     Ok(())
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_stress_100kb_random_pattern() -> Result<()> {
+fn test_encrypt_pq_ml_kem_stress_100kb_random_pattern_succeeds() -> Result<()> {
     // Create pseudo-random data pattern
     let mut data = Vec::with_capacity(100 * 1024);
     for i in 0..(100 * 1024) {
@@ -614,14 +628,15 @@ fn test_encrypt_pq_ml_kem_stress_100kb_random_pattern() -> Result<()> {
 
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let encrypted =
+        encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     assert!(encrypted.len() > data.len());
     Ok(())
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_stress_100kb_all_security_levels() -> Result<()> {
+fn test_encrypt_pq_ml_kem_stress_100kb_all_security_levels_succeeds() -> Result<()> {
     let data = vec![0xAB; 100 * 1024]; // 100KB
 
     for level in
@@ -629,7 +644,7 @@ fn test_encrypt_pq_ml_kem_stress_100kb_all_security_levels() -> Result<()> {
     {
         let (pk, _sk) = generate_ml_kem_keypair(level)?;
 
-        let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, level)?;
+        let encrypted = encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), level)?;
 
         assert!(encrypted.len() > data.len(), "{:?}: 100KB data should encrypt", level);
     }
@@ -637,7 +652,7 @@ fn test_encrypt_pq_ml_kem_stress_100kb_all_security_levels() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_stress_multiple_encryptions() -> Result<()> {
+fn test_encrypt_pq_ml_kem_stress_multiple_encryptions_succeeds() -> Result<()> {
     let data = vec![0x55; 10 * 1024]; // 10KB
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
@@ -645,7 +660,8 @@ fn test_encrypt_pq_ml_kem_stress_multiple_encryptions() -> Result<()> {
 
     // Perform multiple encryptions and verify they produce different ciphertexts
     for i in 0..10 {
-        let encrypted = encrypt_pq_ml_kem_unverified(&data, &pk, MlKemSecurityLevel::MlKem768)?;
+        let encrypted =
+            encrypt_pq_ml_kem_unverified(&data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
         assert!(encrypted.len() > data.len(), "Iteration {}: encryption should succeed", i);
 
@@ -668,7 +684,7 @@ fn test_encrypt_pq_ml_kem_stress_multiple_encryptions() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_encrypt_pq_ml_kem_empty_data_all_levels() -> Result<()> {
+fn test_encrypt_pq_ml_kem_empty_data_all_levels_succeeds() -> Result<()> {
     let empty_data: &[u8] = &[];
 
     for level in
@@ -676,7 +692,7 @@ fn test_encrypt_pq_ml_kem_empty_data_all_levels() -> Result<()> {
     {
         let (pk, _sk) = generate_ml_kem_keypair(level)?;
 
-        let encrypted = encrypt_pq_ml_kem_unverified(empty_data, &pk, level)?;
+        let encrypted = encrypt_pq_ml_kem_unverified(empty_data, pk.as_slice(), level)?;
 
         assert!(
             !encrypted.is_empty(),
@@ -688,13 +704,17 @@ fn test_encrypt_pq_ml_kem_empty_data_all_levels() -> Result<()> {
 }
 
 #[test]
-fn test_encrypt_pq_ml_kem_with_config_default() -> Result<()> {
+fn test_encrypt_pq_ml_kem_with_config_default_succeeds() -> Result<()> {
     let data = b"Test with default config";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
     let config = CoreConfig::default();
 
-    let encrypted =
-        encrypt_pq_ml_kem_with_config_unverified(data, &pk, MlKemSecurityLevel::MlKem768, &config)?;
+    let encrypted = encrypt_pq_ml_kem_with_config_unverified(
+        data,
+        pk.as_slice(),
+        MlKemSecurityLevel::MlKem768,
+        &config,
+    )?;
 
     assert!(encrypted.len() > data.len());
     Ok(())
@@ -705,15 +725,19 @@ fn test_security_mode_unverified_succeeds() -> Result<()> {
     let data = b"Test unverified mode";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let encrypted =
-        encrypt_pq_ml_kem(data, &pk, MlKemSecurityLevel::MlKem768, SecurityMode::Unverified)?;
+    let encrypted = encrypt_pq_ml_kem(
+        data,
+        pk.as_slice(),
+        MlKemSecurityLevel::MlKem768,
+        SecurityMode::Unverified,
+    )?;
 
     assert!(encrypted.len() > data.len());
     Ok(())
 }
 
 #[test]
-fn test_security_mode_unverified_validate() -> Result<()> {
+fn test_security_mode_unverified_validate_succeeds() -> Result<()> {
     let mode = SecurityMode::Unverified;
 
     // Validation should always succeed for unverified mode
@@ -726,16 +750,19 @@ fn test_security_mode_unverified_validate() -> Result<()> {
 }
 
 #[test]
-fn test_ciphertext_size_varies_by_security_level() -> Result<()> {
+fn test_ciphertext_size_varies_by_security_level_is_correct() -> Result<()> {
     let data = b"Same data for all levels";
 
     let (pk_512, _) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)?;
     let (pk_768, _) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
     let (pk_1024, _) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)?;
 
-    let enc_512 = encrypt_pq_ml_kem_unverified(data, &pk_512, MlKemSecurityLevel::MlKem512)?;
-    let enc_768 = encrypt_pq_ml_kem_unverified(data, &pk_768, MlKemSecurityLevel::MlKem768)?;
-    let enc_1024 = encrypt_pq_ml_kem_unverified(data, &pk_1024, MlKemSecurityLevel::MlKem1024)?;
+    let enc_512 =
+        encrypt_pq_ml_kem_unverified(data, pk_512.as_slice(), MlKemSecurityLevel::MlKem512)?;
+    let enc_768 =
+        encrypt_pq_ml_kem_unverified(data, pk_768.as_slice(), MlKemSecurityLevel::MlKem768)?;
+    let enc_1024 =
+        encrypt_pq_ml_kem_unverified(data, pk_1024.as_slice(), MlKemSecurityLevel::MlKem1024)?;
 
     // Higher security levels should produce larger ciphertexts due to larger KEM ciphertext
     assert!(
@@ -750,7 +777,7 @@ fn test_ciphertext_size_varies_by_security_level() -> Result<()> {
 }
 
 #[test]
-fn test_keypair_uniqueness() -> Result<()> {
+fn test_keypair_uniqueness_is_correct() -> Result<()> {
     let level = MlKemSecurityLevel::MlKem768;
 
     let (pk1, _sk1) = generate_ml_kem_keypair(level)?;
@@ -764,12 +791,12 @@ fn test_keypair_uniqueness() -> Result<()> {
 }
 
 #[test]
-fn test_encryption_determinism_check() -> Result<()> {
+fn test_encryption_determinism_check_is_correct() -> Result<()> {
     let data = b"Same plaintext";
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
-    let enc1 = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)?;
-    let enc2 = encrypt_pq_ml_kem_unverified(data, &pk, MlKemSecurityLevel::MlKem768)?;
+    let enc1 = encrypt_pq_ml_kem_unverified(data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
+    let enc2 = encrypt_pq_ml_kem_unverified(data, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
 
     // ML-KEM encryption is randomized, so ciphertexts should differ
     assert_ne!(enc1, enc2, "Randomized encryption should produce different ciphertexts");

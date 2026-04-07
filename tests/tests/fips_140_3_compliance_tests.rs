@@ -53,7 +53,7 @@ use std::collections::HashMap;
 // ============================================================================
 
 #[test]
-fn test_fips_validator_algorithms_init() {
+fn test_fips_validator_algorithms_init_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
     let result = validator.validate_module().expect("AlgorithmsOnly validation should succeed");
     assert!(result.is_valid(), "AlgorithmsOnly must pass");
@@ -61,7 +61,7 @@ fn test_fips_validator_algorithms_init() {
 }
 
 #[test]
-fn test_fips_validator_full_module_init() {
+fn test_fips_validator_full_module_init_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::FullModule);
     let result = validator.validate_module().expect("FullModule should succeed");
     // FullModule may or may not be fully valid depending on HMAC KAT, but should not panic
@@ -92,20 +92,20 @@ fn test_validation_scope_serialization_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_fips_level_ordering() {
+fn test_fips_level_ordering_succeeds() {
     assert!(FIPSLevel::Level1 < FIPSLevel::Level2);
     assert!(FIPSLevel::Level2 < FIPSLevel::Level3);
     assert!(FIPSLevel::Level3 < FIPSLevel::Level4);
 }
 
 #[test]
-fn test_fips_level_equality() {
+fn test_fips_level_equality_succeeds() {
     assert_eq!(FIPSLevel::Level1, FIPSLevel::Level1);
     assert_ne!(FIPSLevel::Level1, FIPSLevel::Level4);
 }
 
 #[test]
-fn test_fips_level_serialization() {
+fn test_fips_level_serialization_succeeds() {
     for level in [FIPSLevel::Level1, FIPSLevel::Level2, FIPSLevel::Level3, FIPSLevel::Level4] {
         let json = serde_json::to_string(&level).expect("serialize level");
         let deser: FIPSLevel = serde_json::from_str(&json).expect("deserialize level");
@@ -118,7 +118,7 @@ fn test_fips_level_serialization() {
 // ============================================================================
 
 #[test]
-fn test_validation_result_construction() {
+fn test_validation_result_construction_succeeds() {
     let result = ValidationResult {
         validation_id: "VR-001".to_string(),
         timestamp: Utc::now(),
@@ -135,7 +135,7 @@ fn test_validation_result_construction() {
 }
 
 #[test]
-fn test_validation_result_with_issues() {
+fn test_validation_result_with_issues_succeeds() {
     let issue = ValidationIssue {
         id: "ISS-001".to_string(),
         description: "Missing self-test".to_string(),
@@ -162,7 +162,7 @@ fn test_validation_result_with_issues() {
 }
 
 #[test]
-fn test_validation_result_serialization() {
+fn test_validation_result_serialization_succeeds() {
     let result = ValidationResult {
         validation_id: "VR-003".to_string(),
         timestamp: Utc::now(),
@@ -184,7 +184,7 @@ fn test_validation_result_serialization() {
 // ============================================================================
 
 #[test]
-fn test_issue_severity_all_variants() {
+fn test_issue_severity_all_variants_succeeds() {
     let severities = [
         IssueSeverity::Critical,
         IssueSeverity::High,
@@ -204,7 +204,7 @@ fn test_issue_severity_all_variants() {
 // ============================================================================
 
 #[test]
-fn test_rng_produces_distinct_samples() {
+fn test_rng_produces_distinct_samples_are_unique() {
     use rand::RngCore;
     let mut sample1 = [0u8; 32];
     let mut sample2 = [0u8; 32];
@@ -214,7 +214,7 @@ fn test_rng_produces_distinct_samples() {
 }
 
 #[test]
-fn test_rng_bit_distribution_within_bounds() {
+fn test_rng_bit_distribution_within_bounds_succeeds() {
     use rand::RngCore;
     for _ in 0..20 {
         let mut sample1 = [0u8; 32];
@@ -242,30 +242,31 @@ fn test_rng_bit_distribution_within_bounds() {
 // ============================================================================
 
 #[test]
-fn test_algorithm_self_test_aes() {
+fn test_algorithm_self_test_aes_passes() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-    let result = validator.test_aes_algorithm().expect("AES test should not error");
+    let result = validator.test_aes_algorithm_succeeds().expect("AES test should not error");
     assert!(result.passed, "AES algorithm self-test must pass");
 }
 
 #[test]
-fn test_algorithm_self_test_sha3() {
+fn test_algorithm_self_test_sha3_passes() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-    let result = validator.test_sha3_algorithm().expect("SHA3 test should not error");
+    let result = validator.test_sha3_algorithm_succeeds().expect("SHA3 test should not error");
     assert!(result.passed, "SHA3 algorithm self-test must pass");
 }
 
 #[test]
-fn test_algorithm_self_test_mlkem() {
+fn test_algorithm_self_test_mlkem_passes() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-    let result = validator.test_mlkem_algorithm().expect("ML-KEM test should not error");
+    let result = validator.test_mlkem_algorithm_succeeds().expect("ML-KEM test should not error");
     assert!(result.passed, "ML-KEM algorithm self-test must pass");
 }
 
 #[test]
-fn test_algorithm_self_tests_combined() {
+fn test_algorithm_self_tests_combined_do_not_panic_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-    let result = validator.test_self_tests().expect("Combined self-tests should not error");
+    let result =
+        validator.test_self_tests_succeeds().expect("Combined self-tests should not error");
     // Combined may include HMAC KAT which can fail, so just check it doesn't panic
     println!("Combined self-tests passed: {}", result.passed);
 }
@@ -275,7 +276,7 @@ fn test_algorithm_self_tests_combined() {
 // ============================================================================
 
 #[test]
-fn test_validation_result_from_validator() {
+fn test_validation_result_from_validator_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
     let result = validator.validate_module().expect("Validation should succeed");
     assert!(result.is_valid(), "AlgorithmsOnly validation should produce valid result");
@@ -287,14 +288,14 @@ fn test_validation_result_from_validator() {
 // ============================================================================
 
 #[test]
-fn test_fips_validator_module_interfaces_scope() {
+fn test_fips_validator_module_interfaces_scope_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::ModuleInterfaces);
     let result = validator.validate_module().expect("ModuleInterfaces should succeed");
     println!("ModuleInterfaces valid: {}, issues: {}", result.is_valid(), result.issues.len());
 }
 
 #[test]
-fn test_fips_validator_remediation_guidance() {
+fn test_fips_validator_remediation_guidance_does_not_panic_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::FullModule);
     let result = validator.validate_module().expect("FullModule should succeed");
     let guidance = validator.get_remediation_guidance(&result);
@@ -309,7 +310,7 @@ fn test_fips_validator_remediation_guidance() {
 // ============================================================================
 
 #[test]
-fn test_self_test_type_variants() {
+fn test_self_test_type_variants_succeeds() {
     let types = [SelfTestType::PowerUp, SelfTestType::Conditional, SelfTestType::Continuous];
     for t in &types {
         let json = serde_json::to_string(t).expect("serialize");
@@ -319,7 +320,7 @@ fn test_self_test_type_variants() {
 }
 
 #[test]
-fn test_self_test_result_fields() {
+fn test_self_test_result_fields_succeeds() {
     let result = SelfTestResult {
         test_type: SelfTestType::PowerUp,
         test_name: "AES-KAT".to_string(),
@@ -335,7 +336,7 @@ fn test_self_test_result_fields() {
 }
 
 #[test]
-fn test_self_test_result_fail_with_error() {
+fn test_self_test_result_fail_with_error_fails() {
     let result = SelfTestResult {
         test_type: SelfTestType::Conditional,
         test_name: "SHA3-KAT".to_string(),
@@ -351,7 +352,7 @@ fn test_self_test_result_fail_with_error() {
 }
 
 #[test]
-fn test_fips_140_3_validator_construction() {
+fn test_fips_140_3_validator_construction_succeeds() {
     // Verify Fips140_3Validator can be constructed without panicking
     let validator = Fips140_3Validator::new("test-module".to_string(), 1);
     // Construction itself is the test — it sets up NistStatisticalTester and module info
@@ -359,7 +360,7 @@ fn test_fips_140_3_validator_construction() {
 }
 
 #[test]
-fn test_fips_140_3_validation_result_serialization() {
+fn test_fips_140_3_validation_result_serialization_succeeds() {
     // Test Fips140_3ValidationResult serialization using a manually constructed value
     let result = Fips140_3ValidationResult {
         validation_id: "VR-TEST-001".to_string(),
@@ -383,7 +384,7 @@ fn test_fips_140_3_validation_result_serialization() {
 // ============================================================================
 
 #[test]
-fn test_test_result_construction() {
+fn test_test_result_construction_succeeds() {
     let r = TestResult {
         test_id: "AES-GCM-001".to_string(),
         passed: true,
@@ -396,7 +397,7 @@ fn test_test_result_construction() {
 }
 
 #[test]
-fn test_test_result_failure() {
+fn test_test_result_failure_fields_are_set_correctly_fails() {
     let r = TestResult {
         test_id: "ML-KEM-001".to_string(),
         passed: false,
@@ -413,7 +414,7 @@ fn test_test_result_failure() {
 // ============================================================================
 
 #[test]
-fn test_validation_certificate_construction() {
+fn test_validation_certificate_construction_succeeds() {
     let cert = ValidationCertificate {
         id: "CERT-001".to_string(),
         module_name: "arc-primitives".to_string(),
@@ -430,7 +431,7 @@ fn test_validation_certificate_construction() {
 }
 
 #[test]
-fn test_validation_certificate_serialization() {
+fn test_validation_certificate_serialization_succeeds() {
     let cert = ValidationCertificate {
         id: "CERT-002".to_string(),
         module_name: "arc-core".to_string(),

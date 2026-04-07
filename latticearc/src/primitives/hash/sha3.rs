@@ -1,11 +1,23 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
 //! SHA-3 Hash Functions
 //!
 //! This module provides SHA-3 implementations (SHA3-256, SHA3-384, SHA3-512).
+//!
+//! # API note: infallible vs fallible
+//!
+//! Unlike the SHA-2 wrappers in [`crate::primitives::hash::sha2`], the SHA-3
+//! functions return `[u8; N]` directly instead of `Result<[u8; N], _>`. SHA-2
+//! was given an explicit 1 GiB input cap as a DoS-defense and therefore must
+//! be fallible; SHA-3 intentionally does not impose that cap because the
+//! SHAKE-based construction has much lower per-byte cost in practice and
+//! callers are expected to enforce their own limits (see
+//! [`crate::primitives::resource_limits`]). This asymmetry is deliberate —
+//! do not "fix" it by making one match the other without considering the
+//! DoS-budget tradeoff.
 
 use sha3::{Digest, Sha3_256, Sha3_384, Sha3_512};
 
@@ -39,26 +51,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sha3_256() {
+    fn test_sha3_256_has_correct_length_has_correct_size() {
         let result = sha3_256(b"hello");
         assert_eq!(result.len(), 32);
     }
 
     #[test]
-    fn test_sha3_384() {
+    fn test_sha3_384_has_correct_length_has_correct_size() {
         let result = sha3_384(b"hello");
         assert_eq!(result.len(), 48);
     }
 
     #[test]
-    fn test_sha3_512() {
+    fn test_sha3_512_has_correct_length_has_correct_size() {
         let result = sha3_512(b"hello");
         assert_eq!(result.len(), 64);
     }
 
     // NIST test vectors - Empty input
     #[test]
-    fn test_sha3_256_empty() {
+    fn test_sha3_256_empty_matches_vector() {
         let result = sha3_256(b"");
         let expected = [
             0xa7, 0xff, 0xc6, 0xf8, 0xbf, 0x1e, 0xd7, 0x66, 0x51, 0xc1, 0x47, 0x56, 0xa0, 0x61,
@@ -69,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha3_384_empty() {
+    fn test_sha3_384_empty_matches_vector() {
         let result = sha3_384(b"");
         let expected = [
             0x0c, 0x63, 0xa7, 0x5b, 0x84, 0x5e, 0x4f, 0x7d, 0x01, 0x10, 0x7d, 0x85, 0x2e, 0x4c,
@@ -81,7 +93,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha3_512_empty() {
+    fn test_sha3_512_empty_matches_vector() {
         let result = sha3_512(b"");
         let expected = [
             0xa6, 0x9f, 0x73, 0xcc, 0xa2, 0x3a, 0x9a, 0xc5, 0xc8, 0xb5, 0x67, 0xdc, 0x18, 0x5a,
@@ -95,7 +107,7 @@ mod tests {
 
     // Single byte tests
     #[test]
-    fn test_sha3_256_single_byte() {
+    fn test_sha3_256_single_byte_matches_vector() {
         let result = sha3_256(b"a");
         let expected = [
             0x80, 0x08, 0x4b, 0xf2, 0xfb, 0xa0, 0x24, 0x75, 0x72, 0x6f, 0xeb, 0x2c, 0xab, 0x2d,
@@ -106,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha3_512_single_byte() {
+    fn test_sha3_512_single_byte_has_correct_length_has_correct_size() {
         let result = sha3_512(b"a");
         assert_eq!(result.len(), 64);
         // Verify determinism
@@ -117,7 +129,7 @@ mod tests {
 
     // NIST test vector: "abc"
     #[test]
-    fn test_sha3_256_abc() {
+    fn test_sha3_256_abc_matches_vector() {
         let result = sha3_256(b"abc");
         let expected = [
             0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3,
@@ -128,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha3_384_abc() {
+    fn test_sha3_384_abc_matches_vector() {
         let result = sha3_384(b"abc");
         let expected = [
             0xec, 0x01, 0x49, 0x82, 0x88, 0x51, 0x6f, 0xc9, 0x26, 0x45, 0x9f, 0x58, 0xe2, 0xc6,
@@ -140,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha3_512_abc() {
+    fn test_sha3_512_abc_matches_vector() {
         let result = sha3_512(b"abc");
         let expected = [
             0xb7, 0x51, 0x85, 0x0b, 0x1a, 0x57, 0x16, 0x8a, 0x56, 0x93, 0xcd, 0x92, 0x4b, 0x6b,
@@ -154,7 +166,7 @@ mod tests {
 
     // Multi-block message tests
     #[test]
-    fn test_sha3_256_long_message() {
+    fn test_sha3_256_long_message_has_correct_length_has_correct_size() {
         let input = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         let result = sha3_256(input);
         assert_eq!(result.len(), 32);
@@ -163,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha3_512_long_message() {
+    fn test_sha3_512_long_message_has_correct_length_has_correct_size() {
         let input = vec![b'a'; 200]; // Long message
         let result = sha3_512(&input);
         assert_eq!(result.len(), 64);
@@ -173,7 +185,7 @@ mod tests {
 
     // Large input test (1MB)
     #[test]
-    fn test_sha3_256_large_input() {
+    fn test_sha3_256_large_input_has_correct_length_has_correct_size() {
         let input = vec![0x42; 1024 * 1024]; // 1MB
         let result = sha3_256(&input);
         assert_eq!(result.len(), 32);
@@ -183,7 +195,7 @@ mod tests {
 
     // Test all three functions with same input
     #[test]
-    fn test_all_sha3_functions() {
+    fn test_all_sha3_functions_have_correct_lengths_has_correct_size() {
         let input = b"The quick brown fox jumps over the lazy dog";
 
         let sha3_256_result = sha3_256(input);
@@ -203,7 +215,7 @@ mod tests {
 
     // Test different outputs between SHA-3 variants
     #[test]
-    fn test_sha3_variants_produce_different_hashes() {
+    fn test_sha3_variants_produce_different_hashes_succeeds() {
         let input = b"test data";
         let h256 = sha3_256(input);
         let h384 = sha3_384(input);

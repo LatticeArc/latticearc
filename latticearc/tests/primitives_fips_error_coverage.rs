@@ -16,7 +16,7 @@ use latticearc::primitives::fips_error::{FipsCompliantError, FipsError, FipsErro
 // ============================================================================
 
 #[test]
-fn test_error_code_values() {
+fn test_error_code_values_fails() {
     // Self-test codes (0x0001-0x00FF)
     assert_eq!(FipsErrorCode::SelfTestFailed.code(), 0x0001);
     assert_eq!(FipsErrorCode::IntegrityCheckFailed.code(), 0x0002);
@@ -68,7 +68,7 @@ fn test_error_code_values() {
 // ============================================================================
 
 #[test]
-fn test_error_messages() {
+fn test_error_messages_fails() {
     assert_eq!(FipsErrorCode::SelfTestFailed.message(), "Power-up self-test failed");
     assert_eq!(FipsErrorCode::IntegrityCheckFailed.message(), "Integrity check failed");
     assert_eq!(FipsErrorCode::ConditionalTestFailed.message(), "Conditional self-test failed");
@@ -113,7 +113,7 @@ fn test_error_messages() {
 // ============================================================================
 
 #[test]
-fn test_is_critical() {
+fn test_is_critical_succeeds() {
     // Critical codes
     assert!(FipsErrorCode::SelfTestFailed.is_critical());
     assert!(FipsErrorCode::IntegrityCheckFailed.is_critical());
@@ -134,7 +134,7 @@ fn test_is_critical() {
 // ============================================================================
 
 #[test]
-fn test_is_self_test_error() {
+fn test_is_self_test_error_fails() {
     assert!(FipsErrorCode::SelfTestFailed.is_self_test_error());
     assert!(FipsErrorCode::KatFailed.is_self_test_error());
     assert!(FipsErrorCode::ContinuousRngTestFailed.is_self_test_error());
@@ -144,7 +144,7 @@ fn test_is_self_test_error() {
 }
 
 #[test]
-fn test_is_algorithm_error() {
+fn test_is_algorithm_error_fails() {
     assert!(FipsErrorCode::InvalidKeyLength.is_algorithm_error());
     assert!(FipsErrorCode::DecryptionFailed.is_algorithm_error());
     assert!(FipsErrorCode::SigningFailed.is_algorithm_error());
@@ -154,7 +154,7 @@ fn test_is_algorithm_error() {
 }
 
 #[test]
-fn test_is_operational_error() {
+fn test_is_operational_error_fails() {
     assert!(FipsErrorCode::RngFailure.is_operational_error());
     assert!(FipsErrorCode::ZeroizationFailed.is_operational_error());
     assert!(FipsErrorCode::ResourceExhausted.is_operational_error());
@@ -164,7 +164,7 @@ fn test_is_operational_error() {
 }
 
 #[test]
-fn test_is_status_code() {
+fn test_is_status_code_succeeds() {
     assert!(FipsErrorCode::ModuleNotInitialized.is_status_code());
     assert!(FipsErrorCode::OperationNotPermitted.is_status_code());
     assert!(FipsErrorCode::ModuleInErrorState.is_status_code());
@@ -180,7 +180,7 @@ fn test_is_status_code() {
 // ============================================================================
 
 #[test]
-fn test_category() {
+fn test_category_succeeds() {
     assert_eq!(FipsErrorCode::SelfTestFailed.category(), "SELF_TEST");
     assert_eq!(FipsErrorCode::InvalidKeyLength.category(), "ALGORITHM");
     assert_eq!(FipsErrorCode::RngFailure.category(), "OPERATIONAL");
@@ -192,7 +192,7 @@ fn test_category() {
 // ============================================================================
 
 #[test]
-fn test_display_format() {
+fn test_display_format_has_correct_size() {
     let code = FipsErrorCode::InvalidKeyLength;
     let display = format!("{}", code);
     assert!(display.starts_with("FIPS-0100:"));
@@ -200,7 +200,7 @@ fn test_display_format() {
 }
 
 #[test]
-fn test_display_critical() {
+fn test_display_critical_succeeds() {
     let code = FipsErrorCode::SelfTestFailed;
     let display = format!("{}", code);
     assert!(display.starts_with("FIPS-0001:"));
@@ -211,21 +211,21 @@ fn test_display_critical() {
 // ============================================================================
 
 #[test]
-fn test_debug() {
+fn test_debug_succeeds() {
     let code = FipsErrorCode::DecryptionFailed;
     let debug = format!("{:?}", code);
     assert!(debug.contains("DecryptionFailed"));
 }
 
 #[test]
-fn test_clone_copy() {
+fn test_clone_copy_succeeds() {
     let code = FipsErrorCode::RngFailure;
     let cloned = code;
     assert_eq!(code, cloned);
 }
 
 #[test]
-fn test_hash() {
+fn test_hash_succeeds() {
     use std::collections::HashSet;
     let mut set = HashSet::new();
     set.insert(FipsErrorCode::SelfTestFailed);
@@ -239,14 +239,14 @@ fn test_hash() {
 // ============================================================================
 
 #[test]
-fn test_fips_compliant_error_new() {
+fn test_fips_compliant_error_new_fails() {
     let err = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
     assert_eq!(err.code(), FipsErrorCode::InvalidKeyLength);
     assert!(err.context().is_none());
 }
 
 #[test]
-fn test_fips_compliant_error_with_context() {
+fn test_fips_compliant_error_with_context_fails() {
     let err =
         FipsCompliantError::new(FipsErrorCode::DecryptionFailed).with_context("auth tag mismatch");
     assert_eq!(err.code(), FipsErrorCode::DecryptionFailed);
@@ -254,14 +254,14 @@ fn test_fips_compliant_error_with_context() {
 }
 
 #[test]
-fn test_fips_compliant_error_display_no_context() {
+fn test_fips_compliant_error_display_no_context_fails() {
     let err = FipsCompliantError::new(FipsErrorCode::RngFailure);
     let display = format!("{}", err);
     assert!(display.contains("FIPS-0200"));
 }
 
 #[test]
-fn test_fips_compliant_error_display_with_context() {
+fn test_fips_compliant_error_display_with_context_fails() {
     let err =
         FipsCompliantError::new(FipsErrorCode::DecryptionFailed).with_context("auth tag mismatch");
     let display = format!("{}", err);
@@ -270,14 +270,14 @@ fn test_fips_compliant_error_display_with_context() {
 }
 
 #[test]
-fn test_fips_compliant_error_debug() {
+fn test_fips_compliant_error_debug_fails() {
     let err = FipsCompliantError::new(FipsErrorCode::RngFailure).with_context("entropy low");
     let debug = format!("{:?}", err);
     assert!(debug.contains("FipsCompliantError"));
 }
 
 #[test]
-fn test_fips_compliant_error_is_critical() {
+fn test_fips_compliant_error_is_critical_fails() {
     let critical = FipsCompliantError::new(FipsErrorCode::SelfTestFailed);
     let non_critical = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
     assert!(critical.is_critical());
@@ -285,7 +285,7 @@ fn test_fips_compliant_error_is_critical() {
 }
 
 #[test]
-fn test_fips_compliant_error_clone_eq() {
+fn test_fips_compliant_error_clone_eq_fails() {
     let err = FipsCompliantError::new(FipsErrorCode::Timeout).with_context("took too long");
     let cloned = err.clone();
     assert_eq!(err, cloned);
@@ -298,13 +298,13 @@ fn test_fips_compliant_error_clone_eq() {
 // ============================================================================
 
 #[test]
-fn test_fips_error_trait_fips_code() {
+fn test_fips_error_trait_fips_code_fails() {
     let err = FipsCompliantError::new(FipsErrorCode::BufferTooSmall);
     assert_eq!(err.fips_code(), FipsErrorCode::BufferTooSmall);
 }
 
 #[test]
-fn test_fips_error_trait_fips_message() {
+fn test_fips_error_trait_fips_message_fails() {
     let err = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
     let msg = err.fips_message();
     assert!(msg.contains("FIPS-0100"));
@@ -312,7 +312,7 @@ fn test_fips_error_trait_fips_message() {
 }
 
 #[test]
-fn test_fips_error_trait_is_fips_critical() {
+fn test_fips_error_trait_is_fips_critical_fails() {
     let critical = FipsCompliantError::new(FipsErrorCode::IntegrityCheckFailed);
     let non_critical = FipsCompliantError::new(FipsErrorCode::IoError);
     assert!(critical.is_fips_critical());

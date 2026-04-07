@@ -44,7 +44,7 @@
     missing_docs
 )]
 
-use latticearc::unified_api::config::CoreConfig;
+use latticearc::unified_api::CoreConfig;
 use latticearc::unified_api::convenience::{
     generate_hybrid_signing_keypair, generate_hybrid_signing_keypair_unverified,
     generate_hybrid_signing_keypair_with_config, sign_hybrid, sign_hybrid_unverified,
@@ -59,7 +59,7 @@ use latticearc::unified_api::zero_trust::{SecurityMode, VerifiedSession};
 // ============================================================================
 
 #[test]
-fn test_roundtrip_unverified_convenience() -> Result<()> {
+fn test_roundtrip_unverified_convenience_roundtrip() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message = b"Hello, hybrid signatures!";
     let signature = sign_hybrid_unverified(message, &sk)?;
@@ -69,7 +69,7 @@ fn test_roundtrip_unverified_convenience() -> Result<()> {
 }
 
 #[test]
-fn test_roundtrip_security_mode_unverified() -> Result<()> {
+fn test_roundtrip_security_mode_unverified_roundtrip() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
     let message = b"SecurityMode::Unverified test";
     let signature = sign_hybrid(message, &sk, SecurityMode::Unverified)?;
@@ -79,7 +79,7 @@ fn test_roundtrip_security_mode_unverified() -> Result<()> {
 }
 
 #[test]
-fn test_roundtrip_with_config() -> Result<()> {
+fn test_roundtrip_with_config_roundtrip() -> Result<()> {
     let config = CoreConfig::default();
     let (pk, sk) = generate_hybrid_signing_keypair_with_config(&config, SecurityMode::Unverified)?;
     let message = b"Config variant test";
@@ -100,9 +100,9 @@ fn test_roundtrip_with_config() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_roundtrip_verified_session() -> Result<()> {
+fn test_roundtrip_verified_session_roundtrip() -> Result<()> {
     let (auth_pk, auth_sk) = latticearc::unified_api::convenience::generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
     let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Verified(&session))?;
     let message = b"Verified session roundtrip";
@@ -114,9 +114,9 @@ fn test_roundtrip_verified_session() -> Result<()> {
 }
 
 #[test]
-fn test_verified_session_multiple_operations() -> Result<()> {
+fn test_verified_session_multiple_operations_succeeds() -> Result<()> {
     let (auth_pk, auth_sk) = latticearc::unified_api::convenience::generate_keypair()?;
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
     let mode = SecurityMode::Verified(&session);
 
     let (pk, sk) = generate_hybrid_signing_keypair(mode)?;
@@ -135,7 +135,7 @@ fn test_verified_session_multiple_operations() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_cross_key_rejection() -> Result<()> {
+fn test_cross_key_rejection_returns_error() -> Result<()> {
     let (pk_a, sk_a) = generate_hybrid_signing_keypair_unverified()?;
     let (_pk_b, _sk_b) = generate_hybrid_signing_keypair_unverified()?;
 
@@ -153,7 +153,7 @@ fn test_cross_key_rejection() -> Result<()> {
 }
 
 #[test]
-fn test_cross_key_rejection_many_keypairs() -> Result<()> {
+fn test_cross_key_rejection_many_keypairs_returns_error() -> Result<()> {
     let (pk_signer, sk_signer) = generate_hybrid_signing_keypair_unverified()?;
     let message = b"signed by signer";
     let signature = sign_hybrid_unverified(message, &sk_signer)?;
@@ -218,7 +218,7 @@ fn test_appended_byte_fails() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_empty_message() -> Result<()> {
+fn test_empty_message_roundtrip_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message = b"";
     let signature = sign_hybrid_unverified(message, &sk)?;
@@ -228,7 +228,7 @@ fn test_empty_message() -> Result<()> {
 }
 
 #[test]
-fn test_single_byte_message() -> Result<()> {
+fn test_single_byte_message_roundtrip_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message = &[0x42u8];
     let signature = sign_hybrid_unverified(message, &sk)?;
@@ -238,7 +238,7 @@ fn test_single_byte_message() -> Result<()> {
 }
 
 #[test]
-fn test_large_message_10kb() -> Result<()> {
+fn test_large_message_10kb_roundtrip_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message = vec![0xAB; 10_000];
     let signature = sign_hybrid_unverified(&message, &sk)?;
@@ -248,7 +248,7 @@ fn test_large_message_10kb() -> Result<()> {
 }
 
 #[test]
-fn test_large_message_60kb() -> Result<()> {
+fn test_large_message_60kb_roundtrip_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message = vec![0xCD; 60_000];
     let signature = sign_hybrid_unverified(&message, &sk)?;
@@ -258,7 +258,7 @@ fn test_large_message_60kb() -> Result<()> {
 }
 
 #[test]
-fn test_oversized_message_rejected() {
+fn test_oversized_message_rejected_fails() {
     let (_pk, sk) = generate_hybrid_signing_keypair_unverified().unwrap();
     let message = vec![0xEF; 100_000]; // 100KB exceeds 64KB limit
     let result = sign_hybrid_unverified(&message, &sk);
@@ -266,7 +266,7 @@ fn test_oversized_message_rejected() {
 }
 
 #[test]
-fn test_binary_data_all_byte_values() -> Result<()> {
+fn test_binary_data_all_byte_values_roundtrip_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message: Vec<u8> = (0..=255).collect();
     let signature = sign_hybrid_unverified(&message, &sk)?;
@@ -276,7 +276,7 @@ fn test_binary_data_all_byte_values() -> Result<()> {
 }
 
 #[test]
-fn test_null_bytes_message() -> Result<()> {
+fn test_null_bytes_message_roundtrip_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message = vec![0x00; 64];
     let signature = sign_hybrid_unverified(&message, &sk)?;
@@ -286,7 +286,7 @@ fn test_null_bytes_message() -> Result<()> {
 }
 
 #[test]
-fn test_unicode_message() -> Result<()> {
+fn test_unicode_message_roundtrip_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let message = "Hello, World! Rust 2024 Edition".as_bytes();
     let signature = sign_hybrid_unverified(message, &sk)?;
@@ -300,7 +300,7 @@ fn test_unicode_message() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_persistent_identity_many_messages() -> Result<()> {
+fn test_persistent_identity_many_messages_all_verify_succeeds() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
 
     for i in 0..20 {
@@ -313,7 +313,7 @@ fn test_persistent_identity_many_messages() -> Result<()> {
 }
 
 #[test]
-fn test_signatures_are_unique_per_message() -> Result<()> {
+fn test_signatures_are_unique_per_message_verified_are_unique() -> Result<()> {
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
 
     let sig1 = sign_hybrid_unverified(b"message A", &sk)?;
@@ -334,7 +334,7 @@ fn test_signatures_are_unique_per_message() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_unverified_convenience_and_mode_interop() -> Result<()> {
+fn test_unverified_convenience_and_mode_interop_succeeds() -> Result<()> {
     // Generate with _unverified, sign with SecurityMode, verify with _unverified
     let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
     let signature = sign_hybrid(b"interop test", &sk, SecurityMode::Unverified)?;
@@ -344,7 +344,7 @@ fn test_unverified_convenience_and_mode_interop() -> Result<()> {
 }
 
 #[test]
-fn test_mode_and_unverified_convenience_interop() -> Result<()> {
+fn test_mode_and_unverified_convenience_interop_succeeds() -> Result<()> {
     // Generate with SecurityMode, sign with _unverified, verify with SecurityMode
     let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
     let signature = sign_hybrid_unverified(b"reverse interop", &sk)?;
@@ -355,7 +355,7 @@ fn test_mode_and_unverified_convenience_interop() -> Result<()> {
 }
 
 #[test]
-fn test_config_and_plain_interop() -> Result<()> {
+fn test_config_and_plain_interop_succeeds() -> Result<()> {
     // Generate with _with_config, sign with plain, verify with _unverified
     let config = CoreConfig::default();
     let (pk, sk) = generate_hybrid_signing_keypair_with_config(&config, SecurityMode::Unverified)?;
@@ -370,7 +370,7 @@ fn test_config_and_plain_interop() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_keypairs_are_independent() -> Result<()> {
+fn test_keypairs_are_independent_cross_verify_fails() -> Result<()> {
     let (pk1, sk1) = generate_hybrid_signing_keypair_unverified()?;
     let (pk2, sk2) = generate_hybrid_signing_keypair_unverified()?;
 
@@ -394,7 +394,7 @@ fn test_keypairs_are_independent() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_expired_session_rejected() {
+fn test_expired_session_rejected_fails() {
     // We can't easily create an expired session, but we verify the mode.validate() path
     // is exercised by testing that Unverified always succeeds
     let result = generate_hybrid_signing_keypair(SecurityMode::Unverified);
@@ -402,7 +402,7 @@ fn test_expired_session_rejected() {
 }
 
 #[test]
-fn test_config_validation_path() -> Result<()> {
+fn test_config_validation_path_succeeds() -> Result<()> {
     let config = CoreConfig::default();
     let result = generate_hybrid_signing_keypair_with_config(&config, SecurityMode::Unverified);
     assert!(result.is_ok(), "Default config should pass validation");

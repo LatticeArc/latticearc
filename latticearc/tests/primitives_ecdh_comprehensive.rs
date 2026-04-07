@@ -55,7 +55,7 @@ use latticearc::primitives::kem::ecdh::{
 // ============================================================================
 
 #[test]
-fn test_p256_keypair_generation() {
+fn test_p256_keypair_generation_succeeds() {
     let keypair = EcdhP256KeyPair::generate();
     assert!(keypair.is_ok(), "P-256 key generation should succeed");
 
@@ -70,7 +70,7 @@ fn test_p256_keypair_generation() {
 }
 
 #[test]
-fn test_p256_key_exchange_both_parties_same_secret() {
+fn test_p256_key_exchange_both_parties_same_secret_succeeds() {
     // Generate two keypairs (Alice and Bob)
     let alice = EcdhP256KeyPair::generate().expect("Alice keypair generation should succeed");
     let bob = EcdhP256KeyPair::generate().expect("Bob keypair generation should succeed");
@@ -92,7 +92,7 @@ fn test_p256_key_exchange_both_parties_same_secret() {
 }
 
 #[test]
-fn test_p256_ephemeral_key_generation() {
+fn test_p256_ephemeral_key_generation_succeeds() {
     // Generate multiple keypairs and verify they are different
     let keypair1 = EcdhP256KeyPair::generate().expect("First keypair should succeed");
     let keypair2 = EcdhP256KeyPair::generate().expect("Second keypair should succeed");
@@ -105,7 +105,7 @@ fn test_p256_ephemeral_key_generation() {
 }
 
 #[test]
-fn test_p256_agree_ephemeral() {
+fn test_p256_agree_ephemeral_succeeds() {
     let peer = EcdhP256KeyPair::generate().expect("Peer keypair generation should succeed");
     let peer_pk = peer.public_key_bytes().to_vec();
 
@@ -118,7 +118,7 @@ fn test_p256_agree_ephemeral() {
 }
 
 #[test]
-fn test_p256_shared_secret_non_zero() {
+fn test_p256_shared_secret_non_zero_succeeds() {
     let alice = EcdhP256KeyPair::generate().expect("Alice keypair generation should succeed");
     let bob = EcdhP256KeyPair::generate().expect("Bob keypair generation should succeed");
 
@@ -134,7 +134,7 @@ fn test_p256_shared_secret_non_zero() {
 // ============================================================================
 
 #[test]
-fn test_p384_keypair_generation() {
+fn test_p384_keypair_generation_succeeds() {
     let keypair = EcdhP384KeyPair::generate();
     assert!(keypair.is_ok(), "P-384 key generation should succeed");
 
@@ -149,7 +149,7 @@ fn test_p384_keypair_generation() {
 }
 
 #[test]
-fn test_p384_key_exchange_both_parties_same_secret() {
+fn test_p384_key_exchange_both_parties_same_secret_succeeds() {
     // Generate two keypairs (Alice and Bob)
     let alice = EcdhP384KeyPair::generate().expect("Alice keypair generation should succeed");
     let bob = EcdhP384KeyPair::generate().expect("Bob keypair generation should succeed");
@@ -171,7 +171,7 @@ fn test_p384_key_exchange_both_parties_same_secret() {
 }
 
 #[test]
-fn test_p384_ephemeral_key_generation() {
+fn test_p384_ephemeral_key_generation_succeeds() {
     let keypair1 = EcdhP384KeyPair::generate().expect("First keypair should succeed");
     let keypair2 = EcdhP384KeyPair::generate().expect("Second keypair should succeed");
 
@@ -183,7 +183,7 @@ fn test_p384_ephemeral_key_generation() {
 }
 
 #[test]
-fn test_p384_agree_ephemeral() {
+fn test_p384_agree_ephemeral_succeeds() {
     let peer = EcdhP384KeyPair::generate().expect("Peer keypair generation should succeed");
     let peer_pk = peer.public_key_bytes().to_vec();
 
@@ -196,7 +196,7 @@ fn test_p384_agree_ephemeral() {
 }
 
 #[test]
-fn test_p384_shared_secret_non_zero() {
+fn test_p384_shared_secret_non_zero_succeeds() {
     let alice = EcdhP384KeyPair::generate().expect("Alice keypair generation should succeed");
     let bob = EcdhP384KeyPair::generate().expect("Bob keypair generation should succeed");
 
@@ -211,7 +211,7 @@ fn test_p384_shared_secret_non_zero() {
 // ============================================================================
 
 #[test]
-fn test_p521_keypair_generation() {
+fn test_p521_keypair_generation_succeeds() {
     let keypair = EcdhP521KeyPair::generate();
     assert!(keypair.is_ok(), "P-521 key generation should succeed");
 
@@ -226,7 +226,7 @@ fn test_p521_keypair_generation() {
 }
 
 #[test]
-fn test_p521_key_exchange_both_parties_same_secret() {
+fn test_p521_key_exchange_both_parties_same_secret_succeeds() {
     // Generate two keypairs (Alice and Bob)
     let alice = EcdhP521KeyPair::generate().expect("Alice keypair generation should succeed");
     let bob = EcdhP521KeyPair::generate().expect("Bob keypair generation should succeed");
@@ -248,7 +248,7 @@ fn test_p521_key_exchange_both_parties_same_secret() {
 }
 
 #[test]
-fn test_p521_ephemeral_key_generation() {
+fn test_p521_ephemeral_key_generation_succeeds() {
     let keypair1 = EcdhP521KeyPair::generate().expect("First keypair should succeed");
     let keypair2 = EcdhP521KeyPair::generate().expect("Second keypair should succeed");
 
@@ -260,7 +260,7 @@ fn test_p521_ephemeral_key_generation() {
 }
 
 #[test]
-fn test_p521_agree_ephemeral() {
+fn test_p521_agree_ephemeral_succeeds() {
     let peer = EcdhP521KeyPair::generate().expect("Peer keypair generation should succeed");
     let peer_pk = peer.public_key_bytes().to_vec();
 
@@ -273,7 +273,7 @@ fn test_p521_agree_ephemeral() {
 }
 
 #[test]
-fn test_p521_shared_secret_non_zero() {
+fn test_p521_shared_secret_non_zero_succeeds() {
     let alice = EcdhP521KeyPair::generate().expect("Alice keypair generation should succeed");
     let bob = EcdhP521KeyPair::generate().expect("Bob keypair generation should succeed");
 
@@ -288,7 +288,7 @@ fn test_p521_shared_secret_non_zero() {
 // ============================================================================
 
 #[test]
-fn test_p256_point_validation_valid_key() {
+fn test_p256_point_validation_valid_key_succeeds() {
     let keypair = EcdhP256KeyPair::generate().expect("keypair generation should succeed");
     let pk = keypair.public_key().expect("public key extraction should succeed");
 
@@ -297,7 +297,7 @@ fn test_p256_point_validation_valid_key() {
 }
 
 #[test]
-fn test_p256_point_validation_function() {
+fn test_p256_point_validation_function_succeeds() {
     let keypair = EcdhP256KeyPair::generate().expect("keypair generation should succeed");
     let pk_bytes = keypair.public_key_bytes();
 
@@ -306,7 +306,7 @@ fn test_p256_point_validation_function() {
 }
 
 #[test]
-fn test_p384_point_validation_valid_key() {
+fn test_p384_point_validation_valid_key_succeeds() {
     let keypair = EcdhP384KeyPair::generate().expect("keypair generation should succeed");
     let pk = keypair.public_key().expect("public key extraction should succeed");
 
@@ -315,7 +315,7 @@ fn test_p384_point_validation_valid_key() {
 }
 
 #[test]
-fn test_p384_point_validation_function() {
+fn test_p384_point_validation_function_succeeds() {
     let keypair = EcdhP384KeyPair::generate().expect("keypair generation should succeed");
     let pk_bytes = keypair.public_key_bytes();
 
@@ -324,7 +324,7 @@ fn test_p384_point_validation_function() {
 }
 
 #[test]
-fn test_p521_point_validation_valid_key() {
+fn test_p521_point_validation_valid_key_succeeds() {
     let keypair = EcdhP521KeyPair::generate().expect("keypair generation should succeed");
     let pk = keypair.public_key().expect("public key extraction should succeed");
 
@@ -333,7 +333,7 @@ fn test_p521_point_validation_valid_key() {
 }
 
 #[test]
-fn test_p521_point_validation_function() {
+fn test_p521_point_validation_function_succeeds() {
     let keypair = EcdhP521KeyPair::generate().expect("keypair generation should succeed");
     let pk_bytes = keypair.public_key_bytes();
 
@@ -342,7 +342,7 @@ fn test_p521_point_validation_function() {
 }
 
 #[test]
-fn test_x25519_point_validation() {
+fn test_x25519_point_validation_succeeds() {
     let keypair = X25519KeyPair::generate().expect("keypair generation should succeed");
     let pk = X25519PublicKey::from_bytes(keypair.public_key_bytes())
         .expect("public key creation should succeed");
@@ -356,7 +356,7 @@ fn test_x25519_point_validation() {
 // ============================================================================
 
 #[test]
-fn test_p256_reject_empty_public_key() {
+fn test_p256_reject_empty_public_key_fails() {
     let result = EcdhP256PublicKey::from_bytes(&[]);
     assert!(result.is_err(), "Empty bytes should be rejected");
 
@@ -370,7 +370,7 @@ fn test_p256_reject_empty_public_key() {
 }
 
 #[test]
-fn test_p256_reject_wrong_size_public_key() {
+fn test_p256_reject_wrong_size_public_key_fails() {
     let wrong_size = vec![0x04u8; 32]; // Too small
     let result = EcdhP256PublicKey::from_bytes(&wrong_size);
     assert!(result.is_err(), "Wrong size should be rejected");
@@ -385,7 +385,7 @@ fn test_p256_reject_wrong_size_public_key() {
 }
 
 #[test]
-fn test_p256_reject_wrong_prefix() {
+fn test_p256_reject_wrong_prefix_fails() {
     // Create a 65-byte key with wrong prefix
     let mut wrong_prefix = vec![0x02u8; P256_PUBLIC_KEY_SIZE]; // Compressed point prefix
     wrong_prefix[0] = 0x02;
@@ -402,7 +402,7 @@ fn test_p256_reject_wrong_prefix() {
 }
 
 #[test]
-fn test_p256_reject_invalid_public_key_in_agreement() {
+fn test_p256_reject_invalid_public_key_in_agreement_fails() {
     let keypair = EcdhP256KeyPair::generate().expect("keypair generation should succeed");
 
     // Try to agree with junk bytes (correct size but invalid point)
@@ -413,7 +413,7 @@ fn test_p256_reject_invalid_public_key_in_agreement() {
 }
 
 #[test]
-fn test_p384_reject_wrong_size_public_key() {
+fn test_p384_reject_wrong_size_public_key_fails() {
     let wrong_size = vec![0x04u8; 65]; // P-256 size instead of P-384
     let result = EcdhP384PublicKey::from_bytes(&wrong_size);
     assert!(result.is_err(), "Wrong size should be rejected");
@@ -428,7 +428,7 @@ fn test_p384_reject_wrong_size_public_key() {
 }
 
 #[test]
-fn test_p384_reject_invalid_public_key_in_agreement() {
+fn test_p384_reject_invalid_public_key_in_agreement_fails() {
     let keypair = EcdhP384KeyPair::generate().expect("keypair generation should succeed");
 
     let junk_bytes = vec![0x04u8; P384_PUBLIC_KEY_SIZE];
@@ -438,7 +438,7 @@ fn test_p384_reject_invalid_public_key_in_agreement() {
 }
 
 #[test]
-fn test_p521_reject_wrong_size_public_key() {
+fn test_p521_reject_wrong_size_public_key_fails() {
     let wrong_size = vec![0x04u8; 97]; // P-384 size instead of P-521
     let result = EcdhP521PublicKey::from_bytes(&wrong_size);
     assert!(result.is_err(), "Wrong size should be rejected");
@@ -453,7 +453,7 @@ fn test_p521_reject_wrong_size_public_key() {
 }
 
 #[test]
-fn test_p521_reject_invalid_public_key_in_agreement() {
+fn test_p521_reject_invalid_public_key_in_agreement_fails() {
     let keypair = EcdhP521KeyPair::generate().expect("keypair generation should succeed");
 
     let junk_bytes = vec![0x04u8; P521_PUBLIC_KEY_SIZE];
@@ -463,7 +463,7 @@ fn test_p521_reject_invalid_public_key_in_agreement() {
 }
 
 #[test]
-fn test_x25519_reject_wrong_size_public_key() {
+fn test_x25519_reject_wrong_size_public_key_fails() {
     let wrong_size = vec![0x42u8; 16]; // Too short
     let result = X25519PublicKey::from_bytes(&wrong_size);
     assert!(result.is_err(), "Wrong size should be rejected");
@@ -478,7 +478,7 @@ fn test_x25519_reject_wrong_size_public_key() {
 }
 
 #[test]
-fn test_x25519_reject_invalid_public_key_in_agreement() {
+fn test_x25519_reject_invalid_public_key_in_agreement_fails() {
     let keypair = X25519KeyPair::generate().expect("keypair generation should succeed");
 
     // All zeros is a low-order point (though aws-lc-rs might still process it)
@@ -574,7 +574,7 @@ fn test_x25519_secret_key_serialization_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_x25519_keypair_generation() {
+fn test_x25519_keypair_generation_succeeds() {
     let keypair = X25519KeyPair::generate();
     assert!(keypair.is_ok(), "X25519 key generation should succeed");
 
@@ -587,7 +587,7 @@ fn test_x25519_keypair_generation() {
 }
 
 #[test]
-fn test_x25519_key_exchange_both_parties_same_secret() {
+fn test_x25519_key_exchange_both_parties_same_secret_succeeds() {
     let alice = X25519KeyPair::generate().expect("Alice keypair generation should succeed");
     let bob = X25519KeyPair::generate().expect("Bob keypair generation should succeed");
 
@@ -602,7 +602,7 @@ fn test_x25519_key_exchange_both_parties_same_secret() {
 }
 
 #[test]
-fn test_x25519_agree_ephemeral() {
+fn test_x25519_agree_ephemeral_succeeds() {
     let peer = X25519KeyPair::generate().expect("Peer keypair generation should succeed");
     let peer_pk = *peer.public_key_bytes();
 
@@ -619,7 +619,7 @@ fn test_x25519_agree_ephemeral() {
 // ============================================================================
 
 #[test]
-fn test_ecdh_curve_public_key_sizes() {
+fn test_ecdh_curve_public_key_sizes_has_correct_size() {
     assert_eq!(EcdhCurve::X25519.public_key_size(), X25519_KEY_SIZE);
     assert_eq!(EcdhCurve::P256.public_key_size(), P256_PUBLIC_KEY_SIZE);
     assert_eq!(EcdhCurve::P384.public_key_size(), P384_PUBLIC_KEY_SIZE);
@@ -627,7 +627,7 @@ fn test_ecdh_curve_public_key_sizes() {
 }
 
 #[test]
-fn test_ecdh_curve_shared_secret_sizes() {
+fn test_ecdh_curve_shared_secret_sizes_has_correct_size() {
     assert_eq!(EcdhCurve::X25519.shared_secret_size(), X25519_KEY_SIZE);
     assert_eq!(EcdhCurve::P256.shared_secret_size(), P256_SHARED_SECRET_SIZE);
     assert_eq!(EcdhCurve::P384.shared_secret_size(), P384_SHARED_SECRET_SIZE);
@@ -635,7 +635,7 @@ fn test_ecdh_curve_shared_secret_sizes() {
 }
 
 #[test]
-fn test_ecdh_curve_names() {
+fn test_ecdh_curve_names_succeeds() {
     assert_eq!(EcdhCurve::X25519.name(), "X25519");
     assert_eq!(EcdhCurve::P256.name(), "P-256");
     assert_eq!(EcdhCurve::P384.name(), "P-384");
@@ -647,7 +647,7 @@ fn test_ecdh_curve_names() {
 // ============================================================================
 
 #[test]
-fn test_p256_cannot_agree_with_p384_key() {
+fn test_p256_cannot_agree_with_p384_key_succeeds() {
     let p256_keypair =
         EcdhP256KeyPair::generate().expect("P-256 keypair generation should succeed");
     let p384_keypair =
@@ -661,7 +661,7 @@ fn test_p256_cannot_agree_with_p384_key() {
 }
 
 #[test]
-fn test_p384_cannot_agree_with_p521_key() {
+fn test_p384_cannot_agree_with_p521_key_succeeds() {
     let p384_keypair =
         EcdhP384KeyPair::generate().expect("P-384 keypair generation should succeed");
     let p521_keypair =
@@ -678,7 +678,7 @@ fn test_p384_cannot_agree_with_p521_key() {
 // ============================================================================
 
 #[test]
-fn test_p256_keypair_debug_redacts_private_key() {
+fn test_p256_keypair_debug_redacts_private_key_succeeds() {
     let keypair = EcdhP256KeyPair::generate().expect("keypair generation should succeed");
     let debug_str = format!("{:?}", keypair);
 
@@ -689,7 +689,7 @@ fn test_p256_keypair_debug_redacts_private_key() {
 }
 
 #[test]
-fn test_x25519_secret_key_debug_redacts() {
+fn test_x25519_secret_key_debug_redacts_succeeds() {
     let sk = X25519SecretKey::from_bytes(&[0x42u8; X25519_KEY_SIZE])
         .expect("secret key creation should succeed");
     let debug_str = format!("{:?}", sk);
@@ -703,7 +703,7 @@ fn test_x25519_secret_key_debug_redacts() {
 // ============================================================================
 
 #[test]
-fn test_ecdh_error_display() {
+fn test_ecdh_error_display_fails() {
     let error = EcdhError::KeyGenerationFailed;
     assert!(error.to_string().contains("generation failed"));
 
@@ -719,7 +719,7 @@ fn test_ecdh_error_display() {
 }
 
 #[test]
-fn test_ecdh_error_equality() {
+fn test_ecdh_error_equality_fails() {
     let error1 = EcdhError::KeyGenerationFailed;
     let error2 = EcdhError::KeyGenerationFailed;
     assert_eq!(error1, error2);
@@ -733,7 +733,7 @@ fn test_ecdh_error_equality() {
 // ============================================================================
 
 #[test]
-fn test_p256_multiple_agreements_produce_different_secrets() {
+fn test_p256_multiple_agreements_produce_different_secrets_succeeds() {
     // Alice generates a single keypair
     let alice_pk = EcdhP256KeyPair::generate()
         .expect("Alice keypair generation should succeed")
@@ -778,7 +778,7 @@ fn test_key_size_constants_are_correct() {
 // ============================================================================
 
 #[test]
-fn test_p256_public_key_clone() {
+fn test_p256_public_key_clone_succeeds() {
     let keypair = EcdhP256KeyPair::generate().expect("keypair generation should succeed");
     let pk = keypair.public_key().expect("public key extraction should succeed");
     let pk_clone = pk.clone();
@@ -788,7 +788,7 @@ fn test_p256_public_key_clone() {
 }
 
 #[test]
-fn test_p384_public_key_clone() {
+fn test_p384_public_key_clone_succeeds() {
     let keypair = EcdhP384KeyPair::generate().expect("keypair generation should succeed");
     let pk = keypair.public_key().expect("public key extraction should succeed");
     let pk_clone = pk.clone();
@@ -797,7 +797,7 @@ fn test_p384_public_key_clone() {
 }
 
 #[test]
-fn test_p521_public_key_clone() {
+fn test_p521_public_key_clone_succeeds() {
     let keypair = EcdhP521KeyPair::generate().expect("keypair generation should succeed");
     let pk = keypair.public_key().expect("public key extraction should succeed");
     let pk_clone = pk.clone();
@@ -806,7 +806,7 @@ fn test_p521_public_key_clone() {
 }
 
 #[test]
-fn test_x25519_public_key_clone() {
+fn test_x25519_public_key_clone_succeeds() {
     let keypair = X25519KeyPair::generate().expect("keypair generation should succeed");
     let pk = keypair.public_key();
     let pk_clone = pk.clone();

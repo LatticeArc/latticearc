@@ -50,8 +50,6 @@ use latticearc::tls::{
     // Policy engine
     TlsPolicyEngine,
     TlsUseCase,
-    // Utilities
-    VERSION,
     pq_enabled,
     // TLS 1.3
     tls13::{HandshakeState, HandshakeStats, Tls13Config, get_cipher_suites, verify_config},
@@ -67,26 +65,26 @@ mod tls_mode_tests {
     use super::*;
 
     #[test]
-    fn test_tls_mode_default() {
+    fn test_tls_mode_default_succeeds() {
         assert_eq!(TlsMode::default(), TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_tls_mode_debug() {
+    fn test_tls_mode_debug_succeeds() {
         assert!(format!("{:?}", TlsMode::Classic).contains("Classic"));
         assert!(format!("{:?}", TlsMode::Hybrid).contains("Hybrid"));
         assert!(format!("{:?}", TlsMode::Pq).contains("Pq"));
     }
 
     #[test]
-    fn test_tls_mode_clone() {
+    fn test_tls_mode_clone_succeeds() {
         let mode = TlsMode::Hybrid;
         let cloned = mode;
         assert_eq!(mode, cloned);
     }
 
     #[test]
-    fn test_tls_mode_eq() {
+    fn test_tls_mode_eq_succeeds() {
         assert_eq!(TlsMode::Classic, TlsMode::Classic);
         assert_eq!(TlsMode::Hybrid, TlsMode::Hybrid);
         assert_eq!(TlsMode::Pq, TlsMode::Pq);
@@ -103,7 +101,7 @@ mod tls_config_tests {
     use super::*;
 
     #[test]
-    fn test_tls_config_default() {
+    fn test_tls_config_default_succeeds() {
         let config = TlsConfig::default();
         assert_eq!(config.mode, TlsMode::Hybrid);
         assert!(!config.enable_tracing);
@@ -119,13 +117,13 @@ mod tls_config_tests {
     }
 
     #[test]
-    fn test_tls_config_new() {
+    fn test_tls_config_new_succeeds() {
         let config = TlsConfig::new();
         assert_eq!(config.mode, TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_tls_config_use_case() {
+    fn test_tls_config_use_case_succeeds() {
         let config = TlsConfig::new().use_case(TlsUseCase::WebServer);
         assert_eq!(config.mode, TlsMode::Hybrid);
 
@@ -137,7 +135,7 @@ mod tls_config_tests {
     }
 
     #[test]
-    fn test_tls_config_security_level() {
+    fn test_tls_config_security_level_succeeds() {
         let config = TlsConfig::new().security_level(SecurityLevel::Quantum);
         assert_eq!(config.mode, TlsMode::Pq);
 
@@ -149,26 +147,26 @@ mod tls_config_tests {
     }
 
     #[test]
-    fn test_tls_config_with_tracing() {
+    fn test_tls_config_with_tracing_succeeds() {
         let config = TlsConfig::new().with_tracing();
         assert!(config.enable_tracing);
     }
 
     #[test]
-    fn test_tls_config_with_retry_policy() {
+    fn test_tls_config_with_retry_policy_succeeds() {
         let policy = RetryPolicy::default();
         let config = TlsConfig::new().with_retry_policy(policy);
         assert!(config.retry_policy.is_some());
     }
 
     #[test]
-    fn test_tls_config_with_fallback() {
+    fn test_tls_config_with_fallback_succeeds() {
         let config = TlsConfig::new().with_fallback(false);
         assert!(!config.enable_fallback);
     }
 
     #[test]
-    fn test_tls_config_with_alpn_protocols() {
+    fn test_tls_config_with_alpn_protocols_succeeds() {
         let config = TlsConfig::new().with_alpn_protocols(vec!["h2", "http/1.1"]);
         assert_eq!(config.alpn_protocols.len(), 2);
         assert_eq!(config.alpn_protocols[0], b"h2");
@@ -176,38 +174,38 @@ mod tls_config_tests {
     }
 
     #[test]
-    fn test_tls_config_with_max_fragment_size() {
+    fn test_tls_config_with_max_fragment_size_has_correct_size() {
         let config = TlsConfig::new().with_max_fragment_size(4096);
         assert_eq!(config.max_fragment_size, Some(4096));
     }
 
     #[test]
-    fn test_tls_config_with_early_data() {
+    fn test_tls_config_with_early_data_succeeds() {
         let config = TlsConfig::new().with_early_data(16384);
         assert!(config.enable_early_data);
         assert_eq!(config.max_early_data_size, 16384);
     }
 
     #[test]
-    fn test_tls_config_with_session_lifetime() {
+    fn test_tls_config_with_session_lifetime_succeeds() {
         let config = TlsConfig::new().with_session_lifetime(3600);
         assert_eq!(config.session_lifetime, 3600);
     }
 
     #[test]
-    fn test_tls_config_with_resumption() {
+    fn test_tls_config_with_resumption_succeeds() {
         let config = TlsConfig::new().with_resumption(false);
         assert!(!config.enable_resumption);
     }
 
     #[test]
-    fn test_tls_config_with_key_logging() {
+    fn test_tls_config_with_key_logging_succeeds() {
         let config = TlsConfig::new().with_key_logging();
         assert!(config.enable_key_logging);
     }
 
     #[test]
-    fn test_tls_config_with_client_auth() {
+    fn test_tls_config_with_client_auth_succeeds() {
         let config = TlsConfig::new().with_client_auth("client.crt", "client.key");
         assert!(config.client_auth.is_some());
         let auth = config.client_auth.unwrap();
@@ -216,19 +214,19 @@ mod tls_config_tests {
     }
 
     #[test]
-    fn test_tls_config_with_client_verification() {
+    fn test_tls_config_with_client_verification_succeeds() {
         let config = TlsConfig::new().with_client_verification(ClientVerificationMode::Required);
         assert_eq!(config.client_verification, ClientVerificationMode::Required);
     }
 
     #[test]
-    fn test_tls_config_with_client_ca_certs() {
+    fn test_tls_config_with_client_ca_certs_succeeds() {
         let config = TlsConfig::new().with_client_ca_certs("ca-bundle.crt");
         assert_eq!(config.client_ca_certs, Some("ca-bundle.crt".to_string()));
     }
 
     #[test]
-    fn test_tls_config_with_session_persistence() {
+    fn test_tls_config_with_session_persistence_succeeds() {
         let config = TlsConfig::new().with_session_persistence("/var/cache/sessions.bin", 1000);
         assert!(config.session_persistence.is_some());
         let persistence = config.session_persistence.unwrap();
@@ -236,13 +234,13 @@ mod tls_config_tests {
     }
 
     #[test]
-    fn test_tls_config_validate_success() {
+    fn test_tls_config_validate_success_succeeds() {
         let config = TlsConfig::new();
         assert!(config.validate().is_ok());
     }
 
     #[test]
-    fn test_tls_config_builder_chain() {
+    fn test_tls_config_builder_chain_succeeds() {
         let config = TlsConfig::new()
             .use_case(TlsUseCase::FinancialServices)
             .with_tracing()
@@ -266,14 +264,14 @@ mod client_auth_config_tests {
     use super::*;
 
     #[test]
-    fn test_client_auth_config_new() {
+    fn test_client_auth_config_new_succeeds() {
         let config = ClientAuthConfig::new("cert.pem", "key.pem");
         assert_eq!(config.cert_path, "cert.pem");
         assert_eq!(config.key_path, "key.pem");
     }
 
     #[test]
-    fn test_client_auth_config_debug() {
+    fn test_client_auth_config_debug_succeeds() {
         let config = ClientAuthConfig::new("cert.pem", "key.pem");
         let debug = format!("{:?}", config);
         assert!(debug.contains("cert.pem"));
@@ -289,12 +287,12 @@ mod client_verification_mode_tests {
     use super::*;
 
     #[test]
-    fn test_client_verification_mode_default() {
+    fn test_client_verification_mode_default_succeeds() {
         assert_eq!(ClientVerificationMode::default(), ClientVerificationMode::None);
     }
 
     #[test]
-    fn test_client_verification_mode_eq() {
+    fn test_client_verification_mode_eq_succeeds() {
         assert_eq!(ClientVerificationMode::None, ClientVerificationMode::None);
         assert_eq!(ClientVerificationMode::Optional, ClientVerificationMode::Optional);
         assert_eq!(ClientVerificationMode::Required, ClientVerificationMode::Required);
@@ -311,7 +309,7 @@ mod session_persistence_config_tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test_session_persistence_config_new() {
+    fn test_session_persistence_config_new_succeeds() {
         let config = SessionPersistenceConfig::new("/var/cache/sessions", 500);
         assert_eq!(config.path, PathBuf::from("/var/cache/sessions"));
         assert_eq!(config.max_sessions, 500);
@@ -326,7 +324,7 @@ mod error_code_tests {
     use super::*;
 
     #[test]
-    fn test_error_code_display() {
+    fn test_error_code_display_fails() {
         assert_eq!(ErrorCode::ConnectionRefused.to_string(), "CONNECTION_REFUSED");
         assert_eq!(ErrorCode::HandshakeFailed.to_string(), "HANDSHAKE_FAILED");
         assert_eq!(ErrorCode::CertificateExpired.to_string(), "CERTIFICATE_EXPIRED");
@@ -336,7 +334,7 @@ mod error_code_tests {
     }
 
     #[test]
-    fn test_error_code_copy() {
+    fn test_error_code_copy_fails() {
         let code = ErrorCode::ConnectionRefused;
         let copy = code;
         assert_eq!(code, copy);
@@ -351,14 +349,14 @@ mod error_severity_tests {
     use super::*;
 
     #[test]
-    fn test_error_severity_ordering() {
+    fn test_error_severity_ordering_fails() {
         assert!(ErrorSeverity::Info < ErrorSeverity::Warning);
         assert!(ErrorSeverity::Warning < ErrorSeverity::Error);
         assert!(ErrorSeverity::Error < ErrorSeverity::Critical);
     }
 
     #[test]
-    fn test_error_severity_eq() {
+    fn test_error_severity_eq_fails() {
         assert_eq!(ErrorSeverity::Info, ErrorSeverity::Info);
         assert_ne!(ErrorSeverity::Info, ErrorSeverity::Warning);
     }
@@ -372,7 +370,7 @@ mod operation_phase_tests {
     use super::*;
 
     #[test]
-    fn test_operation_phase_variants() {
+    fn test_operation_phase_variants_succeeds() {
         let phases = [
             OperationPhase::ConnectionSetup,
             OperationPhase::Handshake,
@@ -398,7 +396,7 @@ mod error_context_tests {
     use super::*;
 
     #[test]
-    fn test_error_context_default() {
+    fn test_error_context_default_fails() {
         let context = ErrorContext::default();
         assert!(!context.error_id.is_empty());
         assert!(context.error_id.starts_with("TLSERR_"));
@@ -408,7 +406,7 @@ mod error_context_tests {
     }
 
     #[test]
-    fn test_error_context_unique_ids() {
+    fn test_error_context_unique_ids_fails() {
         let ctx1 = ErrorContext::default();
         let ctx2 = ErrorContext::default();
         assert_ne!(ctx1.error_id, ctx2.error_id);
@@ -423,7 +421,7 @@ mod tls_error_tests {
     use super::*;
 
     #[test]
-    fn test_tls_error_from_io_error() {
+    fn test_tls_error_from_io_error_fails() {
         let io_err =
             std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused");
         let tls_err = TlsError::from(io_err);
@@ -433,7 +431,7 @@ mod tls_error_tests {
     }
 
     #[test]
-    fn test_tls_error_from_timeout() {
+    fn test_tls_error_from_timeout_fails() {
         let io_err = std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout");
         let tls_err = TlsError::from(io_err);
 
@@ -441,7 +439,7 @@ mod tls_error_tests {
     }
 
     #[test]
-    fn test_tls_error_from_connection_reset() {
+    fn test_tls_error_from_connection_reset_fails() {
         let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionReset, "reset");
         let tls_err = TlsError::from(io_err);
 
@@ -450,7 +448,7 @@ mod tls_error_tests {
     }
 
     #[test]
-    fn test_tls_error_from_unexpected_eof() {
+    fn test_tls_error_from_unexpected_eof_fails() {
         let io_err = std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof");
         let tls_err = TlsError::from(io_err);
 
@@ -458,7 +456,7 @@ mod tls_error_tests {
     }
 
     #[test]
-    fn test_tls_error_context() {
+    fn test_tls_error_context_fails() {
         let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "test");
         let tls_err = TlsError::from(io_err);
 
@@ -467,7 +465,7 @@ mod tls_error_tests {
     }
 
     #[test]
-    fn test_tls_error_recovery_hint() {
+    fn test_tls_error_recovery_hint_fails() {
         let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "test");
         let tls_err = TlsError::from(io_err);
 
@@ -484,7 +482,7 @@ mod recovery_hint_tests {
     use super::*;
 
     #[test]
-    fn test_recovery_hint_variants() {
+    fn test_recovery_hint_variants_succeeds() {
         let no_recovery = RecoveryHint::NoRecovery;
         let retry = RecoveryHint::Retry { max_attempts: 3, backoff_ms: 1000 };
         let fallback = RecoveryHint::Fallback { description: "test".to_string() };
@@ -519,7 +517,7 @@ mod retry_policy_tests {
     use super::*;
 
     #[test]
-    fn test_retry_policy_default() {
+    fn test_retry_policy_default_succeeds() {
         let policy = RetryPolicy::default();
         assert_eq!(policy.max_attempts, 3);
         assert_eq!(policy.initial_backoff, Duration::from_millis(100));
@@ -529,21 +527,21 @@ mod retry_policy_tests {
     }
 
     #[test]
-    fn test_retry_policy_conservative() {
+    fn test_retry_policy_conservative_succeeds() {
         let policy = RetryPolicy::conservative();
         assert_eq!(policy.max_attempts, 2);
         assert_eq!(policy.initial_backoff, Duration::from_millis(200));
     }
 
     #[test]
-    fn test_retry_policy_aggressive() {
+    fn test_retry_policy_aggressive_succeeds() {
         let policy = RetryPolicy::aggressive();
         assert_eq!(policy.max_attempts, 5);
         assert_eq!(policy.initial_backoff, Duration::from_millis(50));
     }
 
     #[test]
-    fn test_retry_policy_new() {
+    fn test_retry_policy_new_succeeds() {
         let policy = RetryPolicy::new(4, Duration::from_millis(50), Duration::from_secs(10));
         assert_eq!(policy.max_attempts, 4);
         assert_eq!(policy.initial_backoff, Duration::from_millis(50));
@@ -551,7 +549,7 @@ mod retry_policy_tests {
     }
 
     #[test]
-    fn test_retry_policy_backoff_calculation() {
+    fn test_retry_policy_backoff_calculation_succeeds() {
         let policy = RetryPolicy { jitter: false, ..Default::default() };
 
         let backoff1 = policy.backoff_for_attempt(1);
@@ -568,7 +566,7 @@ mod retry_policy_tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry() {
+    fn test_retry_policy_should_retry_succeeds() {
         let policy = RetryPolicy::default();
 
         // Create a retryable error
@@ -592,19 +590,19 @@ mod circuit_breaker_tests {
     use latticearc::tls::recovery::CircuitState;
 
     #[test]
-    fn test_circuit_breaker_initial_state() {
+    fn test_circuit_breaker_initial_state_succeeds() {
         let breaker = CircuitBreaker::new(5, Duration::from_secs(60));
         assert_eq!(breaker.state(), CircuitState::Closed);
     }
 
     #[test]
-    fn test_circuit_breaker_allow_request_closed() {
+    fn test_circuit_breaker_allow_request_closed_succeeds() {
         let breaker = CircuitBreaker::new(5, Duration::from_secs(60));
         assert!(breaker.allow_request());
     }
 
     #[test]
-    fn test_circuit_breaker_opens_after_failures() {
+    fn test_circuit_breaker_opens_after_failures_fails() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
 
         // Record failures
@@ -617,7 +615,7 @@ mod circuit_breaker_tests {
     }
 
     #[test]
-    fn test_circuit_breaker_blocks_when_open() {
+    fn test_circuit_breaker_blocks_when_open_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
 
         // Open the circuit
@@ -630,7 +628,7 @@ mod circuit_breaker_tests {
     }
 
     #[test]
-    fn test_circuit_breaker_success_resets_failures() {
+    fn test_circuit_breaker_success_resets_failures_fails() {
         let breaker = CircuitBreaker::new(5, Duration::from_secs(60));
 
         // Record some failures
@@ -645,7 +643,7 @@ mod circuit_breaker_tests {
     }
 
     #[test]
-    fn test_circuit_breaker_reset() {
+    fn test_circuit_breaker_reset_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
 
         // Open the circuit
@@ -668,27 +666,27 @@ mod fallback_strategy_tests {
     use super::*;
 
     #[test]
-    fn test_fallback_strategy_default() {
+    fn test_fallback_strategy_default_succeeds() {
         let strategy = FallbackStrategy::default();
         assert!(matches!(strategy, FallbackStrategy::None));
     }
 
     #[test]
-    fn test_fallback_strategy_hybrid_to_classical() {
+    fn test_fallback_strategy_hybrid_to_classical_succeeds() {
         let strategy = FallbackStrategy::hybrid_to_classical();
         assert!(matches!(strategy, FallbackStrategy::HybridToClassical));
         assert!(strategy.description().contains("hybrid to classical"));
     }
 
     #[test]
-    fn test_fallback_strategy_pq_to_hybrid() {
+    fn test_fallback_strategy_pq_to_hybrid_succeeds() {
         let strategy = FallbackStrategy::pq_to_hybrid();
         assert!(matches!(strategy, FallbackStrategy::PqToHybrid));
         assert!(strategy.description().contains("PQ-only to hybrid"));
     }
 
     #[test]
-    fn test_fallback_strategy_description() {
+    fn test_fallback_strategy_description_is_documented() {
         let none = FallbackStrategy::None;
         let custom = FallbackStrategy::Custom { description: "custom fallback".to_string() };
 
@@ -705,7 +703,7 @@ mod degradation_config_tests {
     use super::*;
 
     #[test]
-    fn test_degradation_config_default() {
+    fn test_degradation_config_default_succeeds() {
         let config = DegradationConfig::default();
         assert!(config.enable_fallback);
         assert!(!config.allow_reduced_security);
@@ -721,7 +719,7 @@ mod tls_policy_engine_tests {
     use super::*;
 
     #[test]
-    fn test_recommend_mode_use_cases() {
+    fn test_recommend_mode_use_cases_succeeds() {
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::WebServer), TlsMode::Hybrid);
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::InternalService), TlsMode::Hybrid);
         assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::ApiGateway), TlsMode::Hybrid);
@@ -744,7 +742,7 @@ mod tls_policy_engine_tests {
     }
 
     #[test]
-    fn test_select_by_security_level() {
+    fn test_select_by_security_level_succeeds() {
         assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Quantum), TlsMode::Pq);
         assert_eq!(
             TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum),
@@ -758,7 +756,7 @@ mod tls_policy_engine_tests {
     }
 
     #[test]
-    fn test_select_pq_scheme() {
+    fn test_select_pq_scheme_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Standard), PQ_TLS_512);
         assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::High), PQ_TLS_768);
         assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Maximum), PQ_TLS_1024);
@@ -766,28 +764,28 @@ mod tls_policy_engine_tests {
     }
 
     #[test]
-    fn test_select_pq_kex() {
+    fn test_select_pq_kex_succeeds() {
         assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::Standard), "MLKEM512");
         assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::High), "MLKEM768");
         assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::Maximum), "MLKEM1024");
     }
 
     #[test]
-    fn test_select_hybrid_scheme() {
+    fn test_select_hybrid_scheme_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::Standard), HYBRID_TLS_512);
         assert_eq!(TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::High), HYBRID_TLS_768);
         assert_eq!(TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::Maximum), HYBRID_TLS_1024);
     }
 
     #[test]
-    fn test_select_hybrid_kex() {
+    fn test_select_hybrid_kex_succeeds() {
         assert_eq!(TlsPolicyEngine::select_hybrid_kex(SecurityLevel::Standard), "X25519MLKEM512");
         assert_eq!(TlsPolicyEngine::select_hybrid_kex(SecurityLevel::High), "X25519MLKEM768");
         assert_eq!(TlsPolicyEngine::select_hybrid_kex(SecurityLevel::Maximum), "X25519MLKEM1024");
     }
 
     #[test]
-    fn test_get_scheme_identifier() {
+    fn test_get_scheme_identifier_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_scheme_identifier(TlsMode::Classic, SecurityLevel::High),
             CLASSICAL_TLS_SCHEME
@@ -803,7 +801,7 @@ mod tls_policy_engine_tests {
     }
 
     #[test]
-    fn test_get_kex_algorithm() {
+    fn test_get_kex_algorithm_succeeds() {
         assert_eq!(
             TlsPolicyEngine::get_kex_algorithm(TlsMode::Classic, SecurityLevel::High),
             CLASSICAL_TLS_KEX
@@ -819,13 +817,13 @@ mod tls_policy_engine_tests {
     }
 
     #[test]
-    fn test_default_schemes() {
+    fn test_default_schemes_succeeds() {
         assert_eq!(TlsPolicyEngine::default_scheme(), DEFAULT_TLS_SCHEME);
         assert_eq!(TlsPolicyEngine::default_pq_scheme(), DEFAULT_PQ_TLS_SCHEME);
     }
 
     #[test]
-    fn test_select_balanced() {
+    fn test_select_balanced_succeeds() {
         assert_eq!(
             TlsPolicyEngine::select_balanced(SecurityLevel::Quantum, PerformancePreference::Speed),
             TlsMode::Pq
@@ -848,7 +846,7 @@ mod tls_use_case_tests {
     use super::*;
 
     #[test]
-    fn test_use_case_description() {
+    fn test_use_case_description_is_documented() {
         assert!(!TlsUseCase::WebServer.description().is_empty());
         assert!(!TlsUseCase::InternalService.description().is_empty());
         assert!(!TlsUseCase::ApiGateway.description().is_empty());
@@ -857,7 +855,7 @@ mod tls_use_case_tests {
     }
 
     #[test]
-    fn test_use_case_all() {
+    fn test_use_case_all_succeeds() {
         let all = TlsUseCase::all();
         assert_eq!(all.len(), 10);
         assert!(all.contains(&TlsUseCase::WebServer));
@@ -873,7 +871,7 @@ mod tls_constraints_tests {
     use super::*;
 
     #[test]
-    fn test_tls_constraints_default() {
+    fn test_tls_constraints_default_succeeds() {
         let constraints = TlsConstraints::default();
         assert!(constraints.max_handshake_latency_ms.is_none());
         assert!(constraints.client_supports_pq.is_none());
@@ -882,21 +880,21 @@ mod tls_constraints_tests {
     }
 
     #[test]
-    fn test_tls_constraints_maximum_compatibility() {
+    fn test_tls_constraints_maximum_compatibility_succeeds() {
         let constraints = TlsConstraints::maximum_compatibility();
         assert!(constraints.requires_classic());
         assert!(!constraints.allows_pq());
     }
 
     #[test]
-    fn test_tls_constraints_high_security() {
+    fn test_tls_constraints_high_security_succeeds() {
         let constraints = TlsConstraints::high_security();
         assert!(!constraints.requires_classic());
         assert!(constraints.allows_pq());
     }
 
     #[test]
-    fn test_tls_constraints_requires_classic() {
+    fn test_tls_constraints_requires_classic_succeeds() {
         let mut constraints = TlsConstraints::default();
         assert!(!constraints.requires_classic());
 
@@ -917,7 +915,7 @@ mod tls_context_tests {
     use super::*;
 
     #[test]
-    fn test_tls_context_default() {
+    fn test_tls_context_default_succeeds() {
         let ctx = TlsContext::default();
         assert_eq!(ctx.security_level, SecurityLevel::High);
         assert_eq!(ctx.performance_preference, PerformancePreference::Balanced);
@@ -926,19 +924,19 @@ mod tls_context_tests {
     }
 
     #[test]
-    fn test_tls_context_with_security_level() {
+    fn test_tls_context_with_security_level_succeeds() {
         let ctx = TlsContext::with_security_level(SecurityLevel::Maximum);
         assert_eq!(ctx.security_level, SecurityLevel::Maximum);
     }
 
     #[test]
-    fn test_tls_context_with_use_case() {
+    fn test_tls_context_with_use_case_succeeds() {
         let ctx = TlsContext::with_use_case(TlsUseCase::Government);
         assert_eq!(ctx.use_case, Some(TlsUseCase::Government));
     }
 
     #[test]
-    fn test_tls_context_builder() {
+    fn test_tls_context_builder_succeeds() {
         let ctx = TlsContext::default()
             .security_level(SecurityLevel::Quantum)
             .performance_preference(PerformancePreference::Speed)
@@ -960,7 +958,7 @@ mod tls13_config_tests {
     use super::*;
 
     #[test]
-    fn test_tls13_config_default() {
+    fn test_tls13_config_default_succeeds() {
         let config = Tls13Config::default();
         assert_eq!(config.mode, TlsMode::Hybrid);
         assert!(config.use_pq_kx);
@@ -968,47 +966,47 @@ mod tls13_config_tests {
     }
 
     #[test]
-    fn test_tls13_config_classic() {
+    fn test_tls13_config_classic_succeeds() {
         let config = Tls13Config::classic();
         assert_eq!(config.mode, TlsMode::Classic);
         assert!(!config.use_pq_kx);
     }
 
     #[test]
-    fn test_tls13_config_hybrid() {
+    fn test_tls13_config_hybrid_succeeds() {
         let config = Tls13Config::hybrid();
         assert_eq!(config.mode, TlsMode::Hybrid);
         assert!(config.use_pq_kx);
     }
 
     #[test]
-    fn test_tls13_config_pq() {
+    fn test_tls13_config_pq_succeeds() {
         let config = Tls13Config::pq();
         assert_eq!(config.mode, TlsMode::Pq);
         assert!(config.use_pq_kx);
     }
 
     #[test]
-    fn test_tls13_config_with_early_data() {
+    fn test_tls13_config_with_early_data_succeeds() {
         let config = Tls13Config::hybrid().with_early_data(4096);
         assert!(config.enable_early_data);
         assert_eq!(config.max_early_data_size, 4096);
     }
 
     #[test]
-    fn test_tls13_config_with_pq_kx() {
+    fn test_tls13_config_with_pq_kx_succeeds() {
         let config = Tls13Config::classic().with_pq_kx(true);
         assert!(config.use_pq_kx);
     }
 
     #[test]
-    fn test_tls13_config_with_alpn() {
+    fn test_tls13_config_with_alpn_succeeds() {
         let config = Tls13Config::hybrid().with_alpn_protocols(vec!["h2", "http/1.1"]);
         assert_eq!(config.alpn_protocols.len(), 2);
     }
 
     #[test]
-    fn test_tls13_config_with_max_fragment_size() {
+    fn test_tls13_config_with_max_fragment_size_has_correct_size() {
         let config = Tls13Config::hybrid().with_max_fragment_size(8192);
         assert_eq!(config.max_fragment_size, Some(8192));
     }
@@ -1022,7 +1020,7 @@ mod handshake_state_tests {
     use super::*;
 
     #[test]
-    fn test_handshake_state_variants() {
+    fn test_handshake_state_variants_succeeds() {
         let states = [
             HandshakeState::Start,
             HandshakeState::ClientHelloSent,
@@ -1041,7 +1039,7 @@ mod handshake_state_tests {
     }
 
     #[test]
-    fn test_handshake_state_eq() {
+    fn test_handshake_state_eq_succeeds() {
         assert_eq!(HandshakeState::Start, HandshakeState::Start);
         assert_ne!(HandshakeState::Start, HandshakeState::Complete);
     }
@@ -1055,7 +1053,7 @@ mod handshake_stats_tests {
     use super::*;
 
     #[test]
-    fn test_handshake_stats_default() {
+    fn test_handshake_stats_default_succeeds() {
         let stats = HandshakeStats::default();
         assert_eq!(stats.duration_ms, 0);
         assert_eq!(stats.round_trips, 2);
@@ -1074,19 +1072,19 @@ mod cipher_suite_tests {
     use super::*;
 
     #[test]
-    fn test_get_cipher_suites_classic() {
+    fn test_get_cipher_suites_classic_succeeds() {
         let suites = get_cipher_suites(TlsMode::Classic);
         assert_eq!(suites.len(), 3);
     }
 
     #[test]
-    fn test_get_cipher_suites_hybrid() {
+    fn test_get_cipher_suites_hybrid_succeeds() {
         let suites = get_cipher_suites(TlsMode::Hybrid);
         assert_eq!(suites.len(), 3);
     }
 
     #[test]
-    fn test_get_cipher_suites_pq() {
+    fn test_get_cipher_suites_pq_succeeds() {
         let suites = get_cipher_suites(TlsMode::Pq);
         assert_eq!(suites.len(), 2);
     }
@@ -1100,13 +1098,13 @@ mod verify_config_tests {
     use super::*;
 
     #[test]
-    fn test_verify_config_valid() {
+    fn test_verify_config_valid_succeeds() {
         let config = Tls13Config::hybrid();
         assert!(verify_config(&config).is_ok());
     }
 
     #[test]
-    fn test_verify_config_invalid_early_data() {
+    fn test_verify_config_invalid_early_data_fails() {
         let config = Tls13Config::hybrid().with_early_data(0);
         let config = Tls13Config { enable_early_data: true, max_early_data_size: 0, ..config };
         assert!(verify_config(&config).is_err());
@@ -1121,14 +1119,14 @@ mod constants_tests {
     use super::*;
 
     #[test]
-    fn test_tls_scheme_constants() {
+    fn test_tls_scheme_constants_succeeds() {
         assert!(DEFAULT_TLS_SCHEME.contains("hybrid"));
         assert!(DEFAULT_PQ_TLS_SCHEME.contains("pq"));
         assert!(CLASSICAL_TLS_SCHEME.contains("classic"));
     }
 
     #[test]
-    fn test_tls_kex_constants() {
+    fn test_tls_kex_constants_succeeds() {
         assert!(DEFAULT_TLS_KEX.contains("X25519"));
         assert!(DEFAULT_TLS_KEX.contains("MLKEM"));
         assert!(DEFAULT_PQ_TLS_KEX.contains("MLKEM"));
@@ -1136,14 +1134,14 @@ mod constants_tests {
     }
 
     #[test]
-    fn test_hybrid_scheme_constants() {
+    fn test_hybrid_scheme_constants_succeeds() {
         assert!(HYBRID_TLS_512.contains("512"));
         assert!(HYBRID_TLS_768.contains("768"));
         assert!(HYBRID_TLS_1024.contains("1024"));
     }
 
     #[test]
-    fn test_pq_scheme_constants() {
+    fn test_pq_scheme_constants_succeeds() {
         assert!(PQ_TLS_512.contains("512"));
         assert!(PQ_TLS_768.contains("768"));
         assert!(PQ_TLS_1024.contains("1024"));
@@ -1158,12 +1156,12 @@ mod utility_tests {
     use super::*;
 
     #[test]
-    fn test_version() {
-        assert!(!VERSION.is_empty());
+    fn test_version_succeeds() {
+        assert!(!latticearc::VERSION.is_empty());
     }
 
     #[test]
-    fn test_pq_enabled() {
+    fn test_pq_enabled_succeeds() {
         // PQ is always enabled in this library
         assert!(pq_enabled());
     }
@@ -1174,7 +1172,6 @@ mod utility_tests {
 // ============================================================================
 
 mod pq_key_exchange_tests {
-    #[allow(unused_imports)]
     use super::*;
     use latticearc::tls::pq_key_exchange::{
         PqKexMode, SecureSharedSecret, get_kex_info, get_kex_provider, is_custom_hybrid_available,
@@ -1182,7 +1179,7 @@ mod pq_key_exchange_tests {
     };
 
     #[test]
-    fn test_pq_kex_mode_variants() {
+    fn test_pq_kex_mode_variants_succeeds() {
         let modes = [PqKexMode::RustlsPq, PqKexMode::CustomHybrid, PqKexMode::Classical];
 
         for mode in modes {
@@ -1192,14 +1189,14 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_pq_kex_mode_eq() {
+    fn test_pq_kex_mode_eq_succeeds() {
         assert_eq!(PqKexMode::RustlsPq, PqKexMode::RustlsPq);
         assert_eq!(PqKexMode::Classical, PqKexMode::Classical);
         assert_ne!(PqKexMode::RustlsPq, PqKexMode::Classical);
     }
 
     #[test]
-    fn test_kex_info_hybrid() {
+    fn test_kex_info_hybrid_succeeds() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
 
         assert_eq!(info.method, "X25519MLKEM768");
@@ -1209,7 +1206,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_kex_info_custom_hybrid() {
+    fn test_kex_info_custom_hybrid_succeeds() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::CustomHybrid);
 
         assert!(info.method.contains("Custom Hybrid"));
@@ -1218,7 +1215,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_kex_info_pq_mode() {
+    fn test_kex_info_pq_mode_succeeds() {
         let info = get_kex_info(TlsMode::Pq, PqKexMode::RustlsPq);
 
         assert!(info.is_pq_secure);
@@ -1226,7 +1223,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_kex_info_classical() {
+    fn test_kex_info_classical_succeeds() {
         let info = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
 
         assert_eq!(info.method, "X25519 (ECDHE)");
@@ -1238,7 +1235,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_kex_info_sizes_hybrid() {
+    fn test_kex_info_sizes_hybrid_has_correct_size() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
 
         // X25519 (32) + ML-KEM-768 PK (1184)
@@ -1250,48 +1247,48 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_is_pq_available() {
+    fn test_is_pq_available_succeeds() {
         assert!(is_pq_available());
     }
 
     #[test]
-    fn test_is_custom_hybrid_available() {
+    fn test_is_custom_hybrid_available_succeeds() {
         assert!(is_custom_hybrid_available());
     }
 
     #[test]
-    fn test_get_kex_provider_hybrid() {
+    fn test_get_kex_provider_hybrid_succeeds() {
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_pq() {
+    fn test_get_kex_provider_pq_succeeds() {
         let provider = get_kex_provider(TlsMode::Pq, PqKexMode::RustlsPq);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_custom_hybrid() {
+    fn test_get_kex_provider_custom_hybrid_succeeds() {
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::CustomHybrid);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_classical() {
+    fn test_get_kex_provider_classical_succeeds() {
         let provider = get_kex_provider(TlsMode::Classic, PqKexMode::Classical);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_hybrid_classical_override() {
+    fn test_get_kex_provider_hybrid_classical_override_succeeds() {
         // When mode is Hybrid but kex is Classical, should return classical provider
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::Classical);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_secure_shared_secret() {
+    fn test_secure_shared_secret_succeeds() {
         let secret = vec![1u8, 2, 3, 4, 5];
         let secure = SecureSharedSecret::new(secret.clone());
 
@@ -1300,7 +1297,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_secure_shared_secret_into_inner() {
+    fn test_secure_shared_secret_into_inner_succeeds() {
         let secret = vec![1u8, 2, 3, 4, 5];
         let secure = SecureSharedSecret::new(secret.clone());
 
@@ -1309,7 +1306,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_secure_shared_secret_into_inner_raw() {
+    fn test_secure_shared_secret_into_inner_raw_succeeds() {
         let secret = vec![1u8, 2, 3, 4, 5];
         let secure = SecureSharedSecret::new(secret.clone());
 
@@ -1318,7 +1315,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_kex_info_clone() {
+    fn test_kex_info_clone_succeeds() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
         let cloned = info.clone();
 
@@ -1327,7 +1324,7 @@ mod pq_key_exchange_tests {
     }
 
     #[test]
-    fn test_kex_info_debug() {
+    fn test_kex_info_debug_succeeds() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
         let debug = format!("{:?}", info);
 
@@ -1341,14 +1338,12 @@ mod pq_key_exchange_tests {
 // ============================================================================
 
 mod tracing_tests {
-    #[allow(unused_imports)]
-    use super::*;
     use latticearc::tls::tracing::{TlsMetrics, TlsSpan, TracingConfig};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::time::Duration;
 
     #[test]
-    fn test_tracing_config_default() {
+    fn test_tracing_config_default_succeeds() {
         let config = TracingConfig::default();
 
         assert!(!config.distributed_tracing);
@@ -1357,7 +1352,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tracing_config_debug() {
+    fn test_tracing_config_debug_succeeds() {
         let config = TracingConfig::debug();
 
         assert!(!config.include_sensitive_data);
@@ -1365,28 +1360,28 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tracing_config_trace() {
+    fn test_tracing_config_trace_succeeds() {
         let config = TracingConfig::trace();
 
         assert!(!config.include_sensitive_data);
     }
 
     #[test]
-    fn test_tracing_config_with_sensitive_data() {
+    fn test_tracing_config_with_sensitive_data_succeeds() {
         let config = TracingConfig::default().with_sensitive_data();
 
         assert!(config.include_sensitive_data);
     }
 
     #[test]
-    fn test_tls_span_new() {
+    fn test_tls_span_new_succeeds() {
         let span = TlsSpan::new("test_operation", None);
 
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_with_peer() {
+    fn test_tls_span_with_peer_succeeds() {
         let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 443);
         let span = TlsSpan::new("test_operation", Some(peer));
 
@@ -1394,14 +1389,14 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_span_connection() {
+    fn test_tls_span_connection_succeeds() {
         let span = TlsSpan::connection("localhost:443", Some("example.com"));
 
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_handshake() {
+    fn test_tls_span_handshake_succeeds() {
         let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 443);
         let span = TlsSpan::handshake(Some(peer), "Hybrid");
 
@@ -1409,21 +1404,21 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_span_key_exchange() {
+    fn test_tls_span_key_exchange_succeeds() {
         let span = TlsSpan::key_exchange("X25519MLKEM768");
 
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_certificate_verification() {
+    fn test_tls_span_certificate_verification_succeeds() {
         let span = TlsSpan::certificate_verification("CN=example.com", "CN=Example CA");
 
         assert!(span.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
-    fn test_tls_span_elapsed() {
+    fn test_tls_span_elapsed_succeeds() {
         let span = TlsSpan::new("test_operation", None);
 
         // Sleep briefly to ensure elapsed time is measurable
@@ -1433,14 +1428,14 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_span_complete() {
+    fn test_tls_span_complete_succeeds() {
         let span = TlsSpan::new("test_operation", None);
         span.complete();
         // Should not panic
     }
 
     #[test]
-    fn test_tls_span_in_scope() {
+    fn test_tls_span_in_scope_succeeds() {
         let span = TlsSpan::new("test_operation", None);
 
         let result = span.in_scope(|| 42);
@@ -1449,7 +1444,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_default() {
+    fn test_tls_metrics_default_succeeds() {
         let metrics = TlsMetrics::default();
 
         assert_eq!(metrics.bytes_sent, 0);
@@ -1461,7 +1456,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_new() {
+    fn test_tls_metrics_new_succeeds() {
         let metrics = TlsMetrics::new();
 
         assert_eq!(metrics.bytes_sent, 0);
@@ -1469,7 +1464,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_record_handshake() {
+    fn test_tls_metrics_record_handshake_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_handshake(Duration::from_millis(100));
 
@@ -1477,7 +1472,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_record_kex() {
+    fn test_tls_metrics_record_kex_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_kex(Duration::from_millis(50));
 
@@ -1485,7 +1480,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_record_cert() {
+    fn test_tls_metrics_record_cert_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_cert(Duration::from_millis(25));
 
@@ -1493,7 +1488,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_record_sent() {
+    fn test_tls_metrics_record_sent_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_sent(100);
         metrics.record_sent(200);
@@ -1502,7 +1497,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_record_received() {
+    fn test_tls_metrics_record_received_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_received(500);
         metrics.record_received(500);
@@ -1511,7 +1506,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_complete() {
+    fn test_tls_metrics_complete_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_handshake(Duration::from_millis(100));
         metrics.record_kex(Duration::from_millis(50));
@@ -1522,7 +1517,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_log() {
+    fn test_tls_metrics_log_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_handshake(Duration::from_millis(100));
         metrics.record_sent(1000);
@@ -1533,7 +1528,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_clone() {
+    fn test_tls_metrics_clone_succeeds() {
         let mut metrics = TlsMetrics::new();
         metrics.record_sent(100);
 
@@ -1542,7 +1537,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_debug() {
+    fn test_tls_metrics_debug_succeeds() {
         let metrics = TlsMetrics::new();
         let debug = format!("{:?}", metrics);
 
@@ -1551,7 +1546,7 @@ mod tracing_tests {
     }
 
     #[test]
-    fn test_tls_metrics_saturating_add() {
+    fn test_tls_metrics_saturating_add_succeeds() {
         let mut metrics = TlsMetrics::new();
 
         // Should not overflow

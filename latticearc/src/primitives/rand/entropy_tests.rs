@@ -38,7 +38,7 @@
 //! - Statistical quality assurance (monobit, runs, longest run)
 
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -690,20 +690,20 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_repetition_test_passes_on_varied_input() {
+    fn test_repetition_test_passes_on_varied_input_succeeds() {
         let bytes = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
         assert!(repetition_test(&bytes).is_ok());
     }
 
     #[test]
-    fn test_repetition_test_passes_with_max_allowed_consecutive() {
+    fn test_repetition_test_passes_with_max_allowed_consecutive_succeeds() {
         // 5 consecutive identical bytes should pass
         let bytes = vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03];
         assert!(repetition_test(&bytes).is_ok());
     }
 
     #[test]
-    fn test_repetition_test_fails_with_6_consecutive() {
+    fn test_repetition_test_fails_with_6_consecutive_fails() {
         // 6 consecutive identical bytes should fail
         let bytes = vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02];
         let result = repetition_test(&bytes);
@@ -712,25 +712,25 @@ mod tests {
     }
 
     #[test]
-    fn test_repetition_test_fails_on_all_same() {
+    fn test_repetition_test_fails_on_all_same_fails() {
         let bytes = vec![0xFF; 100];
         assert!(repetition_test(&bytes).is_err());
     }
 
     #[test]
-    fn test_repetition_test_empty_input() {
+    fn test_repetition_test_empty_input_fails() {
         let bytes: Vec<u8> = vec![];
         assert!(repetition_test(&bytes).is_err());
     }
 
     #[test]
-    fn test_repetition_test_single_byte() {
+    fn test_repetition_test_single_byte_succeeds() {
         let bytes = vec![0x42];
         assert!(repetition_test(&bytes).is_ok());
     }
 
     #[test]
-    fn test_repetition_test_two_same_bytes() {
+    fn test_repetition_test_two_same_bytes_succeeds() {
         let bytes = vec![0x42, 0x42];
         assert!(repetition_test(&bytes).is_ok());
     }
@@ -740,7 +740,7 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_frequency_test_passes_on_uniform() {
+    fn test_frequency_test_passes_on_uniform_succeeds() {
         // Create a roughly uniform distribution
         let mut bytes = Vec::with_capacity(256);
         for i in 0..=255u8 {
@@ -750,13 +750,13 @@ mod tests {
     }
 
     #[test]
-    fn test_frequency_test_fails_on_all_same() {
+    fn test_frequency_test_fails_on_all_same_fails() {
         let bytes = vec![0x00; 256];
         assert!(frequency_test(&bytes).is_err());
     }
 
     #[test]
-    fn test_frequency_test_too_small_sample() {
+    fn test_frequency_test_too_small_sample_fails() {
         let bytes = vec![0x01, 0x02, 0x03];
         let result = frequency_test(&bytes);
         assert!(result.is_err());
@@ -767,7 +767,7 @@ mod tests {
 
     #[test]
     #[allow(clippy::cast_possible_truncation)]
-    fn test_frequency_test_min_sample_size() {
+    fn test_frequency_test_min_sample_size_has_correct_size() {
         // Create a sample at exactly minimum size with some variation
         // Cast is safe: i % 256 always fits in u8
         let mut bytes = Vec::with_capacity(MIN_SAMPLE_SIZE);
@@ -778,7 +778,7 @@ mod tests {
     }
 
     #[test]
-    fn test_frequency_test_heavily_biased() {
+    fn test_frequency_test_heavily_biased_succeeds() {
         // Create a heavily biased distribution
         let mut bytes = vec![0x00; 200];
         bytes.extend_from_slice(&[0x01; 56]);
@@ -790,7 +790,7 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_run_entropy_health_tests() {
+    fn test_run_entropy_health_tests_passes_on_csprng_output_succeeds() {
         // CSPRNG statistical tests can occasionally fail on CI runners
         // (virtualized environments, resource contention). Retry once
         // with a fresh sample before declaring failure.
@@ -804,7 +804,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_entropy_health_tests_on_good_bytes() {
+    fn test_run_entropy_health_tests_on_good_bytes_succeeds() {
         // Create a good sample with no repetitions and reasonable distribution
         let mut bytes = Vec::with_capacity(256);
         for i in 0..=255u8 {
@@ -819,14 +819,14 @@ mod tests {
     }
 
     #[test]
-    fn test_run_entropy_health_tests_on_bad_bytes() {
+    fn test_run_entropy_health_tests_on_bad_bytes_returns_error() {
         // Create a bad sample with many repetitions
         let bytes = vec![0x42; 256];
         assert!(run_entropy_health_tests_on_bytes(&bytes).is_err());
     }
 
     #[test]
-    fn test_repetition_at_end() {
+    fn test_repetition_at_end_fails_detection_fails() {
         // Test repetition detection at the end of the sequence
         let mut bytes = vec![0x01, 0x02, 0x03, 0x04];
         bytes.extend_from_slice(&[0xFF; 6]); // 6 consecutive at end
@@ -834,7 +834,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repetition_in_middle() {
+    fn test_repetition_in_middle_fails_detection_fails() {
         // Test repetition detection in the middle of the sequence
         let mut bytes = vec![0x01, 0x02];
         bytes.extend_from_slice(&[0xAA; 6]); // 6 consecutive in middle

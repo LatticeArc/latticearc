@@ -10,14 +10,14 @@
 #![allow(clippy::redundant_clone)]
 #![allow(dead_code)]
 
-use latticearc::unified_api::traits::{HardwareCapabilities, HardwareInfo, HardwareType};
+use latticearc::types::traits::{HardwareCapabilities, HardwareInfo, HardwareType};
 
 // =============================================================================
 // Hardware Type Tests
 // =============================================================================
 
 #[test]
-fn test_hardware_type_variants() {
+fn test_hardware_type_variants_succeeds() {
     let types = [
         HardwareType::Cpu,
         HardwareType::Gpu,
@@ -29,20 +29,20 @@ fn test_hardware_type_variants() {
 }
 
 #[test]
-fn test_hardware_type_equality() {
+fn test_hardware_type_equality_succeeds() {
     assert_eq!(HardwareType::Cpu, HardwareType::Cpu);
     assert_ne!(HardwareType::Cpu, HardwareType::Gpu);
 }
 
 #[test]
-fn test_hardware_type_debug() {
+fn test_hardware_type_debug_succeeds() {
     let cpu = HardwareType::Cpu;
     let debug_str = format!("{cpu:?}");
     assert!(debug_str.contains("Cpu"));
 }
 
 #[test]
-fn test_hardware_type_clone() {
+fn test_hardware_type_clone_succeeds() {
     let original = HardwareType::Gpu;
     let cloned = original.clone();
     assert_eq!(original, cloned);
@@ -53,7 +53,7 @@ fn test_hardware_type_clone() {
 // =============================================================================
 
 #[test]
-fn test_hardware_capabilities_construction() {
+fn test_hardware_capabilities_construction_succeeds() {
     let caps = HardwareCapabilities {
         simd_support: true,
         aes_ni: true,
@@ -67,14 +67,14 @@ fn test_hardware_capabilities_construction() {
 }
 
 #[test]
-fn test_hardware_capabilities_minimal() {
+fn test_hardware_capabilities_minimal_fields_are_correct() {
     let caps = HardwareCapabilities { simd_support: false, aes_ni: false, threads: 1, memory: 0 };
     assert!(!caps.simd_support);
     assert!(!caps.aes_ni);
 }
 
 #[test]
-fn test_hardware_capabilities_clone() {
+fn test_hardware_capabilities_clone_succeeds() {
     let original =
         HardwareCapabilities { simd_support: true, aes_ni: true, threads: 4, memory: 1024 };
     let cloned = original.clone();
@@ -87,7 +87,7 @@ fn test_hardware_capabilities_clone() {
 // =============================================================================
 
 #[test]
-fn test_hardware_info_best_accelerator_prefers_configured() {
+fn test_hardware_info_best_accelerator_prefers_configured_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu, HardwareType::Gpu],
         preferred_accelerator: Some(HardwareType::Gpu),
@@ -102,7 +102,7 @@ fn test_hardware_info_best_accelerator_prefers_configured() {
 }
 
 #[test]
-fn test_hardware_info_best_accelerator_falls_back_to_first() {
+fn test_hardware_info_best_accelerator_falls_back_to_first_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
         preferred_accelerator: None,
@@ -117,7 +117,7 @@ fn test_hardware_info_best_accelerator_falls_back_to_first() {
 }
 
 #[test]
-fn test_hardware_info_best_accelerator_empty() {
+fn test_hardware_info_best_accelerator_empty_returns_none() {
     let info = HardwareInfo {
         available_accelerators: vec![],
         preferred_accelerator: None,
@@ -132,7 +132,7 @@ fn test_hardware_info_best_accelerator_empty() {
 }
 
 #[test]
-fn test_hardware_info_summary() {
+fn test_hardware_info_summary_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
         preferred_accelerator: Some(HardwareType::Cpu),
@@ -148,7 +148,7 @@ fn test_hardware_info_summary() {
 }
 
 #[test]
-fn test_hardware_info_clone() {
+fn test_hardware_info_clone_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu, HardwareType::Sgx],
         preferred_accelerator: Some(HardwareType::Cpu),

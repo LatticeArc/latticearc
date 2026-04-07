@@ -22,13 +22,13 @@
 //! ```
 
 use crate::hybrid::sig_hybrid::{
-    self, HybridPublicKey, HybridSecretKey, HybridSignature, HybridSignatureError,
+    self, HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
 };
 
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::zero_trust::SecurityMode;
 
-use crate::types::resource_limits::validate_signature_size;
+use crate::primitives::resource_limits::validate_signature_size;
 
 /// Generate a hybrid signing keypair (ML-DSA-65 + Ed25519).
 ///
@@ -43,11 +43,10 @@ use crate::types::resource_limits::validate_signature_size;
 /// - Key generation fails
 pub fn generate_hybrid_signing_keypair(
     mode: SecurityMode,
-) -> Result<(HybridPublicKey, HybridSecretKey)> {
+) -> Result<(HybridSigPublicKey, HybridSigSecretKey)> {
     mode.validate()?;
 
-    let mut rng = rand::rngs::OsRng;
-    sig_hybrid::generate_keypair(&mut rng).map_err(|e| {
+    sig_hybrid::generate_keypair().map_err(|e| {
         CoreError::SignatureFailed(format!("Hybrid signing keypair generation failed: {}", e))
     })
 }
@@ -65,7 +64,7 @@ pub fn generate_hybrid_signing_keypair(
 /// - Signing fails (invalid key material or crypto error)
 pub fn sign_hybrid(
     message: &[u8],
-    sk: &HybridSecretKey,
+    sk: &HybridSigSecretKey,
     mode: SecurityMode,
 ) -> Result<HybridSignature> {
     mode.validate()?;
@@ -90,7 +89,7 @@ pub fn sign_hybrid(
 pub fn verify_hybrid_signature(
     message: &[u8],
     signature: &HybridSignature,
-    pk: &HybridPublicKey,
+    pk: &HybridSigPublicKey,
     mode: SecurityMode,
 ) -> Result<bool> {
     mode.validate()?;
@@ -108,9 +107,9 @@ pub fn verify_hybrid_signature(
 /// Returns an error if config validation, session validation, or key generation fails.
 #[inline]
 pub fn generate_hybrid_signing_keypair_with_config(
-    config: &crate::unified_api::config::CoreConfig,
+    config: &crate::unified_api::CoreConfig,
     mode: SecurityMode,
-) -> Result<(HybridPublicKey, HybridSecretKey)> {
+) -> Result<(HybridSigPublicKey, HybridSigSecretKey)> {
     config.validate()?;
     generate_hybrid_signing_keypair(mode)
 }
@@ -123,8 +122,8 @@ pub fn generate_hybrid_signing_keypair_with_config(
 #[inline]
 pub fn sign_hybrid_with_config(
     message: &[u8],
-    sk: &HybridSecretKey,
-    config: &crate::unified_api::config::CoreConfig,
+    sk: &HybridSigSecretKey,
+    config: &crate::unified_api::CoreConfig,
     mode: SecurityMode,
 ) -> Result<HybridSignature> {
     config.validate()?;
@@ -140,8 +139,8 @@ pub fn sign_hybrid_with_config(
 pub fn verify_hybrid_signature_with_config(
     message: &[u8],
     signature: &HybridSignature,
-    pk: &HybridPublicKey,
-    config: &crate::unified_api::config::CoreConfig,
+    pk: &HybridSigPublicKey,
+    config: &crate::unified_api::CoreConfig,
     mode: SecurityMode,
 ) -> Result<bool> {
     config.validate()?;
@@ -158,7 +157,8 @@ pub fn verify_hybrid_signature_with_config(
 ///
 /// Returns an error if key generation fails.
 #[inline]
-pub fn generate_hybrid_signing_keypair_unverified() -> Result<(HybridPublicKey, HybridSecretKey)> {
+pub fn generate_hybrid_signing_keypair_unverified()
+-> Result<(HybridSigPublicKey, HybridSigSecretKey)> {
     generate_hybrid_signing_keypair(SecurityMode::Unverified)
 }
 
@@ -168,7 +168,7 @@ pub fn generate_hybrid_signing_keypair_unverified() -> Result<(HybridPublicKey, 
 ///
 /// Returns an error if signing fails.
 #[inline]
-pub fn sign_hybrid_unverified(message: &[u8], sk: &HybridSecretKey) -> Result<HybridSignature> {
+pub fn sign_hybrid_unverified(message: &[u8], sk: &HybridSigSecretKey) -> Result<HybridSignature> {
     sign_hybrid(message, sk, SecurityMode::Unverified)
 }
 
@@ -181,7 +181,7 @@ pub fn sign_hybrid_unverified(message: &[u8], sk: &HybridSecretKey) -> Result<Hy
 pub fn verify_hybrid_signature_unverified(
     message: &[u8],
     signature: &HybridSignature,
-    pk: &HybridPublicKey,
+    pk: &HybridSigPublicKey,
 ) -> Result<bool> {
     verify_hybrid_signature(message, signature, pk, SecurityMode::Unverified)
 }
@@ -237,7 +237,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hybrid_sig_roundtrip_unverified() -> Result<()> {
+    fn test_hybrid_sig_roundtrip_unverified_roundtrip() -> Result<()> {
         let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
 
         let message = b"Hello, hybrid signatures!";
@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_sig_roundtrip_with_mode() -> Result<()> {
+    fn test_hybrid_sig_roundtrip_with_mode_roundtrip() -> Result<()> {
         let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
 
         let message = b"SecurityMode test";
@@ -261,8 +261,8 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_sig_with_config() -> Result<()> {
-        let config = crate::unified_api::config::CoreConfig::default();
+    fn test_hybrid_sig_with_config_succeeds() -> Result<()> {
+        let config = crate::unified_api::CoreConfig::default();
         let (pk, sk) =
             generate_hybrid_signing_keypair_with_config(&config, SecurityMode::Unverified)?;
 
@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_sig_wrong_message() -> Result<()> {
+    fn test_hybrid_sig_wrong_message_fails() -> Result<()> {
         let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
 
         let signature = sign_hybrid_unverified(b"correct message", &sk)?;
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_sig_wrong_key() -> Result<()> {
+    fn test_hybrid_sig_wrong_key_fails() -> Result<()> {
         let (_pk1, sk1) = generate_hybrid_signing_keypair_unverified()?;
         let (pk2, _sk2) = generate_hybrid_signing_keypair_unverified()?;
 
@@ -305,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_sig_empty_message() -> Result<()> {
+    fn test_hybrid_sig_empty_message_succeeds() -> Result<()> {
         let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
 
         let message = b"";
@@ -317,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_sig_large_message() -> Result<()> {
+    fn test_hybrid_sig_large_message_succeeds() -> Result<()> {
         let (pk, sk) = generate_hybrid_signing_keypair_unverified()?;
 
         let message = vec![0xAB; 10_000];
@@ -329,10 +329,12 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_sig_verified_session() -> Result<()> {
+    fn test_hybrid_sig_verified_session_succeeds() -> Result<()> {
         let (auth_pk, auth_sk) = crate::unified_api::convenience::keygen::generate_keypair()?;
-        let session =
-            crate::unified_api::zero_trust::VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = crate::unified_api::zero_trust::VerifiedSession::establish(
+            auth_pk.as_slice(),
+            auth_sk.as_ref(),
+        )?;
 
         let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Verified(&session))?;
 

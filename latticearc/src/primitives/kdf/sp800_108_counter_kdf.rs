@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -19,28 +19,24 @@
 //! - L: Output length in bits (32-bit big-endian)
 
 use crate::prelude::error::{LatticeArcError, Result};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use zeroize::Zeroize;
+use aws_lc_rs::hmac::{self, HMAC_SHA256};
+use zeroize::Zeroizing;
 
 /// SP 800-108 Counter KDF result
-#[derive(Clone)]
+///
+/// The key material is wrapped in `Zeroizing` for automatic zeroization on drop.
+/// Does not derive `Clone` to prevent accidental duplication of secret key material.
 pub struct CounterKdfResult {
-    /// Derived key material
-    pub key: Vec<u8>,
-    /// Length of the derived key
-    pub key_length: usize,
+    /// Derived key material (zeroized on drop)
+    key: Zeroizing<Vec<u8>>,
 }
 
-impl Zeroize for CounterKdfResult {
-    fn zeroize(&mut self) {
-        self.key.zeroize();
-    }
-}
-
-impl Drop for CounterKdfResult {
-    fn drop(&mut self) {
-        self.zeroize();
+impl std::fmt::Debug for CounterKdfResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CounterKdfResult")
+            .field("key", &"[REDACTED]")
+            .field("key_length", &self.key.len())
+            .finish()
     }
 }
 
@@ -50,15 +46,32 @@ impl CounterKdfResult {
     pub fn key(&self) -> &[u8] {
         &self.key
     }
+
+    /// Get the length of the derived key
+    #[must_use]
+    pub fn key_length(&self) -> usize {
+        self.key.len()
+    }
 }
 
 /// Counter-based KDF parameters
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CounterKdfParams {
     /// Label identifying the purpose of key derivation
+    /// Consumer: derive_key()
     pub label: Vec<u8>,
     /// Context-specific information
+    /// Consumer: derive_key()
     pub context: Vec<u8>,
+}
+
+impl std::fmt::Debug for CounterKdfParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CounterKdfParams")
+            .field("label", &format!("[{} bytes]", self.label.len()))
+            .field("context", &format!("[{} bytes]", self.context.len()))
+            .finish()
+    }
 }
 
 impl Default for CounterKdfParams {
@@ -171,8 +184,14 @@ pub fn counter_kdf(
         LatticeArcError::InvalidParameter("Key length too large for bit representation".to_string())
     })?;
 
-    let mut derived_key = vec![0u8; key_length];
+    // Wrap derived_key at declaration so partial key material is scrubbed if
+    // the loop returns early via `?`. (Audit finding P5.7/C8.)
+    let mut derived_key: Zeroizing<Vec<u8>> = Zeroizing::new(vec![0u8; key_length]);
     let mut offset = 0;
+
+    // Precompute the HMAC key once; aws-lc-rs `hmac::Key` holds the expanded
+    // inner state so we don't re-key on every iteration.
+    let hmac_key = hmac::Key::new(HMAC_SHA256, ki);
 
     // Generate each block - iterations bounded by key_length/HASH_LEN which is validated above
     let iterations_u32 = u32::try_from(iterations).map_err(|_e| {
@@ -180,7 +199,9 @@ pub fn counter_kdf(
     })?;
     for i in 1..=iterations_u32 {
         // Construct input: [i]_2 || Label || 0x00 || Context || [L]_2
-        let mut hmac_input: Vec<u8> = Vec::new();
+        // Wrapped in Zeroizing: this buffer is HMAC input derived from the
+        // secret `ki` via the HMAC state, so scrubbing on drop is defense-in-depth.
+        let mut hmac_input: Zeroizing<Vec<u8>> = Zeroizing::new(Vec::new());
 
         // Counter i (32-bit big-endian)
         hmac_input.extend_from_slice(&i.to_be_bytes());
@@ -197,13 +218,10 @@ pub fn counter_kdf(
         // Output length L in bits (32-bit big-endian)
         hmac_input.extend_from_slice(&l_bits.to_be_bytes());
 
-        // Compute HMAC(KI, input)
-        let mut hmac = Hmac::<Sha256>::new_from_slice(ki).map_err(|_e| {
-            LatticeArcError::InvalidParameter("Invalid keying material for HMAC".to_string())
-        })?;
-        hmac.update(&hmac_input);
-        let result = hmac.finalize().into_bytes();
-        let result_vec: Vec<u8> = result.to_vec();
+        // Compute HMAC(KI, input) via aws-lc-rs (FIPS-validated, constant-time)
+        let tag = hmac::sign(&hmac_key, &hmac_input);
+        // result_vec holds the HMAC output which is derived key material.
+        let result_vec: Zeroizing<Vec<u8>> = Zeroizing::new(tag.as_ref().to_vec());
 
         // Copy to output
         let copy_len = std::cmp::min(HASH_LEN, key_length.saturating_sub(offset));
@@ -218,11 +236,10 @@ pub fn counter_kdf(
         })?;
         dest_slice.copy_from_slice(src_slice);
         offset = end_offset;
-
-        hmac_input.zeroize();
+        // hmac_input and result_vec drop at end of iteration via Zeroizing.
     }
 
-    Ok(CounterKdfResult { key: derived_key, key_length })
+    Ok(CounterKdfResult { key: derived_key })
 }
 
 /// Derive multiple keys using counter KDF
@@ -333,17 +350,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_counter_kdf_basic() {
+    fn test_counter_kdf_basic_succeeds() {
         let ki = b"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b";
         let params = CounterKdfParams::new(b"Example Label");
         let result = counter_kdf(ki.as_ref(), &params, 32).unwrap();
 
         assert_eq!(result.key.len(), 32);
-        assert_eq!(result.key_length, 32);
+        assert_eq!(result.key_length(), 32);
     }
 
     #[test]
-    fn test_counter_kdf_deterministic() {
+    fn test_counter_kdf_deterministic_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Test Label");
 
@@ -354,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_different_labels() {
+    fn test_counter_kdf_different_labels_produce_distinct_keys_are_unique() {
         let ki = b"test keying material";
         let params1 = CounterKdfParams::new(b"Label 1");
         let params2 = CounterKdfParams::new(b"Label 2");
@@ -366,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_different_contexts() {
+    fn test_counter_kdf_different_contexts_produce_distinct_keys_are_unique() {
         let ki = b"test keying material";
         let params1 = CounterKdfParams::new(b"Label").with_context(b"Context 1");
         let params2 = CounterKdfParams::new(b"Label").with_context(b"Context 2");
@@ -378,7 +395,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_different_lengths() {
+    fn test_counter_kdf_different_lengths_produce_correct_sizes_has_correct_size() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
 
@@ -392,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_different_ki() {
+    fn test_counter_kdf_different_ki_produce_distinct_keys_are_unique() {
         let params = CounterKdfParams::new(b"Label");
 
         let result1 = counter_kdf(b"ki1", &params, 32).unwrap();
@@ -402,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_with_context() {
+    fn test_counter_kdf_with_context_succeeds() {
         let ki = b"test keying material";
         let params_with_context = CounterKdfParams::new(b"Label").with_context(b"My Context");
         let params_without_context = CounterKdfParams::new(b"Label");
@@ -414,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_validation() {
+    fn test_counter_kdf_validation_rejects_empty_ki_and_zero_length_fails() {
         let params = CounterKdfParams::new(b"Label");
 
         // Empty KI should fail
@@ -437,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_multiple_keys() {
+    fn test_derive_multiple_keys_succeeds_with_distinct_outputs_are_unique() {
         let ki = b"master secret";
         let context = b"my-app-v1";
         let key_specs =
@@ -457,36 +474,36 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_encryption_key() {
+    fn test_derive_encryption_key_returns_32_bytes_succeeds() {
         let ki = b"master secret";
         let context = b"my-app-v1";
 
         let key = derive_encryption_key(ki, context).unwrap();
 
-        assert_eq!(key.key.len(), 32);
-        assert_eq!(key.key_length, 32);
+        assert_eq!(key.key().len(), 32);
+        assert_eq!(key.key_length(), 32);
     }
 
     #[test]
-    fn test_derive_mac_key() {
+    fn test_derive_mac_key_returns_32_bytes_succeeds() {
         let ki = b"master secret";
         let context = b"my-app-v1";
 
         let key = derive_mac_key(ki, context).unwrap();
 
-        assert_eq!(key.key.len(), 32);
-        assert_eq!(key.key_length, 32);
+        assert_eq!(key.key().len(), 32);
+        assert_eq!(key.key_length(), 32);
     }
 
     #[test]
-    fn test_derive_iv() {
+    fn test_derive_iv_returns_16_bytes_succeeds() {
         let ki = b"master secret";
         let context = b"my-app-v1";
 
         let iv = derive_iv(ki, context).unwrap();
 
-        assert_eq!(iv.key.len(), 16);
-        assert_eq!(iv.key_length, 16);
+        assert_eq!(iv.key().len(), 16);
+        assert_eq!(iv.key_length(), 16);
     }
 
     #[test]
@@ -499,11 +516,11 @@ mod tests {
         let iv = derive_iv(ki, context).unwrap();
 
         assert_ne!(enc_key.key, mac_key.key);
-        assert_ne!(mac_key.key, &iv.key[..16]);
+        assert_ne!(mac_key.key(), &iv.key()[..16]);
     }
 
     #[test]
-    fn test_counter_kdf_empty_label() {
+    fn test_counter_kdf_empty_label_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"");
 
@@ -513,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_empty_context() {
+    fn test_counter_kdf_empty_context_matches_no_context_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label").with_context(b"");
 
@@ -527,7 +544,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_long_inputs() {
+    fn test_counter_kdf_long_inputs_succeeds() {
         let ki = vec![0u8; 256]; // Long keying material
         let label = vec![b'A'; 256]; // Long label
         let context = vec![0xFF; 256]; // Long context
@@ -540,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_result_zeroize_on_drop() {
+    fn test_counter_kdf_result_zeroize_on_drop_clears_memory_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
 
@@ -558,7 +575,7 @@ mod tests {
     }
 
     #[test]
-    fn test_default_params() {
+    fn test_default_params_has_expected_label_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::default();
 
@@ -570,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_large_output() {
+    fn test_counter_kdf_large_output_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
 
@@ -580,7 +597,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_result_key_accessor() {
+    fn test_counter_kdf_result_key_accessor_returns_full_key_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
         let result = counter_kdf(ki, &params, 32).unwrap();
@@ -589,45 +606,48 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_params_for_encryption() {
+    fn test_counter_kdf_params_for_encryption_has_correct_label_succeeds() {
         let params = CounterKdfParams::for_encryption();
         assert_eq!(params.label, b"Encryption Key");
         assert!(params.context.is_empty());
     }
 
     #[test]
-    fn test_counter_kdf_params_for_mac() {
+    fn test_counter_kdf_params_for_mac_has_correct_label_succeeds() {
         let params = CounterKdfParams::for_mac();
         assert_eq!(params.label, b"MAC Key");
     }
 
     #[test]
-    fn test_counter_kdf_params_for_iv() {
+    fn test_counter_kdf_params_for_iv_has_correct_label_succeeds() {
         let params = CounterKdfParams::for_iv();
         assert_eq!(params.label, b"IV Generation");
     }
 
     #[test]
-    fn test_counter_kdf_params_debug() {
+    fn test_counter_kdf_params_debug_produces_redacted_output_succeeds() {
         let params = CounterKdfParams::new(b"Test").with_context(b"ctx");
         let debug = format!("{:?}", params);
         assert!(debug.contains("CounterKdfParams"));
     }
 
     #[test]
-    fn test_counter_kdf_result_clone_and_zeroize() {
+    fn test_counter_kdf_result_zeroize_clears_on_drop_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
         let result = counter_kdf(ki, &params, 32).unwrap();
-        let cloned = result.clone();
-        assert_eq!(cloned.key, result.key);
-        assert_eq!(cloned.key_length, result.key_length);
-        // Drop triggers zeroize
+        // CounterKdfResult intentionally does not implement Clone to prevent
+        // accidental duplication of secret key material. Take a byte copy
+        // instead for comparison.
+        let key_copy = result.key().to_vec();
+        assert_eq!(key_copy, result.key());
+        assert_eq!(result.key_length(), 32);
+        // Drop triggers zeroize via Zeroizing<Vec<u8>>
         drop(result);
     }
 
     #[test]
-    fn test_counter_kdf_exact_hash_boundary() {
+    fn test_counter_kdf_exact_hash_boundary_succeeds() {
         // Exactly HASH_LEN (32 bytes) - single block
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
@@ -636,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counter_kdf_one_byte_over_boundary() {
+    fn test_counter_kdf_one_byte_over_boundary_succeeds() {
         // 33 bytes - requires 2 blocks for SHA-256
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");

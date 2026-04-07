@@ -17,9 +17,11 @@ use chrono::Utc;
 use latticearc::prelude::error::LatticeArcError;
 use std::collections::HashMap;
 
-use super::algorithm_tests::{test_aes_algorithm, test_mlkem_algorithm, test_sha3_algorithm};
-use super::interface_tests::{test_api_interfaces, test_key_management};
-use super::policy_tests::{test_error_handling, test_self_tests};
+use super::algorithm_tests::{
+    test_aes_algorithm_succeeds, test_mlkem_algorithm_succeeds, test_sha3_algorithm_succeeds,
+};
+use super::interface_tests::{test_api_interfaces_succeeds, test_key_management_succeeds};
+use super::policy_tests::{test_error_handling_fails, test_self_tests_succeeds};
 use super::types::{
     FIPSLevel, IssueSeverity, TestResult, ValidationCertificate, ValidationIssue, ValidationResult,
     ValidationScope,
@@ -152,7 +154,7 @@ impl FIPSValidator {
         test_results: &mut HashMap<String, TestResult>,
     ) -> Result<(), LatticeArcError> {
         // AES validation
-        let aes_result = test_aes_algorithm()?;
+        let aes_result = test_aes_algorithm_succeeds()?;
         test_results.insert("aes_validation".to_string(), aes_result.clone());
 
         if !aes_result.passed {
@@ -168,7 +170,7 @@ impl FIPSValidator {
         }
 
         // SHA-3 validation
-        let sha3_result = test_sha3_algorithm()?;
+        let sha3_result = test_sha3_algorithm_succeeds()?;
         test_results.insert("sha3_validation".to_string(), sha3_result.clone());
 
         if !sha3_result.passed {
@@ -184,7 +186,7 @@ impl FIPSValidator {
         }
 
         // ML-KEM validation (FIPS 203)
-        let mlkem_result = test_mlkem_algorithm()?;
+        let mlkem_result = test_mlkem_algorithm_succeeds()?;
         test_results.insert("mlkem_validation".to_string(), mlkem_result.clone());
 
         if !mlkem_result.passed {
@@ -208,7 +210,7 @@ impl FIPSValidator {
         test_results: &mut HashMap<String, TestResult>,
     ) -> Result<(), LatticeArcError> {
         // Test API interfaces
-        let api_result = test_api_interfaces()?;
+        let api_result = test_api_interfaces_succeeds()?;
         test_results.insert("api_interfaces".to_string(), api_result.clone());
 
         if !api_result.passed {
@@ -224,7 +226,7 @@ impl FIPSValidator {
         }
 
         // Test key management interfaces
-        let key_result = test_key_management()?;
+        let key_result = test_key_management_succeeds()?;
         test_results.insert("key_management".to_string(), key_result.clone());
 
         if !key_result.passed {
@@ -248,7 +250,7 @@ impl FIPSValidator {
         test_results: &mut HashMap<String, TestResult>,
     ) -> Result<(), LatticeArcError> {
         // Test self-tests
-        let selftest_result = test_self_tests()?;
+        let selftest_result = test_self_tests_succeeds()?;
         test_results.insert("self_tests".to_string(), selftest_result.clone());
 
         if !selftest_result.passed {
@@ -264,7 +266,7 @@ impl FIPSValidator {
         }
 
         // Test error handling
-        let error_result = test_error_handling()?;
+        let error_result = test_error_handling_fails()?;
         test_results.insert("error_handling".to_string(), error_result.clone());
 
         if !error_result.passed {
@@ -322,32 +324,32 @@ impl FIPSValidator {
     ///
     /// # Errors
     /// Returns an error if the AES algorithm test fails to execute.
-    pub fn test_aes_algorithm(&self) -> Result<TestResult, LatticeArcError> {
-        test_aes_algorithm()
+    pub fn test_aes_algorithm_succeeds(&self) -> Result<TestResult, LatticeArcError> {
+        test_aes_algorithm_succeeds()
     }
 
     /// Test SHA-3 algorithm (public wrapper for conditional self-tests).
     ///
     /// # Errors
     /// Returns an error if the SHA-3 algorithm test fails to execute.
-    pub fn test_sha3_algorithm(&self) -> Result<TestResult, LatticeArcError> {
-        test_sha3_algorithm()
+    pub fn test_sha3_algorithm_succeeds(&self) -> Result<TestResult, LatticeArcError> {
+        test_sha3_algorithm_succeeds()
     }
 
     /// Test ML-KEM algorithm (public wrapper for conditional self-tests).
     ///
     /// # Errors
     /// Returns an error if the ML-KEM algorithm test fails to execute.
-    pub fn test_mlkem_algorithm(&self) -> Result<TestResult, LatticeArcError> {
-        test_mlkem_algorithm()
+    pub fn test_mlkem_algorithm_succeeds(&self) -> Result<TestResult, LatticeArcError> {
+        test_mlkem_algorithm_succeeds()
     }
 
     /// Test self-tests (public wrapper for conditional self-tests).
     ///
     /// # Errors
     /// Returns an error if the self-tests fail to execute.
-    pub fn test_self_tests(&self) -> Result<TestResult, LatticeArcError> {
-        test_self_tests()
+    pub fn test_self_tests_succeeds(&self) -> Result<TestResult, LatticeArcError> {
+        test_self_tests_succeeds()
     }
 }
 
@@ -358,13 +360,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_fips_validator_creation() {
+    fn test_fips_validator_creation_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         assert_eq!(validator.scope, ValidationScope::AlgorithmsOnly);
     }
 
     #[test]
-    fn test_module_validation() {
+    fn test_module_validation_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -392,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn test_certificate_generation() {
+    fn test_certificate_generation_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -406,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remediation_guidance() {
+    fn test_remediation_guidance_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
         let guidance = validator.get_remediation_guidance(&result);
@@ -416,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn test_module_interfaces_scope() {
+    fn test_module_interfaces_scope_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::ModuleInterfaces);
         let result = validator.validate_module().expect("Validation should succeed");
         assert!(result.is_valid);
@@ -427,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn test_full_module_scope() {
+    fn test_full_module_scope_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Validation should succeed");
         // FullModule runs algorithms + interfaces + security policy
@@ -445,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_certificate_for_valid_result() {
+    fn test_generate_certificate_for_valid_result_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Validation should succeed");
         if result.is_valid {
@@ -461,7 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_certificate_fails_for_invalid_result() {
+    fn test_generate_certificate_fails_for_invalid_result_fails() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         // Create a fake invalid result
         let fake_result = ValidationResult {
@@ -487,37 +489,38 @@ mod tests {
     }
 
     #[test]
-    fn test_public_wrapper_test_aes_algorithm() {
+    fn test_public_wrapper_test_aes_algorithm_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_aes_algorithm().expect("AES test should succeed");
+        let result = validator.test_aes_algorithm_succeeds().expect("AES test should succeed");
         assert!(result.passed);
     }
 
     #[test]
-    fn test_public_wrapper_test_sha3_algorithm() {
+    fn test_public_wrapper_test_sha3_algorithm_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_sha3_algorithm().expect("SHA3 test should succeed");
+        let result = validator.test_sha3_algorithm_succeeds().expect("SHA3 test should succeed");
         assert!(result.passed);
     }
 
     #[test]
-    fn test_public_wrapper_test_mlkem_algorithm() {
+    fn test_public_wrapper_test_mlkem_algorithm_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_mlkem_algorithm().expect("ML-KEM test should succeed");
+        let result = validator.test_mlkem_algorithm_succeeds().expect("ML-KEM test should succeed");
         assert!(result.passed);
     }
 
     #[test]
-    fn test_public_wrapper_test_self_tests() {
+    fn test_public_wrapper_test_self_tests_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
-        let result = validator.test_self_tests().expect("Self-tests should execute without error");
+        let result =
+            validator.test_self_tests_succeeds().expect("Self-tests should execute without error");
         // Verify the result structure is populated
         assert_eq!(result.test_id, "self_tests");
         assert!(!result.output.is_empty());
     }
 
     #[test]
-    fn test_remediation_guidance_with_issues() {
+    fn test_remediation_guidance_with_issues_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         // Create a result with issues to test remediation path
         let result_with_issues = ValidationResult {
@@ -545,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_result_metadata() {
+    fn test_validation_result_metadata_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
         assert!(result.metadata.contains_key("validation_duration_ms"));

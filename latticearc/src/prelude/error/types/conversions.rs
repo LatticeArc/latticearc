@@ -96,7 +96,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_from_io_error() {
+    fn test_from_io_error_produces_io_error_variant_fails() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let err: LatticeArcError = io_err.into();
         match err {
@@ -106,7 +106,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_aws_lc_unspecified() {
+    fn test_from_aws_lc_unspecified_produces_encryption_error_variant_fails() {
         let aws_err = aws_lc_rs::error::Unspecified;
         let err: LatticeArcError = aws_err.into();
         match err {
@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_system_time_error() {
+    fn test_from_system_time_error_produces_encryption_error_variant_fails() {
         use std::time::{Duration, SystemTime};
         let earlier = SystemTime::UNIX_EPOCH;
         // SystemTimeError is created by duration_since when called with a future time
@@ -130,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_serde_json_error() {
+    fn test_from_serde_json_error_produces_serialization_error_variant_fails() {
         let json_err: serde_json::Error = serde_json::from_str::<String>("not json").unwrap_err();
         let err: LatticeArcError = json_err.into();
         match err {
@@ -140,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_utf8_error() {
+    fn test_from_utf8_error_produces_serialization_error_variant_fails() {
         let invalid_bytes = vec![0, 159, 146, 150];
         let utf8_err = String::from_utf8(invalid_bytes).unwrap_err();
         let err: LatticeArcError = utf8_err.into();
@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_hex_error() {
+    fn test_from_hex_error_produces_invalid_data_variant_fails() {
         let hex_err = hex::decode("not_hex!").unwrap_err();
         let err: LatticeArcError = hex_err.into();
         match err {
@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_uuid_error() {
+    fn test_from_uuid_error_produces_invalid_data_variant_fails() {
         let uuid_err = uuid::Uuid::parse_str("not-a-uuid").unwrap_err();
         let err: LatticeArcError = uuid_err.into();
         match err {
@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_try_from_slice_error() {
+    fn test_from_try_from_slice_error_produces_invalid_data_variant_fails() {
         let slice: &[u8] = &[1, 2, 3];
         let result: Result<[u8; 4], _> = slice.try_into();
         let slice_err = result.unwrap_err();
@@ -183,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_str() {
+    fn test_from_str_produces_invalid_input_variant_fails() {
         let err: LatticeArcError = "some error".into();
         match err {
             LatticeArcError::InvalidInput(msg) => assert_eq!(msg, "some error"),
@@ -192,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_layout_error() {
+    fn test_from_layout_error_produces_invalid_input_variant_fails() {
         // LayoutError is created from invalid layout parameters
         let layout_err = std::alloc::Layout::from_size_align(usize::MAX, 3).unwrap_err();
         let err: LatticeArcError = layout_err.into();
@@ -203,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_getrandom_error() {
+    fn test_from_getrandom_error_produces_random_error_variant_fails() {
         let code = core::num::NonZeroU32::new(1).unwrap();
         let rand_err = getrandom::Error::from(code);
         let err: LatticeArcError = rand_err.into();
@@ -214,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_key_rejected() {
+    fn test_from_key_rejected_produces_encryption_error_variant_fails() {
         // Create a KeyRejected error by using an invalid ECDSA key
         use aws_lc_rs::signature;
         let invalid_pkcs8 = [0u8; 10]; // Too short to be valid PKCS#8

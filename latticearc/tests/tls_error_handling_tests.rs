@@ -15,21 +15,21 @@ use latticearc::tls::tracing::*;
 use std::time::Duration;
 
 #[test]
-fn test_error_code_display() {
+fn test_error_code_display_fails() {
     assert_eq!(ErrorCode::ConnectionRefused.to_string(), "CONNECTION_REFUSED");
     assert_eq!(ErrorCode::HandshakeFailed.to_string(), "HANDSHAKE_FAILED");
     assert_eq!(ErrorCode::CertificateExpired.to_string(), "CERTIFICATE_EXPIRED");
 }
 
 #[test]
-fn test_error_severity_comparison() {
+fn test_error_severity_comparison_fails() {
     assert!(ErrorSeverity::Critical > ErrorSeverity::Error);
     assert!(ErrorSeverity::Error > ErrorSeverity::Warning);
     assert!(ErrorSeverity::Warning > ErrorSeverity::Info);
 }
 
 #[test]
-fn test_error_context_default() {
+fn test_error_context_default_fails() {
     let context = ErrorContext::default();
     assert!(!context.error_id.is_empty());
     assert_eq!(context.code, ErrorCode::InternalError);
@@ -38,7 +38,7 @@ fn test_error_context_default() {
 }
 
 #[test]
-fn test_io_error_conversion() {
+fn test_io_error_conversion_fails() {
     let io_err =
         std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "test connection refused");
     let tls_err = TlsError::from(io_err);
@@ -50,7 +50,7 @@ fn test_io_error_conversion() {
 }
 
 #[test]
-fn test_io_error_conversion_timeout() {
+fn test_io_error_conversion_timeout_fails() {
     let io_err = std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout");
     let tls_err = TlsError::from(io_err);
 
@@ -60,7 +60,7 @@ fn test_io_error_conversion_timeout() {
 }
 
 #[test]
-fn test_io_error_conversion_reset() {
+fn test_io_error_conversion_reset_fails() {
     let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionReset, "connection reset");
     let tls_err = TlsError::from(io_err);
 
@@ -70,7 +70,7 @@ fn test_io_error_conversion_reset() {
 }
 
 #[test]
-fn test_certificate_error_with_recovery() {
+fn test_certificate_error_with_recovery_fails() {
     let mut context = ErrorContext::default();
     context.code = ErrorCode::CertificateExpired;
     context.severity = ErrorSeverity::Error;
@@ -92,7 +92,7 @@ fn test_certificate_error_with_recovery() {
 }
 
 #[test]
-fn test_handshake_error_with_retry() {
+fn test_handshake_error_with_retry_fails() {
     let mut context = ErrorContext::default();
     context.code = ErrorCode::HandshakeFailed;
     context.severity = ErrorSeverity::Error;
@@ -111,7 +111,7 @@ fn test_handshake_error_with_retry() {
 }
 
 #[test]
-fn test_pq_not_available_with_fallback() {
+fn test_pq_not_available_with_fallback_succeeds() {
     let mut context = ErrorContext::default();
     context.code = ErrorCode::PqNotAvailable;
     context.severity = ErrorSeverity::Warning;
@@ -132,7 +132,7 @@ fn test_pq_not_available_with_fallback() {
 }
 
 #[test]
-fn test_unrecoverable_error() {
+fn test_unrecoverable_error_fails() {
     let mut context = ErrorContext::default();
     context.code = ErrorCode::InternalError;
     context.severity = ErrorSeverity::Critical;
@@ -150,7 +150,7 @@ fn test_unrecoverable_error() {
 }
 
 #[test]
-fn test_retry_policy_default() {
+fn test_retry_policy_default_succeeds() {
     let policy = RetryPolicy::default();
     assert_eq!(policy.max_attempts, 3);
     assert_eq!(policy.initial_backoff, Duration::from_millis(100));
@@ -160,21 +160,21 @@ fn test_retry_policy_default() {
 }
 
 #[test]
-fn test_retry_policy_conservative() {
+fn test_retry_policy_conservative_succeeds() {
     let policy = RetryPolicy::conservative();
     assert_eq!(policy.max_attempts, 2);
     assert_eq!(policy.initial_backoff, Duration::from_millis(200));
 }
 
 #[test]
-fn test_retry_policy_aggressive() {
+fn test_retry_policy_aggressive_succeeds() {
     let policy = RetryPolicy::aggressive();
     assert_eq!(policy.max_attempts, 5);
     assert_eq!(policy.initial_backoff, Duration::from_millis(50));
 }
 
 #[test]
-fn test_retry_policy_backoff_calculation() {
+fn test_retry_policy_backoff_calculation_succeeds() {
     let policy = RetryPolicy::default();
     let backoff1 = policy.backoff_for_attempt(1);
     let backoff2 = policy.backoff_for_attempt(2);
@@ -187,7 +187,7 @@ fn test_retry_policy_backoff_calculation() {
 }
 
 #[test]
-fn test_retry_should_retry_connection_refused() {
+fn test_retry_should_retry_connection_refused_succeeds() {
     let policy = RetryPolicy::default();
     let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused");
     let tls_err = TlsError::from(io_err);
@@ -197,7 +197,7 @@ fn test_retry_should_retry_connection_refused() {
 }
 
 #[test]
-fn test_retry_should_not_retry_after_max_attempts() {
+fn test_retry_should_not_retry_after_max_attempts_succeeds() {
     let policy = RetryPolicy::default();
     let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused");
     let tls_err = TlsError::from(io_err);
@@ -207,14 +207,14 @@ fn test_retry_should_not_retry_after_max_attempts() {
 }
 
 #[test]
-fn test_circuit_breaker_initial_state() {
+fn test_circuit_breaker_initial_state_succeeds() {
     let breaker = CircuitBreaker::new(5, Duration::from_secs(60));
     assert_eq!(breaker.state(), CircuitState::Closed);
     assert!(breaker.allow_request());
 }
 
 #[test]
-fn test_circuit_breaker_opens_after_failures() {
+fn test_circuit_breaker_opens_after_failures_fails() {
     let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
 
     // Record 3 failures
@@ -228,7 +228,7 @@ fn test_circuit_breaker_opens_after_failures() {
 }
 
 #[test]
-fn test_circuit_breaker_allows_in_half_open() {
+fn test_circuit_breaker_allows_in_half_open_succeeds() {
     let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
 
     // Open circuit
@@ -245,7 +245,7 @@ fn test_circuit_breaker_allows_in_half_open() {
 }
 
 #[test]
-fn test_circuit_breaker_success_closes_circuit() {
+fn test_circuit_breaker_success_closes_circuit_succeeds() {
     let breaker = CircuitBreaker::new(2, Duration::from_secs(60));
 
     // Open circuit
@@ -264,14 +264,14 @@ fn test_circuit_breaker_success_closes_circuit() {
 }
 
 #[test]
-fn test_fallback_strategy_default() {
+fn test_fallback_strategy_default_succeeds() {
     let strategy = FallbackStrategy::default();
     assert!(!strategy.should_fallback(&create_dummy_error()));
     assert!(strategy.description().contains("No fallback"));
 }
 
 #[test]
-fn test_fallback_strategy_hybrid_to_classical() {
+fn test_fallback_strategy_hybrid_to_classical_succeeds() {
     let strategy = FallbackStrategy::hybrid_to_classical();
 
     let mut context = ErrorContext::default();
@@ -289,7 +289,7 @@ fn test_fallback_strategy_hybrid_to_classical() {
 }
 
 #[test]
-fn test_tls_context_default() {
+fn test_tls_context_default_succeeds() {
     let ctx = TlsContext::default();
     assert!(!ctx.operation_id.is_empty());
     assert_eq!(ctx.operation_name, "unknown");
@@ -298,14 +298,14 @@ fn test_tls_context_default() {
 }
 
 #[test]
-fn test_tls_context_creation() {
+fn test_tls_context_creation_succeeds() {
     let ctx = TlsContext::new("Test Operation");
     assert_eq!(ctx.operation_name, "Test Operation");
     assert!(!ctx.operation_id.is_empty());
 }
 
 #[test]
-fn test_tls_context_builder() {
+fn test_tls_context_builder_succeeds() {
     let ctx = TlsContext::new("Test")
         .with_domain("example.com")
         .with_mode("Hybrid")
@@ -317,7 +317,7 @@ fn test_tls_context_builder() {
 }
 
 #[test]
-fn test_tls_context_child() {
+fn test_tls_context_child_succeeds() {
     let parent = TlsContext::new("Parent");
     let child = parent.child("Child");
 
@@ -328,14 +328,14 @@ fn test_tls_context_child() {
 }
 
 #[test]
-fn test_error_chain_empty() {
+fn test_error_chain_empty_fails() {
     let chain = ErrorChain::new();
     assert!(chain.is_empty());
     assert_eq!(chain.len(), 0);
 }
 
 #[test]
-fn test_error_chain_with_errors() {
+fn test_error_chain_with_errors_fails() {
     let mut chain = ErrorChain::new();
     let ctx = TlsContext::new("Test");
 
@@ -348,7 +348,7 @@ fn test_error_chain_with_errors() {
 }
 
 #[test]
-fn test_diagnostic_info_formatting() {
+fn test_diagnostic_info_formatting_has_correct_size() {
     let ctx = TlsContext::new("Test Operation");
     let err = create_dummy_error();
 
@@ -361,7 +361,7 @@ fn test_diagnostic_info_formatting() {
 }
 
 #[test]
-fn test_system_info_collect() {
+fn test_system_info_collect_succeeds() {
     let info = SystemInfo::collect();
 
     assert!(!info.platform.is_empty());
@@ -370,7 +370,7 @@ fn test_system_info_collect() {
 }
 
 #[test]
-fn test_tracing_config_default() {
+fn test_tracing_config_default_succeeds() {
     let config = TracingConfig::default();
     assert_eq!(config.log_level, tracing::Level::INFO);
     assert!(!config.include_sensitive_data);
@@ -378,26 +378,26 @@ fn test_tracing_config_default() {
 }
 
 #[test]
-fn test_tracing_config_debug() {
+fn test_tracing_config_debug_succeeds() {
     let config = TracingConfig::debug();
     assert_eq!(config.log_level, tracing::Level::DEBUG);
 }
 
 #[test]
-fn test_tracing_config_trace() {
+fn test_tracing_config_trace_succeeds() {
     let config = TracingConfig::trace();
     assert_eq!(config.log_level, tracing::Level::TRACE);
     assert!(!config.include_sensitive_data);
 }
 
 #[test]
-fn test_tls_span_creation() {
+fn test_tls_span_creation_succeeds() {
     let span = TlsSpan::new("test_operation", None);
     assert!(span.elapsed() < Duration::from_millis(100));
 }
 
 #[test]
-fn test_tls_metrics_default() {
+fn test_tls_metrics_default_succeeds() {
     let metrics = TlsMetrics::new();
     assert_eq!(metrics.bytes_sent, 0);
     assert_eq!(metrics.bytes_received, 0);
@@ -405,7 +405,7 @@ fn test_tls_metrics_default() {
 }
 
 #[test]
-fn test_tls_metrics_recording() {
+fn test_tls_metrics_recording_succeeds() {
     let mut metrics = TlsMetrics::new();
 
     metrics.record_handshake(Duration::from_millis(100));

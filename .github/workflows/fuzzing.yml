@@ -25,11 +25,49 @@ jobs:
     name: Fuzzing Tests
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target:
+          # AEAD / Symmetric
           - encrypt_fuzz
-          - cross_border_fuzz
+          - fuzz_aes_gcm
+          - fuzz_chacha20
+          - chacha_poly_fuzz
+          # KEM
+          - fuzz_ml_kem_keygen
+          - fuzz_ml_kem_encaps
+          - fuzz_ml_kem_decaps
           - hybrid_kem_fuzz
+          - fuzz_hybrid_encrypt
+          - fuzz_hybrid_decrypt
+          # Signatures
+          - fuzz_ml_dsa_sign
+          - fuzz_ml_dsa_verify
+          - fuzz_slh_dsa_sign
+          - fuzz_fn_dsa_sign
+          - fuzz_fn_dsa_verify
+          - fuzz_ed25519
+          - hybrid_sign_fuzz
+          - ml_dsa_fuzz
+          # Hash / MAC / KDF
+          - fuzz_sha256
+          - fuzz_hkdf
+          - fuzz_hmac_sha512
+          - fuzz_pbkdf2
+          # Key exchange
+          - fuzz_x25519
+          - fuzz_ecdh_p256
+          # Hybrid
+          - hybrid_encrypt_fuzz
+          - cross_border_fuzz
+          # Serialization / Deserialization
+          - fuzz_portable_key_json
+          - fuzz_encrypted_data_deser
+          # Other
+          - constant_time_fuzz
+          - fuzz_random
+          - fuzz_target_1
+          - hmac_fuzz
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -73,8 +111,20 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     strategy:
+      fail-fast: false
       matrix:
         target:
+          # Priority targets for extended fuzzing (attacker-controlled inputs)
+          - fuzz_hybrid_decrypt
+          - fuzz_ml_kem_decaps
+          - fuzz_ml_dsa_verify
+          - fuzz_fn_dsa_verify
+          - fuzz_slh_dsa_sign
+          - fuzz_ed25519
+          - fuzz_portable_key_json
+          - fuzz_encrypted_data_deser
+          - fuzz_aes_gcm
+          - fuzz_chacha20
           - encrypt_fuzz
           - cross_border_fuzz
           - hybrid_kem_fuzz

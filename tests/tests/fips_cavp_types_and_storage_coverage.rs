@@ -25,7 +25,7 @@ use std::time::Duration;
 // ============================================================
 
 #[test]
-fn test_cavp_algorithm_name_all_variants() {
+fn test_cavp_algorithm_name_all_variants_return_correct_strings_succeeds() {
     assert_eq!(CavpAlgorithm::MlKem { variant: "768".into() }.name(), "ML-KEM-768");
     assert_eq!(CavpAlgorithm::MlDsa { variant: "44".into() }.name(), "ML-DSA-44");
     assert_eq!(CavpAlgorithm::SlhDsa { variant: "shake-128s".into() }.name(), "SLH-DSA-shake-128s");
@@ -34,7 +34,7 @@ fn test_cavp_algorithm_name_all_variants() {
 }
 
 #[test]
-fn test_cavp_algorithm_fips_standard_all_variants() {
+fn test_cavp_algorithm_fips_standard_all_variants_return_correct_strings_succeeds() {
     assert_eq!(CavpAlgorithm::MlKem { variant: "768".into() }.fips_standard(), "FIPS 203");
     assert_eq!(CavpAlgorithm::MlDsa { variant: "65".into() }.fips_standard(), "FIPS 204");
     assert_eq!(CavpAlgorithm::SlhDsa { variant: "shake-256s".into() }.fips_standard(), "FIPS 205");
@@ -43,7 +43,7 @@ fn test_cavp_algorithm_fips_standard_all_variants() {
 }
 
 #[test]
-fn test_cavp_algorithm_clone_eq_hash() {
+fn test_cavp_algorithm_clone_eq_hash_work_correctly_succeeds() {
     let a1 = CavpAlgorithm::MlKem { variant: "768".into() };
     let a2 = a1.clone();
     assert_eq!(a1, a2);
@@ -60,7 +60,7 @@ fn test_cavp_algorithm_clone_eq_hash() {
 }
 
 #[test]
-fn test_cavp_algorithm_debug() {
+fn test_cavp_algorithm_debug_produces_nonempty_string_succeeds() {
     let alg = CavpAlgorithm::SlhDsa { variant: "shake-192s".into() };
     let debug = format!("{:?}", alg);
     assert!(debug.contains("SlhDsa"));
@@ -72,7 +72,7 @@ fn test_cavp_algorithm_debug() {
 // ============================================================
 
 #[test]
-fn test_pipeline_config_default() {
+fn test_pipeline_config_default_sets_expected_values_succeeds() {
     let config = PipelineConfig::default();
     assert_eq!(config.max_concurrent_tests, 4);
     assert_eq!(config.test_timeout, Duration::from_secs(30));
@@ -82,7 +82,7 @@ fn test_pipeline_config_default() {
 }
 
 #[test]
-fn test_pipeline_config_debug_clone() {
+fn test_pipeline_config_debug_clone_work_correctly_succeeds() {
     let config = PipelineConfig::default();
     let cloned = config.clone();
     assert_eq!(cloned.retry_count, config.retry_count);
@@ -91,7 +91,7 @@ fn test_pipeline_config_debug_clone() {
 }
 
 #[test]
-fn test_test_environment_default() {
+fn test_test_environment_default_sets_expected_fields_succeeds() {
     let env = TestEnvironment::default();
     assert!(!env.os.is_empty());
     assert!(!env.arch.is_empty());
@@ -100,7 +100,7 @@ fn test_test_environment_default() {
 }
 
 #[test]
-fn test_test_configuration_default() {
+fn test_test_configuration_default_sets_expected_fields_succeeds() {
     let tc = TestConfiguration::default();
     assert_eq!(tc.iterations, 1);
     assert_eq!(tc.timeout, Duration::from_secs(30));
@@ -109,7 +109,7 @@ fn test_test_configuration_default() {
 }
 
 #[test]
-fn test_cavp_test_metadata_default() {
+fn test_cavp_test_metadata_default_sets_expected_fields_succeeds() {
     let meta = CavpTestMetadata::default();
     assert!(!meta.environment.os.is_empty());
     assert_eq!(meta.security_level, 128);
@@ -121,7 +121,7 @@ fn test_cavp_test_metadata_default() {
 // ============================================================
 
 #[test]
-fn test_cavp_test_result_new_passing() {
+fn test_cavp_test_result_new_passing_sets_passed_status_succeeds() {
     let result = CavpTestResult::new(
         "test-1".to_string(),
         CavpAlgorithm::MlKem { variant: "768".into() },
@@ -139,7 +139,7 @@ fn test_cavp_test_result_new_passing() {
 }
 
 #[test]
-fn test_cavp_test_result_new_failing() {
+fn test_cavp_test_result_new_failing_sets_failed_status_fails() {
     let result = CavpTestResult::new(
         "test-2".to_string(),
         CavpAlgorithm::MlDsa { variant: "65".into() },
@@ -154,7 +154,7 @@ fn test_cavp_test_result_new_failing() {
 }
 
 #[test]
-fn test_cavp_test_result_failed_factory() {
+fn test_cavp_test_result_failed_factory_sets_failed_status_fails() {
     let result = CavpTestResult::failed(
         "test-3".to_string(),
         CavpAlgorithm::FnDsa { variant: "512".into() },
@@ -171,7 +171,7 @@ fn test_cavp_test_result_failed_factory() {
 }
 
 #[test]
-fn test_cavp_test_result_serialization() {
+fn test_cavp_test_result_serialization_roundtrip() {
     let result = CavpTestResult::new(
         "test-ser".to_string(),
         CavpAlgorithm::HybridKem,
@@ -193,7 +193,7 @@ fn test_cavp_test_result_serialization() {
 // ============================================================
 
 #[test]
-fn test_cavp_batch_result_new() {
+fn test_cavp_batch_result_new_sets_expected_fields_succeeds() {
     let batch =
         CavpBatchResult::new("batch-1".to_string(), CavpAlgorithm::MlKem { variant: "768".into() });
     assert_eq!(batch.batch_id, "batch-1");
@@ -203,7 +203,7 @@ fn test_cavp_batch_result_new() {
 }
 
 #[test]
-fn test_cavp_batch_result_add_passing_tests() {
+fn test_cavp_batch_result_add_passing_tests_increments_passed_count_succeeds() {
     let mut batch =
         CavpBatchResult::new("batch-2".to_string(), CavpAlgorithm::MlDsa { variant: "44".into() });
 
@@ -226,7 +226,7 @@ fn test_cavp_batch_result_add_passing_tests() {
 }
 
 #[test]
-fn test_cavp_batch_result_mixed_results() {
+fn test_cavp_batch_result_mixed_results_tracks_pass_and_fail_counts_fails() {
     let mut batch = CavpBatchResult::new(
         "batch-3".to_string(),
         CavpAlgorithm::SlhDsa { variant: "shake-128s".into() },
@@ -259,7 +259,7 @@ fn test_cavp_batch_result_mixed_results() {
 }
 
 #[test]
-fn test_cavp_batch_result_update_status_empty() {
+fn test_cavp_batch_result_update_status_empty_sets_no_results_succeeds() {
     let mut batch = CavpBatchResult::new("batch-empty".to_string(), CavpAlgorithm::HybridKem);
     batch.update_status();
     assert_eq!(batch.status, CavpValidationStatus::Incomplete);
@@ -270,7 +270,7 @@ fn test_cavp_batch_result_update_status_empty() {
 // ============================================================
 
 #[test]
-fn test_cavp_validation_status_variants() {
+fn test_cavp_validation_status_variants_produce_correct_strings_succeeds() {
     let passed = CavpValidationStatus::Passed;
     let failed = CavpValidationStatus::Failed;
     let incomplete = CavpValidationStatus::Incomplete;
@@ -294,7 +294,7 @@ fn test_cavp_validation_status_variants() {
 // ============================================================
 
 #[test]
-fn test_cavp_test_type_variants() {
+fn test_cavp_test_type_variants_produce_correct_strings_succeeds() {
     let types = [
         CavpTestType::KeyGen,
         CavpTestType::Encapsulation,
@@ -316,7 +316,7 @@ fn test_cavp_test_type_variants() {
 // ============================================================
 
 #[test]
-fn test_memory_storage_store_and_retrieve_result() {
+fn test_memory_storage_store_and_retrieve_result_succeeds() {
     let storage = MemoryCavpStorage::new();
     let result = CavpTestResult::new(
         "store-test-1".to_string(),
@@ -338,14 +338,14 @@ fn test_memory_storage_store_and_retrieve_result() {
 }
 
 #[test]
-fn test_memory_storage_retrieve_nonexistent_result() {
+fn test_memory_storage_retrieve_nonexistent_result_returns_none() {
     let storage = MemoryCavpStorage::new();
     let retrieved = storage.retrieve_result("does-not-exist").unwrap();
     assert!(retrieved.is_none());
 }
 
 #[test]
-fn test_memory_storage_store_and_retrieve_batch() {
+fn test_memory_storage_store_and_retrieve_batch_succeeds() {
     let storage = MemoryCavpStorage::new();
 
     let mut batch = CavpBatchResult::new(
@@ -372,14 +372,14 @@ fn test_memory_storage_store_and_retrieve_batch() {
 }
 
 #[test]
-fn test_memory_storage_retrieve_nonexistent_batch() {
+fn test_memory_storage_retrieve_nonexistent_batch_returns_none() {
     let storage = MemoryCavpStorage::new();
     let retrieved = storage.retrieve_batch("no-batch").unwrap();
     assert!(retrieved.is_none());
 }
 
 #[test]
-fn test_memory_storage_list_results_by_algorithm() {
+fn test_memory_storage_list_results_by_algorithm_returns_filtered_results_succeeds() {
     let storage = MemoryCavpStorage::new();
     let alg = CavpAlgorithm::FnDsa { variant: "512".into() };
 
@@ -401,14 +401,14 @@ fn test_memory_storage_list_results_by_algorithm() {
 }
 
 #[test]
-fn test_memory_storage_list_results_empty_algorithm() {
+fn test_memory_storage_list_results_empty_algorithm_returns_empty_succeeds() {
     let storage = MemoryCavpStorage::new();
     let results = storage.list_results_by_algorithm(&CavpAlgorithm::HybridKem).unwrap();
     assert!(results.is_empty());
 }
 
 #[test]
-fn test_memory_storage_list_batches_by_algorithm() {
+fn test_memory_storage_list_batches_by_algorithm_returns_filtered_batches_succeeds() {
     let storage = MemoryCavpStorage::new();
     let alg = CavpAlgorithm::SlhDsa { variant: "shake-256s".into() };
 
@@ -422,7 +422,7 @@ fn test_memory_storage_list_batches_by_algorithm() {
 }
 
 #[test]
-fn test_memory_storage_list_batches_empty() {
+fn test_memory_storage_list_batches_empty_returns_empty_succeeds() {
     let storage = MemoryCavpStorage::new();
     let batches =
         storage.list_batches_by_algorithm(&CavpAlgorithm::MlKem { variant: "512".into() }).unwrap();
@@ -434,7 +434,7 @@ fn test_memory_storage_list_batches_empty() {
 // ============================================================
 
 #[test]
-fn test_cavp_vector_inputs_serialization() {
+fn test_cavp_vector_inputs_serialization_roundtrip() {
     let inputs = CavpVectorInputs {
         seed: Some(vec![0x42; 32]),
         message: Some(b"hello".to_vec()),
@@ -456,7 +456,7 @@ fn test_cavp_vector_inputs_serialization() {
 }
 
 #[test]
-fn test_cavp_vector_outputs_serialization() {
+fn test_cavp_vector_outputs_serialization_roundtrip() {
     let outputs = CavpVectorOutputs {
         public_key: Some(vec![1, 2, 3]),
         secret_key: Some(vec![4, 5, 6]),

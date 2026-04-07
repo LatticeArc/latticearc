@@ -37,7 +37,6 @@ use latticearc::primitives::kdf::hkdf::hkdf;
 use latticearc::primitives::kem::ecdh::{X25519KeyPair, X25519StaticKeyPair};
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
-use rand::rngs::OsRng;
 
 /// Benchmark result for a single operation
 struct BenchResult {
@@ -98,7 +97,6 @@ fn main() {
     println!("╚══════════════════════════════════════════════════════════════╝");
 
     let mut all_results: Vec<BenchResult> = Vec::new();
-    let mut rng = OsRng;
 
     // ========================================================================
     // ENCRYPTION MODES - End-to-End Performance (THE 3 MODES)
@@ -122,22 +120,21 @@ fn main() {
 
     // Hybrid KeyGen: Generate both ML-KEM and X25519 keypairs
     let r = benchmark("Hybrid KeyGen", 500, || {
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
         let _ = X25519StaticKeyPair::generate();
     });
     print_result(&r);
     all_results.push(r);
 
     // Pre-generate keys for encapsulation benchmark
-    let (ml_kem_pk, _ml_kem_sk) =
-        MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+    let (ml_kem_pk, _ml_kem_sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     let x25519_static = X25519StaticKeyPair::generate().unwrap();
     let x25519_pk = x25519_static.public_key();
 
     // Hybrid Encrypt: ML-KEM encaps + X25519 DH + HKDF combine + AES-GCM encrypt
     let r = benchmark("Hybrid Encrypt (1KB)", 500, || {
         // Step 1: ML-KEM encapsulation (produces 32-byte shared secret + ciphertext)
-        let (ml_kem_ss, _ml_kem_ct) = MlKem::encapsulate(&mut rng, &ml_kem_pk).unwrap();
+        let (ml_kem_ss, _ml_kem_ct) = MlKem::encapsulate(&ml_kem_pk).unwrap();
 
         // Step 2: X25519 key agreement (produces 32-byte shared secret)
         let ecdh_ephemeral = X25519KeyPair::generate().unwrap();
@@ -236,7 +233,7 @@ fn main() {
 
     // PQ-Only KeyGen
     let r = benchmark("PQ-Only KeyGen", 500, || {
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
     });
     print_result(&r);
     all_results.push(r);
@@ -244,7 +241,7 @@ fn main() {
     // PQ-Only Encrypt: ML-KEM encaps + HKDF + AES-GCM
     let r = benchmark("PQ-Only Encrypt (1KB)", 500, || {
         // Step 1: ML-KEM encapsulation
-        let (ml_kem_ss, _ml_kem_ct) = MlKem::encapsulate(&mut rng, &ml_kem_pk).unwrap();
+        let (ml_kem_ss, _ml_kem_ct) = MlKem::encapsulate(&ml_kem_pk).unwrap();
 
         // Step 2: Derive encryption key with HKDF
         let hkdf_result = hkdf(ml_kem_ss.as_bytes(), None, Some(b"pq-only"), 32).unwrap();
@@ -376,14 +373,14 @@ fn main() {
     // ML-KEM-512
     println!("\n  --- ML-KEM-512 (NIST Level 1, ~AES-128) ---");
     let r = benchmark("KeyGen", 1000, || {
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512);
     });
     print_result(&r);
     all_results.push(r);
 
-    let (pk512, _sk512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512).unwrap();
+    let (pk512, _sk512) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).unwrap();
     let r = benchmark("Encapsulate", 1000, || {
-        let _ = MlKem::encapsulate(&mut rng, &pk512);
+        let _ = MlKem::encapsulate(&pk512);
     });
     print_result(&r);
     all_results.push(r);
@@ -391,14 +388,14 @@ fn main() {
     // ML-KEM-768
     println!("\n  --- ML-KEM-768 (NIST Level 3, ~AES-192) ---");
     let r = benchmark("KeyGen", 1000, || {
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
     });
     print_result(&r);
     all_results.push(r);
 
-    let (pk768, _sk768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+    let (pk768, _sk768) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     let r = benchmark("Encapsulate", 1000, || {
-        let _ = MlKem::encapsulate(&mut rng, &pk768);
+        let _ = MlKem::encapsulate(&pk768);
     });
     print_result(&r);
     all_results.push(r);
@@ -406,15 +403,14 @@ fn main() {
     // ML-KEM-1024
     println!("\n  --- ML-KEM-1024 (NIST Level 5, ~AES-256) ---");
     let r = benchmark("KeyGen", 1000, || {
-        let _ = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024);
+        let _ = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024);
     });
     print_result(&r);
     all_results.push(r);
 
-    let (pk1024, _sk1024) =
-        MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024).unwrap();
+    let (pk1024, _sk1024) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024).unwrap();
     let r = benchmark("Encapsulate", 1000, || {
-        let _ = MlKem::encapsulate(&mut rng, &pk1024);
+        let _ = MlKem::encapsulate(&pk1024);
     });
     print_result(&r);
     all_results.push(r);
@@ -429,12 +425,12 @@ fn main() {
     // ML-DSA-44
     println!("\n  --- ML-DSA-44 (NIST Level 2) ---");
     let r = benchmark("KeyGen", 100, || {
-        let _ = generate_keypair(MlDsaParameterSet::MLDSA44);
+        let _ = generate_keypair(MlDsaParameterSet::MlDsa44);
     });
     print_result(&r);
     all_results.push(r);
 
-    let (vk44, sk44) = generate_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+    let (vk44, sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let r = benchmark("Sign", 100, || {
         let _ = sign(&sk44, msg, &[]);
     });
@@ -451,12 +447,12 @@ fn main() {
     // ML-DSA-65
     println!("\n  --- ML-DSA-65 (NIST Level 3) ---");
     let r = benchmark("KeyGen", 100, || {
-        let _ = generate_keypair(MlDsaParameterSet::MLDSA65);
+        let _ = generate_keypair(MlDsaParameterSet::MlDsa65);
     });
     print_result(&r);
     all_results.push(r);
 
-    let (vk65, sk65) = generate_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+    let (vk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let r = benchmark("Sign", 100, || {
         let _ = sign(&sk65, msg, &[]);
     });
@@ -473,12 +469,12 @@ fn main() {
     // ML-DSA-87
     println!("\n  --- ML-DSA-87 (NIST Level 5) ---");
     let r = benchmark("KeyGen", 100, || {
-        let _ = generate_keypair(MlDsaParameterSet::MLDSA87);
+        let _ = generate_keypair(MlDsaParameterSet::MlDsa87);
     });
     print_result(&r);
     all_results.push(r);
 
-    let (vk87, sk87) = generate_keypair(MlDsaParameterSet::MLDSA87).unwrap();
+    let (vk87, sk87) = generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
     let r = benchmark("Sign", 100, || {
         let _ = sign(&sk87, msg, &[]);
     });

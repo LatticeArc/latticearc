@@ -28,19 +28,19 @@
 
 //! Tests for arc-core library initialization and FIPS 140-3 self-tests.
 
-use latticearc::unified_api::config::CoreConfig;
+use latticearc::unified_api::CoreConfig;
 
 // ==========================================================================
 // VERSION constant
 // ==========================================================================
 
 #[test]
-fn test_version_is_non_empty() {
+fn test_version_is_non_empty_succeeds() {
     assert!(!latticearc::unified_api::VERSION.is_empty(), "VERSION should not be empty");
 }
 
 #[test]
-fn test_version_has_semver_format() {
+fn test_version_has_semver_format_has_correct_size() {
     let parts: Vec<&str> = latticearc::unified_api::VERSION.split('.').collect();
     assert!(
         parts.len() >= 2,
@@ -70,7 +70,7 @@ fn test_init_with_default_config_succeeds() {
 }
 
 #[test]
-fn test_init_sets_self_tests_passed() {
+fn test_init_sets_self_tests_passed_succeeds() {
     // After init(), self_tests_passed() should return true
     let _ = latticearc::unified_api::init();
     assert!(
@@ -80,7 +80,7 @@ fn test_init_sets_self_tests_passed() {
 }
 
 #[test]
-fn test_init_idempotent() {
+fn test_init_idempotent_succeeds() {
     // Calling init() multiple times should succeed each time
     let result1 = latticearc::unified_api::init();
     assert!(result1.is_ok());
@@ -90,7 +90,7 @@ fn test_init_idempotent() {
 }
 
 #[test]
-fn test_init_with_config_idempotent() {
+fn test_init_with_config_idempotent_succeeds() {
     let config = CoreConfig::default();
     let result1 = latticearc::unified_api::init_with_config(&config);
     assert!(result1.is_ok());
@@ -103,7 +103,7 @@ fn test_init_with_config_idempotent() {
 // ==========================================================================
 
 #[test]
-fn test_self_tests_passed_returns_bool() {
+fn test_self_tests_passed_returns_bool_succeeds() {
     // Just ensure it returns without panicking
     let _passed = latticearc::unified_api::self_tests_passed();
 }
@@ -113,7 +113,7 @@ fn test_self_tests_passed_returns_bool() {
 // ==========================================================================
 
 #[test]
-fn test_init_with_high_security_config() {
+fn test_init_with_high_security_config_succeeds() {
     let config =
         CoreConfig::default().with_security_level(latticearc::unified_api::SecurityLevel::High);
     let result = latticearc::unified_api::init_with_config(&config);
@@ -121,7 +121,7 @@ fn test_init_with_high_security_config() {
 }
 
 #[test]
-fn test_init_with_maximum_security_config() {
+fn test_init_with_maximum_security_config_succeeds() {
     let config =
         CoreConfig::default().with_security_level(latticearc::unified_api::SecurityLevel::Maximum);
     let result = latticearc::unified_api::init_with_config(&config);
@@ -129,7 +129,7 @@ fn test_init_with_maximum_security_config() {
 }
 
 #[test]
-fn test_init_with_standard_security_config() {
+fn test_init_with_standard_security_config_succeeds() {
     let config = CoreConfig::default()
         .with_security_level(latticearc::unified_api::SecurityLevel::Standard)
         // Standard security level is rejected under strict validation (default=true)
@@ -139,7 +139,7 @@ fn test_init_with_standard_security_config() {
 }
 
 #[test]
-fn test_init_with_quantum_security_config() {
+fn test_init_with_quantum_security_config_succeeds() {
     let config =
         CoreConfig::default().with_security_level(latticearc::unified_api::SecurityLevel::Quantum);
     let result = latticearc::unified_api::init_with_config(&config);
@@ -151,7 +151,7 @@ fn test_init_with_quantum_security_config() {
 // ==========================================================================
 
 #[test]
-fn test_crypto_config_reexport() {
+fn test_crypto_config_reexport_succeeds() {
     // Verify CryptoConfig is accessible via unified_api
     let config = latticearc::unified_api::CryptoConfig::new();
     // Just verify it exists and can be created
@@ -159,7 +159,7 @@ fn test_crypto_config_reexport() {
 }
 
 #[test]
-fn test_security_level_reexport() {
+fn test_security_level_reexport_succeeds() {
     // Verify SecurityLevel variants are accessible
     let _standard = latticearc::unified_api::SecurityLevel::Standard;
     let _high = latticearc::unified_api::SecurityLevel::High;
@@ -168,7 +168,7 @@ fn test_security_level_reexport() {
 }
 
 #[test]
-fn test_use_case_reexport() {
+fn test_use_case_reexport_succeeds() {
     // Verify UseCase variants are accessible
     let _fs = latticearc::unified_api::UseCase::FileStorage;
     let _msg = latticearc::unified_api::UseCase::SecureMessaging;
@@ -177,7 +177,7 @@ fn test_use_case_reexport() {
 }
 
 #[test]
-fn test_core_error_reexport() {
+fn test_core_error_reexport_succeeds() {
     // Verify CoreError is accessible
     let err = latticearc::unified_api::CoreError::InvalidInput("test".to_string());
     let msg = format!("{}", err);
@@ -185,7 +185,7 @@ fn test_core_error_reexport() {
 }
 
 #[test]
-fn test_key_lifecycle_reexport() {
+fn test_key_lifecycle_reexport_succeeds() {
     // Verify KeyLifecycleState is accessible
     let _active = latticearc::unified_api::KeyLifecycleState::Active;
     let _rotating = latticearc::unified_api::KeyLifecycleState::Rotating;
@@ -194,7 +194,7 @@ fn test_key_lifecycle_reexport() {
 }
 
 #[test]
-fn test_trust_level_reexport() {
+fn test_trust_level_reexport_succeeds() {
     // Verify TrustLevel is accessible
     let _untrusted = latticearc::unified_api::TrustLevel::Untrusted;
     let _partial = latticearc::unified_api::TrustLevel::Partial;
@@ -203,7 +203,7 @@ fn test_trust_level_reexport() {
 }
 
 #[test]
-fn test_security_mode_unverified() {
+fn test_security_mode_unverified_is_correct() {
     let mode = latticearc::unified_api::SecurityMode::Unverified;
     assert!(mode.validate().is_ok());
 }
@@ -213,7 +213,7 @@ fn test_security_mode_unverified() {
 // ==========================================================================
 
 #[test]
-fn test_generate_keypair_reexport() {
+fn test_generate_keypair_reexport_succeeds() {
     let result = latticearc::unified_api::generate_keypair();
     assert!(result.is_ok());
     let (pk, sk) = result.unwrap();
@@ -222,7 +222,7 @@ fn test_generate_keypair_reexport() {
 }
 
 #[test]
-fn test_encrypt_decrypt_reexport() {
+fn test_encrypt_decrypt_reexport_roundtrip() {
     let key = [0x42u8; 32];
     let data = b"test reexport";
     let config = latticearc::unified_api::CryptoConfig::new();
@@ -239,17 +239,17 @@ fn test_encrypt_decrypt_reexport() {
         config,
     )
     .unwrap();
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 #[test]
-fn test_hash_data_reexport() {
+fn test_hash_data_reexport_succeeds() {
     let result = latticearc::unified_api::hash_data(b"test");
     assert_eq!(result.len(), 32); // SHA3-256 is 32 bytes
 }
 
 #[test]
-fn test_hmac_reexport() {
+fn test_hmac_reexport_succeeds() {
     let key = [0x42u8; 32];
     let result = latticearc::unified_api::hmac(
         b"test",
@@ -260,7 +260,7 @@ fn test_hmac_reexport() {
 }
 
 #[test]
-fn test_derive_key_reexport() {
+fn test_derive_key_reexport_succeeds() {
     let ikm = [0x42u8; 32];
     let salt = [0x00u8; 16];
     let result = latticearc::unified_api::derive_key(
@@ -277,7 +277,7 @@ fn test_derive_key_reexport() {
 // ==========================================================================
 
 #[test]
-fn test_crypto_policy_engine_reexport() {
+fn test_crypto_policy_engine_reexport_succeeds() {
     let config = CoreConfig::default();
     let result = latticearc::unified_api::CryptoPolicyEngine::select_encryption_scheme(
         b"test data",
@@ -288,7 +288,7 @@ fn test_crypto_policy_engine_reexport() {
 }
 
 #[test]
-fn test_scheme_constants_reexport() {
+fn test_scheme_constants_reexport_is_correct() {
     // Verify scheme constants are accessible
     assert!(!latticearc::unified_api::DEFAULT_ENCRYPTION_SCHEME.is_empty());
     assert!(!latticearc::unified_api::DEFAULT_SIGNATURE_SCHEME.is_empty());

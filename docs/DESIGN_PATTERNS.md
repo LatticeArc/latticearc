@@ -1,1392 +1,1541 @@
-# Correct-By-Construction Design Patterns
+# LatticeArc Design Patterns — Definitive Reference
 
-Design patterns that make bugs **structurally impossible** at creation time. Two sections:
+## Mission
 
-1. **Config Correctness Patterns (#1-10)** — prevent dead/unwired configuration fields. Born from a "Promise Audit" that found 19 issues despite 95% coverage, 7,786 tests, and Kani proofs.
-2. **Cryptographic Safety Patterns (#11-18)** — prevent crypto-specific bugs: timing leaks, secret exposure, type confusion, nonce reuse, downgrade attacks. These codify patterns the codebase already implements but were never formalized as enforceable rules.
+LatticeArc aims to be the exemplary implementation of a post-quantum cryptography
+library — the reference that other projects study, cite, and measure themselves against.
 
-These patterns are mandatory for all PRs. See also: [CONTRIBUTING.md](../CONTRIBUTING.md) for the Config Field Checklist.
+Not "good enough." Not "passes CI." Exemplary means:
 
----
+- **Every pattern is justified from first principles** — NIST standards, IETF RFCs,
+  published cryptographic research, and Rust language guarantees. Not because someone
+  decided it, but because the math and the standards require it.
+- **Every safety property is structural, not behavioral** — enforced by the compiler,
+  the type system, or formal proofs. Not by code review discipline that erodes over time.
+- **Every line of code is auditable** — a security auditor unfamiliar with the project
+  can read any module and understand what it does, why it's correct, and which standard
+  governs it, without reading any other file.
+- **The codebase teaches** — reading LatticeArc should teach a developer how to build
+  a cryptography library correctly. The patterns, the comments, the test methodology,
+  the documentation style — all of it should be worth learning from.
 
-# Section 1: Config Correctness Patterns
-
-## Audit Finding Mapping
-
-Every pattern maps to a class of bug found in the Promise Audit:
-
-| # | Pattern | Bug Class | Findings Prevented |
-|---|---------|-----------|-------------------|
-| 1 | Consumer Tag | Dead fields | 6 |
-| 2 | No Underscore Params | Silently ignored params | 2 |
-| 3 | Config Lives With Consumer | Orphan configs | 2 |
-| 4 | Parameter Influence Test | All categories | 19 (universal) |
-| 5 | Implementation Reference | Doc drift | 5 |
-| 6 | Capability Must Exist | Impossible features | 1 |
-| 7 | Destructure at Consumer | New fields silently ignored | 2 |
-| 8 | Exhaustive Config Bridges | Unwired TLS fields | 3 |
-| 9 | Banned Adjectives | Marketing in docs | 5 |
-| 10 | Wire Comment | Bidirectional traceability | 6 |
+This standard applies equally to the open-source core and every proprietary extension.
+An enterprise crate with lower standards than the core weakens the entire platform.
 
 ---
 
-## Pattern 1: Consumer Tag
+## Context: What LatticeArc Is Building
 
-**Rule:** Every config field's doc comment names its consumer with `/// Consumer: fn_name()`.
+LatticeArc is a three-layer post-quantum cryptography platform:
 
-**Prevents:** Dead fields — config fields that exist but no code reads them (6 findings).
+| Layer | Repository | Contents |
+|-------|-----------|----------|
+| **Layer 1 — Primitives** | `apache_repo` (Apache 2.0) | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-GCM, ChaCha20, X25519, Ed25519, HKDF, hybrid encryption, unified API |
+| **Layer 2 — Enterprise Capabilities** | `proprietary_repo` | Self-healing security, zero-trust crypto ops, runtime-adaptive selection, Conditional Cryptography Engine (CCE) |
+| **Layer 3 — Products** | `proprietary_repo` | Migration Accelerator, CryptoSOC, Code Signing, Governed Database, Timelock, 45+ more |
 
-### WRONG
+The apache core is published to crates.io as a single `latticearc` crate. The proprietary
+repo depends on it via Cargo. The CCE engine extends it with 17 condition dimensions
+(time, location, quorum, biometric, HSM, TEE, ZKP, etc.) that embed conditions into
+key derivation so decryption keys mathematically do not exist until all conditions are met.
 
-```rust
-// latticearc/src/types/config.rs — CoreConfig
-pub struct CoreConfig {
-    /// Whether hardware acceleration is enabled.
-    pub hardware_acceleration: bool,
-    // ^ No consumer named. Who reads this? Is it wired?
-}
-```
-
-### RIGHT
-
-```rust
-pub struct CoreConfig {
-    /// Whether hardware acceleration is enabled.
-    ///
-    /// Consumer: CryptoPolicyEngine::recommend_scheme() via CryptoContext
-    pub hardware_acceleration: bool,
-}
-```
-
-### Enforcement
-
-CI script greps all `pub` fields in config structs for `Consumer:` tag:
-
-```bash
-# Fail if any pub field in a config struct lacks a Consumer tag
-grep -n 'pub [a-z_]*:' src/**/config*.rs | grep -v 'Consumer:'
-```
+**Every design pattern must work for both repositories.** A pattern that only works for the
+open-source core but breaks when enterprise code extends it is wrong.
 
 ---
 
-## Pattern 2: No Underscore Params
+# Standards Compliance Map
 
-**Rule:** Never use `_param` to silence unused warnings on non-test functions. Implement the parameter or remove it.
+Every design pattern traces to a published standard. This section maps **all** relevant
+standards — not just NIST — to our implementation, so contributors know exactly which
+requirements govern their code.
 
-**Prevents:** Silently ignored parameters — a function accepts config but discards it (2 findings).
+## Algorithms and Their Standards
 
-### WRONG
+| Algorithm | NIST Standard | What It Specifies | Our Implementation |
+|-----------|--------------|-------------------|-------------------|
+| ML-KEM (512/768/1024) | FIPS 203 | Module-Lattice Key Encapsulation Mechanism | `primitives::kem::ml_kem` via aws-lc-rs (FIPS 140-3 Cert #4631, #4759, #4816) |
+| ML-DSA (44/65/87) | FIPS 204 | Module-Lattice Digital Signature Algorithm | `primitives::sig::ml_dsa` via `fips204` crate |
+| SLH-DSA | FIPS 205 | Stateless Hash-Based Digital Signature Algorithm | `primitives::sig::slh_dsa` via `fips205` crate |
+| FN-DSA (512/1024) | Draft FIPS 206 | FFT-over-NTRU-Lattice Digital Signature Algorithm | `primitives::sig::fndsa` via `fn-dsa` crate |
+| AES-GCM (128/256) | SP 800-38D | Galois/Counter Mode for Authenticated Encryption | `primitives::aead::aes_gcm` via aws-lc-rs |
+| HKDF-SHA256 | SP 800-56C Rev.2 / RFC 5869 | Key Derivation using HMAC-based Extract-and-Expand | `primitives::kdf::hkdf` via aws-lc-rs HMAC |
+| HMAC-SHA256 | FIPS 198-1 / SP 800-107 | Keyed-Hash Message Authentication Code | `primitives::mac::hmac` via aws-lc-rs |
+| PBKDF2 | SP 800-132 | Password-Based Key Derivation | `primitives::kdf::pbkdf2` via `pbkdf2` crate |
+| SP 800-108 Counter KDF | SP 800-108 Rev.1 | KDF in Counter Mode using HMAC-PRF | `primitives::kdf::sp800_108_counter_kdf` |
+| X25519 ECDH | SP 800-186 / RFC 7748 | Elliptic Curve Diffie-Hellman Key Agreement | `primitives::kem::ecdh` via aws-lc-rs |
+| Ed25519 | FIPS 186-5 / RFC 8032 | Edwards-Curve Digital Signature Algorithm | `primitives::ec::ed25519` via `ed25519-dalek` |
+| ChaCha20-Poly1305 | RFC 8439 | AEAD with ChaCha20 stream cipher and Poly1305 MAC | `primitives::aead::chacha20poly1305` via `chacha20poly1305` crate |
 
+## Key Management Standards
+
+| Standard | What It Governs | How We Comply |
+|----------|----------------|---------------|
+| **SP 800-57 Part 1 Rev.5** | Key lifecycle: generation, activation, rotation, destruction | Pattern 5 (Secret Type Lifecycle): `ZeroizeOnDrop` enforces §8.3 key destruction. `types::key_lifecycle::KeyStateMachine` enforces §5.3 state transitions. |
+| **SP 800-57 §8.3.1** | "Keys shall be zeroized when no longer needed" | Every secret type derives `ZeroizeOnDrop` or has manual `Drop` calling `zeroize()`. Verified: 20+ secret types comply. |
+| **SP 800-57 §5.6.1** | Key agreement scheme requirements | Hybrid KEM uses HKDF-SHA256 dual-PRF combiner per SP 800-56C. ML-KEM provides IND-CCA2 security per FIPS 203 §3. |
+
+## Cryptographic Operation Standards
+
+| Standard | What It Governs | How We Comply |
+|----------|----------------|---------------|
+| **SP 800-175B Rev.1 §4.1** | "Implementations shall not leak information through timing" | Pattern 5 property 3: all secret comparisons use `subtle::ConstantTimeEq` with bitwise `&` (not short-circuit `&&`). |
+| **SP 800-38D §5.2.2** | "The decryption function shall return FAIL without any additional information" | Pattern 6 (AEAD Error Opacity): all post-crypto decrypt errors use identical opaque message. |
+| **SP 800-38D §8.2** | "The nonce shall be unique for each invocation of GCM with a given key" | Pattern 3 (Nonce Encapsulation): nonces generated internally from OS CSPRNG via `generate_nonce()`. Callers cannot supply nonces in high-level APIs. |
+| **SP 800-56C Rev.2 §4** | "Each application of a KDF shall use a distinct set of values" | Pattern 2 (Domain Separation Registry): every HKDF call uses a registered constant from `types::domains`. Kani proof verifies pairwise distinctness. |
+| **SP 800-108 Rev.1 §4** | "The label shall be distinct for each key derivation purpose" | Same as above. Counter-mode KDF labels also centralized. |
+| **SP 800-90A Rev.1** | Deterministic Random Bit Generator requirements | RNG routed through `primitives::rand` which uses OS CSPRNG. In FIPS mode, aws-lc-rs uses its FIPS-approved DRBG. Pattern 1 ensures no direct `OsRng` bypass. |
+| **SP 800-131A Rev.2 §4** | Transitioning to stronger crypto: key length minimums | All symmetric operations use 256-bit keys (AES-256-GCM). ML-KEM-768 is the default (NIST Category 3 = AES-192 equivalent). |
+
+## FIPS 140-3 Module Requirements
+
+| FIPS 140-3 Section | Requirement | How We Comply |
+|-------------------|-------------|---------------|
+| **§7.4** | Approved security functions only | All crypto operations use NIST-approved algorithms (FIPS 203-206, SP 800-38D, SP 800-56C). Non-approved algorithms (secp256k1 ZKP) are disabled under `feature = "fips"`. |
+| **§7.7** | Pairwise consistency test for keypairs | `primitives::pct` module runs PCT after every keypair generation (ML-DSA, FN-DSA). |
+| **§7.10.1** | Power-up self-test | `primitives::self_test` runs KAT vectors for AES-GCM on module load. |
+| **§7.10.2** | Module integrity test | `primitives::self_test` computes HMAC-SHA256 over module binary, compares against expected value. |
+| **§7.11** | Conditional self-tests | Conditional KAT tests run on algorithm first-use (`primitives_self_test_conditional_kats.rs`). |
+
+## IETF RFCs
+
+| RFC | Title | What It Governs | Our Implementation |
+|-----|-------|----------------|-------------------|
+| **RFC 5869** | HMAC-based Extract-and-Expand Key Derivation (HKDF) | Key derivation from non-uniform input material | `primitives::kdf::hkdf` — Extract-then-Expand with SHA-256. All hybrid shared secrets and convenience API keys derived via this path. |
+| **RFC 7748** | Elliptic Curves for Security (X25519/X448) | X25519 Diffie-Hellman key agreement | `primitives::kem::ecdh::X25519KeyPair` — ephemeral ECDH with low-order point rejection per §6.1. |
+| **RFC 8032** | Edwards-Curve Digital Signature Algorithm (Ed25519/Ed448) | Ed25519 signing and verification | `primitives::ec::ed25519` — used in hybrid signatures (ML-DSA + Ed25519 AND-composition). |
+| **RFC 8439** | ChaCha20 and Poly1305 for IETF Protocols | AEAD for software-only environments | `primitives::aead::chacha20poly1305` — fallback when AES-NI hardware is unavailable. |
+| **RFC 9180** | Hybrid Public Key Encryption (HPKE) | HPKE-style key schedule for hybrid encryption | `hybrid::encrypt_hybrid::derive_encryption_key` — follows HPKE §5.1 LabeledExtract pattern with length-prefixed info+AAD binding. |
+| **RFC 8949** | Concise Binary Object Representation (CBOR) | Binary key serialization | `unified_api::key_format::PortableKey::to_cbor()` — compact wire format for key exchange. |
+
+## NSA CNSA 2.0 (Commercial National Security Algorithm Suite)
+
+CNSA 2.0 defines the timeline for transitioning to quantum-resistant algorithms in
+National Security Systems. Our defaults align with CNSA 2.0 requirements.
+
+| CNSA 2.0 Requirement | Deadline | Our Compliance |
+|---------------------|----------|----------------|
+| Software/firmware signing: use CNSA 2.0 algorithms | 2025 (passed) | ML-DSA-65/87 and SLH-DSA available for code signing. `latticearc-docsign` and `latticearc-firmware` products use these by default. |
+| Web browsers/servers and cloud: quantum-resistant TLS | 2025 | `tls::pq_key_exchange` provides X25519MLKEM768 hybrid key exchange via rustls 0.23.37+. |
+| Traditional networking: quantum-resistant VPN/IPsec | 2026 | Hybrid encryption schemes (ML-KEM + X25519 + HKDF + AES-256-GCM) ready for integration. |
+| All symmetric encryption: AES-256 minimum | Immediate | `EncryptionScheme` defaults to AES-256-GCM. No AES-128 is available in the unified API. (AES-128 exists in `primitives` for legacy compatibility but is not routed by the policy engine.) |
+| CNSA 2.0 approved KEM | FIPS 203 | ML-KEM-768 (Category 3) is the default. ML-KEM-1024 (Category 5) available for `SecurityLevel::Maximum`. |
+| CNSA 2.0 approved signatures | FIPS 204 / FIPS 205 | ML-DSA-65 default. SLH-DSA for stateless hash-based. FN-DSA (draft FIPS 206) for compact signatures. |
+
+## ISO/IEC Standards
+
+| Standard | Title | Relevance | Our Compliance |
+|----------|-------|-----------|----------------|
+| **ISO/IEC 19790:2012** | Security requirements for cryptographic modules (basis for FIPS 140-3) | Module boundary, self-tests, key management | Same as FIPS 140-3 section above — ISO 19790 and FIPS 140-3 are harmonized. |
+| **ISO/IEC 27001:2022** | Information Security Management Systems | Enterprise customers require ISO 27001 compliance for key management | `unified_api::audit` provides cryptographic audit trails. `types::key_lifecycle` enforces SP 800-57 key states. Enterprise `arc-enterprise-policy` adds RBAC and policy enforcement. |
+| **ISO/IEC 18033-2** | Encryption algorithms (block ciphers, stream ciphers) | AES-256-GCM standardization | AES-256-GCM via aws-lc-rs, which is ISO 18033-2 compliant through FIPS validation. |
+
+## OWASP Cryptographic Guidelines
+
+| OWASP Rule | Description | Our Compliance |
+|-----------|-------------|----------------|
+| **Use strong algorithms** | Never use MD5, SHA-1, DES, RC4, or algorithms with known weaknesses | Denied at the supply-chain level: `deny.toml` forbids crates providing weak algorithms. All hash operations use SHA-256 minimum. |
+| **Use sufficient key lengths** | AES-256 for symmetric, 256-bit minimum for asymmetric | Enforced by `EncryptionScheme` — all variants use 256-bit symmetric keys. ML-KEM-768+ for KEM. |
+| **Use AEAD for encryption** | Authenticated encryption prevents ciphertext tampering | All encryption paths use AES-256-GCM or ChaCha20-Poly1305 (both AEAD). No unauthenticated encryption is available in the API. |
+| **Do not roll your own crypto** | Use NIST-standardized, peer-reviewed algorithms | All algorithms are NIST FIPS/SP standardized. Backends are aws-lc-rs (FIPS validated), `fips204`, `fips205` (NIST reference implementations). |
+| **Protect keys at rest** | Keys in memory must be zeroized; keys in storage must be encrypted | Pattern 5 (Secret Type Lifecycle) enforces `ZeroizeOnDrop`. `PortableKey` supports encrypted key storage. |
+| **Use constant-time operations** | Prevent timing side-channels | Pattern 5 property 3: all secret comparisons use `subtle::ConstantTimeEq`. |
+
+## Hybrid Construction Standards
+
+| Reference | Title | How We Apply It |
+|-----------|-------|----------------|
+| **Bindel et al., PQCrypto 2019** | "Hybrid Key Encapsulation Mechanisms and Authenticated Key Exchange" | Our hybrid KEM uses the HKDF dual-PRF combiner pattern: `HKDF(ML-KEM_ss ‖ ECDH_ss)`. Theorem 3.1 proves this is secure if either component remains pseudorandom. |
+| **IETF draft-ietf-lamps-pq-composite-kem** | Composite KEM for hybrid key exchange | Our `HybridKemPublicKey` concatenates ML-KEM and X25519 public keys following the composite encoding. |
+| **IETF draft-ietf-tls-hybrid-design** | Hybrid Key Exchange in TLS 1.3 | `tls::pq_key_exchange` uses rustls-native X25519MLKEM768 hybrid per this draft. |
+| **NIST SP 800-227 (draft)** | Recommendations for Key Encapsulation Mechanisms | ML-KEM parameter selection follows SP 800-227 guidance for security categories 1/3/5. |
+
+---
+
+# Rust Secure Coding Practices
+
+These practices leverage Rust's ownership model, type system, and compiler guarantees
+to make entire classes of cryptographic bugs structurally impossible.
+
+## Why Rust Is The Right Language for This Library
+
+| Rust Feature | Security Benefit | How We Use It |
+|-------------|-----------------|---------------|
+| **Ownership & borrowing** | Memory safety without GC — no use-after-free, no double-free | Secret types move (not copy). `Zeroizing<Vec<u8>>` owns key bytes; dropping the owner zeroizes and deallocates. |
+| **No implicit copies** | Secret material cannot be accidentally duplicated | Secret types do not derive `Clone`. Passing a key to a function moves it — the caller cannot use it again. |
+| **`Drop` trait** | Deterministic destruction at scope exit | Every secret type implements `Drop` (via `ZeroizeOnDrop`) ensuring keys are zeroized even on panic unwind. |
+| **Type system (newtypes)** | Prevents mixing different crypto values | `MlKemPublicKey`, `MlKemSecretKey`, `MlKemCiphertext` are distinct types — the compiler rejects `decrypt(public_key, public_key)`. |
+| **`#[deny(unsafe_code)]`** | Memory safety is provable | The entire crate denies unsafe. All memory access is bounds-checked by the compiler. (aws-lc-rs uses unsafe internally for FFI — that's their responsibility, audited by AWS.) |
+| **Sealed traits** | Prevent broken external implementations | `AeadCipher`, `EcKeyPair`, `EcSignature` use the sealed-trait pattern. External crates cannot implement them with non-constant-time or non-zeroizing logic. |
+| **`#[must_use]`** | Prevent discarding security-critical values | `generate_key()`, `allow_request()`, and builder methods are `#[must_use]` — the compiler warns if the return value is dropped. |
+| **`#[non_exhaustive]`** | Semver-safe enum extensibility | All 70 public enums are `#[non_exhaustive]`, allowing new algorithm variants without breaking 30+ downstream enterprise crates. |
+| **Workspace lints** | Consistent enforcement across all crates | `deny(unsafe_code, clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)` — no crate can opt out. |
+
+## Rust-Specific Anti-Patterns We Prevent
+
+### Anti-Pattern 1: Derived Debug on Secrets
 ```rust
-// latticearc/src/types/selector.rs:67-75 — CryptoPolicyEngine::recommend_scheme()
-pub fn recommend_scheme(use_case: &UseCase, config: &CoreConfig) -> Result<String> {
-    let _ctx = CryptoContext {
-        security_level: config.security_level.clone(),
-        performance_preference: config.performance_preference.clone(),
-        // ...
-    };
-    // _ctx is never read — config fields are accepted but ignored
-    match *use_case {
-        UseCase::SecureMessaging => Ok("hybrid-ml-kem-768-aes-256-gcm".to_string()),
-        // ... hardcoded strings, config has zero influence
+// WRONG — Rust's #[derive(Debug)] prints all fields including secrets
+#[derive(Debug)]
+struct Key { bytes: [u8; 32] }
+// println!("{:?}", key) → "Key { bytes: [172, 58, 91, ...] }" — LEAKED
+
+// RIGHT — Manual Debug redacts secret fields
+impl Debug for Key {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Key").field("bytes", &"[REDACTED]").finish()
     }
 }
 ```
 
-### RIGHT
-
+### Anti-Pattern 2: Clone on Secrets
 ```rust
-pub fn recommend_scheme(use_case: &UseCase, config: &CoreConfig) -> Result<String> {
-    let base_scheme = match *use_case {
-        UseCase::SecureMessaging => "hybrid-ml-kem-768-aes-256-gcm",
-        // ...
-    };
-    // Wire config.security_level: upgrade scheme if security level demands it
-    let scheme = adjust_for_security_level(base_scheme, &config.security_level);
-    Ok(scheme.to_string())
+// WRONG — Clone creates an uncontrolled copy of key material
+#[derive(Clone)]
+struct PrivateKey { bytes: Vec<u8> }
+let copy = key.clone(); // Two copies of the same key in memory
+
+// RIGHT — Move semantics, no Clone. Borrowing via &[u8] getter for read access.
+struct PrivateKey { bytes: Zeroizing<Vec<u8>> }
+impl PrivateKey {
+    pub fn as_bytes(&self) -> &[u8] { &self.bytes }  // Borrow, not copy
 }
 ```
 
-### Enforcement
+### Anti-Pattern 3: Short-Circuit Comparison
+```rust
+// WRONG — && short-circuits: returns false on first mismatch (timing leak)
+let valid = tag_length_ok && mac_matches;
 
-CI script greps for underscore-prefixed parameters in non-test function signatures:
+// RIGHT — & evaluates both sides regardless (constant time)
+let valid = tag_length_ok & mac_matches;
+```
 
-```bash
-# Flag _param patterns in function signatures (exclude test modules)
-grep -n 'fn [a-z_]*(' src/**/*.rs | grep -v '#\[cfg(test)\]' | grep '_[a-z].*:'
+### Anti-Pattern 4: Unwrap in Crypto Code
+```rust
+// WRONG — unwrap crashes the process on error
+let key = generate_key().unwrap();
+
+// RIGHT — propagate errors, let the caller decide
+let key = generate_key().map_err(|e| CryptoError::KeyGenFailed(e))?;
+```
+The workspace denies `clippy::unwrap_used` and `clippy::panic`. The only exceptions
+are in `#[cfg(test)]` modules with `#[allow(clippy::unwrap_used)]` and a justification.
+
+### Anti-Pattern 5: Public Fields on Crypto Types
+```rust
+// WRONG — external code can construct invalid ciphertexts
+pub struct Ciphertext { pub nonce: Vec<u8>, pub data: Vec<u8> }
+let fake = Ciphertext { nonce: vec![], data: vec![0xFF] }; // Invalid but compiles
+
+// RIGHT — private fields + validated constructor + getters
+pub struct Ciphertext { nonce: Vec<u8>, data: Vec<u8> }
+impl Ciphertext {
+    pub fn new(nonce: Vec<u8>, data: Vec<u8>) -> Result<Self, Error> {
+        if nonce.len() != 12 { return Err(Error::InvalidNonce); }
+        Ok(Self { nonce, data })
+    }
+    pub fn nonce(&self) -> &[u8] { &self.nonce }
+    pub fn data(&self) -> &[u8] { &self.data }
+}
+```
+
+### Anti-Pattern 6: Bare Vec<u8> Returns for Secrets
+```rust
+// WRONG — caller may forget to zeroize the returned key
+pub fn export_key(&self) -> Vec<u8> { self.bytes.clone() }
+
+// RIGHT — Zeroizing wrapper ensures cleanup on drop
+pub fn export_key(&self) -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(self.bytes.to_vec())
+}
+```
+
+## Formal Verification Integration
+
+Rust's type system catches many bugs at compile time, but cryptographic correctness
+requires stronger guarantees. We use:
+
+| Tool | What It Verifies | Where |
+|------|-----------------|-------|
+| **Kani** | Bounded model checking — proves domain constant uniqueness, state machine correctness | `types/domains.rs` Kani proofs, `types/key_lifecycle.rs` state transition proofs |
+| **Proptest** | Property-based testing — statistical verification of crypto properties (roundtrip, independence, uniqueness) | `tests/tests/proptest_*.rs` — 256+ cases per property |
+| **CAVP** | Known Answer Tests against NIST test vectors | `prelude/cavp_compliance.rs`, `tests/src/validation/` |
+| **Clippy deny-all** | Static analysis — catches arithmetic overflow, indexing, unused code | `Cargo.toml` workspace lint config |
+| **cargo audit** | Dependency vulnerability scanning | CI pipeline, pre-push hook |
+| **cargo deny** | License compliance, banned crates, source restrictions | `deny.toml` — forbids `libc`, `nix`, GPL crates |
+
+---
+
+# Coding Style Guide
+
+Consistent style makes code reviewable, auditable, and maintainable. These are not
+preferences — they are rules enforced by CI and code review.
+
+## Rust Edition and Toolchain
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| Edition | 2024 | Latest Rust edition for modern syntax and new language features |
+| MSRV | 1.93 | Minimum Supported Rust Version — all CI runs against this |
+| Formatter | `rustfmt` with `max_width = 100` | 100-char line width balances readability and diff size |
+| Linter | `cargo clippy` with workspace-level `deny` lints | Zero warnings policy — every clippy warning is a compile error |
+
+## Naming Conventions
+
+| Item | Convention | Example |
+|------|-----------|---------|
+| Types (structs, enums, traits) | `PascalCase` | `MlKemSecurityLevel`, `AeadCipher`, `HybridCiphertext` |
+| Functions, methods | `snake_case` | `generate_keypair()`, `encrypt_hybrid()`, `derive_encryption_key()` |
+| Constants | `SCREAMING_SNAKE_CASE` | `HYBRID_KEM_SS_INFO`, `NONCE_LEN`, `TAG_LEN` |
+| Type parameters | Single uppercase letter or short `PascalCase` | `<T>`, `<R: RngCore>` |
+| Feature flags | `kebab-case` | `fips`, `fn-dsa`, `zkp-serde` |
+| Module files | `snake_case.rs` | `ml_kem.rs`, `encrypt_hybrid.rs`, `key_lifecycle.rs` |
+| Test functions | `test_<what>_<condition>_<expected>` | `test_ml_kem_encrypt_empty_key_fails` |
+| Influence tests | `test_<field>_influences_<operation>` | `test_security_level_influences_scheme_selection` |
+
+## Error Handling Style
+
+```rust
+// PATTERN: thiserror for error types, Result<T, E> for all fallible functions
+#[derive(Debug, Error)]
+pub enum KemError {
+    #[error("Key generation failed: {0}")]
+    KeyGenerationError(String),
+    #[error("Encapsulation failed: {0}")]
+    EncapsulationError(String),
+}
+
+// PATTERN: map_err with {e} format (Rust 2021+), never {}, never {:?}
+let key = generate().map_err(|e| KemError::KeyGenerationError(format!("{e}")))?;
+
+// PATTERN: context-rich errors that name the operation and the cause
+// WRONG: Err("failed")
+// RIGHT: Err(CoreError::EncryptionFailed(format!("AES-GCM encryption failed: {e}")))
+```
+
+## Function Signature Style
+
+```rust
+// PATTERN: #[instrument] for tracing on crypto operations
+#[instrument(level = "debug", skip(secret_key), fields(security_level = ?level))]
+pub fn sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, SignError> {
+
+// PATTERN: skip secret parameters in tracing (never log key material)
+// PATTERN: include metadata fields (security_level, data_len) for debugging
+
+// PATTERN: #[must_use] on all pure functions returning values
+#[must_use]
+pub fn generate_nonce() -> [u8; NONCE_LEN] {
+
+// PATTERN: Resource validation at the top of every public crypto function
+pub fn encrypt(data: &[u8], key: &Key) -> Result<Vec<u8>, Error> {
+    validate_encryption_size(data.len())?;  // DoS prevention
+    // ... crypto operations ...
+}
+```
+
+## Import Organization
+
+```rust
+// PATTERN: Group imports in this order, separated by blank lines:
+
+// 1. Standard library
+use std::fmt;
+use std::collections::BTreeMap;
+
+// 2. External crates
+use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+use subtle::ConstantTimeEq;
+
+// 3. Internal crate modules
+use crate::primitives::aead::AeadCipher;
+use crate::types::domains;
+```
+
+## Module File Structure
+
+Every module file follows this order:
+
+```rust
+// 1. Module-level lint attributes
+#![deny(unsafe_code)]
+#![deny(missing_docs)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::panic)]
+
+// 2. Module-level documentation (//! doc comments)
+//! Module description — what this module provides and why.
+
+// 3. Imports (grouped as above)
+
+// 4. Constants and type aliases
+
+// 5. Error types (#[non_exhaustive] pub enum XxxError)
+
+// 6. Public types (structs, enums) with full /// doc comments
+
+// 7. Implementations (impl blocks, trait impls)
+
+// 8. Private helper functions
+
+// 9. Tests (#[cfg(test)] mod tests { ... })
+```
+
+## The `#[allow(...)]` Convention
+
+Every `#[allow]` override in production code must have a justification comment on the
+same line or immediately above explaining why the suppression is safe:
+
+```rust
+// GOOD — justification explains why the indexing is bounded
+#[allow(clippy::indexing_slicing)] // ZETAS[k] where k ∈ [0,127] for ZETAS: [i32; 128]
+fn ntt(coefficients: &mut [i32; 256]) { ... }
+
+// GOOD — justification explains the EC math exception
+#[allow(clippy::arithmetic_side_effects)] // EC point addition is modular, cannot overflow
+fn pedersen_commit(v: Scalar, r: Scalar) -> ProjectivePoint { ... }
+
+// BAD — no justification
+#[allow(dead_code)]
+fn unused_helper() { ... }  // Why does this exist? Remove it.
 ```
 
 ---
 
-## Pattern 3: Config Lives With Consumer
+# Documentation Style Guide
 
-**Rule:** A config struct must be defined in the same module as the function(s) that consume it. If it crosses module boundaries, there must be a documented bridge (Pattern 8).
+Clear documentation is as important as correct code. A crypto library that nobody can
+understand is a crypto library nobody can audit.
 
-**Prevents:** Orphan configs — config types defined far from their consumers, making it invisible when fields go unwired (2 findings).
+## Doc Comment Format
 
-### WRONG
+Every public item (`pub fn`, `pub struct`, `pub enum`, `pub trait`, `pub const`) must have
+a `///` doc comment. Module-level docs use `//!`.
 
-```rust
-// Config defined in types/config.rs
-pub struct CoreConfig {
-    pub security_level: SecurityLevel,
-    pub performance_preference: PerformancePreference,
-    pub hardware_acceleration: bool,
-}
-
-// Consumer in types/selector.rs — different module, no bridge documentation
-// Fields silently ignored because consumer doesn't know about new fields
-```
-
-### RIGHT
+### Function Documentation Template
 
 ```rust
-// Option A: Config in same module as consumer
-// types/selector.rs
-pub struct SchemeSelectionConfig { /* ... */ }
-impl CryptoPolicyEngine {
-    pub fn recommend_scheme(config: &SchemeSelectionConfig) -> Result<String> { /* ... */ }
-}
-
-// Option B: Config crosses modules but has documented bridge
-// types/config.rs
-/// Bridge: Consumed by CryptoPolicyEngine (types/selector.rs) via recommend_scheme()
-pub struct CoreConfig { /* ... */ }
-```
-
-### Enforcement
-
-PR review: reviewer checks that config structs and their consumers are co-located or explicitly bridged.
-
----
-
-## Pattern 4: Parameter Influence Test
-
-**Rule:** For every config field, a test proves that changing ONLY that field changes the output of its consumer.
-
-**Prevents:** All categories of dead config — if you can't write this test, the field is dead (universal, covers all 19 findings).
-
-### Test Template
-
-```rust
-#[test]
-fn test_security_level_influences_scheme_selection() {
-    let config_a = CoreConfig::default()
-        .with_security_level(SecurityLevel::Standard);
-    let result_a = CryptoPolicyEngine::select_encryption_scheme(
-        b"test", &config_a, None,
-    ).unwrap();
-
-    let config_b = CoreConfig::default()
-        .with_security_level(SecurityLevel::Maximum);
-    let result_b = CryptoPolicyEngine::select_encryption_scheme(
-        b"test", &config_b, None,
-    ).unwrap();
-
-    assert_ne!(result_a, result_b,
-        "security_level must influence scheme selection");
-}
-```
-
-### The Rule
-
-**If you cannot write this test, the field is dead. Wire it or remove it.**
-
-### Naming Convention
-
-```
-test_<field>_influences_<operation>
-```
-
-Examples:
-- `test_security_level_influences_scheme_selection`
-- `test_enable_early_data_influences_tls_config`
-- `test_compliance_mode_influences_algorithm_choice`
-- `test_session_lifetime_influences_ticket_config`
-
-### Enforcement
-
-Naming convention enables CI grep:
-
-```bash
-# For each config field, verify a matching influence test exists
-grep -r 'test_.*_influences_' tests/ src/
-```
-
----
-
-## Pattern 5: Implementation Reference
-
-**Rule:** Doc comments that make capability claims must reference specific code paths with `/// Implementation: module::function()`.
-
-**Prevents:** Doc drift — documentation claims features that don't exist or work differently than described (5 findings).
-
-### WRONG
-
-```rust
-// latticearc/src/types/mod.rs:38
-/// Cryptographic policy engine for intelligent scheme selection
-pub use selector::CryptoPolicyEngine;
-// ^ "intelligent" — what intelligence? Where is the implementation?
-```
-
-### RIGHT
-
-```rust
-/// Cryptographic policy engine for use-case-based scheme selection.
+/// One-line summary in imperative mood ("Generate", "Encrypt", "Verify").
 ///
-/// Implementation: types::selector::CryptoPolicyEngine::recommend_scheme()
-/// maps UseCase variants to hybrid scheme strings. Security level adjusts
-/// KEM parameter size (512/768/1024).
-pub use selector::CryptoPolicyEngine;
-```
-
-### Enforcement
-
-CI script flags banned adjectives without an `Implementation:` tag:
-
-```bash
-# Find banned adjectives in doc comments without Implementation reference
-grep -n '///' src/**/*.rs | grep -iE 'intelligent|adaptive|hardware-aware' | grep -v 'Implementation:'
-```
-
----
-
-## Pattern 6: Capability Must Exist
-
-**Rule:** Don't add config fields for features the underlying library can't do. Verify the downstream API exists before adding the knob.
-
-**Prevents:** Impossible features — config accepts values that can never take effect (1 finding).
-
-### WRONG
-
-```rust
-// latticearc/src/tls/mod.rs:256-261 — TlsConfig
-/// Session ticket lifetime in seconds.
+/// Extended description if needed — explain the algorithm, security properties,
+/// or non-obvious behavior. Reference NIST standards inline:
+/// "Uses AES-256-GCM (NIST SP 800-38D) for authenticated encryption."
 ///
-/// **Note:** Not yet wired to rustls. Requires a custom `TimeBase` ticketer
-/// implementation. Currently stored for configuration purposes only; the actual
-/// session ticket lifetime is controlled by rustls defaults.
-pub session_lifetime: u32,
-// ^ Field exists, user sets it, but rustls has no API to honor it
-```
-
-### RIGHT
-
-```rust
-// Don't add the field until rustls supports it.
-// If you must add it for forward-compatibility, mark it clearly:
-
-/// Session ticket lifetime in seconds.
+/// # Arguments
 ///
-/// **Status: NOT YET WIRED.** Requires rustls custom TimeBase ticketer.
-/// Tracked in: <issue URL>
+/// * `data` - The plaintext to encrypt (arbitrary length)
+/// * `key` - AES-256 key (must be exactly 32 bytes)
 ///
-/// Consumer: None (placeholder for future rustls API)
-#[deprecated(note = "Not yet wired to rustls. Setting this has no effect.")]
-pub session_lifetime: u32,
-```
-
-### Enforcement
-
-PR review: for every new config field, reviewer asks "does the downstream library have an API for this?" Verify by reading downstream docs, not by assuming.
-
----
-
-## Pattern 7: Destructure at Consumer
-
-**Rule:** Functions consuming a config struct must destructure it, so adding a new field produces a compile error at the consumer.
-
-**Prevents:** New fields silently ignored — a new field is added to a config struct but no consumer is updated to handle it (2 findings).
-
-### WRONG
-
-```rust
-fn apply_config(config: &TlsConfig) -> Result<()> {
-    // Cherry-pick fields — if a new field is added, this function silently ignores it
-    if config.enable_early_data {
-        // ...
-    }
-    if let Some(size) = config.max_fragment_size {
-        // ...
-    }
-    Ok(())
-}
-```
-
-### RIGHT
-
-```rust
-fn apply_config(config: &TlsConfig) -> Result<()> {
-    // Destructure — compiler forces handling of every field
-    let TlsConfig {
-        mode,
-        enable_tracing,
-        retry_policy,
-        enable_fallback,
-        alpn_protocols,
-        max_fragment_size,
-        enable_early_data,
-        max_early_data_size,
-        enable_resumption,
-        session_lifetime,   // Wire session_lifetime: see Pattern 6
-        enable_key_logging,
-        cipher_suites,
-        min_protocol_version,
-        max_protocol_version,
-        client_auth,
-        client_verification,
-        client_ca_certs,
-        session_persistence,
-    } = config;
-
-    // Now every field is in scope — compiler enforces exhaustiveness
-    // If someone adds `new_field` to TlsConfig, this destructure fails to compile
-    Ok(())
-}
-```
-
-### Enforcement
-
-Code convention enforced during PR review. Consider a clippy lint or custom lint for config consumer functions.
-
----
-
-## Pattern 8: Exhaustive Config Bridges
-
-**Rule:** `From`/`Into` implementations between config types must destructure the source type, ensuring every source field is explicitly mapped or acknowledged.
-
-**Prevents:** Unwired TLS fields — config conversion silently drops fields that the source has but the target doesn't map (3 findings).
-
-### WRONG
-
-```rust
-// latticearc/src/tls/mod.rs:635-680 — From<&TlsConfig> for Tls13Config
-impl From<&TlsConfig> for Tls13Config {
-    fn from(config: &TlsConfig) -> Self {
-        let mut tls13_config = match config.mode { /* ... */ };
-
-        // Cherry-picks: alpn, fragment_size, early_data, protocol_version
-        // Silently drops: enable_tracing, retry_policy, enable_fallback,
-        //   enable_resumption, session_lifetime, enable_key_logging,
-        //   cipher_suites, client_auth, client_verification, client_ca_certs,
-        //   session_persistence
-        tls13_config
-    }
-}
-```
-
-### RIGHT
-
-```rust
-impl From<&TlsConfig> for Tls13Config {
-    fn from(config: &TlsConfig) -> Self {
-        let TlsConfig {
-            mode,
-            enable_tracing: _,        // Not applicable to Tls13Config
-            retry_policy: _,           // Handled by connection layer, not config
-            enable_fallback: _,        // Handled by connection layer, not config
-            alpn_protocols,
-            max_fragment_size,
-            enable_early_data,
-            max_early_data_size,
-            enable_resumption: _,      // NOT WIRED: awaiting Tls13Config support
-            session_lifetime: _,       // NOT WIRED: see Pattern 6
-            enable_key_logging: _,     // Handled by connection builder
-            cipher_suites: _,          // NOT WIRED: cipher suites set by mode selection
-            min_protocol_version,
-            max_protocol_version,
-            client_auth: _,            // Handled by server/client config builders
-            client_verification: _,    // Handled by server config builder
-            client_ca_certs: _,        // Handled by server config builder
-            session_persistence: _,    // Handled by connection layer
-        } = config;
-
-        // Now every field is accounted for — adding a new field forces a decision
-        let mut tls13_config = match mode { /* ... */ };
-        // ... apply mapped fields ...
-        tls13_config
-    }
-}
-```
-
-### Enforcement
-
-Code convention enforced during PR review. All `From`/`Into` impls involving config types must destructure.
-
----
-
-## Pattern 9: Banned Adjectives
-
-**Rule:** Marketing adjectives are banned in doc comments unless accompanied by an `/// Implementation: module::function()` tag proving the claim.
-
-**Prevents:** Marketing in docs — documentation makes claims that code doesn't back up (5 findings).
-
-### Banned Words
-
-| Word | Why Banned |
-|------|-----------|
-| `hardware-aware` | Implies runtime hardware detection; aws-lc-rs handles this internally |
-| `data-aware` | Implies data analysis influencing selection; verify implementation exists |
-| `adaptive` | Implies runtime adaptation; verify feedback loop exists |
-| `intelligent` | Implies ML/heuristics; verify algorithm exists beyond `match` |
-| `self-healing` | Implies automatic recovery; verify detection + response loop |
-| `mandatory` | Implies enforcement; verify enforcement code exists |
-| `automatic` | Acceptable for Rust's `Drop`/`Zeroize`; requires `Implementation:` for anything else |
-| `real-time` | Implies latency guarantees; verify with benchmarks |
-| `ML-based` | Implies machine learning model; verify model exists |
-| `AI-powered` | Implies AI system; verify AI component exists |
-
-### WRONG
-
-```rust
-// latticearc/src/types/traits.rs:379
-/// Trait for hardware-aware operations
-pub trait HardwareAware { /* ... */ }
-// ^ "hardware-aware" — but no runtime hardware detection in apache_repo
-```
-
-### RIGHT
-
-```rust
-/// Trait for operations that can use hardware acceleration.
+/// # Returns
 ///
-/// Implementation: Hardware detection is handled by aws-lc-rs at the C level.
-/// This trait defines the interface contract; see `aws-lc-rs` docs for
-/// actual AES-NI/AVX2 acceleration behavior.
-pub trait HardwareAware { /* ... */ }
+/// A tuple of `(ciphertext, tag)` where the tag is 16 bytes.
+///
+/// # Errors
+///
+/// Returns [`AeadError::InvalidKeyLength`] if the key is not 32 bytes.
+/// Returns [`AeadError::EncryptionFailed`] if the AEAD operation fails.
+///
+/// # Security
+///
+/// - Nonce is generated internally from OS CSPRNG (SP 800-38D §8.2)
+/// - Key material is zeroized on drop (SP 800-57 §8.3.1)
+/// - This function is constant-time with respect to the key
+///
+/// # Example
+///
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use latticearc::primitives::aead::aes_gcm::AesGcm256;
+/// use latticearc::primitives::aead::AeadCipher;
+///
+/// let key = AesGcm256::generate_key();
+/// let cipher = AesGcm256::new(&*key)?;
+/// let nonce = AesGcm256::generate_nonce();
+/// let (ct, tag) = cipher.encrypt(&nonce, b"secret data", None)?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn encrypt(&self, nonce: &Nonce, data: &[u8], aad: Option<&[u8]>) -> Result<...> {
 ```
 
-### Enforcement
+### Required Doc Sections by Item Type
 
-CI script:
+| Item Type | Required Sections |
+|-----------|------------------|
+| Public function | Summary, `# Errors`, `# Example` (or `no_run` if it requires setup) |
+| Crypto function | All above + `# Security` (nonce handling, zeroization, timing) + `# Arguments` |
+| Config field | One-line description + `/// Consumer: fn_name()` |
+| Public struct | Summary, field descriptions, `# Security` if holds secrets, `# Example` |
+| Public enum | Summary, variant descriptions |
+| Public trait | Summary, `# Implementors` (or "Sealed — cannot be implemented outside this crate") |
+| Error enum | Summary, variant descriptions with when-each-occurs |
+| Constants | One-line description + which module/function uses it |
 
-```bash
-# Find banned adjectives in doc comments without Implementation tag
-BANNED='intelligent|adaptive|hardware-aware|data-aware|self-healing|mandatory|real-time|ML-based|AI-powered'
-grep -rn '///' src/ | grep -iE "$BANNED" | grep -v 'Implementation:' | grep -v '#\[cfg(test)\]'
+### The `# Security` Section
+
+Every function that handles secret material must have a `# Security` doc section listing:
+
+1. **What key material it handles** and how it's protected
+2. **Nonce/IV generation** — internal or caller-supplied
+3. **Timing properties** — constant-time or not, and with respect to which input
+4. **Zeroization** — which values are zeroized and when
+5. **Error information** — whether error messages are opaque (for decrypt paths)
+
+```rust
+/// # Security
+///
+/// - The shared secret is wrapped in `Zeroizing` and zeroized on drop
+/// - Nonce is generated internally from OS CSPRNG (never caller-supplied)
+/// - AES-GCM authentication tag comparison is constant-time
+/// - Decrypt errors are opaque ("AEAD authentication failed") to prevent oracles
 ```
 
-Note: `automatic` is allowed when describing Rust's built-in mechanisms (`Drop`, `Zeroize`, `ZeroizeOnDrop`) since those are language/derive features, not marketing claims.
+### Doc Comment Style Rules
+
+| Rule | Example |
+|------|---------|
+| Start with imperative verb | "Generate a keypair" not "This function generates a keypair" |
+| Reference standards inline | "Uses HKDF-SHA256 (SP 800-56C Rev.2)" |
+| Link to related items | "See [`MlKemSecurityLevel`] for parameter sets" |
+| No marketing language | "Policy-based selection" not "Intelligent selection" |
+| No speculative claims | "Supports ML-KEM-768" not "Will support all future NIST algorithms" |
+| Explain the WHY for non-obvious code | `// Dual-bind AAD into both HKDF info and AEAD input (prevents AAD substitution)` |
+| Use `///` for items, `//` for logic | `///` = API contract, `//` = implementation notes |
+
+### Inline Comment Conventions
+
+```rust
+// PATTERN: Explain WHY, not WHAT. The code shows what; the comment explains why.
+
+// WRONG
+// Increment counter
+counter += 1;
+
+// RIGHT
+// Advance to next HKDF iteration (SP 800-108 §5.1 counter mode)
+counter += 1;
+
+// PATTERN: Security-critical comments use these prefixes:
+// SECURITY: <explanation of security-critical decision>
+// AUDIT-ACCEPTED: <explanation of known limitation accepted during audit>
+// Wire <field>: <explains which config field is being consumed here>
+
+// PATTERN: TODO/FIXME are forbidden in production (workspace denies todo!())
+// Use issue tracker references instead:
+// See: https://github.com/LatticeArc/latticearc/issues/123
+```
+
+### ASCII Diagrams in Module Docs
+
+Complex modules include ASCII flow diagrams in their `//!` doc comments to show
+data flow. This is critical for crypto modules where the reader must understand
+the construction at a glance.
+
+```rust
+//! ```text
+//! ┌─────────────────────────────────────────────────┐
+//! │  HYBRID KEM: Encapsulation Flow                 │
+//! ├─────────────────────────────────────────────────┤
+//! │  ML-KEM-768 Encaps ──► SS₁ (32 B)              │
+//! │  X25519 ECDH        ──► SS₂ (32 B)              │
+//! │  HKDF-SHA256(SS₁ ‖ SS₂, info=domain) ──► 64 B  │
+//! └─────────────────────────────────────────────────┘
+//! ```
+```
+
+Every `hybrid/` and `primitives/` module should have a flow diagram.
+Every `unified_api/` module should have an API usage diagram.
 
 ---
 
-## Pattern 10: Wire Comment
+# Section 1: Architecture Patterns
 
-**Rule:** At the point where a config field is consumed, the consumer marks it with `// Wire <field>:` comment. This creates bidirectional traceability with the `Consumer:` tag on the field definition.
+## Pattern 1: Layered Primitives Routing
 
-**Prevents:** Traceability gaps — you can't tell from reading the consumer which config fields it handles (6 findings, same as Pattern 1 from the other direction).
+### What
+All cryptographic computation routes through `latticearc::primitives`. Upper layers
+(`hybrid`, `unified_api`, `tls`, `zkp`) import from `primitives` — never from external crates.
 
-### WRONG
+### Why This Is The Right Pattern
+A crypto library has one job: guarantee that every operation uses correct, hardened
+implementations. If encryption can happen via two paths — one through the hardened
+wrapper and one directly calling `aws-lc-rs` — then zeroization, error mapping, resource
+limits, instrumentation, and FIPS compliance can all be bypassed. A single routing point
+makes safety properties **structural**, not behavioral.
 
-```rust
-fn select_encryption_scheme(data: &[u8], config: &CoreConfig, use_case: Option<&UseCase>) -> Result<String> {
-    // Uses config.security_level somewhere in here... but where?
-    // Reader has to trace through the entire function to find out
-    match config.security_level {
-        SecurityLevel::Maximum => { /* ... */ }
-        // ...
-    }
-}
-```
+This also enables proprietary extensibility: enterprise crates (`arc-enterprise-security`,
+`arc-enterprise-cce`) call the same `primitives` API. If a FIPS backend changes (e.g.,
+aws-lc-rs → BoringSSL update), only `primitives` needs updating — all 30+ enterprise
+crates automatically get the fix.
 
-### RIGHT
+### Rules
 
-```rust
-fn select_encryption_scheme(data: &[u8], config: &CoreConfig, use_case: Option<&UseCase>) -> Result<String> {
-    // Wire security_level: select KEM parameter size based on security level
-    let kem_size = match config.security_level {
-        SecurityLevel::Maximum => 1024,
-        SecurityLevel::High => 768,
-        SecurityLevel::Standard => 512,
-    };
+| Layer | May import `primitives/` | May import external crypto crates | May import `subtle` | May import `OsRng`/`rand` |
+|-------|------|------|------|------|
+| `primitives/` | Self | YES (wraps them) | YES | YES |
+| `hybrid/` | YES | NO | YES (ct_eq only) | NO |
+| `unified_api/` | YES | NO | YES (ct_eq only) | NO |
+| `tls/` | YES | rustls provider config only | YES | NO |
+| `zkp/` | YES | k256 EC math only (no wrapper exists) | YES | NO |
+| `types/` | NO | NO | YES | NO |
+| Enterprise crates | YES (via `latticearc` dep) | NO | YES | NO |
 
-    // Wire performance_preference: choose AEAD cipher based on preference
-    let aead = match config.performance_preference {
-        PerformancePreference::Speed => "chacha20-poly1305",
-        _ => "aes-256-gcm",
-    };
+**Documented exceptions** (each must have a code comment explaining why):
+- `tls/` references `rustls::crypto::aws_lc_rs::default_provider()` — TLS provider selection, not direct crypto
+- `zkp/` uses `k256` for secp256k1 group arithmetic — no primitives wrapper for EC scalar math
+- `prelude/error/` imports `aws_lc_rs::error` types for `From` impls
 
-    // Wire hardware_acceleration: flag for hw-optimized code paths
-    if config.hardware_acceleration {
-        // Use hardware-accelerated path
-    }
-
-    Ok(format!("hybrid-ml-kem-{kem_size}-{aead}"))
-}
-```
-
-### Enforcement
-
-CI grep matching `Wire` comments against `Consumer:` tags:
-
-```bash
-# Extract Consumer tags and Wire comments, verify they match
-grep -rn 'Consumer:' src/ > /tmp/consumers.txt
-grep -rn '// Wire ' src/ > /tmp/wires.txt
-# Manual or scripted diff to find unmatched pairs
-```
+### How To Follow It
+- New crypto operation? Add a wrapper in `primitives/`, then call it from the upper layer.
+- Need randomness? Call `crate::primitives::rand::csprng::random_bytes(n)`. Never `OsRng`.
+- Need AES-GCM? Call `crate::primitives::aead::aes_gcm::AesGcm256`. Never `aws_lc_rs::aead`.
 
 ---
 
-## Quick Reference Card
+## Pattern 2: Domain Separation Registry
 
-For every new config field, verify:
+### What
+Every HKDF info/label string is a named constant in `types/domains.rs`. No inline
+`b"..."` literals for HKDF parameters in production code. A Kani formal proof verifies
+all constants are pairwise distinct.
 
-1. `/// Consumer: fn_name()` doc tag on the field
-2. No `_` prefix to silence unused warnings
-3. Config struct co-located with consumer (or bridged)
-4. `test_<field>_influences_<operation>` test exists
-5. No banned adjectives without `/// Implementation:` tag
-6. Downstream library actually supports this feature
-7. Consumer function destructures the config struct
-8. Any `From`/`Into` bridge destructures the source
-9. Doc comments are factual, not aspirational
-10. `// Wire <field>:` comment at the consumption point
+### Why This Is The Right Pattern
+NIST SP 800-108 §4 and SP 800-56C §4 require unique labels per KDF application. If two
+different protocols accidentally use the same HKDF label, keys derived for one protocol
+can decrypt traffic from another — a catastrophic cross-protocol attack.
 
-**If you cannot satisfy rule 4, the field is dead. Wire it or remove it.**
+Centralizing labels in one file with a formal proof makes collisions **impossible**, not just
+unlikely. This is especially critical for proprietary extensibility: the CCE engine adds
+17 dimension-specific key derivations. Each needs a unique label. Without a registry, a
+dimension author could accidentally collide with the core hybrid encryption label.
+
+### Rules
+1. Every HKDF `info` parameter must reference a constant from `types::domains::*`
+2. New HKDF use → add constant to `domains.rs` → add to Kani proof → reference by name
+3. The Kani proof must cover ALL constants (currently 9, checking all 36 pairs)
+4. ZKP Fiat-Shamir labels use a separate namespace (`arc-zkp/*`) and do not collide because they use a different hash construction (not HKDF)
+
+---
+
+## Pattern 3: Nonce Encapsulation
+
+### What
+High-level encrypt APIs generate nonces internally via `primitives::aead::*::generate_nonce()`.
+No high-level API accepts a caller-supplied nonce.
+
+### Why This Is The Right Pattern
+NIST SP 800-38D §8.2 requires nonce uniqueness per key. A caller who supplies nonces can
+(and eventually will) reuse one, which completely breaks AES-GCM confidentiality. By
+generating nonces inside the encrypt function, the library enforces uniqueness by construction.
+
+Low-level `primitives::aead` functions MAY accept nonces for KAT/CAVP testing — that's the
+correct layer for it, since test code is the only legitimate reason to supply a nonce.
+
+---
+
+## Pattern 4: Sealed Security Traits
+
+### What
+Traits defining security-critical operations (`AeadCipher`, `EcKeyPair`, `EcSignature`)
+use the Rust sealed-trait pattern to prevent external implementation.
+
+### Why This Is The Right Pattern
+If an external crate implements `AeadCipher`, it could bypass key validation, skip
+zeroization, or use non-constant-time comparisons. Sealing prevents this while still
+allowing the trait to be used as a bound in generic code.
+
+### How
+```rust
+mod sealed { pub trait Sealed {} }
+pub trait AeadCipher: sealed::Sealed { /* ... */ }
+impl sealed::Sealed for AesGcm256 {}
+```
 
 ---
 
 # Section 2: Cryptographic Safety Patterns
 
-These patterns prevent crypto-specific bugs that testing alone cannot catch. Unlike config patterns (which are about coverage), these are about **cryptographic correctness** — the kind of bugs that pass every test but break in production under adversarial conditions.
+## Pattern 5: Secret Type Lifecycle
 
----
+### What
+Every Rust struct holding cryptographic secret material must enforce 5 properties.
 
-## Pattern 11: Secret Debug Redaction
+### Why This Is The Right Pattern
+NIST SP 800-57 Part 1 Rev.5 §8.3 requires keys to be destroyed when no longer needed.
+SP 800-175B §4.1 requires protection against timing side-channels. These are not
+guidelines — they are requirements for FIPS 140-3 validation.
 
-**Rule:** Every type holding secret material must implement `Debug` manually with redacted output. Never derive `Debug` on secret types.
+### The 5 Required Properties
 
-**Prevents:** Accidental logging of key material via `println!("{:?}", key)`, log frameworks, or error messages that include debug output.
+| # | Property | Implementation | NIST Reference |
+|---|----------|---------------|----------------|
+| 1 | **Zeroize on drop** | `#[derive(ZeroizeOnDrop)]` or manual `impl Drop` calling `zeroize()` | SP 800-57 §8.3.1 |
+| 2 | **Redacted Debug** | Manual `impl Debug` printing `[REDACTED]`. Never `#[derive(Debug)]`. | Prevents log leakage |
+| 3 | **Constant-time eq** | `impl subtle::ConstantTimeEq` using `&` not `&&` | SP 800-175B §4.1 |
+| 4 | **No Clone** | Do not implement `Clone`. If required (serde), add `AUDIT-ACCEPTED` comment. | Prevents uncontrolled copies |
+| 5 | **Private fields** | No `pub` on secret fields. Expose via `&[u8]` getters. Owned returns use `Zeroizing<Vec<u8>>`. | Prevents external mutation |
 
-### WRONG
-
+### The AUDIT-ACCEPTED Convention
+When an upstream type (e.g., aws-lc-rs `DecapsulationKey`) does not support Rust-level
+`Zeroize`, document the delegation:
 ```rust
-#[derive(Debug, Clone)]  // Debug will print raw key bytes!
-pub struct SecretKey {
-    key_bytes: Vec<u8>,
-}
-// log::debug!("Processing with key: {:?}", secret_key);
-// => "SecretKey { key_bytes: [172, 58, 91, ...] }"  LEAKED
-```
-
-### RIGHT
-
-```rust
-// latticearc/src/primitives/keys/mod.rs:203-215 — SecretKey
-#[derive(Zeroize, ZeroizeOnDrop)]
-pub struct SecretKey {
-    pub(crate) ml_sk: Zeroizing<Vec<u8>>,
-    pub(crate) ecc_sk: Zeroizing<EccSecretKey>,
-}
-
-impl std::fmt::Debug for SecretKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SecretKey").finish_non_exhaustive()
-        // => "SecretKey { .. }"  — no key material exposed
-    }
-}
-
-// latticearc/src/primitives/security.rs:119-122 — SecureBytes
-impl std::fmt::Debug for SecureBytes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SecureBytes([REDACTED; {} bytes])", self.len())
-        // => "SecureBytes([REDACTED; 32 bytes])"  — length only
-    }
-}
-```
-
-### Enforcement
-
-PR review: any new struct containing `Vec<u8>`, `[u8; N]`, `Zeroizing<>`, or named `*Key`, `*Secret`, `*Credential` must have a manual `Debug` impl. `#[derive(Debug)]` on such types is a blocking review comment.
-
----
-
-## Pattern 12: Constant-Time Comparison for Secrets
-
-**Rule:** All comparisons involving secret data must use `subtle::ConstantTimeEq`. Plain `==` is forbidden on any type that could hold secrets.
-
-**Prevents:** Timing side-channel attacks — an attacker measures response time to learn how many bytes of a MAC/key/token match, enabling byte-by-byte brute force.
-
-### WRONG
-
-```rust
-fn verify_mac(computed: &[u8], received: &[u8]) -> bool {
-    computed == received  // Short-circuits on first mismatch — timing leak!
-}
-```
-
-### RIGHT
-
-```rust
-// latticearc/src/primitives/security.rs:125-136 — SecureBytes::eq
-impl PartialEq for SecureBytes {
-    fn eq(&self, other: &Self) -> bool {
-        use subtle::ConstantTimeEq;
-        // Both length and content compared in constant time
-        let len_equal = self.inner.len().ct_eq(&other.inner.len());
-        let content_equal = self.inner.ct_eq(&other.inner);
-        (len_equal & content_equal).into()
-    }
-}
-```
-
-### When `==` is OK
-
-Plain `==` is allowed on:
-- Public keys (not secret)
-- Error variants and enum discriminants
-- Lengths and sizes used for validation (e.g., `key.len() != 32`)
-- Strings (algorithm names, scheme identifiers)
-
-### Enforcement
-
-CI grep for `==` on known secret types:
-
-```bash
-# Flag direct equality on secret types (SecureBytes, SecretKey, SharedSecret, etc.)
-# These should use ct_eq instead
-grep -rn '\.eq(' src/ | grep -v 'ct_eq' | grep -v '#\[cfg(test)\]'
-```
-
-PR review: any comparison involving `&[u8]` that represents secret data (MACs, keys, tokens, shared secrets) must use `subtle::ConstantTimeEq`.
-
----
-
-## Pattern 13: Zeroize on All Paths
-
-**Rule:** Every type holding secret material must derive `ZeroizeOnDrop` or wrap contents in `Zeroizing<>`. Manual `zeroize()` calls are insufficient because error paths may skip them.
-
-**Prevents:** Secret persistence in memory — after a key is "done", its bytes remain in memory and can be recovered via cold boot attacks, core dumps, or swap files.
-
-### WRONG
-
-```rust
-fn use_key(key_bytes: &[u8]) -> Result<Vec<u8>> {
-    let mut working_key = key_bytes.to_vec();
-    let result = do_crypto(&working_key)?;  // Error skips zeroize!
-    working_key.zeroize();
-    Ok(result)
-}
-```
-
-### RIGHT
-
-```rust
-// latticearc/src/primitives/keys/mod.rs:203-209 — SecretKey
-#[derive(Zeroize, ZeroizeOnDrop)]  // Automatic zeroize on drop — works on ALL paths
-pub struct SecretKey {
-    pub(crate) ml_sk: Zeroizing<Vec<u8>>,    // Double protection: field + struct
-    pub(crate) ecc_sk: Zeroizing<EccSecretKey>,
-}
-
-fn use_key(key: &SecretKey) -> Result<Vec<u8>> {
-    let result = do_crypto(key.ml_kem())?;  // If error, key still zeroized on drop
-    Ok(result)
-}
-```
-
-### Key Rules
-
-1. **Prefer `#[derive(ZeroizeOnDrop)]`** over manual `zeroize()` calls
-2. **Wrap inner fields in `Zeroizing<>`** for defense-in-depth
-3. **Never return raw `Vec<u8>` for secrets** — return `Zeroizing<Vec<u8>>` or `SecureBytes`
-4. **Error returns before secret creation are fine** — if no secret exists yet, nothing to zeroize
-
-### Enforcement
-
-PR review: any new type holding `Vec<u8>` or `[u8; N]` that represents secret material must derive `Zeroize` + `ZeroizeOnDrop` or wrap in `Zeroizing<>`.
-
----
-
-## Pattern 14: Error Information Hiding
-
-**Rule:** Crypto error types must not distinguish between failure modes that could enable oracle attacks. Decryption failure, MAC failure, and padding failure must all return the same error variant.
-
-**Prevents:** Padding oracle attacks (Bleichenbacher, Vaudenay) — an attacker uses different error messages for "bad padding" vs "bad MAC" to decrypt ciphertexts without the key.
-
-### WRONG
-
-```rust
-enum DecryptError {
-    InvalidPadding,           // Attacker: "padding was checked first — I can exploit this"
-    MacVerificationFailed,    // Attacker: "padding was OK, MAC was wrong"
-    InvalidCiphertext,        // Attacker: "neither padding nor MAC — format issue"
-}
-```
-
-### RIGHT
-
-```rust
-// latticearc/src/primitives/aead/mod.rs:113-135 — AeadError
-#[derive(Debug, thiserror::Error)]
-pub enum AeadError {
-    #[error("Decryption failed: {0}")]
-    DecryptionFailed(String),  // Single generic variant — no tag/padding/MAC distinction
-    // ...
-}
-
-// latticearc/src/unified_api/error.rs:42-47 — CoreError
-#[error("Decryption failed: {0}")]
-DecryptionFailed(String),      // Same generic message regardless of cause
-#[error("Signature verification failed")]
-VerificationFailed,            // No details — just "failed"
-```
-
-### Rules
-
-1. **One error for decryption failure** — never separate padding from MAC from ciphertext format
-2. **No details in verification errors** — `VerificationFailed` not `VerificationFailed { reason }`
-3. **Key length errors are OK** — `InvalidKeyLength { expected, actual }` reveals no secrets
-4. **Test for it** — verify that different bad inputs produce identical error variants
-
-### Enforcement
-
-PR review: any new error variant in crypto modules must be checked for oracle potential. Test that corrupted-ciphertext and corrupted-MAC produce the same error type.
-
----
-
-## Pattern 15: Newtype Distinction for Crypto Primitives
-
-**Rule:** Different cryptographic values (nonces, tags, keys, shared secrets) must be distinct types, not type aliases or raw `[u8; N]`. The type system should prevent passing a nonce where a tag is expected.
-
-**Prevents:** Type confusion — passing a nonce in a tag parameter, using a signing key for encryption, or mixing up shared secrets with symmetric keys. These bugs compile and may even pass tests with contrived inputs, but break security guarantees.
-
-### WRONG (current state)
-
-```rust
-// latticearc/src/primitives/aead/mod.rs:44-47
-pub type Nonce = [u8; NONCE_LEN];  // = [u8; 12]
-pub type Tag = [u8; TAG_LEN];      // = [u8; 16]
-// These are just aliases — the compiler cannot distinguish them from raw arrays.
-// This compiles: let tag: Tag = [0u8; 16]; let nonce: Nonce = [0u8; 12];
-// This also compiles: fn bad(n: &Nonce) {} bad(&some_random_12_bytes);
-```
-
-### RIGHT
-
-```rust
-/// AEAD nonce (12 bytes). Cannot be confused with Tag or key material.
-pub struct Nonce([u8; NONCE_LEN]);
-
-impl Nonce {
-    pub fn generate() -> Self {
-        let mut bytes = [0u8; NONCE_LEN];
-        OsRng.fill_bytes(&mut bytes);
-        Nonce(bytes)
-    }
-
-    pub fn as_bytes(&self) -> &[u8; NONCE_LEN] {
-        &self.0
-    }
-}
-
-/// AEAD authentication tag (16 bytes). Distinct from Nonce and keys.
-pub struct Tag([u8; TAG_LEN]);
-// Now the compiler prevents: fn encrypt(nonce: &Nonce, ...) called with a Tag
-```
-
-### Current Gaps
-
-| Type | Current | Should Be |
-|------|---------|-----------|
-| `Nonce` | `type Nonce = [u8; 12]` (alias) | `struct Nonce([u8; 12])` (newtype) |
-| `Tag` | `type Tag = [u8; 16]` (alias) | `struct Tag([u8; 16])` (newtype) |
-| `PublicKey` | `struct PublicKey { ... }` (newtype) | Already correct |
-| `SecretKey` | `struct SecretKey { ... }` (newtype) | Already correct |
-| `SecureBytes` | `struct SecureBytes { ... }` (newtype) | Already correct |
-
-### Enforcement
-
-PR review: new crypto value types must be `struct` newtypes, not `type` aliases. Type aliases for `[u8; N]` or `Vec<u8>` in crypto modules are a blocking review comment.
-
----
-
-## Pattern 16: Sealed Security Traits
-
-**Rule:** Security-critical traits (`AeadCipher`, `KEM`, `Signature`) should be sealed to prevent external implementations that may not uphold security invariants.
-
-**Prevents:** Weakened custom implementations — a user implements `AeadCipher` with non-constant-time tag comparison or `Signature` with `==` instead of `ct_eq`, silently breaking security for all code that uses the trait generically.
-
-### WRONG (current state)
-
-```rust
-// latticearc/src/primitives/aead/mod.rs:50 — fully public trait
-pub trait AeadCipher {
-    const KEY_LEN: usize;
-    fn new(key: &[u8]) -> Result<Self, AeadError> where Self: Sized;
-    fn generate_nonce() -> Nonce;
-    fn encrypt(&self, nonce: &Nonce, plaintext: &[u8], aad: Option<&[u8]>) -> Result<(Vec<u8>, Tag), AeadError>;
-    fn decrypt(&self, nonce: &Nonce, ciphertext: &[u8], tag: &Tag, aad: Option<&[u8]>) -> Result<Vec<u8>, AeadError>;
-}
-// A user can impl AeadCipher for MyBrokenCipher { ... } with no safety checks
-```
-
-### RIGHT
-
-```rust
-mod sealed {
-    pub trait Sealed {}
-}
-
-/// AEAD cipher trait. Sealed — only library-provided implementations are allowed.
+/// # Zeroization
 ///
-/// This prevents external implementations that might not uphold
-/// constant-time guarantees or proper nonce handling.
-pub trait AeadCipher: sealed::Sealed {
-    const KEY_LEN: usize;
-    fn new(key: &[u8]) -> Result<Self, AeadError> where Self: Sized;
-    fn generate_nonce() -> Nonce;
-    fn encrypt(&self, nonce: &Nonce, plaintext: &[u8], aad: Option<&[u8]>) -> Result<(Vec<u8>, Tag), AeadError>;
-    fn decrypt(&self, nonce: &Nonce, ciphertext: &[u8], tag: &Tag, aad: Option<&[u8]>) -> Result<Vec<u8>, AeadError>;
-}
-
-impl sealed::Sealed for AesGcm128 {}
-impl sealed::Sealed for AesGcm256 {}
-impl sealed::Sealed for ChaCha20Poly1305Cipher {}
-// External crates cannot impl Sealed, so they cannot impl AeadCipher
+/// AUDIT-ACCEPTED: Zeroization delegated to aws-lc-rs (BoringSSL zeros on free).
+/// Rust-level ZeroizeOnDrop cannot be derived because DecapsulationKey does not
+/// implement Zeroize.
 ```
 
-### Which Traits to Seal
-
-| Trait | Seal? | Reason |
-|-------|-------|--------|
-| `AeadCipher` | Yes | Constant-time tag verification, nonce generation |
-| `KEM` (if trait exists) | Yes | Shared secret handling, zeroization |
-| `Signature` (if trait exists) | Yes | Constant-time verification |
-| `HardwareAware` | No | Interface-only, no security invariants |
-| `Encryptable`/`Decryptable` | No | User data types, not crypto internals |
-
-### Enforcement
-
-PR review: any new trait in `primitives/` that defines cryptographic operations should be sealed unless there's a documented reason for extensibility.
+### Constant-Time Equality — The Canonical Pattern
+From `slh_dsa.rs` (the reference implementation):
+```rust
+impl ConstantTimeEq for SigningKey {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        let level_eq = (self.security_level as u8).ct_eq(&(other.security_level as u8));
+        // [u8]::ct_eq handles different lengths by returning Choice::from(0)
+        level_eq & self.bytes.ct_eq(&other.bytes)
+    }
+}
+```
+**Never** use `if != { return }` before `ct_eq` — that leaks timing. **Never** use `&&`
+(short-circuit) — use `&` (bitwise AND) to evaluate all branches in constant time.
 
 ---
 
-## Pattern 17: Nonce Management
+## Pattern 6: AEAD Error Opacity
 
-**Rule:** Nonce generation must be encapsulated in the cipher API, not exposed as a caller responsibility. The API should make nonce reuse impossible by default.
+### What
+Decrypt failure messages must be identical regardless of whether the failure was size
+validation, MAC check, or padding. Pre-crypto input validation (size checks) MAY use
+distinct messages.
 
-**Prevents:** Nonce reuse — the catastrophic failure mode for AES-GCM and ChaCha20-Poly1305. Reusing a nonce with the same key reveals the XOR of two plaintexts and enables forgery.
+### Why This Is The Right Pattern
+Vaudenay 2002 demonstrated that distinguishing "MAC failed" from "padding failed" enables
+a padding oracle attack that recovers plaintext. NIST SP 800-38D §5.2.2 requires that
+AEAD decryption returns only "FAIL" with no additional information.
 
-### WRONG
+We allow pre-crypto size checks to use distinct messages because the input size is public
+information (visible on the wire). The security boundary is: once any secret-dependent
+computation starts, all errors must be opaque.
 
-```rust
-// Caller generates and manages nonces — easy to accidentally reuse
-let nonce = [0u8; 12]; // static nonce — catastrophic!
-let (ct1, tag1) = cipher.encrypt(&nonce, plaintext1, None)?;
-let (ct2, tag2) = cipher.encrypt(&nonce, plaintext2, None)?; // SAME NONCE — security broken
+---
+
+## Pattern 7: Hybrid Combiner Safety
+
+### What
+Hybrid encryption/KEM combines PQC and classical shared secrets via HKDF-SHA256 with
+domain separation and public-key binding.
+
+### Why This Is The Right Pattern
+The HKDF dual-PRF lemma (Bindel et al., PQCrypto 2019) proves that if either input to
+HKDF-Extract is pseudorandom, the output is pseudorandom. This means the hybrid is
+secure as long as **either** ML-KEM **or** X25519 remains unbroken — the standard
+definition of hybrid security.
+
+Public-key binding in the HKDF info parameter prevents cross-key attacks where an attacker
+replays a ciphertext under a different key. The domain label prevents cross-protocol
+attacks where the same shared secret is used for different purposes.
+
+### The Pattern
+```
+shared_secret = HKDF-SHA256(
+    IKM = ML-KEM_ss ‖ ECDH_ss,
+    salt = None,
+    info = domain_label ‖ len(pk_static) ‖ pk_static ‖ len(pk_ephemeral) ‖ pk_ephemeral
+)
 ```
 
-### RIGHT (current approach)
+---
 
-```rust
-// latticearc/src/primitives/aead/aes_gcm.rs:71-74 — AesGcm128::generate_nonce
-fn generate_nonce() -> Nonce {
-    let mut nonce = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce);  // Cryptographic random — 2^96 space
-    nonce
-}
+# Section 3: Config Design Patterns
 
-// Convenience API encapsulates nonce entirely:
-// latticearc/src/unified_api/convenience/api.rs — encrypt()
-// Generates fresh nonce internally, prepends to ciphertext
-// Caller never sees or manages nonces
-```
+## Pattern 8: Consumer Documentation
 
-### BETTER (aspirational: nonce-misuse resistance)
+### What
+Every `pub` field on a config struct must have `/// Consumer: fn_name()` naming which
+function reads it. Fields with no consumer use `/// Consumer: None — <reason>`.
 
-```rust
-/// Encrypt with automatic nonce. Returns nonce || ciphertext || tag.
-/// Caller cannot provide a nonce — eliminating reuse by construction.
-pub fn encrypt_auto_nonce(
-    &self,
-    plaintext: &[u8],
-    aad: Option<&[u8]>,
-) -> Result<Vec<u8>, AeadError> {
-    let nonce = Self::generate_nonce();
-    let (ciphertext, tag) = self.encrypt(&nonce, plaintext, aad)?;
-    let mut output = Vec::with_capacity(12 + ciphertext.len() + 16);
-    output.extend_from_slice(&nonce);
-    output.extend_from_slice(&ciphertext);
-    output.extend_from_slice(&tag);
-    Ok(output)
-}
-```
+### Why This Is The Right Pattern
+Config structs are the API surface that users interact with. A field that accepts a value
+but silently discards it is a broken promise. The Consumer tag creates an auditable
+contract that CI can enforce with a simple grep.
 
-### Current State
-
-The convenience API (`encrypt()` / `decrypt()`) already encapsulates nonce management correctly. The low-level `AeadCipher` trait exposes `generate_nonce()` + `encrypt(nonce, ...)` separately, which is necessary for protocols that manage nonces externally (TLS, streaming) but requires caller discipline.
+For proprietary extensibility: enterprise crates add config fields (e.g., `CcePolicy`,
+`HsmConfig`). Without Consumer tags, it's impossible to verify that enterprise config
+fields are actually wired — especially across 30+ crates.
 
 ### Rules
-
-1. **High-level APIs must encapsulate nonces** — caller never provides one
-2. **Low-level APIs may expose nonces** but must document the birthday bound: rotate key after 2^32 encryptions for random nonces with AES-GCM
-3. **Never accept `&[u8]` as nonce from user input** — always generate internally
-
-### Enforcement
-
-PR review: new encryption APIs must either encapsulate nonce generation or document why the caller needs control. Any function accepting a nonce parameter from outside the crypto module requires justification.
+1. Every `pub` field → `/// Consumer: fn_name()`
+2. No consumer → `/// Consumer: None — <reason>` (must explain why the field exists)
+3. No `_param` prefixed parameters in production functions — implement it or remove it
+4. For every config field, a test `test_<field>_influences_<operation>` must exist
+5. If you cannot write the influence test, the field is dead. Wire it or remove it.
 
 ---
 
-## Pattern 18: Hybrid Composition Safety
+## Pattern 9: Non-Exhaustive Public Enums
 
-**Rule:** Hybrid constructions (PQ + classical) must use a KDF-based combiner with domain separation. Never XOR shared secrets directly. The combined secret must be at least as strong as the stronger component.
+### What
+Every `pub enum` must have `#[non_exhaustive]`.
 
-**Prevents:** Weak hybrid composition — if shared secrets are combined incorrectly, compromising one component can compromise the whole system, defeating the purpose of hybrid crypto.
+### Why This Is The Right Pattern
+Adding a variant to a public enum is a semver-breaking change in Rust. Without
+`#[non_exhaustive]`, downstream crates (including all 30+ enterprise crates) must pin
+exact versions or risk build breaks when the apache core adds an algorithm or security
+level. With `#[non_exhaustive]`, new variants are additive and non-breaking.
 
-### WRONG
+---
 
+## Pattern 10: Must-Use on Pure Functions
+
+### What
+Every public function that returns a value with no side effects must have `#[must_use]`.
+
+### Why This Is The Right Pattern
+Discarding a crypto key, boolean security gate, or builder result is always a bug. The
+`#[must_use]` attribute makes the compiler catch it. Priority targets:
+- `generate_key()` / `generate_nonce()` — discarding a key is a security hole
+- `allow_request()` → `bool` — unchecked circuit breaker defeats the purpose
+- Builder methods returning `Self` — discarding the builder drops the configuration
+
+---
+
+## Pattern 11: Config Struct Destructuring
+
+### What
+`From`/`Into` implementations and consumer functions must destructure config structs,
+so adding a new field produces a compile error.
+
+### Why This Is The Right Pattern
+Without destructuring, adding a field to `TlsConfig` silently compiles — the new field
+is just ignored. With destructuring, the compiler forces every consumer to acknowledge
+every field. The `_` binding with a comment (`retry_policy: _, // Not yet wired`) is
+the correct way to acknowledge a field you intentionally skip.
+
+---
+
+## Pattern 12: Workspace Lint Enforcement
+
+### What
+The workspace `Cargo.toml` denies: `unsafe_code`, `clippy::unwrap_used`,
+`clippy::expect_used`, `clippy::panic`, `dead_code`. Individual crates inherit via
+`[lints] workspace = true`.
+
+### Why This Is The Right Pattern
+- `unsafe_code` — a crypto library must prove memory safety via the Rust type system
+- `unwrap/expect/panic` — a crypto library must never crash; all errors must be propagated
+- `dead_code` — if clippy says it's dead, it's dead. No `#[allow(dead_code)]` in production.
+
+Any `#[allow(...)]` override must have a justification comment explaining why the
+specific case is safe. Example:
 ```rust
-fn combine_secrets(pq_secret: &[u8], classical_secret: &[u8]) -> Vec<u8> {
-    // Direct XOR — if either secret has low entropy, result has low entropy
-    pq_secret.iter().zip(classical_secret).map(|(a, b)| a ^ b).collect()
-}
-
-fn combine_secrets_concat(pq_secret: &[u8], classical_secret: &[u8]) -> Vec<u8> {
-    // Simple concatenation — no domain separation, no binding to participants
-    let mut combined = pq_secret.to_vec();
-    combined.extend_from_slice(classical_secret);
-    combined
-}
+#[allow(clippy::indexing_slicing)] // ZETAS[k] where k ∈ [0,127] for ZETAS: [i32; 128]
 ```
 
-### RIGHT
+### Error Format Style
+Production code uses `format!("{e}")` (Rust 2021+), not `format!("{}", e)`.
 
+### Banned Adjectives
+Marketing language in doc comments is prohibited unless accompanied by
+`/// Implementation: module::function()` proving the claim. Banned words:
+`intelligent`, `adaptive`, `hardware-aware`, `data-aware`, `self-healing`,
+`ML-based`, `AI-powered`, `real-time`, `production-ready`, `enterprise-grade`.
+
+---
+
+# Section 4: Test Completeness Patterns
+
+## Pattern 13: Roundtrip Invariant
+Every reversible operation needs a test: `reverse(forward(x)) == x`.
+Covers: encrypt/decrypt, sign/verify, serialize/deserialize, commit/open, encaps/decaps.
+
+## Pattern 14: Negative Path Coverage
+Every public `Result`-returning function needs tests triggering each error variant.
+Every public error variant must have a test that produces it.
+
+## Pattern 15: Property-Based Testing
+Crypto operations get proptest with 256+ cases covering: roundtrip, key independence,
+uniqueness, non-malleability, AAD integrity.
+
+## Pattern 16: Cross-Library Validation
+When two implementations exist for the same algorithm (e.g., `fips203` vs `aws-lc-rs`
+for ML-KEM), cross-library tests verify interop for all parameter sets.
+
+## Pattern 17: Release Mode for Crypto Tests
+Crypto tests run in `--release` mode. SLH-DSA is 10x slower in debug. Timing tests
+require optimization to produce meaningful results. CI thresholds accommodate 3-4x
+slower CI runners.
+
+## Pattern 18: No Ignored Tests Without Justification
+`#[ignore]` is never the first solution. When a test fails: ask why → fix the root
+cause → only ignore if truly environment-dependent (with a comment explaining why).
+
+---
+
+# Software Engineering Benchmarks
+
+These are the measurable quality targets the project must achieve and maintain.
+They are not aspirational — they are gates. Code that doesn't meet these benchmarks
+does not ship.
+
+## Code Quality Metrics
+
+| Metric | Target | How Measured | Why This Target |
+|--------|--------|-------------|-----------------|
+| **Test coverage (line)** | ≥ 90% | `cargo llvm-cov --workspace --all-features` | NIST SP 800-53 SA-11 requires thorough developer testing. 80% is the FIPS 140-3 floor — we target 90% because crypto code has no acceptable "untested" paths. Every untested line is a potential vulnerability. |
+| **Test coverage (branch)** | ≥ 80% | `cargo llvm-cov --branch` | Branch coverage catches missed error paths that line coverage misses. 80% ensures every `if`/`match` arm in crypto code is exercised. |
+| **Clippy warnings** | 0 | `cargo clippy -- -D warnings` | Zero-warning policy. Every clippy diagnostic is either fixed or has a justified `#[allow]`. |
+| **Format violations** | 0 | `cargo fmt --check` | Consistent formatting eliminates style arguments in review and reduces diff noise. |
+| **Unsafe code** | 0 blocks | `#![deny(unsafe_code)]` on every crate | Memory safety must be provable by the compiler. All FFI is delegated to aws-lc-rs. |
+| **Known vulnerabilities** | 0 | `cargo audit --deny warnings` | No shipped code may have known CVEs in its dependency tree. |
+| **License violations** | 0 | `cargo deny check all` | Only MIT, Apache-2.0, BSD, ISC, CC0, MPL-2.0. No copyleft (GPL, AGPL, LGPL). |
+| **Documentation coverage** | 100% of public API | `#![deny(missing_docs)]` | Every public item must have a `///` doc comment. Undocumented APIs are unusable APIs. |
+| **Compile time (incremental)** | < 15s | Developer experience | If incremental builds exceed 15s, split the crate or reduce generics. |
+| **Binary size (release)** | Track, don't gate | `cargo bloat` | Monitor for accidental size regressions from dependency additions. |
+
+## Performance Benchmarks
+
+| Operation | Target Latency | How Measured | Basis |
+|-----------|---------------|-------------|-------|
+| ML-KEM-768 keygen | < 1 ms | `cargo bench` (criterion) | aws-lc-rs with AES-NI on modern x86_64 |
+| ML-KEM-768 encaps | < 1 ms | Same | Same |
+| ML-KEM-768 decaps | < 1 ms | Same | Same |
+| ML-DSA-65 sign | < 5 ms | Same | fips204 crate, release mode |
+| ML-DSA-65 verify | < 3 ms | Same | Same |
+| SLH-DSA-SHAKE-128s sign | < 100 ms | Same | Hash-based, inherently slower |
+| SLH-DSA-SHAKE-128s verify | < 10 ms | Same | Verification is faster than signing |
+| AES-256-GCM encrypt 1KB | < 0.1 ms | Same | aws-lc-rs with AES-NI |
+| Hybrid encrypt (ML-KEM-768 + X25519 + AES-256-GCM) | < 3 ms | Same | End-to-end including HKDF |
+| HKDF-SHA256 derive | < 0.01 ms | Same | Single expansion |
+
+These are measured on a modern x86_64 with AES-NI. CI runners are 3-4x slower —
+CI benchmarks use relaxed thresholds for regression detection, not absolute targets.
+
+## Security Audit Benchmarks
+
+| Metric | Target | Rationale |
+|--------|--------|-----------|
+| Secret types with ZeroizeOnDrop | 100% | SP 800-57 §8.3.1 — no exceptions |
+| Secret types with redacted Debug | 100% | No secret material in any log output |
+| Secret comparisons using ct_eq | 100% | SP 800-175B §4.1 — no timing leaks |
+| Public enums with #[non_exhaustive] | 100% | Semver safety for 30+ downstream crates |
+| HKDF labels in domain registry | 100% | SP 800-108 §4 — no unregistered labels |
+| Kani proof covers all domain constants | 100% | Formal guarantee of label uniqueness |
+| Config fields with Consumer tags | 100% | No dead config accepted by users |
+
+---
+
+# Test Methodology
+
+This section defines the complete testing methodology — from unit tests through
+real-world usage mirroring. Every category has a specific purpose, specific requirements,
+and a specific place in the test hierarchy.
+
+## The Test Pyramid
+
+```text
+                    ┌────────────────────���────┐
+                    │   Real-World Mirrors     │  ← Few, expensive, high-fidelity
+                    │   (production scenarios) │
+                   ─┼─────────────────────────┼─
+                  │   End-to-End Tests          │  ← Cross-module, full stack
+                  │   (encrypt → store → load   │
+                  │    → decrypt → verify)      │
+                 ─┼────────────────────────��────┼─
+                │   Integration Tests             │  ← Module boundary tests
+                │   (hybrid encrypt uses          │
+                │    primitives KEM + AEAD)        │
+               ─┼─────────────────────────────────┼─
+              │   Property-Based Tests              │  ← Statistical correctness (proptest)
+              │   (∀ key, ∀ plaintext:              │
+              │    decrypt(encrypt(pt)) == pt)       │
+             ─┼─────────────────────────────────────┼─
+            │   Negative / Error Path Tests           │  ← Every error variant triggered
+            │   (wrong key → error, truncated →       │
+            │    error, empty → error)                │
+           ─┼─────────────────────────────────────────┼─
+          │   Unit Tests                                │  ← Every function in isolation
+          │   (keygen returns valid key,                │
+          │    encrypt produces ciphertext)              │
+         ─┼─────────────────────────────────────────────┼─
+        │   Known Answer Tests (KAT / CAVP)               │  ← NIST test vectors
+        │   (algorithm output matches published vector)    │
+        └─────────────────────────────────────────────────┘
+```
+
+Every layer is mandatory. Skipping a layer creates a blind spot that the other
+layers cannot cover.
+
+## Level 1: Known Answer Tests (KAT / CAVP)
+
+**Purpose:** Verify that our implementation produces the exact same output as the
+NIST reference implementation for the same input. This catches algorithmic bugs
+that are invisible to roundtrip tests (a broken implementation can still roundtrip
+with itself).
+
+**Requirements:**
+- ML-KEM: NIST CAVP vectors for all 3 parameter sets (512, 768, 1024)
+- ML-DSA: NIST CAVP vectors for all 3 parameter sets (44, 65, 87)
+- SLH-DSA: NIST CAVP vectors for all supported parameter sets
+- AES-GCM: NIST CAVP GCM vectors (encrypt + decrypt + AAD)
+- SHA-2/SHA-3: NIST CAVP hash vectors (short, long, Monte Carlo)
+- HMAC: NIST CAVP HMAC vectors
+- HKDF: RFC 5869 test vectors
+
+**Where:** `tests/src/validation/nist_kat/`, `prelude/cavp_compliance.rs`
+
+**When to add:** Every new algorithm implementation must ship with KAT vectors
+on the same PR. No algorithm merges without known-answer test coverage.
+
+## Level 2: Unit Tests
+
+**Purpose:** Verify each function in isolation — correct output for valid input,
+correct error for invalid input, correct behavior at boundaries.
+
+**Requirements:**
+- Every `pub fn` that returns `Result` must have at least one success test and
+  one failure test
+- Every error variant must be triggered by at least one test
+- Boundary conditions: empty input, single byte, minimum valid, maximum valid,
+  one byte over maximum
+
+**Naming:** `test_<function>_<condition>_<expected_result>`
 ```rust
-// latticearc/src/hybrid/kem_hybrid.rs:451-487 — derive_hybrid_shared_secret
-pub fn derive_hybrid_shared_secret(
-    ml_kem_ss: &[u8],   // ML-KEM shared secret (32 bytes)
-    ecdh_ss: &[u8],      // X25519 shared secret (32 bytes)
-    static_pk: &[u8],    // Recipient's static public key
-    ephemeral_pk: &[u8], // Ephemeral public key from encapsulation
-) -> Result<Vec<u8>, HybridKemError> {
-    // Validate input lengths
-    if ml_kem_ss.len() != 32 { return Err(/* ... */); }
-    if ecdh_ss.len() != 32 { return Err(/* ... */); }
-
-    // Concatenate for KDF input (HKDF extracts entropy from both)
-    let mut ikm = Vec::with_capacity(64);
-    ikm.extend_from_slice(ml_kem_ss);
-    ikm.extend_from_slice(ecdh_ss);
-
-    // Domain separation — binds to this library and these specific keys
-    let mut info = Vec::new();
-    info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS");
-    info.extend_from_slice(b"||");
-    info.extend_from_slice(static_pk);
-    info.extend_from_slice(b"||");
-    info.extend_from_slice(ephemeral_pk);
-
-    // HKDF-SHA256 produces 64-byte combined secret
-    let result = hkdf(&ikm, None, Some(&info), 64)?;
-    Ok(result.key().to_vec())
-}
+#[test] fn test_ml_kem_keygen_768_succeeds() { ... }
+#[test] fn test_ml_kem_encapsulate_empty_key_fails() { ... }
+#[test] fn test_aes_gcm_encrypt_empty_plaintext_succeeds() { ... }
+#[test] fn test_aes_gcm_decrypt_wrong_tag_fails() { ... }
 ```
 
-### Key Properties
+**Where:** `#[cfg(test)] mod tests` inside each source file.
 
-1. **HKDF extraction** — handles arbitrary-entropy inputs safely (vs raw XOR)
-2. **Domain separation** — `"LatticeArc-Hybrid-KEM-SS"` prevents cross-protocol attacks
-3. **Key binding** — public keys in the info string bind the secret to this specific exchange
-4. **Input validation** — rejects wrong-length secrets before combining
+## Level 3: Negative / Error Path Tests
 
-### Enforcement
+**Purpose:** Systematically verify that every invalid input produces the correct
+error, and that error messages don't leak secret information.
 
-PR review: any new hybrid construction must use HKDF (or approved KDF) with domain separation and key binding. Direct XOR or concatenation of shared secrets is a blocking review comment.
+**Requirements:**
+For every crypto operation, test with:
 
----
+| Invalid Input | What It Tests |
+|--------------|---------------|
+| Empty key | Key validation catches zero-length |
+| Truncated key (key_len - 1) | Off-by-one validation |
+| Oversized key (key_len + 1) | Excess data rejection |
+| All-zero key | Zero-key guard (AES-GCM specifically) |
+| Key from wrong algorithm | Cross-algorithm confusion |
+| Corrupted ciphertext (flip one bit) | AEAD authentication catches tampering |
+| Truncated ciphertext | Length validation |
+| Wrong nonce | Decryption produces garbage or auth failure |
+| Wrong AAD | AAD binding catches substitution |
+| Cross-key decryption | Correct error, not garbage output |
 
-# Quick Reference Cards
+**Where:** `tests/tests/negative_tests_*.rs`
 
-## Config Correctness (Patterns 1-10)
+**Decrypt error opacity check:** Every negative test for decryption must assert
+that the error message is opaque — it must NOT contain "MAC", "padding",
+"authentication", or any information distinguishing the failure mode.
 
-For every new config field, verify:
+## Level 4: Property-Based Tests (proptest)
 
-1. `/// Consumer: fn_name()` doc tag on the field
-2. No `_` prefix to silence unused warnings
-3. Config struct co-located with consumer (or bridged)
-4. `test_<field>_influences_<operation>` test exists
-5. No banned adjectives without `/// Implementation:` tag
-6. Downstream library actually supports this feature
-7. Consumer function destructures the config struct
-8. Any `From`/`Into` bridge destructures the source
-9. Doc comments are factual, not aspirational
-10. `// Wire <field>:` comment at the consumption point
+**Purpose:** Statistical verification of cryptographic properties that cannot be
+exhaustively tested. A roundtrip test with one input proves one case. A proptest
+with 256 random inputs gives statistical confidence.
 
-## Cryptographic Safety (Patterns 11-18)
+**Requirements:**
+Every crypto operation must have proptest coverage for these properties:
 
-For every new type or function handling crypto material:
+| Property | What It Proves | Example |
+|----------|---------------|---------|
+| **Roundtrip** | `decrypt(encrypt(pt, k), k) == pt` for random pt and k | Correctness |
+| **Key independence** | `encrypt(pt, k1) != encrypt(pt, k2)` for random k1 ≠ k2 | No key reuse |
+| **Ciphertext uniqueness** | `encrypt(pt, k) != encrypt(pt, k)` (different nonces) | Nonce uniqueness |
+| **Non-malleability** | Flipping any bit in ciphertext → decrypt fails | AEAD authentication |
+| **AAD integrity** | Changing AAD → decrypt fails | AAD binding |
+| **Key-ciphertext binding** | Decrypting with wrong key → error (not garbage) | Key isolation |
 
-11. Secret types have manual `Debug` with redacted output
-12. Secret comparisons use `subtle::ConstantTimeEq`, not `==`
-13. Secret types derive `ZeroizeOnDrop` or wrap in `Zeroizing<>`
-14. Error types don't distinguish padding vs MAC failures
-15. Crypto values are newtypes, not type aliases for `[u8; N]`
-16. Security-critical traits are sealed against external impl
-17. Nonce generation is encapsulated; callers don't provide nonces at high-level APIs
-18. Hybrid combiners use KDF with domain separation and key binding
-
----
-
-# Section 3: Test Patterns
-
-These patterns define **what kinds of tests are required**, not just "did you write tests?" A codebase can have 95% coverage and 7,786 tests while missing entire categories of bugs because coverage measures lines executed, not properties verified.
-
-Each pattern specifies: what to test, what it catches, a naming convention, and when it's required.
-
----
-
-## Pattern 19: Roundtrip Invariant
-
-**Rule:** Every reversible operation (encrypt/decrypt, sign/verify, serialize/deserialize, encode/decode) must have a test proving `reverse(forward(x)) == x` for representative inputs including edge cases.
-
-**Catches:** Asymmetric bugs — encryption works but decryption is broken for specific inputs, or serialization loses data that deserialization expects.
-
-### Template
-
+**Configuration:**
 ```rust
-#[test]
-fn test_aes_gcm_encrypt_decrypt_roundtrip() {
-    let key = [0x42u8; 32];
-    let plaintext = b"test data for roundtrip";
-    let cipher = AesGcm256::new(&key).unwrap();
-    let nonce = AesGcm256::generate_nonce();
-
-    let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, None).unwrap();
-    let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, None).unwrap();
-
-    assert_eq!(plaintext.as_slice(), decrypted.as_slice(),
-        "decrypt(encrypt(x)) must equal x");
-}
-```
-
-### Required For
-
-| Operation | Roundtrip Test Needed |
-|-----------|----------------------|
-| `encrypt` / `decrypt` | Yes — every AEAD cipher, every security level |
-| `sign` / `verify` | Yes — every signature scheme |
-| `encapsulate` / `decapsulate` | Yes — every KEM at every parameter size |
-| `PublicKey::to_bytes` / `from_bytes` | Yes — key serialization |
-| `SecretKey::to_bytes` / `from_bytes` | Yes — key serialization |
-| Hybrid operations | Yes — full hybrid chain end-to-end |
-
-### Naming Convention
-
-```
-test_<operation>_roundtrip
-test_<algorithm>_<operation>_roundtrip
-```
-
-### Current Status
-
-Strong: 572 roundtrip mentions across 20+ files. All major operations covered.
-
----
-
-## Pattern 20: Negative Path Coverage
-
-**Rule:** Every public function that returns `Result` must have at least one test triggering each distinct error condition. If an error variant has no test, it's either dead code or an untested failure mode.
-
-**Catches:** Dead error variants (error types defined but never produced), silent error swallowing (function catches and re-wraps errors losing information), and untested failure modes that may behave unexpectedly in production.
-
-### Template
-
-```rust
-// latticearc/tests/primitives_negative_tests_aead.rs — real example pattern
-#[test]
-fn test_aes_gcm_rejects_empty_key() {
-    let result = AesGcm256::new(&[]);
-    assert!(result.is_err(), "Should fail with empty key");
-}
-
-#[test]
-fn test_aes_gcm_rejects_corrupted_tag() {
-    let key = [0x42u8; 32];
-    let cipher = AesGcm256::new(&key).unwrap();
-    let nonce = AesGcm256::generate_nonce();
-    let (ciphertext, mut tag) = cipher.encrypt(&nonce, b"data", None).unwrap();
-    tag[0] ^= 0xFF; // corrupt one byte
-    let result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
-    assert!(result.is_err(), "Should fail with corrupted tag");
-}
-```
-
-### Required Inputs
-
-Every public crypto function must be tested with:
-
-| Input | What It Tests |
-|-------|--------------|
-| Empty input (`b""`, `&[]`) | Zero-length handling |
-| Wrong-length key | Key validation |
-| Corrupted ciphertext | Tamper detection |
-| Corrupted tag/signature | Authentication verification |
-| Wrong key (valid length, wrong value) | Key isolation |
-| Truncated input | Boundary parsing |
-
-### The Rule
-
-**Every error variant in a public error enum must have at least one test that triggers it.** If you can't trigger a variant, it may be dead code — investigate.
-
-### Current Gaps
-
-9 variants across `LatticeArcError` and `CoreError` lack direct trigger tests. All are non-critical path (DevTool, Wasm, Profiling, Migration). FIPS critical codes (0x0001-0x0005: `SelfTestFailed`, `IntegrityCheckFailed`, `ConditionalTestFailed`, `ContinuousRngTestFailed`) need trigger tests even if they require mocking.
-
-### Naming Convention
-
-```
-test_<function>_rejects_<invalid_condition>
-test_<function>_fails_on_<bad_input>
-```
-
----
-
-## Pattern 21: Cross-Validation
-
-**Rule:** When two implementations exist for the same algorithm (e.g., `fips203` crate vs `aws-lc-rs` for ML-KEM), a test must prove they produce identical outputs for the same inputs.
-
-**Catches:** Implementation drift — two libraries implement the same NIST standard but produce different outputs due to different parameter encoding, endianness, or version. Code works with each library independently but interop breaks.
-
-### Template
-
-```rust
-#[test]
-fn test_ml_kem_768_cross_library_encapsulation() {
-    // Generate keypair with library A
-    let (pk_a, sk_a) = lib_a::ml_kem_768_keygen();
-
-    // Encapsulate with library B using library A's public key
-    let (ciphertext_b, shared_secret_b) = lib_b::ml_kem_768_encaps(&pk_a);
-
-    // Decapsulate with library A
-    let shared_secret_a = lib_a::ml_kem_768_decaps(&sk_a, &ciphertext_b);
-
-    assert_eq!(shared_secret_a, shared_secret_b,
-        "Cross-library ML-KEM-768 must produce identical shared secrets");
-}
-```
-
-### Required When
-
-- Two crates implement the same NIST FIPS standard
-- A migration from one backend to another (e.g., `fips204` → `aws-lc-rs` ML-DSA)
-- A pure-Rust implementation exists alongside a C-backed one
-- CAVP/KAT vectors validate individual libraries, but interop between them is not guaranteed
-
-### Current Gaps
-
-No systematic cross-validation between `fips203` and `aws-lc-rs` ML-KEM, or between `fips204` and future `aws-lc-rs` ML-DSA. CAVP tests validate each library against NIST vectors independently, but don't prove the two libraries agree with each other.
-
-### Naming Convention
-
-```
-test_<algorithm>_cross_library_<operation>
-test_<algorithm>_interop_<lib_a>_<lib_b>
-```
-
----
-
-## Pattern 22: Property-Based Testing
-
-**Rule:** Every cryptographic operation must have property tests (proptest) that verify invariants hold across randomized inputs, not just hand-picked test vectors.
-
-**Catches:** Edge-case bugs that hand-written tests miss — specific plaintext lengths that trigger buffer handling errors, key values near algebraic boundaries, or inputs that expose off-by-one errors in length calculations.
-
-### Required Properties
-
-| Property | What It Verifies |
-|----------|-----------------|
-| **Roundtrip recovery** | `decrypt(encrypt(random_plaintext)) == random_plaintext` for all lengths 0..65536 |
-| **Key independence** | `decrypt(encrypt(data, key_a), key_b)` fails for random `key_a != key_b` |
-| **Non-malleability** | Flipping any bit in ciphertext causes decryption failure |
-| **Signature unforgeability** | `verify(random_message, sign(different_message))` fails |
-| **Deterministic output length** | Output size depends only on input size, not input content |
-| **AAD integrity** | Changing AAD after encryption causes decryption failure |
-
-### Template
-
-```rust
-// tests/tests/proptest_hybrid_encrypt.rs — real pattern
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(256))]
-
     #[test]
-    fn hybrid_encrypt_decrypt_roundtrip(
-        plaintext in proptest::collection::vec(any::<u8>(), 0..65536)
-    ) {
-        let (pk, sk) = generate_keypair().unwrap();
-        let ciphertext = hybrid_encrypt(&plaintext, &pk).unwrap();
-        let decrypted = hybrid_decrypt(&ciphertext, &sk).unwrap();
-        prop_assert_eq!(plaintext, decrypted);
+    fn roundtrip(plaintext in prop::collection::vec(any::<u8>(), 0..65536)) {
+        // ...
     }
 }
 ```
 
-### Case Counts
+Minimum 256 cases per property. Crypto-critical properties (roundtrip, non-malleability)
+should use 1000 cases for higher confidence.
 
-| Test Type | Minimum Cases |
-|-----------|--------------|
-| Roundtrip properties | 256 |
-| Failure properties (key independence, malleability) | 256 |
-| Algebraic properties (NTT, polynomial) | 1000 |
+**Where:** `tests/tests/proptest_*.rs`
 
-### Current Status
+## Level 5: Integration Tests
 
-Strong: 7-8 proptest files, 256-1000 cases each, covering roundtrip, key independence, non-malleability, AAD integrity, and variable plaintext sizes.
+**Purpose:** Verify that modules work together correctly across the layer
+boundaries. A unit test proves `AesGcm256::encrypt` works. An integration test
+proves `hybrid::encrypt → primitives::kem + primitives::aead → decrypt` works
+end-to-end through the actual module boundaries.
+
+**Requirements:**
+- Every layer boundary must have at least one integration test
+- Hybrid encryption: test the full `ML-KEM encaps → HKDF → AES-GCM encrypt` chain
+- Hybrid signatures: test the full `ML-DSA sign + Ed25519 sign → verify both` chain
+- Unified API: test `encrypt(data, config) → decrypt(ct, key)` via the public API
+- TLS: test `create_client_config + create_server_config → handshake` (where possible)
+- Zero-trust: test `establish_session → authenticate → encrypt with session → verify`
+
+**Where:** `tests/tests/*_integration.rs`, `tests/tests/*_roundtrip*.rs`
+
+## Level 6: End-to-End Tests
+
+**Purpose:** Verify complete workflows that cross multiple subsystems, including
+serialization, storage, and retrieval.
+
+**Requirements:**
+Test these complete workflows:
+
+| Workflow | What It Covers |
+|---------|----------------|
+| **Key lifecycle** | Generate → serialize (PortableKey JSON/CBOR) → store to disk → load → deserialize → use for encrypt/sign → rotate → destroy |
+| **Encrypt-store-retrieve-decrypt** | Encrypt data → serialize `EncryptedOutput` → store → load → deserialize → decrypt → verify plaintext match |
+| **Sign-verify-serialize** | Sign message → serialize signature → transmit (simulate) → deserialize → verify with public key |
+| **Hybrid key exchange** | Generate hybrid keypair → encapsulate → transmit ciphertext → decapsulate �� derive same shared secret |
+| **Config-driven encryption** | Use `CryptoConfig` with different `SecurityLevel` values → verify scheme selection → encrypt/decrypt roundtrip |
+| **Cross-level compatibility** | Encrypt with ML-KEM-768 keypair → attempt decrypt with ML-KEM-512 keypair → verify correct error (not garbage) |
+
+**Where:** `tests/tests/practical_*_tests.rs`, `tests/tests/*_e2e_*.rs`
+
+## Level 7: Real-World Usage Mirroring
+
+**Purpose:** Simulate actual deployment scenarios that exercise the library the
+way customers will use it. These tests catch integration bugs that only appear
+under realistic conditions.
+
+**Requirements:**
+
+### Scenario 1: File Encryption Service
+```
+User uploads file → server encrypts with hybrid scheme →
+stores EncryptedOutput + PortableKey to database →
+different server instance loads both → decrypts → returns file →
+verify byte-for-byte match with original
+```
+Tests: serialization round-trip, key portability, cross-instance decryption.
+
+### Scenario 2: Document Signing Workflow
+```
+Author signs document with ML-DSA-65 →
+signature + public key serialized to JSON →
+transmitted to verifier (different process) →
+verifier deserializes and verifies →
+repeat with SLH-DSA for long-term archival signature
+```
+Tests: cross-algorithm verification, signature format portability.
+
+### Scenario 3: TLS Handshake with PQ Key Exchange
+```
+Create server config with X25519MLKEM768 →
+create client config with same →
+perform handshake → exchange application data →
+verify forward secrecy (same handshake, different keys)
+```
+Tests: TLS integration, PQ key exchange, cipher suite negotiation.
+
+### Scenario 4: Key Rotation Under Load
+```
+Generate keypair v1 → encrypt 100 messages →
+generate keypair v2 (rotation) →
+encrypt 100 more messages with v2 →
+decrypt all 200 messages (100 with v1, 100 with v2) →
+destroy v1 → verify v1 decryption now fails
+```
+Tests: key lifecycle, rotation correctness, destruction verification.
+
+### Scenario 5: Multi-Algorithm Compatibility
+```
+Encrypt same plaintext with every EncryptionScheme variant →
+serialize each EncryptedOutput →
+decrypt each → verify all match original →
+verify each uses different ciphertext size (scheme distinction)
+```
+Tests: algorithm selection, scheme completeness, no cross-scheme confusion.
+
+### Scenario 6: Compliance Audit Trail
+```
+Establish zero-trust session → perform 10 crypto operations →
+query audit log → verify all 10 operations logged →
+verify timestamps are monotonic →
+verify no secret material appears in audit records
+```
+Tests: audit completeness, secret exclusion from logs.
+
+### Scenario 7: Error Recovery
+```
+Encrypt with valid key → corrupt ciphertext →
+attempt decrypt → verify clean error (no panic, no garbage) →
+attempt decrypt with wrong key → verify clean error →
+encrypt again with same key → verify still works (no state corruption)
+```
+Tests: error isolation, no state leakage between operations.
+
+**Where:** `tests/tests/real_world_*.rs`, `tests/tests/scenario_*.rs`
+
+## Level 8: Fuzz Testing
+
+**Purpose:** Find crashes, panics, and undefined behavior by feeding random
+(and semi-structured) inputs to every entry point.
+
+**Requirements:**
+- Every public function that accepts `&[u8]` input must have a fuzz target
+- Fuzz targets must run for at least 300 seconds per target in CI
+- Any crash found by fuzzing is a P0 bug — fix before next release
+
+**Where:** `fuzz/fuzz_targets/`
+
+**Priority targets:**
+1. Decrypt functions (attacker-controlled ciphertext)
+2. Key deserialization (attacker-controlled key bytes)
+3. Signature verification (attacker-controlled signature)
+4. CBOR/JSON deserialization (attacker-controlled wire format)
+
+## Level 9: Side-Channel Tests
+
+**Purpose:** Verify that timing of crypto operations does not depend on secret
+values. These are statistical tests that measure execution time variance.
+
+**Requirements:**
+- Constant-time comparison: verify `ct_eq(a, b)` takes same time regardless
+  of where `a` and `b` differ
+- Key-dependent timing: verify `encrypt(pt, k1)` and `encrypt(pt, k2)` have
+  statistically similar timing distributions
+- Use coefficient of variation (CV) as the metric. CV < 5% is constant-time.
+  CI uses relaxed threshold (CV < 2000%) because virtualized runners add jitter.
+
+**Where:** `tests/tests/*_timing*.rs`, `latticearc/examples/crypto_timing.rs`
+
+## Test Execution Order in CI
+
+```text
+1. cargo fmt --check          (instant — formatting)
+2. cargo clippy -D warnings   (30s — static analysis)
+3. cargo test --release        (40s — all unit + integration tests)
+4. cargo test --doc            (10s — doc examples compile and run)
+5. cargo audit / cargo deny   (5s — vulnerability + license scan)
+6. cargo llvm-cov             (60s — coverage report, gate at 90%)
+7. fuzz (scheduled, not PR)   (300s/target — nightly fuzzing)
+8. benchmarks (scheduled)      (120s — performance regression detection)
+```
+
+Steps 1-6 run on every PR. Steps 7-8 run on schedule (nightly/weekly).
+
+## Adding Tests for New Code — The Checklist
+
+When adding any new crypto operation, ALL of these must ship in the same PR:
+
+- [ ] KAT vectors (if NIST vectors exist for the algorithm)
+- [ ] Unit tests: at least 1 success + 1 failure per public function
+- [ ] Negative tests: empty/truncated/corrupted/cross-key inputs
+- [ ] Proptest: roundtrip + key independence + uniqueness (256+ cases)
+- [ ] Integration test: verify it works through the layer boundary
+- [ ] E2E test: serialize → store → load → deserialize → use
+- [ ] Fuzz target: for any function accepting `&[u8]`
+- [ ] Coverage check: `cargo llvm-cov` must stay ≥ 90%
+
+When adding a new config field:
+
+- [ ] `test_<field>_influences_<operation>` influence test
+- [ ] Negative test: invalid value produces correct error
+
+When fixing a bug:
+
+- [ ] Regression test that would have caught the bug
+- [ ] The test must fail without the fix and pass with it
 
 ---
 
-## Pattern 23: Error Variant Exhaustion
+# Quick Reference Card
 
-**Rule:** Every variant in a public error enum must have a test that constructs or triggers it. Untested variants are either dead code or untested failure modes — both are bugs.
+### Adding a new crypto operation:
+1. Implement in `primitives/` wrapping the external crate
+2. Add zeroization, error mapping, resource limits, instrumentation
+3. Call from upper layer via `crate::primitives::*`
+4. Never import the external crate in the upper layer
 
-**Catches:** Dead error variants (defined in enum but never returned by any code path), error variants that can only be triggered by internal inconsistencies (indicating defensive programming that should be documented), and error conversion chains where the original error is lost.
+### Adding a new secret type:
+1. `#[derive(Zeroize, ZeroizeOnDrop)]` (or AUDIT-ACCEPTED for upstream types)
+2. Manual `impl Debug` with `[REDACTED]`
+3. `impl ConstantTimeEq` using `&` combinators
+4. No `Clone` (or AUDIT-ACCEPTED)
+5. Private fields + `&[u8]` getters + `Zeroizing<Vec<u8>>` owned returns
 
-### Template
+### Adding a new config field:
+1. `/// Consumer: fn_name()` doc tag
+2. `test_<field>_influences_<operation>` test
+3. Update consumer's destructuring pattern
+4. Update any `From`/`Into` bridges
+5. If you can't write the influence test, the field is dead
 
+### Adding a new HKDF use:
+1. Add constant to `types/domains.rs`
+2. Add to Kani pairwise-distinct proof
+3. Reference by `crate::types::domains::CONSTANT_NAME` — never inline literals
+
+### Adding a new public enum:
+1. `#[non_exhaustive]` on the enum
+2. `#[must_use]` on all methods
+3. Ensure downstream `match` arms use `_ =>` for extensibility
+
+---
+
+# Zero-Shortcut Policy
+
+This section exists because shortcuts compound. A skipped test today becomes a
+production incident tomorrow. A "temporary" `#[allow]` becomes permanent tech debt
+that no one removes. A `todo!()` placeholder ships to crates.io and panics in a
+customer's production system.
+
+## The Rule
+
+**Every implementation must be correct and complete before it merges. No exceptions.**
+
+This means:
+
+### No Stub Implementations
 ```rust
-#[test]
-fn test_all_core_error_variants_constructible() {
-    // Verify each variant can be constructed and displays correctly
-    let errors: Vec<CoreError> = vec![
-        CoreError::InvalidInput("test".into()),
-        CoreError::InvalidKeyLength { expected: 32, actual: 16 },
-        CoreError::EncryptionFailed("test".into()),
-        CoreError::DecryptionFailed("test".into()),
-        CoreError::VerificationFailed,
-        CoreError::SessionExpired,
-        // ... every variant
-    ];
+// FORBIDDEN — ships to crates.io, panics in production
+pub fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
+    todo!("implement later")
+}
 
-    for error in &errors {
-        // Verify Display impl doesn't panic and produces non-empty output
-        let msg = format!("{}", error);
-        assert!(!msg.is_empty(), "Error display must not be empty: {:?}", error);
+// FORBIDDEN — silently returns success without doing anything
+pub fn validate(&self) -> Result<()> {
+    Ok(()) // "will add real validation later"
+}
+
+// REQUIRED — if you can't implement it now, don't add it to the public API
+// Wait until the implementation is ready. An absent function is better than
+// a broken one.
+```
+
+### No Skipped Tests to Save Time
+```rust
+// FORBIDDEN — test exists but is disabled
+#[test]
+#[ignore] // "too slow, will fix later"
+fn test_slh_dsa_roundtrip() { ... }
+
+// REQUIRED — if the test is slow, fix the root cause
+// SLH-DSA slow in debug? → run in release mode (--release flag)
+// Test flaky on CI? → fix the flakiness, don't ignore
+// Test needs setup? → add the setup, don't skip
+```
+
+### No Placeholder Error Handling
+```rust
+// FORBIDDEN — swallows the error, caller doesn't know something failed
+fn process(&self, data: &[u8]) -> Result<Vec<u8>> {
+    match self.encrypt(data) {
+        Ok(ct) => Ok(ct),
+        Err(_) => Ok(vec![]), // "return empty on error for now"
     }
 }
 
-#[test]
-fn test_core_error_from_aead_error() {
-    // Verify error conversion doesn't lose information
-    let aead_err = AeadError::DecryptionFailed("tag mismatch".into());
-    let core_err: CoreError = aead_err.into();
-    let msg = format!("{}", core_err);
-    assert!(msg.contains("Decryption"),
-        "Converted error must preserve failure context");
+// FORBIDDEN — logs the error but continues as if nothing happened
+fn process(&self, data: &[u8]) -> Vec<u8> {
+    self.encrypt(data).unwrap_or_else(|e| {
+        eprintln!("encryption failed: {e}"); // silently degraded
+        vec![]
+    })
+}
+
+// REQUIRED — propagate the error. Let the caller decide.
+fn process(&self, data: &[u8]) -> Result<Vec<u8>, ProcessError> {
+    self.encrypt(data).map_err(|e| ProcessError::EncryptionFailed(e))
 }
 ```
 
-### The Audit Rule
-
-For each error enum, maintain a coverage table:
-
-```
-ErrorEnum: 22 variants
-Tested: 18 (82%)
-Untested: EntropyDepleted, SelfTestFailed, KeyGenerationFailed, HardwareError
-Status: EntropyDepleted — requires mocking OsRng, tracked in #123
-         SelfTestFailed — FIPS module init only, integration test planned
-         KeyGenerationFailed — unreachable with current RNG, mark as defensive
-         HardwareError — no hardware in CI, mock test planned
-```
-
-### Current Status
-
-174 total error variants, ~165 tested (95%). Gaps are in non-critical paths (DevTool, Wasm, Profiling) and FIPS module init errors that require mocking.
-
----
-
-## Pattern 24: Boundary and Degenerate Input
-
-**Rule:** Every public function must be tested with degenerate inputs: empty, minimum, maximum, and off-by-one values. These tests must be explicit, not hidden inside property tests.
-
-**Catches:** Buffer handling bugs at exact boundaries — off-by-one in length checks, empty-input panics in slice operations, integer overflow in size calculations, and allocation failures on maximum-size inputs.
-
-### Required Boundary Inputs
-
-| Input | Values to Test |
-|-------|---------------|
-| Plaintext length | `0`, `1`, `15` (AES block - 1), `16` (AES block), `17` (block + 1), `65535`, `65536` |
-| Key length | `0`, `KEY_LEN - 1`, `KEY_LEN`, `KEY_LEN + 1` |
-| Nonce length | `0`, `NONCE_LEN - 1`, `NONCE_LEN`, `NONCE_LEN + 1` |
-| AAD | `None`, `Some(b"")`, `Some(&[0u8; 65536])` |
-| Security level | Every enum variant (not just the default) |
-
-### Template
-
+### No Dead Config Fields
 ```rust
-#[test]
-fn test_aes_gcm_empty_plaintext() {
-    let cipher = AesGcm256::new(&[0x42; 32]).unwrap();
-    let nonce = AesGcm256::generate_nonce();
-    let (ct, tag) = cipher.encrypt(&nonce, b"", None).unwrap();
-    let pt = cipher.decrypt(&nonce, &ct, &tag, None).unwrap();
-    assert!(pt.is_empty(), "Empty plaintext roundtrip must produce empty output");
+// FORBIDDEN — accepts input the user thinks matters, but ignores it
+pub fn recommend_scheme(use_case: &UseCase, _config: &CoreConfig) -> String {
+    // _config is never read. User sets security_level = Maximum,
+    // gets the same scheme as Standard. Broken promise.
+    match use_case { ... }
 }
 
-#[test]
-fn test_aes_gcm_key_off_by_one() {
-    assert!(AesGcm256::new(&[0u8; 31]).is_err(), "31-byte key must fail");
-    assert!(AesGcm256::new(&[0u8; 32]).is_ok(),  "32-byte key must succeed");
-    assert!(AesGcm256::new(&[0u8; 33]).is_err(), "33-byte key must fail");
+// REQUIRED — either use the parameter or remove it from the signature
+pub fn recommend_scheme(use_case: &UseCase) -> String { ... }
+// OR
+pub fn recommend_scheme(use_case: &UseCase, config: &CoreConfig) -> String {
+    let base = match use_case { ... };
+    adjust_for_security_level(base, &config.security_level) // actually uses config
 }
 ```
 
-### Naming Convention
+### No Unfinished Refactors
+```rust
+// FORBIDDEN — old code and new code coexist, neither is complete
+pub fn encrypt_v1(&self, data: &[u8]) -> Vec<u8> { ... } // "deprecated but still used"
+pub fn encrypt_v2(&self, data: &[u8]) -> Result<Vec<u8>> { ... } // "new, but not all callers migrated"
 
+// REQUIRED — complete the migration in the same PR
+// Remove v1, update all callers to v2, verify all tests pass
 ```
-test_<function>_empty_<input>
-test_<function>_<input>_off_by_one
-test_<function>_maximum_<input>
+
+### No Coverage Shortcuts
+```rust
+// FORBIDDEN — marking code as unreachable to inflate coverage
+fn decrypt(&self, ct: &[u8]) -> Result<Vec<u8>> {
+    // ...
+    #[cfg(not(tarpaulin_include))] // hides this branch from coverage
+    if unlikely_condition {
+        return Err(Error::EdgeCase);
+    }
+}
+
+// REQUIRED — write a test that exercises the edge case
+#[test]
+fn test_decrypt_edge_case() {
+    let result = cipher.decrypt(&crafted_input);
+    assert!(matches!(result, Err(Error::EdgeCase)));
+}
 ```
 
-### Current Status
+### No Deferred Documentation
+```rust
+// FORBIDDEN — public API without documentation
+pub fn derive_hybrid_secret(ss1: &[u8], ss2: &[u8]) -> Vec<u8> {
+    // No doc comment. What does this do? What are the security properties?
+    // What standard does it follow? What errors can it return?
+}
 
-Strong: 463+ empty/boundary instances, all KEM parameter sizes tested at exact NIST boundaries. Well-covered.
+// REQUIRED — documentation ships with the code, not "later"
+/// Derive a hybrid shared secret from ML-KEM and ECDH components.
+///
+/// Uses HKDF-SHA256 (SP 800-56C Rev.2) as a dual-PRF combiner.
+/// Security: if either `ss1` or `ss2` is pseudorandom, the output
+/// is pseudorandom (Bindel et al., PQCrypto 2019, Theorem 3.1).
+///
+/// # Arguments
+/// * `ss1` - ML-KEM shared secret (32 bytes)
+/// * `ss2` - ECDH shared secret (32 bytes)
+///
+/// # Errors
+/// Returns `KdfError` if HKDF expansion fails.
+///
+/// # Security
+/// - Both inputs are zeroized after derivation
+/// - Output is wrapped in `Zeroizing` for automatic cleanup
+pub fn derive_hybrid_secret(ss1: &[u8], ss2: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
+```
+
+## Why This Policy Exists
+
+This is a cryptography library. Our code protects other people's secrets — medical
+records, financial transactions, national security communications. A shortcut in
+this codebase is not "tech debt" — it is a vulnerability.
+
+Every `todo!()` is a panic waiting to happen in someone's production system.
+Every `#[ignore]`'d test is a bug that could have been caught.
+Every dead config field is a user who thinks they configured security but didn't.
+Every missing doc comment is an integrator who misuses the API.
+
+The standard is: **correct and complete, or it doesn't merge.**
 
 ---
 
-# Quick Reference Cards
+# The Exemplary Implementation Standard
 
-## Config Correctness (Patterns 1-10)
+This section defines what it means for LatticeArc to be the reference implementation
+that the industry learns from. These are not features — they are qualities of the
+codebase itself.
 
-For every new config field, verify:
+## What Sets an Exemplary Crypto Library Apart
 
-1. `/// Consumer: fn_name()` doc tag on the field
-2. No `_` prefix to silence unused warnings
-3. Config struct co-located with consumer (or bridged)
-4. `test_<field>_influences_<operation>` test exists
-5. No banned adjectives without `/// Implementation:` tag
-6. Downstream library actually supports this feature
-7. Consumer function destructures the config struct
-8. Any `From`/`Into` bridge destructures the source
-9. Doc comments are factual, not aspirational
-10. `// Wire <field>:` comment at the consumption point
+Most crypto libraries get the algorithms right. The difference between a good library
+and an exemplary one is everything surrounding the algorithms:
 
-## Cryptographic Safety (Patterns 11-18)
+| Dimension | Typical Library | Exemplary Library (Our Standard) |
+|-----------|----------------|----------------------------------|
+| **Key destruction** | `Drop` frees memory (OS may reuse without zeroing) | `ZeroizeOnDrop` overwrites key bytes with zeros before deallocation, verified for every secret type |
+| **Debug output** | `#[derive(Debug)]` prints key bytes into logs | Manual `Debug` prints `[REDACTED]`, verified for every secret type |
+| **Timing safety** | "We use constant-time where we remember to" | `ConstantTimeEq` on every secret comparison, verified by audit, with the canonical pattern documented |
+| **Error messages** | Different messages for MAC failure vs padding failure (oracle) | Single opaque error for all post-crypto failures, pre-crypto validation may be distinct (documented why) |
+| **Nonce handling** | Caller supplies nonce (and eventually reuses one) | Library generates nonce internally, caller cannot supply one in high-level API |
+| **Domain separation** | Inline string literals scattered across files | Centralized registry with formal proof of pairwise uniqueness |
+| **RNG routing** | `OsRng` imported wherever needed | Single `primitives::rand` module, upper layers cannot import `OsRng` |
+| **Config fields** | "Set this to configure X" (but X is never read) | Every field names its consumer function, with an influence test proving it works |
+| **Enum extensibility** | Adding a variant breaks all downstream crates | `#[non_exhaustive]` on every public enum |
+| **Test coverage** | "We have tests" | 9-level test pyramid from KAT vectors to real-world scenario mirrors, ≥90% line coverage |
+| **Documentation** | "See the code" | Every public item documented with `# Security` section, NIST standard references, and code examples |
+| **Dependency safety** | "We run `cargo audit` sometimes" | Zero CVEs enforced in CI, banned crate list, license allowlist, source restrictions |
 
-For every new type or function handling crypto material:
+## The Audit Question
 
-11. Secret types have manual `Debug` with redacted output
-12. Secret comparisons use `subtle::ConstantTimeEq`, not `==`
-13. Secret types derive `ZeroizeOnDrop` or wrap in `Zeroizing<>`
-14. Error types don't distinguish padding vs MAC failures
-15. Crypto values are newtypes, not type aliases for `[u8; N]`
-16. Security-critical traits are sealed against external impl
-17. Nonce generation is encapsulated; callers don't provide nonces at high-level APIs
-18. Hybrid combiners use KDF with domain separation and key binding
+The ultimate test of an exemplary implementation: **can a security auditor unfamiliar
+with the project verify any claim in under 5 minutes?**
 
-## Test Completeness (Patterns 19-24)
+- "All secret types are zeroized on drop" → auditor greps for secret types, checks
+  each for `ZeroizeOnDrop` or `AUDIT-ACCEPTED`. Clear, mechanical, complete.
+- "HKDF labels are unique" → auditor reads `types/domains.rs`, sees all constants,
+  reads the Kani proof. Formally verified, one file.
+- "No OsRng bypass in upper layers" → auditor greps for `OsRng` outside `primitives/`,
+  finds zero production hits. Provable in one command.
+- "Decrypt errors don't leak information" → auditor reads the two AEAD decrypt
+  functions, sees identical error messages with a comment explaining why.
 
-For every new crypto operation or public API:
+If the auditor has to read 50 files, trace 10 call chains, and "trust that the team
+follows the convention" — it's not exemplary. It's hoping.
 
-19. Roundtrip test: `reverse(forward(x)) == x`
-20. Negative tests for every distinct error condition
-21. Cross-validation when two implementations of the same algorithm exist
-22. Property tests with 256+ randomized inputs
-23. Every error variant has a test that triggers it
-24. Boundary tests: empty, min, max, off-by-one for all inputs
+## What We Measure Against
+
+These are the open-source crypto libraries we benchmark our engineering quality
+against (not algorithms — engineering practices):
+
+| Library | Language | What They Excel At | What We Do Better |
+|---------|----------|-------------------|-------------------|
+| **ring** (briansmith) | Rust | Minimal API surface, aggressive unsafe minimization | We have zero `unsafe` (they have ~50 blocks for performance). We have formal proofs (Kani). |
+| **rustls** | Rust | Excellent API design, strong type safety | We add PQC algorithms, hybrid combiners, and domain separation that rustls doesn't need (it delegates crypto to ring/aws-lc-rs). |
+| **libsodium** | C | Misuse-resistant API, excellent documentation | We match their misuse resistance (nonce encapsulation, sealed traits) with Rust's additional compile-time guarantees (ownership, lifetimes, no use-after-free). |
+| **aws-lc-rs** | Rust/C | FIPS 140-3 validated, production-hardened | We build on their validated crypto and add: hybrid PQC, domain separation, zero-trust session management, and the unified API layer they don't provide. |
+| **BoringSSL** | C | Battle-tested in Chrome/Android, excellent constant-time discipline | We match their constant-time discipline with Rust's memory safety. They have 20 years of CVE history we avoid by construction. |
+
+We do not claim to be better than these libraries at their core mission. We claim to
+be the exemplary implementation of a **post-quantum hybrid cryptography library with
+enterprise extensibility** — a category none of them occupy.
+
+## The 10-Point Quality Scorecard
+
+Every release must score 10/10. Any score below 10 blocks the release.
+
+| # | Criterion | How Verified |
+|---|-----------|-------------|
+| 1 | **Zero clippy warnings** | `cargo clippy -D warnings` in CI |
+| 2 | **Zero known CVEs** | `cargo audit --deny warnings` in CI |
+| 3 | **≥90% line coverage** | `cargo llvm-cov` in CI |
+| 4 | **All public items documented** | `#![deny(missing_docs)]` in every crate |
+| 5 | **All secret types audited** | Checklist: ZeroizeOnDrop ✓, Debug redacted ✓, ct_eq ✓, no Clone ✓ |
+| 6 | **All domain labels in registry** | Kani proof covers all constants |
+| 7 | **All public enums non_exhaustive** | Grep count matches |
+| 8 | **All tests pass in release mode** | `cargo test --release` in CI |
+| 9 | **No `todo!`, `unimplemented!`, `#[ignore]`** | Workspace lint + grep in CI |
+| 10 | **CHANGELOG updated** | Pre-push hook checks |
+
+## How This Document Evolves
+
+This document is not frozen. As the project grows, new patterns will emerge. The
+process for adding a pattern:
+
+1. **Identify the bug class** — what went wrong, or what could go wrong?
+2. **Research the standard** — what does NIST/IETF/academic literature say is correct?
+3. **Define the pattern** — what, why, how, with wrong/right code examples
+4. **Define the measurement** — how do we verify compliance? (must be mechanical, not judgment-based)
+5. **Measure the codebase** — N/M compliant today
+6. **Fix all non-compliant code** — patterns are not aspirational
+7. **Add to this document** — with the same structure as existing patterns
+8. **Add CI enforcement** — grep, lint, or test that catches future violations
+
+A pattern without mechanical enforcement is a suggestion. We don't do suggestions.

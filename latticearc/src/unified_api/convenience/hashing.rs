@@ -15,78 +15,47 @@
 
 use tracing::debug;
 
-use aws_lc_rs::hkdf::{HKDF_SHA256, KeyType, Salt};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use sha3::{Digest, Sha3_256};
 use subtle::ConstantTimeEq;
 
-use crate::unified_api::config::CoreConfig;
+use crate::primitives::hash::sha3::sha3_256 as hash_sha3_256;
+use crate::primitives::mac::hmac::hmac_sha256;
+use crate::primitives::resource_limits::validate_key_derivation_count;
+use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::zero_trust::SecurityMode;
-
-use crate::types::resource_limits::validate_key_derivation_count;
-
-/// Custom output length type for aws-lc-rs HKDF
-struct HkdfOutputLen(usize);
-
-impl KeyType for HkdfOutputLen {
-    fn len(&self) -> usize {
-        self.0
-    }
-}
-
-#[inline]
-fn hash_sha3_256(data: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha3_256::new();
-    hasher.update(data);
-    hasher.finalize().into()
-}
 
 // ============================================================================
 // Internal Implementation
 // ============================================================================
 
 /// Internal implementation of HKDF key derivation.
+///
+/// Delegates to `primitives::kdf::hkdf::hkdf()` so all callers benefit from
+/// the same zeroization and hardening (audit H1).
 fn derive_key_hkdf(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
-    let hkdf_salt = Salt::new(HKDF_SHA256, salt);
-    let prk = hkdf_salt.extract(password);
-
-    let okm = prk
-        .expand(&[b"latticearc"], HkdfOutputLen(length))
-        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF expansion failed: {e}")))?;
-
-    let mut output = vec![0u8; length];
-    okm.fill(&mut output)
-        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF fill failed: {e}")))?;
-
-    Ok(output)
+    let result = crate::primitives::kdf::hkdf::hkdf(
+        password,
+        Some(salt),
+        Some(crate::types::domains::DERIVE_KEY_INFO),
+        length,
+    )
+    .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
+    Ok(result.key().to_vec())
 }
 
 /// Internal implementation of HKDF key derivation with caller-supplied info string.
 ///
-/// Identical to [`derive_key_hkdf`] but uses the caller's `info` parameter
-/// instead of the hardcoded `b"latticearc"` context string, allowing domain
-/// separation for different key derivation contexts.
+/// Delegates to `primitives::kdf::hkdf::hkdf()` so all callers benefit from
+/// the same zeroization and hardening (audit H1).
 fn derive_key_hkdf_with_info(
     password: &[u8],
     salt: &[u8],
     length: usize,
     info: &[u8],
 ) -> Result<Vec<u8>> {
-    let hkdf_salt = Salt::new(HKDF_SHA256, salt);
-    let prk = hkdf_salt.extract(password);
-
-    let info_slices: &[&[u8]] = &[info];
-    let okm = prk
-        .expand(info_slices, HkdfOutputLen(length))
-        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF expansion failed: {e}")))?;
-
-    let mut output = vec![0u8; length];
-    okm.fill(&mut output)
-        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF fill failed: {e}")))?;
-
-    Ok(output)
+    let result = crate::primitives::kdf::hkdf::hkdf(password, Some(salt), Some(info), length)
+        .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
+    Ok(result.key().to_vec())
 }
 
 /// Internal implementation of key derivation with caller-supplied info string.
@@ -204,15 +173,13 @@ fn hmac_internal(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         return Err(err);
     }
 
-    let mut mac = <Hmac<Sha256> as hmac::digest::KeyInit>::new_from_slice(key).map_err(|e| {
-        let err = CoreError::InvalidInput(format!("Invalid HMAC key: {e}"));
+    // Delegate to primitives::mac::hmac (backed by aws-lc-rs HMAC-SHA256).
+    let tag = hmac_sha256(key, data).map_err(|e| {
+        let err = CoreError::InvalidInput(format!("HMAC computation failed: {e}"));
         crate::log_crypto_operation_error!("hmac", err);
         err
     })?;
-
-    mac.update(data);
-
-    let result = mac.finalize().into_bytes().to_vec();
+    let result = tag.to_vec();
     crate::log_crypto_operation_complete!(
         "hmac",
         algorithm = "HMAC-SHA256",
@@ -657,7 +624,7 @@ mod tests {
 
     // hash_data tests
     #[test]
-    fn test_hash_data_deterministic() {
+    fn test_hash_data_deterministic_returns_same_hash_is_deterministic() {
         let data = b"Test data for hashing";
         let hash1 = hash_data(data);
         let hash2 = hash_data(data);
@@ -666,7 +633,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_data_different_inputs() {
+    fn test_hash_data_different_inputs_produce_distinct_hashes_are_unique() {
         let data1 = b"First message";
         let data2 = b"Second message";
         let hash1 = hash_data(data1);
@@ -675,14 +642,14 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_data_empty_input() {
+    fn test_hash_data_empty_input_returns_32_byte_hash_fails() {
         let data = b"";
         let hash = hash_data(data);
         assert_eq!(hash.len(), 32, "Empty input should still produce 32-byte hash");
     }
 
     #[test]
-    fn test_hash_data_large_input() {
+    fn test_hash_data_large_input_returns_32_byte_hash_succeeds() {
         let data = vec![0xAB; 100000];
         let hash = hash_data(&data);
         assert_eq!(hash.len(), 32, "Large input should produce 32-byte hash");
@@ -690,7 +657,7 @@ mod tests {
 
     // derive_key tests (unverified API)
     #[test]
-    fn test_derive_key_unverified_basic() -> Result<()> {
+    fn test_derive_key_unverified_basic_returns_correct_length_has_correct_size() -> Result<()> {
         let password = b"strong_password";
         let salt = b"random_salt_1234";
         let key = derive_key_unverified(password, salt, 32)?;
@@ -699,7 +666,7 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_unverified_deterministic() -> Result<()> {
+    fn test_derive_key_unverified_deterministic_returns_same_key_is_deterministic() -> Result<()> {
         let password = b"test_password";
         let salt = b"test_salt";
         let key1 = derive_key_unverified(password, salt, 32)?;
@@ -709,7 +676,8 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_unverified_different_passwords() -> Result<()> {
+    fn test_derive_key_unverified_different_passwords_produce_distinct_keys_are_unique()
+    -> Result<()> {
         let salt = b"same_salt";
         let key1 = derive_key_unverified(b"password1", salt, 32)?;
         let key2 = derive_key_unverified(b"password2", salt, 32)?;
@@ -718,7 +686,7 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_unverified_different_salts() -> Result<()> {
+    fn test_derive_key_unverified_different_salts_produce_distinct_keys_are_unique() -> Result<()> {
         let password = b"same_password";
         let key1 = derive_key_unverified(password, b"salt1", 32)?;
         let key2 = derive_key_unverified(password, b"salt2", 32)?;
@@ -727,7 +695,8 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_unverified_different_lengths() -> Result<()> {
+    fn test_derive_key_unverified_different_lengths_return_correct_sizes_has_correct_size()
+    -> Result<()> {
         let password = b"password";
         let salt = b"salt";
         let key16 = derive_key_unverified(password, salt, 16)?;
@@ -741,7 +710,7 @@ mod tests {
 
     // derive_key with config tests
     #[test]
-    fn test_derive_key_with_config_unverified() -> Result<()> {
+    fn test_derive_key_with_config_unverified_succeeds() -> Result<()> {
         let password = b"password";
         let salt = b"salt";
         let config = CoreConfig::default();
@@ -752,11 +721,11 @@ mod tests {
 
     // derive_key verified API tests
     #[test]
-    fn test_derive_key_verified_mode() -> Result<()> {
+    fn test_derive_key_verified_mode_succeeds() -> Result<()> {
         let password = b"secure_password";
         let salt = b"secure_salt";
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let key = derive_key(password, salt, 32, SecurityMode::Verified(&session))?;
         assert_eq!(key.len(), 32);
@@ -764,7 +733,7 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_unverified_mode() -> Result<()> {
+    fn test_derive_key_unverified_mode_succeeds() -> Result<()> {
         let password = b"password";
         let salt = b"salt";
         let key = derive_key(password, salt, 32, SecurityMode::Unverified)?;
@@ -774,7 +743,7 @@ mod tests {
 
     // HMAC tests (unverified API)
     #[test]
-    fn test_hmac_unverified_basic() -> Result<()> {
+    fn test_hmac_unverified_basic_returns_32_byte_tag_succeeds() -> Result<()> {
         let key = b"secret_key_1234567890";
         let data = b"Message to authenticate";
         let tag = hmac_unverified(data, key)?;
@@ -784,7 +753,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_unverified_deterministic() -> Result<()> {
+    fn test_hmac_unverified_deterministic_returns_same_tag_is_deterministic() -> Result<()> {
         let key = b"key";
         let data = b"data";
         let tag1 = hmac_unverified(data, key)?;
@@ -794,7 +763,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_check_unverified_valid() -> Result<()> {
+    fn test_hmac_check_unverified_valid_succeeds() -> Result<()> {
         let key = b"authentication_key";
         let data = b"Important message";
         let tag = hmac_unverified(data, key)?;
@@ -804,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_check_unverified_wrong_key() -> Result<()> {
+    fn test_hmac_check_unverified_wrong_key_returns_false_fails() -> Result<()> {
         let key1 = b"key1";
         let key2 = b"key2";
         let data = b"data";
@@ -815,7 +784,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_check_unverified_wrong_data() -> Result<()> {
+    fn test_hmac_check_unverified_wrong_data_returns_false_fails() -> Result<()> {
         let key = b"key";
         let data1 = b"original data";
         let data2 = b"modified data";
@@ -826,7 +795,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_check_unverified_invalid_tag() -> Result<()> {
+    fn test_hmac_check_unverified_invalid_tag_returns_false_fails() -> Result<()> {
         let key = b"key";
         let data = b"data";
         let invalid_tag = vec![0u8; 32];
@@ -837,7 +806,7 @@ mod tests {
 
     // HMAC with config tests
     #[test]
-    fn test_hmac_with_config_unverified() -> Result<()> {
+    fn test_hmac_with_config_unverified_succeeds() -> Result<()> {
         let key = b"key";
         let data = b"data";
         let config = CoreConfig::default();
@@ -849,11 +818,11 @@ mod tests {
 
     // HMAC verified API tests
     #[test]
-    fn test_hmac_verified_mode() -> Result<()> {
+    fn test_hmac_verified_mode_succeeds() -> Result<()> {
         let key = b"secret_key";
         let data = b"authenticated message";
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let tag = hmac(data, key, SecurityMode::Verified(&session))?;
         let is_valid = hmac_check(data, key, &tag, SecurityMode::Verified(&session))?;
@@ -862,7 +831,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_unverified_mode() -> Result<()> {
+    fn test_hmac_unverified_mode_succeeds() -> Result<()> {
         let key = b"key";
         let data = b"data";
         let tag = hmac(data, key, SecurityMode::Unverified)?;
@@ -872,12 +841,12 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_with_config_verified() -> Result<()> {
+    fn test_hmac_with_config_verified_succeeds() -> Result<()> {
         let key = b"key";
         let data = b"data";
         let config = CoreConfig::default();
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let tag = hmac_with_config(data, key, &config, SecurityMode::Verified(&session))?;
         let is_valid =
@@ -918,7 +887,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_check_wrong_tag_length() {
+    fn test_hmac_check_wrong_tag_length_fails() {
         let result = hmac_check_unverified(b"data", b"key", &[0u8; 16]);
         assert!(result.is_err(), "Wrong tag length should fail");
         match result.unwrap_err() {
@@ -935,12 +904,12 @@ mod tests {
 
     // Derive key with config + verified session
     #[test]
-    fn test_derive_key_with_config_verified() -> Result<()> {
+    fn test_derive_key_with_config_verified_succeeds() -> Result<()> {
         let password = b"password";
         let salt = b"salt";
         let config = CoreConfig::default();
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let key =
             derive_key_with_config(password, salt, 32, &config, SecurityMode::Verified(&session))?;
@@ -970,7 +939,7 @@ mod tests {
     // ================================================================
 
     #[test]
-    fn test_derive_key_with_info_basic() -> Result<()> {
+    fn test_derive_key_with_info_basic_succeeds() -> Result<()> {
         let password = b"ikm-material";
         let salt = b"random-salt";
         let info = b"my-application-context";
@@ -991,7 +960,7 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_with_info_different_info() -> Result<()> {
+    fn test_derive_key_with_info_different_info_succeeds() -> Result<()> {
         let password = b"same-ikm";
         let salt = b"same-salt";
         let key_a = derive_key_with_info_unverified(password, salt, 32, b"context-a")?;
@@ -1001,13 +970,18 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_with_info_vs_standard() -> Result<()> {
+    fn test_derive_key_with_info_vs_standard_succeeds() -> Result<()> {
         let password = b"shared-ikm";
         let salt = b"shared-salt";
         // Using the library's default info string should match derive_key
-        let via_info = derive_key_with_info_unverified(password, salt, 32, b"latticearc")?;
+        let via_info = derive_key_with_info_unverified(
+            password,
+            salt,
+            32,
+            crate::types::domains::DERIVE_KEY_INFO,
+        )?;
         let via_standard = derive_key_unverified(password, salt, 32)?;
-        assert_eq!(via_info, via_standard, "info=b\"latticearc\" must match derive_key output");
+        assert_eq!(via_info, via_standard, "DERIVE_KEY_INFO must match derive_key output");
         Ok(())
     }
 
@@ -1022,12 +996,12 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_with_info_verified_session() -> Result<()> {
+    fn test_derive_key_with_info_verified_session_succeeds() -> Result<()> {
         let password = b"ikm";
         let salt = b"salt";
         let info = b"verified-context";
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let key = derive_key_with_info(password, salt, 32, info, SecurityMode::Verified(&session))?;
         assert_eq!(key.len(), 32);
@@ -1036,7 +1010,7 @@ mod tests {
 
     // Hash parallel path (data > 65536 bytes)
     #[test]
-    fn test_hash_data_parallel_path() {
+    fn test_hash_data_parallel_path_is_deterministic() {
         let data = vec![0xAB; 70000]; // > 65536 to trigger parallel path
         let hash1 = hash_data(&data);
         let hash2 = hash_data(&data);
@@ -1046,7 +1020,7 @@ mod tests {
 
     // Edge cases
     #[test]
-    fn test_hmac_empty_data() -> Result<()> {
+    fn test_hmac_empty_data_succeeds() -> Result<()> {
         let key = b"key";
         let data = b"";
         let tag = hmac_unverified(data, key)?;
@@ -1056,7 +1030,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_large_data() -> Result<()> {
+    fn test_hmac_large_data_succeeds() -> Result<()> {
         let key = b"key";
         let data = vec![0x42; 100000];
         let tag = hmac_unverified(&data, key)?;
@@ -1066,7 +1040,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_different_key_lengths() -> Result<()> {
+    fn test_hmac_different_key_lengths_produce_distinct_tags_has_correct_size() -> Result<()> {
         let data = b"test data";
         let key16 = b"1234567890123456"; // 16 bytes
         let key32 = b"12345678901234567890123456789012"; // 32 bytes

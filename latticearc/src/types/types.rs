@@ -69,14 +69,208 @@ impl ConstantTimeEq for ZeroizedBytes {
     }
 }
 
-/// A public key represented as a byte vector.
-pub type PublicKey = Vec<u8>;
-/// A private key with automatic zeroization on drop.
-pub type PrivateKey = ZeroizedBytes;
+/// A public key (asymmetric). Distinct newtype for type safety.
+///
+/// Wrapping the inner `Vec<u8>` prevents accidental confusion with other
+/// byte vectors (ciphertexts, signatures, hashes) in function signatures.
+/// Construct via [`PublicKey::new`] or `From<Vec<u8>>`; borrow the raw bytes
+/// via [`PublicKey::as_slice`] or [`AsRef<[u8]>`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PublicKey(Vec<u8>);
+
+impl PublicKey {
+    /// Creates a new `PublicKey` from raw byte data.
+    #[must_use]
+    pub fn new(data: Vec<u8>) -> Self {
+        Self(data)
+    }
+
+    /// Returns the public key bytes as a slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Consumes the `PublicKey` and returns the underlying `Vec<u8>`.
+    #[must_use]
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+
+    /// Returns the length of the public key in bytes.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns `true` if the public key is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl AsRef<[u8]> for PublicKey {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<Vec<u8>> for PublicKey {
+    fn from(v: Vec<u8>) -> Self {
+        Self(v)
+    }
+}
+
+/// A private (asymmetric) key with automatic zeroization on drop.
+///
+/// Newtype wrapper around `ZeroizedBytes` for type safety: this type is
+/// distinct from `SymmetricKey`, so they cannot be accidentally confused
+/// in function signatures. All behavior (zeroization, constant-time compare,
+/// redacted Debug) is inherited from `ZeroizedBytes`.
+pub struct PrivateKey(ZeroizedBytes);
+
+impl PrivateKey {
+    /// Creates a new `PrivateKey` from raw byte data.
+    #[must_use]
+    pub fn new(data: Vec<u8>) -> Self {
+        Self(ZeroizedBytes::new(data))
+    }
+
+    /// Returns the key data as a byte slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
+    /// Returns the length of the key in bytes.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns `true` if the key is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl fmt::Debug for PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("PrivateKey").field(&"[REDACTED]").finish()
+    }
+}
+
+impl AsRef<[u8]> for PrivateKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
+
+impl ConstantTimeEq for PrivateKey {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.0.ct_eq(&other.0)
+    }
+}
+
 /// A symmetric key with automatic zeroization on drop.
-pub type SymmetricKey = ZeroizedBytes;
-/// A 256-bit hash output.
-pub type HashOutput = [u8; 32];
+///
+/// Newtype wrapper around `ZeroizedBytes` for type safety: this type is
+/// distinct from `PrivateKey`, so they cannot be accidentally confused
+/// in function signatures.
+pub struct SymmetricKey(ZeroizedBytes);
+
+impl SymmetricKey {
+    /// Creates a new `SymmetricKey` from raw byte data.
+    #[must_use]
+    pub fn new(data: Vec<u8>) -> Self {
+        Self(ZeroizedBytes::new(data))
+    }
+
+    /// Returns the key data as a byte slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
+    /// Returns the length of the key in bytes.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns `true` if the key is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl fmt::Debug for SymmetricKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("SymmetricKey").field(&"[REDACTED]").finish()
+    }
+}
+
+impl AsRef<[u8]> for SymmetricKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
+
+impl ConstantTimeEq for SymmetricKey {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.0.ct_eq(&other.0)
+    }
+}
+
+/// A 256-bit hash output. Newtype for type safety.
+///
+/// Wrapping the inner `[u8; 32]` prevents accidental confusion with other
+/// 32-byte arrays (keys, nonces) in function signatures. Construct via
+/// [`HashOutput::new`] or `From<[u8; 32]>`; borrow the raw bytes via
+/// [`HashOutput::as_bytes`], [`HashOutput::as_slice`], or [`AsRef<[u8]>`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HashOutput([u8; 32]);
+
+impl HashOutput {
+    /// Creates a new `HashOutput` from a 32-byte array.
+    #[must_use]
+    pub const fn new(data: [u8; 32]) -> Self {
+        Self(data)
+    }
+
+    /// Returns a reference to the underlying 32-byte array.
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// Returns the hash bytes as a slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Consumes the `HashOutput` and returns the underlying 32-byte array.
+    #[must_use]
+    pub const fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl AsRef<[u8]> for HashOutput {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<[u8; 32]> for HashOutput {
+    fn from(a: [u8; 32]) -> Self {
+        Self(a)
+    }
+}
 
 /// Metadata associated with encrypted data.
 #[derive(Debug, Clone, PartialEq)]
@@ -125,12 +319,20 @@ pub type SignedData = CryptoPayload<SignedMetadata>;
 /// # Security Note
 /// Clone is intentionally NOT implemented because this struct contains
 /// sensitive private key material that should not be copied.
-#[derive(Debug)]
 pub struct KeyPair {
     /// The public key component of the key pair.
-    pub public_key: PublicKey,
+    public_key: PublicKey,
     /// The private key component of the key pair (sensitive material).
-    pub private_key: PrivateKey,
+    private_key: PrivateKey,
+}
+
+impl fmt::Debug for KeyPair {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KeyPair")
+            .field("public_key", &self.public_key)
+            .field("private_key", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl KeyPair {
@@ -159,6 +361,7 @@ impl KeyPair {
 /// during the post-quantum transition period, except `Quantum` which is PQ-only.
 ///
 /// Higher levels provide stronger protection but may impact performance.
+#[non_exhaustive]
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
 )]
@@ -208,6 +411,7 @@ pub enum SecurityLevel {
 /// // Check if FIPS backend is compiled in
 /// let _available = fips_available();
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum ComplianceMode {
@@ -264,6 +468,7 @@ pub const fn fips_available() -> bool {
 }
 
 /// Performance optimization preference.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum PerformancePreference {
@@ -280,6 +485,7 @@ pub enum PerformancePreference {
 ///
 /// The library selects optimal algorithms based on the use case requirements:
 /// security level, performance characteristics, and compliance needs.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum UseCase {
@@ -379,6 +585,7 @@ pub enum UseCase {
 }
 
 /// Category of cryptographic scheme.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum CryptoScheme {
@@ -392,6 +599,95 @@ pub enum CryptoScheme {
     Asymmetric,
     /// Pure post-quantum without classical fallback.
     PostQuantum,
+}
+
+/// Strongly-typed signature scheme identifier.
+///
+/// Provides compile-time safety over the stringly-typed
+/// [`SignedMetadata::signature_algorithm`] field. The `as_str`/`FromStr` round-trip
+/// preserves the exact wire format used in serialized signatures, so on-disk
+/// formats remain backward compatible with prior versions that used raw strings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum SignatureScheme {
+    /// Ed25519 (RFC 8032).
+    Ed25519,
+    /// ML-DSA-44 (FIPS 204, NIST Level 2).
+    MlDsa44,
+    /// ML-DSA-65 (FIPS 204, NIST Level 3).
+    MlDsa65,
+    /// ML-DSA-87 (FIPS 204, NIST Level 5).
+    MlDsa87,
+    /// SLH-DSA-SHAKE-128s (FIPS 205).
+    SlhDsaShake128s,
+    /// SLH-DSA-SHAKE-192s (FIPS 205).
+    SlhDsaShake192s,
+    /// SLH-DSA-SHAKE-256s (FIPS 205).
+    SlhDsaShake256s,
+    /// FN-DSA-512 (draft FIPS 206 / Falcon — NIST Level 1).
+    FnDsa512,
+    /// FN-DSA-1024 (draft FIPS 206 / Falcon — NIST Level 5).
+    FnDsa1024,
+    /// Hybrid ML-DSA-44 + Ed25519 signature.
+    HybridMlDsa44Ed25519,
+    /// Hybrid ML-DSA-65 + Ed25519 signature (default hybrid).
+    HybridMlDsa65Ed25519,
+    /// Hybrid ML-DSA-87 + Ed25519 signature.
+    HybridMlDsa87Ed25519,
+}
+
+impl SignatureScheme {
+    /// Return the canonical wire-format string for this scheme.
+    ///
+    /// These values are used in serialized `SignedMetadata::signature_algorithm`
+    /// and must remain stable for backward compatibility with stored signatures.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ed25519 => "ed25519",
+            Self::MlDsa44 => "ml-dsa-44",
+            Self::MlDsa65 => "ml-dsa-65",
+            Self::MlDsa87 => "ml-dsa-87",
+            Self::SlhDsaShake128s => "slh-dsa-shake-128s",
+            Self::SlhDsaShake192s => "slh-dsa-shake-192s",
+            Self::SlhDsaShake256s => "slh-dsa-shake-256s",
+            Self::FnDsa512 => "fn-dsa-512",
+            Self::FnDsa1024 => "fn-dsa-1024",
+            Self::HybridMlDsa44Ed25519 => "hybrid-ml-dsa-44-ed25519",
+            Self::HybridMlDsa65Ed25519 => "hybrid-ml-dsa-65-ed25519",
+            Self::HybridMlDsa87Ed25519 => "hybrid-ml-dsa-87-ed25519",
+        }
+    }
+}
+
+impl fmt::Display for SignatureScheme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for SignatureScheme {
+    type Err = crate::types::error::TypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ed25519" => Ok(Self::Ed25519),
+            "ml-dsa-44" => Ok(Self::MlDsa44),
+            "ml-dsa-65" => Ok(Self::MlDsa65),
+            "ml-dsa-87" => Ok(Self::MlDsa87),
+            "slh-dsa-shake-128s" => Ok(Self::SlhDsaShake128s),
+            "slh-dsa-shake-192s" => Ok(Self::SlhDsaShake192s),
+            "slh-dsa-shake-256s" => Ok(Self::SlhDsaShake256s),
+            // "fn-dsa" without a suffix historically meant Level 512; preserve the
+            // legacy wire value by mapping both forms to `FnDsa512`.
+            "fn-dsa" | "fn-dsa-512" => Ok(Self::FnDsa512),
+            "fn-dsa-1024" => Ok(Self::FnDsa1024),
+            "hybrid-ml-dsa-44-ed25519" => Ok(Self::HybridMlDsa44Ed25519),
+            "hybrid-ml-dsa-65-ed25519" => Ok(Self::HybridMlDsa65Ed25519),
+            "hybrid-ml-dsa-87-ed25519" => Ok(Self::HybridMlDsa87Ed25519),
+            other => Err(crate::types::error::TypeError::UnknownScheme(other.to_string())),
+        }
+    }
 }
 
 /// Context for cryptographic operations.
@@ -428,6 +724,7 @@ impl Default for CryptoContext {
 ///
 /// Either a `UseCase` (recommended), a `SecurityLevel` (manual control),
 /// or a `ForcedScheme` (explicit override).
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum AlgorithmSelection {
     /// Select algorithm based on use case (recommended).
@@ -530,28 +827,28 @@ mod tests {
     // --- ZeroizedBytes tests ---
 
     #[test]
-    fn test_zeroized_bytes_new() {
+    fn test_zeroized_bytes_new_stores_data_succeeds() {
         let data = vec![1u8, 2, 3, 4, 5];
         let zb = ZeroizedBytes::new(data.clone());
         assert_eq!(zb.as_slice(), &data);
     }
 
     #[test]
-    fn test_zeroized_bytes_len() {
+    fn test_zeroized_bytes_len_returns_correct_length_has_correct_size() {
         let zb = ZeroizedBytes::new(vec![0u8; 32]);
         assert_eq!(zb.len(), 32);
         assert!(!zb.is_empty());
     }
 
     #[test]
-    fn test_zeroized_bytes_empty() {
+    fn test_zeroized_bytes_empty_has_zero_length_has_correct_size() {
         let zb = ZeroizedBytes::new(vec![]);
         assert_eq!(zb.len(), 0);
         assert!(zb.is_empty());
     }
 
     #[test]
-    fn test_zeroized_bytes_as_ref() {
+    fn test_zeroized_bytes_as_ref_returns_slice_succeeds() {
         let data = vec![10u8, 20, 30];
         let zb = ZeroizedBytes::new(data.clone());
         let slice: &[u8] = zb.as_ref();
@@ -559,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zeroized_bytes_debug() {
+    fn test_zeroized_bytes_debug_redacts_content_succeeds() {
         let zb = ZeroizedBytes::new(vec![1, 2, 3]);
         let debug = format!("{:?}", zb);
         assert!(debug.contains("ZeroizedBytes"));
@@ -568,7 +865,7 @@ mod tests {
     // --- EncryptedMetadata tests ---
 
     #[test]
-    fn test_encrypted_metadata_with_tag() {
+    fn test_encrypted_metadata_with_tag_sets_fields_succeeds() {
         let meta = EncryptedMetadata {
             nonce: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
             tag: Some(vec![0xAA; 16]),
@@ -580,14 +877,14 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_metadata_without_tag() {
+    fn test_encrypted_metadata_without_tag_sets_none_tag_succeeds() {
         let meta = EncryptedMetadata { nonce: vec![0u8; 12], tag: None, key_id: None };
         assert!(meta.tag.is_none());
         assert!(meta.key_id.is_none());
     }
 
     #[test]
-    fn test_encrypted_metadata_eq() {
+    fn test_encrypted_metadata_eq_compares_all_fields_succeeds() {
         let meta1 = EncryptedMetadata { nonce: vec![1, 2, 3], tag: None, key_id: None };
         let meta2 = meta1.clone();
         assert_eq!(meta1, meta2);
@@ -596,7 +893,7 @@ mod tests {
     // --- SignedMetadata tests ---
 
     #[test]
-    fn test_signed_metadata_clone_debug() {
+    fn test_signed_metadata_clone_debug_work_correctly_succeeds() {
         let meta = SignedMetadata {
             signature: vec![0xBB; 64],
             signature_algorithm: "ML-DSA-65".to_string(),
@@ -614,7 +911,7 @@ mod tests {
     // --- CryptoPayload tests ---
 
     #[test]
-    fn test_crypto_payload_clone_eq() {
+    fn test_crypto_payload_clone_eq_work_correctly_succeeds() {
         let payload: CryptoPayload<EncryptedMetadata> = CryptoPayload {
             data: vec![1, 2, 3],
             metadata: EncryptedMetadata { nonce: vec![0u8; 12], tag: None, key_id: None },
@@ -630,17 +927,17 @@ mod tests {
     // --- KeyPair tests ---
 
     #[test]
-    fn test_keypair_new() {
-        let pk = vec![1u8; 32];
-        let sk = ZeroizedBytes::new(vec![2u8; 64]);
+    fn test_keypair_new_stores_keys_succeeds() {
+        let pk = PublicKey::new(vec![1u8; 32]);
+        let sk = PrivateKey::new(vec![2u8; 64]);
         let kp = KeyPair::new(pk.clone(), sk);
         assert_eq!(kp.public_key(), &pk);
         assert_eq!(kp.private_key().len(), 64);
     }
 
     #[test]
-    fn test_keypair_debug() {
-        let kp = KeyPair::new(vec![1u8; 32], ZeroizedBytes::new(vec![2u8; 32]));
+    fn test_keypair_debug_redacts_secret_succeeds() {
+        let kp = KeyPair::new(PublicKey::new(vec![1u8; 32]), PrivateKey::new(vec![2u8; 32]));
         let debug = format!("{:?}", kp);
         assert!(debug.contains("KeyPair"));
     }
@@ -648,12 +945,12 @@ mod tests {
     // --- SecurityLevel tests ---
 
     #[test]
-    fn test_security_level_default() {
+    fn test_security_level_default_is_standard_succeeds() {
         assert_eq!(SecurityLevel::default(), SecurityLevel::High);
     }
 
     #[test]
-    fn test_security_level_variants() {
+    fn test_security_level_variants_produce_correct_bit_security_succeeds() {
         let variants = vec![
             SecurityLevel::Standard,
             SecurityLevel::High,
@@ -667,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn test_security_level_debug() {
+    fn test_security_level_debug_produces_nonempty_string_succeeds() {
         let debug = format!("{:?}", SecurityLevel::Quantum);
         assert!(debug.contains("Quantum"));
     }
@@ -675,12 +972,12 @@ mod tests {
     // --- PerformancePreference tests ---
 
     #[test]
-    fn test_performance_preference_default() {
+    fn test_performance_preference_default_is_balanced_succeeds() {
         assert_eq!(PerformancePreference::default(), PerformancePreference::Balanced);
     }
 
     #[test]
-    fn test_performance_preference_variants() {
+    fn test_performance_preference_variants_are_distinct_are_unique() {
         assert_ne!(PerformancePreference::Speed, PerformancePreference::Memory);
         assert_eq!(PerformancePreference::Speed, PerformancePreference::Speed.clone());
     }
@@ -688,7 +985,7 @@ mod tests {
     // --- UseCase tests ---
 
     #[test]
-    fn test_use_case_variants() {
+    fn test_use_case_variants_produce_correct_descriptions_is_documented() {
         let cases = vec![
             UseCase::SecureMessaging,
             UseCase::EmailEncryption,
@@ -722,7 +1019,7 @@ mod tests {
     // --- CryptoScheme tests ---
 
     #[test]
-    fn test_crypto_scheme_variants() {
+    fn test_crypto_scheme_variants_are_distinct_are_unique() {
         let schemes = vec![
             CryptoScheme::Hybrid,
             CryptoScheme::Symmetric,
@@ -738,7 +1035,7 @@ mod tests {
     // --- CryptoContext tests ---
 
     #[test]
-    fn test_crypto_context_default() {
+    fn test_crypto_context_default_sets_expected_fields_succeeds() {
         let ctx = CryptoContext::default();
         assert_eq!(ctx.security_level, SecurityLevel::High);
         assert_eq!(ctx.performance_preference, PerformancePreference::Balanced);
@@ -747,7 +1044,7 @@ mod tests {
     }
 
     #[test]
-    fn test_crypto_context_clone_debug() {
+    fn test_crypto_context_clone_debug_work_correctly_succeeds() {
         let ctx = CryptoContext::default();
         let cloned = ctx.clone();
         assert_eq!(cloned.security_level, ctx.security_level);
@@ -758,20 +1055,20 @@ mod tests {
     // --- AlgorithmSelection tests ---
 
     #[test]
-    fn test_algorithm_selection_default() {
+    fn test_algorithm_selection_default_is_automatic_succeeds() {
         let sel = AlgorithmSelection::default();
         assert_eq!(sel, AlgorithmSelection::SecurityLevel(SecurityLevel::High));
     }
 
     #[test]
-    fn test_algorithm_selection_use_case() {
+    fn test_algorithm_selection_use_case_sets_use_case_field_succeeds() {
         let sel = AlgorithmSelection::UseCase(UseCase::FileStorage);
         assert_eq!(sel, AlgorithmSelection::UseCase(UseCase::FileStorage));
         assert_ne!(sel, AlgorithmSelection::default());
     }
 
     #[test]
-    fn test_algorithm_selection_forced_scheme() {
+    fn test_algorithm_selection_forced_scheme_sets_forced_field_succeeds() {
         let sel = AlgorithmSelection::ForcedScheme(CryptoScheme::PostQuantum);
         assert_eq!(sel, AlgorithmSelection::ForcedScheme(CryptoScheme::PostQuantum));
         assert_ne!(sel, AlgorithmSelection::default());
@@ -781,27 +1078,27 @@ mod tests {
     // --- ComplianceMode tests ---
 
     #[test]
-    fn test_compliance_mode_default() {
+    fn test_compliance_mode_default_is_standard_succeeds() {
         let mode = ComplianceMode::default();
         assert_eq!(mode, ComplianceMode::Default);
     }
 
     #[test]
-    fn test_compliance_mode_requires_fips() {
+    fn test_compliance_mode_requires_fips_returns_correct_bool_succeeds() {
         assert!(!ComplianceMode::Default.requires_fips());
         assert!(ComplianceMode::Fips140_3.requires_fips());
         assert!(ComplianceMode::Cnsa2_0.requires_fips());
     }
 
     #[test]
-    fn test_compliance_mode_allows_hybrid() {
+    fn test_compliance_mode_allows_hybrid_returns_correct_bool_succeeds() {
         assert!(ComplianceMode::Default.allows_hybrid());
         assert!(ComplianceMode::Fips140_3.allows_hybrid());
         assert!(!ComplianceMode::Cnsa2_0.allows_hybrid());
     }
 
     #[test]
-    fn test_compliance_mode_clone_eq() {
+    fn test_compliance_mode_clone_eq_work_correctly_succeeds() {
         let mode = ComplianceMode::Fips140_3;
         assert_eq!(mode, mode.clone());
         assert_ne!(ComplianceMode::Default, ComplianceMode::Fips140_3);
@@ -809,13 +1106,13 @@ mod tests {
     }
 
     #[test]
-    fn test_compliance_mode_debug() {
+    fn test_compliance_mode_debug_produces_nonempty_string_succeeds() {
         let debug = format!("{:?}", ComplianceMode::Fips140_3);
         assert!(debug.contains("Fips140_3"));
     }
 
     #[test]
-    fn test_fips_available() {
+    fn test_fips_available_returns_bool_succeeds() {
         let available = fips_available();
         // When built with --all-features or --features fips, this is true.
         // When built without fips feature, this is false.

@@ -39,7 +39,10 @@
 )]
 
 use latticearc::unified_api::{
-    convenience::{decrypt_aes_gcm_unverified, encrypt_aes_gcm_unverified},
+    convenience::{
+        decrypt_aes_gcm_unverified, decrypt_aes_gcm_with_aad_unverified,
+        encrypt_aes_gcm_unverified, encrypt_aes_gcm_with_aad_unverified,
+    },
     error::CoreError,
 };
 
@@ -48,7 +51,7 @@ use latticearc::unified_api::{
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_encrypt_empty_data() {
+fn test_aes_gcm_encrypt_empty_data_succeeds() {
     let key = [0u8; 32];
 
     // Encrypting empty data should succeed (valid use case)
@@ -57,7 +60,7 @@ fn test_aes_gcm_encrypt_empty_data() {
 }
 
 #[test]
-fn test_aes_gcm_encrypt_empty_key() {
+fn test_aes_gcm_encrypt_empty_key_fails() {
     let data = b"Test data";
     let empty_key = [];
 
@@ -73,7 +76,7 @@ fn test_aes_gcm_encrypt_empty_key() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_empty_ciphertext() {
+fn test_aes_gcm_decrypt_empty_ciphertext_fails() {
     let key = [0u8; 32];
 
     let result = decrypt_aes_gcm_unverified(&[], &key);
@@ -88,7 +91,7 @@ fn test_aes_gcm_decrypt_empty_ciphertext() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_empty_key() {
+fn test_aes_gcm_decrypt_empty_key_fails() {
     let key = [0u8; 32];
     let data = b"Test data";
 
@@ -111,7 +114,7 @@ fn test_aes_gcm_decrypt_empty_key() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_encrypt_short_key() {
+fn test_aes_gcm_encrypt_short_key_fails() {
     let data = b"Test data";
     let short_key = [0u8; 16]; // Only 16 bytes, need 32
 
@@ -127,7 +130,7 @@ fn test_aes_gcm_encrypt_short_key() {
 }
 
 #[test]
-fn test_aes_gcm_encrypt_very_short_key() {
+fn test_aes_gcm_encrypt_very_short_key_fails() {
     let data = b"Test data";
     let very_short_key = [0u8; 8];
 
@@ -143,7 +146,7 @@ fn test_aes_gcm_encrypt_very_short_key() {
 }
 
 #[test]
-fn test_aes_gcm_encrypt_single_byte_key() {
+fn test_aes_gcm_encrypt_single_byte_key_fails() {
     let data = b"Test data";
     let tiny_key = [0u8; 1];
 
@@ -159,7 +162,7 @@ fn test_aes_gcm_encrypt_single_byte_key() {
 }
 
 #[test]
-fn test_aes_gcm_encrypt_31_byte_key() {
+fn test_aes_gcm_encrypt_31_byte_key_fails() {
     let data = b"Test data";
     let key = [0u8; 31]; // One byte short
 
@@ -175,7 +178,7 @@ fn test_aes_gcm_encrypt_31_byte_key() {
 }
 
 #[test]
-fn test_aes_gcm_encrypt_oversized_key_rejected() {
+fn test_aes_gcm_encrypt_oversized_key_rejected_fails() {
     let data = b"Test data";
     let oversized_key = [0u8; 64]; // More than 32 bytes
 
@@ -197,7 +200,7 @@ fn test_aes_gcm_encrypt_oversized_key_rejected() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_decrypt_corrupted_ciphertext() {
+fn test_aes_gcm_decrypt_corrupted_ciphertext_fails() {
     let key = [0u8; 32];
     let data = b"Secret message";
 
@@ -220,7 +223,7 @@ fn test_aes_gcm_decrypt_corrupted_ciphertext() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_corrupted_nonce() {
+fn test_aes_gcm_decrypt_corrupted_nonce_fails() {
     let key = [0u8; 32];
     let data = b"Secret message";
 
@@ -241,7 +244,7 @@ fn test_aes_gcm_decrypt_corrupted_nonce() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_corrupted_tag() {
+fn test_aes_gcm_decrypt_corrupted_tag_fails() {
     let key = [0u8; 32];
     let data = b"Secret message";
 
@@ -265,7 +268,7 @@ fn test_aes_gcm_decrypt_corrupted_tag() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_truncated_ciphertext() {
+fn test_aes_gcm_decrypt_truncated_ciphertext_fails() {
     let key = [0u8; 32];
     let data = b"Secret message";
 
@@ -286,7 +289,7 @@ fn test_aes_gcm_decrypt_truncated_ciphertext() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_ciphertext_too_short() {
+fn test_aes_gcm_decrypt_ciphertext_too_short_fails() {
     let key = [0u8; 32];
 
     // Create data that's exactly 12 bytes (nonce only, no ciphertext or tag)
@@ -317,7 +320,7 @@ fn test_aes_gcm_decrypt_ciphertext_too_short() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_encrypt_with_one_key_decrypt_with_another() {
+fn test_aes_gcm_cross_key_decrypt_fails() {
     let key1 = [0x00u8; 32];
     let key2 = [0xFFu8; 32];
     let data = b"Secret message";
@@ -336,7 +339,7 @@ fn test_aes_gcm_encrypt_with_one_key_decrypt_with_another() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_with_slightly_different_key() {
+fn test_aes_gcm_decrypt_with_slightly_different_key_fails() {
     let key1 = [0x42u8; 32];
     let mut key2 = [0x42u8; 32];
     key2[31] = 0x43; // Change only last byte
@@ -361,7 +364,7 @@ fn test_aes_gcm_decrypt_with_slightly_different_key() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_decrypt_random_data() {
+fn test_aes_gcm_decrypt_random_data_fails() {
     let key = [0u8; 32];
 
     // Create random-looking data
@@ -379,7 +382,7 @@ fn test_aes_gcm_decrypt_random_data() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_all_zeros() {
+fn test_aes_gcm_decrypt_all_zeros_fails() {
     let key = [0u8; 32];
 
     // All zeros ciphertext
@@ -397,7 +400,7 @@ fn test_aes_gcm_decrypt_all_zeros() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_all_ones() {
+fn test_aes_gcm_decrypt_all_ones_fails() {
     let key = [0u8; 32];
 
     // All ones ciphertext
@@ -419,7 +422,7 @@ fn test_aes_gcm_decrypt_all_ones() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_encrypt_single_byte() {
+fn test_aes_gcm_encrypt_single_byte_roundtrip_succeeds() {
     let key = [0u8; 32];
     let data = [0x42u8];
 
@@ -427,11 +430,11 @@ fn test_aes_gcm_encrypt_single_byte() {
     let decrypted =
         decrypt_aes_gcm_unverified(&encrypted, &key).expect("decryption should succeed");
 
-    assert_eq!(decrypted, data, "Single byte should round-trip correctly");
+    assert_eq!(decrypted.as_slice(), data.as_slice(), "Single byte should round-trip correctly");
 }
 
 #[test]
-fn test_aes_gcm_encrypt_large_data() {
+fn test_aes_gcm_encrypt_large_data_roundtrip_succeeds() {
     let key = [0u8; 32];
     let data = vec![0xAAu8; 1024 * 1024]; // 1MB
 
@@ -439,11 +442,11 @@ fn test_aes_gcm_encrypt_large_data() {
     let decrypted =
         decrypt_aes_gcm_unverified(&encrypted, &key).expect("decryption should succeed");
 
-    assert_eq!(decrypted, data, "Large data should round-trip correctly");
+    assert_eq!(decrypted.as_slice(), data.as_slice(), "Large data should round-trip correctly");
 }
 
 #[test]
-fn test_aes_gcm_roundtrip_various_sizes() {
+fn test_aes_gcm_roundtrip_various_sizes_roundtrip() {
     let key = [0u8; 32];
 
     // Test various data sizes
@@ -454,7 +457,12 @@ fn test_aes_gcm_roundtrip_various_sizes() {
         let decrypted = decrypt_aes_gcm_unverified(&encrypted, &key)
             .unwrap_or_else(|_| panic!("decryption failed for size {}", size));
 
-        assert_eq!(decrypted, data, "Size {} should round-trip correctly", size);
+        assert_eq!(
+            decrypted.as_slice(),
+            data.as_slice(),
+            "Size {} should round-trip correctly",
+            size
+        );
     }
 }
 
@@ -463,7 +471,7 @@ fn test_aes_gcm_roundtrip_various_sizes() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_different_nonces_for_same_data() {
+fn test_aes_gcm_same_data_produces_unique_ciphertexts_are_unique() {
     let key = [0u8; 32];
     let data = b"Same data encrypted twice";
 
@@ -482,8 +490,12 @@ fn test_aes_gcm_different_nonces_for_same_data() {
     let decrypted2 =
         decrypt_aes_gcm_unverified(&encrypted2, &key).expect("decryption should succeed");
 
-    assert_eq!(decrypted1, data, "First ciphertext should decrypt correctly");
-    assert_eq!(decrypted2, data, "Second ciphertext should decrypt correctly");
+    assert_eq!(decrypted1.as_slice(), data.as_slice(), "First ciphertext should decrypt correctly");
+    assert_eq!(
+        decrypted2.as_slice(),
+        data.as_slice(),
+        "Second ciphertext should decrypt correctly"
+    );
 }
 
 // ============================================================================
@@ -491,7 +503,7 @@ fn test_aes_gcm_different_nonces_for_same_data() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_encrypt_decrypt_special_characters() {
+fn test_aes_gcm_encrypt_decrypt_special_characters_roundtrip_succeeds() {
     let key = [0u8; 32];
     let data = b"\x00\x01\x02\xFF\xFE\xFD"; // Special bytes
 
@@ -499,11 +511,15 @@ fn test_aes_gcm_encrypt_decrypt_special_characters() {
     let decrypted =
         decrypt_aes_gcm_unverified(&encrypted, &key).expect("decryption should succeed");
 
-    assert_eq!(decrypted, data, "Special characters should round-trip correctly");
+    assert_eq!(
+        decrypted.as_slice(),
+        data.as_slice(),
+        "Special characters should round-trip correctly"
+    );
 }
 
 #[test]
-fn test_aes_gcm_decrypt_minimum_valid_length() {
+fn test_aes_gcm_decrypt_minimum_valid_length_roundtrip_succeeds() {
     let key = [0u8; 32];
 
     // Minimum valid ciphertext: 12 bytes nonce + 16 bytes tag = 28 bytes
@@ -519,5 +535,117 @@ fn test_aes_gcm_decrypt_minimum_valid_length() {
 
     let decrypted =
         decrypt_aes_gcm_unverified(&encrypted, &key).expect("decryption should succeed");
-    assert_eq!(decrypted, empty_data, "Empty data should round-trip correctly");
+    assert_eq!(
+        decrypted.as_slice(),
+        empty_data.as_slice(),
+        "Empty data should round-trip correctly"
+    );
+}
+
+// === Error Opacity Tests (SP 800-38D §5.2.2) ===
+
+#[test]
+fn test_aes_gcm_decrypt_wrong_key_returns_opaque_error_fails() {
+    // Decrypt with wrong key — error message must not distinguish failure mode
+    let key = [0x42u8; 32];
+    let wrong_key = [0x43u8; 32];
+    let plaintext = b"test data for opacity check";
+
+    let encrypted = encrypt_aes_gcm_unverified(plaintext, &key).unwrap();
+    let result = decrypt_aes_gcm_unverified(&encrypted, &wrong_key);
+    assert!(result.is_err());
+    let err_msg = format!("{}", result.unwrap_err());
+
+    // Error message must NOT contain words that distinguish failure modes
+    assert!(!err_msg.to_lowercase().contains("mac"), "Error leaks MAC check info: {err_msg}");
+    assert!(!err_msg.to_lowercase().contains("padding"), "Error leaks padding info: {err_msg}");
+    assert!(!err_msg.to_lowercase().contains("tag"), "Error leaks tag check info: {err_msg}");
+    assert!(!err_msg.to_lowercase().contains("integrity"), "Error leaks integrity info: {err_msg}");
+}
+
+#[test]
+fn test_aes_gcm_decrypt_corrupted_ciphertext_returns_opaque_error_fails() {
+    let key = [0x42u8; 32];
+    let plaintext = b"test data for opacity check";
+
+    let mut encrypted = encrypt_aes_gcm_unverified(plaintext, &key).unwrap();
+    // Corrupt a byte in the middle of the ciphertext
+    if encrypted.len() > 20 {
+        encrypted[20] ^= 0xFF;
+    }
+    let result = decrypt_aes_gcm_unverified(&encrypted, &key);
+    assert!(result.is_err());
+    let err_msg = format!("{}", result.unwrap_err());
+
+    assert!(!err_msg.to_lowercase().contains("mac"), "Error leaks MAC info: {err_msg}");
+    assert!(!err_msg.to_lowercase().contains("padding"), "Error leaks padding info: {err_msg}");
+    assert!(!err_msg.to_lowercase().contains("tag"), "Error leaks tag info: {err_msg}");
+}
+
+#[test]
+fn test_aes_gcm_decrypt_errors_are_identical_fails() {
+    // The key test: different failure modes must produce the SAME error message
+    let key = [0x42u8; 32];
+    let wrong_key = [0x43u8; 32];
+    let plaintext = b"test data";
+
+    let encrypted = encrypt_aes_gcm_unverified(plaintext, &key).unwrap();
+
+    // Failure mode 1: wrong key
+    let err1 = format!("{}", decrypt_aes_gcm_unverified(&encrypted, &wrong_key).unwrap_err());
+
+    // Failure mode 2: corrupted ciphertext
+    let mut corrupted = encrypted.clone();
+    corrupted[20] ^= 0xFF;
+    let err2 = format!("{}", decrypt_aes_gcm_unverified(&corrupted, &key).unwrap_err());
+
+    // Both must produce identical error strings (oracle prevention)
+    assert_eq!(
+        err1, err2,
+        "Different failure modes must produce identical errors to prevent oracles"
+    );
+}
+
+// === AAD Tampering Tests ===
+
+#[test]
+fn test_aes_gcm_decrypt_wrong_aad_fails() {
+    let key = [0x42u8; 32];
+    let plaintext = b"AAD tampering test";
+    let aad = b"correct-context";
+
+    let encrypted = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, aad).unwrap();
+    let result = decrypt_aes_gcm_with_aad_unverified(&encrypted, &key, b"wrong-context");
+    assert!(result.is_err(), "Decryption with wrong AAD must fail");
+}
+
+// === State Isolation Tests ===
+
+#[test]
+fn test_aes_gcm_no_state_corruption_after_failure_succeeds() {
+    let key = [0x42u8; 32];
+    let plaintext = b"state corruption test";
+
+    // Step 1: Encrypt successfully
+    let encrypted = encrypt_aes_gcm_unverified(plaintext, &key).unwrap();
+
+    // Step 2: Attempt decrypt with wrong key (should fail)
+    let wrong_key = [0x43u8; 32];
+    let fail_result = decrypt_aes_gcm_unverified(&encrypted, &wrong_key);
+    assert!(fail_result.is_err(), "Wrong key must fail");
+
+    // Step 3: Attempt decrypt with corrupted ciphertext (should fail)
+    let mut corrupted = encrypted.clone();
+    corrupted[15] ^= 0xFF;
+    let fail_result2 = decrypt_aes_gcm_unverified(&corrupted, &key);
+    assert!(fail_result2.is_err(), "Corrupted ciphertext must fail");
+
+    // Step 4: Encrypt again with same key — must still work (no state corruption)
+    let encrypted2 = encrypt_aes_gcm_unverified(b"second message", &key).unwrap();
+    let decrypted2 = decrypt_aes_gcm_unverified(&encrypted2, &key).unwrap();
+    assert_eq!(decrypted2.as_slice(), b"second message", "Crypto must still work after failures");
+
+    // Step 5: Original ciphertext must still decrypt correctly
+    let decrypted = decrypt_aes_gcm_unverified(&encrypted, &key).unwrap();
+    assert_eq!(decrypted.as_slice(), plaintext, "Original ciphertext must still decrypt");
 }

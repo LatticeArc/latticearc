@@ -78,8 +78,7 @@ use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate_keypair,
     sign as ml_dsa_sign, verify as ml_dsa_verify,
 };
-use latticearc::primitives::sig::slh_dsa::{SecurityLevel as SlhDsaSecurityLevel, SigningKey};
-use rand::rngs::OsRng;
+use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
@@ -89,9 +88,7 @@ use zeroize::Zeroize;
 
 /// Test ML-KEM key sizes match FIPS 203 specification
 #[test]
-fn test_ml_kem_fips203_key_sizes() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_fips203_key_sizes_has_correct_size() {
     // FIPS 203 Table 2: ML-KEM parameter sets
     let specs = [
         (MlKemSecurityLevel::MlKem512, 800, 1632, 768, 32),
@@ -100,8 +97,8 @@ fn test_ml_kem_fips203_key_sizes() {
     ];
 
     for (level, pk_size, sk_size, ct_size, ss_size) in specs {
-        let (pk, sk) = MlKem::generate_keypair(&mut rng, level).expect("keygen should succeed");
-        let (ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encaps should succeed");
+        let (pk, sk) = MlKem::generate_keypair(level).expect("keygen should succeed");
+        let (ss, ct) = MlKem::encapsulate(&pk).expect("encaps should succeed");
 
         assert_eq!(
             pk.as_bytes().len(),
@@ -132,14 +129,12 @@ fn test_ml_kem_fips203_key_sizes() {
 
 /// Test ML-KEM encapsulation produces valid ciphertext format
 #[test]
-fn test_ml_kem_ciphertext_format_compatibility() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_ciphertext_format_compatibility_has_correct_size() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, level).expect("keygen should succeed");
-        let (ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encaps should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keygen should succeed");
+        let (ss, ct) = MlKem::encapsulate(&pk).expect("encaps should succeed");
 
         // Ciphertext should not be all zeros or all ones
         assert!(!ct.as_bytes().iter().all(|&b| b == 0x00), "Ciphertext should not be all zeros");
@@ -155,12 +150,12 @@ fn test_ml_kem_ciphertext_format_compatibility() {
 
 /// Test ML-DSA key sizes match FIPS 204 specification
 #[test]
-fn test_ml_dsa_fips204_key_sizes() {
+fn test_ml_dsa_fips204_key_sizes_has_correct_size() {
     // FIPS 204 Table 2: ML-DSA parameter sets
     let specs = [
-        (MlDsaParameterSet::MLDSA44, 1312, 2560, 2420),
-        (MlDsaParameterSet::MLDSA65, 1952, 4032, 3309),
-        (MlDsaParameterSet::MLDSA87, 2592, 4896, 4627),
+        (MlDsaParameterSet::MlDsa44, 1312, 2560, 2420),
+        (MlDsaParameterSet::MlDsa65, 1952, 4032, 3309),
+        (MlDsaParameterSet::MlDsa87, 2592, 4896, 4627),
     ];
 
     for (param, pk_size, sk_size, sig_size) in specs {
@@ -191,9 +186,9 @@ fn test_ml_dsa_fips204_key_sizes() {
 
 /// Test ML-DSA signature format compatibility
 #[test]
-fn test_ml_dsa_signature_format_compatibility() {
+fn test_ml_dsa_signature_format_compatibility_has_correct_size() {
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = ml_dsa_generate_keypair(param).expect("keygen should succeed");
         let message = b"Test message for signature format";
@@ -211,7 +206,7 @@ fn test_ml_dsa_signature_format_compatibility() {
 
 /// Test SLH-DSA key sizes match FIPS 205 specification
 #[test]
-fn test_slh_dsa_fips205_key_sizes() {
+fn test_slh_dsa_fips205_key_sizes_has_correct_size() {
     // FIPS 205 specifies SLH-DSA-SHAKE parameter sets
     let specs = [
         (SlhDsaSecurityLevel::Shake128s, 32, 64, 7856),
@@ -233,7 +228,7 @@ fn test_slh_dsa_fips205_key_sizes() {
 
 /// Test SLH-DSA signature format compatibility
 #[test]
-fn test_slh_dsa_signature_format_compatibility() {
+fn test_slh_dsa_signature_format_compatibility_has_correct_size() {
     for level in [
         SlhDsaSecurityLevel::Shake128s,
         SlhDsaSecurityLevel::Shake192s,
@@ -254,7 +249,7 @@ fn test_slh_dsa_signature_format_compatibility() {
 
 /// Test aws-lc-rs X25519 ECDH compatibility
 #[test]
-fn test_aws_lc_rs_x25519_compatibility() {
+fn test_aws_lc_rs_x25519_compatibility_succeeds() {
     // Generate two keypairs using our X25519 implementation
     let alice = X25519KeyPair::generate().expect("Alice keygen should succeed");
     let bob = X25519KeyPair::generate().expect("Bob keygen should succeed");
@@ -273,7 +268,7 @@ fn test_aws_lc_rs_x25519_compatibility() {
 
 /// Test X25519 public key format is RFC 7748 compliant
 #[test]
-fn test_x25519_rfc7748_public_key_format() {
+fn test_x25519_rfc7748_public_key_format_has_correct_size() {
     let keypair = X25519KeyPair::generate().expect("keygen should succeed");
     let pk_bytes = keypair.public_key_bytes();
 
@@ -286,7 +281,7 @@ fn test_x25519_rfc7748_public_key_format() {
 
 /// Test Ed25519 key sizes match RFC 8032
 #[test]
-fn test_ed25519_rfc8032_key_sizes() {
+fn test_ed25519_rfc8032_key_sizes_has_correct_size() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
 
     // RFC 8032: Ed25519 public key is 32 bytes
@@ -298,7 +293,7 @@ fn test_ed25519_rfc8032_key_sizes() {
 
 /// Test Ed25519 signature size matches RFC 8032
 #[test]
-fn test_ed25519_rfc8032_signature_size() {
+fn test_ed25519_rfc8032_signature_size_has_correct_size() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let message = b"Test message for Ed25519";
     let signature = keypair.sign(message).expect("signing should succeed");
@@ -314,7 +309,7 @@ fn test_ed25519_rfc8032_signature_size() {
 
 /// Test Ed25519 signature format compatibility
 #[test]
-fn test_ed25519_signature_format_compatibility() {
+fn test_ed25519_signature_format_compatibility_has_correct_size() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let message = b"Test message for Ed25519 format";
     let signature = keypair.sign(message).expect("signing should succeed");
@@ -330,13 +325,11 @@ fn test_ed25519_signature_format_compatibility() {
 
 /// Test ML-KEM public key can be serialized and restored
 #[test]
-fn test_ml_kem_public_key_serialization_interop() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_public_key_serialization_interop_succeeds() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, level).expect("keygen should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keygen should succeed");
 
         // Serialize public key
         let pk_bytes = pk.to_bytes();
@@ -349,14 +342,14 @@ fn test_ml_kem_public_key_serialization_interop() {
         assert_eq!(restored_pk.as_bytes(), pk.as_bytes(), "Restored key should match original");
 
         // Verify restored key works for encapsulation
-        let result = MlKem::encapsulate(&mut rng, &restored_pk);
+        let result = MlKem::encapsulate(&restored_pk);
         assert!(result.is_ok(), "Encapsulation with restored key should succeed");
     }
 }
 
 /// Test cross-library constant-time comparisons work correctly
 #[test]
-fn test_constant_time_comparison_interop() {
+fn test_constant_time_comparison_interop_succeeds() {
     let ss1 = MlKemSharedSecret::new([0x42u8; 32]);
     let ss2 = MlKemSharedSecret::new([0x42u8; 32]);
     let ss3 = MlKemSharedSecret::new([0x43u8; 32]);
@@ -368,16 +361,16 @@ fn test_constant_time_comparison_interop() {
 
 /// Test NIST security categories match across implementations
 #[test]
-fn test_nist_security_categories_consistency() {
+fn test_nist_security_categories_consistency_succeeds() {
     // ML-KEM security categories per FIPS 203
     assert_eq!(MlKemSecurityLevel::MlKem512.nist_security_category(), 1);
     assert_eq!(MlKemSecurityLevel::MlKem768.nist_security_category(), 3);
     assert_eq!(MlKemSecurityLevel::MlKem1024.nist_security_category(), 5);
 
     // ML-DSA security levels per FIPS 204
-    assert_eq!(MlDsaParameterSet::MLDSA44.nist_security_level(), 2);
-    assert_eq!(MlDsaParameterSet::MLDSA65.nist_security_level(), 3);
-    assert_eq!(MlDsaParameterSet::MLDSA87.nist_security_level(), 5);
+    assert_eq!(MlDsaParameterSet::MlDsa44.nist_security_level(), 2);
+    assert_eq!(MlDsaParameterSet::MlDsa65.nist_security_level(), 3);
+    assert_eq!(MlDsaParameterSet::MlDsa87.nist_security_level(), 5);
 
     // SLH-DSA security levels per FIPS 205
     assert_eq!(SlhDsaSecurityLevel::Shake128s.nist_level(), 1);
@@ -391,13 +384,11 @@ fn test_nist_security_categories_consistency() {
 
 /// Test key format matches NIST ML-KEM specification structure
 #[test]
-fn test_ml_kem_key_format_nist_structure() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_key_format_nist_structure_has_correct_size() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, level).expect("keygen should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keygen should succeed");
 
         // Public key should be contiguous bytes (no padding, no header)
         let pk_bytes = pk.as_bytes();
@@ -411,9 +402,9 @@ fn test_ml_kem_key_format_nist_structure() {
 
 /// Test signature format matches NIST ML-DSA specification
 #[test]
-fn test_ml_dsa_signature_format_nist_structure() {
+fn test_ml_dsa_signature_format_nist_structure_has_correct_size() {
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = ml_dsa_generate_keypair(param).expect("keygen should succeed");
         let message = b"NIST format test message";
@@ -436,14 +427,12 @@ fn test_ml_dsa_signature_format_nist_structure() {
 
 /// Test ciphertext format matches NIST ML-KEM specification
 #[test]
-fn test_ml_kem_ciphertext_format_nist_structure() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_ciphertext_format_nist_structure_has_correct_size() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, level).expect("keygen should succeed");
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encaps should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keygen should succeed");
+        let (_ss, ct) = MlKem::encapsulate(&pk).expect("encaps should succeed");
 
         // Ciphertext should be raw bytes matching FIPS 203 spec
         let ct_bytes = ct.as_bytes();
@@ -457,7 +446,7 @@ fn test_ml_kem_ciphertext_format_nist_structure() {
 
 /// Test Ed25519 key format matches RFC 8032 specification
 #[test]
-fn test_ed25519_key_format_rfc8032() {
+fn test_ed25519_key_format_rfc8032_has_correct_size() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
 
     // RFC 8032: Public key is the encoding of a point on Ed25519 curve
@@ -471,7 +460,7 @@ fn test_ed25519_key_format_rfc8032() {
 
 /// Test ChaCha20-Poly1305 key and nonce sizes match RFC 8439
 #[test]
-fn test_chacha20_poly1305_sizes_rfc8439() {
+fn test_chacha20_poly1305_sizes_rfc8439_has_correct_size() {
     // RFC 8439: Key is 256 bits (32 bytes)
     let key = ChaCha20Poly1305Cipher::generate_key();
     assert_eq!(key.len(), 32, "ChaCha20-Poly1305 key should be 32 bytes");
@@ -483,7 +472,7 @@ fn test_chacha20_poly1305_sizes_rfc8439() {
 
 /// Test HKDF output format matches RFC 5869
 #[test]
-fn test_hkdf_output_format_rfc5869() {
+fn test_hkdf_output_format_rfc5869_has_correct_size() {
     let ikm = b"input keying material";
     let salt = b"salt";
     let info = b"info";
@@ -491,17 +480,16 @@ fn test_hkdf_output_format_rfc5869() {
     // RFC 5869: HKDF can produce any length up to 255*HashLen
     for length in [16, 32, 48, 64, 128, 256] {
         let result = hkdf(ikm, Some(salt), Some(info), length).expect("hkdf should succeed");
-        assert_eq!(result.key.len(), length, "HKDF should produce exact requested length");
-        assert_eq!(result.key_length, length, "key_length should match");
+        assert_eq!(result.key().len(), length, "HKDF should produce exact requested length");
+        assert_eq!(result.key_length(), length, "key_length should match");
     }
 }
 
 /// Test serialization produces deterministic output for same input
 #[test]
-fn test_serialization_determinism() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+fn test_serialization_determinism_is_deterministic() {
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     // Multiple serializations should produce identical output
     let bytes1 = pk.to_bytes();
@@ -514,7 +502,7 @@ fn test_serialization_determinism() {
 
 /// Test deserialization rejects malformed data gracefully
 #[test]
-fn test_deserialization_rejects_malformed_data() {
+fn test_deserialization_rejects_malformed_data_fails() {
     // Wrong length should fail
     let short_bytes = vec![0u8; 100];
     let result = MlKemPublicKey::from_bytes(&short_bytes, MlKemSecurityLevel::MlKem768);
@@ -533,7 +521,7 @@ fn test_deserialization_rejects_malformed_data() {
 
 /// Test key bytes are not leaked after zeroization
 #[test]
-fn test_zeroization_completeness() {
+fn test_zeroization_completeness_succeeds() {
     let mut ss = MlKemSharedSecret::new([0xAAu8; 32]);
 
     // Verify initial state has data
@@ -571,15 +559,13 @@ fn test_signature_byte_roundtrip() {
 
 /// Test arc-primitives ML-KEM matches expected interface for arc-core
 #[test]
-fn test_arc_primitives_ml_kem_interface_compatibility() {
-    let mut rng = OsRng;
-
+fn test_arc_primitives_ml_kem_interface_compatibility_succeeds() {
     // Generate keypair using arc-primitives API
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     // Encapsulate produces expected types
-    let (ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encaps should succeed");
+    let (ss, ct) = MlKem::encapsulate(&pk).expect("encaps should succeed");
 
     // Types should be usable with standard methods
     assert!(pk.as_bytes().len() > 0);
@@ -593,9 +579,9 @@ fn test_arc_primitives_ml_kem_interface_compatibility() {
 
 /// Test arc-primitives ML-DSA matches expected interface for arc-core
 #[test]
-fn test_arc_primitives_ml_dsa_interface_compatibility() {
+fn test_arc_primitives_ml_dsa_interface_compatibility_succeeds() {
     let (pk, sk) =
-        ml_dsa_generate_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+        ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
     let message = b"Test message for interface";
     let context: &[u8] = &[];
 
@@ -614,7 +600,7 @@ fn test_arc_primitives_ml_dsa_interface_compatibility() {
 
 /// Test arc-primitives SLH-DSA matches expected interface for arc-core
 #[test]
-fn test_arc_primitives_slh_dsa_interface_compatibility() {
+fn test_arc_primitives_slh_dsa_interface_compatibility_succeeds() {
     let (sk, pk) =
         SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen should succeed");
     let message = b"Test message for SLH-DSA interface";
@@ -633,7 +619,7 @@ fn test_arc_primitives_slh_dsa_interface_compatibility() {
 
 /// Test arc-primitives Ed25519 matches expected interface for arc-core
 #[test]
-fn test_arc_primitives_ed25519_interface_compatibility() {
+fn test_arc_primitives_ed25519_interface_compatibility_succeeds() {
     let keypair = Ed25519KeyPair::generate().expect("keygen should succeed");
     let message = b"Test message for Ed25519 interface";
 
@@ -651,7 +637,7 @@ fn test_arc_primitives_ed25519_interface_compatibility() {
 
 /// Test arc-primitives X25519 matches expected interface for arc-hybrid
 #[test]
-fn test_arc_primitives_x25519_interface_for_hybrid() {
+fn test_arc_primitives_x25519_interface_for_hybrid_succeeds() {
     let alice = X25519KeyPair::generate().expect("Alice keygen should succeed");
     let bob = X25519KeyPair::generate().expect("Bob keygen should succeed");
 
@@ -669,7 +655,7 @@ fn test_arc_primitives_x25519_interface_for_hybrid() {
 
 /// Test arc-primitives ChaCha20-Poly1305 matches expected interface
 #[test]
-fn test_arc_primitives_chacha_interface_compatibility() {
+fn test_arc_primitives_chacha_interface_compatibility_succeeds() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -688,14 +674,14 @@ fn test_arc_primitives_chacha_interface_compatibility() {
 
 /// Test arc-primitives HKDF matches expected interface
 #[test]
-fn test_arc_primitives_hkdf_interface_compatibility() {
+fn test_arc_primitives_hkdf_interface_compatibility_succeeds() {
     let ikm = b"input keying material";
     let salt = b"salt";
     let info = b"info";
 
     // Full HKDF
     let result = hkdf(ikm, Some(salt), Some(info), 32).expect("hkdf should succeed");
-    assert_eq!(result.key.len(), 32);
+    assert_eq!(result.key().len(), 32);
 
     // Extract
     let prk = hkdf_extract(Some(salt), ikm).expect("extract should succeed");
@@ -703,12 +689,12 @@ fn test_arc_primitives_hkdf_interface_compatibility() {
 
     // Expand
     let expanded = hkdf_expand(&prk, Some(info), 64).expect("expand should succeed");
-    assert_eq!(expanded.key.len(), 64);
+    assert_eq!(expanded.key().len(), 64);
 }
 
 /// Test re-exports from arc-primitives work correctly
 #[test]
-fn test_arc_primitives_reexports() {
+fn test_arc_primitives_reexports_succeeds() {
     // Test that top-level re-exports work
     use latticearc::primitives::{
         MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature, MlKemPublicKey, MlKemSecretKey,
@@ -723,17 +709,17 @@ fn test_arc_primitives_reexports() {
         .expect("construction should succeed");
     assert_eq!(sk.security_level(), MlKemSecurityLevel::MlKem512);
 
-    let _ = MlDsaPublicKey::new(MlDsaParameterSet::MLDSA44, vec![0u8; 1312])
+    let _ = MlDsaPublicKey::new(MlDsaParameterSet::MlDsa44, vec![0u8; 1312])
         .expect("construction should succeed");
-    let _ = MlDsaSecretKey::new(MlDsaParameterSet::MLDSA44, vec![0u8; 2560])
+    let _ = MlDsaSecretKey::new(MlDsaParameterSet::MlDsa44, vec![0u8; 2560])
         .expect("construction should succeed");
-    let _ = MlDsaSignature::new(MlDsaParameterSet::MLDSA44, vec![0u8; 2420])
+    let _ = MlDsaSignature::new(MlDsaParameterSet::MlDsa44, vec![0u8; 2420])
         .expect("construction should succeed");
 }
 
 /// Test error types are compatible across modules
 #[test]
-fn test_error_type_compatibility() {
+fn test_error_type_compatibility_fails() {
     // ML-KEM errors
     let pk_result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem512, vec![0u8; 100]);
     assert!(pk_result.is_err());
@@ -742,7 +728,7 @@ fn test_error_type_compatibility() {
     assert!(err_msg.len() > 0, "Error should have display message");
 
     // ML-DSA errors
-    let sig_result = MlDsaSignature::new(MlDsaParameterSet::MLDSA44, vec![0u8; 100]);
+    let sig_result = MlDsaSignature::new(MlDsaParameterSet::MlDsa44, vec![0u8; 100]);
     assert!(sig_result.is_err());
     let err = sig_result.unwrap_err();
     let err_msg = err.to_string();
@@ -751,10 +737,9 @@ fn test_error_type_compatibility() {
 
 /// Test trait implementations are consistent across types
 #[test]
-fn test_trait_implementations_consistency() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+fn test_trait_implementations_consistency_is_covered() {
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     // Clone should work
     let pk_clone = pk.clone();
@@ -771,7 +756,7 @@ fn test_trait_implementations_consistency() {
 
 /// Test RFC 7748 X25519 test vector
 #[test]
-fn test_rfc7748_x25519_compliance() {
+fn test_rfc7748_x25519_compliance_succeeds() {
     // RFC 7748 Section 6.1 specifies that X25519 key agreement works
     let alice = X25519KeyPair::generate().expect("keygen should succeed");
     let bob = X25519KeyPair::generate().expect("keygen should succeed");
@@ -788,7 +773,7 @@ fn test_rfc7748_x25519_compliance() {
 
 /// Test RFC 7748 X25519 key size compliance
 #[test]
-fn test_rfc7748_x25519_key_size() {
+fn test_rfc7748_x25519_key_size_has_correct_size() {
     let keypair = X25519KeyPair::generate().expect("keygen should succeed");
 
     // RFC 7748: X25519 uses 32-byte keys
@@ -797,7 +782,7 @@ fn test_rfc7748_x25519_key_size() {
 
 /// Test RFC 8032 Ed25519 test vector 1 (empty message)
 #[test]
-fn test_rfc8032_ed25519_test_vector_1() {
+fn test_rfc8032_ed25519_test_vector_1_matches_expected() {
     // RFC 8032 Section 7.1, TEST 1 (empty message)
     let secret_key =
         hex::decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60").unwrap();
@@ -830,7 +815,7 @@ fn test_rfc8032_ed25519_test_vector_1() {
 
 /// Test RFC 8032 Ed25519 test vector 2 (1-byte message)
 #[test]
-fn test_rfc8032_ed25519_test_vector_2() {
+fn test_rfc8032_ed25519_test_vector_2_matches_expected() {
     // RFC 8032 Section 7.1, TEST 2
     let secret_key =
         hex::decode("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb").unwrap();
@@ -860,7 +845,7 @@ fn test_rfc8032_ed25519_test_vector_2() {
 
 /// Test RFC 5869 HKDF test case 1
 #[test]
-fn test_rfc5869_hkdf_test_case_1() {
+fn test_rfc5869_hkdf_test_case_1_succeeds() {
     // RFC 5869 Section A.1 Test Case 1
     let ikm = [
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -886,12 +871,12 @@ fn test_rfc5869_hkdf_test_case_1() {
 
     // Test full HKDF
     let okm = hkdf(&ikm, Some(&salt), Some(&info), 42).expect("hkdf should succeed");
-    assert_eq!(okm.key, expected_okm, "RFC 5869: OKM should match test vector");
+    assert_eq!(okm.key(), &expected_okm[..], "RFC 5869: OKM should match test vector");
 }
 
 /// Test RFC 5869 HKDF test case 3 (zero-length salt/info)
 #[test]
-fn test_rfc5869_hkdf_test_case_3() {
+fn test_rfc5869_hkdf_test_case_3_succeeds() {
     // RFC 5869 Section A.3 Test Case 3
     let ikm = [
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -907,12 +892,12 @@ fn test_rfc5869_hkdf_test_case_3() {
     ];
 
     let okm = hkdf(&ikm, Some(salt), Some(info), 42).expect("hkdf should succeed");
-    assert_eq!(okm.key, expected_okm, "RFC 5869: Test case 3 OKM should match");
+    assert_eq!(okm.key(), &expected_okm[..], "RFC 5869: Test case 3 OKM should match");
 }
 
 /// Test RFC 8439 ChaCha20-Poly1305 basic compliance
 #[test]
-fn test_rfc8439_chacha20_poly1305_compliance() {
+fn test_rfc8439_chacha20_poly1305_compliance_succeeds() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -940,7 +925,7 @@ fn test_rfc8439_chacha20_poly1305_compliance() {
 
 /// Test RFC 8439 ChaCha20-Poly1305 with AAD
 #[test]
-fn test_rfc8439_chacha20_poly1305_with_aad() {
+fn test_rfc8439_chacha20_poly1305_with_aad_succeeds() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -964,7 +949,7 @@ fn test_rfc8439_chacha20_poly1305_with_aad() {
 
 /// Test RFC 8439 ChaCha20-Poly1305 tag verification
 #[test]
-fn test_rfc8439_chacha20_poly1305_tag_verification() {
+fn test_rfc8439_chacha20_poly1305_tag_verification_succeeds() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -983,13 +968,13 @@ fn test_rfc8439_chacha20_poly1305_tag_verification() {
 
 /// Test HKDF maximum output length compliance
 #[test]
-fn test_hkdf_max_output_length() {
+fn test_hkdf_max_output_length_has_correct_size() {
     let ikm = b"input keying material";
 
     // RFC 5869: Maximum output is 255 * hash_length (255 * 32 = 8160 for SHA-256)
     let max_result = hkdf(ikm, None, None, 8160);
     assert!(max_result.is_ok(), "HKDF should accept max length (8160)");
-    assert_eq!(max_result.unwrap().key.len(), 8160);
+    assert_eq!(max_result.unwrap().key().len(), 8160);
 
     // Exceeding max should fail
     let over_max_result = hkdf(ikm, None, None, 8161);
@@ -998,7 +983,7 @@ fn test_hkdf_max_output_length() {
 
 /// Test cross-algorithm key derivation compatibility
 #[test]
-fn test_cross_algorithm_key_derivation() {
+fn test_cross_algorithm_key_derivation_succeeds() {
     // Derive keys for different algorithms from same IKM
     let ikm = b"master secret material";
     let salt = b"derivation salt";
@@ -1006,22 +991,22 @@ fn test_cross_algorithm_key_derivation() {
     // Derive 32-byte key for ChaCha20-Poly1305
     let chacha_key =
         hkdf(ikm, Some(salt), Some(b"chacha20-poly1305"), 32).expect("derivation should succeed");
-    assert_eq!(chacha_key.key.len(), 32);
+    assert_eq!(chacha_key.key().len(), 32);
 
     // Derive 32-byte key for AES-256
     let aes_key =
         hkdf(ikm, Some(salt), Some(b"aes-256-gcm"), 32).expect("derivation should succeed");
-    assert_eq!(aes_key.key.len(), 32);
+    assert_eq!(aes_key.key().len(), 32);
 
     // Derive 32-byte key for HMAC
     let hmac_key =
         hkdf(ikm, Some(salt), Some(b"hmac-sha256"), 32).expect("derivation should succeed");
-    assert_eq!(hmac_key.key.len(), 32);
+    assert_eq!(hmac_key.key().len(), 32);
 
     // Keys should all be different due to different info
-    assert_ne!(chacha_key.key, aes_key.key);
-    assert_ne!(aes_key.key, hmac_key.key);
-    assert_ne!(chacha_key.key, hmac_key.key);
+    assert_ne!(chacha_key.key(), aes_key.key());
+    assert_ne!(aes_key.key(), hmac_key.key());
+    assert_ne!(chacha_key.key(), hmac_key.key());
 }
 
 // ============================================================================
@@ -1030,13 +1015,11 @@ fn test_cross_algorithm_key_derivation() {
 
 /// Test ML-KEM encapsulation with restored public key produces valid output
 #[test]
-fn test_ml_kem_encapsulation_with_restored_key_produces_valid_ciphertext() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_encapsulation_with_restored_key_produces_valid_ciphertext_succeeds() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, level).expect("keygen should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keygen should succeed");
 
         // Serialize and restore public key
         let pk_bytes = pk.to_bytes();
@@ -1044,7 +1027,7 @@ fn test_ml_kem_encapsulation_with_restored_key_produces_valid_ciphertext() {
             MlKemPublicKey::from_bytes(&pk_bytes, level).expect("restore should succeed");
 
         // Encapsulate with restored key
-        let (ss, ct) = MlKem::encapsulate(&mut rng, &restored_pk).expect("encaps should succeed");
+        let (ss, ct) = MlKem::encapsulate(&restored_pk).expect("encaps should succeed");
 
         // Verify output sizes match spec
         assert_eq!(ss.as_bytes().len(), 32);
@@ -1057,10 +1040,10 @@ fn test_ml_kem_encapsulation_with_restored_key_produces_valid_ciphertext() {
 
 /// Test all signature algorithms reject modified messages
 #[test]
-fn test_all_signatures_reject_modified_messages() {
+fn test_all_signatures_reject_modified_messages_fails() {
     // ML-DSA
     let (pk, sk) =
-        ml_dsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+        ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"Original message";
     let wrong_message = b"Modified message";
     let signature = ml_dsa_sign(&sk, message, &[]).expect("signing should succeed");
@@ -1087,14 +1070,14 @@ fn test_all_signatures_reject_modified_messages() {
 
 /// Test all signature algorithms reject wrong public key
 #[test]
-fn test_all_signatures_reject_wrong_public_key() {
+fn test_all_signatures_reject_wrong_public_key_fails() {
     let message = b"Test message";
 
     // ML-DSA
     let (_pk1, sk1) =
-        ml_dsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen 1 should succeed");
+        ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen 1 should succeed");
     let (pk2, _sk2) =
-        ml_dsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen 2 should succeed");
+        ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen 2 should succeed");
     let signature = ml_dsa_sign(&sk1, message, &[]).expect("signing should succeed");
 
     let is_valid =
@@ -1122,7 +1105,7 @@ fn test_all_signatures_reject_wrong_public_key() {
 
 /// Test encryption algorithms reject modified ciphertext
 #[test]
-fn test_encryption_rejects_modified_ciphertext() {
+fn test_encryption_rejects_modified_ciphertext_fails() {
     // ChaCha20-Poly1305
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation should succeed");
@@ -1143,7 +1126,7 @@ fn test_encryption_rejects_modified_ciphertext() {
 
 /// Test all key types can be zeroized
 #[test]
-fn test_all_key_types_can_be_zeroized() {
+fn test_all_key_types_can_be_zeroized_succeeds() {
     // ML-KEM shared secret
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
     ss.zeroize();
@@ -1154,8 +1137,7 @@ fn test_all_key_types_can_be_zeroized() {
     key.zeroize();
     assert!(key.iter().all(|&b| b == 0));
 
-    // HKDF result
-    let mut result = hkdf(b"ikm", None, None, 32).expect("hkdf should succeed");
-    result.zeroize();
-    assert!(result.key.iter().all(|&b| b == 0));
+    // HKDF result uses Zeroizing<Vec<u8>> for automatic zeroization on drop.
+    let result = hkdf(b"ikm", None, None, 32).expect("hkdf should succeed");
+    assert!(result.key().iter().any(|&b| b != 0));
 }

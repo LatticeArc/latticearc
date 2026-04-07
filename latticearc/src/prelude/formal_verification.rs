@@ -43,7 +43,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_run_formal_verification() {
+    fn test_run_formal_verification_succeeds() {
         // Verify the function executes without panic
         run_formal_verification();
     }

@@ -16,14 +16,14 @@ mod basic_tests {
     use tempfile::NamedTempFile;
 
     #[tokio::test]
-    async fn test_client_connector_creation() {
+    async fn test_client_connector_creation_succeeds() {
         let config = TlsConfig::default();
         let connector = create_client_connector(&config);
         assert!(connector.is_ok());
     }
 
     #[tokio::test]
-    async fn test_server_acceptor_creation() {
+    async fn test_server_acceptor_creation_succeeds() {
         let config = TlsConfig::default();
         // This would need actual cert files for full test
         // For now, test the function signature and error handling
@@ -32,7 +32,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_load_certificates_nonexistent_file() {
+    fn test_load_certificates_nonexistent_file_succeeds() {
         let result = load_certificates("nonexistent.crt");
         assert!(result.is_err());
 
@@ -45,7 +45,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_load_private_key_nonexistent_file() {
+    fn test_load_private_key_nonexistent_file_succeeds() {
         let result = load_private_key("nonexistent.key");
         assert!(result.is_err());
 
@@ -58,7 +58,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_load_private_key_secure_nonexistent_file() {
+    fn test_load_private_key_secure_nonexistent_file_succeeds() {
         let result = load_private_key_secure("nonexistent.key");
         assert!(result.is_err());
 
@@ -73,7 +73,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_load_certificates_invalid_pem() {
+    fn test_load_certificates_invalid_pem_fails() {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "INVALID PEM DATA").unwrap();
 
@@ -89,7 +89,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_load_private_key_invalid_pem() {
+    fn test_load_private_key_invalid_pem_fails() {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "INVALID PEM DATA").unwrap();
 
@@ -105,7 +105,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_secure_private_key_methods() {
+    fn test_secure_private_key_methods_succeeds() {
         // Test with a dummy PKCS#1 key (this won't be cryptographically valid)
         let dummy_key_data = vec![0x30u8; 100]; // Dummy ASN.1 structure
         let pkcs1_key = rustls_pki_types::PrivatePkcs1KeyDer::from(dummy_key_data);
@@ -122,7 +122,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_config_info_all_modes() {
+    fn test_config_info_all_modes_succeeds() {
         use latticearc::unified_api::SecurityLevel;
 
         // Standard still uses Hybrid mode (only use cases like IoT use Classic)
@@ -140,7 +140,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_tls_config_with_options() {
+    fn test_tls_config_with_options_succeeds() {
         let config = TlsConfig::default().with_tracing().with_fallback(false);
 
         assert!(config.enable_tracing);
@@ -148,7 +148,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_private_key_der_variants() {
+    fn test_private_key_der_variants_succeeds() {
         // Test that we can handle different private key formats
 
         // PKCS#1 format
@@ -171,7 +171,7 @@ mod basic_tests {
     }
 
     #[test]
-    fn test_certificate_der_creation() {
+    fn test_certificate_der_creation_succeeds() {
         // Test that CertificateDer can be created from byte data
         let cert_data = vec![0x30u8; 100]; // Dummy X.509 certificate
         let cert = CertificateDer::from(cert_data);
@@ -181,7 +181,7 @@ mod basic_tests {
     }
 
     #[tokio::test]
-    async fn test_tls_connect_invalid_domain() {
+    async fn test_tls_connect_invalid_domain_fails() {
         let config = TlsConfig::default();
         let result =
             tls_connect("invalid.domain.example:443", "invalid.domain.example", &config).await;
@@ -189,7 +189,7 @@ mod basic_tests {
     }
 
     #[tokio::test]
-    async fn test_tls_connect_invalid_domain_name_format() {
+    async fn test_tls_connect_invalid_domain_name_format_fails() {
         let config = TlsConfig::default();
         let result = tls_connect("example.com:443", "", &config).await;
         assert!(result.is_err());

@@ -57,7 +57,7 @@ impl NistSp800_22Tester {
     /// # Errors
     /// This function is infallible but returns Result for API consistency.
     #[allow(clippy::arithmetic_side_effects)] // Statistical calculations require arithmetic
-    pub fn test_bit_sequence(&self, data: &[u8]) -> Result<RngTestResults> {
+    pub fn test_bit_sequence_succeeds(&self, data: &[u8]) -> Result<RngTestResults> {
         let min_bytes = self.min_sequence_length.saturating_div(8);
         if data.len() < min_bytes {
             return Ok(RngTestResults {
@@ -605,32 +605,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_frequency_test() {
+    fn test_frequency_test_succeeds() {
         let tester = NistSp800_22Tester::default();
         let data = vec![0x00; 1000];
-        let result = tester.test_bit_sequence(&data).unwrap();
+        let result = tester.test_bit_sequence_succeeds(&data).unwrap();
 
         assert!(!result.passed);
         assert_eq!(result.bits_tested, 8000);
     }
 
     #[test]
-    fn test_runs_test() {
+    fn test_runs_test_succeeds() {
         let tester = NistSp800_22Tester::default();
         let data = (0u8..100).map(|i| i % 2).collect::<Vec<_>>();
-        let result = tester.test_bit_sequence(&data).unwrap();
+        let result = tester.test_bit_sequence_succeeds(&data).unwrap();
 
         assert_eq!(result.bits_tested, 800);
     }
 
     #[test]
-    fn test_random_data() {
+    fn test_random_data_succeeds() {
         let tester = NistSp800_22Tester::default();
         use rand::RngCore;
         let mut data = vec![0u8; 1000];
         rand::rngs::OsRng.fill_bytes(&mut data);
 
-        let result = tester.test_bit_sequence(&data).unwrap();
+        let result = tester.test_bit_sequence_succeeds(&data).unwrap();
         assert_eq!(result.bits_tested, 8000);
     }
 }

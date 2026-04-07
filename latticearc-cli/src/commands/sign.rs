@@ -96,35 +96,38 @@ pub(crate) fn run(args: SignArgs) -> Result<()> {
         SignAlgorithm::MlDsa65 => latticearc::sign_pq_ml_dsa(
             &data,
             &sk_bytes,
-            latticearc::primitives::sig::MlDsaParameterSet::MLDSA65,
+            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?,
         SignAlgorithm::MlDsa44 => latticearc::sign_pq_ml_dsa(
             &data,
             &sk_bytes,
-            latticearc::primitives::sig::MlDsaParameterSet::MLDSA44,
+            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?,
         SignAlgorithm::MlDsa87 => latticearc::sign_pq_ml_dsa(
             &data,
             &sk_bytes,
-            latticearc::primitives::sig::MlDsaParameterSet::MLDSA87,
+            latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?,
         SignAlgorithm::SlhDsa => latticearc::sign_pq_slh_dsa(
             &data,
             &sk_bytes,
-            latticearc::primitives::sig::slh_dsa::SecurityLevel::Shake128s,
+            latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s,
             latticearc::SecurityMode::Unverified,
         )
         .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?,
-        SignAlgorithm::FnDsa => {
-            latticearc::sign_pq_fn_dsa(&data, &sk_bytes, latticearc::SecurityMode::Unverified)
-                .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?
-        }
+        SignAlgorithm::FnDsa => latticearc::sign_pq_fn_dsa(
+            &data,
+            &sk_bytes,
+            latticearc::primitives::sig::fndsa::FnDsaSecurityLevel::Level512,
+            latticearc::SecurityMode::Unverified,
+        )
+        .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?,
         SignAlgorithm::Ed25519 => {
             latticearc::sign_ed25519(&data, &sk_bytes, latticearc::SecurityMode::Unverified)
                 .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?
@@ -179,8 +182,8 @@ fn sign_hybrid_legacy(data: &[u8], key_file: &KeyFile, args: &SignArgs) -> Resul
     use base64::Engine;
     let output = serde_json::json!({
         "algorithm": "hybrid-ml-dsa-65-ed25519",
-        "ml_dsa_sig": base64::engine::general_purpose::STANDARD.encode(&signature.ml_dsa_sig),
-        "ed25519_sig": base64::engine::general_purpose::STANDARD.encode(&signature.ed25519_sig),
+        "ml_dsa_sig": base64::engine::general_purpose::STANDARD.encode(signature.ml_dsa_sig()),
+        "ed25519_sig": base64::engine::general_purpose::STANDARD.encode(signature.ed25519_sig()),
     });
 
     write_signature(args, &serde_json::to_string_pretty(&output)?)

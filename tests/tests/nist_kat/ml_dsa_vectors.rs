@@ -29,9 +29,9 @@ const ML_DSA_87_SIG_SIZE: usize = 4627;
 
 /// Test ML-DSA-44 key generation produces correct sizes
 #[test]
-fn test_mldsa_44_key_sizes() {
+fn test_mldsa_44_key_sizes_match_spec_has_correct_size() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA44).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa44).expect("key generation should succeed");
 
     assert_eq!(
         pk.as_bytes().len(),
@@ -48,9 +48,9 @@ fn test_mldsa_44_key_sizes() {
 }
 
 #[test]
-fn test_mldsa_65_key_sizes() {
+fn test_mldsa_65_key_sizes_match_spec_has_correct_size() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     assert_eq!(
         pk.as_bytes().len(),
@@ -67,9 +67,9 @@ fn test_mldsa_65_key_sizes() {
 }
 
 #[test]
-fn test_mldsa_87_key_sizes() {
+fn test_mldsa_87_key_sizes_match_spec_has_correct_size() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA87).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa87).expect("key generation should succeed");
 
     assert_eq!(
         pk.as_bytes().len(),
@@ -87,9 +87,9 @@ fn test_mldsa_87_key_sizes() {
 
 /// Test ML-DSA signature sizes
 #[test]
-fn test_mldsa_44_signature_size() {
+fn test_mldsa_44_signature_size_matches_spec_has_correct_size() {
     let (_pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA44).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa44).expect("key generation should succeed");
 
     let message = b"Test message for ML-DSA-44";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
@@ -103,9 +103,9 @@ fn test_mldsa_44_signature_size() {
 }
 
 #[test]
-fn test_mldsa_65_signature_size() {
+fn test_mldsa_65_signature_size_matches_spec_has_correct_size() {
     let (_pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"Test message for ML-DSA-65";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
@@ -119,9 +119,9 @@ fn test_mldsa_65_signature_size() {
 }
 
 #[test]
-fn test_mldsa_87_signature_size() {
+fn test_mldsa_87_signature_size_matches_spec_has_correct_size() {
     let (_pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA87).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa87).expect("key generation should succeed");
 
     let message = b"Test message for ML-DSA-87";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
@@ -138,7 +138,7 @@ fn test_mldsa_87_signature_size() {
 #[test]
 fn test_mldsa_44_roundtrip() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA44).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa44).expect("key generation should succeed");
 
     let message = b"Test message for ML-DSA-44 roundtrip";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
@@ -150,7 +150,7 @@ fn test_mldsa_44_roundtrip() {
 #[test]
 fn test_mldsa_65_roundtrip() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"Test message for ML-DSA-65 roundtrip";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
@@ -162,7 +162,7 @@ fn test_mldsa_65_roundtrip() {
 #[test]
 fn test_mldsa_87_roundtrip() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA87).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa87).expect("key generation should succeed");
 
     let message = b"Test message for ML-DSA-87 roundtrip";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
@@ -173,9 +173,9 @@ fn test_mldsa_87_roundtrip() {
 
 /// Test verification fails with wrong message
 #[test]
-fn test_mldsa_wrong_message() {
+fn test_mldsa_wrong_message_returns_false_fails() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"Original message";
     let wrong_message = b"Wrong message";
@@ -188,9 +188,9 @@ fn test_mldsa_wrong_message() {
 
 /// Test verification fails with corrupted signature
 #[test]
-fn test_mldsa_corrupted_signature() {
+fn test_mldsa_corrupted_signature_returns_false_fails() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"Test message";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
@@ -200,7 +200,7 @@ fn test_mldsa_corrupted_signature() {
     if !corrupted_sig_bytes.is_empty() {
         corrupted_sig_bytes[0] ^= 0xFF;
     }
-    let corrupted_sig = MlDsaSignature::new(MlDsaParameterSet::MLDSA65, corrupted_sig_bytes)
+    let corrupted_sig = MlDsaSignature::new(MlDsaParameterSet::MlDsa65, corrupted_sig_bytes)
         .expect("signature creation should succeed");
 
     let is_valid = verify(&pk, message, &corrupted_sig, &[]).expect("verification should succeed");
@@ -210,11 +210,11 @@ fn test_mldsa_corrupted_signature() {
 
 /// Test verification fails with wrong public key
 #[test]
-fn test_mldsa_wrong_public_key() {
+fn test_mldsa_wrong_public_key_returns_false_fails() {
     let (_pk1, sk1) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation 1 should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation 1 should succeed");
     let (pk2, _sk2) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation 2 should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation 2 should succeed");
 
     let message = b"Test message";
     let signature = sign(&sk1, message, &[]).expect("signing should succeed");
@@ -225,9 +225,9 @@ fn test_mldsa_wrong_public_key() {
 
 /// Test different messages produce different signatures (non-deterministic)
 #[test]
-fn test_mldsa_different_messages_different_signatures() {
+fn test_mldsa_different_messages_produce_different_signatures_succeeds() {
     let (_pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message1 = b"Message 1";
     let message2 = b"Message 2";
@@ -243,9 +243,9 @@ fn test_mldsa_different_messages_different_signatures() {
 
 /// Test same message produces different signatures (randomized signing)
 #[test]
-fn test_mldsa_same_message_different_signatures() {
+fn test_mldsa_same_message_produces_different_signatures_due_to_randomization_succeeds() {
     let (_pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"Same message";
     let sig1 = sign(&sk, message, &[]).expect("signing 1 should succeed");
@@ -261,36 +261,36 @@ fn test_mldsa_same_message_different_signatures() {
 
 /// Test invalid public key length is rejected
 #[test]
-fn test_mldsa_invalid_public_key_length() {
+fn test_mldsa_invalid_public_key_length_returns_error() {
     let invalid_pk_data = vec![0u8; 100]; // Wrong size
-    let result = MlDsaPublicKey::new(MlDsaParameterSet::MLDSA65, invalid_pk_data);
+    let result = MlDsaPublicKey::new(MlDsaParameterSet::MlDsa65, invalid_pk_data);
 
     assert!(result.is_err(), "Should reject invalid public key length");
 }
 
 /// Test invalid secret key length is rejected
 #[test]
-fn test_mldsa_invalid_secret_key_length() {
+fn test_mldsa_invalid_secret_key_length_returns_error() {
     let invalid_sk_data = vec![0u8; 100]; // Wrong size
-    let result = MlDsaSecretKey::new(MlDsaParameterSet::MLDSA65, invalid_sk_data);
+    let result = MlDsaSecretKey::new(MlDsaParameterSet::MlDsa65, invalid_sk_data);
 
     assert!(result.is_err(), "Should reject invalid secret key length");
 }
 
 /// Test invalid signature length is rejected
 #[test]
-fn test_mldsa_invalid_signature_length() {
+fn test_mldsa_invalid_signature_length_returns_error() {
     let invalid_sig_data = vec![0u8; 100]; // Wrong size
-    let result = MlDsaSignature::new(MlDsaParameterSet::MLDSA65, invalid_sig_data);
+    let result = MlDsaSignature::new(MlDsaParameterSet::MlDsa65, invalid_sig_data);
 
     assert!(result.is_err(), "Should reject invalid signature length");
 }
 
 /// Test empty message can be signed
 #[test]
-fn test_mldsa_empty_message() {
+fn test_mldsa_empty_message_signs_and_verifies_succeeds() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"";
     let signature = sign(&sk, message, &[]).expect("signing empty message should succeed");
@@ -301,9 +301,9 @@ fn test_mldsa_empty_message() {
 
 /// Test large message can be signed
 #[test]
-fn test_mldsa_large_message() {
+fn test_mldsa_large_message_signs_and_verifies_succeeds() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = vec![0x42u8; 1_000_000]; // 1MB message
     let signature = sign(&sk, &message, &[]).expect("signing large message should succeed");
@@ -314,9 +314,9 @@ fn test_mldsa_large_message() {
 
 /// Test context string support
 #[test]
-fn test_mldsa_with_context() {
+fn test_mldsa_with_context_succeeds() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"Test message with context";
     let context = b"application-specific-context";
@@ -328,9 +328,9 @@ fn test_mldsa_with_context() {
 
 /// Test context mismatch fails verification
 #[test]
-fn test_mldsa_context_mismatch() {
+fn test_mldsa_context_mismatch_returns_false_fails() {
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA65).expect("key generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
     let message = b"Test message";
     let context1 = b"context1";

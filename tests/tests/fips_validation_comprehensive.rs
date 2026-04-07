@@ -73,25 +73,25 @@ mod input_validation_tests {
     use super::*;
 
     #[test]
-    fn test_validate_input_size_valid() {
+    fn test_validate_input_size_valid_passes_validation() {
         let input = vec![0u8; 32];
         assert!(validate_input_size(&input, 16, 64).is_ok());
     }
 
     #[test]
-    fn test_validate_input_size_exact_min() {
+    fn test_validate_input_size_exact_min_passes_validation() {
         let input = vec![0u8; 16];
         assert!(validate_input_size(&input, 16, 64).is_ok());
     }
 
     #[test]
-    fn test_validate_input_size_exact_max() {
+    fn test_validate_input_size_exact_max_passes_validation() {
         let input = vec![0u8; 64];
         assert!(validate_input_size(&input, 16, 64).is_ok());
     }
 
     #[test]
-    fn test_validate_input_size_too_small() {
+    fn test_validate_input_size_too_small_fails() {
         let input = vec![0u8; 8];
         let result = validate_input_size(&input, 16, 64);
         assert!(result.is_err());
@@ -105,7 +105,7 @@ mod input_validation_tests {
     }
 
     #[test]
-    fn test_validate_input_size_too_large() {
+    fn test_validate_input_size_too_large_fails() {
         let input = vec![0u8; 128];
         let result = validate_input_size(&input, 16, 64);
         assert!(result.is_err());
@@ -119,20 +119,20 @@ mod input_validation_tests {
     }
 
     #[test]
-    fn test_validate_input_size_empty_input() {
+    fn test_validate_input_size_empty_input_passes_validation() {
         let input = vec![];
         assert!(validate_input_size(&input, 0, 64).is_ok());
         assert!(validate_input_size(&input, 1, 64).is_err());
     }
 
     #[test]
-    fn test_validate_input_size_zero_max() {
+    fn test_validate_input_size_zero_max_passes_validation() {
         let input = vec![];
         assert!(validate_input_size(&input, 0, 0).is_ok());
     }
 
     #[test]
-    fn test_validation_error_display() {
+    fn test_validation_error_display_passes_validation() {
         let err = ValidationError::InputTooSmall(10, 20);
         let msg = format!("{}", err);
         assert!(msg.contains("10"));
@@ -140,7 +140,7 @@ mod input_validation_tests {
     }
 
     #[test]
-    fn test_validation_error_debug() {
+    fn test_validation_error_debug_passes_validation() {
         let err = ValidationError::InputTooLarge(100, 50);
         let debug = format!("{:?}", err);
         assert!(debug.contains("InputTooLarge"));
@@ -155,22 +155,22 @@ mod bounds_validation_tests {
     use super::*;
 
     #[test]
-    fn test_validate_bounds_valid() {
+    fn test_validate_bounds_valid_passes_validation() {
         assert!(validate_bounds(50, 0, 100).is_ok());
     }
 
     #[test]
-    fn test_validate_bounds_exact_min() {
+    fn test_validate_bounds_exact_min_passes_validation() {
         assert!(validate_bounds(0, 0, 100).is_ok());
     }
 
     #[test]
-    fn test_validate_bounds_exact_max() {
+    fn test_validate_bounds_exact_max_passes_validation() {
         assert!(validate_bounds(100, 0, 100).is_ok());
     }
 
     #[test]
-    fn test_validate_bounds_too_small() {
+    fn test_validate_bounds_too_small_fails() {
         let result = validate_bounds(5, 10, 100);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -183,7 +183,7 @@ mod bounds_validation_tests {
     }
 
     #[test]
-    fn test_validate_bounds_too_large() {
+    fn test_validate_bounds_too_large_fails() {
         let result = validate_bounds(150, 10, 100);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -196,14 +196,14 @@ mod bounds_validation_tests {
     }
 
     #[test]
-    fn test_validate_bounds_equal_min_max() {
+    fn test_validate_bounds_equal_min_max_passes_validation() {
         assert!(validate_bounds(42, 42, 42).is_ok());
         assert!(validate_bounds(41, 42, 42).is_err());
         assert!(validate_bounds(43, 42, 42).is_err());
     }
 
     #[test]
-    fn test_bounds_error_display() {
+    fn test_bounds_error_display_passes_validation() {
         let err = BoundsError::ValueTooSmall(5, 10);
         let msg = format!("{}", err);
         assert!(msg.contains("5"));
@@ -219,13 +219,13 @@ mod format_validation_tests {
     use super::*;
 
     #[test]
-    fn test_validate_key_format_valid() {
+    fn test_validate_key_format_valid_passes_validation() {
         let key = vec![0u8; 32];
         assert!(validate_key_format(&key, 32).is_ok());
     }
 
     #[test]
-    fn test_validate_key_format_invalid_size() {
+    fn test_validate_key_format_invalid_size_fails() {
         let key = vec![0u8; 24];
         let result = validate_key_format(&key, 32);
         assert!(result.is_err());
@@ -238,26 +238,26 @@ mod format_validation_tests {
     }
 
     #[test]
-    fn test_validate_key_format_aes_128() {
+    fn test_validate_key_format_aes_128_passes_validation() {
         let key = vec![0u8; 16];
         assert!(validate_key_format(&key, 16).is_ok());
     }
 
     #[test]
-    fn test_validate_key_format_aes_256() {
+    fn test_validate_key_format_aes_256_passes_validation() {
         let key = vec![0u8; 32];
         assert!(validate_key_format(&key, 32).is_ok());
     }
 
     #[test]
-    fn test_validate_key_format_empty() {
+    fn test_validate_key_format_empty_passes_validation() {
         let key = vec![];
         assert!(validate_key_format(&key, 0).is_ok());
         assert!(validate_key_format(&key, 1).is_err());
     }
 
     #[test]
-    fn test_format_error_display() {
+    fn test_format_error_display_passes_validation() {
         let err = FormatError::InvalidKeySize(16, 32);
         let msg = format!("{}", err);
         assert!(msg.contains("16"));
@@ -273,7 +273,7 @@ mod resource_limits_tests {
     use super::*;
 
     #[test]
-    fn test_resource_limits_default() {
+    fn test_resource_limits_default_passes_validation() {
         let limits = ResourceLimits::default();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
         assert_eq!(limits.max_encryption_size_bytes, 100 * 1024 * 1024);
@@ -282,7 +282,7 @@ mod resource_limits_tests {
     }
 
     #[test]
-    fn test_resource_limits_new() {
+    fn test_resource_limits_new_passes_validation() {
         let limits = ResourceLimits::new(500, 50 * 1024 * 1024, 32 * 1024, 50 * 1024 * 1024);
         assert_eq!(limits.max_key_derivations_per_call, 500);
         assert_eq!(limits.max_encryption_size_bytes, 50 * 1024 * 1024);
@@ -291,12 +291,12 @@ mod resource_limits_tests {
     }
 
     #[test]
-    fn test_validate_key_derivation_count_valid() {
+    fn test_validate_key_derivation_count_valid_passes_validation() {
         assert!(validate_key_derivation_count(100).is_ok());
     }
 
     #[test]
-    fn test_validate_key_derivation_count_exceeded() {
+    fn test_validate_key_derivation_count_exceeded_succeeds() {
         let result = validate_key_derivation_count(2000);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -309,12 +309,12 @@ mod resource_limits_tests {
     }
 
     #[test]
-    fn test_validate_encryption_size_valid() {
+    fn test_validate_encryption_size_valid_passes_validation() {
         assert!(validate_encryption_size(1024 * 1024).is_ok());
     }
 
     #[test]
-    fn test_validate_encryption_size_exceeded() {
+    fn test_validate_encryption_size_exceeded_has_correct_size() {
         let result = validate_encryption_size(200 * 1024 * 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -327,12 +327,12 @@ mod resource_limits_tests {
     }
 
     #[test]
-    fn test_validate_signature_size_valid() {
+    fn test_validate_signature_size_valid_passes_validation() {
         assert!(validate_signature_size(1024).is_ok());
     }
 
     #[test]
-    fn test_validate_signature_size_exceeded() {
+    fn test_validate_signature_size_exceeded_has_correct_size() {
         let result = validate_signature_size(100 * 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -345,12 +345,12 @@ mod resource_limits_tests {
     }
 
     #[test]
-    fn test_validate_decryption_size_valid() {
+    fn test_validate_decryption_size_valid_passes_validation() {
         assert!(validate_decryption_size(1024 * 1024).is_ok());
     }
 
     #[test]
-    fn test_validate_decryption_size_exceeded() {
+    fn test_validate_decryption_size_exceeded_has_correct_size() {
         let result = validate_decryption_size(200 * 1024 * 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -371,14 +371,14 @@ mod resource_limits_manager_tests {
     use super::*;
 
     #[test]
-    fn test_resource_limits_manager_new() {
+    fn test_resource_limits_manager_new_passes_validation() {
         let manager = ResourceLimitsManager::new();
         let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
     }
 
     #[test]
-    fn test_resource_limits_manager_with_limits() {
+    fn test_resource_limits_manager_with_limits_passes_validation() {
         let custom_limits = ResourceLimits::new(500, 25 * 1024 * 1024, 16 * 1024, 25 * 1024 * 1024);
         let manager = ResourceLimitsManager::with_limits(custom_limits);
         let limits = manager.get_limits().unwrap();
@@ -387,7 +387,7 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_resource_limits_manager_update() {
+    fn test_resource_limits_manager_update_passes_validation() {
         let manager = ResourceLimitsManager::new();
         let new_limits = ResourceLimits::new(200, 10 * 1024 * 1024, 8 * 1024, 10 * 1024 * 1024);
         manager.update_limits(new_limits).unwrap();
@@ -396,35 +396,35 @@ mod resource_limits_manager_tests {
     }
 
     #[test]
-    fn test_resource_limits_manager_validate_key_derivation() {
+    fn test_resource_limits_manager_validate_key_derivation_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_key_derivation_count(100).is_ok());
         assert!(manager.validate_key_derivation_count(2000).is_err());
     }
 
     #[test]
-    fn test_resource_limits_manager_validate_encryption() {
+    fn test_resource_limits_manager_validate_encryption_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_encryption_size(1024 * 1024).is_ok());
         assert!(manager.validate_encryption_size(200 * 1024 * 1024).is_err());
     }
 
     #[test]
-    fn test_resource_limits_manager_validate_signature() {
+    fn test_resource_limits_manager_validate_signature_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_signature_size(1024).is_ok());
         assert!(manager.validate_signature_size(100 * 1024).is_err());
     }
 
     #[test]
-    fn test_resource_limits_manager_validate_decryption() {
+    fn test_resource_limits_manager_validate_decryption_passes_validation() {
         let manager = ResourceLimitsManager::new();
         assert!(manager.validate_decryption_size(1024 * 1024).is_ok());
         assert!(manager.validate_decryption_size(200 * 1024 * 1024).is_err());
     }
 
     #[test]
-    fn test_resource_limits_manager_default() {
+    fn test_resource_limits_manager_default_passes_validation() {
         let manager = ResourceLimitsManager::default();
         let limits = manager.get_limits().unwrap();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
@@ -439,29 +439,29 @@ mod global_resource_limits_tests {
     use super::*;
 
     #[test]
-    fn test_get_global_resource_limits() {
+    fn test_get_global_resource_limits_passes_validation() {
         let manager = get_global_resource_limits();
         let limits = manager.get_limits().unwrap();
         assert!(limits.max_key_derivations_per_call > 0);
     }
 
     #[test]
-    fn test_global_validate_key_derivation_count() {
+    fn test_global_validate_key_derivation_count_passes_validation() {
         assert!(validate_key_derivation_count(100).is_ok());
     }
 
     #[test]
-    fn test_global_validate_encryption_size() {
+    fn test_global_validate_encryption_size_passes_validation() {
         assert!(validate_encryption_size(1024 * 1024).is_ok());
     }
 
     #[test]
-    fn test_global_validate_signature_size() {
+    fn test_global_validate_signature_size_passes_validation() {
         assert!(validate_signature_size(1024).is_ok());
     }
 
     #[test]
-    fn test_global_validate_decryption_size() {
+    fn test_global_validate_decryption_size_passes_validation() {
         assert!(validate_decryption_size(1024 * 1024).is_ok());
     }
 }
@@ -474,7 +474,7 @@ mod resource_error_tests {
     use super::*;
 
     #[test]
-    fn test_resource_error_key_derivation_display() {
+    fn test_resource_error_key_derivation_display_passes_validation() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
         let msg = format!("{}", err);
         assert!(msg.contains("2000"));
@@ -483,7 +483,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_resource_error_encryption_display() {
+    fn test_resource_error_encryption_display_passes_validation() {
         let err = ResourceError::EncryptionSizeLimitExceeded {
             requested: 200 * 1024 * 1024,
             limit: 100 * 1024 * 1024,
@@ -493,7 +493,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_resource_error_signature_display() {
+    fn test_resource_error_signature_display_passes_validation() {
         let err =
             ResourceError::SignatureSizeLimitExceeded { requested: 100 * 1024, limit: 64 * 1024 };
         let msg = format!("{}", err);
@@ -501,7 +501,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_resource_error_decryption_display() {
+    fn test_resource_error_decryption_display_passes_validation() {
         let err = ResourceError::DecryptionSizeLimitExceeded {
             requested: 200 * 1024 * 1024,
             limit: 100 * 1024 * 1024,
@@ -511,7 +511,7 @@ mod resource_error_tests {
     }
 
     #[test]
-    fn test_resource_error_debug() {
+    fn test_resource_error_debug_passes_validation() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
         let debug = format!("{:?}", err);
         assert!(debug.contains("KeyDerivationLimitExceeded"));
@@ -526,7 +526,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_zero_values() {
+    fn test_zero_values_passes_validation() {
         // Zero-length input
         let empty = vec![];
         assert!(validate_input_size(&empty, 0, 0).is_ok());
@@ -539,13 +539,13 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_max_values() {
+    fn test_max_values_passes_validation() {
         // Large values within limits
         assert!(validate_bounds(usize::MAX - 1, 0, usize::MAX).is_ok());
     }
 
     #[test]
-    fn test_boundary_conditions() {
+    fn test_boundary_conditions_passes_validation() {
         // Exact boundary tests
         let input = vec![0u8; 100];
         assert!(validate_input_size(&input, 100, 100).is_ok());
@@ -564,7 +564,7 @@ mod concurrent_tests {
     use std::thread;
 
     #[test]
-    fn test_resource_limits_manager_concurrent_read() {
+    fn test_resource_limits_manager_concurrent_read_succeeds() {
         let manager = Arc::new(ResourceLimitsManager::new());
         let mut handles = vec![];
 
@@ -584,7 +584,7 @@ mod concurrent_tests {
     }
 
     #[test]
-    fn test_resource_limits_manager_concurrent_validation() {
+    fn test_resource_limits_manager_concurrent_validation_succeeds() {
         let manager = Arc::new(ResourceLimitsManager::new());
         let mut handles = vec![];
 
@@ -613,7 +613,7 @@ mod property_tests {
     use super::*;
 
     #[test]
-    fn test_input_validation_symmetry() {
+    fn test_input_validation_symmetry_passes_validation() {
         // If min == max, only exact size is valid
         for size in [16, 32, 64, 128] {
             let input = vec![0u8; size];
@@ -628,7 +628,7 @@ mod property_tests {
     }
 
     #[test]
-    fn test_bounds_validation_ordering() {
+    fn test_bounds_validation_ordering_passes_validation() {
         // Values within bounds are always valid
         for (min, max) in [(0, 100), (10, 50), (100, 1000)] {
             for value in (min..=max).step_by(std::cmp::max(1, (max - min) / 10)) {
@@ -638,7 +638,7 @@ mod property_tests {
     }
 
     #[test]
-    fn test_key_format_sizes() {
+    fn test_key_format_sizes_passes_validation() {
         // Common cryptographic key sizes
         for size in [16, 24, 32, 48, 64] {
             let key = vec![0u8; size];
@@ -659,7 +659,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_combined_validation_workflow() {
+    fn test_combined_validation_workflow_passes_validation() {
         // Simulate a typical cryptographic operation validation workflow
 
         // 1. Validate input data size
@@ -679,7 +679,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_signature_validation_workflow() {
+    fn test_signature_validation_workflow_passes_validation() {
         // Validate signature operation
         let message = vec![0u8; 512];
         let signature_key = vec![0u8; 32];
@@ -694,7 +694,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_custom_limits_manager() {
+    fn test_custom_limits_manager_passes_validation() {
         // Create manager with restricted limits
         let restricted_limits = ResourceLimits::new(
             10,          // max 10 key derivations
@@ -726,21 +726,21 @@ mod output_validation_tests {
     use super::*;
 
     #[test]
-    fn test_simple_validator_new() {
+    fn test_simple_validator_new_succeeds() {
         let validator = SimpleValidator::new();
         let output = vec![0u8; 32];
         assert!(validator.validate_output(&output).is_ok());
     }
 
     #[test]
-    fn test_simple_validator_default() {
+    fn test_simple_validator_default_succeeds() {
         let validator = SimpleValidator::default();
         let output = vec![0u8; 32];
         assert!(validator.validate_output(&output).is_ok());
     }
 
     #[test]
-    fn test_output_validator_empty() {
+    fn test_output_validator_empty_succeeds() {
         let validator = SimpleValidator::new();
         let output = vec![];
         let result = validator.validate_output(&output);
@@ -749,7 +749,7 @@ mod output_validation_tests {
     }
 
     #[test]
-    fn test_output_validator_too_large() {
+    fn test_output_validator_too_large_fails() {
         let validator = SimpleValidator::new();
         // Create output larger than 10MB limit
         let output = vec![0u8; 11 * 1024 * 1024];
@@ -765,7 +765,7 @@ mod output_validation_tests {
     }
 
     #[test]
-    fn test_output_validator_invalid_byte() {
+    fn test_output_validator_invalid_byte_fails() {
         let validator = SimpleValidator::new();
         // 0xFF is considered invalid in SimpleValidator
         let output = vec![0u8, 0x10, 0xFF, 0x20];
@@ -781,28 +781,28 @@ mod output_validation_tests {
     }
 
     #[test]
-    fn test_bounds_checker_valid() {
+    fn test_bounds_checker_valid_passes_validation() {
         let validator = SimpleValidator::new();
         let value = vec![0u8; 32];
         assert!(validator.check_bounds(&value, 16, 64).is_ok());
     }
 
     #[test]
-    fn test_bounds_checker_exact_min() {
+    fn test_bounds_checker_exact_min_passes_validation() {
         let validator = SimpleValidator::new();
         let value = vec![0u8; 16];
         assert!(validator.check_bounds(&value, 16, 64).is_ok());
     }
 
     #[test]
-    fn test_bounds_checker_exact_max() {
+    fn test_bounds_checker_exact_max_passes_validation() {
         let validator = SimpleValidator::new();
         let value = vec![0u8; 64];
         assert!(validator.check_bounds(&value, 16, 64).is_ok());
     }
 
     #[test]
-    fn test_bounds_checker_out_of_bounds() {
+    fn test_bounds_checker_out_of_bounds_fails() {
         let validator = SimpleValidator::new();
         let value = vec![0u8; 8];
         let result = validator.check_bounds(&value, 16, 64);
@@ -818,7 +818,7 @@ mod output_validation_tests {
     }
 
     #[test]
-    fn test_bounds_checker_invalid_bounds() {
+    fn test_bounds_checker_invalid_bounds_fails() {
         let validator = SimpleValidator::new();
         let value = vec![0u8; 32];
         // min > max is invalid
@@ -834,7 +834,7 @@ mod output_validation_tests {
     }
 
     #[test]
-    fn test_output_error_display() {
+    fn test_output_error_display_passes_validation() {
         let err = OutputError::EmptyOutput;
         let msg = format!("{}", err);
         assert!(msg.contains("empty"));
@@ -855,7 +855,7 @@ mod output_validation_tests {
     }
 
     #[test]
-    fn test_output_bounds_error_display() {
+    fn test_output_bounds_error_display_passes_validation() {
         let err = OutputBoundsError::OutOfBounds { actual: 10, min: 20, max: 30 };
         let msg = format!("{}", err);
         assert!(msg.contains("10"));

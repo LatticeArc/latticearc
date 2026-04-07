@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -70,6 +70,7 @@ pub const P521_PUBLIC_KEY_SIZE: usize = 133;
 pub const P521_SHARED_SECRET_SIZE: usize = 66;
 
 /// Supported ECDH curve types
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EcdhCurve {
     /// X25519 curve (Curve25519)
@@ -118,6 +119,7 @@ impl EcdhCurve {
 }
 
 /// Error types for ECDH operations
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum EcdhError {
     /// Key generation failed
@@ -161,6 +163,10 @@ pub enum EcdhError {
     #[error("Invalid key data")]
     InvalidKeyData,
 
+    /// Invalid key material (e.g., low-order point)
+    #[error("Invalid key material: {0}")]
+    InvalidKeyMaterial(String),
+
     /// Curve mismatch
     #[error("Curve mismatch: expected {expected}, got {actual}")]
     CurveMismatch {
@@ -179,17 +185,105 @@ pub struct X25519PublicKey {
     bytes: [u8; X25519_KEY_SIZE],
 }
 
+/// Low-order points on Curve25519 that must be rejected per RFC 7748 §6.1.
+///
+/// These are the small-order subgroup elements (orders 1, 2, 4, 8) on the
+/// Montgomery curve and its twist. Using any of them as a peer public key
+/// forces the shared secret to be predictable (typically all-zeros), so a
+/// malicious peer can learn the private scalar modulo the small subgroup.
+///
+/// The exact byte values mirror the `has_small_order()` blacklist in
+/// libsodium's `crypto_scalarmult/curve25519/ref10/x25519_ref10.c`, which is
+/// the canonical reference implementation and is itself derived from RFC 7748
+/// §6.1. libsodium ships seven entries; we use the same seven, unchanged.
+///
+/// # Defense-in-depth rationale
+///
+/// aws-lc-rs (the backing implementation) may or may not reject these inputs
+/// internally before invoking the X25519 scalar-mult ladder. Rather than rely
+/// on that assumption, every call that accepts peer-supplied X25519 public
+/// key bytes routes through `X25519PublicKey::from_bytes`, which checks this
+/// list in constant time. This closes the hybrid KEM bypass where raw peer
+/// bytes were previously passed directly to `agreement::agree_ephemeral` /
+/// `agreement::agree` without going through the wrapper.
+///
+/// # Prior list note
+///
+/// Earlier revisions of this module carried twelve entries — the seven
+/// canonical points plus five "high-bit-set" variants. Audit review found
+/// that two of those variants did not match any canonical reference, and the
+/// RFC 7748 §5 clamping step already masks bit 255 before the ladder runs,
+/// making the extras either redundant or potentially incorrect. The list was
+/// trimmed to the seven canonical points to eliminate ambiguity.
+const X25519_LOW_ORDER_POINTS: [[u8; X25519_KEY_SIZE]; 7] = [
+    // 0 (order 4 — identity representation).
+    [0x00; 32],
+    // 1 (order 1 — neutral element image).
+    [
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00,
+    ],
+    // Order 8 — Curve25519 small-order point
+    // 325606250916557431795983626356110631294008115727848805560023387167927233504.
+    [
+        0xe0, 0xeb, 0x7a, 0x7c, 0x3b, 0x41, 0xb8, 0xae, 0x16, 0x56, 0xe3, 0xfa, 0xf1, 0x9f, 0xc4,
+        0x6a, 0xda, 0x09, 0x8d, 0xeb, 0x9c, 0x32, 0xb1, 0xfd, 0x86, 0x62, 0x05, 0x16, 0x5f, 0x49,
+        0xb8, 0x00,
+    ],
+    // Order 8 — Curve25519 small-order point
+    // 39382357235489614581723060781553021112529911719440698176882885853963445705823.
+    [
+        0x5f, 0x9c, 0x95, 0xbc, 0xa3, 0x50, 0x8c, 0x24, 0xb1, 0xd0, 0xb1, 0x55, 0x9c, 0x83, 0xef,
+        0x5b, 0x04, 0x44, 0x5c, 0xc4, 0x58, 0x1c, 0x8e, 0x86, 0xd8, 0x22, 0x4e, 0xdd, 0xd0, 0x9f,
+        0x11, 0x57,
+    ],
+    // p - 1 (order 2).
+    [
+        0xec, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0x7f,
+    ],
+    // p (order 4 — zero after reduction).
+    [
+        0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0x7f,
+    ],
+    // p + 1 (order 1 — one after reduction).
+    [
+        0xee, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0x7f,
+    ],
+];
+
 impl X25519PublicKey {
     /// Create a new X25519 public key from bytes
     ///
     /// # Errors
-    /// Returns an error if the provided bytes are not exactly 32 bytes.
+    /// Returns an error if the provided bytes are not exactly 32 bytes
+    /// or if the key is a known low-order point on Curve25519 (RFC 7748 §6.1).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, EcdhError> {
+        use subtle::ConstantTimeEq;
+
         if bytes.len() != X25519_KEY_SIZE {
             return Err(EcdhError::InvalidKeySize {
                 expected: X25519_KEY_SIZE,
                 actual: bytes.len(),
             });
+        }
+        // Reject the 7 canonical low-order points on Curve25519 (RFC 7748 §6.1).
+        // We compare in constant time using subtle::Choice so a peer cannot
+        // distinguish "all-zero" from "ordered-4 point" from timing.
+        let mut is_low_order = subtle::Choice::from(0u8);
+        for point in &X25519_LOW_ORDER_POINTS {
+            is_low_order |= bytes.ct_eq(point);
+        }
+        if bool::from(is_low_order) {
+            return Err(EcdhError::InvalidKeyMaterial(
+                "X25519 public key is a low-order point (RFC 7748 §6.1)".to_string(),
+            ));
         }
         let mut key_bytes = [0u8; X25519_KEY_SIZE];
         key_bytes.copy_from_slice(bytes);
@@ -248,10 +342,32 @@ impl std::fmt::Debug for X25519SecretKey {
     }
 }
 
+impl subtle::ConstantTimeEq for X25519SecretKey {
+    /// Constant-time comparison of secret key bytes.
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.bytes.ct_eq(&other.bytes)
+    }
+}
+
 /// X25519 key pair containing both public and secret keys
 ///
 /// This struct holds an ephemeral private key from aws-lc-rs along with
 /// the computed public key bytes for transmission.
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization
+/// of the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. Rust-level
+/// `ZeroizeOnDrop` cannot be derived because `EphemeralPrivateKey` does not
+/// implement `Zeroize`.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// aws-lc-rs type does not expose key bytes for byte-level comparison.
+/// This type is ephemeral (consumed on use) and not compared in any
+/// production code path.
 pub struct X25519KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: [u8; X25519_KEY_SIZE],
@@ -290,12 +406,22 @@ impl X25519KeyPair {
     ///
     /// Consumes the private key to ensure single-use (ephemeral) semantics.
     ///
+    /// Validates the peer key against the RFC 7748 §6.1 low-order point
+    /// blacklist before performing the Diffie-Hellman exchange. This is
+    /// defense-in-depth on top of aws-lc-rs's own validation; it ensures
+    /// every caller of `agree()` gets the low-order rejection, including
+    /// hybrid KEM paths that receive peer keys as raw bytes.
+    ///
     /// # Errors
-    /// Returns an error if key agreement fails.
+    /// Returns an error if the peer key is a low-order point (per RFC 7748
+    /// §6.1) or key agreement fails.
     pub fn agree(
         self,
         peer_public_bytes: &[u8],
     ) -> Result<Zeroizing<[u8; X25519_KEY_SIZE]>, EcdhError> {
+        // Reject low-order peer keys before reaching aws-lc-rs.
+        // `from_bytes` enforces the 7-point blacklist (RFC 7748 §6.1).
+        let _validated_peer = X25519PublicKey::from_bytes(peer_public_bytes)?;
         let peer_public = UnparsedPublicKey::new(&X25519, peer_public_bytes);
 
         agreement::agree_ephemeral(
@@ -326,6 +452,20 @@ impl std::fmt::Debug for X25519KeyPair {
 /// this type wraps [`PrivateKey`] which supports multiple `agree()` calls
 /// without consuming the key. This is essential for hybrid KEM where the
 /// recipient's X25519 key must persist for decapsulation.
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: Zeroization of the inner `PrivateKey` is delegated
+/// to aws-lc-rs (BoringSSL), which zeros key material on free. Rust-level
+/// `ZeroizeOnDrop` cannot be derived because `PrivateKey` does not
+/// implement `Zeroize`.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// aws-lc-rs type does not expose key bytes for byte-level comparison.
+/// This type is ephemeral (consumed on use) and not compared in any
+/// production code path.
 ///
 /// # Limitations
 ///
@@ -420,12 +560,20 @@ impl X25519StaticKeyPair {
     /// Unlike [`X25519KeyPair::agree`], this does **not** consume the key,
     /// allowing multiple agreements with different peers.
     ///
+    /// Validates the peer key against the RFC 7748 §6.1 low-order point
+    /// blacklist before performing the Diffie-Hellman exchange. This closes
+    /// the hybrid KEM bypass where `HybridKemSecretKey::ecdh_agree` passes
+    /// raw peer bytes to the low-level `agree()` without validation.
+    ///
     /// # Errors
-    /// Returns an error if key agreement fails (e.g., invalid peer public key).
+    /// Returns an error if the peer key is a low-order point (per RFC 7748
+    /// §6.1) or key agreement fails.
     pub fn agree(
         &self,
         peer_public_bytes: &[u8],
     ) -> Result<Zeroizing<[u8; X25519_KEY_SIZE]>, EcdhError> {
+        // Reject low-order peer keys before reaching aws-lc-rs.
+        let _validated_peer = X25519PublicKey::from_bytes(peer_public_bytes)?;
         let peer_public = UnparsedPublicKey::new(&X25519, peer_public_bytes);
 
         agreement::agree(&self.private, peer_public, EcdhError::AgreementFailed, |shared_secret| {
@@ -568,6 +716,21 @@ impl EcdhP256PublicKey {
 ///
 /// This struct holds an ephemeral private key from aws-lc-rs along with
 /// the computed public key bytes for transmission.
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization
+/// of the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. Rust-level
+/// `ZeroizeOnDrop` cannot be derived because `EphemeralPrivateKey` does not
+/// implement `Zeroize`.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// aws-lc-rs type does not expose key bytes for byte-level comparison.
+/// This type is ephemeral (consumed on use) and not compared in any
+/// production code path.
 pub struct EcdhP256KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: Vec<u8>,
@@ -700,6 +863,21 @@ impl EcdhP384PublicKey {
 ///
 /// This struct holds an ephemeral private key from aws-lc-rs along with
 /// the computed public key bytes for transmission.
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization
+/// of the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. Rust-level
+/// `ZeroizeOnDrop` cannot be derived because `EphemeralPrivateKey` does not
+/// implement `Zeroize`.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// aws-lc-rs type does not expose key bytes for byte-level comparison.
+/// This type is ephemeral (consumed on use) and not compared in any
+/// production code path.
 pub struct EcdhP384KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: Vec<u8>,
@@ -832,6 +1010,21 @@ impl EcdhP521PublicKey {
 ///
 /// This struct holds an ephemeral private key from aws-lc-rs along with
 /// the computed public key bytes for transmission.
+///
+/// # Zeroization
+///
+/// AUDIT-ACCEPTED: The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization
+/// of the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. Rust-level
+/// `ZeroizeOnDrop` cannot be derived because `EphemeralPrivateKey` does not
+/// implement `Zeroize`.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// aws-lc-rs type does not expose key bytes for byte-level comparison.
+/// This type is ephemeral (consumed on use) and not compared in any
+/// production code path.
 pub struct EcdhP521KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: Vec<u8>,
@@ -983,15 +1176,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ecdh_keypair_generation() {
+    fn test_ecdh_keypair_generation_succeeds() {
         let keypair = X25519KeyPair::generate();
         assert!(keypair.is_ok());
         let keypair = keypair.unwrap();
         assert_eq!(keypair.public_key_bytes().len(), X25519_KEY_SIZE);
     }
 
+    /// Regression: every point in `X25519_LOW_ORDER_POINTS` must be rejected
+    /// both by `X25519PublicKey::from_bytes` and by the `agree()` wrappers.
+    /// The seven canonical points come from libsodium's `has_small_order()`
+    /// (which itself derives from RFC 7748 §6.1). If the list gets truncated
+    /// or an entry stops matching, this test fails loudly instead of silently
+    /// opening the bypass.
     #[test]
-    fn test_ecdh_key_exchange() {
+    fn test_all_low_order_points_rejected_fails() {
+        assert_eq!(
+            X25519_LOW_ORDER_POINTS.len(),
+            7,
+            "RFC 7748 §6.1 canonical list (libsodium) has exactly 7 points",
+        );
+        for (idx, point) in X25519_LOW_ORDER_POINTS.iter().enumerate() {
+            let from_bytes_err = X25519PublicKey::from_bytes(point);
+            assert!(
+                matches!(from_bytes_err, Err(EcdhError::InvalidKeyMaterial(_))),
+                "from_bytes must reject low-order point #{idx}",
+            );
+
+            let kp = X25519KeyPair::generate().unwrap();
+            let agree_err = kp.agree(point);
+            assert!(
+                matches!(agree_err, Err(EcdhError::InvalidKeyMaterial(_))),
+                "agree() must reject low-order point #{idx}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_ecdh_key_exchange_roundtrip() {
         // Generate two keypairs
         let keypair1 = X25519KeyPair::generate().unwrap();
         let keypair2 = X25519KeyPair::generate().unwrap();
@@ -1008,42 +1230,42 @@ mod tests {
     }
 
     #[test]
-    fn test_public_key_from_bytes() {
+    fn test_public_key_from_bytes_succeeds() {
         let bytes = [0x42u8; X25519_KEY_SIZE];
         let pk = X25519PublicKey::from_bytes(&bytes).unwrap();
         assert_eq!(pk.as_bytes(), &bytes);
     }
 
     #[test]
-    fn test_public_key_invalid_size() {
+    fn test_public_key_invalid_size_fails() {
         let bytes = [0x42u8; 16]; // Wrong size
         let result = X25519PublicKey::from_bytes(&bytes);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_secret_key_from_bytes() {
+    fn test_secret_key_from_bytes_succeeds() {
         let bytes = [0x42u8; X25519_KEY_SIZE];
         let sk = X25519SecretKey::from_bytes(&bytes).unwrap();
         assert_eq!(sk.as_bytes(), &bytes);
     }
 
     #[test]
-    fn test_validate_public_key() {
+    fn test_validate_public_key_succeeds() {
         let bytes = [0x42u8; X25519_KEY_SIZE];
         let pk = X25519PublicKey::from_bytes(&bytes).unwrap();
         assert!(validate_public_key(&pk).is_ok());
     }
 
     #[test]
-    fn test_validate_secret_key() {
+    fn test_validate_secret_key_succeeds() {
         let bytes = [0x42u8; X25519_KEY_SIZE];
         let sk = X25519SecretKey::from_bytes(&bytes).unwrap();
         assert!(validate_secret_key(&sk).is_ok());
     }
 
     #[test]
-    fn test_agree_ephemeral() {
+    fn test_agree_ephemeral_roundtrip() {
         let keypair = X25519KeyPair::generate().unwrap();
         let peer_public = *keypair.public_key_bytes();
 
@@ -1059,14 +1281,14 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_static_keypair_generation() {
+    fn test_static_keypair_generation_succeeds() {
         let kp = X25519StaticKeyPair::generate().unwrap();
         assert_eq!(kp.public_key_bytes().len(), X25519_KEY_SIZE);
         assert!(!kp.public_key_bytes().iter().all(|&b| b == 0));
     }
 
     #[test]
-    fn test_static_keypair_commutativity() {
+    fn test_static_keypair_commutativity_roundtrip() {
         // This is the key DH property: alice.agree(bob_pk) == bob.agree(alice_pk)
         let alice = X25519StaticKeyPair::generate().unwrap();
         let bob = X25519StaticKeyPair::generate().unwrap();
@@ -1079,7 +1301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_static_keypair_reusable() {
+    fn test_static_keypair_reusable_succeeds() {
         // Key can be used for multiple agreements without being consumed
         let alice = X25519StaticKeyPair::generate().unwrap();
         let bob = X25519StaticKeyPair::generate().unwrap();
@@ -1096,14 +1318,14 @@ mod tests {
     }
 
     #[test]
-    fn test_static_keypair_public_key() {
+    fn test_static_keypair_public_key_succeeds() {
         let kp = X25519StaticKeyPair::generate().unwrap();
         let pk = kp.public_key();
         assert_eq!(pk.as_bytes(), kp.public_key_bytes());
     }
 
     #[test]
-    fn test_static_keypair_different_keys() {
+    fn test_static_keypair_different_keys_succeeds() {
         // Two generates must produce different key pairs
         let kp1 = X25519StaticKeyPair::generate().unwrap();
         let kp2 = X25519StaticKeyPair::generate().unwrap();
@@ -1115,7 +1337,7 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_static_keypair_seed_roundtrip() {
+    fn test_static_keypair_seed_roundtrip_succeeds() {
         let original = X25519StaticKeyPair::generate().unwrap();
         let seed = original.seed_bytes().unwrap();
         let restored = X25519StaticKeyPair::from_seed_bytes(&seed).unwrap();
@@ -1124,7 +1346,7 @@ mod tests {
     }
 
     #[test]
-    fn test_static_keypair_seed_roundtrip_agree() {
+    fn test_static_keypair_seed_roundtrip_agree_roundtrip() {
         // Restored key must produce identical shared secrets
         let alice = X25519StaticKeyPair::generate().unwrap();
         let bob = X25519StaticKeyPair::generate().unwrap();
@@ -1139,14 +1361,14 @@ mod tests {
     }
 
     #[test]
-    fn test_static_keypair_seed_not_zero() {
+    fn test_static_keypair_seed_not_zero_succeeds() {
         let kp = X25519StaticKeyPair::generate().unwrap();
         let seed = kp.seed_bytes().unwrap();
         assert!(!seed.iter().all(|&b| b == 0));
     }
 
     #[test]
-    fn test_static_keypair_from_invalid_seed() {
+    fn test_static_keypair_from_invalid_seed_fails() {
         // All-zero seed should still produce a valid key (X25519 clamping)
         let zero_seed = [0u8; X25519_KEY_SIZE];
         let result = X25519StaticKeyPair::from_seed_bytes(&zero_seed);
@@ -1158,7 +1380,7 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_ecdh_curve_public_key_size() {
+    fn test_ecdh_curve_public_key_size_passes_validation() {
         assert_eq!(EcdhCurve::X25519.public_key_size(), X25519_KEY_SIZE);
         assert_eq!(EcdhCurve::P256.public_key_size(), P256_PUBLIC_KEY_SIZE);
         assert_eq!(EcdhCurve::P384.public_key_size(), P384_PUBLIC_KEY_SIZE);
@@ -1166,7 +1388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ecdh_curve_shared_secret_size() {
+    fn test_ecdh_curve_shared_secret_size_passes_validation() {
         assert_eq!(EcdhCurve::X25519.shared_secret_size(), X25519_KEY_SIZE);
         assert_eq!(EcdhCurve::P256.shared_secret_size(), P256_SHARED_SECRET_SIZE);
         assert_eq!(EcdhCurve::P384.shared_secret_size(), P384_SHARED_SECRET_SIZE);
@@ -1174,7 +1396,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ecdh_curve_name() {
+    fn test_ecdh_curve_name_passes_validation() {
         assert_eq!(EcdhCurve::X25519.name(), "X25519");
         assert_eq!(EcdhCurve::P256.name(), "P-256");
         assert_eq!(EcdhCurve::P384.name(), "P-384");
@@ -1182,7 +1404,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ecdh_curve_clone_eq() {
+    fn test_ecdh_curve_clone_eq_passes_validation() {
         let c1 = EcdhCurve::P256;
         let c2 = c1;
         assert_eq!(c1, c2);
@@ -1194,20 +1416,20 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_x25519_public_key_to_vec() {
+    fn test_x25519_public_key_to_vec_succeeds() {
         let bytes = [0x42u8; X25519_KEY_SIZE];
         let pk = X25519PublicKey::from_bytes(&bytes).unwrap();
         assert_eq!(pk.to_vec(), bytes.to_vec());
     }
 
     #[test]
-    fn test_x25519_secret_key_invalid_size() {
+    fn test_x25519_secret_key_invalid_size_fails() {
         let result = X25519SecretKey::from_bytes(&[0u8; 16]);
         assert!(matches!(result, Err(EcdhError::InvalidKeySize { expected: 32, actual: 16 })));
     }
 
     #[test]
-    fn test_x25519_secret_key_debug_redacted() {
+    fn test_x25519_secret_key_debug_redacted_passes_validation() {
         let sk = X25519SecretKey::from_bytes(&[0xAA; X25519_KEY_SIZE]).unwrap();
         let debug = format!("{:?}", sk);
         assert!(debug.contains("REDACTED"));
@@ -1215,7 +1437,7 @@ mod tests {
     }
 
     #[test]
-    fn test_x25519_keypair_debug() {
+    fn test_x25519_keypair_debug_passes_validation() {
         let kp = X25519KeyPair::generate().unwrap();
         let debug = format!("{:?}", kp);
         assert!(debug.contains("X25519KeyPair"));
@@ -1223,14 +1445,14 @@ mod tests {
     }
 
     #[test]
-    fn test_x25519_keypair_public_key() {
+    fn test_x25519_keypair_public_key_succeeds() {
         let kp = X25519KeyPair::generate().unwrap();
         let pk = kp.public_key();
         assert_eq!(pk.as_bytes().len(), X25519_KEY_SIZE);
     }
 
     #[test]
-    fn test_x25519_static_keypair_debug() {
+    fn test_x25519_static_keypair_debug_passes_validation() {
         let kp = X25519StaticKeyPair::generate().unwrap();
         let debug = format!("{:?}", kp);
         assert!(debug.contains("X25519StaticKeyPair"));
@@ -1242,13 +1464,13 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_p256_keypair_generation() {
+    fn test_p256_keypair_generation_succeeds() {
         let kp = EcdhP256KeyPair::generate().unwrap();
         assert_eq!(kp.public_key_bytes().len(), P256_PUBLIC_KEY_SIZE);
     }
 
     #[test]
-    fn test_p256_keypair_public_key() {
+    fn test_p256_keypair_public_key_succeeds() {
         let kp = EcdhP256KeyPair::generate().unwrap();
         let pk = kp.public_key().unwrap();
         assert_eq!(pk.as_bytes().len(), P256_PUBLIC_KEY_SIZE);
@@ -1256,7 +1478,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p256_key_exchange() {
+    fn test_p256_key_exchange_roundtrip() {
         let alice = EcdhP256KeyPair::generate().unwrap();
         let bob = EcdhP256KeyPair::generate().unwrap();
 
@@ -1271,7 +1493,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p256_public_key_from_bytes_valid() {
+    fn test_p256_public_key_from_bytes_valid_succeeds() {
         let kp = EcdhP256KeyPair::generate().unwrap();
         let pk_bytes = kp.public_key_bytes().to_vec();
         let pk = EcdhP256PublicKey::from_bytes(&pk_bytes).unwrap();
@@ -1280,13 +1502,13 @@ mod tests {
     }
 
     #[test]
-    fn test_p256_public_key_wrong_size() {
+    fn test_p256_public_key_wrong_size_fails() {
         let result = EcdhP256PublicKey::from_bytes(&[0x04; 32]);
         assert!(matches!(result, Err(EcdhError::InvalidKeySize { .. })));
     }
 
     #[test]
-    fn test_p256_public_key_wrong_prefix() {
+    fn test_p256_public_key_wrong_prefix_fails() {
         let mut bytes = vec![0x05; P256_PUBLIC_KEY_SIZE];
         bytes[0] = 0x05; // Not 0x04
         let result = EcdhP256PublicKey::from_bytes(&bytes);
@@ -1294,7 +1516,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p256_keypair_debug() {
+    fn test_p256_keypair_debug_passes_validation() {
         let kp = EcdhP256KeyPair::generate().unwrap();
         let debug = format!("{:?}", kp);
         assert!(debug.contains("EcdhP256KeyPair"));
@@ -1302,7 +1524,7 @@ mod tests {
     }
 
     #[test]
-    fn test_agree_ephemeral_p256() {
+    fn test_agree_ephemeral_p256_roundtrip() {
         let bob = EcdhP256KeyPair::generate().unwrap();
         let bob_pk = bob.public_key_bytes().to_vec();
         let (shared_secret, our_pk) = agree_ephemeral_p256(&bob_pk).unwrap();
@@ -1311,13 +1533,13 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_p256_public_key_valid() {
+    fn test_validate_p256_public_key_valid_succeeds() {
         let kp = EcdhP256KeyPair::generate().unwrap();
         assert!(validate_p256_public_key(kp.public_key_bytes()).is_ok());
     }
 
     #[test]
-    fn test_validate_p256_public_key_invalid() {
+    fn test_validate_p256_public_key_invalid_fails() {
         assert!(validate_p256_public_key(&[0u8; 10]).is_err());
     }
 
@@ -1326,13 +1548,13 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_p384_keypair_generation() {
+    fn test_p384_keypair_generation_succeeds() {
         let kp = EcdhP384KeyPair::generate().unwrap();
         assert_eq!(kp.public_key_bytes().len(), P384_PUBLIC_KEY_SIZE);
     }
 
     #[test]
-    fn test_p384_keypair_public_key() {
+    fn test_p384_keypair_public_key_succeeds() {
         let kp = EcdhP384KeyPair::generate().unwrap();
         let pk = kp.public_key().unwrap();
         assert_eq!(pk.as_bytes().len(), P384_PUBLIC_KEY_SIZE);
@@ -1340,7 +1562,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p384_key_exchange() {
+    fn test_p384_key_exchange_roundtrip() {
         let alice = EcdhP384KeyPair::generate().unwrap();
         let bob = EcdhP384KeyPair::generate().unwrap();
 
@@ -1355,7 +1577,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p384_public_key_from_bytes_valid() {
+    fn test_p384_public_key_from_bytes_valid_succeeds() {
         let kp = EcdhP384KeyPair::generate().unwrap();
         let pk_bytes = kp.public_key_bytes().to_vec();
         let pk = EcdhP384PublicKey::from_bytes(&pk_bytes).unwrap();
@@ -1364,13 +1586,13 @@ mod tests {
     }
 
     #[test]
-    fn test_p384_public_key_wrong_size() {
+    fn test_p384_public_key_wrong_size_fails() {
         let result = EcdhP384PublicKey::from_bytes(&[0x04; 32]);
         assert!(matches!(result, Err(EcdhError::InvalidKeySize { .. })));
     }
 
     #[test]
-    fn test_p384_public_key_wrong_prefix() {
+    fn test_p384_public_key_wrong_prefix_fails() {
         let mut bytes = vec![0x03; P384_PUBLIC_KEY_SIZE];
         bytes[0] = 0x03;
         let result = EcdhP384PublicKey::from_bytes(&bytes);
@@ -1378,7 +1600,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p384_keypair_debug() {
+    fn test_p384_keypair_debug_passes_validation() {
         let kp = EcdhP384KeyPair::generate().unwrap();
         let debug = format!("{:?}", kp);
         assert!(debug.contains("EcdhP384KeyPair"));
@@ -1386,7 +1608,7 @@ mod tests {
     }
 
     #[test]
-    fn test_agree_ephemeral_p384() {
+    fn test_agree_ephemeral_p384_roundtrip() {
         let bob = EcdhP384KeyPair::generate().unwrap();
         let bob_pk = bob.public_key_bytes().to_vec();
         let (shared_secret, our_pk) = agree_ephemeral_p384(&bob_pk).unwrap();
@@ -1395,13 +1617,13 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_p384_public_key_valid() {
+    fn test_validate_p384_public_key_valid_succeeds() {
         let kp = EcdhP384KeyPair::generate().unwrap();
         assert!(validate_p384_public_key(kp.public_key_bytes()).is_ok());
     }
 
     #[test]
-    fn test_validate_p384_public_key_invalid() {
+    fn test_validate_p384_public_key_invalid_fails() {
         assert!(validate_p384_public_key(&[0u8; 10]).is_err());
     }
 
@@ -1410,13 +1632,13 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_p521_keypair_generation() {
+    fn test_p521_keypair_generation_succeeds() {
         let kp = EcdhP521KeyPair::generate().unwrap();
         assert_eq!(kp.public_key_bytes().len(), P521_PUBLIC_KEY_SIZE);
     }
 
     #[test]
-    fn test_p521_keypair_public_key() {
+    fn test_p521_keypair_public_key_succeeds() {
         let kp = EcdhP521KeyPair::generate().unwrap();
         let pk = kp.public_key().unwrap();
         assert_eq!(pk.as_bytes().len(), P521_PUBLIC_KEY_SIZE);
@@ -1424,7 +1646,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p521_key_exchange() {
+    fn test_p521_key_exchange_roundtrip() {
         let alice = EcdhP521KeyPair::generate().unwrap();
         let bob = EcdhP521KeyPair::generate().unwrap();
 
@@ -1439,7 +1661,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p521_public_key_from_bytes_valid() {
+    fn test_p521_public_key_from_bytes_valid_succeeds() {
         let kp = EcdhP521KeyPair::generate().unwrap();
         let pk_bytes = kp.public_key_bytes().to_vec();
         let pk = EcdhP521PublicKey::from_bytes(&pk_bytes).unwrap();
@@ -1448,13 +1670,13 @@ mod tests {
     }
 
     #[test]
-    fn test_p521_public_key_wrong_size() {
+    fn test_p521_public_key_wrong_size_fails() {
         let result = EcdhP521PublicKey::from_bytes(&[0x04; 32]);
         assert!(matches!(result, Err(EcdhError::InvalidKeySize { .. })));
     }
 
     #[test]
-    fn test_p521_public_key_wrong_prefix() {
+    fn test_p521_public_key_wrong_prefix_fails() {
         let mut bytes = vec![0x02; P521_PUBLIC_KEY_SIZE];
         bytes[0] = 0x02;
         let result = EcdhP521PublicKey::from_bytes(&bytes);
@@ -1462,7 +1684,7 @@ mod tests {
     }
 
     #[test]
-    fn test_p521_keypair_debug() {
+    fn test_p521_keypair_debug_passes_validation() {
         let kp = EcdhP521KeyPair::generate().unwrap();
         let debug = format!("{:?}", kp);
         assert!(debug.contains("EcdhP521KeyPair"));
@@ -1470,7 +1692,7 @@ mod tests {
     }
 
     #[test]
-    fn test_agree_ephemeral_p521() {
+    fn test_agree_ephemeral_p521_roundtrip() {
         let bob = EcdhP521KeyPair::generate().unwrap();
         let bob_pk = bob.public_key_bytes().to_vec();
         let (shared_secret, our_pk) = agree_ephemeral_p521(&bob_pk).unwrap();
@@ -1479,13 +1701,13 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_p521_public_key_valid() {
+    fn test_validate_p521_public_key_valid_succeeds() {
         let kp = EcdhP521KeyPair::generate().unwrap();
         assert!(validate_p521_public_key(kp.public_key_bytes()).is_ok());
     }
 
     #[test]
-    fn test_validate_p521_public_key_invalid() {
+    fn test_validate_p521_public_key_invalid_fails() {
         assert!(validate_p521_public_key(&[0u8; 10]).is_err());
     }
 
@@ -1494,7 +1716,7 @@ mod tests {
     // ====================================================================
 
     #[test]
-    fn test_ecdh_error_display() {
+    fn test_ecdh_error_display_passes_validation() {
         let e = EcdhError::KeyGenerationFailed;
         assert!(e.to_string().contains("key generation"));
 

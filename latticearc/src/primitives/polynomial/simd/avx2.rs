@@ -3,6 +3,10 @@
 //! Provides high-performance AVX2 implementations for NTT and polynomial
 //! arithmetic on x86_64 platforms with AVX2 support.
 
+// NTT uses mathematically bounded indices: ZETAS[k] where k ∈ [0,127]
+// for ZETAS: [i32; 128], and fixed-size array access [0]/[1] on [i32; 2].
+#![allow(clippy::indexing_slicing)]
+
 #![cfg(target_feature = "avx2")]
 
 use super::constants::{MLKEM_N, MLKEM_Q, MONT_SQ_INV, QINV, ZETAS};
@@ -143,7 +147,7 @@ mod tests {
     use super::super::test_utils::measure_timing_variance;
 
     #[test]
-    fn test_avx2_ntt_constant_time() {
+    fn test_avx2_ntt_constant_time_succeeds() {
         let test_polynomials = [
             [0i32; MLKEM_N],
             core::array::from_fn(|i| (i % 8) as i32),
@@ -168,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn test_montgomery_reduce_simd_constant_time() {
+    fn test_montgomery_reduce_simd_constant_time_succeeds() {
         let test_inputs = [
             i32x8::from_array([0, 1, 42, 1000, 3328, 3329, 6658, 10000]),
             i32x8::from_array([-1, -42, -1000, -3328, -3329, i32::MIN, i32::MAX, 12345]),

@@ -72,7 +72,7 @@ fn make_executor() -> CavpTestExecutor {
 // ============================================================
 
 #[tokio::test]
-async fn test_mlkem_with_signature_type() {
+async fn test_mlkem_with_signature_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "mlkem-sig-err",
@@ -85,7 +85,7 @@ async fn test_mlkem_with_signature_type() {
 }
 
 #[tokio::test]
-async fn test_mlkem_with_verification_type() {
+async fn test_mlkem_with_verification_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "mlkem-verify-err",
@@ -101,7 +101,7 @@ async fn test_mlkem_with_verification_type() {
 // ============================================================
 
 #[tokio::test]
-async fn test_slhdsa_128s_with_encapsulation_type() {
+async fn test_slhdsa_128s_with_encapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "slhdsa-128s-encap-err",
@@ -113,7 +113,7 @@ async fn test_slhdsa_128s_with_encapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_128s_with_decapsulation_type() {
+async fn test_slhdsa_128s_with_decapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "slhdsa-128s-decap-err",
@@ -125,7 +125,7 @@ async fn test_slhdsa_128s_with_decapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_192s_with_encapsulation_type() {
+async fn test_slhdsa_192s_with_encapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "slhdsa-192s-encap-err",
@@ -137,7 +137,7 @@ async fn test_slhdsa_192s_with_encapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_256s_with_encapsulation_type() {
+async fn test_slhdsa_256s_with_encapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "slhdsa-256s-encap-err",
@@ -149,7 +149,7 @@ async fn test_slhdsa_256s_with_encapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_unsupported_variant() {
+async fn test_slhdsa_unsupported_variant_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "slhdsa-unsupported",
@@ -165,7 +165,7 @@ async fn test_slhdsa_unsupported_variant() {
 // ============================================================
 
 #[tokio::test]
-async fn test_mldsa_44_with_encapsulation_type() {
+async fn test_mldsa_44_with_encapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "mldsa44-encap-err",
@@ -177,7 +177,7 @@ async fn test_mldsa_44_with_encapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_mldsa_65_with_decapsulation_type() {
+async fn test_mldsa_65_with_decapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "mldsa65-decap-err",
@@ -189,7 +189,7 @@ async fn test_mldsa_65_with_decapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_mldsa_87_with_encapsulation_type() {
+async fn test_mldsa_87_with_encapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "mldsa87-encap-err",
@@ -201,7 +201,7 @@ async fn test_mldsa_87_with_encapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_mldsa_unsupported_variant() {
+async fn test_mldsa_unsupported_variant_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "mldsa-unsupported",
@@ -217,7 +217,7 @@ async fn test_mldsa_unsupported_variant() {
 // ============================================================
 
 #[tokio::test]
-async fn test_fndsa_512_with_encapsulation_type() {
+async fn test_fndsa_512_with_encapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "fndsa512-encap-err",
@@ -229,7 +229,7 @@ async fn test_fndsa_512_with_encapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_fndsa_1024_with_decapsulation_type() {
+async fn test_fndsa_1024_with_decapsulation_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "fndsa1024-decap-err",
@@ -241,7 +241,7 @@ async fn test_fndsa_1024_with_decapsulation_type() {
 }
 
 #[tokio::test]
-async fn test_fndsa_unsupported_variant() {
+async fn test_fndsa_unsupported_variant_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         "fndsa-unsupported",
@@ -257,7 +257,7 @@ async fn test_fndsa_unsupported_variant() {
 // ============================================================
 
 #[tokio::test]
-async fn test_hybrid_kem_with_signature_type() {
+async fn test_hybrid_kem_with_signature_type_succeeds() {
     let executor = make_executor();
     let vector = make_vector("hybrid-sig-err", CavpAlgorithm::HybridKem, CavpTestType::Signature);
     let result = executor.execute_single_test_vector(&vector).await.unwrap();
@@ -265,7 +265,7 @@ async fn test_hybrid_kem_with_signature_type() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_with_verification_type() {
+async fn test_hybrid_kem_with_verification_type_succeeds() {
     let executor = make_executor();
     let vector =
         make_vector("hybrid-verify-err", CavpAlgorithm::HybridKem, CavpTestType::Verification);
@@ -278,7 +278,7 @@ async fn test_hybrid_kem_with_verification_type() {
 // ============================================================
 
 #[tokio::test]
-async fn test_hybrid_kem_keygen() {
+async fn test_hybrid_kem_keygen_succeeds() {
     let executor = make_executor();
     let vector = make_vector("hybrid-keygen", CavpAlgorithm::HybridKem, CavpTestType::KeyGen);
     let result = executor.execute_single_test_vector(&vector).await.unwrap();
@@ -291,7 +291,7 @@ async fn test_hybrid_kem_keygen() {
 // ============================================================
 
 #[test]
-fn test_create_sample_vectors_mlkem() {
+fn test_create_sample_vectors_mlkem_matches_expected() {
     let config = PipelineConfig::default();
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
     let pipeline = CavpValidationPipeline::new(config, storage);
@@ -311,7 +311,7 @@ fn test_create_sample_vectors_mlkem() {
 }
 
 #[test]
-fn test_create_sample_vectors_all_algorithms() {
+fn test_create_sample_vectors_all_algorithms_matches_expected() {
     let config = PipelineConfig::default();
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
     let pipeline = CavpValidationPipeline::new(config, storage);
@@ -332,7 +332,7 @@ fn test_create_sample_vectors_all_algorithms() {
 }
 
 #[test]
-fn test_create_sample_vectors_zero() {
+fn test_create_sample_vectors_zero_matches_expected() {
     let config = PipelineConfig::default();
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
     let pipeline = CavpValidationPipeline::new(config, storage);
@@ -346,7 +346,7 @@ fn test_create_sample_vectors_zero() {
 // ============================================================
 
 #[tokio::test]
-async fn test_run_full_validation_mlkem_keygen() {
+async fn test_run_full_validation_mlkem_keygen_succeeds() {
     let mut config = PipelineConfig::default();
     config.generate_reports = true;
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -364,7 +364,7 @@ async fn test_run_full_validation_mlkem_keygen() {
 }
 
 #[tokio::test]
-async fn test_run_full_validation_multiple_algorithms() {
+async fn test_run_full_validation_multiple_algorithms_succeeds() {
     let mut config = PipelineConfig::default();
     config.generate_reports = true;
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -384,7 +384,7 @@ async fn test_run_full_validation_multiple_algorithms() {
 }
 
 #[tokio::test]
-async fn test_run_full_validation_empty() {
+async fn test_run_full_validation_empty_succeeds() {
     let mut config = PipelineConfig::default();
     config.generate_reports = false; // No report from empty results
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -399,7 +399,7 @@ async fn test_run_full_validation_empty() {
 // ============================================================
 
 #[tokio::test]
-async fn test_run_algorithm_validation() {
+async fn test_run_algorithm_validation_succeeds() {
     let mut config = PipelineConfig::default();
     config.generate_reports = true;
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -413,7 +413,7 @@ async fn test_run_algorithm_validation() {
 }
 
 #[tokio::test]
-async fn test_run_algorithm_validation_no_reports() {
+async fn test_run_algorithm_validation_no_reports_succeeds() {
     let mut config = PipelineConfig::default();
     config.generate_reports = false;
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -431,7 +431,7 @@ async fn test_run_algorithm_validation_no_reports() {
 // ============================================================
 
 #[tokio::test]
-async fn test_batch_execution_stores_results() {
+async fn test_batch_execution_stores_results_succeeds() {
     let config = PipelineConfig::default();
     let storage = Arc::new(MemoryCavpStorage::new());
     let storage_clone: Arc<dyn CavpStorage> = storage.clone();
@@ -464,7 +464,7 @@ async fn test_batch_execution_stores_results() {
 // ============================================================
 
 #[tokio::test]
-async fn test_full_validation_without_reports() {
+async fn test_full_validation_without_reports_succeeds() {
     let mut config = PipelineConfig::default();
     config.generate_reports = false;
     let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());

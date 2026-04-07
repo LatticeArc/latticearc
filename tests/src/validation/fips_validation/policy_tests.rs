@@ -27,7 +27,7 @@ use sha2::{Digest, Sha256};
 use super::types::TestResult;
 
 /// Test self-tests for FIPS 140-3 Section 7 compliance
-pub fn test_self_tests() -> Result<TestResult, LatticeArcError> {
+pub fn test_self_tests_succeeds() -> Result<TestResult, LatticeArcError> {
     let start_time = std::time::Instant::now();
     let mut test_details = Vec::new();
     let mut all_passed = true;
@@ -216,7 +216,7 @@ pub fn test_self_tests() -> Result<TestResult, LatticeArcError> {
 }
 
 /// Test error handling for FIPS 140-3 Section 7 compliance
-pub fn test_error_handling() -> Result<TestResult, LatticeArcError> {
+pub fn test_error_handling_fails() -> Result<TestResult, LatticeArcError> {
     let start_time = std::time::Instant::now();
     let mut test_details = Vec::new();
     let mut all_passed = true;

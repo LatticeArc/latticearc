@@ -17,13 +17,13 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test AES-GCM-128
-    test_aes_gcm_128(data);
+    test_aes_gcm_128_succeeds(data);
 
     // Test AES-GCM-256
-    test_aes_gcm_256(data);
+    test_aes_gcm_256_succeeds(data);
 });
 
-fn test_aes_gcm_128(data: &[u8]) {
+fn test_aes_gcm_128_succeeds(data: &[u8]) {
     // Split input: 16 bytes key, 12 bytes nonce, rest plaintext
     let key = &data[..16];
     let nonce_slice = &data[16..28];
@@ -79,7 +79,7 @@ fn test_aes_gcm_128(data: &[u8]) {
     assert!(AesGcm128::new(short_key).is_err(), "Short key must be rejected");
 }
 
-fn test_aes_gcm_256(data: &[u8]) {
+fn test_aes_gcm_256_succeeds(data: &[u8]) {
     if data.len() < 45 {
         return;
     }

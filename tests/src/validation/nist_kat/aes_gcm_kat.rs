@@ -258,13 +258,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_aes_128_gcm_kat() {
+    fn test_aes_128_gcm_kat_succeeds() {
         let result = run_aes_128_gcm_kat();
         assert!(result.is_ok(), "AES-128-GCM KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_aes_256_gcm_kat() {
+    fn test_aes_256_gcm_kat_succeeds() {
         let result = run_aes_256_gcm_kat();
         assert!(result.is_ok(), "AES-256-GCM KAT failed: {:?}", result);
     }
@@ -274,7 +274,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_aes_128_gcm_invalid_key_hex() {
+    fn test_aes_128_gcm_invalid_key_hex_fails() {
         // Trigger decode_hex error on the key field (line 122)
         let vector = AesGcmTestVector {
             test_name: "ERR-128-bad-key-hex",
@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_invalid_nonce_hex() {
+    fn test_aes_128_gcm_invalid_nonce_hex_fails() {
         // Trigger decode_hex error on the nonce field (line 123)
         let vector = AesGcmTestVector {
             test_name: "ERR-128-bad-nonce-hex",
@@ -314,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_invalid_aad_hex() {
+    fn test_aes_128_gcm_invalid_aad_hex_fails() {
         // Trigger decode_hex error on the aad field (line 124)
         let vector = AesGcmTestVector {
             test_name: "ERR-128-bad-aad-hex",
@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_invalid_plaintext_hex() {
+    fn test_aes_128_gcm_invalid_plaintext_hex_fails() {
         // Trigger decode_hex error on the plaintext field (line 125)
         let vector = AesGcmTestVector {
             test_name: "ERR-128-bad-pt-hex",
@@ -354,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_invalid_expected_ciphertext_hex() {
+    fn test_aes_128_gcm_invalid_expected_ciphertext_hex_fails() {
         // Trigger decode_hex error on expected_ciphertext field (line 126)
         let vector = AesGcmTestVector {
             test_name: "ERR-128-bad-ct-hex",
@@ -374,7 +374,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_invalid_expected_tag_hex() {
+    fn test_aes_128_gcm_invalid_expected_tag_hex_fails() {
         // Trigger decode_hex error on expected_tag field (line 127)
         let vector = AesGcmTestVector {
             test_name: "ERR-128-bad-tag-hex",
@@ -394,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_invalid_key_length() {
+    fn test_aes_128_gcm_invalid_key_length_fails() {
         // Trigger UnboundKey::new error: key is wrong size for AES-128 (line 131)
         // Valid hex but wrong key length (8 bytes instead of 16)
         let vector = AesGcmTestVector {
@@ -417,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_invalid_nonce_length() {
+    fn test_aes_128_gcm_invalid_nonce_length_fails() {
         // Trigger nonce try_into error: nonce is wrong size (line 136)
         // Valid hex but wrong nonce length (8 bytes instead of 12)
         let vector = AesGcmTestVector {
@@ -440,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_ciphertext_mismatch() {
+    fn test_aes_128_gcm_ciphertext_mismatch_fails() {
         // Trigger TestFailed: ciphertext output mismatch (lines 148-157)
         // Use valid key/nonce/plaintext but wrong expected_ciphertext
         let vector = AesGcmTestVector {
@@ -466,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_decryption_nonce_hex_error() {
+    fn test_aes_128_gcm_decryption_nonce_hex_error_fails() {
         // Trigger the decode_hex error for nonce on the decryption path (line 164)
         // This is hard to trigger because the same nonce was already decoded on line 123.
         // However, the code calls decode_hex(vector.nonce) again on line 164 for decryption.
@@ -484,7 +484,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_aes_256_gcm_invalid_key_hex() {
+    fn test_aes_256_gcm_invalid_key_hex_fails() {
         // Trigger decode_hex error on the key field (line 185)
         let vector = AesGcmTestVector {
             test_name: "ERR-256-bad-key-hex",
@@ -504,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_invalid_nonce_hex() {
+    fn test_aes_256_gcm_invalid_nonce_hex_fails() {
         // Trigger decode_hex error on the nonce field (line 186)
         let vector = AesGcmTestVector {
             test_name: "ERR-256-bad-nonce-hex",
@@ -524,7 +524,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_invalid_aad_hex() {
+    fn test_aes_256_gcm_invalid_aad_hex_fails() {
         // Trigger decode_hex error on the aad field (line 187)
         let vector = AesGcmTestVector {
             test_name: "ERR-256-bad-aad-hex",
@@ -544,7 +544,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_invalid_plaintext_hex() {
+    fn test_aes_256_gcm_invalid_plaintext_hex_fails() {
         // Trigger decode_hex error on the plaintext field (line 188)
         let vector = AesGcmTestVector {
             test_name: "ERR-256-bad-pt-hex",
@@ -564,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_invalid_expected_ciphertext_hex() {
+    fn test_aes_256_gcm_invalid_expected_ciphertext_hex_fails() {
         // Trigger decode_hex error on expected_ciphertext field (line 189)
         let vector = AesGcmTestVector {
             test_name: "ERR-256-bad-ct-hex",
@@ -584,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_invalid_expected_tag_hex() {
+    fn test_aes_256_gcm_invalid_expected_tag_hex_fails() {
         // Trigger decode_hex error on expected_tag field (line 190)
         let vector = AesGcmTestVector {
             test_name: "ERR-256-bad-tag-hex",
@@ -604,7 +604,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_invalid_key_length() {
+    fn test_aes_256_gcm_invalid_key_length_fails() {
         // Trigger UnboundKey::new error: key is wrong size for AES-256 (line 193)
         // Valid hex but wrong key length (8 bytes instead of 32)
         let vector = AesGcmTestVector {
@@ -627,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_invalid_nonce_length() {
+    fn test_aes_256_gcm_invalid_nonce_length_fails() {
         // Trigger nonce try_into error: nonce is wrong size (line 198)
         // Valid hex but wrong nonce length (8 bytes instead of 12)
         let vector = AesGcmTestVector {
@@ -650,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_ciphertext_mismatch() {
+    fn test_aes_256_gcm_ciphertext_mismatch_fails() {
         // Trigger TestFailed: ciphertext output mismatch (lines 211-219)
         // Use valid key/nonce/plaintext but wrong expected_tag
         let vector = AesGcmTestVector {
@@ -676,7 +676,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_decryption_path_all_vectors() {
+    fn test_aes_256_gcm_decryption_path_all_vectors_succeeds() {
         // Ensure decryption path (lines 222-244) is fully exercised for all vectors
         for vector in AES_256_GCM_VECTORS {
             let result = run_aes_256_gcm_test(vector);
@@ -689,7 +689,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_aes_128_gcm_ciphertext_mismatch_with_plaintext() {
+    fn test_aes_128_gcm_ciphertext_mismatch_with_plaintext_fails() {
         // Trigger TestFailed for ciphertext mismatch with non-empty plaintext
         // This covers the format! branch with non-empty hex output (lines 148-157)
         let vector = AesGcmTestVector {
@@ -717,7 +717,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_ciphertext_mismatch_with_plaintext() {
+    fn test_aes_256_gcm_ciphertext_mismatch_with_plaintext_fails() {
         // Same as above but for AES-256 (lines 211-219)
         let vector = AesGcmTestVector {
             test_name: "ERR-256-ct-mismatch-pt",
@@ -743,7 +743,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_vector_struct_fields() {
+    fn test_aes_128_gcm_vector_struct_fields_matches_expected() {
         // Exercise the AesGcmTestVector struct to ensure all fields are covered
         let vector = AesGcmTestVector {
             test_name: "field-test",
@@ -764,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_kat_iterates_all_vectors() {
+    fn test_aes_128_gcm_kat_iterates_all_vectors_matches_expected() {
         // Verify run_aes_128_gcm_kat processes all 3 vectors successfully
         // covering the Ok(()) return at line 110
         assert_eq!(AES_128_GCM_VECTORS.len(), 3);
@@ -773,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_kat_iterates_all_vectors() {
+    fn test_aes_256_gcm_kat_iterates_all_vectors_matches_expected() {
         // Verify run_aes_256_gcm_kat processes all 3 vectors successfully
         // covering the Ok(()) return at line 118
         assert_eq!(AES_256_GCM_VECTORS.len(), 3);

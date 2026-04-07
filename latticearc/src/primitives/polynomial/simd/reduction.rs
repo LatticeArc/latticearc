@@ -28,7 +28,7 @@ mod tests {
     use super::super::test_utils::measure_timing_variance;
 
     #[test]
-    fn test_montgomery_reduce_constant_time() {
+    fn test_montgomery_reduce_constant_time_succeeds() {
         let test_cases = [
             0, 1, 42, 1000, 3328, 3329, 6658, 10000,
             i64::MAX / 2, i64::MIN / 2, i64::MAX, i64::MIN
@@ -54,7 +54,7 @@ mod tests {
     }
 
     #[test]
-    fn test_barrett_reduce_constant_time() {
+    fn test_barrett_reduce_constant_time_succeeds() {
         let test_cases = [
             0, 1, 42, 1000, 3328, 3329, 6658, 10000,
             -1, -42, -1000, -3328, -3329, i32::MIN, i32::MAX

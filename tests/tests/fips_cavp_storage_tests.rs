@@ -143,21 +143,21 @@ mod memory_storage_tests {
     use super::*;
 
     #[test]
-    fn test_memory_storage_new() {
+    fn test_memory_storage_new_succeeds() {
         let storage = MemoryCavpStorage::new();
         // Storage should be created successfully
         drop(storage);
     }
 
     #[test]
-    fn test_memory_storage_default() {
+    fn test_memory_storage_default_succeeds() {
         let storage = MemoryCavpStorage::default();
         // Default should be equivalent to new()
         drop(storage);
     }
 
     #[test]
-    fn test_store_single_result() {
+    fn test_store_single_result_persists_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let result = create_test_result("TEST-001", mlkem_algorithm("768"), true);
 
@@ -166,7 +166,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_retrieve_stored_result() {
+    fn test_retrieve_stored_result_returns_correct_value_succeeds() {
         let storage = MemoryCavpStorage::new();
         let result = create_test_result("TEST-002", mlkem_algorithm("768"), true);
 
@@ -180,7 +180,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_retrieve_nonexistent_result() {
+    fn test_retrieve_nonexistent_result_returns_none() {
         let storage = MemoryCavpStorage::new();
 
         let retrieved = storage.retrieve_result("NONEXISTENT").unwrap();
@@ -188,7 +188,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_store_batch() {
+    fn test_store_batch_persists_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let batch = create_batch_result("BATCH-001", mlkem_algorithm("768"), 5, 2);
 
@@ -197,7 +197,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_retrieve_stored_batch() {
+    fn test_retrieve_stored_batch_returns_correct_value_succeeds() {
         let storage = MemoryCavpStorage::new();
         let batch = create_batch_result("BATCH-002", mldsa_algorithm("44"), 3, 1);
 
@@ -211,7 +211,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_retrieve_nonexistent_batch() {
+    fn test_retrieve_nonexistent_batch_returns_none() {
         let storage = MemoryCavpStorage::new();
 
         let retrieved = storage.retrieve_batch("NONEXISTENT-BATCH").unwrap();
@@ -219,7 +219,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_list_results_by_algorithm_empty() {
+    fn test_list_results_by_algorithm_empty_returns_empty_vec_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = mlkem_algorithm("768");
 
@@ -228,7 +228,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_list_results_by_algorithm_with_data() {
+    fn test_list_results_by_algorithm_with_data_returns_correct_results_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = mlkem_algorithm("768");
 
@@ -243,7 +243,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_list_results_filters_by_algorithm() {
+    fn test_list_results_filters_by_algorithm_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let mlkem_768 = mlkem_algorithm("768");
         let mlkem_512 = mlkem_algorithm("512");
@@ -273,7 +273,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_list_batches_by_algorithm_empty() {
+    fn test_list_batches_by_algorithm_empty_returns_empty_vec_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = slhdsa_algorithm("128s");
 
@@ -282,7 +282,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_list_batches_by_algorithm_with_data() {
+    fn test_list_batches_by_algorithm_with_data_returns_correct_results_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = slhdsa_algorithm("128s");
 
@@ -297,7 +297,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_list_batches_filters_by_algorithm() {
+    fn test_list_batches_filters_by_algorithm_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let fndsa_512 = fndsa_algorithm("512");
         let fndsa_1024 = fndsa_algorithm("1024");
@@ -322,7 +322,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_overwrite_existing_result() {
+    fn test_overwrite_existing_result_replaces_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = mlkem_algorithm("768");
 
@@ -340,7 +340,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_overwrite_existing_batch() {
+    fn test_overwrite_existing_batch_replaces_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = mldsa_algorithm("65");
 
@@ -358,7 +358,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_algorithm() {
+    fn test_hybrid_kem_algorithm_is_accessible() {
         let storage = MemoryCavpStorage::new();
         let algorithm = CavpAlgorithm::HybridKem;
 
@@ -370,7 +370,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_result_with_metadata() {
+    fn test_result_with_metadata_persists_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = mlkem_algorithm("1024");
 
@@ -407,7 +407,7 @@ mod memory_storage_tests {
     }
 
     #[test]
-    fn test_batch_with_all_validation_statuses() {
+    fn test_batch_with_all_validation_statuses_persists_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let algorithm = mlkem_algorithm("768");
 
@@ -441,14 +441,14 @@ mod file_storage_tests {
     use super::*;
 
     #[test]
-    fn test_file_storage_new() {
+    fn test_file_storage_new_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path());
         assert!(storage.is_ok());
     }
 
     #[test]
-    fn test_file_storage_creates_directories() {
+    fn test_file_storage_creates_directories_on_init_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let _storage = FileCavpStorage::new(temp_dir.path()).unwrap();
 
@@ -458,7 +458,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_file_storage_nested_path() {
+    fn test_file_storage_nested_path_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let nested_path = temp_dir.path().join("level1").join("level2").join("storage");
 
@@ -469,7 +469,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_store_and_retrieve_result() {
+    fn test_store_and_retrieve_result_round_trips_correctly_roundtrip() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
 
@@ -482,7 +482,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_store_and_retrieve_batch() {
+    fn test_store_and_retrieve_batch_round_trips_correctly_roundtrip() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
 
@@ -495,7 +495,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_file_persistence() {
+    fn test_file_persistence_persists_correctly_succeeds() {
         let temp_dir = TempDir::new().unwrap();
 
         // Store data in one instance
@@ -517,7 +517,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_load_existing_results() {
+    fn test_load_existing_results_loads_correctly_succeeds() {
         let temp_dir = TempDir::new().unwrap();
 
         // Store data in first instance
@@ -544,7 +544,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_load_existing_batches() {
+    fn test_load_existing_batches_loads_correctly_succeeds() {
         let temp_dir = TempDir::new().unwrap();
 
         // Store data in first instance
@@ -571,7 +571,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_load_empty_directory() {
+    fn test_load_empty_directory_returns_empty_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
 
@@ -584,7 +584,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_list_results_by_algorithm_with_file_storage() {
+    fn test_list_results_by_algorithm_with_file_storage_returns_correct_results_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
         let algorithm = fndsa_algorithm("512");
@@ -600,7 +600,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_list_batches_by_algorithm_with_file_storage() {
+    fn test_list_batches_by_algorithm_with_file_storage_returns_correct_results_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
         let algorithm = CavpAlgorithm::HybridKem;
@@ -617,7 +617,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_json_serialization_validity() {
+    fn test_json_serialization_validity_is_correct() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
 
@@ -634,7 +634,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_special_characters_in_id() {
+    fn test_special_characters_in_id_are_accepted_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
 
@@ -649,7 +649,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_overwrite_file() {
+    fn test_overwrite_file_replaces_correctly_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let storage = FileCavpStorage::new(temp_dir.path()).unwrap();
         let algorithm = mlkem_algorithm("768");
@@ -671,7 +671,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_load_with_invalid_json_file() {
+    fn test_load_with_invalid_json_file_returns_error() {
         let temp_dir = TempDir::new().unwrap();
 
         // Create storage and directories
@@ -690,7 +690,7 @@ mod file_storage_tests {
     }
 
     #[test]
-    fn test_non_json_files_ignored() {
+    fn test_non_json_files_ignored_on_load_succeeds() {
         let temp_dir = TempDir::new().unwrap();
 
         // Create storage and directories
@@ -717,14 +717,14 @@ mod storage_manager_tests {
     use super::*;
 
     #[test]
-    fn test_manager_new() {
+    fn test_manager_new_succeeds() {
         let primary = Box::new(MemoryCavpStorage::new());
         let manager = CavpStorageManager::new(primary);
         drop(manager);
     }
 
     #[test]
-    fn test_manager_with_backup() {
+    fn test_manager_with_backup_succeeds() {
         let primary = Box::new(MemoryCavpStorage::new());
         let backup = Box::new(MemoryCavpStorage::new());
         let manager = CavpStorageManager::with_backup(primary, backup);
@@ -732,7 +732,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_memory_factory() {
+    fn test_manager_memory_factory_creates_correctly_succeeds() {
         let manager = CavpStorageManager::memory();
 
         // Should be able to use the manager
@@ -741,7 +741,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_file_factory() {
+    fn test_manager_file_factory_creates_correctly_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let manager = CavpStorageManager::file(temp_dir.path());
 
@@ -753,7 +753,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_store_result() {
+    fn test_manager_store_result_persists_correctly_succeeds() {
         let manager = CavpStorageManager::memory();
         let result = create_test_result("MGR-STORE-001", mldsa_algorithm("44"), true);
 
@@ -764,7 +764,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_store_batch() {
+    fn test_manager_store_batch_persists_correctly_succeeds() {
         let manager = CavpStorageManager::memory();
         let batch = create_batch_result("MGR-BATCH-001", slhdsa_algorithm("128s"), 5, 2);
 
@@ -775,7 +775,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_retrieve_result() {
+    fn test_manager_retrieve_result_returns_correct_value_succeeds() {
         let manager = CavpStorageManager::memory();
         let result = create_test_result("MGR-RETRIEVE-001", fndsa_algorithm("1024"), true);
 
@@ -787,7 +787,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_retrieve_batch() {
+    fn test_manager_retrieve_batch_returns_correct_value_succeeds() {
         let manager = CavpStorageManager::memory();
         let batch = create_batch_result("MGR-RETRIEVE-BATCH", CavpAlgorithm::HybridKem, 3, 0);
 
@@ -799,7 +799,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_retrieve_nonexistent() {
+    fn test_manager_retrieve_nonexistent_returns_none() {
         let manager = CavpStorageManager::memory();
 
         let result = manager.retrieve_result("DOES-NOT-EXIST").unwrap();
@@ -810,7 +810,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_list_results_by_algorithm() {
+    fn test_manager_list_results_by_algorithm_returns_correct_results_succeeds() {
         let manager = CavpStorageManager::memory();
         let algorithm = mlkem_algorithm("768");
 
@@ -824,7 +824,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_list_batches_by_algorithm() {
+    fn test_manager_list_batches_by_algorithm_returns_correct_results_succeeds() {
         let manager = CavpStorageManager::memory();
         let algorithm = mldsa_algorithm("87");
 
@@ -839,7 +839,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_with_backup_stores_to_both() {
+    fn test_manager_with_backup_stores_to_both_backends_succeeds() {
         let primary = Arc::new(MemoryCavpStorage::new());
         let backup = Arc::new(MemoryCavpStorage::new());
 
@@ -864,7 +864,7 @@ mod storage_manager_tests {
     }
 
     #[test]
-    fn test_manager_mixed_algorithms() {
+    fn test_manager_mixed_algorithms_are_stored_correctly_succeeds() {
         let manager = CavpStorageManager::memory();
 
         // Store results for various algorithms
@@ -900,7 +900,7 @@ mod concurrent_access_tests {
     use super::*;
 
     #[test]
-    fn test_concurrent_reads() {
+    fn test_concurrent_reads_succeed_succeeds() {
         let storage = Arc::new(MemoryCavpStorage::new());
 
         // Pre-populate storage
@@ -941,7 +941,7 @@ mod concurrent_access_tests {
     }
 
     #[test]
-    fn test_concurrent_writes() {
+    fn test_concurrent_writes_succeed_succeeds() {
         let storage = Arc::new(MemoryCavpStorage::new());
         let barrier = Arc::new(Barrier::new(10));
         let mut handles = vec![];
@@ -977,7 +977,7 @@ mod concurrent_access_tests {
     }
 
     #[test]
-    fn test_concurrent_read_write() {
+    fn test_concurrent_read_write_succeeds() {
         let storage = Arc::new(MemoryCavpStorage::new());
 
         // Pre-populate some data
@@ -1041,7 +1041,7 @@ mod concurrent_access_tests {
     }
 
     #[test]
-    fn test_concurrent_batch_operations() {
+    fn test_concurrent_batch_operations_succeed_succeeds() {
         let storage = Arc::new(MemoryCavpStorage::new());
         let barrier = Arc::new(Barrier::new(5));
         let mut handles = vec![];
@@ -1085,7 +1085,7 @@ mod serialization_tests {
     use super::*;
 
     #[test]
-    fn test_result_json_roundtrip() {
+    fn test_result_json_roundtrip_succeeds() {
         let original = create_test_result("SERIAL-001", mlkem_algorithm("768"), true);
 
         let json = serde_json::to_string(&original).unwrap();
@@ -1097,7 +1097,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_batch_json_roundtrip() {
+    fn test_batch_json_roundtrip_succeeds() {
         let original = create_batch_result("SERIAL-BATCH", mldsa_algorithm("44"), 5, 2);
 
         let json = serde_json::to_string(&original).unwrap();
@@ -1109,7 +1109,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_algorithm_serialization() {
+    fn test_algorithm_serialization_round_trips_correctly_roundtrip() {
         let algorithms = vec![
             mlkem_algorithm("512"),
             mldsa_algorithm("65"),
@@ -1126,7 +1126,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_metadata_serialization() {
+    fn test_metadata_serialization_round_trips_correctly_roundtrip() {
         let metadata = CavpTestMetadata {
             environment: TestEnvironment {
                 os: "linux".to_string(),
@@ -1154,7 +1154,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_validation_status_serialization() {
+    fn test_validation_status_serialization_round_trips_correctly_roundtrip() {
         let statuses = vec![
             CavpValidationStatus::Passed,
             CavpValidationStatus::Failed,
@@ -1170,7 +1170,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_large_result_serialization() {
+    fn test_large_result_serialization_round_trips_correctly_roundtrip() {
         let mut result = create_test_result("LARGE-RESULT", mlkem_algorithm("1024"), true);
 
         // Add large data
@@ -1184,7 +1184,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_pretty_json_format() {
+    fn test_pretty_json_format_has_correct_structure_has_correct_size() {
         let result = create_test_result("PRETTY-001", mlkem_algorithm("768"), true);
 
         let pretty_json = serde_json::to_string_pretty(&result).unwrap();
@@ -1206,7 +1206,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_empty_test_id() {
+    fn test_empty_test_id_is_accepted() {
         let storage = MemoryCavpStorage::new();
         let result = create_test_result("", mlkem_algorithm("768"), true);
 
@@ -1216,7 +1216,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_very_long_test_id() {
+    fn test_very_long_test_id_is_accepted() {
         let storage = MemoryCavpStorage::new();
         let long_id = "A".repeat(1000);
         let result = create_test_result(&long_id, mlkem_algorithm("768"), true);
@@ -1227,7 +1227,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_unicode_in_test_id() {
+    fn test_unicode_in_test_id_is_accepted() {
         let storage = MemoryCavpStorage::new();
         let unicode_id = "test_\u{1F600}_\u{4E2D}\u{6587}";
         let result = create_test_result(unicode_id, mlkem_algorithm("768"), true);
@@ -1238,7 +1238,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_batch_with_no_results() {
+    fn test_batch_with_no_results_is_accepted() {
         let storage = MemoryCavpStorage::new();
         let batch = CavpBatchResult::new("EMPTY-BATCH".to_string(), mlkem_algorithm("768"));
 
@@ -1250,7 +1250,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_result_with_empty_vectors() {
+    fn test_result_with_empty_vectors_is_accepted() {
         let storage = MemoryCavpStorage::new();
         let result = CavpTestResult::new(
             "EMPTY-VECTORS".to_string(),
@@ -1271,7 +1271,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_batch_with_large_number_of_results() {
+    fn test_batch_with_large_number_of_results_persists_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
         let mut batch = CavpBatchResult::new("LARGE-BATCH".to_string(), mlkem_algorithm("768"));
 
@@ -1289,7 +1289,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_zero_execution_time() {
+    fn test_zero_execution_time_is_accepted() {
         let storage = MemoryCavpStorage::new();
         let result = CavpTestResult::new(
             "ZERO-TIME".to_string(),
@@ -1308,7 +1308,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_very_long_execution_time() {
+    fn test_very_long_execution_time_is_accepted() {
         let storage = MemoryCavpStorage::new();
         let result = CavpTestResult::new(
             "LONG-TIME".to_string(),
@@ -1327,7 +1327,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_algorithm_variants_storage() {
+    fn test_all_algorithm_variants_storage_persists_correctly_succeeds() {
         let storage = MemoryCavpStorage::new();
 
         let algorithms = vec![
@@ -1367,7 +1367,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_full_workflow_memory() {
+    fn test_full_workflow_memory_succeeds() {
         let manager = CavpStorageManager::memory();
 
         // Store individual results
@@ -1396,7 +1396,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_full_workflow_file() {
+    fn test_full_workflow_file_succeeds() {
         let temp_dir = TempDir::new().unwrap();
         let manager = CavpStorageManager::file(temp_dir.path()).unwrap();
 
@@ -1427,7 +1427,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_multi_algorithm_storage() {
+    fn test_multi_algorithm_storage_persists_correctly_succeeds() {
         let manager = CavpStorageManager::memory();
 
         let test_data = vec![
@@ -1461,7 +1461,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_batch_statistics_accuracy() {
+    fn test_batch_statistics_accuracy_is_correct() {
         let manager = CavpStorageManager::memory();
 
         // Create batch with known pass/fail ratio
@@ -1477,7 +1477,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_storage_data_integrity() {
+    fn test_storage_data_integrity_is_maintained_succeeds() {
         let manager = CavpStorageManager::memory();
 
         let original_result = CavpTestResult {

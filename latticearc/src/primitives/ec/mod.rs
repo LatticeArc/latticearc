@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -27,15 +27,23 @@ pub mod traits;
 #[cfg(not(feature = "fips"))]
 pub mod secp256k1;
 
-/// Ed25519 signature operations (RFC 8032). Non-FIPS: not NIST-approved for signatures.
-#[cfg(not(feature = "fips"))]
+/// Ed25519 signature operations (RFC 8032).
+///
+/// Note: Ed25519 is not NIST-approved for FIPS 140-3 signature generation,
+/// but the wrapper module is compiled in both FIPS and non-FIPS builds so
+/// higher layers (convenience API, hybrid signatures) can route all Ed25519
+/// operations through a single primitives entry point. Callers that need
+/// FIPS-approved signatures must use ML-DSA or SLH-DSA instead.
 pub mod ed25519;
 
-// Re-exports (non-FIPS only)
-#[cfg(not(feature = "fips"))]
-pub use ed25519::*;
+// Re-exports (non-FIPS curves only)
 #[cfg(not(feature = "fips"))]
 pub use secp256k1::*;
+
+// Ed25519 re-exports are always available so downstream modules (hybrid,
+// unified_api::convenience) can delegate to the primitives wrapper without
+// duplicating feature gates.
+pub use ed25519::*;
 
 // Traits are always available
 pub use traits::{EcKeyPair, EcSignature};

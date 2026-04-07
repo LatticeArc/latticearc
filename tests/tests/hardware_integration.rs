@@ -8,53 +8,20 @@
 #![allow(clippy::panic)]
 #![allow(dead_code)]
 
-use latticearc::unified_api::traits::{
-    HardwareAccelerator, HardwareCapabilities, HardwareInfo, HardwareType,
-};
+use latticearc::types::traits::{HardwareCapabilities, HardwareInfo, HardwareType};
 
-// =============================================================================
-// Custom Accelerator Implementation (demonstrates trait is implementable)
-// =============================================================================
-
-struct TestAccelerator {
-    hw_type: HardwareType,
-    available: bool,
-}
-
-impl HardwareAccelerator for TestAccelerator {
-    fn name(&self) -> &str {
-        "Test Accelerator"
-    }
-
-    fn hardware_type(&self) -> HardwareType {
-        self.hw_type.clone()
-    }
-
-    fn is_available(&self) -> bool {
-        self.available
-    }
-}
-
-#[test]
-fn test_custom_accelerator_implementation() {
-    let accel = TestAccelerator { hw_type: HardwareType::Cpu, available: true };
-    assert_eq!(accel.name(), "Test Accelerator");
-    assert_eq!(accel.hardware_type(), HardwareType::Cpu);
-    assert!(accel.is_available());
-}
-
-#[test]
-fn test_unavailable_accelerator() {
-    let accel = TestAccelerator { hw_type: HardwareType::Gpu, available: false };
-    assert!(!accel.is_available());
-}
+// Note: The `HardwareAccelerator` and `HardwareAware` traits were removed in
+// the P4.1 dead-code cleanup — they had no production implementors and existed
+// only to enable tests like this one. Hardware capability descriptors
+// (`HardwareType`, `HardwareInfo`, `HardwareCapabilities`) remain because they
+// are used by `types::config::ProductionConfig::preferred_accelerators`.
 
 // =============================================================================
 // HardwareInfo Integration
 // =============================================================================
 
 #[test]
-fn test_hardware_info_with_multiple_accelerators() {
+fn test_hardware_info_with_multiple_accelerators_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu, HardwareType::Gpu, HardwareType::Sgx],
         preferred_accelerator: Some(HardwareType::Sgx),
@@ -73,7 +40,7 @@ fn test_hardware_info_with_multiple_accelerators() {
 }
 
 #[test]
-fn test_hardware_info_summary_format() {
+fn test_hardware_info_summary_format_has_correct_size() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu, HardwareType::Fpga],
         preferred_accelerator: Some(HardwareType::Fpga),
@@ -94,7 +61,7 @@ fn test_hardware_info_summary_format() {
 // =============================================================================
 
 #[test]
-fn test_hardware_types_are_send() {
+fn test_hardware_types_are_send_succeeds() {
     fn assert_send<T: Send>() {}
     assert_send::<HardwareType>();
     assert_send::<HardwareCapabilities>();

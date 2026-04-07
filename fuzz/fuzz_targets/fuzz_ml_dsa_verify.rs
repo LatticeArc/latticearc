@@ -45,7 +45,7 @@ fuzz_target!(|data: &[u8]| {
     // Test 2: Verify with corrupted signature
     if let Ok(sig) = sign(&sk, message, &[]) {
         // Clone the signature data for corruption
-        let mut corrupted_data = sig.data.clone();
+        let mut corrupted_data = sig.as_bytes().to_vec();
         let len = corrupted_data.len();
 
         // Corrupt signature bytes using fuzz data

@@ -255,19 +255,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_kat() {
+    fn test_ml_kem_512_kat_matches_expected() {
         let result = run_ml_kem_512_kat();
         assert!(result.is_ok(), "ML-KEM-512 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_ml_kem_768_kat() {
+    fn test_ml_kem_768_kat_matches_expected() {
         let result = run_ml_kem_768_kat();
         assert!(result.is_ok(), "ML-KEM-768 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_ml_kem_1024_kat() {
+    fn test_ml_kem_1024_kat_matches_expected() {
         let result = run_ml_kem_1024_kat();
         assert!(result.is_ok(), "ML-KEM-1024 KAT failed: {:?}", result);
     }
@@ -277,42 +277,42 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_run_ml_kem_512_test_individual_vector_1() {
+    fn test_run_ml_kem_512_individual_vector_1_matches_expected() {
         let vector = &ML_KEM_512_VECTORS[0];
         let result = run_ml_kem_512_test(vector);
         assert!(result.is_ok(), "ML-KEM-512 vector 1 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_512_test_individual_vector_2() {
+    fn test_run_ml_kem_512_individual_vector_2_matches_expected() {
         let vector = &ML_KEM_512_VECTORS[1];
         let result = run_ml_kem_512_test(vector);
         assert!(result.is_ok(), "ML-KEM-512 vector 2 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_768_test_individual_vector_1() {
+    fn test_run_ml_kem_768_individual_vector_1_matches_expected() {
         let vector = &ML_KEM_768_VECTORS[0];
         let result = run_ml_kem_768_test(vector);
         assert!(result.is_ok(), "ML-KEM-768 vector 1 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_768_test_individual_vector_2() {
+    fn test_run_ml_kem_768_individual_vector_2_matches_expected() {
         let vector = &ML_KEM_768_VECTORS[1];
         let result = run_ml_kem_768_test(vector);
         assert!(result.is_ok(), "ML-KEM-768 vector 2 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_1024_test_individual_vector_1() {
+    fn test_run_ml_kem_1024_individual_vector_1_matches_expected() {
         let vector = &ML_KEM_1024_VECTORS[0];
         let result = run_ml_kem_1024_test(vector);
         assert!(result.is_ok(), "ML-KEM-1024 vector 1 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_1024_test_individual_vector_2() {
+    fn test_run_ml_kem_1024_individual_vector_2_matches_expected() {
         let vector = &ML_KEM_1024_VECTORS[1];
         let result = run_ml_kem_1024_test(vector);
         assert!(result.is_ok(), "ML-KEM-1024 vector 2 failed: {:?}", result);
@@ -323,7 +323,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_run_ml_kem_512_test_invalid_seed_hex() {
+    fn test_run_ml_kem_512_invalid_seed_hex_returns_error() {
         let vector = MlKemTestVector {
             test_name: "ML-KEM-512-INVALID-SEED",
             seed: "zzzz",
@@ -342,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_kem_512_test_invalid_ss_hex() {
+    fn test_run_ml_kem_512_invalid_ss_hex_returns_error() {
         // Valid seed but invalid expected_ss hex
         let vector = MlKemTestVector {
             test_name: "ML-KEM-512-INVALID-SS",
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_kem_768_test_invalid_seed_hex() {
+    fn test_run_ml_kem_768_invalid_seed_hex_returns_error() {
         let vector = MlKemTestVector {
             test_name: "ML-KEM-768-INVALID-SEED",
             seed: "xyz123",
@@ -372,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_kem_1024_test_invalid_seed_hex() {
+    fn test_run_ml_kem_1024_invalid_seed_hex_returns_error() {
         let vector = MlKemTestVector {
             test_name: "ML-KEM-1024-INVALID-SEED",
             seed: "not_hex",
@@ -390,7 +390,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_ml_kem_test_vector_struct_fields_512() {
+    fn test_ml_kem_512_test_vector_fields_are_non_empty_matches_expected() {
         for vector in ML_KEM_512_VECTORS {
             // Exercise all field reads for coverage
             assert!(!vector.test_name.is_empty());
@@ -403,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_test_vector_struct_fields_768() {
+    fn test_ml_kem_768_test_vector_fields_are_non_empty_matches_expected() {
         for vector in ML_KEM_768_VECTORS {
             assert!(!vector.test_name.is_empty());
             assert!(!vector.seed.is_empty());
@@ -415,7 +415,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_test_vector_struct_fields_1024() {
+    fn test_ml_kem_1024_test_vector_fields_are_non_empty_matches_expected() {
         for vector in ML_KEM_1024_VECTORS {
             assert!(!vector.test_name.is_empty());
             assert!(!vector.seed.is_empty());
@@ -432,7 +432,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_decode_all_512_vector_fields() {
+    fn test_decode_all_512_vector_fields_succeed_matches_expected() {
         for vector in ML_KEM_512_VECTORS {
             let seed = decode_hex(vector.seed);
             assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
@@ -448,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_all_768_vector_fields() {
+    fn test_decode_all_768_vector_fields_succeed_matches_expected() {
         for vector in ML_KEM_768_VECTORS {
             let seed = decode_hex(vector.seed);
             assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
@@ -464,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_all_1024_vector_fields() {
+    fn test_decode_all_1024_vector_fields_succeed_matches_expected() {
         for vector in ML_KEM_1024_VECTORS {
             let seed = decode_hex(vector.seed);
             assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
@@ -485,7 +485,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_kem_512_test_failed_error_construction() {
+    fn test_kem_512_test_failed_error_construction_has_correct_format() {
         let err = NistKatError::TestFailed {
             algorithm: "ML-KEM-512".to_string(),
             test_name: "ML-KEM-512-KAT-1".to_string(),
@@ -498,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kem_768_test_failed_error_construction() {
+    fn test_kem_768_test_failed_error_construction_has_correct_format() {
         let err = NistKatError::TestFailed {
             algorithm: "ML-KEM-768".to_string(),
             test_name: "ML-KEM-768-KAT-1".to_string(),
@@ -509,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kem_1024_test_failed_error_construction() {
+    fn test_kem_1024_test_failed_error_construction_has_correct_format() {
         let err = NistKatError::TestFailed {
             algorithm: "ML-KEM-1024".to_string(),
             test_name: "ML-KEM-1024-KAT-1".to_string(),
@@ -520,21 +520,21 @@ mod tests {
     }
 
     #[test]
-    fn test_kem_implementation_error_keygen() {
+    fn test_kem_implementation_error_keygen_has_correct_format() {
         let err = NistKatError::ImplementationError(format!("KeyGen failed: {:?}", "test error"));
         let msg = err.to_string();
         assert!(msg.contains("KeyGen failed"));
     }
 
     #[test]
-    fn test_kem_implementation_error_encaps() {
+    fn test_kem_implementation_error_encaps_has_correct_format() {
         let err = NistKatError::ImplementationError(format!("Encaps failed: {:?}", "test error"));
         let msg = err.to_string();
         assert!(msg.contains("Encaps failed"));
     }
 
     #[test]
-    fn test_kem_implementation_error_decaps() {
+    fn test_kem_implementation_error_decaps_has_correct_format() {
         let err = NistKatError::ImplementationError(format!("Decaps failed: {:?}", "test error"));
         let msg = err.to_string();
         assert!(msg.contains("Decaps failed"));
@@ -545,14 +545,14 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_vector_counts() {
+    fn test_vector_counts_are_correct() {
         assert_eq!(ML_KEM_512_VECTORS.len(), 2);
         assert_eq!(ML_KEM_768_VECTORS.len(), 2);
         assert_eq!(ML_KEM_1024_VECTORS.len(), 2);
     }
 
     #[test]
-    fn test_vector_naming_conventions() {
+    fn test_vector_naming_conventions_are_correct() {
         for (i, vector) in ML_KEM_512_VECTORS.iter().enumerate() {
             assert!(
                 vector.test_name.starts_with("ML-KEM-512"),
@@ -584,7 +584,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_ml_kem_512_kat_repeated() {
+    fn test_ml_kem_512_kat_repeated_matches_expected() {
         for _ in 0..3 {
             let result = run_ml_kem_512_kat();
             assert!(result.is_ok());
@@ -592,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_768_kat_repeated() {
+    fn test_ml_kem_768_kat_repeated_matches_expected() {
         for _ in 0..3 {
             let result = run_ml_kem_768_kat();
             assert!(result.is_ok());
@@ -600,7 +600,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_kat_repeated() {
+    fn test_ml_kem_1024_kat_repeated_matches_expected() {
         for _ in 0..3 {
             let result = run_ml_kem_1024_kat();
             assert!(result.is_ok());
@@ -612,7 +612,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_run_ml_kem_512_test_with_custom_valid_vector() {
+    fn test_run_ml_kem_512_with_custom_valid_vector_matches_expected() {
         // Use a valid 64-byte seed hex to exercise the full code path
         let vector = MlKemTestVector {
             test_name: "ML-KEM-512-CUSTOM",
@@ -628,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_kem_768_test_with_custom_valid_vector() {
+    fn test_run_ml_kem_768_with_custom_valid_vector_matches_expected() {
         let vector = MlKemTestVector {
             test_name: "ML-KEM-768-CUSTOM",
             seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\
@@ -643,7 +643,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_kem_1024_test_with_custom_valid_vector() {
+    fn test_run_ml_kem_1024_with_custom_valid_vector_matches_expected() {
         let vector = MlKemTestVector {
             test_name: "ML-KEM-1024-CUSTOM",
             seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\

@@ -15,14 +15,14 @@ use latticearc::tls::tls13::{
 };
 
 #[test]
-fn test_validate_cipher_suites_all_valid() {
+fn test_validate_cipher_suites_all_valid_succeeds() {
     let suites = get_secure_cipher_suites();
     let result = validate_cipher_suites(&suites);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_validate_cipher_suites_each_mode() {
+fn test_validate_cipher_suites_each_mode_succeeds() {
     for mode in [TlsMode::Classic, TlsMode::Hybrid, TlsMode::Pq] {
         let suites = get_cipher_suites(mode);
         let result = validate_cipher_suites(&suites);
@@ -31,20 +31,20 @@ fn test_validate_cipher_suites_each_mode() {
 }
 
 #[test]
-fn test_validate_cipher_suites_empty() {
+fn test_validate_cipher_suites_empty_succeeds() {
     let result = validate_cipher_suites(&[]);
     assert!(result.is_ok(), "Empty cipher suite list should be valid");
 }
 
 #[test]
-fn test_verify_config_default_valid() {
+fn test_verify_config_default_valid_succeeds() {
     let config = Tls13Config::default();
     let result = verify_config(&config);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_verify_config_early_data_zero_size() {
+fn test_verify_config_early_data_zero_size_has_correct_size() {
     let mut config = Tls13Config::default();
     config.enable_early_data = true;
     config.max_early_data_size = 0;
@@ -53,7 +53,7 @@ fn test_verify_config_early_data_zero_size() {
 }
 
 #[test]
-fn test_verify_config_early_data_valid_size() {
+fn test_verify_config_early_data_valid_size_has_correct_size() {
     let mut config = Tls13Config::default();
     config.enable_early_data = true;
     config.max_early_data_size = 16384;
@@ -62,7 +62,7 @@ fn test_verify_config_early_data_valid_size() {
 }
 
 #[test]
-fn test_verify_config_all_modes() {
+fn test_verify_config_all_modes_succeeds() {
     for mode in [TlsMode::Classic, TlsMode::Hybrid, TlsMode::Pq] {
         let mut config = Tls13Config::default();
         config.mode = mode;
@@ -72,7 +72,7 @@ fn test_verify_config_all_modes() {
 }
 
 #[test]
-fn test_tls13_config_builders() {
+fn test_tls13_config_builders_succeeds() {
     // Test classic() builder
     let config = Tls13Config::classic();
     assert_eq!(config.mode, TlsMode::Classic);
@@ -92,7 +92,7 @@ fn test_tls13_config_builders() {
 }
 
 #[test]
-fn test_get_secure_cipher_suites() {
+fn test_get_secure_cipher_suites_succeeds() {
     let suites = get_secure_cipher_suites();
     assert!(!suites.is_empty());
 }

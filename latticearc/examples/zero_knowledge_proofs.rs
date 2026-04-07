@@ -18,7 +18,8 @@
 
 #[cfg(not(feature = "fips"))]
 use latticearc::zkp::{
-    HashCommitment, PedersenCommitment, PedersenOpening, SchnorrProver, SchnorrVerifier,
+    HashCommitment, HashOpening, PedersenCommitment, PedersenOpening, SchnorrProver,
+    SchnorrVerifier,
 };
 
 #[cfg(feature = "fips")]
@@ -39,8 +40,8 @@ fn main() {
 
     let context = b"authentication-challenge-2026";
     let proof = prover.prove(context).expect("prove failed");
-    println!("  Proof commitment: {} bytes", proof.commitment.len());
-    println!("  Proof response:   {} bytes", proof.response.len());
+    println!("  Proof commitment: {} bytes", proof.commitment().len());
+    println!("  Proof response:   {} bytes", proof.response().len());
 
     let verifier = SchnorrVerifier::new(public_key);
     let is_valid = verifier.verify(&proof, context).expect("verify failed");
@@ -66,7 +67,7 @@ fn main() {
     println!("\n--- Hash Commitment ---");
     let secret_vote = b"candidate_alice";
     let (commitment, opening) = HashCommitment::commit(secret_vote).expect("commit failed");
-    println!("  Commitment:  {:02x?}...", &commitment.commitment[..8]);
+    println!("  Commitment:  {:02x?}...", &commitment.commitment()[..8]);
     println!("  (secret vote hidden until reveal)");
 
     // Verify the opening
@@ -74,12 +75,11 @@ fn main() {
     assert!(is_valid, "Valid opening should verify");
     println!(
         "  Reveal + Verify: VALID (vote = {:?})",
-        std::str::from_utf8(&opening.value).unwrap()
+        std::str::from_utf8(opening.value()).unwrap()
     );
 
     // Tampered opening should fail
-    let mut tampered_opening = opening.clone();
-    tampered_opening.value = b"candidate_bob".to_vec();
+    let tampered_opening = HashOpening::new(b"candidate_bob".to_vec(), *opening.randomness());
     let is_valid = commitment.verify(&tampered_opening).expect("verify failed");
     assert!(!is_valid, "Tampered opening should fail");
     println!("  Tampered opening: correctly rejected");
@@ -92,15 +92,16 @@ fn main() {
     let mut value = [0u8; 32];
     value[31] = 42; // commit to the value 42
     let (commitment, opening) = PedersenCommitment::commit(&value).expect("commit failed");
-    println!("  Commitment: {} bytes (compressed point)", commitment.commitment.len());
+    println!("  Commitment: {} bytes (compressed point)", commitment.commitment().len());
 
     let is_valid = commitment.verify(&opening).expect("verify failed");
     assert!(is_valid, "Valid Pedersen opening should verify");
     println!("  Verify: VALID (value = 42)");
 
     // Different value should fail
-    let mut wrong_value = PedersenOpening { value: opening.value, blinding: opening.blinding };
-    wrong_value.value[31] = 43; // different value
+    let mut wrong_value_bytes = *opening.value();
+    wrong_value_bytes[31] = 43; // different value
+    let wrong_value = PedersenOpening::new(wrong_value_bytes, *opening.blinding());
     let is_valid = commitment.verify(&wrong_value);
     match is_valid {
         Ok(false) | Err(_) => println!("  Wrong value: correctly rejected"),

@@ -8,8 +8,8 @@
 //! # Test Categories (83 tests across 20 sections)
 //!
 //! ## S01–S02: Basics (2 tests)
-//! - `test_info_shows_version_and_algorithms` — `info` output lists all algorithms
-//! - `test_help_shows_all_commands` — `--help` lists all 8 commands, excludes enterprise
+//! - `test_info_shows_version_and_algorithms_succeeds` — `info` output lists all algorithms
+//! - `test_help_shows_all_commands_succeeds` — `--help` lists all 8 commands, excludes enterprise
 //!
 //! ## S02–S08: Signing Roundtrips (6 tests)
 //! - Ed25519 (RFC 8032), ML-DSA-44/65/87 (FIPS 204), SLH-DSA (FIPS 205),
@@ -169,7 +169,7 @@ fn temp_dir() -> tempfile::TempDir {
 // ============================================================================
 
 #[test]
-fn test_info_shows_version_and_algorithms() {
+fn test_info_shows_version_and_algorithms_succeeds() {
     let out = run_ok(&["info"]);
     assert!(out.contains("LatticeArc CLI v"));
     assert!(out.contains("latticearc v"));
@@ -188,7 +188,7 @@ fn test_info_shows_version_and_algorithms() {
 }
 
 #[test]
-fn test_help_shows_all_commands() {
+fn test_help_shows_all_commands_succeeds() {
     let out = run_ok(&["--help"]);
     assert!(out.contains("keygen"));
     assert!(out.contains("encrypt"));
@@ -347,7 +347,7 @@ fn test_ml_dsa_65_keygen_sign_verify_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_ml_dsa_44_keygen_sign_verify() {
+fn test_ml_dsa_44_keygen_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -388,7 +388,7 @@ fn test_ml_dsa_44_keygen_sign_verify() {
 }
 
 #[test]
-fn test_ml_dsa_87_keygen_sign_verify() {
+fn test_ml_dsa_87_keygen_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -431,7 +431,7 @@ fn test_ml_dsa_87_keygen_sign_verify() {
 // ============================================================================
 
 #[test]
-fn test_slh_dsa_keygen_sign_verify() {
+fn test_slh_dsa_keygen_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -470,7 +470,7 @@ fn test_slh_dsa_keygen_sign_verify() {
 }
 
 #[test]
-fn test_fn_dsa_keygen_sign_verify() {
+fn test_fn_dsa_keygen_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -513,7 +513,7 @@ fn test_fn_dsa_keygen_sign_verify() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_sign_keygen_sign_verify() {
+fn test_hybrid_sign_keygen_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -619,7 +619,7 @@ fn test_aes256_encrypt_decrypt_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_hash_all_algorithms() {
+fn test_hash_all_algorithms_succeeds() {
     let dir = temp_dir();
     let msg_path = dir.path().join("data.bin");
     std::fs::write(&msg_path, b"hash me").unwrap();
@@ -657,7 +657,7 @@ fn test_hash_all_algorithms() {
 }
 
 #[test]
-fn test_hash_base64_output() {
+fn test_hash_base64_output_succeeds() {
     let dir = temp_dir();
     let msg_path = dir.path().join("data.bin");
     std::fs::write(&msg_path, b"base64 test").unwrap();
@@ -687,7 +687,7 @@ fn test_hash_base64_output() {
 // ============================================================================
 
 #[test]
-fn test_kdf_hkdf_derivation() {
+fn test_kdf_hkdf_derivation_succeeds() {
     let out = run_ok(&[
         "kdf",
         "--algorithm",
@@ -710,7 +710,7 @@ fn test_kdf_hkdf_derivation() {
 }
 
 #[test]
-fn test_kdf_pbkdf2_derivation() {
+fn test_kdf_pbkdf2_derivation_succeeds() {
     let out = run_ok(&[
         "kdf",
         "--algorithm",
@@ -737,7 +737,7 @@ fn test_kdf_pbkdf2_derivation() {
 // ============================================================================
 
 #[test]
-fn test_tampered_message_fails_verification() {
+fn test_tampered_message_fails_verification_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -787,7 +787,7 @@ fn test_tampered_message_fails_verification() {
 // ============================================================================
 
 #[test]
-fn test_wrong_key_fails_verification() {
+fn test_wrong_key_fails_verification_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -887,7 +887,7 @@ fn test_wrong_key_decrypt_fails() {
 // ============================================================================
 
 #[test]
-fn test_algorithm_key_mismatch_rejected() {
+fn test_algorithm_key_mismatch_rejected_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -922,7 +922,7 @@ fn test_algorithm_key_mismatch_rejected() {
 // ============================================================================
 
 #[test]
-fn test_verify_auto_detects_algorithm() {
+fn test_verify_auto_detects_algorithm_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -966,7 +966,7 @@ fn test_verify_auto_detects_algorithm() {
 // ============================================================================
 
 #[test]
-fn test_keygen_with_label() {
+fn test_keygen_with_label_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -999,7 +999,7 @@ fn test_keygen_with_label() {
 
 #[cfg(unix)]
 #[test]
-fn test_secret_key_restricted_permissions() {
+fn test_secret_key_restricted_permissions_succeeds() {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = temp_dir();
@@ -1027,7 +1027,7 @@ fn test_secret_key_restricted_permissions() {
 // ============================================================================
 
 #[test]
-fn test_e2e_code_signing_workflow() {
+fn test_e2e_code_signing_workflow_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -1087,7 +1087,7 @@ fn test_e2e_code_signing_workflow() {
 // ============================================================================
 
 #[test]
-fn test_e2e_document_notarization_hybrid() {
+fn test_e2e_document_notarization_hybrid_is_documented() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -1141,7 +1141,7 @@ fn test_e2e_document_notarization_hybrid() {
 // ============================================================================
 
 #[test]
-fn test_e2e_encrypted_config_deployment() {
+fn test_e2e_encrypted_config_deployment_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -1199,7 +1199,7 @@ fn test_e2e_encrypted_config_deployment() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_keygen_all_levels() {
+fn test_ml_kem_keygen_all_levels_succeeds() {
     for (alg, name) in
         [("ml-kem512", "ml-kem-512"), ("ml-kem768", "ml-kem-768"), ("ml-kem1024", "ml-kem-1024")]
     {
@@ -1231,7 +1231,7 @@ fn test_ml_kem_keygen_all_levels() {
 // ============================================================================
 
 #[test]
-fn test_kdf_deterministic() {
+fn test_kdf_deterministic_output_is_deterministic() {
     let args = &[
         "kdf",
         "--algorithm",
@@ -1260,7 +1260,7 @@ fn test_kdf_deterministic() {
 // ============================================================================
 
 #[test]
-fn test_hash_deterministic() {
+fn test_hash_deterministic_output_is_deterministic() {
     let dir = temp_dir();
     let msg_path = dir.path().join("data.bin");
     std::fs::write(&msg_path, b"determinism test").unwrap();
@@ -1330,7 +1330,7 @@ fn sig_file_raw_len(path: &std::path::Path) -> usize {
 }
 
 #[test]
-fn test_nist_fips204_ml_dsa_44_sizes() {
+fn test_nist_fips204_ml_dsa_44_sizes_has_correct_size() {
     // FIPS 204 Table 2: ML-DSA-44
     // Public key: 1,312 bytes | Secret key: 2,560 bytes | Signature: 2,420 bytes
     let dir = temp_dir();
@@ -1372,7 +1372,7 @@ fn test_nist_fips204_ml_dsa_44_sizes() {
 }
 
 #[test]
-fn test_nist_fips204_ml_dsa_65_sizes() {
+fn test_nist_fips204_ml_dsa_65_sizes_has_correct_size() {
     // FIPS 204 Table 2: ML-DSA-65
     // Public key: 1,952 bytes | Secret key: 4,032 bytes | Signature: 3,309 bytes
     let dir = temp_dir();
@@ -1413,7 +1413,7 @@ fn test_nist_fips204_ml_dsa_65_sizes() {
 }
 
 #[test]
-fn test_nist_fips204_ml_dsa_87_sizes() {
+fn test_nist_fips204_ml_dsa_87_sizes_has_correct_size() {
     // FIPS 204 Table 2: ML-DSA-87
     // Public key: 2,592 bytes | Secret key: 4,866 bytes | Signature: 4,627 bytes
     let dir = temp_dir();
@@ -1461,7 +1461,7 @@ fn test_nist_fips204_ml_dsa_87_sizes() {
 // FIPS 203, Table 3 specifies exact byte sizes for all ML-KEM parameter sets.
 
 #[test]
-fn test_nist_fips203_ml_kem_512_sizes() {
+fn test_nist_fips203_ml_kem_512_sizes_has_correct_size() {
     // FIPS 203 Table 3: ML-KEM-512
     // Encapsulation key (pk): 800 bytes | Decapsulation key (sk): 1,632 bytes
     let dir = temp_dir();
@@ -1481,7 +1481,7 @@ fn test_nist_fips203_ml_kem_512_sizes() {
 }
 
 #[test]
-fn test_nist_fips203_ml_kem_768_sizes() {
+fn test_nist_fips203_ml_kem_768_sizes_has_correct_size() {
     // FIPS 203 Table 3: ML-KEM-768
     // Encapsulation key (pk): 1,184 bytes | Decapsulation key (sk): 2,400 bytes
     let dir = temp_dir();
@@ -1501,7 +1501,7 @@ fn test_nist_fips203_ml_kem_768_sizes() {
 }
 
 #[test]
-fn test_nist_fips203_ml_kem_1024_sizes() {
+fn test_nist_fips203_ml_kem_1024_sizes_has_correct_size() {
     // FIPS 203 Table 3: ML-KEM-1024
     // Encapsulation key (pk): 1,568 bytes | Decapsulation key (sk): 3,168 bytes
     let dir = temp_dir();
@@ -1528,7 +1528,7 @@ fn test_nist_fips203_ml_kem_1024_sizes() {
 // Public key: 32 bytes | Secret key: 64 bytes | Signature: 7,856 bytes
 
 #[test]
-fn test_nist_fips205_slh_dsa_shake_128s_sizes() {
+fn test_nist_fips205_slh_dsa_shake_128s_sizes_has_correct_size() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -1576,7 +1576,7 @@ fn test_nist_fips205_slh_dsa_shake_128s_sizes() {
 // Signature: variable length (compressed), max 666 bytes per spec
 
 #[test]
-fn test_fips206_fn_dsa_512_sizes() {
+fn test_fips206_fn_dsa_512_sizes_has_correct_size() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -1626,7 +1626,7 @@ fn test_fips206_fn_dsa_512_sizes() {
 // Public key: 32 bytes | Signature: 64 bytes
 
 #[test]
-fn test_rfc8032_ed25519_sizes() {
+fn test_rfc8032_ed25519_sizes_has_correct_size() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -1677,7 +1677,7 @@ fn test_rfc8032_ed25519_sizes() {
 // SP 800-38D: GCM nonce = 12 bytes, authentication tag = 16 bytes
 
 #[test]
-fn test_fips197_aes256_key_size() {
+fn test_fips197_aes256_key_size_has_correct_size() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -1742,7 +1742,7 @@ fn test_fips197_aes256_key_size() {
 // RFC 7693: BLAKE2b-256 output = 32 bytes
 
 #[test]
-fn test_hash_output_sizes_conformance() {
+fn test_hash_output_sizes_conformance_has_correct_size() {
     let dir = temp_dir();
     let msg_path = dir.path().join("data.bin");
     std::fs::write(&msg_path, b"hash output size conformance test").unwrap();
@@ -1794,7 +1794,7 @@ fn test_hash_output_sizes_conformance() {
 // Hybrid ML-DSA-65 + Ed25519: pk = 4 (length prefix) + 1952 (ML-DSA-65) + 32 (Ed25519)
 
 #[test]
-fn test_hybrid_key_composition_conformance() {
+fn test_hybrid_key_composition_conformance_succeeds() {
     // Hybrid signing: ML-DSA-65 + Ed25519
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
@@ -1840,7 +1840,7 @@ fn test_hybrid_key_composition_conformance() {
 // a different algorithm's key — defense against algorithm confusion attacks.
 
 #[test]
-fn test_pqc_signatures_non_interchangeable() {
+fn test_pqc_signatures_non_interchangeable_succeeds() {
     let dir_dsa65 = temp_dir();
     let dir_dsa44 = temp_dir();
     let d65 = dir_dsa65.path().to_str().unwrap();
@@ -1899,7 +1899,7 @@ fn test_pqc_signatures_non_interchangeable() {
 // For SHA-256: HashLen = 32 bytes, max L = 8,160 bytes.
 
 #[test]
-fn test_hkdf_output_length_conformance() {
+fn test_hkdf_output_length_conformance_has_correct_size() {
     // Minimum: 1 byte
     let out = run_ok(&[
         "kdf",
@@ -1980,7 +1980,7 @@ fn test_hkdf_output_length_conformance() {
 // Empty messages are valid inputs for signing and hashing.
 
 #[test]
-fn test_sign_verify_empty_message() {
+fn test_sign_verify_empty_message_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2023,7 +2023,7 @@ fn test_sign_verify_empty_message() {
 }
 
 #[test]
-fn test_hash_empty_input() {
+fn test_hash_empty_input_fails() {
     let dir = temp_dir();
     let msg_path = dir.path().join("empty.txt");
     std::fs::write(&msg_path, b"").unwrap();
@@ -2044,7 +2044,7 @@ fn test_hash_empty_input() {
 }
 
 #[test]
-fn test_encrypt_decrypt_empty_plaintext() {
+fn test_encrypt_decrypt_empty_plaintext_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2093,7 +2093,7 @@ fn test_encrypt_decrypt_empty_plaintext() {
 // Crypto operations must handle arbitrary binary data, not just text.
 
 #[test]
-fn test_encrypt_decrypt_binary_data() {
+fn test_encrypt_decrypt_binary_data_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2138,7 +2138,7 @@ fn test_encrypt_decrypt_binary_data() {
 }
 
 #[test]
-fn test_sign_verify_binary_data() {
+fn test_sign_verify_binary_data_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2186,7 +2186,7 @@ fn test_sign_verify_binary_data() {
 // of the ciphertext MUST cause decryption to fail (authentication tag mismatch).
 
 #[test]
-fn test_corrupted_ciphertext_detected() {
+fn test_corrupted_ciphertext_detected_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2251,7 +2251,7 @@ fn test_corrupted_ciphertext_detected() {
 }
 
 #[test]
-fn test_truncated_ciphertext_detected() {
+fn test_truncated_ciphertext_detected_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2315,7 +2315,7 @@ fn test_truncated_ciphertext_detected() {
 // Bit-flipping a signature must cause verification to fail for all algorithms.
 
 #[test]
-fn test_corrupted_signature_detected_ed25519() {
+fn test_corrupted_signature_detected_ed25519_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2376,7 +2376,7 @@ fn test_corrupted_signature_detected_ed25519() {
 }
 
 #[test]
-fn test_corrupted_signature_detected_ml_dsa() {
+fn test_corrupted_signature_detected_ml_dsa_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2446,7 +2446,7 @@ fn test_corrupted_signature_detected_ml_dsa() {
 // The CLI must reject operations when the wrong key type is provided.
 
 #[test]
-fn test_sign_with_public_key_rejected() {
+fn test_sign_with_public_key_rejected_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2479,7 +2479,7 @@ fn test_sign_with_public_key_rejected() {
 }
 
 #[test]
-fn test_decrypt_with_wrong_key_type_rejected() {
+fn test_decrypt_with_wrong_key_type_rejected_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2530,14 +2530,10 @@ fn test_decrypt_with_wrong_key_type_rejected() {
 // ============================================================================
 
 #[test]
-fn test_nonexistent_input_file() {
-    let stderr = run_fail(&[
-        "hash",
-        "--algorithm",
-        "sha-256",
-        "--input",
-        "/tmp/latticearc_does_not_exist_ever.txt",
-    ]);
+fn test_nonexistent_input_file_succeeds() {
+    let nonexistent_path = std::env::temp_dir().join("latticearc_does_not_exist_ever.txt");
+    let nonexistent_str = nonexistent_path.to_string_lossy().into_owned();
+    let stderr = run_fail(&["hash", "--algorithm", "sha-256", "--input", &nonexistent_str]);
     assert!(
         stderr.contains("Failed to read")
             || stderr.contains("No such file")
@@ -2551,11 +2547,13 @@ fn test_nonexistent_input_file() {
 }
 
 #[test]
-fn test_nonexistent_key_file() {
+fn test_nonexistent_key_file_succeeds() {
     let dir = temp_dir();
     let msg_path = dir.path().join("msg.txt");
     std::fs::write(&msg_path, b"test").unwrap();
 
+    let no_such_key = std::env::temp_dir().join("latticearc_no_such_key.json");
+    let no_such_key_str = no_such_key.to_string_lossy().into_owned();
     let stderr = run_fail(&[
         "sign",
         "--algorithm",
@@ -2563,7 +2561,7 @@ fn test_nonexistent_key_file() {
         "--input",
         msg_path.to_str().unwrap(),
         "--key",
-        "/tmp/latticearc_no_such_key.json",
+        &no_such_key_str,
     ]);
     assert!(
         stderr.contains("Failed to read")
@@ -2582,7 +2580,7 @@ fn test_nonexistent_key_file() {
 // ============================================================================
 
 #[test]
-fn test_corrupted_key_file_json() {
+fn test_corrupted_key_file_json_fails() {
     let dir = temp_dir();
     let msg_path = dir.path().join("msg.txt");
     std::fs::write(&msg_path, b"test").unwrap();
@@ -2614,7 +2612,7 @@ fn test_corrupted_key_file_json() {
 }
 
 #[test]
-fn test_key_file_wrong_base64() {
+fn test_key_file_wrong_base64_fails() {
     let dir = temp_dir();
     let msg_path = dir.path().join("msg.txt");
     std::fs::write(&msg_path, b"test").unwrap();
@@ -2657,7 +2655,7 @@ fn test_key_file_wrong_base64() {
 // ============================================================================
 
 #[test]
-fn test_kdf_invalid_hex_salt() {
+fn test_kdf_invalid_hex_salt_fails() {
     let stderr = run_fail(&[
         "kdf",
         "--algorithm",
@@ -2682,7 +2680,7 @@ fn test_kdf_invalid_hex_salt() {
 }
 
 #[test]
-fn test_kdf_invalid_hex_input() {
+fn test_kdf_invalid_hex_input_fails() {
     let stderr = run_fail(&[
         "kdf",
         "--algorithm",
@@ -2707,7 +2705,7 @@ fn test_kdf_invalid_hex_input() {
 }
 
 #[test]
-fn test_kdf_zero_length_rejected() {
+fn test_kdf_zero_length_rejected_fails() {
     let stderr = run_fail(&[
         "kdf",
         "--algorithm",
@@ -2739,7 +2737,7 @@ fn test_kdf_zero_length_rejected() {
 // must not be able to get a valid verification with a different algorithm.
 
 #[test]
-fn test_signature_algorithm_field_tampered() {
+fn test_signature_algorithm_field_tampered_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2799,7 +2797,7 @@ fn test_signature_algorithm_field_tampered() {
 // AES block = 16 bytes, SHA chunk = 64 bytes. Test with 1 MB.
 
 #[test]
-fn test_large_message_sign_verify() {
+fn test_large_message_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2840,7 +2838,7 @@ fn test_large_message_sign_verify() {
 }
 
 #[test]
-fn test_large_message_encrypt_decrypt() {
+fn test_large_message_encrypt_decrypt_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -2890,7 +2888,7 @@ fn test_large_message_encrypt_decrypt() {
 // ============================================================================
 
 #[test]
-fn test_keygen_missing_algorithm() {
+fn test_keygen_missing_algorithm_fails() {
     let output = Command::new(cli_bin()).args(["keygen"]).output().unwrap();
     assert!(!output.status.success(), "keygen without --algorithm must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -2905,7 +2903,7 @@ fn test_keygen_missing_algorithm() {
 }
 
 #[test]
-fn test_sign_missing_key() {
+fn test_sign_missing_key_fails() {
     let dir = temp_dir();
     let msg_path = dir.path().join("msg.txt");
     std::fs::write(&msg_path, b"test").unwrap();
@@ -2934,7 +2932,7 @@ fn test_sign_missing_key() {
 // plaintext with the same key MUST produce different ciphertexts (random nonce).
 
 #[test]
-fn test_aes_gcm_nonce_uniqueness() {
+fn test_aes_gcm_nonce_uniqueness_are_unique() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3030,7 +3028,7 @@ fn test_aes_gcm_nonce_uniqueness() {
 // ML-DSA may be randomized (FIPS 204 hedged signing).
 
 #[test]
-fn test_ed25519_signature_determinism() {
+fn test_ed25519_signature_determinism_is_deterministic() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3090,7 +3088,7 @@ fn test_ed25519_signature_determinism() {
 // original signature. Verification must fail.
 
 #[test]
-fn test_mitm_message_substitution() {
+fn test_mitm_message_substitution_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3144,7 +3142,7 @@ fn test_mitm_message_substitution() {
 // validates under any other keypair's public key.
 
 #[test]
-fn test_key_isolation_matrix() {
+fn test_key_isolation_matrix_succeeds() {
     let dirs: Vec<_> = (0..3).map(|_| temp_dir()).collect();
 
     // Generate 3 independent Ed25519 keypairs
@@ -3217,7 +3215,7 @@ fn test_key_isolation_matrix() {
 // This is a critical security property for multi-purpose key derivation.
 
 #[test]
-fn test_hkdf_domain_separation() {
+fn test_hkdf_domain_separation_succeeds() {
     let ikm = "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b";
     let salt = "000102030405060708090a0b0c";
 
@@ -3296,7 +3294,7 @@ fn test_hkdf_domain_separation() {
 // This prevents rainbow table attacks.
 
 #[test]
-fn test_pbkdf2_salt_influence() {
+fn test_pbkdf2_salt_influence_succeeds() {
     let password = "test-password-for-salt-check";
 
     let key_salt1 = run_ok(&[
@@ -3345,7 +3343,7 @@ fn test_pbkdf2_salt_influence() {
 // Different passwords with the same salt and iterations MUST produce different keys.
 
 #[test]
-fn test_pbkdf2_password_sensitivity() {
+fn test_pbkdf2_password_sensitivity_succeeds() {
     let salt = "000102030405060708090a0b0c";
 
     let key_a = run_ok(&[
@@ -3395,7 +3393,7 @@ fn test_pbkdf2_password_sensitivity() {
 // with required fields: version, algorithm, key_type, key, created.
 
 #[test]
-fn test_key_file_json_schema() {
+fn test_key_file_json_schema_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3453,7 +3451,7 @@ fn test_key_file_json_schema() {
 // Two consecutive keygen invocations MUST produce different keys.
 
 #[test]
-fn test_keygen_produces_unique_keys() {
+fn test_keygen_produces_unique_keys_are_unique() {
     let dir1 = temp_dir();
     let dir2 = temp_dir();
 
@@ -3513,7 +3511,7 @@ fn test_keygen_produces_unique_keys() {
 // ML-DSA-87 (Category 5) with 64 KB input (library limit).
 
 #[test]
-fn test_pqc_large_message_sign_verify_ml_dsa87() {
+fn test_pqc_large_message_sign_verify_ml_dsa87_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3564,7 +3562,7 @@ fn test_pqc_large_message_sign_verify_ml_dsa87() {
 // Hash-based signatures (FIPS 205) must detect forgery via bit-flipping.
 
 #[test]
-fn test_corrupted_signature_detected_slh_dsa() {
+fn test_corrupted_signature_detected_slh_dsa_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3635,7 +3633,7 @@ fn test_corrupted_signature_detected_slh_dsa() {
 // Both inner signatures (PQC and classical) must fail simultaneously.
 
 #[test]
-fn test_hybrid_sign_tamper_detection() {
+fn test_hybrid_sign_tamper_detection_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3751,7 +3749,7 @@ fn test_decrypt_with_different_aes_key_fails() {
 // → decrypt → verify signature. Proves all CLI commands compose correctly.
 
 #[test]
-fn test_e2e_multi_step_crypto_pipeline() {
+fn test_e2e_multi_step_crypto_pipeline_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -3848,7 +3846,7 @@ fn test_e2e_multi_step_crypto_pipeline() {
 // Uses PQC (ML-DSA-87) for quantum-resistant non-repudiation.
 
 #[test]
-fn test_e2e_pqc_document_custody_chain() {
+fn test_e2e_pqc_document_custody_chain_is_documented() {
     let author_dir = temp_dir();
     let custodian_dir = temp_dir();
 
@@ -3938,7 +3936,7 @@ fn test_e2e_pqc_document_custody_chain() {
 // for AES-256-GCM encryption/decryption. Proves KDF→encrypt→decrypt pipeline.
 
 #[test]
-fn test_e2e_derived_key_encrypt_decrypt() {
+fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
     let dir = temp_dir();
 
     // Step 1: Derive a 32-byte key from password via PBKDF2
@@ -4033,7 +4031,7 @@ fn test_e2e_derived_key_encrypt_decrypt() {
 // FIPS 206 (draft) FN-DSA-512 lattice-based signatures must detect forgery.
 
 #[test]
-fn test_corrupted_signature_detected_fn_dsa() {
+fn test_corrupted_signature_detected_fn_dsa_fails() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
@@ -4103,7 +4101,7 @@ fn test_corrupted_signature_detected_fn_dsa() {
 // different outputs (unless there's a collision, which is astronomically unlikely).
 
 #[test]
-fn test_hash_cross_algorithm_divergence() {
+fn test_hash_cross_algorithm_divergence_succeeds() {
     let dir = temp_dir();
     let msg_path = dir.path().join("data.txt");
     std::fs::write(&msg_path, b"cross-algorithm hash divergence test data").unwrap();
@@ -4142,7 +4140,7 @@ fn test_hash_cross_algorithm_divergence() {
 // (unlike Ed25519 which is fully deterministic per RFC 8032).
 
 #[test]
-fn test_ml_dsa_signature_randomized() {
+fn test_ml_dsa_signature_randomized_succeeds() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 

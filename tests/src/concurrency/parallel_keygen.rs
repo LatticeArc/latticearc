@@ -5,7 +5,6 @@
 #[cfg(test)]
 mod tests {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
     use std::collections::HashSet;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
@@ -22,13 +21,11 @@ mod tests {
             .map(|_| {
                 let keys = Arc::clone(&keys);
                 thread::spawn(move || {
-                    let mut rng = OsRng;
                     let mut local_keys = Vec::new();
 
                     for _ in 0..KEYS_PER_THREAD {
-                        let (pk, _sk) =
-                            MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
-                                .expect("keygen should succeed");
+                        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
+                            .expect("keygen should succeed");
                         local_keys.push(pk.to_bytes());
                     }
 
@@ -65,8 +62,7 @@ mod tests {
                 (0..3).map(move |_| {
                     let results = Arc::clone(&results_inner);
                     thread::spawn(move || {
-                        let mut rng = OsRng;
-                        let result = MlKem::generate_keypair(&mut rng, level);
+                        let result = MlKem::generate_keypair(level);
                         results.lock().expect("mutex").push(result.is_ok());
                     })
                 })
@@ -92,14 +88,13 @@ mod tests {
             .map(|i| {
                 let success_count = Arc::clone(&success_count);
                 thread::spawn(move || {
-                    let mut rng = OsRng;
                     let level = match i % 3 {
                         0 => MlKemSecurityLevel::MlKem512,
                         1 => MlKemSecurityLevel::MlKem768,
                         _ => MlKemSecurityLevel::MlKem1024,
                     };
 
-                    if MlKem::generate_keypair(&mut rng, level).is_ok() {
+                    if MlKem::generate_keypair(level).is_ok() {
                         success_count.fetch_add(1, Ordering::SeqCst);
                     }
                 })

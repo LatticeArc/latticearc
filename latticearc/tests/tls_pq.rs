@@ -17,7 +17,7 @@ mod pq_tests {
     use latticearc::tls::{TlsMode, pq_key_exchange::*};
 
     #[test]
-    fn test_pq_kex_info_hybrid() {
+    fn test_pq_kex_info_hybrid_succeeds() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
         assert_eq!(info.method, "X25519MLKEM768");
         assert!(info.is_pq_secure);
@@ -25,7 +25,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_pq_kex_info_classical() {
+    fn test_pq_kex_info_classical_succeeds() {
         let info = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
         assert_eq!(info.method, "X25519 (ECDHE)");
         assert!(!info.is_pq_secure);
@@ -33,26 +33,26 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_get_kex_provider_pq() {
+    fn test_get_kex_provider_pq_succeeds() {
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_classical() {
+    fn test_get_kex_provider_classical_succeeds() {
         let provider = get_kex_provider(TlsMode::Classic, PqKexMode::Classical);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_pq_availability() {
+    fn test_pq_availability_succeeds() {
         // PQ is always available via rustls native support
         let available = is_pq_available();
         assert!(available);
     }
 
     #[test]
-    fn test_custom_hybrid_availability() {
+    fn test_custom_hybrid_availability_succeeds() {
         // Custom hybrid is always available
         let available = is_custom_hybrid_available();
         assert!(available);
@@ -63,7 +63,7 @@ mod pq_tests {
     // ========================================================================
 
     #[test]
-    fn test_hybrid_provider_has_pq_groups_first() {
+    fn test_hybrid_provider_has_pq_groups_first_succeeds() {
         // Verify PQ/hybrid groups are sorted before classical-only groups
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
             .expect("Hybrid provider should be available");
@@ -93,7 +93,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_pq_mode_provider_has_pq_groups_first() {
+    fn test_pq_mode_provider_has_pq_groups_first_succeeds() {
         // Same ordering guarantee for PQ-only mode
         let provider = get_kex_provider(TlsMode::Pq, PqKexMode::RustlsPq)
             .expect("PQ provider should be available");
@@ -106,7 +106,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_classic_provider_no_pq_reordering() {
+    fn test_classic_provider_no_pq_reordering_succeeds() {
         // Classic mode should use default_provider() without PQ sorting
         let provider = get_kex_provider(TlsMode::Classic, PqKexMode::Classical)
             .expect("Classic provider should be available");
@@ -122,7 +122,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_native_x25519mlkem768_available() {
+    fn test_native_x25519mlkem768_available_succeeds() {
         // Verify X25519MLKEM768 is natively available without rustls-post-quantum
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
             .expect("Provider should be available");
@@ -139,7 +139,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_all_modes_produce_non_empty_providers() {
+    fn test_all_modes_produce_non_empty_providers_succeeds() {
         // Every (TlsMode, PqKexMode) combination must produce a provider with groups
         let modes = [
             (TlsMode::Hybrid, PqKexMode::RustlsPq),
@@ -161,7 +161,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_kex_info_consistency_with_provider() {
+    fn test_kex_info_consistency_with_provider_succeeds() {
         // KexInfo claims X25519MLKEM768 for Hybrid+RustlsPq — verify the provider
         // actually contains that group
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
@@ -179,7 +179,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_hybrid_provider_includes_classical_fallback() {
+    fn test_hybrid_provider_includes_classical_fallback_succeeds() {
         // Hybrid mode must include classical groups for backward compatibility
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
             .expect("Provider should be available");
@@ -197,7 +197,7 @@ mod pq_tests {
     // ========================================================================
 
     #[test]
-    fn test_classic_mode_overrides_kex_mode_to_classical() {
+    fn test_classic_mode_overrides_kex_mode_to_classical_succeeds() {
         // Classic TlsMode should produce same result regardless of PqKexMode
         let info_classical = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
         let info_rustls_pq = get_kex_info(TlsMode::Classic, PqKexMode::RustlsPq);
@@ -214,7 +214,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_classic_provider_has_no_pq_preference() {
+    fn test_classic_provider_has_no_pq_preference_succeeds() {
         // Classic mode should NOT sort PQ groups to front
         let provider = get_kex_provider(TlsMode::Classic, PqKexMode::Classical).unwrap();
         let default_provider = rustls::crypto::aws_lc_rs::default_provider();
@@ -232,7 +232,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_pq_mode_classical_kex_still_produces_provider() {
+    fn test_pq_mode_classical_kex_still_produces_provider_succeeds() {
         // Even PQ mode + Classical kex should not fail — it falls through to default
         let provider = get_kex_provider(TlsMode::Pq, PqKexMode::Classical);
         assert!(provider.is_ok(), "PQ mode + Classical kex must not error");
@@ -240,7 +240,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_kex_info_shared_secret_sizes_valid() {
+    fn test_kex_info_shared_secret_sizes_valid_has_correct_size() {
         // All modes must report positive shared secret sizes
         let modes = [
             (TlsMode::Hybrid, PqKexMode::RustlsPq),
@@ -259,7 +259,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_hybrid_ss_size_larger_than_classical() {
+    fn test_hybrid_ss_size_larger_than_classical_has_correct_size() {
         // Hybrid X25519MLKEM768 combines two shared secrets → larger SS
         let hybrid = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
         let classical = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
@@ -273,7 +273,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_provider_group_count_at_least_one_per_mode() {
+    fn test_provider_group_count_at_least_one_per_mode_succeeds() {
         // Every mode must have at least 1 key exchange group
         for mode in [TlsMode::Classic, TlsMode::Hybrid, TlsMode::Pq] {
             let provider = get_kex_provider(mode, PqKexMode::RustlsPq).unwrap();
@@ -285,7 +285,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_hybrid_provider_has_both_pq_and_classical_groups() {
+    fn test_hybrid_provider_has_both_pq_and_classical_groups_succeeds() {
         // Hybrid must have BOTH PQ and classical — not just one or the other
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).unwrap();
         let group_names: Vec<String> =
@@ -302,7 +302,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_pq_secure_flag_consistency() {
+    fn test_pq_secure_flag_consistency_succeeds() {
         // PQ modes should be PQ secure, Classic should not
         assert!(get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq).is_pq_secure);
         assert!(get_kex_info(TlsMode::Pq, PqKexMode::RustlsPq).is_pq_secure);
@@ -311,7 +311,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_provider_idempotent() {
+    fn test_provider_idempotent_is_deterministic() {
         // Calling get_kex_provider twice produces equivalent results
         let p1 = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).unwrap();
         let p2 = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq).unwrap();
@@ -323,7 +323,7 @@ mod pq_tests {
     }
 
     #[test]
-    fn test_all_kex_modes_for_all_tls_modes_succeed() {
+    fn test_all_kex_modes_for_all_tls_modes_succeed_succeeds() {
         // Exhaustive: every possible (TlsMode, PqKexMode) pair must not panic
         for tls_mode in [TlsMode::Classic, TlsMode::Hybrid, TlsMode::Pq] {
             for kex_mode in [PqKexMode::Classical, PqKexMode::RustlsPq, PqKexMode::CustomHybrid] {

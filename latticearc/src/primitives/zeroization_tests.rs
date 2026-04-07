@@ -16,7 +16,7 @@ fn verify_non_zero(bytes: &[u8]) -> bool {
 }
 
 #[test]
-fn test_basic_byte_array_zeroization() {
+fn test_basic_byte_array_zeroization_clears_all_bytes_succeeds() {
     let mut test_data = create_test_data(32);
     assert!(verify_non_zero(&test_data), "Test data should be non-zero initially");
 
@@ -25,7 +25,7 @@ fn test_basic_byte_array_zeroization() {
 }
 
 #[test]
-fn test_byte_array_zeroization_on_drop() {
+fn test_byte_array_zeroization_on_drop_clears_memory_succeeds() {
     let mut data_array = create_test_data(64);
     assert!(verify_non_zero(&data_array), "Data should be non-zero before zeroization");
 
@@ -34,7 +34,7 @@ fn test_byte_array_zeroization_on_drop() {
 }
 
 #[test]
-fn test_vector_zeroization() {
+fn test_vector_zeroization_clears_all_bytes_matches_expected() {
     let mut test_vec = create_test_data(100);
     assert!(verify_non_zero(&test_vec), "Vector should be non-zero initially");
 
@@ -43,7 +43,7 @@ fn test_vector_zeroization() {
 }
 
 #[test]
-fn test_string_zeroization() {
+fn test_string_zeroization_clears_all_bytes_succeeds() {
     let mut test_string = "Hello, World!".to_string();
     assert!(verify_non_zero(test_string.as_bytes()), "String should be non-zero initially");
 
@@ -53,7 +53,7 @@ fn test_string_zeroization() {
 }
 
 #[test]
-fn test_slice_content_zeroization() {
+fn test_slice_content_zeroization_clears_all_bytes_succeeds() {
     let mut test_data = create_test_data(10);
     assert!(verify_non_zero(&test_data[..6]), "Slice should be non-zero initially");
 
@@ -62,7 +62,7 @@ fn test_slice_content_zeroization() {
 }
 
 #[test]
-fn test_array_zeroization_order() {
+fn test_array_zeroization_order_clears_in_sequence_succeeds() {
     let mut arrays = Vec::new();
 
     for _ in 0..5 {
@@ -90,7 +90,7 @@ fn test_array_zeroization_order() {
 }
 
 #[test]
-fn test_large_data_zeroization() {
+fn test_large_data_zeroization_clears_all_bytes_succeeds() {
     let mut large_data = create_test_data(10000);
     assert!(verify_non_zero(&large_data), "Large data should be non-zero initially");
 
@@ -99,7 +99,7 @@ fn test_large_data_zeroization() {
 }
 
 #[test]
-fn test_zeroization_thread_safety() {
+fn test_zeroization_thread_safety_succeeds() {
     use std::sync::{Arc, Mutex};
 
     let test_data = Arc::new(create_test_data(64));
@@ -134,7 +134,7 @@ fn test_zeroization_thread_safety() {
 }
 
 #[test]
-fn test_zeroization_after_multiple_operations() {
+fn test_zeroization_after_multiple_operations_succeeds() {
     let mut data = create_test_data(32);
 
     // Multiple operations before zeroization
@@ -162,7 +162,7 @@ fn test_zeroization_after_multiple_operations() {
 }
 
 #[test]
-fn test_edge_cases() {
+fn test_edge_cases_handled_correctly_succeeds() {
     // Empty data - empty Vec is already all zeros
     let mut empty_data: Vec<u8> = Vec::new();
     empty_data.zeroize();
@@ -181,7 +181,7 @@ fn test_edge_cases() {
 }
 
 #[test]
-fn test_constant_time_zeroization() {
+fn test_constant_time_zeroization_succeeds() {
     let mut data = create_test_data(256);
 
     // Multiple zeroizations should not cause errors
@@ -194,7 +194,7 @@ fn test_constant_time_zeroization() {
 }
 
 #[test]
-fn test_concurrent_operations() {
+fn test_concurrent_operations_succeed_succeeds() {
     let data = create_test_data(128);
 
     // Concurrent access pattern - each thread gets its own copy

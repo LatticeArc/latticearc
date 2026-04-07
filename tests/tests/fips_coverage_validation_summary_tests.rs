@@ -54,19 +54,19 @@ fn failing_kat(test_case: &str, error: &str) -> KatResult {
 // ============================================================================
 
 #[test]
-fn test_compliance_reporter_new() {
+fn test_compliance_reporter_new_succeeds() {
     let reporter = ComplianceReporter::new(0.05);
     let _ = reporter;
 }
 
 #[test]
-fn test_compliance_reporter_default() {
+fn test_compliance_reporter_default_succeeds() {
     let reporter = ComplianceReporter::default();
     let _ = reporter;
 }
 
 #[test]
-fn test_generate_full_compliance_report_with_ml_kem_results() {
+fn test_generate_full_compliance_report_with_ml_kem_results_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results =
@@ -83,7 +83,7 @@ fn test_generate_full_compliance_report_with_ml_kem_results() {
 }
 
 #[test]
-fn test_generate_full_compliance_report_with_mixed_algorithms() {
+fn test_generate_full_compliance_report_with_mixed_algorithms_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results = vec![
@@ -105,7 +105,7 @@ fn test_generate_full_compliance_report_with_mixed_algorithms() {
 }
 
 #[test]
-fn test_generate_full_compliance_report_with_failures() {
+fn test_generate_full_compliance_report_with_failures_fails() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results = vec![
@@ -126,7 +126,7 @@ fn test_generate_full_compliance_report_with_failures() {
 }
 
 #[test]
-fn test_generate_full_compliance_report_with_fips_validation() {
+fn test_generate_full_compliance_report_with_fips_validation_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results = vec![passing_kat("ML-KEM-768 Test")];
@@ -153,7 +153,7 @@ fn test_generate_full_compliance_report_with_fips_validation() {
 // ============================================================================
 
 #[test]
-fn test_generate_json_report() {
+fn test_generate_json_report_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let kat_results = vec![passing_kat("ML-KEM-768 Test")];
 
@@ -165,7 +165,7 @@ fn test_generate_json_report() {
 }
 
 #[test]
-fn test_generate_html_report() {
+fn test_generate_html_report_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results = vec![passing_kat("ML-KEM-768 Test"), failing_kat("AES-GCM Test", "mismatch")];
@@ -183,7 +183,7 @@ fn test_generate_html_report() {
 }
 
 #[test]
-fn test_generate_html_report_with_all_compliance_statuses() {
+fn test_generate_html_report_with_all_compliance_statuses_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results =
@@ -199,7 +199,7 @@ fn test_generate_html_report_with_all_compliance_statuses() {
 // ============================================================================
 
 #[test]
-fn test_compliance_status_variants() {
+fn test_compliance_status_variants_succeeds() {
     assert_eq!(
         ComplianceStatus::FullyCompliant,
         ComplianceStatus::FullyCompliant,
@@ -213,7 +213,7 @@ fn test_compliance_status_variants() {
 }
 
 #[test]
-fn test_randomness_quality_debug() {
+fn test_randomness_quality_debug_succeeds() {
     let qualities = vec![
         RandomnessQuality::Excellent,
         RandomnessQuality::Good,
@@ -228,7 +228,7 @@ fn test_randomness_quality_debug() {
 }
 
 #[test]
-fn test_validation_scope_variants() {
+fn test_validation_scope_variants_succeeds() {
     let module_scope = ValidationScope::Module;
     let debug = format!("{:?}", module_scope);
     assert!(debug.contains("Module"));
@@ -239,7 +239,7 @@ fn test_validation_scope_variants() {
 }
 
 #[test]
-fn test_security_coverage_fields() {
+fn test_security_coverage_fields_is_covered() {
     let coverage = SecurityCoverage {
         post_quantum_supported: true,
         classical_supported: true,
@@ -256,7 +256,7 @@ fn test_security_coverage_fields() {
 }
 
 #[test]
-fn test_compliance_metrics_fields() {
+fn test_compliance_metrics_fields_succeeds() {
     let metrics = ComplianceMetrics {
         total_test_cases: 100,
         passed_test_cases: 95,
@@ -282,7 +282,7 @@ fn test_compliance_metrics_fields() {
 // ============================================================================
 
 #[test]
-fn test_compliance_report_clone() {
+fn test_compliance_report_clone_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let kat_results = vec![passing_kat("ML-KEM-768 Test")];
 
@@ -296,7 +296,7 @@ fn test_compliance_report_clone() {
 }
 
 #[test]
-fn test_compliance_report_debug() {
+fn test_compliance_report_debug_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let kat_results = vec![passing_kat("ML-KEM-768 Test")];
 
@@ -310,14 +310,14 @@ fn test_compliance_report_debug() {
 // ============================================================================
 
 #[test]
-fn test_generate_full_compliance_report_empty_results() {
+fn test_generate_full_compliance_report_empty_results_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let kat_results: Vec<KatResult> = vec![];
     let _result = reporter.generate_full_compliance_report(&kat_results, &None);
 }
 
 #[test]
-fn test_statistical_compliance_result_clone() {
+fn test_statistical_compliance_result_clone_succeeds() {
     let result = StatisticalComplianceResult {
         nist_sp800_22_tests: vec!["Frequency Test".to_string()],
         entropy_estimate: 7.9,
@@ -335,7 +335,7 @@ fn test_statistical_compliance_result_clone() {
 // ============================================================================
 
 #[test]
-fn test_generate_report_partial_compliance() {
+fn test_generate_report_partial_compliance_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     // Mix of pass and fail across different algorithms
@@ -356,7 +356,7 @@ fn test_generate_report_partial_compliance() {
 }
 
 #[test]
-fn test_generate_report_all_algorithms_passing() {
+fn test_generate_report_all_algorithms_passing_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results = vec![
@@ -388,7 +388,7 @@ fn test_generate_report_all_algorithms_passing() {
 }
 
 #[test]
-fn test_generate_report_fully_compliant_with_fips() {
+fn test_generate_report_fully_compliant_with_fips_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results = vec![
@@ -425,7 +425,7 @@ fn test_generate_report_fully_compliant_with_fips() {
 }
 
 #[test]
-fn test_generate_html_report_with_fips_validation() {
+fn test_generate_html_report_with_fips_validation_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let kat_results = vec![passing_kat("ML-KEM-768 Test")];
 
@@ -448,7 +448,7 @@ fn test_generate_html_report_with_fips_validation() {
 }
 
 #[test]
-fn test_generate_json_report_with_failures() {
+fn test_generate_json_report_with_failures_fails() {
     let reporter = ComplianceReporter::new(0.01);
     let kat_results =
         vec![failing_kat("ML-KEM-768 Encap Test", "encap failed"), passing_kat("AES-GCM Test")];

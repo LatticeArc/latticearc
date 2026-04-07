@@ -41,7 +41,7 @@ LatticeArc defaults to hybrid everywhere — encryption, signatures, and TLS key
 
 ```toml
 [dependencies]
-latticearc = "0.4"
+latticearc = "0.5"
 ```
 
 ### Encryption

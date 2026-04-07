@@ -176,6 +176,20 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "fuzz_fn_dsa_sign"
+path = "fuzz_targets/fuzz_fn_dsa_sign.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_fn_dsa_verify"
+path = "fuzz_targets/fuzz_fn_dsa_verify.rs"
+test = false
+doc = false
+bench = false
+
 # ============================================================================
 # AEAD Fuzzing (Tasks 3.2.7-3.2.8)
 # ============================================================================
@@ -284,6 +298,24 @@ bench = false
 [[bin]]
 name = "fuzz_random"
 path = "fuzz_targets/fuzz_random.rs"
+test = false
+doc = false
+bench = false
+
+# ============================================================================
+# Serialization / Deserialization Fuzzing (Gap 8)
+# ============================================================================
+
+[[bin]]
+name = "fuzz_portable_key_json"
+path = "fuzz_targets/fuzz_portable_key_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_encrypted_data_deser"
+path = "fuzz_targets/fuzz_encrypted_data_deser.rs"
 test = false
 doc = false
 bench = false

@@ -128,13 +128,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hkdf_sha256_kat() {
+    fn test_hkdf_sha256_kat_all_vectors_pass_matches_expected() {
         let result = run_hkdf_sha256_kat();
         assert!(result.is_ok(), "HKDF-SHA256 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_individual_vectors() {
+    fn test_individual_vectors_all_pass_matches_expected() {
         for vector in HKDF_SHA256_VECTORS {
             let result = run_hkdf_sha256_test(vector);
             assert!(result.is_ok(), "Test {} failed: {:?}", vector.test_name, result);
@@ -146,7 +146,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_prk_mismatch_error() {
+    fn test_prk_mismatch_error_fails() {
         // Create a test vector with an intentionally wrong expected_prk
         let bad_prk_vector = HkdfTestVector {
             test_name: "PRK-Mismatch-Test",
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn test_okm_mismatch_error() {
+    fn test_okm_mismatch_error_fails() {
         // Create a test vector with correct PRK but wrong expected_okm
         let bad_okm_vector = HkdfTestVector {
             test_name: "OKM-Mismatch-Test",
@@ -201,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_ikm() {
+    fn test_hex_decode_error_ikm_fails() {
         let invalid_ikm_vector = HkdfTestVector {
             test_name: "Invalid-IKM-Test",
             ikm: "invalid_hex_string",
@@ -218,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_salt() {
+    fn test_hex_decode_error_salt_fails() {
         let invalid_salt_vector = HkdfTestVector {
             test_name: "Invalid-Salt-Test",
             ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_info() {
+    fn test_hex_decode_error_info_fails() {
         let invalid_info_vector = HkdfTestVector {
             test_name: "Invalid-Info-Test",
             ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_expected_prk() {
+    fn test_hex_decode_error_expected_prk_fails() {
         let invalid_expected_prk_vector = HkdfTestVector {
             test_name: "Invalid-Expected-PRK-Test",
             ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_expected_okm() {
+    fn test_hex_decode_error_expected_okm_fails() {
         let invalid_expected_okm_vector = HkdfTestVector {
             test_name: "Invalid-Expected-OKM-Test",
             ikm: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
@@ -286,7 +286,7 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_salt_branch() {
+    fn test_empty_salt_branch_succeeds() {
         // Test case 3 uses empty salt - verify the empty salt branch is taken
         let empty_salt_vector = &HKDF_SHA256_VECTORS[2];
         assert!(empty_salt_vector.salt.is_empty(), "Test vector 3 should have empty salt");
@@ -295,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn test_non_empty_salt_branch() {
+    fn test_non_empty_salt_branch_succeeds() {
         // Test case 1 uses non-empty salt - verify the non-empty salt branch is taken
         let non_empty_salt_vector = &HKDF_SHA256_VECTORS[0];
         assert!(!non_empty_salt_vector.salt.is_empty(), "Test vector 1 should have non-empty salt");
@@ -304,20 +304,20 @@ mod tests {
     }
 
     #[test]
-    fn test_vector_count() {
+    fn test_vector_count_is_three_matches_expected() {
         // Verify we have exactly 3 test vectors
         assert_eq!(HKDF_SHA256_VECTORS.len(), 3);
     }
 
     #[test]
-    fn test_vector_names() {
+    fn test_vector_names_match_rfc5869_matches_expected() {
         assert_eq!(HKDF_SHA256_VECTORS[0].test_name, "RFC-5869-Test-Case-1");
         assert_eq!(HKDF_SHA256_VECTORS[1].test_name, "RFC-5869-Test-Case-2");
         assert_eq!(HKDF_SHA256_VECTORS[2].test_name, "RFC-5869-Test-Case-3");
     }
 
     #[test]
-    fn test_vector_lengths() {
+    fn test_vector_lengths_match_rfc5869_matches_expected() {
         assert_eq!(HKDF_SHA256_VECTORS[0].length, 42);
         assert_eq!(HKDF_SHA256_VECTORS[1].length, 82);
         assert_eq!(HKDF_SHA256_VECTORS[2].length, 42);

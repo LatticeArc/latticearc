@@ -34,37 +34,83 @@
 //! CSPRNG (`OsRng`) on every proof. **Never modify `prove()` to accept an
 //! external nonce or to cache/reuse nonces.**
 
+use crate::primitives::hash::sha2::sha256;
 use crate::zkp::error::{Result, ZkpError};
 use k256::{
     FieldBytes, ProjectivePoint, Scalar, SecretKey, U256,
-    elliptic_curve::{Field, PrimeField, group::GroupEncoding, ops::Reduce},
+    elliptic_curve::{PrimeField, group::GroupEncoding, ops::Reduce},
 };
-use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Compute Fiat-Shamir challenge: `H("arc-zkp/schnorr-v1" || "secp256k1" || pk || R || ctx)`
-fn fiat_shamir_challenge(public_key: &[u8; 33], r_bytes: &[u8; 33], context: &[u8]) -> Scalar {
-    let mut hasher = Sha256::new();
-    hasher.update(b"arc-zkp/schnorr-v1");
-    hasher.update(b"secp256k1");
-    hasher.update(public_key);
-    hasher.update(r_bytes);
-    hasher.update(context);
-    let hash = hasher.finalize();
-    <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&hash))
+///
+/// # Errors
+/// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
+fn fiat_shamir_challenge(
+    public_key: &[u8; 33],
+    r_bytes: &[u8; 33],
+    context: &[u8],
+) -> Result<Scalar> {
+    // Accumulate into a buffer and route through the primitives wrapper
+    // so hash backends remain swappable in one place.
+    let label = b"arc-zkp/schnorr-v1";
+    let curve = b"secp256k1";
+    let mut buf = Vec::with_capacity(
+        label
+            .len()
+            .saturating_add(curve.len())
+            .saturating_add(33 * 2)
+            .saturating_add(context.len()),
+    );
+    buf.extend_from_slice(label);
+    buf.extend_from_slice(curve);
+    buf.extend_from_slice(public_key);
+    buf.extend_from_slice(r_bytes);
+    buf.extend_from_slice(context);
+
+    // ~100 bytes — well below the 1 GiB SHA-256 DoS cap.
+    let hash =
+        sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+    Ok(<Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&hash)))
 }
 
 /// Schnorr proof structure
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "zkp-serde", serde(crate = "serde"))]
 pub struct SchnorrProof {
     /// Commitment point R = k*G
+    /// Consumer: verify(), commitment()
     #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
-    pub commitment: [u8; 33],
+    commitment: [u8; 33],
     /// Response s = k + c*x
+    /// Consumer: verify(), response()
     #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
-    pub response: [u8; 32],
+    response: [u8; 32],
+}
+
+impl SchnorrProof {
+    /// Construct a proof from raw commitment and response bytes.
+    ///
+    /// This is intended for deserialization and testing. Callers are responsible
+    /// for ensuring the bytes represent a valid proof.
+    #[must_use]
+    pub fn new(commitment: [u8; 33], response: [u8; 32]) -> Self {
+        Self { commitment, response }
+    }
+
+    /// Return the commitment point bytes (compressed, 33 bytes).
+    #[must_use]
+    pub fn commitment(&self) -> &[u8; 33] {
+        &self.commitment
+    }
+
+    /// Return the response scalar bytes (32 bytes).
+    #[must_use]
+    pub fn response(&self) -> &[u8; 32] {
+        &self.response
+    }
 }
 
 /// Schnorr prover (holds the secret)
@@ -77,13 +123,24 @@ pub struct SchnorrProver {
     public_key: [u8; 33],
 }
 
+impl std::fmt::Debug for SchnorrProver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SchnorrProver")
+            .field("secret", &"[REDACTED]")
+            .field("public_key", &self.public_key)
+            .finish()
+    }
+}
+
 impl SchnorrProver {
     /// Create a new Schnorr prover with a random secret key
     ///
     /// # Errors
     /// Returns an error if key serialization fails.
     pub fn new() -> Result<(Self, [u8; 33])> {
-        let secret_key = SecretKey::random(&mut rand::rngs::OsRng);
+        let secret_bytes = crate::primitives::rand::csprng::random_bytes(32);
+        let secret_key = SecretKey::from_slice(&secret_bytes)
+            .map_err(|e| ZkpError::SerializationError(format!("Invalid secret key: {e}")))?;
         let public_key = secret_key.public_key();
 
         let secret_bytes: [u8; 32] = secret_key.to_bytes().into();
@@ -130,8 +187,11 @@ impl SchnorrProver {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.secret)).into();
         let x = x.ok_or(ZkpError::InvalidScalar)?;
 
-        // Generate random nonce k
-        let k = Scalar::random(&mut rand::rngs::OsRng);
+        // Generate random nonce k via primitives layer
+        let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
+        let k = <Scalar as k256::elliptic_curve::ops::Reduce<k256::U256>>::reduce_bytes(
+            k256::FieldBytes::from_slice(&nonce_bytes),
+        );
 
         // Compute commitment R = k*G
         let r_point = ProjectivePoint::GENERATOR * k;
@@ -139,7 +199,7 @@ impl SchnorrProver {
             .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize R: {}", e)))?;
 
         // Compute challenge c = H(G || P || R || context)
-        let c = fiat_shamir_challenge(&self.public_key, &r_bytes, context);
+        let c = fiat_shamir_challenge(&self.public_key, &r_bytes, context)?;
 
         // Compute response s = k + c*x
         let s = k + c * x;
@@ -182,20 +242,20 @@ impl SchnorrVerifier {
         let p_point = Self::parse_point(&self.public_key)?;
 
         // Parse commitment R
-        let r_point = Self::parse_point(&proof.commitment)?;
+        let r_point = Self::parse_point(proof.commitment())?;
 
         // Parse response s
-        let s: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&proof.response)).into();
+        let s: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(proof.response())).into();
         let s = s.ok_or(ZkpError::InvalidScalar)?;
 
         // Compute challenge c = H(G || P || R || context)
-        let c = fiat_shamir_challenge(&self.public_key, &proof.commitment, context);
+        let c = fiat_shamir_challenge(&self.public_key, proof.commitment(), context)?;
 
-        // Verify: s*G == R + c*P
+        // Verify: s*G == R + c*P (constant-time comparison)
         let lhs = ProjectivePoint::GENERATOR * s;
         let rhs = r_point + p_point * c;
 
-        Ok(lhs == rhs)
+        Ok(bool::from(lhs.ct_eq(&rhs)))
     }
 
     /// Parse a compressed point
@@ -216,7 +276,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_schnorr_proof_valid() {
+    fn test_schnorr_proof_valid_succeeds() {
         let (prover, public_key) = SchnorrProver::new().unwrap();
         let context = b"test challenge context";
 
@@ -227,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn test_schnorr_proof_wrong_context() {
+    fn test_schnorr_proof_wrong_context_fails() {
         let (prover, public_key) = SchnorrProver::new().unwrap();
 
         let proof = prover.prove(b"context 1").unwrap();
@@ -237,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn test_schnorr_proof_wrong_public_key() {
+    fn test_schnorr_proof_wrong_public_key_fails() {
         let (prover, _) = SchnorrProver::new().unwrap();
         let (_, other_public_key) = SchnorrProver::new().unwrap();
 
@@ -249,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    fn test_schnorr_from_secret() {
+    fn test_schnorr_from_secret_succeeds() {
         let secret = [42u8; 32];
         let (prover1, pk1) = SchnorrProver::from_secret(&secret).unwrap();
         let (_prover2, pk2) = SchnorrProver::from_secret(&secret).unwrap();

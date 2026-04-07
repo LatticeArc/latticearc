@@ -46,7 +46,7 @@ pub mod utils {
 
     /// Get a cryptographically secure RNG for tests
     #[must_use]
-    pub fn test_rng() -> OsRng {
+    pub fn test_rng_succeeds() -> OsRng {
         OsRng
     }
 
@@ -74,9 +74,9 @@ mod tests {
     use super::utils;
 
     #[test]
-    fn test_rng_returns_osrng() {
+    fn test_rng_returns_osrng_succeeds() {
         use rand::RngCore;
-        let mut rng = utils::test_rng();
+        let mut rng = utils::test_rng_succeeds();
         let mut buf = [0u8; 16];
         rng.fill_bytes(&mut buf);
         // Should produce non-zero random bytes
@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn test_assert_bytes_eq_matching() {
+    fn test_assert_bytes_eq_matching_succeeds() {
         utils::assert_bytes_eq(b"hello", b"hello", "matching slices");
         utils::assert_bytes_eq(&[], &[], "empty slices");
         utils::assert_bytes_eq(&[1, 2, 3], &[1, 2, 3], "numeric slices");
@@ -92,19 +92,19 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "byte slices differ")]
-    fn test_assert_bytes_eq_mismatch() {
+    fn test_assert_bytes_eq_mismatch_fails() {
         utils::assert_bytes_eq(b"hello", b"world", "should panic");
     }
 
     #[test]
-    fn test_assert_bytes_ne_different() {
+    fn test_assert_bytes_ne_different_succeeds() {
         utils::assert_bytes_ne(b"hello", b"world", "different slices");
         utils::assert_bytes_ne(&[1], &[2], "single byte diff");
     }
 
     #[test]
     #[should_panic(expected = "byte slices should differ")]
-    fn test_assert_bytes_ne_same() {
+    fn test_assert_bytes_ne_same_succeeds() {
         utils::assert_bytes_ne(b"same", b"same", "should panic");
     }
 }

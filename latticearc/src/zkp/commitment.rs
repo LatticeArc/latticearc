@@ -10,13 +10,13 @@
 //! - **Hiding**: Commitment reveals nothing about the committed value
 //! - **Binding**: Cannot open commitment to different value
 
+use crate::primitives::hash::{sha2::sha256, sha3::sha3_256};
 use crate::zkp::error::{Result, ZkpError};
 use k256::{
-    FieldBytes, ProjectivePoint, Scalar, U256,
-    elliptic_curve::{PrimeField, group::GroupEncoding, ops::Reduce},
+    FieldBytes, ProjectivePoint, Scalar,
+    elliptic_curve::{PrimeField, group::GroupEncoding, sec1::ToEncodedPoint},
 };
-use sha2::{Digest, Sha256};
-use sha3::Sha3_256;
+use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // ============================================================================
@@ -31,21 +31,51 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HashCommitment {
     /// The commitment hash
-    pub commitment: [u8; 32],
+    /// Consumer: verify(), commit_with_randomness(), test_hash_commitment_hiding(), test_schnorr_and_hash_commitment_together()
+    commitment: [u8; 32],
 }
 
 /// Opening for a hash commitment
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct HashOpening {
     /// The committed value
-    pub value: Vec<u8>,
+    /// Consumer: verify()
+    value: Vec<u8>,
     /// The randomness used
-    pub randomness: [u8; 32],
+    /// Consumer: verify()
+    randomness: [u8; 32],
 }
 
 impl std::fmt::Debug for HashOpening {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HashOpening").field("data", &"[REDACTED]").finish()
+    }
+}
+
+impl subtle::ConstantTimeEq for HashOpening {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.value.as_slice().ct_eq(other.value.as_slice())
+            & self.randomness.ct_eq(&other.randomness)
+    }
+}
+
+impl HashOpening {
+    /// Create a new hash opening with the given value and randomness.
+    #[must_use]
+    pub fn new(value: Vec<u8>, randomness: [u8; 32]) -> Self {
+        Self { value, randomness }
+    }
+
+    /// Return the committed value.
+    #[must_use]
+    pub fn value(&self) -> &[u8] {
+        &self.value
+    }
+
+    /// Return the randomness used during commitment.
+    #[must_use]
+    pub fn randomness(&self) -> &[u8; 32] {
+        &self.randomness
     }
 }
 
@@ -55,12 +85,13 @@ impl HashCommitment {
     /// # Errors
     /// Returns an error if random number generation fails.
     pub fn commit(value: &[u8]) -> Result<(Self, HashOpening)> {
+        let rand_vec = crate::primitives::rand::csprng::random_bytes(32);
         let mut randomness = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut randomness);
+        randomness.copy_from_slice(&rand_vec);
 
         let commitment = Self::compute_hash(value, &randomness);
 
-        Ok((Self { commitment }, HashOpening { value: value.to_vec(), randomness }))
+        Ok((Self { commitment }, HashOpening::new(value.to_vec(), randomness)))
     }
 
     /// Create a commitment with specific randomness (for deterministic tests)
@@ -75,18 +106,32 @@ impl HashCommitment {
     /// # Errors
     /// This function currently does not return errors but uses Result for API consistency.
     pub fn verify(&self, opening: &HashOpening) -> Result<bool> {
-        let expected = Self::compute_hash(&opening.value, &opening.randomness);
-        Ok(self.commitment == expected)
+        let expected = Self::compute_hash(opening.value(), opening.randomness());
+        Ok(self.commitment.ct_eq(&expected).into())
+    }
+
+    /// Return the raw commitment hash bytes.
+    #[must_use]
+    pub fn commitment(&self) -> &[u8; 32] {
+        &self.commitment
     }
 
     /// Compute H(value || randomness)
     fn compute_hash(value: &[u8], randomness: &[u8; 32]) -> [u8; 32] {
-        let mut hasher = Sha3_256::new();
-        hasher.update(b"arc-zkp/hash-commitment-v1");
-        hasher.update((value.len() as u64).to_le_bytes());
-        hasher.update(value);
-        hasher.update(randomness);
-        hasher.finalize().into()
+        // Accumulate all inputs into a single buffer and route through the
+        // primitives wrapper so hash backends stay swappable in one place.
+        let mut buf = Vec::with_capacity(
+            b"arc-zkp/hash-commitment-v1"
+                .len()
+                .saturating_add(8)
+                .saturating_add(value.len())
+                .saturating_add(randomness.len()),
+        );
+        buf.extend_from_slice(b"arc-zkp/hash-commitment-v1");
+        buf.extend_from_slice(&(value.len() as u64).to_le_bytes());
+        buf.extend_from_slice(value);
+        buf.extend_from_slice(randomness);
+        sha3_256(&buf)
     }
 }
 
@@ -108,22 +153,51 @@ impl HashCommitment {
 #[cfg_attr(feature = "zkp-serde", serde(crate = "serde"))]
 pub struct PedersenCommitment {
     /// The commitment point (compressed)
+    /// Consumer: verify(), add(), commitment()
     #[cfg_attr(feature = "zkp-serde", serde(with = "serde_with::As::<serde_with::Bytes>"))]
-    pub commitment: [u8; 33],
+    commitment: [u8; 33],
 }
 
 /// Opening for a Pedersen commitment
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct PedersenOpening {
     /// The committed value (as scalar bytes)
-    pub value: [u8; 32],
+    /// Consumer: verify()
+    value: [u8; 32],
     /// The blinding factor
-    pub blinding: [u8; 32],
+    /// Consumer: verify()
+    blinding: [u8; 32],
 }
 
 impl std::fmt::Debug for PedersenOpening {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PedersenOpening").field("data", &"[REDACTED]").finish()
+    }
+}
+
+impl subtle::ConstantTimeEq for PedersenOpening {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.value.ct_eq(&other.value) & self.blinding.ct_eq(&other.blinding)
+    }
+}
+
+impl PedersenOpening {
+    /// Create a new Pedersen opening with the given value and blinding factor.
+    #[must_use]
+    pub fn new(value: [u8; 32], blinding: [u8; 32]) -> Self {
+        Self { value, blinding }
+    }
+
+    /// Return the committed scalar value bytes.
+    #[must_use]
+    pub fn value(&self) -> &[u8; 32] {
+        &self.value
+    }
+
+    /// Return the blinding factor bytes.
+    #[must_use]
+    pub fn blinding(&self) -> &[u8; 32] {
+        &self.blinding
     }
 }
 
@@ -133,8 +207,9 @@ impl PedersenCommitment {
     /// # Errors
     /// Returns an error if the value is not a valid scalar.
     pub fn commit(value: &[u8; 32]) -> Result<(Self, PedersenOpening)> {
+        let rand_vec = crate::primitives::rand::csprng::random_bytes(32);
         let mut blinding = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut blinding);
+        blinding.copy_from_slice(&rand_vec);
 
         Self::commit_with_blinding(value, &blinding)
     }
@@ -162,7 +237,7 @@ impl PedersenCommitment {
 
         // C = v*G + r*H
         let g = ProjectivePoint::GENERATOR;
-        let h = Self::generator_h();
+        let h = Self::generator_h()?;
 
         let commitment_point = g * v + h * r;
 
@@ -171,7 +246,7 @@ impl PedersenCommitment {
                 |e| ZkpError::SerializationError(format!("Failed to serialize commitment: {}", e)),
             )?;
 
-        Ok((Self { commitment }, PedersenOpening { value: *value, blinding: *blinding }))
+        Ok((Self { commitment }, PedersenOpening::new(*value, *blinding)))
     }
 
     /// Verify an opening
@@ -183,16 +258,16 @@ impl PedersenCommitment {
     /// Uses secp256k1 scalar multiplication and point addition.
     #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
     pub fn verify(&self, opening: &PedersenOpening) -> Result<bool> {
-        let v: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&opening.value)).into();
+        let v: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(opening.value())).into();
         let r: Option<Scalar> =
-            Scalar::from_repr(*FieldBytes::from_slice(&opening.blinding)).into();
+            Scalar::from_repr(*FieldBytes::from_slice(opening.blinding())).into();
 
         let v = v.ok_or(ZkpError::InvalidScalar)?;
         let r = r.ok_or(ZkpError::InvalidScalar)?;
 
         // Recompute C = v*G + r*H
         let g = ProjectivePoint::GENERATOR;
-        let h = Self::generator_h();
+        let h = Self::generator_h()?;
         let expected = g * v + h * r;
 
         // Parse stored commitment
@@ -204,7 +279,15 @@ impl PedersenCommitment {
         let stored: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded).into();
         let stored = stored.ok_or(ZkpError::InvalidCommitment("Invalid point".into()))?;
 
-        Ok(expected == stored)
+        let expected_bytes = expected.to_affine().to_encoded_point(true);
+        let stored_bytes = stored.to_affine().to_encoded_point(true);
+        Ok(bool::from(expected_bytes.as_bytes().ct_eq(stored_bytes.as_bytes())))
+    }
+
+    /// Return the raw commitment point bytes (compressed, 33 bytes).
+    #[must_use]
+    pub fn commitment(&self) -> &[u8; 33] {
+        &self.commitment
     }
 
     /// Add two Pedersen commitments (homomorphic property)
@@ -224,7 +307,7 @@ impl PedersenCommitment {
         let point1: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded1).into();
         let point1 = point1.ok_or(ZkpError::InvalidCommitment("Invalid point 1".into()))?;
 
-        let encoded2 = EncodedPoint::from_bytes(other.commitment)
+        let encoded2 = EncodedPoint::from_bytes(other.commitment())
             .map_err(|e| ZkpError::InvalidCommitment(format!("Invalid point 2: {}", e)))?;
         let point2: Option<ProjectivePoint> = ProjectivePoint::from_encoded_point(&encoded2).into();
         let point2 = point2.ok_or(ZkpError::InvalidCommitment("Invalid point 2".into()))?;
@@ -237,23 +320,63 @@ impl PedersenCommitment {
         Ok(PedersenCommitment { commitment })
     }
 
-    /// Generate second generator H using hash-to-curve
-    /// H = hash_to_point("arc-zkp/pedersen-H")
+    /// Generate second generator H via try-and-increment on SHA-256.
     ///
-    /// # Elliptic Curve Arithmetic
-    /// Uses scalar multiplication to derive generator H.
-    #[allow(clippy::arithmetic_side_effects)] // EC scalar multiplication is modular
-    fn generator_h() -> ProjectivePoint {
-        // Use SHA-256 to derive H from a fixed string
-        // This ensures H's discrete log relative to G is unknown
-        let mut hasher = Sha256::new();
-        hasher.update(b"arc-zkp/pedersen-generator-H-v1");
-        let hash = hasher.finalize();
+    /// Hashes `"arc-zkp/pedersen-generator-H-v2" || counter` for counter = 0, 1, ...
+    /// until the 32-byte output is a valid compressed x-coordinate on secp256k1.
+    /// The resulting point has no known discrete-log relationship to G, which is
+    /// required for the binding property of Pedersen commitments.
+    ///
+    /// Cached after first computation via `OnceLock`.
+    ///
+    /// # Errors
+    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard)
+    /// or if no valid curve point is found within 256 iterations.
+    fn generator_h() -> Result<ProjectivePoint> {
+        use k256::EncodedPoint;
+        use k256::elliptic_curve::sec1::FromEncodedPoint;
 
-        // Use hash as x-coordinate, find valid point
-        // For simplicity, multiply G by hash (not ideal but works for demo)
-        let scalar = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&hash));
-        ProjectivePoint::GENERATOR * scalar
+        static H: std::sync::OnceLock<ProjectivePoint> = std::sync::OnceLock::new();
+
+        if let Some(cached) = H.get() {
+            return Ok(*cached);
+        }
+
+        // Try-and-increment: hash with incrementing counter until we hit a valid point.
+        // ~50% of random x-coords are valid on secp256k1, so this exits on the first
+        // or second iteration with overwhelming probability.
+        for counter in 0u32..256 {
+            // Accumulate into a buffer and route through the primitives wrapper
+            // so hash backends remain swappable in one place.
+            let mut buf =
+                Vec::with_capacity(b"arc-zkp/pedersen-generator-H-v2".len().saturating_add(4));
+            buf.extend_from_slice(b"arc-zkp/pedersen-generator-H-v2");
+            #[allow(clippy::arithmetic_side_effects)] // counter.to_le_bytes() is infallible
+            buf.extend_from_slice(&counter.to_le_bytes());
+            // Input is 34 bytes (30-byte label + 4-byte counter), well below the
+            // 1 GiB SHA-256 DoS cap.
+            let hash = sha256(&buf)
+                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))?;
+
+            let mut compressed = [0u8; 33];
+            compressed[0] = 0x02;
+            compressed[1..33].copy_from_slice(&hash);
+
+            if let Ok(encoded) = EncodedPoint::from_bytes(compressed) {
+                let point: Option<ProjectivePoint> =
+                    ProjectivePoint::from_encoded_point(&encoded).into();
+                if let Some(p) = point {
+                    // Best-effort cache: a concurrent thread may have already set this.
+                    let _ = H.set(p);
+                    return Ok(p);
+                }
+            }
+        }
+
+        // Mathematically unreachable: P(all 256 fail) = (1/2)^256 ≈ 10^-77.
+        Err(ZkpError::SerializationError(
+            "Pedersen generator H derivation failed after 256 attempts".into(),
+        ))
     }
 }
 
@@ -263,7 +386,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hash_commitment() {
+    fn test_hash_commitment_succeeds() {
         let value = b"secret value";
         let (commitment, opening) = HashCommitment::commit(value).unwrap();
 
@@ -271,11 +394,25 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_commitment_wrong_value() {
+    fn test_hash_commitment_wrong_value_fails() {
         let (commitment, mut opening) = HashCommitment::commit(b"value1").unwrap();
         opening.value = b"value2".to_vec();
 
         assert!(!commitment.verify(&opening).unwrap());
+    }
+
+    #[test]
+    fn test_hash_commitment_wrong_randomness_fails() {
+        let value = b"test value";
+        let (commitment, opening) = HashCommitment::commit(value).unwrap();
+
+        // Tamper with randomness
+        let mut wrong_randomness = *opening.randomness();
+        wrong_randomness[0] ^= 0xFF;
+        let wrong_opening = HashOpening::new(opening.value().to_vec(), wrong_randomness);
+
+        let result = commitment.verify(&wrong_opening).unwrap();
+        assert!(!result, "Verification should fail with wrong randomness");
     }
 
     #[test]
@@ -290,7 +427,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pedersen_commitment() {
+    fn test_pedersen_commitment_roundtrip_succeeds() {
         let value = [1u8; 32];
         let (commitment, opening) = PedersenCommitment::commit(&value).unwrap();
 
@@ -298,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pedersen_commitment_wrong_value() {
+    fn test_pedersen_commitment_wrong_value_fails() {
         let value = [1u8; 32];
         let (commitment, mut opening) = PedersenCommitment::commit(&value).unwrap();
         opening.value = [2u8; 32];
@@ -307,7 +444,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pedersen_homomorphic() {
+    fn test_pedersen_homomorphic_addition_matches_expected() {
         let v1 = [1u8; 32];
         let v2 = [2u8; 32];
         let b1 = [10u8; 32];

@@ -12,7 +12,7 @@
 // Re-export all pure-Rust types from types module
 pub use crate::types::types::*;
 // Re-export type-safe encryption types (EncryptKey, DecryptKey, EncryptionScheme, etc.)
-pub use crate::types::crypto_types::{
+pub use crate::unified_api::crypto_types::{
     DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme, HybridComponents,
 };
 
@@ -75,7 +75,7 @@ fn default_compliance_for_use_case(use_case: UseCase) -> ComplianceMode {
 ///
 /// // With Zero Trust session
 /// # let (ed_pk, ed_sk) = generate_keypair()?;
-/// let session = VerifiedSession::establish(&ed_pk, ed_sk.as_ref())?;
+/// let session = VerifiedSession::establish(ed_pk.as_slice(), ed_sk.as_ref())?;
 /// encrypt(data, EncryptKey::Hybrid(&pk),
 ///     CryptoConfig::new().session(&session))?;
 ///
@@ -348,24 +348,24 @@ mod tests {
     // Tests for types that moved to types module
 
     #[test]
-    fn test_zeroized_bytes_new() {
+    fn test_zeroized_bytes_new_stores_data_succeeds() {
         let data = vec![1u8, 2, 3, 4, 5];
         let zb = ZeroizedBytes::new(data.clone());
         assert_eq!(zb.as_slice(), &data);
     }
 
     #[test]
-    fn test_security_level_default() {
+    fn test_security_level_default_is_standard_succeeds() {
         assert_eq!(SecurityLevel::default(), SecurityLevel::High);
     }
 
     #[test]
-    fn test_performance_preference_default() {
+    fn test_performance_preference_default_is_balanced_succeeds() {
         assert_eq!(PerformancePreference::default(), PerformancePreference::Balanced);
     }
 
     #[test]
-    fn test_algorithm_selection_default() {
+    fn test_algorithm_selection_default_is_automatic_succeeds() {
         let sel = AlgorithmSelection::default();
         assert_eq!(sel, AlgorithmSelection::SecurityLevel(SecurityLevel::High));
     }
@@ -373,7 +373,7 @@ mod tests {
     // Tests for CryptoConfig (stays in unified_api)
 
     #[test]
-    fn test_crypto_config_new() {
+    fn test_crypto_config_new_sets_fields_succeeds() {
         let config = CryptoConfig::new();
         assert!(!config.is_verified());
         assert!(config.get_session().is_none());
@@ -381,19 +381,19 @@ mod tests {
     }
 
     #[test]
-    fn test_crypto_config_default() {
+    fn test_crypto_config_default_sets_expected_fields_succeeds() {
         let config = CryptoConfig::default();
         assert!(!config.is_verified());
     }
 
     #[test]
-    fn test_crypto_config_use_case() {
+    fn test_crypto_config_use_case_sets_use_case_field_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
         assert_eq!(*config.get_selection(), AlgorithmSelection::UseCase(UseCase::SecureMessaging));
     }
 
     #[test]
-    fn test_crypto_config_security_level() {
+    fn test_crypto_config_security_level_sets_security_field_succeeds() {
         let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
         assert_eq!(
             *config.get_selection(),
@@ -402,13 +402,13 @@ mod tests {
     }
 
     #[test]
-    fn test_crypto_config_validate_no_session() {
+    fn test_crypto_config_validate_no_session_succeeds() {
         let config = CryptoConfig::new();
         assert!(config.validate().is_ok());
     }
 
     #[test]
-    fn test_crypto_config_clone_debug() {
+    fn test_crypto_config_clone_debug_work_correctly_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::Authentication);
         let cloned = config.clone();
         assert_eq!(cloned.get_selection(), config.get_selection());
@@ -419,43 +419,43 @@ mod tests {
     // --- ComplianceMode integration tests ---
 
     #[test]
-    fn test_crypto_config_compliance_default() {
+    fn test_crypto_config_compliance_default_is_standard_succeeds() {
         let config = CryptoConfig::new();
         assert_eq!(*config.get_compliance(), ComplianceMode::Default);
     }
 
     #[test]
-    fn test_crypto_config_compliance_builder() {
+    fn test_crypto_config_compliance_builder_sets_compliance_field_succeeds() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
         assert_eq!(*config.get_compliance(), ComplianceMode::Fips140_3);
     }
 
     #[test]
-    fn test_crypto_config_compliance_getter() {
+    fn test_crypto_config_compliance_getter_returns_compliance_field_succeeds() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
         assert_eq!(*config.get_compliance(), ComplianceMode::Cnsa2_0);
     }
 
     #[test]
-    fn test_use_case_auto_compliance_government() {
+    fn test_use_case_auto_compliance_government_is_correct() {
         let config = CryptoConfig::new().use_case(UseCase::GovernmentClassified);
         assert_eq!(*config.get_compliance(), ComplianceMode::Fips140_3);
     }
 
     #[test]
-    fn test_use_case_auto_compliance_healthcare() {
+    fn test_use_case_auto_compliance_healthcare_is_correct() {
         let config = CryptoConfig::new().use_case(UseCase::HealthcareRecords);
         assert_eq!(*config.get_compliance(), ComplianceMode::Fips140_3);
     }
 
     #[test]
-    fn test_use_case_auto_compliance_payment() {
+    fn test_use_case_auto_compliance_payment_is_correct() {
         let config = CryptoConfig::new().use_case(UseCase::PaymentCard);
         assert_eq!(*config.get_compliance(), ComplianceMode::Fips140_3);
     }
 
     #[test]
-    fn test_use_case_auto_compliance_financial() {
+    fn test_use_case_auto_compliance_financial_is_correct() {
         let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
         assert_eq!(*config.get_compliance(), ComplianceMode::Fips140_3);
     }
@@ -467,7 +467,7 @@ mod tests {
     }
 
     #[test]
-    fn test_use_case_auto_compliance_explicit_override() {
+    fn test_use_case_auto_compliance_explicit_override_is_correct() {
         // Explicitly setting compliance BEFORE use_case should preserve the explicit value
         let config = CryptoConfig::new()
             .compliance(ComplianceMode::Default)
@@ -476,7 +476,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_requires_quantum() {
+    fn test_cnsa_requires_quantum_is_correct() {
         // CNSA 2.0 with a non-Quantum security level should fail validation
         let config = CryptoConfig::new()
             .compliance(ComplianceMode::Cnsa2_0)
@@ -490,7 +490,7 @@ mod tests {
 
     #[cfg(not(feature = "fips"))]
     #[test]
-    fn test_fips_compliance_without_feature() {
+    fn test_fips_compliance_without_feature_is_correct() {
         // Without the fips feature, FIPS compliance should fail validation
         let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
         let result = config.validate();
@@ -503,7 +503,7 @@ mod tests {
     // --- validate_scheme_compliance tests ---
 
     #[test]
-    fn test_default_compliance_allows_all_schemes() {
+    fn test_default_compliance_allows_all_schemes_is_correct() {
         let config = CryptoConfig::new(); // Default compliance
         assert!(config.validate_scheme_compliance("aes-256-gcm").is_ok());
         assert!(config.validate_scheme_compliance("ed25519").is_ok());
@@ -513,7 +513,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_rejects_chacha() {
+    fn test_fips_rejects_chacha_fails() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
         let result = config.validate_scheme_compliance("chacha20-poly1305");
         assert!(result.is_err());
@@ -523,13 +523,13 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_allows_aes_gcm() {
+    fn test_fips_allows_aes_gcm_succeeds() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
         assert!(config.validate_scheme_compliance("aes-256-gcm").is_ok());
     }
 
     #[test]
-    fn test_fips_allows_pq_schemes() {
+    fn test_fips_allows_pq_schemes_succeeds() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Fips140_3);
         assert!(config.validate_scheme_compliance("ml-kem-768").is_ok());
         assert!(config.validate_scheme_compliance("ml-dsa-65").is_ok());
@@ -538,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_rejects_ed25519() {
+    fn test_cnsa_rejects_ed25519_fails() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
         let result = config.validate_scheme_compliance("ed25519");
         assert!(result.is_err());
@@ -548,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_rejects_standalone_aes_gcm() {
+    fn test_cnsa_rejects_standalone_aes_gcm_fails() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
         let result = config.validate_scheme_compliance("aes-256-gcm");
         assert!(result.is_err());
@@ -557,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_allows_pq_schemes() {
+    fn test_cnsa_allows_pq_schemes_succeeds() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
         assert!(config.validate_scheme_compliance("ml-kem-1024").is_ok());
         assert!(config.validate_scheme_compliance("ml-dsa-87").is_ok());
@@ -566,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_allows_hybrid_schemes() {
+    fn test_cnsa_allows_hybrid_schemes_succeeds() {
         let config = CryptoConfig::new().compliance(ComplianceMode::Cnsa2_0);
         assert!(config.validate_scheme_compliance("hybrid-ml-dsa-65-ed25519").is_ok());
         assert!(config.validate_scheme_compliance("hybrid-ml-kem-768-x25519-aes-256-gcm").is_ok());
@@ -577,7 +577,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_force_scheme_builder_sets_selection() {
+    fn test_force_scheme_builder_sets_selection_succeeds() {
         let config = CryptoConfig::new().force_scheme(CryptoScheme::PostQuantum);
         assert_eq!(
             *config.get_selection(),
@@ -586,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn test_force_scheme_overrides_use_case() {
+    fn test_force_scheme_overrides_use_case_is_correct() {
         let config = CryptoConfig::new()
             .use_case(UseCase::FileStorage)
             .force_scheme(CryptoScheme::Symmetric);
@@ -598,7 +598,7 @@ mod tests {
     }
 
     #[test]
-    fn test_force_scheme_overrides_security_level() {
+    fn test_force_scheme_overrides_security_level_is_correct() {
         let config = CryptoConfig::new()
             .security_level(SecurityLevel::Maximum)
             .force_scheme(CryptoScheme::Hybrid);

@@ -104,7 +104,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_all_configs() {
+    fn test_generate_all_configs_succeeds() {
         let pt = PropertyTests::new();
         let configs = pt.generate_configs();
         assert_eq!(configs.len(), 3);
@@ -114,7 +114,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pq_safe_only() {
+    fn test_pq_safe_only_succeeds() {
         let pt = PropertyTests::pq_safe_only();
         let configs = pt.generate_configs();
         assert_eq!(configs.len(), 2);
@@ -131,14 +131,14 @@ mod tests {
     }
 
     #[test]
-    fn test_check_for_all_no_failures() {
+    fn test_check_for_all_no_failures_fails() {
         let pt = PropertyTests::new();
         let failures = pt.check_for_all(|_config| true);
         assert!(failures.is_empty());
     }
 
     #[test]
-    fn test_check_for_all_finds_classic() {
+    fn test_check_for_all_finds_classic_succeeds() {
         let pt = PropertyTests::new();
         let failures = pt.check_for_all(|config| config.mode != TlsMode::Classic);
         assert_eq!(failures.len(), 1);

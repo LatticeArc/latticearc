@@ -73,7 +73,7 @@ fn make_vector(algorithm: CavpAlgorithm, test_type: CavpTestType) -> CavpTestVec
 // ============================================================
 
 #[test]
-fn test_pipeline_config_default() {
+fn test_pipeline_config_default_has_expected_values_succeeds() {
     let config = PipelineConfig::default();
     assert_eq!(config.max_concurrent_tests, 4);
     assert_eq!(config.retry_count, 3);
@@ -86,7 +86,7 @@ fn test_pipeline_config_default() {
 // ============================================================
 
 #[tokio::test]
-async fn test_mlkem_keygen_execution() {
+async fn test_mlkem_keygen_execution_succeeds() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::MlKem { variant: "768".to_string() }, CavpTestType::KeyGen);
@@ -98,7 +98,7 @@ async fn test_mlkem_keygen_execution() {
 }
 
 #[tokio::test]
-async fn test_mlkem_unsupported_variant() {
+async fn test_mlkem_unsupported_variant_returns_error() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::MlKem { variant: "999".to_string() }, CavpTestType::KeyGen);
@@ -111,7 +111,7 @@ async fn test_mlkem_unsupported_variant() {
 }
 
 #[tokio::test]
-async fn test_mlkem_signature_unsupported() {
+async fn test_mlkem_signature_unsupported_returns_error() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::MlKem { variant: "768".to_string() }, CavpTestType::Signature);
@@ -123,7 +123,7 @@ async fn test_mlkem_signature_unsupported() {
 }
 
 #[tokio::test]
-async fn test_mlkem_verification_unsupported() {
+async fn test_mlkem_verification_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::MlKem { variant: "768".to_string() },
@@ -141,7 +141,7 @@ async fn test_mlkem_verification_unsupported() {
 // ============================================================
 
 #[tokio::test]
-async fn test_mldsa_keygen_44() {
+async fn test_mldsa_keygen_44_succeeds() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::MlDsa { variant: "44".to_string() }, CavpTestType::KeyGen);
@@ -151,7 +151,7 @@ async fn test_mldsa_keygen_44() {
 }
 
 #[tokio::test]
-async fn test_mldsa_keygen_65() {
+async fn test_mldsa_keygen_65_succeeds() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::MlDsa { variant: "65".to_string() }, CavpTestType::KeyGen);
@@ -161,7 +161,7 @@ async fn test_mldsa_keygen_65() {
 }
 
 #[tokio::test]
-async fn test_mldsa_keygen_87() {
+async fn test_mldsa_keygen_87_succeeds() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::MlDsa { variant: "87".to_string() }, CavpTestType::KeyGen);
@@ -171,7 +171,7 @@ async fn test_mldsa_keygen_87() {
 }
 
 #[tokio::test]
-async fn test_mldsa_unsupported_variant() {
+async fn test_mldsa_unsupported_variant_returns_error() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::MlDsa { variant: "99".to_string() }, CavpTestType::KeyGen);
@@ -182,7 +182,7 @@ async fn test_mldsa_unsupported_variant() {
 }
 
 #[tokio::test]
-async fn test_mldsa_encapsulation_unsupported() {
+async fn test_mldsa_encapsulation_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::MlDsa { variant: "44".to_string() },
@@ -195,7 +195,7 @@ async fn test_mldsa_encapsulation_unsupported() {
 }
 
 #[tokio::test]
-async fn test_mldsa_decapsulation_unsupported() {
+async fn test_mldsa_decapsulation_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::MlDsa { variant: "65".to_string() },
@@ -212,7 +212,7 @@ async fn test_mldsa_decapsulation_unsupported() {
 // ============================================================
 
 #[tokio::test]
-async fn test_slhdsa_keygen_shake_128s() {
+async fn test_slhdsa_keygen_shake_128s_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::SlhDsa { variant: "shake-128s".to_string() },
@@ -224,7 +224,7 @@ async fn test_slhdsa_keygen_shake_128s() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_keygen_shake_192s() {
+async fn test_slhdsa_keygen_shake_192s_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::SlhDsa { variant: "shake-192s".to_string() },
@@ -236,7 +236,7 @@ async fn test_slhdsa_keygen_shake_192s() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_keygen_shake_256s() {
+async fn test_slhdsa_keygen_shake_256s_succeeds() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::SlhDsa { variant: "shake-256s".to_string() },
@@ -248,7 +248,7 @@ async fn test_slhdsa_keygen_shake_256s() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_unsupported_variant() {
+async fn test_slhdsa_unsupported_variant_returns_error() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::SlhDsa { variant: "unknown".to_string() }, CavpTestType::KeyGen);
@@ -259,7 +259,7 @@ async fn test_slhdsa_unsupported_variant() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_encapsulation_unsupported() {
+async fn test_slhdsa_encapsulation_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::SlhDsa { variant: "shake-128s".to_string() },
@@ -276,7 +276,7 @@ async fn test_slhdsa_encapsulation_unsupported() {
 // ============================================================
 
 #[tokio::test]
-async fn test_fndsa_keygen_512() {
+async fn test_fndsa_keygen_512_succeeds() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::FnDsa { variant: "512".to_string() }, CavpTestType::KeyGen);
@@ -286,7 +286,7 @@ async fn test_fndsa_keygen_512() {
 }
 
 #[tokio::test]
-async fn test_fndsa_keygen_1024() {
+async fn test_fndsa_keygen_1024_succeeds() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::FnDsa { variant: "1024".to_string() }, CavpTestType::KeyGen);
@@ -296,7 +296,7 @@ async fn test_fndsa_keygen_1024() {
 }
 
 #[tokio::test]
-async fn test_fndsa_unsupported_variant() {
+async fn test_fndsa_unsupported_variant_returns_error() {
     let executor = make_executor();
     let vector =
         make_vector(CavpAlgorithm::FnDsa { variant: "256".to_string() }, CavpTestType::KeyGen);
@@ -307,7 +307,7 @@ async fn test_fndsa_unsupported_variant() {
 }
 
 #[tokio::test]
-async fn test_fndsa_encapsulation_unsupported() {
+async fn test_fndsa_encapsulation_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::FnDsa { variant: "512".to_string() },
@@ -324,7 +324,7 @@ async fn test_fndsa_encapsulation_unsupported() {
 // ============================================================
 
 #[tokio::test]
-async fn test_hybrid_kem_keygen() {
+async fn test_hybrid_kem_keygen_succeeds() {
     let executor = make_executor();
     let vector = make_vector(CavpAlgorithm::HybridKem, CavpTestType::KeyGen);
 
@@ -333,7 +333,7 @@ async fn test_hybrid_kem_keygen() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_signature_unsupported() {
+async fn test_hybrid_kem_signature_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(CavpAlgorithm::HybridKem, CavpTestType::Signature);
 
@@ -347,7 +347,7 @@ async fn test_hybrid_kem_signature_unsupported() {
 // ============================================================
 
 #[tokio::test]
-async fn test_batch_execution_mixed_algorithms() {
+async fn test_batch_execution_mixed_algorithms_completes_succeeds() {
     let executor = make_executor();
     let vectors = vec![
         make_vector(CavpAlgorithm::MlKem { variant: "768".to_string() }, CavpTestType::KeyGen),
@@ -359,7 +359,7 @@ async fn test_batch_execution_mixed_algorithms() {
 }
 
 #[tokio::test]
-async fn test_batch_execution_empty() {
+async fn test_batch_execution_empty_returns_empty_batch_succeeds() {
     let executor = make_executor();
     let vectors = Vec::new();
 
@@ -372,7 +372,7 @@ async fn test_batch_execution_empty() {
 // ============================================================
 
 #[tokio::test]
-async fn test_pipeline_run_full_validation() {
+async fn test_pipeline_run_full_validation_succeeds() {
     let pipeline = make_pipeline();
     let vectors = vec![
         make_vector(CavpAlgorithm::MlKem { variant: "768".to_string() }, CavpTestType::KeyGen),
@@ -385,7 +385,7 @@ async fn test_pipeline_run_full_validation() {
 }
 
 #[tokio::test]
-async fn test_pipeline_run_algorithm_validation() {
+async fn test_pipeline_run_algorithm_validation_succeeds() {
     let pipeline = make_pipeline();
     let vectors = vec![make_vector(
         CavpAlgorithm::MlKem { variant: "768".to_string() },
@@ -399,7 +399,7 @@ async fn test_pipeline_run_algorithm_validation() {
 }
 
 #[test]
-fn test_pipeline_create_sample_vectors() {
+fn test_pipeline_create_sample_vectors_succeeds() {
     let pipeline = make_pipeline();
     let vectors =
         pipeline.create_sample_vectors(CavpAlgorithm::MlKem { variant: "768".to_string() }, 5);
@@ -411,7 +411,7 @@ fn test_pipeline_create_sample_vectors() {
 }
 
 #[test]
-fn test_pipeline_create_sample_vectors_empty() {
+fn test_pipeline_create_sample_vectors_empty_returns_empty_matches_expected() {
     let pipeline = make_pipeline();
     let vectors =
         pipeline.create_sample_vectors(CavpAlgorithm::MlDsa { variant: "44".to_string() }, 0);
@@ -467,7 +467,7 @@ fn default_inputs() -> CavpVectorInputs {
 }
 
 #[tokio::test]
-async fn test_mlkem_encapsulation_missing_ek() {
+async fn test_mlkem_encapsulation_missing_ek_returns_error() {
     let executor = make_executor();
     let inputs = default_inputs(); // ek is None
     let vector = make_vector_with_inputs(
@@ -481,7 +481,7 @@ async fn test_mlkem_encapsulation_missing_ek() {
 }
 
 #[tokio::test]
-async fn test_mlkem_encapsulation_wrong_ek_length() {
+async fn test_mlkem_encapsulation_wrong_ek_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.ek = Some(vec![0u8; 10]); // Wrong length
@@ -496,7 +496,7 @@ async fn test_mlkem_encapsulation_wrong_ek_length() {
 }
 
 #[tokio::test]
-async fn test_mlkem_decapsulation_missing_dk() {
+async fn test_mlkem_decapsulation_missing_dk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.c = Some(vec![0u8; 10]); // c present but dk missing
@@ -511,7 +511,7 @@ async fn test_mlkem_decapsulation_missing_dk() {
 }
 
 #[tokio::test]
-async fn test_mlkem_decapsulation_missing_c() {
+async fn test_mlkem_decapsulation_missing_c_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.dk = Some(vec![0u8; 10]); // dk present but c missing
@@ -526,7 +526,7 @@ async fn test_mlkem_decapsulation_missing_c() {
 }
 
 #[tokio::test]
-async fn test_mlkem_decapsulation_wrong_dk_length() {
+async fn test_mlkem_decapsulation_wrong_dk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.dk = Some(vec![0u8; 10]); // Wrong length
@@ -546,7 +546,7 @@ async fn test_mlkem_decapsulation_wrong_dk_length() {
 // ============================================================
 
 #[tokio::test]
-async fn test_mldsa_44_signature_missing_sk() {
+async fn test_mldsa_44_signature_missing_sk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.message = Some(b"test".to_vec());
@@ -562,7 +562,7 @@ async fn test_mldsa_44_signature_missing_sk() {
 }
 
 #[tokio::test]
-async fn test_mldsa_44_signature_wrong_sk_length() {
+async fn test_mldsa_44_signature_wrong_sk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 10]); // Wrong length (expected 2560)
@@ -578,7 +578,7 @@ async fn test_mldsa_44_signature_wrong_sk_length() {
 }
 
 #[tokio::test]
-async fn test_mldsa_44_verification_missing_pk() {
+async fn test_mldsa_44_verification_missing_pk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.message = Some(b"test".to_vec());
@@ -595,7 +595,7 @@ async fn test_mldsa_44_verification_missing_pk() {
 }
 
 #[tokio::test]
-async fn test_mldsa_44_verification_wrong_pk_length() {
+async fn test_mldsa_44_verification_wrong_pk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 10]); // Wrong length (expected 1312)
@@ -612,7 +612,7 @@ async fn test_mldsa_44_verification_wrong_pk_length() {
 }
 
 #[tokio::test]
-async fn test_mldsa_44_verification_wrong_sig_length() {
+async fn test_mldsa_44_verification_wrong_sig_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 1312]);
@@ -629,7 +629,7 @@ async fn test_mldsa_44_verification_wrong_sig_length() {
 }
 
 #[tokio::test]
-async fn test_mldsa_65_signature_wrong_sk_length() {
+async fn test_mldsa_65_signature_wrong_sk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 10]); // Wrong length (expected 4032)
@@ -645,7 +645,7 @@ async fn test_mldsa_65_signature_wrong_sk_length() {
 }
 
 #[tokio::test]
-async fn test_mldsa_65_verification_wrong_pk_length() {
+async fn test_mldsa_65_verification_wrong_pk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 10]); // Wrong length (expected 1952)
@@ -662,7 +662,7 @@ async fn test_mldsa_65_verification_wrong_pk_length() {
 }
 
 #[tokio::test]
-async fn test_mldsa_87_signature_wrong_sk_length() {
+async fn test_mldsa_87_signature_wrong_sk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 10]); // Wrong length (expected 4896)
@@ -678,7 +678,7 @@ async fn test_mldsa_87_signature_wrong_sk_length() {
 }
 
 #[tokio::test]
-async fn test_mldsa_87_verification_wrong_pk_length() {
+async fn test_mldsa_87_verification_wrong_pk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 10]); // Wrong length (expected 2592)
@@ -699,7 +699,7 @@ async fn test_mldsa_87_verification_wrong_pk_length() {
 // ============================================================
 
 #[tokio::test]
-async fn test_slhdsa_128s_signature_missing_sk() {
+async fn test_slhdsa_128s_signature_missing_sk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.message = Some(b"test".to_vec());
@@ -714,7 +714,7 @@ async fn test_slhdsa_128s_signature_missing_sk() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_128s_signature_wrong_sk_length() {
+async fn test_slhdsa_128s_signature_wrong_sk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 10]); // Wrong length (expected 64)
@@ -730,7 +730,7 @@ async fn test_slhdsa_128s_signature_wrong_sk_length() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_128s_verification_missing_pk() {
+async fn test_slhdsa_128s_verification_missing_pk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.message = Some(b"test".to_vec());
@@ -746,7 +746,7 @@ async fn test_slhdsa_128s_verification_missing_pk() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_128s_verification_wrong_pk_length() {
+async fn test_slhdsa_128s_verification_wrong_pk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 10]); // Wrong length (expected 32)
@@ -763,7 +763,7 @@ async fn test_slhdsa_128s_verification_wrong_pk_length() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_192s_signature_wrong_sk_length() {
+async fn test_slhdsa_192s_signature_wrong_sk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 10]); // Wrong length (expected 96)
@@ -779,7 +779,7 @@ async fn test_slhdsa_192s_signature_wrong_sk_length() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_192s_verification_wrong_pk_length() {
+async fn test_slhdsa_192s_verification_wrong_pk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 10]); // Wrong length (expected 48)
@@ -796,7 +796,7 @@ async fn test_slhdsa_192s_verification_wrong_pk_length() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_256s_signature_wrong_sk_length() {
+async fn test_slhdsa_256s_signature_wrong_sk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 10]); // Wrong length (expected 128)
@@ -812,7 +812,7 @@ async fn test_slhdsa_256s_signature_wrong_sk_length() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_256s_verification_wrong_pk_length() {
+async fn test_slhdsa_256s_verification_wrong_pk_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 10]); // Wrong length (expected 64)
@@ -833,7 +833,7 @@ async fn test_slhdsa_256s_verification_wrong_pk_length() {
 // ============================================================
 
 #[tokio::test]
-async fn test_fndsa_512_signature_missing_sk() {
+async fn test_fndsa_512_signature_missing_sk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.message = Some(b"test".to_vec());
@@ -848,7 +848,7 @@ async fn test_fndsa_512_signature_missing_sk() {
 }
 
 #[tokio::test]
-async fn test_fndsa_512_signature_invalid_sk() {
+async fn test_fndsa_512_signature_invalid_sk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0xFFu8; 100]); // Invalid format
@@ -864,7 +864,7 @@ async fn test_fndsa_512_signature_invalid_sk() {
 }
 
 #[tokio::test]
-async fn test_fndsa_512_verification_missing_pk() {
+async fn test_fndsa_512_verification_missing_pk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.message = Some(b"test".to_vec());
@@ -880,7 +880,7 @@ async fn test_fndsa_512_verification_missing_pk() {
 }
 
 #[tokio::test]
-async fn test_fndsa_512_verification_invalid_pk() {
+async fn test_fndsa_512_verification_invalid_pk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0xFFu8; 100]); // Invalid format
@@ -897,7 +897,7 @@ async fn test_fndsa_512_verification_invalid_pk() {
 }
 
 #[tokio::test]
-async fn test_fndsa_decapsulation_unsupported() {
+async fn test_fndsa_decapsulation_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::FnDsa { variant: "512".to_string() },
@@ -909,7 +909,7 @@ async fn test_fndsa_decapsulation_unsupported() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_decapsulation_unsupported() {
+async fn test_slhdsa_decapsulation_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(
         CavpAlgorithm::SlhDsa { variant: "shake-128s".to_string() },
@@ -925,7 +925,7 @@ async fn test_slhdsa_decapsulation_unsupported() {
 // ============================================================
 
 #[tokio::test]
-async fn test_hybrid_kem_encapsulation_missing_ek() {
+async fn test_hybrid_kem_encapsulation_missing_ek_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.m = Some(vec![0u8; 32]); // m present but ek missing
@@ -937,7 +937,7 @@ async fn test_hybrid_kem_encapsulation_missing_ek() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_decapsulation_missing_dk() {
+async fn test_hybrid_kem_decapsulation_missing_dk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.c = Some(vec![0u8; 32]);
@@ -949,7 +949,7 @@ async fn test_hybrid_kem_decapsulation_missing_dk() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_verification_unsupported() {
+async fn test_hybrid_kem_verification_unsupported_returns_error() {
     let executor = make_executor();
     let vector = make_vector(CavpAlgorithm::HybridKem, CavpTestType::Verification);
     let result = executor.execute_single_test_vector(&vector).await;
@@ -962,7 +962,7 @@ async fn test_hybrid_kem_verification_unsupported() {
 // ============================================================
 
 #[tokio::test]
-async fn test_hybrid_kem_encap_decap_roundtrip() {
+async fn test_hybrid_kem_encap_decap_roundtrip_succeeds() {
     let executor = make_executor();
 
     // Step 1: Generate hybrid keys
@@ -1028,7 +1028,7 @@ async fn test_hybrid_kem_encap_decap_roundtrip() {
 // ============================================================
 
 #[tokio::test]
-async fn test_hybrid_kem_encap_missing_m() {
+async fn test_hybrid_kem_encap_missing_m_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.ek = Some(vec![0u8; 1184 + 32]); // ek present but m missing
@@ -1040,7 +1040,7 @@ async fn test_hybrid_kem_encap_missing_m() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_encap_short_ek() {
+async fn test_hybrid_kem_encap_short_ek_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.ek = Some(vec![0u8; 10]); // Too short for PQ part
@@ -1053,7 +1053,7 @@ async fn test_hybrid_kem_encap_short_ek() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_encap_wrong_m_length() {
+async fn test_hybrid_kem_encap_wrong_m_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.ek = Some(vec![0u8; 1184 + 32]);
@@ -1066,7 +1066,7 @@ async fn test_hybrid_kem_encap_wrong_m_length() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_decap_missing_c() {
+async fn test_hybrid_kem_decap_missing_c_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.dk = Some(vec![0u8; 2400 + 32]); // dk present but c missing
@@ -1078,7 +1078,7 @@ async fn test_hybrid_kem_decap_missing_c() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_decap_short_dk() {
+async fn test_hybrid_kem_decap_short_dk_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.dk = Some(vec![0u8; 10]); // Too short
@@ -1091,7 +1091,7 @@ async fn test_hybrid_kem_decap_short_dk() {
 }
 
 #[tokio::test]
-async fn test_hybrid_kem_decap_short_c() {
+async fn test_hybrid_kem_decap_short_c_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.dk = Some(vec![0u8; 2400 + 32]);
@@ -1108,7 +1108,7 @@ async fn test_hybrid_kem_decap_short_c() {
 // ============================================================
 
 #[tokio::test]
-async fn test_mldsa_44_sign_verify_roundtrip() {
+async fn test_mldsa_44_sign_verify_roundtrip_succeeds() {
     let executor = make_executor();
 
     // Step 1: KeyGen
@@ -1152,7 +1152,7 @@ async fn test_mldsa_44_sign_verify_roundtrip() {
 }
 
 #[tokio::test]
-async fn test_mldsa_65_sign_verify_roundtrip() {
+async fn test_mldsa_65_sign_verify_roundtrip_succeeds() {
     let executor = make_executor();
 
     let keygen_vector =
@@ -1190,7 +1190,7 @@ async fn test_mldsa_65_sign_verify_roundtrip() {
 }
 
 #[tokio::test]
-async fn test_mldsa_87_sign_verify_roundtrip() {
+async fn test_mldsa_87_sign_verify_roundtrip_succeeds() {
     let executor = make_executor();
 
     let keygen_vector =
@@ -1232,7 +1232,7 @@ async fn test_mldsa_87_sign_verify_roundtrip() {
 // ============================================================
 
 #[tokio::test]
-async fn test_mldsa_44_signature_missing_message() {
+async fn test_mldsa_44_signature_missing_message_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 2560]); // sk present but message missing
@@ -1247,7 +1247,7 @@ async fn test_mldsa_44_signature_missing_message() {
 }
 
 #[tokio::test]
-async fn test_mldsa_44_verification_missing_message() {
+async fn test_mldsa_44_verification_missing_message_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 1312]);
@@ -1264,7 +1264,7 @@ async fn test_mldsa_44_verification_missing_message() {
 }
 
 #[tokio::test]
-async fn test_mldsa_44_verification_missing_signature() {
+async fn test_mldsa_44_verification_missing_signature_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 1312]);
@@ -1285,7 +1285,7 @@ async fn test_mldsa_44_verification_missing_signature() {
 // ============================================================
 
 #[tokio::test]
-async fn test_slhdsa_128s_signature_missing_message() {
+async fn test_slhdsa_128s_signature_missing_message_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0u8; 64]); // sk present but message missing
@@ -1300,7 +1300,7 @@ async fn test_slhdsa_128s_signature_missing_message() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_128s_verification_missing_message() {
+async fn test_slhdsa_128s_verification_missing_message_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 32]);
@@ -1317,7 +1317,7 @@ async fn test_slhdsa_128s_verification_missing_message() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_128s_verification_missing_signature() {
+async fn test_slhdsa_128s_verification_missing_signature_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 32]);
@@ -1334,7 +1334,7 @@ async fn test_slhdsa_128s_verification_missing_signature() {
 }
 
 #[tokio::test]
-async fn test_slhdsa_128s_verification_wrong_sig_length() {
+async fn test_slhdsa_128s_verification_wrong_sig_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0u8; 32]);
@@ -1355,7 +1355,7 @@ async fn test_slhdsa_128s_verification_wrong_sig_length() {
 // ============================================================
 
 #[tokio::test]
-async fn test_fndsa_512_signature_missing_message() {
+async fn test_fndsa_512_signature_missing_message_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.sk = Some(vec![0xFFu8; 100]); // sk present but message missing
@@ -1370,7 +1370,7 @@ async fn test_fndsa_512_signature_missing_message() {
 }
 
 #[tokio::test]
-async fn test_fndsa_512_verification_missing_message() {
+async fn test_fndsa_512_verification_missing_message_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0xFFu8; 100]);
@@ -1387,7 +1387,7 @@ async fn test_fndsa_512_verification_missing_message() {
 }
 
 #[tokio::test]
-async fn test_fndsa_512_verification_missing_signature() {
+async fn test_fndsa_512_verification_missing_signature_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.pk = Some(vec![0xFFu8; 100]);
@@ -1408,7 +1408,7 @@ async fn test_fndsa_512_verification_missing_signature() {
 // ============================================================
 
 #[tokio::test]
-async fn test_mlkem_768_encap_decap_roundtrip() {
+async fn test_mlkem_768_encap_decap_roundtrip_succeeds() {
     let executor = make_executor();
 
     // Step 1: ML-KEM-768 Encapsulation with valid ek from keygen
@@ -1454,7 +1454,7 @@ async fn test_mlkem_768_encap_decap_roundtrip() {
 }
 
 #[tokio::test]
-async fn test_mlkem_decapsulation_wrong_ct_length() {
+async fn test_mlkem_decapsulation_wrong_ct_length_returns_error() {
     let executor = make_executor();
     let mut inputs = default_inputs();
     inputs.dk = Some(vec![0u8; 2400]); // Valid dk length
@@ -1474,7 +1474,7 @@ async fn test_mlkem_decapsulation_wrong_ct_length() {
 // ============================================================
 
 #[tokio::test]
-async fn test_pipeline_no_reports() {
+async fn test_pipeline_no_reports_succeeds() {
     let mut config = PipelineConfig::default();
     config.generate_reports = false;
     config.run_statistical_tests = false;

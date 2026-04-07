@@ -151,6 +151,7 @@ impl Default for ResourceLimitsManager {
 }
 
 /// Errors from resource limit validation.
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum ResourceError {
     /// Key derivation count exceeds configured limit.
@@ -244,7 +245,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_resource_limits_default() {
+    fn test_resource_limits_default_succeeds() {
         let limits = ResourceLimits::default();
         assert_eq!(limits.max_key_derivations_per_call, 1000);
         assert_eq!(limits.max_encryption_size_bytes, 100 * 1024 * 1024);
@@ -253,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resource_limits_new() {
+    fn test_resource_limits_new_succeeds() {
         let limits = ResourceLimits::new(500, 50 * 1024 * 1024, 32 * 1024, 50 * 1024 * 1024);
         assert_eq!(limits.max_key_derivations_per_call, 500);
         assert_eq!(limits.max_encryption_size_bytes, 50 * 1024 * 1024);
@@ -262,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn test_manager_with_custom_limits() {
+    fn test_manager_with_custom_limits_succeeds() {
         let custom = ResourceLimits::new(200, 1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(custom);
         let limits = manager.get_limits().unwrap();
@@ -271,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn test_manager_update_limits() {
+    fn test_manager_update_limits_succeeds() {
         let manager = ResourceLimitsManager::new();
         assert_eq!(manager.get_limits().unwrap().max_key_derivations_per_call, 1000);
 
@@ -281,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn test_manager_validate_methods() {
+    fn test_manager_validate_methods_succeeds() {
         let custom = ResourceLimits::new(10, 1024, 512, 2048);
         let manager = ResourceLimitsManager::with_limits(custom);
         assert!(manager.validate_key_derivation_count(10).is_ok());
@@ -295,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn test_global_validate_functions() {
+    fn test_global_validate_functions_succeeds() {
         assert!(validate_key_derivation_count(500).is_ok());
         assert!(validate_key_derivation_count(1001).is_err());
         assert!(validate_encryption_size(1024).is_ok());
@@ -304,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resource_error_display() {
+    fn test_resource_error_display_fails() {
         let err = ResourceError::KeyDerivationLimitExceeded { requested: 2000, limit: 1000 };
         let msg = format!("{}", err);
         assert!(msg.contains("2000"));

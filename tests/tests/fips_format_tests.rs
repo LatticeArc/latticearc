@@ -38,14 +38,14 @@
 use latticearc_tests::validation::format::{FormatError, validate_key_format};
 
 #[test]
-fn test_validate_key_format_correct_size() {
+fn test_validate_key_format_correct_size_has_correct_size() {
     let key = vec![0u8; 32];
     let result = validate_key_format(&key, 32);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_validate_key_format_wrong_size_too_small() {
+fn test_validate_key_format_wrong_size_too_small_fails() {
     let key = vec![0u8; 16];
     let result = validate_key_format(&key, 32);
     assert!(result.is_err());
@@ -59,7 +59,7 @@ fn test_validate_key_format_wrong_size_too_small() {
 }
 
 #[test]
-fn test_validate_key_format_wrong_size_too_large() {
+fn test_validate_key_format_wrong_size_too_large_fails() {
     let key = vec![0u8; 64];
     let result = validate_key_format(&key, 32);
     assert!(result.is_err());
@@ -73,7 +73,7 @@ fn test_validate_key_format_wrong_size_too_large() {
 }
 
 #[test]
-fn test_validate_key_format_empty_key() {
+fn test_validate_key_format_empty_key_fails() {
     let key: Vec<u8> = vec![];
     let result = validate_key_format(&key, 32);
     assert!(result.is_err());
@@ -87,14 +87,14 @@ fn test_validate_key_format_empty_key() {
 }
 
 #[test]
-fn test_validate_key_format_empty_expected() {
+fn test_validate_key_format_empty_expected_has_correct_size() {
     let key: Vec<u8> = vec![];
     let result = validate_key_format(&key, 0);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_validate_key_format_various_sizes() {
+fn test_validate_key_format_various_sizes_has_correct_size() {
     // Test common key sizes
     let sizes = [16, 24, 32, 48, 64, 128, 256];
 
@@ -106,7 +106,7 @@ fn test_validate_key_format_various_sizes() {
 }
 
 #[test]
-fn test_format_error_display() {
+fn test_format_error_display_fails() {
     let error = FormatError::InvalidKeySize(16, 32);
     let display = format!("{}", error);
     assert!(display.contains("16"));
@@ -115,7 +115,7 @@ fn test_format_error_display() {
 }
 
 #[test]
-fn test_format_error_debug() {
+fn test_format_error_debug_fails() {
     let error = FormatError::InvalidKeySize(16, 32);
     let debug = format!("{:?}", error);
     assert!(debug.contains("InvalidKeySize"));

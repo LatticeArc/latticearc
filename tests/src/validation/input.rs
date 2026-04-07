@@ -37,25 +37,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_validate_input_size_ok() {
+    fn test_validate_input_size_ok_has_correct_size() {
         let input = [0u8; 16];
         assert!(validate_input_size(&input, 1, 32).is_ok());
     }
 
     #[test]
-    fn test_validate_input_size_exact_min() {
+    fn test_validate_input_size_exact_min_has_correct_size() {
         let input = [0u8; 8];
         assert!(validate_input_size(&input, 8, 32).is_ok());
     }
 
     #[test]
-    fn test_validate_input_size_exact_max() {
+    fn test_validate_input_size_exact_max_has_correct_size() {
         let input = [0u8; 32];
         assert!(validate_input_size(&input, 1, 32).is_ok());
     }
 
     #[test]
-    fn test_validate_input_size_too_small() {
+    fn test_validate_input_size_too_small_fails() {
         let input = [0u8; 4];
         let err = validate_input_size(&input, 8, 32).unwrap_err();
         match err {
@@ -68,7 +68,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_input_size_too_large() {
+    fn test_validate_input_size_too_large_fails() {
         let input = [0u8; 64];
         let err = validate_input_size(&input, 1, 32).unwrap_err();
         match err {
@@ -81,19 +81,19 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_input_size_empty_ok() {
+    fn test_validate_input_size_empty_ok_has_correct_size() {
         let input: &[u8] = &[];
         assert!(validate_input_size(input, 0, 100).is_ok());
     }
 
     #[test]
-    fn test_validate_input_size_empty_too_small() {
+    fn test_validate_input_size_empty_too_small_fails() {
         let input: &[u8] = &[];
         assert!(validate_input_size(input, 1, 100).is_err());
     }
 
     #[test]
-    fn test_validation_error_display_too_small() {
+    fn test_validation_error_display_too_small_fails() {
         let err = ValidationError::InputTooSmall(4, 8);
         let msg = format!("{err}");
         assert!(msg.contains("4"));
@@ -102,7 +102,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_error_display_too_large() {
+    fn test_validation_error_display_too_large_fails() {
         let err = ValidationError::InputTooLarge(64, 32);
         let msg = format!("{err}");
         assert!(msg.contains("64"));
@@ -111,14 +111,14 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_error_debug() {
+    fn test_validation_error_debug_fails() {
         let err = ValidationError::InputTooSmall(1, 2);
         let debug = format!("{err:?}");
         assert!(debug.contains("InputTooSmall"));
     }
 
     #[test]
-    fn test_validate_min_equals_max() {
+    fn test_validate_min_equals_max_succeeds() {
         let input = [0u8; 16];
         assert!(validate_input_size(&input, 16, 16).is_ok());
     }

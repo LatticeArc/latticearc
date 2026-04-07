@@ -226,19 +226,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ml_dsa_44_kat() {
+    fn test_ml_dsa_44_kat_matches_expected() {
         let result = run_ml_dsa_44_kat();
         assert!(result.is_ok(), "ML-DSA-44 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_ml_dsa_65_kat() {
+    fn test_ml_dsa_65_kat_matches_expected() {
         let result = run_ml_dsa_65_kat();
         assert!(result.is_ok(), "ML-DSA-65 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_ml_dsa_87_kat() {
+    fn test_ml_dsa_87_kat_matches_expected() {
         let result = run_ml_dsa_87_kat();
         assert!(result.is_ok(), "ML-DSA-87 KAT failed: {:?}", result);
     }
@@ -248,42 +248,42 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_run_ml_dsa_44_test_individual_vector_1() {
+    fn test_run_ml_dsa_44_individual_vector_1_matches_expected() {
         let vector = &ML_DSA_44_VECTORS[0];
         let result = run_ml_dsa_44_test(vector);
         assert!(result.is_ok(), "ML-DSA-44 vector 1 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_44_test_individual_vector_2() {
+    fn test_run_ml_dsa_44_individual_vector_2_matches_expected() {
         let vector = &ML_DSA_44_VECTORS[1];
         let result = run_ml_dsa_44_test(vector);
         assert!(result.is_ok(), "ML-DSA-44 vector 2 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_65_test_individual_vector_1() {
+    fn test_run_ml_dsa_65_individual_vector_1_matches_expected() {
         let vector = &ML_DSA_65_VECTORS[0];
         let result = run_ml_dsa_65_test(vector);
         assert!(result.is_ok(), "ML-DSA-65 vector 1 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_65_test_individual_vector_2() {
+    fn test_run_ml_dsa_65_individual_vector_2_matches_expected() {
         let vector = &ML_DSA_65_VECTORS[1];
         let result = run_ml_dsa_65_test(vector);
         assert!(result.is_ok(), "ML-DSA-65 vector 2 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_87_test_individual_vector_1() {
+    fn test_run_ml_dsa_87_individual_vector_1_matches_expected() {
         let vector = &ML_DSA_87_VECTORS[0];
         let result = run_ml_dsa_87_test(vector);
         assert!(result.is_ok(), "ML-DSA-87 vector 1 failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_87_test_individual_vector_2() {
+    fn test_run_ml_dsa_87_individual_vector_2_matches_expected() {
         let vector = &ML_DSA_87_VECTORS[1];
         let result = run_ml_dsa_87_test(vector);
         assert!(result.is_ok(), "ML-DSA-87 vector 2 failed: {:?}", result);
@@ -294,7 +294,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_run_ml_dsa_44_test_invalid_message_hex() {
+    fn test_run_ml_dsa_44_invalid_message_hex_returns_error() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-44-INVALID-MSG",
             seed: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -313,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_44_test_invalid_seed_hex() {
+    fn test_run_ml_dsa_44_invalid_seed_hex_returns_error() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-44-INVALID-SEED",
             seed: "not_valid_hex!!",
@@ -327,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_44_test_valid_message_invalid_seed() {
+    fn test_run_ml_dsa_44_valid_message_invalid_seed_returns_error() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-44-VALID-MSG-INVALID-SEED",
             seed: "xyz",
@@ -341,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_65_test_invalid_message_hex() {
+    fn test_run_ml_dsa_65_invalid_message_hex_returns_error() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-65-INVALID-MSG",
             seed: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_65_test_invalid_seed_hex() {
+    fn test_run_ml_dsa_65_invalid_seed_hex_returns_error() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-65-INVALID-SEED",
             seed: "xyz123abc",
@@ -369,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_87_test_invalid_message_hex() {
+    fn test_run_ml_dsa_87_invalid_message_hex_returns_error() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-87-INVALID-MSG",
             seed: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -383,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_87_test_invalid_seed_hex() {
+    fn test_run_ml_dsa_87_invalid_seed_hex_returns_error() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-87-INVALID-SEED",
             seed: "invalid_hex_data",
@@ -401,7 +401,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_ml_dsa_test_vector_struct_fields_44() {
+    fn test_ml_dsa_44_test_vector_fields_are_non_empty_matches_expected() {
         for vector in ML_DSA_44_VECTORS {
             assert!(!vector.test_name.is_empty());
             assert!(!vector.seed.is_empty());
@@ -413,7 +413,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_dsa_test_vector_struct_fields_65() {
+    fn test_ml_dsa_65_test_vector_fields_are_non_empty_matches_expected() {
         for vector in ML_DSA_65_VECTORS {
             assert!(!vector.test_name.is_empty());
             assert!(!vector.seed.is_empty());
@@ -424,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_dsa_test_vector_struct_fields_87() {
+    fn test_ml_dsa_87_test_vector_fields_are_non_empty_matches_expected() {
         for vector in ML_DSA_87_VECTORS {
             assert!(!vector.test_name.is_empty());
             assert!(!vector.seed.is_empty());
@@ -439,7 +439,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_decode_all_44_vector_fields() {
+    fn test_decode_all_44_vector_fields_succeed_matches_expected() {
         for vector in ML_DSA_44_VECTORS {
             let seed = decode_hex(vector.seed);
             assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
@@ -455,7 +455,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_all_65_vector_fields() {
+    fn test_decode_all_65_vector_fields_succeed_matches_expected() {
         for vector in ML_DSA_65_VECTORS {
             let seed = decode_hex(vector.seed);
             assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
@@ -471,7 +471,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_all_87_vector_fields() {
+    fn test_decode_all_87_vector_fields_succeed_matches_expected() {
         for vector in ML_DSA_87_VECTORS {
             let seed = decode_hex(vector.seed);
             assert!(seed.is_ok(), "seed decode failed for {}", vector.test_name);
@@ -492,7 +492,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_dsa_44_test_failed_error_construction() {
+    fn test_dsa_44_test_failed_error_construction_has_correct_format() {
         let err = NistKatError::TestFailed {
             algorithm: "ML-DSA-44".to_string(),
             test_name: "ML-DSA-44-KAT-1".to_string(),
@@ -505,7 +505,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dsa_65_test_failed_error_construction() {
+    fn test_dsa_65_test_failed_error_construction_has_correct_format() {
         let err = NistKatError::TestFailed {
             algorithm: "ML-DSA-65".to_string(),
             test_name: "ML-DSA-65-KAT-1".to_string(),
@@ -516,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dsa_87_test_failed_error_construction() {
+    fn test_dsa_87_test_failed_error_construction_has_correct_format() {
         let err = NistKatError::TestFailed {
             algorithm: "ML-DSA-87".to_string(),
             test_name: "ML-DSA-87-KAT-1".to_string(),
@@ -527,14 +527,14 @@ mod tests {
     }
 
     #[test]
-    fn test_dsa_implementation_error_keygen() {
+    fn test_dsa_implementation_error_keygen_has_correct_format() {
         let err = NistKatError::ImplementationError(format!("KeyGen failed: {:?}", "test error"));
         let msg = err.to_string();
         assert!(msg.contains("KeyGen failed"));
     }
 
     #[test]
-    fn test_dsa_implementation_error_sign() {
+    fn test_dsa_implementation_error_sign_has_correct_format() {
         let err = NistKatError::ImplementationError(format!("Sign failed: {:?}", "test error"));
         let msg = err.to_string();
         assert!(msg.contains("Sign failed"));
@@ -545,14 +545,14 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_vector_counts() {
+    fn test_vector_counts_are_correct() {
         assert_eq!(ML_DSA_44_VECTORS.len(), 2);
         assert_eq!(ML_DSA_65_VECTORS.len(), 2);
         assert_eq!(ML_DSA_87_VECTORS.len(), 2);
     }
 
     #[test]
-    fn test_vector_naming_conventions() {
+    fn test_vector_naming_conventions_are_correct() {
         for (i, vector) in ML_DSA_44_VECTORS.iter().enumerate() {
             assert!(
                 vector.test_name.starts_with("ML-DSA-44"),
@@ -584,7 +584,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_ml_dsa_44_kat_repeated() {
+    fn test_ml_dsa_44_kat_repeated_matches_expected() {
         for _ in 0..3 {
             let result = run_ml_dsa_44_kat();
             assert!(result.is_ok());
@@ -592,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_dsa_65_kat_repeated() {
+    fn test_ml_dsa_65_kat_repeated_matches_expected() {
         for _ in 0..3 {
             let result = run_ml_dsa_65_kat();
             assert!(result.is_ok());
@@ -600,7 +600,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_dsa_87_kat_repeated() {
+    fn test_ml_dsa_87_kat_repeated_matches_expected() {
         for _ in 0..3 {
             let result = run_ml_dsa_87_kat();
             assert!(result.is_ok());
@@ -612,7 +612,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_run_ml_dsa_44_test_with_custom_valid_empty_message() {
+    fn test_run_ml_dsa_44_with_custom_valid_empty_message_matches_expected() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-44-CUSTOM-EMPTY",
             seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
@@ -626,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_44_test_with_custom_valid_nonempty_message() {
+    fn test_run_ml_dsa_44_with_custom_valid_nonempty_message_matches_expected() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-44-CUSTOM-MSG",
             seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
@@ -640,7 +640,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_65_test_with_custom_valid_vector() {
+    fn test_run_ml_dsa_65_with_custom_valid_vector_matches_expected() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-65-CUSTOM",
             seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
@@ -654,7 +654,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_87_test_with_custom_valid_vector() {
+    fn test_run_ml_dsa_87_with_custom_valid_vector_matches_expected() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-87-CUSTOM",
             seed: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
@@ -668,7 +668,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_65_test_with_empty_message() {
+    fn test_run_ml_dsa_65_with_empty_message_matches_expected() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-65-EMPTY-MSG",
             seed: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
@@ -682,7 +682,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ml_dsa_87_test_with_empty_message() {
+    fn test_run_ml_dsa_87_with_empty_message_matches_expected() {
         let vector = MlDsaTestVector {
             test_name: "ML-DSA-87-EMPTY-MSG",
             seed: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",

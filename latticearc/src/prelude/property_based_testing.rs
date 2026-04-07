@@ -76,7 +76,7 @@ proptest! {
 /// Test that UUID generation produces valid UUIDs.
 #[cfg(test)]
 #[test]
-fn test_uuid_generation_valid() {
+fn test_uuid_generation_valid_produces_v4_uuid_succeeds() {
     let uuid = uuid::Uuid::new_v4();
 
     // Should be valid UUID
@@ -118,8 +118,8 @@ proptest! {
 /// Test that domain constants are non-empty and unique.
 #[cfg(test)]
 #[test]
-fn test_domain_constants_valid() {
-    use crate::prelude::domains;
+fn test_domain_constants_valid_succeeds() {
+    use crate::types::domains;
 
     // All domain constants should be non-empty
     assert!(!domains::HYBRID_KEM.is_empty());
@@ -155,11 +155,11 @@ fn test_domain_constants_valid() {
 /// Test that the version constant is reasonable.
 #[cfg(test)]
 #[test]
-fn test_version_constant_reasonable() {
+fn test_version_constant_reasonable_is_nonzero_succeeds() {
     // Version should be non-zero and reasonable
-    const { assert!(crate::prelude::VERSION > 0) };
-    let version1 = crate::prelude::VERSION;
-    let version2 = crate::prelude::VERSION;
+    const { assert!(crate::prelude::ENVELOPE_FORMAT_VERSION > 0) };
+    let version1 = crate::prelude::ENVELOPE_FORMAT_VERSION;
+    let version2 = crate::prelude::ENVELOPE_FORMAT_VERSION;
     assert_eq!(version1, version2);
 }
 
@@ -229,13 +229,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_property_test_runner() {
+    fn test_property_test_runner_succeeds() {
         // This just tests that the framework works
         run_all_property_tests();
     }
 
     #[test]
-    fn test_config_defaults() {
+    fn test_config_defaults_succeeds() {
         let config = PropertyTestConfig::default();
         assert_eq!(config.test_cases, 256);
         assert_eq!(config.max_shrink_iters, 10000);
@@ -243,8 +243,8 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_constants() {
-        use crate::prelude::domains;
+    fn test_domain_constants_succeeds() {
+        use crate::types::domains;
 
         assert!(!domains::HYBRID_KEM.is_empty());
         assert!(!domains::CASCADE_OUTER.is_empty());
@@ -253,13 +253,13 @@ mod tests {
     }
 
     #[test]
-    fn test_version_constant() {
-        const { assert!(crate::prelude::VERSION > 0) };
+    fn test_version_constant_is_nonzero_succeeds() {
+        const { assert!(crate::prelude::ENVELOPE_FORMAT_VERSION > 0) };
         // VERSION is u8, so the upper bound check is inherent
     }
 
     #[test]
-    fn test_error_display() {
+    fn test_error_display_fails() {
         let error = LatticeArcError::InvalidInput("test message".to_string());
         let display = format!("{}", error);
         assert!(display.contains("test message"));
@@ -267,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_serialization() {
+    fn test_error_serialization_fails() {
         let error = LatticeArcError::InvalidInput("test".to_string());
         let json = serde_json::to_string(&error).unwrap();
         let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_uuid_generation() {
+    fn test_uuid_generation_produces_v4_uuid_succeeds() {
         let uuid = uuid::Uuid::new_v4();
         assert!(!uuid.is_nil());
         assert_eq!(uuid.get_version_num(), 4);

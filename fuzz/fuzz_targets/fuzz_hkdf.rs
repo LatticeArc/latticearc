@@ -20,19 +20,19 @@ fuzz_target!(|data: &[u8]| {
     let info = data.get(32..).map(|s| s);
 
     // Test HKDF extract
-    test_hkdf_extract(ikm, salt);
+    test_hkdf_extract_succeeds(ikm, salt);
 
     // Test HKDF expand (after extract)
-    test_hkdf_expand(ikm, salt, info);
+    test_hkdf_expand_succeeds(ikm, salt, info);
 
     // Test full HKDF
-    test_hkdf_full(ikm, salt, info);
+    test_hkdf_full_succeeds(ikm, salt, info);
 
     // Test simple HKDF
-    test_hkdf_simple(ikm);
+    test_hkdf_simple_succeeds(ikm);
 });
 
-fn test_hkdf_extract(ikm: &[u8], salt: Option<&[u8]>) {
+fn test_hkdf_extract_succeeds(ikm: &[u8], salt: Option<&[u8]>) {
     // HKDF Extract produces 32-byte PRK
     match hkdf_extract(salt, ikm) {
         Ok(prk) => {
@@ -56,7 +56,7 @@ fn test_hkdf_extract(ikm: &[u8], salt: Option<&[u8]>) {
     let _ = hkdf_extract(salt, &[]);
 }
 
-fn test_hkdf_expand(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>) {
+fn test_hkdf_expand_succeeds(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>) {
     // First extract to get PRK
     if let Ok(prk) = hkdf_extract(salt, ikm) {
         // Test various output lengths
@@ -64,11 +64,11 @@ fn test_hkdf_expand(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>) {
             match hkdf_expand(&prk, info, output_len) {
                 Ok(okm) => {
                     // Verify output length
-                    assert_eq!(okm.key.len(), output_len, "Output length must match requested");
+                    assert_eq!(okm.key().len(), output_len, "Output length must match requested");
 
                     // Verify determinism
                     if let Ok(okm2) = hkdf_expand(&prk, info, output_len) {
-                        assert_eq!(okm.key, okm2.key, "HKDF-Expand must be deterministic");
+                        assert_eq!(okm.key(), okm2.key(), "HKDF-Expand must be deterministic");
                     }
                 }
                 Err(_) => {}
@@ -86,23 +86,23 @@ fn test_hkdf_expand(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>) {
     }
 }
 
-fn test_hkdf_full(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>) {
+fn test_hkdf_full_succeeds(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>) {
     // Test full HKDF (extract + expand)
     for output_len in [32, 64] {
         match hkdf(ikm, salt, info, output_len) {
             Ok(okm) => {
-                assert_eq!(okm.key.len(), output_len);
+                assert_eq!(okm.key().len(), output_len);
 
                 // Verify determinism
                 if let Ok(okm2) = hkdf(ikm, salt, info, output_len) {
-                    assert_eq!(okm.key, okm2.key, "HKDF must be deterministic");
+                    assert_eq!(okm.key(), okm2.key(), "HKDF must be deterministic");
                 }
 
                 // Different info should produce different output
                 let different_info = Some(b"different info string".as_slice());
                 if info != different_info {
                     if let Ok(okm_diff) = hkdf(ikm, salt, different_info, output_len) {
-                        assert_ne!(okm.key, okm_diff.key, "Different info should produce different output");
+                        assert_ne!(okm.key(), okm_diff.key(), "Different info should produce different output");
                     }
                 }
             }
@@ -111,16 +111,16 @@ fn test_hkdf_full(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>) {
     }
 }
 
-fn test_hkdf_simple(ikm: &[u8]) {
+fn test_hkdf_simple_succeeds(ikm: &[u8]) {
     // Test simple HKDF (with default output length of 32 bytes)
     let default_length = 32;
     if let Ok(result) = hkdf_simple(ikm, default_length) {
         // Should produce 32-byte output by default
-        assert_eq!(result.key.len(), default_length);
+        assert_eq!(result.key().len(), default_length);
 
         // Verify determinism
         if let Ok(result2) = hkdf_simple(ikm, default_length) {
-            assert_eq!(result.key, result2.key);
+            assert_eq!(result.key(), result2.key());
         }
     }
 }

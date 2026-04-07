@@ -43,35 +43,50 @@ use crate::tls::{ClientVerificationMode, TlsError, TlsMode};
 /// TLS 1.3 handshake configuration with enhanced security options
 #[derive(Debug)]
 pub struct Tls13Config {
-    /// TLS mode (Classic, Hybrid, or PQ)
+    /// TLS mode (Classic, Hybrid, or PQ).
+    /// Consumer: create_client_config(), create_server_config()
     pub mode: TlsMode,
-    /// Use post-quantum key exchange
+    /// Use post-quantum key exchange.
+    /// Consumer: None — configuration placeholder; mode field drives provider selection.
     pub use_pq_kx: bool,
-    /// Enable early data (0-RTT)
+    /// Enable early data (0-RTT).
+    /// Consumer: create_server_config()
     pub enable_early_data: bool,
-    /// Maximum early data size (bytes)
+    /// Maximum early data size (bytes).
+    /// Consumer: create_server_config()
     pub max_early_data_size: u32,
-    /// Custom crypto provider (None for default selection)
+    /// Custom crypto provider (None for default selection).
+    /// Consumer: create_client_config(), create_server_config()
     pub crypto_provider: Option<rustls::crypto::CryptoProvider>,
-    /// Protocol versions to support
+    /// Protocol versions to support.
+    /// Consumer: create_client_config(), create_server_config()
     pub protocol_versions: Vec<&'static rustls::SupportedProtocolVersion>,
-    /// Cipher suites to use (None for secure defaults)
+    /// Cipher suites to use (None for secure defaults).
+    /// Consumer: create_client_config(), create_server_config()
     pub cipher_suites: Option<Vec<SupportedCipherSuite>>,
-    /// ALPN protocols
+    /// ALPN protocols.
+    /// Consumer: create_client_config(), create_server_config()
     pub alpn_protocols: Vec<Vec<u8>>,
-    /// Maximum fragment size
+    /// Maximum fragment size.
+    /// Consumer: None — configuration placeholder.
     pub max_fragment_size: Option<usize>,
-    /// Session resumption configuration
+    /// Session resumption configuration.
+    /// Consumer: create_client_config()
     pub resumption: rustls::client::Resumption,
-    /// Key logging configuration
+    /// Key logging configuration.
+    /// Consumer: create_client_config(), create_server_config()
     pub key_log: Option<Arc<dyn rustls::KeyLog>>,
-    /// Client certificate chain for mTLS (client-side)
+    /// Client certificate chain for mTLS (client-side).
+    /// Consumer: create_client_config()
     pub client_cert_chain: Option<Vec<CertificateDer<'static>>>,
-    /// Client private key for mTLS (client-side)
+    /// Client private key for mTLS (client-side).
+    /// Consumer: create_client_config()
     pub client_private_key: Option<PrivateKeyDer<'static>>,
-    /// Client verification mode (server-side)
+    /// Client verification mode (server-side).
+    /// Consumer: create_server_config()
     pub client_verification: ClientVerificationMode,
-    /// Client CA root store for verification (server-side)
+    /// Client CA root store for verification (server-side).
+    /// Consumer: create_server_config()
     pub client_ca_roots: Option<RootCertStore>,
 }
 
@@ -177,6 +192,7 @@ impl Tls13Config {
     }
 
     /// Set key logger
+    #[must_use]
     pub fn with_key_log(mut self, key_log: Arc<dyn rustls::KeyLog>) -> Self {
         self.key_log = Some(key_log);
         self
@@ -220,6 +236,7 @@ impl Tls13Config {
 }
 
 /// Handshake state for tracking TLS 1.3 handshake progress
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandshakeState {
     /// Initial state
@@ -397,11 +414,17 @@ pub fn create_client_config(config: &Tls13Config) -> Result<ClientConfig, TlsErr
     if let Some(suites) = &config.cipher_suites
         && !suites.is_empty()
     {
-        // For now, log a warning that custom cipher suites are not fully supported
-        // in rustls 0.23+ without custom crypto provider implementation
-        tracing::warn!(
-            "Custom cipher suites configured but not fully supported in rustls 0.23+. Using default secure cipher suites."
-        );
+        // Custom cipher suites require a custom crypto provider in rustls 0.23+.
+        // Fail loudly rather than silently ignoring the configuration.
+        return Err(TlsError::UnsupportedCipherSuite {
+            cipher_suite: "custom cipher suite selection".to_string(),
+            code: crate::tls::error::ErrorCode::UnsupportedOperation,
+            context: Box::default(),
+            recovery: Box::new(crate::tls::error::RecoveryHint::Reconfigure {
+                field: "cipher_suites".to_string(),
+                suggestion: "Remove the cipher_suites field from TLS configuration to use default secure cipher suites".to_string(),
+            }),
+        });
     }
 
     // Configure ALPN protocols
@@ -522,11 +545,17 @@ pub fn create_server_config(
     if let Some(suites) = &config.cipher_suites
         && !suites.is_empty()
     {
-        // For now, log a warning that custom cipher suites are not fully supported
-        // in rustls 0.23+ without custom crypto provider implementation
-        tracing::warn!(
-            "Custom cipher suites configured but not fully supported in rustls 0.23+. Using default secure cipher suites."
-        );
+        // Custom cipher suites require a custom crypto provider in rustls 0.23+.
+        // Fail loudly rather than silently ignoring the configuration.
+        return Err(TlsError::UnsupportedCipherSuite {
+            cipher_suite: "custom cipher suite selection".to_string(),
+            code: crate::tls::error::ErrorCode::UnsupportedOperation,
+            context: Box::default(),
+            recovery: Box::new(crate::tls::error::RecoveryHint::Reconfigure {
+                field: "cipher_suites".to_string(),
+                suggestion: "Remove the cipher_suites field from TLS configuration to use default secure cipher suites".to_string(),
+            }),
+        });
     }
 
     if !config.alpn_protocols.is_empty() {
@@ -720,7 +749,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tls13_config_default() {
+    fn test_tls13_config_default_sets_expected_fields_succeeds() {
         let config = Tls13Config::default();
         assert_eq!(config.mode, TlsMode::Hybrid);
         assert!(config.use_pq_kx);
@@ -734,21 +763,21 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_classic() {
+    fn test_tls13_config_classic_disables_pq_mode_succeeds() {
         let config = Tls13Config::classic();
         assert_eq!(config.mode, TlsMode::Classic);
         assert!(!config.use_pq_kx);
     }
 
     #[test]
-    fn test_tls13_config_with_early_data() {
+    fn test_tls13_config_with_early_data_sets_early_data_flag_succeeds() {
         let config = Tls13Config::hybrid().with_early_data(4096);
         assert!(config.enable_early_data);
         assert_eq!(config.max_early_data_size, 4096);
     }
 
     #[test]
-    fn test_cipher_suites() {
+    fn test_cipher_suites_returns_nonempty_list_succeeds() {
         let classic_suites = get_cipher_suites(TlsMode::Classic);
         assert_eq!(classic_suites.len(), 3);
 
@@ -760,7 +789,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_with_alpn() {
+    fn test_tls13_config_with_alpn_sets_alpn_protocols_succeeds() {
         let config = Tls13Config::hybrid().with_alpn_protocols(vec!["h2", "http/1.1"]);
         assert_eq!(config.alpn_protocols.len(), 2);
         assert_eq!(config.alpn_protocols[0], b"h2");
@@ -768,7 +797,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_with_cipher_suites() {
+    fn test_tls13_config_with_cipher_suites_sets_suite_list_succeeds() {
         let suites = vec![
             rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384,
             rustls::crypto::aws_lc_rs::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
@@ -779,14 +808,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_with_max_fragment_size() {
+    fn test_tls13_config_with_max_fragment_size_sets_fragment_size_has_correct_size() {
         let config = Tls13Config::hybrid().with_max_fragment_size(4096);
         assert!(config.max_fragment_size.is_some());
         assert_eq!(config.max_fragment_size.unwrap(), 4096);
     }
 
     #[test]
-    fn test_secure_cipher_suites() {
+    fn test_secure_cipher_suites_returns_nonempty_list_succeeds() {
         // Verify secure default suites
         let secure_suites = get_secure_cipher_suites();
         assert_eq!(secure_suites.len(), 3);
@@ -796,7 +825,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_config() {
+    fn test_verify_config_succeeds_for_valid_config_succeeds() {
         let valid_config = Tls13Config::hybrid();
         assert!(verify_config(&valid_config).is_ok());
 
@@ -821,14 +850,14 @@ mod tests {
     }
 
     #[test]
-    fn test_handshake_stats_default() {
+    fn test_handshake_stats_default_is_zero() {
         let stats = HandshakeStats::default();
         assert_eq!(stats.round_trips, 2);
         assert_eq!(stats.duration_ms, 0);
     }
 
     #[test]
-    fn test_handshake_state() {
+    fn test_handshake_state_transitions_through_expected_states_succeeds() {
         let state = HandshakeState::Start;
         assert_eq!(state, HandshakeState::Start);
 
@@ -837,7 +866,7 @@ mod tests {
     }
 
     #[test]
-    fn test_crypto_provider_selection() {
+    fn test_crypto_provider_selection_returns_correct_provider_succeeds() {
         // Test classic mode provider selection
         let classic_provider = get_crypto_provider(TlsMode::Classic);
         assert!(classic_provider.is_ok());
@@ -852,7 +881,7 @@ mod tests {
     }
 
     #[test]
-    fn test_configured_crypto_provider() {
+    fn test_configured_crypto_provider_returns_aws_lc_succeeds() {
         let custom_provider = rustls::crypto::aws_lc_rs::default_provider();
         let config = Tls13Config::hybrid().with_crypto_provider(custom_provider.clone());
 
@@ -864,14 +893,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_pq() {
+    fn test_tls13_config_pq_enables_pq_mode_flag_succeeds() {
         let config = Tls13Config::pq();
         assert_eq!(config.mode, TlsMode::Pq);
         assert!(config.use_pq_kx);
     }
 
     #[test]
-    fn test_tls13_config_with_pq_kx() {
+    fn test_tls13_config_with_pq_kx_sets_pq_kx_flag_succeeds() {
         let config = Tls13Config::hybrid().with_pq_kx(false);
         assert!(!config.use_pq_kx);
 
@@ -880,20 +909,20 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_with_protocol_versions() {
+    fn test_tls13_config_with_protocol_versions_sets_version_range_succeeds() {
         let config = Tls13Config::hybrid().with_protocol_versions(vec![&rustls::version::TLS13]);
         assert_eq!(config.protocol_versions.len(), 1);
     }
 
     #[test]
-    fn test_tls13_config_with_resumption() {
+    fn test_tls13_config_with_resumption_sets_resumption_flag_succeeds() {
         let resumption = rustls::client::Resumption::in_memory_sessions(64);
         let _config = Tls13Config::hybrid().with_resumption(resumption);
         // Just verify it doesn't panic
     }
 
     #[test]
-    fn test_tls13_config_with_client_verification() {
+    fn test_tls13_config_with_client_verification_sets_verification_mode_succeeds() {
         let config =
             Tls13Config::hybrid().with_client_verification(ClientVerificationMode::Required);
         assert_eq!(config.client_verification, ClientVerificationMode::Required);
@@ -904,14 +933,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_with_client_ca_roots() {
+    fn test_tls13_config_with_client_ca_roots_sets_ca_roots_succeeds() {
         let roots = RootCertStore::empty();
         let config = Tls13Config::hybrid().with_client_ca_roots(roots);
         assert!(config.client_ca_roots.is_some());
     }
 
     #[test]
-    fn test_tls13_config_with_client_cert() {
+    fn test_tls13_config_with_client_cert_sets_client_cert_succeeds() {
         let cert_bytes = vec![0u8; 32];
         let cert = CertificateDer::from(cert_bytes);
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
@@ -921,7 +950,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handshake_state_all_variants() {
+    fn test_handshake_state_all_variants_are_distinct_are_unique() {
         let states = [
             HandshakeState::Start,
             HandshakeState::ClientHelloSent,
@@ -945,7 +974,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handshake_state_clone_copy_debug() {
+    fn test_handshake_state_clone_copy_debug_work_correctly_succeeds() {
         let state = HandshakeState::ClientHelloSent;
         let cloned = state;
         let copied = state;
@@ -957,7 +986,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handshake_stats_fields() {
+    fn test_handshake_stats_fields_set_correctly_succeeds() {
         let stats = HandshakeStats {
             duration_ms: 150,
             kex_time_ms: 50,
@@ -975,7 +1004,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handshake_stats_clone_debug() {
+    fn test_handshake_stats_clone_debug_work_correctly_succeeds() {
         let stats = HandshakeStats::default();
         let stats2 = stats.clone();
         assert_eq!(stats.round_trips, stats2.round_trips);
@@ -985,32 +1014,32 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_config_valid_early_data() {
+    fn test_verify_config_valid_early_data_succeeds() {
         let config = Tls13Config::hybrid().with_early_data(16384);
         assert!(verify_config(&config).is_ok());
     }
 
     #[test]
-    fn test_verify_config_all_modes() {
+    fn test_verify_config_all_modes_succeed_succeeds() {
         assert!(verify_config(&Tls13Config::classic()).is_ok());
         assert!(verify_config(&Tls13Config::hybrid()).is_ok());
         assert!(verify_config(&Tls13Config::pq()).is_ok());
     }
 
     #[test]
-    fn test_validate_cipher_suites_valid() {
+    fn test_validate_cipher_suites_valid_succeeds() {
         let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
         assert!(validate_cipher_suites(&suites).is_ok());
     }
 
     #[test]
-    fn test_validate_cipher_suites_empty() {
+    fn test_validate_cipher_suites_empty_fails() {
         let suites: Vec<SupportedCipherSuite> = vec![];
         assert!(validate_cipher_suites(&suites).is_ok());
     }
 
     #[test]
-    fn test_get_cipher_suites_all_modes() {
+    fn test_get_cipher_suites_all_modes_return_nonempty_lists_succeeds() {
         // Classic and Hybrid have 3 suites
         assert_eq!(get_cipher_suites(TlsMode::Classic).len(), 3);
         assert_eq!(get_cipher_suites(TlsMode::Hybrid).len(), 3);
@@ -1021,28 +1050,28 @@ mod tests {
     // === create_client_config tests ===
 
     #[test]
-    fn test_create_client_config_hybrid() {
+    fn test_create_client_config_hybrid_succeeds() {
         let config = Tls13Config::hybrid();
         let result = create_client_config(&config);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_create_client_config_classic() {
+    fn test_create_client_config_classic_succeeds() {
         let config = Tls13Config::classic();
         let result = create_client_config(&config);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_create_client_config_pq() {
+    fn test_create_client_config_pq_succeeds() {
         let config = Tls13Config::pq();
         let result = create_client_config(&config);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_create_client_config_with_alpn() {
+    fn test_create_client_config_with_alpn_succeeds() {
         let config = Tls13Config::hybrid().with_alpn_protocols(vec!["h2", "http/1.1"]);
         let result = create_client_config(&config);
         assert!(result.is_ok());
@@ -1051,16 +1080,16 @@ mod tests {
     }
 
     #[test]
-    fn test_create_client_config_with_cipher_suites_warning() {
-        // Custom cipher suites should produce a warning but not fail
+    fn test_create_client_config_with_cipher_suites_rejected_fails() {
+        // Custom cipher suites should be rejected (not silently ignored)
         let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
         let config = Tls13Config::hybrid().with_cipher_suites(suites);
         let result = create_client_config(&config);
-        assert!(result.is_ok());
+        assert!(result.is_err(), "Custom cipher suites should be rejected");
     }
 
     #[test]
-    fn test_create_client_config_with_custom_provider() {
+    fn test_create_client_config_with_custom_provider_succeeds() {
         let provider = rustls::crypto::aws_lc_rs::default_provider();
         let config = Tls13Config::hybrid().with_crypto_provider(provider);
         let result = create_client_config(&config);
@@ -1068,7 +1097,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_client_config_with_key_log() {
+    fn test_create_client_config_with_key_log_succeeds() {
         let key_log = Arc::new(rustls::KeyLogFile::new());
         let config = Tls13Config::hybrid().with_key_log(key_log);
         let result = create_client_config(&config);
@@ -1078,7 +1107,7 @@ mod tests {
     // === create_server_config tests ===
 
     #[test]
-    fn test_create_server_config_with_alpn() {
+    fn test_create_server_config_with_alpn_succeeds() {
         // create_server_config requires valid cert+key, but we can test error path
         let cert_bytes = vec![0u8; 32];
         let cert = CertificateDer::from(cert_bytes);
@@ -1089,7 +1118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_with_early_data() {
+    fn test_create_server_config_with_early_data_succeeds() {
         let cert_bytes = vec![0u8; 32];
         let cert = CertificateDer::from(cert_bytes);
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
@@ -1098,7 +1127,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_mtls_missing_ca_roots() {
+    fn test_create_server_config_mtls_missing_ca_roots_returns_error() {
         let cert_bytes = vec![0u8; 32];
         let cert = CertificateDer::from(cert_bytes);
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
@@ -1110,19 +1139,20 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_with_cipher_suites_warning() {
+    fn test_create_server_config_with_cipher_suites_rejected_fails() {
         let cert_bytes = vec![0u8; 32];
         let cert = CertificateDer::from(cert_bytes);
         let key = PrivateKeyDer::from(rustls_pki_types::PrivatePkcs8KeyDer::from(vec![1u8; 32]));
         let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
         let config = Tls13Config::hybrid().with_cipher_suites(suites);
-        let _result = create_server_config(&config, vec![cert], key);
+        let result = create_server_config(&config, vec![cert], key);
+        assert!(result.is_err(), "Custom cipher suites should be rejected");
     }
 
     // === Tls13Config builder method coverage ===
 
     #[test]
-    fn test_tls13_config_with_key_log_setter() {
+    fn test_tls13_config_with_key_log_setter_sets_key_log_flag_succeeds() {
         let key_log = Arc::new(rustls::KeyLogFile::new());
         let config = Tls13Config::hybrid().with_key_log(key_log);
         assert!(config.key_log.is_some());
@@ -1131,14 +1161,14 @@ mod tests {
     // === get_configured_crypto_provider coverage ===
 
     #[test]
-    fn test_get_configured_crypto_provider_default() {
+    fn test_get_configured_crypto_provider_default_returns_aws_lc_succeeds() {
         let config = Tls13Config::hybrid();
         let provider = get_configured_crypto_provider(&config);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_configured_crypto_provider_classic() {
+    fn test_get_configured_crypto_provider_classic_returns_aws_lc_succeeds() {
         let config = Tls13Config::classic();
         let provider = get_configured_crypto_provider(&config);
         assert!(provider.is_ok());
@@ -1147,13 +1177,13 @@ mod tests {
     // === validate_cipher_suites edge cases ===
 
     #[test]
-    fn test_validate_cipher_suites_all_three_valid() {
+    fn test_validate_cipher_suites_all_three_valid_succeeds() {
         let suites = get_secure_cipher_suites();
         assert!(validate_cipher_suites(&suites).is_ok());
     }
 
     #[test]
-    fn test_validate_cipher_suites_single_valid() {
+    fn test_validate_cipher_suites_single_valid_succeeds() {
         let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256];
         assert!(validate_cipher_suites(&suites).is_ok());
     }
@@ -1161,7 +1191,7 @@ mod tests {
     // === Tls13Config Debug trait ===
 
     #[test]
-    fn test_tls13_config_debug() {
+    fn test_tls13_config_debug_produces_nonempty_string_succeeds() {
         let config = Tls13Config::hybrid();
         let debug = format!("{:?}", config);
         assert!(debug.contains("Tls13Config"));
@@ -1200,7 +1230,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_hybrid_valid_cert() {
+    fn test_create_server_config_hybrid_valid_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let config = Tls13Config::hybrid();
         let result = create_server_config(&config, vec![cert_der], key_der);
@@ -1208,7 +1238,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_classic_valid_cert() {
+    fn test_create_server_config_classic_valid_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let config = Tls13Config::classic();
         let result = create_server_config(&config, vec![cert_der], key_der);
@@ -1216,7 +1246,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_pq_valid_cert() {
+    fn test_create_server_config_pq_valid_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let config = Tls13Config::pq();
         let result = create_server_config(&config, vec![cert_der], key_der);
@@ -1224,7 +1254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_with_alpn_valid_cert() {
+    fn test_create_server_config_with_alpn_valid_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let config = Tls13Config::hybrid().with_alpn_protocols(vec!["h2", "http/1.1"]);
         let result = create_server_config(&config, vec![cert_der], key_der);
@@ -1234,7 +1264,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_with_early_data_valid_cert() {
+    fn test_create_server_config_with_early_data_valid_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let config = Tls13Config::hybrid().with_early_data(16384);
         let result = create_server_config(&config, vec![cert_der], key_der);
@@ -1244,7 +1274,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_with_key_log_valid_cert() {
+    fn test_create_server_config_with_key_log_valid_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let key_log = Arc::new(rustls::KeyLogFile::new());
         let config = Tls13Config::hybrid().with_key_log(key_log);
@@ -1253,16 +1283,16 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_with_cipher_suites_valid_cert() {
+    fn test_create_server_config_with_cipher_suites_valid_cert_rejected_fails() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
         let config = Tls13Config::hybrid().with_cipher_suites(suites);
         let result = create_server_config(&config, vec![cert_der], key_der);
-        assert!(result.is_ok());
+        assert!(result.is_err(), "Custom cipher suites should be rejected even with valid cert");
     }
 
     #[test]
-    fn test_create_server_config_with_custom_provider_valid_cert() {
+    fn test_create_server_config_with_custom_provider_valid_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let provider = rustls::crypto::aws_lc_rs::default_provider();
         let config = Tls13Config::classic().with_crypto_provider(provider);
@@ -1271,7 +1301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_mtls_required() {
+    fn test_create_server_config_mtls_required_succeeds() {
         let (ca_cert_der, server_cert_der, server_key_der) = generate_ca_and_server_cert();
 
         let mut ca_root_store = RootCertStore::empty();
@@ -1286,7 +1316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_mtls_optional() {
+    fn test_create_server_config_mtls_optional_succeeds() {
         let (ca_cert_der, server_cert_der, server_key_der) = generate_ca_and_server_cert();
 
         let mut ca_root_store = RootCertStore::empty();
@@ -1301,7 +1331,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_client_config_with_client_cert() {
+    fn test_create_client_config_with_client_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let config = Tls13Config::hybrid().with_client_cert(vec![cert_der], key_der);
         let result = create_client_config(&config);
@@ -1309,7 +1339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_client_config_classic_with_client_cert() {
+    fn test_create_client_config_classic_with_client_cert_succeeds() {
         let (cert_der, key_der) = generate_self_signed_cert();
         let config = Tls13Config::classic().with_client_cert(vec![cert_der], key_der);
         let result = create_client_config(&config);
@@ -1317,7 +1347,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_server_config_chain_with_ca() {
+    fn test_create_server_config_chain_with_ca_succeeds() {
         let (ca_cert_der, server_cert_der, server_key_der) = generate_ca_and_server_cert();
         let chain = vec![server_cert_der, ca_cert_der];
         let config = Tls13Config::hybrid();
@@ -1328,14 +1358,14 @@ mod tests {
     // ---- Coverage: config builder edge cases ----
 
     #[test]
-    fn test_tls13_config_pq_only() {
+    fn test_tls13_config_pq_only_enables_pq_mode_flag_succeeds() {
         let config = Tls13Config::pq();
         assert!(config.use_pq_kx);
         assert_eq!(config.mode, TlsMode::Pq);
     }
 
     #[test]
-    fn test_tls13_config_with_pq_kx_toggle() {
+    fn test_tls13_config_with_pq_kx_toggle_sets_flag_succeeds() {
         let config = Tls13Config::hybrid().with_pq_kx(false);
         assert!(!config.use_pq_kx);
 
@@ -1344,7 +1374,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_default_all_fields() {
+    fn test_tls13_config_default_all_fields_are_expected_succeeds() {
         let config = Tls13Config::default();
         assert!(config.use_pq_kx);
         assert!(!config.enable_early_data);

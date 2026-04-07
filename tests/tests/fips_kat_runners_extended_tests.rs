@@ -65,7 +65,7 @@ mod run_all_kats_tests {
     use super::*;
 
     #[test]
-    fn test_run_all_kats_returns_results() {
+    fn test_run_all_kats_returns_results_matches_expected() {
         let results = run_all_kats();
         assert!(results.is_ok(), "run_all_kats should not return an error");
 
@@ -79,7 +79,7 @@ mod run_all_kats_tests {
     }
 
     #[test]
-    fn test_run_all_kats_aggregates_multiple_suites() {
+    fn test_run_all_kats_aggregates_multiple_suites_matches_expected() {
         let results = run_all_kats().unwrap();
 
         // Verify we have results from various test suites
@@ -98,7 +98,7 @@ mod run_all_kats_tests {
     }
 
     #[test]
-    fn test_run_all_kats_result_count() {
+    fn test_run_all_kats_result_count_matches_expected() {
         let all_results = run_all_kats().unwrap();
 
         // Get individual suite results
@@ -122,7 +122,7 @@ mod run_all_kats_tests {
     }
 
     #[test]
-    fn test_run_all_kats_timing_aggregation() {
+    fn test_run_all_kats_timing_aggregation_matches_expected() {
         let results = run_all_kats().unwrap();
 
         let total_time_ns: u128 = results.iter().map(|r| r.execution_time_ns).sum();
@@ -141,7 +141,7 @@ mod run_all_kats_tests {
     }
 
     #[test]
-    fn test_run_all_kats_pass_fail_summary() {
+    fn test_run_all_kats_pass_fail_summary_matches_expected() {
         let results = run_all_kats().unwrap();
 
         let passed = results.iter().filter(|r| r.passed).count();
@@ -164,7 +164,7 @@ mod run_aes_gcm_kats_tests {
     use super::*;
 
     #[test]
-    fn test_run_aes_gcm_kats_returns_results() {
+    fn test_run_aes_gcm_kats_returns_results_matches_expected() {
         let results = run_aes_gcm_kats();
         assert!(results.is_ok(), "run_aes_gcm_kats should not return an error");
 
@@ -175,7 +175,7 @@ mod run_aes_gcm_kats_tests {
     }
 
     #[test]
-    fn test_aes_gcm_result_fields() {
+    fn test_aes_gcm_result_fields_matches_expected() {
         let results = run_aes_gcm_kats().unwrap();
 
         for result in &results {
@@ -196,7 +196,7 @@ mod run_aes_gcm_kats_tests {
     }
 
     #[test]
-    fn test_aes_gcm_vectors_loaded() {
+    fn test_aes_gcm_vectors_loaded_matches_expected() {
         let vectors = load_aes_gcm_kats();
         assert!(vectors.is_ok(), "Should be able to load AES-GCM vectors");
 
@@ -223,7 +223,7 @@ mod run_aes_gcm_kats_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_vectors() {
+    fn test_aes_128_gcm_vectors_matches_expected() {
         let vectors = load_aes_gcm_kats().unwrap();
 
         let aes_128_vectors: Vec<_> = vectors.iter().filter(|v| v.key.len() == 16).collect();
@@ -240,7 +240,7 @@ mod run_aes_gcm_kats_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_vectors() {
+    fn test_aes_256_gcm_vectors_matches_expected() {
         let vectors = load_aes_gcm_kats().unwrap();
 
         let aes_256_vectors: Vec<_> = vectors.iter().filter(|v| v.key.len() == 32).collect();
@@ -257,7 +257,7 @@ mod run_aes_gcm_kats_tests {
     }
 
     #[test]
-    fn test_aes_gcm_ciphertext_size() {
+    fn test_aes_gcm_ciphertext_size_matches_expected() {
         let vectors = load_aes_gcm_kats().unwrap();
 
         for vector in &vectors {
@@ -289,7 +289,7 @@ mod ed25519_validation_extended_tests {
     use super::*;
 
     #[test]
-    fn test_validate_ed25519_keypair_with_loaded_vectors() {
+    fn test_validate_ed25519_keypair_with_loaded_vectors_matches_expected() {
         let vectors = load_ed25519_kats();
         match vectors {
             Ok(vecs) => {
@@ -311,7 +311,7 @@ mod ed25519_validation_extended_tests {
     }
 
     #[test]
-    fn test_validate_ed25519_signature_with_loaded_vectors() {
+    fn test_validate_ed25519_signature_with_loaded_vectors_matches_expected() {
         let vectors = load_ed25519_kats();
         match vectors {
             Ok(vecs) => {
@@ -333,7 +333,7 @@ mod ed25519_validation_extended_tests {
     }
 
     #[test]
-    fn test_ed25519_keypair_with_empty_message() {
+    fn test_ed25519_keypair_with_empty_message_matches_expected() {
         let vector = Ed25519KatVector {
             test_case: "EMPTY-MSG-TEST".to_string(),
             seed: vec![
@@ -364,7 +364,7 @@ mod ed25519_validation_extended_tests {
     }
 
     #[test]
-    fn test_ed25519_validation_wrong_hash_prefix() {
+    fn test_ed25519_validation_wrong_hash_prefix_fails() {
         // Create vector with mismatched hash prefix to trigger validation failure
         let vector = Ed25519KatVector {
             test_case: "WRONG-HASH-TEST".to_string(),
@@ -380,7 +380,7 @@ mod ed25519_validation_extended_tests {
     }
 
     #[test]
-    fn test_ed25519_boundary_sizes() {
+    fn test_ed25519_boundary_sizes_matches_expected() {
         // Test with exactly correct sizes
         let correct_sizes = Ed25519KatVector {
             test_case: "CORRECT-SIZES".to_string(),
@@ -398,7 +398,7 @@ mod ed25519_validation_extended_tests {
     }
 
     #[test]
-    fn test_ed25519_oversized_inputs() {
+    fn test_ed25519_oversized_inputs_fails() {
         let oversized = Ed25519KatVector {
             test_case: "OVERSIZED".to_string(),
             seed: vec![0x00; 64],                // Too large
@@ -425,7 +425,7 @@ mod vector_type_extended_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_vector_serialization_roundtrip() {
+    fn test_ml_kem_vector_serialization_roundtrip_matches_expected() {
         let vector = MlKemKatVector {
             test_case: "ROUNDTRIP-TEST".to_string(),
             seed: vec![0x01, 0x02, 0x03, 0x04],
@@ -445,7 +445,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_ml_dsa_vector_creation() {
+    fn test_ml_dsa_vector_creation_matches_expected() {
         let vector = MlDsaKatVector {
             test_case: "ML-DSA-TEST".to_string(),
             seed: vec![0x00; 48],
@@ -462,7 +462,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_slh_dsa_vector_creation() {
+    fn test_slh_dsa_vector_creation_matches_expected() {
         let vector = SlhDsaKatVector {
             test_case: "SLH-DSA-TEST".to_string(),
             seed: vec![0x00; 48],
@@ -477,7 +477,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_vector_creation() {
+    fn test_hybrid_kem_vector_creation_matches_expected() {
         let vector = HybridKemKatVector {
             test_case: "HYBRID-TEST".to_string(),
             seed: vec![0x55; 32],
@@ -490,7 +490,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_aes_gcm_vector_creation() {
+    fn test_aes_gcm_vector_creation_matches_expected() {
         let aes_128 = AesGcmKatVector {
             test_case: "AES-128-TEST".to_string(),
             key: vec![0x00; 16],
@@ -519,7 +519,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_sha3_vector_creation() {
+    fn test_sha3_vector_creation_matches_expected() {
         let vector = Sha3KatVector {
             test_case: "SHA3-TEST".to_string(),
             message: b"test input".to_vec(),
@@ -530,7 +530,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_bls12_381_vector_creation() {
+    fn test_bls12_381_vector_creation_matches_expected() {
         let vector = Bls12_381KatVector {
             test_case: "BLS12-381-TEST".to_string(),
             secret_key: vec![0x00; 32],
@@ -545,7 +545,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_bn254_vector_creation() {
+    fn test_bn254_vector_creation_matches_expected() {
         let vector = Bn254KatVector {
             test_case: "BN254-TEST".to_string(),
             secret_key: vec![0x00; 32],
@@ -558,7 +558,7 @@ mod vector_type_extended_tests {
     }
 
     #[test]
-    fn test_secp256k1_vector_creation() {
+    fn test_secp256k1_vector_creation_matches_expected() {
         let vector = Secp256k1KatVector {
             test_case: "SECP256K1-TEST".to_string(),
             private_key: vec![0x00; 32],
@@ -579,7 +579,7 @@ mod algorithm_type_extended_tests {
     use super::*;
 
     #[test]
-    fn test_algorithm_type_ml_dsa_security_levels() {
+    fn test_algorithm_type_ml_dsa_security_levels_matches_expected() {
         let ml_dsa_44 = AlgorithmType::MlDsa { variant: "44".to_string() };
         assert_eq!(ml_dsa_44.security_level(), 128);
         assert_eq!(ml_dsa_44.name(), "ML-DSA-44");
@@ -598,7 +598,7 @@ mod algorithm_type_extended_tests {
     }
 
     #[test]
-    fn test_algorithm_type_slh_dsa_security_levels() {
+    fn test_algorithm_type_slh_dsa_security_levels_matches_expected() {
         let slh_dsa_128 = AlgorithmType::SlhDsa { variant: "128".to_string() };
         assert_eq!(slh_dsa_128.security_level(), 128);
         assert_eq!(slh_dsa_128.name(), "SLH-DSA-128");
@@ -615,14 +615,14 @@ mod algorithm_type_extended_tests {
     }
 
     #[test]
-    fn test_algorithm_type_hybrid_kem() {
+    fn test_algorithm_type_hybrid_kem_matches_expected() {
         let hybrid = AlgorithmType::HybridKem;
         assert_eq!(hybrid.security_level(), 256);
         assert_eq!(hybrid.name(), "Hybrid-KEM");
     }
 
     #[test]
-    fn test_algorithm_type_aes_gcm_variants() {
+    fn test_algorithm_type_aes_gcm_variants_matches_expected() {
         let aes_128 = AlgorithmType::AesGcm { key_size: 16 };
         assert_eq!(aes_128.security_level(), 128);
         assert_eq!(aes_128.name(), "AES-128-GCM");
@@ -637,7 +637,7 @@ mod algorithm_type_extended_tests {
     }
 
     #[test]
-    fn test_algorithm_type_sha3_variants() {
+    fn test_algorithm_type_sha3_variants_matches_expected() {
         let sha3_224 = AlgorithmType::Sha3 { variant: "224".to_string() };
         assert_eq!(sha3_224.security_level(), 224);
         assert_eq!(sha3_224.name(), "SHA3-224");
@@ -654,7 +654,7 @@ mod algorithm_type_extended_tests {
     }
 
     #[test]
-    fn test_algorithm_type_elliptic_curves() {
+    fn test_algorithm_type_elliptic_curves_matches_expected() {
         let ed25519 = AlgorithmType::Ed25519;
         assert_eq!(ed25519.security_level(), 128);
         assert_eq!(ed25519.name(), "Ed25519");
@@ -673,7 +673,7 @@ mod algorithm_type_extended_tests {
     }
 
     #[test]
-    fn test_algorithm_type_equality() {
+    fn test_algorithm_type_equality_matches_expected() {
         let algo1 = AlgorithmType::MlKem { variant: "768".to_string() };
         let algo2 = AlgorithmType::MlKem { variant: "768".to_string() };
         let algo3 = AlgorithmType::MlKem { variant: "1024".to_string() };
@@ -683,7 +683,7 @@ mod algorithm_type_extended_tests {
     }
 
     #[test]
-    fn test_algorithm_type_clone() {
+    fn test_algorithm_type_clone_succeeds() {
         let original = AlgorithmType::MlDsa { variant: "65".to_string() };
         let cloned = original.clone();
 
@@ -701,7 +701,7 @@ mod kat_config_extended_tests {
     use super::*;
 
     #[test]
-    fn test_kat_config_custom_creation() {
+    fn test_kat_config_custom_creation_matches_expected() {
         let config = KatConfig {
             algorithm: AlgorithmType::MlKem { variant: "512".to_string() },
             test_count: 50,
@@ -717,7 +717,7 @@ mod kat_config_extended_tests {
     }
 
     #[test]
-    fn test_kat_config_all_variants() {
+    fn test_kat_config_all_variants_matches_expected() {
         // Test all factory methods
         let ml_kem_512 = KatConfig::ml_kem("512", 10);
         let ml_kem_768 = KatConfig::ml_kem("768", 20);
@@ -746,7 +746,7 @@ mod kat_config_extended_tests {
     }
 
     #[test]
-    fn test_kat_config_default_values() {
+    fn test_kat_config_default_values_matches_expected() {
         let default_config = KatConfig::default();
 
         match default_config.algorithm {
@@ -763,7 +763,7 @@ mod kat_config_extended_tests {
     }
 
     #[test]
-    fn test_kat_config_serialization_all_types() {
+    fn test_kat_config_serialization_all_types_matches_expected() {
         let configs = vec![
             KatConfig::ml_kem("1024", 50),
             KatConfig::ml_dsa("65", 25),
@@ -791,7 +791,7 @@ mod kat_result_extended_tests {
     use super::*;
 
     #[test]
-    fn test_kat_result_with_zero_duration() {
+    fn test_kat_result_with_zero_duration_matches_expected() {
         let duration = Duration::from_nanos(0);
         let result = KatResult::passed("ZERO-DURATION".to_string(), duration);
 
@@ -800,7 +800,7 @@ mod kat_result_extended_tests {
     }
 
     #[test]
-    fn test_kat_result_with_max_duration() {
+    fn test_kat_result_with_max_duration_matches_expected() {
         let duration = Duration::from_secs(3600); // 1 hour
         let result = KatResult::passed("MAX-DURATION".to_string(), duration);
 
@@ -809,7 +809,7 @@ mod kat_result_extended_tests {
     }
 
     #[test]
-    fn test_kat_result_failed_with_long_error() {
+    fn test_kat_result_failed_with_long_error_matches_expected() {
         let error_msg = "A".repeat(10000); // Very long error message
         let duration = Duration::from_millis(100);
         let result = KatResult::failed("LONG-ERROR".to_string(), duration, error_msg.clone());
@@ -819,7 +819,7 @@ mod kat_result_extended_tests {
     }
 
     #[test]
-    fn test_kat_result_failed_with_empty_error() {
+    fn test_kat_result_failed_with_empty_error_matches_expected() {
         let duration = Duration::from_millis(50);
         let result = KatResult::failed("EMPTY-ERROR".to_string(), duration, String::new());
 
@@ -828,7 +828,7 @@ mod kat_result_extended_tests {
     }
 
     #[test]
-    fn test_kat_result_debug_output() {
+    fn test_kat_result_debug_output_matches_expected() {
         let duration = Duration::from_millis(100);
         let result = KatResult::passed("DEBUG-TEST".to_string(), duration);
 
@@ -838,7 +838,7 @@ mod kat_result_extended_tests {
     }
 
     #[test]
-    fn test_kat_result_special_characters() {
+    fn test_kat_result_special_characters_matches_expected() {
         let duration = Duration::from_millis(10);
         let result = KatResult::failed(
             "TEST-\u{1F600}-EMOJI".to_string(),
@@ -861,7 +861,7 @@ mod nist_statistical_tests {
     use super::*;
 
     #[test]
-    fn test_nist_statistical_test_result_creation() {
+    fn test_nist_statistical_test_result_creation_matches_expected() {
         let result = NistStatisticalTestResult {
             test_name: "Frequency Test".to_string(),
             p_value: 0.5,
@@ -875,7 +875,7 @@ mod nist_statistical_tests {
     }
 
     #[test]
-    fn test_nist_statistical_test_result_edge_pvalues() {
+    fn test_nist_statistical_test_result_edge_pvalues_matches_expected() {
         // Test with boundary p-values
         let passing = NistStatisticalTestResult {
             test_name: "Test".to_string(),
@@ -895,7 +895,7 @@ mod nist_statistical_tests {
     }
 
     #[test]
-    fn test_rng_test_results_creation() {
+    fn test_rng_test_results_creation_matches_expected() {
         let test_results = vec![
             NistStatisticalTestResult {
                 test_name: "Frequency".to_string(),
@@ -927,7 +927,7 @@ mod nist_statistical_tests {
     }
 
     #[test]
-    fn test_rng_test_results_serialization() {
+    fn test_rng_test_results_serialization_matches_expected() {
         let rng_results = RngTestResults {
             algorithm: "Test-Algo".to_string(),
             bits_tested: 100000,
@@ -955,7 +955,7 @@ mod performance_extended_tests {
     use std::time::Instant;
 
     #[test]
-    fn test_run_all_kats_performance() {
+    fn test_run_all_kats_performance_matches_expected() {
         let start = Instant::now();
         let results = run_all_kats().unwrap();
         let duration = start.elapsed();
@@ -972,7 +972,7 @@ mod performance_extended_tests {
     }
 
     #[test]
-    fn test_aes_gcm_performance() {
+    fn test_aes_gcm_performance_matches_expected() {
         let start = Instant::now();
         let results = run_aes_gcm_kats().unwrap();
         let duration = start.elapsed();
@@ -985,7 +985,7 @@ mod performance_extended_tests {
     }
 
     #[test]
-    fn test_ml_dsa_performance() {
+    fn test_ml_dsa_performance_matches_expected() {
         let start = Instant::now();
         let result = run_ml_dsa_kats();
         let duration = start.elapsed();
@@ -1001,7 +1001,7 @@ mod performance_extended_tests {
     }
 
     #[test]
-    fn test_slh_dsa_performance() {
+    fn test_slh_dsa_performance_matches_expected() {
         let start = Instant::now();
         let result = run_slh_dsa_kats();
         let duration = start.elapsed();
@@ -1017,7 +1017,7 @@ mod performance_extended_tests {
     }
 
     #[test]
-    fn test_multiple_sequential_runs() {
+    fn test_multiple_sequential_runs_matches_expected() {
         // Test that running KATs multiple times produces consistent results
         let results1 = run_sha3_kats().unwrap();
         let results2 = run_sha3_kats().unwrap();
@@ -1040,7 +1040,7 @@ mod error_path_tests {
     use std::panic;
 
     #[test]
-    fn test_hybrid_kem_error_handling() {
+    fn test_hybrid_kem_error_handling_matches_expected() {
         // The hybrid KEM loader may panic due to malformed hex
         let result = panic::catch_unwind(|| run_hybrid_kem_kats());
 
@@ -1063,7 +1063,7 @@ mod error_path_tests {
     }
 
     #[test]
-    fn test_ml_dsa_with_loader_error() {
+    fn test_ml_dsa_with_loader_error_fails() {
         // ML-DSA loader may have malformed hex data
         let vectors = load_ml_dsa_kats();
         match vectors {
@@ -1080,7 +1080,7 @@ mod error_path_tests {
     }
 
     #[test]
-    fn test_slh_dsa_with_loader_error() {
+    fn test_slh_dsa_with_loader_error_fails() {
         // SLH-DSA loader may have malformed hex data
         let vectors = load_slh_dsa_kats();
         match vectors {
@@ -1094,7 +1094,7 @@ mod error_path_tests {
     }
 
     #[test]
-    fn test_runner_with_empty_vectors() {
+    fn test_runner_with_empty_vectors_matches_expected() {
         // This tests what happens when we try to process empty vector sets
         // The runners should handle empty inputs gracefully
         let ml_kem_results = run_ml_kem_kats();
@@ -1116,7 +1116,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_full_kat_pipeline() {
+    fn test_full_kat_pipeline_executes_correctly_matches_expected() {
         // Test the complete KAT pipeline
         println!("\n=== Full KAT Pipeline Test ===\n");
 
@@ -1156,7 +1156,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_algorithm_coverage() {
+    fn test_algorithm_coverage_matches_expected() {
         // Verify we have coverage for all algorithm types
         let all_results = run_all_kats().unwrap();
 
@@ -1175,7 +1175,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_result_json_export() {
+    fn test_result_json_export_matches_expected() {
         // Test that results can be exported to JSON for reporting
         let results = run_sha3_kats().unwrap();
 
@@ -1189,7 +1189,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_config_driven_testing() {
+    fn test_config_driven_testing_executes_correctly_succeeds() {
         // Test that KatConfig can drive test execution
         let configs = vec![
             KatConfig::ml_kem("512", 5),
@@ -1219,7 +1219,7 @@ mod validation_logic_tests {
     use sha3::{Digest, Sha3_256};
 
     #[test]
-    fn test_sha3_validation_with_computed_hash() {
+    fn test_sha3_validation_with_computed_hash_matches_expected() {
         // Create a test vector with a correct computed hash
         let message = b"test message for validation";
         let computed_hash = Sha3_256::digest(message);
@@ -1236,7 +1236,7 @@ mod validation_logic_tests {
     }
 
     #[test]
-    fn test_sha3_validation_with_mismatched_hash() {
+    fn test_sha3_validation_with_mismatched_hash_fails() {
         let message = b"test message";
         let wrong_hash = vec![0x00; 32]; // Wrong hash
 
@@ -1251,7 +1251,7 @@ mod validation_logic_tests {
     }
 
     #[test]
-    fn test_ml_kem_size_validation() {
+    fn test_ml_kem_size_validation_matches_expected() {
         // Test ML-KEM-1024 expected sizes
         let vector = MlKemKatVector {
             test_case: "SIZE-TEST".to_string(),
@@ -1269,7 +1269,7 @@ mod validation_logic_tests {
     }
 
     #[test]
-    fn test_aes_gcm_nonce_validation() {
+    fn test_aes_gcm_nonce_validation_matches_expected() {
         // AES-GCM requires 12-byte nonce
         let valid_vector = AesGcmKatVector {
             test_case: "VALID-NONCE".to_string(),
@@ -1297,7 +1297,7 @@ mod validation_logic_tests {
     }
 
     #[test]
-    fn test_aes_gcm_key_size_validation() {
+    fn test_aes_gcm_key_size_validation_matches_expected() {
         // AES-GCM supports 128-bit (16 bytes) and 256-bit (32 bytes) keys
         let aes_128 = AesGcmKatVector {
             test_case: "AES-128".to_string(),
@@ -1329,7 +1329,7 @@ mod validation_logic_tests {
     }
 
     #[test]
-    fn test_signature_size_validation() {
+    fn test_signature_size_validation_matches_expected() {
         // Test expected signature sizes for different algorithms
         let ml_dsa_44_sig_size = 2420;
         let slh_dsa_sig_size = 1700; // Varies by parameter set

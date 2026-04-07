@@ -46,7 +46,7 @@ use latticearc_tests::validation::rfc_vectors::{RfcTestError, RfcTestResults};
 // =============================================================================
 
 #[test]
-fn test_rfc_test_results_new() {
+fn test_rfc_test_results_new_is_empty() {
     let results = RfcTestResults::new();
     assert_eq!(results.total, 0);
     assert_eq!(results.passed, 0);
@@ -55,7 +55,7 @@ fn test_rfc_test_results_new() {
 }
 
 #[test]
-fn test_rfc_test_results_default() {
+fn test_rfc_test_results_default_is_empty() {
     let results = RfcTestResults::default();
     assert_eq!(results.total, 0);
     assert_eq!(results.passed, 0);
@@ -64,7 +64,7 @@ fn test_rfc_test_results_default() {
 }
 
 #[test]
-fn test_rfc_test_results_add_pass() {
+fn test_rfc_test_results_add_pass_increments_counts_succeeds() {
     let mut results = RfcTestResults::new();
     results.add_pass();
 
@@ -75,7 +75,7 @@ fn test_rfc_test_results_add_pass() {
 }
 
 #[test]
-fn test_rfc_test_results_add_multiple_passes() {
+fn test_rfc_test_results_add_multiple_passes_increments_counts_succeeds() {
     let mut results = RfcTestResults::new();
 
     for _ in 0..10 {
@@ -89,7 +89,7 @@ fn test_rfc_test_results_add_multiple_passes() {
 }
 
 #[test]
-fn test_rfc_test_results_add_failure() {
+fn test_rfc_test_results_add_failure_increments_counts_fails() {
     let mut results = RfcTestResults::new();
     results.add_failure("Test failure message".to_string());
 
@@ -101,7 +101,7 @@ fn test_rfc_test_results_add_failure() {
 }
 
 #[test]
-fn test_rfc_test_results_add_multiple_failures() {
+fn test_rfc_test_results_add_multiple_failures_increments_counts_fails() {
     let mut results = RfcTestResults::new();
 
     results.add_failure("Failure 1".to_string());
@@ -118,7 +118,7 @@ fn test_rfc_test_results_add_multiple_failures() {
 }
 
 #[test]
-fn test_rfc_test_results_mixed_pass_and_fail() {
+fn test_rfc_test_results_mixed_pass_and_fail_tracks_correctly_fails() {
     let mut results = RfcTestResults::new();
 
     results.add_pass();
@@ -134,7 +134,7 @@ fn test_rfc_test_results_mixed_pass_and_fail() {
 }
 
 #[test]
-fn test_rfc_test_results_all_passed_true() {
+fn test_rfc_test_results_all_passed_returns_true_succeeds() {
     let mut results = RfcTestResults::new();
     results.add_pass();
     results.add_pass();
@@ -144,7 +144,7 @@ fn test_rfc_test_results_all_passed_true() {
 }
 
 #[test]
-fn test_rfc_test_results_all_passed_false() {
+fn test_rfc_test_results_all_passed_returns_false_with_failures_fails() {
     let mut results = RfcTestResults::new();
     results.add_pass();
     results.add_failure("failure".to_string());
@@ -154,14 +154,14 @@ fn test_rfc_test_results_all_passed_false() {
 }
 
 #[test]
-fn test_rfc_test_results_all_passed_empty() {
+fn test_rfc_test_results_all_passed_returns_true_when_empty_succeeds() {
     let results = RfcTestResults::new();
     // Empty results technically have no failures
     assert!(results.all_passed());
 }
 
 #[test]
-fn test_rfc_test_results_debug_format() {
+fn test_rfc_test_results_debug_has_correct_format() {
     let mut results = RfcTestResults::new();
     results.add_pass();
     results.add_failure("test failure".to_string());
@@ -175,7 +175,7 @@ fn test_rfc_test_results_debug_format() {
 }
 
 #[test]
-fn test_rfc_test_results_failure_messages_preserved() {
+fn test_rfc_test_results_failure_messages_are_preserved_fails() {
     let mut results = RfcTestResults::new();
 
     let messages = vec![
@@ -193,7 +193,7 @@ fn test_rfc_test_results_failure_messages_preserved() {
 }
 
 #[test]
-fn test_rfc_test_results_empty_failure_message() {
+fn test_rfc_test_results_empty_failure_message_is_preserved_fails() {
     let mut results = RfcTestResults::new();
     results.add_failure(String::new());
 
@@ -202,7 +202,7 @@ fn test_rfc_test_results_empty_failure_message() {
 }
 
 #[test]
-fn test_rfc_test_results_unicode_failure_message() {
+fn test_rfc_test_results_unicode_failure_message_is_preserved_fails() {
     let mut results = RfcTestResults::new();
     results.add_failure("Test failed: \u{2718} validation error \u{1F512}".to_string());
 
@@ -211,7 +211,7 @@ fn test_rfc_test_results_unicode_failure_message() {
 }
 
 #[test]
-fn test_rfc_test_results_large_number_of_tests() {
+fn test_rfc_test_results_large_number_of_tests_tracks_correctly_succeeds() {
     let mut results = RfcTestResults::new();
 
     for i in 0..1000 {
@@ -233,7 +233,7 @@ fn test_rfc_test_results_large_number_of_tests() {
 // =============================================================================
 
 #[test]
-fn test_rfc_test_error_test_failed_display() {
+fn test_rfc_test_error_test_failed_display_has_correct_format() {
     let error = RfcTestError::TestFailed {
         rfc: "RFC 8439".to_string(),
         test_name: "ChaCha20-Poly1305 AEAD".to_string(),
@@ -247,7 +247,7 @@ fn test_rfc_test_error_test_failed_display() {
 }
 
 #[test]
-fn test_rfc_test_error_hex_error_display() {
+fn test_rfc_test_error_hex_error_display_has_correct_format() {
     let error = RfcTestError::HexError("invalid hex character 'g'".to_string());
 
     let display = format!("{}", error);
@@ -256,7 +256,7 @@ fn test_rfc_test_error_hex_error_display() {
 }
 
 #[test]
-fn test_rfc_test_error_debug_format() {
+fn test_rfc_test_error_debug_has_correct_format() {
     let error = RfcTestError::TestFailed {
         rfc: "RFC 8032".to_string(),
         test_name: "Ed25519".to_string(),
@@ -271,7 +271,7 @@ fn test_rfc_test_error_debug_format() {
 }
 
 #[test]
-fn test_rfc_test_error_hex_error_debug() {
+fn test_rfc_test_error_hex_error_debug_has_correct_format() {
     let error = RfcTestError::HexError("odd length".to_string());
 
     let debug = format!("{:?}", error);
@@ -280,7 +280,7 @@ fn test_rfc_test_error_hex_error_debug() {
 }
 
 #[test]
-fn test_rfc_test_error_test_failed_empty_fields() {
+fn test_rfc_test_error_test_failed_empty_fields_displays_correctly_fails() {
     let error = RfcTestError::TestFailed {
         rfc: String::new(),
         test_name: String::new(),
@@ -292,7 +292,7 @@ fn test_rfc_test_error_test_failed_empty_fields() {
 }
 
 #[test]
-fn test_rfc_test_error_test_failed_special_characters() {
+fn test_rfc_test_error_test_failed_special_characters_displays_correctly_fails() {
     let error = RfcTestError::TestFailed {
         rfc: "RFC-8439 (ChaCha20)".to_string(),
         test_name: "Test <vector> #1".to_string(),
@@ -306,7 +306,7 @@ fn test_rfc_test_error_test_failed_special_characters() {
 }
 
 #[test]
-fn test_rfc_test_error_hex_error_empty() {
+fn test_rfc_test_error_hex_error_empty_displays_correctly_fails() {
     let error = RfcTestError::HexError(String::new());
 
     let display = format!("{}", error);
@@ -314,7 +314,7 @@ fn test_rfc_test_error_hex_error_empty() {
 }
 
 #[test]
-fn test_rfc_test_error_is_std_error() {
+fn test_rfc_test_error_implements_std_error_succeeds() {
     let error: Box<dyn std::error::Error> = Box::new(RfcTestError::TestFailed {
         rfc: "RFC 7748".to_string(),
         test_name: "X25519".to_string(),
@@ -327,7 +327,7 @@ fn test_rfc_test_error_is_std_error() {
 }
 
 #[test]
-fn test_rfc_test_error_hex_is_std_error() {
+fn test_rfc_test_error_hex_implements_std_error_succeeds() {
     let error: Box<dyn std::error::Error> =
         Box::new(RfcTestError::HexError("invalid character at position 5".to_string()));
 
@@ -340,7 +340,7 @@ fn test_rfc_test_error_hex_is_std_error() {
 // =============================================================================
 
 #[test]
-fn test_rfc_test_results_typical_workflow() {
+fn test_rfc_test_results_typical_workflow_succeeds() {
     let mut results = RfcTestResults::new();
 
     // Simulate running a test suite
@@ -375,7 +375,7 @@ fn test_rfc_test_results_typical_workflow() {
 }
 
 #[test]
-fn test_rfc_test_results_report_generation() {
+fn test_rfc_test_results_report_generation_succeeds() {
     let mut results = RfcTestResults::new();
 
     // Add some test results
@@ -403,7 +403,7 @@ fn test_rfc_test_results_report_generation() {
 
 /// Test hex decoding scenarios that could trigger HexError
 #[test]
-fn test_hex_decoding_valid() {
+fn test_hex_decoding_valid_succeeds() {
     let valid_hex = "0123456789abcdef";
     let result = hex::decode(valid_hex);
     assert!(result.is_ok());
@@ -411,21 +411,21 @@ fn test_hex_decoding_valid() {
 }
 
 #[test]
-fn test_hex_decoding_uppercase() {
+fn test_hex_decoding_uppercase_matches_expected() {
     let valid_hex = "0123456789ABCDEF";
     let result = hex::decode(valid_hex);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_hex_decoding_mixed_case() {
+fn test_hex_decoding_mixed_case_succeeds() {
     let valid_hex = "0123456789AbCdEf";
     let result = hex::decode(valid_hex);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_hex_decoding_empty() {
+fn test_hex_decoding_empty_succeeds() {
     let empty_hex = "";
     let result = hex::decode(empty_hex);
     assert!(result.is_ok());
@@ -433,21 +433,21 @@ fn test_hex_decoding_empty() {
 }
 
 #[test]
-fn test_hex_decoding_invalid_char() {
+fn test_hex_decoding_invalid_char_returns_error() {
     let invalid_hex = "0123456789abcdeg";
     let result = hex::decode(invalid_hex);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_hex_decoding_odd_length() {
+fn test_hex_decoding_odd_length_returns_error() {
     let odd_hex = "0123456789abcde";
     let result = hex::decode(odd_hex);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_hex_decoding_whitespace() {
+fn test_hex_decoding_whitespace_fails() {
     let hex_with_space = "01 23 45";
     let result = hex::decode(hex_with_space);
     assert!(result.is_err());
@@ -458,7 +458,7 @@ fn test_hex_decoding_whitespace() {
 // =============================================================================
 
 #[test]
-fn test_rfc_test_results_consistency() {
+fn test_rfc_test_results_consistency_matches_expected() {
     let mut results = RfcTestResults::new();
 
     // Track independently
@@ -486,7 +486,7 @@ fn test_rfc_test_results_consistency() {
 }
 
 #[test]
-fn test_rfc_test_results_failure_order_preserved() {
+fn test_rfc_test_results_failure_order_preserved_fails() {
     let mut results = RfcTestResults::new();
 
     let failures = vec!["first", "second", "third", "fourth", "fifth"];
@@ -504,7 +504,7 @@ fn test_rfc_test_results_failure_order_preserved() {
 }
 
 #[test]
-fn test_rfc_test_results_long_failure_message() {
+fn test_rfc_test_results_long_failure_message_matches_expected() {
     let mut results = RfcTestResults::new();
 
     let long_message = "A".repeat(10000);
@@ -519,7 +519,7 @@ fn test_rfc_test_results_long_failure_message() {
 // =============================================================================
 
 #[test]
-fn test_all_rfc_error_variants() {
+fn test_all_rfc_error_variants_succeed_fails() {
     // Test TestFailed variant
     let test_failed = RfcTestError::TestFailed {
         rfc: "RFC 5869".to_string(),
@@ -540,7 +540,7 @@ fn test_all_rfc_error_variants() {
 }
 
 #[test]
-fn test_rfc_test_error_field_access() {
+fn test_rfc_test_error_field_access_succeeds() {
     // Create error and verify fields via pattern matching
     let error = RfcTestError::TestFailed {
         rfc: "RFC 8032".to_string(),
@@ -559,7 +559,7 @@ fn test_rfc_test_error_field_access() {
 }
 
 #[test]
-fn test_rfc_test_error_hex_error_field_access() {
+fn test_rfc_test_error_hex_error_field_access_succeeds() {
     let error = RfcTestError::HexError("position 42: invalid digit".to_string());
 
     match error {
@@ -576,7 +576,7 @@ fn test_rfc_test_error_hex_error_field_access() {
 // =============================================================================
 
 #[test]
-fn test_simulated_chacha20_poly1305_workflow() {
+fn test_simulated_chacha20_poly1305_workflow_succeeds() {
     use chacha20poly1305::{
         ChaCha20Poly1305,
         aead::{Aead, KeyInit, Payload},
@@ -620,7 +620,7 @@ fn test_simulated_chacha20_poly1305_workflow() {
 }
 
 #[test]
-fn test_simulated_x25519_workflow() {
+fn test_simulated_x25519_workflow_succeeds() {
     use x25519_dalek::{PublicKey, StaticSecret};
 
     let mut results = RfcTestResults::new();
@@ -657,7 +657,7 @@ fn test_simulated_x25519_workflow() {
 }
 
 #[test]
-fn test_simulated_ed25519_workflow() {
+fn test_simulated_ed25519_workflow_succeeds() {
     use ed25519_dalek::{Signer, SigningKey, Verifier};
 
     let mut results = RfcTestResults::new();
@@ -690,7 +690,7 @@ fn test_simulated_ed25519_workflow() {
 }
 
 #[test]
-fn test_simulated_hkdf_workflow() {
+fn test_simulated_hkdf_workflow_succeeds() {
     use hkdf::Hkdf;
     use sha2::Sha256;
 
@@ -734,7 +734,7 @@ fn test_simulated_hkdf_workflow() {
 }
 
 #[test]
-fn test_simulated_sha256_workflow() {
+fn test_simulated_sha256_workflow_succeeds() {
     use sha2::{Digest, Sha256};
 
     let mut results = RfcTestResults::new();
@@ -792,7 +792,7 @@ fn test_simulated_sha256_workflow() {
 // =============================================================================
 
 #[test]
-fn test_simulated_aes_gcm_workflow() {
+fn test_simulated_aes_gcm_workflow_succeeds() {
     use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 
     let mut results = RfcTestResults::new();
@@ -837,7 +837,7 @@ fn test_simulated_aes_gcm_workflow() {
 // =============================================================================
 
 #[test]
-fn test_rfc_test_results_stress() {
+fn test_rfc_test_results_stress_tracks_correctly_succeeds() {
     let mut results = RfcTestResults::new();
 
     // Simulate a large test suite
@@ -857,7 +857,7 @@ fn test_rfc_test_results_stress() {
 }
 
 #[test]
-fn test_rfc_test_results_many_failures() {
+fn test_rfc_test_results_many_failures_tracks_correctly_fails() {
     let mut results = RfcTestResults::new();
 
     // All failures
@@ -872,7 +872,7 @@ fn test_rfc_test_results_many_failures() {
 }
 
 #[test]
-fn test_rfc_test_results_all_passes() {
+fn test_rfc_test_results_all_passes_tracks_correctly_succeeds() {
     let mut results = RfcTestResults::new();
 
     // All passes

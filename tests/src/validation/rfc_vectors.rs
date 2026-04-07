@@ -92,7 +92,7 @@ mod tests {
 
     /// RFC 8439 Section 2.4.2: ChaCha20 Block Function Test Vector
     #[test]
-    fn test_rfc8439_chacha20_block() {
+    fn test_rfc8439_chacha20_block_matches_vector() {
         use chacha20poly1305::{
             ChaCha20Poly1305,
             aead::{Aead, KeyInit, Payload},
@@ -183,7 +183,7 @@ mod tests {
 
     /// RFC 8032 Section 7.1: Ed25519 Test Vectors
     #[test]
-    fn test_rfc8032_ed25519() {
+    fn test_rfc8032_ed25519_matches_vector() {
         use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 
         let mut results = RfcTestResults::new();
@@ -302,7 +302,7 @@ mod tests {
 
     /// RFC 7748 Section 6.1: X25519 Test Vectors
     #[test]
-    fn test_rfc7748_x25519() {
+    fn test_rfc7748_x25519_matches_vector() {
         use x25519_dalek::{PublicKey, StaticSecret};
 
         let mut results = RfcTestResults::new();
@@ -386,7 +386,7 @@ mod tests {
 
     /// RFC 5869 Appendix A: HKDF Test Vectors (HMAC-SHA256)
     #[test]
-    fn test_rfc5869_hkdf() {
+    fn test_rfc5869_hkdf_matches_vector() {
         use hkdf::Hkdf;
         use sha2::Sha256;
 
@@ -491,7 +491,7 @@ mod tests {
 
     /// NIST SP 800-38D: AES-GCM Test Vectors
     #[test]
-    fn test_nist_aes_gcm() {
+    fn test_nist_aes_gcm_matches_vector() {
         use aws_lc_rs::aead::{AES_128_GCM, AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 
         let mut results = RfcTestResults::new();
@@ -584,7 +584,7 @@ mod tests {
 
     /// SHA-256 test vectors from NIST
     #[test]
-    fn test_nist_sha256() {
+    fn test_nist_sha256_matches_vector() {
         use sha2::{Digest, Sha256};
 
         let mut results = RfcTestResults::new();
@@ -644,7 +644,7 @@ mod tests {
 
     /// Test RfcTestResults counting consistency with mixed operations
     #[test]
-    fn test_rfc_test_results_counting_consistency() {
+    fn test_rfc_test_results_counting_is_consistent() {
         let mut results = RfcTestResults::new();
 
         results.add_pass();
@@ -665,7 +665,7 @@ mod tests {
 
     /// Test RfcTestError display formatting for TestFailed variant
     #[test]
-    fn test_rfc_test_error_display_test_failed() {
+    fn test_rfc_test_error_display_test_failed_is_correct() {
         let error = RfcTestError::TestFailed {
             rfc: "RFC 7748".to_string(),
             test_name: "X25519 DH".to_string(),
@@ -680,7 +680,7 @@ mod tests {
 
     /// Test RfcTestError display formatting for HexError variant
     #[test]
-    fn test_rfc_test_error_display_hex_error() {
+    fn test_rfc_test_error_display_hex_error_is_correct() {
         let error = RfcTestError::HexError("odd length input".to_string());
 
         let display = format!("{}", error);
@@ -690,7 +690,7 @@ mod tests {
 
     /// Test that RfcTestResults::new and default produce equivalent state
     #[test]
-    fn test_rfc_test_results_new_equals_default() {
+    fn test_rfc_test_results_new_equals_default_is_correct() {
         let from_new = RfcTestResults::new();
         let from_default = RfcTestResults::default();
 
@@ -702,7 +702,7 @@ mod tests {
 
     /// Test ChaCha20-Poly1305 decryption with tampered ciphertext
     #[test]
-    fn test_rfc8439_chacha20_tampered_ciphertext() {
+    fn test_rfc8439_chacha20_tampered_ciphertext_fails() {
         use chacha20poly1305::{
             ChaCha20Poly1305,
             aead::{Aead, KeyInit, Payload},
@@ -741,7 +741,7 @@ mod tests {
 
     /// Test AES-GCM with wrong key produces authentication failure
     #[test]
-    fn test_nist_aes_gcm_wrong_key_decryption() {
+    fn test_nist_aes_gcm_wrong_key_decryption_fails() {
         use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 
         let mut results = RfcTestResults::new();
@@ -777,7 +777,7 @@ mod tests {
 
     /// Test HKDF with maximum output length
     #[test]
-    fn test_rfc5869_hkdf_max_output() {
+    fn test_rfc5869_hkdf_max_output_succeeds() {
         use hkdf::Hkdf;
         use sha2::Sha256;
 
@@ -810,7 +810,7 @@ mod tests {
 
     /// Test Ed25519 deterministic signing
     #[test]
-    fn test_rfc8032_ed25519_deterministic() {
+    fn test_rfc8032_ed25519_deterministic_produces_same_output_is_deterministic() {
         use ed25519_dalek::{Signer, SigningKey};
 
         let mut results = RfcTestResults::new();
@@ -834,7 +834,7 @@ mod tests {
 
     /// Test X25519 low-order point handling
     #[test]
-    fn test_rfc7748_x25519_identity() {
+    fn test_rfc7748_x25519_identity_is_correct() {
         use x25519_dalek::{PublicKey, StaticSecret};
 
         let mut results = RfcTestResults::new();

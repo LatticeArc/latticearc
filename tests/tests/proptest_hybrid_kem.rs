@@ -19,14 +19,13 @@ proptest! {
     /// Hybrid KEM roundtrip: encapsulate then decapsulate recovers same shared secret.
     #[test]
     fn kem_roundtrip(_seed in any::<u64>()) {
-        let mut rng = rand::thread_rng();
-        let (pk, sk) = generate_keypair(&mut rng).unwrap();
-        let encapsulated = encapsulate(&mut rng, &pk).unwrap();
+        let (pk, sk) = generate_keypair().unwrap();
+        let encapsulated = encapsulate(&pk).unwrap();
         let decapsulated = decapsulate(&sk, &encapsulated).unwrap();
 
         // Shared secrets must match
         prop_assert_eq!(
-            encapsulated.shared_secret.as_slice(),
+            encapsulated.shared_secret(),
             decapsulated.as_slice(),
             "Roundtrip shared secrets must match"
         );
@@ -37,18 +36,17 @@ proptest! {
     /// Different keypairs produce different encapsulated secrets.
     #[test]
     fn kem_key_independence(_seed in any::<u64>()) {
-        let mut rng = rand::thread_rng();
-        let (pk1, _sk1) = generate_keypair(&mut rng).unwrap();
-        let (pk2, _sk2) = generate_keypair(&mut rng).unwrap();
+        let (pk1, _sk1) = generate_keypair().unwrap();
+        let (pk2, _sk2) = generate_keypair().unwrap();
 
-        let enc1 = encapsulate(&mut rng, &pk1).unwrap();
-        let enc2 = encapsulate(&mut rng, &pk2).unwrap();
+        let enc1 = encapsulate(&pk1).unwrap();
+        let enc2 = encapsulate(&pk2).unwrap();
 
         // Different keypairs should produce different shared secrets
         // (with overwhelming probability)
         prop_assert_ne!(
-            enc1.shared_secret.as_slice(),
-            enc2.shared_secret.as_slice(),
+            enc1.shared_secret(),
+            enc2.shared_secret(),
             "Different keypairs should produce different shared secrets"
         );
     }
@@ -56,15 +54,14 @@ proptest! {
     /// Wrong secret key cannot recover the correct shared secret.
     #[test]
     fn kem_wrong_key_rejection(_seed in any::<u64>()) {
-        let mut rng = rand::thread_rng();
-        let (pk1, _sk1) = generate_keypair(&mut rng).unwrap();
-        let (_pk2, sk2) = generate_keypair(&mut rng).unwrap();
+        let (pk1, _sk1) = generate_keypair().unwrap();
+        let (_pk2, sk2) = generate_keypair().unwrap();
 
-        let enc = encapsulate(&mut rng, &pk1).unwrap();
+        let enc = encapsulate(&pk1).unwrap();
         // Decapsulating with wrong SK may error or produce a different secret
         if let Ok(wrong_secret) = decapsulate(&sk2, &enc) {
             prop_assert_ne!(
-                enc.shared_secret.as_slice(),
+                enc.shared_secret(),
                 wrong_secret.as_slice(),
                 "Wrong SK must not recover the correct shared secret"
             );
@@ -75,42 +72,40 @@ proptest! {
     /// Multiple encapsulations with the same public key produce different ciphertexts.
     #[test]
     fn kem_encapsulation_uniqueness(_seed in any::<u64>()) {
-        let mut rng = rand::thread_rng();
-        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = generate_keypair().unwrap();
 
-        let enc1 = encapsulate(&mut rng, &pk).unwrap();
-        let enc2 = encapsulate(&mut rng, &pk).unwrap();
+        let enc1 = encapsulate(&pk).unwrap();
+        let enc2 = encapsulate(&pk).unwrap();
 
         // Different encapsulations must produce different ciphertexts
         prop_assert_ne!(
-            enc1.ml_kem_ct.as_slice(), enc2.ml_kem_ct.as_slice(),
+            enc1.ml_kem_ct(), enc2.ml_kem_ct(),
             "Different encapsulations should produce different ML-KEM ciphertexts"
         );
 
         // Both must still roundtrip correctly
         let dec1 = decapsulate(&sk, &enc1).unwrap();
         let dec2 = decapsulate(&sk, &enc2).unwrap();
-        prop_assert_eq!(dec1.as_slice(), enc1.shared_secret.as_slice());
-        prop_assert_eq!(dec2.as_slice(), enc2.shared_secret.as_slice());
+        prop_assert_eq!(dec1.as_slice(), enc1.shared_secret());
+        prop_assert_eq!(dec2.as_slice(), enc2.shared_secret());
     }
 
     /// Key sizes match FIPS 203 / X25519 specifications.
     #[test]
     fn kem_key_sizes(_seed in any::<u64>()) {
-        let mut rng = rand::thread_rng();
-        let (pk, _sk) = generate_keypair(&mut rng).unwrap();
+        let (pk, _sk) = generate_keypair().unwrap();
 
         // ML-KEM-768 public key: 1184 bytes
-        prop_assert_eq!(pk.ml_kem_pk.len(), 1184);
+        prop_assert_eq!(pk.ml_kem_pk().len(), 1184);
         // X25519 public key: 32 bytes
-        prop_assert_eq!(pk.ecdh_pk.len(), 32);
+        prop_assert_eq!(pk.ecdh_pk().len(), 32);
 
-        let enc = encapsulate(&mut rng, &pk).unwrap();
+        let enc = encapsulate(&pk).unwrap();
         // ML-KEM-768 ciphertext: 1088 bytes
-        prop_assert_eq!(enc.ml_kem_ct.len(), 1088);
+        prop_assert_eq!(enc.ml_kem_ct().len(), 1088);
         // Ephemeral X25519 public key: 32 bytes
-        prop_assert_eq!(enc.ecdh_pk.len(), 32);
+        prop_assert_eq!(enc.ecdh_pk().len(), 32);
         // Shared secret: 64 bytes
-        prop_assert_eq!(enc.shared_secret.len(), 64);
+        prop_assert_eq!(enc.shared_secret().len(), 64);
     }
 }

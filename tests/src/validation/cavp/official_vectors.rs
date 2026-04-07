@@ -603,7 +603,7 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    async fn test_vector_validation_positive() {
+    async fn test_vector_validation_positive_matches_official_vector_matches_expected() {
         let (_tmp, downloader) = make_downloader();
 
         let vector = OfficialCavpVector {
@@ -640,7 +640,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_vector_validation_negative() {
+    async fn test_vector_validation_negative_fails() {
         let (_tmp, downloader) = make_downloader();
 
         let vector = OfficialCavpVector {
@@ -685,7 +685,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_validation() {
+    fn test_hex_validation_passes_validation() {
         assert!(CavpVectorDownloader::is_valid_hex("0123456789abcdef"));
         assert!(CavpVectorDownloader::is_valid_hex("ABCDEF1234567890"));
 
@@ -695,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parameter_set_validation() {
+    fn test_parameter_set_validation_passes_validation() {
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-512"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-768"));
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-KEM-1024"));
@@ -719,7 +719,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_hex_single_valid_chars() {
+    fn test_hex_single_valid_chars_passes_validation() {
         for c in "0123456789abcdefABCDEF".chars() {
             assert!(
                 CavpVectorDownloader::is_valid_hex(&c.to_string()),
@@ -730,7 +730,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_invalid_chars_just_outside_range() {
+    fn test_hex_invalid_chars_just_outside_range_fails() {
         // Characters adjacent to hex range that should be rejected
         assert!(!CavpVectorDownloader::is_valid_hex("g"));
         assert!(!CavpVectorDownloader::is_valid_hex("G"));
@@ -739,7 +739,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_whitespace_rejected() {
+    fn test_hex_whitespace_rejected_fails() {
         assert!(!CavpVectorDownloader::is_valid_hex(" "));
         assert!(!CavpVectorDownloader::is_valid_hex("ab cd"));
         assert!(!CavpVectorDownloader::is_valid_hex("ab\tcd"));
@@ -747,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_prefix_rejected() {
+    fn test_hex_prefix_rejected_fails() {
         // "0x" prefix is not valid raw hex
         assert!(!CavpVectorDownloader::is_valid_hex("0x1234"));
     }
@@ -757,12 +757,12 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_parameter_set_mldsa_128() {
+    fn test_parameter_set_mldsa_128_matches_official_vector_matches_expected() {
         assert!(CavpVectorDownloader::is_valid_parameter_set("ML-DSA", "ML-DSA-128"));
     }
 
     #[test]
-    fn test_parameter_set_slhdsa_all_sha2_variants() {
+    fn test_parameter_set_slhdsa_all_sha2_variants_matches_official_vector_matches_expected() {
         let valid = [
             "SLH-DSA-SHA2-128s",
             "SLH-DSA-SHA2-128f",
@@ -781,7 +781,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parameter_set_slhdsa_all_shake_variants() {
+    fn test_parameter_set_slhdsa_all_shake_variants_matches_official_vector_matches_expected() {
         let valid = [
             "SLH-DSA-SHAKE-128s",
             "SLH-DSA-SHAKE-128f",
@@ -800,27 +800,27 @@ mod tests {
     }
 
     #[test]
-    fn test_parameter_set_slhdsa_invalid_combo() {
+    fn test_parameter_set_slhdsa_invalid_combo_fails() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHA2-384f"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "SLH-DSA-SHAKE-384s"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("SLH-DSA", "ML-KEM-768"));
     }
 
     #[test]
-    fn test_parameter_set_fndsa_invalid() {
+    fn test_parameter_set_fndsa_invalid_fails() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("FN-DSA", "Falcon-256"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("FN-DSA", "Falcon-2048"));
     }
 
     #[test]
-    fn test_parameter_set_unknown_algorithm() {
+    fn test_parameter_set_unknown_algorithm_fails() {
         assert!(!CavpVectorDownloader::is_valid_parameter_set("UNKNOWN", "any-value"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("", ""));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("AES", "AES-256"));
     }
 
     #[test]
-    fn test_parameter_set_cross_algorithm() {
+    fn test_parameter_set_cross_algorithm_fails() {
         // Valid set for a different algorithm should fail
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-KEM", "ML-DSA-44"));
         assert!(!CavpVectorDownloader::is_valid_parameter_set("ML-DSA", "ML-KEM-512"));
@@ -832,7 +832,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_validate_siggen_valid() {
+    fn test_validate_siggen_valid_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -851,7 +851,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_siggen_missing_sk() {
+    fn test_validate_siggen_missing_sk_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -866,7 +866,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_siggen_missing_message() {
+    fn test_validate_siggen_missing_message_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -881,7 +881,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_siggen_missing_signature() {
+    fn test_validate_siggen_missing_signature_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -904,7 +904,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_validate_sigver_valid() {
+    fn test_validate_sigver_valid_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -926,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sigver_missing_pk() {
+    fn test_validate_sigver_missing_pk_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -945,7 +945,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sigver_missing_message() {
+    fn test_validate_sigver_missing_message_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -964,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sigver_missing_signature() {
+    fn test_validate_sigver_missing_signature_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -983,7 +983,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sigver_missing_test_passed_gives_warning() {
+    fn test_validate_sigver_missing_test_passed_gives_warning_passes_validation() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -1003,7 +1003,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sigver_with_test_passed_false() {
+    fn test_validate_sigver_with_test_passed_false_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -1030,7 +1030,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_validate_keygen_missing_seed() {
+    fn test_validate_keygen_missing_seed_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-KEM",
@@ -1049,7 +1049,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_keygen_missing_output_pk() {
+    fn test_validate_keygen_missing_output_pk_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-KEM",
@@ -1064,7 +1064,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_keygen_missing_output_sk() {
+    fn test_validate_keygen_missing_output_sk_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-KEM",
@@ -1083,7 +1083,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_validate_unknown_test_type_gives_warning() {
+    fn test_validate_unknown_test_type_gives_warning_passes_validation() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-KEM",
@@ -1103,7 +1103,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_validate_invalid_hex_in_input_pk() {
+    fn test_validate_invalid_hex_in_input_pk_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -1126,7 +1126,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_invalid_hex_in_input_sk() {
+    fn test_validate_invalid_hex_in_input_sk_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -1145,7 +1145,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_invalid_hex_in_input_message() {
+    fn test_validate_invalid_hex_in_input_message_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -1164,7 +1164,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_invalid_hex_in_output_signature() {
+    fn test_validate_invalid_hex_in_output_signature_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -1186,7 +1186,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_all_hex_fields_invalid_at_once() {
+    fn test_validate_all_hex_fields_invalid_at_once_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-KEM",
@@ -1217,7 +1217,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_vector_id_format() {
+    fn test_vector_id_format_passes_validation() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-KEM",
@@ -1235,7 +1235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vector_id_with_different_ids() {
+    fn test_vector_id_with_different_ids_passes_validation() {
         let (_tmp, dl) = make_downloader();
         let mut v = make_vector(
             "SLH-DSA",
@@ -1259,7 +1259,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_convert_test_case_with_valid_keygen() {
+    fn test_convert_test_case_with_valid_keygen_matches_official_vector_matches_expected() {
         let test_case = json!({
             "tcId": 5,
             "testCase": {
@@ -1298,7 +1298,7 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_test_case_without_tcid_uses_index() {
+    fn test_convert_test_case_without_tcid_uses_index_passes_validation() {
         let test_case = json!({
             "testCase": {
                 "seed": "aabb"
@@ -1329,7 +1329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_test_case_tcid_as_string_uses_index() {
+    fn test_convert_test_case_tcid_as_string_uses_index_passes_validation() {
         let test_case = json!({
             "tcId": "not_a_number",
             "testCase": { "seed": "aa" },
@@ -1355,7 +1355,7 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_test_case_missing_testcase_field_uses_default() {
+    fn test_convert_test_case_missing_testcase_field_uses_default_passes_validation() {
         // When "testCase" is absent, unwrap_or_default gives Value::Null,
         // which deserializes to an empty CavpTestInputs (all None).
         let test_case = json!({
@@ -1385,7 +1385,7 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_test_case_missing_results_field_uses_default() {
+    fn test_convert_test_case_missing_results_field_uses_default_passes_validation() {
         let test_case = json!({
             "tcId": 1,
             "testCase": { "seed": "aabb" }
@@ -1409,7 +1409,7 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_test_case_with_siggen_data() {
+    fn test_convert_test_case_with_siggen_data_matches_official_vector_matches_expected() {
         let test_case = json!({
             "tcId": 42,
             "testCase": {
@@ -1447,7 +1447,7 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_test_case_with_sigver_data() {
+    fn test_convert_test_case_with_sigver_data_matches_official_vector_matches_expected() {
         let test_case = json!({
             "tcId": 7,
             "testCase": {
@@ -1484,7 +1484,7 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_test_case_with_extra_fields() {
+    fn test_convert_test_case_with_extra_fields_passes_validation() {
         let test_case = json!({
             "tcId": 1,
             "testCase": {
@@ -1524,7 +1524,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_parse_vector_content_valid_keygen() {
+    fn test_parse_vector_content_valid_keygen_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let group = make_group_json(
             1,
@@ -1553,7 +1553,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_skips_invalid_vectors() {
+    fn test_parse_vector_content_skips_invalid_vectors_passes_validation() {
         let (_tmp, dl) = make_downloader();
         // Mix of valid and invalid vectors: one with invalid hex, one valid
         let group = make_group_json(
@@ -1585,7 +1585,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_all_invalid_vectors_produces_empty() {
+    fn test_parse_vector_content_all_invalid_vectors_produces_empty_passes_validation() {
         let (_tmp, dl) = make_downloader();
         let group = make_group_json(
             1,
@@ -1613,7 +1613,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_invalid_utf8() {
+    fn test_parse_vector_content_invalid_utf8_fails() {
         let (_tmp, dl) = make_downloader();
         let invalid = vec![0xFF, 0xFE, 0x00, 0x01];
 
@@ -1624,7 +1624,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_invalid_json() {
+    fn test_parse_vector_content_invalid_json_fails() {
         let (_tmp, dl) = make_downloader();
 
         let result = dl.parse_vector_content(b"{ not valid json }", "test");
@@ -1634,7 +1634,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_empty_test_groups() {
+    fn test_parse_vector_content_empty_test_groups_passes_validation() {
         let (_tmp, dl) = make_downloader();
         let coll = make_collection_json("ML-KEM", vec![]);
         let content = serde_json::to_vec(&coll).unwrap();
@@ -1645,7 +1645,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_empty_tests_in_group() {
+    fn test_parse_vector_content_empty_tests_in_group_passes_validation() {
         let (_tmp, dl) = make_downloader();
         let group = make_group_json(1, "keyGen", "ML-KEM-768", vec![]);
         let coll = make_collection_json("ML-KEM", vec![group]);
@@ -1657,7 +1657,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_multiple_groups() {
+    fn test_parse_vector_content_multiple_groups_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let g1 = make_group_json(
             1,
@@ -1691,7 +1691,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_siggen() {
+    fn test_parse_vector_content_siggen_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let group = make_group_json(
             1,
@@ -1714,7 +1714,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_sigver() {
+    fn test_parse_vector_content_sigver_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let group = make_group_json(
             1,
@@ -1737,7 +1737,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_with_invalid_parameter_set_skips() {
+    fn test_parse_vector_content_with_invalid_parameter_set_skips_passes_validation() {
         let (_tmp, dl) = make_downloader();
         // Valid hex but invalid parameter set - vector will fail validation
         let group = make_group_json(
@@ -1764,7 +1764,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_load_vectors_from_file_valid() {
+    fn test_load_vectors_from_file_valid_matches_official_vector_matches_expected() {
         let (tmp, dl) = make_downloader();
         let group = make_group_json(
             1,
@@ -1787,7 +1787,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_vectors_from_file_nonexistent() {
+    fn test_load_vectors_from_file_nonexistent_fails() {
         let (tmp, dl) = make_downloader();
         let path = tmp.path().join("nonexistent.json");
 
@@ -1798,7 +1798,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_vectors_from_file_uses_file_stem_as_vector_type() {
+    fn test_load_vectors_from_file_uses_file_stem_as_vector_type_passes_validation() {
         let (tmp, dl) = make_downloader();
         let coll = make_collection_json("ML-KEM", vec![]);
         let file_path = tmp.path().join("my-custom-name.json");
@@ -1810,7 +1810,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_vectors_from_file_without_extension() {
+    fn test_load_vectors_from_file_without_extension_passes_validation() {
         let (tmp, dl) = make_downloader();
         let coll = make_collection_json("ML-KEM", vec![]);
         let file_path = tmp.path().join("no_extension");
@@ -1821,7 +1821,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_vectors_from_file_corrupted_content() {
+    fn test_load_vectors_from_file_corrupted_content_fails() {
         let (tmp, dl) = make_downloader();
         let file_path = tmp.path().join("corrupted.json");
         fs::write(&file_path, "not valid json at all").unwrap();
@@ -1831,7 +1831,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_vectors_from_file_binary_content() {
+    fn test_load_vectors_from_file_binary_content_fails() {
         let (tmp, dl) = make_downloader();
         let file_path = tmp.path().join("binary.json");
         fs::write(&file_path, [0xFF, 0xFE, 0xFD]).unwrap();
@@ -1845,7 +1845,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_downloader_new_creates_cache_dir() {
+    fn test_downloader_new_creates_cache_dir_succeeds() {
         let tmp = TempDir::new().unwrap();
         let nested = tmp.path().join("a").join("b").join("c");
         assert!(!nested.exists());
@@ -1856,7 +1856,7 @@ mod tests {
     }
 
     #[test]
-    fn test_downloader_new_existing_dir() {
+    fn test_downloader_new_existing_dir_succeeds() {
         let tmp = TempDir::new().unwrap();
         // Creating with an already-existing directory should succeed
         let dl = CavpVectorDownloader::new(tmp.path());
@@ -1868,7 +1868,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_cavp_test_inputs_serde_roundtrip() {
+    fn test_cavp_test_inputs_serde_roundtrip_matches_official_vector_roundtrip() {
         let inputs = CavpTestInputs {
             seed: Some("aabb".to_string()),
             pk: Some("ccdd".to_string()),
@@ -1894,7 +1894,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cavp_test_outputs_serde_roundtrip() {
+    fn test_cavp_test_outputs_serde_roundtrip_matches_official_vector_roundtrip() {
         let outputs = CavpTestOutputs {
             pk: Some("aabb".to_string()),
             sk: Some("ccdd".to_string()),
@@ -1918,7 +1918,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cavp_test_collection_serde_roundtrip() {
+    fn test_cavp_test_collection_serde_roundtrip_matches_official_vector_roundtrip() {
         let collection = CavpTestCollection {
             vs_id: 999,
             algorithm: "SLH-DSA".to_string(),
@@ -1942,7 +1942,7 @@ mod tests {
     }
 
     #[test]
-    fn test_official_cavp_vector_serde_roundtrip() {
+    fn test_official_cavp_vector_serde_roundtrip_matches_official_vector_roundtrip() {
         let v = make_vector(
             "FN-DSA",
             "sigGen",
@@ -1963,7 +1963,7 @@ mod tests {
     }
 
     #[test]
-    fn test_official_cavp_vector_clone() {
+    fn test_official_cavp_vector_clone_succeeds() {
         let v = make_vector(
             "ML-KEM",
             "keyGen",
@@ -1982,7 +1982,7 @@ mod tests {
     }
 
     #[test]
-    fn test_official_cavp_vector_debug() {
+    fn test_official_cavp_vector_debug_passes_validation() {
         let v = make_vector(
             "ML-KEM",
             "keyGen",
@@ -1996,7 +1996,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vector_validation_result_debug() {
+    fn test_vector_validation_result_debug_passes_validation() {
         let r = VectorValidationResult {
             is_valid: true,
             errors: vec![],
@@ -2009,7 +2009,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vector_validation_result_clone() {
+    fn test_vector_validation_result_clone_succeeds() {
         let r = VectorValidationResult {
             is_valid: false,
             errors: vec!["error1".to_string()],
@@ -2028,7 +2028,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_validate_slhdsa_keygen() {
+    fn test_validate_slhdsa_keygen_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "SLH-DSA",
@@ -2046,7 +2046,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_fndsa_siggen() {
+    fn test_validate_fndsa_siggen_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "FN-DSA",
@@ -2064,7 +2064,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_fndsa_sigver() {
+    fn test_validate_fndsa_sigver_matches_official_vector_matches_expected() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "FN-DSA",
@@ -2090,7 +2090,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_parse_vector_content_convert_error_propagates() {
+    fn test_parse_vector_content_convert_error_propagates_fails() {
         let (_tmp, dl) = make_downloader();
         // "testCase" is null => from_value(Null) fails => error propagated
         let group = make_group_json(
@@ -2111,7 +2111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vector_content_with_testcase_string_errors() {
+    fn test_parse_vector_content_with_testcase_string_errors_passes_validation() {
         let (_tmp, dl) = make_downloader();
         // "testCase" is a string, not an object
         let group = make_group_json(
@@ -2136,7 +2136,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_constants() {
+    fn test_constants_passes_validation() {
         assert!(NIST_CAVP_BASE_URL.contains("github"));
         assert!(NIST_CAVP_BASE_URL.contains("ACVP"));
         assert_eq!(MAX_CAVP_FILE_SIZE, 50 * 1024 * 1024);
@@ -2148,7 +2148,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_cavp_test_group_clone_and_debug() {
+    fn test_cavp_test_group_clone_and_debug_passes_validation() {
         let group = CavpTestGroup {
             tg_id: 7,
             test_type: "sigVer".to_string(),
@@ -2170,7 +2170,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_validate_keygen_all_fields_missing() {
+    fn test_validate_keygen_all_fields_missing_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-KEM",
@@ -2189,7 +2189,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_siggen_all_fields_missing() {
+    fn test_validate_siggen_all_fields_missing_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",
@@ -2204,7 +2204,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sigver_all_fields_missing() {
+    fn test_validate_sigver_all_fields_missing_fails() {
         let (_tmp, dl) = make_downloader();
         let v = make_vector(
             "ML-DSA",

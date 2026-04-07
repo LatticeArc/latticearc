@@ -12,10 +12,10 @@
 //! Run with: `cargo test --package latticearc --test end_to_end_workflows --all-features --release -- --nocapture`
 
 use latticearc::{
-    CryptoConfig, DecryptKey, EncryptKey, SecurityLevel, SecurityMode, decrypt, decrypt_aes_gcm,
-    derive_key, deserialize_signed_data, encrypt, encrypt_aes_gcm, generate_hybrid_keypair,
-    generate_signing_keypair, hash_data, hmac, hmac_check, serialize_signed_data, sign_ed25519,
-    sign_with_key, verify, verify_ed25519,
+    CryptoConfig, DecryptKey, EncryptKey, EncryptedData, EncryptedOutput, SecurityLevel,
+    SecurityMode, decrypt, decrypt_aes_gcm, derive_key, deserialize_signed_data, encrypt,
+    encrypt_aes_gcm, generate_hybrid_keypair, generate_signing_keypair, hash_data, hmac,
+    hmac_check, serialize_signed_data, sign_ed25519, sign_with_key, verify, verify_ed25519,
 };
 
 // ============================================================================
@@ -39,18 +39,18 @@ fn test_unified_sign_verify_roundtrip() {
 }
 
 #[test]
-fn test_hybrid_encrypt_decrypt() {
+fn test_hybrid_encrypt_decrypt_roundtrip_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
 
     let plaintext = b"True hybrid ML-KEM-768 + X25519 encryption";
 
     let encrypted =
         encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
-    let hybrid = encrypted.hybrid_data.as_ref().expect("should have hybrid_data");
+    let hybrid = encrypted.hybrid_data().expect("should have hybrid_data");
     assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
     assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
-    assert_eq!(encrypted.nonce.len(), 12, "AES-GCM nonce should be 12 bytes");
-    assert_eq!(encrypted.tag.len(), 16, "AES-GCM tag should be 16 bytes");
+    assert_eq!(encrypted.nonce().len(), 12, "AES-GCM nonce should be 12 bytes");
+    assert_eq!(encrypted.tag().len(), 16, "AES-GCM tag should be 16 bytes");
 
     let decrypted =
         decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).expect("decrypt failed");
@@ -71,7 +71,7 @@ fn test_aes_gcm_roundtrip() {
 }
 
 #[test]
-fn test_ed25519_sign_verify() {
+fn test_ed25519_sign_verify_succeeds() {
     // Generate an Ed25519 keypair
     let signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
     let sk_bytes = signing_key.to_bytes();
@@ -88,7 +88,7 @@ fn test_ed25519_sign_verify() {
 }
 
 #[test]
-fn test_ml_dsa_sign_verify_all_levels() {
+fn test_ml_dsa_sign_verify_all_levels_succeeds() {
     for level in [SecurityLevel::High, SecurityLevel::Maximum] {
         let config = CryptoConfig::new().security_level(level);
         let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen failed");
@@ -105,7 +105,7 @@ fn test_ml_dsa_sign_verify_all_levels() {
 }
 
 #[test]
-fn test_hmac_create_verify() {
+fn test_hmac_create_verify_succeeds() {
     let key = b"hmac-secret-key-for-testing-0123";
     let data = b"Data to authenticate";
 
@@ -154,7 +154,7 @@ fn test_kdf_derive_consistent() {
 }
 
 #[test]
-fn test_complete_workflow() {
+fn test_complete_workflow_succeeds() {
     // Step 1: Derive encryption key from password
     let enc_key =
         derive_key(b"password", b"salt", 32, SecurityMode::Unverified).expect("derive failed");
@@ -190,7 +190,7 @@ fn test_complete_workflow() {
 }
 
 #[test]
-fn test_tamper_detection_comprehensive() {
+fn test_tamper_detection_comprehensive_fails() {
     let key = [0x42u8; 32];
     let plaintext = b"Tamper detection test data";
 
@@ -220,16 +220,18 @@ fn test_tamper_detection_comprehensive() {
 
     // Hybrid encryption tamper detection
     let (h_pk, h_sk) = generate_hybrid_keypair().unwrap();
-    let mut encrypted = encrypt(b"secret", EncryptKey::Hybrid(&h_pk), CryptoConfig::new()).unwrap();
-    if !encrypted.ciphertext.is_empty() {
-        encrypted.ciphertext[0] ^= 0xFF;
+    let encrypted = encrypt(b"secret", EncryptKey::Hybrid(&h_pk), CryptoConfig::new()).unwrap();
+    let mut legacy_data = EncryptedData::from(encrypted);
+    if !legacy_data.data.is_empty() {
+        legacy_data.data[0] ^= 0xFF;
     }
-    let result = decrypt(&encrypted, DecryptKey::Hybrid(&h_sk), CryptoConfig::new());
+    let tampered = EncryptedOutput::try_from(legacy_data).expect("conversion");
+    let result = decrypt(&tampered, DecryptKey::Hybrid(&h_sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered hybrid ciphertext should fail");
 }
 
 #[test]
-fn test_cross_key_rejection() {
+fn test_cross_key_rejection_fails() {
     // Signature cross-key rejection
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (pk_a, sk_a, _) = generate_signing_keypair(config).unwrap();

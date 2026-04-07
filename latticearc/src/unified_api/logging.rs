@@ -42,6 +42,7 @@ use uuid::Uuid;
 ///
 /// Distinguishes between different key categories for proper audit logging
 /// and compliance reporting.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeyType {
     /// Symmetric keys (e.g., AES-256)
@@ -69,6 +70,7 @@ impl fmt::Display for KeyType {
 ///
 /// Defines the intended use of a cryptographic key for audit and
 /// compliance tracking.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeyPurpose {
     /// Key used for encryption operations
@@ -98,6 +100,7 @@ impl fmt::Display for KeyPurpose {
 /// Reason for key rotation.
 ///
 /// Tracks why a key was rotated for compliance and audit purposes.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RotationReason {
     /// Scheduled rotation per policy
@@ -127,6 +130,7 @@ impl fmt::Display for RotationReason {
 /// Method used for key destruction.
 ///
 /// Documents how key material was destroyed for compliance verification.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DestructionMethod {
     /// Memory zeroization (software)
@@ -175,6 +179,7 @@ impl fmt::Display for DestructionMethod {
 /// // Log the event using the provided macros
 /// // log_key_generated!("key-001", "ML-KEM-768", KeyType::KeyPair, KeyPurpose::KeyExchange);
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum KeyLifecycleEvent {
     /// Key was generated.
@@ -773,10 +778,14 @@ pub fn sanitize_value(key: &str, value: &str) -> String {
 /// This provides a fingerprint for data correlation without revealing content.
 /// Uses the first 8 bytes of the SHA-256 hash, producing 16 hex characters.
 fn sha256_first_16_hex(data: &[u8]) -> String {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    let result = hasher.finalize();
+    // Route through the primitives wrapper rather than importing `sha2` directly,
+    // so hash backends remain swappable from a single place. The fingerprinted
+    // inputs here are log-payload fragments — orders of magnitude smaller than
+    // the 1 GiB DoS cap that guards the wrapper — so treating the Result as
+    // infallible is sound.
+    #[allow(clippy::expect_used)]
+    let result = crate::primitives::hash::sha2::sha256(data)
+        .expect("SHA-256 is infallible for in-memory byte slices");
     // SHA-256 always produces 32 bytes, so .get(..8) will always succeed.
     // Using .get() for safe array access per project lint rules.
     result.get(..8).map_or_else(|| hex::encode(result), hex::encode)
@@ -912,11 +921,8 @@ impl<'a> fmt::Display for SanitizedData<'a> {
 
 /// Compute a simple hash for data identification without revealing content
 fn blake2_hash(data: &[u8]) -> String {
-    use blake2::{Blake2s256, Digest};
-    let mut hasher = Blake2s256::new();
-    hasher.update(data);
-    let result = hasher.finalize();
-    hex::encode(result)
+    // Route through the primitives wrapper rather than importing `blake2` directly.
+    hex::encode(crate::primitives::hash::blake2::blake2s_256(data))
 }
 
 /// Security-conscious logging macros
@@ -1812,14 +1818,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sanitize_data_small() {
+    fn test_sanitize_data_small_has_correct_format() {
         let data = b"short";
         let sanitized = sanitize_data(data);
         assert_eq!(format!("{}", sanitized), "[5 bytes]");
     }
 
     #[test]
-    fn test_sanitize_data_large() {
+    fn test_sanitize_data_large_has_correct_format() {
         let data = vec![0u8; 100];
         let sanitized = sanitize_data(&data);
         let output = format!("{}", sanitized);
@@ -1828,7 +1834,7 @@ mod tests {
     }
 
     #[test]
-    fn test_blake2_hash() {
+    fn test_blake2_hash_has_correct_format() {
         let data = b"test data";
         let hash = blake2_hash(data);
         assert_eq!(hash.len(), 64); // Blake2s256 produces 32 bytes, hex encoded = 64 chars
@@ -1840,7 +1846,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_is_potentially_sensitive_matches_sensitive_keys() {
+    fn test_is_potentially_sensitive_matches_sensitive_keys_succeeds() {
         // Direct matches
         assert!(is_potentially_sensitive("key"));
         assert!(is_potentially_sensitive("secret"));
@@ -1857,7 +1863,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_potentially_sensitive_matches_compound_keys() {
+    fn test_is_potentially_sensitive_matches_compound_keys_succeeds() {
         // Compound keys containing sensitive patterns
         assert!(is_potentially_sensitive("user_password"));
         assert!(is_potentially_sensitive("api_key_header"));
@@ -1871,7 +1877,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_potentially_sensitive_case_insensitive() {
+    fn test_is_potentially_sensitive_case_insensitive_succeeds() {
         // Case insensitive matching
         assert!(is_potentially_sensitive("API_KEY"));
         assert!(is_potentially_sensitive("Password"));
@@ -1882,7 +1888,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_potentially_sensitive_non_sensitive_keys() {
+    fn test_is_potentially_sensitive_non_sensitive_keys_returns_false_succeeds() {
         // Keys that should NOT be flagged
         assert!(!is_potentially_sensitive("username"));
         assert!(!is_potentially_sensitive("operation"));
@@ -1897,7 +1903,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_value_redacts_sensitive_keys() {
+    fn test_sanitize_value_redacts_sensitive_keys_succeeds() {
         assert_eq!(sanitize_value("api_key", "sk-12345abcdef"), "[REDACTED]");
         assert_eq!(sanitize_value("password", "super_secret_123"), "[REDACTED]");
         assert_eq!(sanitize_value("auth_token", "Bearer xyz"), "[REDACTED]");
@@ -1905,7 +1911,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_value_passes_normal_values() {
+    fn test_sanitize_value_passes_normal_values_unchanged_succeeds() {
         assert_eq!(sanitize_value("operation", "encrypt"), "encrypt");
         assert_eq!(sanitize_value("algorithm", "ML-KEM-768"), "ML-KEM-768");
         assert_eq!(sanitize_value("user_id", "user123"), "user123");
@@ -1913,7 +1919,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_value_truncates_long_values() {
+    fn test_sanitize_value_truncates_long_values_succeeds() {
         let long_value = "x".repeat(2000);
         let result = sanitize_value("data", &long_value);
         assert_eq!(result, "[2000 chars truncated]");
@@ -1930,7 +1936,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_value_sensitive_key_takes_precedence() {
+    fn test_sanitize_value_sensitive_key_takes_precedence_succeeds() {
         // Even long sensitive values are just redacted, not truncated
         let long_secret = "x".repeat(5000);
         let result = sanitize_value("api_key", &long_secret);
@@ -1938,7 +1944,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_bytes_small_data() {
+    fn test_sanitize_bytes_small_data_succeeds() {
         assert_eq!(sanitize_bytes(&[]), "[0 bytes]");
         assert_eq!(sanitize_bytes(&[1]), "[1 bytes]");
         assert_eq!(sanitize_bytes(&[1, 2, 3]), "[3 bytes]");
@@ -1946,7 +1952,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_bytes_large_data_has_fingerprint() {
+    fn test_sanitize_bytes_large_data_has_fingerprint_format_has_correct_size() {
         let data = vec![0u8; 33];
         let result = sanitize_bytes(&data);
         assert!(result.contains("33 bytes"));
@@ -1968,7 +1974,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_bytes_fingerprint_differs_for_different_data() {
+    fn test_sanitize_bytes_fingerprint_differs_for_different_data_succeeds() {
         let data1 = vec![0u8; 100];
         let data2 = vec![1u8; 100];
         let result1 = sanitize_bytes(&data1);
@@ -1977,7 +1983,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha256_first_16_hex() {
+    fn test_sha256_first_16_hex_has_correct_format() {
         // Known test vector - SHA-256 of empty string
         let empty_hash = sha256_first_16_hex(&[]);
         assert_eq!(empty_hash.len(), 16);
@@ -1990,7 +1996,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_metadata_full_map() {
+    fn test_sanitize_metadata_full_map_succeeds() {
         let mut metadata = HashMap::new();
         metadata.insert("operation".to_string(), "encrypt".to_string());
         metadata.insert("api_key".to_string(), "sk-secret-123".to_string());
@@ -2011,14 +2017,14 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_metadata_empty_map() {
+    fn test_sanitize_metadata_empty_map_succeeds() {
         let metadata = HashMap::new();
         let sanitized = sanitize_metadata(&metadata);
         assert!(sanitized.is_empty());
     }
 
     #[test]
-    fn test_sanitize_metadata_preserves_all_keys() {
+    fn test_sanitize_metadata_preserves_all_keys_succeeds() {
         let mut metadata = HashMap::new();
         metadata.insert("key1".to_string(), "value1".to_string());
         metadata.insert("key2".to_string(), "value2".to_string());
@@ -2034,7 +2040,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_metadata_with_long_values() {
+    fn test_sanitize_metadata_with_long_values_succeeds() {
         let mut metadata = HashMap::new();
         let long_value = "x".repeat(2000);
         metadata.insert("description".to_string(), long_value);
@@ -2047,7 +2053,7 @@ mod tests {
     }
 
     #[test]
-    fn test_session_id_to_hex() {
+    fn test_session_id_to_hex_has_correct_format() {
         let session_id = [0x12, 0x34, 0xAB, 0xCD];
         assert_eq!(session_id_to_hex(&session_id), "1234abcd");
 
@@ -2063,7 +2069,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_generate_correlation_id_is_valid_uuid() {
+    fn test_generate_correlation_id_is_valid_uuid_succeeds() {
         let id = generate_correlation_id();
         // UUID v4 format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars with hyphens)
         assert_eq!(id.len(), 36);
@@ -2073,14 +2079,14 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_correlation_id_is_unique() {
+    fn test_generate_correlation_id_is_unique_succeeds() {
         let id1 = generate_correlation_id();
         let id2 = generate_correlation_id();
         assert_ne!(id1, id2);
     }
 
     #[test]
-    fn test_generate_lightweight_correlation_id_format() {
+    fn test_generate_lightweight_correlation_id_has_correct_format() {
         let id = generate_lightweight_correlation_id();
         assert!(id.starts_with("corr-"));
         // corr- (5 chars) + 16 hex chars = 21 chars total
@@ -2091,7 +2097,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_lightweight_correlation_id_increments() {
+    fn test_generate_lightweight_correlation_id_increments_succeeds() {
         let id1 = generate_lightweight_correlation_id();
         let id2 = generate_lightweight_correlation_id();
         assert_ne!(id1, id2);
@@ -2103,7 +2109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_and_get_correlation_id() {
+    fn test_set_and_get_correlation_id_succeeds() {
         // Clear any existing correlation ID
         clear_correlation_id();
         assert_eq!(current_correlation_id(), None);
@@ -2118,7 +2124,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clear_correlation_id() {
+    fn test_clear_correlation_id_succeeds() {
         set_correlation_id("to-be-cleared".to_string());
         assert!(current_correlation_id().is_some());
 
@@ -2127,7 +2133,7 @@ mod tests {
     }
 
     #[test]
-    fn test_with_correlation_id_executes_closure() {
+    fn test_with_correlation_id_executes_closure_succeeds() {
         clear_correlation_id();
 
         let result = with_correlation_id("request-456".to_string(), || {
@@ -2141,7 +2147,7 @@ mod tests {
     }
 
     #[test]
-    fn test_with_correlation_id_restores_previous() {
+    fn test_with_correlation_id_restores_previous_succeeds() {
         clear_correlation_id();
         set_correlation_id("outer-id".to_string());
 
@@ -2157,7 +2163,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correlation_guard_new_sets_uuid() {
+    fn test_correlation_guard_new_sets_uuid_succeeds() {
         clear_correlation_id();
 
         {
@@ -2174,7 +2180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correlation_guard_with_id() {
+    fn test_correlation_guard_with_id_succeeds() {
         clear_correlation_id();
 
         {
@@ -2188,7 +2194,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correlation_guard_lightweight() {
+    fn test_correlation_guard_lightweight_succeeds() {
         clear_correlation_id();
 
         {
@@ -2203,7 +2209,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correlation_guard_restores_previous_on_drop() {
+    fn test_correlation_guard_restores_previous_on_drop_succeeds() {
         clear_correlation_id();
         set_correlation_id("original-id".to_string());
 
@@ -2221,7 +2227,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correlation_guard_nested() {
+    fn test_correlation_guard_nested_succeeds() {
         clear_correlation_id();
 
         {
@@ -2244,7 +2250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correlation_guard_default() {
+    fn test_correlation_guard_default_succeeds() {
         clear_correlation_id();
 
         {
@@ -2263,7 +2269,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_key_type_display() {
+    fn test_key_type_display_has_correct_format() {
         assert_eq!(KeyType::Symmetric.to_string(), "Symmetric");
         assert_eq!(KeyType::AsymmetricPublic.to_string(), "AsymmetricPublic");
         assert_eq!(KeyType::AsymmetricPrivate.to_string(), "AsymmetricPrivate");
@@ -2271,7 +2277,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_purpose_display() {
+    fn test_key_purpose_display_has_correct_format() {
         assert_eq!(KeyPurpose::Encryption.to_string(), "Encryption");
         assert_eq!(KeyPurpose::Signing.to_string(), "Signing");
         assert_eq!(KeyPurpose::KeyExchange.to_string(), "KeyExchange");
@@ -2280,7 +2286,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rotation_reason_display() {
+    fn test_rotation_reason_display_has_correct_format() {
         assert_eq!(RotationReason::Scheduled.to_string(), "Scheduled");
         assert_eq!(RotationReason::Compromised.to_string(), "Compromised");
         assert_eq!(RotationReason::PolicyChange.to_string(), "PolicyChange");
@@ -2289,14 +2295,14 @@ mod tests {
     }
 
     #[test]
-    fn test_destruction_method_display() {
+    fn test_destruction_method_display_has_correct_format() {
         assert_eq!(DestructionMethod::Zeroization.to_string(), "Zeroization");
         assert_eq!(DestructionMethod::CryptoErase.to_string(), "CryptoErase");
         assert_eq!(DestructionMethod::Manual.to_string(), "Manual");
     }
 
     #[test]
-    fn test_key_lifecycle_event_generated() {
+    fn test_key_lifecycle_event_generated_has_correct_format() {
         let event = KeyLifecycleEvent::generated(
             "key-001",
             "ML-KEM-768",
@@ -2320,7 +2326,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_rotated() {
+    fn test_key_lifecycle_event_rotated_has_correct_format() {
         let event = KeyLifecycleEvent::rotated(
             "old-key-001",
             "new-key-002",
@@ -2343,7 +2349,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_destroyed() {
+    fn test_key_lifecycle_event_destroyed_has_correct_format() {
         let event = KeyLifecycleEvent::destroyed("key-001", DestructionMethod::Zeroization);
 
         assert_eq!(event.key_id(), "key-001");
@@ -2359,7 +2365,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_accessed() {
+    fn test_key_lifecycle_event_accessed_has_correct_format() {
         // Without accessor
         let event = KeyLifecycleEvent::accessed("key-001", "encrypt", None);
         assert_eq!(event.key_id(), "key-001");
@@ -2379,7 +2385,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_imported() {
+    fn test_key_lifecycle_event_imported_has_correct_format() {
         let event = KeyLifecycleEvent::imported("key-001", "ML-KEM-768", "external-hsm");
 
         assert_eq!(event.key_id(), "key-001");
@@ -2396,7 +2402,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_exported() {
+    fn test_key_lifecycle_event_exported_has_correct_format() {
         let event = KeyLifecycleEvent::exported("key-001", "PEM", "backup-server");
 
         assert_eq!(event.key_id(), "key-001");
@@ -2413,7 +2419,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_deprecated() {
+    fn test_key_lifecycle_event_deprecated_has_correct_format() {
         let deprecation_date = Utc::now();
         let event = KeyLifecycleEvent::deprecated("key-001", deprecation_date, "End of life");
 
@@ -2431,7 +2437,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_suspended() {
+    fn test_key_lifecycle_event_suspended_has_correct_format() {
         let event = KeyLifecycleEvent::suspended("key-001", "Suspected compromise");
 
         assert_eq!(event.key_id(), "key-001");
@@ -2447,7 +2453,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_lifecycle_event_serialization() {
+    fn test_key_lifecycle_event_serializes_correctly_succeeds() {
         let event = KeyLifecycleEvent::generated(
             "key-001",
             "ML-KEM-768",
@@ -2483,7 +2489,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_type_serialization() {
+    fn test_key_type_serializes_correctly_succeeds() {
         for key_type in [
             KeyType::Symmetric,
             KeyType::AsymmetricPublic,
@@ -2503,7 +2509,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_purpose_serialization() {
+    fn test_key_purpose_serializes_correctly_succeeds() {
         for purpose in [
             KeyPurpose::Encryption,
             KeyPurpose::Signing,
@@ -2524,7 +2530,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rotation_reason_serialization() {
+    fn test_rotation_reason_serializes_correctly_succeeds() {
         for reason in [
             RotationReason::Scheduled,
             RotationReason::Compromised,
@@ -2545,7 +2551,7 @@ mod tests {
     }
 
     #[test]
-    fn test_destruction_method_serialization() {
+    fn test_destruction_method_serializes_correctly_succeeds() {
         for method in [
             DestructionMethod::Zeroization,
             DestructionMethod::CryptoErase,

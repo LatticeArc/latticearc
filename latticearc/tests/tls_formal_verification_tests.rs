@@ -35,7 +35,7 @@ mod invariants_tests {
     use latticearc::tls::formal_verification::TlsInvariants;
 
     #[test]
-    fn test_tls_invariants_new() {
+    fn test_tls_invariants_new_succeeds() {
         // Test that TlsInvariants can be constructed via new()
         let invariants = TlsInvariants::new();
         // Verify it's a unit struct (no fields to check)
@@ -44,14 +44,14 @@ mod invariants_tests {
     }
 
     #[test]
-    fn test_tls_invariants_default() {
+    fn test_tls_invariants_default_succeeds() {
         // Test that TlsInvariants implements Default
         let invariants = TlsInvariants::default();
         let _ = invariants;
     }
 
     #[test]
-    fn test_tls_invariants_new_equals_default() {
+    fn test_tls_invariants_new_equals_default_succeeds() {
         // Verify that new() and default() produce equivalent instances
         // For unit structs, this is trivially true, but validates the API contract
         let from_new = TlsInvariants::new();
@@ -63,7 +63,7 @@ mod invariants_tests {
     }
 
     #[test]
-    fn test_tls_invariants_multiple_instances() {
+    fn test_tls_invariants_multiple_instances_succeeds() {
         // Test that multiple instances can be created independently
         // This validates the struct doesn't have singleton-like restrictions
         let instance1 = TlsInvariants::new();
@@ -80,21 +80,21 @@ mod security_properties_tests {
     use latticearc::tls::formal_verification::SecurityProperties;
 
     #[test]
-    fn test_security_properties_new() {
+    fn test_security_properties_new_succeeds() {
         // Test that SecurityProperties can be constructed via new()
         let props = SecurityProperties::new();
         let _ = props;
     }
 
     #[test]
-    fn test_security_properties_default() {
+    fn test_security_properties_default_succeeds() {
         // Test that SecurityProperties implements Default
         let props = SecurityProperties::default();
         let _ = props;
     }
 
     #[test]
-    fn test_security_properties_new_equals_default() {
+    fn test_security_properties_new_equals_default_succeeds() {
         // Verify that new() and default() produce equivalent instances
         let from_new = SecurityProperties::new();
         let from_default = SecurityProperties::default();
@@ -102,7 +102,7 @@ mod security_properties_tests {
     }
 
     #[test]
-    fn test_security_properties_multiple_instances() {
+    fn test_security_properties_multiple_instances_succeeds() {
         // Test that multiple instances can be created independently
         let instance1 = SecurityProperties::new();
         let instance2 = SecurityProperties::new();
@@ -112,7 +112,7 @@ mod security_properties_tests {
     }
 
     #[test]
-    fn test_security_properties_documentation_properties() {
+    fn test_security_properties_documentation_properties_is_documented() {
         // Document the security properties this module will verify:
         // - Confidentiality: Data is protected from unauthorized disclosure
         // - Authentication: Parties are verified before communication
@@ -130,21 +130,21 @@ mod kani_tests {
     use latticearc::tls::formal_verification::kani::KaniProofs;
 
     #[test]
-    fn test_kani_proofs_new() {
+    fn test_kani_proofs_new_succeeds() {
         // Test that KaniProofs can be constructed via new()
         let proofs = KaniProofs::new();
         let _ = proofs;
     }
 
     #[test]
-    fn test_kani_proofs_default() {
+    fn test_kani_proofs_default_succeeds() {
         // Test that KaniProofs implements Default
         let proofs = KaniProofs::default();
         let _ = proofs;
     }
 
     #[test]
-    fn test_kani_proofs_new_equals_default() {
+    fn test_kani_proofs_new_equals_default_succeeds() {
         // Verify that new() and default() produce equivalent instances
         let from_new = KaniProofs::new();
         let from_default = KaniProofs::default();
@@ -152,7 +152,7 @@ mod kani_tests {
     }
 
     #[test]
-    fn test_kani_proofs_multiple_instances() {
+    fn test_kani_proofs_multiple_instances_succeeds() {
         // Test that multiple instances can be created independently
         let instance1 = KaniProofs::new();
         let instance2 = KaniProofs::new();
@@ -162,7 +162,7 @@ mod kani_tests {
     }
 
     #[test]
-    fn test_kani_proofs_documentation() {
+    fn test_kani_proofs_documentation_is_documented() {
         // Document the Kani verification capabilities to be implemented:
         // - Model checking of critical TLS paths
         // - Verification of handshake state machine invariants
@@ -179,21 +179,21 @@ mod saw_proofs_tests {
     use latticearc::tls::formal_verification::saw_proofs::SawProofs;
 
     #[test]
-    fn test_saw_proofs_new() {
+    fn test_saw_proofs_new_succeeds() {
         // Test that SawProofs can be constructed via new()
         let proofs = SawProofs::new();
         let _ = proofs;
     }
 
     #[test]
-    fn test_saw_proofs_default() {
+    fn test_saw_proofs_default_succeeds() {
         // Test that SawProofs implements Default
         let proofs = SawProofs::default();
         let _ = proofs;
     }
 
     #[test]
-    fn test_saw_proofs_new_equals_default() {
+    fn test_saw_proofs_new_equals_default_succeeds() {
         // Verify that new() and default() produce equivalent instances
         let from_new = SawProofs::new();
         let from_default = SawProofs::default();
@@ -201,7 +201,7 @@ mod saw_proofs_tests {
     }
 
     #[test]
-    fn test_saw_proofs_multiple_instances() {
+    fn test_saw_proofs_multiple_instances_succeeds() {
         // Test that multiple instances can be created independently
         let instance1 = SawProofs::new();
         let instance2 = SawProofs::new();
@@ -211,7 +211,7 @@ mod saw_proofs_tests {
     }
 
     #[test]
-    fn test_saw_proofs_documentation() {
+    fn test_saw_proofs_documentation_is_documented() {
         // Document the SAW verification capabilities to be implemented:
         // - Cryptographic algorithm correctness proofs
         // - Equivalence checking against reference implementations
@@ -228,21 +228,21 @@ mod property_based_tests {
     use latticearc::tls::formal_verification::PropertyTests;
 
     #[test]
-    fn test_property_tests_new() {
+    fn test_property_tests_new_succeeds() {
         // Test that PropertyTests can be constructed via new()
         let tests = PropertyTests::new();
         let _ = tests;
     }
 
     #[test]
-    fn test_property_tests_default() {
+    fn test_property_tests_default_succeeds() {
         // Test that PropertyTests implements Default
         let tests = PropertyTests::default();
         let _ = tests;
     }
 
     #[test]
-    fn test_property_tests_new_equals_default() {
+    fn test_property_tests_new_equals_default_succeeds() {
         // Verify that new() and default() produce equivalent instances
         let from_new = PropertyTests::new();
         let from_default = PropertyTests::default();
@@ -250,7 +250,7 @@ mod property_based_tests {
     }
 
     #[test]
-    fn test_property_tests_multiple_instances() {
+    fn test_property_tests_multiple_instances_succeeds() {
         // Test that multiple instances can be created independently
         let instance1 = PropertyTests::new();
         let instance2 = PropertyTests::new();
@@ -260,7 +260,7 @@ mod property_based_tests {
     }
 
     #[test]
-    fn test_property_tests_documentation() {
+    fn test_property_tests_documentation_is_documented() {
         // Document the property-based testing capabilities to be implemented:
         // - Proptest strategies for TLS message generation
         // - Security property verification across random inputs
@@ -276,7 +276,7 @@ mod property_based_tests {
 #[cfg(any(feature = "formal-verification", feature = "kani", feature = "saw"))]
 mod module_structure_tests {
     #[test]
-    fn test_formal_verification_module_exists() {
+    fn test_formal_verification_module_exists_succeeds() {
         // Test that the formal_verification module is accessible
         // This validates the module is properly exported from lib.rs
         use latticearc::tls::formal_verification;
@@ -287,7 +287,7 @@ mod module_structure_tests {
     }
 
     #[test]
-    fn test_public_re_exports() {
+    fn test_public_re_exports_succeeds() {
         // Test that types are properly re-exported at the module level
         // The mod.rs uses `pub use invariants::*` and `pub use security_properties::*`
         use latticearc::tls::formal_verification::{SecurityProperties, TlsInvariants};
@@ -303,7 +303,7 @@ mod integration_tests {
     use latticearc::tls::formal_verification::{SecurityProperties, TlsInvariants};
 
     #[test]
-    fn test_verification_workflow_pattern() {
+    fn test_verification_workflow_pattern_succeeds() {
         // Demonstrate the intended usage pattern for verification:
         // 1. Create invariants checker
         // 2. Create security properties checker
@@ -319,7 +319,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_default_initialization_pattern() {
+    fn test_default_initialization_pattern_succeeds() {
         // Test the Default trait usage pattern for configuration
         let invariants: TlsInvariants = Default::default();
         let security_props: SecurityProperties = Default::default();
@@ -328,7 +328,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_struct_ownership_semantics() {
+    fn test_struct_ownership_semantics_succeeds() {
         // Test that structs have expected ownership semantics
         // (can be moved, not requiring explicit lifetime management)
         fn take_ownership(_inv: TlsInvariants, _sec: SecurityProperties) {
@@ -343,7 +343,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_struct_in_collection() {
+    fn test_struct_in_collection_succeeds() {
         // Test that structs can be stored in collections
         let invariants_vec: Vec<TlsInvariants> =
             vec![TlsInvariants::new(), TlsInvariants::default()];
@@ -391,7 +391,7 @@ mod documentation_tests {
     use latticearc::tls::formal_verification::{SecurityProperties, TlsInvariants};
 
     #[test]
-    fn test_invariants_stub_status_documented() {
+    fn test_invariants_stub_status_documented_is_documented() {
         // The TlsInvariants struct is documented as a stub:
         // "Placeholder for TLS security invariants"
         // "Status: Stub implementation. Full formal verification to be implemented."
@@ -399,7 +399,7 @@ mod documentation_tests {
     }
 
     #[test]
-    fn test_security_properties_stub_status_documented() {
+    fn test_security_properties_stub_status_documented_is_documented() {
         // The SecurityProperties struct is documented as a stub:
         // "Status: Stub implementation. Full property specifications to be implemented."
         let _props = SecurityProperties::new();
@@ -410,7 +410,7 @@ mod documentation_tests {
 /// These validate the feature gating works correctly
 mod no_feature_tests {
     #[test]
-    fn test_arc_tls_compiles_without_formal_verification() {
+    fn test_arc_tls_compiles_without_formal_verification_succeeds() {
         // This test validates that arc-tls compiles without formal verification features
         // The formal_verification module should not be accessible without features
         use latticearc::tls::{TlsConfig, TlsMode};
@@ -421,7 +421,7 @@ mod no_feature_tests {
 
     #[test]
     #[cfg(not(any(feature = "formal-verification", feature = "kani", feature = "saw")))]
-    fn test_formal_verification_not_accessible_without_features() {
+    fn test_formal_verification_not_accessible_without_features_succeeds() {
         // This test only compiles when no formal-verification features are enabled
         // It validates that the module is properly gated
         //

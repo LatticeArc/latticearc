@@ -23,7 +23,7 @@ mod tests {
 
     #[test]
     fn regression_issue_002_empty_message_sign_verify() {
-        let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)
             .expect("keypair generation should succeed");
 
         let empty_message: &[u8] = &[];
@@ -40,7 +40,7 @@ mod tests {
     #[test]
     fn regression_issue_002_empty_message_all_security_levels() {
         let levels =
-            [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87];
+            [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87];
 
         let empty_message: &[u8] = &[];
 
@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn regression_issue_002_empty_vs_nonempty_different() {
-        let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)
+        let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)
             .expect("keypair generation should succeed");
 
         let empty_message: &[u8] = &[];

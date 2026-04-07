@@ -7,7 +7,7 @@
 #![allow(clippy::indexing_slicing)]
 
 // Tests use #[test] attributes - no additional imports needed
-use latticearc::primitives::sig::slh_dsa::{SecurityLevel, SigningKey};
+use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
 
 /// SLH-DSA-SHAKE-128s sizes (FIPS 205)
 const SLH_DSA_128S_PK_SIZE: usize = 32;
@@ -26,9 +26,9 @@ const SLH_DSA_256S_SIG_SIZE: usize = 29792;
 
 /// Test SLH-DSA-SHAKE-128s key generation produces correct sizes
 #[test]
-fn test_slhdsa_128s_key_sizes() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_128s_key_sizes_match_fips205_has_correct_size() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     assert_eq!(
         pk.as_bytes().len(),
@@ -45,9 +45,9 @@ fn test_slhdsa_128s_key_sizes() {
 }
 
 #[test]
-fn test_slhdsa_192s_key_sizes() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake192s).expect("key generation should succeed");
+fn test_slhdsa_192s_key_sizes_match_fips205_has_correct_size() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake192s)
+        .expect("key generation should succeed");
 
     assert_eq!(
         pk.as_bytes().len(),
@@ -64,9 +64,9 @@ fn test_slhdsa_192s_key_sizes() {
 }
 
 #[test]
-fn test_slhdsa_256s_key_sizes() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake256s).expect("key generation should succeed");
+fn test_slhdsa_256s_key_sizes_match_fips205_has_correct_size() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake256s)
+        .expect("key generation should succeed");
 
     assert_eq!(
         pk.as_bytes().len(),
@@ -84,9 +84,9 @@ fn test_slhdsa_256s_key_sizes() {
 
 /// Test SLH-DSA signature sizes
 #[test]
-fn test_slhdsa_128s_signature_size() {
-    let (sk, _pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_128s_signature_size_matches_fips205_has_correct_size() {
+    let (sk, _pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-128s";
     let signature = sk.sign(message, None).expect("signing should succeed");
@@ -100,9 +100,9 @@ fn test_slhdsa_128s_signature_size() {
 }
 
 #[test]
-fn test_slhdsa_192s_signature_size() {
-    let (sk, _pk) =
-        SigningKey::generate(SecurityLevel::Shake192s).expect("key generation should succeed");
+fn test_slhdsa_192s_signature_size_matches_fips205_has_correct_size() {
+    let (sk, _pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake192s)
+        .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-192s";
     let signature = sk.sign(message, None).expect("signing should succeed");
@@ -116,9 +116,9 @@ fn test_slhdsa_192s_signature_size() {
 }
 
 #[test]
-fn test_slhdsa_256s_signature_size() {
-    let (sk, _pk) =
-        SigningKey::generate(SecurityLevel::Shake256s).expect("key generation should succeed");
+fn test_slhdsa_256s_signature_size_matches_fips205_has_correct_size() {
+    let (sk, _pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake256s)
+        .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-256s";
     let signature = sk.sign(message, None).expect("signing should succeed");
@@ -133,9 +133,9 @@ fn test_slhdsa_256s_signature_size() {
 
 /// Test SLH-DSA sign/verify roundtrip
 #[test]
-fn test_slhdsa_128s_roundtrip() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_128s_roundtrip_succeeds() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-128s roundtrip";
     let signature = sk.sign(message, None).expect("signing should succeed");
@@ -145,9 +145,9 @@ fn test_slhdsa_128s_roundtrip() {
 }
 
 #[test]
-fn test_slhdsa_192s_roundtrip() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake192s).expect("key generation should succeed");
+fn test_slhdsa_192s_roundtrip_succeeds() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake192s)
+        .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-192s roundtrip";
     let signature = sk.sign(message, None).expect("signing should succeed");
@@ -157,9 +157,9 @@ fn test_slhdsa_192s_roundtrip() {
 }
 
 #[test]
-fn test_slhdsa_256s_roundtrip() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake256s).expect("key generation should succeed");
+fn test_slhdsa_256s_roundtrip_succeeds() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake256s)
+        .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-256s roundtrip";
     let signature = sk.sign(message, None).expect("signing should succeed");
@@ -170,9 +170,9 @@ fn test_slhdsa_256s_roundtrip() {
 
 /// Test verification fails with wrong message
 #[test]
-fn test_slhdsa_wrong_message() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_wrong_message_fails_verification_fails() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"Original message";
     let wrong_message = b"Wrong message";
@@ -184,9 +184,9 @@ fn test_slhdsa_wrong_message() {
 
 /// Test verification fails with corrupted signature
 #[test]
-fn test_slhdsa_corrupted_signature() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_corrupted_signature_fails_verification_fails() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"Test message";
     let mut signature = sk.sign(message, None).expect("signing should succeed");
@@ -203,11 +203,11 @@ fn test_slhdsa_corrupted_signature() {
 
 /// Test verification fails with wrong public key
 #[test]
-fn test_slhdsa_wrong_public_key() {
-    let (sk1, _pk1) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation 1 should succeed");
-    let (_sk2, pk2) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation 2 should succeed");
+fn test_slhdsa_wrong_public_key_fails_verification_fails() {
+    let (sk1, _pk1) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation 1 should succeed");
+    let (_sk2, pk2) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation 2 should succeed");
 
     let message = b"Test message";
     let signature = sk1.sign(message, None).expect("signing should succeed");
@@ -218,11 +218,11 @@ fn test_slhdsa_wrong_public_key() {
 
 /// Test different keypairs have different public keys
 #[test]
-fn test_slhdsa_different_keypairs() {
-    let (_sk1, pk1) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation 1 should succeed");
-    let (_sk2, pk2) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation 2 should succeed");
+fn test_slhdsa_different_keypairs_are_unique() {
+    let (_sk1, pk1) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation 1 should succeed");
+    let (_sk2, pk2) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation 2 should succeed");
 
     assert_ne!(
         pk1.as_bytes(),
@@ -233,9 +233,9 @@ fn test_slhdsa_different_keypairs() {
 
 /// Test empty message can be signed
 #[test]
-fn test_slhdsa_empty_message() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_empty_message_roundtrip_succeeds() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"";
     let signature = sk.sign(message, None).expect("signing empty message should succeed");
@@ -246,9 +246,9 @@ fn test_slhdsa_empty_message() {
 
 /// Test context string support
 #[test]
-fn test_slhdsa_with_context() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_with_context_roundtrip_succeeds() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"Test message with context";
     let context = Some(b"application-context".as_slice());
@@ -260,9 +260,9 @@ fn test_slhdsa_with_context() {
 
 /// Test context mismatch fails verification
 #[test]
-fn test_slhdsa_context_mismatch() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_context_mismatch_fails_verification_fails() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"Test message";
     let context1 = Some(b"context1".as_slice());
@@ -277,9 +277,9 @@ fn test_slhdsa_context_mismatch() {
 /// Note: SLH-DSA uses randomized signing by default per FIPS 205 for hedged security,
 /// so signatures of the same message will differ but all should verify.
 #[test]
-fn test_slhdsa_multiple_signatures_verify() {
-    let (sk, pk) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("key generation should succeed");
+fn test_slhdsa_multiple_signatures_all_verify_succeeds() {
+    let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("key generation should succeed");
 
     let message = b"Test message for multiple signatures";
 

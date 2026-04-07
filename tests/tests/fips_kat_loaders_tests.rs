@@ -55,7 +55,7 @@ mod ml_kem_loader_tests {
     use super::*;
 
     #[test]
-    fn test_load_ml_kem_1024_kats_returns_vectors() {
+    fn test_load_ml_kem_1024_kats_returns_vectors_matches_expected() {
         let result = load_ml_kem_1024_kats();
         assert!(result.is_ok(), "load_ml_kem_1024_kats() should succeed");
 
@@ -64,7 +64,7 @@ mod ml_kem_loader_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_vectors_have_valid_test_case_names() {
+    fn test_ml_kem_1024_vectors_have_valid_test_case_names_matches_expected() {
         let vectors = load_ml_kem_1024_kats().unwrap();
 
         for vector in &vectors {
@@ -78,7 +78,7 @@ mod ml_kem_loader_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_vectors_have_correct_key_sizes() {
+    fn test_ml_kem_1024_vectors_have_correct_key_sizes_matches_expected() {
         let vectors = load_ml_kem_1024_kats().unwrap();
 
         // ML-KEM-1024 key sizes per FIPS 203
@@ -123,7 +123,7 @@ mod ml_kem_loader_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_vectors_have_non_trivial_data() {
+    fn test_ml_kem_1024_vectors_have_non_trivial_data_succeeds() {
         let vectors = load_ml_kem_1024_kats().unwrap();
 
         // At least some vectors should have non-zero data
@@ -162,7 +162,7 @@ mod ml_kem_loader_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_returns_at_least_ten_vectors() {
+    fn test_ml_kem_1024_returns_at_least_ten_vectors_matches_expected() {
         let vectors = load_ml_kem_1024_kats().unwrap();
         assert!(
             vectors.len() >= 10,
@@ -172,7 +172,7 @@ mod ml_kem_loader_tests {
     }
 
     #[test]
-    fn test_ml_kem_loader_is_deterministic_in_count() {
+    fn test_ml_kem_loader_is_deterministic_in_count_is_deterministic() {
         // Run the loader twice and verify it returns same count
         let result1 = load_ml_kem_1024_kats();
         let result2 = load_ml_kem_1024_kats();
@@ -192,7 +192,7 @@ mod ml_kem_loader_tests {
     }
 
     #[test]
-    fn test_ml_kem_vectors_have_unique_test_case_names() {
+    fn test_ml_kem_vectors_have_unique_test_case_names_succeeds() {
         let vectors = load_ml_kem_1024_kats().unwrap();
         let names: Vec<_> = vectors.iter().map(|v| &v.test_case).collect();
         let unique: std::collections::HashSet<_> = names.iter().collect();
@@ -208,7 +208,7 @@ mod sha3_loader_tests {
     use super::*;
 
     #[test]
-    fn test_load_sha3_kats_returns_vectors() {
+    fn test_load_sha3_kats_returns_vectors_matches_expected() {
         let result = load_sha3_kats();
         assert!(result.is_ok(), "load_sha3_kats() should succeed");
 
@@ -217,7 +217,7 @@ mod sha3_loader_tests {
     }
 
     #[test]
-    fn test_sha3_vectors_have_valid_hash_sizes() {
+    fn test_sha3_vectors_have_valid_hash_sizes_matches_expected() {
         let vectors = load_sha3_kats().unwrap();
 
         for vector in &vectors {
@@ -233,7 +233,7 @@ mod sha3_loader_tests {
     }
 
     #[test]
-    fn test_sha3_vectors_include_empty_message() {
+    fn test_sha3_vectors_include_empty_message_succeeds() {
         let vectors = load_sha3_kats().unwrap();
 
         let has_empty_message = vectors.iter().any(|v| v.message.is_empty());
@@ -244,7 +244,7 @@ mod sha3_loader_tests {
     }
 
     #[test]
-    fn test_sha3_vectors_include_known_test_cases() {
+    fn test_sha3_vectors_include_known_test_cases_succeeds() {
         let vectors = load_sha3_kats().unwrap();
 
         // Check for "abc" test case which is a standard NIST test
@@ -254,7 +254,7 @@ mod sha3_loader_tests {
     }
 
     #[test]
-    fn test_sha3_empty_message_hash_value() {
+    fn test_sha3_empty_message_hash_value_matches_known_value_succeeds() {
         let vectors = load_sha3_kats().unwrap();
 
         // Find the empty message test case
@@ -273,7 +273,7 @@ mod sha3_loader_tests {
     }
 
     #[test]
-    fn test_sha3_abc_hash_value() {
+    fn test_sha3_abc_hash_value_matches_known_value_succeeds() {
         let vectors = load_sha3_kats().unwrap();
 
         // Verify SHA3-256("abc") known value from NIST
@@ -291,7 +291,7 @@ mod sha3_loader_tests {
     }
 
     #[test]
-    fn test_sha3_vectors_have_unique_test_case_names() {
+    fn test_sha3_vectors_have_unique_test_case_names_succeeds() {
         let vectors = load_sha3_kats().unwrap();
         let names: Vec<_> = vectors.iter().map(|v| &v.test_case).collect();
         let unique: std::collections::HashSet<_> = names.iter().collect();
@@ -299,7 +299,7 @@ mod sha3_loader_tests {
     }
 
     #[test]
-    fn test_sha3_vectors_have_valid_test_case_names() {
+    fn test_sha3_vectors_have_valid_test_case_names_matches_expected() {
         let vectors = load_sha3_kats().unwrap();
 
         for vector in &vectors {
@@ -321,13 +321,13 @@ mod hybrid_kem_loader_tests {
     use super::*;
 
     #[test]
-    fn test_hybrid_kem_loader_returns_vectors() {
+    fn test_hybrid_kem_loader_returns_vectors_matches_expected() {
         let vectors = load_hybrid_kem_kats();
         assert!(!vectors.is_empty(), "Hybrid KEM loader should return test vectors");
     }
 
     #[test]
-    fn test_hybrid_kem_vectors_have_valid_structure() {
+    fn test_hybrid_kem_vectors_have_valid_structure_matches_expected() {
         let vectors = load_hybrid_kem_kats();
         for vector in &vectors {
             assert!(!vector.test_case.is_empty(), "Test case should not be empty");
@@ -349,7 +349,7 @@ mod additional_loader_tests {
     use super::*;
 
     #[test]
-    fn test_aes_gcm_loader_returns_vectors() {
+    fn test_aes_gcm_loader_returns_vectors_matches_expected() {
         let result = load_aes_gcm_kats();
         assert!(result.is_ok(), "AES-GCM loader should succeed");
         let vectors = result.unwrap();
@@ -357,7 +357,7 @@ mod additional_loader_tests {
     }
 
     #[test]
-    fn test_aes_gcm_vectors_have_valid_structure() {
+    fn test_aes_gcm_vectors_have_valid_structure_matches_expected() {
         let vectors = load_aes_gcm_kats().unwrap();
         for vector in &vectors {
             assert!(!vector.key.is_empty(), "Key should not be empty");
@@ -368,7 +368,7 @@ mod additional_loader_tests {
     }
 
     #[test]
-    fn test_ml_dsa_loader_returns_vectors() {
+    fn test_ml_dsa_loader_returns_vectors_matches_expected() {
         let result = load_ml_dsa_kats();
         assert!(result.is_ok(), "ML-DSA loader should succeed");
         let vectors = result.unwrap();
@@ -376,7 +376,7 @@ mod additional_loader_tests {
     }
 
     #[test]
-    fn test_ml_dsa_vectors_have_valid_structure() {
+    fn test_ml_dsa_vectors_have_valid_structure_matches_expected() {
         let vectors = load_ml_dsa_kats().unwrap();
         for vector in &vectors {
             assert!(!vector.seed.is_empty(), "Seed should not be empty");
@@ -386,7 +386,7 @@ mod additional_loader_tests {
     }
 
     #[test]
-    fn test_slh_dsa_loader_returns_vectors() {
+    fn test_slh_dsa_loader_returns_vectors_matches_expected() {
         let result = load_slh_dsa_kats();
         assert!(result.is_ok(), "SLH-DSA loader should succeed");
         let vectors = result.unwrap();
@@ -394,7 +394,7 @@ mod additional_loader_tests {
     }
 
     #[test]
-    fn test_slh_dsa_vectors_have_valid_structure() {
+    fn test_slh_dsa_vectors_have_valid_structure_matches_expected() {
         let vectors = load_slh_dsa_kats().unwrap();
         for vector in &vectors {
             assert!(!vector.seed.is_empty(), "Seed should not be empty");
@@ -404,7 +404,7 @@ mod additional_loader_tests {
     }
 
     #[test]
-    fn test_ed25519_loader_returns_vectors() {
+    fn test_ed25519_loader_returns_vectors_matches_expected() {
         let result = load_ed25519_kats();
         assert!(result.is_ok(), "Ed25519 loader should succeed");
         let vectors = result.unwrap();
@@ -412,7 +412,7 @@ mod additional_loader_tests {
     }
 
     #[test]
-    fn test_ed25519_vectors_have_correct_sizes() {
+    fn test_ed25519_vectors_have_correct_sizes_matches_expected() {
         let vectors = load_ed25519_kats().unwrap();
         for vector in &vectors {
             assert_eq!(vector.seed.len(), 32, "Ed25519 seed should be 32 bytes");
@@ -461,7 +461,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_parses_valid_json() {
+    fn test_load_from_cavp_json_parses_valid_json_succeeds() {
         let json_data = create_valid_cavp_json();
         let result = load_from_cavp_json(&json_data);
 
@@ -469,7 +469,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_extracts_vectors() {
+    fn test_load_from_cavp_json_extracts_vectors_succeeds() {
         let json_data = create_valid_cavp_json();
         let vectors = load_from_cavp_json(&json_data).unwrap();
 
@@ -477,7 +477,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_correctly_decodes_hex() {
+    fn test_load_from_cavp_json_correctly_decodes_hex_succeeds() {
         let json_data = create_valid_cavp_json();
         let vectors = load_from_cavp_json(&json_data).unwrap();
         let vector = &vectors[0];
@@ -489,7 +489,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_sets_test_case_name() {
+    fn test_load_from_cavp_json_sets_test_case_name_correctly_succeeds() {
         let json_data = create_valid_cavp_json();
         let vectors = load_from_cavp_json(&json_data).unwrap();
 
@@ -504,7 +504,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_ignores_non_ml_kem_1024() {
+    fn test_load_from_cavp_json_ignores_non_ml_kem_1024_parameter_sets_succeeds() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -537,7 +537,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_handles_multiple_test_groups() {
+    fn test_load_from_cavp_json_handles_multiple_test_groups_succeeds() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -569,7 +569,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_fails_on_invalid_json() {
+    fn test_load_from_cavp_json_fails_on_invalid_json_fails() {
         let invalid_json = "{ invalid json }";
         let result = load_from_cavp_json(invalid_json);
 
@@ -577,7 +577,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_fails_on_missing_seed() {
+    fn test_load_from_cavp_json_fails_on_missing_seed_fails() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -606,7 +606,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_fails_on_missing_pk() {
+    fn test_load_from_cavp_json_fails_on_missing_pk_fails() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -628,7 +628,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_fails_on_missing_sk() {
+    fn test_load_from_cavp_json_fails_on_missing_sk_fails() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -650,7 +650,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_fails_on_missing_ct() {
+    fn test_load_from_cavp_json_fails_on_missing_ct_fails() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -672,7 +672,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_fails_on_missing_ss() {
+    fn test_load_from_cavp_json_fails_on_missing_ss_fails() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -694,7 +694,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_fails_on_invalid_hex() {
+    fn test_load_from_cavp_json_fails_on_invalid_hex_fails() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -716,7 +716,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_handles_empty_test_groups() {
+    fn test_load_from_cavp_json_handles_empty_test_groups_returns_empty_succeeds() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -732,7 +732,7 @@ mod cavp_json_parsing_tests {
     }
 
     #[test]
-    fn test_load_from_cavp_json_handles_empty_tests() {
+    fn test_load_from_cavp_json_handles_empty_tests_returns_empty_succeeds() {
         let json_data = r#"{
             "vs_id": 12345,
             "algorithm": "ML-KEM",
@@ -836,7 +836,7 @@ mod cavp_structure_tests {
     }
 
     #[test]
-    fn test_cavp_test_vector_file_mode_is_optional() {
+    fn test_cavp_test_vector_file_mode_is_optional_matches_expected() {
         let json = r#"{
             "vs_id": 12345,
             "algorithm": "SHA3",
@@ -852,7 +852,7 @@ mod cavp_structure_tests {
     }
 
     #[test]
-    fn test_cavp_structures_are_cloneable() {
+    fn test_cavp_structures_are_cloneable_succeeds() {
         let test_case = CavpTestCase {
             tc_id: 1,
             seed: Some("00".to_string()),
@@ -884,7 +884,7 @@ mod cavp_structure_tests {
     }
 
     #[test]
-    fn test_cavp_structures_are_debuggable() {
+    fn test_cavp_structures_are_debuggable_succeeds() {
         let test_case = CavpTestCase {
             tc_id: 1,
             seed: Some("00".to_string()),
@@ -909,7 +909,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_cavp_json_with_unicode_in_test_type() {
+    fn test_cavp_json_with_unicode_in_test_type_succeeds() {
         // Test that loader handles unusual but valid JSON
         let json_data = r#"{
             "vs_id": 1,
@@ -932,7 +932,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_cavp_json_with_large_tc_id() {
+    fn test_cavp_json_with_large_tc_id_succeeds() {
         let json_data = r#"{
             "vs_id": 4294967295,
             "algorithm": "ML-KEM",
@@ -954,7 +954,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_cavp_json_with_empty_hex_strings() {
+    fn test_cavp_json_with_empty_hex_strings_succeeds() {
         let json_data = r#"{
             "vs_id": 1,
             "algorithm": "ML-KEM",
@@ -980,7 +980,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_cavp_json_with_mixed_case_hex() {
+    fn test_cavp_json_with_mixed_case_hex_succeeds() {
         let json_data = r#"{
             "vs_id": 1,
             "algorithm": "ML-KEM",
@@ -1009,7 +1009,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_cavp_json_with_whitespace_in_hex() {
+    fn test_cavp_json_with_whitespace_in_hex_succeeds() {
         // Note: Standard hex decoders don't handle whitespace, so this should fail
         let json_data = r#"{
             "vs_id": 1,
@@ -1032,7 +1032,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_cavp_json_with_odd_length_hex() {
+    fn test_cavp_json_with_odd_length_hex_has_correct_size() {
         // Odd-length hex strings are invalid
         let json_data = r#"{
             "vs_id": 1,
@@ -1055,7 +1055,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_cavp_json_with_long_hex_string() {
+    fn test_cavp_json_with_long_hex_string_succeeds() {
         // Test handling of longer hex strings (1024 bytes = 2048 hex chars)
         let long_hex: String = "ab".repeat(1024);
         let json_data = format!(
@@ -1093,7 +1093,7 @@ mod cross_loader_tests {
     use super::*;
 
     #[test]
-    fn test_working_loaders_return_consistent_results() {
+    fn test_working_loaders_return_consistent_results_on_repeated_calls_succeeds() {
         // Test only the loaders that are known to work
         let ml_kem_result = load_ml_kem_1024_kats();
         let sha3_result = load_sha3_kats();
@@ -1106,7 +1106,7 @@ mod cross_loader_tests {
     }
 
     #[test]
-    fn test_working_loaders_performance() {
+    fn test_working_loaders_performance_completes_within_threshold_succeeds() {
         use std::time::Instant;
 
         // ML-KEM loader (generates keys, so may take longer)
@@ -1133,7 +1133,7 @@ mod cross_loader_tests {
     }
 
     #[test]
-    fn test_loaders_handle_concurrent_access() {
+    fn test_loaders_handle_concurrent_access_succeeds() {
         use std::thread;
 
         // Test only working loaders concurrently
@@ -1153,7 +1153,7 @@ mod cross_loader_tests {
     }
 
     #[test]
-    fn test_vectors_have_unique_test_case_names_within_loader() {
+    fn test_vectors_have_unique_test_case_names_within_loader_matches_expected() {
         // Test uniqueness within ML-KEM vectors
         let ml_kem_vectors = load_ml_kem_1024_kats().unwrap();
         let ml_kem_names: Vec<_> = ml_kem_vectors.iter().map(|v| &v.test_case).collect();
@@ -1180,7 +1180,7 @@ mod regression_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_loader_repeated_calls_consistent() {
+    fn test_ml_kem_loader_repeated_calls_produce_consistent_results_succeeds() {
         let result1 = load_ml_kem_1024_kats();
         let result2 = load_ml_kem_1024_kats();
 
@@ -1226,7 +1226,7 @@ mod regression_tests {
     }
 
     #[test]
-    fn test_sha3_empty_input_known_value() {
+    fn test_sha3_empty_input_known_value_matches_fails() {
         let vectors = load_sha3_kats().unwrap();
 
         let empty_vector = vectors.iter().find(|v| v.message.is_empty());
@@ -1245,7 +1245,7 @@ mod regression_tests {
     }
 
     #[test]
-    fn test_sha3_long_message_known_value() {
+    fn test_sha3_long_message_known_value_matches_succeeds() {
         let vectors = load_sha3_kats().unwrap();
 
         // "The quick brown fox jumps over the lazy dog" test
@@ -1300,7 +1300,7 @@ mod api_contract_tests {
     // The API contract would be tested once the hex encoding is fixed
 
     #[test]
-    fn test_cavp_structures_implement_required_traits() {
+    fn test_cavp_structures_implement_required_traits_succeeds() {
         // Clone
         let test_case = CavpTestCase {
             tc_id: 1,

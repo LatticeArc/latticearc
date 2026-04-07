@@ -502,7 +502,7 @@ let (pk, sk) = generate_keypair()?;
 let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
 // ML-DSA (FIPS 204)
-let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 ```
 
 ### Hashing and KDF

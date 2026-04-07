@@ -158,7 +158,7 @@ cctv_accumulated_test!(
 
 /// Verify the SHAKE-128 RNG stream starts with the expected prefix (per C2SP spec).
 #[test]
-fn test_shake128_rng_prefix() {
+fn test_shake128_rng_prefix_succeeds() {
     let mut rng = Shake128::default().finalize_xof();
     let mut buf = [0u8; 16];
     rng.read(&mut buf);

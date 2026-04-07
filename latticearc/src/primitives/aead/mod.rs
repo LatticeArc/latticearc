@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -41,14 +41,35 @@ pub const AES_GCM_256_KEY_LEN: usize = 32;
 /// ChaCha20-Poly1305 key length
 pub const CHACHA20_POLY1305_KEY_LEN: usize = 32;
 
-/// Nonce type for AEAD ciphers
+/// Nonce type for AEAD ciphers.
+///
+/// A 12-byte array used as a unique identifier for each encryption operation.
+/// Callers must ensure nonce uniqueness per key; reusing a nonce with the same
+/// key breaks AEAD security guarantees.
+// Retained as a type alias rather than a newtype because converting ripples
+// through every AEAD call site.
 pub type Nonce = [u8; NONCE_LEN];
 
-/// Auth tag type for AEAD ciphers
+/// Auth tag type for AEAD ciphers.
+///
+/// A 16-byte authenticator computed during encryption and verified in
+/// constant time during decryption.
 pub type Tag = [u8; TAG_LEN];
 
-/// AEAD cipher trait
-pub trait AeadCipher {
+/// Sealed trait pattern — prevents external crates from implementing `AeadCipher`.
+///
+/// Security-critical traits must not allow third-party implementations since
+/// they could bypass key validation, zeroization, or constant-time guarantees.
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::aes_gcm::AesGcm128 {}
+    impl Sealed for super::aes_gcm::AesGcm256 {}
+    #[cfg(not(feature = "fips"))]
+    impl Sealed for super::chacha20poly1305::ChaCha20Poly1305Cipher {}
+}
+
+/// AEAD cipher trait (sealed — cannot be implemented outside this crate)
+pub trait AeadCipher: sealed::Sealed {
     /// Key length in bytes
     const KEY_LEN: usize;
 
@@ -96,7 +117,8 @@ pub trait AeadCipher {
     ///
     /// # Returns
     ///
-    /// Decrypted plaintext
+    /// Decrypted plaintext wrapped in [`zeroize::Zeroizing`] so the buffer is
+    /// scrubbed on drop regardless of whether the caller persists it.
     ///
     /// # Errors
     ///
@@ -107,10 +129,11 @@ pub trait AeadCipher {
         ciphertext: &[u8],
         tag: &Tag,
         aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>, AeadError>;
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, AeadError>;
 }
 
 /// AEAD errors
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum AeadError {
     /// Invalid key length
@@ -132,6 +155,17 @@ pub enum AeadError {
     /// Other error
     #[error("AEAD error: {0}")]
     Other(String),
+}
+
+/// Defense-in-depth: warn on all-zero keys via tracing.
+/// Not rejected outright since NIST test vectors use all-zero keys.
+pub(crate) fn warn_if_all_zero_key(key: &[u8], cipher_label: &str) {
+    if key.iter().all(|&b| b == 0) {
+        tracing::warn!(
+            "All-zero key detected for {}. This is insecure in production.",
+            cipher_label
+        );
+    }
 }
 
 /// Constant-time comparison of two authentication tags.
@@ -168,21 +202,21 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_eq_equal() {
+    fn test_constant_time_eq_equal_succeeds() {
         assert!(constant_time_eq(b"hello", b"hello"));
         assert!(constant_time_eq(b"", b""));
         assert!(constant_time_eq(&[0u8; 32], &[0u8; 32]));
     }
 
     #[test]
-    fn test_constant_time_eq_not_equal() {
+    fn test_constant_time_eq_not_equal_succeeds() {
         assert!(!constant_time_eq(b"hello", b"world"));
         assert!(!constant_time_eq(b"short", b"longer"));
         assert!(!constant_time_eq(b"a", b""));
     }
 
     #[test]
-    fn test_aead_constants() {
+    fn test_aead_constants_succeeds() {
         assert_eq!(NONCE_LEN, 12);
         assert_eq!(TAG_LEN, 16);
         assert_eq!(AES_GCM_128_KEY_LEN, 16);
@@ -191,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aead_error_display() {
+    fn test_aead_error_display_fails() {
         let err = AeadError::InvalidKeyLength;
         assert_eq!(format!("{}", err), "Invalid key length");
 
@@ -209,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nonce_and_tag_types() {
+    fn test_nonce_and_tag_types_succeeds() {
         let nonce: Nonce = [0u8; NONCE_LEN];
         assert_eq!(nonce.len(), 12);
 

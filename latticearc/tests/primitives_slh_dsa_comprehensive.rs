@@ -164,7 +164,7 @@ slh_dsa_basic_test!(test_shake_128f_basic_sign_verify, slh_dsa_shake_128f);
 slh_dsa_basic_test!(test_shake_192s_basic_sign_verify, slh_dsa_shake_192s);
 
 #[test]
-fn test_shake_192f_basic_sign_verify() {
+fn test_shake_192f_basic_sign_verify_roundtrip() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";
     let (pk, sk) = slh_dsa_shake_192f::try_keygen().expect("Key generation should succeed");
@@ -176,7 +176,7 @@ fn test_shake_192f_basic_sign_verify() {
 slh_dsa_basic_test!(test_shake_256s_basic_sign_verify, slh_dsa_shake_256s);
 
 #[test]
-fn test_shake_256f_basic_sign_verify() {
+fn test_shake_256f_basic_sign_verify_roundtrip() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";
     let (pk, sk) = slh_dsa_shake_256f::try_keygen().expect("Key generation should succeed");
@@ -194,7 +194,7 @@ slh_dsa_basic_test!(test_sha2_128f_basic_sign_verify, slh_dsa_sha2_128f);
 slh_dsa_basic_test!(test_sha2_192s_basic_sign_verify, slh_dsa_sha2_192s);
 
 #[test]
-fn test_sha2_192f_basic_sign_verify() {
+fn test_sha2_192f_basic_sign_verify_roundtrip() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";
     let (pk, sk) = slh_dsa_sha2_192f::try_keygen().expect("Key generation should succeed");
@@ -206,7 +206,7 @@ fn test_sha2_192f_basic_sign_verify() {
 slh_dsa_basic_test!(test_sha2_256s_basic_sign_verify, slh_dsa_sha2_256s);
 
 #[test]
-fn test_sha2_256f_basic_sign_verify() {
+fn test_sha2_256f_basic_sign_verify_roundtrip() {
     let message = b"Test message for SLH-DSA basic test";
     let context = b"";
     let (pk, sk) = slh_dsa_sha2_256f::try_keygen().expect("Key generation should succeed");
@@ -272,7 +272,7 @@ slh_dsa_key_size_test!(
 // ============================================================================
 
 #[test]
-fn test_deterministic_signing_shake_128s() {
+fn test_deterministic_signing_shake_128s_is_deterministic() {
     // When hedging is disabled (false), signing should be deterministic
     // Note: This tests the API behavior; fips205 may always use randomness internally
     let message = b"Deterministic signing test message";
@@ -293,7 +293,7 @@ fn test_deterministic_signing_shake_128s() {
 }
 
 #[test]
-fn test_hedged_signing_produces_different_signatures_shake_128s() {
+fn test_hedged_signing_produces_different_signatures_shake_128s_succeeds() {
     // With hedging enabled, multiple signatures should differ
     let message = b"Hedged signing test message";
     let context = b"";
@@ -313,7 +313,7 @@ fn test_hedged_signing_produces_different_signatures_shake_128s() {
 }
 
 #[test]
-fn test_deterministic_signing_sha2_128s() {
+fn test_deterministic_signing_sha2_128s_is_deterministic() {
     let message = b"SHA2 deterministic signing test";
     let context = b"";
 
@@ -331,7 +331,7 @@ fn test_deterministic_signing_sha2_128s() {
 // ============================================================================
 
 #[test]
-fn test_f_variant_has_larger_signatures_128() {
+fn test_f_variant_has_larger_signatures_128_succeeds() {
     // "f" (fast) variants have larger signatures but faster signing
     // "s" (small) variants have smaller signatures but slower signing
     let (_, sk_s) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
@@ -355,7 +355,7 @@ fn test_f_variant_has_larger_signatures_128() {
 }
 
 #[test]
-fn test_sha2_f_variant_has_larger_signatures_128() {
+fn test_sha2_f_variant_has_larger_signatures_128_succeeds() {
     let (_, sk_s) = slh_dsa_sha2_128s::try_keygen().expect("Keygen should succeed");
     let (_, sk_f) = slh_dsa_sha2_128f::try_keygen().expect("Keygen should succeed");
 
@@ -370,7 +370,7 @@ fn test_sha2_f_variant_has_larger_signatures_128() {
 }
 
 #[test]
-fn test_security_level_signature_sizes() {
+fn test_security_level_signature_sizes_has_correct_size() {
     // Higher security levels should have larger signatures
     let (_, sk_128) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
     let (_, sk_192) = slh_dsa_shake_192s::try_keygen().expect("Keygen should succeed");
@@ -397,7 +397,7 @@ fn test_security_level_signature_sizes() {
 // ============================================================================
 
 #[test]
-fn test_context_string_affects_signature_shake_128s() {
+fn test_context_string_affects_signature_shake_128s_succeeds() {
     let message = b"Context test message";
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
 
@@ -416,7 +416,7 @@ fn test_context_string_affects_signature_shake_128s() {
 }
 
 #[test]
-fn test_max_context_length_255_bytes() {
+fn test_max_context_length_255_bytes_has_correct_size() {
     // FIPS 205 allows context strings up to 255 bytes
     let message = b"Max context test";
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
@@ -436,7 +436,7 @@ fn test_max_context_length_255_bytes() {
 // ============================================================================
 
 #[test]
-fn test_empty_message_signing() {
+fn test_empty_message_signing_succeeds() {
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
 
     let empty_message: &[u8] = b"";
@@ -447,7 +447,7 @@ fn test_empty_message_signing() {
 }
 
 #[test]
-fn test_large_message_signing() {
+fn test_large_message_signing_succeeds() {
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
 
     // 1 MB message
@@ -462,7 +462,7 @@ fn test_large_message_signing() {
 }
 
 #[test]
-fn test_single_byte_message() {
+fn test_single_byte_message_succeeds() {
     let (pk, sk) = slh_dsa_sha2_128s::try_keygen().expect("Keygen should succeed");
 
     let single_byte = [0x00u8];
@@ -526,7 +526,7 @@ fn test_wrong_public_key_fails() {
 // ============================================================================
 
 #[test]
-fn test_public_key_derivation_from_private_key() {
+fn test_public_key_derivation_from_private_key_succeeds() {
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
 
     // Get public key from private key
@@ -541,7 +541,7 @@ fn test_public_key_derivation_from_private_key() {
 }
 
 #[test]
-fn test_sha2_public_key_derivation() {
+fn test_sha2_public_key_derivation_succeeds() {
     let (pk, sk) = slh_dsa_sha2_128s::try_keygen().expect("Keygen should succeed");
     let derived_pk = sk.get_public_key();
     assert_eq!(pk.into_bytes(), derived_pk.into_bytes());
@@ -552,7 +552,7 @@ fn test_sha2_public_key_derivation() {
 // ============================================================================
 
 #[test]
-fn test_shake_vs_sha2_incompatible() {
+fn test_shake_vs_sha2_incompatible_succeeds() {
     // SHAKE and SHA2 variants at the same security level have the same
     // key/signature sizes but use different internal hash functions.
     // A signature from one variant should not verify with the other's public key.
@@ -591,7 +591,7 @@ fn test_shake_vs_sha2_incompatible() {
 }
 
 #[test]
-fn test_different_security_levels_incompatible() {
+fn test_different_security_levels_incompatible_succeeds() {
     // Keys from different security levels should not interoperate
     // This is enforced by different key/signature sizes
 
@@ -612,7 +612,7 @@ fn test_different_security_levels_incompatible() {
 // ============================================================================
 
 #[test]
-fn test_invalid_public_key_deserialization() {
+fn test_invalid_public_key_deserialization_fails() {
     // Try to deserialize invalid public key bytes
     let invalid_bytes = vec![0u8; slh_dsa_shake_128s::PK_LEN];
     let mut pk_array = [0u8; slh_dsa_shake_128s::PK_LEN];
@@ -648,7 +648,7 @@ fn test_truncated_public_key_fails() {
 // ============================================================================
 
 #[test]
-fn test_multiple_signatures_same_key() {
+fn test_multiple_signatures_same_key_succeeds() {
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
 
     // Sign multiple different messages with same key
@@ -661,7 +661,7 @@ fn test_multiple_signatures_same_key() {
 }
 
 #[test]
-fn test_same_message_multiple_signatures_all_valid() {
+fn test_same_message_multiple_signatures_all_valid_succeeds() {
     let message = b"Same message, multiple signatures";
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
 
@@ -693,7 +693,7 @@ fn test_same_message_multiple_signatures_all_valid() {
 // ============================================================================
 
 #[test]
-fn test_nist_security_level_1_shake() {
+fn test_nist_security_level_1_shake_succeeds() {
     // SLH-DSA-SHAKE-128s provides NIST security level 1
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
     let message = b"NIST Level 1 test";
@@ -706,7 +706,7 @@ fn test_nist_security_level_1_shake() {
 }
 
 #[test]
-fn test_nist_security_level_3_shake() {
+fn test_nist_security_level_3_shake_succeeds() {
     // SLH-DSA-SHAKE-192s provides NIST security level 3
     let (pk, sk) = slh_dsa_shake_192s::try_keygen().expect("Keygen should succeed");
     let message = b"NIST Level 3 test";
@@ -719,7 +719,7 @@ fn test_nist_security_level_3_shake() {
 }
 
 #[test]
-fn test_nist_security_level_5_shake() {
+fn test_nist_security_level_5_shake_succeeds() {
     // SLH-DSA-SHAKE-256s provides NIST security level 5
     let (pk, sk) = slh_dsa_shake_256s::try_keygen().expect("Keygen should succeed");
     let message = b"NIST Level 5 test";
@@ -736,12 +736,12 @@ fn test_nist_security_level_5_shake() {
 // ============================================================================
 
 #[test]
-fn test_arc_primitives_slh_dsa_integration() {
-    use latticearc::primitives::sig::slh_dsa::{SecurityLevel, SigningKey};
+fn test_arc_primitives_slh_dsa_integration_succeeds() {
+    use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
 
     // Test with SHAKE-128s (smallest, fastest for testing)
-    let (signing_key, verifying_key) =
-        SigningKey::generate(SecurityLevel::Shake128s).expect("Key generation should succeed");
+    let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
+        .expect("Key generation should succeed");
 
     let message = b"Integration test message";
     let signature = signing_key.sign(message, None).expect("Signing should succeed");
@@ -753,10 +753,14 @@ fn test_arc_primitives_slh_dsa_integration() {
 }
 
 #[test]
-fn test_arc_primitives_all_security_levels() {
-    use latticearc::primitives::sig::slh_dsa::{SecurityLevel, SigningKey};
+fn test_arc_primitives_all_security_levels_succeeds() {
+    use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
 
-    for level in [SecurityLevel::Shake128s, SecurityLevel::Shake192s, SecurityLevel::Shake256s] {
+    for level in [
+        SlhDsaSecurityLevel::Shake128s,
+        SlhDsaSecurityLevel::Shake192s,
+        SlhDsaSecurityLevel::Shake256s,
+    ] {
         let (signing_key, verifying_key) =
             SigningKey::generate(level).expect("Key generation should succeed");
 
@@ -776,7 +780,7 @@ fn test_arc_primitives_all_security_levels() {
 // ============================================================================
 
 #[test]
-fn test_keygen_completes_in_reasonable_time() {
+fn test_keygen_completes_in_reasonable_time_succeeds() {
     use std::time::Instant;
 
     let start = Instant::now();
@@ -789,7 +793,7 @@ fn test_keygen_completes_in_reasonable_time() {
 }
 
 #[test]
-fn test_signing_completes_in_reasonable_time() {
+fn test_signing_completes_in_reasonable_time_succeeds() {
     use std::time::Instant;
 
     let (_, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
@@ -806,7 +810,7 @@ fn test_signing_completes_in_reasonable_time() {
 }
 
 #[test]
-fn test_verification_faster_than_signing() {
+fn test_verification_faster_than_signing_succeeds() {
     use std::time::Instant;
 
     let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
@@ -832,7 +836,7 @@ fn test_verification_faster_than_signing() {
 // ============================================================================
 
 #[test]
-fn test_signature_is_not_all_zeros() {
+fn test_signature_is_not_all_zeros_succeeds() {
     let (_, sk) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
     let message = b"Non-zero test";
 
@@ -842,7 +846,7 @@ fn test_signature_is_not_all_zeros() {
 }
 
 #[test]
-fn test_public_key_is_not_all_zeros() {
+fn test_public_key_is_not_all_zeros_succeeds() {
     let (pk, _) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
     let pk_bytes = pk.into_bytes();
 
@@ -850,7 +854,7 @@ fn test_public_key_is_not_all_zeros() {
 }
 
 #[test]
-fn test_unique_keypairs() {
+fn test_unique_keypairs_are_unique() {
     let (pk1, _) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
     let (pk2, _) = slh_dsa_shake_128s::try_keygen().expect("Keygen should succeed");
 

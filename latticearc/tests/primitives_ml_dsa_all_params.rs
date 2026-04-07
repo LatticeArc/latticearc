@@ -11,35 +11,35 @@ const TEST_CONTEXT: &[u8] = b"";
 
 #[test]
 fn test_ml_dsa_44_sign_verify_roundtrip() {
-    let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+    let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
-    assert_eq!(sig.parameter_set, MlDsaParameterSet::MLDSA44);
+    assert_eq!(sig.parameter_set(), MlDsaParameterSet::MlDsa44);
     let valid = verify(&pk, TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
     assert!(valid);
 }
 
 #[test]
 fn test_ml_dsa_65_sign_verify_roundtrip() {
-    let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+    let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
-    assert_eq!(sig.parameter_set, MlDsaParameterSet::MLDSA65);
+    assert_eq!(sig.parameter_set(), MlDsaParameterSet::MlDsa65);
     let valid = verify(&pk, TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
     assert!(valid);
 }
 
 #[test]
 fn test_ml_dsa_87_sign_verify_roundtrip() {
-    let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA87).unwrap();
+    let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
     let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
-    assert_eq!(sig.parameter_set, MlDsaParameterSet::MLDSA87);
+    assert_eq!(sig.parameter_set(), MlDsaParameterSet::MlDsa87);
     let valid = verify(&pk, TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
     assert!(valid);
 }
 
 #[test]
-fn test_ml_dsa_wrong_message_fails_all_params() {
+fn test_ml_dsa_wrong_message_fails_all_params_fails() {
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = generate_keypair(param).unwrap();
         let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
@@ -49,9 +49,9 @@ fn test_ml_dsa_wrong_message_fails_all_params() {
 }
 
 #[test]
-fn test_ml_dsa_parameter_set_mismatch() {
-    let (pk44, _sk44) = generate_keypair(MlDsaParameterSet::MLDSA44).unwrap();
-    let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+fn test_ml_dsa_parameter_set_mismatch_fails() {
+    let (pk44, _sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+    let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let sig65 = sign(&sk65, TEST_MESSAGE, TEST_CONTEXT).unwrap();
 
     // Verify with mismatched parameter sets should return Ok(false)
@@ -60,9 +60,9 @@ fn test_ml_dsa_parameter_set_mismatch() {
 }
 
 #[test]
-fn test_ml_dsa_key_sizes() {
+fn test_ml_dsa_key_sizes_has_correct_size() {
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = generate_keypair(param).unwrap();
         assert_eq!(pk.len(), param.public_key_size());
@@ -74,20 +74,20 @@ fn test_ml_dsa_key_sizes() {
 }
 
 #[test]
-fn test_ml_dsa_parameter_set_properties() {
-    let p44 = MlDsaParameterSet::MLDSA44;
+fn test_ml_dsa_parameter_set_properties_succeeds() {
+    let p44 = MlDsaParameterSet::MlDsa44;
     assert_eq!(p44.nist_security_level(), 2);
     assert_eq!(p44.public_key_size(), 1312);
     assert_eq!(p44.secret_key_size(), 2560);
     assert_eq!(p44.signature_size(), 2420);
 
-    let p65 = MlDsaParameterSet::MLDSA65;
+    let p65 = MlDsaParameterSet::MlDsa65;
     assert_eq!(p65.nist_security_level(), 3);
     assert_eq!(p65.public_key_size(), 1952);
     assert_eq!(p65.secret_key_size(), 4032);
     assert_eq!(p65.signature_size(), 3309);
 
-    let p87 = MlDsaParameterSet::MLDSA87;
+    let p87 = MlDsaParameterSet::MlDsa87;
     assert_eq!(p87.nist_security_level(), 5);
     assert_eq!(p87.public_key_size(), 2592);
     assert_eq!(p87.secret_key_size(), 4896);
@@ -95,9 +95,9 @@ fn test_ml_dsa_parameter_set_properties() {
 }
 
 #[test]
-fn test_ml_dsa_empty_and_large_messages() {
+fn test_ml_dsa_empty_and_large_messages_succeeds() {
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = generate_keypair(param).unwrap();
 
@@ -113,8 +113,8 @@ fn test_ml_dsa_empty_and_large_messages() {
 }
 
 #[test]
-fn test_ml_dsa_with_context() {
-    let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+fn test_ml_dsa_with_context_succeeds() {
+    let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let context = b"custom-context-string";
     let sig = sign(&sk, TEST_MESSAGE, context).unwrap();
     assert!(verify(&pk, TEST_MESSAGE, &sig, context).unwrap());

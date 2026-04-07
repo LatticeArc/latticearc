@@ -590,7 +590,7 @@ impl FipsError for FipsCompliantError {
 // Implementations of FipsError for primitives error types
 // ============================================================================
 
-impl FipsError for crate::primitives::error::Error {
+impl FipsError for crate::primitives::error::PrimitivesError {
     fn fips_code(&self) -> FipsErrorCode {
         match self {
             Self::FeatureNotAvailable(_) => FipsErrorCode::FeatureNotAvailable,
@@ -633,8 +633,8 @@ impl From<FipsErrorCode> for FipsCompliantError {
     }
 }
 
-impl From<&crate::primitives::error::Error> for FipsErrorCode {
-    fn from(error: &crate::primitives::error::Error) -> Self {
+impl From<&crate::primitives::error::PrimitivesError> for FipsErrorCode {
+    fn from(error: &crate::primitives::error::PrimitivesError) -> Self {
         error.fips_code()
     }
 }
@@ -654,7 +654,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_error_code_values() {
+    fn test_error_code_values_match_fips_spec_fails() {
         // Self-test errors: 0x0001-0x00FF
         assert_eq!(FipsErrorCode::SelfTestFailed.code(), 0x0001);
         assert_eq!(FipsErrorCode::IntegrityCheckFailed.code(), 0x0002);
@@ -680,7 +680,7 @@ mod tests {
     }
 
     #[test]
-    fn test_critical_errors() {
+    fn test_critical_errors_identified_correctly_fails() {
         // Critical errors
         assert!(FipsErrorCode::SelfTestFailed.is_critical());
         assert!(FipsErrorCode::IntegrityCheckFailed.is_critical());
@@ -697,7 +697,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_categories() {
+    fn test_error_categories_classified_correctly_fails() {
         // Self-test errors
         assert!(FipsErrorCode::SelfTestFailed.is_self_test_error());
         assert!(FipsErrorCode::IntegrityCheckFailed.is_self_test_error());
@@ -721,7 +721,7 @@ mod tests {
     }
 
     #[test]
-    fn test_category_strings() {
+    fn test_category_strings_match_expected_succeeds() {
         assert_eq!(FipsErrorCode::SelfTestFailed.category(), "SELF_TEST");
         assert_eq!(FipsErrorCode::InvalidKeyLength.category(), "ALGORITHM");
         assert_eq!(FipsErrorCode::RngFailure.category(), "OPERATIONAL");
@@ -729,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn test_display_format() {
+    fn test_display_format_matches_expected() {
         let code = FipsErrorCode::InvalidKeyLength;
         let display = format!("{}", code);
         assert_eq!(display, "FIPS-0100: Invalid key length");
@@ -740,7 +740,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_compliant_error() {
+    fn test_fips_compliant_error_construction_succeeds() {
         let error = FipsCompliantError::new(FipsErrorCode::InvalidKeyLength);
         assert_eq!(error.code(), FipsErrorCode::InvalidKeyLength);
         assert!(error.context().is_none());
@@ -756,8 +756,8 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_error_trait() {
-        let error = crate::primitives::error::Error::InvalidInput("test".to_string());
+    fn test_fips_error_trait_maps_codes_correctly_fails() {
+        let error = crate::primitives::error::PrimitivesError::InvalidInput("test".to_string());
         assert_eq!(error.fips_code(), FipsErrorCode::InvalidParameter);
         assert!(!error.is_fips_critical());
 
@@ -777,14 +777,15 @@ mod tests {
     }
 
     #[test]
-    fn test_error_from_conversions() {
-        let error = crate::primitives::error::Error::DecryptionFailed("auth failed".to_string());
+    fn test_error_from_conversions_map_correctly_fails() {
+        let error =
+            crate::primitives::error::PrimitivesError::DecryptionFailed("auth failed".to_string());
         let fips_code: FipsErrorCode = (&error).into();
         assert_eq!(fips_code, FipsErrorCode::DecryptionFailed);
     }
 
     #[test]
-    fn test_messages_no_sensitive_data() {
+    fn test_messages_no_sensitive_data_present_succeeds() {
         // Verify messages don't contain sensitive patterns
         let sensitive_patterns = ["key=", "password", "secret", "private", "0x"];
 
@@ -809,7 +810,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_messages_non_empty() {
+    fn test_all_messages_non_empty_for_all_codes_succeeds() {
         let all_codes = [
             FipsErrorCode::SelfTestFailed,
             FipsErrorCode::IntegrityCheckFailed,
@@ -863,44 +864,50 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_error_trait_all_error_variants() {
-        // Test all crate::primitives::error::Error variants for fips_code coverage
-        let cases: Vec<(crate::primitives::error::Error, FipsErrorCode)> = vec![
+    fn test_fips_error_trait_all_error_variants_map_correctly_fails() {
+        // Test all crate::primitives::error::PrimitivesError variants for fips_code coverage
+        let cases: Vec<(crate::primitives::error::PrimitivesError, FipsErrorCode)> = vec![
             (
-                crate::primitives::error::Error::FeatureNotAvailable("test".into()),
+                crate::primitives::error::PrimitivesError::FeatureNotAvailable("test".into()),
                 FipsErrorCode::FeatureNotAvailable,
             ),
             (
-                crate::primitives::error::Error::InvalidInput("test".into()),
+                crate::primitives::error::PrimitivesError::InvalidInput("test".into()),
                 FipsErrorCode::InvalidParameter,
             ),
             (
-                crate::primitives::error::Error::EncryptionFailed("test".into()),
+                crate::primitives::error::PrimitivesError::EncryptionFailed("test".into()),
                 FipsErrorCode::EncryptionFailed,
             ),
             (
-                crate::primitives::error::Error::DecryptionFailed("test".into()),
+                crate::primitives::error::PrimitivesError::DecryptionFailed("test".into()),
                 FipsErrorCode::DecryptionFailed,
             ),
             (
-                crate::primitives::error::Error::SerializationError("test".into()),
+                crate::primitives::error::PrimitivesError::SerializationError("test".into()),
                 FipsErrorCode::SerializationFailed,
             ),
             (
-                crate::primitives::error::Error::DeserializationError("test".into()),
+                crate::primitives::error::PrimitivesError::DeserializationError("test".into()),
                 FipsErrorCode::DeserializationFailed,
             ),
-            (crate::primitives::error::Error::Other("test".into()), FipsErrorCode::InternalError),
             (
-                crate::primitives::error::Error::ResourceExceeded("test".into()),
+                crate::primitives::error::PrimitivesError::Other("test".into()),
+                FipsErrorCode::InternalError,
+            ),
+            (
+                crate::primitives::error::PrimitivesError::ResourceExceeded("test".into()),
                 FipsErrorCode::ResourceExhausted,
             ),
             (
-                crate::primitives::error::Error::KeyValidationFailed,
+                crate::primitives::error::PrimitivesError::KeyValidationFailed,
                 FipsErrorCode::KeyValidationFailed,
             ),
-            (crate::primitives::error::Error::WeakKey, FipsErrorCode::WeakKeyDetected),
-            (crate::primitives::error::Error::InvalidKeyFormat, FipsErrorCode::InvalidParameter),
+            (crate::primitives::error::PrimitivesError::WeakKey, FipsErrorCode::WeakKeyDetected),
+            (
+                crate::primitives::error::PrimitivesError::InvalidKeyFormat,
+                FipsErrorCode::InvalidParameter,
+            ),
         ];
 
         for (error, expected_code) in &cases {
@@ -909,7 +916,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_error_trait_all_ml_kem_variants() {
+    fn test_fips_error_trait_all_ml_kem_variants_map_correctly_fails() {
         use crate::primitives::kem::ml_kem::MlKemError;
         let cases: Vec<(MlKemError, FipsErrorCode)> = vec![
             (MlKemError::KeyGenerationError("test".into()), FipsErrorCode::KeyGenerationFailed),
@@ -948,7 +955,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_error_trait_default_methods() {
+    fn test_fips_error_trait_default_methods_return_correctly_fails() {
         let error = FipsCompliantError::new(FipsErrorCode::SelfTestFailed);
         assert!(error.is_fips_critical());
         let msg = error.fips_message();
@@ -959,36 +966,36 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_compliant_error_display_without_context() {
+    fn test_fips_compliant_error_display_without_context_succeeds() {
         let error = FipsCompliantError::new(FipsErrorCode::RngFailure);
         let display = format!("{}", error);
         assert_eq!(display, "FIPS-0200: Random number generation failed");
     }
 
     #[test]
-    fn test_fips_compliant_error_from_code() {
+    fn test_fips_compliant_error_from_code_succeeds() {
         let error: FipsCompliantError = FipsErrorCode::Timeout.into();
         assert_eq!(error.code(), FipsErrorCode::Timeout);
         assert!(error.context().is_none());
     }
 
     #[test]
-    fn test_fips_compliant_error_is_std_error() {
+    fn test_fips_compliant_error_is_std_error_compatible_fails() {
         let error = FipsCompliantError::new(FipsErrorCode::BufferTooSmall);
         let _: &dyn std::error::Error = &error;
     }
 
     #[test]
-    fn test_fips_error_ml_kem_from_error() {
+    fn test_fips_error_ml_kem_from_error_maps_correctly_fails() {
         // Test FipsError for Error wrapping MlKemError
         use crate::primitives::kem::ml_kem::MlKemError;
         let ml_kem_err = MlKemError::KeyGenerationError("test".into());
-        let error = crate::primitives::error::Error::MlKem(ml_kem_err);
+        let error = crate::primitives::error::PrimitivesError::MlKem(ml_kem_err);
         assert_eq!(error.fips_code(), FipsErrorCode::KeyGenerationFailed);
     }
 
     #[test]
-    fn test_error_code_uniqueness() {
+    fn test_error_code_uniqueness_verified_fails() {
         // Collect all error codes to verify uniqueness
         let codes = [
             FipsErrorCode::SelfTestFailed,

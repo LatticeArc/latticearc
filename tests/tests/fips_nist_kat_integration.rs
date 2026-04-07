@@ -40,7 +40,7 @@
 use latticearc_tests::validation::nist_kat::*;
 
 #[test]
-fn test_all_nist_kat() {
+fn test_all_nist_kat_matches_expected() {
     println!("\n========================================");
     println!("Running NIST Known Answer Tests");
     println!("========================================\n");
@@ -104,7 +104,7 @@ fn test_all_nist_kat() {
 }
 
 #[test]
-fn test_ml_kem_only() {
+fn test_ml_kem_only_succeeds() {
     println!("\nTesting ML-KEM algorithms only...");
     let mut runner = KatRunner::new();
 
@@ -118,7 +118,7 @@ fn test_ml_kem_only() {
 }
 
 #[test]
-fn test_symmetric_crypto_only() {
+fn test_symmetric_crypto_only_succeeds() {
     println!("\nTesting symmetric cryptography only...");
     let mut runner = KatRunner::new();
 
@@ -134,7 +134,7 @@ fn test_symmetric_crypto_only() {
 }
 
 #[test]
-fn test_hash_functions_only() {
+fn test_hash_functions_only_succeeds() {
     println!("\nTesting hash functions only...");
     let mut runner = KatRunner::new();
 
@@ -151,7 +151,7 @@ fn test_hash_functions_only() {
 }
 
 #[test]
-fn test_kdf_functions_only() {
+fn test_kdf_functions_only_succeeds() {
     println!("\nTesting key derivation functions only...");
     let mut runner = KatRunner::new();
 
@@ -167,7 +167,7 @@ fn test_kdf_functions_only() {
 }
 
 #[test]
-fn test_vector_count() {
+fn test_vector_count_matches_expected() {
     // Verify we have adequate test coverage
     println!("\nVerifying test vector counts...");
 

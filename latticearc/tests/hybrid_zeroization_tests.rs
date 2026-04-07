@@ -10,13 +10,11 @@
 //! when keys are dropped or explicitly zeroized.
 
 use latticearc::hybrid::{kem_hybrid as kem, sig_hybrid as sig};
-use rand::rngs::OsRng;
 use zeroize::Zeroize;
 
 #[test]
-fn test_hybrid_kem_secret_key_zeroization_before_drop() {
-    let mut rng = OsRng;
-    let (_pk, sk) = kem::generate_keypair(&mut rng).unwrap();
+fn test_hybrid_kem_secret_key_zeroization_before_drop_succeeds() {
+    let (_pk, sk) = kem::generate_keypair().unwrap();
 
     // Verify public key accessors work (private keys are in aws-lc-rs, not exposed as bytes)
     let mut pk_bytes = sk.ml_kem_pk_bytes();
@@ -34,9 +32,8 @@ fn test_hybrid_kem_secret_key_zeroization_before_drop() {
 }
 
 #[test]
-fn test_hybrid_sig_secret_key_zeroization_before_drop() {
-    let mut rng = OsRng;
-    let (_pk, sk) = sig::generate_keypair(&mut rng).unwrap();
+fn test_hybrid_sig_secret_key_zeroization_before_drop_succeeds() {
+    let (_pk, sk) = sig::generate_keypair().unwrap();
 
     // Verify zeroization works before drop
     let mut sk_bytes = sk.ml_dsa_sk_bytes();
@@ -51,9 +48,8 @@ fn test_hybrid_sig_secret_key_zeroization_before_drop() {
 }
 
 #[test]
-fn test_hybrid_kem_secret_key_no_clone() {
-    let mut rng = OsRng;
-    let (_pk, sk) = kem::generate_keypair(&mut rng).unwrap();
+fn test_hybrid_kem_secret_key_no_clone_succeeds() {
+    let (_pk, sk) = kem::generate_keypair().unwrap();
 
     // Verify type exists and does not have Clone at compile time
     // The fact that this code compiles without sk.clone() confirms
@@ -65,9 +61,8 @@ fn test_hybrid_kem_secret_key_no_clone() {
 }
 
 #[test]
-fn test_hybrid_sig_secret_key_no_clone() {
-    let mut rng = OsRng;
-    let (_pk, sk) = sig::generate_keypair(&mut rng).unwrap();
+fn test_hybrid_sig_secret_key_no_clone_succeeds() {
+    let (_pk, sk) = sig::generate_keypair().unwrap();
 
     // Verify type exists and does not have Clone at compile time
     // The fact that this code compiles without sk.clone() confirms
@@ -79,14 +74,13 @@ fn test_hybrid_sig_secret_key_no_clone() {
 }
 
 #[test]
-fn test_encapsulated_key_shared_secret_zeroization() {
-    let mut rng = OsRng;
-    let (pk, _sk) = kem::generate_keypair(&mut rng).unwrap();
+fn test_encapsulated_key_shared_secret_zeroization_succeeds() {
+    let (pk, _sk) = kem::generate_keypair().unwrap();
 
-    let enc_result = kem::encapsulate(&mut rng, &pk);
+    let enc_result = kem::encapsulate(&pk);
     if let Ok(enc_key) = enc_result {
         // Get the shared secret and verify it can be zeroized
-        let mut secret = enc_key.shared_secret.as_slice().to_vec();
+        let mut secret = enc_key.shared_secret().to_vec();
         secret.zeroize();
         // assert!(!secret.is_empty(), "Zeroized secret should not be empty");
         assert!(secret.iter().all(|&x| x == 0), "Zeroization failed - not all bytes are zero");
@@ -97,9 +91,8 @@ fn test_encapsulated_key_shared_secret_zeroization() {
 }
 
 #[test]
-fn test_hybrid_kem_public_key_bytes_not_zero_before_use() {
-    let mut rng = OsRng;
-    let (_pk, sk): (_, kem::HybridSecretKey) = kem::generate_keypair(&mut rng).unwrap();
+fn test_hybrid_kem_public_key_bytes_not_zero_before_use_succeeds() {
+    let (_pk, sk): (_, kem::HybridKemSecretKey) = kem::generate_keypair().unwrap();
 
     // Verify that public key bytes are NOT all zeros (real keys were generated)
     let ml_kem_pk = sk.ml_kem_pk_bytes();
@@ -110,9 +103,8 @@ fn test_hybrid_kem_public_key_bytes_not_zero_before_use() {
 }
 
 #[test]
-fn test_hybrid_sig_secret_key_bytes_not_zero_before_use() {
-    let mut rng = OsRng;
-    let (_pk, sk): (_, sig::HybridSecretKey) = sig::generate_keypair(&mut rng).unwrap();
+fn test_hybrid_sig_secret_key_bytes_not_zero_before_use_succeeds() {
+    let (_pk, sk): (_, sig::HybridSigSecretKey) = sig::generate_keypair().unwrap();
 
     // Verify that secret key bytes are NOT all zeros initially (they should be non-zero)
     let ml_dsa_bytes = sk.ml_dsa_sk_bytes();

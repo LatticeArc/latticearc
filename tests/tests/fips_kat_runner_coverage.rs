@@ -16,7 +16,7 @@ use latticearc_tests::validation::nist_kat::{KatTestResult, NistKatError};
 // ============================================================================
 
 #[test]
-fn test_kat_summary_new() {
+fn test_kat_summary_new_initializes_empty_matches_expected() {
     let summary = KatSummary::new();
     assert_eq!(summary.total, 0);
     assert_eq!(summary.passed, 0);
@@ -26,14 +26,14 @@ fn test_kat_summary_new() {
 }
 
 #[test]
-fn test_kat_summary_default() {
+fn test_kat_summary_default_initializes_empty_matches_expected() {
     let summary = KatSummary::default();
     assert_eq!(summary.total, 0);
     assert!(summary.all_passed()); // No failures = all passed
 }
 
 #[test]
-fn test_kat_summary_add_passed_result() {
+fn test_kat_summary_add_passed_result_updates_counts_matches_expected() {
     let mut summary = KatSummary::new();
     let result = KatTestResult::passed("test1".to_string(), "AES-GCM".to_string(), 5000);
     summary.add_result(result);
@@ -46,7 +46,7 @@ fn test_kat_summary_add_passed_result() {
 }
 
 #[test]
-fn test_kat_summary_add_failed_result() {
+fn test_kat_summary_add_failed_result_updates_counts_matches_expected() {
     let mut summary = KatSummary::new();
     let result = KatTestResult::failed(
         "test1".to_string(),
@@ -64,7 +64,7 @@ fn test_kat_summary_add_failed_result() {
 }
 
 #[test]
-fn test_kat_summary_mixed_results() {
+fn test_kat_summary_mixed_results_tracked_correctly_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("t1".to_string(), "AES".to_string(), 1000));
     summary.add_result(KatTestResult::passed("t2".to_string(), "AES".to_string(), 2000));
@@ -83,19 +83,19 @@ fn test_kat_summary_mixed_results() {
 }
 
 #[test]
-fn test_kat_summary_pass_rate_empty() {
+fn test_kat_summary_pass_rate_empty_returns_zero_matches_expected() {
     let summary = KatSummary::new();
     assert!((summary.pass_rate() - 0.0).abs() < 0.01);
 }
 
 #[test]
-fn test_kat_summary_print_empty() {
+fn test_kat_summary_print_empty_does_not_panic_matches_expected() {
     let summary = KatSummary::new();
     summary.print(); // Should not panic
 }
 
 #[test]
-fn test_kat_summary_print_with_results() {
+fn test_kat_summary_print_with_results_does_not_panic_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("enc-1".to_string(), "AES-GCM".to_string(), 1500));
     summary.add_result(KatTestResult::passed("enc-2".to_string(), "AES-GCM".to_string(), 2500));
@@ -104,7 +104,7 @@ fn test_kat_summary_print_with_results() {
 }
 
 #[test]
-fn test_kat_summary_print_with_failures() {
+fn test_kat_summary_print_with_failures_does_not_panic_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("enc-1".to_string(), "AES-GCM".to_string(), 1000));
     summary.add_result(KatTestResult::failed(
@@ -121,19 +121,19 @@ fn test_kat_summary_print_with_failures() {
 // ============================================================================
 
 #[test]
-fn test_kat_runner_new() {
+fn test_kat_runner_new_initializes_empty_matches_expected() {
     let runner = KatRunner::new();
     assert_eq!(runner.summary().total, 0);
 }
 
 #[test]
-fn test_kat_runner_default() {
+fn test_kat_runner_default_initializes_empty_matches_expected() {
     let runner = KatRunner::default();
     assert_eq!(runner.summary().total, 0);
 }
 
 #[test]
-fn test_kat_runner_run_passing_test() {
+fn test_kat_runner_run_passing_test_updates_passed_count_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("aes-gcm-256-encrypt", "AES-GCM", || Ok(()));
 
@@ -144,7 +144,7 @@ fn test_kat_runner_run_passing_test() {
 }
 
 #[test]
-fn test_kat_runner_run_failing_test() {
+fn test_kat_runner_run_failing_test_updates_failed_count_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("sha3-256-hash", "SHA3-256", || {
         Err(NistKatError::TestFailed {
@@ -161,7 +161,7 @@ fn test_kat_runner_run_failing_test() {
 }
 
 #[test]
-fn test_kat_runner_multiple_tests() {
+fn test_kat_runner_multiple_tests_tracked_correctly_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("aes-1", "AES-GCM", || Ok(()));
     runner.run_test("aes-2", "AES-GCM", || Ok(()));
@@ -181,7 +181,7 @@ fn test_kat_runner_multiple_tests() {
 }
 
 #[test]
-fn test_kat_runner_finish() {
+fn test_kat_runner_finish_returns_owned_summary_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("test-1", "AES", || Ok(()));
     runner.run_test("test-2", "AES", || Ok(()));
@@ -194,7 +194,7 @@ fn test_kat_runner_finish() {
 }
 
 #[test]
-fn test_kat_runner_run_test_records_timing() {
+fn test_kat_runner_run_test_records_timing_in_result_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("timing-test", "AES", || {
         // Do some minimal work

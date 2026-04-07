@@ -55,19 +55,19 @@ mod run_ec_kat_tests_tests {
     use super::*;
 
     #[test]
-    fn test_run_ec_kat_tests_returns_ok() {
+    fn test_run_ec_kat_tests_returns_ok_result_matches_expected() {
         let result = run_ec_kat_tests();
         assert!(result.is_ok(), "run_ec_kat_tests should return Ok");
     }
 
     #[test]
-    fn test_run_ec_kat_tests_returns_results() {
+    fn test_run_ec_kat_tests_returns_nonempty_results_matches_expected() {
         let results = run_ec_kat_tests().unwrap();
         assert!(!results.is_empty(), "Should return at least one KatResult");
     }
 
     #[test]
-    fn test_run_ec_kat_tests_includes_ed25519_results() {
+    fn test_run_ec_kat_tests_includes_ed25519_results_correctly_matches_expected() {
         let results = run_ec_kat_tests().unwrap();
         let ed25519_results: Vec<_> =
             results.iter().filter(|r| r.test_case.contains("Ed25519")).collect();
@@ -76,7 +76,7 @@ mod run_ec_kat_tests_tests {
     }
 
     #[test]
-    fn test_run_ec_kat_tests_includes_secp256k1_results() {
+    fn test_run_ec_kat_tests_includes_secp256k1_results_correctly_matches_expected() {
         let results = run_ec_kat_tests().unwrap();
         let secp256k1_results: Vec<_> =
             results.iter().filter(|r| r.test_case.contains("secp256k1")).collect();
@@ -85,35 +85,35 @@ mod run_ec_kat_tests_tests {
     }
 
     #[test]
-    fn test_run_ec_kat_tests_all_pass() {
+    fn test_run_ec_kat_tests_all_pass_successfully_matches_expected() {
         let results = run_ec_kat_tests().unwrap();
         let all_passed = results.iter().all(|r| r.passed);
         assert!(all_passed, "All EC KAT tests should pass");
     }
 
     #[test]
-    fn test_run_ec_kat_tests_expected_count() {
+    fn test_run_ec_kat_tests_expected_count_is_correct() {
         let results = run_ec_kat_tests().unwrap();
         // 5 Ed25519 tests + 3 secp256k1 tests = 8 total
         assert_eq!(results.len(), 8, "Should return exactly 8 KAT results");
     }
 
     #[test]
-    fn test_run_ec_kat_tests_ed25519_count() {
+    fn test_run_ec_kat_tests_ed25519_count_is_correct() {
         let results = run_ec_kat_tests().unwrap();
         let ed25519_count = results.iter().filter(|r| r.test_case.contains("Ed25519")).count();
         assert_eq!(ed25519_count, 5, "Should have exactly 5 Ed25519 test cases");
     }
 
     #[test]
-    fn test_run_ec_kat_tests_secp256k1_count() {
+    fn test_run_ec_kat_tests_secp256k1_count_is_correct() {
         let results = run_ec_kat_tests().unwrap();
         let secp256k1_count = results.iter().filter(|r| r.test_case.contains("secp256k1")).count();
         assert_eq!(secp256k1_count, 3, "Should have exactly 3 secp256k1 test cases");
     }
 
     #[test]
-    fn test_run_ec_kat_tests_no_error_messages() {
+    fn test_run_ec_kat_tests_no_error_messages_on_pass_matches_expected() {
         let results = run_ec_kat_tests().unwrap();
         for result in &results {
             assert!(
@@ -125,7 +125,7 @@ mod run_ec_kat_tests_tests {
     }
 
     #[test]
-    fn test_run_ec_kat_tests_execution_time_recorded() {
+    fn test_run_ec_kat_tests_execution_time_recorded_correctly_matches_expected() {
         let results = run_ec_kat_tests().unwrap();
         for result in &results {
             // Execution time should be recorded (can be 0 for very fast tests)
@@ -138,7 +138,7 @@ mod run_ec_kat_tests_tests {
     }
 
     #[test]
-    fn test_run_ec_kat_tests_test_case_naming() {
+    fn test_run_ec_kat_tests_test_case_naming_is_correct() {
         let results = run_ec_kat_tests().unwrap();
 
         // Check Ed25519 naming pattern
@@ -163,7 +163,7 @@ mod run_ec_kat_tests_tests {
     }
 
     #[test]
-    fn test_run_ec_kat_tests_idempotent() {
+    fn test_run_ec_kat_tests_idempotent_produces_same_results_matches_expected() {
         // Running multiple times should produce consistent results
         let results1 = run_ec_kat_tests().unwrap();
         let results2 = run_ec_kat_tests().unwrap();
@@ -185,7 +185,7 @@ mod kat_result_tests {
     use super::*;
 
     #[test]
-    fn test_kat_result_passed_constructor() {
+    fn test_kat_result_passed_constructor_has_correct_fields_matches_expected() {
         let duration = Duration::from_micros(100);
         let result = KatResult::passed("Test-001".to_string(), duration);
 
@@ -196,7 +196,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_failed_constructor() {
+    fn test_kat_result_failed_constructor_has_correct_fields_matches_expected() {
         let duration = Duration::from_millis(5);
         let result =
             KatResult::failed("Test-002".to_string(), duration, "Signature mismatch".to_string());
@@ -208,7 +208,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_clone() {
+    fn test_kat_result_clone_produces_equal_value_matches_expected() {
         let result = KatResult::passed("Clone-Test".to_string(), Duration::from_nanos(500));
         let cloned = result.clone();
 
@@ -219,7 +219,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_equality() {
+    fn test_kat_result_equality_matches_expected() {
         let result1 = KatResult::passed("Eq-Test".to_string(), Duration::from_micros(100));
         let result2 = KatResult::passed("Eq-Test".to_string(), Duration::from_micros(100));
 
@@ -227,7 +227,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_inequality_test_case() {
+    fn test_kat_result_inequality_test_case_returns_not_equal_matches_expected() {
         let result1 = KatResult::passed("Test-A".to_string(), Duration::from_micros(100));
         let result2 = KatResult::passed("Test-B".to_string(), Duration::from_micros(100));
 
@@ -235,7 +235,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_inequality_passed() {
+    fn test_kat_result_inequality_passed_returns_not_equal_matches_expected() {
         let result1 = KatResult::passed("Test-A".to_string(), Duration::from_micros(100));
         let result2 = KatResult::failed(
             "Test-A".to_string(),
@@ -247,7 +247,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_debug_format() {
+    fn test_kat_result_debug_format_has_correct_string_matches_expected() {
         let result = KatResult::passed("Debug-Test".to_string(), Duration::from_micros(50));
         let debug_str = format!("{:?}", result);
 
@@ -256,7 +256,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_serialization() {
+    fn test_kat_result_serialization_round_trips_correctly_roundtrip() {
         let result = KatResult::passed("Serde-Test".to_string(), Duration::from_micros(250));
         let json = serde_json::to_string(&result).unwrap();
 
@@ -265,7 +265,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_deserialization() {
+    fn test_kat_result_deserialization_round_trips_correctly_roundtrip() {
         let json = r#"{"test_case":"Deser-Test","passed":true,"execution_time_ns":1000,"error_message":null}"#;
         let result: KatResult = serde_json::from_str(json).unwrap();
 
@@ -276,7 +276,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_round_trip_serialization() {
+    fn test_kat_result_round_trip_serialization_succeeds() {
         let original = KatResult::failed(
             "RoundTrip".to_string(),
             Duration::from_millis(10),
@@ -289,33 +289,33 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_zero_duration() {
+    fn test_kat_result_zero_duration_is_accepted() {
         let result = KatResult::passed("Zero-Duration".to_string(), Duration::ZERO);
         assert_eq!(result.execution_time_ns, 0);
     }
 
     #[test]
-    fn test_kat_result_large_duration() {
+    fn test_kat_result_large_duration_is_accepted() {
         let result = KatResult::passed("Large-Duration".to_string(), Duration::from_secs(3600));
         assert_eq!(result.execution_time_ns, 3600 * 1_000_000_000u128);
     }
 
     #[test]
-    fn test_kat_result_empty_test_case_name() {
+    fn test_kat_result_empty_test_case_name_is_accepted() {
         let result = KatResult::passed(String::new(), Duration::from_micros(1));
         assert!(result.test_case.is_empty());
         assert!(result.passed);
     }
 
     #[test]
-    fn test_kat_result_empty_error_message() {
+    fn test_kat_result_empty_error_message_is_accepted() {
         let result =
             KatResult::failed("Empty-Error".to_string(), Duration::from_micros(1), String::new());
         assert_eq!(result.error_message, Some(String::new()));
     }
 
     #[test]
-    fn test_kat_result_unicode_test_case() {
+    fn test_kat_result_unicode_test_case_is_accepted() {
         let result = KatResult::passed("Test-Unicode-".to_string(), Duration::from_micros(1));
         assert!(result.test_case.contains(""));
     }
@@ -329,7 +329,7 @@ mod ed25519_kat_vector_tests {
     use super::*;
 
     #[test]
-    fn test_ed25519_kat_vector_creation() {
+    fn test_ed25519_kat_vector_creation_has_correct_fields_matches_expected() {
         let vector = Ed25519KatVector {
             test_case: "Ed25519-001".to_string(),
             seed: vec![0u8; 32],
@@ -345,7 +345,7 @@ mod ed25519_kat_vector_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_clone() {
+    fn test_ed25519_kat_vector_clone_produces_equal_value_matches_expected() {
         let vector = Ed25519KatVector {
             test_case: "Clone-Test".to_string(),
             seed: vec![1, 2, 3, 4],
@@ -359,7 +359,7 @@ mod ed25519_kat_vector_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_equality() {
+    fn test_ed25519_kat_vector_equality_matches_expected() {
         let v1 = Ed25519KatVector {
             test_case: "Test".to_string(),
             seed: vec![1, 2, 3],
@@ -373,7 +373,7 @@ mod ed25519_kat_vector_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_serialization() {
+    fn test_ed25519_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = Ed25519KatVector {
             test_case: "Serde-Test".to_string(),
             seed: vec![0xab, 0xcd],
@@ -390,7 +390,7 @@ mod ed25519_kat_vector_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_empty_message() {
+    fn test_ed25519_kat_vector_empty_message_is_accepted() {
         let vector = Ed25519KatVector {
             test_case: "Empty-Message".to_string(),
             seed: vec![0u8; 32],
@@ -403,7 +403,7 @@ mod ed25519_kat_vector_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_large_message() {
+    fn test_ed25519_kat_vector_large_message_is_accepted() {
         let vector = Ed25519KatVector {
             test_case: "Large-Message".to_string(),
             seed: vec![0u8; 32],
@@ -424,7 +424,7 @@ mod secp256k1_kat_vector_tests {
     use super::*;
 
     #[test]
-    fn test_secp256k1_kat_vector_creation() {
+    fn test_secp256k1_kat_vector_creation_has_correct_fields_matches_expected() {
         let vector = Secp256k1KatVector {
             test_case: "secp256k1-001".to_string(),
             private_key: vec![0u8; 32],
@@ -438,7 +438,7 @@ mod secp256k1_kat_vector_tests {
     }
 
     #[test]
-    fn test_secp256k1_kat_vector_clone() {
+    fn test_secp256k1_kat_vector_clone_produces_equal_value_matches_expected() {
         let vector = Secp256k1KatVector {
             test_case: "Clone-Test".to_string(),
             private_key: vec![1, 2, 3, 4],
@@ -452,7 +452,7 @@ mod secp256k1_kat_vector_tests {
     }
 
     #[test]
-    fn test_secp256k1_kat_vector_equality() {
+    fn test_secp256k1_kat_vector_equality_matches_expected() {
         let v1 = Secp256k1KatVector {
             test_case: "Test".to_string(),
             private_key: vec![1, 2, 3],
@@ -466,7 +466,7 @@ mod secp256k1_kat_vector_tests {
     }
 
     #[test]
-    fn test_secp256k1_kat_vector_serialization() {
+    fn test_secp256k1_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = Secp256k1KatVector {
             test_case: "Serde-Test".to_string(),
             private_key: vec![0xab, 0xcd],
@@ -489,55 +489,55 @@ mod algorithm_type_ec_tests {
     use super::*;
 
     #[test]
-    fn test_algorithm_type_ed25519() {
+    fn test_algorithm_type_ed25519_is_accessible() {
         let algo = AlgorithmType::Ed25519;
         assert_eq!(algo.name(), "Ed25519");
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_algorithm_type_secp256k1() {
+    fn test_algorithm_type_secp256k1_is_accessible() {
         let algo = AlgorithmType::Secp256k1;
         assert_eq!(algo.name(), "secp256k1");
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_algorithm_type_bls12_381() {
+    fn test_algorithm_type_bls12_381_is_accessible() {
         let algo = AlgorithmType::Bls12_381;
         assert_eq!(algo.name(), "BLS12-381");
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_algorithm_type_bn254() {
+    fn test_algorithm_type_bn254_is_accessible() {
         let algo = AlgorithmType::Bn254;
         assert_eq!(algo.name(), "BN254");
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_algorithm_type_clone() {
+    fn test_algorithm_type_clone_produces_equal_value_succeeds() {
         let algo = AlgorithmType::Ed25519;
         let cloned = algo.clone();
         assert_eq!(algo, cloned);
     }
 
     #[test]
-    fn test_algorithm_type_equality() {
+    fn test_algorithm_type_equality_matches_expected() {
         assert_eq!(AlgorithmType::Ed25519, AlgorithmType::Ed25519);
         assert_ne!(AlgorithmType::Ed25519, AlgorithmType::Secp256k1);
     }
 
     #[test]
-    fn test_algorithm_type_debug() {
+    fn test_algorithm_type_debug_has_correct_format() {
         let algo = AlgorithmType::Ed25519;
         let debug_str = format!("{:?}", algo);
         assert!(debug_str.contains("Ed25519"));
     }
 
     #[test]
-    fn test_algorithm_type_serialization() {
+    fn test_algorithm_type_serialization_round_trips_correctly_roundtrip() {
         let algo = AlgorithmType::Ed25519;
         let json = serde_json::to_string(&algo).unwrap();
         let deserialized: AlgorithmType = serde_json::from_str(&json).unwrap();
@@ -545,7 +545,7 @@ mod algorithm_type_ec_tests {
     }
 
     #[test]
-    fn test_algorithm_type_secp256k1_serialization() {
+    fn test_algorithm_type_secp256k1_serialization_round_trips_correctly_roundtrip() {
         let algo = AlgorithmType::Secp256k1;
         let json = serde_json::to_string(&algo).unwrap();
         let deserialized: AlgorithmType = serde_json::from_str(&json).unwrap();
@@ -561,7 +561,7 @@ mod kat_config_tests {
     use super::*;
 
     #[test]
-    fn test_kat_config_default() {
+    fn test_kat_config_default_has_expected_values_matches_expected() {
         let config = KatConfig::default();
 
         assert_eq!(config.test_count, 100);
@@ -571,7 +571,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_clone() {
+    fn test_kat_config_clone_produces_equal_value_matches_expected() {
         let config = KatConfig::default();
         let cloned = config.clone();
 
@@ -581,21 +581,21 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_equality() {
+    fn test_kat_config_equality_matches_expected() {
         let c1 = KatConfig::default();
         let c2 = KatConfig::default();
         assert_eq!(c1, c2);
     }
 
     #[test]
-    fn test_kat_config_debug() {
+    fn test_kat_config_debug_has_correct_format() {
         let config = KatConfig::default();
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("test_count"));
     }
 
     #[test]
-    fn test_kat_config_serialization() {
+    fn test_kat_config_serialization_round_trips_correctly_roundtrip() {
         let config = KatConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("test_count"));
@@ -605,7 +605,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_ml_kem() {
+    fn test_kat_config_ml_kem_has_correct_fields_matches_expected() {
         let config = KatConfig::ml_kem("768", 50);
 
         assert!(matches!(config.algorithm, AlgorithmType::MlKem { .. }));
@@ -613,7 +613,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_ml_dsa() {
+    fn test_kat_config_ml_dsa_has_correct_fields_matches_expected() {
         let config = KatConfig::ml_dsa("65", 25);
 
         assert!(matches!(config.algorithm, AlgorithmType::MlDsa { .. }));
@@ -621,7 +621,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_slh_dsa() {
+    fn test_kat_config_slh_dsa_has_correct_fields_matches_expected() {
         let config = KatConfig::slh_dsa("128", 10);
 
         assert!(matches!(config.algorithm, AlgorithmType::SlhDsa { .. }));
@@ -639,7 +639,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_multiple_sequential_runs() {
+    fn test_multiple_sequential_runs_produce_consistent_results_succeeds() {
         // Run EC KAT tests multiple times in sequence
         for i in 0..3 {
             let results = run_ec_kat_tests().unwrap();
@@ -649,7 +649,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_result_ordering_consistent() {
+    fn test_result_ordering_consistent_across_runs_succeeds() {
         let results = run_ec_kat_tests().unwrap();
 
         // Ed25519 results should come before secp256k1 results
@@ -665,7 +665,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_kat_result_with_special_characters() {
+    fn test_kat_result_with_special_characters_is_accepted() {
         let result = KatResult::passed(
             "Test-with-special-chars-!@#$%".to_string(),
             Duration::from_micros(1),
@@ -678,7 +678,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_ed25519_vector_with_all_zeros() {
+    fn test_ed25519_vector_with_all_zeros_is_accepted() {
         let vector = Ed25519KatVector {
             test_case: "All-Zeros".to_string(),
             seed: vec![0u8; 32],
@@ -693,7 +693,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_ed25519_vector_with_all_ones() {
+    fn test_ed25519_vector_with_all_ones_is_accepted() {
         let vector = Ed25519KatVector {
             test_case: "All-Ones".to_string(),
             seed: vec![0xffu8; 32],
@@ -708,7 +708,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_secp256k1_vector_with_all_zeros() {
+    fn test_secp256k1_vector_with_all_zeros_is_accepted() {
         let vector = Secp256k1KatVector {
             test_case: "All-Zeros".to_string(),
             private_key: vec![0u8; 32],
@@ -723,7 +723,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_kat_result_collect_to_vec() {
+    fn test_kat_result_collect_to_vec_succeeds() {
         let results = run_ec_kat_tests().unwrap();
 
         let passed_results: Vec<_> = results.iter().filter(|r| r.passed).cloned().collect();
@@ -734,7 +734,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_algorithm_type_all_ec_variants() {
+    fn test_algorithm_type_all_ec_variants_are_accessible() {
         let ec_algorithms = [
             AlgorithmType::Ed25519,
             AlgorithmType::Secp256k1,
@@ -757,7 +757,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_full_ec_kat_workflow() {
+    fn test_full_ec_kat_workflow_succeeds() {
         // Simulate a full KAT workflow
         let results = run_ec_kat_tests().unwrap();
 
@@ -774,7 +774,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_kat_result_filtering_and_aggregation() {
+    fn test_kat_result_filtering_and_aggregation_is_correct() {
         let results = run_ec_kat_tests().unwrap();
 
         // Filter by curve type
@@ -794,7 +794,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_kat_result_json_report_generation() {
+    fn test_kat_result_json_report_generation_succeeds() {
         let results = run_ec_kat_tests().unwrap();
 
         // Generate JSON report
@@ -814,7 +814,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_kat_types_interoperability() {
+    fn test_kat_types_interoperability_succeeds() {
         // Test that different KAT vector types can be used together
         let ed25519_vec = Ed25519KatVector {
             test_case: "Ed25519-Interop".to_string(),
@@ -841,7 +841,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_algorithm_type_name_consistency() {
+    fn test_algorithm_type_name_consistency_is_correct() {
         // Verify algorithm names are consistent with industry standards
         let names = vec![
             (AlgorithmType::Ed25519, "Ed25519"),
@@ -865,7 +865,7 @@ mod performance_tests {
     use std::time::Instant;
 
     #[test]
-    fn test_ec_kat_execution_time() {
+    fn test_ec_kat_execution_time_is_recorded_matches_expected() {
         let start = Instant::now();
         let _results = run_ec_kat_tests().unwrap();
         let duration = start.elapsed();
@@ -875,7 +875,7 @@ mod performance_tests {
     }
 
     #[test]
-    fn test_individual_result_timing() {
+    fn test_individual_result_timing_is_recorded_succeeds() {
         let results = run_ec_kat_tests().unwrap();
 
         // Each individual test should be fast
@@ -891,7 +891,7 @@ mod performance_tests {
     }
 
     #[test]
-    fn test_total_execution_time_reasonable() {
+    fn test_total_execution_time_reasonable_is_acceptable_succeeds() {
         let results = run_ec_kat_tests().unwrap();
 
         let total_ns: u128 = results.iter().map(|r| r.execution_time_ns).sum();
@@ -911,7 +911,7 @@ mod thread_safety_tests {
     use std::thread;
 
     #[test]
-    fn test_concurrent_ec_kat_runs() {
+    fn test_concurrent_ec_kat_runs_produce_consistent_results_matches_expected() {
         let handles: Vec<_> = (0..4)
             .map(|_| {
                 thread::spawn(|| {
@@ -928,21 +928,21 @@ mod thread_safety_tests {
     }
 
     #[test]
-    fn test_kat_result_send_sync() {
+    fn test_kat_result_send_sync_is_implemented() {
         // Verify KatResult implements Send + Sync
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<KatResult>();
     }
 
     #[test]
-    fn test_kat_vector_types_send_sync() {
+    fn test_kat_vector_types_send_sync_are_implemented_matches_expected() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Ed25519KatVector>();
         assert_send_sync::<Secp256k1KatVector>();
     }
 
     #[test]
-    fn test_algorithm_type_send_sync() {
+    fn test_algorithm_type_send_sync_is_implemented() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<AlgorithmType>();
     }

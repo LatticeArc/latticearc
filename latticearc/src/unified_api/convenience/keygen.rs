@@ -3,19 +3,21 @@
 use crate::unified_api::logging::{KeyPurpose, KeyType};
 use tracing::debug;
 
-use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
-
 use crate::primitives::{
+    ec::{
+        ed25519::{Ed25519KeyPair, Ed25519Signature as Ed25519SignatureOps},
+        traits::{EcKeyPair, EcSignature},
+    },
     kem::ml_kem::{MlKem, MlKemSecurityLevel},
     sig::{
-        fndsa::FNDsaSecurityLevel,
+        fndsa::FnDsaSecurityLevel,
         ml_dsa::{MlDsaParameterSet, generate_keypair as ml_dsa_generate_keypair},
-        slh_dsa::{SecurityLevel as SlhDsaSecurityLevel, SigningKey as SlhDsaSigningKey},
+        slh_dsa::{SigningKey as SlhDsaSigningKey, SlhDsaSecurityLevel},
     },
 };
 
 use crate::types::{PrivateKey, PublicKey};
-use crate::unified_api::config::CoreConfig;
+use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 
 /// Generate an Ed25519 keypair
@@ -30,15 +32,26 @@ pub fn generate_keypair() -> Result<(PublicKey, PrivateKey)> {
     super::api::fips_verify_operational()?;
     debug!("Generating Ed25519 keypair");
 
-    let mut csprng = rand::rngs::OsRng;
-    let signing_key = SigningKey::generate(&mut csprng);
-    let verifying_key = signing_key.verifying_key();
+    // Delegate to the primitives layer so all Ed25519 key generation goes
+    // through a single entry point. `Ed25519KeyPair::generate()` already
+    // performs a pairwise consistency test internally.
+    let keypair = Ed25519KeyPair::generate().map_err(|e| CoreError::KeyGenerationFailed {
+        reason: format!("Ed25519 key generation failed: {e}"),
+        recovery: "Check RNG availability and retry".to_string(),
+    })?;
 
-    // Validate keys per FIPS 186-5 requirements
-    validate_ed25519_keypair(&signing_key, &verifying_key)?;
+    // Run convenience-layer FIPS 186-5 sanity validation on top of the
+    // primitives-level PCT: rejects the identity/zero edge cases and
+    // re-verifies a test signature before exposing the keys.
+    validate_ed25519_keypair(&keypair)?;
 
-    let public_key = verifying_key.to_bytes().to_vec();
-    let private_key = PrivateKey::new(signing_key.to_bytes().to_vec());
+    let public_key = PublicKey::new(keypair.public_key_bytes());
+    // secret_key_bytes() returns Zeroizing<Vec<u8>>; take the inner vec out
+    // so PrivateKey owns the bytes (the emptied Zeroizing wrapper is wiped
+    // on drop).
+    let mut sk_zeroizing = keypair.secret_key_bytes();
+    let sk_bytes = std::mem::take(&mut *sk_zeroizing);
+    let private_key = PrivateKey::new(sk_bytes);
 
     crate::log_key_generated!("ed25519-keypair", "Ed25519", KeyType::KeyPair, KeyPurpose::Signing);
 
@@ -57,10 +70,13 @@ pub fn generate_keypair_with_config(config: &CoreConfig) -> Result<(PublicKey, P
     generate_keypair()
 }
 
-/// Validate Ed25519 keypair per FIPS 186-5 requirements
-fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingKey) -> Result<()> {
-    // Validate public key format (32 bytes guaranteed by type)
-    let public_bytes = verifying_key.to_bytes();
+/// Validate Ed25519 keypair per FIPS 186-5 requirements.
+///
+/// Delegates all raw-byte access to the primitives layer so the convenience
+/// layer never touches the underlying Ed25519 backend directly.
+fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
+    // Validate public key format (32 bytes guaranteed by Ed25519KeyPair type)
+    let public_bytes = keypair.public_key_bytes();
 
     // Validate that public key is not the identity element (all zeros)
     if public_bytes.iter().all(|&b| b == 0) {
@@ -70,8 +86,8 @@ fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingK
         });
     }
 
-    // Validate private key format (32 bytes guaranteed by type)
-    let private_bytes = signing_key.to_bytes();
+    // Validate private key format (32 bytes guaranteed by Ed25519KeyPair type)
+    let private_bytes = keypair.secret_key_bytes();
 
     // Validate private key is not zero
     if private_bytes.iter().all(|&b| b == 0) {
@@ -81,12 +97,15 @@ fn validate_ed25519_keypair(signing_key: &SigningKey, verifying_key: &VerifyingK
         });
     }
 
-    // Perform a test signature to ensure keypair consistency
+    // Perform a test signature to ensure keypair consistency. Both sign and
+    // verify go through the primitives API. Ed25519 signing is infallible.
     let test_message = b"key_validation_test";
-    let signature = signing_key.sign(test_message);
-    verifying_key.verify(test_message, &signature).map_err(|e| CoreError::KeyGenerationFailed {
-        reason: format!("Keypair validation failed: {e}"),
-        recovery: "Regenerate keypair and retry validation".to_string(),
+    let signature = keypair.sign(test_message);
+    Ed25519SignatureOps::verify(&public_bytes, test_message, &signature).map_err(|e| {
+        CoreError::KeyGenerationFailed {
+            reason: format!("Keypair validation failed: {e}"),
+            recovery: "Regenerate keypair and retry validation".to_string(),
+        }
     })?;
 
     Ok(())
@@ -108,13 +127,11 @@ pub fn generate_ml_kem_keypair(
     super::api::fips_verify_operational()?;
     debug!(security_level = ?security_level, "Generating ML-KEM keypair");
 
-    let mut rng = rand::rngs::OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, security_level).map_err(|e| {
-        CoreError::KeyGenerationFailed {
+    let (pk, sk) =
+        MlKem::generate_keypair(security_level).map_err(|e| CoreError::KeyGenerationFailed {
             reason: format!("ML-KEM key generation failed: {}", e),
             recovery: "Check security level and RNG".to_string(),
-        }
-    })?;
+        })?;
 
     let algorithm = format!("{:?}", security_level);
     crate::log_key_generated!(
@@ -129,7 +146,7 @@ pub fn generate_ml_kem_keypair(
     // in the Zeroizing wrapper is harmlessly zeroized on drop.
     let mut sk_bytes = sk.into_bytes();
     let sk_data = std::mem::take(&mut *sk_bytes);
-    Ok((pk.into_bytes(), PrivateKey::new(sk_data)))
+    Ok((PublicKey::new(pk.into_bytes()), PrivateKey::new(sk_data)))
 }
 
 /// Generate an ML-KEM keypair with configuration
@@ -168,7 +185,7 @@ pub fn generate_ml_dsa_keypair(
     let algorithm = format!("{:?}", parameter_set);
     crate::log_key_generated!("ml-dsa-keypair", algorithm, KeyType::KeyPair, KeyPurpose::Signing);
 
-    Ok((pk.as_bytes().to_vec(), PrivateKey::new(sk.as_bytes().to_vec())))
+    Ok((PublicKey::new(pk.as_bytes().to_vec()), PrivateKey::new(sk.as_bytes().to_vec())))
 }
 
 /// Generate an ML-DSA keypair with configuration
@@ -205,7 +222,7 @@ pub fn generate_slh_dsa_keypair(
     let algorithm = format!("{:?}", security_level);
     crate::log_key_generated!("slh-dsa-keypair", algorithm, KeyType::KeyPair, KeyPurpose::Signing);
 
-    Ok((pk.as_bytes().to_vec(), PrivateKey::new(sk.as_bytes().to_vec())))
+    Ok((PublicKey::new(pk.as_bytes().to_vec()), PrivateKey::new(sk.as_bytes().to_vec())))
 }
 
 /// Generate an SLH-DSA keypair with configuration
@@ -233,7 +250,7 @@ pub fn generate_slh_dsa_keypair_with_config(
 /// - The FN-DSA key generation operation fails
 /// - The RNG is unavailable or fails to provide sufficient randomness
 pub fn generate_fn_dsa_keypair() -> Result<(PublicKey, PrivateKey)> {
-    generate_fn_dsa_keypair_with_level(FNDsaSecurityLevel::Level512)
+    generate_fn_dsa_keypair_with_level(FnDsaSecurityLevel::Level512)
 }
 
 /// Generate an FN-DSA keypair at the specified security level.
@@ -251,26 +268,27 @@ pub fn generate_fn_dsa_keypair() -> Result<(PublicKey, PrivateKey)> {
 /// FN-DSA Level1024 requires ~32MB stack in debug builds. Use `--release`
 /// or spawn a thread with `stack_size(32 * 1024 * 1024)` if needed.
 pub fn generate_fn_dsa_keypair_with_level(
-    level: FNDsaSecurityLevel,
+    level: FnDsaSecurityLevel,
 ) -> Result<(PublicKey, PrivateKey)> {
     debug!("Generating FN-DSA keypair ({:?})", level);
 
-    let mut rng = rand::rngs::OsRng;
-    let keypair =
-        crate::primitives::sig::fndsa::KeyPair::generate(&mut rng, level).map_err(|e| {
-            CoreError::KeyGenerationFailed {
-                reason: format!("FN-DSA key generation failed: {}", e),
-                recovery: "Check RNG availability".to_string(),
-            }
-        })?;
+    let keypair = crate::primitives::sig::fndsa::KeyPair::generate(level).map_err(|e| {
+        CoreError::KeyGenerationFailed {
+            reason: format!("FN-DSA key generation failed: {}", e),
+            recovery: "Check RNG availability".to_string(),
+        }
+    })?;
 
     let level_name = match level {
-        FNDsaSecurityLevel::Level512 => "FN-DSA-512",
-        FNDsaSecurityLevel::Level1024 => "FN-DSA-1024",
+        FnDsaSecurityLevel::Level512 => "FN-DSA-512",
+        FnDsaSecurityLevel::Level1024 => "FN-DSA-1024",
     };
     crate::log_key_generated!("fn-dsa-keypair", level_name, KeyType::KeyPair, KeyPurpose::Signing);
 
-    Ok((keypair.verifying_key().to_bytes(), PrivateKey::new(keypair.signing_key().to_bytes())))
+    Ok((
+        PublicKey::new(keypair.verifying_key().to_bytes()),
+        PrivateKey::new((*keypair.signing_key().to_bytes()).clone()),
+    ))
 }
 
 /// Generate an FN-DSA keypair with configuration
@@ -317,7 +335,7 @@ mod tests {
     use super::*;
     use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
     use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
-    use crate::primitives::sig::slh_dsa::SecurityLevel as SlhDsaSecurityLevel;
+    use crate::primitives::sig::slh_dsa::SlhDsaSecurityLevel;
     use crate::unified_api::convenience::ed25519::{
         sign_ed25519_unverified, verify_ed25519_unverified,
     };
@@ -331,7 +349,7 @@ mod tests {
 
     // Ed25519 comprehensive tests
     #[test]
-    fn test_ed25519_keypair_format() -> Result<()> {
+    fn test_ed25519_keypair_format_has_correct_sizes_has_correct_size() -> Result<()> {
         let (pk, sk) = generate_keypair()?;
         assert_eq!(pk.len(), 32, "Ed25519 public key must be exactly 32 bytes");
         assert_eq!(sk.as_ref().len(), 32, "Ed25519 secret key must be exactly 32 bytes");
@@ -339,19 +357,19 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_keypair_functionality() -> Result<()> {
+    fn test_ed25519_keypair_functionality_signs_and_verifies_succeeds() -> Result<()> {
         let (pk, sk) = generate_keypair()?;
         let message = b"Test message to verify key functionality";
 
         // Keys should actually work for signing and verification
         let signature = sign_ed25519_unverified(message, sk.as_ref())?;
-        let is_valid = verify_ed25519_unverified(message, &signature, &pk)?;
+        let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
         assert!(is_valid, "Generated keypair should produce valid signatures");
         Ok(())
     }
 
     #[test]
-    fn test_ed25519_keypair_uniqueness() -> Result<()> {
+    fn test_ed25519_keypair_uniqueness_produces_distinct_keys_are_unique() -> Result<()> {
         let (pk1, sk1) = generate_keypair()?;
         let (pk2, sk2) = generate_keypair()?;
         let (pk3, sk3) = generate_keypair()?;
@@ -367,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_keypair_with_config() -> Result<()> {
+    fn test_ed25519_keypair_with_config_succeeds() -> Result<()> {
         let config = CoreConfig::default();
         let (pk, sk) = generate_keypair_with_config(&config)?;
 
@@ -378,7 +396,7 @@ mod tests {
         // Validate functionality
         let message = b"Config test";
         let signature = sign_ed25519_unverified(message, sk.as_ref())?;
-        let is_valid = verify_ed25519_unverified(message, &signature, &pk)?;
+        let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
         assert!(is_valid);
         Ok(())
     }
@@ -390,7 +408,7 @@ mod tests {
         let message = b"Cross validation test";
 
         let signature = sign_ed25519_unverified(message, sk1.as_ref())?;
-        let result = verify_ed25519_unverified(message, &signature, &pk2);
+        let result = verify_ed25519_unverified(message, &signature, pk2.as_slice());
         assert!(
             result.is_err(),
             "Signature from one key should not verify with different public key"
@@ -401,7 +419,7 @@ mod tests {
     // ML-KEM comprehensive tests
     // Note: Full encryption/decryption roundtrip tested in integration tests
     #[test]
-    fn test_ml_kem_512_keypair_generation() -> Result<()> {
+    fn test_ml_kem_512_keypair_generation_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)?;
 
         // Validate keys are generated with expected properties
@@ -411,39 +429,39 @@ mod tests {
         // Public key can be used for encryption
         let plaintext = b"Test data for ML-KEM-512";
         let ciphertext =
-            encrypt_pq_ml_kem_unverified(plaintext, &pk, MlKemSecurityLevel::MlKem512)?;
+            encrypt_pq_ml_kem_unverified(plaintext, pk.as_slice(), MlKemSecurityLevel::MlKem512)?;
         assert!(ciphertext.len() > plaintext.len(), "Ciphertext should be larger than plaintext");
         Ok(())
     }
 
     #[test]
-    fn test_ml_kem_768_keypair_generation() -> Result<()> {
+    fn test_ml_kem_768_keypair_generation_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
         assert!(!pk.is_empty());
         assert!(!sk.as_ref().is_empty());
 
         let plaintext = b"Test data";
         let ciphertext =
-            encrypt_pq_ml_kem_unverified(plaintext, &pk, MlKemSecurityLevel::MlKem768)?;
+            encrypt_pq_ml_kem_unverified(plaintext, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
         assert!(ciphertext.len() > plaintext.len());
         Ok(())
     }
 
     #[test]
-    fn test_ml_kem_1024_keypair_generation() -> Result<()> {
+    fn test_ml_kem_1024_keypair_generation_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)?;
         assert!(!pk.is_empty());
         assert!(!sk.as_ref().is_empty());
 
         let plaintext = b"Test data";
         let ciphertext =
-            encrypt_pq_ml_kem_unverified(plaintext, &pk, MlKemSecurityLevel::MlKem1024)?;
+            encrypt_pq_ml_kem_unverified(plaintext, pk.as_slice(), MlKemSecurityLevel::MlKem1024)?;
         assert!(ciphertext.len() > plaintext.len());
         Ok(())
     }
 
     #[test]
-    fn test_ml_kem_keypair_uniqueness() -> Result<()> {
+    fn test_ml_kem_keypair_uniqueness_produces_distinct_keys_are_unique() -> Result<()> {
         let (pk1, sk1) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
         let (pk2, sk2) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
@@ -456,7 +474,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_kem_with_config() -> Result<()> {
+    fn test_ml_kem_with_config_succeeds() -> Result<()> {
         let config = CoreConfig::default();
         let (pk, sk) = generate_ml_kem_keypair_with_config(MlKemSecurityLevel::MlKem768, &config)?;
 
@@ -466,55 +484,67 @@ mod tests {
         // Validate public key works for encryption
         let plaintext = b"Config test";
         let ciphertext =
-            encrypt_pq_ml_kem_unverified(plaintext, &pk, MlKemSecurityLevel::MlKem768)?;
+            encrypt_pq_ml_kem_unverified(plaintext, pk.as_slice(), MlKemSecurityLevel::MlKem768)?;
         assert!(ciphertext.len() > plaintext.len());
         Ok(())
     }
 
     // ML-DSA comprehensive tests
     #[test]
-    fn test_ml_dsa_44_keypair_functionality() -> Result<()> {
-        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
+    fn test_ml_dsa_44_keypair_functionality_signs_and_verifies_succeeds() -> Result<()> {
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44)?;
         let message = b"Test ML-DSA-44 signature";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA44)?;
-        let is_valid =
-            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA44)?;
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa44)?;
+        let is_valid = verify_pq_ml_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            MlDsaParameterSet::MlDsa44,
+        )?;
         assert!(is_valid, "Generated ML-DSA-44 keys should produce valid signatures");
         Ok(())
     }
 
     #[test]
-    fn test_ml_dsa_65_keypair_functionality() -> Result<()> {
-        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+    fn test_ml_dsa_65_keypair_functionality_signs_and_verifies_succeeds() -> Result<()> {
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
         let message = b"Test ML-DSA-65 signature";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA65)?;
-        let is_valid =
-            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA65)?;
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa65)?;
+        let is_valid = verify_pq_ml_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            MlDsaParameterSet::MlDsa65,
+        )?;
         assert!(is_valid);
         Ok(())
     }
 
     #[test]
-    fn test_ml_dsa_87_keypair_functionality() -> Result<()> {
-        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
+    fn test_ml_dsa_87_keypair_functionality_signs_and_verifies_succeeds() -> Result<()> {
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87)?;
         let message = b"Test ML-DSA-87 signature";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA87)?;
-        let is_valid =
-            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA87)?;
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa87)?;
+        let is_valid = verify_pq_ml_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            MlDsaParameterSet::MlDsa87,
+        )?;
         assert!(is_valid);
         Ok(())
     }
 
     #[test]
-    fn test_ml_dsa_keypair_uniqueness() -> Result<()> {
-        let (pk1, sk1) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
-        let (pk2, sk2) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+    fn test_ml_dsa_keypair_uniqueness_produces_distinct_keys_are_unique() -> Result<()> {
+        let (pk1, sk1) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
+        let (pk2, sk2) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 
         assert_ne!(pk1, pk2, "ML-DSA public keys must be unique");
         assert_ne!(sk1.as_ref(), sk2.as_ref(), "ML-DSA secret keys must be unique");
@@ -522,49 +552,61 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_dsa_with_config() -> Result<()> {
+    fn test_ml_dsa_with_config_succeeds() -> Result<()> {
         let config = CoreConfig::default();
-        let (pk, sk) = generate_ml_dsa_keypair_with_config(MlDsaParameterSet::MLDSA65, &config)?;
+        let (pk, sk) = generate_ml_dsa_keypair_with_config(MlDsaParameterSet::MlDsa65, &config)?;
         let message = b"Config test";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MLDSA65)?;
-        let is_valid =
-            verify_pq_ml_dsa_unverified(message, &signature, &pk, MlDsaParameterSet::MLDSA65)?;
+            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa65)?;
+        let is_valid = verify_pq_ml_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            MlDsaParameterSet::MlDsa65,
+        )?;
         assert!(is_valid);
         Ok(())
     }
 
     #[test]
     fn test_ml_dsa_cross_keypair_verification_fails() -> Result<()> {
-        let (_pk1, sk1) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
-        let (pk2, _sk2) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+        let (_pk1, sk1) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
+        let (pk2, _sk2) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
         let message = b"Cross validation";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk1.as_ref(), MlDsaParameterSet::MLDSA65)?;
-        let result =
-            verify_pq_ml_dsa_unverified(message, &signature, &pk2, MlDsaParameterSet::MLDSA65);
+            sign_pq_ml_dsa_unverified(message, sk1.as_ref(), MlDsaParameterSet::MlDsa65)?;
+        let result = verify_pq_ml_dsa_unverified(
+            message,
+            &signature,
+            pk2.as_slice(),
+            MlDsaParameterSet::MlDsa65,
+        );
         assert!(result.is_err(), "ML-DSA signature should not verify with different key");
         Ok(())
     }
 
     // SLH-DSA comprehensive tests
     #[test]
-    fn test_slh_dsa_128s_keypair_functionality() -> Result<()> {
+    fn test_slh_dsa_128s_keypair_functionality_signs_and_verifies_succeeds() -> Result<()> {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
         let message = b"Test SLH-DSA-128s";
 
         let signature =
             sign_pq_slh_dsa_unverified(message, sk.as_ref(), SlhDsaSecurityLevel::Shake128s)?;
-        let is_valid =
-            verify_pq_slh_dsa_unverified(message, &signature, &pk, SlhDsaSecurityLevel::Shake128s)?;
+        let is_valid = verify_pq_slh_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            SlhDsaSecurityLevel::Shake128s,
+        )?;
         assert!(is_valid, "Generated SLH-DSA keys should produce valid signatures");
         Ok(())
     }
 
     #[test]
-    fn test_slh_dsa_keypair_uniqueness() -> Result<()> {
+    fn test_slh_dsa_keypair_uniqueness_produces_distinct_keys_are_unique() -> Result<()> {
         let (pk1, sk1) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
         let (pk2, sk2) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
 
@@ -574,7 +616,7 @@ mod tests {
     }
 
     #[test]
-    fn test_slh_dsa_with_config() -> Result<()> {
+    fn test_slh_dsa_with_config_succeeds() -> Result<()> {
         let config = CoreConfig::default();
         let (pk, sk) =
             generate_slh_dsa_keypair_with_config(SlhDsaSecurityLevel::Shake128s, &config)?;
@@ -582,15 +624,19 @@ mod tests {
 
         let signature =
             sign_pq_slh_dsa_unverified(message, sk.as_ref(), SlhDsaSecurityLevel::Shake128s)?;
-        let is_valid =
-            verify_pq_slh_dsa_unverified(message, &signature, &pk, SlhDsaSecurityLevel::Shake128s)?;
+        let is_valid = verify_pq_slh_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            SlhDsaSecurityLevel::Shake128s,
+        )?;
         assert!(is_valid);
         Ok(())
     }
 
     // FN-DSA tests — must run in release mode (stack overflow in debug)
     #[test]
-    fn test_fn_dsa_keypair_functionality() -> Result<()> {
+    fn test_fn_dsa_keypair_functionality_signs_and_verifies_succeeds() -> Result<()> {
         use crate::unified_api::convenience::pq_sig::{
             sign_pq_fn_dsa_unverified, verify_pq_fn_dsa_unverified,
         };
@@ -598,14 +644,20 @@ mod tests {
         let (pk, sk) = generate_fn_dsa_keypair()?;
         let message = b"Test FN-DSA";
 
-        let signature = sign_pq_fn_dsa_unverified(message, sk.as_ref())?;
-        let is_valid = verify_pq_fn_dsa_unverified(message, &signature, &pk)?;
+        let signature =
+            sign_pq_fn_dsa_unverified(message, sk.as_ref(), FnDsaSecurityLevel::Level512)?;
+        let is_valid = verify_pq_fn_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            FnDsaSecurityLevel::Level512,
+        )?;
         assert!(is_valid);
         Ok(())
     }
 
     #[test]
-    fn test_fn_dsa_with_config() -> Result<()> {
+    fn test_fn_dsa_with_config_succeeds() -> Result<()> {
         use crate::unified_api::convenience::pq_sig::{
             sign_pq_fn_dsa_unverified, verify_pq_fn_dsa_unverified,
         };
@@ -614,8 +666,14 @@ mod tests {
         let (pk, sk) = generate_fn_dsa_keypair_with_config(&config)?;
         let message = b"Config test";
 
-        let signature = sign_pq_fn_dsa_unverified(message, sk.as_ref())?;
-        let is_valid = verify_pq_fn_dsa_unverified(message, &signature, &pk)?;
+        let signature =
+            sign_pq_fn_dsa_unverified(message, sk.as_ref(), FnDsaSecurityLevel::Level512)?;
+        let is_valid = verify_pq_fn_dsa_unverified(
+            message,
+            &signature,
+            pk.as_slice(),
+            FnDsaSecurityLevel::Level512,
+        )?;
         assert!(is_valid);
         Ok(())
     }
@@ -623,11 +681,13 @@ mod tests {
     // === Ed25519 validation tests ===
 
     #[test]
-    fn test_validate_ed25519_keypair_success() -> Result<()> {
+    fn test_validate_ed25519_keypair_success_succeeds() -> Result<()> {
         // A normal keypair should pass validation
-        let signing_key = SigningKey::generate(&mut rand::rngs::OsRng);
-        let verifying_key = signing_key.verifying_key();
-        assert!(validate_ed25519_keypair(&signing_key, &verifying_key).is_ok());
+        let keypair = Ed25519KeyPair::generate().map_err(|e| CoreError::KeyGenerationFailed {
+            reason: format!("test keypair generation failed: {e}"),
+            recovery: String::new(),
+        })?;
+        assert!(validate_ed25519_keypair(&keypair).is_ok());
         Ok(())
     }
 
@@ -637,20 +697,20 @@ mod tests {
     // meaningful error branches.
 
     #[test]
-    fn test_generate_keypair_produces_valid_ed25519() -> Result<()> {
+    fn test_generate_keypair_produces_valid_ed25519_succeeds() -> Result<()> {
         // Verify our keygen goes through the full validation path
         let (pk, sk) = generate_keypair()?;
         assert_eq!(pk.len(), 32, "Ed25519 public key should be 32 bytes");
         assert_eq!(sk.as_ref().len(), 32, "Ed25519 secret key should be 32 bytes");
 
         // Verify keys are not zero (validation check)
-        assert!(!pk.iter().all(|&b| b == 0), "Public key should not be all zeros");
+        assert!(!pk.as_slice().iter().all(|&b| b == 0), "Public key should not be all zeros");
         assert!(!sk.as_ref().iter().all(|&b| b == 0), "Secret key should not be all zeros");
         Ok(())
     }
 
     #[test]
-    fn test_generate_keypair_with_config_validates() -> Result<()> {
+    fn test_generate_keypair_with_config_validates_succeeds() -> Result<()> {
         let config = CoreConfig::default();
         let (pk, sk) = generate_keypair_with_config(&config)?;
         assert_eq!(pk.len(), 32);
@@ -661,7 +721,7 @@ mod tests {
     // === ML-KEM keygen with all security levels ===
 
     #[test]
-    fn test_ml_kem_keypair_768_with_config() -> Result<()> {
+    fn test_ml_kem_keypair_768_with_config_succeeds() -> Result<()> {
         let config = CoreConfig::default();
         let (pk, sk) = generate_ml_kem_keypair_with_config(MlKemSecurityLevel::MlKem768, &config)?;
         assert!(!pk.is_empty(), "ML-KEM-768 public key should not be empty");
@@ -672,25 +732,25 @@ mod tests {
     // === ML-DSA keygen with all parameter sets ===
 
     #[test]
-    fn test_ml_dsa_keypair_44() -> Result<()> {
-        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
+    fn test_ml_dsa_keypair_44_produces_non_empty_keys_fails() -> Result<()> {
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44)?;
         assert!(!pk.is_empty());
         assert!(!sk.as_ref().is_empty());
         Ok(())
     }
 
     #[test]
-    fn test_ml_dsa_keypair_87() -> Result<()> {
-        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
+    fn test_ml_dsa_keypair_87_produces_non_empty_keys_fails() -> Result<()> {
+        let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87)?;
         assert!(!pk.is_empty());
         assert!(!sk.as_ref().is_empty());
         Ok(())
     }
 
     #[test]
-    fn test_ml_dsa_keypair_with_config_44() -> Result<()> {
+    fn test_ml_dsa_keypair_with_config_44_succeeds() -> Result<()> {
         let config = CoreConfig::default();
-        let (pk, sk) = generate_ml_dsa_keypair_with_config(MlDsaParameterSet::MLDSA44, &config)?;
+        let (pk, sk) = generate_ml_dsa_keypair_with_config(MlDsaParameterSet::MlDsa44, &config)?;
         assert!(!pk.is_empty());
         assert!(!sk.as_ref().is_empty());
         Ok(())
@@ -699,7 +759,7 @@ mod tests {
     // === SLH-DSA keygen with higher security levels ===
 
     #[test]
-    fn test_slh_dsa_keypair_192s() -> Result<()> {
+    fn test_slh_dsa_keypair_192s_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s)?;
         assert!(!pk.is_empty());
         assert!(!sk.as_ref().is_empty());
@@ -707,7 +767,7 @@ mod tests {
     }
 
     #[test]
-    fn test_slh_dsa_keypair_256s() -> Result<()> {
+    fn test_slh_dsa_keypair_256s_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
         assert!(!pk.is_empty());
         assert!(!sk.as_ref().is_empty());

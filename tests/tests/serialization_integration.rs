@@ -98,7 +98,7 @@ fn create_test_signed_data(
 
 /// Creates a test KeyPair instance
 fn create_test_keypair(public_key: Vec<u8>, private_key: Vec<u8>) -> KeyPair {
-    KeyPair { public_key, private_key: PrivateKey::new(private_key) }
+    KeyPair::new(latticearc::PublicKey::new(public_key), PrivateKey::new(private_key))
 }
 
 // ============================================================================
@@ -106,7 +106,7 @@ fn create_test_keypair(public_key: Vec<u8>, private_key: Vec<u8>) -> KeyPair {
 // ============================================================================
 
 #[test]
-fn test_encrypted_data_roundtrip_basic() {
+fn test_encrypted_data_roundtrip_basic_roundtrip() {
     let encrypted = create_test_encrypted_data(
         b"encrypted payload data".to_vec(),
         b"nonce123456".to_vec(),
@@ -130,7 +130,7 @@ fn test_encrypted_data_roundtrip_basic() {
 }
 
 #[test]
-fn test_encrypted_data_without_tag() {
+fn test_encrypted_data_without_tag_roundtrip_succeeds() {
     let encrypted = create_test_encrypted_data(
         b"encrypted data without tag".to_vec(),
         b"nonce123456".to_vec(),
@@ -148,7 +148,7 @@ fn test_encrypted_data_without_tag() {
 }
 
 #[test]
-fn test_encrypted_data_without_key_id() {
+fn test_encrypted_data_without_key_id_roundtrip_succeeds() {
     let encrypted = create_test_encrypted_data(
         b"encrypted data without key_id".to_vec(),
         b"nonce123456".to_vec(),
@@ -165,7 +165,7 @@ fn test_encrypted_data_without_key_id() {
 }
 
 #[test]
-fn test_encrypted_data_empty_data() {
+fn test_encrypted_data_empty_data_roundtrip_succeeds() {
     let encrypted = create_test_encrypted_data(
         Vec::new(), // Empty data
         b"nonce123456".to_vec(),
@@ -180,7 +180,7 @@ fn test_encrypted_data_empty_data() {
 }
 
 #[test]
-fn test_encrypted_data_large_payload() {
+fn test_encrypted_data_large_payload_roundtrip_succeeds() {
     let large_data = vec![0xAB; 10_000]; // 10KB of data
     let encrypted = create_test_encrypted_data(
         large_data.clone(),
@@ -196,7 +196,7 @@ fn test_encrypted_data_large_payload() {
 }
 
 #[test]
-fn test_encrypted_data_json_structure() {
+fn test_encrypted_data_json_structure_has_correct_format() {
     let encrypted = create_test_encrypted_data(
         b"test".to_vec(),
         b"nonce123456".to_vec(),
@@ -218,7 +218,7 @@ fn test_encrypted_data_json_structure() {
 }
 
 #[test]
-fn test_encrypted_data_invalid_json() {
+fn test_encrypted_data_invalid_json_returns_error() {
     let invalid_json = "{invalid json}";
     let result = deserialize_encrypted_data(invalid_json);
 
@@ -227,7 +227,7 @@ fn test_encrypted_data_invalid_json() {
 }
 
 #[test]
-fn test_encrypted_data_invalid_base64() {
+fn test_encrypted_data_invalid_base64_returns_error() {
     let json = r#"{
         "data": "!!!invalid-base64!!!",
         "metadata": {
@@ -245,7 +245,7 @@ fn test_encrypted_data_invalid_base64() {
 }
 
 #[test]
-fn test_encrypted_data_missing_field() {
+fn test_encrypted_data_missing_field_returns_error() {
     let json = r#"{
         "data": "dGVzdA==",
         "metadata": {
@@ -263,7 +263,7 @@ fn test_encrypted_data_missing_field() {
 // ============================================================================
 
 #[test]
-fn test_signed_data_roundtrip_basic() {
+fn test_signed_data_roundtrip_basic_roundtrip() {
     let signed = create_test_signed_data(
         b"original message data".to_vec(),
         b"signature bytes here".to_vec(),
@@ -288,7 +288,7 @@ fn test_signed_data_roundtrip_basic() {
 }
 
 #[test]
-fn test_signed_data_without_key_id() {
+fn test_signed_data_without_key_id_roundtrip_succeeds() {
     let signed = create_test_signed_data(
         b"message".to_vec(),
         b"signature".to_vec(),
@@ -303,7 +303,7 @@ fn test_signed_data_without_key_id() {
 }
 
 #[test]
-fn test_signed_data_empty_message() {
+fn test_signed_data_empty_message_roundtrip_succeeds() {
     let signed = create_test_signed_data(
         Vec::new(), // Empty message
         b"signature".to_vec(),
@@ -318,7 +318,7 @@ fn test_signed_data_empty_message() {
 }
 
 #[test]
-fn test_signed_data_large_signature() {
+fn test_signed_data_large_signature_roundtrip_succeeds() {
     let large_sig = vec![0xFF; 5000]; // 5KB signature
     let signed = create_test_signed_data(
         b"message".to_vec(),
@@ -334,7 +334,7 @@ fn test_signed_data_large_signature() {
 }
 
 #[test]
-fn test_signed_data_json_structure() {
+fn test_signed_data_json_structure_has_correct_format() {
     let signed = create_test_signed_data(
         b"test".to_vec(),
         b"sig".to_vec(),
@@ -357,7 +357,7 @@ fn test_signed_data_json_structure() {
 }
 
 #[test]
-fn test_signed_data_invalid_json() {
+fn test_signed_data_invalid_json_returns_error() {
     let invalid_json = "not valid json";
     let result = deserialize_signed_data(invalid_json);
 
@@ -366,7 +366,7 @@ fn test_signed_data_invalid_json() {
 }
 
 #[test]
-fn test_signed_data_invalid_base64_signature() {
+fn test_signed_data_invalid_base64_signature_returns_error() {
     let json = r#"{
         "data": "dGVzdA==",
         "metadata": {
@@ -385,7 +385,7 @@ fn test_signed_data_invalid_base64_signature() {
 }
 
 #[test]
-fn test_signed_data_invalid_base64_public_key() {
+fn test_signed_data_invalid_base64_public_key_returns_error() {
     let json = r#"{
         "data": "dGVzdA==",
         "metadata": {
@@ -408,7 +408,7 @@ fn test_signed_data_invalid_base64_public_key() {
 // ============================================================================
 
 #[test]
-fn test_keypair_roundtrip_basic() {
+fn test_keypair_roundtrip_basic_roundtrip() {
     let keypair = create_test_keypair(
         b"public key bytes here".to_vec(),
         b"private key bytes here - sensitive!".to_vec(),
@@ -421,23 +421,23 @@ fn test_keypair_roundtrip_basic() {
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
     // Verify equality
-    assert_eq!(deserialized.public_key, keypair.public_key);
-    assert_eq!(deserialized.private_key.as_slice(), keypair.private_key.as_slice());
+    assert_eq!(deserialized.public_key(), keypair.public_key());
+    assert_eq!(deserialized.private_key().as_slice(), keypair.private_key().as_slice());
 }
 
 #[test]
-fn test_keypair_small_keys() {
+fn test_keypair_small_keys_roundtrip_succeeds() {
     let keypair = create_test_keypair(b"pk".to_vec(), b"sk".to_vec());
 
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
-    assert_eq!(deserialized.public_key, b"pk");
-    assert_eq!(deserialized.private_key.as_slice(), b"sk");
+    assert_eq!(deserialized.public_key().as_slice(), b"pk");
+    assert_eq!(deserialized.private_key().as_slice(), b"sk");
 }
 
 #[test]
-fn test_keypair_large_keys() {
+fn test_keypair_large_keys_roundtrip_succeeds() {
     let large_pk = vec![0xAA; 2000]; // 2KB public key
     let large_sk = vec![0xBB; 3000]; // 3KB private key
     let keypair = create_test_keypair(large_pk.clone(), large_sk.clone());
@@ -445,12 +445,12 @@ fn test_keypair_large_keys() {
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
-    assert_eq!(deserialized.public_key, large_pk);
-    assert_eq!(deserialized.private_key.as_slice(), large_sk.as_slice());
+    assert_eq!(deserialized.public_key().as_slice(), large_pk.as_slice());
+    assert_eq!(deserialized.private_key().as_slice(), large_sk.as_slice());
 }
 
 #[test]
-fn test_keypair_json_structure() {
+fn test_keypair_json_structure_has_correct_format() {
     let keypair = create_test_keypair(b"pk".to_vec(), b"sk".to_vec());
 
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
@@ -461,7 +461,7 @@ fn test_keypair_json_structure() {
 }
 
 #[test]
-fn test_keypair_invalid_json() {
+fn test_keypair_invalid_json_returns_error() {
     let invalid_json = "{malformed}";
     let result = deserialize_keypair(invalid_json);
 
@@ -470,7 +470,7 @@ fn test_keypair_invalid_json() {
 }
 
 #[test]
-fn test_keypair_invalid_base64_public_key() {
+fn test_keypair_invalid_base64_public_key_returns_error() {
     let json = r#"{
         "public_key": "!!!invalid!!!",
         "private_key": "c2s="
@@ -482,7 +482,7 @@ fn test_keypair_invalid_base64_public_key() {
 }
 
 #[test]
-fn test_keypair_invalid_base64_private_key() {
+fn test_keypair_invalid_base64_private_key_returns_error() {
     let json = r#"{
         "public_key": "cGs=",
         "private_key": "@@@invalid@@@"
@@ -494,7 +494,7 @@ fn test_keypair_invalid_base64_private_key() {
 }
 
 #[test]
-fn test_keypair_missing_public_key() {
+fn test_keypair_missing_public_key_returns_error() {
     let json = r#"{
         "private_key": "c2s="
     }"#;
@@ -504,7 +504,7 @@ fn test_keypair_missing_public_key() {
 }
 
 #[test]
-fn test_keypair_missing_private_key() {
+fn test_keypair_missing_private_key_returns_error() {
     let json = r#"{
         "public_key": "cGs="
     }"#;
@@ -518,7 +518,7 @@ fn test_keypair_missing_private_key() {
 // ============================================================================
 
 #[test]
-fn test_serializable_encrypted_data_from_encrypted_data() {
+fn test_serializable_encrypted_data_from_encrypted_data_succeeds() {
     let encrypted = create_test_encrypted_data(
         b"data".to_vec(),
         b"nonce".to_vec(),
@@ -538,7 +538,7 @@ fn test_serializable_encrypted_data_from_encrypted_data() {
 }
 
 #[test]
-fn test_encrypted_data_from_serializable() {
+fn test_encrypted_data_from_serializable_succeeds() {
     let serializable = SerializableEncryptedData {
         data: BASE64_ENGINE.encode(b"data"),
         metadata: SerializableEncryptedMetadata {
@@ -561,7 +561,7 @@ fn test_encrypted_data_from_serializable() {
 }
 
 #[test]
-fn test_serializable_signed_data_from_signed_data() {
+fn test_serializable_signed_data_from_signed_data_succeeds() {
     let signed = create_test_signed_data(
         b"message".to_vec(),
         b"signature".to_vec(),
@@ -580,7 +580,7 @@ fn test_serializable_signed_data_from_signed_data() {
 }
 
 #[test]
-fn test_signed_data_from_serializable() {
+fn test_signed_data_from_serializable_succeeds() {
     let serializable = SerializableSignedData {
         data: BASE64_ENGINE.encode(b"message"),
         metadata: SerializableSignedMetadata {
@@ -605,7 +605,7 @@ fn test_signed_data_from_serializable() {
 }
 
 #[test]
-fn test_serializable_keypair_from_keypair() {
+fn test_serializable_keypair_from_keypair_succeeds() {
     let keypair = create_test_keypair(b"public".to_vec(), b"private".to_vec());
 
     let serializable = SerializableKeyPair::from(&keypair);
@@ -615,7 +615,7 @@ fn test_serializable_keypair_from_keypair() {
 }
 
 #[test]
-fn test_keypair_from_serializable() {
+fn test_keypair_from_serializable_succeeds() {
     let serializable = SerializableKeyPair {
         public_key: BASE64_ENGINE.encode(b"public"),
         private_key: BASE64_ENGINE.encode(b"private"),
@@ -623,8 +623,8 @@ fn test_keypair_from_serializable() {
 
     let keypair: KeyPair = serializable.try_into().expect("conversion should succeed");
 
-    assert_eq!(keypair.public_key, b"public");
-    assert_eq!(keypair.private_key.as_slice(), b"private");
+    assert_eq!(keypair.public_key().as_slice(), b"public");
+    assert_eq!(keypair.private_key().as_slice(), b"private");
 }
 
 // ============================================================================
@@ -632,7 +632,7 @@ fn test_keypair_from_serializable() {
 // ============================================================================
 
 #[test]
-fn test_encrypted_data_manual_json_parsing() {
+fn test_encrypted_data_manual_json_parsing_succeeds() {
     // Create JSON manually
     let json = r#"{
         "data": "aGVsbG8gd29ybGQ=",
@@ -658,7 +658,7 @@ fn test_encrypted_data_manual_json_parsing() {
 }
 
 #[test]
-fn test_signed_data_manual_json_parsing() {
+fn test_signed_data_manual_json_parsing_succeeds() {
     let json = r#"{
         "data": "ZG9jdW1lbnQ=",
         "metadata": {
@@ -687,7 +687,7 @@ fn test_signed_data_manual_json_parsing() {
 // ============================================================================
 
 #[test]
-fn test_encrypted_data_binary_data() {
+fn test_encrypted_data_binary_data_roundtrip_succeeds() {
     // Test with various binary values including null bytes
     let binary_data = vec![0x00, 0xFF, 0xAB, 0xCD, 0xEF, 0x00, 0x12, 0x34];
     let encrypted = create_test_encrypted_data(
@@ -704,7 +704,7 @@ fn test_encrypted_data_binary_data() {
 }
 
 #[test]
-fn test_signed_data_utf8_message() {
+fn test_signed_data_utf8_message_roundtrip_succeeds() {
     // Test with UTF-8 encoded string
     let utf8_message = "Hello 世界 🌍".as_bytes().to_vec();
     let signed = create_test_signed_data(
@@ -722,7 +722,7 @@ fn test_signed_data_utf8_message() {
 }
 
 #[test]
-fn test_keypair_all_zero_keys() {
+fn test_keypair_all_zero_keys_roundtrip_succeeds() {
     let zero_pk = vec![0x00; 100];
     let zero_sk = vec![0x00; 200];
     let keypair = create_test_keypair(zero_pk.clone(), zero_sk.clone());
@@ -730,12 +730,12 @@ fn test_keypair_all_zero_keys() {
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
-    assert_eq!(deserialized.public_key, zero_pk);
-    assert_eq!(deserialized.private_key.as_slice(), zero_sk.as_slice());
+    assert_eq!(deserialized.public_key().as_slice(), zero_pk.as_slice());
+    assert_eq!(deserialized.private_key().as_slice(), zero_sk.as_slice());
 }
 
 #[test]
-fn test_keypair_all_ff_keys() {
+fn test_keypair_all_ff_keys_roundtrip_succeeds() {
     let ff_pk = vec![0xFF; 100];
     let ff_sk = vec![0xFF; 200];
     let keypair = create_test_keypair(ff_pk.clone(), ff_sk.clone());
@@ -743,8 +743,8 @@ fn test_keypair_all_ff_keys() {
     let json = serialize_keypair(&keypair).expect("serialization should succeed");
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
-    assert_eq!(deserialized.public_key, ff_pk);
-    assert_eq!(deserialized.private_key.as_slice(), ff_sk.as_slice());
+    assert_eq!(deserialized.public_key().as_slice(), ff_pk.as_slice());
+    assert_eq!(deserialized.private_key().as_slice(), ff_sk.as_slice());
 }
 
 // ============================================================================
@@ -752,7 +752,7 @@ fn test_keypair_all_ff_keys() {
 // ============================================================================
 
 #[test]
-fn test_encrypted_data_very_long_scheme_name() {
+fn test_encrypted_data_very_long_scheme_name_roundtrip_succeeds() {
     let mut encrypted = create_test_encrypted_data(
         b"data".to_vec(),
         b"nonce".to_vec(),
@@ -768,7 +768,7 @@ fn test_encrypted_data_very_long_scheme_name() {
 }
 
 #[test]
-fn test_signed_data_very_long_algorithm_name() {
+fn test_signed_data_very_long_algorithm_name_roundtrip_succeeds() {
     let mut signed = create_test_signed_data(
         b"data".to_vec(),
         b"sig".to_vec(),
@@ -784,7 +784,7 @@ fn test_signed_data_very_long_algorithm_name() {
 }
 
 #[test]
-fn test_encrypted_data_max_timestamp() {
+fn test_encrypted_data_max_timestamp_roundtrip_succeeds() {
     let mut encrypted = create_test_encrypted_data(
         b"data".to_vec(),
         b"nonce".to_vec(),
@@ -800,7 +800,7 @@ fn test_encrypted_data_max_timestamp() {
 }
 
 #[test]
-fn test_signed_data_zero_timestamp() {
+fn test_signed_data_zero_timestamp_roundtrip_succeeds() {
     let mut signed = create_test_signed_data(
         b"data".to_vec(),
         b"sig".to_vec(),
@@ -820,7 +820,7 @@ fn test_signed_data_zero_timestamp() {
 // ============================================================================
 
 #[test]
-fn test_encrypted_data_serialization_is_compact() {
+fn test_encrypted_data_serialization_has_compact_format_has_correct_size() {
     let encrypted = create_test_encrypted_data(
         b"data".to_vec(),
         b"nonce".to_vec(),
@@ -836,7 +836,7 @@ fn test_encrypted_data_serialization_is_compact() {
 }
 
 #[test]
-fn test_all_types_deserialize_ignore_extra_fields() {
+fn test_all_types_deserialize_ignore_extra_fields_succeeds() {
     // JSON with extra fields should still deserialize successfully (serde default behavior)
     let json = r#"{
         "data": "dGVzdA==",

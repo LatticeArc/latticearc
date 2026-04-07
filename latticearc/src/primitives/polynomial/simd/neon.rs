@@ -3,6 +3,10 @@
 //! Provides high-performance NEON implementations for NTT and polynomial
 //! arithmetic on ARM64 platforms.
 
+// NTT uses mathematically bounded indices: ZETAS[k] where k ∈ [0,127]
+// for ZETAS: [i32; 128], and fixed-size array access [0]/[1] on [i32; 2].
+#![allow(clippy::indexing_slicing)]
+
 #![cfg(target_arch = "aarch64")]
 
 use super::constants::{MLKEM_N, MLKEM_Q, MONT_SQ_INV, QINV, ZETAS};
@@ -141,7 +145,7 @@ mod tests {
     use super::super::test_utils::measure_timing_variance;
 
     #[test]
-    fn test_neon_ntt_constant_time() {
+    fn test_neon_ntt_constant_time_succeeds() {
         let test_polynomials = [
             [0i32; MLKEM_N],
             core::array::from_fn(|i| (i % 4) as i32),
@@ -166,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn test_montgomery_reduce_neon_constant_time() {
+    fn test_montgomery_reduce_neon_constant_time_succeeds() {
         let test_inputs = [
             i32x4::from_array([0, 1, 42, 1000]),
             i32x4::from_array([-1, -42, -1000, -3328]),

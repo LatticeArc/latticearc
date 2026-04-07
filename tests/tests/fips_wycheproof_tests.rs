@@ -51,13 +51,13 @@ mod wycheproof_error_tests {
     use super::*;
 
     #[test]
-    fn test_load_error_creation() {
+    fn test_load_error_creation_matches_wycheproof_vector_matches_expected() {
         let error = WycheproofError::LoadError("Failed to load test vectors".to_string());
         assert!(matches!(error, WycheproofError::LoadError(_)));
     }
 
     #[test]
-    fn test_load_error_display() {
+    fn test_load_error_display_matches_expected() {
         let error = WycheproofError::LoadError("Network timeout".to_string());
         let display = format!("{}", error);
         assert!(display.contains("Failed to load test vectors"));
@@ -65,7 +65,7 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_load_error_debug() {
+    fn test_load_error_debug_matches_expected() {
         let error = WycheproofError::LoadError("File not found".to_string());
         let debug = format!("{:?}", error);
         assert!(debug.contains("LoadError"));
@@ -73,14 +73,14 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_test_failed_creation() {
+    fn test_test_failed_creation_matches_wycheproof_vector_matches_expected() {
         let error =
             WycheproofError::TestFailed { tc_id: 42, message: "Decryption failed".to_string() };
         assert!(matches!(error, WycheproofError::TestFailed { tc_id: 42, .. }));
     }
 
     #[test]
-    fn test_test_failed_display() {
+    fn test_test_failed_display_matches_expected() {
         let error =
             WycheproofError::TestFailed { tc_id: 123, message: "Invalid ciphertext".to_string() };
         let display = format!("{}", error);
@@ -89,7 +89,7 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_test_failed_debug() {
+    fn test_test_failed_debug_matches_expected() {
         let error =
             WycheproofError::TestFailed { tc_id: 999, message: "Signature mismatch".to_string() };
         let debug = format!("{:?}", error);
@@ -99,7 +99,7 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_unexpected_result_creation() {
+    fn test_unexpected_result_creation_matches_wycheproof_vector_matches_expected() {
         let error = WycheproofError::UnexpectedResult {
             tc_id: 55,
             expected: "valid".to_string(),
@@ -109,7 +109,7 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_unexpected_result_display() {
+    fn test_unexpected_result_display_matches_expected() {
         let error = WycheproofError::UnexpectedResult {
             tc_id: 77,
             expected: "success".to_string(),
@@ -122,7 +122,7 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_unexpected_result_debug() {
+    fn test_unexpected_result_debug_matches_expected() {
         let error = WycheproofError::UnexpectedResult {
             tc_id: 88,
             expected: "pass".to_string(),
@@ -136,28 +136,28 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_error_is_std_error() {
+    fn test_error_is_std_error_matches_expected() {
         let error = WycheproofError::LoadError("test".to_string());
         // Verify it implements std::error::Error
         let _: &dyn Error = &error;
     }
 
     #[test]
-    fn test_load_error_with_empty_message() {
+    fn test_load_error_with_empty_message_matches_wycheproof_vector_matches_expected() {
         let error = WycheproofError::LoadError(String::new());
         let display = format!("{}", error);
         assert!(display.contains("Failed to load test vectors"));
     }
 
     #[test]
-    fn test_test_failed_with_zero_tc_id() {
+    fn test_test_failed_with_zero_tc_id_matches_wycheproof_vector_matches_expected() {
         let error = WycheproofError::TestFailed { tc_id: 0, message: "Test zero".to_string() };
         let display = format!("{}", error);
         assert!(display.contains("Test case 0 failed"));
     }
 
     #[test]
-    fn test_test_failed_with_max_tc_id() {
+    fn test_test_failed_with_max_tc_id_matches_wycheproof_vector_matches_expected() {
         let error =
             WycheproofError::TestFailed { tc_id: u32::MAX, message: "Max test".to_string() };
         let display = format!("{}", error);
@@ -165,7 +165,7 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_unexpected_result_with_empty_strings() {
+    fn test_unexpected_result_with_empty_strings_matches_wycheproof_vector_matches_expected() {
         let error = WycheproofError::UnexpectedResult {
             tc_id: 1,
             expected: String::new(),
@@ -176,21 +176,21 @@ mod wycheproof_error_tests {
     }
 
     #[test]
-    fn test_load_error_with_special_characters() {
+    fn test_load_error_with_special_characters_matches_wycheproof_vector_matches_expected() {
         let error = WycheproofError::LoadError("Error: <>&\"'".to_string());
         let display = format!("{}", error);
         assert!(display.contains("<>&\"'"));
     }
 
     #[test]
-    fn test_test_failed_with_unicode_message() {
+    fn test_test_failed_with_unicode_message_matches_wycheproof_vector_matches_expected() {
         let error = WycheproofError::TestFailed { tc_id: 100, message: "Unicode test".to_string() };
         let display = format!("{}", error);
         assert!(display.contains("Unicode"));
     }
 
     #[test]
-    fn test_unexpected_result_with_long_strings() {
+    fn test_unexpected_result_with_long_strings_matches_wycheproof_vector_matches_expected() {
         let long_expected = "a".repeat(1000);
         let long_actual = "b".repeat(1000);
         let error = WycheproofError::UnexpectedResult {
@@ -212,7 +212,7 @@ mod wycheproof_results_constructor_tests {
     use super::*;
 
     #[test]
-    fn test_new_creates_default_instance() {
+    fn test_new_creates_default_instance_matches_expected() {
         let results = WycheproofResults::new();
         assert_eq!(results.total, 0);
         assert_eq!(results.passed, 0);
@@ -222,7 +222,7 @@ mod wycheproof_results_constructor_tests {
     }
 
     #[test]
-    fn test_default_creates_same_as_new() {
+    fn test_default_creates_same_as_new_matches_expected() {
         let from_new = WycheproofResults::new();
         let from_default = WycheproofResults::default();
 
@@ -234,7 +234,7 @@ mod wycheproof_results_constructor_tests {
     }
 
     #[test]
-    fn test_debug_output() {
+    fn test_debug_output_matches_expected() {
         let results = WycheproofResults::new();
         let debug = format!("{:?}", results);
         assert!(debug.contains("WycheproofResults"));
@@ -254,13 +254,13 @@ mod wycheproof_results_all_passed_tests {
     use super::*;
 
     #[test]
-    fn test_all_passed_with_new_instance() {
+    fn test_all_passed_with_new_instance_matches_wycheproof_vector_matches_expected() {
         let results = WycheproofResults::new();
         assert!(results.all_passed());
     }
 
     #[test]
-    fn test_all_passed_after_only_passes() {
+    fn test_all_passed_after_only_passes_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_pass();
@@ -269,7 +269,7 @@ mod wycheproof_results_all_passed_tests {
     }
 
     #[test]
-    fn test_all_passed_with_one_failure() {
+    fn test_all_passed_with_one_failure_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_failure("test failed".to_string());
@@ -277,7 +277,7 @@ mod wycheproof_results_all_passed_tests {
     }
 
     #[test]
-    fn test_all_passed_with_only_failures() {
+    fn test_all_passed_with_only_failures_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("failure 1".to_string());
         results.add_failure("failure 2".to_string());
@@ -285,7 +285,7 @@ mod wycheproof_results_all_passed_tests {
     }
 
     #[test]
-    fn test_all_passed_with_skips_only() {
+    fn test_all_passed_with_skips_only_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_skip();
         results.add_skip();
@@ -293,7 +293,7 @@ mod wycheproof_results_all_passed_tests {
     }
 
     #[test]
-    fn test_all_passed_with_passes_and_skips() {
+    fn test_all_passed_with_passes_and_skips_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_skip();
@@ -302,7 +302,7 @@ mod wycheproof_results_all_passed_tests {
     }
 
     #[test]
-    fn test_all_passed_with_mixed_results() {
+    fn test_all_passed_with_mixed_results_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_skip();
@@ -319,7 +319,7 @@ mod wycheproof_results_add_pass_tests {
     use super::*;
 
     #[test]
-    fn test_add_pass_increments_total() {
+    fn test_add_pass_increments_total_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         assert_eq!(results.total, 0);
         results.add_pass();
@@ -327,7 +327,7 @@ mod wycheproof_results_add_pass_tests {
     }
 
     #[test]
-    fn test_add_pass_increments_passed() {
+    fn test_add_pass_increments_passed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         assert_eq!(results.passed, 0);
         results.add_pass();
@@ -335,28 +335,28 @@ mod wycheproof_results_add_pass_tests {
     }
 
     #[test]
-    fn test_add_pass_does_not_increment_failed() {
+    fn test_add_pass_does_not_increment_failed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         assert_eq!(results.failed, 0);
     }
 
     #[test]
-    fn test_add_pass_does_not_increment_skipped() {
+    fn test_add_pass_does_not_increment_skipped_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         assert_eq!(results.skipped, 0);
     }
 
     #[test]
-    fn test_add_pass_does_not_add_failures() {
+    fn test_add_pass_does_not_add_failures_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         assert!(results.failures.is_empty());
     }
 
     #[test]
-    fn test_add_pass_multiple_times() {
+    fn test_add_pass_multiple_times_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         for _ in 0..100 {
             results.add_pass();
@@ -376,7 +376,7 @@ mod wycheproof_results_add_failure_tests {
     use super::*;
 
     #[test]
-    fn test_add_failure_increments_total() {
+    fn test_add_failure_increments_total_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         assert_eq!(results.total, 0);
         results.add_failure("error".to_string());
@@ -384,7 +384,7 @@ mod wycheproof_results_add_failure_tests {
     }
 
     #[test]
-    fn test_add_failure_increments_failed() {
+    fn test_add_failure_increments_failed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         assert_eq!(results.failed, 0);
         results.add_failure("error".to_string());
@@ -392,21 +392,21 @@ mod wycheproof_results_add_failure_tests {
     }
 
     #[test]
-    fn test_add_failure_does_not_increment_passed() {
+    fn test_add_failure_does_not_increment_passed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("error".to_string());
         assert_eq!(results.passed, 0);
     }
 
     #[test]
-    fn test_add_failure_does_not_increment_skipped() {
+    fn test_add_failure_does_not_increment_skipped_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("error".to_string());
         assert_eq!(results.skipped, 0);
     }
 
     #[test]
-    fn test_add_failure_adds_to_failures_vec() {
+    fn test_add_failure_adds_to_failures_vec_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("test error message".to_string());
         assert_eq!(results.failures.len(), 1);
@@ -414,7 +414,7 @@ mod wycheproof_results_add_failure_tests {
     }
 
     #[test]
-    fn test_add_failure_multiple_times() {
+    fn test_add_failure_multiple_times_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("error 1".to_string());
         results.add_failure("error 2".to_string());
@@ -425,7 +425,7 @@ mod wycheproof_results_add_failure_tests {
     }
 
     #[test]
-    fn test_add_failure_with_empty_message() {
+    fn test_add_failure_with_empty_message_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure(String::new());
         assert_eq!(results.failures.len(), 1);
@@ -433,7 +433,7 @@ mod wycheproof_results_add_failure_tests {
     }
 
     #[test]
-    fn test_add_failure_with_long_message() {
+    fn test_add_failure_with_long_message_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         let long_message = "x".repeat(10000);
         results.add_failure(long_message.clone());
@@ -441,7 +441,7 @@ mod wycheproof_results_add_failure_tests {
     }
 
     #[test]
-    fn test_add_failure_preserves_order() {
+    fn test_add_failure_preserves_order_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("first".to_string());
         results.add_failure("second".to_string());
@@ -452,7 +452,7 @@ mod wycheproof_results_add_failure_tests {
     }
 
     #[test]
-    fn test_add_failure_with_special_characters() {
+    fn test_add_failure_with_special_characters_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("Error: <>&\"'\n\t\\".to_string());
         assert!(results.failures[0].contains("<>&"));
@@ -467,7 +467,7 @@ mod wycheproof_results_add_skip_tests {
     use super::*;
 
     #[test]
-    fn test_add_skip_increments_total() {
+    fn test_add_skip_increments_total_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         assert_eq!(results.total, 0);
         results.add_skip();
@@ -475,7 +475,7 @@ mod wycheproof_results_add_skip_tests {
     }
 
     #[test]
-    fn test_add_skip_increments_skipped() {
+    fn test_add_skip_increments_skipped_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         assert_eq!(results.skipped, 0);
         results.add_skip();
@@ -483,28 +483,28 @@ mod wycheproof_results_add_skip_tests {
     }
 
     #[test]
-    fn test_add_skip_does_not_increment_passed() {
+    fn test_add_skip_does_not_increment_passed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_skip();
         assert_eq!(results.passed, 0);
     }
 
     #[test]
-    fn test_add_skip_does_not_increment_failed() {
+    fn test_add_skip_does_not_increment_failed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_skip();
         assert_eq!(results.failed, 0);
     }
 
     #[test]
-    fn test_add_skip_does_not_add_failures() {
+    fn test_add_skip_does_not_add_failures_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_skip();
         assert!(results.failures.is_empty());
     }
 
     #[test]
-    fn test_add_skip_multiple_times() {
+    fn test_add_skip_multiple_times_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         for _ in 0..50 {
             results.add_skip();
@@ -524,7 +524,7 @@ mod wycheproof_results_mixed_operations_tests {
     use super::*;
 
     #[test]
-    fn test_mixed_pass_fail_skip() {
+    fn test_mixed_pass_fail_skip_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_failure("error".to_string());
@@ -540,7 +540,7 @@ mod wycheproof_results_mixed_operations_tests {
     }
 
     #[test]
-    fn test_total_equals_sum_of_categories() {
+    fn test_total_equals_sum_of_categories_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         for _ in 0..10 {
             results.add_pass();
@@ -557,7 +557,7 @@ mod wycheproof_results_mixed_operations_tests {
     }
 
     #[test]
-    fn test_failures_vec_matches_failed_count() {
+    fn test_failures_vec_matches_failed_count_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("error 1".to_string());
         results.add_pass();
@@ -569,7 +569,7 @@ mod wycheproof_results_mixed_operations_tests {
     }
 
     #[test]
-    fn test_large_number_of_operations() {
+    fn test_large_number_of_operations_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         for i in 0..1000 {
@@ -588,7 +588,7 @@ mod wycheproof_results_mixed_operations_tests {
     }
 
     #[test]
-    fn test_pass_rate_calculation() {
+    fn test_pass_rate_calculation_matches_expected() {
         let mut results = WycheproofResults::new();
         for _ in 0..80 {
             results.add_pass();
@@ -603,7 +603,7 @@ mod wycheproof_results_mixed_operations_tests {
     }
 
     #[test]
-    fn test_skip_does_not_affect_all_passed() {
+    fn test_skip_does_not_affect_all_passed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_pass();
@@ -625,42 +625,42 @@ mod wycheproof_results_field_access_tests {
     use super::*;
 
     #[test]
-    fn test_direct_field_access_total() {
+    fn test_direct_field_access_total_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         assert_eq!(results.total, 1);
     }
 
     #[test]
-    fn test_direct_field_access_passed() {
+    fn test_direct_field_access_passed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         assert_eq!(results.passed, 1);
     }
 
     #[test]
-    fn test_direct_field_access_failed() {
+    fn test_direct_field_access_failed_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("test".to_string());
         assert_eq!(results.failed, 1);
     }
 
     #[test]
-    fn test_direct_field_access_skipped() {
+    fn test_direct_field_access_skipped_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_skip();
         assert_eq!(results.skipped, 1);
     }
 
     #[test]
-    fn test_direct_field_access_failures() {
+    fn test_direct_field_access_failures_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("error message".to_string());
         assert_eq!(results.failures[0], "error message");
     }
 
     #[test]
-    fn test_iterate_over_failures() {
+    fn test_iterate_over_failures_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("error 1".to_string());
         results.add_failure("error 2".to_string());
@@ -683,14 +683,14 @@ mod edge_cases_tests {
     use super::*;
 
     #[test]
-    fn test_zero_tests_all_passed_is_true() {
+    fn test_zero_tests_all_passed_is_true_matches_wycheproof_vector_matches_expected() {
         let results = WycheproofResults::new();
         // With no tests run, all_passed returns true (no failures)
         assert!(results.all_passed());
     }
 
     #[test]
-    fn test_only_one_failure() {
+    fn test_only_one_failure_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("single failure".to_string());
         assert!(!results.all_passed());
@@ -698,7 +698,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_many_passes_one_failure() {
+    fn test_many_passes_one_failure_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         for _ in 0..10000 {
             results.add_pass();
@@ -711,21 +711,21 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_failure_message_with_newlines() {
+    fn test_failure_message_with_newlines_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("Line 1\nLine 2\nLine 3".to_string());
         assert!(results.failures[0].contains("\n"));
     }
 
     #[test]
-    fn test_failure_message_with_tabs() {
+    fn test_failure_message_with_tabs_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("Column1\tColumn2\tColumn3".to_string());
         assert!(results.failures[0].contains("\t"));
     }
 
     #[test]
-    fn test_failures_vec_capacity_growth() {
+    fn test_failures_vec_capacity_growth_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         // Add many failures to test vector growth
         for i in 0..1000 {
@@ -743,7 +743,7 @@ mod real_scenario_tests {
     use super::*;
 
     #[test]
-    fn test_aes_gcm_like_scenario() {
+    fn test_aes_gcm_like_scenario_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         // Simulate running AES-GCM test vectors
@@ -766,7 +766,7 @@ mod real_scenario_tests {
     }
 
     #[test]
-    fn test_ecdsa_like_scenario_with_failures() {
+    fn test_ecdsa_like_scenario_with_failures_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         // Simulate ECDSA verification where some tests fail
@@ -789,7 +789,7 @@ mod real_scenario_tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_like_scenario() {
+    fn test_chacha20_poly1305_like_scenario_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         // ChaCha20-Poly1305 requires specific key/nonce sizes
@@ -809,7 +809,7 @@ mod real_scenario_tests {
     }
 
     #[test]
-    fn test_ed25519_like_scenario() {
+    fn test_ed25519_like_scenario_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         // EdDSA signature verification
@@ -825,7 +825,7 @@ mod real_scenario_tests {
     }
 
     #[test]
-    fn test_calculate_statistics() {
+    fn test_calculate_statistics_matches_expected() {
         let mut results = WycheproofResults::new();
 
         for _ in 0..70 {
@@ -852,7 +852,7 @@ mod real_scenario_tests {
     }
 
     #[test]
-    fn test_print_summary() {
+    fn test_print_summary_matches_expected() {
         let mut results = WycheproofResults::new();
 
         for _ in 0..90 {
@@ -885,7 +885,7 @@ mod debug_and_clone_tests {
     use super::*;
 
     #[test]
-    fn test_results_debug_empty() {
+    fn test_results_debug_empty_matches_expected() {
         let results = WycheproofResults::new();
         let debug = format!("{:?}", results);
         assert!(debug.contains("total: 0"));
@@ -895,7 +895,7 @@ mod debug_and_clone_tests {
     }
 
     #[test]
-    fn test_results_debug_with_data() {
+    fn test_results_debug_with_data_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_pass();
@@ -910,7 +910,7 @@ mod debug_and_clone_tests {
     }
 
     #[test]
-    fn test_results_debug_shows_failures() {
+    fn test_results_debug_shows_failures_matches_expected() {
         let mut results = WycheproofResults::new();
         results.add_failure("first error".to_string());
         results.add_failure("second error".to_string());
@@ -929,7 +929,7 @@ mod failure_rate_tests {
     use super::*;
 
     #[test]
-    fn test_zero_failure_rate() {
+    fn test_zero_failure_rate_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         for _ in 0..100 {
             results.add_pass();
@@ -940,7 +940,7 @@ mod failure_rate_tests {
     }
 
     #[test]
-    fn test_hundred_percent_failure_rate() {
+    fn test_hundred_percent_failure_rate_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         for i in 0..100 {
             results.add_failure(format!("failure {}", i));
@@ -951,7 +951,7 @@ mod failure_rate_tests {
     }
 
     #[test]
-    fn test_five_percent_failure_rate() {
+    fn test_five_percent_failure_rate_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
         for i in 0..100 {
             if i < 5 {
@@ -966,7 +966,7 @@ mod failure_rate_tests {
     }
 
     #[test]
-    fn test_failure_rate_threshold_check() {
+    fn test_failure_rate_threshold_check_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         // Add results that are just under 5% failure threshold
@@ -982,7 +982,7 @@ mod failure_rate_tests {
     }
 
     #[test]
-    fn test_failure_rate_above_threshold() {
+    fn test_failure_rate_above_threshold_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         for _ in 0..90 {
@@ -1005,7 +1005,7 @@ mod single_threaded_mutation_tests {
     use super::*;
 
     #[test]
-    fn test_sequential_mutations() {
+    fn test_sequential_mutations_matches_wycheproof_vector_matches_expected() {
         let mut results = WycheproofResults::new();
 
         // Perform operations in sequence
@@ -1025,7 +1025,7 @@ mod single_threaded_mutation_tests {
     }
 
     #[test]
-    fn test_multiple_results_instances() {
+    fn test_multiple_results_instances_matches_wycheproof_vector_matches_expected() {
         let mut results1 = WycheproofResults::new();
         let mut results2 = WycheproofResults::new();
 

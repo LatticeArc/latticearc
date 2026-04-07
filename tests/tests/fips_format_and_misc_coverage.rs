@@ -16,7 +16,7 @@ use latticearc_tests::validation::format::{FormatError, validate_key_format};
 // ============================================================
 
 #[test]
-fn test_validate_key_format_correct_size() {
+fn test_validate_key_format_correct_size_succeeds() {
     let key = vec![0u8; 32];
     assert!(
         validate_key_format(&key, 32).is_ok(),
@@ -25,7 +25,7 @@ fn test_validate_key_format_correct_size() {
 }
 
 #[test]
-fn test_validate_key_format_wrong_size() {
+fn test_validate_key_format_wrong_size_returns_error() {
     let key = vec![0u8; 16];
     let result = validate_key_format(&key, 32);
     assert!(result.is_err(), "16-byte key should fail validation for expected size 32");
@@ -38,7 +38,7 @@ fn test_validate_key_format_wrong_size() {
 }
 
 #[test]
-fn test_validate_key_format_empty() {
+fn test_validate_key_format_empty_validates_correctly_has_correct_size() {
     let key: Vec<u8> = Vec::new();
     assert!(
         validate_key_format(&key, 0).is_ok(),
@@ -51,7 +51,7 @@ fn test_validate_key_format_empty() {
 }
 
 #[test]
-fn test_format_error_display() {
+fn test_format_error_display_contains_sizes_fails() {
     let err = FormatError::InvalidKeySize(16, 32);
     let msg = format!("{}", err);
     assert!(msg.contains("16"), "error message should contain actual size 16");
@@ -65,14 +65,14 @@ fn test_format_error_display() {
 use latticearc_tests::validation::validation_summary::ComplianceReporter;
 
 #[test]
-fn test_compliance_reporter_new() {
+fn test_compliance_reporter_new_generates_empty_report_succeeds() {
     let reporter = ComplianceReporter::new(0.05);
     let report = reporter.generate_full_compliance_report(&[], &None);
     assert!(report.is_ok(), "empty compliance report should generate successfully");
 }
 
 #[test]
-fn test_compliance_reporter_json_export() {
+fn test_compliance_reporter_json_export_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let report = reporter.generate_full_compliance_report(&[], &None).unwrap();
     let json = reporter.generate_json_report(&report);
@@ -85,7 +85,7 @@ fn test_compliance_reporter_json_export() {
 }
 
 #[test]
-fn test_compliance_reporter_html_export() {
+fn test_compliance_reporter_html_export_succeeds() {
     let reporter = ComplianceReporter::new(0.05);
     let report = reporter.generate_full_compliance_report(&[], &None).unwrap();
     let html = reporter.generate_html_report(&report);
@@ -106,7 +106,7 @@ use latticearc_tests::validation::nist_functions::{
 };
 
 #[test]
-fn test_randomized_hasher_default() {
+fn test_randomized_hasher_default_hashes_successfully_succeeds() {
     let hasher = RandomizedHasher::default();
     let hash = hasher.hash(b"test message");
     assert!(hash.is_ok(), "default hasher should hash successfully");
@@ -116,7 +116,7 @@ fn test_randomized_hasher_default() {
 }
 
 #[test]
-fn test_randomized_hasher_verify() {
+fn test_randomized_hasher_verify_succeeds_for_same_message_succeeds() {
     let hasher = RandomizedHasher::default();
     let message = b"verify this message";
     let hash = hasher.hash(message).unwrap();
@@ -126,7 +126,7 @@ fn test_randomized_hasher_verify() {
 }
 
 #[test]
-fn test_randomized_hasher_verify_wrong_message() {
+fn test_randomized_hasher_verify_wrong_message_returns_false_fails() {
     let hasher = RandomizedHasher::default();
     let hash = hasher.hash(b"original message").unwrap();
     let valid = hasher.verify(b"different message", &hash);
@@ -135,7 +135,7 @@ fn test_randomized_hasher_verify_wrong_message() {
 }
 
 #[test]
-fn test_randomized_hasher_custom_config() {
+fn test_randomized_hasher_custom_config_hashes_successfully_succeeds() {
     let config = RandomizedHashConfig {
         algorithm: "SHA-256".to_string(),
         mode: RandomizedHashMode::SaltSuffix,
@@ -148,13 +148,13 @@ fn test_randomized_hasher_custom_config() {
 }
 
 #[test]
-fn test_nist_functions_hash_message() {
+fn test_nist_functions_hash_message_succeeds() {
     let hash = RandomizedHashing::hash_message(b"hello world");
     assert!(hash.is_ok(), "static hash_message should succeed");
 }
 
 #[test]
-fn test_nist_functions_verify_hash() {
+fn test_nist_functions_verify_hash_succeeds() {
     let message = b"test message for static API";
     let hash = RandomizedHashing::hash_message(message).unwrap();
     let valid = RandomizedHashing::verify_hash(message, &hash);
@@ -163,7 +163,7 @@ fn test_nist_functions_verify_hash() {
 }
 
 #[test]
-fn test_nist_functions_recommended_config() {
+fn test_nist_functions_recommended_config_returns_valid_config_succeeds() {
     let config_128 = RandomizedHashing::recommended_config(128);
     assert!(config_128.salt_length > 0, "128-bit config should have positive salt length");
 
@@ -175,7 +175,7 @@ fn test_nist_functions_recommended_config() {
 }
 
 #[test]
-fn test_nist_functions_hash_with_config() {
+fn test_nist_functions_hash_with_config_succeeds() {
     let config = RandomizedHashing::recommended_config(192);
     let hash = RandomizedHashing::hash_message_with_config(b"test", config);
     assert!(hash.is_ok(), "hash_message_with_config should succeed with 192-bit config");

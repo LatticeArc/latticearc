@@ -457,14 +457,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tls_context_default() {
+    fn test_tls_context_default_sets_expected_fields_succeeds() {
         let ctx = TlsContext::default();
         assert!(!ctx.operation_id.is_empty());
         assert_eq!(ctx.operation_name, "unknown");
     }
 
     #[test]
-    fn test_tls_context_child() {
+    fn test_tls_context_child_inherits_parent_operation_id_is_correct() {
         let parent = TlsContext::new("parent");
         let child = parent.child("child");
 
@@ -473,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_context_with_metadata() {
+    fn test_tls_context_with_metadata_stores_value_succeeds() {
         let ctx =
             TlsContext::new("test").with_metadata("key1", "value1").with_metadata("key2", "value2");
 
@@ -482,14 +482,14 @@ mod tests {
     }
 
     #[test]
-    fn test_error_chain_empty() {
+    fn test_error_chain_empty_has_no_errors_is_correct() {
         let chain = ErrorChain::new();
         assert!(chain.is_empty());
         assert_eq!(chain.len(), 0);
     }
 
     #[test]
-    fn test_error_chain_push() {
+    fn test_error_chain_push_adds_error_succeeds() {
         let mut chain = ErrorChain::new();
         let ctx = TlsContext::new("test");
         let link = ErrorLink::new("TestError", "Test message", &ctx);
@@ -500,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_system_info_collect() {
+    fn test_system_info_collect_populates_fields_succeeds() {
         let info = SystemInfo::collect();
         assert!(!info.platform.is_empty());
         assert!(!info.rust_version.is_empty());
@@ -508,39 +508,39 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_context_with_trace() {
+    fn test_tls_context_with_trace_sets_trace_id_succeeds() {
         let ctx = TlsContext::with_trace("test_op", "trace-123".to_string());
         assert_eq!(ctx.operation_name, "test_op");
         assert_eq!(ctx.trace_id, Some("trace-123".to_string()));
     }
 
     #[test]
-    fn test_tls_context_with_peer() {
+    fn test_tls_context_with_peer_sets_peer_addr_succeeds() {
         let addr: SocketAddr = "127.0.0.1:443".parse().unwrap();
         let ctx = TlsContext::new("connect").with_peer(addr);
         assert_eq!(ctx.peer_addr, Some(addr));
     }
 
     #[test]
-    fn test_tls_context_with_domain() {
+    fn test_tls_context_with_domain_sets_server_name_succeeds() {
         let ctx = TlsContext::new("connect").with_domain("example.com");
         assert_eq!(ctx.domain, Some("example.com".to_string()));
     }
 
     #[test]
-    fn test_tls_context_with_mode() {
+    fn test_tls_context_with_mode_sets_mode_field_succeeds() {
         let ctx = TlsContext::new("handshake").with_mode("hybrid");
         assert_eq!(ctx.mode, Some("hybrid".to_string()));
     }
 
     #[test]
-    fn test_tls_context_with_kex_method() {
+    fn test_tls_context_with_kex_method_sets_kex_field_succeeds() {
         let ctx = TlsContext::new("kex").with_kex_method("X25519MLKEM768");
         assert_eq!(ctx.kex_method, Some("X25519MLKEM768".to_string()));
     }
 
     #[test]
-    fn test_tls_context_format() {
+    fn test_tls_context_format_produces_expected_string_has_correct_size() {
         let addr: SocketAddr = "10.0.0.1:8443".parse().unwrap();
         let ctx = TlsContext::with_trace("connect", "trace-abc".to_string())
             .with_peer(addr)
@@ -556,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_context_display() {
+    fn test_tls_context_display_produces_expected_string_succeeds() {
         let ctx = TlsContext::new("test");
         let display = format!("{}", ctx);
         assert!(display.contains("op=test"));
@@ -564,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_context_elapsed() {
+    fn test_tls_context_elapsed_returns_duration_succeeds() {
         let ctx = TlsContext::new("timed");
         let elapsed = ctx.elapsed();
         // Should be very small since we just created it
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_context_child_inherits_fields() {
+    fn test_tls_context_child_inherits_fields_is_correct() {
         let addr: SocketAddr = "10.0.0.1:443".parse().unwrap();
         let parent = TlsContext::new("parent")
             .with_peer(addr)
@@ -590,26 +590,26 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_context_get_metadata_missing() {
+    fn test_tls_context_get_metadata_missing_returns_none() {
         let ctx = TlsContext::new("test");
         assert!(ctx.get_metadata("nonexistent").is_none());
     }
 
     #[test]
-    fn test_error_chain_default() {
+    fn test_error_chain_default_is_empty() {
         let chain = ErrorChain::default();
         assert!(chain.is_empty());
         assert_eq!(chain.len(), 0);
     }
 
     #[test]
-    fn test_error_chain_format_empty() {
+    fn test_error_chain_format_empty_produces_empty_string_fails() {
         let chain = ErrorChain::new();
         assert_eq!(chain.format(), "No errors");
     }
 
     #[test]
-    fn test_error_chain_format_with_errors() {
+    fn test_error_chain_format_with_errors_produces_expected_string_fails() {
         let mut chain = ErrorChain::new();
         let ctx = TlsContext::new("test");
         chain.push(ErrorLink::new("IoError", "Connection refused", &ctx));
@@ -623,14 +623,14 @@ mod tests {
     }
 
     #[test]
-    fn test_error_chain_display() {
+    fn test_error_chain_display_produces_expected_string_fails() {
         let chain = ErrorChain::new();
         let display = format!("{}", chain);
         assert_eq!(display, "No errors");
     }
 
     #[test]
-    fn test_error_chain_push_tls_error() {
+    fn test_error_chain_push_tls_error_succeeds() {
         let mut chain = ErrorChain::new();
         let ctx = TlsContext::new("test");
         let tls_err = crate::tls::error::TlsError::Config {
@@ -647,7 +647,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_link_new() {
+    fn test_error_link_new_stores_message_fails() {
         let ctx = TlsContext::new("test");
         let link = ErrorLink::new("MyError", "Something failed", &ctx);
         assert_eq!(link.error_type, "MyError");
@@ -656,14 +656,14 @@ mod tests {
     }
 
     #[test]
-    fn test_error_link_with_code() {
+    fn test_error_link_with_code_stores_code_fails() {
         let ctx = TlsContext::new("test");
         let link = ErrorLink::with_code("MyError", "Failed", "E404", &ctx);
         assert_eq!(link.code, Some("E404".to_string()));
     }
 
     #[test]
-    fn test_system_info_format() {
+    fn test_system_info_format_produces_expected_string_has_correct_size() {
         let info = SystemInfo::collect();
         let formatted = info.format();
         assert!(formatted.contains("Platform:"));
@@ -673,14 +673,14 @@ mod tests {
     }
 
     #[test]
-    fn test_system_info_features() {
+    fn test_system_info_features_lists_enabled_features_is_correct() {
         let info = SystemInfo::collect();
         assert!(info.features.contains(&"pq".to_string()));
         assert!(info.features.contains(&"hybrid".to_string()));
     }
 
     #[test]
-    fn test_diagnostic_info_new() {
+    fn test_diagnostic_info_new_stores_fields_succeeds() {
         let ctx = TlsContext::new("failing_op");
         let err = crate::tls::error::TlsError::Config {
             message: "test error".to_string(),
@@ -697,7 +697,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diagnostic_info_format() {
+    fn test_diagnostic_info_format_produces_expected_string_has_correct_size() {
         let ctx = TlsContext::new("test_op").with_domain("example.com");
         let err = crate::tls::error::TlsError::Config {
             message: "invalid".to_string(),
@@ -716,7 +716,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diagnostic_info_display() {
+    fn test_diagnostic_info_display_produces_expected_string_succeeds() {
         let ctx = TlsContext::new("test_op");
         let err = crate::tls::error::TlsError::Config {
             message: "test".to_string(),
@@ -731,7 +731,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_pq_not_available() {
+    fn test_recommendations_pq_not_available_returns_classical_recommendation_succeeds() {
         let err = crate::tls::error::TlsError::PqNotAvailable {
             message: "not available".to_string(),
             code: crate::tls::error::ErrorCode::PqNotAvailable,
@@ -743,7 +743,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_certificate_expired() {
+    fn test_recommendations_certificate_expired_returns_correct_recommendation_succeeds() {
         let err = crate::tls::error::TlsError::Certificate {
             message: "expired".to_string(),
             subject: None,
@@ -757,7 +757,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_hostname_mismatch() {
+    fn test_recommendations_hostname_mismatch_returns_sni_recommendation_fails() {
         let err = crate::tls::error::TlsError::Certificate {
             message: "hostname mismatch".to_string(),
             subject: None,
@@ -771,7 +771,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_chain_incomplete() {
+    fn test_recommendations_chain_incomplete_returns_chain_recommendation_succeeds() {
         let err = crate::tls::error::TlsError::Certificate {
             message: "chain".to_string(),
             subject: None,
@@ -785,7 +785,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_io_connection_refused() {
+    fn test_recommendations_io_connection_refused_returns_correct_recommendation_succeeds() {
         let err = crate::tls::error::TlsError::Io {
             message: "refused".to_string(),
             source: None,
@@ -798,7 +798,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_io_timeout() {
+    fn test_recommendations_io_timeout_returns_correct_recommendation_succeeds() {
         let err = crate::tls::error::TlsError::Io {
             message: "timeout".to_string(),
             source: None,
@@ -811,7 +811,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_io_dns() {
+    fn test_recommendations_io_dns_returns_dns_recommendation_succeeds() {
         let err = crate::tls::error::TlsError::Io {
             message: "dns".to_string(),
             source: None,
@@ -824,7 +824,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_handshake_protocol_mismatch() {
+    fn test_recommendations_handshake_protocol_mismatch_returns_version_recommendation_fails() {
         let err = crate::tls::error::TlsError::Handshake {
             message: "version".to_string(),
             state: "ClientHello".to_string(),
@@ -837,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recommendations_handshake_cipher_mismatch() {
+    fn test_recommendations_handshake_cipher_mismatch_returns_cipher_recommendation_fails() {
         let err = crate::tls::error::TlsError::Handshake {
             message: "cipher".to_string(),
             state: "ServerHello".to_string(),

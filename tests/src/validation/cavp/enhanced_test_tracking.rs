@@ -34,7 +34,7 @@ mod enhanced_cavp_result_tracking_tests {
     /// 
     /// Positive test: All storage operations succeed with complete audit logging
     #[test]
-    fn test_comprehensive_test_result_storage_with_audit_trail() {
+    fn test_comprehensive_test_result_storage_with_audit_trail_succeeds() {
         // Arrange
         let storage = MemoryCavpStorage::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
@@ -102,7 +102,7 @@ mod enhanced_cavp_result_tracking_tests {
     /// 
     /// Negative test: Handle non-compliant results appropriately
     #[test]
-    fn test_automated_nist_compliance_validation_failure() {
+    fn test_automated_nist_compliance_validation_failure_fails() {
         // Arrange
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "65".to_string() };
@@ -178,7 +178,7 @@ mod enhanced_cavp_result_tracking_tests {
     /// 
     /// Positive test: Generate complete compliance documentation
     #[test]
-    fn test_enhanced_compliance_reporting_with_detailed_documentation() {
+    fn test_enhanced_compliance_reporting_with_detailed_documentation_is_documented() {
         // Arrange
         let generator = CavpComplianceGenerator::new();
         let doc_generator = NistDocumentationGenerator::new(
@@ -282,7 +282,7 @@ mod enhanced_cavp_result_tracking_tests {
     /// 
     /// Positive test: Full integration workflow succeeds
     #[test]
-    fn test_integration_with_existing_test_infrastructure() {
+    fn test_integration_with_existing_test_infrastructure_succeeds() {
         // Arrange
         let config = PipelineConfig {
             parallel_execution: true,
@@ -397,7 +397,7 @@ mod enhanced_cavp_result_tracking_tests {
     /// 
     /// Negative test: All error conditions are handled properly
     #[test]
-    fn test_error_handling_and_recovery_mechanisms() {
+    fn test_error_handling_and_recovery_mechanisms_fails() {
         // Arrange
         let temp_dir = TempDir::new().unwrap();
         let file_storage = FileCavpStorage::new(temp_dir.path().to_str().unwrap());
@@ -572,7 +572,7 @@ mod compliance_validation_tests {
     /// 
     /// Positive test: All NIST criteria are properly validated
     #[test]
-    fn test_nist_compliance_criteria_validation() {
+    fn test_nist_compliance_criteria_validation_succeeds() {
         let validator = NistComplianceValidator::new();
         
         // Test ML-KEM specific criteria
@@ -604,7 +604,7 @@ mod compliance_validation_tests {
     /// 
     /// Positive test: Security levels are correctly validated against NIST standards
     #[test]
-    fn test_security_level_validation() {
+    fn test_security_level_validation_succeeds() {
         let validator = NistComplianceValidator::new();
         
         // Test valid security levels

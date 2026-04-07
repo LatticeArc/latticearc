@@ -42,8 +42,8 @@
 )]
 
 use latticearc::{
-    CryptoConfig, DecryptKey, EncryptKey, EncryptedOutput, SecurityMode, VerifiedSession, decrypt,
-    encrypt, generate_hybrid_keypair, generate_keypair,
+    CryptoConfig, DecryptKey, EncryptKey, EncryptedOutput, HybridComponents, SecurityMode,
+    VerifiedSession, decrypt, encrypt, generate_hybrid_keypair, generate_keypair,
 };
 
 // ============================================================================
@@ -66,9 +66,9 @@ fn test_hybrid_encrypt_decrypt_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_encrypt_with_verified_session() {
+fn test_hybrid_encrypt_with_verified_session_succeeds() {
     let (auth_pk, auth_sk) = generate_keypair().unwrap();
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = b"Test message with verified session";
 
@@ -81,9 +81,9 @@ fn test_hybrid_encrypt_with_verified_session() {
 }
 
 #[test]
-fn test_hybrid_session_reuse_multiple_operations() {
+fn test_hybrid_session_reuse_multiple_operations_succeeds() {
     let (auth_pk, auth_sk) = generate_keypair().unwrap();
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
     let (pk, sk) = generate_hybrid_keypair().unwrap();
 
     for i in 0..10 {
@@ -93,14 +93,19 @@ fn test_hybrid_session_reuse_multiple_operations() {
         let config = CryptoConfig::new().session(&session);
         let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), config).unwrap();
 
-        assert_eq!(decrypted, message.as_bytes(), "Session should be reusable for operation {}", i);
+        assert_eq!(
+            decrypted.as_slice(),
+            message.as_bytes(),
+            "Session should be reusable for operation {}",
+            i
+        );
     }
 }
 
 #[test]
-fn test_hybrid_verified_session_validity_check() {
+fn test_hybrid_verified_session_validity_check_succeeds() {
     let (auth_pk, auth_sk) = generate_keypair().unwrap();
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
 
     assert!(session.is_valid(), "Fresh session should be valid");
     session.verify_valid().unwrap();
@@ -109,9 +114,9 @@ fn test_hybrid_verified_session_validity_check() {
 }
 
 #[test]
-fn test_security_mode_verified_validates_session() {
+fn test_security_mode_verified_validates_session_succeeds() {
     let (auth_pk, auth_sk) = generate_keypair().unwrap();
-    let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
     let mode = SecurityMode::Verified(&session);
 
     mode.validate().unwrap();
@@ -121,7 +126,7 @@ fn test_security_mode_verified_validates_session() {
 }
 
 #[test]
-fn test_security_mode_unverified_always_validates() {
+fn test_security_mode_unverified_always_validates_succeeds() {
     let mode = SecurityMode::Unverified;
 
     mode.validate().unwrap();
@@ -135,23 +140,27 @@ fn test_security_mode_unverified_always_validates() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_encrypted_output_structure() {
+fn test_hybrid_encrypted_output_structure_succeeds() {
     let (pk, _sk) = generate_hybrid_keypair().unwrap();
     let message = b"Test EncryptedOutput structure";
 
     let result = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
-    let hybrid = result.hybrid_data.as_ref().expect("hybrid_data should be present");
+    let hybrid = result.hybrid_data().expect("hybrid_data should be present");
     // ML-KEM-768 ciphertext = 1088 bytes
     assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
     // X25519 ephemeral public key = 32 bytes
     assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
     // AES-GCM nonce = 12 bytes
-    assert_eq!(result.nonce.len(), 12, "AES-GCM nonce should be 12 bytes");
+    assert_eq!(result.nonce().len(), 12, "AES-GCM nonce should be 12 bytes");
     // AES-GCM tag = 16 bytes
-    assert_eq!(result.tag.len(), 16, "AES-GCM tag should be 16 bytes");
+    assert_eq!(result.tag().len(), 16, "AES-GCM tag should be 16 bytes");
     // Symmetric ciphertext should be same length as plaintext
-    assert_eq!(result.ciphertext.len(), message.len(), "Ciphertext should match plaintext length");
+    assert_eq!(
+        result.ciphertext().len(),
+        message.len(),
+        "Ciphertext should match plaintext length"
+    );
 }
 
 // ============================================================================
@@ -167,9 +176,9 @@ fn test_hybrid_encryption_non_deterministic() {
     let result2 = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
     let result3 = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
-    let h1 = result1.hybrid_data.as_ref().unwrap();
-    let h2 = result2.hybrid_data.as_ref().unwrap();
-    let h3 = result3.hybrid_data.as_ref().unwrap();
+    let h1 = result1.hybrid_data().unwrap();
+    let h2 = result2.hybrid_data().unwrap();
+    let h3 = result3.hybrid_data().unwrap();
 
     // KEM ciphertexts should differ (randomized encapsulation)
     assert_ne!(h1.ml_kem_ciphertext, h2.ml_kem_ciphertext, "KEM CTs should differ");
@@ -179,25 +188,25 @@ fn test_hybrid_encryption_non_deterministic() {
     assert_ne!(h1.ecdh_ephemeral_pk, h2.ecdh_ephemeral_pk, "ECDH PKs should differ");
 
     // Nonces should differ
-    assert_ne!(result1.nonce, result2.nonce, "Nonces should differ");
+    assert_ne!(result1.nonce(), result2.nonce(), "Nonces should differ");
 
     // All should decrypt correctly
     assert_eq!(
-        decrypt(&result1, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap(),
-        message.to_vec()
+        decrypt(&result1, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap().as_slice(),
+        message.as_slice()
     );
     assert_eq!(
-        decrypt(&result2, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap(),
-        message.to_vec()
+        decrypt(&result2, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap().as_slice(),
+        message.as_slice()
     );
     assert_eq!(
-        decrypt(&result3, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap(),
-        message.to_vec()
+        decrypt(&result3, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap().as_slice(),
+        message.as_slice()
     );
 }
 
 #[test]
-fn test_encryption_randomness_stress_test() {
+fn test_encryption_randomness_stress_test_succeeds() {
     let (pk, _sk) = generate_hybrid_keypair().unwrap();
     let message = b"Stress test for randomness";
 
@@ -206,7 +215,7 @@ fn test_encryption_randomness_stress_test() {
 
     for _ in 0..iterations {
         let result = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
-        let hybrid = result.hybrid_data.as_ref().unwrap();
+        let hybrid = result.hybrid_data().unwrap();
         kem_cts.push(hybrid.ml_kem_ciphertext.clone());
     }
 
@@ -223,39 +232,47 @@ fn test_encryption_randomness_stress_test() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_100kb_message() {
+fn test_hybrid_100kb_message_roundtrip_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = vec![0xAB; 100 * 1024]; // 100KB
 
     let encrypted = encrypt(&message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
     assert_eq!(
-        encrypted.ciphertext.len(),
+        encrypted.ciphertext().len(),
         message.len(),
         "Ciphertext should match plaintext length"
     );
 
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
-    assert_eq!(decrypted, message, "100KB message should roundtrip correctly");
+    assert_eq!(
+        decrypted.as_slice(),
+        message.as_slice(),
+        "100KB message should roundtrip correctly"
+    );
 }
 
 #[test]
-fn test_hybrid_500kb_message() {
+fn test_hybrid_500kb_message_roundtrip_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = vec![0xCD; 500 * 1024]; // 500KB
 
     let encrypted = encrypt(&message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
-    assert_eq!(decrypted, message, "500KB message should roundtrip correctly");
+    assert_eq!(
+        decrypted.as_slice(),
+        message.as_slice(),
+        "500KB message should roundtrip correctly"
+    );
 }
 
 #[test]
-fn test_hybrid_1mb_message() {
+fn test_hybrid_1mb_message_roundtrip_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = vec![0xEF; 1024 * 1024]; // 1MB
 
     let encrypted = encrypt(&message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
-    assert_eq!(decrypted, message, "1MB message should roundtrip correctly");
+    assert_eq!(decrypted.as_slice(), message.as_slice(), "1MB message should roundtrip correctly");
 }
 
 // ============================================================================
@@ -263,81 +280,139 @@ fn test_hybrid_1mb_message() {
 // ============================================================================
 
 #[test]
-fn test_tampered_symmetric_ciphertext_detected() {
+fn test_tampered_symmetric_ciphertext_detected_fails() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = b"Test tamper detection on symmetric ciphertext";
 
-    let mut encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
+    let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
-    if !encrypted.ciphertext.is_empty() {
-        encrypted.ciphertext[0] ^= 0xFF;
+    let mut ciphertext = encrypted.ciphertext().to_vec();
+    if !ciphertext.is_empty() {
+        ciphertext[0] ^= 0xFF;
     }
+    let tampered = EncryptedOutput::new(
+        encrypted.scheme().clone(),
+        ciphertext,
+        encrypted.nonce().to_vec(),
+        encrypted.tag().to_vec(),
+        encrypted.hybrid_data().cloned(),
+        encrypted.timestamp(),
+        encrypted.key_id().map(str::to_owned),
+    );
 
-    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new());
+    let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered symmetric ciphertext should be detected");
 }
 
 #[test]
-fn test_tampered_kem_ciphertext_detected() {
+fn test_tampered_kem_ciphertext_detected_fails() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = b"Test tamper detection on KEM ciphertext";
 
-    let mut encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
+    let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
-    if let Some(ref mut hybrid) = encrypted.hybrid_data
-        && !hybrid.ml_kem_ciphertext.is_empty()
-    {
-        hybrid.ml_kem_ciphertext[0] ^= 0xFF;
-    }
+    let tampered_hybrid = encrypted.hybrid_data().map(|h| {
+        let mut ml_kem_ct = h.ml_kem_ciphertext.clone();
+        if !ml_kem_ct.is_empty() {
+            ml_kem_ct[0] ^= 0xFF;
+        }
+        HybridComponents {
+            ml_kem_ciphertext: ml_kem_ct,
+            ecdh_ephemeral_pk: h.ecdh_ephemeral_pk.clone(),
+        }
+    });
+    let tampered = EncryptedOutput::new(
+        encrypted.scheme().clone(),
+        encrypted.ciphertext().to_vec(),
+        encrypted.nonce().to_vec(),
+        encrypted.tag().to_vec(),
+        tampered_hybrid,
+        encrypted.timestamp(),
+        encrypted.key_id().map(str::to_owned),
+    );
 
-    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new());
+    let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered KEM ciphertext should be detected");
 }
 
 #[test]
-fn test_tampered_ecdh_pk_detected() {
+fn test_tampered_ecdh_pk_detected_fails() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = b"Test tamper detection on ECDH ephemeral PK";
 
-    let mut encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
+    let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
-    if let Some(ref mut hybrid) = encrypted.hybrid_data
-        && !hybrid.ecdh_ephemeral_pk.is_empty()
-    {
-        hybrid.ecdh_ephemeral_pk[0] ^= 0xFF;
-    }
+    let tampered_hybrid = encrypted.hybrid_data().map(|h| {
+        let mut ecdh_pk = h.ecdh_ephemeral_pk.clone();
+        if !ecdh_pk.is_empty() {
+            ecdh_pk[0] ^= 0xFF;
+        }
+        HybridComponents {
+            ml_kem_ciphertext: h.ml_kem_ciphertext.clone(),
+            ecdh_ephemeral_pk: ecdh_pk,
+        }
+    });
+    let tampered = EncryptedOutput::new(
+        encrypted.scheme().clone(),
+        encrypted.ciphertext().to_vec(),
+        encrypted.nonce().to_vec(),
+        encrypted.tag().to_vec(),
+        tampered_hybrid,
+        encrypted.timestamp(),
+        encrypted.key_id().map(str::to_owned),
+    );
 
-    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new());
+    let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered ECDH ephemeral PK should be detected");
 }
 
 #[test]
-fn test_tampered_nonce_detected() {
+fn test_tampered_nonce_detected_fails() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = b"Test tamper detection on nonce";
 
-    let mut encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
+    let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
-    if !encrypted.nonce.is_empty() {
-        encrypted.nonce[0] ^= 0xFF;
+    let mut nonce = encrypted.nonce().to_vec();
+    if !nonce.is_empty() {
+        nonce[0] ^= 0xFF;
     }
+    let tampered = EncryptedOutput::new(
+        encrypted.scheme().clone(),
+        encrypted.ciphertext().to_vec(),
+        nonce,
+        encrypted.tag().to_vec(),
+        encrypted.hybrid_data().cloned(),
+        encrypted.timestamp(),
+        encrypted.key_id().map(str::to_owned),
+    );
 
-    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new());
+    let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered nonce should be detected");
 }
 
 #[test]
-fn test_tampered_tag_detected() {
+fn test_tampered_tag_detected_fails() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = b"Test tamper detection on tag";
 
-    let mut encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
+    let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
-    if !encrypted.tag.is_empty() {
-        encrypted.tag[0] ^= 0xFF;
+    let mut tag = encrypted.tag().to_vec();
+    if !tag.is_empty() {
+        tag[0] ^= 0xFF;
     }
+    let tampered = EncryptedOutput::new(
+        encrypted.scheme().clone(),
+        encrypted.ciphertext().to_vec(),
+        encrypted.nonce().to_vec(),
+        tag,
+        encrypted.hybrid_data().cloned(),
+        encrypted.timestamp(),
+        encrypted.key_id().map(str::to_owned),
+    );
 
-    let result = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new());
+    let result = decrypt(&tampered, DecryptKey::Hybrid(&sk), CryptoConfig::new());
     assert!(result.is_err(), "Tampered tag should be detected");
 }
 
@@ -346,7 +421,7 @@ fn test_tampered_tag_detected() {
 // ============================================================================
 
 #[test]
-fn test_wrong_secret_key_rejected() {
+fn test_wrong_secret_key_rejected_fails() {
     let (pk1, _sk1) = generate_hybrid_keypair().unwrap();
     let (_pk2, sk2) = generate_hybrid_keypair().unwrap();
 
@@ -359,7 +434,7 @@ fn test_wrong_secret_key_rejected() {
 }
 
 #[test]
-fn test_multiple_keypairs_independent() {
+fn test_multiple_keypairs_independent_succeeds() {
     let (pk1, sk1) = generate_hybrid_keypair().unwrap();
     let (pk2, sk2) = generate_hybrid_keypair().unwrap();
 
@@ -373,8 +448,8 @@ fn test_multiple_keypairs_independent() {
     let dec1 = decrypt(&enc1, DecryptKey::Hybrid(&sk1), CryptoConfig::new()).unwrap();
     let dec2 = decrypt(&enc2, DecryptKey::Hybrid(&sk2), CryptoConfig::new()).unwrap();
 
-    assert_eq!(dec1, msg1);
-    assert_eq!(dec2, msg2);
+    assert_eq!(dec1.as_slice(), msg1.as_slice());
+    assert_eq!(dec2.as_slice(), msg2.as_slice());
 
     // Cross-decryption fails
     assert!(
@@ -397,7 +472,7 @@ fn test_empty_message_roundtrip() {
     let message = b"";
 
     let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
-    assert!(encrypted.ciphertext.is_empty(), "Empty plaintext -> empty ciphertext");
+    assert!(encrypted.ciphertext().is_empty(), "Empty plaintext -> empty ciphertext");
 
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
     assert!(decrypted.is_empty(), "Decrypted empty message should be empty");
@@ -409,43 +484,47 @@ fn test_single_byte_message_roundtrip() {
     let message = b"X";
 
     let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
-    assert_eq!(encrypted.ciphertext.len(), 1, "Single byte ciphertext");
+    assert_eq!(encrypted.ciphertext().len(), 1, "Single byte ciphertext");
 
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
-    assert_eq!(decrypted, message);
+    assert_eq!(decrypted.as_slice(), message.as_slice());
 }
 
 #[test]
-fn test_all_zero_bytes_message() {
+fn test_all_zero_bytes_message_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = vec![0u8; 1000];
 
     let encrypted = encrypt(&message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
 
-    assert_eq!(decrypted, message, "All-zero bytes message should roundtrip");
+    assert_eq!(decrypted.as_slice(), message.as_slice(), "All-zero bytes message should roundtrip");
 }
 
 #[test]
-fn test_all_255_bytes_message() {
+fn test_all_255_bytes_message_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message = vec![0xFFu8; 1000];
 
     let encrypted = encrypt(&message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
 
-    assert_eq!(decrypted, message, "All-255 bytes message should roundtrip");
+    assert_eq!(decrypted.as_slice(), message.as_slice(), "All-255 bytes message should roundtrip");
 }
 
 #[test]
-fn test_full_byte_range_message() {
+fn test_full_byte_range_message_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
     let message: Vec<u8> = (0..=255).cycle().take(1024).collect();
 
     let encrypted = encrypt(&message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap();
 
-    assert_eq!(decrypted, message, "Full byte range message should roundtrip");
+    assert_eq!(
+        decrypted.as_slice(),
+        message.as_slice(),
+        "Full byte range message should roundtrip"
+    );
 }
 
 // ============================================================================
@@ -453,7 +532,7 @@ fn test_full_byte_range_message() {
 // ============================================================================
 
 #[test]
-fn test_many_messages_same_keypair() {
+fn test_many_messages_same_keypair_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().unwrap();
 
     let messages: Vec<Vec<u8>> = (0..50).map(|i| format!("Message {}", i).into_bytes()).collect();
@@ -463,12 +542,16 @@ fn test_many_messages_same_keypair() {
         .map(|msg| encrypt(msg, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap())
         .collect();
 
+    // The closure returns `Result<Zeroizing<Vec<u8>>, _>`, but the
+    // post-unwrap type needs an explicit annotation so rustc picks the right
+    // collection type. We keep Zeroizing ownership for the full test scope so
+    // plaintext is scrubbed at end of test.
     let decrypted: Vec<Vec<u8>> = encrypted
         .iter()
-        .map(|enc| decrypt(enc, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap())
+        .map(|enc| decrypt(enc, DecryptKey::Hybrid(&sk), CryptoConfig::new()).unwrap().to_vec())
         .collect();
 
     for (original, dec) in messages.iter().zip(decrypted.iter()) {
-        assert_eq!(original, dec);
+        assert_eq!(original.as_slice(), dec.as_slice());
     }
 }

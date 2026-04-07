@@ -52,17 +52,18 @@ use latticearc::unified_api::{
 // ============================================================================
 
 #[test]
-fn test_ml_kem_encrypt_empty_data() {
+fn test_ml_kem_encrypt_empty_data_succeeds() {
     let (public_key, _private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     // Encrypting empty data should succeed (valid use case)
-    let result = encrypt_pq_ml_kem_unverified(&[], &public_key, MlKemSecurityLevel::MlKem768);
+    let result =
+        encrypt_pq_ml_kem_unverified(&[], public_key.as_slice(), MlKemSecurityLevel::MlKem768);
     assert!(result.is_ok(), "Encrypting empty data should succeed");
 }
 
 #[test]
-fn test_ml_kem_encrypt_empty_public_key() {
+fn test_ml_kem_encrypt_empty_public_key_fails() {
     let data = b"Test data";
     let empty_key = [];
 
@@ -78,7 +79,7 @@ fn test_ml_kem_encrypt_empty_public_key() {
 }
 
 #[test]
-fn test_ml_kem_decrypt_empty_ciphertext() {
+fn test_ml_kem_decrypt_empty_ciphertext_fails() {
     let (_public_key, private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
@@ -98,12 +99,12 @@ fn test_ml_kem_decrypt_empty_ciphertext() {
 }
 
 #[test]
-fn test_ml_kem_decrypt_empty_private_key() {
+fn test_ml_kem_decrypt_empty_private_key_fails() {
     let (public_key, _private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     let encrypted =
-        encrypt_pq_ml_kem_unverified(b"data", &public_key, MlKemSecurityLevel::MlKem768)
+        encrypt_pq_ml_kem_unverified(b"data", public_key.as_slice(), MlKemSecurityLevel::MlKem768)
             .expect("encryption should succeed");
 
     let empty_key = [];
@@ -116,24 +117,24 @@ fn test_ml_kem_decrypt_empty_private_key() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_encrypt_truncated_public_key() {
+fn test_ml_kem_encrypt_truncated_public_key_fails() {
     let (public_key, _private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     // Truncate the public key
-    let truncated_key = &public_key[..100];
+    let truncated_key = &public_key.as_slice()[..100];
 
     let result = encrypt_pq_ml_kem_unverified(b"data", truncated_key, MlKemSecurityLevel::MlKem768);
     assert!(result.is_err(), "Should fail with truncated public key");
 }
 
 #[test]
-fn test_ml_kem_encrypt_oversized_public_key() {
+fn test_ml_kem_encrypt_oversized_public_key_fails() {
     let (public_key, _private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     // Add extra bytes to the public key
-    let mut oversized_key = public_key.clone();
+    let mut oversized_key = public_key.as_slice().to_vec();
     oversized_key.extend_from_slice(&[0u8; 100]);
 
     let result =
@@ -142,12 +143,12 @@ fn test_ml_kem_encrypt_oversized_public_key() {
 }
 
 #[test]
-fn test_ml_kem_decrypt_truncated_private_key() {
+fn test_ml_kem_decrypt_truncated_private_key_fails() {
     let (public_key, private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     let encrypted =
-        encrypt_pq_ml_kem_unverified(b"data", &public_key, MlKemSecurityLevel::MlKem768)
+        encrypt_pq_ml_kem_unverified(b"data", public_key.as_slice(), MlKemSecurityLevel::MlKem768)
             .expect("encryption should succeed");
 
     // Truncate the private key
@@ -163,45 +164,54 @@ fn test_ml_kem_decrypt_truncated_private_key() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_512_key_with_768_level() {
+fn test_ml_kem_512_key_with_768_level_fails() {
     let (public_key_512, _private_key_512) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512).expect("keypair generation");
 
     // Try to use MlKem512 key with MlKem768 level
-    let result =
-        encrypt_pq_ml_kem_unverified(b"data", &public_key_512, MlKemSecurityLevel::MlKem768);
+    let result = encrypt_pq_ml_kem_unverified(
+        b"data",
+        public_key_512.as_slice(),
+        MlKemSecurityLevel::MlKem768,
+    );
     assert!(result.is_err(), "Should fail when key size doesn't match security level");
 }
 
 #[test]
-fn test_ml_kem_768_key_with_1024_level() {
+fn test_ml_kem_768_key_with_1024_level_fails() {
     let (public_key_768, _private_key_768) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     // Try to use MlKem768 key with MlKem1024 level
-    let result =
-        encrypt_pq_ml_kem_unverified(b"data", &public_key_768, MlKemSecurityLevel::MlKem1024);
+    let result = encrypt_pq_ml_kem_unverified(
+        b"data",
+        public_key_768.as_slice(),
+        MlKemSecurityLevel::MlKem1024,
+    );
     assert!(result.is_err(), "Should fail when key size doesn't match security level");
 }
 
 #[test]
-fn test_ml_kem_1024_key_with_512_level() {
+fn test_ml_kem_1024_key_with_512_level_fails() {
     let (public_key_1024, _private_key_1024) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024).expect("keypair generation");
 
     // Try to use MlKem1024 key with MlKem512 level
-    let result =
-        encrypt_pq_ml_kem_unverified(b"data", &public_key_1024, MlKemSecurityLevel::MlKem512);
+    let result = encrypt_pq_ml_kem_unverified(
+        b"data",
+        public_key_1024.as_slice(),
+        MlKemSecurityLevel::MlKem512,
+    );
     assert!(result.is_err(), "Should fail when key size doesn't match security level");
 }
 
 #[test]
-fn test_ml_kem_decrypt_wrong_security_level() {
+fn test_ml_kem_decrypt_wrong_security_level_fails() {
     let (public_key, _private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     let encrypted =
-        encrypt_pq_ml_kem_unverified(b"data", &public_key, MlKemSecurityLevel::MlKem768)
+        encrypt_pq_ml_kem_unverified(b"data", public_key.as_slice(), MlKemSecurityLevel::MlKem768)
             .expect("encryption should succeed");
 
     let (_pk_512, private_key_512) =
@@ -221,13 +231,16 @@ fn test_ml_kem_decrypt_wrong_security_level() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_decrypt_corrupted_ciphertext() {
+fn test_ml_kem_decrypt_corrupted_ciphertext_fails() {
     let (public_key, private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let mut encrypted =
-        encrypt_pq_ml_kem_unverified(b"test data", &public_key, MlKemSecurityLevel::MlKem768)
-            .expect("encryption should succeed");
+    let mut encrypted = encrypt_pq_ml_kem_unverified(
+        b"test data",
+        public_key.as_slice(),
+        MlKemSecurityLevel::MlKem768,
+    )
+    .expect("encryption should succeed");
 
     // Corrupt the ciphertext by flipping bits in the middle
     if encrypted.len() > 100 {
@@ -243,13 +256,16 @@ fn test_ml_kem_decrypt_corrupted_ciphertext() {
 }
 
 #[test]
-fn test_ml_kem_decrypt_truncated_ciphertext() {
+fn test_ml_kem_decrypt_truncated_ciphertext_fails() {
     let (public_key, private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let encrypted =
-        encrypt_pq_ml_kem_unverified(b"test data", &public_key, MlKemSecurityLevel::MlKem768)
-            .expect("encryption should succeed");
+    let encrypted = encrypt_pq_ml_kem_unverified(
+        b"test data",
+        public_key.as_slice(),
+        MlKemSecurityLevel::MlKem768,
+    )
+    .expect("encryption should succeed");
 
     // Truncate the ciphertext (less than minimum size)
     let truncated = &encrypted[..500];
@@ -270,7 +286,7 @@ fn test_ml_kem_decrypt_truncated_ciphertext() {
 }
 
 #[test]
-fn test_ml_kem_decrypt_ciphertext_too_short() {
+fn test_ml_kem_decrypt_ciphertext_too_short_fails() {
     let (_public_key, private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
@@ -300,15 +316,18 @@ fn test_ml_kem_decrypt_ciphertext_too_short() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_encrypt_with_one_key_decrypt_with_another() {
+fn test_ml_kem_cross_key_decrypt_fails() {
     let (public_key_1, _private_key_1) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
     let (_public_key_2, private_key_2) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let encrypted =
-        encrypt_pq_ml_kem_unverified(b"secret", &public_key_1, MlKemSecurityLevel::MlKem768)
-            .expect("encryption should succeed");
+    let encrypted = encrypt_pq_ml_kem_unverified(
+        b"secret",
+        public_key_1.as_slice(),
+        MlKemSecurityLevel::MlKem768,
+    )
+    .expect("encryption should succeed");
 
     // Try to decrypt with different private key
     let result = decrypt_pq_ml_kem_unverified(
@@ -330,19 +349,19 @@ fn test_ml_kem_encrypt_with_one_key_decrypt_with_another() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_512_empty_key() {
+fn test_ml_kem_512_empty_key_fails() {
     let result = encrypt_pq_ml_kem_unverified(b"data", &[], MlKemSecurityLevel::MlKem512);
     assert!(result.is_err(), "MlKem512 should fail with empty key");
 }
 
 #[test]
-fn test_ml_kem_1024_empty_key() {
+fn test_ml_kem_1024_empty_key_fails() {
     let result = encrypt_pq_ml_kem_unverified(b"data", &[], MlKemSecurityLevel::MlKem1024);
     assert!(result.is_err(), "MlKem1024 should fail with empty key");
 }
 
 #[test]
-fn test_ml_kem_512_wrong_key_size() {
+fn test_ml_kem_512_wrong_key_size_fails() {
     // MlKem512 expects 800-byte public key, provide wrong size
     let wrong_key = vec![0u8; 1184]; // This is MlKem768 size
     let result = encrypt_pq_ml_kem_unverified(b"data", &wrong_key, MlKemSecurityLevel::MlKem512);
@@ -350,7 +369,7 @@ fn test_ml_kem_512_wrong_key_size() {
 }
 
 #[test]
-fn test_ml_kem_1024_wrong_key_size() {
+fn test_ml_kem_1024_wrong_key_size_fails() {
     // MlKem1024 expects 1568-byte public key, provide wrong size
     let wrong_key = vec![0u8; 800]; // This is MlKem512 size
     let result = encrypt_pq_ml_kem_unverified(b"data", &wrong_key, MlKemSecurityLevel::MlKem1024);
@@ -362,7 +381,7 @@ fn test_ml_kem_1024_wrong_key_size() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_decrypt_random_data() {
+fn test_ml_kem_decrypt_random_data_fails() {
     let (_public_key, private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
@@ -378,7 +397,7 @@ fn test_ml_kem_decrypt_random_data() {
 }
 
 #[test]
-fn test_ml_kem_encrypt_with_junk_key() {
+fn test_ml_kem_encrypt_with_junk_key_fails() {
     // Create junk data of correct key length for MlKem768 (1184 bytes)
     let junk_key = vec![0xDEu8; 1184];
 

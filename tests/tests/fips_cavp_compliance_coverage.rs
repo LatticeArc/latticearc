@@ -86,7 +86,7 @@ fn make_batch(
 // ============================================================
 
 #[test]
-fn test_generator_new() {
+fn test_generator_new_generates_report_succeeds() {
     let cgen = CavpComplianceGenerator::new();
     // Verify it was constructed (exercises new() and all criteria insertions)
     let alg = CavpAlgorithm::MlKem { variant: "768".to_string() };
@@ -96,7 +96,7 @@ fn test_generator_new() {
 }
 
 #[test]
-fn test_generator_default() {
+fn test_generator_default_generates_report_succeeds() {
     let cgen = CavpComplianceGenerator::default();
     let alg = CavpAlgorithm::MlDsa { variant: "44".to_string() };
     let results = vec![make_passing_result("t1", alg.clone())];
@@ -109,7 +109,7 @@ fn test_generator_default() {
 // ============================================================
 
 #[test]
-fn test_generate_report_fully_compliant_hybrid() {
+fn test_generate_report_fully_compliant_hybrid_succeeds() {
     // HybridKem uses default_criteria with min_coverage=95.0, matching hardcoded 95.0%
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::HybridKem;
@@ -131,7 +131,7 @@ fn test_generate_report_fully_compliant_hybrid() {
 }
 
 #[test]
-fn test_generate_report_mlkem_noncompliant_due_to_coverage() {
+fn test_generate_report_mlkem_noncompliant_due_to_coverage_is_covered() {
     // Algorithm-specific criteria require 100% coverage, but summary hardcodes 95%
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::MlKem { variant: "768".to_string() };
@@ -152,7 +152,7 @@ fn test_generate_report_mlkem_noncompliant_due_to_coverage() {
 // ============================================================
 
 #[test]
-fn test_generate_report_partially_compliant() {
+fn test_generate_report_partially_compliant_succeeds() {
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::MlKem { variant: "512".to_string() };
 
@@ -184,7 +184,7 @@ fn test_generate_report_partially_compliant() {
 // ============================================================
 
 #[test]
-fn test_generate_report_non_compliant() {
+fn test_generate_report_non_compliant_succeeds() {
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::SlhDsa { variant: "128".to_string() };
     let results = vec![
@@ -208,7 +208,7 @@ fn test_generate_report_non_compliant() {
 // ============================================================
 
 #[test]
-fn test_security_level_mapping_mlkem() {
+fn test_security_level_mapping_mlkem_maps_variants_correctly_succeeds() {
     let cgen = CavpComplianceGenerator::new();
 
     for (variant, expected_level) in [("512", 128), ("768", 192), ("1024", 256), ("unknown", 128)] {
@@ -225,7 +225,7 @@ fn test_security_level_mapping_mlkem() {
 }
 
 #[test]
-fn test_security_level_mapping_mldsa() {
+fn test_security_level_mapping_mldsa_maps_variants_correctly_succeeds() {
     let cgen = CavpComplianceGenerator::new();
 
     for (variant, expected_level) in [("44", 128), ("65", 192), ("87", 256), ("unknown", 128)] {
@@ -238,7 +238,7 @@ fn test_security_level_mapping_mldsa() {
 }
 
 #[test]
-fn test_security_level_mapping_slhdsa() {
+fn test_security_level_mapping_slhdsa_maps_variants_correctly_succeeds() {
     let cgen = CavpComplianceGenerator::new();
 
     for (variant, expected_level) in [("128", 128), ("192", 192), ("256", 256), ("unknown", 128)] {
@@ -251,7 +251,7 @@ fn test_security_level_mapping_slhdsa() {
 }
 
 #[test]
-fn test_security_level_mapping_fndsa() {
+fn test_security_level_mapping_fndsa_maps_variants_correctly_succeeds() {
     let cgen = CavpComplianceGenerator::new();
 
     for (variant, expected_level) in [("512", 128), ("1024", 256), ("unknown", 128)] {
@@ -264,7 +264,7 @@ fn test_security_level_mapping_fndsa() {
 }
 
 #[test]
-fn test_security_level_mapping_hybrid_kem() {
+fn test_security_level_mapping_hybrid_kem_returns_256_succeeds() {
     let cgen = CavpComplianceGenerator::new();
 
     let alg = CavpAlgorithm::HybridKem;
@@ -279,7 +279,7 @@ fn test_security_level_mapping_hybrid_kem() {
 // ============================================================
 
 #[test]
-fn test_export_json() {
+fn test_export_json_produces_valid_json_succeeds() {
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::HybridKem;
     let results = vec![make_passing_result("t1", alg.clone())];
@@ -292,7 +292,7 @@ fn test_export_json() {
 }
 
 #[test]
-fn test_export_xml() {
+fn test_export_xml_produces_valid_xml_succeeds() {
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::MlDsa { variant: "44".to_string() };
     let results = vec![make_passing_result("t1", alg.clone())];
@@ -319,7 +319,7 @@ fn test_generate_report_empty_batches_fails() {
 }
 
 #[test]
-fn test_generate_report_multiple_batches() {
+fn test_generate_report_multiple_batches_accumulates_totals_succeeds() {
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::FnDsa { variant: "512".to_string() };
 
@@ -340,7 +340,7 @@ fn test_generate_report_multiple_batches() {
 }
 
 #[test]
-fn test_generate_report_with_default_criteria() {
+fn test_generate_report_with_default_criteria_succeeds() {
     // Use an algorithm name that won't match any specific criteria
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::HybridKem;
@@ -357,7 +357,7 @@ fn test_generate_report_with_default_criteria() {
 // ============================================================
 
 #[test]
-fn test_compliance_results_with_error_message() {
+fn test_compliance_results_with_error_message_fails() {
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::MlKem { variant: "768".to_string() };
     let results = vec![make_failing_result("fail-with-msg", alg.clone())];
@@ -373,7 +373,7 @@ fn test_compliance_results_with_error_message() {
 }
 
 #[test]
-fn test_compliance_results_without_error_message() {
+fn test_compliance_results_without_error_message_uses_generic_message_fails() {
     let cgen = CavpComplianceGenerator::new();
     let alg = CavpAlgorithm::MlDsa { variant: "87".to_string() };
     let results = vec![make_failing_result_no_message("fail-no-msg", alg.clone())];
@@ -392,7 +392,7 @@ fn test_compliance_results_without_error_message() {
 // ============================================================
 
 #[test]
-fn test_compliance_status_variants() {
+fn test_compliance_status_variants_serialize_and_deserialize_succeeds() {
     let fc = ComplianceStatus::FullyCompliant;
     let pc = ComplianceStatus::PartiallyCompliant { exceptions: vec!["minor issue".to_string()] };
     let nc = ComplianceStatus::NonCompliant { failures: vec!["critical failure".to_string()] };
@@ -415,7 +415,7 @@ fn test_compliance_status_variants() {
 }
 
 #[test]
-fn test_test_category_variants() {
+fn test_test_category_variants_serialize_and_deserialize_succeeds() {
     let categories = vec![
         TestCategory::Correctness,
         TestCategory::Security,
@@ -437,7 +437,7 @@ fn test_test_category_variants() {
 }
 
 #[test]
-fn test_test_result_variants() {
+fn test_test_result_variants_serialize_and_deserialize_succeeds() {
     let variants = vec![
         TestResult::Passed,
         TestResult::Failed("reason".to_string()),
@@ -452,7 +452,7 @@ fn test_test_result_variants() {
 }
 
 #[test]
-fn test_performance_metrics_serialization() {
+fn test_performance_metrics_serialization_roundtrip_succeeds() {
     let metrics = PerformanceMetrics {
         avg_execution_time_ms: 10.5,
         min_execution_time_ms: 1,
@@ -479,7 +479,7 @@ fn test_performance_metrics_serialization() {
 }
 
 #[test]
-fn test_compliance_criteria_serialization() {
+fn test_compliance_criteria_serialization_roundtrip_succeeds() {
     let criteria = ComplianceCriteria {
         min_pass_rate: 99.0,
         max_execution_time_ms: 5000,
@@ -497,7 +497,7 @@ fn test_compliance_criteria_serialization() {
 }
 
 #[test]
-fn test_detailed_test_result_serialization() {
+fn test_detailed_test_result_serialization_roundtrip_succeeds() {
     let result = DetailedTestResult {
         test_id: "DTR-001".to_string(),
         category: TestCategory::Security,
@@ -537,7 +537,7 @@ fn test_full_report_json_roundtrip() {
 // ============================================================
 
 #[test]
-fn test_all_algorithm_criteria_used() {
+fn test_all_algorithm_criteria_are_exercised_succeeds() {
     let cgen = CavpComplianceGenerator::new();
 
     // Test each algorithm variant to exercise all criteria map entries

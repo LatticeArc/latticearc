@@ -19,10 +19,10 @@ fuzz_target!(|data: &[u8]| {
     let message = &data[16..];
 
     // Test HMAC-SHA256
-    test_hmac_sha256(key, message, data);
+    test_hmac_sha256_succeeds(key, message, data);
 });
 
-fn test_hmac_sha256(key: &[u8], message: &[u8], data: &[u8]) {
+fn test_hmac_sha256_succeeds(key: &[u8], message: &[u8], data: &[u8]) {
     // Compute HMAC
     match hmac_sha256(key, message) {
         Ok(tag) => {

@@ -38,24 +38,21 @@ use crate::{
     log_crypto_operation_complete, log_crypto_operation_error, log_crypto_operation_start,
 };
 use tracing::debug;
+use zeroize::Zeroizing;
 
-use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
-use rand::rngs::OsRng;
-use rand_core::RngCore;
+use crate::primitives::aead::aes_gcm::AesGcm256;
+use crate::primitives::aead::{AeadCipher, TAG_LEN};
 
-use crate::unified_api::config::CoreConfig;
+use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::zero_trust::SecurityMode;
 
 // ============================================================================
-// Internal Implementation
+// Internal Implementation — delegates to primitives::aead::AesGcm256
 // ============================================================================
 
 /// Internal implementation of AES-GCM encryption.
 ///
-/// Uses a 96-bit random nonce generated from `OsRng`. Per NIST SP 800-38D
-/// Section 8.2.2, with random nonces the key should be rotated after 2^32
-/// encryptions to maintain the birthday bound safety margin.
 /// Delegates to [`encrypt_aes_gcm_with_aad_internal`] with empty AAD.
 pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     encrypt_aes_gcm_with_aad_internal(data, key, b"")
@@ -63,10 +60,10 @@ pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8
 
 /// Internal implementation of AES-GCM encryption with Additional Authenticated Data (AAD).
 ///
-/// Identical to [`encrypt_aes_gcm_internal`] but binds the AAD into the authentication
-/// tag, so decryption will fail unless the same AAD is provided.
+/// Delegates to `primitives::aead::AesGcm256` so all callers benefit from the
+/// same hardening (zero-key warning, `ZeroizeOnDrop`).
 ///
-/// Wire format: `nonce(12) || ciphertext || tag(16)` (same as without AAD).
+/// Wire format: `nonce(12) || ciphertext || tag(16)`.
 pub(crate) fn encrypt_aes_gcm_with_aad_internal(
     data: &[u8],
     key: &[u8],
@@ -85,38 +82,28 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    let key_bytes: zeroize::Zeroizing<[u8; 32]> =
-        zeroize::Zeroizing::new(key.try_into().map_err(|e| {
-            let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
-            log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
-            err
-        })?);
-
-    let unbound = UnboundKey::new(&AES_256_GCM, &*key_bytes).map_err(|e| {
+    // Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop)
+    let cipher = AesGcm256::new(key).map_err(|e| {
         let err = CoreError::EncryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
         err
     })?;
-    let aes_key = LessSafeKey::new(unbound);
 
-    let mut nonce_bytes = [0u8; 12];
-    OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|e| {
-        let err = CoreError::EncryptionFailed(format!("Failed to generate random nonce: {e}"));
-        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
-        err
-    })?;
+    let nonce = AesGcm256::generate_nonce();
+    let aad_opt = if aad.is_empty() { None } else { Some(aad) };
 
-    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-
-    let mut ciphertext = data.to_vec();
-    aes_key.seal_in_place_append_tag(nonce, Aad::from(aad), &mut ciphertext).map_err(|e| {
+    let (ciphertext, tag) = cipher.encrypt(&nonce, data, aad_opt).map_err(|e| {
         let err = CoreError::EncryptionFailed(e.to_string());
         log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
         err
     })?;
 
-    let mut result = nonce_bytes.to_vec();
-    result.append(&mut ciphertext);
+    // Wire format: nonce(12) || ciphertext || tag(16)
+    let mut result =
+        Vec::with_capacity(nonce.len().saturating_add(ciphertext.len()).saturating_add(TAG_LEN));
+    result.extend_from_slice(&nonce);
+    result.extend_from_slice(&ciphertext);
+    result.extend_from_slice(&tag);
 
     log_crypto_operation_complete!(
         "aes_gcm_encrypt_aad",
@@ -135,12 +122,13 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
 
 /// Internal implementation of AES-GCM decryption with Additional Authenticated Data (AAD).
 ///
-/// Decryption will fail unless the same AAD that was used during encryption is provided.
+/// Delegates to `primitives::aead::AesGcm256` so all callers benefit from the
+/// same hardening (zero-key warning, `ZeroizeOnDrop`).
 pub(crate) fn decrypt_aes_gcm_with_aad_internal(
     encrypted_data: &[u8],
     key: &[u8],
     aad: &[u8],
-) -> Result<Vec<u8>> {
+) -> Result<Zeroizing<Vec<u8>>> {
     log_crypto_operation_start!(
         "aes_gcm_decrypt_aad",
         algorithm = "AES-256-GCM",
@@ -148,8 +136,10 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
         aad_len = aad.len()
     );
 
-    if encrypted_data.len() < 12 {
-        let err = CoreError::InvalidInput("Data too short".to_string());
+    // Minimum: 12 (nonce) + 16 (tag) = 28 bytes
+    if encrypted_data.len() < 12 + TAG_LEN {
+        let err =
+            CoreError::InvalidInput("Data too short for AES-GCM (need nonce + tag)".to_string());
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         return Err(err);
     }
@@ -160,37 +150,40 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    let key_bytes: zeroize::Zeroizing<[u8; 32]> =
-        zeroize::Zeroizing::new(key.try_into().map_err(|e| {
-            let err = CoreError::InvalidInput(format!("Key must be exactly 32 bytes: {e}"));
-            log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
-            err
-        })?);
-
-    let unbound = UnboundKey::new(&AES_256_GCM, &*key_bytes).map_err(|e| {
+    // Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop)
+    let cipher = AesGcm256::new(key).map_err(|e| {
         let err = CoreError::DecryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
     })?;
-    let aes_key = LessSafeKey::new(unbound);
 
-    let (nonce_slice, ciphertext) = encrypted_data.split_at(12);
-    let nonce_bytes: [u8; 12] = nonce_slice.try_into().map_err(|e| {
+    // Parse wire format: nonce(12) || ciphertext || tag(16)
+    let (nonce_slice, ct_and_tag) = encrypted_data.split_at(12);
+    let nonce: [u8; 12] = nonce_slice.try_into().map_err(|e| {
         let err = CoreError::InvalidNonce(format!("Nonce must be 12 bytes: {e}"));
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
     })?;
 
-    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+    let ct_len = ct_and_tag.len().saturating_sub(TAG_LEN);
+    let ciphertext = ct_and_tag
+        .get(..ct_len)
+        .ok_or_else(|| CoreError::DecryptionFailed("Invalid ciphertext length".to_string()))?;
+    let tag_slice = ct_and_tag
+        .get(ct_len..)
+        .ok_or_else(|| CoreError::DecryptionFailed("Invalid tag offset".to_string()))?;
+    let tag: [u8; TAG_LEN] = tag_slice
+        .try_into()
+        .map_err(|_e| CoreError::DecryptionFailed("Tag must be 16 bytes".to_string()))?;
 
-    let mut in_out = ciphertext.to_vec();
-    let plaintext = aes_key.open_in_place(nonce, Aad::from(aad), &mut in_out).map_err(|e| {
+    let aad_opt = if aad.is_empty() { None } else { Some(aad) };
+
+    let result = cipher.decrypt(&nonce, ciphertext, &tag, aad_opt).map_err(|e| {
         let err = CoreError::DecryptionFailed(e.to_string());
         log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
         err
     })?;
 
-    let result = plaintext.to_vec();
     log_crypto_operation_complete!(
         "aes_gcm_decrypt_aad",
         algorithm = "AES-256-GCM",
@@ -207,7 +200,10 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
 }
 
 /// Delegates to [`decrypt_aes_gcm_with_aad_internal`] with empty AAD.
-pub(crate) fn decrypt_aes_gcm_internal(encrypted_data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+pub(crate) fn decrypt_aes_gcm_internal(
+    encrypted_data: &[u8],
+    key: &[u8],
+) -> Result<Zeroizing<Vec<u8>>> {
     decrypt_aes_gcm_with_aad_internal(encrypted_data, key, b"")
 }
 
@@ -293,7 +289,11 @@ pub fn encrypt_aes_gcm(data: &[u8], key: &[u8], mode: SecurityMode) -> Result<Ve
 /// - The key length is less than 32 bytes
 /// - The decryption operation fails (e.g., authentication tag mismatch)
 #[inline]
-pub fn decrypt_aes_gcm(encrypted_data: &[u8], key: &[u8], mode: SecurityMode) -> Result<Vec<u8>> {
+pub fn decrypt_aes_gcm(
+    encrypted_data: &[u8],
+    key: &[u8],
+    mode: SecurityMode,
+) -> Result<Zeroizing<Vec<u8>>> {
     mode.validate()?;
     decrypt_aes_gcm_internal(encrypted_data, key)
 }
@@ -339,7 +339,7 @@ pub fn decrypt_aes_gcm_with_config(
     key: &[u8],
     config: &CoreConfig,
     mode: SecurityMode,
-) -> Result<Vec<u8>> {
+) -> Result<Zeroizing<Vec<u8>>> {
     mode.validate()?;
     config.validate()?;
     decrypt_aes_gcm_internal(encrypted_data, key)
@@ -384,7 +384,7 @@ pub fn encrypt_aes_gcm_unverified(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 /// - The key length is less than 32 bytes
 /// - The decryption operation fails (e.g., authentication tag mismatch)
 #[inline]
-pub fn decrypt_aes_gcm_unverified(encrypted_data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+pub fn decrypt_aes_gcm_unverified(encrypted_data: &[u8], key: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
     decrypt_aes_gcm(encrypted_data, key, SecurityMode::Unverified)
 }
 
@@ -435,7 +435,7 @@ pub fn decrypt_aes_gcm_with_aad(
     key: &[u8],
     aad: &[u8],
     mode: SecurityMode,
-) -> Result<Vec<u8>> {
+) -> Result<Zeroizing<Vec<u8>>> {
     mode.validate()?;
     decrypt_aes_gcm_with_aad_internal(encrypted_data, key, aad)
 }
@@ -473,7 +473,7 @@ pub fn decrypt_aes_gcm_with_aad_unverified(
     encrypted_data: &[u8],
     key: &[u8],
     aad: &[u8],
-) -> Result<Vec<u8>> {
+) -> Result<Zeroizing<Vec<u8>>> {
     decrypt_aes_gcm_with_aad(encrypted_data, key, aad, SecurityMode::Unverified)
 }
 
@@ -520,7 +520,7 @@ pub fn decrypt_aes_gcm_with_config_unverified(
     encrypted_data: &[u8],
     key: &[u8],
     config: &CoreConfig,
-) -> Result<Vec<u8>> {
+) -> Result<Zeroizing<Vec<u8>>> {
     decrypt_aes_gcm_with_config(encrypted_data, key, config, SecurityMode::Unverified)
 }
 
@@ -554,7 +554,7 @@ pub fn decrypt_aes_gcm_with_config_unverified(
 )]
 mod tests {
     use super::*;
-    use crate::unified_api::config::CoreConfig;
+    use crate::unified_api::CoreConfig;
 
     // Helper to generate a valid AES-256 key (32 bytes)
     fn generate_test_key() -> Vec<u8> {
@@ -563,56 +563,72 @@ mod tests {
 
     // Basic encryption/decryption roundtrip tests
     #[test]
-    fn test_aes_gcm_roundtrip_basic() -> Result<()> {
+    fn test_aes_gcm_roundtrip_basic_roundtrip() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Test message for AES-256-GCM encryption";
 
         let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-        assert_eq!(decrypted, plaintext, "Decrypted text should match original plaintext");
+        assert_eq!(
+            decrypted.as_slice(),
+            plaintext.as_slice(),
+            "Decrypted text should match original plaintext"
+        );
         assert_ne!(ciphertext, plaintext, "Ciphertext should differ from plaintext");
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_roundtrip_empty_data() -> Result<()> {
+    fn test_aes_gcm_roundtrip_empty_data_roundtrip() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"";
 
         let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-        assert_eq!(decrypted, plaintext, "Empty data should roundtrip correctly");
+        assert_eq!(
+            decrypted.as_slice(),
+            plaintext.as_slice(),
+            "Empty data should roundtrip correctly"
+        );
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_roundtrip_large_data() -> Result<()> {
+    fn test_aes_gcm_roundtrip_large_data_roundtrip() -> Result<()> {
         let key = generate_test_key();
         let plaintext = vec![0xAB; 10000]; // 10KB of data
 
         let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-        assert_eq!(decrypted, plaintext, "Large data should roundtrip correctly");
+        assert_eq!(
+            decrypted.as_slice(),
+            plaintext.as_slice(),
+            "Large data should roundtrip correctly"
+        );
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_roundtrip_binary_data() -> Result<()> {
+    fn test_aes_gcm_roundtrip_binary_data_roundtrip() -> Result<()> {
         let key = generate_test_key();
         let plaintext = vec![0x00, 0xFF, 0x7F, 0x80, 0x01, 0xFE]; // Various byte values
 
         let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-        assert_eq!(decrypted, plaintext, "Binary data should roundtrip correctly");
+        assert_eq!(
+            decrypted.as_slice(),
+            plaintext.as_slice(),
+            "Binary data should roundtrip correctly"
+        );
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_roundtrip_with_config() -> Result<()> {
+    fn test_aes_gcm_roundtrip_with_config_roundtrip() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Test with config";
         let config = CoreConfig::default();
@@ -620,13 +636,14 @@ mod tests {
         let ciphertext = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
         let decrypted = decrypt_aes_gcm_with_config_unverified(&ciphertext, &key, &config)?;
 
-        assert_eq!(decrypted, plaintext, "Roundtrip with config should work");
+        assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Roundtrip with config should work");
         Ok(())
     }
 
     // Ciphertext format and properties tests
     #[test]
-    fn test_aes_gcm_ciphertext_includes_nonce_and_tag() -> Result<()> {
+    fn test_aes_gcm_ciphertext_includes_nonce_and_tag_at_minimum_size_has_correct_size()
+    -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Test message";
 
@@ -644,7 +661,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_different_encryptions_produce_different_ciphertexts() -> Result<()> {
+    fn test_aes_gcm_different_encryptions_produce_different_ciphertexts_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Same plaintext for both encryptions";
 
@@ -660,8 +677,8 @@ mod tests {
         // Both should still decrypt to same plaintext
         let decrypted1 = decrypt_aes_gcm_unverified(&ciphertext1, &key)?;
         let decrypted2 = decrypt_aes_gcm_unverified(&ciphertext2, &key)?;
-        assert_eq!(decrypted1, plaintext);
-        assert_eq!(decrypted2, plaintext);
+        assert_eq!(decrypted1.as_slice(), plaintext.as_slice());
+        assert_eq!(decrypted2.as_slice(), plaintext.as_slice());
         Ok(())
     }
 
@@ -695,18 +712,18 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_encrypt_with_exact_32_byte_key() -> Result<()> {
+    fn test_aes_gcm_encrypt_with_exact_32_byte_key_succeeds() -> Result<()> {
         let key = generate_test_key(); // Exactly 32 bytes
         let plaintext = b"Test";
 
         let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
-        assert_eq!(decrypted, plaintext);
+        assert_eq!(decrypted.as_slice(), plaintext.as_slice());
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_encrypt_with_longer_key_rejects() {
+    fn test_aes_gcm_encrypt_with_longer_key_rejects_fails() {
         let long_key = vec![0x42; 64]; // 64 bytes - should be rejected (not truncated)
         let plaintext = b"Test";
 
@@ -791,18 +808,18 @@ mod tests {
 
     // SecurityMode tests
     #[test]
-    fn test_aes_gcm_encrypt_with_unverified_mode() -> Result<()> {
+    fn test_aes_gcm_encrypt_with_unverified_mode_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Test";
 
         let ciphertext = encrypt_aes_gcm(plaintext, &key, SecurityMode::Unverified)?;
         let decrypted = decrypt_aes_gcm(&ciphertext, &key, SecurityMode::Unverified)?;
-        assert_eq!(decrypted, plaintext);
+        assert_eq!(decrypted.as_slice(), plaintext.as_slice());
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_encrypt_with_config_and_unverified_mode() -> Result<()> {
+    fn test_aes_gcm_encrypt_with_config_and_unverified_mode_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Test";
         let config = CoreConfig::default();
@@ -811,13 +828,13 @@ mod tests {
             encrypt_aes_gcm_with_config(plaintext, &key, &config, SecurityMode::Unverified)?;
         let decrypted =
             decrypt_aes_gcm_with_config(&ciphertext, &key, &config, SecurityMode::Unverified)?;
-        assert_eq!(decrypted, plaintext);
+        assert_eq!(decrypted.as_slice(), plaintext.as_slice());
         Ok(())
     }
 
     // Edge case: multiple roundtrips with same key
     #[test]
-    fn test_aes_gcm_multiple_roundtrips_with_same_key() -> Result<()> {
+    fn test_aes_gcm_multiple_roundtrips_with_same_key_roundtrip() -> Result<()> {
         let key = generate_test_key();
         let messages = vec![
             b"First message".as_ref(),
@@ -828,32 +845,32 @@ mod tests {
         for message in messages {
             let ciphertext = encrypt_aes_gcm_unverified(message, &key)?;
             let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
-            assert_eq!(decrypted, message, "Each message should roundtrip correctly");
+            assert_eq!(decrypted.as_slice(), message, "Each message should roundtrip correctly");
         }
         Ok(())
     }
 
     // Verified session tests
     #[test]
-    fn test_aes_gcm_roundtrip_verified_session() -> Result<()> {
+    fn test_aes_gcm_roundtrip_verified_session_roundtrip() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Verified session roundtrip test";
         let (auth_pk, auth_sk) = crate::unified_api::generate_keypair()?;
-        let session = crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let ct = encrypt_aes_gcm(plaintext, &key, SecurityMode::Verified(&session))?;
         let pt = decrypt_aes_gcm(&ct, &key, SecurityMode::Verified(&session))?;
-        assert_eq!(pt, plaintext.as_ref());
+        assert_eq!(pt.as_slice(), plaintext.as_ref());
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_with_config_verified_session() -> Result<()> {
+    fn test_aes_gcm_with_config_verified_session_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Config + verified session test";
         let config = CoreConfig::default();
         let (auth_pk, auth_sk) = crate::unified_api::generate_keypair()?;
-        let session = crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let ct = encrypt_aes_gcm_with_config(
             plaintext,
@@ -862,12 +879,12 @@ mod tests {
             SecurityMode::Verified(&session),
         )?;
         let pt = decrypt_aes_gcm_with_config(&ct, &key, &config, SecurityMode::Verified(&session))?;
-        assert_eq!(pt, plaintext.as_ref());
+        assert_eq!(pt.as_slice(), plaintext.as_ref());
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_encrypt_with_empty_key() {
+    fn test_aes_gcm_encrypt_with_empty_key_fails() {
         let result = encrypt_aes_gcm_unverified(b"test", &[]);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -880,7 +897,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_decrypt_with_empty_key() {
+    fn test_aes_gcm_decrypt_with_empty_key_fails() {
         let key = generate_test_key();
         let ct = encrypt_aes_gcm_unverified(b"test", &key).unwrap();
         let result = decrypt_aes_gcm_unverified(&ct, &[]);
@@ -888,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_decrypt_exactly_12_bytes() {
+    fn test_aes_gcm_decrypt_exactly_12_bytes_succeeds() {
         let key = generate_test_key();
         // Exactly 12 bytes = just a nonce, no ciphertext or tag
         let result = decrypt_aes_gcm_unverified(&[0u8; 12], &key);
@@ -896,7 +913,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_internal_encrypt_wrong_key_length() {
+    fn test_aes_gcm_internal_encrypt_wrong_key_length_fails() {
         let result = encrypt_aes_gcm_internal(b"test", &[0u8; 31]);
         assert!(result.is_err());
         let result = encrypt_aes_gcm_internal(b"test", &[0u8; 33]);
@@ -904,7 +921,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_internal_decrypt_wrong_key_length() {
+    fn test_aes_gcm_internal_decrypt_wrong_key_length_fails() {
         let key = generate_test_key();
         let ct = encrypt_aes_gcm_internal(b"test", &key).unwrap();
         let result = decrypt_aes_gcm_internal(&ct, &[0u8; 31]);
@@ -926,7 +943,7 @@ mod tests {
         let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, aad)?;
         let pt = decrypt_aes_gcm_with_aad_unverified(&ct, &key, aad)?;
 
-        assert_eq!(pt, plaintext, "AAD roundtrip should recover plaintext");
+        assert_eq!(pt.as_slice(), plaintext.as_slice(), "AAD roundtrip should recover plaintext");
         Ok(())
     }
 
@@ -949,34 +966,34 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_with_empty_aad() -> Result<()> {
+    fn test_aes_gcm_with_empty_aad_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Empty AAD test";
 
         let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, b"")?;
         let pt = decrypt_aes_gcm_with_aad_unverified(&ct, &key, b"")?;
 
-        assert_eq!(pt, plaintext, "Empty AAD should roundtrip correctly");
+        assert_eq!(pt.as_slice(), plaintext.as_slice(), "Empty AAD should roundtrip correctly");
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_with_aad_verified_session() -> Result<()> {
+    fn test_aes_gcm_with_aad_verified_session_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Verified AAD test";
         let aad = b"session-bound-context";
         let (auth_pk, auth_sk) = crate::unified_api::generate_keypair()?;
-        let session = crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref())?;
+        let session = crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
 
         let ct = encrypt_aes_gcm_with_aad(plaintext, &key, aad, SecurityMode::Verified(&session))?;
         let pt = decrypt_aes_gcm_with_aad(&ct, &key, aad, SecurityMode::Verified(&session))?;
 
-        assert_eq!(pt, plaintext.as_ref());
+        assert_eq!(pt.as_slice(), plaintext.as_ref());
         Ok(())
     }
 
     #[test]
-    fn test_aes_gcm_with_aad_large_aad() -> Result<()> {
+    fn test_aes_gcm_with_aad_large_aad_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Large AAD test";
         let aad = vec![0xBB; 1024]; // 1KB of AAD
@@ -984,13 +1001,13 @@ mod tests {
         let ct = encrypt_aes_gcm_with_aad_unverified(plaintext, &key, &aad)?;
         let pt = decrypt_aes_gcm_with_aad_unverified(&ct, &key, &aad)?;
 
-        assert_eq!(pt, plaintext, "Large AAD should roundtrip correctly");
+        assert_eq!(pt.as_slice(), plaintext.as_slice(), "Large AAD should roundtrip correctly");
         Ok(())
     }
 
     // Performance/size validation
     #[test]
-    fn test_aes_gcm_ciphertext_size_overhead() -> Result<()> {
+    fn test_aes_gcm_ciphertext_size_overhead_has_correct_size() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"Test message";
 
@@ -1017,12 +1034,12 @@ mod tests {
         let ct = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
         let pt = decrypt_aes_gcm_with_config_unverified(&ct, &key, &config)?;
 
-        assert_eq!(pt, plaintext.to_vec());
+        assert_eq!(pt.as_slice(), plaintext.as_slice());
         Ok(())
     }
 
     #[test]
-    fn test_config_unverified_wrong_key_length() {
+    fn test_config_unverified_wrong_key_length_fails() {
         let short_key = vec![0x42; 16]; // 16 bytes instead of 32
         let plaintext = b"Should fail";
         let config = CoreConfig::default();
@@ -1032,7 +1049,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_unverified_decrypt_wrong_key() -> Result<()> {
+    fn test_config_unverified_decrypt_wrong_key_fails() -> Result<()> {
         let key = generate_test_key();
         let wrong_key = vec![0xFF; 32];
         let plaintext = b"Decrypt with wrong key";
@@ -1045,7 +1062,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_unverified_decrypt_short_ciphertext() {
+    fn test_config_unverified_decrypt_short_ciphertext_succeeds() {
         let key = generate_test_key();
         let config = CoreConfig::default();
         let short_data = vec![0u8; 5]; // Less than 12 bytes (nonce)
@@ -1055,28 +1072,28 @@ mod tests {
     }
 
     #[test]
-    fn test_config_unverified_empty_plaintext() -> Result<()> {
+    fn test_config_unverified_empty_plaintext_succeeds() -> Result<()> {
         let key = generate_test_key();
         let config = CoreConfig::default();
         let plaintext = b"";
 
         let ct = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
         let pt = decrypt_aes_gcm_with_config_unverified(&ct, &key, &config)?;
-        assert_eq!(pt, plaintext.to_vec());
+        assert_eq!(pt.as_slice(), plaintext.as_slice());
         Ok(())
     }
 
     // ---- Coverage: AAD with SecurityMode ----
 
     #[test]
-    fn test_aad_with_security_mode_unverified() -> Result<()> {
+    fn test_aad_with_security_mode_unverified_succeeds() -> Result<()> {
         let key = generate_test_key();
         let plaintext = b"AAD SecurityMode test";
         let aad = b"authenticated-context";
 
         let ct = encrypt_aes_gcm_with_aad(plaintext, &key, aad, SecurityMode::Unverified)?;
         let pt = decrypt_aes_gcm_with_aad(&ct, &key, aad, SecurityMode::Unverified)?;
-        assert_eq!(pt, plaintext.to_vec());
+        assert_eq!(pt.as_slice(), plaintext.as_slice());
         Ok(())
     }
 
@@ -1094,7 +1111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aad_internal_wrong_key_length() {
+    fn test_aad_internal_wrong_key_length_fails() {
         let short_key = vec![0x42; 16];
         let plaintext = b"AAD key length test";
         let aad = b"some-aad";
@@ -1104,7 +1121,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aad_internal_decrypt_short_data() {
+    fn test_aad_internal_decrypt_short_data_succeeds() {
         let key = generate_test_key();
         let aad = b"some-aad";
         let short_data = vec![0u8; 5];
@@ -1114,7 +1131,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aad_internal_decrypt_wrong_key_length() -> Result<()> {
+    fn test_aad_internal_decrypt_wrong_key_length_fails() -> Result<()> {
         let key = generate_test_key();
         let short_key = vec![0x42; 16];
         let plaintext = b"test";

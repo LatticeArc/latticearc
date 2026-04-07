@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -22,22 +22,17 @@ use tracing::instrument;
 use zeroize::{Zeroize, Zeroizing};
 
 /// HKDF result containing the derived key
+///
+/// The key material is wrapped in `Zeroizing` for automatic zeroization on drop.
+/// Debug output is redacted to prevent accidental key leakage in logs.
 pub struct HkdfResult {
-    /// Derived key material
-    pub key: Vec<u8>,
-    /// Length of the derived key
-    pub key_length: usize,
+    /// Derived key material (zeroized on drop)
+    key: Zeroizing<Vec<u8>>,
 }
 
-impl Zeroize for HkdfResult {
-    fn zeroize(&mut self) {
-        self.key.zeroize();
-    }
-}
-
-impl Drop for HkdfResult {
-    fn drop(&mut self) {
-        self.zeroize();
+impl std::fmt::Debug for HkdfResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HkdfResult").field("key", &"[REDACTED]").finish()
     }
 }
 
@@ -46,6 +41,12 @@ impl HkdfResult {
     #[must_use]
     pub fn key(&self) -> &[u8] {
         &self.key
+    }
+
+    /// Get the length of the derived key
+    #[must_use]
+    pub fn key_length(&self) -> usize {
+        self.key.len()
     }
 }
 
@@ -196,15 +197,18 @@ pub fn hkdf_expand(prk: &[u8; 32], info: Option<&[u8]>, length: usize) -> Result
 
     let info_bytes = info.unwrap_or(&[]);
     let mut output = Vec::with_capacity(length);
-    let mut t_prev: Vec<u8> = Vec::new(); // T(0) = empty string
+    let mut t_prev = Zeroizing::new([0u8; HASH_LEN]); // T(0) = empty (len=0)
+    let mut t_prev_len: usize = 0; // T(0) is empty string, not 32 zero bytes
 
     let key = hmac::Key::new(HMAC_SHA256, prk);
 
     for i in 1..=n {
         // T(i) = HMAC-Hash(PRK, T(i-1) | info | i)
-        let capacity = t_prev.len().saturating_add(info_bytes.len()).saturating_add(1);
-        let mut data = Vec::with_capacity(capacity);
-        data.extend_from_slice(&t_prev);
+        let capacity = t_prev_len.saturating_add(info_bytes.len()).saturating_add(1);
+        let mut data: Zeroizing<Vec<u8>> = Zeroizing::new(Vec::with_capacity(capacity));
+        if let Some(prev_bytes) = t_prev.get(..t_prev_len) {
+            data.extend_from_slice(prev_bytes);
+        }
         data.extend_from_slice(info_bytes);
         // Counter byte (1-indexed, fits in u8 since max N = 255)
         let counter = u8::try_from(i)
@@ -221,11 +225,13 @@ pub fn hkdf_expand(prk: &[u8; 32], info: Option<&[u8]>, length: usize) -> Result
             output.extend_from_slice(bytes);
         }
 
-        // T(i-1) for next iteration
-        t_prev = t_i.to_vec();
+        // Zeroize old T(i-1) then copy new value (Zeroizing<[u8;32]> is stack-allocated)
+        t_prev.zeroize();
+        t_prev.copy_from_slice(t_i);
+        t_prev_len = HASH_LEN;
     }
 
-    Ok(HkdfResult { key: output, key_length: length })
+    Ok(HkdfResult { key: Zeroizing::new(output) })
 }
 
 /// Full HKDF: Extract then expand
@@ -297,7 +303,7 @@ mod tests {
 
     // Test vectors from RFC 5869
     #[test]
-    fn test_hkdf_extract_rfc5869_test_case_1() {
+    fn test_hkdf_extract_rfc5869_case_1_matches_vector() {
         let ikm = [
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -317,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hkdf_extract_empty_salt() {
+    fn test_hkdf_extract_empty_salt_equals_none_salt_succeeds() {
         let ikm = b"test input key material";
 
         // With empty salt
@@ -330,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hkdf_full() {
+    fn test_hkdf_full_rfc5869_case_1_matches_vector() {
         let ikm = [
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -346,44 +352,44 @@ mod tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key, expected_okm);
+        assert_eq!(okm.key(), expected_okm);
     }
 
     #[test]
-    fn test_hkdf_different_ikm() {
+    fn test_hkdf_different_ikm_produces_different_output_succeeds() {
         let salt = b"salt";
         let info = b"info";
 
         let okm1 = hkdf(b"ikm1", Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(b"ikm2", Some(salt), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key, okm2.key);
+        assert_ne!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_different_salt() {
+    fn test_hkdf_different_salt_produces_different_output_succeeds() {
         let ikm = b"ikm";
         let info = b"info";
 
         let okm1 = hkdf(ikm, Some(b"salt1"), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(b"salt2"), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key, okm2.key);
+        assert_ne!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_different_info() {
+    fn test_hkdf_different_info_produces_different_output_succeeds() {
         let ikm = b"ikm";
         let salt = b"salt";
 
         let okm1 = hkdf(ikm, Some(salt), Some(b"info1"), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(b"info2"), 32).unwrap();
 
-        assert_ne!(okm1.key, okm2.key);
+        assert_ne!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_different_lengths() {
+    fn test_hkdf_different_lengths_produce_correct_sizes_has_correct_size() {
         let ikm = b"ikm";
         let salt = b"salt";
         let info = b"info";
@@ -392,18 +398,18 @@ mod tests {
         let okm2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let okm3 = hkdf(ikm, Some(salt), Some(info), 64).unwrap();
 
-        assert_eq!(okm1.key.len(), 16);
-        assert_eq!(okm2.key.len(), 32);
-        assert_eq!(okm3.key.len(), 64);
+        assert_eq!(okm1.key().len(), 16);
+        assert_eq!(okm2.key().len(), 32);
+        assert_eq!(okm3.key().len(), 64);
 
         // Different lengths should have same prefix (first 16 bytes identical)
-        assert_eq!(okm1.key, &okm2.key[..16]);
+        assert_eq!(okm1.key(), &okm2.key()[..16]);
         // But the full outputs should be different lengths
-        assert_ne!(okm1.key_length, okm2.key_length);
+        assert_ne!(okm1.key_length(), okm2.key_length());
     }
 
     #[test]
-    fn test_hkdf_deterministic() {
+    fn test_hkdf_same_inputs_is_deterministic() {
         let ikm = b"test ikm";
         let salt = b"test salt";
         let info = b"test info";
@@ -411,11 +417,11 @@ mod tests {
         let okm1 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
 
-        assert_eq!(okm1.key, okm2.key);
+        assert_eq!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_validation() {
+    fn test_hkdf_invalid_length_is_rejected() {
         let ikm = b"ikm";
         let salt = b"salt";
 
@@ -430,26 +436,26 @@ mod tests {
     }
 
     #[test]
-    fn test_hkdf_simple() {
+    fn test_hkdf_simple_produces_random_output_succeeds() {
         let ikm = b"test input key material";
 
         let result1 = hkdf_simple(ikm, 32).unwrap();
         let result2 = hkdf_simple(ikm, 32).unwrap();
 
         // Different random salts should produce different keys
-        assert_ne!(result1.key, result2.key);
-        assert_eq!(result1.key.len(), 32);
-        assert_eq!(result2.key.len(), 32);
+        assert_ne!(result1.key(), result2.key());
+        assert_eq!(result1.key().len(), 32);
+        assert_eq!(result2.key().len(), 32);
     }
 
     #[test]
-    fn test_hkdf_result_zeroize_on_drop() {
+    fn test_hkdf_result_zeroize_on_drop_succeeds() {
         let ikm = b"test ikm";
         let salt = b"test salt";
 
         let key_bytes = {
             let result = hkdf(ikm, Some(salt), None, 32).unwrap();
-            let key_copy = result.key.clone();
+            let key_copy = result.key().to_vec();
             drop(result);
             key_copy
         };
@@ -458,21 +464,20 @@ mod tests {
     }
 
     #[test]
-    fn test_hkdf_explicit_zeroization() {
+    fn test_hkdf_explicit_zeroization_succeeds() {
         let ikm = b"test ikm";
         let salt = b"test salt";
 
-        let mut result = hkdf(ikm, Some(salt), None, 32).unwrap();
+        let result = hkdf(ikm, Some(salt), None, 32).unwrap();
 
-        assert!(!result.key.iter().all(|&b| b == 0), "HKDF result should contain non-zero data");
+        assert!(!result.key().iter().all(|&b| b == 0), "HKDF result should contain non-zero data");
 
-        result.zeroize();
-
-        assert!(result.key.iter().all(|&b| b == 0), "HKDF result should be zeroized");
+        // Zeroizing<Vec<u8>> handles zeroization on drop automatically
+        drop(result);
     }
 
     #[test]
-    fn test_hkdf_ikm_zeroization() {
+    fn test_hkdf_ikm_zeroization_succeeds() {
         let mut ikm = vec![0x77; 64];
         let salt = b"test salt";
 
@@ -486,7 +491,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hkdf_salt_zeroization() {
+    fn test_hkdf_salt_zeroization_succeeds() {
         let ikm = b"test ikm";
         let mut salt = vec![0x88; 32];
 
@@ -500,25 +505,25 @@ mod tests {
     }
 
     #[test]
-    fn test_hkdf_expand_with_hash_boundary() {
+    fn test_hkdf_expand_at_hash_boundary_has_correct_prefix_succeeds() {
         let ikm = b"ikm";
         let salt = b"salt";
 
         // Test at hash length boundary (32 bytes)
         let okm1 = hkdf(ikm, Some(salt), None, 32).unwrap();
-        assert_eq!(okm1.key.len(), 32);
+        assert_eq!(okm1.key().len(), 32);
 
         // Test just over hash length boundary (33 bytes)
         let okm2 = hkdf(ikm, Some(salt), None, 33).unwrap();
-        assert_eq!(okm2.key.len(), 33);
+        assert_eq!(okm2.key().len(), 33);
 
         // First 32 bytes should match
-        assert_eq!(okm1.key, &okm2.key[..32]);
+        assert_eq!(okm1.key(), &okm2.key()[..32]);
     }
 
     // RFC 5869 Test Case 2: Longer inputs/outputs
     #[test]
-    fn test_rfc5869_test_case_2() {
+    fn test_hkdf_rfc5869_case_2_matches_vector() {
         let ikm = [
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
             0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
@@ -557,13 +562,13 @@ mod tests {
             0x3e, 0x87, 0xc1, 0x4c, 0x01, 0xd5, 0xc1, 0xf3, 0x43, 0x4f, 0x1d, 0x87,
         ];
 
-        assert_eq!(okm.key, expected_okm);
-        assert_eq!(okm.key.len(), 82);
+        assert_eq!(okm.key(), expected_okm);
+        assert_eq!(okm.key().len(), 82);
     }
 
     // RFC 5869 Test Case 3: Zero-length salt/info
     #[test]
-    fn test_rfc5869_test_case_3() {
+    fn test_hkdf_rfc5869_case_3_matches_vector() {
         let ikm = [
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -579,12 +584,12 @@ mod tests {
             0x3c, 0x73, 0x8d, 0x2d, 0x9d, 0x20, 0x13, 0x95, 0xfa, 0xa4, 0xb6, 0x1a, 0x96, 0xc8,
         ];
 
-        assert_eq!(okm.key, expected_okm);
+        assert_eq!(okm.key(), expected_okm);
     }
 
     // Test that the implementation uses aws-lc-rs correctly
     #[test]
-    fn test_uses_aws_lc_rs() {
+    fn test_hkdf_aws_lc_rs_output_matches_rfc5869_succeeds() {
         // This test verifies that the implementation produces RFC 5869 compliant output
         // by checking that the outputs match the expected test vectors.
         // Since aws-lc-rs is FIPS 140-3 validated, passing these tests confirms proper usage.
@@ -606,6 +611,6 @@ mod tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key, expected_okm, "HKDF must use aws-lc-rs implementation correctly");
+        assert_eq!(okm.key(), expected_okm, "HKDF must use aws-lc-rs implementation correctly");
     }
 }

@@ -34,7 +34,7 @@ fn test_run_power_up_tests_succeeds() {
 }
 
 #[test]
-fn test_run_power_up_tests_has_seven_subtests() {
+fn test_run_power_up_tests_has_seven_subtests_verified_succeeds() {
     let mut validator = Fips140_3Validator::new("module-seven".to_string(), 1);
     let result = validator.run_power_up_tests().unwrap();
     // Should have 7 subtests: AES key wrapping, hash functions, signature algorithms,
@@ -43,7 +43,7 @@ fn test_run_power_up_tests_has_seven_subtests() {
 }
 
 #[test]
-fn test_run_power_up_tests_check_subtest_names() {
+fn test_run_power_up_tests_check_subtest_names_match_expected_succeeds() {
     let mut validator = Fips140_3Validator::new("test-names".to_string(), 1);
     let result = validator.run_power_up_tests().unwrap();
 
@@ -58,7 +58,7 @@ fn test_run_power_up_tests_check_subtest_names() {
 }
 
 #[test]
-fn test_run_power_up_tests_algorithms() {
+fn test_run_power_up_tests_algorithms_match_expected_succeeds() {
     let mut validator = Fips140_3Validator::new("algo-check".to_string(), 1);
     let result = validator.run_power_up_tests().unwrap();
 
@@ -72,7 +72,7 @@ fn test_run_power_up_tests_algorithms() {
 }
 
 #[test]
-fn test_run_power_up_tests_sets_power_up_completed() {
+fn test_run_power_up_tests_sets_power_up_completed_flag_succeeds() {
     let mut validator = Fips140_3Validator::new("complete-check".to_string(), 1);
     assert!(!validator.is_power_up_completed());
 
@@ -84,7 +84,7 @@ fn test_run_power_up_tests_sets_power_up_completed() {
 }
 
 #[test]
-fn test_run_power_up_tests_detailed_results() {
+fn test_run_power_up_tests_detailed_results_populated_succeeds() {
     let mut validator = Fips140_3Validator::new("detailed".to_string(), 2);
     let result = validator.run_power_up_tests().unwrap();
 
@@ -96,7 +96,7 @@ fn test_run_power_up_tests_detailed_results() {
 }
 
 #[test]
-fn test_run_power_up_tests_execution_time() {
+fn test_run_power_up_tests_execution_time_is_nonzero_succeeds() {
     let mut validator = Fips140_3Validator::new("timing".to_string(), 1);
     let result = validator.run_power_up_tests().unwrap();
 
@@ -125,7 +125,7 @@ fn test_run_conditional_tests_succeeds() {
 }
 
 #[test]
-fn test_run_conditional_tests_has_four_subtests() {
+fn test_run_conditional_tests_has_four_subtests_verified_succeeds() {
     let mut validator = Fips140_3Validator::new("cond-count".to_string(), 1);
     let result = validator.run_conditional_tests().unwrap();
     // Should have 4 subtests: key integrity, operational environment, error detection, performance limits
@@ -133,7 +133,7 @@ fn test_run_conditional_tests_has_four_subtests() {
 }
 
 #[test]
-fn test_run_conditional_tests_check_subtest_names() {
+fn test_run_conditional_tests_check_subtest_names_match_expected_succeeds() {
     let mut validator = Fips140_3Validator::new("cond-names".to_string(), 1);
     let result = validator.run_conditional_tests().unwrap();
 
@@ -145,7 +145,7 @@ fn test_run_conditional_tests_check_subtest_names() {
 }
 
 #[test]
-fn test_run_conditional_tests_all_pass() {
+fn test_run_conditional_tests_all_pass_returns_ok() {
     let mut validator = Fips140_3Validator::new("all-pass".to_string(), 1);
     let result = validator.run_conditional_tests().unwrap();
     // All four conditional tests should pass
@@ -156,7 +156,7 @@ fn test_run_conditional_tests_all_pass() {
 }
 
 #[test]
-fn test_run_conditional_tests_detailed_results() {
+fn test_run_conditional_tests_detailed_results_populated_succeeds() {
     let mut validator = Fips140_3Validator::new("cond-detail".to_string(), 1);
     let result = validator.run_conditional_tests().unwrap();
     let details = &result.detailed_results;
@@ -170,7 +170,7 @@ fn test_run_conditional_tests_detailed_results() {
 // ============================================================================
 
 #[test]
-fn test_generate_compliance_certificate_power_up() {
+fn test_generate_compliance_certificate_power_up_contains_required_fields_succeeds() {
     let mut validator = Fips140_3Validator::new("cert-module".to_string(), 3);
     let result = validator.run_power_up_tests().unwrap();
     let cert = validator.generate_compliance_certificate(&result);
@@ -185,7 +185,7 @@ fn test_generate_compliance_certificate_power_up() {
 }
 
 #[test]
-fn test_generate_compliance_certificate_conditional() {
+fn test_generate_compliance_certificate_conditional_contains_required_fields_succeeds() {
     let mut validator = Fips140_3Validator::new("cert-cond".to_string(), 2);
     let result = validator.run_conditional_tests().unwrap();
     let cert = validator.generate_compliance_certificate(&result);
@@ -195,7 +195,7 @@ fn test_generate_compliance_certificate_conditional() {
 }
 
 #[test]
-fn test_generate_compliance_certificate_empty_result() {
+fn test_generate_compliance_certificate_empty_result_shows_passed_succeeds() {
     let validator = Fips140_3Validator::new("cert-empty".to_string(), 1);
     let result = Fips140_3ValidationResult {
         validation_id: "VR-EMPTY".to_string(),
@@ -217,7 +217,7 @@ fn test_generate_compliance_certificate_empty_result() {
 }
 
 #[test]
-fn test_generate_compliance_certificate_failed_result() {
+fn test_generate_compliance_certificate_failed_result_shows_failed_fails() {
     let validator = Fips140_3Validator::new("cert-fail".to_string(), 1);
     let result = Fips140_3ValidationResult {
         validation_id: "VR-FAIL".to_string(),
@@ -250,22 +250,22 @@ fn test_generate_compliance_certificate_failed_result() {
 // ============================================================================
 
 #[test]
-fn test_is_power_up_completed_default_false() {
+fn test_is_power_up_completed_default_false_succeeds() {
     let validator = Fips140_3Validator::new("state-check".to_string(), 1);
     assert!(!validator.is_power_up_completed());
 }
 
 #[test]
-fn test_should_run_conditional_tests_after_creation() {
+fn test_should_run_conditional_tests_after_creation_succeeds() {
     let validator = Fips140_3Validator::new("cond-schedule".to_string(), 1);
     // Just created, last_conditional_test is now, so should NOT need to run yet
     assert!(!validator.should_run_conditional_tests());
 }
 
 #[test]
-fn test_test_vectors_empty_initially() {
+fn test_test_vectors_empty_initially_matches_expected() {
     let validator = Fips140_3Validator::new("vectors-check".to_string(), 1);
-    assert!(validator.test_vectors().is_empty());
+    assert!(validator.test_vectors_matches_expected().is_empty());
 }
 
 // ============================================================================
@@ -273,15 +273,15 @@ fn test_test_vectors_empty_initially() {
 // ============================================================================
 
 #[test]
-fn test_fips_validator_default() {
+fn test_fips_validator_default_succeeds() {
     let validator = Fips140_3Validator::default();
     assert!(!validator.is_power_up_completed());
-    assert!(validator.test_vectors().is_empty());
+    assert!(validator.test_vectors_matches_expected().is_empty());
     assert!(!validator.should_run_conditional_tests());
 }
 
 #[test]
-fn test_fips_validator_default_run_power_up() {
+fn test_fips_validator_default_run_power_up_succeeds() {
     let mut validator = Fips140_3Validator::default();
     let result = validator.run_power_up_tests().unwrap();
     assert_eq!(result.module_name, "LatticeArc-Crypto");
@@ -289,7 +289,7 @@ fn test_fips_validator_default_run_power_up() {
 }
 
 #[test]
-fn test_fips_validator_default_run_conditional() {
+fn test_fips_validator_default_run_conditional_succeeds() {
     let mut validator = Fips140_3Validator::default();
     let result = validator.run_conditional_tests().unwrap();
     assert!(!result.conditional_tests.is_empty());
@@ -301,7 +301,7 @@ fn test_fips_validator_default_run_conditional() {
 // ============================================================================
 
 #[test]
-fn test_full_validation_sequence() {
+fn test_full_validation_sequence_succeeds() {
     let mut validator = Fips140_3Validator::new("full-seq".to_string(), 3);
 
     // Step 1: Power-up tests

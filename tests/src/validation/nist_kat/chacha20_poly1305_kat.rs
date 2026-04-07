@@ -143,13 +143,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_chacha20_poly1305_kat() {
+    fn test_chacha20_poly1305_kat_succeeds() {
         let result = run_chacha20_poly1305_kat();
         assert!(result.is_ok(), "ChaCha20-Poly1305 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_individual_vectors() {
+    fn test_individual_vectors_succeed_matches_expected() {
         for vector in CHACHA20_POLY1305_VECTORS {
             let result = run_chacha20_poly1305_test(vector);
             assert!(result.is_ok(), "Test {} failed: {:?}", vector.test_name, result);
@@ -161,7 +161,7 @@ mod tests {
     // ==========================================================================
 
     #[test]
-    fn test_invalid_key_length_error() {
+    fn test_invalid_key_length_error_fails() {
         // Test with a key that is too short (should trigger line 69)
         let bad_vector = ChaCha20Poly1305TestVector {
             test_name: "bad-key-length",
@@ -184,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_output_length_mismatch_error() {
+    fn test_output_length_mismatch_error_fails() {
         // Test vector where expected_ciphertext + expected_tag length doesn't match
         // actual output. We use wrong expected lengths to trigger lines 80-90.
         let bad_vector = ChaCha20Poly1305TestVector {
@@ -210,7 +210,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ciphertext_mismatch_error() {
+    fn test_ciphertext_mismatch_error_fails() {
         // Test vector with correct lengths but wrong expected ciphertext (lines 94-104)
         // First encrypt with the real key/nonce/aad/plaintext to get the correct length
         let bad_vector = ChaCha20Poly1305TestVector {
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tag_mismatch_error() {
+    fn test_tag_mismatch_error_fails() {
         // To trigger tag mismatch (lines 106-116), we need correct ciphertext but wrong tag.
         // We'll use the actual computed ciphertext with a wrong tag.
 
@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypted_plaintext_mismatch_error() {
+    fn test_decrypted_plaintext_mismatch_error_fails() {
         // This is tricky - to trigger lines 125-130, we need:
         // 1. Encryption to succeed
         // 2. Ciphertext and tag to match expected values
@@ -299,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_in_key() {
+    fn test_hex_decode_error_in_key_fails() {
         let bad_vector = ChaCha20Poly1305TestVector {
             test_name: "bad-hex-key",
             key: "GHIJ", // Invalid hex
@@ -319,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_in_nonce() {
+    fn test_hex_decode_error_in_nonce_fails() {
         let bad_vector = ChaCha20Poly1305TestVector {
             test_name: "bad-hex-nonce",
             key: "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
@@ -339,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_in_aad() {
+    fn test_hex_decode_error_in_aad_fails() {
         let bad_vector = ChaCha20Poly1305TestVector {
             test_name: "bad-hex-aad",
             key: "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
@@ -359,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_in_plaintext() {
+    fn test_hex_decode_error_in_plaintext_fails() {
         let bad_vector = ChaCha20Poly1305TestVector {
             test_name: "bad-hex-plaintext",
             key: "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_in_expected_ciphertext() {
+    fn test_hex_decode_error_in_expected_ciphertext_fails() {
         let bad_vector = ChaCha20Poly1305TestVector {
             test_name: "bad-hex-ciphertext",
             key: "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
@@ -399,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hex_decode_error_in_expected_tag() {
+    fn test_hex_decode_error_in_expected_tag_fails() {
         let bad_vector = ChaCha20Poly1305TestVector {
             test_name: "bad-hex-tag",
             key: "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
@@ -419,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_plaintext_vector() {
+    fn test_empty_plaintext_vector_fails() {
         // Test with empty plaintext
         let empty_pt_vector = ChaCha20Poly1305TestVector {
             test_name: "empty-plaintext",
@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_aad_vector() {
+    fn test_empty_aad_vector_is_correct() {
         // Test with empty AAD - this should still work with correct values
         // We just need to ensure the code handles empty AAD
         let key = decode_hex("808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f")
@@ -462,7 +462,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vector_struct_has_all_fields() {
+    fn test_vector_struct_has_all_fields_is_correct() {
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         assert!(!vector.test_name.is_empty());
         assert!(!vector.key.is_empty());

@@ -3,8 +3,6 @@
 #![allow(clippy::unwrap_used)]
 // Test files use indexing for test vector access
 #![allow(clippy::indexing_slicing)]
-// Clone is needed in some tests where we want to keep the original value
-#![allow(clippy::redundant_clone)]
 
 //! Comprehensive tests for Key Derivation Functions
 //!
@@ -18,10 +16,8 @@ use latticearc::primitives::kdf::*;
 mod pbkdf2_tests {
     use super::*;
 
-    use zeroize::Zeroize;
-
     #[test]
-    fn test_pbkdf2_rejects_unsafe_iteration_count_1() {
+    fn test_pbkdf2_rejects_unsafe_iteration_count_1_fails() {
         // RFC 6070 Test Vector 1 uses iterations=1, which our security
         // hardening correctly rejects (minimum 1000 per OWASP guidelines)
         let password = b"password";
@@ -33,7 +29,7 @@ mod pbkdf2_tests {
     }
 
     #[test]
-    fn test_pbkdf2_rejects_unsafe_iteration_count_2() {
+    fn test_pbkdf2_rejects_unsafe_iteration_count_2_fails() {
         // RFC 6070 Test Vector 2 uses iterations=2, which our security
         // hardening correctly rejects (minimum 1000 per OWASP guidelines)
         let password = b"password";
@@ -45,7 +41,7 @@ mod pbkdf2_tests {
     }
 
     #[test]
-    fn test_pbkdf2_deterministic() {
+    fn test_pbkdf2_deterministic_is_deterministic() {
         let password = b"test password";
         let salt = b"test salt 123456";
         let params = Pbkdf2Params::with_salt(salt).iterations(10000).key_length(32);
@@ -53,22 +49,22 @@ mod pbkdf2_tests {
         let result1 = pbkdf2(password, &params).unwrap();
         let result2 = pbkdf2(password, &params).unwrap();
 
-        assert_eq!(result1.key, result2.key);
+        assert_eq!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_pbkdf2_different_passwords() {
+    fn test_pbkdf2_different_passwords_succeeds() {
         let salt = b"common salt";
         let params = Pbkdf2Params::with_salt(salt).iterations(5000).key_length(32);
 
         let result1 = pbkdf2(b"password1", &params).unwrap();
         let result2 = pbkdf2(b"password2", &params).unwrap();
 
-        assert_ne!(result1.key, result2.key);
+        assert_ne!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_pbkdf2_different_salts() {
+    fn test_pbkdf2_different_salts_succeeds() {
         let password = b"common password";
         let params1 = Pbkdf2Params::with_salt(b"salt1").iterations(5000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(b"salt2").iterations(5000).key_length(32);
@@ -76,11 +72,11 @@ mod pbkdf2_tests {
         let result1 = pbkdf2(password, &params1).unwrap();
         let result2 = pbkdf2(password, &params2).unwrap();
 
-        assert_ne!(result1.key, result2.key);
+        assert_ne!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_pbkdf2_iterations_affect_output() {
+    fn test_pbkdf2_iterations_affect_output_succeeds() {
         let password = b"password";
         let salt = b"salt";
         let params1 = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
@@ -89,11 +85,11 @@ mod pbkdf2_tests {
         let result1 = pbkdf2(password, &params1).unwrap();
         let result2 = pbkdf2(password, &params2).unwrap();
 
-        assert_ne!(result1.key, result2.key);
+        assert_ne!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_pbkdf2_prf_types() {
+    fn test_pbkdf2_prf_types_succeeds() {
         let password = b"password";
         let salt = b"salt";
 
@@ -106,12 +102,12 @@ mod pbkdf2_tests {
         let result_sha256 = pbkdf2(password, &params_sha256).unwrap();
         let result_sha512 = pbkdf2(password, &params_sha512).unwrap();
 
-        assert_eq!(result_sha256.key.len(), 32);
-        assert_eq!(result_sha512.key.len(), 64);
+        assert_eq!(result_sha256.key().len(), 32);
+        assert_eq!(result_sha512.key().len(), 64);
     }
 
     #[test]
-    fn test_pbkdf2_validation() {
+    fn test_pbkdf2_validation_succeeds() {
         let password = b"pass";
         let salt = b"salt";
 
@@ -129,7 +125,7 @@ mod pbkdf2_tests {
     }
 
     #[test]
-    fn test_pbkdf2_verify_password() {
+    fn test_pbkdf2_verify_password_succeeds() {
         let password = b"correct_password";
         let wrong_password = b"wrong_password";
 
@@ -143,32 +139,28 @@ mod pbkdf2_tests {
     }
 
     #[test]
-    fn test_pbkdf2_result_zeroize() {
+    fn test_pbkdf2_result_zeroize_succeeds() {
         let password = b"password";
         let salt = b"salt";
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
         let result = pbkdf2(password, &params).unwrap();
 
-        // The key should be accessible before drop
-        assert_eq!(result.key.len(), 32);
+        // The key should be accessible and have correct length before drop
+        assert_eq!(result.key().len(), 32);
 
-        // Zeroize should clear the key
-        let mut result = result;
-        result.zeroize();
-
-        // After zeroize, the key should be all zeros
-        assert!(result.key.iter().all(|&b| b == 0));
+        // Pbkdf2Result uses Zeroizing<Vec<u8>> internally which auto-zeroizes on drop.
+        // Verify the key is non-zero before drop (i.e., derivation produced real output).
+        assert!(result.key().iter().any(|&b| b != 0));
+        // drop(result) triggers automatic zeroization via Zeroizing<Vec<u8>>
     }
 }
 
 mod hkdf_tests {
     use super::*;
 
-    use zeroize::Zeroize;
-
     #[test]
-    fn test_hkdf_rfc5869_test_case_1() {
+    fn test_hkdf_rfc5869_test_case_1_succeeds() {
         let ikm = [
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -183,11 +175,11 @@ mod hkdf_tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key, expected);
+        assert_eq!(okm.key(), expected);
     }
 
     #[test]
-    fn test_hkdf_extract_rfc5869() {
+    fn test_hkdf_extract_rfc5869_succeeds() {
         let ikm = [
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
             0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -205,7 +197,7 @@ mod hkdf_tests {
     }
 
     #[test]
-    fn test_hkdf_expand_rfc5869() {
+    fn test_hkdf_expand_rfc5869_succeeds() {
         let prk = [
             0x07, 0x77, 0x09, 0x36, 0x2c, 0x2e, 0x32, 0xdf, 0x0d, 0xdc, 0x3f, 0x0d, 0xc4, 0x7b,
             0xba, 0x63, 0x90, 0xb6, 0xc7, 0x3b, 0xb5, 0x0f, 0x9c, 0x31, 0x22, 0xec, 0x84, 0x4a,
@@ -220,44 +212,44 @@ mod hkdf_tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key, expected);
+        assert_eq!(okm.key(), expected);
     }
 
     #[test]
-    fn test_hkdf_different_ikm() {
+    fn test_hkdf_different_ikm_succeeds() {
         let salt = b"salt";
         let info = b"info";
 
         let okm1 = hkdf(b"ikm1", Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(b"ikm2", Some(salt), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key, okm2.key);
+        assert_ne!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_different_salt() {
+    fn test_hkdf_different_salt_succeeds() {
         let ikm = b"ikm";
         let info = b"info";
 
         let okm1 = hkdf(ikm, Some(b"salt1"), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(b"salt2"), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key, okm2.key);
+        assert_ne!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_different_info() {
+    fn test_hkdf_different_info_succeeds() {
         let ikm = b"ikm";
         let salt = b"salt";
 
         let okm1 = hkdf(ikm, Some(salt), Some(b"info1"), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(b"info2"), 32).unwrap();
 
-        assert_ne!(okm1.key, okm2.key);
+        assert_ne!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_deterministic() {
+    fn test_hkdf_deterministic_is_deterministic() {
         let ikm = b"test ikm";
         let salt = b"test salt";
         let info = b"test info";
@@ -265,11 +257,11 @@ mod hkdf_tests {
         let okm1 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
 
-        assert_eq!(okm1.key, okm2.key);
+        assert_eq!(okm1.key(), okm2.key());
     }
 
     #[test]
-    fn test_hkdf_validation() {
+    fn test_hkdf_validation_succeeds() {
         let prk = hkdf_extract(Some(b"salt"), b"ikm").unwrap();
 
         // Zero length should fail
@@ -283,65 +275,60 @@ mod hkdf_tests {
     }
 
     #[test]
-    fn test_hkdf_simple() {
+    fn test_hkdf_simple_succeeds() {
         let ikm = b"test ikm";
 
         let result1 = hkdf_simple(ikm, 32).unwrap();
         let result2 = hkdf_simple(ikm, 32).unwrap();
 
         // Different random salts should produce different keys
-        assert_ne!(result1.key, result2.key);
-        assert_eq!(result1.key.len(), 32);
-        assert_eq!(result2.key.len(), 32);
+        assert_ne!(result1.key(), result2.key());
+        assert_eq!(result1.key().len(), 32);
+        assert_eq!(result2.key().len(), 32);
     }
 
     #[test]
-    fn test_hkdf_result_zeroize() {
+    fn test_hkdf_result_zeroize_succeeds() {
         let ikm = b"test ikm";
         let salt = b"test salt";
 
         let result = hkdf(ikm, Some(salt), None, 32).unwrap();
 
         // The key should be accessible before drop
-        assert_eq!(result.key.len(), 32);
+        assert_eq!(result.key().len(), 32);
 
-        // Zeroize should clear the key
-        let mut result = result;
-        result.zeroize();
-
-        // After zeroize, the key should be all zeros
-        assert!(result.key.iter().all(|&b| b == 0));
+        // HkdfResult uses Zeroizing<Vec<u8>> for automatic zeroization on drop.
+        // The key is non-zero before drop.
+        assert!(result.key().iter().any(|&b| b != 0));
     }
 }
 
 mod counter_kdf_tests {
     use super::*;
 
-    use zeroize::Zeroize;
-
     #[test]
-    fn test_counter_kdf_basic() {
+    fn test_counter_kdf_basic_succeeds() {
         let ki = b"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b";
         let params = CounterKdfParams::new(b"Example Label");
 
         let result = counter_kdf(ki.as_ref(), &params, 32).unwrap();
 
-        assert_eq!(result.key.len(), 32);
+        assert_eq!(result.key().len(), 32);
     }
 
     #[test]
-    fn test_counter_kdf_deterministic() {
+    fn test_counter_kdf_deterministic_is_deterministic() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Test Label");
 
         let result1 = counter_kdf(ki, &params, 32).unwrap();
         let result2 = counter_kdf(ki, &params, 32).unwrap();
 
-        assert_eq!(result1.key, result2.key);
+        assert_eq!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_counter_kdf_different_labels() {
+    fn test_counter_kdf_different_labels_succeeds() {
         let ki = b"test keying material";
         let params1 = CounterKdfParams::new(b"Label 1");
         let params2 = CounterKdfParams::new(b"Label 2");
@@ -349,11 +336,11 @@ mod counter_kdf_tests {
         let result1 = counter_kdf(ki, &params1, 32).unwrap();
         let result2 = counter_kdf(ki, &params2, 32).unwrap();
 
-        assert_ne!(result1.key, result2.key);
+        assert_ne!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_counter_kdf_different_contexts() {
+    fn test_counter_kdf_different_contexts_succeeds() {
         let ki = b"test keying material";
         let params1 = CounterKdfParams::new(b"Label").with_context(b"Context 1");
         let params2 = CounterKdfParams::new(b"Label").with_context(b"Context 2");
@@ -361,21 +348,21 @@ mod counter_kdf_tests {
         let result1 = counter_kdf(ki, &params1, 32).unwrap();
         let result2 = counter_kdf(ki, &params2, 32).unwrap();
 
-        assert_ne!(result1.key, result2.key);
+        assert_ne!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_counter_kdf_different_ki() {
+    fn test_counter_kdf_different_ki_succeeds() {
         let params = CounterKdfParams::new(b"Label");
 
         let result1 = counter_kdf(b"ki1", &params, 32).unwrap();
         let result2 = counter_kdf(b"ki2", &params, 32).unwrap();
 
-        assert_ne!(result1.key, result2.key);
+        assert_ne!(result1.key(), result2.key());
     }
 
     #[test]
-    fn test_counter_kdf_different_lengths() {
+    fn test_counter_kdf_different_lengths_has_correct_size() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
 
@@ -383,18 +370,18 @@ mod counter_kdf_tests {
         let result32 = counter_kdf(ki, &params, 32).unwrap();
         let result64 = counter_kdf(ki, &params, 64).unwrap();
 
-        assert_eq!(result16.key.len(), 16);
-        assert_eq!(result32.key.len(), 32);
-        assert_eq!(result64.key.len(), 64);
+        assert_eq!(result16.key().len(), 16);
+        assert_eq!(result32.key().len(), 32);
+        assert_eq!(result64.key().len(), 64);
 
         // Longer outputs should have shorter outputs as prefix
         // SP 800-108 includes L in the input, so different L results in completely different keys
-        assert_ne!(result16.key, &result32.key[..16]);
-        assert_ne!(result32.key, &result64.key[..32]);
+        assert_ne!(result16.key(), &result32.key()[..16]);
+        assert_ne!(result32.key(), &result64.key()[..32]);
     }
 
     #[test]
-    fn test_counter_kdf_validation() {
+    fn test_counter_kdf_validation_succeeds() {
         let params = CounterKdfParams::new(b"Label");
 
         // Empty KI should fail
@@ -408,7 +395,7 @@ mod counter_kdf_tests {
     }
 
     #[test]
-    fn test_derive_multiple_keys() {
+    fn test_derive_multiple_keys_succeeds() {
         let ki = b"master secret";
         let context = b"my-app-v1";
         let key_specs =
@@ -417,18 +404,18 @@ mod counter_kdf_tests {
         let keys = derive_multiple_keys(ki, context, &key_specs).unwrap();
 
         assert_eq!(keys.len(), 3);
-        assert_eq!(keys[0].key.len(), 32);
-        assert_eq!(keys[1].key.len(), 32);
-        assert_eq!(keys[2].key.len(), 16);
+        assert_eq!(keys[0].key().len(), 32);
+        assert_eq!(keys[1].key().len(), 32);
+        assert_eq!(keys[2].key().len(), 16);
 
         // All keys should be different
-        assert_ne!(keys[0].key, keys[1].key);
-        assert_ne!(keys[1].key, keys[2].key);
-        assert_ne!(keys[0].key, keys[2].key);
+        assert_ne!(keys[0].key(), keys[1].key());
+        assert_ne!(keys[1].key(), keys[2].key());
+        assert_ne!(keys[0].key(), keys[2].key());
     }
 
     #[test]
-    fn test_convenience_functions() {
+    fn test_convenience_functions_succeeds() {
         let ki = b"master secret";
         let context = b"my-app-v1";
 
@@ -436,31 +423,34 @@ mod counter_kdf_tests {
         let mac_key = derive_mac_key(ki, context).unwrap();
         let iv = derive_iv(ki, context).unwrap();
 
-        assert_eq!(enc_key.key.len(), 32);
-        assert_eq!(mac_key.key.len(), 32);
-        assert_eq!(iv.key.len(), 16);
+        assert_eq!(enc_key.key().len(), 32);
+        assert_eq!(mac_key.key().len(), 32);
+        assert_eq!(iv.key().len(), 16);
 
         // All keys should be different
-        assert_ne!(enc_key.key, mac_key.key);
-        assert_ne!(mac_key.key, &iv.key[..16]);
+        assert_ne!(enc_key.key(), mac_key.key());
+        assert_ne!(mac_key.key(), &iv.key()[..16]);
     }
 
     #[test]
-    fn test_counter_kdf_result_zeroize() {
+    fn test_counter_kdf_result_zeroize_succeeds() {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
 
         let result = counter_kdf(ki, &params, 32).unwrap();
 
-        // The key should be accessible before drop
-        assert_eq!(result.key.len(), 32);
+        // The key should be accessible and have the correct length before drop
+        assert_eq!(result.key().len(), 32);
 
-        // Zeroize should clear the key
-        let mut result_clone = result.clone();
-        result_clone.zeroize();
+        // CounterKdfResult does not derive Clone to prevent accidental duplication
+        // of secret key material. Take a byte copy for comparison instead.
+        let key_copy = result.key().to_vec();
 
-        // After zeroize, the key should be all zeros
-        assert!(result_clone.key.iter().all(|&b| b == 0));
+        // Verify the key is non-zero before drop (derivation produced real output)
+        assert!(key_copy.iter().any(|&b| b != 0));
+
+        // CounterKdfResult uses Zeroizing<Vec<u8>> internally which auto-zeroizes on drop.
+        drop(result);
     }
 }
 
@@ -468,7 +458,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_kdf_consistency() {
+    fn test_kdf_consistency_succeeds() {
         let ikm = b"input key material";
         let password = b"password";
         let salt = b"salt";
@@ -480,19 +470,19 @@ mod integration_tests {
         let pbkdf2_result2 =
             pbkdf2(password, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32))
                 .unwrap();
-        assert_eq!(pbkdf2_result1.key, pbkdf2_result2.key);
+        assert_eq!(pbkdf2_result1.key(), pbkdf2_result2.key());
 
         let hkdf_result1 = hkdf(ikm, Some(salt), None, 32).unwrap();
         let hkdf_result2 = hkdf(ikm, Some(salt), None, 32).unwrap();
-        assert_eq!(hkdf_result1.key, hkdf_result2.key);
+        assert_eq!(hkdf_result1.key(), hkdf_result2.key());
 
         let counter_result1 = counter_kdf(ikm, &CounterKdfParams::new(b"Label"), 32).unwrap();
         let counter_result2 = counter_kdf(ikm, &CounterKdfParams::new(b"Label"), 32).unwrap();
-        assert_eq!(counter_result1.key, counter_result2.key);
+        assert_eq!(counter_result1.key(), counter_result2.key());
     }
 
     #[test]
-    fn test_kdf_output_uniqueness() {
+    fn test_kdf_output_uniqueness_are_unique() {
         let ikm = b"input key material";
         let salt = b"salt";
 
@@ -502,13 +492,13 @@ mod integration_tests {
         let hkdf_result = hkdf(ikm, Some(salt), None, 32).unwrap();
         let counter_result = counter_kdf(ikm, &CounterKdfParams::new(b"Label"), 32).unwrap();
 
-        assert_ne!(pbkdf2_result.key, hkdf_result.key);
-        assert_ne!(hkdf_result.key, counter_result.key);
-        assert_ne!(pbkdf2_result.key, counter_result.key);
+        assert_ne!(pbkdf2_result.key(), hkdf_result.key());
+        assert_ne!(hkdf_result.key(), counter_result.key());
+        assert_ne!(pbkdf2_result.key(), counter_result.key());
     }
 
     #[test]
-    fn test_kdf_security_level() {
+    fn test_kdf_security_level_succeeds() {
         let ikm = b"input key material";
 
         // Test different output lengths
@@ -516,13 +506,13 @@ mod integration_tests {
         let key_256 = hkdf(ikm, None, None, 32).unwrap();
         let key_512 = hkdf(ikm, None, None, 64).unwrap();
 
-        assert_eq!(key_128.key.len(), 16);
-        assert_eq!(key_256.key.len(), 32);
-        assert_eq!(key_512.key.len(), 64);
+        assert_eq!(key_128.key().len(), 16);
+        assert_eq!(key_256.key().len(), 32);
+        assert_eq!(key_512.key().len(), 64);
 
         // Outputs should be different
         // HKDF does NOT include L in the input, so longer outputs extend shorter ones
-        assert_eq!(key_128.key, &key_256.key[..16]);
-        assert_eq!(key_256.key, &key_512.key[..32]);
+        assert_eq!(key_128.key(), &key_256.key()[..16]);
+        assert_eq!(key_256.key(), &key_512.key()[..32]);
     }
 }

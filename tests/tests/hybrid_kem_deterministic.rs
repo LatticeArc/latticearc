@@ -18,7 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use hkdf::Hkdf;
-use latticearc::hybrid::kem::derive_hybrid_shared_secret;
+use latticearc::hybrid::derive_hybrid_shared_secret;
 use sha2::Sha256;
 
 /// Fixed test vectors for deterministic verification.
@@ -47,6 +47,11 @@ const EPHEMERAL_PK: [u8; 32] = [
 /// This replicates the exact logic from `derive_hybrid_shared_secret` but uses
 /// a completely different HKDF implementation (pure-Rust `hkdf` crate with
 /// `sha2` instead of aws-lc-rs).
+///
+/// The `info` input uses HPKE §5.1 / RFC 9180 length-prefix encoding for
+/// unambiguous concatenation:
+///   info = domain_label || u32_be(static_pk.len()) || static_pk
+///        || u32_be(ephemeral_pk.len()) || ephemeral_pk
 fn independent_hkdf(
     ml_kem_ss: &[u8],
     ecdh_ss: &[u8],
@@ -58,12 +63,14 @@ fn independent_hkdf(
     ikm.extend_from_slice(ml_kem_ss);
     ikm.extend_from_slice(ecdh_ss);
 
-    // Info = "LatticeArc-Hybrid-KEM-SS" || "||" || static_pk || "||" || ephemeral_pk
+    // Info = domain_label || len(static_pk) || static_pk || len(eph_pk) || eph_pk
     let mut info = Vec::new();
     info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS");
-    info.extend_from_slice(b"||");
+    let static_pk_len = u32::try_from(static_pk.len()).expect("public key within u32 range");
+    info.extend_from_slice(&static_pk_len.to_be_bytes());
     info.extend_from_slice(static_pk);
-    info.extend_from_slice(b"||");
+    let ephemeral_pk_len = u32::try_from(ephemeral_pk.len()).expect("public key within u32 range");
+    info.extend_from_slice(&ephemeral_pk_len.to_be_bytes());
     info.extend_from_slice(ephemeral_pk);
 
     // HKDF-SHA256 with no salt (defaults to 32 zero bytes per RFC 5869)
@@ -75,21 +82,22 @@ fn independent_hkdf(
 
 /// Core test: verify derive_hybrid_shared_secret matches independent HKDF.
 #[test]
-fn test_hybrid_kdf_matches_independent_hkdf() {
+fn test_hybrid_kdf_matches_independent_hkdf_succeeds() {
     let actual =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
     let expected = independent_hkdf(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK);
 
     assert_eq!(
-        actual, expected,
+        actual.as_slice(),
+        expected.as_slice(),
         "derive_hybrid_shared_secret must match independent HKDF computation"
     );
 }
 
 /// Verify output is exactly 64 bytes (two SHA-256 blocks).
 #[test]
-fn test_hybrid_kdf_output_length() {
+fn test_hybrid_kdf_output_length_has_correct_size() {
     let result =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
@@ -99,7 +107,7 @@ fn test_hybrid_kdf_output_length() {
 /// Verify domain separator is included by checking that our output differs
 /// from a raw HKDF with no info string.
 #[test]
-fn test_domain_separator_affects_output() {
+fn test_domain_separator_affects_output_produces_different_secret_succeeds() {
     let with_domain =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
@@ -112,14 +120,18 @@ fn test_domain_separator_affects_output() {
     let mut without_domain = vec![0u8; 64];
     hk.expand(&[], &mut without_domain).expect("HKDF expand should succeed");
 
-    assert_ne!(with_domain, without_domain, "Domain separator must affect the output");
+    assert_ne!(
+        with_domain.as_slice(),
+        without_domain.as_slice(),
+        "Domain separator must affect the output"
+    );
 }
 
 /// Verify IKM ordering: ml_kem_ss || ecdh_ss (not reversed).
 ///
 /// Swapping the inputs should produce a different shared secret.
 #[test]
-fn test_ikm_ordering_ml_kem_first() {
+fn test_ikm_ordering_ml_kem_first_produces_different_output_when_swapped_succeeds() {
     let correct_order =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
@@ -128,14 +140,15 @@ fn test_ikm_ordering_ml_kem_first() {
         derive_hybrid_shared_secret(&ECDH_SS, &ML_KEM_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
     assert_ne!(
-        correct_order, reversed_order,
+        correct_order.as_slice(),
+        reversed_order.as_slice(),
         "Swapping ML-KEM and ECDH shared secrets must produce different output"
     );
 }
 
 /// Verify the correct ordering matches independent computation.
 #[test]
-fn test_ikm_ordering_matches_spec() {
+fn test_ikm_ordering_matches_spec_succeeds() {
     let actual =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
@@ -144,18 +157,21 @@ fn test_ikm_ordering_matches_spec() {
     ikm_correct.extend_from_slice(&ML_KEM_SS);
     ikm_correct.extend_from_slice(&ECDH_SS);
 
+    // Info uses HPKE §5.1 / RFC 9180 length-prefix encoding (matches A1 fix).
     let mut info = Vec::new();
     info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS");
-    info.extend_from_slice(b"||");
+    let static_pk_len = u32::try_from(STATIC_PK.len()).expect("public key within u32 range");
+    info.extend_from_slice(&static_pk_len.to_be_bytes());
     info.extend_from_slice(&STATIC_PK);
-    info.extend_from_slice(b"||");
+    let eph_pk_len = u32::try_from(EPHEMERAL_PK.len()).expect("public key within u32 range");
+    info.extend_from_slice(&eph_pk_len.to_be_bytes());
     info.extend_from_slice(&EPHEMERAL_PK);
 
     let hk = Hkdf::<Sha256>::new(None, &ikm_correct);
     let mut expected = vec![0u8; 64];
     hk.expand(&info, &mut expected).unwrap();
 
-    assert_eq!(actual, expected, "IKM ordering must be ml_kem_ss || ecdh_ss");
+    assert_eq!(actual.as_slice(), expected.as_slice(), "IKM ordering must be ml_kem_ss || ecdh_ss");
 
     // Verify reversed IKM does NOT match
     let mut ikm_reversed = Vec::with_capacity(64);
@@ -166,12 +182,12 @@ fn test_ikm_ordering_matches_spec() {
     let mut reversed = vec![0u8; 64];
     hk_rev.expand(&info, &mut reversed).unwrap();
 
-    assert_ne!(actual, reversed, "Reversed IKM must not match correct order");
+    assert_ne!(actual.as_slice(), reversed.as_slice(), "Reversed IKM must not match correct order");
 }
 
 /// Verify static_pk is bound into the derivation (context binding).
 #[test]
-fn test_static_pk_binding() {
+fn test_static_pk_binding_produces_different_output_for_different_keys_succeeds() {
     let result1 =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
@@ -189,7 +205,7 @@ fn test_static_pk_binding() {
 
 /// Verify ephemeral_pk is bound into the derivation (context binding).
 #[test]
-fn test_ephemeral_pk_binding() {
+fn test_ephemeral_pk_binding_produces_different_output_for_different_keys_succeeds() {
     let result1 =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
@@ -207,7 +223,7 @@ fn test_ephemeral_pk_binding() {
 
 /// Determinism: same inputs produce identical output across 100 invocations.
 #[test]
-fn test_roundtrip_determinism() {
+fn test_roundtrip_determinism_roundtrip() {
     let reference =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
 
@@ -220,7 +236,7 @@ fn test_roundtrip_determinism() {
 
 /// Verify error handling: ML-KEM shared secret must be exactly 32 bytes.
 #[test]
-fn test_invalid_ml_kem_ss_length() {
+fn test_invalid_ml_kem_ss_length_fails() {
     let short_ss = [0u8; 16];
     let result = derive_hybrid_shared_secret(&short_ss, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK);
     assert!(result.is_err(), "16-byte ML-KEM SS should be rejected");
@@ -232,7 +248,7 @@ fn test_invalid_ml_kem_ss_length() {
 
 /// Verify error handling: ECDH shared secret must be exactly 32 bytes.
 #[test]
-fn test_invalid_ecdh_ss_length() {
+fn test_invalid_ecdh_ss_length_fails() {
     let short_ss = [0u8; 16];
     let result = derive_hybrid_shared_secret(&ML_KEM_SS, &short_ss, &STATIC_PK, &EPHEMERAL_PK);
     assert!(result.is_err(), "16-byte ECDH SS should be rejected");
@@ -244,7 +260,7 @@ fn test_invalid_ecdh_ss_length() {
 
 /// Verify the derivation produces non-trivial output (not all zeros).
 #[test]
-fn test_output_is_nontrivial() {
+fn test_output_is_nontrivial_succeeds() {
     let result =
         derive_hybrid_shared_secret(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK).unwrap();
     assert!(!result.iter().all(|&b| b == 0), "Shared secret must not be all zeros");
@@ -254,20 +270,18 @@ fn test_output_is_nontrivial() {
 /// verify shared secrets match. Repeat to confirm determinism of the
 /// encapsulate/decapsulate flow (even though keygen is random each time).
 #[test]
-fn test_full_roundtrip_shared_secret_agreement() {
-    use latticearc::hybrid::kem::{decapsulate, encapsulate, generate_keypair};
-    use rand::thread_rng;
+fn test_full_roundtrip_shared_secret_agreement_roundtrip() {
+    use latticearc::hybrid::{decapsulate, encapsulate, kem_generate_keypair as generate_keypair};
 
     for _ in 0..10 {
-        let mut rng = thread_rng();
-        let (pk, sk) = generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = generate_keypair().unwrap();
 
-        let encapsulated = encapsulate(&mut rng, &pk).unwrap();
+        let encapsulated = encapsulate(&pk).unwrap();
 
         let decapsulated_ss = decapsulate(&sk, &encapsulated).unwrap();
 
         assert_eq!(
-            encapsulated.shared_secret.as_slice(),
+            encapsulated.shared_secret(),
             decapsulated_ss.as_slice(),
             "Encapsulated and decapsulated shared secrets must match"
         );

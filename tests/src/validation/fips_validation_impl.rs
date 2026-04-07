@@ -62,7 +62,7 @@ pub struct Fips140_3Validator {
     module_name: String,
     power_up_completed: bool,
     last_conditional_test: DateTime<Utc>,
-    test_vectors: HashMap<String, Vec<KatResult>>,
+    test_vectors_matches_expected: HashMap<String, Vec<KatResult>>,
 }
 
 impl Default for Fips140_3Validator {
@@ -72,7 +72,7 @@ impl Default for Fips140_3Validator {
             module_name: "LatticeArc-Crypto".to_string(),
             power_up_completed: false,
             last_conditional_test: Utc::now(),
-            test_vectors: HashMap::new(),
+            test_vectors_matches_expected: HashMap::new(),
         }
     }
 }
@@ -85,14 +85,14 @@ impl Fips140_3Validator {
             module_name,
             power_up_completed: false,
             last_conditional_test: Utc::now(),
-            test_vectors: HashMap::new(),
+            test_vectors_matches_expected: HashMap::new(),
         }
     }
 
     /// Get stored test vectors for audit purposes
     #[must_use]
-    pub fn test_vectors(&self) -> &HashMap<String, Vec<KatResult>> {
-        &self.test_vectors
+    pub fn test_vectors_matches_expected(&self) -> &HashMap<String, Vec<KatResult>> {
+        &self.test_vectors_matches_expected
     }
 
     /// Run FIPS 140-3 power-up tests.
@@ -106,13 +106,13 @@ impl Fips140_3Validator {
 
         let mut power_up_tests = Vec::new();
 
-        power_up_tests.push(Self::test_aes_key_wrapping()?);
-        power_up_tests.push(Self::test_hash_functions());
-        power_up_tests.push(Self::test_signature_algorithms()?);
-        power_up_tests.push(self.test_key_encapsulation()?);
-        power_up_tests.push(self.test_rng_quality()?);
-        power_up_tests.push(Self::test_pairwise_consistency()?);
-        power_up_tests.push(Self::test_zeroization()?);
+        power_up_tests.push(Self::test_aes_key_wrapping_succeeds()?);
+        power_up_tests.push(Self::test_hash_functions_succeeds());
+        power_up_tests.push(Self::test_signature_algorithms_succeeds()?);
+        power_up_tests.push(self.test_key_encapsulation_succeeds()?);
+        power_up_tests.push(self.test_rng_quality_succeeds()?);
+        power_up_tests.push(Self::test_pairwise_consistency_succeeds()?);
+        power_up_tests.push(Self::test_zeroization_succeeds()?);
 
         let overall_passed = power_up_tests.iter().all(|t| t.passed);
         let power_up_tests_count = power_up_tests.len();
@@ -149,10 +149,10 @@ impl Fips140_3Validator {
 
         let mut conditional_tests = Vec::new();
 
-        conditional_tests.push(Self::test_key_integrity()?);
-        conditional_tests.push(Self::test_operational_environment()?);
-        conditional_tests.push(Self::test_error_detection());
-        conditional_tests.push(Self::test_performance_limits());
+        conditional_tests.push(Self::test_key_integrity_succeeds()?);
+        conditional_tests.push(Self::test_operational_environment_succeeds()?);
+        conditional_tests.push(Self::test_error_detection_fails());
+        conditional_tests.push(Self::test_performance_limits_succeeds());
 
         let overall_passed = conditional_tests.iter().all(|t| t.passed);
         let conditional_tests_count = conditional_tests.len();
@@ -178,7 +178,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_aes_key_wrapping() -> Result<SelfTestResult> {
+    fn test_aes_key_wrapping_succeeds() -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         let test_key = vec![
@@ -238,7 +238,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_hash_functions() -> SelfTestResult {
+    fn test_hash_functions_succeeds() -> SelfTestResult {
         let start_time = Instant::now();
 
         use sha2::Sha256;
@@ -287,7 +287,7 @@ impl Fips140_3Validator {
         }
     }
 
-    fn test_signature_algorithms() -> Result<SelfTestResult> {
+    fn test_signature_algorithms_succeeds() -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         use ed25519_dalek::{Signer, SigningKey, Verifier};
@@ -323,11 +323,11 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_key_encapsulation(&self) -> Result<SelfTestResult> {
+    fn test_key_encapsulation_succeeds(&self) -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         let test_randomness = vec![0x42; 32];
-        let rng_results = self.nist_tester.test_bit_sequence(&test_randomness)?;
+        let rng_results = self.nist_tester.test_bit_sequence_succeeds(&test_randomness)?;
 
         let entropy_acceptable = rng_results.entropy_estimate >= 7.5;
         let statistical_passed = rng_results.passed;
@@ -353,7 +353,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_rng_quality(&self) -> Result<SelfTestResult> {
+    fn test_rng_quality_succeeds(&self) -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         let mut rng_samples = Vec::new();
@@ -366,7 +366,7 @@ impl Fips140_3Validator {
         let test_data: Vec<u8> =
             rng_samples.iter().flat_map(|&x| x.to_le_bytes().to_vec()).take(1000).collect();
 
-        let rng_results = self.nist_tester.test_bit_sequence(&test_data)?;
+        let rng_results = self.nist_tester.test_bit_sequence_succeeds(&test_data)?;
         let passed = rng_results.passed && rng_results.entropy_estimate > 7.8;
 
         Ok(SelfTestResult {
@@ -385,7 +385,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_pairwise_consistency() -> Result<SelfTestResult> {
+    fn test_pairwise_consistency_succeeds() -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         let test_message = b"Pairwise consistency test message";
@@ -428,7 +428,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_zeroization() -> Result<SelfTestResult> {
+    fn test_zeroization_succeeds() -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         let mut sensitive_data = [0u8; 1024];
@@ -459,7 +459,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_key_integrity() -> Result<SelfTestResult> {
+    fn test_key_integrity_succeeds() -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         let test_key = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF];
@@ -497,7 +497,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_operational_environment() -> Result<SelfTestResult> {
+    fn test_operational_environment_succeeds() -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
         use hmac::Hmac;
@@ -535,7 +535,7 @@ impl Fips140_3Validator {
         })
     }
 
-    fn test_error_detection() -> SelfTestResult {
+    fn test_error_detection_fails() -> SelfTestResult {
         let start_time = Instant::now();
 
         let mut counter = 0u32;
@@ -570,7 +570,7 @@ impl Fips140_3Validator {
         }
     }
 
-    fn test_performance_limits() -> SelfTestResult {
+    fn test_performance_limits_succeeds() -> SelfTestResult {
         let start_time = Instant::now();
 
         let performance_threshold_ms = 1000;

@@ -39,8 +39,7 @@
 )]
 
 use latticearc::unified_api::{
-    config::CoreConfig,
-    decrypt_aes_gcm, decrypt_aes_gcm_unverified, decrypt_aes_gcm_with_config,
+    CoreConfig, decrypt_aes_gcm, decrypt_aes_gcm_unverified, decrypt_aes_gcm_with_config,
     decrypt_aes_gcm_with_config_unverified, encrypt_aes_gcm, encrypt_aes_gcm_unverified,
     encrypt_aes_gcm_with_config, encrypt_aes_gcm_with_config_unverified,
     error::{CoreError, Result},
@@ -65,7 +64,7 @@ fn generate_test_key_pattern(pattern: u8) -> Vec<u8> {
 /// Create a verified session for testing
 fn create_verified_session() -> Result<VerifiedSession> {
     let (pk, sk) = generate_keypair()?;
-    VerifiedSession::establish(&pk, sk.as_ref())
+    VerifiedSession::establish(pk.as_slice(), sk.as_ref())
 }
 
 // ============================================================================
@@ -80,12 +79,12 @@ fn test_aes_gcm_basic_roundtrip() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_roundtrip_empty_message() -> Result<()> {
+fn test_aes_gcm_roundtrip_empty_message_roundtrip() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"";
 
@@ -99,21 +98,21 @@ fn test_aes_gcm_roundtrip_empty_message() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_roundtrip_single_byte() -> Result<()> {
+fn test_aes_gcm_roundtrip_single_byte_roundtrip() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"X";
 
     let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     // Single byte + nonce (12) + tag (16) = 29 bytes
     assert_eq!(ciphertext.len(), 29);
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_roundtrip_various_sizes() -> Result<()> {
+fn test_aes_gcm_roundtrip_various_sizes_roundtrip() -> Result<()> {
     let key = generate_test_key_32();
 
     // Test various message sizes
@@ -125,13 +124,18 @@ fn test_aes_gcm_roundtrip_various_sizes() -> Result<()> {
         let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-        assert_eq!(decrypted, plaintext, "Size {} should roundtrip correctly", size);
+        assert_eq!(
+            decrypted.as_slice(),
+            plaintext.as_slice(),
+            "Size {} should roundtrip correctly",
+            size
+        );
     }
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_ciphertext_structure() -> Result<()> {
+fn test_aes_gcm_ciphertext_has_correct_structure_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Test message";
 
@@ -149,7 +153,7 @@ fn test_aes_gcm_ciphertext_structure() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_non_deterministic_encryption() -> Result<()> {
+fn test_aes_gcm_non_deterministic_encryption_uses_unique_nonces_is_deterministic() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Same message encrypted multiple times";
 
@@ -167,9 +171,9 @@ fn test_aes_gcm_non_deterministic_encryption() -> Result<()> {
     let p2 = decrypt_aes_gcm_unverified(&ct2, &key)?;
     let p3 = decrypt_aes_gcm_unverified(&ct3, &key)?;
 
-    assert_eq!(p1, plaintext);
-    assert_eq!(p2, plaintext);
-    assert_eq!(p3, plaintext);
+    assert_eq!(p1.as_slice(), plaintext.as_slice());
+    assert_eq!(p2.as_slice(), plaintext.as_slice());
+    assert_eq!(p3.as_slice(), plaintext.as_slice());
 
     Ok(())
 }
@@ -179,7 +183,7 @@ fn test_aes_gcm_non_deterministic_encryption() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_verified_session_encrypt_decrypt() -> Result<()> {
+fn test_aes_gcm_verified_session_encrypt_decrypt_succeeds() -> Result<()> {
     let session = create_verified_session()?;
     let key = generate_test_key_32();
     let plaintext = b"Verified session encryption test";
@@ -187,12 +191,12 @@ fn test_aes_gcm_verified_session_encrypt_decrypt() -> Result<()> {
     let ciphertext = encrypt_aes_gcm(plaintext, &key, SecurityMode::Verified(&session))?;
     let decrypted = decrypt_aes_gcm(&ciphertext, &key, SecurityMode::Verified(&session))?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_verified_session_with_config() -> Result<()> {
+fn test_aes_gcm_verified_session_with_config_succeeds() -> Result<()> {
     let session = create_verified_session()?;
     let key = generate_test_key_32();
     let config = CoreConfig::default();
@@ -204,12 +208,12 @@ fn test_aes_gcm_verified_session_with_config() -> Result<()> {
     let decrypted =
         decrypt_aes_gcm_with_config(&ciphertext, &key, &config, SecurityMode::Verified(&session))?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_session_reuse_multiple_operations() -> Result<()> {
+fn test_aes_gcm_session_reuse_multiple_operations_succeeds() -> Result<()> {
     let session = create_verified_session()?;
     let key = generate_test_key_32();
 
@@ -219,7 +223,7 @@ fn test_aes_gcm_session_reuse_multiple_operations() -> Result<()> {
         let ciphertext =
             encrypt_aes_gcm(plaintext.as_bytes(), &key, SecurityMode::Verified(&session))?;
         let decrypted = decrypt_aes_gcm(&ciphertext, &key, SecurityMode::Verified(&session))?;
-        assert_eq!(decrypted, plaintext.as_bytes());
+        assert_eq!(decrypted.as_slice(), plaintext.as_bytes());
     }
 
     Ok(())
@@ -241,19 +245,19 @@ fn test_aes_gcm_session_is_valid() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_unverified_mode_encrypt_decrypt() -> Result<()> {
+fn test_aes_gcm_unverified_mode_encrypt_decrypt_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Unverified mode test";
 
     let ciphertext = encrypt_aes_gcm(plaintext, &key, SecurityMode::Unverified)?;
     let decrypted = decrypt_aes_gcm(&ciphertext, &key, SecurityMode::Unverified)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_unverified_convenience_functions() -> Result<()> {
+fn test_aes_gcm_unverified_convenience_functions_succeed_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Using unverified convenience functions";
 
@@ -261,12 +265,12 @@ fn test_aes_gcm_unverified_convenience_functions() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_unverified_with_config() -> Result<()> {
+fn test_aes_gcm_unverified_with_config_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let config = CoreConfig::default();
     let plaintext = b"Unverified with config";
@@ -274,12 +278,12 @@ fn test_aes_gcm_unverified_with_config() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
     let decrypted = decrypt_aes_gcm_with_config_unverified(&ciphertext, &key, &config)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_verified_unverified_interoperability() -> Result<()> {
+fn test_aes_gcm_verified_unverified_interoperability_succeeds() -> Result<()> {
     let session = create_verified_session()?;
     let key = generate_test_key_32();
     let plaintext = b"Interop test message";
@@ -287,12 +291,12 @@ fn test_aes_gcm_verified_unverified_interoperability() -> Result<()> {
     // Encrypt with verified, decrypt with unverified
     let ct1 = encrypt_aes_gcm(plaintext, &key, SecurityMode::Verified(&session))?;
     let p1 = decrypt_aes_gcm_unverified(&ct1, &key)?;
-    assert_eq!(p1, plaintext);
+    assert_eq!(p1.as_slice(), plaintext.as_slice());
 
     // Encrypt with unverified, decrypt with verified
     let ct2 = encrypt_aes_gcm_unverified(plaintext, &key)?;
     let p2 = decrypt_aes_gcm(&ct2, &key, SecurityMode::Verified(&session))?;
-    assert_eq!(p2, plaintext);
+    assert_eq!(p2.as_slice(), plaintext.as_slice());
 
     Ok(())
 }
@@ -302,7 +306,7 @@ fn test_aes_gcm_verified_unverified_interoperability() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_key_too_short() {
+fn test_aes_gcm_key_too_short_returns_error() {
     let short_key = vec![0x42; 16]; // Only 16 bytes
     let plaintext = b"Test with short key";
 
@@ -319,7 +323,7 @@ fn test_aes_gcm_key_too_short() {
 }
 
 #[test]
-fn test_aes_gcm_key_empty() {
+fn test_aes_gcm_key_empty_returns_error() {
     let empty_key: &[u8] = &[];
     let plaintext = b"Test with empty key";
 
@@ -336,7 +340,7 @@ fn test_aes_gcm_key_empty() {
 }
 
 #[test]
-fn test_aes_gcm_key_one_byte_short() {
+fn test_aes_gcm_key_one_byte_short_returns_error() {
     let short_key = vec![0x42; 31]; // One byte short
     let plaintext = b"Test";
 
@@ -353,7 +357,7 @@ fn test_aes_gcm_key_one_byte_short() {
 }
 
 #[test]
-fn test_aes_gcm_key_longer_than_32_bytes() {
+fn test_aes_gcm_key_longer_than_32_bytes_returns_error() {
     // Keys longer than 32 bytes should be rejected (not truncated)
     let long_key = vec![0x42; 64];
     let plaintext = b"Test with longer key";
@@ -371,7 +375,7 @@ fn test_aes_gcm_key_longer_than_32_bytes() {
 }
 
 #[test]
-fn test_aes_gcm_decryption_wrong_key() -> Result<()> {
+fn test_aes_gcm_decryption_wrong_key_fails() -> Result<()> {
     let key1 = generate_test_key_pattern(0x11);
     let key2 = generate_test_key_pattern(0x22);
     let plaintext = b"Secret message";
@@ -384,7 +388,7 @@ fn test_aes_gcm_decryption_wrong_key() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_decryption_similar_key_one_bit_different() -> Result<()> {
+fn test_aes_gcm_decryption_similar_key_one_bit_different_fails() -> Result<()> {
     let key1 = generate_test_key_32();
     let mut key2 = key1.clone();
     key2[0] ^= 0x01; // Flip one bit
@@ -398,7 +402,7 @@ fn test_aes_gcm_decryption_similar_key_one_bit_different() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_short_key() {
+fn test_aes_gcm_decrypt_short_key_returns_error() {
     let good_key = generate_test_key_32();
     let short_key = vec![0x42; 16];
     let plaintext = b"Test message";
@@ -424,7 +428,7 @@ fn test_aes_gcm_decrypt_short_key() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_tampered_ciphertext_first_byte() -> Result<()> {
+fn test_aes_gcm_tampered_ciphertext_first_byte_fails() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Detect tampering";
 
@@ -440,7 +444,7 @@ fn test_aes_gcm_tampered_ciphertext_first_byte() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_tampered_ciphertext_middle() -> Result<()> {
+fn test_aes_gcm_tampered_ciphertext_middle_fails() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Detect tampering in middle";
 
@@ -457,7 +461,7 @@ fn test_aes_gcm_tampered_ciphertext_middle() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_tampered_ciphertext_last_byte() -> Result<()> {
+fn test_aes_gcm_tampered_ciphertext_last_byte_fails() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Detect tag tampering";
 
@@ -474,7 +478,7 @@ fn test_aes_gcm_tampered_ciphertext_last_byte() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_bit_flip_detection_all_positions() -> Result<()> {
+fn test_aes_gcm_bit_flip_detection_all_positions_fails() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Comprehensive bit flip test";
 
@@ -493,7 +497,7 @@ fn test_aes_gcm_bit_flip_detection_all_positions() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_truncated_ciphertext() -> Result<()> {
+fn test_aes_gcm_truncated_ciphertext_fails() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Test truncation detection";
 
@@ -512,7 +516,7 @@ fn test_aes_gcm_truncated_ciphertext() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_extended_ciphertext() -> Result<()> {
+fn test_aes_gcm_extended_ciphertext_fails() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Test extension detection";
 
@@ -529,7 +533,7 @@ fn test_aes_gcm_extended_ciphertext() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_ciphertext_too_short() {
+fn test_aes_gcm_ciphertext_too_short_returns_error() {
     let key = generate_test_key_32();
 
     // Ciphertext shorter than nonce (12 bytes) should fail
@@ -546,7 +550,7 @@ fn test_aes_gcm_ciphertext_too_short() {
 }
 
 #[test]
-fn test_aes_gcm_empty_ciphertext() {
+fn test_aes_gcm_empty_ciphertext_returns_error() {
     let key = generate_test_key_32();
     let empty_ct: &[u8] = &[];
 
@@ -559,7 +563,7 @@ fn test_aes_gcm_empty_ciphertext() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_100kb_message() -> Result<()> {
+fn test_aes_gcm_100kb_message_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = vec![0xAB; 100 * 1024]; // 100KB
 
@@ -570,37 +574,37 @@ fn test_aes_gcm_100kb_message() -> Result<()> {
     assert_eq!(ciphertext.len(), expected_size);
 
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
 
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_500kb_message() -> Result<()> {
+fn test_aes_gcm_500kb_message_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = vec![0xCD; 500 * 1024]; // 500KB
 
     let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_1mb_message() -> Result<()> {
+fn test_aes_gcm_1mb_message_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = vec![0xEF; 1024 * 1024]; // 1MB
 
     let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_large_message_with_verified_session() -> Result<()> {
+fn test_aes_gcm_large_message_with_verified_session_succeeds() -> Result<()> {
     let session = create_verified_session()?;
     let key = generate_test_key_32();
     let plaintext = vec![0x12; 200 * 1024]; // 200KB
@@ -608,12 +612,12 @@ fn test_aes_gcm_large_message_with_verified_session() -> Result<()> {
     let ciphertext = encrypt_aes_gcm(&plaintext, &key, SecurityMode::Verified(&session))?;
     let decrypted = decrypt_aes_gcm(&ciphertext, &key, SecurityMode::Verified(&session))?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_stress_multiple_large_messages() -> Result<()> {
+fn test_aes_gcm_stress_multiple_large_messages_succeeds() -> Result<()> {
     let key = generate_test_key_32();
 
     for i in 0..5 {
@@ -623,7 +627,7 @@ fn test_aes_gcm_stress_multiple_large_messages() -> Result<()> {
         let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-        assert_eq!(decrypted, plaintext, "Size {} should roundtrip", size);
+        assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Size {} should roundtrip", size);
     }
 
     Ok(())
@@ -634,43 +638,43 @@ fn test_aes_gcm_stress_multiple_large_messages() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_all_zero_bytes() -> Result<()> {
+fn test_aes_gcm_all_zero_bytes_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = vec![0x00; 1000];
 
     let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_all_ones_bytes() -> Result<()> {
+fn test_aes_gcm_all_ones_bytes_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = vec![0xFF; 1000];
 
     let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_alternating_bytes() -> Result<()> {
+fn test_aes_gcm_alternating_bytes_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext: Vec<u8> = (0..1000).map(|i| if i % 2 == 0 { 0x00 } else { 0xFF }).collect();
 
     let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_full_byte_range() -> Result<()> {
+fn test_aes_gcm_full_byte_range_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     // All byte values 0-255 repeated
     let plaintext: Vec<u8> = (0..=255u8).cycle().take(1024).collect();
@@ -678,12 +682,12 @@ fn test_aes_gcm_full_byte_range() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_embedded_null_bytes() -> Result<()> {
+fn test_aes_gcm_embedded_null_bytes_roundtrip_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     // String-like data with embedded nulls
     let mut plaintext = b"Hello\x00World\x00This\x00Has\x00Nulls".to_vec();
@@ -692,7 +696,7 @@ fn test_aes_gcm_embedded_null_bytes() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_unverified(&plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
@@ -701,7 +705,7 @@ fn test_aes_gcm_embedded_null_bytes() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_with_default_config() -> Result<()> {
+fn test_aes_gcm_with_default_config_succeeds() -> Result<()> {
     let config = CoreConfig::default();
     let key = generate_test_key_32();
     let plaintext = b"Test with default config";
@@ -709,12 +713,12 @@ fn test_aes_gcm_with_default_config() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
     let decrypted = decrypt_aes_gcm_with_config_unverified(&ciphertext, &key, &config)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_with_development_config() -> Result<()> {
+fn test_aes_gcm_with_development_config_succeeds() -> Result<()> {
     let config = CoreConfig::for_development();
     let key = generate_test_key_32();
     let plaintext = b"Test with development config";
@@ -722,12 +726,12 @@ fn test_aes_gcm_with_development_config() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
     let decrypted = decrypt_aes_gcm_with_config_unverified(&ciphertext, &key, &config)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_with_production_config() -> Result<()> {
+fn test_aes_gcm_with_production_config_succeeds() -> Result<()> {
     let config = CoreConfig::for_production();
     let key = generate_test_key_32();
     let plaintext = b"Test with production config";
@@ -735,7 +739,7 @@ fn test_aes_gcm_with_production_config() -> Result<()> {
     let ciphertext = encrypt_aes_gcm_with_config_unverified(plaintext, &key, &config)?;
     let decrypted = decrypt_aes_gcm_with_config_unverified(&ciphertext, &key, &config)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
@@ -744,7 +748,7 @@ fn test_aes_gcm_with_production_config() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_nonce_uniqueness_stress() -> Result<()> {
+fn test_aes_gcm_nonce_uniqueness_stress_succeeds() -> Result<()> {
     let key = generate_test_key_32();
     let plaintext = b"Nonce uniqueness test";
 
@@ -768,7 +772,7 @@ fn test_aes_gcm_nonce_uniqueness_stress() -> Result<()> {
 }
 
 #[test]
-fn test_aes_gcm_sequential_operations() -> Result<()> {
+fn test_aes_gcm_sequential_operations_succeed_succeeds() -> Result<()> {
     let key = generate_test_key_32();
 
     // Encrypt many messages
@@ -779,15 +783,15 @@ fn test_aes_gcm_sequential_operations() -> Result<()> {
         .map(|msg| encrypt_aes_gcm_unverified(msg.as_bytes(), &key))
         .collect::<Result<Vec<_>>>()?;
 
-    // Decrypt all
+    // Decrypt all (decrypt returns Zeroizing<Vec<u8>> — unwrap to Vec<u8> for comparison scope)
     let decrypted: Vec<Vec<u8>> = encrypted
         .iter()
-        .map(|ct| decrypt_aes_gcm_unverified(ct, &key))
+        .map(|ct| decrypt_aes_gcm_unverified(ct, &key).map(|z| z.to_vec()))
         .collect::<Result<Vec<_>>>()?;
 
     // Verify all match
-    for (original, decrypted) in messages.iter().zip(decrypted.iter()) {
-        assert_eq!(original.as_bytes(), decrypted.as_slice());
+    for (original, dec) in messages.iter().zip(decrypted.iter()) {
+        assert_eq!(original.as_bytes(), dec.as_slice());
     }
 
     Ok(())
@@ -798,31 +802,31 @@ fn test_aes_gcm_sequential_operations() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_all_zero_key() -> Result<()> {
+fn test_aes_gcm_all_zero_key_roundtrip_succeeds() -> Result<()> {
     let key = vec![0x00; 32];
     let plaintext = b"Testing with all-zero key";
 
     let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_all_ones_key() -> Result<()> {
+fn test_aes_gcm_all_ones_key_roundtrip_succeeds() -> Result<()> {
     let key = vec![0xFF; 32];
     let plaintext = b"Testing with all-ones key";
 
     let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
     let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
 
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     Ok(())
 }
 
 #[test]
-fn test_aes_gcm_different_key_patterns() -> Result<()> {
+fn test_aes_gcm_different_key_patterns_roundtrip_succeeds() -> Result<()> {
     let plaintext = b"Test with different key patterns";
 
     let patterns: Vec<Vec<u8>> = vec![
@@ -837,7 +841,7 @@ fn test_aes_gcm_different_key_patterns() -> Result<()> {
     for key in patterns {
         let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
         let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
-        assert_eq!(decrypted, plaintext);
+        assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     }
 
     Ok(())

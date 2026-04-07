@@ -55,7 +55,7 @@ mod kat_result_tests {
     use super::*;
 
     #[test]
-    fn test_kat_result_passed_constructor() {
+    fn test_kat_result_passed_constructor_has_correct_fields_matches_expected() {
         let result = KatResult::passed("test_case_1".to_string(), Duration::from_millis(100));
 
         assert_eq!(result.test_case, "test_case_1");
@@ -65,7 +65,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_failed_constructor() {
+    fn test_kat_result_failed_constructor_has_correct_fields_matches_expected() {
         let result = KatResult::failed(
             "test_case_2".to_string(),
             Duration::from_millis(50),
@@ -79,7 +79,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_passed_zero_duration() {
+    fn test_kat_result_passed_zero_duration_has_correct_fields_matches_expected() {
         let result = KatResult::passed("fast_test".to_string(), Duration::ZERO);
 
         assert!(result.passed);
@@ -87,7 +87,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_failed_empty_error() {
+    fn test_kat_result_failed_empty_error_has_correct_fields_matches_expected() {
         let result = KatResult::failed("test".to_string(), Duration::from_nanos(1), String::new());
 
         assert!(!result.passed);
@@ -95,7 +95,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_clone() {
+    fn test_kat_result_clone_produces_equal_value_matches_expected() {
         let original = KatResult::passed("original".to_string(), Duration::from_secs(1));
         let cloned = original.clone();
 
@@ -104,7 +104,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_equality() {
+    fn test_kat_result_equality_matches_expected() {
         let result1 = KatResult::passed("test".to_string(), Duration::from_millis(100));
         let result2 = KatResult::passed("test".to_string(), Duration::from_millis(100));
         let result3 = KatResult::passed("different".to_string(), Duration::from_millis(100));
@@ -114,7 +114,7 @@ mod kat_result_tests {
     }
 
     #[test]
-    fn test_kat_result_debug() {
+    fn test_kat_result_debug_has_correct_format() {
         let result = KatResult::passed("debug_test".to_string(), Duration::from_millis(1));
         let debug_str = format!("{:?}", result);
 
@@ -143,7 +143,7 @@ mod ml_kem_kat_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_kat_vector_construction() {
+    fn test_ml_kem_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "ML-KEM-768-001");
@@ -155,7 +155,7 @@ mod ml_kem_kat_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_kat_vector_clone() {
+    fn test_ml_kem_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -163,7 +163,7 @@ mod ml_kem_kat_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_kat_vector_empty_fields() {
+    fn test_ml_kem_kat_vector_empty_fields_are_accepted_matches_expected() {
         let vector = MlKemKatVector {
             test_case: String::new(),
             seed: vec![],
@@ -197,7 +197,7 @@ mod ml_dsa_kat_vector_tests {
     }
 
     #[test]
-    fn test_ml_dsa_kat_vector_construction() {
+    fn test_ml_dsa_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "ML-DSA-65-001");
@@ -209,7 +209,7 @@ mod ml_dsa_kat_vector_tests {
     }
 
     #[test]
-    fn test_ml_dsa_kat_vector_clone() {
+    fn test_ml_dsa_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -217,7 +217,7 @@ mod ml_dsa_kat_vector_tests {
     }
 
     #[test]
-    fn test_ml_dsa_kat_vector_equality() {
+    fn test_ml_dsa_kat_vector_equality_matches_expected() {
         let v1 = create_test_vector();
         let v2 = create_test_vector();
 
@@ -248,7 +248,7 @@ mod slh_dsa_kat_vector_tests {
     }
 
     #[test]
-    fn test_slh_dsa_kat_vector_construction() {
+    fn test_slh_dsa_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "SLH-DSA-128s-001");
@@ -259,7 +259,7 @@ mod slh_dsa_kat_vector_tests {
     }
 
     #[test]
-    fn test_slh_dsa_kat_vector_clone() {
+    fn test_slh_dsa_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -284,7 +284,7 @@ mod hybrid_kem_kat_vector_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_kat_vector_construction() {
+    fn test_hybrid_kem_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "Hybrid-X25519-ML-KEM-001");
@@ -294,7 +294,7 @@ mod hybrid_kem_kat_vector_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_kat_vector_clone() {
+    fn test_hybrid_kem_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -322,7 +322,7 @@ mod aes_gcm_kat_vector_tests {
     }
 
     #[test]
-    fn test_aes_gcm_kat_vector_construction() {
+    fn test_aes_gcm_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "AES-256-GCM-001");
@@ -335,7 +335,7 @@ mod aes_gcm_kat_vector_tests {
     }
 
     #[test]
-    fn test_aes_gcm_kat_vector_clone() {
+    fn test_aes_gcm_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -343,7 +343,7 @@ mod aes_gcm_kat_vector_tests {
     }
 
     #[test]
-    fn test_aes_gcm_kat_vector_empty_aad() {
+    fn test_aes_gcm_kat_vector_empty_aad_is_accepted() {
         let vector = AesGcmKatVector {
             test_case: "AES-GCM-no-aad".to_string(),
             key: vec![0x00; 16],
@@ -374,7 +374,7 @@ mod sha3_kat_vector_tests {
     }
 
     #[test]
-    fn test_sha3_kat_vector_construction() {
+    fn test_sha3_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "SHA3-256-001");
@@ -383,7 +383,7 @@ mod sha3_kat_vector_tests {
     }
 
     #[test]
-    fn test_sha3_kat_vector_clone() {
+    fn test_sha3_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -391,7 +391,7 @@ mod sha3_kat_vector_tests {
     }
 
     #[test]
-    fn test_sha3_kat_vector_empty_message() {
+    fn test_sha3_kat_vector_empty_message_is_accepted() {
         let vector = Sha3KatVector {
             test_case: "SHA3-256-empty".to_string(),
             message: vec![],
@@ -420,7 +420,7 @@ mod ed25519_kat_vector_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_construction() {
+    fn test_ed25519_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "Ed25519-001");
@@ -431,7 +431,7 @@ mod ed25519_kat_vector_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_clone() {
+    fn test_ed25519_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -457,7 +457,7 @@ mod bls12_381_kat_vector_tests {
     }
 
     #[test]
-    fn test_bls12_381_kat_vector_construction() {
+    fn test_bls12_381_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "BLS12-381-001");
@@ -468,7 +468,7 @@ mod bls12_381_kat_vector_tests {
     }
 
     #[test]
-    fn test_bls12_381_kat_vector_clone() {
+    fn test_bls12_381_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -494,7 +494,7 @@ mod bn254_kat_vector_tests {
     }
 
     #[test]
-    fn test_bn254_kat_vector_construction() {
+    fn test_bn254_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "BN254-001");
@@ -505,7 +505,7 @@ mod bn254_kat_vector_tests {
     }
 
     #[test]
-    fn test_bn254_kat_vector_clone() {
+    fn test_bn254_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -531,7 +531,7 @@ mod secp256k1_kat_vector_tests {
     }
 
     #[test]
-    fn test_secp256k1_kat_vector_construction() {
+    fn test_secp256k1_kat_vector_construction_has_correct_fields_matches_expected() {
         let vector = create_test_vector();
 
         assert_eq!(vector.test_case, "secp256k1-001");
@@ -542,7 +542,7 @@ mod secp256k1_kat_vector_tests {
     }
 
     #[test]
-    fn test_secp256k1_kat_vector_clone() {
+    fn test_secp256k1_kat_vector_clone_produces_equal_value_matches_expected() {
         let original = create_test_vector();
         let cloned = original.clone();
 
@@ -567,7 +567,7 @@ mod nist_statistical_test_result_tests {
     }
 
     #[test]
-    fn test_nist_statistical_test_result_construction() {
+    fn test_nist_statistical_test_result_construction_has_correct_fields_succeeds() {
         let result = create_test_result();
 
         assert_eq!(result.test_name, "Frequency Test");
@@ -577,7 +577,7 @@ mod nist_statistical_test_result_tests {
     }
 
     #[test]
-    fn test_nist_statistical_test_result_clone() {
+    fn test_nist_statistical_test_result_clone_produces_equal_value_succeeds() {
         let original = create_test_result();
         let cloned = original.clone();
 
@@ -587,7 +587,7 @@ mod nist_statistical_test_result_tests {
     }
 
     #[test]
-    fn test_nist_statistical_test_result_failed() {
+    fn test_nist_statistical_test_result_failed_has_correct_fields_fails() {
         let result = NistStatisticalTestResult {
             test_name: "Runs Test".to_string(),
             p_value: 0.005,
@@ -631,7 +631,7 @@ mod rng_test_results_tests {
     }
 
     #[test]
-    fn test_rng_test_results_construction() {
+    fn test_rng_test_results_construction_has_correct_fields_succeeds() {
         let results = create_test_results();
 
         assert_eq!(results.algorithm, "ML-KEM-768-RNG");
@@ -642,7 +642,7 @@ mod rng_test_results_tests {
     }
 
     #[test]
-    fn test_rng_test_results_clone() {
+    fn test_rng_test_results_clone_produces_equal_value_succeeds() {
         let original = create_test_results();
         let cloned = original.clone();
 
@@ -652,7 +652,7 @@ mod rng_test_results_tests {
     }
 
     #[test]
-    fn test_rng_test_results_failed_overall() {
+    fn test_rng_test_results_failed_overall_is_correct() {
         let results = RngTestResults {
             algorithm: "Weak-RNG".to_string(),
             bits_tested: 100_000,
@@ -679,7 +679,7 @@ mod algorithm_type_name_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_name() {
+    fn test_ml_kem_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::MlKem { variant: "512".to_string() };
         assert_eq!(algo.name(), "ML-KEM-512");
 
@@ -691,7 +691,7 @@ mod algorithm_type_name_tests {
     }
 
     #[test]
-    fn test_ml_dsa_name() {
+    fn test_ml_dsa_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::MlDsa { variant: "44".to_string() };
         assert_eq!(algo.name(), "ML-DSA-44");
 
@@ -703,7 +703,7 @@ mod algorithm_type_name_tests {
     }
 
     #[test]
-    fn test_slh_dsa_name() {
+    fn test_slh_dsa_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::SlhDsa { variant: "128s".to_string() };
         assert_eq!(algo.name(), "SLH-DSA-128s");
 
@@ -712,13 +712,13 @@ mod algorithm_type_name_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_name() {
+    fn test_hybrid_kem_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::HybridKem;
         assert_eq!(algo.name(), "Hybrid-KEM");
     }
 
     #[test]
-    fn test_aes_gcm_name() {
+    fn test_aes_gcm_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::AesGcm { key_size: 16 };
         assert_eq!(algo.name(), "AES-128-GCM");
 
@@ -730,7 +730,7 @@ mod algorithm_type_name_tests {
     }
 
     #[test]
-    fn test_sha3_name() {
+    fn test_sha3_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::Sha3 { variant: "256".to_string() };
         assert_eq!(algo.name(), "SHA3-256");
 
@@ -739,25 +739,25 @@ mod algorithm_type_name_tests {
     }
 
     #[test]
-    fn test_ed25519_name() {
+    fn test_ed25519_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::Ed25519;
         assert_eq!(algo.name(), "Ed25519");
     }
 
     #[test]
-    fn test_bls12_381_name() {
+    fn test_bls12_381_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::Bls12_381;
         assert_eq!(algo.name(), "BLS12-381");
     }
 
     #[test]
-    fn test_bn254_name() {
+    fn test_bn254_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::Bn254;
         assert_eq!(algo.name(), "BN254");
     }
 
     #[test]
-    fn test_secp256k1_name() {
+    fn test_secp256k1_name_returns_correct_string_succeeds() {
         let algo = AlgorithmType::Secp256k1;
         assert_eq!(algo.name(), "secp256k1");
     }
@@ -771,7 +771,7 @@ mod algorithm_type_security_level_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_security_levels() {
+    fn test_ml_kem_security_levels_are_correct() {
         let algo = AlgorithmType::MlKem { variant: "512".to_string() };
         assert_eq!(algo.security_level(), 128);
 
@@ -783,13 +783,13 @@ mod algorithm_type_security_level_tests {
     }
 
     #[test]
-    fn test_ml_kem_unknown_variant_defaults_to_128() {
+    fn test_ml_kem_unknown_variant_defaults_to_128_is_correct() {
         let algo = AlgorithmType::MlKem { variant: "unknown".to_string() };
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_ml_dsa_security_levels() {
+    fn test_ml_dsa_security_levels_are_correct() {
         let algo = AlgorithmType::MlDsa { variant: "44".to_string() };
         assert_eq!(algo.security_level(), 128);
 
@@ -801,13 +801,13 @@ mod algorithm_type_security_level_tests {
     }
 
     #[test]
-    fn test_ml_dsa_unknown_variant_defaults_to_128() {
+    fn test_ml_dsa_unknown_variant_defaults_to_128_is_correct() {
         let algo = AlgorithmType::MlDsa { variant: "invalid".to_string() };
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_slh_dsa_security_levels() {
+    fn test_slh_dsa_security_levels_are_correct() {
         let algo = AlgorithmType::SlhDsa { variant: "128".to_string() };
         assert_eq!(algo.security_level(), 128);
 
@@ -819,19 +819,19 @@ mod algorithm_type_security_level_tests {
     }
 
     #[test]
-    fn test_slh_dsa_unknown_variant_defaults_to_128() {
+    fn test_slh_dsa_unknown_variant_defaults_to_128_is_correct() {
         let algo = AlgorithmType::SlhDsa { variant: "other".to_string() };
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_hybrid_kem_security_level() {
+    fn test_hybrid_kem_security_level_is_correct() {
         let algo = AlgorithmType::HybridKem;
         assert_eq!(algo.security_level(), 256);
     }
 
     #[test]
-    fn test_aes_gcm_security_levels() {
+    fn test_aes_gcm_security_levels_are_correct() {
         let algo = AlgorithmType::AesGcm { key_size: 16 };
         assert_eq!(algo.security_level(), 128);
 
@@ -843,7 +843,7 @@ mod algorithm_type_security_level_tests {
     }
 
     #[test]
-    fn test_sha3_security_levels() {
+    fn test_sha3_security_levels_are_correct() {
         let algo = AlgorithmType::Sha3 { variant: "256".to_string() };
         assert_eq!(algo.security_level(), 256);
 
@@ -852,31 +852,31 @@ mod algorithm_type_security_level_tests {
     }
 
     #[test]
-    fn test_sha3_invalid_variant_defaults_to_256() {
+    fn test_sha3_invalid_variant_defaults_to_256_is_correct() {
         let algo = AlgorithmType::Sha3 { variant: "invalid".to_string() };
         assert_eq!(algo.security_level(), 256);
     }
 
     #[test]
-    fn test_ed25519_security_level() {
+    fn test_ed25519_security_level_is_correct() {
         let algo = AlgorithmType::Ed25519;
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_bls12_381_security_level() {
+    fn test_bls12_381_security_level_is_correct() {
         let algo = AlgorithmType::Bls12_381;
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_bn254_security_level() {
+    fn test_bn254_security_level_is_correct() {
         let algo = AlgorithmType::Bn254;
         assert_eq!(algo.security_level(), 128);
     }
 
     #[test]
-    fn test_secp256k1_security_level() {
+    fn test_secp256k1_security_level_is_correct() {
         let algo = AlgorithmType::Secp256k1;
         assert_eq!(algo.security_level(), 128);
     }
@@ -890,7 +890,7 @@ mod algorithm_type_traits_tests {
     use super::*;
 
     #[test]
-    fn test_algorithm_type_clone() {
+    fn test_algorithm_type_clone_produces_equal_value_succeeds() {
         let original = AlgorithmType::MlKem { variant: "768".to_string() };
         let cloned = original.clone();
 
@@ -898,7 +898,7 @@ mod algorithm_type_traits_tests {
     }
 
     #[test]
-    fn test_algorithm_type_equality() {
+    fn test_algorithm_type_equality_matches_expected() {
         let a1 = AlgorithmType::MlKem { variant: "768".to_string() };
         let a2 = AlgorithmType::MlKem { variant: "768".to_string() };
         let a3 = AlgorithmType::MlKem { variant: "512".to_string() };
@@ -908,7 +908,7 @@ mod algorithm_type_traits_tests {
     }
 
     #[test]
-    fn test_algorithm_type_debug() {
+    fn test_algorithm_type_debug_has_correct_format() {
         let algo = AlgorithmType::Ed25519;
         let debug_str = format!("{:?}", algo);
 
@@ -924,7 +924,7 @@ mod kat_config_tests {
     use super::*;
 
     #[test]
-    fn test_kat_config_default() {
+    fn test_kat_config_default_has_expected_values_matches_expected() {
         let config = KatConfig::default();
 
         assert!(matches!(
@@ -938,7 +938,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_ml_kem_constructor() {
+    fn test_kat_config_ml_kem_constructor_has_correct_fields_matches_expected() {
         let config = KatConfig::ml_kem("512", 50);
 
         assert!(matches!(
@@ -952,7 +952,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_ml_dsa_constructor() {
+    fn test_kat_config_ml_dsa_constructor_has_correct_fields_matches_expected() {
         let config = KatConfig::ml_dsa("65", 200);
 
         assert!(matches!(
@@ -966,7 +966,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_slh_dsa_constructor() {
+    fn test_kat_config_slh_dsa_constructor_has_correct_fields_matches_expected() {
         let config = KatConfig::slh_dsa("256f", 10);
 
         assert!(matches!(
@@ -981,7 +981,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_clone() {
+    fn test_kat_config_clone_produces_equal_value_matches_expected() {
         let original = KatConfig::ml_kem("1024", 100);
         let cloned = original.clone();
 
@@ -989,7 +989,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_equality() {
+    fn test_kat_config_equality_matches_expected() {
         let c1 = KatConfig::ml_kem("768", 100);
         let c2 = KatConfig::ml_kem("768", 100);
         let c3 = KatConfig::ml_kem("768", 50);
@@ -999,7 +999,7 @@ mod kat_config_tests {
     }
 
     #[test]
-    fn test_kat_config_debug() {
+    fn test_kat_config_debug_has_correct_format() {
         let config = KatConfig::default();
         let debug_str = format!("{:?}", config);
 
@@ -1017,7 +1017,7 @@ mod serialization_tests {
     use super::*;
 
     #[test]
-    fn test_kat_result_serialization() {
+    fn test_kat_result_serialization_round_trips_correctly_roundtrip() {
         let result = KatResult::passed("test".to_string(), Duration::from_millis(100));
         let json = serde_json::to_string(&result).unwrap();
         let deserialized: KatResult = serde_json::from_str(&json).unwrap();
@@ -1026,7 +1026,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_kat_result_failed_serialization() {
+    fn test_kat_result_failed_serialization_round_trips_correctly_roundtrip() {
         let result = KatResult::failed(
             "fail_test".to_string(),
             Duration::from_millis(50),
@@ -1040,7 +1040,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_ml_kem_kat_vector_serialization() {
+    fn test_ml_kem_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = MlKemKatVector {
             test_case: "test".to_string(),
             seed: vec![1, 2, 3],
@@ -1056,7 +1056,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_ml_dsa_kat_vector_serialization() {
+    fn test_ml_dsa_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = MlDsaKatVector {
             test_case: "test".to_string(),
             seed: vec![1, 2, 3],
@@ -1072,7 +1072,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_slh_dsa_kat_vector_serialization() {
+    fn test_slh_dsa_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = SlhDsaKatVector {
             test_case: "test".to_string(),
             seed: vec![1, 2, 3],
@@ -1087,7 +1087,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_kat_vector_serialization() {
+    fn test_hybrid_kem_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = HybridKemKatVector {
             test_case: "test".to_string(),
             seed: vec![1, 2, 3],
@@ -1101,7 +1101,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_aes_gcm_kat_vector_serialization() {
+    fn test_aes_gcm_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = AesGcmKatVector {
             test_case: "test".to_string(),
             key: vec![0; 32],
@@ -1118,7 +1118,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_sha3_kat_vector_serialization() {
+    fn test_sha3_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = Sha3KatVector {
             test_case: "test".to_string(),
             message: b"message".to_vec(),
@@ -1131,7 +1131,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_ed25519_kat_vector_serialization() {
+    fn test_ed25519_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = Ed25519KatVector {
             test_case: "test".to_string(),
             seed: vec![0; 32],
@@ -1146,7 +1146,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_bls12_381_kat_vector_serialization() {
+    fn test_bls12_381_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = Bls12_381KatVector {
             test_case: "test".to_string(),
             secret_key: vec![0; 32],
@@ -1161,7 +1161,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_bn254_kat_vector_serialization() {
+    fn test_bn254_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = Bn254KatVector {
             test_case: "test".to_string(),
             secret_key: vec![0; 32],
@@ -1176,7 +1176,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_secp256k1_kat_vector_serialization() {
+    fn test_secp256k1_kat_vector_serialization_round_trips_correctly_roundtrip() {
         let vector = Secp256k1KatVector {
             test_case: "test".to_string(),
             private_key: vec![0; 32],
@@ -1191,7 +1191,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_nist_statistical_test_result_serialization() {
+    fn test_nist_statistical_test_result_serialization_round_trips_correctly_roundtrip() {
         let result = NistStatisticalTestResult {
             test_name: "Frequency".to_string(),
             p_value: 0.5,
@@ -1207,7 +1207,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_rng_test_results_serialization() {
+    fn test_rng_test_results_serialization_round_trips_correctly_roundtrip() {
         let results = RngTestResults {
             algorithm: "ML-KEM-RNG".to_string(),
             bits_tested: 1_000_000,
@@ -1224,7 +1224,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_algorithm_type_serialization() {
+    fn test_algorithm_type_serialization_round_trips_correctly_roundtrip() {
         let variants = vec![
             AlgorithmType::MlKem { variant: "768".to_string() },
             AlgorithmType::MlDsa { variant: "65".to_string() },
@@ -1246,7 +1246,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_kat_config_serialization() {
+    fn test_kat_config_serialization_round_trips_correctly_roundtrip() {
         let config = KatConfig::ml_kem("768", 100);
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: KatConfig = serde_json::from_str(&json).unwrap();
@@ -1255,7 +1255,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn test_kat_config_default_serialization() {
+    fn test_kat_config_default_serialization_round_trips_correctly_roundtrip() {
         let config = KatConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: KatConfig = serde_json::from_str(&json).unwrap();
@@ -1272,26 +1272,26 @@ mod deserialization_error_tests {
     use super::*;
 
     #[test]
-    fn test_kat_result_invalid_json() {
+    fn test_kat_result_invalid_json_returns_error() {
         let result: Result<KatResult, _> = serde_json::from_str("invalid json");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_kat_result_missing_field() {
+    fn test_kat_result_missing_field_returns_error() {
         let json = r#"{"test_case": "test", "passed": true}"#;
         let result: Result<KatResult, _> = serde_json::from_str(json);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_algorithm_type_invalid_json() {
+    fn test_algorithm_type_invalid_json_returns_error() {
         let result: Result<AlgorithmType, _> = serde_json::from_str("not valid");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_kat_config_invalid_json() {
+    fn test_kat_config_invalid_json_returns_error() {
         let result: Result<KatConfig, _> = serde_json::from_str("{}");
         assert!(result.is_err());
     }
@@ -1305,7 +1305,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_empty_vectors() {
+    fn test_empty_vectors_are_accepted_matches_expected() {
         let vector = MlKemKatVector {
             test_case: String::new(),
             seed: vec![],
@@ -1322,7 +1322,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_large_vectors() {
+    fn test_large_vectors_are_accepted_matches_expected() {
         let large_data = vec![0xAB; 100_000];
         let vector = MlKemKatVector {
             test_case: "large".to_string(),
@@ -1340,7 +1340,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_special_characters_in_test_case() {
+    fn test_special_characters_in_test_case_are_accepted_succeeds() {
         let result = KatResult::passed("test/with\\special\"chars\n\t".to_string(), Duration::ZERO);
 
         let json = serde_json::to_string(&result).unwrap();
@@ -1350,7 +1350,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_unicode_in_test_case() {
+    fn test_unicode_in_test_case_are_accepted_succeeds() {
         let result = KatResult::passed("test_unicode_\u{1F512}".to_string(), Duration::ZERO);
 
         let json = serde_json::to_string(&result).unwrap();
@@ -1360,21 +1360,21 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_max_duration() {
+    fn test_max_duration_is_accepted() {
         let result = KatResult::passed("max_duration".to_string(), Duration::MAX);
 
         assert_eq!(result.execution_time_ns, Duration::MAX.as_nanos());
     }
 
     #[test]
-    fn test_zero_test_count_config() {
+    fn test_zero_test_count_config_is_accepted() {
         let config = KatConfig::ml_kem("768", 0);
 
         assert_eq!(config.test_count, 0);
     }
 
     #[test]
-    fn test_aes_gcm_zero_key_size() {
+    fn test_aes_gcm_zero_key_size_is_accepted() {
         let algo = AlgorithmType::AesGcm { key_size: 0 };
 
         assert_eq!(algo.name(), "AES-0-GCM");
@@ -1382,7 +1382,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_p_value_edge_cases() {
+    fn test_p_value_edge_cases_are_accepted_succeeds() {
         // Exactly 0
         let result = NistStatisticalTestResult {
             test_name: "Zero p-value".to_string(),
@@ -1403,7 +1403,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_entropy_estimate_edge_cases() {
+    fn test_entropy_estimate_edge_cases_are_accepted_succeeds() {
         let results = RngTestResults {
             algorithm: "test".to_string(),
             bits_tested: 0,
@@ -1432,7 +1432,7 @@ mod json_format_tests {
     use super::*;
 
     #[test]
-    fn test_kat_result_json_structure() {
+    fn test_kat_result_json_structure_has_correct_format() {
         let result = KatResult::passed("test".to_string(), Duration::from_millis(100));
         let json = serde_json::to_string(&result).unwrap();
 
@@ -1443,7 +1443,7 @@ mod json_format_tests {
     }
 
     #[test]
-    fn test_algorithm_type_json_structure_ml_kem() {
+    fn test_algorithm_type_json_structure_ml_kem_has_correct_format() {
         let algo = AlgorithmType::MlKem { variant: "768".to_string() };
         let json = serde_json::to_string(&algo).unwrap();
 
@@ -1453,7 +1453,7 @@ mod json_format_tests {
     }
 
     #[test]
-    fn test_algorithm_type_json_structure_unit_variants() {
+    fn test_algorithm_type_json_structure_unit_variants_has_correct_format() {
         let algo = AlgorithmType::Ed25519;
         let json = serde_json::to_string(&algo).unwrap();
 
@@ -1461,7 +1461,7 @@ mod json_format_tests {
     }
 
     #[test]
-    fn test_kat_config_json_structure() {
+    fn test_kat_config_json_structure_has_correct_format() {
         let config = KatConfig::default();
         let json = serde_json::to_string(&config).unwrap();
 

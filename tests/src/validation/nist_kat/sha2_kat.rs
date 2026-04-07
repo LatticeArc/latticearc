@@ -319,37 +319,37 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sha256_kat() {
+    fn test_sha256_kat_matches_nist_vector_matches_expected() {
         let result = run_sha256_kat();
         assert!(result.is_ok(), "SHA-256 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_sha224_kat() {
+    fn test_sha224_kat_matches_nist_vector_matches_expected() {
         let result = run_sha224_kat();
         assert!(result.is_ok(), "SHA-224 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_sha384_kat() {
+    fn test_sha384_kat_matches_nist_vector_matches_expected() {
         let result = run_sha384_kat();
         assert!(result.is_ok(), "SHA-384 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_sha512_kat() {
+    fn test_sha512_kat_matches_nist_vector_matches_expected() {
         let result = run_sha512_kat();
         assert!(result.is_ok(), "SHA-512 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_sha512_224_kat() {
+    fn test_sha512_224_kat_matches_nist_vector_matches_expected() {
         let result = run_sha512_224_kat();
         assert!(result.is_ok(), "SHA-512/224 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_sha512_256_kat() {
+    fn test_sha512_256_kat_matches_nist_vector_matches_expected() {
         let result = run_sha512_256_kat();
         assert!(result.is_ok(), "SHA-512/256 KAT failed: {:?}", result);
     }
@@ -607,7 +607,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sha256_mismatch_hex_error_in_message() {
+    fn test_sha256_mismatch_hex_error_in_message_fails() {
         let result = verify_sha256_mismatch_error(
             "ZZZZ",
             "e3b0c44298fc1c149afbf4c8996fb924\
@@ -621,7 +621,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha256_mismatch_hex_error_in_expected() {
+    fn test_sha256_mismatch_hex_error_in_expected_fails() {
         let result = verify_sha256_mismatch_error("616263", "ZZZZ", "hex-err-expected");
         assert!(result.is_err());
         if let Err(NistKatError::HexError(msg)) = result {
@@ -630,7 +630,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha224_mismatch_hex_error_in_message() {
+    fn test_sha224_mismatch_hex_error_in_message_fails() {
         let result = verify_sha224_mismatch_error(
             "XY",
             "d14a028c2a3a2bc9476102bb288234c4\
@@ -644,7 +644,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha384_mismatch_hex_error_in_message() {
+    fn test_sha384_mismatch_hex_error_in_message_fails() {
         let result = verify_sha384_mismatch_error(
             "GG",
             "38b060a751ac96384cd9327eb1b1e36a\
@@ -656,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_mismatch_hex_error_in_message() {
+    fn test_sha512_mismatch_hex_error_in_message_fails() {
         let result = verify_sha512_mismatch_error(
             "QQ",
             "cf83e1357eefb8bdf1542850d66d8007\
@@ -669,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_224_mismatch_hex_error_in_message() {
+    fn test_sha512_224_mismatch_hex_error_in_message_fails() {
         let result = verify_sha512_224_mismatch_error(
             "!!",
             "6ed0dd02806fa89e25de060c19d3ac86\
@@ -680,7 +680,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_256_mismatch_hex_error_in_message() {
+    fn test_sha512_256_mismatch_hex_error_in_message_fails() {
         let result = verify_sha512_256_mismatch_error(
             "$$",
             "c672b8d1ef56ed28ab87c3622c511406\
@@ -695,37 +695,37 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sha256_vector_count() {
+    fn test_sha256_vector_count_matches_expected() {
         assert_eq!(SHA256_VECTORS.len(), 4);
     }
 
     #[test]
-    fn test_sha224_vector_count() {
+    fn test_sha224_vector_count_matches_expected() {
         assert_eq!(SHA224_VECTORS.len(), 2);
     }
 
     #[test]
-    fn test_sha384_vector_count() {
+    fn test_sha384_vector_count_matches_expected() {
         assert_eq!(SHA384_VECTORS.len(), 2);
     }
 
     #[test]
-    fn test_sha512_vector_count() {
+    fn test_sha512_vector_count_matches_expected() {
         assert_eq!(SHA512_VECTORS.len(), 2);
     }
 
     #[test]
-    fn test_sha512_224_vector_count() {
+    fn test_sha512_224_vector_count_matches_expected() {
         assert_eq!(SHA512_224_VECTORS.len(), 2);
     }
 
     #[test]
-    fn test_sha512_256_vector_count() {
+    fn test_sha512_256_vector_count_matches_expected() {
         assert_eq!(SHA512_256_VECTORS.len(), 2);
     }
 
     #[test]
-    fn test_all_vectors_have_valid_hex_messages() {
+    fn test_all_vectors_have_valid_hex_messages_matches_expected() {
         for v in SHA256_VECTORS {
             assert!(decode_hex(v.message).is_ok(), "bad hex in {}", v.test_name);
         }
@@ -747,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_vectors_have_valid_hex_expected_hashes() {
+    fn test_all_vectors_have_valid_hex_expected_hashes_matches_expected() {
         for v in SHA256_VECTORS {
             assert!(
                 decode_hex(v.expected_hash).is_ok(),
@@ -793,7 +793,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_vectors_have_non_empty_test_names() {
+    fn test_all_vectors_have_non_empty_test_names_matches_expected() {
         for v in SHA256_VECTORS {
             assert!(!v.test_name.is_empty());
         }
@@ -815,7 +815,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha256_expected_hash_length() {
+    fn test_sha256_expected_hash_length_matches_expected() {
         for v in SHA256_VECTORS {
             // SHA-256 produces 32 bytes = 64 hex chars
             assert_eq!(v.expected_hash.len(), 64, "{}", v.test_name);
@@ -823,7 +823,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha224_expected_hash_length() {
+    fn test_sha224_expected_hash_length_matches_expected() {
         for v in SHA224_VECTORS {
             // SHA-224 produces 28 bytes = 56 hex chars
             assert_eq!(v.expected_hash.len(), 56, "{}", v.test_name);
@@ -831,7 +831,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha384_expected_hash_length() {
+    fn test_sha384_expected_hash_length_matches_expected() {
         for v in SHA384_VECTORS {
             // SHA-384 produces 48 bytes = 96 hex chars
             assert_eq!(v.expected_hash.len(), 96, "{}", v.test_name);
@@ -839,7 +839,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_expected_hash_length() {
+    fn test_sha512_expected_hash_length_matches_expected() {
         for v in SHA512_VECTORS {
             // SHA-512 produces 64 bytes = 128 hex chars
             assert_eq!(v.expected_hash.len(), 128, "{}", v.test_name);
@@ -847,7 +847,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_224_expected_hash_length() {
+    fn test_sha512_224_expected_hash_length_matches_expected() {
         for v in SHA512_224_VECTORS {
             // SHA-512/224 produces 28 bytes = 56 hex chars
             assert_eq!(v.expected_hash.len(), 56, "{}", v.test_name);
@@ -855,7 +855,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_256_expected_hash_length() {
+    fn test_sha512_256_expected_hash_length_matches_expected() {
         for v in SHA512_256_VECTORS {
             // SHA-512/256 produces 32 bytes = 64 hex chars
             assert_eq!(v.expected_hash.len(), 64, "{}", v.test_name);
@@ -867,42 +867,42 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sha224_output_is_28_bytes() {
+    fn test_sha224_output_is_28_bytes_succeeds() {
         let mut h = Sha224::new();
         h.update(b"");
         assert_eq!(h.finalize().len(), 28);
     }
 
     #[test]
-    fn test_sha256_output_is_32_bytes() {
+    fn test_sha256_output_is_32_bytes_succeeds() {
         let mut h = Sha256::new();
         h.update(b"");
         assert_eq!(h.finalize().len(), 32);
     }
 
     #[test]
-    fn test_sha384_output_is_48_bytes() {
+    fn test_sha384_output_is_48_bytes_succeeds() {
         let mut h = Sha384::new();
         h.update(b"");
         assert_eq!(h.finalize().len(), 48);
     }
 
     #[test]
-    fn test_sha512_output_is_64_bytes() {
+    fn test_sha512_output_is_64_bytes_succeeds() {
         let mut h = Sha512::new();
         h.update(b"");
         assert_eq!(h.finalize().len(), 64);
     }
 
     #[test]
-    fn test_sha512_224_output_is_28_bytes() {
+    fn test_sha512_224_output_is_28_bytes_succeeds() {
         let mut h = Sha512_224::new();
         h.update(b"");
         assert_eq!(h.finalize().len(), 28);
     }
 
     #[test]
-    fn test_sha512_256_output_is_32_bytes() {
+    fn test_sha512_256_output_is_32_bytes_succeeds() {
         let mut h = Sha512_256::new();
         h.update(b"");
         assert_eq!(h.finalize().len(), 32);
@@ -966,7 +966,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sha256_deterministic() {
+    fn test_sha256_deterministic_matches_nist_vector_matches_expected() {
         let msg = decode_hex("deadbeef").ok();
         assert!(msg.is_some());
         let msg = msg.unwrap_or_default();
@@ -980,7 +980,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_deterministic() {
+    fn test_sha512_deterministic_matches_nist_vector_matches_expected() {
         let msg = decode_hex("cafebabe").ok();
         assert!(msg.is_some());
         let msg = msg.unwrap_or_default();
@@ -998,7 +998,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sha256_empty_message_vector() {
+    fn test_sha256_empty_message_vector_matches_nist_vector_matches_expected() {
         if let Some(v) = SHA256_VECTORS.first() {
             assert_eq!(v.message, "");
             let result = verify_sha256_mismatch_error(v.message, v.expected_hash, v.test_name);
@@ -1007,7 +1007,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha224_empty_message_vector() {
+    fn test_sha224_empty_message_vector_matches_nist_vector_matches_expected() {
         if let Some(v) = SHA224_VECTORS.first() {
             assert_eq!(v.message, "");
             let result = verify_sha224_mismatch_error(v.message, v.expected_hash, v.test_name);
@@ -1016,7 +1016,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha384_empty_message_vector() {
+    fn test_sha384_empty_message_vector_matches_nist_vector_matches_expected() {
         if let Some(v) = SHA384_VECTORS.first() {
             assert_eq!(v.message, "");
             let result = verify_sha384_mismatch_error(v.message, v.expected_hash, v.test_name);
@@ -1025,7 +1025,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_empty_message_vector() {
+    fn test_sha512_empty_message_vector_matches_nist_vector_matches_expected() {
         if let Some(v) = SHA512_VECTORS.first() {
             assert_eq!(v.message, "");
             let result = verify_sha512_mismatch_error(v.message, v.expected_hash, v.test_name);
@@ -1034,7 +1034,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_224_empty_message_vector() {
+    fn test_sha512_224_empty_message_vector_matches_nist_vector_matches_expected() {
         if let Some(v) = SHA512_224_VECTORS.first() {
             assert_eq!(v.message, "");
             let result = verify_sha512_224_mismatch_error(v.message, v.expected_hash, v.test_name);
@@ -1043,7 +1043,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_256_empty_message_vector() {
+    fn test_sha512_256_empty_message_vector_matches_nist_vector_matches_expected() {
         if let Some(v) = SHA512_256_VECTORS.first() {
             assert_eq!(v.message, "");
             let result = verify_sha512_256_mismatch_error(v.message, v.expected_hash, v.test_name);
@@ -1056,7 +1056,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_nist_kat_error_test_failed_display() {
+    fn test_nist_kat_error_test_failed_display_matches_expected() {
         let err = NistKatError::TestFailed {
             algorithm: "SHA-256".to_string(),
             test_name: "KAT-1".to_string(),
@@ -1069,7 +1069,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_kat_error_hex_error_display() {
+    fn test_nist_kat_error_hex_error_display_matches_expected() {
         let err = NistKatError::HexError("bad input".to_string());
         let s = format!("{err}");
         assert!(s.contains("Hex decode error"));
@@ -1077,7 +1077,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_kat_error_debug() {
+    fn test_nist_kat_error_debug_matches_expected() {
         let err = NistKatError::TestFailed {
             algorithm: "SHA-384".to_string(),
             test_name: "KAT-2".to_string(),
@@ -1092,7 +1092,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sha256_incremental_vs_single_update() {
+    fn test_sha256_incremental_vs_single_update_matches_expected() {
         let data = b"abcdefghij";
 
         let mut h1 = Sha256::new();
@@ -1109,7 +1109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sha512_incremental_vs_single_update() {
+    fn test_sha512_incremental_vs_single_update_matches_expected() {
         let data = b"abcdefghij";
 
         let mut h1 = Sha512::new();
@@ -1130,7 +1130,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_repeated_kat_runs_all_variants() {
+    fn test_repeated_kat_runs_all_variants_succeeds() {
         for _ in 0..3 {
             assert!(run_sha224_kat().is_ok());
             assert!(run_sha256_kat().is_ok());

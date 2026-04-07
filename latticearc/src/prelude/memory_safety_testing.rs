@@ -35,7 +35,7 @@ impl UtilityMemorySafetyTester {
     /// # Errors
     ///
     /// Returns an error if any memory safety test fails validation.
-    pub fn test_memory_safety(&self) -> Result<()> {
+    pub fn test_memory_safety_succeeds(&self) -> Result<()> {
         tracing::info!("Testing utility memory safety");
 
         // Test hex operations memory safety
@@ -94,7 +94,7 @@ impl UtilityMemorySafetyTester {
     /// # Errors
     ///
     /// Returns an error if hex encoding/decoding memory safety tests fail.
-    pub fn test_hex_memory_safety(&self) -> Result<()> {
+    pub fn test_hex_memory_safety_succeeds(&self) -> Result<()> {
         // Test invalid hex strings - hex decode requires even length and valid hex chars
         let invalid_hex = ["g", "gg", "invalid", "z", "G", "xyz", "123", "abcdefg"];
         for &hex_str in &invalid_hex {
@@ -121,7 +121,7 @@ impl UtilityMemorySafetyTester {
     /// # Errors
     ///
     /// Returns an error if UUID parsing fails during memory safety validation.
-    pub fn test_uuid_memory_safety(&self) -> Result<()> {
+    pub fn test_uuid_memory_safety_succeeds(&self) -> Result<()> {
         // Test UUID generation (should never panic)
         for _ in 0..100 {
             let uuid = uuid::Uuid::new_v4();
@@ -161,7 +161,7 @@ impl UtilityMemorySafetyTester {
     /// # Errors
     ///
     /// Returns an error if error serialization/deserialization fails.
-    pub fn test_error_memory_safety(&self) -> Result<()> {
+    pub fn test_error_memory_safety_fails(&self) -> Result<()> {
         // Test various error types for serialization safety
         let errors = vec![
             LatticeArcError::InvalidInput("test".to_string()),
@@ -189,7 +189,7 @@ impl UtilityMemorySafetyTester {
     /// # Errors
     ///
     /// Returns an error if a thread panics or concurrent operations fail.
-    pub fn test_concurrent_safety(&self) -> Result<()> {
+    pub fn test_concurrent_safety_succeeds(&self) -> Result<()> {
         use std::thread;
 
         let mut handles = vec![];
@@ -294,37 +294,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_memory_safety() {
+    fn test_memory_safety_passes_for_utility_tester_succeeds() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_memory_safety().is_ok());
+        assert!(tester.test_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_concurrent_safety() {
+    fn test_concurrent_safety_passes_for_utility_tester_succeeds() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_concurrent_safety().is_ok());
+        assert!(tester.test_concurrent_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_hex_memory_safety() {
+    fn test_hex_memory_safety_passes_for_utility_tester_succeeds() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_hex_memory_safety().is_ok());
+        assert!(tester.test_hex_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_uuid_memory_safety() {
+    fn test_uuid_memory_safety_passes_for_utility_tester_succeeds() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_uuid_memory_safety().is_ok());
+        assert!(tester.test_uuid_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_error_memory_safety() {
+    fn test_error_memory_safety_passes_for_utility_tester_fails() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_error_memory_safety().is_ok());
+        assert!(tester.test_error_memory_safety_fails().is_ok());
     }
 
     #[test]
-    fn test_leak_detector() {
+    fn test_leak_detector_monitor_leaks_succeeds() {
         let detector = UtilityLeakDetector::new();
 
         let result = detector.monitor_leaks(|| {
@@ -337,20 +337,20 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_safety_tester_default() {
+    fn test_memory_safety_tester_default_passes_memory_safety_succeeds() {
         let tester = UtilityMemorySafetyTester;
-        assert!(tester.test_memory_safety().is_ok());
+        assert!(tester.test_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_leak_detector_default() {
+    fn test_leak_detector_default_monitor_leaks_succeeds() {
         let detector = UtilityLeakDetector;
         let result = detector.monitor_leaks(|| Ok(()));
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_leak_detector_with_failing_operation() {
+    fn test_leak_detector_with_failing_operation_fails() {
         let detector = UtilityLeakDetector::new();
         // Operation that always fails — monitor_leaks should still succeed
         // (it counts errors but doesn't propagate them)
@@ -361,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_leak_detector_with_intermittent_failures() {
+    fn test_leak_detector_with_intermittent_failures_fails() {
         let detector = UtilityLeakDetector::new();
         let counter = std::sync::atomic::AtomicUsize::new(0);
         let result = detector.monitor_leaks(|| {
@@ -376,16 +376,16 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_safety_tester_new_and_default_are_equivalent() {
+    fn test_memory_safety_tester_new_and_default_are_equivalent_succeeds() {
         let t1 = UtilityMemorySafetyTester::new();
         let t2 = UtilityMemorySafetyTester;
         // Both should work identically
-        assert!(t1.test_hex_memory_safety().is_ok());
-        assert!(t2.test_hex_memory_safety().is_ok());
+        assert!(t1.test_hex_memory_safety_succeeds().is_ok());
+        assert!(t2.test_hex_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_leak_detector_new_and_default_are_equivalent() {
+    fn test_leak_detector_new_and_default_are_equivalent_succeeds() {
         let d1 = UtilityLeakDetector::new();
         let d2 = UtilityLeakDetector;
         assert!(d1.monitor_leaks(|| Ok(())).is_ok());
@@ -393,19 +393,19 @@ mod tests {
     }
 
     #[test]
-    fn test_uuid_memory_safety_standalone() {
+    fn test_uuid_memory_safety_standalone_succeeds() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_uuid_memory_safety().is_ok());
+        assert!(tester.test_uuid_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_error_memory_safety_standalone() {
+    fn test_error_memory_safety_standalone_succeeds() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_error_memory_safety().is_ok());
+        assert!(tester.test_error_memory_safety_fails().is_ok());
     }
 
     #[test]
-    fn test_hex_roundtrip_large_data() {
+    fn test_hex_roundtrip_large_data_roundtrip() {
         let tester = UtilityMemorySafetyTester::new();
         // Ensure large data hex encode/decode works
         let data = vec![0xABu8; 4096];
@@ -416,20 +416,20 @@ mod tests {
             assert_eq!(bytes, &data);
         }
         // Basic tester should still pass
-        assert!(tester.test_hex_memory_safety().is_ok());
+        assert!(tester.test_hex_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_concurrent_safety_produces_no_errors() {
+    fn test_concurrent_safety_produces_no_errors_fails() {
         let tester = UtilityMemorySafetyTester::new();
         // Run concurrent safety test multiple times to increase confidence
         for _ in 0..3 {
-            assert!(tester.test_concurrent_safety().is_ok());
+            assert!(tester.test_concurrent_safety_succeeds().is_ok());
         }
     }
 
     #[test]
-    fn test_leak_detector_monitor_many_successes() {
+    fn test_leak_detector_monitor_many_successes_runs_1000_iterations_succeeds() {
         let detector = UtilityLeakDetector::new();
         let counter = std::sync::atomic::AtomicUsize::new(0);
         let result = detector.monitor_leaks(|| {
@@ -444,7 +444,7 @@ mod tests {
     // ---- Coverage: monitor_leaks edge cases ----
 
     #[test]
-    fn test_monitor_leaks_with_allocating_operation() {
+    fn test_monitor_leaks_with_allocating_operation_succeeds() {
         let detector = UtilityLeakDetector::new();
         let result = detector.monitor_leaks(|| {
             // Allocate and free memory within the operation
@@ -457,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn test_monitor_leaks_sequential_runs() {
+    fn test_monitor_leaks_sequential_runs_all_succeed_succeeds() {
         let detector = UtilityLeakDetector::new();
         // Run monitor_leaks multiple times sequentially
         for _ in 0..3 {
@@ -467,13 +467,13 @@ mod tests {
     }
 
     #[test]
-    fn test_utility_memory_safety_tester_default() {
+    fn test_utility_memory_safety_tester_default_passes_memory_safety_succeeds() {
         let tester = UtilityMemorySafetyTester::new();
-        assert!(tester.test_memory_safety().is_ok());
+        assert!(tester.test_memory_safety_succeeds().is_ok());
     }
 
     #[test]
-    fn test_hex_roundtrip_empty_and_single_byte() {
+    fn test_hex_roundtrip_empty_and_single_byte_roundtrip() {
         // Empty data
         let empty: Vec<u8> = vec![];
         let encoded = hex::encode(&empty);

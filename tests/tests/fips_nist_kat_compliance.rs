@@ -57,7 +57,7 @@ mod ml_kem_sizes {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_sizes() {
+    fn test_ml_kem_512_sizes_match_fips203_has_correct_size() {
         // FIPS 203 Table 2: ek=800, dk=1632, ct=768, ss=32
         assert_eq!(ml_kem_512::EK_LEN, 800, "ML-KEM-512 encapsulation key = 800");
         assert_eq!(ml_kem_512::DK_LEN, 1632, "ML-KEM-512 decapsulation key = 1632");
@@ -65,7 +65,7 @@ mod ml_kem_sizes {
     }
 
     #[test]
-    fn test_ml_kem_768_sizes() {
+    fn test_ml_kem_768_sizes_match_fips203_has_correct_size() {
         // FIPS 203 Table 2: ek=1184, dk=2400, ct=1088, ss=32
         assert_eq!(ml_kem_768::EK_LEN, 1184, "ML-KEM-768 encapsulation key = 1184");
         assert_eq!(ml_kem_768::DK_LEN, 2400, "ML-KEM-768 decapsulation key = 2400");
@@ -73,7 +73,7 @@ mod ml_kem_sizes {
     }
 
     #[test]
-    fn test_ml_kem_1024_sizes() {
+    fn test_ml_kem_1024_sizes_match_fips203_has_correct_size() {
         // FIPS 203 Table 2: ek=1568, dk=3168, ct=1568, ss=32
         assert_eq!(ml_kem_1024::EK_LEN, 1568, "ML-KEM-1024 encapsulation key = 1568");
         assert_eq!(ml_kem_1024::DK_LEN, 3168, "ML-KEM-1024 decapsulation key = 3168");
@@ -81,7 +81,7 @@ mod ml_kem_sizes {
     }
 
     #[test]
-    fn test_ml_kem_512_roundtrip() {
+    fn test_ml_kem_512_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_512::KG::try_keygen().expect("ML-KEM-512 keygen failed");
         let (ss_enc, ct) = ek.try_encaps().expect("ML-KEM-512 encaps failed");
         let ss_dec = dk.try_decaps(&ct).expect("ML-KEM-512 decaps failed");
@@ -89,7 +89,7 @@ mod ml_kem_sizes {
     }
 
     #[test]
-    fn test_ml_kem_768_roundtrip() {
+    fn test_ml_kem_768_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_768::KG::try_keygen().expect("ML-KEM-768 keygen failed");
         let (ss_enc, ct) = ek.try_encaps().expect("ML-KEM-768 encaps failed");
         let ss_dec = dk.try_decaps(&ct).expect("ML-KEM-768 decaps failed");
@@ -97,7 +97,7 @@ mod ml_kem_sizes {
     }
 
     #[test]
-    fn test_ml_kem_1024_roundtrip() {
+    fn test_ml_kem_1024_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_1024::KG::try_keygen().expect("ML-KEM-1024 keygen failed");
         let (ss_enc, ct) = ek.try_encaps().expect("ML-KEM-1024 encaps failed");
         let ss_dec = dk.try_decaps(&ct).expect("ML-KEM-1024 decaps failed");
@@ -113,7 +113,7 @@ mod ml_dsa_sizes {
     use super::*;
 
     #[test]
-    fn test_ml_dsa_44_sizes() {
+    fn test_ml_dsa_44_sizes_match_fips204_has_correct_size() {
         // FIPS 204 Table 1: pk=1312, sk=2560, sig=2420
         assert_eq!(ml_dsa_44::PK_LEN, 1312, "ML-DSA-44 public key = 1312");
         assert_eq!(ml_dsa_44::SK_LEN, 2560, "ML-DSA-44 secret key = 2560");
@@ -121,7 +121,7 @@ mod ml_dsa_sizes {
     }
 
     #[test]
-    fn test_ml_dsa_65_sizes() {
+    fn test_ml_dsa_65_sizes_match_fips204_has_correct_size() {
         // FIPS 204 Table 1: pk=1952, sk=4032, sig=3309
         assert_eq!(ml_dsa_65::PK_LEN, 1952, "ML-DSA-65 public key = 1952");
         assert_eq!(ml_dsa_65::SK_LEN, 4032, "ML-DSA-65 secret key = 4032");
@@ -129,7 +129,7 @@ mod ml_dsa_sizes {
     }
 
     #[test]
-    fn test_ml_dsa_87_sizes() {
+    fn test_ml_dsa_87_sizes_match_fips204_has_correct_size() {
         // FIPS 204 Table 1: pk=2592, sk=4896, sig=4627
         assert_eq!(ml_dsa_87::PK_LEN, 2592, "ML-DSA-87 public key = 2592");
         assert_eq!(ml_dsa_87::SK_LEN, 4896, "ML-DSA-87 secret key = 4896");
@@ -137,7 +137,7 @@ mod ml_dsa_sizes {
     }
 
     #[test]
-    fn test_ml_dsa_44_roundtrip() {
+    fn test_ml_dsa_44_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("ML-DSA-44 keygen failed");
         let message = b"NIST KAT compliance roundtrip";
         let context: &[u8] = b"";
@@ -146,7 +146,7 @@ mod ml_dsa_sizes {
     }
 
     #[test]
-    fn test_ml_dsa_65_roundtrip() {
+    fn test_ml_dsa_65_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("ML-DSA-65 keygen failed");
         let message = b"ML-DSA-65 compliance check";
         let context: &[u8] = b"";
@@ -155,7 +155,7 @@ mod ml_dsa_sizes {
     }
 
     #[test]
-    fn test_ml_dsa_87_roundtrip() {
+    fn test_ml_dsa_87_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_87::try_keygen().expect("ML-DSA-87 keygen failed");
         let message = b"ML-DSA-87 compliance check";
         let context: &[u8] = b"";
@@ -172,7 +172,7 @@ mod ml_kem_serialization {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_key_serialization() {
+    fn test_ml_kem_512_key_serialization_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_512::KG::try_keygen().expect("keygen failed");
         let ek_bytes = ek.into_bytes();
         let dk_bytes = dk.into_bytes();
@@ -190,7 +190,7 @@ mod ml_kem_serialization {
     }
 
     #[test]
-    fn test_ml_kem_768_key_serialization() {
+    fn test_ml_kem_768_key_serialization_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_768::KG::try_keygen().expect("keygen failed");
         let ek_bytes = ek.into_bytes();
         let dk_bytes = dk.into_bytes();
@@ -207,7 +207,7 @@ mod ml_kem_serialization {
     }
 
     #[test]
-    fn test_ml_kem_1024_key_serialization() {
+    fn test_ml_kem_1024_key_serialization_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_1024::KG::try_keygen().expect("keygen failed");
         let ek_bytes = ek.into_bytes();
         let dk_bytes = dk.into_bytes();
@@ -232,7 +232,7 @@ mod ml_dsa_serialization {
     use super::*;
 
     #[test]
-    fn test_ml_dsa_44_key_serialization() {
+    fn test_ml_dsa_44_key_serialization_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("keygen failed");
 
         // Verify key sizes match FIPS 204 Table 1
@@ -251,7 +251,7 @@ mod ml_dsa_serialization {
     }
 
     #[test]
-    fn test_ml_dsa_65_key_serialization() {
+    fn test_ml_dsa_65_key_serialization_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("keygen failed");
 
         assert_eq!(pk.into_bytes().len(), ml_dsa_65::PK_LEN);

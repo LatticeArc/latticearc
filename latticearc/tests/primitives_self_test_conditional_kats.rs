@@ -53,13 +53,13 @@ fn test_kat_ml_kem_768_succeeds() {
 }
 
 #[test]
-fn test_run_power_up_tests_pass() {
+fn test_run_power_up_tests_pass_succeeds() {
     let result = run_power_up_tests();
     assert!(result.is_pass(), "Power-up tests should pass");
 }
 
 #[test]
-fn test_run_power_up_tests_with_report_all_pass() {
+fn test_run_power_up_tests_with_report_all_pass_succeeds() {
     let report = run_power_up_tests_with_report();
     assert!(report.overall_result.is_pass());
     assert!(!report.tests.is_empty());
@@ -71,7 +71,7 @@ fn test_run_power_up_tests_with_report_all_pass() {
 }
 
 #[test]
-fn test_module_operational_after_init() {
+fn test_module_operational_after_init_succeeds() {
     clear_error_state();
     let result = initialize_and_test();
     assert!(result.is_pass());
@@ -81,7 +81,7 @@ fn test_module_operational_after_init() {
 }
 
 #[test]
-fn test_module_error_codes_exhaustive() {
+fn test_module_error_codes_exhaustive_fails() {
     // Test all error codes from_u32 and description
     let codes = [
         (0, ModuleErrorCode::NoError, false),
@@ -108,7 +108,7 @@ fn test_module_error_codes_exhaustive() {
 }
 
 #[test]
-fn test_module_error_state_lifecycle() {
+fn test_module_error_state_lifecycle_fails() {
     clear_error_state();
     let _ = initialize_and_test();
 
@@ -135,7 +135,7 @@ fn test_module_error_state_lifecycle() {
 }
 
 #[test]
-fn test_self_test_result_variants() {
+fn test_self_test_result_variants_succeeds() {
     let pass = SelfTestResult::Pass;
     assert!(pass.is_pass());
     assert!(!pass.is_fail());

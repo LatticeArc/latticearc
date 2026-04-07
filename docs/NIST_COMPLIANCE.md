@@ -193,13 +193,13 @@ use latticearc::*;
 use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
 
 // Key generation (FIPS 204 Section 6.1)
-let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 
 // Sign (FIPS 204 Section 6.2)
-let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
+let signature = sign_pq_ml_dsa(message, &sk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
 
 // Verify (FIPS 204 Section 6.3)
-let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MLDSA65, SecurityMode::Unverified)?;
+let is_valid = verify_pq_ml_dsa(message, &signature, &pk, MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)?;
 ```
 
 ### CAVP Validation
@@ -311,10 +311,10 @@ Test categories:
 
 | Algorithm | Source |
 |-----------|--------|
-| ML-KEM | [NIST ML-KEM](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
-| ML-DSA | [NIST ML-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
-| SLH-DSA | [NIST SLH-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
-| FN-DSA | [NIST FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final) |
+| ML-KEM | [NIST ML-KEM](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms/2022/ml-kem) |
+| ML-DSA | [NIST ML-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms/2022/ml-dsa) |
+| SLH-DSA | [NIST SLH-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/selected-algorithms/2022/slh-dsa) |
+| FN-DSA | [NIST FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography) |
 
 ## Interoperability
 
@@ -342,6 +342,6 @@ LatticeArc uses standard encodings per FIPS specifications:
 - [FIPS 203: ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
 - [FIPS 204: ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
 - [FIPS 205: SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final)
-- [FIPS 206: FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final)
+- [FN-DSA (FIPS 206, draft)](https://csrc.nist.gov/projects/post-quantum-cryptography) — FN-DSA (Falcon) standardization is ongoing as of 2026-04; no final `/pubs/fips/206/` URL exists yet
 - [SP 800-208: Hash-Based Signatures](https://csrc.nist.gov/pubs/sp/800/208/final)
 - [NIST PQC Project](https://csrc.nist.gov/projects/post-quantum-cryptography)

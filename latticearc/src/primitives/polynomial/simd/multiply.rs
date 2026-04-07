@@ -136,7 +136,7 @@ mod tests {
     use super::super::test_utils::measure_timing_variance;
 
     #[test]
-    fn test_polynomial_multiply_constant_time() {
+    fn test_polynomial_multiply_constant_time_succeeds() {
         let test_pairs = [
             ([0i32; MLKEM_N], [0i32; MLKEM_N]),
             (
@@ -166,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn test_simd_scalar_consistency() {
+    fn test_simd_scalar_consistency_succeeds() {
         let test_a: [i32; MLKEM_N] = core::array::from_fn(|i| (i % 100) as i32);
         let test_b: [i32; MLKEM_N] = core::array::from_fn(|i| ((i + 50) % 100) as i32);
 
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     #[cfg(target_feature = "avx2")]
-    fn test_avx2_implementation() {
+    fn test_avx2_implementation_is_covered() {
         let a: [i32; MLKEM_N] = core::array::from_fn(|i| (i % 10) as i32);
         let b: [i32; MLKEM_N] = core::array::from_fn(|i| ((i + 1) % 10) as i32);
         let result = polynomial_multiply_avx2(&a, &b);
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     #[cfg(target_arch = "aarch64")]
-    fn test_neon_implementation() {
+    fn test_neon_implementation_is_covered() {
         let a: [i32; MLKEM_N] = core::array::from_fn(|i| (i % 10) as i32);
         let b: [i32; MLKEM_N] = core::array::from_fn(|i| ((i + 1) % 10) as i32);
         let result = polynomial_multiply_neon(&a, &b);

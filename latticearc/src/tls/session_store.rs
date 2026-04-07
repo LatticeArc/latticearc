@@ -201,26 +201,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_configurable_store_creation() {
+    fn test_configurable_store_creation_succeeds() {
         let store = ConfigurableSessionStore::new(100);
         assert_eq!(store.capacity(), 100);
     }
 
     #[test]
-    fn test_persistent_store_creation() {
+    fn test_persistent_store_creation_succeeds() {
         let store = PersistentSessionStore::new(std::env::temp_dir().join("test.bin"), 50);
         assert_eq!(store.capacity(), 50);
         assert!(!store.is_persistence_enabled());
     }
 
     #[test]
-    fn test_create_session_store_none() {
+    fn test_create_session_store_none_succeeds() {
         let store = create_session_store(None);
         assert_eq!(Arc::strong_count(&store), 1);
     }
 
     #[test]
-    fn test_create_session_store_with_config() {
+    fn test_create_session_store_with_config_succeeds() {
         let config =
             crate::tls::SessionPersistenceConfig::new(std::env::temp_dir().join("test.bin"), 200);
         let store = create_session_store(Some(&config));
@@ -228,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_resumption_config() {
+    fn test_create_resumption_config_succeeds() {
         let resumption = create_resumption_config(None);
         // Just verify it creates without error
         let _ = resumption;

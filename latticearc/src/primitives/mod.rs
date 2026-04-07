@@ -1,8 +1,4 @@
-#![warn(missing_docs)]
-// JUSTIFICATION: Glob re-exports are intentional for module convenience API.
-// This allows `use crate::primitives::*` to bring in all public types.
-// Specific type exports below provide explicit access when disambiguation is needed.
-#![allow(ambiguous_glob_reexports)]
+#![deny(missing_docs)]
 
 //! # LatticeArc Primitives
 //!
@@ -71,7 +67,6 @@ pub mod aead;
 pub mod hash;
 pub mod kdf;
 pub mod kem;
-pub mod keys;
 pub mod mac;
 pub mod rand;
 pub mod security;
@@ -81,6 +76,8 @@ pub mod sig;
 pub mod ec;
 pub mod error;
 pub mod fips_error;
+/// Resource limits for cryptographic operations (DoS prevention).
+pub mod resource_limits;
 
 // NTT polynomial arithmetic
 pub mod polynomial;
@@ -102,7 +99,6 @@ pub use aead::*;
 pub use hash::*;
 pub use kdf::*;
 pub use kem::*;
-pub use keys::*;
 pub use mac::*;
 pub use rand::*;
 pub use sig::*;

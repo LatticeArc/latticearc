@@ -1,8 +1,9 @@
 //! Error types for the `primitives` module.
 
 /// Errors that can occur in cryptographic primitive operations.
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum PrimitivesError {
     /// A required feature is not available in this build.
     #[error("Feature not available: {0}")]
     FeatureNotAvailable(String),
@@ -53,4 +54,4 @@ pub enum Error {
 }
 
 /// Result type alias for [`primitives`](crate::primitives) operations.
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, PrimitivesError>;

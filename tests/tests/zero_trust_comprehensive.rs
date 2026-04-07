@@ -16,6 +16,7 @@
 
 #![allow(
     clippy::panic,
+    clippy::unreachable,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -43,11 +44,13 @@
 )]
 
 use chrono::{Duration, Utc};
+use latticearc::types::traits::{
+    ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
+};
 use latticearc::unified_api::{
-    config::{CoreConfig, ProofComplexity, ZeroTrustConfig},
+    CoreConfig, ProofComplexity, ZeroTrustConfig,
     convenience::generate_keypair,
     error::CoreError,
-    traits::{ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable},
     types::{PrivateKey, PublicKey},
     zero_trust::{
         SecurityMode, TrustLevel, VerifiedSession, ZeroKnowledgeProof, ZeroTrustAuth,
@@ -62,20 +65,20 @@ use std::time::Duration as StdDuration;
 // ============================================================================
 
 #[test]
-fn test_session_establishment_basic() {
+fn test_session_establishment_basic_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     assert!(session.is_valid(), "Newly established session should be valid");
 }
 
 #[test]
-fn test_session_establishment_trust_level() {
+fn test_session_establishment_trust_level_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     assert_eq!(
@@ -86,30 +89,30 @@ fn test_session_establishment_trust_level() {
 }
 
 #[test]
-fn test_session_establishment_session_id() {
+fn test_session_establishment_session_id_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     assert_eq!(session.session_id().len(), 32, "Session ID should be 32 bytes");
 }
 
 #[test]
-fn test_session_establishment_public_key() {
+fn test_session_establishment_public_key_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     assert_eq!(session.public_key(), &public_key, "Session should store the correct public key");
 }
 
 #[test]
-fn test_session_establishment_timestamps() {
+fn test_session_establishment_timestamps_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     let now = Utc::now();
@@ -123,22 +126,22 @@ fn test_session_establishment_timestamps() {
 }
 
 #[test]
-fn test_session_establishment_verify_valid() {
+fn test_session_establishment_verify_valid_is_authenticated_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     assert!(session.verify_valid().is_ok(), "Valid session should pass verification");
 }
 
 #[test]
-fn test_session_establishment_unique_ids() {
+fn test_session_establishment_unique_ids_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session1 = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session 1 establishment should succeed");
-    let session2 = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session 2 establishment should succeed");
 
     assert_ne!(
@@ -153,10 +156,10 @@ fn test_session_establishment_unique_ids() {
 // ============================================================================
 
 #[test]
-fn test_session_expiration_time_set() {
+fn test_session_expiration_time_set_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     let now = Utc::now();
@@ -171,10 +174,10 @@ fn test_session_expiration_time_set() {
 }
 
 #[test]
-fn test_session_expiration_is_valid_check() {
+fn test_session_expiration_is_valid_check_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     // Fresh session should be valid
@@ -182,10 +185,10 @@ fn test_session_expiration_is_valid_check() {
 }
 
 #[test]
-fn test_session_expiration_expires_after_authenticated() {
+fn test_session_expiration_expires_after_authenticated_fails() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session establishment should succeed");
 
     assert!(
@@ -195,7 +198,7 @@ fn test_session_expiration_expires_after_authenticated() {
 }
 
 #[test]
-fn test_challenge_expiration() {
+fn test_challenge_expiration_fails() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig {
@@ -220,7 +223,7 @@ fn test_challenge_expiration() {
 }
 
 #[test]
-fn test_challenge_verify_age_valid() {
+fn test_challenge_verify_age_valid_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig {
@@ -243,7 +246,7 @@ fn test_challenge_verify_age_valid() {
 }
 
 #[test]
-fn test_challenge_verify_age_expired() {
+fn test_challenge_verify_age_expired_fails() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig {
@@ -272,14 +275,14 @@ fn test_challenge_verify_age_expired() {
 // ============================================================================
 
 #[test]
-fn test_session_refresh_by_reestablishment() {
+fn test_session_refresh_by_reestablishment_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session1 = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session 1 should succeed");
 
     // Simulate refresh by creating new session
-    let session2 = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session 2 should succeed");
 
     // New session should be valid
@@ -293,7 +296,7 @@ fn test_session_refresh_by_reestablishment() {
 }
 
 #[test]
-fn test_continuous_session_update_verification() {
+fn test_continuous_session_update_verification_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;
@@ -313,7 +316,7 @@ fn test_continuous_session_update_verification() {
 }
 
 #[test]
-fn test_reauthentication() {
+fn test_reauthentication_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;
@@ -327,7 +330,7 @@ fn test_reauthentication() {
 }
 
 #[test]
-fn test_multiple_reauthentications() {
+fn test_multiple_reauthentications_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;
@@ -397,14 +400,14 @@ fn test_tampered_proof_fails() {
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
 
     let challenge = auth.generate_challenge().expect("challenge generation should succeed");
-    let mut proof = auth.generate_proof(&challenge.data).expect("proof generation should succeed");
+    let mut proof = auth.generate_proof(challenge.data()).expect("proof generation should succeed");
 
     // Tamper with proof
-    if !proof.proof.is_empty() {
-        proof.proof[0] ^= 0xFF;
+    if !proof.proof_data().is_empty() {
+        proof.proof_data_mut()[0] ^= 0xFF;
     }
 
-    let result = auth.verify_proof(&proof, &challenge.data);
+    let result = auth.verify_proof(&proof, challenge.data());
     assert!(
         result.is_err() || !result.expect("verify should return bool"),
         "Tampered proof should fail"
@@ -421,7 +424,7 @@ fn test_wrong_challenge_fails() {
     let wrong_challenge = vec![0x42u8; 32];
     let proof = auth.generate_proof(&wrong_challenge).expect("proof generation should succeed");
 
-    let result = auth.verify_proof(&proof, &challenge.data);
+    let result = auth.verify_proof(&proof, challenge.data());
     assert!(
         result.is_err() || !result.expect("verify should return bool"),
         "Proof for wrong challenge should fail"
@@ -440,8 +443,8 @@ fn test_tampered_pop_fails() {
     let mut pop = auth.generate_pop().expect("PoP generation should succeed");
 
     // Tamper with signature
-    if !pop.signature.is_empty() {
-        pop.signature[0] ^= 0xFF;
+    if !pop.signature().is_empty() {
+        pop.signature_mut()[0] ^= 0xFF;
     }
 
     let result = auth.verify_pop(&pop);
@@ -452,42 +455,26 @@ fn test_tampered_pop_fails() {
 }
 
 #[test]
-fn test_zero_knowledge_proof_format_validation() {
+fn test_zero_knowledge_proof_format_validation_succeeds() {
     // Valid proof
-    let valid_proof = ZeroKnowledgeProof {
-        challenge: vec![1, 2, 3],
-        proof: vec![4, 5, 6],
-        timestamp: Utc::now(),
-        complexity: ProofComplexity::Low,
-    };
+    let valid_proof =
+        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![4, 5, 6], Utc::now(), ProofComplexity::Low);
     assert!(valid_proof.is_valid_format());
 
     // Empty challenge
-    let invalid_proof = ZeroKnowledgeProof {
-        challenge: vec![],
-        proof: vec![4, 5, 6],
-        timestamp: Utc::now(),
-        complexity: ProofComplexity::Low,
-    };
+    let invalid_proof =
+        ZeroKnowledgeProof::new(vec![], vec![4, 5, 6], Utc::now(), ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
 
     // Empty proof
-    let invalid_proof = ZeroKnowledgeProof {
-        challenge: vec![1, 2, 3],
-        proof: vec![],
-        timestamp: Utc::now(),
-        complexity: ProofComplexity::Low,
-    };
+    let invalid_proof =
+        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![], Utc::now(), ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
 
     // Future timestamp
     let future_time = Utc::now().checked_add_signed(Duration::hours(1)).unwrap_or_else(Utc::now);
-    let invalid_proof = ZeroKnowledgeProof {
-        challenge: vec![1, 2, 3],
-        proof: vec![4, 5, 6],
-        timestamp: future_time,
-        complexity: ProofComplexity::Low,
-    };
+    let invalid_proof =
+        ZeroKnowledgeProof::new(vec![1, 2, 3], vec![4, 5, 6], future_time, ProofComplexity::Low);
     assert!(!invalid_proof.is_valid_format());
 }
 
@@ -496,14 +483,14 @@ fn test_zero_knowledge_proof_format_validation() {
 // ============================================================================
 
 #[test]
-fn test_multiple_sessions_same_keypair() {
+fn test_multiple_sessions_same_keypair_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session1 = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session 1 should succeed");
-    let session2 = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session 2 should succeed");
-    let session3 = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session3 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session 3 should succeed");
 
     // All sessions should be valid
@@ -518,22 +505,22 @@ fn test_multiple_sessions_same_keypair() {
 }
 
 #[test]
-fn test_multiple_sessions_different_keypairs() {
+fn test_multiple_sessions_different_keypairs_succeeds() {
     let (pk1, sk1) = generate_keypair().expect("keypair 1");
     let (pk2, sk2) = generate_keypair().expect("keypair 2");
 
-    let session1 = VerifiedSession::establish(&pk1, sk1.as_slice()).expect("session 1");
-    let session2 = VerifiedSession::establish(&pk2, sk2.as_slice()).expect("session 2");
+    let session1 = VerifiedSession::establish(pk1.as_slice(), sk1.as_slice()).expect("session 1");
+    let session2 = VerifiedSession::establish(pk2.as_slice(), sk2.as_slice()).expect("session 2");
 
     assert_ne!(session1.session_id(), session2.session_id());
     assert_ne!(session1.public_key(), session2.public_key());
 }
 
 #[test]
-fn test_session_reuse_for_multiple_operations() {
+fn test_session_reuse_for_multiple_operations_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session should succeed");
 
     for i in 0..20 {
@@ -544,10 +531,10 @@ fn test_session_reuse_for_multiple_operations() {
 }
 
 #[test]
-fn test_rapid_session_creation() {
+fn test_rapid_session_creation_succeeds() {
     for i in 0..20 {
         let (public_key, private_key) = generate_keypair().expect("keypair generation");
-        let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
             .unwrap_or_else(|_| panic!("Session {} should succeed", i));
         assert!(session.is_valid(), "Session {} should be valid", i);
     }
@@ -558,7 +545,7 @@ fn test_rapid_session_creation() {
 // ============================================================================
 
 #[test]
-fn test_challenge_generation_low_complexity() {
+fn test_challenge_generation_low_complexity_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig {
@@ -575,11 +562,11 @@ fn test_challenge_generation_low_complexity() {
     let auth = ZeroTrustAuth::with_config(pk, sk, config).expect("auth creation should succeed");
 
     let challenge = auth.generate_challenge().expect("challenge generation should succeed");
-    assert_eq!(challenge.data.len(), 32, "Low complexity should use 32-byte challenge");
+    assert_eq!(challenge.data().len(), 32, "Low complexity should use 32-byte challenge");
 }
 
 #[test]
-fn test_challenge_generation_medium_complexity() {
+fn test_challenge_generation_medium_complexity_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig {
@@ -596,11 +583,11 @@ fn test_challenge_generation_medium_complexity() {
     let auth = ZeroTrustAuth::with_config(pk, sk, config).expect("auth creation should succeed");
 
     let challenge = auth.generate_challenge().expect("challenge generation should succeed");
-    assert_eq!(challenge.data.len(), 64, "Medium complexity should use 64-byte challenge");
+    assert_eq!(challenge.data().len(), 64, "Medium complexity should use 64-byte challenge");
 }
 
 #[test]
-fn test_challenge_generation_high_complexity() {
+fn test_challenge_generation_high_complexity_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig {
@@ -617,11 +604,11 @@ fn test_challenge_generation_high_complexity() {
     let auth = ZeroTrustAuth::with_config(pk, sk, config).expect("auth creation should succeed");
 
     let challenge = auth.generate_challenge().expect("challenge generation should succeed");
-    assert_eq!(challenge.data.len(), 128, "High complexity should use 128-byte challenge");
+    assert_eq!(challenge.data().len(), 128, "High complexity should use 128-byte challenge");
 }
 
 #[test]
-fn test_challenge_uniqueness() {
+fn test_challenge_uniqueness_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
@@ -629,24 +616,24 @@ fn test_challenge_uniqueness() {
     let challenge1 = auth.generate_challenge().expect("challenge 1");
     let challenge2 = auth.generate_challenge().expect("challenge 2");
 
-    assert_ne!(challenge1.data, challenge2.data, "Challenges should be unique");
+    assert_ne!(challenge1.data(), challenge2.data(), "Challenges should be unique");
 }
 
 #[test]
-fn test_proof_generation_and_verification() {
+fn test_proof_generation_and_verification_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
 
     let challenge = auth.generate_challenge().expect("challenge generation");
-    let proof = auth.generate_proof(&challenge.data).expect("proof generation");
-    let verified = auth.verify_proof(&proof, &challenge.data).expect("verification");
+    let proof = auth.generate_proof(challenge.data()).expect("proof generation");
+    let verified = auth.verify_proof(&proof, challenge.data()).expect("verification");
 
     assert!(verified, "Valid proof should verify");
 }
 
 #[test]
-fn test_challenge_response_stress() {
+fn test_challenge_response_stress_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
@@ -655,10 +642,10 @@ fn test_challenge_response_stress() {
         let challenge =
             auth.generate_challenge().unwrap_or_else(|_| panic!("Challenge {} should succeed", i));
         let proof = auth
-            .generate_proof(&challenge.data)
+            .generate_proof(challenge.data())
             .unwrap_or_else(|_| panic!("Proof {} should succeed", i));
         let verified = auth
-            .verify_proof(&proof, &challenge.data)
+            .verify_proof(&proof, challenge.data())
             .unwrap_or_else(|_| panic!("Verification {} should succeed", i));
 
         assert!(verified, "Proof {} should verify", i);
@@ -666,7 +653,7 @@ fn test_challenge_response_stress() {
 }
 
 #[test]
-fn test_proof_of_possession_generation() {
+fn test_proof_of_possession_generation_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key.clone();
@@ -676,13 +663,13 @@ fn test_proof_of_possession_generation() {
 
     let pop = auth.generate_pop().expect("PoP generation should succeed");
 
-    assert_eq!(pop.public_key, public_key);
-    assert!(!pop.signature.is_empty());
-    assert!(pop.timestamp <= Utc::now());
+    assert_eq!(pop.public_key(), &public_key);
+    assert!(!pop.signature().is_empty());
+    assert!(pop.timestamp() <= Utc::now());
 }
 
 #[test]
-fn test_proof_of_possession_verification() {
+fn test_proof_of_possession_verification_is_authenticated_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;
@@ -701,14 +688,14 @@ fn test_proof_of_possession_verification() {
 // ============================================================================
 
 #[test]
-fn test_trust_level_ordering() {
+fn test_trust_level_ordering_passes_validation() {
     assert!(TrustLevel::Untrusted < TrustLevel::Partial);
     assert!(TrustLevel::Partial < TrustLevel::Trusted);
     assert!(TrustLevel::Trusted < TrustLevel::FullyTrusted);
 }
 
 #[test]
-fn test_trust_level_is_trusted() {
+fn test_trust_level_is_trusted_is_authenticated_succeeds() {
     assert!(!TrustLevel::Untrusted.is_trusted());
     assert!(TrustLevel::Partial.is_trusted());
     assert!(TrustLevel::Trusted.is_trusted());
@@ -716,7 +703,7 @@ fn test_trust_level_is_trusted() {
 }
 
 #[test]
-fn test_trust_level_is_fully_trusted() {
+fn test_trust_level_is_fully_trusted_is_authenticated_succeeds() {
     assert!(!TrustLevel::Untrusted.is_fully_trusted());
     assert!(!TrustLevel::Partial.is_fully_trusted());
     assert!(!TrustLevel::Trusted.is_fully_trusted());
@@ -724,13 +711,13 @@ fn test_trust_level_is_fully_trusted() {
 }
 
 #[test]
-fn test_trust_level_default() {
+fn test_trust_level_default_passes_validation() {
     let level = TrustLevel::default();
     assert_eq!(level, TrustLevel::Untrusted);
 }
 
 #[test]
-fn test_trust_level_values() {
+fn test_trust_level_values_passes_validation() {
     assert_eq!(TrustLevel::Untrusted as i32, 0);
     assert_eq!(TrustLevel::Partial as i32, 1);
     assert_eq!(TrustLevel::Trusted as i32, 2);
@@ -738,14 +725,14 @@ fn test_trust_level_values() {
 }
 
 #[test]
-fn test_trust_level_clone_and_eq() {
+fn test_trust_level_clone_and_eq_passes_validation() {
     let level1 = TrustLevel::Trusted;
     let level2 = level1.clone();
     assert_eq!(level1, level2);
 }
 
 #[test]
-fn test_trust_level_progression() {
+fn test_trust_level_progression_succeeds() {
     let levels = vec![
         TrustLevel::Untrusted,
         TrustLevel::Partial,
@@ -763,10 +750,10 @@ fn test_trust_level_progression() {
 // ============================================================================
 
 #[test]
-fn test_security_mode_verified_is_verified() {
+fn test_security_mode_verified_is_verified_is_authenticated_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session should succeed");
 
     let mode = SecurityMode::Verified(&session);
@@ -776,7 +763,7 @@ fn test_security_mode_verified_is_verified() {
 }
 
 #[test]
-fn test_security_mode_unverified_is_unverified() {
+fn test_security_mode_unverified_is_unverified_fails() {
     let mode = SecurityMode::Unverified;
 
     assert!(!mode.is_verified());
@@ -784,10 +771,10 @@ fn test_security_mode_unverified_is_unverified() {
 }
 
 #[test]
-fn test_security_mode_verified_session() {
+fn test_security_mode_verified_session_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session should succeed");
 
     let mode = SecurityMode::Verified(&session);
@@ -796,16 +783,16 @@ fn test_security_mode_verified_session() {
 }
 
 #[test]
-fn test_security_mode_unverified_session() {
+fn test_security_mode_unverified_session_fails() {
     let mode = SecurityMode::Unverified;
     assert!(mode.session().is_none());
 }
 
 #[test]
-fn test_security_mode_verified_validate() {
+fn test_security_mode_verified_validate_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session should succeed");
 
     let mode = SecurityMode::Verified(&session);
@@ -815,7 +802,7 @@ fn test_security_mode_verified_validate() {
 }
 
 #[test]
-fn test_security_mode_unverified_validate() {
+fn test_security_mode_unverified_validate_fails() {
     let mode = SecurityMode::Unverified;
     let result = mode.validate();
 
@@ -823,16 +810,16 @@ fn test_security_mode_unverified_validate() {
 }
 
 #[test]
-fn test_security_mode_default() {
+fn test_security_mode_default_passes_validation() {
     let mode = SecurityMode::default();
     assert!(mode.is_unverified(), "Default SecurityMode should be Unverified");
 }
 
 #[test]
-fn test_security_mode_from_session() {
+fn test_security_mode_from_session_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
         .expect("session should succeed");
 
     let mode: SecurityMode = (&session).into();
@@ -845,7 +832,7 @@ fn test_security_mode_from_session() {
 // ============================================================================
 
 #[test]
-fn test_continuous_verification_status() {
+fn test_continuous_verification_status_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig {
@@ -867,7 +854,7 @@ fn test_continuous_verification_status() {
 }
 
 #[test]
-fn test_continuous_session_validity() {
+fn test_continuous_session_validity_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key.clone();
@@ -884,7 +871,7 @@ fn test_continuous_session_validity() {
 }
 
 #[test]
-fn test_session_age_tracking() {
+fn test_session_age_tracking_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let pk: PublicKey = public_key;
@@ -903,7 +890,7 @@ fn test_session_age_tracking() {
 }
 
 #[test]
-fn test_zero_trust_auth_new() {
+fn test_zero_trust_auth_new_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let result = ZeroTrustAuth::new(public_key, private_key);
@@ -911,7 +898,7 @@ fn test_zero_trust_auth_new() {
 }
 
 #[test]
-fn test_zero_trust_auth_with_config() {
+fn test_zero_trust_auth_with_config_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let config = ZeroTrustConfig::new().with_timeout(10000).with_complexity(ProofComplexity::High);
@@ -921,7 +908,7 @@ fn test_zero_trust_auth_with_config() {
 }
 
 #[test]
-fn test_zero_trust_session_new() {
+fn test_zero_trust_session_new_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
@@ -931,7 +918,7 @@ fn test_zero_trust_session_new() {
 }
 
 #[test]
-fn test_zero_trust_session_initiate_authentication() {
+fn test_zero_trust_session_initiate_authentication_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
@@ -947,7 +934,7 @@ fn test_zero_trust_session_initiate_authentication() {
 // ============================================================================
 
 #[test]
-fn test_proof_complexity_all_variants() {
+fn test_proof_complexity_all_variants_passes_validation() {
     let complexities = vec![ProofComplexity::Low, ProofComplexity::Medium, ProofComplexity::High];
 
     for complexity in complexities {
@@ -972,14 +959,15 @@ fn test_proof_complexity_all_variants() {
             ProofComplexity::Low => 32,
             ProofComplexity::Medium => 64,
             ProofComplexity::High => 128,
+            _ => unreachable!("unexpected ProofComplexity variant"),
         };
 
-        assert_eq!(challenge.data.len(), expected_size);
+        assert_eq!(challenge.data().len(), expected_size);
     }
 }
 
 #[test]
-fn test_config_validation_zero_timeout() {
+fn test_config_validation_zero_timeout_fails() {
     let config = ZeroTrustConfig::new().with_timeout(0);
 
     let result = config.validate();
@@ -987,7 +975,7 @@ fn test_config_validation_zero_timeout() {
 }
 
 #[test]
-fn test_config_validation_continuous_zero_interval() {
+fn test_config_validation_continuous_zero_interval_fails() {
     let config =
         ZeroTrustConfig::new().with_continuous_verification(true).with_verification_interval(0);
 
@@ -996,7 +984,7 @@ fn test_config_validation_continuous_zero_interval() {
 }
 
 #[test]
-fn test_config_validation_disabled_continuous_zero_interval_ok() {
+fn test_config_validation_disabled_continuous_zero_interval_ok_succeeds() {
     let config =
         ZeroTrustConfig::new().with_continuous_verification(false).with_verification_interval(0);
 
@@ -1010,17 +998,17 @@ fn test_config_validation_disabled_continuous_zero_interval_ok() {
 // ============================================================================
 
 #[test]
-fn test_stress_session_creation() {
+fn test_stress_session_creation_succeeds() {
     for i in 0..30 {
         let (public_key, private_key) = generate_keypair().expect("keypair generation");
-        let session = VerifiedSession::establish(&public_key, private_key.as_slice())
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
             .unwrap_or_else(|_| panic!("Session {} should succeed", i));
         assert!(session.is_valid(), "Session {} should be valid", i);
     }
 }
 
 #[test]
-fn test_stress_challenge_response() {
+fn test_stress_challenge_response_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
 
@@ -1028,10 +1016,10 @@ fn test_stress_challenge_response() {
         let challenge =
             auth.generate_challenge().unwrap_or_else(|_| panic!("Challenge {} should succeed", i));
         let proof = auth
-            .generate_proof(&challenge.data)
+            .generate_proof(challenge.data())
             .unwrap_or_else(|_| panic!("Proof {} should succeed", i));
         let verified = auth
-            .verify_proof(&proof, &challenge.data)
+            .verify_proof(&proof, challenge.data())
             .unwrap_or_else(|_| panic!("Verification {} should succeed", i));
 
         assert!(verified, "Proof {} should verify", i);
@@ -1039,7 +1027,7 @@ fn test_stress_challenge_response() {
 }
 
 #[test]
-fn test_stress_pop_generation() {
+fn test_stress_pop_generation_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
     let auth = ZeroTrustAuth::new(public_key, private_key).expect("auth creation should succeed");
 

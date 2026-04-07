@@ -48,14 +48,14 @@ fn make_mixed_kat_results() -> Vec<KatResult> {
 // ============================================================================
 
 #[test]
-fn test_compliance_reporter_new() {
+fn test_compliance_reporter_new_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     // Construction should not panic
     drop(reporter);
 }
 
 #[test]
-fn test_compliance_reporter_default() {
+fn test_compliance_reporter_default_succeeds() {
     let reporter = ComplianceReporter::default();
     drop(reporter);
 }
@@ -65,7 +65,7 @@ fn test_compliance_reporter_default() {
 // ============================================================================
 
 #[test]
-fn test_generate_full_compliance_report_all_pass() {
+fn test_generate_full_compliance_report_all_pass_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
 
@@ -87,7 +87,7 @@ fn test_generate_full_compliance_report_all_pass() {
 }
 
 #[test]
-fn test_generate_full_compliance_report_with_fips_validation() {
+fn test_generate_full_compliance_report_with_fips_validation_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
 
@@ -105,7 +105,7 @@ fn test_generate_full_compliance_report_with_fips_validation() {
 }
 
 #[test]
-fn test_generate_full_compliance_report_with_failures() {
+fn test_generate_full_compliance_report_with_failures_fails() {
     let reporter = ComplianceReporter::new(0.01);
     let results = vec![
         make_kat_result("ML-KEM-1024 Encapsulate", true),
@@ -131,7 +131,7 @@ fn test_generate_full_compliance_report_with_failures() {
 }
 
 #[test]
-fn test_generate_full_compliance_report_algorithm_grouping() {
+fn test_generate_full_compliance_report_algorithm_grouping_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
 
@@ -146,7 +146,7 @@ fn test_generate_full_compliance_report_algorithm_grouping() {
 }
 
 #[test]
-fn test_generate_full_compliance_report_metrics() {
+fn test_generate_full_compliance_report_metrics_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
 
@@ -176,7 +176,7 @@ fn test_generate_full_compliance_report_metrics() {
 // ============================================================================
 
 #[test]
-fn test_generate_json_report() {
+fn test_generate_json_report_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
@@ -194,7 +194,7 @@ fn test_generate_json_report() {
 // ============================================================================
 
 #[test]
-fn test_generate_html_report() {
+fn test_generate_html_report_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
@@ -209,7 +209,7 @@ fn test_generate_html_report() {
 }
 
 #[test]
-fn test_generate_html_report_with_statistical_results() {
+fn test_generate_html_report_with_statistical_results_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
@@ -230,7 +230,7 @@ fn test_generate_html_report_with_statistical_results() {
 // ============================================================================
 
 #[test]
-fn test_save_report_to_file() {
+fn test_save_report_to_file_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = make_mixed_kat_results();
     let report = reporter.generate_full_compliance_report(&results, &None).unwrap();
@@ -263,7 +263,7 @@ fn test_save_report_to_file() {
 // ============================================================================
 
 #[test]
-fn test_report_fully_compliant_recommendations() {
+fn test_report_fully_compliant_recommendations_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     // All passing tests should produce "FullyCompliant" recommendations
     let results = make_mixed_kat_results();
@@ -277,7 +277,7 @@ fn test_report_fully_compliant_recommendations() {
 }
 
 #[test]
-fn test_report_with_all_failures_recommendations() {
+fn test_report_with_all_failures_recommendations_fails() {
     let reporter = ComplianceReporter::new(0.01);
     let results = vec![
         make_kat_result("ML-KEM-1024 Fail", false),
@@ -302,7 +302,7 @@ fn test_report_with_all_failures_recommendations() {
 // ============================================================================
 
 #[test]
-fn test_report_single_algorithm() {
+fn test_report_single_algorithm_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = vec![make_kat_result("AES-GCM-256 Encrypt", true)];
 
@@ -316,7 +316,7 @@ fn test_report_single_algorithm() {
 }
 
 #[test]
-fn test_report_unknown_algorithm() {
+fn test_report_unknown_algorithm_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
     let results = vec![make_kat_result("CustomAlgo Test", true)];
 

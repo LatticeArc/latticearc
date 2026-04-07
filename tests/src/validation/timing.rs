@@ -257,7 +257,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_constant_time_eq_correctness() {
+    fn test_constant_time_eq_correctness_succeeds() {
         // Test that constant_time_eq returns correct results
         let a = vec![0x01, 0x02, 0x03];
         let b = vec![0x01, 0x02, 0x03];
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timing_validator_construction() {
+    fn test_timing_validator_construction_succeeds() {
         // Test that TimingValidator can be constructed and configured
         let validator = TimingValidator::new(50, 0.2);
 
@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timing_validator_insufficient_samples() {
+    fn test_timing_validator_insufficient_samples_succeeds() {
         // Test that validator rejects insufficient sample counts
         let validator = TimingValidator::new(5, 0.2); // Too few samples
 
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     // Must run in release mode for reliable timing
-    fn test_constant_time_compare_with_subtle() {
+    fn test_constant_time_compare_with_subtle_succeeds() {
         // Test that subtle::ConstantTimeEq comparisons pass constant-time validation.
         // Use CI-friendly threshold: 100% difference ratio.
         // Real timing leaks show >5x difference; this catches real issues
@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     // Must run in release mode for reliable timing
-    fn test_validate_constant_time_function() {
+    fn test_validate_constant_time_function_succeeds() {
         // Test the top-level validate_constant_time function
         // Use a CI-friendly validator with generous threshold.
         // Real timing leaks show >5x (500%) difference; 100% threshold catches
@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     // Must run in release mode for reliable timing
-    fn test_compare_timings_similar_operations() {
+    fn test_compare_timings_similar_operations_succeeds() {
         // Test that two similar operations have similar timing.
         // Use CI-friendly threshold: 100% difference ratio.
         // Real timing leaks show >5x difference; this catches real issues

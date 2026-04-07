@@ -152,14 +152,14 @@ mod validation_scope_tests {
     use super::*;
 
     #[test]
-    fn test_validation_scope_module() {
+    fn test_validation_scope_module_is_valid() {
         let scope = ValidationScope::Module;
         let debug_str = format!("{:?}", scope);
         assert!(debug_str.contains("Module"));
     }
 
     #[test]
-    fn test_validation_scope_algorithm() {
+    fn test_validation_scope_algorithm_is_valid() {
         let scope = ValidationScope::Algorithm(AlgorithmType::MlKem { variant: "768".to_string() });
         let debug_str = format!("{:?}", scope);
         assert!(debug_str.contains("Algorithm"));
@@ -167,7 +167,7 @@ mod validation_scope_tests {
     }
 
     #[test]
-    fn test_validation_scope_component() {
+    fn test_validation_scope_component_is_valid() {
         let scope = ValidationScope::Component("TestComponent".to_string());
         let debug_str = format!("{:?}", scope);
         assert!(debug_str.contains("Component"));
@@ -175,14 +175,14 @@ mod validation_scope_tests {
     }
 
     #[test]
-    fn test_validation_scope_clone() {
+    fn test_validation_scope_clone_succeeds() {
         let original = ValidationScope::Component("CloneTest".to_string());
         let cloned = original.clone();
         assert!(format!("{:?}", cloned).contains("CloneTest"));
     }
 
     #[test]
-    fn test_validation_scope_serialization() {
+    fn test_validation_scope_serialization_roundtrip() {
         let scope = ValidationScope::Module;
         let json = serde_json::to_string(&scope).unwrap();
         let deserialized: ValidationScope = serde_json::from_str(&json).unwrap();
@@ -198,51 +198,51 @@ mod compliance_status_tests {
     use super::*;
 
     #[test]
-    fn test_compliance_status_fully_compliant() {
+    fn test_compliance_status_fully_compliant_is_valid() {
         let status = ComplianceStatus::FullyCompliant;
         assert_eq!(status, ComplianceStatus::FullyCompliant);
     }
 
     #[test]
-    fn test_compliance_status_partially_compliant() {
+    fn test_compliance_status_partially_compliant_is_valid() {
         let status = ComplianceStatus::PartiallyCompliant;
         assert_eq!(status, ComplianceStatus::PartiallyCompliant);
     }
 
     #[test]
-    fn test_compliance_status_non_compliant() {
+    fn test_compliance_status_non_compliant_is_valid() {
         let status = ComplianceStatus::NonCompliant;
         assert_eq!(status, ComplianceStatus::NonCompliant);
     }
 
     #[test]
-    fn test_compliance_status_unknown() {
+    fn test_compliance_status_unknown_is_valid() {
         let status = ComplianceStatus::Unknown;
         assert_eq!(status, ComplianceStatus::Unknown);
     }
 
     #[test]
-    fn test_compliance_status_equality() {
+    fn test_compliance_status_equality_passes_validation() {
         assert_eq!(ComplianceStatus::FullyCompliant, ComplianceStatus::FullyCompliant);
         assert_ne!(ComplianceStatus::FullyCompliant, ComplianceStatus::NonCompliant);
     }
 
     #[test]
-    fn test_compliance_status_clone() {
+    fn test_compliance_status_clone_succeeds() {
         let original = ComplianceStatus::PartiallyCompliant;
         let cloned = original.clone();
         assert_eq!(original, cloned);
     }
 
     #[test]
-    fn test_compliance_status_debug() {
+    fn test_compliance_status_debug_passes_validation() {
         let status = ComplianceStatus::FullyCompliant;
         let debug_str = format!("{:?}", status);
         assert!(debug_str.contains("FullyCompliant"));
     }
 
     #[test]
-    fn test_compliance_status_serialization() {
+    fn test_compliance_status_serialization_roundtrip() {
         let status = ComplianceStatus::FullyCompliant;
         let json = serde_json::to_string(&status).unwrap();
         let deserialized: ComplianceStatus = serde_json::from_str(&json).unwrap();
@@ -258,49 +258,49 @@ mod randomness_quality_tests {
     use super::*;
 
     #[test]
-    fn test_randomness_quality_excellent() {
+    fn test_randomness_quality_excellent_is_valid() {
         let quality = RandomnessQuality::Excellent;
         let debug_str = format!("{:?}", quality);
         assert!(debug_str.contains("Excellent"));
     }
 
     #[test]
-    fn test_randomness_quality_good() {
+    fn test_randomness_quality_good_is_valid() {
         let quality = RandomnessQuality::Good;
         let debug_str = format!("{:?}", quality);
         assert!(debug_str.contains("Good"));
     }
 
     #[test]
-    fn test_randomness_quality_fair() {
+    fn test_randomness_quality_fair_is_valid() {
         let quality = RandomnessQuality::Fair;
         let debug_str = format!("{:?}", quality);
         assert!(debug_str.contains("Fair"));
     }
 
     #[test]
-    fn test_randomness_quality_poor() {
+    fn test_randomness_quality_poor_is_valid() {
         let quality = RandomnessQuality::Poor;
         let debug_str = format!("{:?}", quality);
         assert!(debug_str.contains("Poor"));
     }
 
     #[test]
-    fn test_randomness_quality_insufficient() {
+    fn test_randomness_quality_insufficient_is_valid() {
         let quality = RandomnessQuality::Insufficient;
         let debug_str = format!("{:?}", quality);
         assert!(debug_str.contains("Insufficient"));
     }
 
     #[test]
-    fn test_randomness_quality_clone() {
+    fn test_randomness_quality_clone_succeeds() {
         let original = RandomnessQuality::Excellent;
         let cloned = original.clone();
         assert!(format!("{:?}", cloned).contains("Excellent"));
     }
 
     #[test]
-    fn test_randomness_quality_serialization() {
+    fn test_randomness_quality_serialization_roundtrip() {
         let quality = RandomnessQuality::Good;
         let json = serde_json::to_string(&quality).unwrap();
         let deserialized: RandomnessQuality = serde_json::from_str(&json).unwrap();
@@ -316,7 +316,7 @@ mod security_coverage_tests {
     use super::*;
 
     #[test]
-    fn test_security_coverage_creation() {
+    fn test_security_coverage_creation_passes_validation() {
         let coverage = SecurityCoverage {
             post_quantum_supported: true,
             classical_supported: true,
@@ -335,7 +335,7 @@ mod security_coverage_tests {
     }
 
     #[test]
-    fn test_security_coverage_partial() {
+    fn test_security_coverage_partial_is_valid() {
         let coverage = SecurityCoverage {
             post_quantum_supported: true,
             classical_supported: false,
@@ -354,7 +354,7 @@ mod security_coverage_tests {
     }
 
     #[test]
-    fn test_security_coverage_clone() {
+    fn test_security_coverage_clone_succeeds() {
         let original = SecurityCoverage {
             post_quantum_supported: true,
             classical_supported: true,
@@ -370,7 +370,7 @@ mod security_coverage_tests {
     }
 
     #[test]
-    fn test_security_coverage_serialization() {
+    fn test_security_coverage_serialization_roundtrip() {
         let coverage = SecurityCoverage {
             post_quantum_supported: true,
             classical_supported: true,
@@ -397,7 +397,7 @@ mod compliance_metrics_tests {
     use super::*;
 
     #[test]
-    fn test_compliance_metrics_creation() {
+    fn test_compliance_metrics_creation_passes_validation() {
         let metrics = ComplianceMetrics {
             total_test_cases: 100,
             passed_test_cases: 95,
@@ -423,7 +423,7 @@ mod compliance_metrics_tests {
     }
 
     #[test]
-    fn test_compliance_metrics_zero_tests() {
+    fn test_compliance_metrics_zero_tests_passes_validation() {
         let metrics = ComplianceMetrics {
             total_test_cases: 0,
             passed_test_cases: 0,
@@ -446,7 +446,7 @@ mod compliance_metrics_tests {
     }
 
     #[test]
-    fn test_compliance_metrics_clone() {
+    fn test_compliance_metrics_clone_succeeds() {
         let original = ComplianceMetrics {
             total_test_cases: 50,
             passed_test_cases: 45,
@@ -470,7 +470,7 @@ mod compliance_metrics_tests {
     }
 
     #[test]
-    fn test_compliance_metrics_serialization() {
+    fn test_compliance_metrics_serialization_roundtrip() {
         let metrics = ComplianceMetrics {
             total_test_cases: 100,
             passed_test_cases: 100,
@@ -506,7 +506,7 @@ mod statistical_compliance_result_tests {
     use super::*;
 
     #[test]
-    fn test_statistical_compliance_result_creation() {
+    fn test_statistical_compliance_result_creation_passes_validation() {
         let result = StatisticalComplianceResult {
             nist_sp800_22_tests: vec![
                 "Frequency Test".to_string(),
@@ -525,7 +525,7 @@ mod statistical_compliance_result_tests {
     }
 
     #[test]
-    fn test_statistical_compliance_result_insufficient_data() {
+    fn test_statistical_compliance_result_insufficient_data_is_valid() {
         let result = StatisticalComplianceResult {
             nist_sp800_22_tests: vec!["Insufficient data for statistical testing".to_string()],
             entropy_estimate: 0.0,
@@ -540,7 +540,7 @@ mod statistical_compliance_result_tests {
     }
 
     #[test]
-    fn test_statistical_compliance_result_clone() {
+    fn test_statistical_compliance_result_clone_succeeds() {
         let original = StatisticalComplianceResult {
             nist_sp800_22_tests: vec!["Test1".to_string()],
             entropy_estimate: 6.5,
@@ -555,7 +555,7 @@ mod statistical_compliance_result_tests {
     }
 
     #[test]
-    fn test_statistical_compliance_result_serialization() {
+    fn test_statistical_compliance_result_serialization_roundtrip() {
         let result = StatisticalComplianceResult {
             nist_sp800_22_tests: vec!["Frequency Test".to_string()],
             entropy_estimate: 7.9,
@@ -581,7 +581,7 @@ mod algorithm_compliance_result_tests {
     use super::*;
 
     #[test]
-    fn test_algorithm_compliance_result_creation() {
+    fn test_algorithm_compliance_result_creation_passes_validation() {
         let result = AlgorithmComplianceResult {
             algorithm: AlgorithmType::MlKem { variant: "1024".to_string() },
             status: ComplianceStatus::FullyCompliant,
@@ -604,7 +604,7 @@ mod algorithm_compliance_result_tests {
     }
 
     #[test]
-    fn test_algorithm_compliance_result_partial_pass() {
+    fn test_algorithm_compliance_result_partial_pass_is_valid() {
         let result = AlgorithmComplianceResult {
             algorithm: AlgorithmType::MlDsa { variant: "65".to_string() },
             status: ComplianceStatus::PartiallyCompliant,
@@ -625,7 +625,7 @@ mod algorithm_compliance_result_tests {
     }
 
     #[test]
-    fn test_algorithm_compliance_result_non_compliant() {
+    fn test_algorithm_compliance_result_non_compliant_is_valid() {
         let result = AlgorithmComplianceResult {
             algorithm: AlgorithmType::SlhDsa { variant: "128s".to_string() },
             status: ComplianceStatus::NonCompliant,
@@ -645,7 +645,7 @@ mod algorithm_compliance_result_tests {
     }
 
     #[test]
-    fn test_algorithm_compliance_result_clone() {
+    fn test_algorithm_compliance_result_clone_succeeds() {
         let original = AlgorithmComplianceResult {
             algorithm: AlgorithmType::AesGcm { key_size: 32 },
             status: ComplianceStatus::FullyCompliant,
@@ -663,7 +663,7 @@ mod algorithm_compliance_result_tests {
     }
 
     #[test]
-    fn test_algorithm_compliance_result_serialization() {
+    fn test_algorithm_compliance_result_serialization_roundtrip() {
         let result = AlgorithmComplianceResult {
             algorithm: AlgorithmType::Ed25519,
             status: ComplianceStatus::FullyCompliant,
@@ -693,7 +693,7 @@ mod compliance_reporter_constructor_tests {
     use super::*;
 
     #[test]
-    fn test_compliance_reporter_new() {
+    fn test_compliance_reporter_new_succeeds() {
         let reporter = ComplianceReporter::new(0.05);
         // Verify reporter was created (no direct field access, just verify it works)
         let kat_results = create_ml_kem_results(10, 10);
@@ -702,7 +702,7 @@ mod compliance_reporter_constructor_tests {
     }
 
     #[test]
-    fn test_compliance_reporter_default() {
+    fn test_compliance_reporter_default_succeeds() {
         let reporter = ComplianceReporter::default();
         let kat_results = create_ml_kem_results(5, 5);
         let result = reporter.generate_full_compliance_report(&kat_results, &None);
@@ -710,7 +710,7 @@ mod compliance_reporter_constructor_tests {
     }
 
     #[test]
-    fn test_compliance_reporter_with_different_significance_levels() {
+    fn test_compliance_reporter_with_different_significance_levels_passes_validation() {
         // Test with various significance levels
         let significance_levels = [0.01, 0.05, 0.10, 0.001];
 
@@ -731,7 +731,7 @@ mod compliance_report_generation_tests {
     use super::*;
 
     #[test]
-    fn test_generate_full_compliance_report_all_passing() {
+    fn test_generate_full_compliance_report_all_passing_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 10);
 
@@ -744,7 +744,7 @@ mod compliance_report_generation_tests {
     }
 
     #[test]
-    fn test_generate_full_compliance_report_mixed_results() {
+    fn test_generate_full_compliance_report_mixed_results_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
 
@@ -759,7 +759,7 @@ mod compliance_report_generation_tests {
     }
 
     #[test]
-    fn test_generate_full_compliance_report_with_fips_validation() {
+    fn test_generate_full_compliance_report_with_fips_validation_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 10);
 
@@ -786,7 +786,7 @@ mod compliance_report_generation_tests {
     }
 
     #[test]
-    fn test_generate_full_compliance_report_partial_pass() {
+    fn test_generate_full_compliance_report_partial_pass_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 8); // 80% pass rate
 
@@ -798,7 +798,7 @@ mod compliance_report_generation_tests {
     }
 
     #[test]
-    fn test_generate_full_compliance_report_all_failing() {
+    fn test_generate_full_compliance_report_all_failing_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 0); // All failing
 
@@ -811,7 +811,7 @@ mod compliance_report_generation_tests {
     }
 
     #[test]
-    fn test_generate_full_compliance_report_timestamps() {
+    fn test_generate_full_compliance_report_timestamps_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
 
@@ -824,7 +824,7 @@ mod compliance_report_generation_tests {
     }
 
     #[test]
-    fn test_report_id_format() {
+    fn test_report_id_format_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
 
@@ -845,7 +845,7 @@ mod statistics_calculation_tests {
     use super::*;
 
     #[test]
-    fn test_metrics_calculation_full_pass() {
+    fn test_metrics_calculation_full_pass_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(100, 100);
 
@@ -859,7 +859,7 @@ mod statistics_calculation_tests {
     }
 
     #[test]
-    fn test_metrics_calculation_partial_pass() {
+    fn test_metrics_calculation_partial_pass_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(100, 75);
 
@@ -873,7 +873,7 @@ mod statistics_calculation_tests {
     }
 
     #[test]
-    fn test_security_coverage_detection() {
+    fn test_security_coverage_detection_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
 
@@ -895,7 +895,7 @@ mod statistics_calculation_tests {
     }
 
     #[test]
-    fn test_security_level_determination() {
+    fn test_security_level_determination_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
 
@@ -907,7 +907,7 @@ mod statistics_calculation_tests {
     }
 
     #[test]
-    fn test_execution_time_aggregation() {
+    fn test_execution_time_aggregation_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 10);
 
@@ -926,7 +926,7 @@ mod overall_compliance_tests {
     use super::*;
 
     #[test]
-    fn test_fully_compliant_status() {
+    fn test_fully_compliant_status_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(100, 100); // 100% pass rate
 
@@ -959,7 +959,7 @@ mod overall_compliance_tests {
     }
 
     #[test]
-    fn test_non_compliant_status() {
+    fn test_non_compliant_status_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(100, 50); // 50% pass rate
 
@@ -970,7 +970,7 @@ mod overall_compliance_tests {
     }
 
     #[test]
-    fn test_algorithm_specific_compliance() {
+    fn test_algorithm_specific_compliance_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let mut kat_results = create_ml_kem_results(10, 10); // ML-KEM all passing
         kat_results.extend(create_ml_dsa_results(10, 5)); // ML-DSA 50% passing
@@ -1000,7 +1000,7 @@ mod recommendations_tests {
     use super::*;
 
     #[test]
-    fn test_recommendations_fully_compliant() {
+    fn test_recommendations_fully_compliant_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 10);
 
@@ -1011,7 +1011,7 @@ mod recommendations_tests {
     }
 
     #[test]
-    fn test_recommendations_non_compliant() {
+    fn test_recommendations_non_compliant_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 3); // 30% pass rate
 
@@ -1030,7 +1030,7 @@ mod recommendations_tests {
     }
 
     #[test]
-    fn test_recommendations_partial_compliant() {
+    fn test_recommendations_partial_compliant_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 8); // 80% pass rate
 
@@ -1049,7 +1049,7 @@ mod json_report_tests {
     use super::*;
 
     #[test]
-    fn test_generate_json_report() {
+    fn test_generate_json_report_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1071,7 +1071,7 @@ mod json_report_tests {
     }
 
     #[test]
-    fn test_json_report_pretty_formatted() {
+    fn test_json_report_pretty_formatted_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1083,7 +1083,7 @@ mod json_report_tests {
     }
 
     #[test]
-    fn test_json_report_roundtrip() {
+    fn test_json_report_roundtrip_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1100,7 +1100,7 @@ mod json_report_tests {
     }
 
     #[test]
-    fn test_json_report_algorithm_results() {
+    fn test_json_report_algorithm_results_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1122,7 +1122,7 @@ mod html_report_tests {
     use super::*;
 
     #[test]
-    fn test_generate_html_report() {
+    fn test_generate_html_report_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1140,7 +1140,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_contains_title() {
+    fn test_html_report_contains_title_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1154,7 +1154,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_contains_styles() {
+    fn test_html_report_contains_styles_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1169,7 +1169,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_contains_report_id() {
+    fn test_html_report_contains_report_id_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1180,7 +1180,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_contains_algorithm_table() {
+    fn test_html_report_contains_algorithm_table_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1195,7 +1195,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_contains_statistical_results() {
+    fn test_html_report_contains_statistical_results_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1208,7 +1208,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_contains_recommendations() {
+    fn test_html_report_contains_recommendations_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1221,7 +1221,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_overall_status() {
+    fn test_html_report_overall_status_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1232,7 +1232,7 @@ mod html_report_tests {
     }
 
     #[test]
-    fn test_html_report_security_level() {
+    fn test_html_report_security_level_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1251,7 +1251,7 @@ mod save_report_tests {
     use super::*;
 
     #[test]
-    fn test_save_report_to_file() {
+    fn test_save_report_to_file_succeeds() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1272,7 +1272,7 @@ mod save_report_tests {
     }
 
     #[test]
-    fn test_saved_json_is_valid() {
+    fn test_saved_json_is_valid_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1291,7 +1291,7 @@ mod save_report_tests {
     }
 
     #[test]
-    fn test_saved_html_is_valid() {
+    fn test_saved_html_is_valid_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
         let report = reporter.generate_full_compliance_report(&kat_results, &None).unwrap();
@@ -1318,7 +1318,7 @@ mod algorithm_extraction_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_extraction() {
+    fn test_ml_kem_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("ML-KEM-512-test-1", 1000),
@@ -1332,7 +1332,7 @@ mod algorithm_extraction_tests {
     }
 
     #[test]
-    fn test_ml_dsa_extraction() {
+    fn test_ml_dsa_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("ML-DSA-44-test-1", 1000),
@@ -1346,7 +1346,7 @@ mod algorithm_extraction_tests {
     }
 
     #[test]
-    fn test_slh_dsa_extraction() {
+    fn test_slh_dsa_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("SLH-DSA-128s-test-1", 1000),
@@ -1359,7 +1359,7 @@ mod algorithm_extraction_tests {
     }
 
     #[test]
-    fn test_aes_gcm_extraction() {
+    fn test_aes_gcm_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("AES-GCM-128-test-1", 1000),
@@ -1372,7 +1372,7 @@ mod algorithm_extraction_tests {
     }
 
     #[test]
-    fn test_sha3_extraction() {
+    fn test_sha3_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("SHA3-256-test-1", 1000),
@@ -1385,7 +1385,7 @@ mod algorithm_extraction_tests {
     }
 
     #[test]
-    fn test_ed25519_extraction() {
+    fn test_ed25519_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("Ed25519-sign-test-1", 1000),
@@ -1398,7 +1398,7 @@ mod algorithm_extraction_tests {
     }
 
     #[test]
-    fn test_hybrid_kem_extraction() {
+    fn test_hybrid_kem_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("HYBRID-KEM-test-1", 1000),
@@ -1411,7 +1411,7 @@ mod algorithm_extraction_tests {
     }
 
     #[test]
-    fn test_unknown_algorithm_extraction() {
+    fn test_unknown_algorithm_extraction_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![
             create_passed_kat_result("SOME-UNKNOWN-ALG-test-1", 1000),
@@ -1433,7 +1433,7 @@ mod edge_cases_tests {
     use super::*;
 
     #[test]
-    fn test_empty_kat_results() {
+    fn test_empty_kat_results_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results: Vec<KatResult> = vec![];
 
@@ -1445,7 +1445,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_single_kat_result() {
+    fn test_single_kat_result_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![create_passed_kat_result("ML-KEM-768-test-1", 1000)];
 
@@ -1456,7 +1456,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_large_execution_time() {
+    fn test_large_execution_time_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![create_passed_kat_result("ML-KEM-768-test-1", u64::MAX as u128)];
 
@@ -1467,7 +1467,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_zero_execution_time() {
+    fn test_zero_execution_time_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![create_passed_kat_result("ML-KEM-768-test-1", 0)];
 
@@ -1478,7 +1478,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_special_characters_in_test_case_name() {
+    fn test_special_characters_in_test_case_name_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![create_passed_kat_result("ML-KEM-768-test-<>&\"'", 1000)];
 
@@ -1493,7 +1493,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_very_long_test_case_name() {
+    fn test_very_long_test_case_name_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let long_name = format!("ML-KEM-768-{}", "x".repeat(10000));
         let kat_results = vec![create_passed_kat_result(&long_name, 1000)];
@@ -1504,7 +1504,7 @@ mod edge_cases_tests {
     }
 
     #[test]
-    fn test_unicode_in_test_case_name() {
+    fn test_unicode_in_test_case_name_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = vec![create_passed_kat_result("ML-KEM-768-test-utf8", 1000)];
 
@@ -1523,7 +1523,7 @@ mod fips_integration_tests {
     use super::*;
 
     #[test]
-    fn test_report_with_fips_validation_passed() {
+    fn test_report_with_fips_validation_passed_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 10);
 
@@ -1550,7 +1550,7 @@ mod fips_integration_tests {
     }
 
     #[test]
-    fn test_report_with_fips_validation_failed() {
+    fn test_report_with_fips_validation_failed_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 10);
 
@@ -1575,7 +1575,7 @@ mod fips_integration_tests {
     }
 
     #[test]
-    fn test_report_without_fips_validation() {
+    fn test_report_without_fips_validation_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(10, 10);
 
@@ -1593,7 +1593,7 @@ mod compliance_report_struct_tests {
     use super::*;
 
     #[test]
-    fn test_compliance_report_clone() {
+    fn test_compliance_report_clone_succeeds() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
 
@@ -1610,7 +1610,7 @@ mod compliance_report_struct_tests {
     }
 
     #[test]
-    fn test_compliance_report_debug() {
+    fn test_compliance_report_debug_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_ml_kem_results(5, 5);
 
@@ -1622,7 +1622,7 @@ mod compliance_report_struct_tests {
     }
 
     #[test]
-    fn test_compliance_report_all_fields_populated() {
+    fn test_compliance_report_all_fields_populated_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
 
@@ -1638,7 +1638,7 @@ mod compliance_report_struct_tests {
     }
 
     #[test]
-    fn test_compliance_report_serialization_roundtrip() {
+    fn test_compliance_report_serialization_roundtrip_passes_validation() {
         let reporter = ComplianceReporter::new(0.01);
         let kat_results = create_mixed_algorithm_results();
 

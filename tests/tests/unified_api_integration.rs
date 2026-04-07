@@ -33,7 +33,7 @@ fn test_aes_gcm_roundtrip() {
 }
 
 #[test]
-fn test_aes_gcm_different_keys_produce_different_ciphertext() {
+fn test_aes_gcm_different_keys_produce_different_ciphertext_succeeds() {
     let plaintext = b"Test data";
     let key1 = [0x41u8; 32];
     let key2 = [0x42u8; 32];
@@ -48,7 +48,7 @@ fn test_aes_gcm_different_keys_produce_different_ciphertext() {
 }
 
 #[test]
-fn test_aes_gcm_random_nonces_produce_different_ciphertext() {
+fn test_aes_gcm_random_nonces_produce_different_ciphertext_succeeds() {
     let plaintext = b"Test data";
     let key = [0x42u8; 32];
 
@@ -62,7 +62,7 @@ fn test_aes_gcm_random_nonces_produce_different_ciphertext() {
 }
 
 #[test]
-fn test_aes_gcm_wrong_key_fails_decryption() {
+fn test_aes_gcm_wrong_key_fails_decryption_fails() {
     let plaintext = b"Test data";
     let key_enc = [0x41u8; 32];
     let key_dec = [0x42u8; 32];
@@ -92,7 +92,7 @@ fn test_aes_gcm_tampered_ciphertext_fails() {
 }
 
 #[test]
-fn test_aes_gcm_empty_plaintext() {
+fn test_aes_gcm_empty_plaintext_roundtrip() {
     let plaintext = b"";
     let key = [0x42u8; 32];
 
@@ -105,7 +105,7 @@ fn test_aes_gcm_empty_plaintext() {
 }
 
 #[test]
-fn test_aes_gcm_key_too_short() {
+fn test_aes_gcm_key_too_short_fails() {
     let plaintext = b"Test data";
     let short_key = [0x42u8; 16]; // AES-128 key (too short for this API)
 
@@ -118,7 +118,7 @@ fn test_aes_gcm_key_too_short() {
 // ============================================================================
 
 #[test]
-fn test_hash_deterministic() {
+fn test_hash_deterministic_produces_same_output_is_deterministic() {
     let data = b"Data to hash";
 
     let hash1 = hash_data(data);
@@ -128,7 +128,7 @@ fn test_hash_deterministic() {
 }
 
 #[test]
-fn test_hash_different_inputs() {
+fn test_hash_different_inputs_produce_different_output_succeeds() {
     let data1 = b"First data";
     let data2 = b"Second data";
 
@@ -139,7 +139,7 @@ fn test_hash_different_inputs() {
 }
 
 #[test]
-fn test_hash_empty_input() {
+fn test_hash_empty_input_has_correct_length_fails() {
     let empty = b"";
     let hash = hash_data(empty);
     // SHA-3-256 produces 32-byte output even for empty input
@@ -147,14 +147,14 @@ fn test_hash_empty_input() {
 }
 
 #[test]
-fn test_hash_large_input() {
+fn test_hash_large_input_has_correct_length_has_correct_size() {
     let large_data = vec![0x42u8; 1_000_000]; // 1MB
     let hash = hash_data(&large_data);
     assert_eq!(hash.len(), 32, "Hash should be 32 bytes");
 }
 
 #[test]
-fn test_hash_output_size() {
+fn test_hash_output_size_is_32_bytes_has_correct_size() {
     let data = b"Test data";
     let hash = hash_data(data);
 
@@ -179,7 +179,7 @@ fn test_hmac_roundtrip() {
 }
 
 #[test]
-fn test_hmac_wrong_key() {
+fn test_hmac_wrong_key_fails_verification_fails() {
     let message = b"Message to authenticate";
     let key1 = b"correct key";
     let key2 = b"wrong key";
@@ -192,7 +192,7 @@ fn test_hmac_wrong_key() {
 }
 
 #[test]
-fn test_hmac_tampered_message() {
+fn test_hmac_tampered_message_fails() {
     let message = b"Original message";
     let key = b"secret key";
 
@@ -206,7 +206,7 @@ fn test_hmac_tampered_message() {
 }
 
 #[test]
-fn test_hmac_deterministic() {
+fn test_hmac_deterministic_produces_same_tag_is_deterministic() {
     let message = b"Test message";
     let key = b"test key";
 
@@ -217,7 +217,7 @@ fn test_hmac_deterministic() {
 }
 
 #[test]
-fn test_hmac_empty_message() {
+fn test_hmac_empty_message_roundtrip() {
     let message = b"";
     let key = b"key";
 
@@ -233,7 +233,7 @@ fn test_hmac_empty_message() {
 // ============================================================================
 
 #[test]
-fn test_key_derivation_deterministic() {
+fn test_key_derivation_deterministic_produces_same_key_is_deterministic() {
     let master_key = b"master secret key";
     let context = b"encryption-key";
 
@@ -246,7 +246,7 @@ fn test_key_derivation_deterministic() {
 }
 
 #[test]
-fn test_key_derivation_different_contexts() {
+fn test_key_derivation_different_contexts_produce_different_keys_succeeds() {
     let master_key = b"master secret key";
     let context1 = b"encryption-key";
     let context2 = b"signing-key";
@@ -260,7 +260,7 @@ fn test_key_derivation_different_contexts() {
 }
 
 #[test]
-fn test_key_derivation_different_lengths() {
+fn test_key_derivation_different_lengths_has_correct_sizes_has_correct_size() {
     let master_key = b"master secret key";
     let context = b"key-context";
 
@@ -276,7 +276,7 @@ fn test_key_derivation_different_lengths() {
 }
 
 #[test]
-fn test_derived_key_can_be_used_for_encryption() {
+fn test_derived_key_can_be_used_for_encryption_roundtrip() {
     let master_key = b"master secret key for derivation";
     let context = b"aes-encryption-key";
 
@@ -297,7 +297,7 @@ fn test_derived_key_can_be_used_for_encryption() {
 // ============================================================================
 
 #[test]
-fn test_large_data_encryption() {
+fn test_large_data_encryption_roundtrip() {
     // Test with 1MB of data
     let large_data = vec![0x42u8; 1_000_000];
     let key = [0x42u8; 32];
@@ -307,7 +307,11 @@ fn test_large_data_encryption() {
     let decrypted = decrypt_aes_gcm(&ciphertext, &key, SecurityMode::Unverified)
         .expect("large data decryption should succeed");
 
-    assert_eq!(decrypted, large_data, "Large data roundtrip should preserve data");
+    assert_eq!(
+        decrypted.as_slice(),
+        large_data.as_slice(),
+        "Large data roundtrip should preserve data"
+    );
 }
 
 // ============================================================================
@@ -315,7 +319,7 @@ fn test_large_data_encryption() {
 // ============================================================================
 
 #[test]
-fn test_single_byte_encryption() {
+fn test_single_byte_encryption_roundtrip() {
     let single_byte = b"X";
     let key = [0x42u8; 32];
 
@@ -328,7 +332,7 @@ fn test_single_byte_encryption() {
 }
 
 #[test]
-fn test_unicode_data_encryption() {
+fn test_unicode_data_encryption_roundtrip() {
     let unicode_data = "こんにちは世界 🌍 مرحبا بالعالم";
     let key = [0x42u8; 32];
 
@@ -342,7 +346,7 @@ fn test_unicode_data_encryption() {
 }
 
 #[test]
-fn test_binary_data_encryption() {
+fn test_binary_data_encryption_roundtrip() {
     // Test with binary data including null bytes
     let binary_data: Vec<u8> = (0..=255).collect();
     let key = [0x42u8; 32];
@@ -352,7 +356,7 @@ fn test_binary_data_encryption() {
     let decrypted = decrypt_aes_gcm(&ciphertext, &key, SecurityMode::Unverified)
         .expect("binary decryption should succeed");
 
-    assert_eq!(decrypted, binary_data);
+    assert_eq!(decrypted.as_slice(), binary_data.as_slice());
 }
 
 // ============================================================================
@@ -360,7 +364,7 @@ fn test_binary_data_encryption() {
 // ============================================================================
 
 #[test]
-fn test_multiple_keys_from_single_master() {
+fn test_multiple_keys_from_single_master_are_independent_succeeds() {
     let master_key = b"master key for multi-purpose derivation";
 
     // Derive separate keys for different purposes
@@ -390,7 +394,7 @@ fn test_multiple_keys_from_single_master() {
 }
 
 #[test]
-fn test_encrypt_then_mac_pattern() {
+fn test_encrypt_then_mac_pattern_succeeds() {
     let plaintext = b"Important data requiring both confidentiality and integrity";
 
     // Use different keys for encryption and authentication (good practice)
@@ -419,7 +423,7 @@ fn test_encrypt_then_mac_pattern() {
 }
 
 #[test]
-fn test_hash_then_sign_pattern() {
+fn test_hash_then_sign_pattern_succeeds() {
     // Simulating a hash-then-sign pattern (without actual signing, just HMAC for demo)
     let document = b"Important legal document content";
 
@@ -437,7 +441,7 @@ fn test_hash_then_sign_pattern() {
 }
 
 #[test]
-fn test_complete_secure_message_workflow() {
+fn test_complete_secure_message_workflow_succeeds() {
     // Complete workflow: derive keys, encrypt, authenticate
     let master_secret = b"shared master secret between parties";
 

@@ -552,7 +552,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_shared_secret_wrong_length() {
+    fn test_validate_shared_secret_wrong_length_fails() {
         let vector = HybridKemKatVector {
             test_case: "SHORT-SS".to_string(),
             seed: vec![0u8; 32],
@@ -565,7 +565,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_shared_secret_all_zeros() {
+    fn test_validate_shared_secret_all_zeros_succeeds() {
         let vector = HybridKemKatVector {
             test_case: "ZERO-SS".to_string(),
             seed: vec![0u8; 32],
@@ -579,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_shared_secret_high_entropy() {
+    fn test_validate_shared_secret_high_entropy_succeeds() {
         // Create a shared secret with high byte values to get high entropy
         let mut ss = Vec::with_capacity(32);
         for i in 0..32u8 {
@@ -605,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_shared_secret_empty() {
+    fn test_validate_shared_secret_empty_succeeds() {
         let vector = HybridKemKatVector {
             test_case: "EMPTY-SS".to_string(),
             seed: vec![0u8; 32],
@@ -622,7 +622,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_aes_gcm_encryption_invalid_nonce_length() {
+    fn test_validate_aes_gcm_encryption_invalid_nonce_length_fails() {
         let vector = AesGcmKatVector {
             test_case: "BAD-NONCE".to_string(),
             key: vec![0u8; 16],
@@ -639,7 +639,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_aes_gcm_encryption_invalid_key_length() {
+    fn test_validate_aes_gcm_encryption_invalid_key_length_fails() {
         let vector = AesGcmKatVector {
             test_case: "BAD-KEY".to_string(),
             key: vec![0u8; 24], // Not 16 or 32 bytes
@@ -719,7 +719,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_aes_gcm_authentication_aes128_tag() {
+    fn test_validate_aes_gcm_authentication_aes128_tag_succeeds() {
         let vector = AesGcmKatVector {
             test_case: "AUTH-128".to_string(),
             key: vec![0u8; 16],
@@ -739,7 +739,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_aes_gcm_authentication_aes256_tag() {
+    fn test_validate_aes_gcm_authentication_aes256_tag_succeeds() {
         let vector = AesGcmKatVector {
             test_case: "AUTH-256".to_string(),
             key: vec![0u8; 32],
@@ -759,7 +759,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_aes_gcm_authentication_wrong_tag() {
+    fn test_validate_aes_gcm_authentication_wrong_tag_fails() {
         let vector = AesGcmKatVector {
             test_case: "AUTH-WRONG".to_string(),
             key: vec![0u8; 16],
@@ -776,7 +776,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_aes_gcm_authentication_wrong_tag_size() {
+    fn test_validate_aes_gcm_authentication_wrong_tag_size_fails() {
         let vector = AesGcmKatVector {
             test_case: "AUTH-BAD-SIZE".to_string(),
             key: vec![0u8; 16],
@@ -797,7 +797,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_sha3_hash_empty_message() {
+    fn test_validate_sha3_hash_empty_message_succeeds() {
         let vector = Sha3KatVector {
             test_case: "SHA3-EMPTY".to_string(),
             message: vec![],
@@ -814,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sha3_hash_abc_known_entry() {
+    fn test_validate_sha3_hash_abc_known_entry_succeeds() {
         // The known_hash_values for "abc" in validate_sha3_hash does not match
         // the real SHA3-256("abc"), so even if found_in_known matches, hash_valid
         // (computed vs expected) will differ, resulting in false.
@@ -836,7 +836,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sha3_hash_abc_real_hash() {
+    fn test_validate_sha3_hash_abc_real_hash_succeeds() {
         // Use the real SHA3-256("abc") as the expected hash.
         // hash_valid will be true, but found_in_known will be false because the
         // known_hash_values stores a different expected_hash for "abc".
@@ -856,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sha3_hash_not_in_known_list() {
+    fn test_validate_sha3_hash_not_in_known_list_succeeds() {
         // A message that is not in the known_hash_values list
         use sha3::{Digest as _, Sha3_256 as Sha3_256Hash};
         let message = b"not in known list".to_vec();
@@ -876,7 +876,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_sha3_hash_wrong_hash_size() {
+    fn test_validate_sha3_hash_wrong_hash_size_fails() {
         let vector = Sha3KatVector {
             test_case: "SHA3-BAD-SIZE".to_string(),
             message: vec![],
@@ -893,7 +893,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_ml_kem_keypair_wrong_sizes() {
+    fn test_validate_ml_kem_keypair_wrong_sizes_fails() {
         let vector = MlKemKatVector {
             test_case: "BAD-SIZES".to_string(),
             seed: vec![0u8; 16],                 // Wrong seed size (should be 32)
@@ -913,7 +913,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_ml_kem_encapsulation_wrong_sizes() {
+    fn test_validate_ml_kem_encapsulation_wrong_sizes_fails() {
         let vector = MlKemKatVector {
             test_case: "BAD-ENCAPS".to_string(),
             seed: vec![0u8; 32],
@@ -933,7 +933,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_hybrid_kem_wrong_sizes() {
+    fn test_validate_hybrid_kem_wrong_sizes_fails() {
         let vector = HybridKemKatVector {
             test_case: "BAD-HYBRID".to_string(),
             seed: vec![0u8; 32],
@@ -951,7 +951,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_ml_dsa_keypair_wrong_sizes() {
+    fn test_validate_ml_dsa_keypair_wrong_sizes_fails() {
         let vector = MlDsaKatVector {
             test_case: "BAD-DSA-KP".to_string(),
             seed: vec![0u8; 32], // Wrong (should be 48)
@@ -967,7 +967,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_ml_dsa_signature_empty_message() {
+    fn test_validate_ml_dsa_signature_empty_message_succeeds() {
         let vector = MlDsaKatVector {
             test_case: "EMPTY-MSG-DSA".to_string(),
             seed: vec![0u8; 48],
@@ -988,7 +988,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_slh_dsa_keypair_wrong_sizes() {
+    fn test_validate_slh_dsa_keypair_wrong_sizes_fails() {
         let vector = SlhDsaKatVector {
             test_case: "BAD-SLH-KP".to_string(),
             seed: vec![0u8; 32], // Wrong (should be 48)
@@ -1003,7 +1003,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_slh_dsa_signature_empty_message() {
+    fn test_validate_slh_dsa_signature_empty_message_succeeds() {
         let vector = SlhDsaKatVector {
             test_case: "EMPTY-MSG-SLH".to_string(),
             seed: vec![0u8; 48],
@@ -1018,7 +1018,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_slh_dsa_signature_wrong_sizes() {
+    fn test_validate_slh_dsa_signature_wrong_sizes_fails() {
         let vector = SlhDsaKatVector {
             test_case: "BAD-SLH-SIG".to_string(),
             seed: vec![0u8; 48],
@@ -1037,7 +1037,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_validate_ed25519_keypair_correct_prefix_wrong_sizes() {
+    fn test_validate_ed25519_keypair_correct_prefix_wrong_sizes_fails() {
         let vector = Ed25519KatVector {
             test_case: "ED-BAD-SIZES".to_string(),
             seed: vec![0u8; 64],                // Wrong (should be 32)
@@ -1052,7 +1052,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_ed25519_signature_non_empty_message() {
+    fn test_validate_ed25519_signature_non_empty_message_succeeds() {
         // Test the non-empty message branch in msg_expected_prefix
         let vector = Ed25519KatVector {
             test_case: "ED-NONEMPTY-MSG".to_string(),
@@ -1069,7 +1069,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_ed25519_signature_empty_message_branch() {
+    fn test_validate_ed25519_signature_empty_message_branch_succeeds() {
         // Test the empty message branch specifically
         let vector = Ed25519KatVector {
             test_case: "ED-EMPTY-MSG".to_string(),

@@ -57,7 +57,6 @@
 
 use std::time::Instant;
 
-use rand::rngs::OsRng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
@@ -67,7 +66,7 @@ use latticearc::primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel, MlKemSharedSecret,
 };
 use latticearc::primitives::sig::ml_dsa::{
-    MlDsaParameterSet, MlDsaSecretKey, generate_keypair, sign, verify,
+    MlDsaParameterSet, MlDsaSecretKey, MlDsaSignature, generate_keypair, sign, verify,
 };
 
 // ============================================================================
@@ -147,7 +146,7 @@ fn timing_ratio(result1: &TimingResult, result2: &TimingResult) -> f64 {
 
 /// Test ML-KEM shared secret constant-time comparison
 #[test]
-fn test_mlkem_shared_secret_constant_time_comparison() {
+fn test_mlkem_shared_secret_constant_time_comparison_succeeds() {
     const ITERATIONS: usize = 1000;
     const WARMUP: usize = 100;
 
@@ -207,7 +206,7 @@ fn test_mlkem_shared_secret_constant_time_comparison() {
 
 /// Test ML-KEM security level constant-time comparison
 #[test]
-fn test_mlkem_security_level_constant_time_comparison() {
+fn test_mlkem_security_level_constant_time_comparison_succeeds() {
     const ITERATIONS: usize = 1000;
     const WARMUP: usize = 100;
 
@@ -261,7 +260,7 @@ fn test_mlkem_security_level_constant_time_comparison() {
 
 /// Test ML-KEM secret key constant-time comparison
 #[test]
-fn test_mlkem_secret_key_constant_time_comparison() {
+fn test_mlkem_secret_key_constant_time_comparison_succeeds() {
     const ITERATIONS: usize = 500;
     const WARMUP: usize = 50;
 
@@ -305,15 +304,15 @@ fn test_mlkem_secret_key_constant_time_comparison() {
 /// timing measurements may vary significantly. The constant-time comparison
 /// guarantees come from the subtle crate's ct_eq implementation.
 #[test]
-fn test_mldsa_secret_key_constant_time_comparison() {
+fn test_mldsa_secret_key_constant_time_comparison_succeeds() {
     const ITERATIONS: usize = 500;
     const WARMUP: usize = 50;
 
     // Generate two keypairs
     let (_pk1, sk1) =
-        generate_keypair(MlDsaParameterSet::MLDSA44).expect("keypair generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation should succeed");
     let (_pk2, sk2) =
-        generate_keypair(MlDsaParameterSet::MLDSA44).expect("keypair generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation should succeed");
 
     // Create copies for comparison
     let sk1_copy = MlDsaSecretKey::new(sk1.parameter_set(), sk1.as_bytes().to_vec())
@@ -352,7 +351,7 @@ fn test_mldsa_secret_key_constant_time_comparison() {
 
 /// Test AES-GCM tag verification constant-time
 #[test]
-fn test_aes_gcm_tag_verification_constant_time() {
+fn test_aes_gcm_tag_verification_constant_time_succeeds() {
     use latticearc::primitives::aead::verify_tag_constant_time;
 
     const ITERATIONS: usize = 2000;
@@ -417,21 +416,18 @@ fn test_aes_gcm_tag_verification_constant_time() {
 /// This test is informational only - it logs timing data but does not fail
 /// on high variance since that indicates system load, not timing leaks.
 #[test]
-fn test_mlkem_encapsulation_timing_consistency() {
+fn test_mlkem_encapsulation_timing_consistency_succeeds() {
     const ITERATIONS: usize = 100;
     const WARMUP: usize = 20;
-
-    let mut rng = OsRng;
 
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) =
-            MlKem::generate_keypair(&mut rng, level).expect("keypair generation should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
         let timing = measure_operation(
             || {
-                let _ = MlKem::encapsulate(&mut OsRng, &pk);
+                let _ = MlKem::encapsulate(&pk);
             },
             ITERATIONS,
             WARMUP,
@@ -465,7 +461,7 @@ fn test_mlkem_encapsulation_timing_consistency() {
 /// guarantees come from the underlying fips204 implementation, NOT from timing measurements.
 #[test]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_mldsa_signature_timing_consistency() {
+fn test_mldsa_signature_timing_consistency_succeeds() {
     const ITERATIONS: usize = 20;
     const WARMUP: usize = 2;
 
@@ -473,7 +469,7 @@ fn test_mldsa_signature_timing_consistency() {
     let context: &[u8] = &[];
 
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (_pk, sk) = generate_keypair(param).expect("keypair generation should succeed");
 
@@ -504,7 +500,7 @@ fn test_mldsa_signature_timing_consistency() {
 /// come from the underlying aws-lc-rs implementation, NOT from timing measurements.
 #[test]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_aes_gcm_encryption_timing_consistency() {
+fn test_aes_gcm_encryption_timing_consistency_succeeds() {
     const ITERATIONS: usize = 200;
     const WARMUP: usize = 20;
 
@@ -538,7 +534,7 @@ fn test_aes_gcm_encryption_timing_consistency() {
 
 /// Test that ML-KEM key generation produces timing-consistent keys
 #[test]
-fn test_mlkem_keygen_timing_bounds() {
+fn test_mlkem_keygen_timing_bounds_succeeds() {
     const ITERATIONS: usize = 50;
     const WARMUP: usize = 10;
 
@@ -547,7 +543,7 @@ fn test_mlkem_keygen_timing_bounds() {
     {
         let timing = measure_operation(
             || {
-                let _ = MlKem::generate_keypair(&mut OsRng, level);
+                let _ = MlKem::generate_keypair(level);
             },
             ITERATIONS,
             WARMUP,
@@ -583,21 +579,19 @@ fn test_mlkem_keygen_timing_bounds() {
 
 /// Test that secret key operations don't leave observable memory patterns
 #[test]
-fn test_mlkem_secret_key_memory_pattern_independence() {
+fn test_mlkem_secret_key_memory_pattern_independence_succeeds() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
         // Generate multiple keys with different values
         let (pk1, _sk1) =
-            MlKem::generate_keypair(&mut OsRng, level).expect("keypair generation should succeed");
+            MlKem::generate_keypair(level).expect("keypair generation should succeed");
         let (pk2, _sk2) =
-            MlKem::generate_keypair(&mut OsRng, level).expect("keypair generation should succeed");
+            MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
         // Encapsulate with both keys and verify operations complete
-        let (ss1, ct1) =
-            MlKem::encapsulate(&mut OsRng, &pk1).expect("encapsulation should succeed");
-        let (ss2, ct2) =
-            MlKem::encapsulate(&mut OsRng, &pk2).expect("encapsulation should succeed");
+        let (ss1, ct1) = MlKem::encapsulate(&pk1).expect("encapsulation should succeed");
+        let (ss2, ct2) = MlKem::encapsulate(&pk2).expect("encapsulation should succeed");
 
         // Shared secrets should be different (different keys)
         assert_ne!(
@@ -613,13 +607,13 @@ fn test_mlkem_secret_key_memory_pattern_independence() {
 
 /// Test that ML-DSA operations are independent of secret key bit patterns
 #[test]
-fn test_mldsa_secret_key_bit_pattern_independence() {
+fn test_mldsa_secret_key_bit_pattern_independence_succeeds() {
     let message1 = b"First test message";
     let message2 = b"Second test message with different content";
     let context: &[u8] = &[];
 
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = generate_keypair(param).expect("keypair generation should succeed");
 
@@ -643,7 +637,7 @@ fn test_mldsa_secret_key_bit_pattern_independence() {
 /// Test cache-timing resistance for AES-GCM
 #[test]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_aes_gcm_cache_timing_resistance() {
+fn test_aes_gcm_cache_timing_resistance_succeeds() {
     const ITERATIONS: usize = 100;
     const WARMUP: usize = 10;
 
@@ -698,7 +692,7 @@ fn test_aes_gcm_cache_timing_resistance() {
 /// and system scheduling, measured timing may vary. This test uses permissive
 /// thresholds to avoid false positives while detecting gross timing leaks.
 #[test]
-fn test_key_comparison_position_independence() {
+fn test_key_comparison_position_independence_succeeds() {
     const ITERATIONS: usize = 2000;
     const WARMUP: usize = 200;
 
@@ -781,7 +775,7 @@ fn test_key_comparison_position_independence() {
 
 /// Test ML-KEM shared secret zeroization
 #[test]
-fn test_mlkem_shared_secret_zeroization() {
+fn test_mlkem_shared_secret_zeroization_succeeds() {
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
 
     // Verify initial state
@@ -802,7 +796,7 @@ fn test_mlkem_shared_secret_zeroization() {
 
 /// Test ML-KEM secret key zeroization
 #[test]
-fn test_mlkem_secret_key_zeroization() {
+fn test_mlkem_secret_key_zeroization_succeeds() {
     let mut sk = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xCDu8; 2400])
         .expect("secret key construction should succeed");
 
@@ -824,9 +818,9 @@ fn test_mlkem_secret_key_zeroization() {
 
 /// Test ML-DSA secret key zeroization
 #[test]
-fn test_mldsa_secret_key_zeroization() {
+fn test_mldsa_secret_key_zeroization_succeeds() {
     let (_pk, mut sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA44).expect("keypair generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation should succeed");
 
     // Verify initial state
     assert!(
@@ -846,7 +840,7 @@ fn test_mldsa_secret_key_zeroization() {
 
 /// Test zeroization for all ML-KEM security levels
 #[test]
-fn test_mlkem_zeroization_all_levels() {
+fn test_mlkem_zeroization_all_levels_succeeds() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
@@ -865,9 +859,9 @@ fn test_mlkem_zeroization_all_levels() {
 
 /// Test zeroization for all ML-DSA parameter sets
 #[test]
-fn test_mldsa_zeroization_all_parameter_sets() {
+fn test_mldsa_zeroization_all_parameter_sets_succeeds() {
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (_pk, mut sk) = generate_keypair(param).expect("keypair generation should succeed");
 
@@ -883,7 +877,7 @@ fn test_mldsa_zeroization_all_parameter_sets() {
 
 /// Test AES-GCM key zeroization
 #[test]
-fn test_aes_gcm_key_zeroization() {
+fn test_aes_gcm_key_zeroization_succeeds() {
     use latticearc::primitives::aead::zeroize_data;
 
     let mut key = AesGcm256::generate_key();
@@ -900,14 +894,12 @@ fn test_aes_gcm_key_zeroization() {
 
 /// Test intermediate computation cleanup
 #[test]
-fn test_intermediate_computation_cleanup() {
-    let mut rng = OsRng;
-
+fn test_intermediate_computation_cleanup_succeeds() {
     // Generate keypair and encapsulate
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
-    let (mut ss, _ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+    let (mut ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     // Verify shared secret is non-zero
     assert!(ss.as_bytes().iter().any(|&b| b != 0), "Shared secret should be non-zero");
@@ -921,16 +913,13 @@ fn test_intermediate_computation_cleanup() {
 
 /// Test stack cleanup after crypto operations
 #[test]
-fn test_stack_cleanup_after_operations() {
-    let mut rng = OsRng;
-
+fn test_stack_cleanup_after_operations_succeeds() {
     // Perform crypto operation in a scope
     {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
 
-        let (mut ss, _ct) =
-            MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (mut ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // Use the shared secret
         let _ = ss.as_bytes().len();
@@ -946,7 +935,7 @@ fn test_stack_cleanup_after_operations() {
 
 /// Test multiple zeroization calls are safe
 #[test]
-fn test_multiple_zeroization_calls() {
+fn test_multiple_zeroization_calls_succeeds() {
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
 
     // Multiple zeroization calls should be safe
@@ -964,7 +953,7 @@ fn test_multiple_zeroization_calls() {
 
 /// Test ML-KEM public key validation timing consistency
 #[test]
-fn test_mlkem_public_key_validation_timing() {
+fn test_mlkem_public_key_validation_timing_succeeds() {
     const ITERATIONS: usize = 100;
     const WARMUP: usize = 10;
 
@@ -1014,7 +1003,7 @@ fn test_mlkem_public_key_validation_timing() {
 /// NOTE: This test measures validation timing which is affected by system load.
 /// The validation logic is simple length checking which is inherently constant-time.
 #[test]
-fn test_mlkem_ciphertext_validation_timing() {
+fn test_mlkem_ciphertext_validation_timing_succeeds() {
     const ITERATIONS: usize = 200;
     const WARMUP: usize = 20;
 
@@ -1067,7 +1056,7 @@ fn test_mlkem_ciphertext_validation_timing() {
 
 /// Test AES-GCM decryption failure timing consistency
 #[test]
-fn test_aes_gcm_decryption_failure_timing() {
+fn test_aes_gcm_decryption_failure_timing_fails() {
     const ITERATIONS: usize = 100;
     const WARMUP: usize = 10;
 
@@ -1145,28 +1134,34 @@ fn test_aes_gcm_decryption_failure_timing() {
 
 /// Test ML-DSA verification failure timing consistency
 #[test]
-fn test_mldsa_verification_failure_timing() {
+fn test_mldsa_verification_failure_timing_fails() {
     const ITERATIONS: usize = 20;
     const WARMUP: usize = 2;
 
     let (pk, sk) =
-        generate_keypair(MlDsaParameterSet::MLDSA44).expect("keypair generation should succeed");
+        generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation should succeed");
     let message = b"Test message";
     let context: &[u8] = &[];
 
     let signature = sign(&sk, message, context).expect("signing should succeed");
 
     // Create corrupted signatures
-    let mut sig_corrupted_first = signature.clone();
-    sig_corrupted_first.data[0] ^= 0xFF;
+    let mut first_bytes = signature.as_bytes().to_vec();
+    first_bytes[0] ^= 0xFF;
+    let sig_corrupted_first =
+        MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), first_bytes);
 
-    let mut sig_corrupted_middle = signature.clone();
-    let middle = sig_corrupted_middle.data.len() / 2;
-    sig_corrupted_middle.data[middle] ^= 0xFF;
+    let mut middle_bytes = signature.as_bytes().to_vec();
+    let middle = middle_bytes.len() / 2;
+    middle_bytes[middle] ^= 0xFF;
+    let sig_corrupted_middle =
+        MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), middle_bytes);
 
-    let mut sig_corrupted_last = signature.clone();
-    let last = sig_corrupted_last.data.len() - 1;
-    sig_corrupted_last.data[last] ^= 0xFF;
+    let mut last_bytes = signature.as_bytes().to_vec();
+    let last = last_bytes.len() - 1;
+    last_bytes[last] ^= 0xFF;
+    let sig_corrupted_last =
+        MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), last_bytes);
 
     // Measure verification failure times
     let timing_first = measure_operation(
@@ -1224,22 +1219,20 @@ fn test_mldsa_verification_failure_timing() {
 
 /// Test ML-KEM security level mismatch error timing
 #[test]
-fn test_mlkem_security_level_mismatch_timing() {
+fn test_mlkem_security_level_mismatch_timing_fails() {
     const ITERATIONS: usize = 100;
     const WARMUP: usize = 10;
 
-    let mut rng = OsRng;
-
     // Generate keypairs at different security levels
-    let (pk_512, _) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+    let (pk_512, _) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
-    let (_, sk_768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (_, sk_768) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
-    let (_, sk_1024) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
+    let (_, sk_1024) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)
         .expect("keypair generation should succeed");
 
     // Encapsulate with 512 level
-    let (_, ct_512) = MlKem::encapsulate(&mut rng, &pk_512).expect("encapsulation should succeed");
+    let (_, ct_512) = MlKem::encapsulate(&pk_512).expect("encapsulation should succeed");
 
     // Measure decapsulation with mismatched levels
     let timing_768 = measure_operation(
@@ -1278,17 +1271,16 @@ fn test_mlkem_security_level_mismatch_timing() {
 /// thresholds to avoid false positives. The underlying implementation
 /// provides constant-time guarantees through the subtle crate.
 #[test]
-fn test_mlkem_encapsulation_timing_distribution() {
+fn test_mlkem_encapsulation_timing_distribution_succeeds() {
     const ITERATIONS: usize = 200;
     const WARMUP: usize = 50;
 
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
     let timing = measure_operation(
         || {
-            let _ = MlKem::encapsulate(&mut OsRng, &pk);
+            let _ = MlKem::encapsulate(&pk);
         },
         ITERATIONS,
         WARMUP,
@@ -1327,7 +1319,7 @@ fn test_mlkem_encapsulation_timing_distribution() {
 /// NOTE: This test measures timing distribution which is affected by system load.
 /// The constant-time guarantees come from aws-lc-rs hardware acceleration.
 #[test]
-fn test_aes_gcm_timing_distribution() {
+fn test_aes_gcm_timing_distribution_succeeds() {
     const ITERATIONS: usize = 500;
     const WARMUP: usize = 50;
 
@@ -1376,7 +1368,7 @@ fn test_aes_gcm_timing_distribution() {
 /// coverage instrumentation. The constant-time guarantees come from the subtle crate.
 #[test]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_timing_leak_detection_utility() {
+fn test_timing_leak_detection_utility_succeeds() {
     // This test demonstrates how to detect potential timing leaks
     const ITERATIONS: usize = 200;
     const WARMUP: usize = 20;
@@ -1419,11 +1411,9 @@ fn test_timing_leak_detection_utility() {
 
 /// Test comprehensive timing bounds for all algorithms
 #[test]
-fn test_comprehensive_timing_bounds() {
+fn test_comprehensive_timing_bounds_succeeds() {
     const ITERATIONS: usize = 20;
     const WARMUP: usize = 2;
-
-    let mut rng = OsRng;
 
     println!("\n=== Comprehensive Timing Bounds Report ===\n");
 
@@ -1434,18 +1424,17 @@ fn test_comprehensive_timing_bounds() {
     {
         let keygen_timing = measure_operation(
             || {
-                let _ = MlKem::generate_keypair(&mut OsRng, level);
+                let _ = MlKem::generate_keypair(level);
             },
             ITERATIONS,
             WARMUP,
         );
 
-        let (pk, _sk) =
-            MlKem::generate_keypair(&mut rng, level).expect("keypair generation should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
         let encaps_timing = measure_operation(
             || {
-                let _ = MlKem::encapsulate(&mut OsRng, &pk);
+                let _ = MlKem::encapsulate(&pk);
             },
             ITERATIONS,
             WARMUP,
@@ -1464,7 +1453,7 @@ fn test_comprehensive_timing_bounds() {
     // ML-DSA operations
     println!("\nML-DSA Operations:");
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let keygen_timing = measure_operation(
             || {
@@ -1550,7 +1539,7 @@ fn test_comprehensive_timing_bounds() {
 
 /// Test that constant-time operations produce correct results
 #[test]
-fn test_constant_time_operation_correctness() {
+fn test_constant_time_operation_correctness_succeeds() {
     // ML-KEM shared secret comparison
     let ss1 = MlKemSharedSecret::new([0x42u8; 32]);
     let ss2 = MlKemSharedSecret::new([0x42u8; 32]);
@@ -1582,7 +1571,7 @@ fn test_constant_time_operation_correctness() {
 /// Due to system scheduling and CPU caching, measured timing may vary.
 /// The actual constant-time guarantees come from the subtle crate implementation.
 #[test]
-fn test_branch_free_operations() {
+fn test_branch_free_operations_succeeds() {
     const ITERATIONS: usize = 1000;
     const WARMUP: usize = 100;
 
@@ -1660,7 +1649,7 @@ fn test_branch_free_operations() {
 
 /// Test that zeroization is complete and verifiable
 #[test]
-fn test_zeroization_completeness() {
+fn test_zeroization_completeness_succeeds() {
     // Test various sizes to ensure complete coverage
     for size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048] {
         let mut data = vec![0xFFu8; size];
@@ -1678,7 +1667,7 @@ fn test_zeroization_completeness() {
 
 /// Test that secret-dependent operations don't leak timing information
 #[test]
-fn test_secret_dependent_operation_timing() {
+fn test_secret_dependent_operation_timing_succeeds() {
     const ITERATIONS: usize = 100;
     const WARMUP: usize = 10;
 
@@ -1737,7 +1726,7 @@ fn test_secret_dependent_operation_timing() {
 /// chacha20poly1305 crate implementation, NOT from timing measurements.
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_chacha20poly1305_encryption_timing_consistency() {
+fn test_chacha20poly1305_encryption_timing_consistency_succeeds() {
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
     const ITERATIONS: usize = 200;
@@ -1777,7 +1766,7 @@ fn test_chacha20poly1305_encryption_timing_consistency() {
 #[test]
 #[cfg(not(feature = "fips"))]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_chacha20poly1305_tag_verification_constant_time() {
+fn test_chacha20poly1305_tag_verification_constant_time_succeeds() {
     use latticearc::primitives::aead::verify_tag_constant_time;
 
     const ITERATIONS: usize = 2000;
@@ -1836,7 +1825,7 @@ fn test_chacha20poly1305_tag_verification_constant_time() {
 /// Test ChaCha20-Poly1305 decryption failure timing consistency
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_chacha20poly1305_decryption_failure_timing() {
+fn test_chacha20poly1305_decryption_failure_timing_fails() {
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
     const ITERATIONS: usize = 100;
@@ -1910,7 +1899,7 @@ fn test_chacha20poly1305_decryption_failure_timing() {
 /// HKDF should have consistent timing for inputs of similar size.
 #[test]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_hkdf_timing_consistency() {
+fn test_hkdf_timing_consistency_succeeds() {
     use latticearc::primitives::kdf::hkdf::hkdf;
 
     const ITERATIONS: usize = 100;
@@ -1962,7 +1951,7 @@ fn test_hkdf_timing_consistency() {
 /// NOTE: Timing measurements are inherently unstable under coverage instrumentation.
 #[test]
 // Must run in release mode (timing unstable under llvm-cov instrumentation)
-fn test_hkdf_key_derivation_timing_independence() {
+fn test_hkdf_key_derivation_timing_independence_succeeds() {
     use latticearc::primitives::kdf::hkdf::{hkdf_expand, hkdf_extract};
 
     const ITERATIONS: usize = 200;

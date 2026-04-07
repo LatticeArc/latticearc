@@ -28,22 +28,74 @@ pub const CASCADE_INNER: &[u8] = b"LatticeArc-v1-Cascade-AES256GCM";
 ///
 /// Used when binding dual signatures combining Ed25519 classical signatures
 /// with ML-DSA-87 post-quantum signatures for hybrid authentication.
-pub const SIGNATURE_BIND: &[u8] = b"LatticeArc-v1-DualSignature-Ed25519-MLDSA87";
+pub const SIGNATURE_BIND: &[u8] = b"LatticeArc-v1-DualSignature-Ed25519-MlDsa87";
+
+/// Domain string for HPKE-style hybrid encryption HKDF info field.
+///
+/// Used as the default `info` argument when `derive_encryption_key` is
+/// called without a caller-supplied `HybridEncryptionContext`. Binds all
+/// derived AES-256 keys to the "hybrid encryption" protocol so that the same
+/// KEM shared secret cannot be repurposed for a different HKDF info.
+pub const HYBRID_ENCRYPTION_INFO: &[u8] = b"LatticeArc-Hybrid-Encryption-v1";
+
+/// Domain string mixed into the final HKDF pass of `derive_hybrid_shared_secret`.
+///
+/// Appended to the `(ML-KEM shared secret || ECDH shared secret)` IKM so the
+/// resulting 64-byte hybrid secret is bound to this specific construction.
+/// Changing this label invalidates every previously derived hybrid secret.
+pub const HYBRID_KEM_SS_INFO: &[u8] = b"LatticeArc-Hybrid-KEM-SS";
+
+/// Domain for convenience API `derive_key` HKDF calls.
+///
+/// Binds derived keys from the convenience layer to the LatticeArc crate
+/// so that the same password/salt pair cannot collide with other callers.
+pub const DERIVE_KEY_INFO: &[u8] = b"LatticeArc-DeriveKey-v1";
+
+/// HMAC key used by the FIPS 140-3 module integrity self-test.
+///
+/// This is NOT a secret — it is a public, fixed label that binds the module
+/// integrity check to the LatticeArc crate identity per FIPS 140-3 §7.10.2.
+pub const MODULE_INTEGRITY_HMAC_KEY: &[u8] = b"LatticeArc-FIPS-140-3-Module-Integrity-Key-v1";
+
+/// Domain for PQ-KEM convenience API HKDF key derivation.
+///
+/// Used in `encrypt_pq_ml_kem_internal` / `decrypt_pq_ml_kem_internal` to derive
+/// AES-256 keys from ML-KEM shared secrets with domain separation.
+pub const PQ_KEM_AEAD_KEY_INFO: &[u8] = b"LatticeArc-PqKem-AeadKey-v1";
 
 // Formal verification with Kani
 #[cfg(kani)]
+#[allow(clippy::indexing_slicing)]
 mod kani_proofs {
     use super::*;
 
-    /// Proves all 4 HKDF domain constants are pairwise distinct.
+    /// Proves all 9 HKDF domain constants are pairwise distinct (C(9,2)=36 pairs).
     /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
     #[kani::proof]
     fn domain_constants_pairwise_distinct() {
-        kani::assert(HYBRID_KEM != CASCADE_OUTER, "HYBRID_KEM != CASCADE_OUTER");
-        kani::assert(HYBRID_KEM != CASCADE_INNER, "HYBRID_KEM != CASCADE_INNER");
-        kani::assert(HYBRID_KEM != SIGNATURE_BIND, "HYBRID_KEM != SIGNATURE_BIND");
-        kani::assert(CASCADE_OUTER != CASCADE_INNER, "CASCADE_OUTER != CASCADE_INNER");
-        kani::assert(CASCADE_OUTER != SIGNATURE_BIND, "CASCADE_OUTER != SIGNATURE_BIND");
-        kani::assert(CASCADE_INNER != SIGNATURE_BIND, "CASCADE_INNER != SIGNATURE_BIND");
+        let constants: &[&[u8]] = &[
+            HYBRID_KEM,
+            CASCADE_OUTER,
+            CASCADE_INNER,
+            SIGNATURE_BIND,
+            HYBRID_ENCRYPTION_INFO,
+            HYBRID_KEM_SS_INFO,
+            DERIVE_KEY_INFO,
+            MODULE_INTEGRITY_HMAC_KEY,
+            PQ_KEM_AEAD_KEY_INFO,
+        ];
+        let n = constants.len();
+        let mut i = 0;
+        while i < n {
+            let mut j = i + 1;
+            while j < n {
+                kani::assert(
+                    constants[i] != constants[j],
+                    "All HKDF domain constants must be pairwise distinct",
+                );
+                j += 1;
+            }
+            i += 1;
+        }
     }
 }

@@ -59,13 +59,13 @@ mod aes_128_gcm_tests {
     use super::*;
 
     #[test]
-    fn test_run_aes_128_gcm_kat_passes() {
+    fn test_run_aes_128_gcm_kat_all_vectors_pass_matches_expected() {
         let result = run_aes_128_gcm_kat();
         assert!(result.is_ok(), "AES-128-GCM KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_aes_128_gcm_vector_count() {
+    fn test_aes_128_gcm_vector_count_is_correct() {
         // Ensure we have expected number of test vectors
         assert!(
             AES_128_GCM_VECTORS.len() >= 3,
@@ -75,7 +75,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_vector_names() {
+    fn test_aes_128_gcm_vector_names_have_correct_format_succeeds() {
         // Verify all test vectors have proper names
         for (i, vector) in AES_128_GCM_VECTORS.iter().enumerate() {
             assert!(!vector.test_name.is_empty(), "Vector {} should have a non-empty test name", i);
@@ -89,7 +89,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_key_lengths() {
+    fn test_aes_128_gcm_key_lengths_are_correct() {
         // AES-128 requires 16-byte (32 hex chars) keys
         for vector in AES_128_GCM_VECTORS {
             assert_eq!(
@@ -103,7 +103,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_nonce_lengths() {
+    fn test_aes_128_gcm_nonce_lengths_are_correct() {
         // GCM nonces should be 12 bytes (24 hex chars)
         for vector in AES_128_GCM_VECTORS {
             assert_eq!(
@@ -117,7 +117,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_tag_lengths() {
+    fn test_aes_128_gcm_tag_lengths_are_correct() {
         // GCM tags should be 16 bytes (32 hex chars)
         for vector in AES_128_GCM_VECTORS {
             assert_eq!(
@@ -131,7 +131,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_empty_plaintext() {
+    fn test_aes_128_gcm_empty_plaintext_matches_expected() {
         // Test Case 1: Empty plaintext
         let vector = &AES_128_GCM_VECTORS[0];
         assert!(vector.plaintext.is_empty(), "First test vector should have empty plaintext");
@@ -161,7 +161,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_128bit_plaintext() {
+    fn test_aes_128_gcm_128bit_plaintext_matches_nist_vector_matches_expected() {
         // Test Case 2: 128-bit plaintext
         let vector = &AES_128_GCM_VECTORS[1];
         assert_eq!(
@@ -193,7 +193,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_256bit_plaintext() {
+    fn test_aes_128_gcm_256bit_plaintext_matches_nist_vector_matches_expected() {
         // Test Case 3: 256-bit plaintext with different key
         let vector = &AES_128_GCM_VECTORS[2];
         assert!(vector.plaintext.len() > 32, "Third test vector should have longer plaintext");
@@ -232,7 +232,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_all_vectors_individually() {
+    fn test_aes_128_gcm_all_vectors_individually_succeed_matches_expected() {
         for vector in AES_128_GCM_VECTORS {
             let key_bytes = decode_hex(vector.key).unwrap();
             let nonce_bytes = decode_hex(vector.nonce).unwrap();
@@ -258,7 +258,7 @@ mod aes_128_gcm_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_roundtrip() {
+    fn test_aes_128_gcm_roundtrip_succeeds() {
         for vector in AES_128_GCM_VECTORS {
             let key_bytes = decode_hex(vector.key).unwrap();
             let nonce_bytes = decode_hex(vector.nonce).unwrap();
@@ -302,13 +302,13 @@ mod aes_256_gcm_tests {
     use super::*;
 
     #[test]
-    fn test_run_aes_256_gcm_kat_passes() {
+    fn test_run_aes_256_gcm_kat_all_vectors_pass_matches_expected() {
         let result = run_aes_256_gcm_kat();
         assert!(result.is_ok(), "AES-256-GCM KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_aes_256_gcm_vector_count() {
+    fn test_aes_256_gcm_vector_count_is_correct() {
         assert!(
             AES_256_GCM_VECTORS.len() >= 3,
             "AES-256-GCM should have at least 3 test vectors, found {}",
@@ -317,7 +317,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_vector_names() {
+    fn test_aes_256_gcm_vector_names_have_correct_format_succeeds() {
         for (i, vector) in AES_256_GCM_VECTORS.iter().enumerate() {
             assert!(!vector.test_name.is_empty(), "Vector {} should have a non-empty test name", i);
             assert!(
@@ -330,7 +330,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_key_lengths() {
+    fn test_aes_256_gcm_key_lengths_are_correct() {
         // AES-256 requires 32-byte (64 hex chars) keys
         for vector in AES_256_GCM_VECTORS {
             assert_eq!(
@@ -344,7 +344,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_nonce_lengths() {
+    fn test_aes_256_gcm_nonce_lengths_are_correct() {
         // GCM nonces should be 12 bytes (24 hex chars)
         for vector in AES_256_GCM_VECTORS {
             assert_eq!(
@@ -358,7 +358,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_tag_lengths() {
+    fn test_aes_256_gcm_tag_lengths_are_correct() {
         // GCM tags should be 16 bytes (32 hex chars)
         for vector in AES_256_GCM_VECTORS {
             assert_eq!(
@@ -372,7 +372,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_empty_plaintext() {
+    fn test_aes_256_gcm_empty_plaintext_matches_expected() {
         let vector = &AES_256_GCM_VECTORS[0];
         assert!(vector.plaintext.is_empty(), "First test vector should have empty plaintext");
         assert!(
@@ -399,7 +399,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_128bit_plaintext() {
+    fn test_aes_256_gcm_128bit_plaintext_matches_nist_vector_matches_expected() {
         let vector = &AES_256_GCM_VECTORS[1];
         assert_eq!(
             vector.plaintext.len(),
@@ -429,7 +429,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_256bit_plaintext() {
+    fn test_aes_256_gcm_256bit_plaintext_matches_nist_vector_matches_expected() {
         let vector = &AES_256_GCM_VECTORS[2];
         assert!(vector.plaintext.len() > 32, "Third test vector should have longer plaintext");
 
@@ -466,7 +466,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_all_vectors_individually() {
+    fn test_aes_256_gcm_all_vectors_individually_succeed_matches_expected() {
         for vector in AES_256_GCM_VECTORS {
             let key_bytes = decode_hex(vector.key).unwrap();
             let nonce_bytes = decode_hex(vector.nonce).unwrap();
@@ -492,7 +492,7 @@ mod aes_256_gcm_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_roundtrip() {
+    fn test_aes_256_gcm_roundtrip_succeeds() {
         for vector in AES_256_GCM_VECTORS {
             let key_bytes = decode_hex(vector.key).unwrap();
             let nonce_bytes = decode_hex(vector.nonce).unwrap();
@@ -536,7 +536,7 @@ mod test_vector_structure_tests {
     use super::*;
 
     #[test]
-    fn test_aes_gcm_test_vector_fields() {
+    fn test_aes_gcm_test_vector_fields_are_all_accessible_matches_expected() {
         // Test that we can access all fields of AesGcmTestVector
         let vector = &AES_128_GCM_VECTORS[0];
 
@@ -557,7 +557,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_all_aes_128_vectors_have_valid_hex() {
+    fn test_all_aes_128_vectors_have_valid_hex_matches_expected() {
         for vector in AES_128_GCM_VECTORS {
             assert!(decode_hex(vector.key).is_ok(), "Invalid hex in key for {}", vector.test_name);
             assert!(
@@ -585,7 +585,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_all_aes_256_vectors_have_valid_hex() {
+    fn test_all_aes_256_vectors_have_valid_hex_matches_expected() {
         for vector in AES_256_GCM_VECTORS {
             assert!(decode_hex(vector.key).is_ok(), "Invalid hex in key for {}", vector.test_name);
             assert!(
@@ -613,7 +613,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_plaintext_ciphertext_length_match() {
+    fn test_plaintext_ciphertext_length_match_is_correct() {
         // Plaintext and ciphertext (excluding tag) should have same length
         for vector in AES_128_GCM_VECTORS {
             assert_eq!(
@@ -643,7 +643,7 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_decode_hex_invalid_characters() {
+    fn test_decode_hex_invalid_characters_returns_error() {
         // Test with invalid hex characters
         let result = decode_hex("zzzz");
         assert!(result.is_err(), "decode_hex should fail for invalid hex characters");
@@ -656,14 +656,14 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_odd_length() {
+    fn test_decode_hex_odd_length_returns_error() {
         // Test with odd-length hex string
         let result = decode_hex("abc");
         assert!(result.is_err(), "decode_hex should fail for odd-length hex strings");
     }
 
     #[test]
-    fn test_decode_hex_empty_string() {
+    fn test_decode_hex_empty_string_succeeds() {
         // Empty string should decode successfully to empty vec
         let result = decode_hex("");
         assert!(result.is_ok(), "decode_hex should succeed for empty string");
@@ -671,7 +671,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_valid_strings() {
+    fn test_decode_hex_valid_strings_succeed_succeeds() {
         // Test various valid hex strings
         let test_cases = [
             ("00", vec![0u8]),
@@ -687,7 +687,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_display() {
+    fn test_nist_kat_error_display_has_correct_format() {
         // Test TestFailed error formatting
         let err = NistKatError::TestFailed {
             algorithm: "AES-128-GCM".to_string(),
@@ -716,7 +716,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_debug() {
+    fn test_nist_kat_error_debug_has_correct_format() {
         // Test Debug trait implementation
         let err = NistKatError::TestFailed {
             algorithm: "AES-128-GCM".to_string(),
@@ -736,7 +736,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_aes_128_gcm_tag_verification_failure() {
+    fn test_aes_128_gcm_tag_verification_failure_fails() {
         // Test that tampered ciphertext fails authentication
         let vector = &AES_128_GCM_VECTORS[1];
         let key_bytes = decode_hex(vector.key).unwrap();
@@ -769,7 +769,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_tag_verification_failure() {
+    fn test_aes_256_gcm_tag_verification_failure_fails() {
         // Test that tampered ciphertext fails authentication
         let vector = &AES_256_GCM_VECTORS[1];
         let key_bytes = decode_hex(vector.key).unwrap();
@@ -974,7 +974,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_aes_gcm_with_aad() {
+    fn test_aes_gcm_with_aad_roundtrip() {
         // Test encryption/decryption with non-empty AAD
         let key_bytes = vec![0u8; 16];
         let nonce_bytes: [u8; 12] = [0; 12];
@@ -1009,7 +1009,7 @@ mod consistency_tests {
     use super::*;
 
     #[test]
-    fn test_aes_128_256_produce_different_output() {
+    fn test_aes_128_256_produce_different_outputs_succeeds() {
         // Same key (padded), nonce, plaintext should produce different ciphertext
         let key_128 = vec![0u8; 16];
         let key_256 = vec![0u8; 32];
@@ -1038,7 +1038,7 @@ mod consistency_tests {
     }
 
     #[test]
-    fn test_different_nonces_produce_different_output() {
+    fn test_different_nonces_produce_different_outputs_are_unique() {
         // Same key, different nonces should produce different ciphertext
         let key = vec![0u8; 16];
         let nonce1: [u8; 12] = [0; 12];
@@ -1067,7 +1067,7 @@ mod consistency_tests {
     }
 
     #[test]
-    fn test_same_input_produces_same_output() {
+    fn test_same_input_produces_same_output_is_deterministic() {
         // Same key, nonce, plaintext should produce same ciphertext
         let key = vec![0u8; 16];
         let nonce: [u8; 12] = [0; 12];
@@ -1100,7 +1100,7 @@ mod kat_test_result_tests {
     use latticearc_tests::validation::nist_kat::KatTestResult;
 
     #[test]
-    fn test_kat_test_result_passed() {
+    fn test_kat_test_result_passed_matches_expected() {
         let result =
             KatTestResult::passed("test-case-1".to_string(), "AES-128-GCM".to_string(), 100);
 
@@ -1112,7 +1112,7 @@ mod kat_test_result_tests {
     }
 
     #[test]
-    fn test_kat_test_result_failed() {
+    fn test_kat_test_result_failed_matches_expected() {
         let result = KatTestResult::failed(
             "test-case-2".to_string(),
             "AES-256-GCM".to_string(),
@@ -1129,7 +1129,7 @@ mod kat_test_result_tests {
     }
 
     #[test]
-    fn test_kat_test_result_clone() {
+    fn test_kat_test_result_clone_succeeds() {
         let result =
             KatTestResult::passed("test-case-1".to_string(), "AES-128-GCM".to_string(), 100);
 
@@ -1140,7 +1140,7 @@ mod kat_test_result_tests {
     }
 
     #[test]
-    fn test_kat_test_result_debug() {
+    fn test_kat_test_result_debug_has_correct_format() {
         let result =
             KatTestResult::passed("test-case-1".to_string(), "AES-128-GCM".to_string(), 100);
 
@@ -1158,7 +1158,7 @@ mod coverage_enhancement_tests {
     use super::*;
 
     #[test]
-    fn test_aes_128_gcm_all_vectors_decryption() {
+    fn test_aes_128_gcm_all_vectors_decryption_succeeds() {
         // Test decryption path explicitly for all vectors
         for vector in AES_128_GCM_VECTORS {
             let key_bytes = decode_hex(vector.key).unwrap();
@@ -1191,7 +1191,7 @@ mod coverage_enhancement_tests {
     }
 
     #[test]
-    fn test_aes_256_gcm_all_vectors_decryption() {
+    fn test_aes_256_gcm_all_vectors_decryption_succeeds() {
         // Test decryption path explicitly for all vectors
         for vector in AES_256_GCM_VECTORS {
             let key_bytes = decode_hex(vector.key).unwrap();
@@ -1224,7 +1224,7 @@ mod coverage_enhancement_tests {
     }
 
     #[test]
-    fn test_long_plaintext_encryption() {
+    fn test_long_plaintext_encryption_succeeds() {
         // Test with a longer plaintext (multiple blocks)
         let key = vec![0u8; 16];
         let nonce: [u8; 12] = [0; 12];
@@ -1251,7 +1251,7 @@ mod coverage_enhancement_tests {
     }
 
     #[test]
-    fn test_max_aad_size() {
+    fn test_max_aad_size_succeeds() {
         // Test with large AAD
         let key = vec![0u8; 16];
         let nonce: [u8; 12] = [0; 12];
@@ -1279,7 +1279,7 @@ mod coverage_enhancement_tests {
     }
 
     #[test]
-    fn test_vector_test_name_format() {
+    fn test_vector_test_name_has_correct_format() {
         // Verify test name format matches expected pattern
         for (i, vector) in AES_128_GCM_VECTORS.iter().enumerate() {
             let expected_pattern = format!("AES-128-GCM-KAT-{}", i + 1);
@@ -1293,14 +1293,14 @@ mod coverage_enhancement_tests {
     }
 
     #[test]
-    fn test_vectors_static_lifetime() {
+    fn test_vectors_static_lifetime_succeeds() {
         // Verify vectors have static lifetime (compile-time check)
         let _: &'static [AesGcmTestVector] = AES_128_GCM_VECTORS;
         let _: &'static [AesGcmTestVector] = AES_256_GCM_VECTORS;
     }
 
     #[test]
-    fn test_hex_decoding_uppercase() {
+    fn test_hex_decoding_uppercase_succeeds() {
         // Verify hex decoding works with uppercase
         let result = decode_hex("ABCDEF");
         assert!(result.is_ok());
@@ -1308,7 +1308,7 @@ mod coverage_enhancement_tests {
     }
 
     #[test]
-    fn test_hex_decoding_mixed_case() {
+    fn test_hex_decoding_mixed_case_succeeds() {
         // Verify hex decoding works with mixed case
         let result = decode_hex("AbCdEf");
         assert!(result.is_ok());

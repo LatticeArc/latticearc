@@ -11,7 +11,7 @@ use latticearc::perf::{
 use std::time::Duration;
 
 #[test]
-fn test_timer_measurements() {
+fn test_timer_measurements_succeeds() {
     let mut timer = Timer::new();
     assert!(!timer.is_running());
 
@@ -24,7 +24,7 @@ fn test_timer_measurements() {
 }
 
 #[test]
-fn test_histogram_statistics() {
+fn test_histogram_statistics_succeeds() {
     let mut histogram = Histogram::new(100);
 
     // Add samples from 0 to 99 nanoseconds
@@ -49,7 +49,7 @@ fn test_histogram_statistics() {
 }
 
 #[test]
-fn test_metrics_collector_threading() {
+fn test_metrics_collector_threading_succeeds() {
     use std::sync::Arc;
     use std::thread;
 
@@ -79,7 +79,7 @@ fn test_metrics_collector_threading() {
 }
 
 #[test]
-fn test_scoped_timer_recording() {
+fn test_scoped_timer_recording_succeeds() {
     let collector = MetricsCollector::new();
 
     {
@@ -93,7 +93,7 @@ fn test_scoped_timer_recording() {
 }
 
 #[test]
-fn test_scoped_timer_manual_stop() {
+fn test_scoped_timer_manual_stop_succeeds() {
     let collector = MetricsCollector::new();
 
     let timer = ScopedTimer::new(&collector, "manual_stop");
@@ -107,7 +107,7 @@ fn test_scoped_timer_manual_stop() {
 }
 
 #[test]
-fn test_benchmark_function() {
+fn test_benchmark_function_succeeds() {
     let stats = benchmark(1000, || {
         let mut x = 0u64;
         for i in 0..100 {
@@ -122,7 +122,7 @@ fn test_benchmark_function() {
 }
 
 #[test]
-fn test_time_operation_function() {
+fn test_time_operation_function_succeeds() {
     let duration = time_operation(|| {
         std::thread::sleep(Duration::from_millis(10));
     });
@@ -131,7 +131,7 @@ fn test_time_operation_function() {
 }
 
 #[test]
-fn test_metrics_collector_multiple_operations() {
+fn test_metrics_collector_multiple_operations_succeeds() {
     let collector = MetricsCollector::new();
 
     collector.record_operation("op1", Duration::from_millis(10));
@@ -159,7 +159,7 @@ fn test_metrics_collector_multiple_operations() {
 }
 
 #[test]
-fn test_histogram_merge() {
+fn test_histogram_merge_succeeds() {
     let mut hist1 = Histogram::new(50);
     hist1.record(Duration::from_nanos(10));
     hist1.record(Duration::from_nanos(20));
@@ -177,7 +177,7 @@ fn test_histogram_merge() {
 }
 
 #[test]
-fn test_histogram_clear() {
+fn test_histogram_clear_succeeds() {
     let mut histogram = Histogram::new(10);
     histogram.record(Duration::from_millis(10));
     histogram.record(Duration::from_millis(20));
@@ -190,7 +190,7 @@ fn test_histogram_clear() {
 }
 
 #[test]
-fn test_metrics_collector_clear() {
+fn test_metrics_collector_clear_succeeds() {
     let collector = MetricsCollector::new();
 
     collector.record_operation("test", Duration::from_millis(10));
@@ -207,7 +207,7 @@ fn test_metrics_collector_clear() {
 }
 
 #[test]
-fn test_histogram_batch_recording() {
+fn test_histogram_batch_recording_succeeds() {
     let mut histogram = Histogram::new(10);
 
     let durations =
@@ -219,7 +219,7 @@ fn test_histogram_batch_recording() {
 }
 
 #[test]
-fn test_performance_overhead() {
+fn test_performance_overhead_succeeds() {
     // Verify that MetricsCollector tracking completes in bounded time.
     // We don't compare against a baseline (which can be near-zero for trivial loops,
     // making ratio comparisons meaningless). Instead we check absolute wall time.
@@ -242,7 +242,7 @@ fn test_performance_overhead() {
 }
 
 #[test]
-fn test_empty_histogram_statistics() {
+fn test_empty_histogram_statistics_succeeds() {
     let histogram = Histogram::new(10);
     let stats = histogram.calculate_statistics();
 
@@ -253,7 +253,7 @@ fn test_empty_histogram_statistics() {
 }
 
 #[test]
-fn test_unknown_operation_statistics() {
+fn test_unknown_operation_statistics_succeeds() {
     let collector = MetricsCollector::new();
     let stats = collector.get_statistics("unknown_operation");
 
@@ -261,7 +261,7 @@ fn test_unknown_operation_statistics() {
 }
 
 #[test]
-fn test_multiple_scoped_timers() {
+fn test_multiple_scoped_timers_succeeds() {
     let collector = MetricsCollector::new();
 
     {
@@ -276,7 +276,7 @@ fn test_multiple_scoped_timers() {
 }
 
 #[test]
-fn test_scoped_timer_timing_only() {
+fn test_scoped_timer_timing_only_succeeds() {
     let timer = ScopedTimer::timing_only();
     std::thread::sleep(Duration::from_millis(5));
     let elapsed = timer.elapsed();
@@ -285,7 +285,7 @@ fn test_scoped_timer_timing_only() {
 }
 
 #[test]
-fn test_benchmark_warmup() {
+fn test_benchmark_warmup_succeeds() {
     // Benchmark should include a warmup phase
     let stats = benchmark(100, || {
         // Simple operation

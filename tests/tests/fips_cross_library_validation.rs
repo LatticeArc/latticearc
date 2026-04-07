@@ -24,7 +24,7 @@ use fips203::traits::{Decaps, Encaps, KeyGen, SerDes};
 
 /// Test that fips203 and aws-lc-rs agree on ML-KEM-768 public key size
 #[test]
-fn test_ml_kem_768_key_size_agreement() {
+fn test_ml_kem_768_key_size_agreement_has_correct_size() {
     // fips203: generate keypair
     let (ek_fips, _dk_fips) =
         <ml_kem_768::KG as KeyGen>::try_keygen().expect("fips203 keygen should succeed");
@@ -46,7 +46,7 @@ fn test_ml_kem_768_key_size_agreement() {
 
 /// Test cross-library encapsulation: fips203 key → aws-lc-rs encapsulate → fips203 decapsulate
 #[test]
-fn test_cross_library_fips203_keygen_aws_encaps() {
+fn test_cross_library_fips203_keygen_aws_encaps_succeeds() {
     // Step 1: Generate keypair with fips203
     let (ek_fips, dk_fips) =
         <ml_kem_768::KG as KeyGen>::try_keygen().expect("fips203 keygen should succeed");
@@ -74,7 +74,7 @@ fn test_cross_library_fips203_keygen_aws_encaps() {
 
 /// Test cross-library encapsulation: aws-lc-rs key → fips203 encapsulate → aws-lc-rs decapsulate
 #[test]
-fn test_cross_library_aws_keygen_fips203_encaps() {
+fn test_cross_library_aws_keygen_fips203_encaps_succeeds() {
     // Step 1: Generate keypair with aws-lc-rs
     let dk_aws = DecapsulationKey::generate(&ML_KEM_768).expect("aws-lc-rs keygen should succeed");
     let ek_aws = dk_aws.encapsulation_key().expect("aws-lc-rs encaps key should succeed");
@@ -103,7 +103,7 @@ fn test_cross_library_aws_keygen_fips203_encaps() {
 
 /// Test that multiple cross-library roundtrips all produce valid shared secrets
 #[test]
-fn test_cross_library_roundtrip_consistency() {
+fn test_cross_library_roundtrip_consistency_roundtrip() {
     for i in 0..5 {
         // Alternate which library generates the key
         if i % 2 == 0 {

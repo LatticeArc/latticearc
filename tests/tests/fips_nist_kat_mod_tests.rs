@@ -54,14 +54,14 @@ mod re_export_tests {
     use super::*;
 
     #[test]
-    fn test_kat_runner_exported() {
+    fn test_kat_runner_exported_is_accessible() {
         // Verify KatRunner is properly exported
         let runner = KatRunner::new();
         assert!(runner.summary().total == 0);
     }
 
     #[test]
-    fn test_kat_summary_exported() {
+    fn test_kat_summary_exported_is_accessible() {
         // Verify KatSummary is properly exported
         let summary = KatSummary::new();
         assert_eq!(summary.total, 0);
@@ -70,14 +70,14 @@ mod re_export_tests {
     }
 
     #[test]
-    fn test_aes_gcm_kat_module_exported() {
+    fn test_aes_gcm_kat_module_exported_is_accessible() {
         // Verify AES-GCM KAT module is accessible
         assert!(!aes_gcm_kat::AES_128_GCM_VECTORS.is_empty());
         assert!(!aes_gcm_kat::AES_256_GCM_VECTORS.is_empty());
     }
 
     #[test]
-    fn test_sha2_kat_module_exported() {
+    fn test_sha2_kat_module_exported_is_accessible() {
         // Verify SHA2 KAT module is accessible
         assert!(!sha2_kat::SHA256_VECTORS.is_empty());
         assert!(!sha2_kat::SHA224_VECTORS.is_empty());
@@ -86,25 +86,25 @@ mod re_export_tests {
     }
 
     #[test]
-    fn test_hkdf_kat_module_exported() {
+    fn test_hkdf_kat_module_exported_is_accessible() {
         // Verify HKDF KAT module is accessible
         assert!(!hkdf_kat::HKDF_SHA256_VECTORS.is_empty());
     }
 
     #[test]
-    fn test_hmac_kat_module_exported() {
+    fn test_hmac_kat_module_exported_is_accessible() {
         // Verify HMAC KAT module is accessible
         assert!(!hmac_kat::HMAC_VECTORS.is_empty());
     }
 
     #[test]
-    fn test_chacha20_poly1305_kat_module_exported() {
+    fn test_chacha20_poly1305_kat_module_exported_is_accessible() {
         // Verify ChaCha20-Poly1305 KAT module is accessible
         assert!(!chacha20_poly1305_kat::CHACHA20_POLY1305_VECTORS.is_empty());
     }
 
     #[test]
-    fn test_ml_kem_kat_module_exported() {
+    fn test_ml_kem_kat_module_exported_is_accessible() {
         // Verify ML-KEM KAT module is accessible
         assert!(!ml_kem_kat::ML_KEM_512_VECTORS.is_empty());
         assert!(!ml_kem_kat::ML_KEM_768_VECTORS.is_empty());
@@ -112,7 +112,7 @@ mod re_export_tests {
     }
 
     #[test]
-    fn test_ml_dsa_kat_module_exported() {
+    fn test_ml_dsa_kat_module_exported_is_accessible() {
         // Verify ML-DSA KAT module is accessible
         assert!(!ml_dsa_kat::ML_DSA_44_VECTORS.is_empty());
         assert!(!ml_dsa_kat::ML_DSA_65_VECTORS.is_empty());
@@ -128,14 +128,14 @@ mod decode_hex_tests {
     use super::*;
 
     #[test]
-    fn test_decode_hex_empty_string() {
+    fn test_decode_hex_empty_string_returns_empty_vec_succeeds() {
         let result = decode_hex("");
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }
 
     #[test]
-    fn test_decode_hex_valid_lowercase() {
+    fn test_decode_hex_valid_lowercase_succeeds() {
         let result = decode_hex("0123456789abcdef");
         assert!(result.is_ok());
         let bytes = result.unwrap();
@@ -143,7 +143,7 @@ mod decode_hex_tests {
     }
 
     #[test]
-    fn test_decode_hex_valid_uppercase() {
+    fn test_decode_hex_valid_uppercase_succeeds() {
         let result = decode_hex("0123456789ABCDEF");
         assert!(result.is_ok());
         let bytes = result.unwrap();
@@ -151,7 +151,7 @@ mod decode_hex_tests {
     }
 
     #[test]
-    fn test_decode_hex_mixed_case() {
+    fn test_decode_hex_mixed_case_succeeds() {
         let result = decode_hex("0123456789AbCdEf");
         assert!(result.is_ok());
         let bytes = result.unwrap();
@@ -159,28 +159,28 @@ mod decode_hex_tests {
     }
 
     #[test]
-    fn test_decode_hex_single_byte() {
+    fn test_decode_hex_single_byte_succeeds() {
         let result = decode_hex("ff");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0xff]);
     }
 
     #[test]
-    fn test_decode_hex_all_zeros() {
+    fn test_decode_hex_all_zeros_succeeds() {
         let result = decode_hex("0000000000000000");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0, 0, 0, 0, 0, 0, 0, 0]);
     }
 
     #[test]
-    fn test_decode_hex_all_ones() {
+    fn test_decode_hex_all_ones_succeeds() {
         let result = decode_hex("ffffffff");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0xff, 0xff, 0xff, 0xff]);
     }
 
     #[test]
-    fn test_decode_hex_invalid_char() {
+    fn test_decode_hex_invalid_char_returns_error() {
         let result = decode_hex("0g");
         assert!(result.is_err());
         match result {
@@ -190,7 +190,7 @@ mod decode_hex_tests {
     }
 
     #[test]
-    fn test_decode_hex_odd_length() {
+    fn test_decode_hex_odd_length_returns_error() {
         let result = decode_hex("123");
         assert!(result.is_err());
         match result {
@@ -200,7 +200,7 @@ mod decode_hex_tests {
     }
 
     #[test]
-    fn test_decode_hex_with_spaces() {
+    fn test_decode_hex_with_spaces_returns_error() {
         let result = decode_hex("01 23");
         assert!(result.is_err());
         match result {
@@ -210,7 +210,7 @@ mod decode_hex_tests {
     }
 
     #[test]
-    fn test_decode_hex_with_prefix() {
+    fn test_decode_hex_with_prefix_returns_error() {
         let result = decode_hex("0x0123");
         assert!(result.is_err());
         match result {
@@ -220,13 +220,13 @@ mod decode_hex_tests {
     }
 
     #[test]
-    fn test_decode_hex_unicode() {
+    fn test_decode_hex_unicode_returns_error() {
         let result = decode_hex("\u{00e9}");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_decode_hex_long_string() {
+    fn test_decode_hex_long_string_succeeds() {
         // Test with a 128-byte (256 hex chars) string
         let hex_str = "00".repeat(128);
         let result = decode_hex(&hex_str);
@@ -245,7 +245,7 @@ mod nist_kat_error_tests {
     use super::*;
 
     #[test]
-    fn test_error_test_failed() {
+    fn test_error_test_failed_has_correct_message_fails() {
         let error = NistKatError::TestFailed {
             algorithm: "AES-256-GCM".to_string(),
             test_name: "Test-1".to_string(),
@@ -258,28 +258,28 @@ mod nist_kat_error_tests {
     }
 
     #[test]
-    fn test_error_hex_error() {
+    fn test_error_hex_error_has_correct_message_fails() {
         let error = NistKatError::HexError("Invalid hex character".to_string());
         let error_string = error.to_string();
         assert!(error_string.contains("Invalid hex character"));
     }
 
     #[test]
-    fn test_error_implementation_error() {
+    fn test_error_implementation_error_has_correct_message_fails() {
         let error = NistKatError::ImplementationError("Key creation failed".to_string());
         let error_string = error.to_string();
         assert!(error_string.contains("Key creation failed"));
     }
 
     #[test]
-    fn test_error_unsupported_algorithm() {
+    fn test_error_unsupported_algorithm_has_correct_message_fails() {
         let error = NistKatError::UnsupportedAlgorithm("UNKNOWN-ALG".to_string());
         let error_string = error.to_string();
         assert!(error_string.contains("UNKNOWN-ALG"));
     }
 
     #[test]
-    fn test_error_debug_format() {
+    fn test_error_debug_format_has_correct_string_fails() {
         let error = NistKatError::TestFailed {
             algorithm: "SHA-256".to_string(),
             test_name: "Test-2".to_string(),
@@ -298,7 +298,7 @@ mod kat_test_result_tests {
     use super::*;
 
     #[test]
-    fn test_passed_result() {
+    fn test_passed_result_has_correct_fields_succeeds() {
         let result =
             KatTestResult::passed("Test-Case-1".to_string(), "AES-128-GCM".to_string(), 1000);
         assert!(result.passed);
@@ -309,7 +309,7 @@ mod kat_test_result_tests {
     }
 
     #[test]
-    fn test_failed_result() {
+    fn test_failed_result_has_correct_fields_fails() {
         let result = KatTestResult::failed(
             "Test-Case-2".to_string(),
             "SHA-256".to_string(),
@@ -324,7 +324,7 @@ mod kat_test_result_tests {
     }
 
     #[test]
-    fn test_result_clone() {
+    fn test_result_clone_produces_equal_value_succeeds() {
         let result =
             KatTestResult::passed("Test-Clone".to_string(), "HMAC-SHA512".to_string(), 200);
         let cloned = result.clone();
@@ -335,7 +335,7 @@ mod kat_test_result_tests {
     }
 
     #[test]
-    fn test_result_debug() {
+    fn test_result_debug_has_correct_format() {
         let result = KatTestResult::passed("Test-Debug".to_string(), "HKDF".to_string(), 100);
         let debug_str = format!("{:?}", result);
         assert!(debug_str.contains("Test-Debug"));
@@ -343,14 +343,14 @@ mod kat_test_result_tests {
     }
 
     #[test]
-    fn test_passed_with_zero_time() {
+    fn test_passed_with_zero_time_has_correct_fields_succeeds() {
         let result = KatTestResult::passed("Zero-Time".to_string(), "Fast-Test".to_string(), 0);
         assert!(result.passed);
         assert_eq!(result.execution_time_us, 0);
     }
 
     #[test]
-    fn test_failed_with_empty_error_message() {
+    fn test_failed_with_empty_error_message_has_correct_fields_fails() {
         let result =
             KatTestResult::failed("Empty-Error".to_string(), "Test".to_string(), "".to_string(), 1);
         assert!(!result.passed);
@@ -366,7 +366,7 @@ mod kat_summary_tests {
     use super::*;
 
     #[test]
-    fn test_new_summary() {
+    fn test_new_summary_has_correct_fields_succeeds() {
         let summary = KatSummary::new();
         assert_eq!(summary.total, 0);
         assert_eq!(summary.passed, 0);
@@ -376,7 +376,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_default_summary() {
+    fn test_default_summary_has_correct_fields_succeeds() {
         let summary = KatSummary::default();
         assert_eq!(summary.total, 0);
         assert_eq!(summary.passed, 0);
@@ -384,7 +384,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_add_passed_result() {
+    fn test_add_passed_result_increments_count_succeeds() {
         let mut summary = KatSummary::new();
         let result = KatTestResult::passed("Test-1".to_string(), "Algo-1".to_string(), 1000);
         summary.add_result(result);
@@ -397,7 +397,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_add_failed_result() {
+    fn test_add_failed_result_increments_count_fails() {
         let mut summary = KatSummary::new();
         let result = KatTestResult::failed(
             "Test-2".to_string(),
@@ -413,7 +413,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_add_multiple_results() {
+    fn test_add_multiple_results_updates_counts_succeeds() {
         let mut summary = KatSummary::new();
 
         // Add 3 passed, 2 failed
@@ -440,7 +440,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_all_passed_true() {
+    fn test_all_passed_true_when_all_succeed_succeeds() {
         let mut summary = KatSummary::new();
         summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 0));
         summary.add_result(KatTestResult::passed("T2".to_string(), "A".to_string(), 0));
@@ -449,7 +449,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_all_passed_false() {
+    fn test_all_passed_false_when_any_fail_fails() {
         let mut summary = KatSummary::new();
         summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 0));
         summary.add_result(KatTestResult::failed(
@@ -463,13 +463,13 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_all_passed_empty() {
+    fn test_all_passed_empty_returns_true_succeeds() {
         let summary = KatSummary::new();
         assert!(summary.all_passed()); // No failures means all passed
     }
 
     #[test]
-    fn test_pass_rate_all_passed() {
+    fn test_pass_rate_all_passed_is_correct() {
         let mut summary = KatSummary::new();
         summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 0));
         summary.add_result(KatTestResult::passed("T2".to_string(), "A".to_string(), 0));
@@ -478,7 +478,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_pass_rate_all_failed() {
+    fn test_pass_rate_all_failed_is_correct() {
         let mut summary = KatSummary::new();
         summary.add_result(KatTestResult::failed(
             "T1".to_string(),
@@ -497,7 +497,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_pass_rate_fifty_percent() {
+    fn test_pass_rate_fifty_percent_is_correct() {
         let mut summary = KatSummary::new();
         summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 0));
         summary.add_result(KatTestResult::failed(
@@ -511,13 +511,13 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_pass_rate_empty() {
+    fn test_pass_rate_empty_is_correct() {
         let summary = KatSummary::new();
         assert!((summary.pass_rate() - 0.0).abs() < 0.001);
     }
 
     #[test]
-    fn test_summary_clone() {
+    fn test_summary_clone_produces_equal_value_succeeds() {
         let mut summary = KatSummary::new();
         summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 1000));
         let cloned = summary.clone();
@@ -528,7 +528,7 @@ mod kat_summary_tests {
     }
 
     #[test]
-    fn test_summary_print_does_not_panic() {
+    fn test_summary_print_does_not_panic_on_output_succeeds() {
         // Just verify print doesn't panic with various states
         let mut summary = KatSummary::new();
         summary.print(); // Empty
@@ -554,20 +554,20 @@ mod kat_runner_tests {
     use super::*;
 
     #[test]
-    fn test_new_runner() {
+    fn test_new_runner_succeeds() {
         let runner = KatRunner::new();
         let summary = runner.summary();
         assert_eq!(summary.total, 0);
     }
 
     #[test]
-    fn test_default_runner() {
+    fn test_default_runner_succeeds() {
         let runner = KatRunner::default();
         assert_eq!(runner.summary().total, 0);
     }
 
     #[test]
-    fn test_run_passing_test() {
+    fn test_run_passing_test_increments_pass_count_succeeds() {
         let mut runner = KatRunner::new();
         runner.run_test("Test-1", "Algo", || Ok(()));
 
@@ -578,7 +578,7 @@ mod kat_runner_tests {
     }
 
     #[test]
-    fn test_run_failing_test() {
+    fn test_run_failing_test_increments_fail_count_fails() {
         let mut runner = KatRunner::new();
         runner.run_test("Test-2", "Algo", || {
             Err(NistKatError::TestFailed {
@@ -595,7 +595,7 @@ mod kat_runner_tests {
     }
 
     #[test]
-    fn test_run_multiple_tests() {
+    fn test_run_multiple_tests_updates_counts_succeeds() {
         let mut runner = KatRunner::new();
 
         // Two passing tests
@@ -614,7 +614,7 @@ mod kat_runner_tests {
     }
 
     #[test]
-    fn test_finish_returns_summary() {
+    fn test_finish_returns_summary_with_correct_counts_succeeds() {
         let mut runner = KatRunner::new();
         runner.run_test("Test", "Algo", || Ok(()));
 
@@ -624,7 +624,7 @@ mod kat_runner_tests {
     }
 
     #[test]
-    fn test_runner_records_execution_time() {
+    fn test_runner_records_execution_time_correctly_succeeds() {
         let mut runner = KatRunner::new();
         runner.run_test("Slow-Test", "Algo", || {
             std::thread::sleep(std::time::Duration::from_millis(10));
@@ -636,7 +636,7 @@ mod kat_runner_tests {
     }
 
     #[test]
-    fn test_runner_hex_error() {
+    fn test_runner_hex_error_returns_error() {
         let mut runner = KatRunner::new();
         runner.run_test("Hex-Test", "Algo", || Err(NistKatError::HexError("bad".to_string())));
 
@@ -645,7 +645,7 @@ mod kat_runner_tests {
     }
 
     #[test]
-    fn test_runner_unsupported_algorithm() {
+    fn test_runner_unsupported_algorithm_returns_error() {
         let mut runner = KatRunner::new();
         runner.run_test("Unsupported", "Unknown", || {
             Err(NistKatError::UnsupportedAlgorithm("Unknown".to_string()))
@@ -663,121 +663,121 @@ mod submodule_function_tests {
     use super::*;
 
     #[test]
-    fn test_run_aes_128_gcm_kat() {
+    fn test_run_aes_128_gcm_kat_matches_vector() {
         let result = aes_gcm_kat::run_aes_128_gcm_kat();
         assert!(result.is_ok(), "AES-128-GCM KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_aes_256_gcm_kat() {
+    fn test_run_aes_256_gcm_kat_matches_vector() {
         let result = aes_gcm_kat::run_aes_256_gcm_kat();
         assert!(result.is_ok(), "AES-256-GCM KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_sha256_kat() {
+    fn test_run_sha256_kat_matches_vector() {
         let result = sha2_kat::run_sha256_kat();
         assert!(result.is_ok(), "SHA-256 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_sha224_kat() {
+    fn test_run_sha224_kat_matches_vector() {
         let result = sha2_kat::run_sha224_kat();
         assert!(result.is_ok(), "SHA-224 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_sha384_kat() {
+    fn test_run_sha384_kat_matches_vector() {
         let result = sha2_kat::run_sha384_kat();
         assert!(result.is_ok(), "SHA-384 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_sha512_kat() {
+    fn test_run_sha512_kat_matches_vector() {
         let result = sha2_kat::run_sha512_kat();
         assert!(result.is_ok(), "SHA-512 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_sha512_224_kat() {
+    fn test_run_sha512_224_kat_matches_vector() {
         let result = sha2_kat::run_sha512_224_kat();
         assert!(result.is_ok(), "SHA-512/224 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_sha512_256_kat() {
+    fn test_run_sha512_256_kat_matches_vector() {
         let result = sha2_kat::run_sha512_256_kat();
         assert!(result.is_ok(), "SHA-512/256 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_hkdf_sha256_kat() {
+    fn test_run_hkdf_sha256_kat_matches_vector() {
         let result = hkdf_kat::run_hkdf_sha256_kat();
         assert!(result.is_ok(), "HKDF-SHA256 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_hmac_sha224_kat() {
+    fn test_run_hmac_sha224_kat_matches_vector() {
         let result = hmac_kat::run_hmac_sha224_kat();
         assert!(result.is_ok(), "HMAC-SHA224 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_hmac_sha256_kat() {
+    fn test_run_hmac_sha256_kat_matches_vector() {
         let result = hmac_kat::run_hmac_sha256_kat();
         assert!(result.is_ok(), "HMAC-SHA256 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_hmac_sha384_kat() {
+    fn test_run_hmac_sha384_kat_matches_vector() {
         let result = hmac_kat::run_hmac_sha384_kat();
         assert!(result.is_ok(), "HMAC-SHA384 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_hmac_sha512_kat() {
+    fn test_run_hmac_sha512_kat_matches_vector() {
         let result = hmac_kat::run_hmac_sha512_kat();
         assert!(result.is_ok(), "HMAC-SHA512 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_chacha20_poly1305_kat() {
+    fn test_run_chacha20_poly1305_kat_matches_vector() {
         let result = chacha20_poly1305_kat::run_chacha20_poly1305_kat();
         assert!(result.is_ok(), "ChaCha20-Poly1305 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_512_kat() {
+    fn test_run_ml_kem_512_kat_matches_vector() {
         let result = ml_kem_kat::run_ml_kem_512_kat();
         assert!(result.is_ok(), "ML-KEM-512 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_768_kat() {
+    fn test_run_ml_kem_768_kat_matches_vector() {
         let result = ml_kem_kat::run_ml_kem_768_kat();
         assert!(result.is_ok(), "ML-KEM-768 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_1024_kat() {
+    fn test_run_ml_kem_1024_kat_matches_vector() {
         let result = ml_kem_kat::run_ml_kem_1024_kat();
         assert!(result.is_ok(), "ML-KEM-1024 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_44_kat() {
+    fn test_run_ml_dsa_44_kat_matches_vector() {
         let result = ml_dsa_kat::run_ml_dsa_44_kat();
         assert!(result.is_ok(), "ML-DSA-44 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_65_kat() {
+    fn test_run_ml_dsa_65_kat_matches_vector() {
         let result = ml_dsa_kat::run_ml_dsa_65_kat();
         assert!(result.is_ok(), "ML-DSA-65 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_dsa_87_kat() {
+    fn test_run_ml_dsa_87_kat_matches_vector() {
         let result = ml_dsa_kat::run_ml_dsa_87_kat();
         assert!(result.is_ok(), "ML-DSA-87 KAT failed: {:?}", result);
     }
@@ -791,7 +791,7 @@ mod kat_runner_integration_tests {
     use super::*;
 
     #[test]
-    fn test_runner_with_aes_gcm_kats() {
+    fn test_runner_with_aes_gcm_kats_all_pass_matches_expected() {
         let mut runner = KatRunner::new();
 
         runner.run_test("AES-128-GCM-All", "AES-128-GCM", || aes_gcm_kat::run_aes_128_gcm_kat());
@@ -803,7 +803,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_runner_with_sha2_kats() {
+    fn test_runner_with_sha2_kats_all_pass_matches_expected() {
         let mut runner = KatRunner::new();
 
         runner.run_test("SHA-224", "SHA-224", || sha2_kat::run_sha224_kat());
@@ -819,7 +819,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_runner_with_hmac_kats() {
+    fn test_runner_with_hmac_kats_all_pass_matches_expected() {
         let mut runner = KatRunner::new();
 
         runner.run_test("HMAC-SHA224", "HMAC-SHA224", || hmac_kat::run_hmac_sha224_kat());
@@ -833,7 +833,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_runner_with_pqc_kats() {
+    fn test_runner_with_pqc_kats_all_pass_matches_expected() {
         let mut runner = KatRunner::new();
 
         runner.run_test("ML-KEM-512", "ML-KEM-512", || ml_kem_kat::run_ml_kem_512_kat());
@@ -846,7 +846,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_runner_comprehensive_kat_suite() {
+    fn test_runner_comprehensive_kat_suite_all_pass_matches_expected() {
         let mut runner = KatRunner::new();
 
         // Symmetric crypto
@@ -888,7 +888,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_vector_struct_field_access() {
+    fn test_vector_struct_field_access_succeeds() {
         // Test that we can access test vector struct fields
         let aes_vector = &aes_gcm_kat::AES_128_GCM_VECTORS[0];
         assert!(!aes_vector.test_name.is_empty());
@@ -900,7 +900,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_sha2_vector_struct_field_access() {
+    fn test_sha2_vector_struct_field_access_succeeds() {
         let sha_vector = &sha2_kat::SHA256_VECTORS[0];
         assert!(!sha_vector.test_name.is_empty());
         // Message can be empty
@@ -908,7 +908,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_hkdf_vector_struct_field_access() {
+    fn test_hkdf_vector_struct_field_access_succeeds() {
         let hkdf_vector = &hkdf_kat::HKDF_SHA256_VECTORS[0];
         assert!(!hkdf_vector.test_name.is_empty());
         assert!(!hkdf_vector.ikm.is_empty());
@@ -920,7 +920,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_hmac_vector_struct_field_access() {
+    fn test_hmac_vector_struct_field_access_succeeds() {
         let hmac_vector = &hmac_kat::HMAC_VECTORS[0];
         assert!(!hmac_vector.test_name.is_empty());
         assert!(!hmac_vector.key.is_empty());
@@ -932,14 +932,14 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_ml_kem_vector_struct_field_access() {
+    fn test_ml_kem_vector_struct_field_access_succeeds() {
         let kem_vector = &ml_kem_kat::ML_KEM_512_VECTORS[0];
         assert!(!kem_vector.test_name.is_empty());
         assert!(!kem_vector.seed.is_empty());
     }
 
     #[test]
-    fn test_ml_dsa_vector_struct_field_access() {
+    fn test_ml_dsa_vector_struct_field_access_succeeds() {
         let dsa_vector = &ml_dsa_kat::ML_DSA_44_VECTORS[0];
         assert!(!dsa_vector.test_name.is_empty());
         assert!(!dsa_vector.seed.is_empty());
@@ -947,7 +947,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_vector_struct_field_access() {
+    fn test_chacha20_poly1305_vector_struct_field_access_succeeds() {
         let cc_vector = &chacha20_poly1305_kat::CHACHA20_POLY1305_VECTORS[0];
         assert!(!cc_vector.test_name.is_empty());
         assert!(!cc_vector.key.is_empty());
@@ -959,7 +959,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_runner_handles_mixed_results() {
+    fn test_runner_handles_mixed_results_correctly_succeeds() {
         let mut runner = KatRunner::new();
 
         runner.run_test("Pass", "Algo", || Ok(()));
@@ -980,7 +980,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_summary_time_accumulation() {
+    fn test_summary_time_accumulation_is_correct() {
         let mut summary = KatSummary::new();
 
         // Add results with known execution times
@@ -992,7 +992,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_many_test_results() {
+    fn test_many_test_results_are_tracked_correctly_succeeds() {
         let mut summary = KatSummary::new();
 
         // Add 100 results
@@ -1028,57 +1028,57 @@ mod vector_count_tests {
     use super::*;
 
     #[test]
-    fn test_aes_128_gcm_vector_count() {
+    fn test_aes_128_gcm_vector_count_is_correct() {
         assert_eq!(aes_gcm_kat::AES_128_GCM_VECTORS.len(), 3, "Expected 3 AES-128-GCM vectors");
     }
 
     #[test]
-    fn test_aes_256_gcm_vector_count() {
+    fn test_aes_256_gcm_vector_count_is_correct() {
         assert_eq!(aes_gcm_kat::AES_256_GCM_VECTORS.len(), 3, "Expected 3 AES-256-GCM vectors");
     }
 
     #[test]
-    fn test_sha256_vector_count() {
+    fn test_sha256_vector_count_is_correct() {
         assert_eq!(sha2_kat::SHA256_VECTORS.len(), 4, "Expected 4 SHA-256 vectors");
     }
 
     #[test]
-    fn test_sha224_vector_count() {
+    fn test_sha224_vector_count_is_correct() {
         assert_eq!(sha2_kat::SHA224_VECTORS.len(), 2, "Expected 2 SHA-224 vectors");
     }
 
     #[test]
-    fn test_sha384_vector_count() {
+    fn test_sha384_vector_count_is_correct() {
         assert_eq!(sha2_kat::SHA384_VECTORS.len(), 2, "Expected 2 SHA-384 vectors");
     }
 
     #[test]
-    fn test_sha512_vector_count() {
+    fn test_sha512_vector_count_is_correct() {
         assert_eq!(sha2_kat::SHA512_VECTORS.len(), 2, "Expected 2 SHA-512 vectors");
     }
 
     #[test]
-    fn test_sha512_224_vector_count() {
+    fn test_sha512_224_vector_count_is_correct() {
         assert_eq!(sha2_kat::SHA512_224_VECTORS.len(), 2, "Expected 2 SHA-512/224 vectors");
     }
 
     #[test]
-    fn test_sha512_256_vector_count() {
+    fn test_sha512_256_vector_count_is_correct() {
         assert_eq!(sha2_kat::SHA512_256_VECTORS.len(), 2, "Expected 2 SHA-512/256 vectors");
     }
 
     #[test]
-    fn test_hkdf_sha256_vector_count() {
+    fn test_hkdf_sha256_vector_count_is_correct() {
         assert_eq!(hkdf_kat::HKDF_SHA256_VECTORS.len(), 3, "Expected 3 HKDF-SHA256 vectors");
     }
 
     #[test]
-    fn test_hmac_vector_count() {
+    fn test_hmac_vector_count_is_correct() {
         assert_eq!(hmac_kat::HMAC_VECTORS.len(), 6, "Expected 6 HMAC vectors");
     }
 
     #[test]
-    fn test_chacha20_poly1305_vector_count() {
+    fn test_chacha20_poly1305_vector_count_is_correct() {
         assert_eq!(
             chacha20_poly1305_kat::CHACHA20_POLY1305_VECTORS.len(),
             1,
@@ -1087,32 +1087,32 @@ mod vector_count_tests {
     }
 
     #[test]
-    fn test_ml_kem_512_vector_count() {
+    fn test_ml_kem_512_vector_count_is_correct() {
         assert_eq!(ml_kem_kat::ML_KEM_512_VECTORS.len(), 2, "Expected 2 ML-KEM-512 vectors");
     }
 
     #[test]
-    fn test_ml_kem_768_vector_count() {
+    fn test_ml_kem_768_vector_count_is_correct() {
         assert_eq!(ml_kem_kat::ML_KEM_768_VECTORS.len(), 2, "Expected 2 ML-KEM-768 vectors");
     }
 
     #[test]
-    fn test_ml_kem_1024_vector_count() {
+    fn test_ml_kem_1024_vector_count_is_correct() {
         assert_eq!(ml_kem_kat::ML_KEM_1024_VECTORS.len(), 2, "Expected 2 ML-KEM-1024 vectors");
     }
 
     #[test]
-    fn test_ml_dsa_44_vector_count() {
+    fn test_ml_dsa_44_vector_count_is_correct() {
         assert_eq!(ml_dsa_kat::ML_DSA_44_VECTORS.len(), 2, "Expected 2 ML-DSA-44 vectors");
     }
 
     #[test]
-    fn test_ml_dsa_65_vector_count() {
+    fn test_ml_dsa_65_vector_count_is_correct() {
         assert_eq!(ml_dsa_kat::ML_DSA_65_VECTORS.len(), 2, "Expected 2 ML-DSA-65 vectors");
     }
 
     #[test]
-    fn test_ml_dsa_87_vector_count() {
+    fn test_ml_dsa_87_vector_count_is_correct() {
         assert_eq!(ml_dsa_kat::ML_DSA_87_VECTORS.len(), 2, "Expected 2 ML-DSA-87 vectors");
     }
 }

@@ -17,25 +17,25 @@ use latticearc_tests::validation::nist_kat::{KatTestResult, NistKatError, decode
 // ============================================================================
 
 #[test]
-fn test_decode_hex_valid() {
+fn test_decode_hex_valid_succeeds() {
     let bytes = decode_hex("48656c6c6f").unwrap();
     assert_eq!(bytes, b"Hello");
 }
 
 #[test]
-fn test_decode_hex_empty() {
+fn test_decode_hex_empty_succeeds() {
     let bytes = decode_hex("").unwrap();
     assert!(bytes.is_empty());
 }
 
 #[test]
-fn test_decode_hex_uppercase() {
+fn test_decode_hex_uppercase_succeeds() {
     let bytes = decode_hex("DEADBEEF").unwrap();
     assert_eq!(bytes, vec![0xDE, 0xAD, 0xBE, 0xEF]);
 }
 
 #[test]
-fn test_decode_hex_invalid_chars() {
+fn test_decode_hex_invalid_chars_returns_error() {
     let result = decode_hex("ZZZZ");
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -47,7 +47,7 @@ fn test_decode_hex_invalid_chars() {
 }
 
 #[test]
-fn test_decode_hex_odd_length() {
+fn test_decode_hex_odd_length_returns_error() {
     let result = decode_hex("ABC");
     assert!(result.is_err());
 }
@@ -57,7 +57,7 @@ fn test_decode_hex_odd_length() {
 // ============================================================================
 
 #[test]
-fn test_kat_test_result_passed() {
+fn test_kat_test_result_passed_has_correct_fields_matches_expected() {
     let result = KatTestResult::passed("TC1".to_string(), "AES-GCM".to_string(), 42);
     assert!(result.passed);
     assert_eq!(result.test_case, "TC1");
@@ -67,7 +67,7 @@ fn test_kat_test_result_passed() {
 }
 
 #[test]
-fn test_kat_test_result_failed() {
+fn test_kat_test_result_failed_has_correct_fields_matches_expected() {
     let result = KatTestResult::failed(
         "TC2".to_string(),
         "SHA-256".to_string(),
@@ -82,7 +82,7 @@ fn test_kat_test_result_failed() {
 }
 
 #[test]
-fn test_kat_test_result_clone() {
+fn test_kat_test_result_clone_succeeds() {
     let result = KatTestResult::passed("TC1".to_string(), "AES".to_string(), 10);
     let cloned = result.clone();
     assert_eq!(cloned.test_case, result.test_case);
@@ -90,7 +90,7 @@ fn test_kat_test_result_clone() {
 }
 
 #[test]
-fn test_kat_test_result_debug() {
+fn test_kat_test_result_debug_has_correct_format() {
     let result = KatTestResult::failed("TC3".to_string(), "HKDF".to_string(), "bad".to_string(), 5);
     let debug = format!("{:?}", result);
     assert!(debug.contains("KatTestResult"));
@@ -101,7 +101,7 @@ fn test_kat_test_result_debug() {
 // ============================================================================
 
 #[test]
-fn test_nist_kat_error_test_failed_display() {
+fn test_nist_kat_error_test_failed_display_has_correct_format() {
     let err = NistKatError::TestFailed {
         algorithm: "AES-GCM".to_string(),
         test_name: "TC1".to_string(),
@@ -114,7 +114,7 @@ fn test_nist_kat_error_test_failed_display() {
 }
 
 #[test]
-fn test_nist_kat_error_hex_error_display() {
+fn test_nist_kat_error_hex_error_display_has_correct_format() {
     let err = NistKatError::HexError("invalid hex".to_string());
     let display = format!("{}", err);
     assert!(display.contains("Hex decode error"));
@@ -122,7 +122,7 @@ fn test_nist_kat_error_hex_error_display() {
 }
 
 #[test]
-fn test_nist_kat_error_implementation_error_display() {
+fn test_nist_kat_error_implementation_error_display_has_correct_format() {
     let err = NistKatError::ImplementationError("algo not found".to_string());
     let display = format!("{}", err);
     assert!(display.contains("Implementation error"));
@@ -130,7 +130,7 @@ fn test_nist_kat_error_implementation_error_display() {
 }
 
 #[test]
-fn test_nist_kat_error_unsupported_algorithm_display() {
+fn test_nist_kat_error_unsupported_algorithm_display_has_correct_format() {
     let err = NistKatError::UnsupportedAlgorithm("SIKE".to_string());
     let display = format!("{}", err);
     assert!(display.contains("Unsupported algorithm"));
@@ -138,7 +138,7 @@ fn test_nist_kat_error_unsupported_algorithm_display() {
 }
 
 #[test]
-fn test_nist_kat_error_debug() {
+fn test_nist_kat_error_debug_has_correct_format() {
     let err = NistKatError::HexError("test".to_string());
     let debug = format!("{:?}", err);
     assert!(debug.contains("HexError"));
@@ -151,7 +151,7 @@ fn test_nist_kat_error_debug() {
 use latticearc_tests::validation::nist_kat::runner::{KatRunner, KatSummary};
 
 #[test]
-fn test_kat_summary_new_is_empty() {
+fn test_kat_summary_new_has_zero_counts_matches_expected() {
     let summary = KatSummary::new();
     assert_eq!(summary.total, 0);
     assert_eq!(summary.passed, 0);
@@ -161,14 +161,14 @@ fn test_kat_summary_new_is_empty() {
 }
 
 #[test]
-fn test_kat_summary_default_equals_new() {
+fn test_kat_summary_default_equals_new_succeeds() {
     let summary = KatSummary::default();
     assert_eq!(summary.total, 0);
     assert_eq!(summary.passed, 0);
 }
 
 #[test]
-fn test_kat_summary_add_passed_result() {
+fn test_kat_summary_add_passed_result_increments_counts_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("TC1".to_string(), "AES".to_string(), 2000));
     assert_eq!(summary.total, 1);
@@ -179,7 +179,7 @@ fn test_kat_summary_add_passed_result() {
 }
 
 #[test]
-fn test_kat_summary_add_failed_result() {
+fn test_kat_summary_add_failed_result_increments_counts_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::failed(
         "TC2".to_string(),
@@ -194,7 +194,7 @@ fn test_kat_summary_add_failed_result() {
 }
 
 #[test]
-fn test_kat_summary_mixed_results() {
+fn test_kat_summary_mixed_results_are_tracked_correctly_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 1000));
     summary.add_result(KatTestResult::passed("T2".to_string(), "A".to_string(), 2000));
@@ -211,7 +211,7 @@ fn test_kat_summary_mixed_results() {
 }
 
 #[test]
-fn test_kat_summary_pass_rate_all_passed() {
+fn test_kat_summary_pass_rate_all_passed_returns_100_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 0));
     summary.add_result(KatTestResult::passed("T2".to_string(), "A".to_string(), 0));
@@ -219,7 +219,7 @@ fn test_kat_summary_pass_rate_all_passed() {
 }
 
 #[test]
-fn test_kat_summary_pass_rate_none_passed() {
+fn test_kat_summary_pass_rate_none_passed_returns_zero_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::failed(
         "T1".to_string(),
@@ -231,13 +231,13 @@ fn test_kat_summary_pass_rate_none_passed() {
 }
 
 #[test]
-fn test_kat_summary_pass_rate_empty() {
+fn test_kat_summary_pass_rate_empty_is_zero() {
     let summary = KatSummary::new();
     assert_eq!(summary.pass_rate(), 0.0);
 }
 
 #[test]
-fn test_kat_summary_pass_rate_half() {
+fn test_kat_summary_pass_rate_half_is_correct() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 0));
     summary.add_result(KatTestResult::failed(
@@ -250,7 +250,7 @@ fn test_kat_summary_pass_rate_half() {
 }
 
 #[test]
-fn test_kat_summary_print_all_passed() {
+fn test_kat_summary_print_all_passed_succeeds() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("TC1".to_string(), "AES-GCM".to_string(), 1000));
     summary.add_result(KatTestResult::passed("TC2".to_string(), "SHA-256".to_string(), 2000));
@@ -258,7 +258,7 @@ fn test_kat_summary_print_all_passed() {
 }
 
 #[test]
-fn test_kat_summary_print_with_failures() {
+fn test_kat_summary_print_with_failures_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("TC1".to_string(), "AES-GCM".to_string(), 100));
     summary.add_result(KatTestResult::failed(
@@ -277,13 +277,13 @@ fn test_kat_summary_print_with_failures() {
 }
 
 #[test]
-fn test_kat_summary_print_empty() {
+fn test_kat_summary_print_empty_succeeds() {
     let summary = KatSummary::new();
     summary.print();
 }
 
 #[test]
-fn test_kat_summary_print_multiple_algorithms() {
+fn test_kat_summary_print_multiple_algorithms_succeeds() {
     let mut summary = KatSummary::new();
     for i in 0..5 {
         summary.add_result(KatTestResult::passed(format!("TC{}", i), "AES-GCM".to_string(), 100));
@@ -296,7 +296,7 @@ fn test_kat_summary_print_multiple_algorithms() {
 }
 
 #[test]
-fn test_kat_summary_print_failed_no_error_message() {
+fn test_kat_summary_print_failed_no_error_message_succeeds() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult {
         test_case: "TC_NO_MSG".to_string(),
@@ -310,7 +310,7 @@ fn test_kat_summary_print_failed_no_error_message() {
 }
 
 #[test]
-fn test_kat_summary_clone_and_debug() {
+fn test_kat_summary_clone_and_debug_succeeds() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 0));
     let cloned = summary.clone();
@@ -320,7 +320,7 @@ fn test_kat_summary_clone_and_debug() {
 }
 
 #[test]
-fn test_kat_summary_accumulated_time() {
+fn test_kat_summary_accumulated_time_returns_total_matches_expected() {
     let mut summary = KatSummary::new();
     summary.add_result(KatTestResult::passed("T1".to_string(), "A".to_string(), 5000));
     summary.add_result(KatTestResult::passed("T2".to_string(), "A".to_string(), 3000));
@@ -338,20 +338,20 @@ fn test_kat_summary_accumulated_time() {
 // ============================================================================
 
 #[test]
-fn test_kat_runner_new() {
+fn test_kat_runner_new_has_empty_summary_matches_expected() {
     let runner = KatRunner::new();
     assert_eq!(runner.summary().total, 0);
     assert!(runner.summary().all_passed());
 }
 
 #[test]
-fn test_kat_runner_default() {
+fn test_kat_runner_default_has_empty_summary_matches_expected() {
     let runner = KatRunner::default();
     assert_eq!(runner.summary().total, 0);
 }
 
 #[test]
-fn test_kat_runner_run_passing_test() {
+fn test_kat_runner_run_passing_test_increments_passed_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("TC1", "TestAlgo", || Ok(()));
     assert_eq!(runner.summary().total, 1);
@@ -360,7 +360,7 @@ fn test_kat_runner_run_passing_test() {
 }
 
 #[test]
-fn test_kat_runner_run_failing_test() {
+fn test_kat_runner_run_failing_test_increments_failed_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("TC1", "TestAlgo", || {
         Err(NistKatError::TestFailed {
@@ -374,7 +374,7 @@ fn test_kat_runner_run_failing_test() {
 }
 
 #[test]
-fn test_kat_runner_run_multiple_tests() {
+fn test_kat_runner_run_multiple_tests_accumulates_counts_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("TC1", "A", || Ok(()));
     runner.run_test("TC2", "A", || Ok(()));
@@ -386,7 +386,7 @@ fn test_kat_runner_run_multiple_tests() {
 }
 
 #[test]
-fn test_kat_runner_finish_consumes() {
+fn test_kat_runner_finish_consumes_and_returns_summary_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("TC1", "Algo", || Ok(()));
     runner.run_test("TC2", "Algo", || Err(NistKatError::HexError("bad".to_string())));
@@ -397,7 +397,7 @@ fn test_kat_runner_finish_consumes() {
 }
 
 #[test]
-fn test_kat_runner_error_message_preserved() {
+fn test_kat_runner_error_message_is_preserved_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("TC1", "ML-KEM", || {
         Err(NistKatError::TestFailed {
@@ -413,7 +413,7 @@ fn test_kat_runner_error_message_preserved() {
 }
 
 #[test]
-fn test_kat_runner_unsupported_algorithm_error() {
+fn test_kat_runner_unsupported_algorithm_error_returns_failed_matches_expected() {
     let mut runner = KatRunner::new();
     runner.run_test("TC1", "SIKE", || Err(NistKatError::UnsupportedAlgorithm("SIKE".to_string())));
     let summary = runner.finish();

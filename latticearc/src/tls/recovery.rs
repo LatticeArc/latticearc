@@ -11,7 +11,6 @@
 //! - Circuit breaker pattern for resilience
 //! - Graceful degradation strategies
 
-use rand;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
@@ -24,14 +23,24 @@ use crate::tls::error::{ErrorCode, RecoveryHint, TlsError};
 #[derive(Debug, Clone)]
 pub struct RetryPolicy {
     /// Maximum number of retry attempts
+    ///
+    /// Consumer: retry_with_policy()
     pub max_attempts: u32,
     /// Initial backoff duration
+    ///
+    /// Consumer: RetryPolicy::backoff_for_attempt()
     pub initial_backoff: Duration,
     /// Maximum backoff duration
+    ///
+    /// Consumer: RetryPolicy::backoff_for_attempt()
     pub max_backoff: Duration,
     /// Backoff multiplier (exponential)
+    ///
+    /// Consumer: RetryPolicy::backoff_for_attempt()
     pub backoff_multiplier: f64,
     /// Enable jitter to avoid thundering herd
+    ///
+    /// Consumer: RetryPolicy::backoff_for_attempt()
     pub jitter: bool,
 }
 
@@ -81,33 +90,23 @@ impl RetryPolicy {
     /// Calculate backoff duration for a given attempt
     #[must_use]
     pub fn backoff_for_attempt(&self, attempt: u32) -> Duration {
-        // Use saturating arithmetic to prevent overflow
-        let attempt_exponent = attempt.saturating_sub(1);
-        // Limit exponent to reasonable values to prevent overflow
-        let safe_exponent = attempt_exponent.min(10);
-
-        // Calculate initial delay in milliseconds using u64 arithmetic
-        // Cap at u64::MAX to prevent truncation
-        let initial_ms = self.initial_backoff.as_millis();
-        let initial_u64 = u64::try_from(initial_ms).unwrap_or(u64::MAX);
-
-        // Calculate multiplier as integer (2^exponent)
-        // Since backoff_multiplier is typically 2.0, we can use bit shift
-        let multiplier = 1u64.checked_shl(safe_exponent).unwrap_or(u64::MAX);
-
-        // Calculate delay with overflow protection
-        let delay_ms = initial_u64.saturating_mul(multiplier);
-
-        // Cap at max backoff
+        // Use backoff_multiplier for exponential growth: delay = initial * multiplier^(attempt-1)
+        let initial_ms = u64::try_from(self.initial_backoff.as_millis()).unwrap_or(u64::MAX);
+        #[allow(clippy::cast_precision_loss)]
+        let base_ms = initial_ms as f64;
+        let multiplier = self.backoff_multiplier;
+        let delay =
+            base_ms * multiplier.powi(i32::try_from(attempt.saturating_sub(1)).unwrap_or(i32::MAX));
         let max_ms_128 = self.max_backoff.as_millis();
         let max_ms = u64::try_from(max_ms_128).unwrap_or(u64::MAX);
-        let capped_delay_ms = delay_ms.min(max_ms);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let capped_delay_ms = (delay as u64).min(max_ms);
 
         let mut duration = Duration::from_millis(capped_delay_ms);
 
         if self.jitter {
-            // Add random jitter (0-50% of delay)
-            let jitter_pct = rand::random::<u64>() % 50;
+            // Add random jitter (0-50% of delay) using OsRng for CSPRNG
+            let jitter_pct = crate::primitives::rand::csprng::random_u64() % 50;
             let jitter_ms = capped_delay_ms.saturating_mul(jitter_pct) / 100;
             let final_ms = capped_delay_ms.saturating_add(jitter_ms);
             duration = Duration::from_millis(final_ms);
@@ -155,6 +154,7 @@ impl RetryPolicy {
 }
 
 /// Circuit breaker state
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CircuitState {
     /// Circuit is closed (normal operation)
@@ -205,6 +205,7 @@ impl CircuitBreaker {
     }
 
     /// Check if circuit allows operation
+    #[must_use]
     pub fn allow_request(&self) -> bool {
         match self.state() {
             CircuitState::Closed => true,
@@ -293,6 +294,7 @@ impl CircuitBreaker {
 }
 
 /// Fallback strategy for TLS operations
+#[non_exhaustive]
 #[derive(Debug, Clone, Default)]
 pub enum FallbackStrategy {
     /// No fallback
@@ -351,20 +353,30 @@ impl FallbackStrategy {
     }
 }
 
-/// Graceful degradation configuration
+/// Graceful degradation configuration.
+///
+/// **Note:** This is a configuration model with no active consumer. The
+/// degradation engine that would read these fields is not yet implemented.
+/// Fields are retained for API compatibility.
 #[derive(Debug, Clone)]
 pub struct DegradationConfig {
-    /// Enable fallback strategies
+    /// Enable fallback strategies.
+    ///
+    /// Consumer: None — reserved for future degradation engine.
     pub enable_fallback: bool,
-    /// Allow reduced security for availability
+    /// Allow reduced security for availability.
+    ///
+    /// Consumer: None — reserved for future degradation engine.
     pub allow_reduced_security: bool,
-    /// Maximum degradation attempts
+    /// Maximum degradation attempts.
+    ///
+    /// Consumer: None — reserved for future degradation engine.
     pub max_degradation_attempts: u32,
 }
 
 impl Default for DegradationConfig {
     fn default() -> Self {
-        Self { enable_fallback: true, allow_reduced_security: false, max_degradation_attempts: 2 }
+        Self { enable_fallback: false, allow_reduced_security: false, max_degradation_attempts: 2 }
     }
 }
 
@@ -525,14 +537,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_retry_policy_default() {
+    fn test_retry_policy_default_has_correct_values_succeeds() {
         let policy = RetryPolicy::default();
         assert_eq!(policy.max_attempts, 3);
         assert_eq!(policy.initial_backoff, Duration::from_millis(100));
     }
 
     #[test]
-    fn test_retry_policy_backoff() {
+    fn test_retry_policy_backoff_increases_with_attempts_succeeds() {
         let policy = RetryPolicy::default();
         let backoff1 = policy.backoff_for_attempt(1);
         let backoff2 = policy.backoff_for_attempt(2);
@@ -542,13 +554,13 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_breaker_initial_state() {
+    fn test_circuit_breaker_initial_state_is_closed_succeeds() {
         let breaker = CircuitBreaker::new(5, Duration::from_secs(60));
         assert_eq!(breaker.state(), CircuitState::Closed);
     }
 
     #[test]
-    fn test_circuit_breaker_open_after_failures() {
+    fn test_circuit_breaker_opens_after_failures_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
 
         for _ in 0..3 {
@@ -559,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fallback_strategy_description() {
+    fn test_fallback_strategy_description_has_correct_format() {
         let strategy = FallbackStrategy::hybrid_to_classical();
         assert!(strategy.description().contains("hybrid to classical"));
     }
@@ -567,7 +579,7 @@ mod tests {
     // === RetryPolicy additional tests ===
 
     #[test]
-    fn test_retry_policy_conservative() {
+    fn test_retry_policy_conservative_has_correct_values_succeeds() {
         let policy = RetryPolicy::conservative();
         assert_eq!(policy.max_attempts, 2);
         assert_eq!(policy.initial_backoff, Duration::from_millis(200));
@@ -575,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_aggressive() {
+    fn test_retry_policy_aggressive_has_correct_values_succeeds() {
         let policy = RetryPolicy::aggressive();
         assert_eq!(policy.max_attempts, 5);
         assert_eq!(policy.initial_backoff, Duration::from_millis(50));
@@ -583,7 +595,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_custom() {
+    fn test_retry_policy_custom_has_correct_values_succeeds() {
         let policy = RetryPolicy::new(10, Duration::from_millis(500), Duration::from_secs(30));
         assert_eq!(policy.max_attempts, 10);
         assert_eq!(policy.initial_backoff, Duration::from_millis(500));
@@ -591,7 +603,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_backoff_capped_at_max() {
+    fn test_retry_policy_backoff_is_capped_at_max_succeeds() {
         let policy = RetryPolicy {
             max_attempts: 10,
             initial_backoff: Duration::from_millis(100),
@@ -605,7 +617,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_backoff_without_jitter() {
+    fn test_retry_policy_backoff_without_jitter_is_deterministic() {
         let policy = RetryPolicy {
             max_attempts: 3,
             initial_backoff: Duration::from_millis(100),
@@ -624,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_io_errors() {
+    fn test_retry_policy_retries_io_errors_fails() {
         let policy = RetryPolicy::default();
 
         let retryable = TlsError::Io {
@@ -656,7 +668,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_not_retry_max_attempts() {
+    fn test_retry_policy_does_not_retry_at_max_attempts_succeeds() {
         let policy = RetryPolicy::default(); // max_attempts = 3
 
         let retryable = TlsError::Io {
@@ -670,7 +682,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_tls_errors() {
+    fn test_retry_policy_retries_tls_errors_fails() {
         let policy = RetryPolicy::default();
 
         let handshake = TlsError::Tls {
@@ -683,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_handshake_errors() {
+    fn test_retry_policy_retries_handshake_errors_fails() {
         let policy = RetryPolicy::default();
 
         let handshake = TlsError::Handshake {
@@ -697,7 +709,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_key_exchange_errors() {
+    fn test_retry_policy_retries_key_exchange_errors_fails() {
         let policy = RetryPolicy::default();
 
         let kex = TlsError::KeyExchange {
@@ -712,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_not_retry_cert_errors() {
+    fn test_retry_policy_does_not_retry_cert_errors_fails() {
         let policy = RetryPolicy::default();
 
         let cert = TlsError::Certificate {
@@ -729,13 +741,13 @@ mod tests {
     // === CircuitBreaker additional tests ===
 
     #[test]
-    fn test_circuit_breaker_allows_requests_when_closed() {
+    fn test_circuit_breaker_allows_requests_when_closed_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
         assert!(breaker.allow_request());
     }
 
     #[test]
-    fn test_circuit_breaker_blocks_requests_when_open() {
+    fn test_circuit_breaker_blocks_requests_when_open_fails() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
         for _ in 0..3 {
             breaker.record_failure();
@@ -745,7 +757,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_breaker_half_open_after_timeout() {
+    fn test_circuit_breaker_transitions_to_half_open_after_timeout_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_millis(1));
         for _ in 0..3 {
             breaker.record_failure();
@@ -761,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_breaker_closes_after_success_in_half_open() {
+    fn test_circuit_breaker_closes_after_success_in_half_open_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_millis(1));
         for _ in 0..3 {
             breaker.record_failure();
@@ -778,7 +790,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_breaker_reopens_on_failure_in_half_open() {
+    fn test_circuit_breaker_reopens_on_failure_in_half_open_fails() {
         let breaker = CircuitBreaker::new(3, Duration::from_millis(1));
         for _ in 0..3 {
             breaker.record_failure();
@@ -793,7 +805,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_breaker_reset() {
+    fn test_circuit_breaker_reset_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
         for _ in 0..3 {
             breaker.record_failure();
@@ -806,7 +818,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circuit_breaker_success_resets_failure_count_when_closed() {
+    fn test_circuit_breaker_success_resets_failure_count_when_closed_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
         breaker.record_failure();
         breaker.record_failure();
@@ -821,7 +833,7 @@ mod tests {
     // === FallbackStrategy additional tests ===
 
     #[test]
-    fn test_fallback_strategy_none() {
+    fn test_fallback_strategy_none_does_not_trigger_succeeds() {
         let strategy = FallbackStrategy::None;
         assert!(strategy.description().contains("No fallback"));
 
@@ -835,13 +847,13 @@ mod tests {
     }
 
     #[test]
-    fn test_fallback_strategy_pq_to_hybrid() {
+    fn test_fallback_strategy_pq_to_hybrid_has_correct_description_is_documented() {
         let strategy = FallbackStrategy::pq_to_hybrid();
         assert!(strategy.description().contains("PQ-only to hybrid"));
     }
 
     #[test]
-    fn test_fallback_strategy_hybrid_to_classical_triggers() {
+    fn test_fallback_strategy_hybrid_to_classical_triggers_on_pq_error_fails() {
         let strategy = FallbackStrategy::hybrid_to_classical();
 
         let pq_err = TlsError::Config {
@@ -855,7 +867,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fallback_strategy_custom_always_triggers() {
+    fn test_fallback_strategy_custom_always_triggers_succeeds() {
         let strategy = FallbackStrategy::Custom { description: "My fallback".to_string() };
         assert_eq!(strategy.description(), "My fallback");
 
@@ -869,7 +881,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fallback_strategy_default_is_none() {
+    fn test_fallback_strategy_default_is_none_variant_succeeds() {
         let strategy = FallbackStrategy::default();
         assert!(matches!(strategy, FallbackStrategy::None));
     }
@@ -877,9 +889,9 @@ mod tests {
     // === DegradationConfig tests ===
 
     #[test]
-    fn test_degradation_config_default() {
+    fn test_degradation_config_default_has_correct_values_succeeds() {
         let config = DegradationConfig::default();
-        assert!(config.enable_fallback);
+        assert!(!config.enable_fallback);
         assert!(!config.allow_reduced_security);
         assert_eq!(config.max_degradation_attempts, 2);
     }
@@ -887,7 +899,7 @@ mod tests {
     // === CircuitState tests ===
 
     #[test]
-    fn test_circuit_state_eq() {
+    fn test_circuit_state_equality_is_correct() {
         assert_eq!(CircuitState::Closed, CircuitState::Closed);
         assert_ne!(CircuitState::Open, CircuitState::Closed);
         assert_ne!(CircuitState::HalfOpen, CircuitState::Open);
@@ -896,14 +908,14 @@ mod tests {
     // === Async function tests ===
 
     #[tokio::test]
-    async fn test_retry_with_policy_success_first_try() {
+    async fn test_retry_with_policy_succeeds_on_first_try_succeeds() {
         let policy = RetryPolicy::default();
         let result = retry_with_policy(&policy, || async { Ok::<_, TlsError>(42) }, "test").await;
         assert_eq!(result.expect("should succeed"), 42);
     }
 
     #[tokio::test]
-    async fn test_retry_with_policy_non_retryable_error() {
+    async fn test_retry_with_policy_returns_error_for_non_retryable_fails() {
         let policy = RetryPolicy::default();
         let result: Result<i32, TlsError> = retry_with_policy(
             &policy,
@@ -925,7 +937,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_retry_with_policy_retryable_exhausted() {
+    async fn test_retry_with_policy_returns_error_when_retries_exhausted_fails() {
         use std::sync::atomic::{AtomicU32, Ordering};
         let attempts = Arc::new(AtomicU32::new(0));
         let attempts_clone = attempts.clone();
@@ -962,7 +974,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_retry_with_policy_succeeds_on_retry() {
+    async fn test_retry_with_policy_succeeds_on_second_attempt_succeeds() {
         use std::sync::atomic::{AtomicU32, Ordering};
         let attempts = Arc::new(AtomicU32::new(0));
         let attempts_clone = attempts.clone();
@@ -1003,7 +1015,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_with_circuit_breaker_success() {
+    async fn test_execute_with_circuit_breaker_succeeds() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
         let result =
             execute_with_circuit_breaker(&breaker, || async { Ok::<_, TlsError>(42) }, "test")
@@ -1013,7 +1025,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_with_circuit_breaker_failure() {
+    async fn test_execute_with_circuit_breaker_records_failure_fails() {
         let breaker = CircuitBreaker::new(3, Duration::from_secs(60));
         let result: Result<i32, TlsError> = execute_with_circuit_breaker(
             &breaker,
@@ -1032,7 +1044,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_with_circuit_breaker_open_blocks() {
+    async fn test_execute_with_circuit_breaker_open_returns_error() {
         let breaker = CircuitBreaker::new(2, Duration::from_secs(60));
         breaker.record_failure();
         breaker.record_failure();
@@ -1045,7 +1057,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_with_fallback_primary_succeeds() {
+    async fn test_execute_with_fallback_primary_succeeds_without_fallback_succeeds() {
         let strategy = FallbackStrategy::hybrid_to_classical();
         let result = execute_with_fallback(
             &strategy,
@@ -1058,7 +1070,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_with_fallback_triggers() {
+    async fn test_execute_with_fallback_uses_fallback_on_error_succeeds() {
         let strategy = FallbackStrategy::hybrid_to_classical();
         let result = execute_with_fallback(
             &strategy,
@@ -1079,7 +1091,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_with_fallback_no_trigger() {
+    async fn test_execute_with_fallback_does_not_trigger_on_non_matching_error_fails() {
         let strategy = FallbackStrategy::None;
         let result: Result<i32, TlsError> = execute_with_fallback(
             &strategy,
@@ -1101,7 +1113,7 @@ mod tests {
     // === FallbackStrategy should_fallback additional coverage ===
 
     #[test]
-    fn test_fallback_pq_to_hybrid_triggers_on_hybrid_kem_failed() {
+    fn test_fallback_pq_to_hybrid_triggers_on_hybrid_kem_failed_succeeds() {
         let strategy = FallbackStrategy::pq_to_hybrid();
         let err = TlsError::Config {
             message: "kem failed".to_string(),
@@ -1114,7 +1126,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fallback_pq_to_hybrid_does_not_trigger_on_pq_not_available() {
+    fn test_fallback_pq_to_hybrid_does_not_trigger_on_pq_not_available_error_fails() {
         let strategy = FallbackStrategy::pq_to_hybrid();
         let err = TlsError::Config {
             message: "PQ not available".to_string(),
@@ -1127,7 +1139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fallback_hybrid_to_classical_triggers_on_hybrid_kem_failed() {
+    fn test_fallback_hybrid_to_classical_triggers_on_hybrid_kem_failed_succeeds() {
         let strategy = FallbackStrategy::hybrid_to_classical();
         let err = TlsError::Config {
             message: "kem failed".to_string(),
@@ -1142,7 +1154,7 @@ mod tests {
     // === RetryPolicy should_retry edge cases ===
 
     #[test]
-    fn test_retry_policy_should_retry_tls_invalid_handshake() {
+    fn test_retry_policy_retries_tls_invalid_handshake_fails() {
         let policy = RetryPolicy::default();
         let err = TlsError::Tls {
             message: "invalid handshake".to_string(),
@@ -1154,7 +1166,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_tls_handshake_timeout() {
+    fn test_retry_policy_retries_tls_handshake_timeout_succeeds() {
         let policy = RetryPolicy::default();
         let err = TlsError::Tls {
             message: "timeout".to_string(),
@@ -1166,7 +1178,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_handshake_protocol_version() {
+    fn test_retry_policy_retries_handshake_protocol_version_succeeds() {
         let policy = RetryPolicy::default();
         let err = TlsError::Handshake {
             message: "version mismatch".to_string(),
@@ -1179,7 +1191,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_handshake_timeout() {
+    fn test_retry_policy_retries_handshake_timeout_succeeds() {
         let policy = RetryPolicy::default();
         let err = TlsError::Handshake {
             message: "timeout".to_string(),
@@ -1192,7 +1204,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_retry_kex_encapsulation() {
+    fn test_retry_policy_retries_kex_encapsulation_succeeds() {
         let policy = RetryPolicy::default();
         let err = TlsError::KeyExchange {
             message: "encap failed".to_string(),
@@ -1206,7 +1218,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_not_retry_non_retryable_io() {
+    fn test_retry_policy_does_not_retry_non_retryable_io_succeeds() {
         let policy = RetryPolicy::default();
         let err = TlsError::Io {
             message: "not found".to_string(),
@@ -1219,7 +1231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retry_policy_should_not_retry_config_error() {
+    fn test_retry_policy_does_not_retry_config_error_fails() {
         let policy = RetryPolicy::default();
         let err = TlsError::Config {
             message: "invalid".to_string(),
@@ -1234,7 +1246,7 @@ mod tests {
     // === DegradationConfig custom values ===
 
     #[test]
-    fn test_degradation_config_custom() {
+    fn test_degradation_config_custom_has_correct_values_succeeds() {
         let config = DegradationConfig {
             enable_fallback: false,
             allow_reduced_security: true,
@@ -1248,14 +1260,14 @@ mod tests {
     // === CircuitState Debug + Copy + Clone ===
 
     #[test]
-    fn test_circuit_state_debug() {
+    fn test_circuit_state_debug_has_correct_format() {
         let state = CircuitState::HalfOpen;
         let debug = format!("{:?}", state);
         assert!(debug.contains("HalfOpen"));
     }
 
     #[test]
-    fn test_circuit_state_clone_copy() {
+    fn test_circuit_state_clone_copy_succeeds() {
         let state = CircuitState::Open;
         let cloned = state;
         let copied = state;
@@ -1266,7 +1278,7 @@ mod tests {
     // === RetryPolicy Clone + Debug ===
 
     #[test]
-    fn test_retry_policy_clone_debug() {
+    fn test_retry_policy_clone_debug_succeeds() {
         let policy = RetryPolicy::default();
         let cloned = policy.clone();
         assert_eq!(cloned.max_attempts, policy.max_attempts);
@@ -1277,7 +1289,7 @@ mod tests {
     // === FallbackStrategy Clone + Debug ===
 
     #[test]
-    fn test_fallback_strategy_clone_debug() {
+    fn test_fallback_strategy_clone_debug_succeeds() {
         let strategy = FallbackStrategy::HybridToClassical;
         let cloned = strategy.clone();
         assert!(matches!(cloned, FallbackStrategy::HybridToClassical));

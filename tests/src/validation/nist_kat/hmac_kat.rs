@@ -241,25 +241,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hmac_sha256_kat() {
+    fn test_hmac_sha256_kat_matches_rfc_vector_matches_expected() {
         let result = run_hmac_sha256_kat();
         assert!(result.is_ok(), "HMAC-SHA256 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_hmac_sha224_kat() {
+    fn test_hmac_sha224_kat_matches_rfc_vector_matches_expected() {
         let result = run_hmac_sha224_kat();
         assert!(result.is_ok(), "HMAC-SHA224 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_hmac_sha384_kat() {
+    fn test_hmac_sha384_kat_matches_rfc_vector_matches_expected() {
         let result = run_hmac_sha384_kat();
         assert!(result.is_ok(), "HMAC-SHA384 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_hmac_sha512_kat() {
+    fn test_hmac_sha512_kat_matches_rfc_vector_matches_expected() {
         let result = run_hmac_sha512_kat();
         assert!(result.is_ok(), "HMAC-SHA512 KAT failed: {:?}", result);
     }
@@ -407,7 +407,7 @@ mod tests {
     // --- MAC mismatch tests (TestFailed error path) ---
 
     #[test]
-    fn test_hmac_sha256_mac_mismatch() {
+    fn test_hmac_sha256_mac_mismatch_returns_error() {
         let vector = &HMAC_VECTORS[0];
         // Use a wrong expected MAC (flip the last byte)
         let wrong_expected = "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cfff";
@@ -423,7 +423,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha224_mac_mismatch() {
+    fn test_hmac_sha224_mac_mismatch_returns_error() {
         let vector = &HMAC_VECTORS[0];
         // Wrong expected MAC for SHA-224
         let wrong_expected = "896fb1128abbdf196832107cd49df33f47b4b1169912ba4f53684b00";
@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha384_mac_mismatch() {
+    fn test_hmac_sha384_mac_mismatch_returns_error() {
         let vector = &HMAC_VECTORS[0];
         // Wrong expected MAC for SHA-384
         let wrong_expected = "afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9c00";
@@ -451,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha512_mac_mismatch() {
+    fn test_hmac_sha512_mac_mismatch_returns_error() {
         let vector = &HMAC_VECTORS[0];
         // Wrong expected MAC for SHA-512
         let wrong_expected = "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a12685f";
@@ -467,7 +467,7 @@ mod tests {
     // --- Hex decode error paths ---
 
     #[test]
-    fn test_hmac_sha256_invalid_key_hex() {
+    fn test_hmac_sha256_invalid_key_hex_returns_error() {
         let result = run_single_hmac_sha256("ZZZZ", "aa", "bb", "bad-key-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -475,7 +475,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha256_invalid_message_hex() {
+    fn test_hmac_sha256_invalid_message_hex_returns_error() {
         let result = run_single_hmac_sha256("aabb", "XXXX", "bb", "bad-msg-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -483,7 +483,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha256_invalid_expected_hex() {
+    fn test_hmac_sha256_invalid_expected_hex_returns_error() {
         let result = run_single_hmac_sha256("aabb", "ccdd", "GGGG", "bad-expected-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -491,7 +491,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha224_invalid_key_hex() {
+    fn test_hmac_sha224_invalid_key_hex_returns_error() {
         let result = run_single_hmac_sha224("ZZZZ", "aa", "bb", "bad-key-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -499,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha224_invalid_message_hex() {
+    fn test_hmac_sha224_invalid_message_hex_returns_error() {
         let result = run_single_hmac_sha224("aabb", "XXXX", "bb", "bad-msg-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -507,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha384_invalid_key_hex() {
+    fn test_hmac_sha384_invalid_key_hex_returns_error() {
         let result = run_single_hmac_sha384("ZZZZ", "aa", "bb", "bad-key-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -515,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha384_invalid_message_hex() {
+    fn test_hmac_sha384_invalid_message_hex_returns_error() {
         let result = run_single_hmac_sha384("aabb", "XXXX", "bb", "bad-msg-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -523,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha512_invalid_key_hex() {
+    fn test_hmac_sha512_invalid_key_hex_returns_error() {
         let result = run_single_hmac_sha512("ZZZZ", "aa", "bb", "bad-key-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -531,7 +531,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha512_invalid_message_hex() {
+    fn test_hmac_sha512_invalid_message_hex_returns_error() {
         let result = run_single_hmac_sha512("aabb", "XXXX", "bb", "bad-msg-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -541,7 +541,7 @@ mod tests {
     // --- Test vector struct field access ---
 
     #[test]
-    fn test_hmac_vector_fields_accessible() {
+    fn test_hmac_vector_fields_are_accessible_and_correct() {
         let vector = &HMAC_VECTORS[0];
         assert_eq!(vector.test_name, "RFC-4231-Test-Case-1");
         assert_eq!(vector.key, "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
@@ -553,13 +553,13 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_vector_count() {
+    fn test_hmac_vector_count_is_correct() {
         // Verify all expected test vectors are present (cases 1-4, 6, 7)
         assert_eq!(HMAC_VECTORS.len(), 6);
     }
 
     #[test]
-    fn test_hmac_vectors_all_names() {
+    fn test_hmac_vectors_all_names_are_present_matches_expected() {
         let names: Vec<&str> = HMAC_VECTORS.iter().map(|v| v.test_name).collect();
         assert!(names.contains(&"RFC-4231-Test-Case-1"));
         assert!(names.contains(&"RFC-4231-Test-Case-2"));
@@ -572,7 +572,7 @@ mod tests {
     // --- Edge case: empty message ---
 
     #[test]
-    fn test_hmac_sha256_empty_message() {
+    fn test_hmac_sha256_empty_message_succeeds() {
         // HMAC with empty message should produce a valid MAC (not an error)
         let result = run_single_hmac_sha256(
             "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
@@ -592,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha512_empty_message() {
+    fn test_hmac_sha512_empty_message_succeeds() {
         let result = run_single_hmac_sha512(
             "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
             "",
@@ -607,7 +607,7 @@ mod tests {
     // --- Odd-length hex string (invalid hex) ---
 
     #[test]
-    fn test_hmac_sha256_odd_length_hex_key() {
+    fn test_hmac_sha256_odd_length_hex_key_returns_error() {
         let result = run_single_hmac_sha256("aab", "ccdd", "eeff", "odd-hex-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -615,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha512_odd_length_hex_key() {
+    fn test_hmac_sha512_odd_length_hex_key_returns_error() {
         let result = run_single_hmac_sha512("aab", "ccdd", "eeff", "odd-hex-test");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -625,7 +625,7 @@ mod tests {
     // --- Verify each vector individually for SHA-256 ---
 
     #[test]
-    fn test_hmac_sha256_individual_vectors() {
+    fn test_hmac_sha256_individual_vectors_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let result = run_single_hmac_sha256(
                 vector.key,
@@ -640,7 +640,7 @@ mod tests {
     // --- Verify each vector individually for SHA-224 ---
 
     #[test]
-    fn test_hmac_sha224_individual_vectors() {
+    fn test_hmac_sha224_individual_vectors_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let result = run_single_hmac_sha224(
                 vector.key,
@@ -655,7 +655,7 @@ mod tests {
     // --- Verify each vector individually for SHA-384 ---
 
     #[test]
-    fn test_hmac_sha384_individual_vectors() {
+    fn test_hmac_sha384_individual_vectors_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let result = run_single_hmac_sha384(
                 vector.key,
@@ -670,7 +670,7 @@ mod tests {
     // --- Verify each vector individually for SHA-512 ---
 
     #[test]
-    fn test_hmac_sha512_individual_vectors() {
+    fn test_hmac_sha512_individual_vectors_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let result = run_single_hmac_sha512(
                 vector.key,
@@ -685,7 +685,7 @@ mod tests {
     // --- NistKatError display coverage ---
 
     #[test]
-    fn test_nist_kat_error_test_failed_display() {
+    fn test_nist_kat_error_test_failed_display_contains_fields_matches_expected() {
         let err = NistKatError::TestFailed {
             algorithm: "HMAC-SHA256".to_string(),
             test_name: "test-1".to_string(),
@@ -698,7 +698,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_kat_error_hex_error_display() {
+    fn test_nist_kat_error_hex_error_display_has_correct_format() {
         let err = NistKatError::HexError("invalid character".to_string());
         let display = format!("{}", err);
         assert!(display.contains("Hex decode error"));
@@ -706,7 +706,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_kat_error_implementation_error_display() {
+    fn test_nist_kat_error_implementation_error_display_has_correct_format() {
         let err = NistKatError::ImplementationError("HMAC creation failed".to_string());
         let display = format!("{}", err);
         assert!(display.contains("Implementation error"));
@@ -714,7 +714,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_kat_error_debug() {
+    fn test_nist_kat_error_debug_matches_expected() {
         let err = NistKatError::TestFailed {
             algorithm: "HMAC-SHA256".to_string(),
             test_name: "test-1".to_string(),
@@ -727,27 +727,27 @@ mod tests {
     // --- decode_hex coverage ---
 
     #[test]
-    fn test_decode_hex_valid() {
+    fn test_decode_hex_valid_succeeds() {
         let result = decode_hex("48656c6c6f");
         assert!(result.is_ok());
         assert_eq!(result.expect("valid hex"), b"Hello");
     }
 
     #[test]
-    fn test_decode_hex_empty() {
+    fn test_decode_hex_empty_succeeds() {
         let result = decode_hex("");
         assert!(result.is_ok());
         assert!(result.expect("empty hex").is_empty());
     }
 
     #[test]
-    fn test_decode_hex_invalid() {
+    fn test_decode_hex_invalid_returns_error() {
         let result = decode_hex("ZZZZ");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_decode_hex_odd_length() {
+    fn test_decode_hex_odd_length_returns_error() {
         let result = decode_hex("abc");
         assert!(result.is_err());
     }
@@ -755,7 +755,7 @@ mod tests {
     // --- Cross-variant consistency: same key/message produces different MACs ---
 
     #[test]
-    fn test_hmac_variants_produce_different_macs() {
+    fn test_hmac_variants_produce_different_macs_succeeds() {
         let vector = &HMAC_VECTORS[0];
         let key = decode_hex(vector.key).expect("valid key hex");
         let message = decode_hex(vector.message).expect("valid message hex");
@@ -773,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha224_vs_sha256_different_output_lengths() {
+    fn test_hmac_sha224_vs_sha256_different_output_lengths_has_correct_size() {
         let vector = &HMAC_VECTORS[0];
         let key = decode_hex(vector.key).expect("valid key hex");
         let message = decode_hex(vector.message).expect("valid message hex");
@@ -791,7 +791,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha384_output_length() {
+    fn test_hmac_sha384_output_has_correct_length_has_correct_size() {
         let vector = &HMAC_VECTORS[0];
         let key = decode_hex(vector.key).expect("valid key hex");
         let message = decode_hex(vector.message).expect("valid message hex");
@@ -806,7 +806,7 @@ mod tests {
     // --- Test with single-byte key and message ---
 
     #[test]
-    fn test_hmac_sha256_single_byte_inputs() {
+    fn test_hmac_sha256_single_byte_inputs_succeed_succeeds() {
         // Single-byte key and message: HMAC should succeed (no errors),
         // but the MAC will not match the fabricated expected value.
         let result = run_single_hmac_sha256(
@@ -821,7 +821,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha224_single_byte_inputs() {
+    fn test_hmac_sha224_single_byte_inputs_succeed_succeeds() {
         let result = run_single_hmac_sha224(
             "aa",
             "bb",
@@ -834,7 +834,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha384_single_byte_inputs() {
+    fn test_hmac_sha384_single_byte_inputs_succeed_succeeds() {
         let result = run_single_hmac_sha384(
             "aa",
             "bb",
@@ -847,7 +847,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha512_single_byte_inputs() {
+    fn test_hmac_sha512_single_byte_inputs_succeed_succeeds() {
         let result = run_single_hmac_sha512(
             "aa",
             "bb",
@@ -862,7 +862,7 @@ mod tests {
     // --- Test invalid hex on expected_mac field for each variant ---
 
     #[test]
-    fn test_hmac_sha224_invalid_expected_hex() {
+    fn test_hmac_sha224_invalid_expected_hex_returns_error() {
         let result = run_single_hmac_sha224("aabb", "ccdd", "GGGG", "bad-expected-224");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -870,7 +870,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha384_invalid_expected_hex() {
+    fn test_hmac_sha384_invalid_expected_hex_returns_error() {
         let result = run_single_hmac_sha384("aabb", "ccdd", "GGGG", "bad-expected-384");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));
@@ -878,7 +878,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hmac_sha512_invalid_expected_hex() {
+    fn test_hmac_sha512_invalid_expected_hex_returns_error() {
         let result = run_single_hmac_sha512("aabb", "ccdd", "GGGG", "bad-expected-512");
         assert!(result.is_err());
         let msg = format!("{}", result.err().expect("error expected"));

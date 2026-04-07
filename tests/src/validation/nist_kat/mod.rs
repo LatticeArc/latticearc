@@ -125,19 +125,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_decode_hex_valid() {
+    fn test_decode_hex_valid_succeeds() {
         let result = decode_hex("48656c6c6f").expect("valid hex");
         assert_eq!(result, b"Hello");
     }
 
     #[test]
-    fn test_decode_hex_empty() {
+    fn test_decode_hex_empty_succeeds() {
         let result = decode_hex("").expect("empty hex");
         assert!(result.is_empty());
     }
 
     #[test]
-    fn test_decode_hex_invalid() {
+    fn test_decode_hex_invalid_fails() {
         let result = decode_hex("zzzz");
         assert!(result.is_err());
         if let Err(ref err) = result {
@@ -146,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kat_test_result_passed() {
+    fn test_kat_test_result_passed_fields_are_correct() {
         let result = KatTestResult::passed("tc1".to_string(), "SHA-256".to_string(), 42);
         assert!(result.passed);
         assert!(result.error_message.is_none());
@@ -156,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kat_test_result_failed() {
+    fn test_kat_test_result_failed_fields_are_correct() {
         let result =
             KatTestResult::failed("tc2".to_string(), "AES".to_string(), "mismatch".to_string(), 99);
         assert!(!result.passed);
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kat_test_result_clone_debug() {
+    fn test_kat_test_result_clone_debug_matches_expected() {
         let result = KatTestResult::passed("tc3".to_string(), "HKDF".to_string(), 10);
         let cloned = result.clone();
         assert_eq!(cloned.test_case, "tc3");
@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_kat_error_display() {
+    fn test_nist_kat_error_display_matches_expected() {
         let err = NistKatError::TestFailed {
             algorithm: "SHA-256".to_string(),
             test_name: "vector1".to_string(),
@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nist_kat_error_debug() {
+    fn test_nist_kat_error_debug_matches_expected() {
         let err = NistKatError::HexError("bad hex".to_string());
         let debug = format!("{:?}", err);
         assert!(debug.contains("HexError"));

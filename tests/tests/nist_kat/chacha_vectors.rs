@@ -22,7 +22,7 @@ const RFC8439_TAG: &str = "1ae10b594f09e26a7e902ecbd0600691";
 
 /// Test ChaCha20-Poly1305 with RFC 8439 main test vector
 #[test]
-fn test_chacha20_poly1305_rfc8439_main() {
+fn test_chacha20_poly1305_rfc8439_main_matches_vector() {
     let key = decode_hex(RFC8439_KEY).expect("key decode");
     let nonce = decode_hex(RFC8439_NONCE).expect("nonce decode");
     let aad = decode_hex(RFC8439_AAD).expect("aad decode");
@@ -49,12 +49,12 @@ fn test_chacha20_poly1305_rfc8439_main() {
 
     // Test decryption
     let decrypted = cipher.decrypt(&nonce_arr, &ct, &tag, Some(&aad)).expect("decryption");
-    assert_eq!(decrypted, plaintext, "Decryption mismatch");
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Decryption mismatch");
 }
 
 /// Test ChaCha20-Poly1305 with empty message and AAD
 #[test]
-fn test_chacha20_poly1305_empty_message_with_aad() {
+fn test_chacha20_poly1305_empty_message_with_aad_roundtrip_succeeds() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"";
@@ -88,7 +88,7 @@ fn test_chacha20_poly1305_roundtrip() {
 
 /// Test ChaCha20-Poly1305 without AAD
 #[test]
-fn test_chacha20_poly1305_no_aad() {
+fn test_chacha20_poly1305_no_aad_roundtrip_succeeds() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message without AAD";
@@ -102,7 +102,7 @@ fn test_chacha20_poly1305_no_aad() {
 
 /// Test authentication tag tampering detection
 #[test]
-fn test_chacha20_poly1305_tag_tampering() {
+fn test_chacha20_poly1305_tag_tampering_returns_error() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message";
@@ -119,7 +119,7 @@ fn test_chacha20_poly1305_tag_tampering() {
 
 /// Test ciphertext tampering detection
 #[test]
-fn test_chacha20_poly1305_ciphertext_tampering() {
+fn test_chacha20_poly1305_ciphertext_tampering_returns_error() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message for tampering";
@@ -138,7 +138,7 @@ fn test_chacha20_poly1305_ciphertext_tampering() {
 
 /// Test AAD tampering detection
 #[test]
-fn test_chacha20_poly1305_aad_tampering() {
+fn test_chacha20_poly1305_aad_tampering_returns_error() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"Test message";
@@ -154,7 +154,7 @@ fn test_chacha20_poly1305_aad_tampering() {
 
 /// Test empty plaintext encryption
 #[test]
-fn test_chacha20_poly1305_empty_plaintext() {
+fn test_chacha20_poly1305_empty_plaintext_roundtrip_succeeds() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = b"";
@@ -171,7 +171,7 @@ fn test_chacha20_poly1305_empty_plaintext() {
 
 /// Test different nonces produce different ciphertexts
 #[test]
-fn test_chacha20_poly1305_nonce_uniqueness() {
+fn test_chacha20_poly1305_nonce_uniqueness_are_unique() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce1 = ChaCha20Poly1305::generate_nonce();
     let nonce2 = ChaCha20Poly1305::generate_nonce();
@@ -187,7 +187,7 @@ fn test_chacha20_poly1305_nonce_uniqueness() {
 
 /// Test large message encryption/decryption
 #[test]
-fn test_chacha20_poly1305_large_message() {
+fn test_chacha20_poly1305_large_message_succeeds() {
     let key = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();
     let plaintext = vec![0x42u8; 1_000_000]; // 1MB message
@@ -196,12 +196,12 @@ fn test_chacha20_poly1305_large_message() {
     let (ct, tag) = cipher.encrypt(&nonce, &plaintext, None).expect("encryption");
     let decrypted = cipher.decrypt(&nonce, &ct, &tag, None).expect("decryption");
 
-    assert_eq!(decrypted, plaintext, "Large message roundtrip failed");
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice(), "Large message roundtrip failed");
 }
 
 /// Test wrong key fails decryption
 #[test]
-fn test_chacha20_poly1305_wrong_key() {
+fn test_chacha20_poly1305_wrong_key_fails() {
     let key1 = ChaCha20Poly1305::generate_key();
     let key2 = ChaCha20Poly1305::generate_key();
     let nonce = ChaCha20Poly1305::generate_nonce();

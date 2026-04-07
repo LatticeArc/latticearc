@@ -112,13 +112,13 @@ pub(crate) fn run(args: KeygenArgs) -> Result<()> {
             generate_ml_kem(&args, latticearc::primitives::kem::MlKemSecurityLevel::MlKem1024)
         }
         Algorithm::MlDsa65 => {
-            generate_ml_dsa(&args, latticearc::primitives::sig::MlDsaParameterSet::MLDSA65)
+            generate_ml_dsa(&args, latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65)
         }
         Algorithm::MlDsa44 => {
-            generate_ml_dsa(&args, latticearc::primitives::sig::MlDsaParameterSet::MLDSA44)
+            generate_ml_dsa(&args, latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44)
         }
         Algorithm::MlDsa87 => {
-            generate_ml_dsa(&args, latticearc::primitives::sig::MlDsaParameterSet::MLDSA87)
+            generate_ml_dsa(&args, latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87)
         }
         Algorithm::SlhDsa128s => generate_slh_dsa(&args),
         Algorithm::FnDsa512 => generate_fn_dsa(&args),
@@ -182,9 +182,9 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
 }
 
 fn generate_symmetric(args: &KeygenArgs) -> Result<()> {
+    let rand_bytes = latticearc::primitives::rand::csprng::random_bytes(32);
     let mut key = [0u8; 32];
-    use rand::RngCore;
-    rand::rngs::OsRng.fill_bytes(&mut key);
+    key.copy_from_slice(&rand_bytes);
 
     let path = args.output.join("aes256.key.json");
     keyfile::write_key(&path, KeyAlgorithm::Aes256, KeyType::Symmetric, &key, args.label.clone())?;
@@ -209,6 +209,7 @@ fn generate_ml_kem(
         latticearc::primitives::kem::MlKemSecurityLevel::MlKem1024 => {
             ("ml-kem-1024", KeyAlgorithm::MlKem1024)
         }
+        _ => anyhow::bail!("Unsupported MlKemSecurityLevel variant"),
     };
 
     let (pk, sk) = latticearc::generate_ml_kem_keypair(level)
@@ -228,16 +229,16 @@ fn generate_ml_kem(
 
 fn generate_ml_dsa(
     args: &KeygenArgs,
-    param_set: latticearc::primitives::sig::MlDsaParameterSet,
+    param_set: latticearc::primitives::sig::ml_dsa::MlDsaParameterSet,
 ) -> Result<()> {
     let (alg_name, alg) = match param_set {
-        latticearc::primitives::sig::MlDsaParameterSet::MLDSA44 => {
+        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa44 => {
             ("ml-dsa-44", KeyAlgorithm::MlDsa44)
         }
-        latticearc::primitives::sig::MlDsaParameterSet::MLDSA65 => {
+        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa65 => {
             ("ml-dsa-65", KeyAlgorithm::MlDsa65)
         }
-        latticearc::primitives::sig::MlDsaParameterSet::MLDSA87 => {
+        latticearc::primitives::sig::ml_dsa::MlDsaParameterSet::MlDsa87 => {
             ("ml-dsa-87", KeyAlgorithm::MlDsa87)
         }
         _ => return Err(anyhow::anyhow!("Unsupported ML-DSA parameter set")),
@@ -259,7 +260,7 @@ fn generate_ml_dsa(
 }
 
 fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
-    let level = latticearc::primitives::sig::slh_dsa::SecurityLevel::Shake128s;
+    let level = latticearc::primitives::sig::slh_dsa::SlhDsaSecurityLevel::Shake128s;
     let (pk, sk) = latticearc::generate_slh_dsa_keypair(level)
         .map_err(|e| anyhow::anyhow!("Keygen failed: {e}"))?;
 
@@ -380,16 +381,16 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
         &pk_path,
         KeyAlgorithm::HybridMlDsa65Ed25519,
         KeyType::Public,
-        &pk.ml_dsa_pk,
-        &pk.ed25519_pk,
+        pk.ml_dsa_pk(),
+        pk.ed25519_pk(),
         args.label.clone(),
     )?;
     keyfile::write_composite_key(
         &sk_path,
         KeyAlgorithm::HybridMlDsa65Ed25519,
         KeyType::Secret,
-        &sk.ml_dsa_sk,
-        &sk.ed25519_sk,
+        sk.ml_dsa_sk(),
+        sk.ed25519_sk(),
         args.label.clone(),
     )?;
 

@@ -47,7 +47,7 @@ const SHARED_SECRET: [u8; 32] = [
 
 /// Test 1: Alice's public key derivation from her scalar.
 #[test]
-fn test_alice_public_key_from_scalar() {
+fn test_alice_public_key_from_scalar_succeeds() {
     let alice = X25519StaticKeyPair::from_seed_bytes(&ALICE_SCALAR)
         .expect("Alice's key pair should be valid");
 
@@ -60,7 +60,7 @@ fn test_alice_public_key_from_scalar() {
 
 /// Test 2: Bob's public key derivation from his scalar.
 #[test]
-fn test_bob_public_key_from_scalar() {
+fn test_bob_public_key_from_scalar_succeeds() {
     let bob =
         X25519StaticKeyPair::from_seed_bytes(&BOB_SCALAR).expect("Bob's key pair should be valid");
 
@@ -73,7 +73,7 @@ fn test_bob_public_key_from_scalar() {
 
 /// Test 3: Alice computes shared secret with Bob's public key.
 #[test]
-fn test_alice_shared_secret() {
+fn test_alice_shared_secret_matches_rfc7748_vector_matches_expected() {
     let alice = X25519StaticKeyPair::from_seed_bytes(&ALICE_SCALAR)
         .expect("Alice's key pair should be valid");
 
@@ -87,7 +87,7 @@ fn test_alice_shared_secret() {
 
 /// Test 4: Bob computes the same shared secret with Alice's public key.
 #[test]
-fn test_bob_shared_secret() {
+fn test_bob_shared_secret_matches_rfc7748_vector_matches_expected() {
     let bob =
         X25519StaticKeyPair::from_seed_bytes(&BOB_SCALAR).expect("Bob's key pair should be valid");
 
@@ -98,7 +98,7 @@ fn test_bob_shared_secret() {
 
 /// Test 5: Bidirectional agreement — Alice and Bob compute the same secret.
 #[test]
-fn test_bidirectional_agreement() {
+fn test_bidirectional_agreement_produces_identical_secrets_succeeds() {
     let alice = X25519StaticKeyPair::from_seed_bytes(&ALICE_SCALAR)
         .expect("Alice's key pair should be valid");
     let bob =
@@ -127,7 +127,7 @@ fn test_bidirectional_agreement() {
 /// After 1,000 iterations:
 ///   k = 684cf59ba83309552800ef566f2f4d3c1c3887c49360e3875f2eb94d99532c51
 #[test]
-fn test_iterative_dh_1() {
+fn test_iterative_dh_1_matches_rfc7748_vector_matches_expected() {
     let mut k = [0u8; 32];
     k[0] = 9; // Basepoint
     let mut u = [0u8; 32];
@@ -149,7 +149,7 @@ fn test_iterative_dh_1() {
 
 /// RFC 7748 Section 6.1 — Iterative DH after 1,000 iterations.
 #[test]
-fn test_iterative_dh_1000() {
+fn test_iterative_dh_1000_matches_rfc7748_vector_matches_expected() {
     let mut k = [0u8; 32];
     k[0] = 9;
     let mut u = [0u8; 32];

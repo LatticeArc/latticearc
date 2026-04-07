@@ -377,7 +377,7 @@ flowchart TB
 - [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) - ML-KEM
 - [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final) - ML-DSA
 - [FIPS 205](https://csrc.nist.gov/pubs/fips/205/final) - SLH-DSA
-- [FIPS 206](https://csrc.nist.gov/pubs/fips/206/final) - FN-DSA
+- [FN-DSA (FIPS 206, draft)](https://csrc.nist.gov/projects/post-quantum-cryptography) - FN-DSA (standardization ongoing as of 2026-04)
 - [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) - Digital Signature Standard (includes EdDSA)
 
 ### Performance Sources

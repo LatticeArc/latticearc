@@ -7,6 +7,234 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+---
+
+## [0.5.0] - 2026-04-06
+
+Comprehensive design-pattern audit and remediation. Breaking API changes
+(field privatization, sealed traits, `#[non_exhaustive]` on all enums).
+See `docs/AUDIT_MIGRATION_IMPACT.md` for migration checklist and
+`docs/DESIGN_PATTERNS.md` for the complete pattern reference (1,541 lines).
+
+### Security
+
+- **Hybrid KEM info binding**: `derive_hybrid_shared_secret` uses HPKE §5.1 /
+  RFC 9180 length-prefix encoding for HKDF `info` payload, replacing ASCII
+  `"||"` separators.
+- **X25519 low-order defense-in-depth**: `agree()` now routes peer bytes
+  through `X25519PublicKey::from_bytes` (RFC 7748 §6.1 blacklist). List
+  trimmed to 7 canonical libsodium points.
+- **Plaintext zeroization on decrypt**: All `AeadCipher::decrypt` impls
+  return `Zeroizing<Vec<u8>>`. Cascades through hybrid and convenience APIs.
+- **HKDF added to PQ-KEM encrypt/decrypt**: `encrypt_pq_ml_kem_internal` and
+  `decrypt_pq_ml_kem_internal` now derive AES keys via HKDF with domain label
+  `LatticeArc-PqKem-AeadKey-v1` instead of using raw ML-KEM shared secret.
+- **Timestamp freshness check**: Zero-trust `verify_proof_data` (Medium/High
+  complexity) now rejects proofs with timestamps outside 5-minute window.
+- **Constant-time CMAC verify**: `verify_cmac_{128,192,256}` changed from
+  `&&` (short-circuit) to `&` (bitwise AND) for timing-safe combination.
+- **PedersenCommitment::verify() constant-time**: Replaced `==` on
+  `ProjectivePoint` with `ct_eq` on compressed byte serialization.
+- **FN-DSA SigningKey::ct_eq rewritten**: Removed variable-time early return
+  on `security_level`; now uses constant-time `&` combinators matching the
+  SLH-DSA canonical pattern.
+- **HashCommitment::verify() constant-time**: Uses `subtle::ConstantTimeEq`
+  instead of `==` on commitment hash.
+- **All RNG routed through primitives**: 10 direct `OsRng` bypass points
+  fixed across `hybrid/`, `unified_api/`, `zkp/`, `tls/`, `prelude/`, and
+  `latticearc-cli/`. All randomness now flows through
+  `primitives::rand::csprng::random_bytes()` or
+  `primitives::security::generate_secure_random_bytes()`.
+- **Error-opacity assertions**: 3 new tests verify decrypt error messages
+  are identical regardless of failure mode (SP 800-38D §5.2.2).
+- **CLI keygen RNG fix**: `latticearc-cli` symmetric key generation routed
+  through library primitives instead of direct `rand::rngs::OsRng`.
+- **CLI password zeroization**: PBKDF2 password now wrapped in `Zeroizing`.
+- **CLI non_exhaustive safety**: `unreachable!()` on `#[non_exhaustive]`
+  enums replaced with `anyhow::bail!()` to prevent runtime panics.
+
+### Breaking Changes
+
+- **Field privatization**: `HybridCiphertext` (5 fields), `EncryptedOutput`
+  (7 fields), `KeyPair`, `HashOpening`, `PedersenOpening`, `SchnorrProof`,
+  `DlogEqualityProof`, `Challenge`, `ZeroKnowledgeProof`,
+  `ProofOfPossessionData`, `SigmaProof` — all fields now private with
+  `new()` constructors and getter methods.
+- **`#[non_exhaustive]` on all 72 public enums**: Including `SecurityLevel`,
+  `EncryptionScheme`, `MlKemSecurityLevel`, `TlsMode`, `UseCase`, and all
+  error enums. Downstream `match` statements need `_ =>` wildcard arms.
+- **Sealed traits**: `AeadCipher`, `EcKeyPair`, `EcSignature` now use the
+  sealed-trait pattern — external crates cannot implement them.
+- **`XChaCha20Poly1305Cipher` AeadCipher impl removed**: Use `encrypt_x` /
+  `decrypt_x` native methods instead.
+- **`MlKemSharedSecret::as_array()` returns `&[u8; 32]`** (borrow) instead
+  of `[u8; 32]` (copy).
+- **`MlKem::encapsulate_with_config` / `decapsulate_with_config`**: Dead
+  `_config: MlKemConfig` parameter removed.
+- **`SimdMode` enum removed**: `MlKemConfig.simd_mode` was never branched on;
+  aws-lc-rs handles SIMD internally.
+- **`PerformanceMetrics.decryption_speed_ms` and `.cpu_usage_percent`
+  removed**: Never read by any consumer.
+- **`HardwareConfig` deprecated**: No active consumer; use
+  `CoreConfig.hardware_acceleration` instead.
+- **`HashOpening` no longer implements `Clone`**: Prevents uncontrolled copies
+  of commitment randomness.
+- **`select_encryption_scheme_typed` no longer returns classical-only**: All
+  security levels now return hybrid PQC schemes.
+- **`derive_key_hkdf` domain label changed**: From `b"latticearc"` to
+  registered constant `DERIVE_KEY_INFO` (`b"LatticeArc-DeriveKey-v1"`).
+
+### Added
+
+- **`ConstantTimeEq` on 7 secret types**: `Secp256k1KeyPair`,
+  `Ed25519KeyPair`, `SecureSharedSecret`, `HashOpening`, `PedersenOpening`,
+  `HybridSigSecretKey`, `EncapsulatedKey`.
+- **`#[must_use]` on all generate/nonce functions**: 49+ functions including
+  all keygen, `generate_nonce()`, `generate_key()`, `allow_request()`.
+- **`/// Consumer:` tags on all 80 config fields** across 15 config structs.
+- **29 influence tests** (`test_<field>_influences_<operation>`) for
+  `CoreConfig`, `ZeroTrustConfig`, `Tls13Config`, `AuditConfig`.
+- **Manual `Debug` with redaction** on `KeyPair`, `SecureSharedSecret`,
+  `SecurePrivateKey`, `VerifiedSession`, `CmacTag`, `CounterKdfParams`,
+  `HkdfResult`, `SigmaProof`.
+- **`ZeroizeOnDrop` on `SigmaProof` and `SchnorrProof`**: Response fields
+  now scrubbed on drop.
+- **Domain constant `PQ_KEM_AEAD_KEY_INFO`** registered in `types/domains.rs`
+  with Kani proof extended to all 9 constants (36 pairwise checks).
+- **`AUDIT-ACCEPTED` documentation** on all aws-lc-rs wrapper types
+  explaining zeroization and `ConstantTimeEq` delegation.
+- **`DegradationConfig::default().enable_fallback` changed to `false`**:
+  Fail-closed by default.
+- **Error-recovery test**: Verifies crypto operations remain functional after
+  decrypt failures (no state corruption).
+- **4 key-dependent timing tests**: AES-GCM encrypt/decrypt, ML-KEM encaps,
+  HKDF derive — verify timing doesn't depend on key value.
+- **9 standalone PQ signature proptests** (256 cases each): ML-DSA-65,
+  SLH-DSA-Shake128s, FN-DSA-512 — roundtrip, wrong-message, wrong-key.
+- **4 new fuzz targets**: `fuzz_fn_dsa_sign`, `fuzz_fn_dsa_verify`,
+  `fuzz_portable_key_json`, `fuzz_encrypted_data_deser`.
+- **CI fuzzing expanded**: From 3 targets to 32 (all fuzz targets now run).
+
+### Changed
+
+- **`MlKem` keygen no longer takes `&mut Rng`**: aws-lc-rs uses internal
+  FIPS-approved DRBG. Drop the `&mut rng` argument at call sites.
+- **`MlKem::encapsulate_with_rng` → `encapsulate_with_seed`**: Honest naming.
+- **`SignatureScheme::FnDsa` → `FnDsa512`** with new `FnDsa1024` variant.
+- **FIPS 206 docs corrected to "draft"**: Falcon remains in NIST pipeline.
+- **Hash backends routed through primitives wrappers**: ZKP, audit, logging,
+  self-test modules no longer import `sha2`/`sha3` directly.
+- **37 `primitives/` files upgraded**: `#![warn(missing_docs)]` →
+  `#![deny(missing_docs)]`.
+- **CI coverage gate**: 80% → 90% minimum.
+- **6,600+ tests renamed** to follow `test_<what>_<condition>_<expected>`
+  naming convention (99%+ compliance).
+- **7 test files renamed**: Removed redundant double-module prefixes
+  (`tls_tls_` → `tls_`, `hybrid_hybrid_` → `hybrid_`, `zkp_zkp_` → `zkp_`).
+- **`compose.rs` verification functions replaced**: No-op `verify_*` functions
+  that always returned `true` replaced with documented security claims.
+- **Version bumped to 0.5.0** across all Cargo.toml files, docs, and FIPS
+  Security Policy.
+
+### Removed
+
+- **Unused dependencies**: `arrayref` and `async-trait`.
+- **`SimdMode` enum and `MlKemConfig.simd_mode` field**.
+- **`PerformanceMetrics.decryption_speed_ms` and `.cpu_usage_percent`**.
+- **Stale doc comments** referencing deleted modules and phantom items.
+
+### Documentation
+
+- **`docs/DESIGN_PATTERNS.md` rewritten** (1,541 lines): Mission statement,
+  NIST/IETF/ISO/OWASP/CNSA 2.0 compliance map, Rust secure coding practices
+  (6 anti-patterns), coding style guide, documentation style guide, 18
+  design patterns, SWE benchmarks, 9-level test methodology, zero-shortcut
+  policy, exemplary implementation standard, 10-point quality scorecard.
+- **`docs/API_DOCUMENTATION.md`**: Added Type Reference section covering
+  field privatization, `#[non_exhaustive]`, sealed traits.
+- **`docs/SECURITY_GUIDE.md`**: Added Sealed Traits subsection.
+- **`docs/NIST_COMPLIANCE.md`**: Fixed test vector source URLs.
+- **`docs/FIPS_SECURITY_POLICY.md`**: Version 0.5.0 revision entry.
+
+### Added
+
+- **`blake2s_256` wrapper** in `primitives::hash::blake2` alongside the
+  existing `blake2b_256`, so callers no longer need to import the `blake2`
+  crate directly.
+- **`to_bytes` accessor** on `MlDsaPublicKey`, `MlDsaSecretKey`,
+  `MlDsaSignature`, and `MlKemSecretKey`. Secret-key variants return
+  `Zeroizing<Vec<u8>>`.
+- **`from_bytes` constructor** on `MlDsaPublicKey`, `MlDsaSecretKey`,
+  and `MlDsaSignature` for byte-slice callers (`new` still works for
+  owning `Vec<u8>` callers).
+- **`SignatureScheme::FnDsa1024`** variant — the enum previously only had
+  a single `FnDsa` variant that mapped ambiguously to Level 512.
+- **`docs/AUDIT_MIGRATION_IMPACT.md`** migration report for downstream
+  crates.
+
+### Changed
+
+- **`MlKem` and hybrid keygen/encap no longer take an `&mut R: Rng`
+  parameter**. aws-lc-rs uses its internal FIPS-approved DRBG and cannot
+  accept caller-provided entropy, so the old parameter was vestigial and
+  flagged by the audit (CLAUDE.md rule: "never silence unused params with
+  `_`"). Affected functions: `MlKem::generate_keypair`,
+  `MlKem::generate_keypair_with_config`, `MlKem::encapsulate`,
+  `MlKem::encapsulate_with_config`, `hybrid::kem_hybrid::generate_keypair`,
+  `hybrid::kem_hybrid::generate_keypair_with_level`,
+  `hybrid::kem_hybrid::encapsulate`, `hybrid::sig_hybrid::generate_keypair`,
+  `hybrid::encrypt_hybrid::encrypt`,
+  `hybrid::encrypt_hybrid::encrypt_hybrid`,
+  `tls::pq_key_exchange::perform_hybrid_keygen`, and
+  `tls::pq_key_exchange::perform_hybrid_encapsulate`. **Migration**: drop the
+  `&mut rng` argument at each call site.
+- **`MlKem::encapsulate_with_rng` → `MlKem::encapsulate_with_seed`**. The
+  old name implied caller-controlled entropy; the new name matches the
+  actual behaviour (seed is accepted for API symmetry and length-validated,
+  but the backing DRBG is aws-lc-rs internal). `MlKem::generate_keypair_with_seed`
+  follows the same honest naming.
+- **`SignatureScheme::FnDsa` → `SignatureScheme::FnDsa512`** rename (with
+  new `FnDsa1024` variant). Wire-format `"fn-dsa"` still parses to the 512
+  variant for backward compatibility; new wire-format `"fn-dsa-1024"`
+  targets the 1024 variant.
+- **`#[non_exhaustive]`** added to `MlDsaError`, `SlhDsaError`, `PctError`,
+  `CmacError`, `CompositionError`, `HybridKemError`, `TlsError`, and
+  `SignatureScheme` so new variants can be added without breaking downstream
+  matches.
+- **Hash backends routed through primitives wrappers**: `unified_api/audit.rs`,
+  `unified_api/logging.rs`, `unified_api/mod.rs` (FIPS self-test), and the
+  ZKP modules (`commitment.rs`, `schnorr.rs`, `sigma.rs`) no longer import
+  `sha2`/`sha3`/`blake2` directly — they call
+  `primitives::hash::{sha2,sha3,blake2}::*`. Makes future backend swaps a
+  single-file change.
+- **FIPS 206 docs corrected to "draft"**. Previous doc links pointed at
+  `csrc.nist.gov/pubs/fips/206/final/` (404) and incorrectly implied the
+  standard was published. Updated to reflect that Falcon remains in the
+  NIST standardization pipeline as of 2026-04.
+- **Ghost re-export files removed** (reduce indirection, breaking only for
+  callers that used the deleted paths):
+  - `prelude/domains.rs` → use `crate::types::domains`
+  - `unified_api/config.rs` → use `crate::unified_api::*` (types still
+    re-exported at the module root) or `crate::types::config`
+  - `unified_api/key_lifecycle.rs` → use `crate::unified_api::*` or
+    `crate::types::key_lifecycle`
+  - `unified_api/hardware.rs` → use `crate::unified_api::*` or
+    `crate::types::traits`
+- **Ghost inline submodules removed from `hybrid/mod.rs`**: `hybrid::kem`,
+  `hybrid::sig`, `hybrid::encrypt` — callers should use `hybrid::*`
+  directly.
+
+### Removed
+
+- **Unused dependencies**: `arrayref` and `async-trait` dropped from
+  `latticearc/Cargo.toml`.
+- **Misleading stale doc comments** (`// NOTE: test_X has been removed...`)
+  from `unified_api/convenience/api.rs`. Git history is authoritative.
+
+---
+
 ## [0.4.4] - 2026-04-01
 
 ### Security

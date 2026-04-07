@@ -12,7 +12,7 @@
 
 use std::fmt;
 
-use crate::hybrid::kem_hybrid::{HybridPublicKey, HybridSecretKey};
+use crate::hybrid::kem_hybrid::{HybridKemPublicKey, HybridKemSecretKey};
 use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
 
 /// What kind of key the caller is providing for encryption.
@@ -24,7 +24,7 @@ use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
 /// # Examples
 ///
 /// ```rust,no_run
-/// use latticearc::types::crypto_types::EncryptKey;
+/// use latticearc::unified_api::crypto_types::EncryptKey;
 ///
 /// // Symmetric key for AES-256-GCM or ChaCha20-Poly1305
 /// let sym_key = [0u8; 32];
@@ -34,13 +34,14 @@ use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
 /// // let (pk, _sk) = latticearc::generate_hybrid_keypair().unwrap();
 /// // let key = EncryptKey::Hybrid(&pk);
 /// ```
+#[non_exhaustive]
 pub enum EncryptKey<'a> {
     /// Symmetric key (AES-256-GCM, ChaCha20-Poly1305).
     /// Must be exactly 32 bytes for both algorithms.
     Symmetric(&'a [u8]),
     /// Hybrid PQ public key (ML-KEM-768 + X25519).
     /// Used for true hybrid encryption with KEM encapsulation.
-    Hybrid(&'a HybridPublicKey),
+    Hybrid(&'a HybridKemPublicKey),
 }
 
 impl fmt::Debug for EncryptKey<'_> {
@@ -59,11 +60,12 @@ impl fmt::Debug for EncryptKey<'_> {
 ///
 /// Mirrors `EncryptKey` for the decryption path. The scheme stored
 /// in `EncryptedOutput` determines which variant is expected.
+#[non_exhaustive]
 pub enum DecryptKey<'a> {
     /// Symmetric key for AES-256-GCM or ChaCha20-Poly1305.
     Symmetric(&'a [u8]),
     /// Hybrid PQ secret key for ML-KEM-768 + X25519 decapsulation.
-    Hybrid(&'a HybridSecretKey),
+    Hybrid(&'a HybridKemSecretKey),
 }
 
 impl fmt::Debug for DecryptKey<'_> {
@@ -92,6 +94,7 @@ impl fmt::Debug for DecryptKey<'_> {
 /// | `HybridMlKem512Aes256Gcm` | Hybrid | ML-KEM-512 + X25519 + HKDF + AES-256-GCM |
 /// | `HybridMlKem768Aes256Gcm` | Hybrid | ML-KEM-768 + X25519 + HKDF + AES-256-GCM |
 /// | `HybridMlKem1024Aes256Gcm` | Hybrid | ML-KEM-1024 + X25519 + HKDF + AES-256-GCM |
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EncryptionScheme {
     /// AES-256-GCM symmetric encryption.
@@ -198,27 +201,94 @@ pub struct HybridComponents {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncryptedOutput {
     /// The encryption scheme used (determines decryption path).
-    pub scheme: EncryptionScheme,
+    scheme: EncryptionScheme,
     /// The encrypted data (symmetric ciphertext).
-    pub ciphertext: Vec<u8>,
+    ciphertext: Vec<u8>,
     /// AEAD nonce (12 bytes).
-    pub nonce: Vec<u8>,
+    nonce: Vec<u8>,
     /// AEAD authentication tag (16 bytes).
-    pub tag: Vec<u8>,
+    tag: Vec<u8>,
     /// Hybrid-specific components (KEM ciphertext + ephemeral ECDH key).
     /// Present only for hybrid schemes.
-    pub hybrid_data: Option<HybridComponents>,
+    hybrid_data: Option<HybridComponents>,
     /// Unix timestamp when encryption was performed.
-    pub timestamp: u64,
+    timestamp: u64,
     /// Optional key identifier for key management systems.
-    pub key_id: Option<String>,
+    key_id: Option<String>,
+}
+
+impl EncryptedOutput {
+    /// Create a new `EncryptedOutput` with all fields specified.
+    #[must_use]
+    pub fn new(
+        scheme: EncryptionScheme,
+        ciphertext: Vec<u8>,
+        nonce: Vec<u8>,
+        tag: Vec<u8>,
+        hybrid_data: Option<HybridComponents>,
+        timestamp: u64,
+        key_id: Option<String>,
+    ) -> Self {
+        Self { scheme, ciphertext, nonce, tag, hybrid_data, timestamp, key_id }
+    }
+
+    /// Return the encryption scheme used.
+    #[must_use]
+    pub fn scheme(&self) -> &EncryptionScheme {
+        &self.scheme
+    }
+
+    /// Return the encrypted ciphertext bytes.
+    #[must_use]
+    pub fn ciphertext(&self) -> &[u8] {
+        &self.ciphertext
+    }
+
+    /// Return the AEAD nonce (12 bytes).
+    #[must_use]
+    pub fn nonce(&self) -> &[u8] {
+        &self.nonce
+    }
+
+    /// Return the AEAD authentication tag (16 bytes).
+    #[must_use]
+    pub fn tag(&self) -> &[u8] {
+        &self.tag
+    }
+
+    /// Return a reference to the hybrid components, if present.
+    #[must_use]
+    pub fn hybrid_data(&self) -> Option<&HybridComponents> {
+        self.hybrid_data.as_ref()
+    }
+
+    /// Return the Unix timestamp when encryption was performed.
+    #[must_use]
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    /// Return the optional key identifier.
+    #[must_use]
+    pub fn key_id(&self) -> Option<&str> {
+        self.key_id.as_deref()
+    }
+
+    /// Return a new `EncryptedOutput` with the given key identifier set.
+    ///
+    /// Consumes `self` and returns a modified copy, following a builder pattern.
+    #[must_use]
+    pub fn with_key_id(mut self, key_id: Option<String>) -> Self {
+        self.key_id = key_id;
+        self
+    }
 }
 
 // ============================================================================
 // Conversions between EncryptedOutput and legacy EncryptedData
 // ============================================================================
 
-use super::types::{CryptoPayload, EncryptedData, EncryptedMetadata};
+use crate::types::types::{CryptoPayload, EncryptedData, EncryptedMetadata};
 
 /// Convert `EncryptedOutput` to legacy `EncryptedData` for serialization.
 ///
@@ -226,15 +296,17 @@ use super::types::{CryptoPayload, EncryptedData, EncryptedMetadata};
 /// is stored directly in `EncryptedData.data`.
 impl From<EncryptedOutput> for EncryptedData {
     fn from(output: EncryptedOutput) -> Self {
+        let EncryptedOutput { scheme, ciphertext, nonce, tag, hybrid_data: _, timestamp, key_id } =
+            output;
         CryptoPayload {
-            data: output.ciphertext,
+            data: ciphertext,
             metadata: EncryptedMetadata {
-                nonce: output.nonce,
-                tag: if output.tag.is_empty() { None } else { Some(output.tag) },
-                key_id: output.key_id,
+                nonce,
+                tag: if tag.is_empty() { None } else { Some(tag) },
+                key_id,
             },
-            scheme: output.scheme.to_string(),
-            timestamp: output.timestamp,
+            scheme: scheme.to_string(),
+            timestamp,
         }
     }
 }
@@ -244,11 +316,11 @@ impl From<EncryptedOutput> for EncryptedData {
 /// The scheme string is parsed into an `EncryptionScheme` enum.
 /// Returns an error for unrecognized schemes instead of silently defaulting.
 impl TryFrom<EncryptedData> for EncryptedOutput {
-    type Error = super::error::TypeError;
+    type Error = crate::types::error::TypeError;
 
     fn try_from(data: EncryptedData) -> Result<Self, Self::Error> {
         let scheme = EncryptionScheme::parse_str(&data.scheme)
-            .ok_or_else(|| super::error::TypeError::UnknownScheme(data.scheme.clone()))?;
+            .ok_or_else(|| crate::types::error::TypeError::UnknownScheme(data.scheme.clone()))?;
         Ok(Self {
             scheme,
             ciphertext: data.data,
@@ -289,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_scheme_display() {
+    fn test_encryption_scheme_display_succeeds() {
         assert_eq!(format!("{}", EncryptionScheme::Aes256Gcm), "aes-256-gcm");
         assert_eq!(
             format!("{}", EncryptionScheme::HybridMlKem768Aes256Gcm),
@@ -298,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_scheme_requires_key_type() {
+    fn test_encryption_scheme_requires_key_type_succeeds() {
         assert!(EncryptionScheme::Aes256Gcm.requires_symmetric_key());
         assert!(!EncryptionScheme::Aes256Gcm.requires_hybrid_key());
         assert!(EncryptionScheme::ChaCha20Poly1305.requires_symmetric_key());
@@ -311,13 +383,13 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_scheme_from_str_unknown() {
+    fn test_encryption_scheme_from_str_unknown_succeeds() {
         assert!(EncryptionScheme::parse_str("unknown-scheme").is_none());
         assert!(EncryptionScheme::parse_str("hybrid-ml-dsa-65-ed25519").is_none());
     }
 
     #[test]
-    fn test_encryption_scheme_clone_eq() {
+    fn test_encryption_scheme_clone_eq_succeeds() {
         let a = EncryptionScheme::HybridMlKem768Aes256Gcm;
         let b = a.clone();
         assert_eq!(a, b);
@@ -325,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_output_symmetric() {
+    fn test_encrypted_output_symmetric_succeeds() {
         let output = EncryptedOutput {
             scheme: EncryptionScheme::Aes256Gcm,
             ciphertext: vec![0xDE, 0xAD],
@@ -340,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypted_output_hybrid() {
+    fn test_encrypted_output_hybrid_succeeds() {
         let output = EncryptedOutput {
             scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
             ciphertext: vec![0xBE, 0xEF],
@@ -358,7 +430,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_components_clone_eq() {
+    fn test_hybrid_components_clone_eq_succeeds() {
         let a =
             HybridComponents { ml_kem_ciphertext: vec![1, 2, 3], ecdh_ephemeral_pk: vec![4, 5, 6] };
         let b = a.clone();
@@ -366,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypt_key_debug_redacts() {
+    fn test_encrypt_key_debug_redacts_succeeds() {
         let key = [0u8; 32];
         let ek = EncryptKey::Symmetric(&key);
         let debug = format!("{:?}", ek);
@@ -377,7 +449,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_key_debug_redacts() {
+    fn test_decrypt_key_debug_redacts_succeeds() {
         let key = [0u8; 32];
         let dk = DecryptKey::Symmetric(&key);
         let debug = format!("{:?}", dk);

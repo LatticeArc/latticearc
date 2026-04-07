@@ -60,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_eq() {
+    fn test_constant_time_eq_succeeds() {
         let a = vec![1, 2, 3, 4];
         let b = vec![1, 2, 3, 4];
         let c = vec![1, 2, 3, 5];

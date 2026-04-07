@@ -348,7 +348,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_randomized_hash_basic() {
+    fn test_randomized_hash_basic_succeeds() {
         let message = b"Hello, randomized hashing!";
         let hash1 = RandomizedHashing::hash_message(message).unwrap();
         let hash2 = RandomizedHashing::hash_message(message).unwrap();
@@ -363,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn test_randomized_hash_modes() {
+    fn test_randomized_hash_modes_succeeds() {
         let message = b"test message";
         let config = RandomizedHashConfig {
             algorithm: "SHA-256".to_string(),
@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn test_distributed_salt_mode() {
+    fn test_distributed_salt_mode_succeeds() {
         let message = b"distributed salt test";
         let config = RandomizedHashConfig {
             algorithm: "SHA-256".to_string(),
@@ -398,7 +398,7 @@ mod tests {
     }
 
     #[test]
-    fn test_different_messages_different_hashes() {
+    fn test_different_messages_different_hashes_succeeds() {
         let message1 = b"message 1";
         let message2 = b"message 2";
 
@@ -409,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_verification_failure() {
+    fn test_hash_verification_failure_fails() {
         let message1 = b"message 1";
         let message2 = b"message 2";
 
@@ -420,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn test_security_level_configs() {
+    fn test_security_level_configs_succeeds() {
         let config128 = RandomizedHashing::recommended_config(128);
         assert_eq!(config128.algorithm, "SHA-256");
         assert_eq!(config128.salt_length, 16);
@@ -432,7 +432,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_randomization_mode() {
+    fn test_no_randomization_mode_succeeds() {
         let message = b"test message";
         let config = RandomizedHashConfig {
             algorithm: "SHA-256".to_string(),
@@ -454,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn test_randomized_hash_hex_output() {
+    fn test_randomized_hash_hex_output_succeeds() {
         let message = b"test";
         let hash = RandomizedHashing::hash_message(message).unwrap();
 

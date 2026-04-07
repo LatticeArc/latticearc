@@ -13,6 +13,7 @@
 use crate::tls::{ClientVerificationMode, TlsConfig, TlsMode};
 
 /// A verifiable security property of a TLS configuration.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecurityProperty {
     /// Data is encrypted during transit using authenticated encryption (AES-GCM or ChaCha20-Poly1305).
@@ -165,14 +166,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_standard_properties_satisfied_by_default() {
+    fn test_standard_properties_satisfied_by_default_succeeds() {
         let checker = SecurityProperties::new();
         let config = TlsConfig::new();
         assert!(checker.all_satisfied(&config));
     }
 
     #[test]
-    fn test_full_properties_fail_without_mtls() {
+    fn test_full_properties_fail_without_mtls_fails() {
         let checker = SecurityProperties::full();
         let config = TlsConfig::new(); // no client auth
         assert!(!checker.all_satisfied(&config));
@@ -184,21 +185,21 @@ mod tests {
     }
 
     #[test]
-    fn test_quantum_resistance_fails_classic_mode() {
+    fn test_quantum_resistance_fails_classic_mode_fails() {
         let checker = SecurityProperties::new().require(SecurityProperty::QuantumResistance);
         let config = TlsConfig { mode: TlsMode::Classic, ..TlsConfig::default() };
         assert!(!checker.all_satisfied(&config));
     }
 
     #[test]
-    fn test_quantum_resistance_passes_hybrid_mode() {
+    fn test_quantum_resistance_passes_hybrid_mode_succeeds() {
         let checker = SecurityProperties::new().require(SecurityProperty::QuantumResistance);
         let config = TlsConfig::new(); // default is Hybrid
         assert!(checker.all_satisfied(&config));
     }
 
     #[test]
-    fn test_verify_returns_all_checks() {
+    fn test_verify_returns_all_checks_succeeds() {
         let checker = SecurityProperties::new();
         let config = TlsConfig::new();
         let checks = checker.verify(&config);
@@ -206,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn test_require_adds_property() {
+    fn test_require_adds_property_succeeds() {
         let checker = SecurityProperties::new().require(SecurityProperty::QuantumResistance);
         let config = TlsConfig::new();
         let checks = checker.verify(&config);
@@ -214,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn test_require_deduplicates() {
+    fn test_require_deduplicates_succeeds() {
         let checker = SecurityProperties::new().require(SecurityProperty::Confidentiality); // already included
         let config = TlsConfig::new();
         let checks = checker.verify(&config);
@@ -222,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn test_property_check_debug() {
+    fn test_property_check_debug_succeeds() {
         let check = PropertyCheck {
             property: SecurityProperty::Confidentiality,
             satisfied: true,
@@ -233,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_security_property_eq() {
+    fn test_security_property_eq_succeeds() {
         assert_eq!(SecurityProperty::Confidentiality, SecurityProperty::Confidentiality);
         assert_ne!(SecurityProperty::Confidentiality, SecurityProperty::Integrity);
     }

@@ -13,10 +13,10 @@
 //! Run with: `cargo test --package latticearc --test unified_api_comprehensive --all-features --release`
 
 use latticearc::{
-    ComplianceMode, CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, EncryptionScheme,
-    PerformancePreference, SecurityLevel, TlsConfig, TlsConstraints, TlsContext, TlsMode,
-    TlsPolicyEngine, TlsUseCase, UseCase, decrypt, encrypt, fips_available,
-    generate_hybrid_keypair, generate_signing_keypair, sign_with_key, verify,
+    ComplianceMode, CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, EncryptedData,
+    EncryptedOutput, EncryptionScheme, PerformancePreference, SecurityLevel, TlsConfig,
+    TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, UseCase, decrypt, encrypt,
+    fips_available, generate_hybrid_keypair, generate_signing_keypair, sign_with_key, verify,
 };
 
 // ============================================================================
@@ -33,7 +33,7 @@ use latticearc::{
 ///
 /// For true PQ encryption, use `encrypt_hybrid()` with typed `HybridPublicKey`.
 #[test]
-fn test_unified_api_uses_aes256gcm_by_design() {
+fn test_unified_api_uses_aes256gcm_by_design_succeeds() {
     let key = [0x42u8; 32];
     let data = b"test data for unified API";
 
@@ -55,26 +55,25 @@ fn test_unified_api_uses_aes256gcm_by_design() {
     // The effective scheme is AES-256-GCM (not ML-KEM), which is correct
     // because the unified API receives a symmetric key.
     assert_eq!(
-        encrypted.scheme,
-        EncryptionScheme::Aes256Gcm,
+        encrypted.scheme(),
+        &EncryptionScheme::Aes256Gcm,
         "Unified API with symmetric key should use AES-256-GCM"
     );
 
     let decrypted =
         decrypt(&encrypted, DecryptKey::Symmetric(&key), config).expect("decrypt should succeed");
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 /// ML-KEM standalone decapsulation requires a live `DecapsulationKey` object.
 ///
 /// ML-KEM standalone decapsulation round-trip via serialized secret key.
 #[test]
-fn test_ml_kem_standalone_decapsulation() {
+fn test_ml_kem_standalone_decapsulation_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    let mut rng = rand::rngs::OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
-    let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulate should succeed");
+    let (pk, sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
+    let (ss_enc, ct) = MlKem::encapsulate(&pk).expect("encapsulate should succeed");
     let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulate should succeed");
     assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes(), "shared secrets must match");
 }
@@ -107,7 +106,7 @@ fn test_hybrid_signing_keygen_is_correct() {
 /// (unlike aws-lc-rs). Excluded to flag as a known migration point.
 #[test]
 #[ignore = "ML-DSA uses fips204 crate which is not FIPS-validated"]
-fn test_sign_verify_quantum_level_pq_only() {
+fn test_sign_verify_quantum_level_pq_only_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen");
     assert_eq!(scheme, "pq-ml-dsa-87");
@@ -124,7 +123,7 @@ fn test_sign_verify_quantum_level_pq_only() {
 /// Our wrapper zeroizes `Vec<u8>` bytes but the inner representation may persist.
 #[test]
 #[ignore = "FN-DSA inner key not zeroized — fn-dsa crate does not implement Zeroize"]
-fn test_fn_dsa_secret_key_zeroization() {
+fn test_fn_dsa_secret_key_zeroization_fails() {
     // fn-dsa crate's internal key type does not implement Zeroize.
     // Mitigated by process isolation and mlock in production deployments.
     panic!("FN-DSA inner key zeroization not possible with current crate");
@@ -132,14 +131,13 @@ fn test_fn_dsa_secret_key_zeroization() {
 
 /// ML-KEM secret key persistence: serialize, deserialize, and decapsulate.
 #[test]
-fn test_ml_kem_key_persistence() {
+fn test_ml_kem_key_persistence_succeeds() {
     use latticearc::primitives::kem::ml_kem::{
         MlKem, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
     };
 
-    let mut rng = rand::rngs::OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+    let (pk, sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     // Serialize both keys
     let pk_bytes = pk.as_bytes().to_vec();
@@ -152,7 +150,7 @@ fn test_ml_kem_key_persistence() {
         .expect("sk restore should succeed");
 
     // Encapsulate with restored PK, decapsulate with restored SK
-    let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk2).expect("encapsulate should succeed");
+    let (ss_enc, ct) = MlKem::encapsulate(&pk2).expect("encapsulate should succeed");
     let ss_dec = MlKem::decapsulate(&sk2, &ct).expect("decapsulate should succeed");
     assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes(), "round-trip through serialization must match");
 }
@@ -197,7 +195,7 @@ fn all_use_cases() -> Vec<UseCase> {
 }
 
 #[test]
-fn test_symmetric_encrypt_decrypt_across_all_22_use_cases() {
+fn test_symmetric_encrypt_decrypt_across_all_22_use_cases_roundtrip() {
     let key = [0x42u8; 32];
     let plaintext = b"Unified API roundtrip for every UseCase";
     let use_cases = all_use_cases();
@@ -231,8 +229,8 @@ fn test_symmetric_encrypt_decrypt_across_all_22_use_cases() {
         )
         .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", uc, e));
 
-        assert!(!encrypted.scheme.as_str().is_empty(), "{:?} scheme should be set", uc);
-        assert!(!encrypted.ciphertext.is_empty(), "{:?} ciphertext should be non-empty", uc);
+        assert!(!encrypted.scheme().as_str().is_empty(), "{:?} scheme should be set", uc);
+        assert!(!encrypted.ciphertext().is_empty(), "{:?} ciphertext should be non-empty", uc);
 
         let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", uc, e));
@@ -245,7 +243,7 @@ fn test_symmetric_encrypt_decrypt_across_all_22_use_cases() {
 // ============================================================================
 
 #[test]
-fn test_symmetric_encrypt_decrypt_across_all_4_security_levels() {
+fn test_symmetric_encrypt_decrypt_across_all_4_security_levels_roundtrip() {
     let key = [0x55u8; 32];
     let plaintext = b"Unified API roundtrip for every SecurityLevel";
 
@@ -265,7 +263,7 @@ fn test_symmetric_encrypt_decrypt_across_all_4_security_levels() {
         )
         .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", level, e));
 
-        assert!(!encrypted.scheme.as_str().is_empty(), "{:?} scheme should be set", level);
+        assert!(!encrypted.scheme().as_str().is_empty(), "{:?} scheme should be set", level);
 
         let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {:?}: {}", level, e));
@@ -278,7 +276,7 @@ fn test_symmetric_encrypt_decrypt_across_all_4_security_levels() {
 // ============================================================================
 
 #[test]
-fn test_encrypt_decrypt_default_config() {
+fn test_encrypt_decrypt_default_config_roundtrip() {
     let key = [0xAAu8; 32];
     let plaintext = b"Default CryptoConfig roundtrip through facade";
 
@@ -299,7 +297,7 @@ fn test_encrypt_decrypt_default_config() {
 // ============================================================================
 
 #[test]
-fn test_encrypt_decrypt_empty_plaintext() {
+fn test_encrypt_decrypt_empty_plaintext_roundtrip() {
     let key = [0xBBu8; 32];
     let plaintext = b"";
 
@@ -316,7 +314,7 @@ fn test_encrypt_decrypt_empty_plaintext() {
 }
 
 #[test]
-fn test_encrypt_decrypt_large_plaintext() {
+fn test_encrypt_decrypt_large_plaintext_roundtrip() {
     let key = [0xCCu8; 32];
     let plaintext = vec![0xFFu8; 64 * 1024]; // 64 KiB
 
@@ -337,7 +335,7 @@ fn test_encrypt_decrypt_large_plaintext() {
 // ============================================================================
 
 #[test]
-fn test_encrypt_nonce_uniqueness() {
+fn test_encrypt_nonce_uniqueness_produces_different_ciphertext_are_unique() {
     let key = [0xDDu8; 32];
     let plaintext = b"Same plaintext encrypted twice";
 
@@ -355,7 +353,8 @@ fn test_encrypt_nonce_uniqueness() {
     .expect("encrypt 2");
 
     assert_ne!(
-        enc1.ciphertext, enc2.ciphertext,
+        enc1.ciphertext(),
+        enc2.ciphertext(),
         "Random nonces should produce different ciphertexts"
     );
 }
@@ -365,7 +364,7 @@ fn test_encrypt_nonce_uniqueness() {
 // ============================================================================
 
 #[test]
-fn test_encrypt_rejects_short_key() {
+fn test_encrypt_rejects_short_key_fails() {
     let short_key = [0x42u8; 16];
     let result = encrypt(
         b"data",
@@ -400,18 +399,22 @@ fn test_decrypt_tampered_ciphertext_fails() {
     let key = [0x42u8; 32];
     let plaintext = b"Tamper detection through unified API";
 
-    let mut encrypted = encrypt(
+    let encrypted = encrypt(
         plaintext,
         EncryptKey::Symmetric(&key),
         CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
     )
     .expect("encrypt");
 
-    if encrypted.ciphertext.len() > 12 {
-        encrypted.ciphertext[12] ^= 0xFF;
+    // Convert to legacy type to mutate the ciphertext, then convert back
+    let mut legacy_data = EncryptedData::from(encrypted);
+    if legacy_data.data.len() > 12 {
+        legacy_data.data[12] ^= 0xFF;
     }
+    let tampered =
+        EncryptedOutput::try_from(legacy_data).expect("conversion back to EncryptedOutput");
 
-    let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
+    let result = decrypt(&tampered, DecryptKey::Symmetric(&key), CryptoConfig::new());
     assert!(result.is_err(), "Tampered ciphertext should fail");
 }
 
@@ -420,7 +423,7 @@ fn test_decrypt_tampered_ciphertext_fails() {
 // ============================================================================
 
 #[test]
-fn test_sign_verify_all_security_levels() {
+fn test_sign_verify_all_security_levels_succeeds() {
     let message = b"Sign/verify at every security level through facade";
 
     for level in [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum] {
@@ -444,13 +447,13 @@ fn test_sign_verify_all_security_levels() {
 // ============================================================================
 
 #[test]
-fn test_hybrid_encrypt_decrypt_through_facade() {
+fn test_hybrid_encrypt_decrypt_through_facade_roundtrip() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen");
     let plaintext = b"Hybrid ML-KEM-768 + X25519 through latticearc facade";
 
     let encrypted =
         encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt");
-    let hybrid = encrypted.hybrid_data.as_ref().expect("should have hybrid_data");
+    let hybrid = encrypted.hybrid_data().expect("should have hybrid_data");
     assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088);
     assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32);
 
@@ -475,7 +478,7 @@ fn test_hybrid_wrong_key_fails() {
 // ============================================================================
 
 #[test]
-fn test_complete_encrypt_sign_verify_decrypt_workflow() {
+fn test_complete_encrypt_sign_verify_decrypt_workflow_succeeds() {
     // Step 1: Encrypt
     let key = [0x42u8; 32];
     let plaintext = b"Complete workflow through facade";
@@ -491,7 +494,7 @@ fn test_complete_encrypt_sign_verify_decrypt_workflow() {
     let (sign_pk, sign_sk, _) = generate_signing_keypair(config).expect("keygen");
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
-    let signed = sign_with_key(&encrypted.ciphertext, &sign_sk, &sign_pk, config).expect("sign");
+    let signed = sign_with_key(encrypted.ciphertext(), &sign_sk, &sign_pk, config).expect("sign");
 
     // Step 3: Verify
     let is_valid = verify(&signed, CryptoConfig::new()).expect("verify");
@@ -508,7 +511,7 @@ fn test_complete_encrypt_sign_verify_decrypt_workflow() {
 // ============================================================================
 
 #[test]
-fn test_tls_recommend_mode_all_10_use_cases() {
+fn test_tls_recommend_mode_all_10_use_cases_succeeds() {
     let use_cases = TlsUseCase::all();
     assert_eq!(use_cases.len(), 10);
 
@@ -532,7 +535,7 @@ fn test_tls_recommend_mode_all_10_use_cases() {
 }
 
 #[test]
-fn test_tls_select_by_security_level_all_4_levels() {
+fn test_tls_select_by_security_level_all_4_levels_succeeds() {
     assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Standard), TlsMode::Hybrid);
     assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::High), TlsMode::Hybrid);
     assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum), TlsMode::Hybrid);
@@ -540,7 +543,7 @@ fn test_tls_select_by_security_level_all_4_levels() {
 }
 
 #[test]
-fn test_tls_scheme_and_kex_all_use_cases() {
+fn test_tls_scheme_and_kex_all_use_cases_succeeds() {
     for uc in TlsUseCase::all() {
         let mode = TlsPolicyEngine::recommend_mode(*uc);
         let level = SecurityLevel::High;
@@ -553,7 +556,7 @@ fn test_tls_scheme_and_kex_all_use_cases() {
 }
 
 #[test]
-fn test_tls_context_selection_all_use_cases() {
+fn test_tls_context_selection_all_use_cases_succeeds() {
     for uc in TlsUseCase::all() {
         let ctx = TlsContext::with_use_case(*uc);
         let mode = TlsPolicyEngine::select_with_context(&ctx);
@@ -565,7 +568,7 @@ fn test_tls_context_selection_all_use_cases() {
 }
 
 #[test]
-fn test_tls_config_builder_all_use_cases() {
+fn test_tls_config_builder_all_use_cases_succeeds() {
     for uc in TlsUseCase::all() {
         let config = TlsConfig::new().use_case(*uc);
         config.validate().unwrap_or_else(|e| panic!("validate failed for {:?}: {}", uc, e));
@@ -576,7 +579,7 @@ fn test_tls_config_builder_all_use_cases() {
 }
 
 #[test]
-fn test_tls_config_builder_all_security_levels() {
+fn test_tls_config_builder_all_security_levels_succeeds() {
     for level in [
         SecurityLevel::Standard,
         SecurityLevel::High,
@@ -596,7 +599,7 @@ fn test_tls_config_builder_all_security_levels() {
 // ============================================================================
 
 #[test]
-fn test_tls_constraints_override_use_case() {
+fn test_tls_constraints_override_use_case_succeeds() {
     // max_compatibility forces Classic even for FinancialServices (normally Hybrid)
     let ctx = TlsContext::with_use_case(TlsUseCase::FinancialServices)
         .constraints(TlsConstraints::maximum_compatibility());
@@ -605,7 +608,7 @@ fn test_tls_constraints_override_use_case() {
 }
 
 #[test]
-fn test_tls_quantum_overrides_use_case() {
+fn test_tls_quantum_overrides_use_case_succeeds() {
     // Quantum level forces PQ even for WebServer (normally Hybrid)
     let ctx =
         TlsContext::with_use_case(TlsUseCase::WebServer).security_level(SecurityLevel::Quantum);
@@ -618,7 +621,7 @@ fn test_tls_quantum_overrides_use_case() {
 // ============================================================================
 
 #[test]
-fn test_tls_balanced_selection_all_combinations() {
+fn test_tls_balanced_selection_all_combinations_succeeds() {
     let levels = [
         SecurityLevel::Standard,
         SecurityLevel::High,
@@ -649,7 +652,7 @@ fn test_tls_balanced_selection_all_combinations() {
 // ============================================================================
 
 #[test]
-fn test_tls_pq_scheme_selectors_all_levels() {
+fn test_tls_pq_scheme_selectors_all_levels_succeeds() {
     assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Standard), "pq-ml-kem-512");
     assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::High), "pq-ml-kem-768");
     assert_eq!(TlsPolicyEngine::select_pq_scheme(SecurityLevel::Maximum), "pq-ml-kem-1024");
@@ -657,7 +660,7 @@ fn test_tls_pq_scheme_selectors_all_levels() {
 }
 
 #[test]
-fn test_tls_hybrid_scheme_selectors_all_levels() {
+fn test_tls_hybrid_scheme_selectors_all_levels_succeeds() {
     assert_eq!(
         TlsPolicyEngine::select_hybrid_scheme(SecurityLevel::Standard),
         "hybrid-x25519-ml-kem-512"
@@ -677,7 +680,7 @@ fn test_tls_hybrid_scheme_selectors_all_levels() {
 }
 
 #[test]
-fn test_tls_kex_selectors_all_levels() {
+fn test_tls_kex_selectors_all_levels_succeeds() {
     assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::Standard), "MLKEM512");
     assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::High), "MLKEM768");
     assert_eq!(TlsPolicyEngine::select_pq_kex(SecurityLevel::Maximum), "MLKEM1024");

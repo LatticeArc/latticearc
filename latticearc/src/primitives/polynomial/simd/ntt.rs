@@ -3,6 +3,10 @@
 //! Implements forward and inverse NTT for efficient polynomial multiplication
 //! in the ring R_q = Z_q[X]/(X^256 + 1).
 
+// NTT uses mathematically bounded indices: ZETAS[k] where k ∈ [0,127]
+// for ZETAS: [i32; 128], and fixed-size array access [0]/[1] on [i32; 2].
+#![allow(clippy::indexing_slicing)]
+
 use super::constants::{MLKEM_N, MONT_SQ_INV, ZETAS};
 use super::reduction::{barrett_reduce, montgomery_reduce};
 
@@ -95,7 +99,7 @@ mod tests {
     use super::super::test_utils::measure_timing_variance;
 
     #[test]
-    fn test_basemul_constant_time() {
+    fn test_basemul_constant_time_succeeds() {
         let test_pairs = [
             ([0, 0], [0, 0]),
             ([1, 1], [1, 1]),
@@ -127,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ntt_constant_time() {
+    fn test_ntt_constant_time_succeeds() {
         let test_polynomials = [
             [0i32; MLKEM_N],
             core::array::from_fn(|i| (i % 10) as i32),
@@ -152,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_invntt_constant_time() {
+    fn test_invntt_constant_time_succeeds() {
         let test_polynomials = [
             [0i32; MLKEM_N],
             core::array::from_fn(|i| (i % 10) as i32),

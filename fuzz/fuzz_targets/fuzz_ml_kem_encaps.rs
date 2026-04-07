@@ -15,7 +15,6 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    let mut rng = rand::thread_rng();
 
     // Select security level based on first byte
     let (level, pk_size) = match data[0] % 3 {

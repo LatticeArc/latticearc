@@ -44,7 +44,7 @@ mod ml_kem_regression {
 
     /// Test that ML-KEM rejects public keys with incorrect sizes
     #[test]
-    fn test_ml_kem_invalid_pk_size_512() {
+    fn test_ml_kem_invalid_pk_size_512_fails() {
         let result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem512, vec![0u8; 799]);
         assert!(result.is_err(), "Should reject 799-byte key for ML-KEM-512 (requires 800)");
 
@@ -54,7 +54,7 @@ mod ml_kem_regression {
 
     /// Test that ML-KEM rejects ciphertexts with incorrect sizes
     #[test]
-    fn test_ml_kem_invalid_ct_size_768() {
+    fn test_ml_kem_invalid_ct_size_768_fails() {
         let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem768, vec![0u8; 1087]);
         assert!(result.is_err(), "Should reject 1087-byte ciphertext for ML-KEM-768 (requires 1088)");
 
@@ -64,7 +64,7 @@ mod ml_kem_regression {
 
     /// Test ML-KEM-1024 parameter validation
     #[test]
-    fn test_ml_kem_1024_parameters() {
+    fn test_ml_kem_1024_parameters_succeeds() {
         let level = MlKemSecurityLevel::MlKem1024;
         assert_eq!(level.public_key_size(), 1568);
         assert_eq!(level.secret_key_size(), 3168);
@@ -74,8 +74,7 @@ mod ml_kem_regression {
 
     /// Test that encapsulation produces consistent ciphertext sizes
     #[test]
-    fn test_ml_kem_encapsulation_sizes() {
-        let mut rng = rand::thread_rng();
+    fn test_ml_kem_encapsulation_sizes_has_correct_size() {
 
         for level in [
             MlKemSecurityLevel::MlKem512,
@@ -98,8 +97,7 @@ mod ml_kem_regression {
 
     /// Regression: All-zero public key handling
     #[test]
-    fn test_ml_kem_zero_public_key() {
-        let mut rng = rand::thread_rng();
+    fn test_ml_kem_zero_public_key_succeeds() {
 
         // All-zero public key is technically valid in structure but cryptographically weak
         let zero_pk = MlKemPublicKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 1184]);
@@ -119,8 +117,8 @@ mod ml_dsa_regression {
 
     /// Test ML-DSA signature corruption detection
     #[test]
-    fn test_ml_dsa_corrupted_signature_bytes() {
-        let (pk, sk) = ml_dsa_generate(MlDsaParameterSet::MLDSA44).unwrap();
+    fn test_ml_dsa_corrupted_signature_bytes_fails() {
+        let (pk, sk) = ml_dsa_generate(MlDsaParameterSet::MlDsa44).unwrap();
         let message = b"Test message for corruption detection";
         let mut sig = ml_dsa_sign(&sk, message, &[]).unwrap();
 
@@ -139,8 +137,8 @@ mod ml_dsa_regression {
 
     /// Test context string boundary (max 255 bytes per FIPS 204)
     #[test]
-    fn test_ml_dsa_context_boundary() {
-        let (pk, sk) = ml_dsa_generate(MlDsaParameterSet::MLDSA44).unwrap();
+    fn test_ml_dsa_context_boundary_succeeds() {
+        let (pk, sk) = ml_dsa_generate(MlDsaParameterSet::MlDsa44).unwrap();
         let message = b"Context boundary test";
 
         // Max context (255 bytes) should work
@@ -151,11 +149,11 @@ mod ml_dsa_regression {
 
     /// Regression: Empty message signing
     #[test]
-    fn test_ml_dsa_empty_message() {
+    fn test_ml_dsa_empty_message_succeeds() {
         for param in [
-            MlDsaParameterSet::MLDSA44,
-            MlDsaParameterSet::MLDSA65,
-            MlDsaParameterSet::MLDSA87,
+            MlDsaParameterSet::MlDsa44,
+            MlDsaParameterSet::MlDsa65,
+            MlDsaParameterSet::MlDsa87,
         ] {
             let (pk, sk) = ml_dsa_generate(param).unwrap();
             let sig = ml_dsa_sign(&sk, &[], &[]).unwrap();
@@ -165,9 +163,9 @@ mod ml_dsa_regression {
 
     /// Regression: Cross-parameter set rejection
     #[test]
-    fn test_ml_dsa_cross_parameter_rejection() {
-        let (_pk44, sk44) = ml_dsa_generate(MlDsaParameterSet::MLDSA44).unwrap();
-        let (pk65, _sk65) = ml_dsa_generate(MlDsaParameterSet::MLDSA65).unwrap();
+    fn test_ml_dsa_cross_parameter_rejection_fails() {
+        let (_pk44, sk44) = ml_dsa_generate(MlDsaParameterSet::MlDsa44).unwrap();
+        let (pk65, _sk65) = ml_dsa_generate(MlDsaParameterSet::MlDsa65).unwrap();
         let message = b"Cross-parameter test";
 
         let sig44 = ml_dsa_sign(&sk44, message, &[]).unwrap();
@@ -191,7 +189,7 @@ mod slh_dsa_regression {
 
     /// Test SLH-DSA context string handling
     #[test]
-    fn test_slh_dsa_context_variations() {
+    fn test_slh_dsa_context_variations_succeeds() {
         let (sk, pk) = SigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
         let message = b"Context test message";
 
@@ -211,7 +209,7 @@ mod slh_dsa_regression {
 
     /// Regression: Context too long (>255 bytes)
     #[test]
-    fn test_slh_dsa_context_too_long() {
+    fn test_slh_dsa_context_too_long_succeeds() {
         let (sk, _pk) = SigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
         let message = b"Long context test";
         let long_ctx = vec![0xCD; 256];
@@ -222,7 +220,7 @@ mod slh_dsa_regression {
 
     /// Test verifying key reconstruction from bytes
     #[test]
-    fn test_slh_dsa_key_serialization() {
+    fn test_slh_dsa_key_serialization_succeeds() {
         let (sk, pk) = SigningKey::generate(SlhDsaLevel::Shake128s).unwrap();
 
         // Serialize and deserialize public key
@@ -245,7 +243,7 @@ mod aead_regression {
 
     /// Regression: Empty plaintext encryption
     #[test]
-    fn test_aes_gcm_empty_plaintext() {
+    fn test_aes_gcm_empty_plaintext_succeeds() {
         let key = AesGcm256::generate_key();
         let cipher = AesGcm256::new(&key).unwrap();
         let nonce = AesGcm256::generate_nonce();
@@ -260,7 +258,7 @@ mod aead_regression {
 
     /// Regression: AAD mismatch detection
     #[test]
-    fn test_aes_gcm_aad_mismatch() {
+    fn test_aes_gcm_aad_mismatch_fails() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -281,7 +279,7 @@ mod aead_regression {
 
     /// Regression: ChaCha20-Poly1305 nonce uniqueness
         #[test]
-    fn test_chacha_nonce_produces_different_ct() {
+    fn test_chacha_nonce_produces_different_ct_succeeds() {
         let key = [0x42u8; 32];
         let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
         let plaintext = b"Nonce uniqueness test";
@@ -297,7 +295,7 @@ mod aead_regression {
 
     /// Regression: Invalid key length rejection
     #[test]
-    fn test_aead_invalid_key_lengths() {
+    fn test_aead_invalid_key_lengths_fails() {
         // AES-128 requires 16-byte key
         assert!(AesGcm128::new(&[0u8; 15]).is_err());
         assert!(AesGcm128::new(&[0u8; 17]).is_err());
@@ -309,7 +307,7 @@ mod aead_regression {
 
     /// Regression: ChaCha20-Poly1305 invalid key length rejection
         #[test]
-    fn test_chacha_invalid_key_lengths() {
+    fn test_chacha_invalid_key_lengths_fails() {
         assert!(ChaCha20Poly1305Cipher::new(&[0u8; 31]).is_err());
         assert!(ChaCha20Poly1305Cipher::new(&[0u8; 33]).is_err());
     }
@@ -324,7 +322,7 @@ mod hash_regression {
 
     /// Test hash function determinism
     #[test]
-    fn test_hash_determinism() {
+    fn test_hash_determinism_is_deterministic() {
         let data = b"Determinism test data";
 
         assert_eq!(sha256(data).unwrap(), sha256(data).unwrap());
@@ -335,7 +333,7 @@ mod hash_regression {
 
     /// Test hash function output lengths
     #[test]
-    fn test_hash_output_lengths() {
+    fn test_hash_output_lengths_has_correct_size() {
         let data = b"Length test";
 
         assert_eq!(sha256(data).unwrap().len(), 32);
@@ -346,7 +344,7 @@ mod hash_regression {
 
     /// Test empty input hashing
     #[test]
-    fn test_hash_empty_input() {
+    fn test_hash_empty_input_fails() {
         let empty = &[];
 
         // SHA-256 of empty string is a well-known value
@@ -361,7 +359,7 @@ mod hash_regression {
 
     /// Regression: SHA-2 vs SHA-3 must produce different outputs
     #[test]
-    fn test_sha2_sha3_different() {
+    fn test_sha2_sha3_different_succeeds() {
         let data = b"SHA family comparison";
         let sha2_hash = sha256(data).unwrap();
         let sha3_hash = sha3_256(data);
@@ -383,7 +381,7 @@ mod kdf_regression {
 
     /// Test HKDF determinism
     #[test]
-    fn test_hkdf_determinism() {
+    fn test_hkdf_determinism_is_deterministic() {
         let ikm = b"input key material";
         let salt = b"salt value";
         let info = b"info string";
@@ -396,7 +394,7 @@ mod kdf_regression {
 
     /// Test HKDF domain separation
     #[test]
-    fn test_hkdf_domain_separation() {
+    fn test_hkdf_domain_separation_succeeds() {
         let ikm = b"shared key material";
         let salt = b"salt";
         let info1 = b"context 1";
@@ -410,7 +408,7 @@ mod kdf_regression {
 
     /// Regression: HKDF output length validation
     #[test]
-    fn test_hkdf_max_output_length() {
+    fn test_hkdf_max_output_length_has_correct_size() {
         let ikm = b"test ikm";
         let salt = b"test salt";
         let info = b"test info";
@@ -435,7 +433,7 @@ mod hmac_regression {
 
     /// Test HMAC verification
     #[test]
-    fn test_hmac_verification() {
+    fn test_hmac_verification_succeeds() {
         let key = b"secret key";
         let message = b"message to authenticate";
 
@@ -456,7 +454,7 @@ mod hmac_regression {
 
     /// Regression: Empty key and message handling
     #[test]
-    fn test_hmac_empty_inputs() {
+    fn test_hmac_empty_inputs_fails() {
         // Empty key
         let result = hmac_sha256(&[], b"message");
         assert!(result.is_ok(), "Empty key should be allowed");
@@ -472,7 +470,7 @@ mod hmac_regression {
 
     /// Test HMAC tag truncation detection
     #[test]
-    fn test_hmac_truncated_tag() {
+    fn test_hmac_truncated_tag_succeeds() {
         let key = b"test key";
         let message = b"test message";
 

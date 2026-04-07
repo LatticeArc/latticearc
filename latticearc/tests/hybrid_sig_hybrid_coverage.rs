@@ -8,10 +8,9 @@
 //! Coverage tests for sig_hybrid.rs error paths and edge cases.
 
 use latticearc::hybrid::sig_hybrid::{
-    HybridPublicKey, HybridSecretKey, HybridSignature, HybridSignatureError, generate_keypair,
-    sign, verify,
+    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
+    generate_keypair, sign, verify,
 };
-use rand::rngs::OsRng;
 use zeroize::Zeroizing;
 
 // ============================================================================
@@ -19,11 +18,11 @@ use zeroize::Zeroizing;
 // ============================================================================
 
 #[test]
-fn test_sign_rejects_wrong_ed25519_sk_length() {
-    let sk = HybridSecretKey {
-        ml_dsa_sk: Zeroizing::new(vec![0u8; 4032]),
-        ed25519_sk: Zeroizing::new(vec![0u8; 16]), // Should be 32
-    };
+fn test_sign_rejects_wrong_ed25519_sk_length_fails() {
+    let sk = HybridSigSecretKey::new(
+        Zeroizing::new(vec![0u8; 4032]),
+        Zeroizing::new(vec![0u8; 16]), // Should be 32
+    );
     let result = sign(&sk, b"test message");
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -35,11 +34,8 @@ fn test_sign_rejects_wrong_ed25519_sk_length() {
 }
 
 #[test]
-fn test_sign_rejects_empty_ed25519_sk() {
-    let sk = HybridSecretKey {
-        ml_dsa_sk: Zeroizing::new(vec![0u8; 4032]),
-        ed25519_sk: Zeroizing::new(vec![]),
-    };
+fn test_sign_rejects_empty_ed25519_sk_fails() {
+    let sk = HybridSigSecretKey::new(Zeroizing::new(vec![0u8; 4032]), Zeroizing::new(vec![]));
     let result = sign(&sk, b"test");
     assert!(result.is_err());
 }
@@ -49,12 +45,12 @@ fn test_sign_rejects_empty_ed25519_sk() {
 // ============================================================================
 
 #[test]
-fn test_verify_rejects_wrong_ed25519_pk_length() {
-    let pk = HybridPublicKey {
-        ml_dsa_pk: vec![0u8; 1952],
-        ed25519_pk: vec![0u8; 16], // Should be 32
-    };
-    let sig = HybridSignature { ml_dsa_sig: vec![0u8; 3309], ed25519_sig: vec![0u8; 64] };
+fn test_verify_rejects_wrong_ed25519_pk_length_fails() {
+    let pk = HybridSigPublicKey::new(
+        vec![0u8; 1952],
+        vec![0u8; 16], // Should be 32
+    );
+    let sig = HybridSignature::new(vec![0u8; 3309], vec![0u8; 64]);
     let result = verify(&pk, b"test", &sig);
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -66,12 +62,10 @@ fn test_verify_rejects_wrong_ed25519_pk_length() {
 }
 
 #[test]
-fn test_verify_rejects_wrong_ed25519_sig_length() {
-    let pk = HybridPublicKey { ml_dsa_pk: vec![0u8; 1952], ed25519_pk: vec![0u8; 32] };
-    let sig = HybridSignature {
-        ml_dsa_sig: vec![0u8; 3309],
-        ed25519_sig: vec![0u8; 32], // Should be 64
-    };
+fn test_verify_rejects_wrong_ed25519_sig_length_fails() {
+    let pk = HybridSigPublicKey::new(vec![0u8; 1952], vec![0u8; 32]);
+    // Build with wrong ed25519 length (32 bytes instead of 64) to exercise validation.
+    let sig = HybridSignature::new(vec![0u8; 3309], vec![0u8; 32]);
     let result = verify(&pk, b"test", &sig);
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -83,41 +77,42 @@ fn test_verify_rejects_wrong_ed25519_sig_length() {
 }
 
 #[test]
-fn test_verify_rejects_tampered_ml_dsa_signature() {
-    let mut rng = OsRng;
-    let (pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_verify_rejects_tampered_ml_dsa_signature_fails() {
+    let (pk, sk) = generate_keypair().unwrap();
     let message = b"tamper test message";
-    let mut sig = sign(&sk, message).unwrap();
+    let sig = sign(&sk, message).unwrap();
 
-    // Tamper with ML-DSA signature
-    if let Some(byte) = sig.ml_dsa_sig.first_mut() {
+    // Tamper with ML-DSA signature by reconstructing with the first byte flipped.
+    let mut tampered_ml = sig.ml_dsa_sig().to_vec();
+    if let Some(byte) = tampered_ml.first_mut() {
         *byte ^= 0xFF;
     }
+    let tampered = HybridSignature::new(tampered_ml, sig.ed25519_sig().to_vec());
 
-    let result = verify(&pk, message, &sig);
+    let result = verify(&pk, message, &tampered);
     assert!(result.is_err(), "Tampered ML-DSA signature should fail verification");
 }
 
 #[test]
-fn test_verify_rejects_tampered_ed25519_signature() {
-    let mut rng = OsRng;
-    let (pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_verify_rejects_tampered_ed25519_signature_fails() {
+    let (pk, sk) = generate_keypair().unwrap();
     let message = b"tamper ed25519 test";
-    let mut sig = sign(&sk, message).unwrap();
+    let sig = sign(&sk, message).unwrap();
 
-    // Tamper with Ed25519 signature
-    if let Some(byte) = sig.ed25519_sig.first_mut() {
+    // Tamper with Ed25519 signature by reconstructing with the first byte flipped.
+    let mut tampered_ed = sig.ed25519_sig().to_vec();
+    if let Some(byte) = tampered_ed.first_mut() {
         *byte ^= 0xFF;
     }
+    let tampered = HybridSignature::new(sig.ml_dsa_sig().to_vec(), tampered_ed);
 
-    let result = verify(&pk, message, &sig);
+    let result = verify(&pk, message, &tampered);
     assert!(result.is_err(), "Tampered Ed25519 signature should fail verification");
 }
 
 #[test]
-fn test_verify_rejects_wrong_message() {
-    let mut rng = OsRng;
-    let (pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_verify_rejects_wrong_message_fails() {
+    let (pk, sk) = generate_keypair().unwrap();
     let sig = sign(&sk, b"original message").unwrap();
 
     let result = verify(&pk, b"wrong message", &sig);
@@ -129,37 +124,37 @@ fn test_verify_rejects_wrong_message() {
 // ============================================================================
 
 #[test]
-fn test_error_display_ml_dsa() {
+fn test_error_display_ml_dsa_fails() {
     let err = HybridSignatureError::MlDsaError("test".to_string());
     assert!(format!("{}", err).contains("ML-DSA"));
 }
 
 #[test]
-fn test_error_display_ed25519() {
+fn test_error_display_ed25519_fails() {
     let err = HybridSignatureError::Ed25519Error("test".to_string());
     assert!(format!("{}", err).contains("Ed25519"));
 }
 
 #[test]
-fn test_error_display_verification() {
+fn test_error_display_verification_fails() {
     let err = HybridSignatureError::VerificationFailed("test".to_string());
     assert!(format!("{}", err).contains("verification failed"));
 }
 
 #[test]
-fn test_error_display_invalid_key() {
+fn test_error_display_invalid_key_fails() {
     let err = HybridSignatureError::InvalidKeyMaterial("test".to_string());
     assert!(format!("{}", err).contains("Invalid key material"));
 }
 
 #[test]
-fn test_error_display_crypto() {
+fn test_error_display_crypto_fails() {
     let err = HybridSignatureError::CryptoError("test".to_string());
     assert!(format!("{}", err).contains("Cryptographic operation"));
 }
 
 #[test]
-fn test_error_clone_eq() {
+fn test_error_clone_eq_fails() {
     let err1 = HybridSignatureError::MlDsaError("a".to_string());
     let err2 = err1.clone();
     assert_eq!(err1, err2);
@@ -169,37 +164,35 @@ fn test_error_clone_eq() {
 }
 
 #[test]
-fn test_error_debug() {
+fn test_error_debug_fails() {
     let err = HybridSignatureError::CryptoError("info".to_string());
     let debug = format!("{:?}", err);
     assert!(debug.contains("CryptoError"));
 }
 
 // ============================================================================
-// HybridPublicKey coverage
+// HybridSigPublicKey coverage
 // ============================================================================
 
 #[test]
-fn test_public_key_clone_and_debug() {
-    let pk = HybridPublicKey { ml_dsa_pk: vec![1u8; 1952], ed25519_pk: vec![2u8; 32] };
+fn test_public_key_clone_and_debug_succeeds() {
+    let pk = HybridSigPublicKey::new(vec![1u8; 1952], vec![2u8; 32]);
     let cloned = pk.clone();
-    assert_eq!(cloned.ml_dsa_pk, pk.ml_dsa_pk);
-    assert_eq!(cloned.ed25519_pk, pk.ed25519_pk);
+    assert_eq!(cloned.ml_dsa_pk(), pk.ml_dsa_pk());
+    assert_eq!(cloned.ed25519_pk(), pk.ed25519_pk());
 
     let debug = format!("{:?}", pk);
-    assert!(debug.contains("HybridPublicKey"));
+    assert!(debug.contains("HybridSigPublicKey"));
 }
 
 // ============================================================================
-// HybridSecretKey coverage
+// HybridSigSecretKey coverage
 // ============================================================================
 
 #[test]
-fn test_secret_key_byte_accessors() {
-    let sk = HybridSecretKey {
-        ml_dsa_sk: Zeroizing::new(vec![0xAA; 4032]),
-        ed25519_sk: Zeroizing::new(vec![0xBB; 32]),
-    };
+fn test_secret_key_byte_accessors_succeeds() {
+    let sk =
+        HybridSigSecretKey::new(Zeroizing::new(vec![0xAA; 4032]), Zeroizing::new(vec![0xBB; 32]));
     assert_eq!(sk.ml_dsa_sk_bytes().len(), 4032);
     assert_eq!(sk.ed25519_sk_bytes().len(), 32);
     assert_eq!(sk.ml_dsa_sk_bytes()[0], 0xAA);
@@ -207,13 +200,10 @@ fn test_secret_key_byte_accessors() {
 }
 
 #[test]
-fn test_secret_key_debug() {
-    let sk = HybridSecretKey {
-        ml_dsa_sk: Zeroizing::new(vec![0u8; 100]),
-        ed25519_sk: Zeroizing::new(vec![0u8; 32]),
-    };
+fn test_secret_key_debug_succeeds() {
+    let sk = HybridSigSecretKey::new(Zeroizing::new(vec![0u8; 100]), Zeroizing::new(vec![0u8; 32]));
     let debug = format!("{:?}", sk);
-    assert!(debug.contains("HybridSecretKey"));
+    assert!(debug.contains("HybridSigSecretKey"));
 }
 
 // ============================================================================
@@ -221,11 +211,11 @@ fn test_secret_key_debug() {
 // ============================================================================
 
 #[test]
-fn test_signature_clone_and_debug() {
-    let sig = HybridSignature { ml_dsa_sig: vec![1u8; 100], ed25519_sig: vec![2u8; 64] };
+fn test_signature_clone_and_debug_succeeds() {
+    let sig = HybridSignature::new(vec![1u8; 100], vec![2u8; 64]);
     let cloned = sig.clone();
-    assert_eq!(cloned.ml_dsa_sig, sig.ml_dsa_sig);
-    assert_eq!(cloned.ed25519_sig, sig.ed25519_sig);
+    assert_eq!(cloned.ml_dsa_sig(), sig.ml_dsa_sig());
+    assert_eq!(cloned.ed25519_sig(), sig.ed25519_sig());
 
     let debug = format!("{:?}", sig);
     assert!(debug.contains("HybridSignature"));
@@ -236,18 +226,16 @@ fn test_signature_clone_and_debug() {
 // ============================================================================
 
 #[test]
-fn test_sign_verify_empty_message() {
-    let mut rng = OsRng;
-    let (pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_sign_verify_empty_message_roundtrip() {
+    let (pk, sk) = generate_keypair().unwrap();
     let sig = sign(&sk, b"").unwrap();
     let valid = verify(&pk, b"", &sig).unwrap();
     assert!(valid);
 }
 
 #[test]
-fn test_sign_verify_large_message() {
-    let mut rng = OsRng;
-    let (pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_sign_verify_large_message_roundtrip() {
+    let (pk, sk) = generate_keypair().unwrap();
     let large_msg = vec![0xFFu8; 65536]; // 64KB
     let sig = sign(&sk, &large_msg).unwrap();
     let valid = verify(&pk, &large_msg, &sig).unwrap();
@@ -255,10 +243,9 @@ fn test_sign_verify_large_message() {
 }
 
 #[test]
-fn test_cross_keypair_rejection() {
-    let mut rng = OsRng;
-    let (pk_a, sk_a) = generate_keypair(&mut rng).unwrap();
-    let (pk_b, _sk_b) = generate_keypair(&mut rng).unwrap();
+fn test_cross_keypair_rejection_fails() {
+    let (pk_a, sk_a) = generate_keypair().unwrap();
+    let (pk_b, _sk_b) = generate_keypair().unwrap();
 
     let sig = sign(&sk_a, b"test").unwrap();
 

@@ -88,7 +88,7 @@ mod fips_203_ml_kem {
     /// FIPS 203 Section 7, Table 2: ML-KEM-512 uses n=256, k=2, q=3329
     /// Public key size = 12*k*n/8 + 32 = 12*2*256/8 + 32 = 800 bytes
     #[test]
-    fn test_fips203_ml_kem_512_public_key_size() {
+    fn test_fips203_ml_kem_512_public_key_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_512_PK_BYTES: usize = 800;
         assert_eq!(
             ml_kem_512::EK_LEN,
@@ -100,7 +100,7 @@ mod fips_203_ml_kem {
     /// FIPS 203 Section 7, Table 2: ML-KEM-512 secret key size
     /// Secret key size = 12*k*n/8 + 12*k*n/8 + 32 + 32 = 1632 bytes
     #[test]
-    fn test_fips203_ml_kem_512_secret_key_size() {
+    fn test_fips203_ml_kem_512_secret_key_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_512_SK_BYTES: usize = 1632;
         assert_eq!(
             ml_kem_512::DK_LEN,
@@ -112,7 +112,7 @@ mod fips_203_ml_kem {
     /// FIPS 203 Section 7, Table 2: ML-KEM-512 ciphertext size
     /// Ciphertext size = d_u*k*n/8 + d_v*n/8 = 10*2*256/8 + 4*256/8 = 768 bytes
     #[test]
-    fn test_fips203_ml_kem_512_ciphertext_size() {
+    fn test_fips203_ml_kem_512_ciphertext_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_512_CT_BYTES: usize = 768;
         assert_eq!(
             ml_kem_512::CT_LEN,
@@ -123,7 +123,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 7: ML-KEM shared secret is always 32 bytes (256 bits)
     #[test]
-    fn test_fips203_ml_kem_512_shared_secret_size() {
+    fn test_fips203_ml_kem_512_shared_secret_size_meets_requirement_has_correct_size() {
         // ML-KEM shared secret is 32 bytes (256 bits) per FIPS 203
         // Verified by generating a keypair and checking the shared secret length
         let (ek, _dk) = ml_kem_512::KG::try_keygen().expect("Key generation must succeed");
@@ -138,7 +138,7 @@ mod fips_203_ml_kem {
     /// FIPS 203 Section 7, Table 2: ML-KEM-768 uses n=256, k=3, q=3329
     /// Public key size = 12*k*n/8 + 32 = 12*3*256/8 + 32 = 1184 bytes
     #[test]
-    fn test_fips203_ml_kem_768_public_key_size() {
+    fn test_fips203_ml_kem_768_public_key_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_768_PK_BYTES: usize = 1184;
         assert_eq!(
             ml_kem_768::EK_LEN,
@@ -149,7 +149,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 7, Table 2: ML-KEM-768 secret key size = 2400 bytes
     #[test]
-    fn test_fips203_ml_kem_768_secret_key_size() {
+    fn test_fips203_ml_kem_768_secret_key_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_768_SK_BYTES: usize = 2400;
         assert_eq!(
             ml_kem_768::DK_LEN,
@@ -160,7 +160,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 7, Table 2: ML-KEM-768 ciphertext size = 1088 bytes
     #[test]
-    fn test_fips203_ml_kem_768_ciphertext_size() {
+    fn test_fips203_ml_kem_768_ciphertext_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_768_CT_BYTES: usize = 1088;
         assert_eq!(
             ml_kem_768::CT_LEN,
@@ -176,7 +176,7 @@ mod fips_203_ml_kem {
     /// FIPS 203 Section 7, Table 2: ML-KEM-1024 uses n=256, k=4, q=3329
     /// Public key size = 12*k*n/8 + 32 = 12*4*256/8 + 32 = 1568 bytes
     #[test]
-    fn test_fips203_ml_kem_1024_public_key_size() {
+    fn test_fips203_ml_kem_1024_public_key_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_1024_PK_BYTES: usize = 1568;
         assert_eq!(
             ml_kem_1024::EK_LEN,
@@ -187,7 +187,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 7, Table 2: ML-KEM-1024 secret key size = 3168 bytes
     #[test]
-    fn test_fips203_ml_kem_1024_secret_key_size() {
+    fn test_fips203_ml_kem_1024_secret_key_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_1024_SK_BYTES: usize = 3168;
         assert_eq!(
             ml_kem_1024::DK_LEN,
@@ -198,7 +198,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 7, Table 2: ML-KEM-1024 ciphertext size = 1568 bytes
     #[test]
-    fn test_fips203_ml_kem_1024_ciphertext_size() {
+    fn test_fips203_ml_kem_1024_ciphertext_size_meets_requirement_has_correct_size() {
         const FIPS_203_ML_KEM_1024_CT_BYTES: usize = 1568;
         assert_eq!(
             ml_kem_1024::CT_LEN,
@@ -213,7 +213,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 6.1: Key generation produces valid keypair
     #[test]
-    fn test_fips203_ml_kem_512_keygen_produces_valid_keys() {
+    fn test_fips203_ml_kem_512_keygen_produces_valid_keys_is_compliant_succeeds() {
         let (ek, dk) = ml_kem_512::KG::try_keygen().expect("Key generation must succeed");
         assert_eq!(ek.into_bytes().len(), ml_kem_512::EK_LEN);
         assert_eq!(dk.into_bytes().len(), ml_kem_512::DK_LEN);
@@ -221,7 +221,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 6.1: ML-KEM-768 key generation
     #[test]
-    fn test_fips203_ml_kem_768_keygen_produces_valid_keys() {
+    fn test_fips203_ml_kem_768_keygen_produces_valid_keys_is_compliant_succeeds() {
         let (ek, dk) = ml_kem_768::KG::try_keygen().expect("Key generation must succeed");
         assert_eq!(ek.into_bytes().len(), ml_kem_768::EK_LEN);
         assert_eq!(dk.into_bytes().len(), ml_kem_768::DK_LEN);
@@ -229,7 +229,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 6.1: ML-KEM-1024 key generation
     #[test]
-    fn test_fips203_ml_kem_1024_keygen_produces_valid_keys() {
+    fn test_fips203_ml_kem_1024_keygen_produces_valid_keys_is_compliant_succeeds() {
         let (ek, dk) = ml_kem_1024::KG::try_keygen().expect("Key generation must succeed");
         assert_eq!(ek.into_bytes().len(), ml_kem_1024::EK_LEN);
         assert_eq!(dk.into_bytes().len(), ml_kem_1024::DK_LEN);
@@ -241,7 +241,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 6.2: Encapsulation produces correct ciphertext size
     #[test]
-    fn test_fips203_ml_kem_512_encapsulation_ciphertext_format() {
+    fn test_fips203_ml_kem_512_encapsulation_ciphertext_format_is_compliant_has_correct_size() {
         let (ek, _dk) = ml_kem_512::KG::try_keygen().expect("Key generation must succeed");
         let (ss, ct) = ek.try_encaps().expect("Encapsulation must succeed");
         assert_eq!(ct.into_bytes().len(), ml_kem_512::CT_LEN);
@@ -251,7 +251,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 6.2: Decapsulation recovers shared secret correctly
     #[test]
-    fn test_fips203_ml_kem_512_decapsulation_correctness() {
+    fn test_fips203_ml_kem_512_decapsulation_correctness_matches_expected() {
         let (ek, dk) = ml_kem_512::KG::try_keygen().expect("Key generation must succeed");
         let (ss_enc, ct) = ek.try_encaps().expect("Encapsulation must succeed");
         let ss_dec = dk.try_decaps(&ct).expect("Decapsulation must succeed");
@@ -264,7 +264,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 6.2: ML-KEM-768 encaps/decaps roundtrip
     #[test]
-    fn test_fips203_ml_kem_768_encaps_decaps_roundtrip() {
+    fn test_fips203_ml_kem_768_encaps_decaps_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_768::KG::try_keygen().expect("Key generation must succeed");
         let (ss_enc, ct) = ek.try_encaps().expect("Encapsulation must succeed");
         let ss_dec = dk.try_decaps(&ct).expect("Decapsulation must succeed");
@@ -273,7 +273,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203 Section 6.2: ML-KEM-1024 encaps/decaps roundtrip
     #[test]
-    fn test_fips203_ml_kem_1024_encaps_decaps_roundtrip() {
+    fn test_fips203_ml_kem_1024_encaps_decaps_roundtrip_succeeds() {
         let (ek, dk) = ml_kem_1024::KG::try_keygen().expect("Key generation must succeed");
         let (ss_enc, ct) = ek.try_encaps().expect("Encapsulation must succeed");
         let ss_dec = dk.try_decaps(&ct).expect("Decapsulation must succeed");
@@ -286,7 +286,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203: Public key serialization roundtrip
     #[test]
-    fn test_fips203_ml_kem_512_public_key_serialization() {
+    fn test_fips203_ml_kem_512_public_key_serialization_succeeds() {
         let (ek, _dk) = ml_kem_512::KG::try_keygen().expect("Key generation must succeed");
         let ek_bytes = ek.into_bytes();
         let ek_restored =
@@ -299,7 +299,7 @@ mod fips_203_ml_kem {
 
     /// FIPS 203: Secret key serialization roundtrip
     #[test]
-    fn test_fips203_ml_kem_768_secret_key_serialization() {
+    fn test_fips203_ml_kem_768_secret_key_serialization_succeeds() {
         let (ek, dk) = ml_kem_768::KG::try_keygen().expect("Key generation must succeed");
         let dk_bytes = dk.into_bytes();
         let dk_restored =
@@ -327,7 +327,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-44 public key size = 1312 bytes
     #[test]
-    fn test_fips204_ml_dsa_44_public_key_size() {
+    fn test_fips204_ml_dsa_44_public_key_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_44_PK_BYTES: usize = 1312;
         assert_eq!(
             ml_dsa_44::PK_LEN,
@@ -338,7 +338,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-44 secret key size = 2560 bytes
     #[test]
-    fn test_fips204_ml_dsa_44_secret_key_size() {
+    fn test_fips204_ml_dsa_44_secret_key_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_44_SK_BYTES: usize = 2560;
         assert_eq!(
             ml_dsa_44::SK_LEN,
@@ -349,7 +349,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-44 signature size = 2420 bytes
     #[test]
-    fn test_fips204_ml_dsa_44_signature_size() {
+    fn test_fips204_ml_dsa_44_signature_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_44_SIG_BYTES: usize = 2420;
         assert_eq!(
             ml_dsa_44::SIG_LEN,
@@ -364,7 +364,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-65 public key size = 1952 bytes
     #[test]
-    fn test_fips204_ml_dsa_65_public_key_size() {
+    fn test_fips204_ml_dsa_65_public_key_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_65_PK_BYTES: usize = 1952;
         assert_eq!(
             ml_dsa_65::PK_LEN,
@@ -375,7 +375,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-65 secret key size = 4032 bytes
     #[test]
-    fn test_fips204_ml_dsa_65_secret_key_size() {
+    fn test_fips204_ml_dsa_65_secret_key_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_65_SK_BYTES: usize = 4032;
         assert_eq!(
             ml_dsa_65::SK_LEN,
@@ -386,7 +386,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-65 signature size = 3309 bytes
     #[test]
-    fn test_fips204_ml_dsa_65_signature_size() {
+    fn test_fips204_ml_dsa_65_signature_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_65_SIG_BYTES: usize = 3309;
         assert_eq!(
             ml_dsa_65::SIG_LEN,
@@ -401,7 +401,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-87 public key size = 2592 bytes
     #[test]
-    fn test_fips204_ml_dsa_87_public_key_size() {
+    fn test_fips204_ml_dsa_87_public_key_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_87_PK_BYTES: usize = 2592;
         assert_eq!(
             ml_dsa_87::PK_LEN,
@@ -412,7 +412,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-87 secret key size = 4896 bytes
     #[test]
-    fn test_fips204_ml_dsa_87_secret_key_size() {
+    fn test_fips204_ml_dsa_87_secret_key_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_87_SK_BYTES: usize = 4896;
         assert_eq!(
             ml_dsa_87::SK_LEN,
@@ -423,7 +423,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 7, Table 1: ML-DSA-87 signature size = 4627 bytes
     #[test]
-    fn test_fips204_ml_dsa_87_signature_size() {
+    fn test_fips204_ml_dsa_87_signature_size_meets_requirement_has_correct_size() {
         const FIPS_204_ML_DSA_87_SIG_BYTES: usize = 4627;
         assert_eq!(
             ml_dsa_87::SIG_LEN,
@@ -438,7 +438,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 6.1: ML-DSA-44 key generation produces valid keys
     #[test]
-    fn test_fips204_ml_dsa_44_keygen_valid() {
+    fn test_fips204_ml_dsa_44_keygen_valid_is_compliant_succeeds() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), ml_dsa_44::PK_LEN);
         assert_eq!(sk.into_bytes().len(), ml_dsa_44::SK_LEN);
@@ -446,7 +446,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 6.1: ML-DSA-65 key generation produces valid keys
     #[test]
-    fn test_fips204_ml_dsa_65_keygen_valid() {
+    fn test_fips204_ml_dsa_65_keygen_valid_is_compliant_succeeds() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), ml_dsa_65::PK_LEN);
         assert_eq!(sk.into_bytes().len(), ml_dsa_65::SK_LEN);
@@ -454,7 +454,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 6.1: ML-DSA-87 key generation produces valid keys
     #[test]
-    fn test_fips204_ml_dsa_87_keygen_valid() {
+    fn test_fips204_ml_dsa_87_keygen_valid_is_compliant_succeeds() {
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), ml_dsa_87::PK_LEN);
         assert_eq!(sk.into_bytes().len(), ml_dsa_87::SK_LEN);
@@ -466,7 +466,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 6.2: ML-DSA-44 signing produces correct signature size
     #[test]
-    fn test_fips204_ml_dsa_44_signature_format() {
+    fn test_fips204_ml_dsa_44_signature_format_is_compliant_has_correct_size() {
         let (_pk, sk) = ml_dsa_44::try_keygen().expect("Key generation must succeed");
         let message = b"Test message for FIPS 204 compliance";
         let context: &[u8] = b"";
@@ -481,7 +481,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 6.3: ML-DSA-44 sign/verify roundtrip
     #[test]
-    fn test_fips204_ml_dsa_44_sign_verify_roundtrip() {
+    fn test_fips204_ml_dsa_44_sign_verify_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation must succeed");
         let message = b"FIPS 204 compliance test message";
         let context: &[u8] = b"";
@@ -494,7 +494,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 6.3: ML-DSA-65 sign/verify roundtrip
     #[test]
-    fn test_fips204_ml_dsa_65_sign_verify_roundtrip() {
+    fn test_fips204_ml_dsa_65_sign_verify_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation must succeed");
         let message = b"FIPS 204 ML-DSA-65 compliance test";
         let context: &[u8] = b"";
@@ -504,7 +504,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 6.3: ML-DSA-87 sign/verify roundtrip
     #[test]
-    fn test_fips204_ml_dsa_87_sign_verify_roundtrip() {
+    fn test_fips204_ml_dsa_87_sign_verify_roundtrip_succeeds() {
         let (pk, sk) = ml_dsa_87::try_keygen().expect("Key generation must succeed");
         let message = b"FIPS 204 ML-DSA-87 compliance test";
         let context: &[u8] = b"";
@@ -518,7 +518,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 5.4: Empty context string is valid
     #[test]
-    fn test_fips204_ml_dsa_empty_context_valid() {
+    fn test_fips204_ml_dsa_empty_context_valid_is_compliant_succeeds() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation must succeed");
         let message = b"Test with empty context";
         let empty_context: &[u8] = b"";
@@ -528,7 +528,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 5.4: Non-empty context string changes signature
     #[test]
-    fn test_fips204_ml_dsa_context_affects_signature() {
+    fn test_fips204_ml_dsa_context_affects_signature_is_compliant_succeeds() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation must succeed");
         let message = b"Test message with context";
         let context1: &[u8] = b"context1";
@@ -550,7 +550,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204 Section 5.4: Context string length up to 255 bytes
     #[test]
-    fn test_fips204_ml_dsa_max_context_length() {
+    fn test_fips204_ml_dsa_max_context_length_is_compliant_has_correct_size() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation must succeed");
         let message = b"Test with maximum context length";
         let max_context = vec![0xABu8; 255]; // Maximum allowed context length
@@ -565,7 +565,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204: Public key serialization roundtrip
     #[test]
-    fn test_fips204_ml_dsa_public_key_serialization() {
+    fn test_fips204_ml_dsa_public_key_serialization_succeeds() {
         let (pk, sk) = ml_dsa_44::try_keygen().expect("Key generation must succeed");
         let pk_bytes = pk.into_bytes();
         let pk_restored =
@@ -583,7 +583,7 @@ mod fips_204_ml_dsa {
 
     /// FIPS 204: Secret key serialization roundtrip
     #[test]
-    fn test_fips204_ml_dsa_secret_key_serialization() {
+    fn test_fips204_ml_dsa_secret_key_serialization_succeeds() {
         let (pk, sk) = ml_dsa_65::try_keygen().expect("Key generation must succeed");
         let sk_bytes = sk.into_bytes();
         let sk_restored =
@@ -610,7 +610,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHAKE-128s parameter set available
     #[test]
-    fn test_fips205_slh_dsa_shake_128s_available() {
+    fn test_fips205_slh_dsa_shake_128s_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_shake_128s::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_shake_128s::SK_LEN);
@@ -618,7 +618,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHAKE-128f parameter set available
     #[test]
-    fn test_fips205_slh_dsa_shake_128f_available() {
+    fn test_fips205_slh_dsa_shake_128f_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_shake_128f::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_shake_128f::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_shake_128f::SK_LEN);
@@ -626,7 +626,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHAKE-192s parameter set available
     #[test]
-    fn test_fips205_slh_dsa_shake_192s_available() {
+    fn test_fips205_slh_dsa_shake_192s_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_shake_192s::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_shake_192s::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_shake_192s::SK_LEN);
@@ -634,7 +634,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHAKE-192f parameter set available
     #[test]
-    fn test_fips205_slh_dsa_shake_192f_available() {
+    fn test_fips205_slh_dsa_shake_192f_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_shake_192f::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_shake_192f::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_shake_192f::SK_LEN);
@@ -642,7 +642,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHAKE-256s parameter set available
     #[test]
-    fn test_fips205_slh_dsa_shake_256s_available() {
+    fn test_fips205_slh_dsa_shake_256s_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_shake_256s::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_shake_256s::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_shake_256s::SK_LEN);
@@ -650,7 +650,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHAKE-256f parameter set available
     #[test]
-    fn test_fips205_slh_dsa_shake_256f_available() {
+    fn test_fips205_slh_dsa_shake_256f_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_shake_256f::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_shake_256f::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_shake_256f::SK_LEN);
@@ -658,7 +658,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHA2-128s parameter set available
     #[test]
-    fn test_fips205_slh_dsa_sha2_128s_available() {
+    fn test_fips205_slh_dsa_sha2_128s_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_sha2_128s::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_sha2_128s::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_sha2_128s::SK_LEN);
@@ -666,7 +666,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHA2-128f parameter set available
     #[test]
-    fn test_fips205_slh_dsa_sha2_128f_available() {
+    fn test_fips205_slh_dsa_sha2_128f_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_sha2_128f::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_sha2_128f::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_sha2_128f::SK_LEN);
@@ -674,7 +674,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHA2-192s parameter set available
     #[test]
-    fn test_fips205_slh_dsa_sha2_192s_available() {
+    fn test_fips205_slh_dsa_sha2_192s_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_sha2_192s::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_sha2_192s::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_sha2_192s::SK_LEN);
@@ -682,7 +682,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205 Section 10: SLH-DSA-SHA2-192f parameter set available
     #[test]
-    fn test_fips205_slh_dsa_sha2_192f_available() {
+    fn test_fips205_slh_dsa_sha2_192f_available_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_sha2_192f::try_keygen().expect("Key generation must succeed");
         assert_eq!(pk.into_bytes().len(), slh_dsa_sha2_192f::PK_LEN);
         assert_eq!(sk.into_bytes().len(), slh_dsa_sha2_192f::SK_LEN);
@@ -696,7 +696,7 @@ mod fips_205_slh_dsa {
     /// n=16, h=63, d=7, w=16, k=14
     /// PK = 2*n = 32 bytes, SK = 4*n = 64 bytes, SIG = 7856 bytes
     #[test]
-    fn test_fips205_slh_dsa_shake_128s_sizes() {
+    fn test_fips205_slh_dsa_shake_128s_sizes_meets_requirement_has_correct_size() {
         const FIPS_205_SHAKE_128S_PK: usize = 32;
         const FIPS_205_SHAKE_128S_SK: usize = 64;
         const FIPS_205_SHAKE_128S_SIG: usize = 7856;
@@ -709,7 +709,7 @@ mod fips_205_slh_dsa {
     /// FIPS 205 Section 10, Table 1: SLH-DSA-SHAKE-128f sizes
     /// PK = 32 bytes, SK = 64 bytes, SIG = 17088 bytes
     #[test]
-    fn test_fips205_slh_dsa_shake_128f_sizes() {
+    fn test_fips205_slh_dsa_shake_128f_sizes_meets_requirement_has_correct_size() {
         const FIPS_205_SHAKE_128F_PK: usize = 32;
         const FIPS_205_SHAKE_128F_SK: usize = 64;
         const FIPS_205_SHAKE_128F_SIG: usize = 17088;
@@ -722,7 +722,7 @@ mod fips_205_slh_dsa {
     /// FIPS 205 Section 10, Table 1: SLH-DSA-SHAKE-192s sizes
     /// n=24, PK = 48 bytes, SK = 96 bytes, SIG = 16224 bytes
     #[test]
-    fn test_fips205_slh_dsa_shake_192s_sizes() {
+    fn test_fips205_slh_dsa_shake_192s_sizes_meets_requirement_has_correct_size() {
         const FIPS_205_SHAKE_192S_PK: usize = 48;
         const FIPS_205_SHAKE_192S_SK: usize = 96;
         const FIPS_205_SHAKE_192S_SIG: usize = 16224;
@@ -735,7 +735,7 @@ mod fips_205_slh_dsa {
     /// FIPS 205 Section 10, Table 1: SLH-DSA-SHAKE-256s sizes
     /// n=32, PK = 64 bytes, SK = 128 bytes, SIG = 29792 bytes
     #[test]
-    fn test_fips205_slh_dsa_shake_256s_sizes() {
+    fn test_fips205_slh_dsa_shake_256s_sizes_meets_requirement_has_correct_size() {
         const FIPS_205_SHAKE_256S_PK: usize = 64;
         const FIPS_205_SHAKE_256S_SK: usize = 128;
         const FIPS_205_SHAKE_256S_SIG: usize = 29792;
@@ -751,7 +751,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205: SLH-DSA-SHAKE-128s sign/verify roundtrip
     #[test]
-    fn test_fips205_slh_dsa_shake_128s_sign_verify() {
+    fn test_fips205_slh_dsa_shake_128s_sign_verify_succeeds() {
         let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Key generation must succeed");
         let message = b"FIPS 205 SLH-DSA compliance test";
         let context: &[u8] = b"";
@@ -762,7 +762,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205: SLH-DSA-SHA2-128s sign/verify roundtrip (SHA2 variant)
     #[test]
-    fn test_fips205_slh_dsa_sha2_128s_sign_verify() {
+    fn test_fips205_slh_dsa_sha2_128s_sign_verify_succeeds() {
         let (pk, sk) = slh_dsa_sha2_128s::try_keygen().expect("Key generation must succeed");
         let message = b"FIPS 205 SLH-DSA SHA2 variant test";
         let context: &[u8] = b"";
@@ -772,7 +772,7 @@ mod fips_205_slh_dsa {
 
     /// FIPS 205: Context string handling
     #[test]
-    fn test_fips205_slh_dsa_context_handling() {
+    fn test_fips205_slh_dsa_context_handling_is_compliant_succeeds() {
         let (pk, sk) = slh_dsa_shake_128s::try_keygen().expect("Key generation must succeed");
         let message = b"Test message";
         let context1: &[u8] = b"context1";
@@ -802,7 +802,7 @@ mod sp_800_38d_aes_gcm {
     /// SP 800-38D Section 5.2.1.1: Standard IV length is 96 bits (12 bytes)
     /// "For IVs, it is recommended that implementations restrict support to the length of 96 bits"
     #[test]
-    fn test_sp800_38d_standard_nonce_size() {
+    fn test_sp800_38d_standard_nonce_size_meets_requirement_has_correct_size() {
         const SP_800_38D_RECOMMENDED_IV_LEN: usize = 12; // 96 bits
         let nonce = [0u8; SP_800_38D_RECOMMENDED_IV_LEN];
         assert_eq!(nonce.len(), 12, "SP 800-38D recommends 96-bit (12-byte) IV");
@@ -810,7 +810,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: Nonce must be exactly 12 bytes for aws-lc-rs
     #[test]
-    fn test_sp800_38d_nonce_construction() {
+    fn test_sp800_38d_nonce_construction_is_compliant_succeeds() {
         let nonce_bytes = [0x00u8; 12];
         let nonce = Nonce::try_assume_unique_for_key(&nonce_bytes);
         assert!(nonce.is_ok(), "12-byte nonce must be valid");
@@ -822,7 +822,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D Section 5.2.1.2: Tag length is 128 bits (16 bytes) for full security
     #[test]
-    fn test_sp800_38d_tag_size() {
+    fn test_sp800_38d_tag_size_meets_requirement_has_correct_size() {
         const SP_800_38D_TAG_LEN: usize = 16; // 128 bits
 
         // AES-128-GCM and AES-256-GCM both use 128-bit tags
@@ -844,7 +844,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: AES-GCM-128 uses 128-bit (16 byte) key
     #[test]
-    fn test_sp800_38d_aes_128_gcm_key_size() {
+    fn test_sp800_38d_aes_128_gcm_key_size_meets_requirement_has_correct_size() {
         const SP_800_38D_AES_128_KEY_LEN: usize = 16;
         let key = [0u8; SP_800_38D_AES_128_KEY_LEN];
         let unbound = UnboundKey::new(&AES_128_GCM, &key);
@@ -853,7 +853,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: AES-GCM-256 uses 256-bit (32 byte) key
     #[test]
-    fn test_sp800_38d_aes_256_gcm_key_size() {
+    fn test_sp800_38d_aes_256_gcm_key_size_meets_requirement_has_correct_size() {
         const SP_800_38D_AES_256_KEY_LEN: usize = 32;
         let key = [0u8; SP_800_38D_AES_256_KEY_LEN];
         let unbound = UnboundKey::new(&AES_256_GCM, &key);
@@ -862,7 +862,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: Invalid key size is rejected for AES-128-GCM
     #[test]
-    fn test_sp800_38d_aes_128_gcm_invalid_key_rejected() {
+    fn test_sp800_38d_aes_128_gcm_invalid_key_rejected_is_compliant_fails() {
         let key_15 = [0u8; 15];
         let key_17 = [0u8; 17];
         assert!(UnboundKey::new(&AES_128_GCM, &key_15).is_err(), "15-byte key must be rejected");
@@ -871,7 +871,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: Invalid key size is rejected for AES-256-GCM
     #[test]
-    fn test_sp800_38d_aes_256_gcm_invalid_key_rejected() {
+    fn test_sp800_38d_aes_256_gcm_invalid_key_rejected_is_compliant_fails() {
         let key_31 = [0u8; 31];
         let key_33 = [0u8; 33];
         assert!(UnboundKey::new(&AES_256_GCM, &key_31).is_err(), "31-byte key must be rejected");
@@ -884,7 +884,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: Empty AAD is valid
     #[test]
-    fn test_sp800_38d_empty_aad_valid() {
+    fn test_sp800_38d_empty_aad_valid_is_compliant_succeeds() {
         let key = [0u8; 16];
         let nonce_bytes = [0u8; 12];
         let unbound = UnboundKey::new(&AES_128_GCM, &key).unwrap();
@@ -899,7 +899,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: Non-empty AAD is included in authentication
     #[test]
-    fn test_sp800_38d_aad_authentication() {
+    fn test_sp800_38d_aad_authentication_is_compliant_succeeds() {
         let key = [0u8; 16];
         let nonce_bytes = [0u8; 12];
         let plaintext = b"secret data";
@@ -938,7 +938,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: AES-128-GCM encryption/decryption roundtrip
     #[test]
-    fn test_sp800_38d_aes_128_gcm_roundtrip() {
+    fn test_sp800_38d_aes_128_gcm_roundtrip_succeeds() {
         let key = [0x01u8; 16];
         let nonce_bytes = [0x02u8; 12];
         let plaintext = b"SP 800-38D compliance test data for AES-128-GCM";
@@ -959,12 +959,12 @@ mod sp_800_38d_aes_gcm {
         let nonce = Nonce::try_assume_unique_for_key(&nonce_bytes).unwrap();
         let decrypted = opening_key.open_in_place(nonce, Aad::empty(), &mut ciphertext).unwrap();
 
-        assert_eq!(decrypted, plaintext);
+        assert_eq!(decrypted, plaintext.as_slice());
     }
 
     /// SP 800-38D: AES-256-GCM encryption/decryption roundtrip
     #[test]
-    fn test_sp800_38d_aes_256_gcm_roundtrip() {
+    fn test_sp800_38d_aes_256_gcm_roundtrip_succeeds() {
         let key = [0x03u8; 32];
         let nonce_bytes = [0x04u8; 12];
         let plaintext = b"SP 800-38D compliance test data for AES-256-GCM";
@@ -982,12 +982,12 @@ mod sp_800_38d_aes_gcm {
         let nonce = Nonce::try_assume_unique_for_key(&nonce_bytes).unwrap();
         let decrypted = opening_key.open_in_place(nonce, Aad::empty(), &mut ciphertext).unwrap();
 
-        assert_eq!(decrypted, plaintext);
+        assert_eq!(decrypted, plaintext.as_slice());
     }
 
     /// SP 800-38D: Tag verification detects ciphertext tampering
     #[test]
-    fn test_sp800_38d_tag_verification_tampered_ciphertext() {
+    fn test_sp800_38d_tag_verification_tampered_ciphertext_is_compliant_fails() {
         let key = [0x05u8; 16];
         let nonce_bytes = [0x06u8; 12];
         let plaintext = b"Data that will be tampered with";
@@ -1013,7 +1013,7 @@ mod sp_800_38d_aes_gcm {
 
     /// SP 800-38D: Tag verification detects tag tampering
     #[test]
-    fn test_sp800_38d_tag_verification_tampered_tag() {
+    fn test_sp800_38d_tag_verification_tampered_tag_is_compliant_fails() {
         let key = [0x07u8; 16];
         let nonce_bytes = [0x08u8; 12];
         let plaintext = b"Data whose tag will be tampered with";
@@ -1045,7 +1045,7 @@ mod sp_800_38d_aes_gcm {
     /// SP 800-38D Section 8.2: IV uniqueness is critical
     /// This test documents the requirement (uniqueness must be enforced by caller)
     #[test]
-    fn test_sp800_38d_iv_uniqueness_requirement_documented() {
+    fn test_sp800_38d_iv_uniqueness_requirement_documented_meets_requirement_is_documented() {
         // SP 800-38D Section 8.2 states:
         // "The probability that the authenticated encryption function ever will be
         // invoked with the same IV and the same key on two (or more) distinct sets
@@ -1090,7 +1090,7 @@ mod sp_800_38d_aes_gcm {
 
 /// Summary test to verify all compliance modules are available
 #[test]
-fn test_nist_compliance_modules_available() {
+fn test_nist_compliance_modules_available_is_compliant_succeeds() {
     // This test verifies that all compliance test modules compile and are accessible
     // Each module tests a specific NIST standard:
     // - fips_203_ml_kem: FIPS 203 (ML-KEM)

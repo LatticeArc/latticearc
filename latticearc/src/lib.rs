@@ -34,7 +34,7 @@
 //! | SHA-256 | FIPS 180-4 | aws-lc-rs | Yes |
 //! | ML-DSA | FIPS 204 | fips204 | No |
 //! | SLH-DSA | FIPS 205 | fips205 | No |
-//! | FN-DSA | FIPS 206 | fn-dsa | No |
+//! | FN-DSA | FIPS 206 (draft / Falcon) | fn-dsa | No |
 //!
 //! ## Unified API with CryptoConfig
 //!
@@ -133,7 +133,7 @@
 //! let (pk, sk) = generate_keypair()?;
 //!
 //! // Step 2: Establish a verified session (performs challenge-response)
-//! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+//! let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
 //!
 //! // Step 3: Hybrid encryption with session verification
 //! let (enc_pk, enc_sk) = latticearc::generate_hybrid_keypair()?;
@@ -187,7 +187,7 @@
 //! use latticearc::{encrypt, CryptoConfig, VerifiedSession, generate_keypair, CoreError, EncryptKey};
 //!
 //! let (pk, sk) = generate_keypair()?;
-//! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+//! let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
 //!
 //! // Check session properties
 //! assert!(session.is_valid());  // Not expired
@@ -199,7 +199,7 @@
 //!
 //! // Refresh if expired
 //! if !session.is_valid() {
-//!     let new_session = VerifiedSession::establish(&pk, sk.as_ref())?;
+//!     let new_session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
 //! }
 //! # Ok(())
 //! # }
@@ -297,23 +297,15 @@ pub use unified_api::{
     DataCharacteristics,
     // Type-safe encryption key types (no silent degradation)
     DecryptKey,
-    Decryptable,
     EncryptKey,
-    Encryptable,
     EncryptedData,
     EncryptedMetadata,
     // Type-safe encrypted output (replaces string-based scheme dispatch)
     EncryptedOutput,
     EncryptionScheme,
-    HardwareAccelerator,
-    HardwareAware,
-    HardwareCapabilities,
-    HardwareInfo,
-    HardwareType,
     HashOutput,
     // Hybrid encryption components (ML-KEM ciphertext + ECDH ephemeral key)
     HybridComponents,
-    KeyDerivable,
     KeyPair,
     PatternType,
     PerformancePreference,
@@ -326,7 +318,6 @@ pub use unified_api::{
     SecurityLevel,
     // Zero Trust types
     SecurityMode,
-    Signable,
     SignedData,
     SignedMetadata,
     SymmetricKey,
@@ -334,7 +325,6 @@ pub use unified_api::{
     UseCase,
     // Constants
     VERSION,
-    Verifiable,
     VerificationStatus,
     VerifiedSession,
     ZeroKnowledgeProof,
@@ -486,3 +476,12 @@ pub use tls::{
     TlsConfig, TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, tls_accept,
     tls_connect,
 };
+
+// ============================================================================
+// Zeroize re-export
+// ============================================================================
+//
+// Re-export `Zeroizing` so downstream consumers (including our own tests)
+// can name the wrapper type returned by `decrypt()` without needing to add
+// `zeroize` as a separate dependency.
+pub use zeroize::Zeroizing;

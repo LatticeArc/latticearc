@@ -8,6 +8,7 @@
 ///
 /// Represents the current level of trust established through
 /// challenge-response verification.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum TrustLevel {
@@ -97,19 +98,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_trust_level_default() {
+    fn test_trust_level_default_succeeds() {
         assert_eq!(TrustLevel::default(), TrustLevel::Untrusted);
     }
 
     #[test]
-    fn test_trust_level_ordering() {
+    fn test_trust_level_ordering_succeeds() {
         assert!(TrustLevel::Untrusted < TrustLevel::Partial);
         assert!(TrustLevel::Partial < TrustLevel::Trusted);
         assert!(TrustLevel::Trusted < TrustLevel::FullyTrusted);
     }
 
     #[test]
-    fn test_trust_level_is_trusted() {
+    fn test_trust_level_is_trusted_succeeds() {
         assert!(!TrustLevel::Untrusted.is_trusted());
         assert!(TrustLevel::Partial.is_trusted());
         assert!(TrustLevel::Trusted.is_trusted());
@@ -117,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_trust_level_is_fully_trusted() {
+    fn test_trust_level_is_fully_trusted_succeeds() {
         assert!(!TrustLevel::Untrusted.is_fully_trusted());
         assert!(!TrustLevel::Partial.is_fully_trusted());
         assert!(!TrustLevel::Trusted.is_fully_trusted());

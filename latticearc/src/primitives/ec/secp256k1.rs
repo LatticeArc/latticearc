@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -8,30 +8,67 @@
 //! secp256k1 ECDSA signature implementation using k256 crate.
 //! Provides Bitcoin/Ethereum compatible secp256k1 operations.
 
-use super::traits::{EcKeyPair, EcSignature};
+use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};
 use rand::rngs::OsRng;
+use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
-/// secp256k1 key pair implementation
+/// secp256k1 key pair implementation.
+///
+/// # Zeroization strategy
+///
+/// `k256 v0.13` does not expose a `zeroize` feature, so `k256::ecdsa::SigningKey`
+/// does not implement `ZeroizeOnDrop`. To guarantee zeroization of secret material,
+/// this type stores the raw key bytes in `Zeroizing<[u8; 32]>` (which zeroes on drop)
+/// and reconstructs a transient `SigningKey` via `signing_key()` for each operation.
 ///
 /// This type intentionally does not implement `Clone` to prevent
 /// accidental duplication of secret key material.
 pub struct Secp256k1KeyPair {
     public_key: VerifyingKey,
-    secret_key: SigningKey,
+    /// Secret key bytes, automatically zeroized on drop.
+    secret_bytes: Zeroizing<[u8; 32]>,
+}
+
+impl std::fmt::Debug for Secp256k1KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Secp256k1KeyPair")
+            .field("public_key", &self.public_key)
+            .field("secret_bytes", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl ConstantTimeEq for Secp256k1KeyPair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.secret_bytes.ct_eq(&*other.secret_bytes)
+    }
+}
+
+impl Secp256k1KeyPair {
+    /// Construct a transient `SigningKey` from the stored bytes.
+    ///
+    /// The returned value must not outlive `self` conceptually; callers should
+    /// use it immediately and drop it.
+    fn signing_key(&self) -> Result<SigningKey> {
+        SigningKey::from_bytes((&self.secret_bytes[..]).into())
+            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))
+    }
 }
 
 impl EcKeyPair for Secp256k1KeyPair {
-    type PublicKey = VerifyingKey;
-    type SecretKey = SigningKey;
-
     fn generate() -> Result<Self> {
-        let secret_key = SigningKey::random(&mut OsRng {});
-        let public_key = VerifyingKey::from(&secret_key);
+        let sk = SigningKey::random(&mut OsRng {});
+        let public_key = VerifyingKey::from(&sk);
 
-        let keypair = Self { public_key, secret_key };
+        let mut secret_bytes = Zeroizing::new([0u8; 32]);
+        secret_bytes.copy_from_slice(&sk.to_bytes());
+        // `sk` drops here; we retain only the zeroized byte buffer.
+        drop(sk);
+
+        let keypair = Self { public_key, secret_bytes };
 
         // Pairwise Consistency Test (PCT)
         crate::primitives::pct::pct_secp256k1(&keypair)
@@ -48,20 +85,16 @@ impl EcKeyPair for Secp256k1KeyPair {
             });
         }
 
-        let secret_key = SigningKey::from_bytes(secret_key_bytes.into())
+        // Validate that the bytes form a valid scalar
+        let sk = SigningKey::from_bytes(secret_key_bytes.into())
             .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))?;
+        let public_key = VerifyingKey::from(&sk);
+        drop(sk);
 
-        let public_key = VerifyingKey::from(&secret_key);
+        let mut secret_bytes = Zeroizing::new([0u8; 32]);
+        secret_bytes.copy_from_slice(secret_key_bytes);
 
-        Ok(Self { public_key, secret_key })
-    }
-
-    fn public_key(&self) -> &Self::PublicKey {
-        &self.public_key
-    }
-
-    fn secret_key(&self) -> &Self::SecretKey {
-        &self.secret_key
+        Ok(Self { public_key, secret_bytes })
     }
 
     fn public_key_bytes(&self) -> Vec<u8> {
@@ -69,23 +102,33 @@ impl EcKeyPair for Secp256k1KeyPair {
     }
 
     fn secret_key_bytes(&self) -> Zeroizing<Vec<u8>> {
-        Zeroizing::new(self.secret_key.to_bytes().to_vec())
+        Zeroizing::new(self.secret_bytes.to_vec())
     }
 }
 
 /// secp256k1 ECDSA signature operations
 pub struct Secp256k1Signature;
 
+impl sealed::Sealed for Secp256k1KeyPair {}
+impl sealed::Sealed for Secp256k1Signature {}
+
 impl EcSignature for Secp256k1Signature {
     type Signature = Signature;
 
+    /// Verify a secp256k1 ECDSA signature.
+    ///
+    /// # Errors
+    /// Returns `InvalidKey` if `public_key_bytes` is not a valid SEC1-encoded
+    /// secp256k1 public key, or `SignatureVerificationError` if the signature
+    /// is invalid. Error messages are opaque to avoid leaking internal state.
     fn verify(public_key_bytes: &[u8], message: &[u8], signature: &Self::Signature) -> Result<()> {
         let public_key = VerifyingKey::from_sec1_bytes(public_key_bytes)
             .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
 
-        public_key
-            .verify(message, signature)
-            .map_err(|e| LatticeArcError::SignatureVerificationError(e.to_string()))
+        public_key.verify(message, signature).map_err(|_e| {
+            // Opaque error message: avoid leaking internal verification state.
+            LatticeArcError::SignatureVerificationError("secp256k1 verification failed".to_string())
+        })
     }
 
     fn signature_len() -> usize {
@@ -110,12 +153,16 @@ impl EcSignature for Secp256k1Signature {
 }
 
 impl Secp256k1KeyPair {
-    /// Sign a message with this key pair.
+    /// Sign a message with this key pair using deterministic ECDSA (RFC 6979).
     ///
     /// # Errors
-    /// This function is infallible for valid key pairs but returns Result for API consistency.
+    /// Returns an error if the stored secret bytes cannot be reconstructed as a
+    /// valid signing key (only possible if the internal state is corrupted).
     pub fn sign(&self, message: &[u8]) -> Result<Signature> {
-        Ok(self.secret_key.sign(message))
+        // Reconstruct a transient SigningKey from the zeroized byte buffer.
+        // The SigningKey is dropped at end of function, leaving only the zeroized bytes.
+        let sk = self.signing_key()?;
+        Ok(sk.sign(message))
     }
 }
 
@@ -126,7 +173,7 @@ mod tests {
     use crate::prelude::error::Result;
 
     #[test]
-    fn test_secp256k1_keypair_generation() -> Result<()> {
+    fn test_secp256k1_keypair_generation_succeeds() -> Result<()> {
         let keypair = Secp256k1KeyPair::generate()?;
         assert_eq!(keypair.secret_key_bytes().len(), 32);
         // Uncompressed public key is 65 bytes (0x04 + x + y)
@@ -135,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256k1_keypair_from_secret() -> Result<()> {
+    fn test_secp256k1_keypair_from_secret_succeeds() -> Result<()> {
         let original = Secp256k1KeyPair::generate()?;
         let secret_bytes = original.secret_key_bytes();
         let reconstructed = Secp256k1KeyPair::from_secret_key(&secret_bytes)?;
@@ -145,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256k1_sign_verify() -> Result<()> {
+    fn test_secp256k1_sign_verify_roundtrip() -> Result<()> {
         let keypair = Secp256k1KeyPair::generate()?;
         let message = b"Hello, secp256k1!";
         let signature = keypair.sign(message)?;
@@ -161,7 +208,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256k1_signature_serialization() -> Result<()> {
+    fn test_secp256k1_signature_serialization_succeeds() -> Result<()> {
         let keypair = Secp256k1KeyPair::generate()?;
         let message = b"Test message";
         let signature = keypair.sign(message)?;
@@ -176,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256k1_from_secret_key_invalid_length() {
+    fn test_secp256k1_from_secret_key_invalid_length_fails() {
         let too_short = vec![0u8; 16];
         let result = Secp256k1KeyPair::from_secret_key(&too_short);
         assert!(result.is_err());
@@ -187,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256k1_signature_from_bytes_invalid_length() {
+    fn test_secp256k1_signature_from_bytes_invalid_length_fails() {
         let too_short = vec![0u8; 32];
         let result = Secp256k1Signature::signature_from_bytes(&too_short);
         assert!(result.is_err());
@@ -198,23 +245,20 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256k1_getter_accessors() -> Result<()> {
+    fn test_secp256k1_byte_accessors_return_correct_lengths_has_correct_size() -> Result<()> {
         let keypair = Secp256k1KeyPair::generate()?;
-        let _pk = keypair.public_key();
-        let _sk = keypair.secret_key();
-        // Verify getters return consistent data
         assert_eq!(keypair.public_key_bytes().len(), 65);
         assert_eq!(keypair.secret_key_bytes().len(), 32);
         Ok(())
     }
 
     #[test]
-    fn test_secp256k1_signature_len() {
+    fn test_secp256k1_signature_len_is_64_bytes_succeeds() {
         assert_eq!(Secp256k1Signature::signature_len(), 64);
     }
 
     #[test]
-    fn test_secp256k1_verify_invalid_public_key() {
+    fn test_secp256k1_verify_invalid_public_key_fails() {
         let invalid_pk = vec![0u8; 10];
         let sig = Signature::from_bytes(&[0u8; 64].into());
         if let Ok(sig) = sig {

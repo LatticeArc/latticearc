@@ -107,7 +107,7 @@ mod tests {
 
     /// Test AES-GCM against Wycheproof vectors
     #[test]
-    fn test_aes_gcm_wycheproof() {
+    fn test_aes_gcm_wycheproof_passes_with_low_failure_rate_matches_expected() {
         let test_set = match AeadTestSet::load(wycheproof::aead::TestName::AesGcm) {
             Ok(ts) => ts,
             Err(e) => {
@@ -225,7 +225,7 @@ mod tests {
 
     /// Test ChaCha20-Poly1305 against Wycheproof vectors
     #[test]
-    fn test_chacha20_poly1305_wycheproof() {
+    fn test_chacha20_poly1305_wycheproof_passes_with_low_failure_rate_matches_expected() {
         let test_set = match AeadTestSet::load(wycheproof::aead::TestName::ChaCha20Poly1305) {
             Ok(ts) => ts,
             Err(e) => {
@@ -326,7 +326,7 @@ mod tests {
 
     /// Test ECDSA signature verification against Wycheproof vectors
     #[test]
-    fn test_ecdsa_p256_wycheproof() {
+    fn test_ecdsa_p256_wycheproof_passes_with_low_failure_rate_matches_expected() {
         use wycheproof::ecdsa::{TestName, TestSet};
 
         let test_set = match TestSet::load(TestName::EcdsaSecp256r1Sha256) {
@@ -355,7 +355,7 @@ mod tests {
 
     /// Test EdDSA signature verification against Wycheproof vectors
     #[test]
-    fn test_eddsa_wycheproof() {
+    fn test_eddsa_wycheproof_passes_with_low_failure_rate_matches_expected() {
         use wycheproof::eddsa::{TestName, TestSet};
 
         let test_set = match TestSet::load(TestName::Ed25519) {
@@ -458,7 +458,7 @@ mod tests {
     /// Verify that a fresh WycheproofResults reports all_passed as true
     /// (zero failures means everything passed, even with zero tests).
     #[test]
-    fn test_results_new_all_passed() {
+    fn test_results_new_all_passed_returns_true_succeeds() {
         let results = WycheproofResults::new();
         assert!(results.all_passed());
         assert_eq!(results.total, 0);
@@ -470,7 +470,7 @@ mod tests {
 
     /// Verify that Default derives the same state as new().
     #[test]
-    fn test_results_default() {
+    fn test_results_default_has_zero_counts_succeeds() {
         let results = WycheproofResults::default();
         assert!(results.all_passed());
         assert_eq!(results.total, 0);
@@ -482,7 +482,7 @@ mod tests {
 
     /// Verify that all_passed returns true when there are only passes.
     #[test]
-    fn test_results_all_passed_with_passes_only() {
+    fn test_results_all_passed_with_passes_only_succeeds() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_pass();
@@ -495,7 +495,7 @@ mod tests {
 
     /// Verify that all_passed returns false when there are failures.
     #[test]
-    fn test_results_all_passed_returns_false_with_failures() {
+    fn test_results_all_passed_returns_false_with_failures_fails() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_failure("test failure message".to_string());
@@ -509,7 +509,7 @@ mod tests {
 
     /// Verify that all_passed still returns true with skips but no failures.
     #[test]
-    fn test_results_all_passed_with_skips() {
+    fn test_results_all_passed_with_skips_succeeds() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_skip();
@@ -523,7 +523,7 @@ mod tests {
 
     /// Verify add_failure accumulates messages correctly.
     #[test]
-    fn test_results_multiple_failures() {
+    fn test_results_multiple_failures_accumulate_messages_fails() {
         let mut results = WycheproofResults::new();
         results.add_failure("error 1".to_string());
         results.add_failure("error 2".to_string());
@@ -540,7 +540,7 @@ mod tests {
 
     /// Verify mixed pass, fail, skip counts are tracked correctly.
     #[test]
-    fn test_results_mixed_operations() {
+    fn test_results_mixed_operations_track_counts_correctly_succeeds() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_failure("fail A".to_string());
@@ -560,7 +560,7 @@ mod tests {
 
     /// Verify Debug formatting is implemented for WycheproofResults.
     #[test]
-    fn test_results_debug_format() {
+    fn test_results_debug_format_contains_expected_fields_has_correct_size() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         results.add_failure("debug test failure".to_string());
@@ -578,7 +578,7 @@ mod tests {
 
     /// Verify LoadError display formatting.
     #[test]
-    fn test_error_load_error_display() {
+    fn test_error_load_error_display_has_correct_format() {
         let err = WycheproofError::LoadError("file not found".to_string());
         let msg = format!("{err}");
         assert_eq!(msg, "Failed to load test vectors: file not found");
@@ -586,7 +586,7 @@ mod tests {
 
     /// Verify TestFailed display formatting.
     #[test]
-    fn test_error_test_failed_display() {
+    fn test_error_test_failed_display_has_correct_format() {
         let err =
             WycheproofError::TestFailed { tc_id: 42, message: "decryption mismatch".to_string() };
         let msg = format!("{err}");
@@ -595,7 +595,7 @@ mod tests {
 
     /// Verify UnexpectedResult display formatting.
     #[test]
-    fn test_error_unexpected_result_display() {
+    fn test_error_unexpected_result_display_has_correct_format() {
         let err = WycheproofError::UnexpectedResult {
             tc_id: 99,
             expected: "valid".to_string(),
@@ -607,7 +607,7 @@ mod tests {
 
     /// Verify WycheproofError implements std::error::Error (source is None for leaf errors).
     #[test]
-    fn test_error_is_std_error() {
+    fn test_error_is_std_error_fails() {
         use std::error::Error;
 
         let load_err = WycheproofError::LoadError("test".to_string());
@@ -627,7 +627,7 @@ mod tests {
 
     /// Verify Debug formatting for WycheproofError variants.
     #[test]
-    fn test_error_debug_format() {
+    fn test_error_debug_format_contains_expected_fields_fails() {
         let err = WycheproofError::LoadError("debug test".to_string());
         let debug_str = format!("{err:?}");
         assert!(debug_str.contains("LoadError"));
@@ -650,7 +650,7 @@ mod tests {
 
     /// Verify LoadError with empty string.
     #[test]
-    fn test_error_load_error_empty_message() {
+    fn test_error_load_error_empty_message_produces_empty_suffix_fails() {
         let err = WycheproofError::LoadError(String::new());
         let msg = format!("{err}");
         assert_eq!(msg, "Failed to load test vectors: ");
@@ -658,7 +658,7 @@ mod tests {
 
     /// Verify TestFailed with tc_id zero.
     #[test]
-    fn test_error_test_failed_zero_id() {
+    fn test_error_test_failed_zero_id_displays_correctly_fails() {
         let err = WycheproofError::TestFailed { tc_id: 0, message: "zero id test".to_string() };
         let msg = format!("{err}");
         assert_eq!(msg, "Test case 0 failed: zero id test");
@@ -666,7 +666,7 @@ mod tests {
 
     /// Verify UnexpectedResult with large tc_id.
     #[test]
-    fn test_error_unexpected_result_large_id() {
+    fn test_error_unexpected_result_large_id_displays_correctly_fails() {
         let err = WycheproofError::UnexpectedResult {
             tc_id: u32::MAX,
             expected: "pass".to_string(),
@@ -680,7 +680,7 @@ mod tests {
 
     /// Verify add_skip increments both total and skipped but not passed or failed.
     #[test]
-    fn test_results_add_skip_only() {
+    fn test_results_add_skip_only_increments_skipped_not_failed_fails() {
         let mut results = WycheproofResults::new();
         results.add_skip();
         assert_eq!(results.total, 1);
@@ -693,7 +693,7 @@ mod tests {
 
     /// Verify add_pass increments both total and passed but not skipped or failed.
     #[test]
-    fn test_results_add_pass_only() {
+    fn test_results_add_pass_only_increments_passed_not_failed_fails() {
         let mut results = WycheproofResults::new();
         results.add_pass();
         assert_eq!(results.total, 1);
@@ -705,7 +705,7 @@ mod tests {
 
     /// Verify add_failure increments total, failed, and pushes message.
     #[test]
-    fn test_results_add_failure_only() {
+    fn test_results_add_failure_only_increments_failed_and_pushes_message_fails() {
         let mut results = WycheproofResults::new();
         results.add_failure("single failure".to_string());
         assert_eq!(results.total, 1);

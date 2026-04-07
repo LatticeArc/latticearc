@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -26,9 +26,9 @@ use aws_lc_rs::aead::{AES_128_GCM, AES_256_GCM, Aad, LessSafeKey, Nonce as AwsNo
 use rand::RngCore;
 use rand::rngs::OsRng;
 use tracing::instrument;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use crate::types::resource_limits::{validate_decryption_size, validate_encryption_size};
+use crate::primitives::resource_limits::{validate_decryption_size, validate_encryption_size};
 
 /// Implements an AES-GCM cipher struct with `AeadCipher` trait and `generate_key()`.
 macro_rules! impl_aes_gcm {
@@ -50,6 +50,7 @@ macro_rules! impl_aes_gcm {
                 if key.len() != Self::KEY_LEN {
                     return Err(AeadError::InvalidKeyLength);
                 }
+                crate::primitives::aead::warn_if_all_zero_key(key, $label);
                 let mut key_bytes = [0u8; $key_len];
                 key_bytes.copy_from_slice(key);
                 Ok($name { key_bytes })
@@ -69,7 +70,7 @@ macro_rules! impl_aes_gcm {
                 aad: Option<&[u8]>,
             ) -> Result<(Vec<u8>, Tag), AeadError> {
                 validate_encryption_size(plaintext.len()).map_err(
-                    |e: crate::types::resource_limits::ResourceError| {
+                    |e: crate::primitives::resource_limits::ResourceError| {
                         AeadError::EncryptionFailed(e.to_string())
                     },
                 )?;
@@ -114,10 +115,16 @@ macro_rules! impl_aes_gcm {
                 ciphertext: &[u8],
                 tag: &Tag,
                 aad: Option<&[u8]>,
-            ) -> Result<Vec<u8>, AeadError> {
+            ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
+                // Pre-flight resource validation uses a public input (length),
+                // so revealing "ciphertext too large" is safe. The actual
+                // open_in_place error path below is deliberately opaque to
+                // prevent padding/MAC oracles (P5.10 M1).
                 validate_decryption_size(ciphertext.len()).map_err(
-                    |e: crate::types::resource_limits::ResourceError| {
-                        AeadError::DecryptionFailed(e.to_string())
+                    |_e: crate::primitives::resource_limits::ResourceError| {
+                        AeadError::DecryptionFailed(
+                            "ciphertext exceeds resource limits".to_string(),
+                        )
                     },
                 )?;
 
@@ -130,15 +137,31 @@ macro_rules! impl_aes_gcm {
 
                 let aad = Aad::from(aad.unwrap_or(&[]));
 
-                let mut in_out = Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN));
+                // Wrap `in_out` in Zeroizing so the plaintext residue left in
+                // the buffer after `open_in_place` is scrubbed on drop (B2).
+                let mut in_out: Zeroizing<Vec<u8>> =
+                    Zeroizing::new(Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN)));
                 in_out.extend_from_slice(ciphertext);
                 in_out.extend_from_slice(tag);
 
-                let plaintext = key
-                    .open_in_place(aws_nonce, aad, &mut in_out)
-                    .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?;
+                // Opaque error: do not leak whether MAC check, decryption,
+                // or input shape was the cause of failure.
+                let plaintext_len = key
+                    .open_in_place(aws_nonce, aad, in_out.as_mut_slice())
+                    .map_err(|_e| {
+                        AeadError::DecryptionFailed(
+                            "AEAD authentication failed".to_string(),
+                        )
+                    })?
+                    .len();
 
-                Ok(plaintext.to_vec())
+                // Copy plaintext out into a fresh Zeroizing<Vec<u8>> — the
+                // original `in_out` buffer is dropped (and zeroized) at end
+                // of scope.
+                let plaintext_slice = in_out.get(..plaintext_len).ok_or_else(|| {
+                    AeadError::DecryptionFailed("plaintext length exceeds buffer".to_string())
+                })?;
+                Ok(Zeroizing::new(plaintext_slice.to_vec()))
             }
         }
 
@@ -170,8 +193,6 @@ impl_aes_gcm!(
     AesGcm256, AES_GCM_256_KEY_LEN, &AES_256_GCM, "AES-GCM-256"
 );
 
-/// Constant-time tag verification for AES-GCM
-///
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
 #[allow(clippy::panic)] // Tests use panic! for error case validation
@@ -179,7 +200,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_aes_gcm_128_key_generation() {
+    fn test_aes_gcm_128_key_generation_succeeds() {
         let key1 = AesGcm128::generate_key();
         let key2 = AesGcm128::generate_key();
         assert_eq!(key1.len(), AES_GCM_128_KEY_LEN);
@@ -189,7 +210,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_invalid_key_length() {
+    fn test_aes_gcm_128_invalid_key_length_fails() {
         let key = [0u8; 8]; // Wrong length
         let result = AesGcm128::new(&key);
         assert!(result.is_err());
@@ -201,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_key_generation() {
+    fn test_aes_gcm_256_key_generation_succeeds() {
         let key1 = AesGcm256::generate_key();
         let key2 = AesGcm256::generate_key();
         assert_eq!(key1.len(), AES_GCM_256_KEY_LEN);
@@ -211,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_invalid_key_length() {
+    fn test_aes_gcm_256_invalid_key_length_fails() {
         let key = [0u8; 16]; // Wrong length
         let result = AesGcm256::new(&key);
         assert!(result.is_err());
@@ -223,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_encryption_decryption() {
+    fn test_aes_gcm_128_encrypt_decrypt_roundtrip() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -236,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_encryption_decryption() {
+    fn test_aes_gcm_256_encrypt_decrypt_roundtrip() {
         let key = AesGcm256::generate_key();
         let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
@@ -249,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_with_aad() {
+    fn test_aes_gcm_128_with_aad_roundtrip() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -263,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_with_aad_verification_failure() {
+    fn test_aes_gcm_128_with_aad_verification_failure_fails() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -285,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_invalid_tag() {
+    fn test_aes_gcm_128_invalid_tag_fails() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -307,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_tag_verification() {
+    fn test_aes_gcm_constant_time_tag_verification_is_correct() {
         let tag1 = [1u8; 16];
         let tag2 = [1u8; 16];
         let tag3 = [2u8; 16];
@@ -317,14 +338,14 @@ mod tests {
     }
 
     #[test]
-    fn test_zeroize_data() {
+    fn test_aes_gcm_zeroize_data_clears_bytes_succeeds() {
         let mut data = vec![0xFF; 100];
         super::super::zeroize_data(&mut data);
         assert_eq!(data, vec![0u8; 100]);
     }
 
     #[test]
-    fn test_aes_gcm_128_empty_plaintext() {
+    fn test_aes_gcm_128_empty_plaintext_roundtrip() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -339,7 +360,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_empty_plaintext() {
+    fn test_aes_gcm_256_empty_plaintext_roundtrip() {
         let key = AesGcm256::generate_key();
         let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
@@ -354,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_large_plaintext() {
+    fn test_aes_gcm_128_large_plaintext_roundtrip() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -369,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_large_plaintext() {
+    fn test_aes_gcm_256_large_plaintext_roundtrip() {
         let key = AesGcm256::generate_key();
         let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
@@ -384,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_corrupted_ciphertext() {
+    fn test_aes_gcm_128_corrupted_ciphertext_fails() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -408,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_with_aad() {
+    fn test_aes_gcm_256_with_aad_roundtrip() {
         let key = AesGcm256::generate_key();
         let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
@@ -422,7 +443,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_multiple_encryptions() {
+    fn test_aes_gcm_128_multiple_encryptions_all_roundtrip() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
 
@@ -436,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_multiple_encryptions() {
+    fn test_aes_gcm_256_multiple_encryptions_all_roundtrip() {
         let key = AesGcm256::generate_key();
         let cipher = AesGcm256::new(&*key).unwrap();
 
@@ -453,7 +474,7 @@ mod tests {
     // uses hardware-accelerated implementations that may have subtle differences
     // in intermediate computations while still producing correct results.
     #[test]
-    fn test_aes_gcm_128_roundtrip_consistency() {
+    fn test_aes_gcm_128_roundtrip_consistency_roundtrip() {
         // Instead of hardcoded test vectors, verify encrypt/decrypt roundtrip
         let key: [u8; 16] = [
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
@@ -473,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_roundtrip_consistency() {
+    fn test_aes_gcm_256_roundtrip_consistency_roundtrip() {
         let key: [u8; 32] = [
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
             0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
@@ -493,7 +514,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_128_encryption_size_limit() {
+    fn test_aes_gcm_128_encryption_size_limit_has_correct_size() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
@@ -512,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_256_decryption_size_limit() {
+    fn test_aes_gcm_256_decryption_size_limit_has_correct_size() {
         let key = AesGcm256::generate_key();
         let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
@@ -525,7 +546,14 @@ mod tests {
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
         if let Err(AeadError::DecryptionFailed(msg)) = result {
-            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+            // Error message is now opaque to prevent oracle attacks (P5.10),
+            // but the resource-limit path uses a distinct message because the
+            // input length is public.
+            assert!(
+                msg.contains("resource limits") || msg.contains("AEAD"),
+                "Error should be a DecryptionFailed variant: {}",
+                msg
+            );
         } else {
             panic!("Expected DecryptionFailed error");
         }

@@ -24,7 +24,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_sha256_cavp_vectors() {
+    fn test_sha256_cavp_vectors_match_expected_hashes_matches_expected() {
         for (i, (input_hex, expected_hex)) in SHA256_VECTORS.iter().enumerate() {
             let input = decode_hex_vector(input_hex).unwrap_or_default();
             let expected = decode_hex_vector(expected_hex).unwrap();
@@ -45,7 +45,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_sha256_cavp_vector_count() {
+    fn test_sha256_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             SHA256_VECTORS.len() >= 5,
             "Expected at least 5 SHA-256 test vectors, got {}",
@@ -58,7 +58,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_sha512_cavp_vectors() {
+    fn test_sha512_cavp_vectors_match_expected_hashes_matches_expected() {
         for (i, (input_hex, expected_hex)) in SHA512_VECTORS.iter().enumerate() {
             let input = decode_hex_vector(input_hex).unwrap_or_default();
             let expected = decode_hex_vector(expected_hex).unwrap();
@@ -79,7 +79,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_sha512_cavp_vector_count() {
+    fn test_sha512_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             SHA512_VECTORS.len() >= 5,
             "Expected at least 5 SHA-512 test vectors, got {}",
@@ -92,7 +92,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_sha3_256_cavp_vectors() {
+    fn test_sha3_256_cavp_vectors_match_expected_hashes_matches_expected() {
         for (i, (input_hex, expected_hex)) in SHA3_256_VECTORS.iter().enumerate() {
             let input = decode_hex_vector(input_hex).unwrap_or_default();
             let expected = decode_hex_vector(expected_hex).unwrap();
@@ -113,7 +113,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_sha3_256_cavp_vector_count() {
+    fn test_sha3_256_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             SHA3_256_VECTORS.len() >= 5,
             "Expected at least 5 SHA3-256 test vectors, got {}",
@@ -126,7 +126,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_hmac_sha256_cavp_vectors() {
+    fn test_hmac_sha256_cavp_vectors_match_expected_tags_matches_expected() {
         use hmac::{Hmac, Mac};
 
         type HmacSha256 = Hmac<Sha256>;
@@ -150,7 +150,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_hmac_sha256_cavp_vector_count() {
+    fn test_hmac_sha256_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             HMAC_SHA256_VECTORS.len() >= 5,
             "Expected at least 5 HMAC-SHA256 test vectors, got {}",
@@ -163,7 +163,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_x25519_cavp_vectors_basic() {
+    fn test_x25519_cavp_vectors_basic_match_expected_shared_secret_matches_expected() {
         // Test the first two RFC 7748 vectors which are known to be correct
         for (i, vector) in X25519_VECTORS.iter().take(2).enumerate() {
             let private_key_bytes = decode_hex_vector(vector.private_key).unwrap();
@@ -193,7 +193,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_x25519_cavp_vector_count() {
+    fn test_x25519_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             X25519_VECTORS.len() >= 5,
             "Expected at least 5 X25519 test vectors, got {}",
@@ -206,7 +206,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_hkdf_sha256_cavp_vectors() {
+    fn test_hkdf_sha256_cavp_vectors_match_expected_prk_and_okm_matches_expected() {
         use hkdf::Hkdf;
 
         for (i, vector) in HKDF_SHA256_VECTORS.iter().enumerate() {
@@ -247,7 +247,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_hkdf_sha256_cavp_vector_count() {
+    fn test_hkdf_sha256_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             HKDF_SHA256_VECTORS.len() >= 3,
             "Expected at least 3 HKDF-SHA256 test vectors, got {}",
@@ -260,7 +260,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_aes_256_gcm_cavp_vectors() {
+    fn test_aes_256_gcm_cavp_vectors_match_expected_ciphertext_matches_expected() {
         use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 
         // Test only the first few well-verified NIST vectors (without AAD)
@@ -312,7 +312,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_aes_128_gcm_cavp_vectors() {
+    fn test_aes_128_gcm_cavp_vectors_match_expected_ciphertext_matches_expected() {
         use aes_gcm::{Aes128Gcm, KeyInit, Nonce, aead::Aead};
 
         // Test only the first few well-verified NIST vectors (without AAD)
@@ -360,7 +360,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_aes_gcm_cavp_vector_count() {
+    fn test_aes_gcm_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             AES_256_GCM_VECTORS.len() >= 5,
             "Expected at least 5 AES-256-GCM test vectors, got {}",
@@ -378,7 +378,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_chacha20_poly1305_cavp_vectors() {
+    fn test_chacha20_poly1305_cavp_vectors_encrypt_succeeds() {
         use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce, aead::Aead};
 
         // Note: RFC 8439 vectors 0 and 1 have AAD, so we skip the assertion test
@@ -416,7 +416,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_cavp_vector_count() {
+    fn test_chacha20_poly1305_cavp_vector_count_meets_minimum_matches_expected() {
         assert!(
             CHACHA20_POLY1305_VECTORS.len() >= 5,
             "Expected at least 5 ChaCha20-Poly1305 test vectors, got {}",
@@ -429,7 +429,7 @@ mod cavp_validation_tests {
     // ========================================================================
 
     #[test]
-    fn test_total_cavp_vector_coverage() {
+    fn test_total_cavp_vector_coverage_meets_minimum_per_algorithm_matches_expected() {
         let total = total_vector_count();
         assert!(total >= 40, "Expected at least 40 total CAVP vectors, got {}", total);
 
@@ -446,7 +446,7 @@ mod cavp_validation_tests {
     }
 
     #[test]
-    fn test_all_vectors_have_valid_hex() {
+    fn test_all_vectors_have_valid_hex_matches_expected() {
         // SHA-256
         for (input, expected) in SHA256_VECTORS {
             assert!(input.is_empty() || is_valid_hex(input));
@@ -517,7 +517,7 @@ mod algorithm_compliance_tests {
 
     /// Verify SHA-256 produces correct output length
     #[test]
-    fn test_sha256_output_length_compliance() {
+    fn test_sha256_output_length_is_compliant_has_correct_size() {
         use sha2::{Digest, Sha256};
 
         let hasher = Sha256::new();
@@ -527,7 +527,7 @@ mod algorithm_compliance_tests {
 
     /// Verify SHA-512 produces correct output length
     #[test]
-    fn test_sha512_output_length_compliance() {
+    fn test_sha512_output_length_is_compliant_has_correct_size() {
         use sha2::{Digest, Sha512};
 
         let hasher = Sha512::new();
@@ -537,7 +537,7 @@ mod algorithm_compliance_tests {
 
     /// Verify SHA3-256 produces correct output length
     #[test]
-    fn test_sha3_256_output_length_compliance() {
+    fn test_sha3_256_output_length_is_compliant_has_correct_size() {
         use sha3::{Digest, Sha3_256};
 
         let hasher = Sha3_256::new();
@@ -547,7 +547,7 @@ mod algorithm_compliance_tests {
 
     /// Verify HMAC-SHA256 produces correct output length
     #[test]
-    fn test_hmac_sha256_output_length_compliance() {
+    fn test_hmac_sha256_output_length_is_compliant_has_correct_size() {
         use hmac::{Hmac, Mac};
         use sha2::Sha256;
 
@@ -564,7 +564,7 @@ mod algorithm_compliance_tests {
 
     /// Verify X25519 produces correct shared secret length
     #[test]
-    fn test_x25519_shared_secret_length_compliance() {
+    fn test_x25519_shared_secret_length_is_compliant_has_correct_size() {
         use x25519_dalek::{PublicKey, StaticSecret};
 
         let secret = StaticSecret::from([1u8; 32]);

@@ -106,7 +106,7 @@ fn create_all_failing_results(count: usize) -> Vec<KatResult> {
 // =============================================================================
 
 #[test]
-fn test_generate_report_with_mixed_results() {
+fn test_generate_report_with_mixed_results_has_correct_format() {
     let results = create_mixed_results();
     let report = generate_kat_report(&results);
 
@@ -134,7 +134,7 @@ fn test_generate_report_with_mixed_results() {
 }
 
 #[test]
-fn test_generate_report_all_passing() {
+fn test_generate_report_all_passing_has_correct_format() {
     let results = create_all_passing_results(10);
     let report = generate_kat_report(&results);
 
@@ -149,7 +149,7 @@ fn test_generate_report_all_passing() {
 }
 
 #[test]
-fn test_generate_report_all_failing() {
+fn test_generate_report_all_failing_has_correct_format() {
     let results = create_all_failing_results(5);
     let report = generate_kat_report(&results);
 
@@ -168,7 +168,7 @@ fn test_generate_report_all_failing() {
 }
 
 #[test]
-fn test_generate_report_single_result_pass() {
+fn test_generate_report_single_result_pass_has_correct_format() {
     let results = vec![create_passing_result("SINGLE-TEST-001", 500_000)];
     let report = generate_kat_report(&results);
 
@@ -180,7 +180,7 @@ fn test_generate_report_single_result_pass() {
 }
 
 #[test]
-fn test_generate_report_single_result_fail() {
+fn test_generate_report_single_result_fail_has_correct_format() {
     let results =
         vec![create_failing_result("SINGLE-TEST-001", 500_000, "Critical validation error")];
     let report = generate_kat_report(&results);
@@ -199,7 +199,7 @@ fn test_generate_report_single_result_fail() {
 // =============================================================================
 
 #[test]
-fn test_success_rate_calculation_precision() {
+fn test_success_rate_calculation_has_correct_precision_succeeds() {
     // Test various success rates to verify precision
     let test_cases = vec![
         (1, 3, "33.33%"), // 1/3 = 33.33%
@@ -232,7 +232,7 @@ fn test_success_rate_calculation_precision() {
 }
 
 #[test]
-fn test_total_execution_time_calculation() {
+fn test_total_execution_time_calculation_is_correct() {
     let results = vec![
         create_passing_result("TEST-001", 1_000_000), // 1ms
         create_passing_result("TEST-002", 2_000_000), // 2ms
@@ -250,7 +250,7 @@ fn test_total_execution_time_calculation() {
 }
 
 #[test]
-fn test_average_time_calculation_with_varying_durations() {
+fn test_average_time_calculation_with_varying_durations_is_correct() {
     let results = vec![
         create_passing_result("FAST-TEST", 100_000),     // 0.1ms
         create_passing_result("MEDIUM-TEST", 1_000_000), // 1ms
@@ -271,7 +271,7 @@ fn test_average_time_calculation_with_varying_durations() {
 // =============================================================================
 
 #[test]
-fn test_generate_report_with_no_error_message() {
+fn test_generate_report_with_no_error_message_has_correct_format() {
     // Test case where a failed result has no error message
     let results = vec![KatResult {
         test_case: "TEST-NO-MSG".to_string(),
@@ -288,7 +288,7 @@ fn test_generate_report_with_no_error_message() {
 }
 
 #[test]
-fn test_generate_report_with_empty_test_case_name() {
+fn test_generate_report_with_empty_test_case_name_has_correct_format() {
     let results = vec![create_passing_result("", 500_000)];
     let report = generate_kat_report(&results);
 
@@ -298,7 +298,7 @@ fn test_generate_report_with_empty_test_case_name() {
 }
 
 #[test]
-fn test_generate_report_with_long_test_case_name() {
+fn test_generate_report_with_long_test_case_name_has_correct_format() {
     let long_name = "A".repeat(500);
     let results = vec![create_failing_result(&long_name, 1_000_000, "Long name test error")];
     let report = generate_kat_report(&results);
@@ -308,7 +308,7 @@ fn test_generate_report_with_long_test_case_name() {
 }
 
 #[test]
-fn test_generate_report_with_long_error_message() {
+fn test_generate_report_with_long_error_message_has_correct_format() {
     let long_error = "E".repeat(1000);
     let results = vec![create_failing_result("LONG-ERROR-TEST", 1_000_000, &long_error)];
     let report = generate_kat_report(&results);
@@ -318,7 +318,7 @@ fn test_generate_report_with_long_error_message() {
 }
 
 #[test]
-fn test_generate_report_with_special_characters_in_test_case() {
+fn test_generate_report_with_special_characters_in_test_case_has_correct_format() {
     let special_cases = vec![
         create_failing_result("TEST-WITH-UNICODE-\u{2713}", 1_000_000, "Unicode test"),
         create_failing_result("TEST/WITH/SLASHES", 1_000_000, "Slash test"),
@@ -333,7 +333,7 @@ fn test_generate_report_with_special_characters_in_test_case() {
 }
 
 #[test]
-fn test_generate_report_with_zero_execution_time() {
+fn test_generate_report_with_zero_execution_time_has_correct_format() {
     let results = vec![
         create_passing_result("INSTANT-TEST-001", 0),
         create_passing_result("INSTANT-TEST-002", 0),
@@ -346,7 +346,7 @@ fn test_generate_report_with_zero_execution_time() {
 }
 
 #[test]
-fn test_generate_report_with_max_execution_time() {
+fn test_generate_report_with_max_execution_time_has_correct_format() {
     let max_time = u128::MAX / 2; // Use half of max to avoid overflow in sum
     let results = vec![create_passing_result("MAX-TIME-TEST", max_time)];
 
@@ -361,7 +361,7 @@ fn test_generate_report_with_max_execution_time() {
 // =============================================================================
 
 #[test]
-fn test_generate_report_with_many_results() {
+fn test_generate_report_with_many_results_has_correct_format() {
     let results = create_all_passing_results(1000);
     let report = generate_kat_report(&results);
 
@@ -372,7 +372,7 @@ fn test_generate_report_with_many_results() {
 }
 
 #[test]
-fn test_generate_report_with_many_failures() {
+fn test_generate_report_with_many_failures_has_correct_format() {
     let results = create_all_failing_results(100);
     let report = generate_kat_report(&results);
 
@@ -392,7 +392,7 @@ fn test_generate_report_with_many_failures() {
 // =============================================================================
 
 #[test]
-fn test_report_contains_expected_sections_in_order() {
+fn test_report_sections_are_in_correct_order_succeeds() {
     let results = create_mixed_results();
     let report = generate_kat_report(&results);
 
@@ -409,7 +409,7 @@ fn test_report_contains_expected_sections_in_order() {
 }
 
 #[test]
-fn test_report_newline_formatting() {
+fn test_report_newlines_have_correct_format_succeeds() {
     let results = create_mixed_results();
     let report = generate_kat_report(&results);
 
@@ -420,7 +420,7 @@ fn test_report_newline_formatting() {
 }
 
 #[test]
-fn test_report_indentation() {
+fn test_report_indentation_has_correct_format() {
     let results = create_mixed_results();
     let report = generate_kat_report(&results);
 
@@ -443,7 +443,7 @@ fn test_report_indentation() {
 // =============================================================================
 
 #[test]
-fn test_kat_result_passed_constructor() {
+fn test_kat_result_passed_constructor_succeeds() {
     let result = KatResult::passed("TEST-CASE-001".to_string(), Duration::from_millis(100));
 
     assert_eq!(result.test_case, "TEST-CASE-001");
@@ -453,7 +453,7 @@ fn test_kat_result_passed_constructor() {
 }
 
 #[test]
-fn test_kat_result_failed_constructor() {
+fn test_kat_result_failed_constructor_succeeds() {
     let result = KatResult::failed(
         "TEST-CASE-002".to_string(),
         Duration::from_micros(500),
@@ -467,7 +467,7 @@ fn test_kat_result_failed_constructor() {
 }
 
 #[test]
-fn test_kat_result_equality() {
+fn test_kat_result_equality_is_correct() {
     let result1 = KatResult {
         test_case: "TEST".to_string(),
         passed: true,
@@ -486,7 +486,7 @@ fn test_kat_result_equality() {
 }
 
 #[test]
-fn test_kat_result_inequality() {
+fn test_kat_result_inequality_is_correct() {
     let result1 = create_passing_result("TEST-A", 1000);
     let result2 = create_passing_result("TEST-B", 1000);
 
@@ -494,7 +494,7 @@ fn test_kat_result_inequality() {
 }
 
 #[test]
-fn test_kat_result_clone() {
+fn test_kat_result_clone_succeeds() {
     let original = create_failing_result("CLONE-TEST", 5000, "Clone error");
     let cloned = original.clone();
 
@@ -504,7 +504,7 @@ fn test_kat_result_clone() {
 }
 
 #[test]
-fn test_kat_result_debug_format() {
+fn test_kat_result_debug_has_correct_format() {
     let result = create_passing_result("DEBUG-TEST", 1_000_000);
     let debug_str = format!("{:?}", result);
 
@@ -518,7 +518,7 @@ fn test_kat_result_debug_format() {
 // =============================================================================
 
 #[test]
-fn test_kat_result_json_serialization_passing() {
+fn test_kat_result_json_serialization_passing_succeeds() {
     let result = create_passing_result("JSON-TEST-001", 2_500_000);
     let json = serde_json::to_string(&result).unwrap();
 
@@ -529,7 +529,7 @@ fn test_kat_result_json_serialization_passing() {
 }
 
 #[test]
-fn test_kat_result_json_serialization_failing() {
+fn test_kat_result_json_serialization_failing_succeeds() {
     let result = create_failing_result("JSON-FAIL-001", 1_000_000, "JSON test error");
     let json = serde_json::to_string(&result).unwrap();
 
@@ -540,7 +540,7 @@ fn test_kat_result_json_serialization_failing() {
 }
 
 #[test]
-fn test_kat_result_json_deserialization() {
+fn test_kat_result_json_deserialization_succeeds() {
     let json = r#"{
         "test_case": "DESER-TEST",
         "passed": true,
@@ -557,7 +557,7 @@ fn test_kat_result_json_deserialization() {
 }
 
 #[test]
-fn test_kat_result_json_roundtrip() {
+fn test_kat_result_json_roundtrip_succeeds() {
     let original = create_failing_result("ROUNDTRIP-TEST", 999_999, "Roundtrip error");
     let json = serde_json::to_string(&original).unwrap();
     let deserialized: KatResult = serde_json::from_str(&json).unwrap();
@@ -566,7 +566,7 @@ fn test_kat_result_json_roundtrip() {
 }
 
 #[test]
-fn test_kat_results_array_json_serialization() {
+fn test_kat_results_array_json_serialization_succeeds() {
     let results = create_mixed_results();
     let json = serde_json::to_string(&results).unwrap();
 
@@ -584,7 +584,7 @@ fn test_kat_results_array_json_serialization() {
 // =============================================================================
 
 #[test]
-fn test_run_kat_tests_returns_results() {
+fn test_run_kat_tests_returns_non_empty_results_matches_expected() {
     // Note: This test depends on having ML-KEM 1024 KAT vectors available
     // It may skip if vectors cannot be loaded
     match run_kat_tests() {
@@ -613,7 +613,7 @@ fn test_run_kat_tests_returns_results() {
 }
 
 #[test]
-fn test_run_kat_tests_results_are_marked_passed() {
+fn test_run_kat_tests_all_results_are_marked_passed_matches_expected() {
     match run_kat_tests() {
         Ok(results) => {
             // The current implementation marks all results as passed
@@ -632,7 +632,7 @@ fn test_run_kat_tests_results_are_marked_passed() {
 }
 
 #[test]
-fn test_run_kat_tests_generates_valid_report() {
+fn test_run_kat_tests_generates_valid_report_succeeds() {
     match run_kat_tests() {
         Ok(results) => {
             let report = generate_kat_report(&results);
@@ -656,7 +656,7 @@ fn test_run_kat_tests_generates_valid_report() {
 // =============================================================================
 
 #[test]
-fn test_report_generation_performance() {
+fn test_report_generation_performance_completes_in_time_succeeds() {
     // Generate a large number of results to test performance
     let results: Vec<KatResult> = (0..10_000)
         .map(|i| {
@@ -686,7 +686,7 @@ fn test_report_generation_performance() {
 }
 
 #[test]
-fn test_report_with_realistic_test_names() {
+fn test_report_with_realistic_test_names_has_correct_format() {
     let results = vec![
         create_passing_result("CAVP-ML-KEM-1024-001", 1_500_000),
         create_passing_result("CAVP-ML-KEM-1024-002", 1_600_000),
@@ -760,7 +760,7 @@ fn parse_report_stats(report: &str) -> (usize, usize, usize, f64) {
 }
 
 #[test]
-fn test_report_parsing_accuracy() {
+fn test_report_parsing_accuracy_is_correct() {
     let results = create_mixed_results();
     let report = generate_kat_report(&results);
     let (total, passed, failed, success_rate) = parse_report_stats(&report);
@@ -772,7 +772,7 @@ fn test_report_parsing_accuracy() {
 }
 
 #[test]
-fn test_report_parsing_all_pass() {
+fn test_report_parsing_all_pass_is_correct() {
     let results = create_all_passing_results(25);
     let report = generate_kat_report(&results);
     let (total, passed, failed, success_rate) = parse_report_stats(&report);
@@ -784,7 +784,7 @@ fn test_report_parsing_all_pass() {
 }
 
 #[test]
-fn test_report_parsing_all_fail() {
+fn test_report_parsing_all_fail_is_correct() {
     let results = create_all_failing_results(15);
     let report = generate_kat_report(&results);
     let (total, passed, failed, success_rate) = parse_report_stats(&report);
@@ -800,7 +800,7 @@ fn test_report_parsing_all_fail() {
 // =============================================================================
 
 #[test]
-fn test_report_with_exactly_one_pass_one_fail() {
+fn test_report_with_exactly_one_pass_one_fail_has_correct_format() {
     let results = vec![
         create_passing_result("PASS-001", 1_000_000),
         create_failing_result("FAIL-001", 1_000_000, "Error"),
@@ -815,7 +815,7 @@ fn test_report_with_exactly_one_pass_one_fail() {
 }
 
 #[test]
-fn test_report_consistency_multiple_generations() {
+fn test_report_is_consistent_across_multiple_generations_succeeds() {
     let results = create_mixed_results();
 
     // Generate report multiple times
@@ -829,7 +829,7 @@ fn test_report_consistency_multiple_generations() {
 }
 
 #[test]
-fn test_report_handles_unicode_errors() {
+fn test_report_handles_unicode_errors_succeeds() {
     let results = vec![create_failing_result(
         "UNICODE-TEST",
         1_000_000,
@@ -844,7 +844,7 @@ fn test_report_handles_unicode_errors() {
 }
 
 #[test]
-fn test_report_with_newlines_in_error() {
+fn test_report_with_newlines_in_error_has_correct_format() {
     let results =
         vec![create_failing_result("MULTILINE-ERROR", 1_000_000, "Line 1\nLine 2\nLine 3")];
 
@@ -859,7 +859,7 @@ fn test_report_with_newlines_in_error() {
 // =============================================================================
 
 #[test]
-fn test_algorithm_type_names() {
+fn test_algorithm_type_names_have_correct_format_succeeds() {
     use latticearc_tests::validation::kat_tests::types::AlgorithmType;
 
     let test_cases = vec![
@@ -885,7 +885,7 @@ fn test_algorithm_type_names() {
 }
 
 #[test]
-fn test_algorithm_type_security_levels() {
+fn test_algorithm_type_security_levels_are_correct() {
     use latticearc_tests::validation::kat_tests::types::AlgorithmType;
 
     let test_cases = vec![
@@ -922,7 +922,7 @@ fn test_algorithm_type_security_levels() {
 // =============================================================================
 
 #[test]
-fn test_kat_config_default() {
+fn test_kat_config_default_has_correct_values_matches_expected() {
     use latticearc_tests::validation::kat_tests::types::KatConfig;
 
     let config = KatConfig::default();
@@ -934,7 +934,7 @@ fn test_kat_config_default() {
 }
 
 #[test]
-fn test_kat_config_ml_kem_constructor() {
+fn test_kat_config_ml_kem_constructor_succeeds() {
     use latticearc_tests::validation::kat_tests::types::KatConfig;
 
     let config = KatConfig::ml_kem("1024", 50);
@@ -946,7 +946,7 @@ fn test_kat_config_ml_kem_constructor() {
 }
 
 #[test]
-fn test_kat_config_ml_dsa_constructor() {
+fn test_kat_config_ml_dsa_constructor_succeeds() {
     use latticearc_tests::validation::kat_tests::types::KatConfig;
 
     let config = KatConfig::ml_dsa("65", 75);
@@ -958,7 +958,7 @@ fn test_kat_config_ml_dsa_constructor() {
 }
 
 #[test]
-fn test_kat_config_slh_dsa_constructor() {
+fn test_kat_config_slh_dsa_constructor_succeeds() {
     use latticearc_tests::validation::kat_tests::types::KatConfig;
 
     let config = KatConfig::slh_dsa("256", 25);
@@ -971,7 +971,7 @@ fn test_kat_config_slh_dsa_constructor() {
 }
 
 #[test]
-fn test_kat_config_serialization() {
+fn test_kat_config_serializes_correctly_succeeds() {
     use latticearc_tests::validation::kat_tests::types::KatConfig;
 
     let config = KatConfig::ml_kem("768", 100);
@@ -983,7 +983,7 @@ fn test_kat_config_serialization() {
 }
 
 #[test]
-fn test_kat_config_deserialization() {
+fn test_kat_config_deserializes_correctly_succeeds() {
     use latticearc_tests::validation::kat_tests::types::{AlgorithmType, KatConfig};
 
     let json = r#"{

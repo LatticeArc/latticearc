@@ -133,30 +133,30 @@ struct SerializableHybridEncrypted {
 impl SerializableHybridEncrypted {
     fn from_encrypted_output(output: &EncryptedOutput) -> Self {
         use base64::{Engine, engine::general_purpose::STANDARD};
-        let hybrid = output.hybrid_data.as_ref().expect("hybrid_data must be present");
+        let hybrid = output.hybrid_data().expect("hybrid_data must be present");
         Self {
             kem_ciphertext: STANDARD.encode(&hybrid.ml_kem_ciphertext),
             ecdh_ephemeral_pk: STANDARD.encode(&hybrid.ecdh_ephemeral_pk),
-            symmetric_ciphertext: STANDARD.encode(&output.ciphertext),
-            nonce: STANDARD.encode(&output.nonce),
-            tag: STANDARD.encode(&output.tag),
+            symmetric_ciphertext: STANDARD.encode(output.ciphertext()),
+            nonce: STANDARD.encode(output.nonce()),
+            tag: STANDARD.encode(output.tag()),
         }
     }
 
     fn to_encrypted_output(&self) -> EncryptedOutput {
         use base64::{Engine, engine::general_purpose::STANDARD};
-        EncryptedOutput {
-            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
-            ciphertext: STANDARD.decode(&self.symmetric_ciphertext).unwrap(),
-            nonce: STANDARD.decode(&self.nonce).unwrap(),
-            tag: STANDARD.decode(&self.tag).unwrap(),
-            hybrid_data: Some(HybridComponents {
+        EncryptedOutput::new(
+            EncryptionScheme::HybridMlKem768Aes256Gcm,
+            STANDARD.decode(&self.symmetric_ciphertext).unwrap(),
+            STANDARD.decode(&self.nonce).unwrap(),
+            STANDARD.decode(&self.tag).unwrap(),
+            Some(HybridComponents {
                 ml_kem_ciphertext: STANDARD.decode(&self.kem_ciphertext).unwrap(),
                 ecdh_ephemeral_pk: STANDARD.decode(&self.ecdh_ephemeral_pk).unwrap(),
             }),
-            timestamp: chrono::Utc::now().timestamp().unsigned_abs(),
-            key_id: None,
-        }
+            chrono::Utc::now().timestamp().unsigned_abs(),
+            None,
+        )
     }
 }
 
@@ -165,7 +165,7 @@ impl SerializableHybridEncrypted {
 // ============================================================================
 
 #[test]
-fn roundtrip_unified_api_default_config_through_file() {
+fn roundtrip_unified_api_default_config_through_file_succeeds() {
     let key = [0x42u8; 32];
     let plaintext = b"Practical round-trip test through file system";
 
@@ -201,7 +201,7 @@ fn roundtrip_unified_api_default_config_through_file() {
 }
 
 #[test]
-fn roundtrip_unified_api_with_use_case_through_file() {
+fn roundtrip_unified_api_with_use_case_through_file_succeeds() {
     let key = [0xABu8; 32];
     let plaintext = b"File storage use case round-trip";
 
@@ -225,7 +225,7 @@ fn roundtrip_unified_api_with_use_case_through_file() {
 }
 
 #[test]
-fn roundtrip_unified_api_with_security_level_maximum() {
+fn roundtrip_unified_api_with_security_level_maximum_succeeds() {
     let key = [0xCDu8; 32];
     let plaintext = b"Maximum security level round-trip";
 
@@ -250,7 +250,7 @@ fn roundtrip_unified_api_with_security_level_maximum() {
 }
 
 #[test]
-fn roundtrip_unified_api_empty_plaintext() {
+fn roundtrip_unified_api_empty_plaintext_succeeds() {
     let key = [0x11u8; 32];
     let plaintext = b"";
 
@@ -276,7 +276,7 @@ fn roundtrip_unified_api_empty_plaintext() {
 }
 
 #[test]
-fn roundtrip_unified_api_large_plaintext() {
+fn roundtrip_unified_api_large_plaintext_succeeds() {
     let key = [0x77u8; 32];
     let plaintext = vec![0xFFu8; 128 * 1024]; // 128 KiB
 
@@ -302,7 +302,7 @@ fn roundtrip_unified_api_large_plaintext() {
 }
 
 #[test]
-fn roundtrip_unified_api_binary_data() {
+fn roundtrip_unified_api_binary_data_succeeds() {
     let key = [0x33u8; 32];
     // All 256 byte values to test binary safety through Base64
     let plaintext: Vec<u8> = (0..=255).collect();
@@ -325,7 +325,7 @@ fn roundtrip_unified_api_binary_data() {
         deserialized.try_into().expect("scheme should be valid");
     let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
         .expect("decrypt failed");
-    assert_eq!(decrypted, plaintext);
+    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
 }
 
 // ============================================================================
@@ -333,7 +333,7 @@ fn roundtrip_unified_api_binary_data() {
 // ============================================================================
 
 #[test]
-fn roundtrip_aes_gcm_direct_through_file() {
+fn roundtrip_aes_gcm_direct_through_file_succeeds() {
     let key = [0x55u8; 32];
     let plaintext = b"Direct AES-GCM through file persistence";
 
@@ -378,7 +378,7 @@ fn roundtrip_aes_gcm_direct_through_file() {
 // ============================================================================
 
 #[test]
-fn roundtrip_hybrid_encrypt_through_file() {
+fn roundtrip_hybrid_encrypt_through_file_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
     let plaintext = b"Hybrid ML-KEM-768 + X25519 through file round-trip";
 
@@ -402,12 +402,12 @@ fn roundtrip_hybrid_encrypt_through_file() {
     let restored = deserialized.to_encrypted_output();
 
     // Step 6: Verify component sizes survived serialization
-    let orig_hybrid = encrypted.hybrid_data.as_ref().unwrap();
-    let rest_hybrid = restored.hybrid_data.as_ref().unwrap();
+    let orig_hybrid = encrypted.hybrid_data().unwrap();
+    let rest_hybrid = restored.hybrid_data().unwrap();
     assert_eq!(rest_hybrid.ml_kem_ciphertext.len(), orig_hybrid.ml_kem_ciphertext.len());
     assert_eq!(rest_hybrid.ecdh_ephemeral_pk.len(), orig_hybrid.ecdh_ephemeral_pk.len());
-    assert_eq!(restored.nonce.len(), encrypted.nonce.len());
-    assert_eq!(restored.tag.len(), encrypted.tag.len());
+    assert_eq!(restored.nonce().len(), encrypted.nonce().len());
+    assert_eq!(restored.tag().len(), encrypted.tag().len());
 
     // Step 7: Decrypt
     let decrypted = decrypt(&restored, DecryptKey::Hybrid(&sk), CryptoConfig::new())
@@ -417,7 +417,7 @@ fn roundtrip_hybrid_encrypt_through_file() {
 }
 
 #[test]
-fn roundtrip_hybrid_encrypt_multiple_messages() {
+fn roundtrip_hybrid_encrypt_multiple_messages_succeeds() {
     let (pk, sk) = generate_hybrid_keypair().expect("keygen failed");
 
     let messages: Vec<&[u8]> = vec![
@@ -457,7 +457,7 @@ fn roundtrip_hybrid_encrypt_multiple_messages() {
 // ============================================================================
 
 #[test]
-fn roundtrip_sign_verify_through_file() {
+fn roundtrip_sign_verify_through_file_succeeds() {
     let message = b"Document that needs persistent signature verification";
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
@@ -486,7 +486,7 @@ fn roundtrip_sign_verify_through_file() {
 }
 
 #[test]
-fn roundtrip_sign_verify_maximum_security_through_file() {
+fn roundtrip_sign_verify_maximum_security_through_file_succeeds() {
     let message = b"Maximum security document signature";
 
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
@@ -510,16 +510,16 @@ fn roundtrip_sign_verify_maximum_security_through_file() {
 // ============================================================================
 
 #[test]
-fn roundtrip_keypair_persist_and_use_for_signing() {
+fn roundtrip_keypair_persist_and_use_for_signing_succeeds() {
     // Generate keypair
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (pk, sk, _scheme) = generate_signing_keypair(config).expect("keygen failed");
 
     // Create a KeyPair for serialization
-    let keypair = latticearc::unified_api::types::KeyPair {
-        public_key: pk,
-        private_key: latticearc::unified_api::types::PrivateKey::new(sk.to_vec()),
-    };
+    let keypair = latticearc::unified_api::types::KeyPair::new(
+        latticearc::PublicKey::new(pk),
+        latticearc::unified_api::types::PrivateKey::new(sk.to_vec()),
+    );
 
     // Serialize keypair to file
     let json = serialize_keypair(&keypair).expect("serialize keypair failed");
@@ -535,8 +535,8 @@ fn roundtrip_keypair_persist_and_use_for_signing() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed = sign_with_key(
         message,
-        restored_keypair.private_key.as_slice(),
-        &restored_keypair.public_key,
+        restored_keypair.private_key().as_slice(),
+        restored_keypair.public_key().as_slice(),
         config,
     )
     .expect("sign with restored keypair failed");
@@ -548,13 +548,13 @@ fn roundtrip_keypair_persist_and_use_for_signing() {
 }
 
 #[test]
-fn roundtrip_keypair_persist_and_use_for_encryption() {
+fn roundtrip_keypair_persist_and_use_for_encryption_succeeds() {
     // Use keypair serialization for storing the symmetric key
     let sym_key = [0xEEu8; 32];
-    let keypair = latticearc::unified_api::types::KeyPair {
-        public_key: sym_key.to_vec(),
-        private_key: latticearc::unified_api::types::PrivateKey::new(sym_key.to_vec()),
-    };
+    let keypair = latticearc::unified_api::types::KeyPair::new(
+        latticearc::PublicKey::new(sym_key.to_vec()),
+        latticearc::unified_api::types::PrivateKey::new(sym_key.to_vec()),
+    );
 
     let json = serialize_keypair(&keypair).expect("serialize keypair failed");
     let file = write_to_tempfile(&json);
@@ -565,14 +565,14 @@ fn roundtrip_keypair_persist_and_use_for_encryption() {
     let plaintext = b"Encrypted with persisted key";
     let encrypted: EncryptedOutput = encrypt(
         plaintext,
-        EncryptKey::Symmetric(&restored.public_key),
+        EncryptKey::Symmetric(restored.public_key().as_slice()),
         CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
     )
     .expect("encrypt failed");
 
     let decrypted = decrypt(
         &encrypted,
-        DecryptKey::Symmetric(restored.private_key.as_slice()),
+        DecryptKey::Symmetric(restored.private_key().as_slice()),
         CryptoConfig::new(),
     )
     .expect("decrypt failed");
@@ -588,14 +588,12 @@ fn roundtrip_keypair_persist_and_use_for_encryption() {
 /// file → sign → verify. Two-process simulation: original keys are dropped
 /// before the signing/verifying process loads from the file.
 #[test]
-fn roundtrip_portable_key_persist_and_sign() {
+fn roundtrip_portable_key_persist_and_sign_succeeds() {
     use latticearc::hybrid::sig_hybrid;
     use latticearc::{KeyAlgorithm, PortableKey};
 
-    let mut rng = rand::rngs::OsRng;
-
     // === Process A: Generate keypair, export to files ===
-    let (pk, sk) = sig_hybrid::generate_keypair(&mut rng).expect("sig keygen");
+    let (pk, sk) = sig_hybrid::generate_keypair().expect("sig keygen");
     let (portable_pk, portable_sk) =
         PortableKey::from_hybrid_sig_keypair(UseCase::LegalDocuments, &pk, &sk)
             .expect("from_hybrid_sig_keypair");
@@ -639,14 +637,12 @@ fn roundtrip_portable_key_persist_and_sign() {
 /// E2E: Generate hybrid KEM keypair → persist as PortableKey JSON → load
 /// from file → encapsulate → decapsulate. Two-process simulation.
 #[test]
-fn roundtrip_portable_key_persist_and_encrypt() {
+fn roundtrip_portable_key_persist_and_encrypt_succeeds() {
     use latticearc::hybrid::kem_hybrid;
     use latticearc::{KeyAlgorithm, PortableKey};
 
-    let mut rng = rand::rngs::OsRng;
-
     // === Process A: Generate keypair, export to files ===
-    let (pk, sk) = kem_hybrid::generate_keypair(&mut rng).expect("kem keygen");
+    let (pk, sk) = kem_hybrid::generate_keypair().expect("kem keygen");
     let (portable_pk, portable_sk) =
         PortableKey::from_hybrid_kem_keypair(UseCase::FileStorage, &pk, &sk).unwrap();
 
@@ -664,8 +660,8 @@ fn roundtrip_portable_key_persist_and_encrypt() {
     assert_eq!(pk_portable.use_case(), Some(UseCase::FileStorage));
 
     let hybrid_pk = pk_portable.to_hybrid_public_key().expect("extract PK");
-    let encapsulated = kem_hybrid::encapsulate(&mut rng, &hybrid_pk).expect("encapsulate");
-    let sender_ss = encapsulated.shared_secret.as_slice().to_vec();
+    let encapsulated = kem_hybrid::encapsulate(&hybrid_pk).expect("encapsulate");
+    let sender_ss = encapsulated.shared_secret().to_vec();
 
     // === Process A: Load SK + PK from files, decapsulate ===
     let sk_json = read_from_tempfile(&sk_file);
@@ -692,7 +688,7 @@ fn roundtrip_portable_key_persist_and_encrypt() {
 /// E2E: PortableKey symmetric key persistence — store AES-256 key,
 /// load from file, encrypt, decrypt.
 #[test]
-fn roundtrip_portable_key_symmetric_encrypt() {
+fn roundtrip_portable_key_symmetric_encrypt_succeeds() {
     use latticearc::{KeyAlgorithm, KeyData, KeyType, PortableKey};
 
     // === Process A: Create symmetric key, save to file ===
@@ -745,7 +741,7 @@ fn roundtrip_portable_key_symmetric_encrypt() {
 // ============================================================================
 
 #[test]
-fn roundtrip_multi_message_store_selective_decrypt() {
+fn roundtrip_multi_message_store_selective_decrypt_succeeds() {
     let key = [0x99u8; 32];
 
     let messages = vec![
@@ -796,7 +792,7 @@ fn roundtrip_multi_message_store_selective_decrypt() {
     let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
         .expect("decrypt failed");
 
-    assert_eq!(String::from_utf8(decrypted).unwrap(), "Patient: John Doe, Blood Type: O+");
+    assert_eq!(String::from_utf8(decrypted.to_vec()).unwrap(), "Patient: John Doe, Blood Type: O+");
 
     // Decrypt all and verify
     for (i, stored) in restored_store.messages.iter().enumerate() {
@@ -808,7 +804,7 @@ fn roundtrip_multi_message_store_selective_decrypt() {
             decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
                 .expect("decrypt failed");
         assert_eq!(
-            String::from_utf8(decrypted).unwrap(),
+            String::from_utf8(decrypted.to_vec()).unwrap(),
             messages[i].1,
             "message '{}' mismatch",
             messages[i].0
@@ -817,7 +813,7 @@ fn roundtrip_multi_message_store_selective_decrypt() {
 }
 
 #[test]
-fn roundtrip_multi_message_different_keys() {
+fn roundtrip_multi_message_different_keys_succeeds() {
     let keys: Vec<[u8; 32]> = vec![[0xAAu8; 32], [0xBBu8; 32], [0xCCu8; 32]];
     let messages = [
         "Message encrypted with key A",
@@ -828,14 +824,14 @@ fn roundtrip_multi_message_different_keys() {
     // Encrypt each message with a different key, using key_id to track which key
     let mut stored_messages = Vec::new();
     for (i, (msg, key)) in messages.iter().zip(keys.iter()).enumerate() {
-        let mut encrypted: EncryptedOutput = encrypt(
+        let encrypted: EncryptedOutput = encrypt(
             msg.as_bytes(),
             EncryptKey::Symmetric(key),
             CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
         )
-        .expect("encrypt failed");
+        .expect("encrypt failed")
         // Set key_id to identify which key was used
-        encrypted.key_id = Some(format!("key-{}", (b'A' + u8::try_from(i).unwrap()) as char));
+        .with_key_id(Some(format!("key-{}", (b'A' + u8::try_from(i).unwrap()) as char)));
 
         let encrypted_data: EncryptedData = encrypted.into();
         let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
@@ -869,7 +865,7 @@ fn roundtrip_multi_message_different_keys() {
             decrypt(&deserialized_output, DecryptKey::Symmetric(key), CryptoConfig::new())
                 .expect("decrypt failed");
         assert_eq!(
-            String::from_utf8(decrypted).unwrap(),
+            String::from_utf8(decrypted.to_vec()).unwrap(),
             messages[i],
             "message {i} mismatch after key_id lookup"
         );
@@ -881,17 +877,17 @@ fn roundtrip_multi_message_different_keys() {
 // ============================================================================
 
 #[test]
-fn metadata_readable_without_decryption_key() {
+fn metadata_readable_without_decryption_key_succeeds() {
     let key = [0xDDu8; 32];
     let plaintext = b"Secret data that should not be readable from metadata";
 
-    let mut encrypted: EncryptedOutput = encrypt(
+    let encrypted: EncryptedOutput = encrypt(
         plaintext,
         EncryptKey::Symmetric(&key),
         CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
     )
-    .expect("encrypt failed");
-    encrypted.key_id = Some("production-key-2026".to_string());
+    .expect("encrypt failed")
+    .with_key_id(Some("production-key-2026".to_string()));
 
     let encrypted_data: EncryptedData = encrypted.into();
     let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
@@ -951,7 +947,7 @@ fn metadata_scheme_correctly_identifies_algorithm() {
 // ============================================================================
 
 #[test]
-fn roundtrip_encrypt_with_usecase_decrypt_with_default() {
+fn roundtrip_encrypt_with_usecase_decrypt_with_default_succeeds() {
     let key = [0x88u8; 32];
     let plaintext = b"Encrypt with specific config, decrypt with default";
 
@@ -980,7 +976,7 @@ fn roundtrip_encrypt_with_usecase_decrypt_with_default() {
 }
 
 #[test]
-fn roundtrip_encrypt_with_maximum_decrypt_with_standard() {
+fn roundtrip_encrypt_with_maximum_decrypt_with_standard_succeeds() {
     let key = [0x66u8; 32];
     let plaintext = b"Security level in config doesn't affect decrypt";
 
@@ -1011,7 +1007,7 @@ fn roundtrip_encrypt_with_maximum_decrypt_with_standard() {
 // ============================================================================
 
 #[test]
-fn roundtrip_aes_gcm_with_aad_through_file() {
+fn roundtrip_aes_gcm_with_aad_through_file_succeeds() {
     let key = [0xBBu8; 32];
     let plaintext = b"Context-bound encrypted data";
     let aad = b"version:1;sender:alice;receiver:bob";
@@ -1083,7 +1079,7 @@ fn roundtrip_aes_gcm_with_aad_wrong_aad_fails() {
 // ============================================================================
 
 #[test]
-fn tamper_detection_modified_ciphertext_in_file() {
+fn tamper_detection_modified_ciphertext_in_file_fails() {
     let key = [0xAAu8; 32];
     let plaintext = b"Tamper-evident encrypted data";
 
@@ -1121,7 +1117,7 @@ fn tamper_detection_modified_ciphertext_in_file() {
 }
 
 #[test]
-fn tamper_detection_modified_nonce_in_file() {
+fn tamper_detection_modified_nonce_in_file_fails() {
     let key = [0xBBu8; 32];
     let plaintext = b"Nonce tamper detection";
 
@@ -1188,7 +1184,7 @@ fn tamper_detection_wrong_key_fails() {
 }
 
 #[test]
-fn tamper_detection_truncated_ciphertext() {
+fn tamper_detection_truncated_ciphertext_fails() {
     let key = [0x33u8; 32];
     let plaintext = b"Truncation detection test";
 
@@ -1222,7 +1218,7 @@ fn tamper_detection_truncated_ciphertext() {
 }
 
 #[test]
-fn tamper_detection_modified_scheme_field() {
+fn tamper_detection_modified_scheme_field_fails() {
     let key = [0x44u8; 32];
     let plaintext = b"Scheme field tamper test";
 
@@ -1256,7 +1252,7 @@ fn tamper_detection_modified_scheme_field() {
 // ============================================================================
 
 #[test]
-fn tamper_detection_modified_signed_data() {
+fn tamper_detection_modified_signed_data_fails() {
     let message = b"Tamper-evident signed document";
 
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
@@ -1294,7 +1290,7 @@ fn tamper_detection_modified_signed_data() {
 // ============================================================================
 
 #[test]
-fn interop_simulation_sender_receiver_symmetric() {
+fn interop_simulation_sender_receiver_symmetric_succeeds() {
     // Simulate: sender encrypts, writes to file, file is transferred,
     // receiver reads from file and decrypts with pre-shared key
 
@@ -1329,7 +1325,7 @@ fn interop_simulation_sender_receiver_symmetric() {
 }
 
 #[test]
-fn interop_simulation_sender_receiver_hybrid() {
+fn interop_simulation_sender_receiver_hybrid_succeeds() {
     // Simulate: receiver generates keypair, shares public key,
     // sender encrypts with public key, receiver decrypts with secret key
 
@@ -1360,7 +1356,7 @@ fn interop_simulation_sender_receiver_hybrid() {
 }
 
 #[test]
-fn interop_simulation_sign_and_encrypt_bundle() {
+fn interop_simulation_sign_and_encrypt_bundle_succeeds() {
     // Simulate: sender signs a document, then encrypts the signature bundle,
     // receiver decrypts, then verifies the signature
 
@@ -1398,7 +1394,7 @@ fn interop_simulation_sign_and_encrypt_bundle() {
         decrypt(&receiver_output, DecryptKey::Symmetric(&shared_key), CryptoConfig::new())
             .expect("decrypt bundle failed");
 
-    let signed_json_str = String::from_utf8(decrypted_bundle).expect("UTF-8 failed");
+    let signed_json_str = String::from_utf8(decrypted_bundle.to_vec()).expect("UTF-8 failed");
     let restored_signed =
         deserialize_signed_data(&signed_json_str).expect("deserialize signed failed");
 
@@ -1447,7 +1443,7 @@ fn double_serialization_idempotent() {
 // ============================================================================
 
 #[test]
-fn roundtrip_concurrent_encrypt_serialize_pattern() {
+fn roundtrip_concurrent_encrypt_serialize_pattern_succeeds() {
     // Simulates a pattern where multiple threads encrypt different data
     // with the same key, then all results are collected and written
 
@@ -1487,7 +1483,7 @@ fn roundtrip_concurrent_encrypt_serialize_pattern() {
             decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
                 .expect("decrypt failed");
         assert_eq!(
-            String::from_utf8(decrypted).unwrap(),
+            String::from_utf8(decrypted.to_vec()).unwrap(),
             messages[i],
             "concurrent message {i} mismatch"
         );
@@ -1538,7 +1534,7 @@ fn forward_compat_extra_json_fields_ignored() {
 // ============================================================================
 
 #[test]
-fn roundtrip_unicode_plaintext_through_file() {
+fn roundtrip_unicode_plaintext_through_file_succeeds() {
     let key = [0x22u8; 32];
     let plaintext = "日本語テスト 🔐 Ñoño résumé Ελληνικά العربية";
 
@@ -1560,13 +1556,13 @@ fn roundtrip_unicode_plaintext_through_file() {
         deserialized.try_into().expect("scheme should be valid");
     let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
         .expect("decrypt failed");
-    let decrypted_str = String::from_utf8(decrypted).expect("UTF-8 failed");
+    let decrypted_str = String::from_utf8(decrypted.to_vec()).expect("UTF-8 failed");
 
     assert_eq!(decrypted_str, plaintext);
 }
 
 #[test]
-fn roundtrip_json_plaintext_through_file() {
+fn roundtrip_json_plaintext_through_file_succeeds() {
     let key = [0x33u8; 32];
     let plaintext = r#"{"user": "alice", "secret": "p@$$w0rd!", "data": [1, 2, 3]}"#;
 
@@ -1588,7 +1584,7 @@ fn roundtrip_json_plaintext_through_file() {
         deserialized.try_into().expect("scheme should be valid");
     let decrypted = decrypt(&deserialized_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
         .expect("decrypt failed");
-    let decrypted_str = String::from_utf8(decrypted).expect("UTF-8 failed");
+    let decrypted_str = String::from_utf8(decrypted.to_vec()).expect("UTF-8 failed");
 
     assert_eq!(decrypted_str, plaintext);
 

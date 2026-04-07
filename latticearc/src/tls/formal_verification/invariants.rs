@@ -124,7 +124,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_invariants_pass_default_config() {
+    fn test_default_invariants_pass_default_config_succeeds() {
         let inv = TlsInvariants::new();
         let config = TlsConfig::new();
         let result = inv.check(&config);
@@ -133,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strict_invariants_fail_classic_mode() {
+    fn test_strict_invariants_fail_classic_mode_fails() {
         let inv = TlsInvariants::strict();
         let config = TlsConfig { mode: TlsMode::Classic, ..TlsConfig::default() };
         let result = inv.check(&config);
@@ -142,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strict_invariants_pass_hybrid_mode() {
+    fn test_strict_invariants_pass_hybrid_mode_succeeds() {
         let inv = TlsInvariants::strict();
         let config = TlsConfig::new(); // default is Hybrid
         let result = inv.check(&config);
@@ -150,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strict_invariants_fail_key_logging() {
+    fn test_strict_invariants_fail_key_logging_fails() {
         let inv = TlsInvariants::strict();
         let config = TlsConfig::new().with_key_logging();
         let result = inv.check(&config);
@@ -159,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn test_custom_min_version() {
+    fn test_custom_min_version_rejects_tls12_fails() {
         let inv = TlsInvariants::new().with_min_tls_version(0x0304);
         let mut config = TlsConfig::new();
         config.min_protocol_version = Some(rustls::ProtocolVersion::TLSv1_2);
@@ -169,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pq_required_builder() {
+    fn test_pq_required_builder_succeeds() {
         let inv = TlsInvariants::new().with_pq_required(true);
         let config = TlsConfig { mode: TlsMode::Classic, ..TlsConfig::default() };
         let result = inv.check(&config);
@@ -177,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn test_invariant_result_debug() {
+    fn test_invariant_result_debug_succeeds() {
         let result = InvariantResult { passed: true, violations: vec![] };
         let debug = format!("{:?}", result);
         assert!(debug.contains("passed: true"));

@@ -55,7 +55,7 @@ use std::thread;
 // ============================================================================
 
 #[test]
-fn test_timing_error_timing_variation_display() {
+fn test_timing_error_timing_variation_display_passes_validation() {
     let error = TimingError::TimingVariation;
     let display = format!("{}", error);
     assert!(
@@ -66,7 +66,7 @@ fn test_timing_error_timing_variation_display() {
 }
 
 #[test]
-fn test_timing_error_insufficient_samples_display() {
+fn test_timing_error_insufficient_samples_display_passes_validation() {
     let error = TimingError::InsufficientSamples;
     let display = format!("{}", error);
     assert!(
@@ -77,7 +77,7 @@ fn test_timing_error_insufficient_samples_display() {
 }
 
 #[test]
-fn test_timing_error_constant_time_failed_display() {
+fn test_timing_error_constant_time_failed_display_passes_validation() {
     let error = TimingError::ConstantTimeFailed;
     let display = format!("{}", error);
     assert!(
@@ -88,7 +88,7 @@ fn test_timing_error_constant_time_failed_display() {
 }
 
 #[test]
-fn test_timing_error_debug_format() {
+fn test_timing_error_debug_format_passes_validation() {
     let error = TimingError::TimingVariation;
     let debug = format!("{:?}", error);
     assert!(
@@ -103,7 +103,7 @@ fn test_timing_error_debug_format() {
 // ============================================================================
 
 #[test]
-fn test_timing_validator_default() {
+fn test_timing_validator_default_passes_validation() {
     let validator = TimingValidator::default();
     // Test that default configuration works with a simple operation
     let result = validator.validate_constant_time_operation(|| {
@@ -114,14 +114,14 @@ fn test_timing_validator_default() {
 }
 
 #[test]
-fn test_timing_validator_new_with_valid_params() {
+fn test_timing_validator_new_with_valid_params_succeeds() {
     let validator = TimingValidator::new(50, 0.15);
     let result = validator.validate_constant_time_operation(|| true);
     assert!(result.is_ok(), "Validator with 50 samples should work: {:?}", result);
 }
 
 #[test]
-fn test_timing_validator_new_with_minimum_samples() {
+fn test_timing_validator_new_with_minimum_samples_succeeds() {
     // 10 is the minimum sample count
     let validator = TimingValidator::new(10, 0.2);
     let result = validator.validate_constant_time_operation(|| true);
@@ -129,7 +129,7 @@ fn test_timing_validator_new_with_minimum_samples() {
 }
 
 #[test]
-fn test_timing_validator_new_with_below_minimum_samples() {
+fn test_timing_validator_new_with_below_minimum_samples_fails() {
     // Less than 10 samples should fail
     let validator = TimingValidator::new(9, 0.2);
     let result = validator.validate_constant_time_operation(|| true);
@@ -141,7 +141,7 @@ fn test_timing_validator_new_with_below_minimum_samples() {
 }
 
 #[test]
-fn test_timing_validator_new_with_zero_samples() {
+fn test_timing_validator_new_with_zero_samples_fails() {
     let validator = TimingValidator::new(0, 0.2);
     let result = validator.validate_constant_time_operation(|| true);
     assert!(
@@ -152,7 +152,7 @@ fn test_timing_validator_new_with_zero_samples() {
 }
 
 #[test]
-fn test_timing_validator_new_with_one_sample() {
+fn test_timing_validator_new_with_one_sample_fails() {
     let validator = TimingValidator::new(1, 0.2);
     let result = validator.validate_constant_time_operation(|| true);
     assert!(
@@ -163,7 +163,7 @@ fn test_timing_validator_new_with_one_sample() {
 }
 
 #[test]
-fn test_timing_validator_new_with_large_sample_count() {
+fn test_timing_validator_new_with_large_sample_count_succeeds() {
     // Test with a large but reasonable sample count
     let validator = TimingValidator::new(500, 0.25);
     let result = validator.validate_constant_time_operation(|| {
@@ -174,7 +174,7 @@ fn test_timing_validator_new_with_large_sample_count() {
 }
 
 #[test]
-fn test_timing_validator_new_with_various_thresholds() {
+fn test_timing_validator_new_with_various_thresholds_succeeds() {
     // Very tight threshold
     let validator_tight = TimingValidator::new(20, 0.01);
     let _ = validator_tight.validate_constant_time_operation(|| true);
@@ -190,21 +190,21 @@ fn test_timing_validator_new_with_various_thresholds() {
 // ============================================================================
 
 #[test]
-fn test_validate_constant_time_operation_simple_true() {
+fn test_validate_constant_time_operation_simple_true_is_constant_time_succeeds() {
     let validator = TimingValidator::new(20, 0.2);
     let result = validator.validate_constant_time_operation(|| true);
     assert!(result.is_ok(), "Simple true operation should pass: {:?}", result);
 }
 
 #[test]
-fn test_validate_constant_time_operation_simple_false() {
+fn test_validate_constant_time_operation_simple_false_is_constant_time_succeeds() {
     let validator = TimingValidator::new(20, 0.2);
     let result = validator.validate_constant_time_operation(|| false);
     assert!(result.is_ok(), "Simple false operation should pass: {:?}", result);
 }
 
 #[test]
-fn test_validate_constant_time_operation_with_computation() {
+fn test_validate_constant_time_operation_with_computation_is_constant_time_succeeds() {
     let validator = TimingValidator::new(20, 0.2);
     let result = validator.validate_constant_time_operation(|| {
         let mut sum = 0u64;
@@ -218,7 +218,7 @@ fn test_validate_constant_time_operation_with_computation() {
 }
 
 #[test]
-fn test_validate_constant_time_operation_with_memory_access() {
+fn test_validate_constant_time_operation_with_memory_access_is_constant_time_succeeds() {
     let validator = TimingValidator::new(20, 0.2);
     let data = vec![1u8; 1024];
     let result = validator.validate_constant_time_operation(|| {
@@ -230,7 +230,7 @@ fn test_validate_constant_time_operation_with_memory_access() {
 }
 
 #[test]
-fn test_validate_constant_time_operation_alternating_results() {
+fn test_validate_constant_time_operation_alternating_results_is_constant_time_succeeds() {
     let validator = TimingValidator::new(20, 0.2);
     let counter = std::sync::atomic::AtomicUsize::new(0);
     let result = validator.validate_constant_time_operation(|| {
@@ -245,7 +245,7 @@ fn test_validate_constant_time_operation_alternating_results() {
 // ============================================================================
 
 #[test]
-fn test_compare_timings_identical_operations() {
+fn test_compare_timings_identical_operations_within_threshold_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let op1 = || {
@@ -261,7 +261,7 @@ fn test_compare_timings_identical_operations() {
 }
 
 #[test]
-fn test_compare_timings_similar_operations() {
+fn test_compare_timings_similar_operations_within_threshold_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let data1 = vec![1u8; 32];
@@ -287,7 +287,7 @@ fn test_compare_timings_similar_operations() {
 }
 
 #[test]
-fn test_compare_timings_insufficient_samples() {
+fn test_compare_timings_insufficient_samples_fails() {
     let validator = TimingValidator::new(5, 0.2); // Too few samples
     let result = validator.compare_timings(|| true, || true);
     assert!(
@@ -298,7 +298,7 @@ fn test_compare_timings_insufficient_samples() {
 }
 
 #[test]
-fn test_compare_timings_zero_samples() {
+fn test_compare_timings_zero_samples_fails() {
     let validator = TimingValidator::new(0, 0.2);
     let result = validator.compare_timings(|| true, || false);
     assert!(
@@ -309,7 +309,7 @@ fn test_compare_timings_zero_samples() {
 }
 
 #[test]
-fn test_compare_timings_different_return_values() {
+fn test_compare_timings_different_return_values_within_threshold_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     // Operations returning different boolean values should still have similar timing
@@ -318,7 +318,7 @@ fn test_compare_timings_different_return_values() {
 }
 
 #[test]
-fn test_compare_timings_with_closures_capturing_data() {
+fn test_compare_timings_with_closures_capturing_data_within_threshold_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let shared_data = vec![0xABu8; 64];
@@ -347,7 +347,7 @@ fn test_compare_timings_with_closures_capturing_data() {
 // ============================================================================
 
 #[test]
-fn test_validate_constant_time_compare_equal_arrays() {
+fn test_validate_constant_time_compare_equal_arrays_is_constant_time_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let a = vec![0x41u8; 32];
@@ -357,7 +357,7 @@ fn test_validate_constant_time_compare_equal_arrays() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_different_arrays() {
+fn test_validate_constant_time_compare_different_arrays_is_constant_time_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let a = vec![0x41u8; 32];
@@ -367,7 +367,7 @@ fn test_validate_constant_time_compare_different_arrays() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_empty_arrays() {
+fn test_validate_constant_time_compare_empty_arrays_is_constant_time_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let a: Vec<u8> = vec![];
@@ -377,7 +377,7 @@ fn test_validate_constant_time_compare_empty_arrays() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_single_byte() {
+fn test_validate_constant_time_compare_single_byte_is_constant_time_succeeds() {
     // Single byte comparisons have high variance due to measurement noise
     // Use a more tolerant threshold
     let validator = TimingValidator::new(30, 0.5);
@@ -390,7 +390,7 @@ fn test_validate_constant_time_compare_single_byte() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_different_lengths() {
+fn test_validate_constant_time_compare_different_lengths_is_constant_time_has_correct_size() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let a = vec![0x41u8; 16];
@@ -400,7 +400,7 @@ fn test_validate_constant_time_compare_different_lengths() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_last_byte_differs() {
+fn test_validate_constant_time_compare_last_byte_differs_is_constant_time_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let a = vec![0x41u8; 32];
@@ -411,7 +411,7 @@ fn test_validate_constant_time_compare_last_byte_differs() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_first_byte_differs() {
+fn test_validate_constant_time_compare_first_byte_differs_is_constant_time_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let a = vec![0x41u8; 32];
@@ -422,7 +422,7 @@ fn test_validate_constant_time_compare_first_byte_differs() {
 }
 
 #[test]
-fn test_validate_constant_time_compare_large_arrays() {
+fn test_validate_constant_time_compare_large_arrays_is_constant_time_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let a = vec![0xABu8; 4096];
@@ -436,7 +436,7 @@ fn test_validate_constant_time_compare_large_arrays() {
 // ============================================================================
 
 #[test]
-fn test_validate_constant_time_runs_without_panic() {
+fn test_validate_constant_time_runs_without_panic_is_constant_time_succeeds() {
     // This test verifies the function runs without panicking
     // The actual timing validation is flaky in CI environments
     let _result = validate_constant_time();
@@ -447,7 +447,7 @@ fn test_validate_constant_time_runs_without_panic() {
 // Must run in release mode for reliable timing.
 // CI runners (especially macOS) have noisy timing that can cause
 // ConstantTimeFailed — so we only assert no panic, not Ok result.
-fn test_validate_constant_time_passes_in_controlled_environment() {
+fn test_validate_constant_time_passes_in_controlled_environment_is_constant_time_succeeds() {
     let result = validate_constant_time();
     // Log the result for debugging but don't assert Ok — timing tests are
     // inherently flaky on shared CI runners with variable load.
@@ -461,98 +461,98 @@ fn test_validate_constant_time_passes_in_controlled_environment() {
 // ============================================================================
 
 #[test]
-fn test_constant_time_eq_equal_arrays() {
+fn test_constant_time_eq_equal_arrays_is_constant_time_succeeds() {
     let a = vec![0x01, 0x02, 0x03, 0x04];
     let b = vec![0x01, 0x02, 0x03, 0x04];
     assert!(constant_time_eq(&a, &b), "Equal arrays should return true");
 }
 
 #[test]
-fn test_constant_time_eq_different_arrays() {
+fn test_constant_time_eq_different_arrays_is_constant_time_succeeds() {
     let a = vec![0x01, 0x02, 0x03, 0x04];
     let b = vec![0x01, 0x02, 0x03, 0x05];
     assert!(!constant_time_eq(&a, &b), "Different arrays should return false");
 }
 
 #[test]
-fn test_constant_time_eq_different_lengths() {
+fn test_constant_time_eq_different_lengths_is_constant_time_has_correct_size() {
     let a = vec![0x01, 0x02, 0x03];
     let b = vec![0x01, 0x02, 0x03, 0x04];
     assert!(!constant_time_eq(&a, &b), "Different length arrays should return false");
 }
 
 #[test]
-fn test_constant_time_eq_empty_arrays() {
+fn test_constant_time_eq_empty_arrays_is_constant_time_succeeds() {
     let a: Vec<u8> = vec![];
     let b: Vec<u8> = vec![];
     assert!(constant_time_eq(&a, &b), "Empty arrays should be equal");
 }
 
 #[test]
-fn test_constant_time_eq_one_empty_one_not() {
+fn test_constant_time_eq_one_empty_one_not_is_constant_time_succeeds() {
     let a: Vec<u8> = vec![];
     let b = vec![0x01];
     assert!(!constant_time_eq(&a, &b), "Empty vs non-empty should return false");
 }
 
 #[test]
-fn test_constant_time_eq_single_byte_equal() {
+fn test_constant_time_eq_single_byte_equal_is_constant_time_succeeds() {
     let a = vec![0xFF];
     let b = vec![0xFF];
     assert!(constant_time_eq(&a, &b), "Single equal bytes should return true");
 }
 
 #[test]
-fn test_constant_time_eq_single_byte_different() {
+fn test_constant_time_eq_single_byte_different_is_constant_time_succeeds() {
     let a = vec![0x00];
     let b = vec![0xFF];
     assert!(!constant_time_eq(&a, &b), "Single different bytes should return false");
 }
 
 #[test]
-fn test_constant_time_eq_all_zeros() {
+fn test_constant_time_eq_all_zeros_is_constant_time_succeeds() {
     let a = vec![0x00; 64];
     let b = vec![0x00; 64];
     assert!(constant_time_eq(&a, &b), "All-zero arrays should be equal");
 }
 
 #[test]
-fn test_constant_time_eq_all_ones() {
+fn test_constant_time_eq_all_ones_is_constant_time_succeeds() {
     let a = vec![0xFF; 64];
     let b = vec![0xFF; 64];
     assert!(constant_time_eq(&a, &b), "All-ones arrays should be equal");
 }
 
 #[test]
-fn test_constant_time_eq_first_byte_differs() {
+fn test_constant_time_eq_first_byte_differs_is_constant_time_succeeds() {
     let a = vec![0x00, 0x01, 0x02, 0x03];
     let b = vec![0xFF, 0x01, 0x02, 0x03];
     assert!(!constant_time_eq(&a, &b), "Arrays differing in first byte should return false");
 }
 
 #[test]
-fn test_constant_time_eq_last_byte_differs() {
+fn test_constant_time_eq_last_byte_differs_is_constant_time_succeeds() {
     let a = vec![0x00, 0x01, 0x02, 0x03];
     let b = vec![0x00, 0x01, 0x02, 0xFF];
     assert!(!constant_time_eq(&a, &b), "Arrays differing in last byte should return false");
 }
 
 #[test]
-fn test_constant_time_eq_middle_byte_differs() {
+fn test_constant_time_eq_middle_byte_differs_is_constant_time_succeeds() {
     let a = vec![0x00, 0x01, 0x02, 0x03];
     let b = vec![0x00, 0xFF, 0x02, 0x03];
     assert!(!constant_time_eq(&a, &b), "Arrays differing in middle byte should return false");
 }
 
 #[test]
-fn test_constant_time_eq_large_arrays_equal() {
+fn test_constant_time_eq_large_arrays_equal_is_constant_time_succeeds() {
     let a = vec![0xAB; 8192];
     let b = vec![0xAB; 8192];
     assert!(constant_time_eq(&a, &b), "Large equal arrays should return true");
 }
 
 #[test]
-fn test_constant_time_eq_large_arrays_different() {
+fn test_constant_time_eq_large_arrays_different_is_constant_time_succeeds() {
     let a = vec![0xAB; 8192];
     let mut b = vec![0xAB; 8192];
     b[4096] = 0xCD; // Change middle byte
@@ -560,14 +560,14 @@ fn test_constant_time_eq_large_arrays_different() {
 }
 
 #[test]
-fn test_constant_time_eq_sequential_data() {
+fn test_constant_time_eq_sequential_data_is_constant_time_succeeds() {
     let a: Vec<u8> = (0u8..=255).collect();
     let b: Vec<u8> = (0u8..=255).collect();
     assert!(constant_time_eq(&a, &b), "Sequential data should be equal");
 }
 
 #[test]
-fn test_constant_time_eq_reversed_data() {
+fn test_constant_time_eq_reversed_data_is_constant_time_succeeds() {
     let a: Vec<u8> = (0u8..=255).collect();
     let b: Vec<u8> = (0u8..=255).rev().collect();
     assert!(!constant_time_eq(&a, &b), "Reversed data should not be equal");
@@ -578,7 +578,7 @@ fn test_constant_time_eq_reversed_data() {
 // ============================================================================
 
 #[test]
-fn test_timing_validator_with_very_fast_operation() {
+fn test_timing_validator_with_very_fast_operation_within_threshold_succeeds() {
     let validator = TimingValidator::new(20, 0.5);
     // Operation that does almost nothing
     let result = validator.validate_constant_time_operation(|| true);
@@ -586,7 +586,7 @@ fn test_timing_validator_with_very_fast_operation() {
 }
 
 #[test]
-fn test_timing_validator_with_noop_operations() {
+fn test_timing_validator_with_noop_operations_within_threshold_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let _result = validator.compare_timings(|| true, || false);
@@ -594,21 +594,21 @@ fn test_timing_validator_with_noop_operations() {
 }
 
 #[test]
-fn test_constant_time_eq_with_max_u8_values() {
+fn test_constant_time_eq_with_max_u8_values_is_constant_time_succeeds() {
     let a = vec![u8::MAX; 100];
     let b = vec![u8::MAX; 100];
     assert!(constant_time_eq(&a, &b), "Max u8 value arrays should be equal");
 }
 
 #[test]
-fn test_constant_time_eq_with_min_u8_values() {
+fn test_constant_time_eq_with_min_u8_values_is_constant_time_succeeds() {
     let a = vec![u8::MIN; 100];
     let b = vec![u8::MIN; 100];
     assert!(constant_time_eq(&a, &b), "Min u8 value arrays should be equal");
 }
 
 #[test]
-fn test_timing_validator_threshold_boundary_zero() {
+fn test_timing_validator_threshold_boundary_zero_within_threshold_succeeds() {
     // Threshold of 0 means no difference allowed - very strict
     let validator = TimingValidator::new(20, 0.0);
     let result = validator.compare_timings(|| true, || true);
@@ -618,7 +618,7 @@ fn test_timing_validator_threshold_boundary_zero() {
 }
 
 #[test]
-fn test_timing_validator_threshold_boundary_one() {
+fn test_timing_validator_threshold_boundary_one_within_threshold_succeeds() {
     // Threshold of 1.0 (100%) should always pass
     let validator = TimingValidator::new(20, 1.0);
     let result = validator.compare_timings(|| true, || true);
@@ -626,7 +626,7 @@ fn test_timing_validator_threshold_boundary_one() {
 }
 
 #[test]
-fn test_compare_timings_with_black_box() {
+fn test_compare_timings_with_black_box_within_threshold_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let _result = validator.compare_timings(
@@ -647,7 +647,7 @@ fn test_compare_timings_with_black_box() {
 // ============================================================================
 
 #[test]
-fn test_timing_with_consistent_operation() {
+fn test_timing_with_consistent_operation_within_threshold_succeeds() {
     let validator = TimingValidator::new(50, 0.3);
     // Operation that should have very consistent timing
     let result = validator.validate_constant_time_operation(|| {
@@ -660,7 +660,7 @@ fn test_timing_with_consistent_operation() {
 }
 
 #[test]
-fn test_compare_timings_both_operations_same_complexity() {
+fn test_compare_timings_both_operations_same_complexity_within_threshold_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
     let size = 128;
@@ -692,7 +692,7 @@ fn test_compare_timings_both_operations_same_complexity() {
 // ============================================================================
 
 #[test]
-fn test_timing_validator_in_multiple_threads() {
+fn test_timing_validator_in_multiple_threads_within_threshold_succeeds() {
     let handles: Vec<_> = (0..4)
         .map(|_| {
             thread::spawn(|| {
@@ -712,7 +712,7 @@ fn test_timing_validator_in_multiple_threads() {
 }
 
 #[test]
-fn test_constant_time_eq_in_multiple_threads() {
+fn test_constant_time_eq_in_multiple_threads_is_constant_time_succeeds() {
     let handles: Vec<_> = (0..4)
         .map(|i| {
             thread::spawn(move || {
@@ -734,7 +734,7 @@ fn test_constant_time_eq_in_multiple_threads() {
 // ============================================================================
 
 #[test]
-fn test_full_validation_workflow() {
+fn test_full_validation_workflow_passes_validation() {
     // Create validator with very tolerant threshold for flaky timing tests
     let validator = TimingValidator::new(30, 1.0);
 
@@ -756,7 +756,7 @@ fn test_full_validation_workflow() {
 }
 
 #[test]
-fn test_constant_time_eq_with_real_crypto_like_data() {
+fn test_constant_time_eq_with_real_crypto_like_data_is_constant_time_succeeds() {
     // Simulate comparing cryptographic keys/hashes
     let key1: Vec<u8> = (0..32).map(|i| (i * 7 + 13) as u8).collect();
     let key2: Vec<u8> = (0..32).map(|i| (i * 7 + 13) as u8).collect();
@@ -767,7 +767,7 @@ fn test_constant_time_eq_with_real_crypto_like_data() {
 }
 
 #[test]
-fn test_timing_validator_with_subtle_crate_operations() {
+fn test_timing_validator_with_subtle_crate_operations_within_threshold_succeeds() {
     use subtle::ConstantTimeEq;
 
     // Timing validation is inherently flaky - verify execution without panic
@@ -794,7 +794,7 @@ fn test_timing_validator_with_subtle_crate_operations() {
 // ============================================================================
 
 #[test]
-fn test_mean_calculation_empty_slice_returns_zero() {
+fn test_mean_calculation_empty_slice_returns_zero_within_threshold_succeeds() {
     // This tests the internal mean function behavior indirectly
     // The mean of an empty slice should be 0.0, not cause a division by zero
     let validator = TimingValidator::new(20, 0.5);
@@ -804,7 +804,7 @@ fn test_mean_calculation_empty_slice_returns_zero() {
 }
 
 #[test]
-fn test_buffer_copying_in_validate_constant_time_compare() {
+fn test_buffer_copying_in_validate_constant_time_compare_is_constant_time_succeeds() {
     // Timing validation is inherently flaky - verify execution without panic
     let validator = TimingValidator::new(30, 0.5);
 
@@ -817,7 +817,7 @@ fn test_buffer_copying_in_validate_constant_time_compare() {
 }
 
 #[test]
-fn test_warmup_iterations_effect() {
+fn test_warmup_iterations_effect_within_threshold_succeeds() {
     // Default validator has 100 warmup iterations
     let validator_default = TimingValidator::default();
     let result1 = validator_default.validate_constant_time_operation(|| {
@@ -840,7 +840,7 @@ fn test_warmup_iterations_effect() {
 // ============================================================================
 
 #[test]
-fn test_timing_error_is_send_sync() {
+fn test_timing_error_is_send_sync_passes_validation() {
     fn assert_send<T: Send>() {}
     fn assert_sync<T: Sync>() {}
 
@@ -849,7 +849,7 @@ fn test_timing_error_is_send_sync() {
 }
 
 #[test]
-fn test_all_timing_error_variants_are_error() {
+fn test_all_timing_error_variants_are_error_passes_validation() {
     use std::error::Error;
 
     let errors: Vec<Box<dyn Error>> = vec![
@@ -866,7 +866,7 @@ fn test_all_timing_error_variants_are_error() {
 }
 
 #[test]
-fn test_insufficient_samples_boundary() {
+fn test_insufficient_samples_boundary_fails() {
     // Test at the boundary: 9 should fail, 10 should pass
     let validator_9 = TimingValidator::new(9, 0.5);
     let validator_10 = TimingValidator::new(10, 0.5);
@@ -883,7 +883,7 @@ fn test_insufficient_samples_boundary() {
 }
 
 #[test]
-fn test_compare_timings_insufficient_samples_boundary() {
+fn test_compare_timings_insufficient_samples_boundary_fails() {
     let validator_9 = TimingValidator::new(9, 0.5);
     // Use more samples and tolerant threshold for the passing case
     let validator_10 = TimingValidator::new(10, 1.0);

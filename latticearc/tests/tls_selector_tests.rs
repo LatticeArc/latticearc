@@ -17,7 +17,7 @@ use latticearc::unified_api::{PerformancePreference, SecurityLevel};
 // ============================================================================
 
 #[test]
-fn test_new_defaults_to_hybrid() {
+fn test_new_defaults_to_hybrid_succeeds() {
     let config = TlsConfig::new();
     // When PQ is available (default build), should be Hybrid
     if latticearc::tls::pq_enabled() {
@@ -26,12 +26,12 @@ fn test_new_defaults_to_hybrid() {
 }
 
 #[test]
-fn test_default_tls_mode_is_hybrid() {
+fn test_default_tls_mode_is_hybrid_succeeds() {
     assert_eq!(TlsMode::default(), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_default_tls_config_is_hybrid() {
+fn test_default_tls_config_is_hybrid_succeeds() {
     let config = TlsConfig::default();
     assert_eq!(config.mode, TlsMode::Hybrid);
 }
@@ -41,52 +41,52 @@ fn test_default_tls_config_is_hybrid() {
 // ============================================================================
 
 #[test]
-fn test_recommend_mode_webserver() {
+fn test_recommend_mode_webserver_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::WebServer), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_recommend_mode_internal_service() {
+fn test_recommend_mode_internal_service_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::InternalService), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_recommend_mode_api_gateway() {
+fn test_recommend_mode_api_gateway_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::ApiGateway), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_recommend_mode_iot() {
+fn test_recommend_mode_iot_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::IoT), TlsMode::Classic);
 }
 
 #[test]
-fn test_recommend_mode_legacy_integration() {
+fn test_recommend_mode_legacy_integration_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::LegacyIntegration), TlsMode::Classic);
 }
 
 #[test]
-fn test_recommend_mode_financial_services() {
+fn test_recommend_mode_financial_services_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::FinancialServices), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_recommend_mode_healthcare() {
+fn test_recommend_mode_healthcare_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::Healthcare), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_recommend_mode_government() {
+fn test_recommend_mode_government_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::Government), TlsMode::Pq);
 }
 
 #[test]
-fn test_recommend_mode_database_connection() {
+fn test_recommend_mode_database_connection_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::DatabaseConnection), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_recommend_mode_real_time_streaming() {
+fn test_recommend_mode_real_time_streaming_succeeds() {
     assert_eq!(TlsPolicyEngine::recommend_mode(TlsUseCase::RealTimeStreaming), TlsMode::Classic);
 }
 
@@ -95,23 +95,23 @@ fn test_recommend_mode_real_time_streaming() {
 // ============================================================================
 
 #[test]
-fn test_select_by_security_level_maximum() {
+fn test_select_by_security_level_maximum_succeeds() {
     // Maximum uses Hybrid mode (only Quantum uses PQ-only)
     assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Maximum), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_select_by_security_level_high() {
+fn test_select_by_security_level_high_succeeds() {
     assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::High), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_select_by_security_level_standard() {
+fn test_select_by_security_level_standard_succeeds() {
     assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Standard), TlsMode::Hybrid);
 }
 
 #[test]
-fn test_select_by_security_level_quantum() {
+fn test_select_by_security_level_quantum_succeeds() {
     assert_eq!(TlsPolicyEngine::select_by_security_level(SecurityLevel::Quantum), TlsMode::Pq);
 }
 
@@ -120,7 +120,7 @@ fn test_select_by_security_level_quantum() {
 // ============================================================================
 
 #[test]
-fn test_select_balanced_maximum_security_speed() {
+fn test_select_balanced_maximum_security_speed_succeeds() {
     // Maximum uses Hybrid mode (only Quantum uses PQ-only)
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::Maximum, PerformancePreference::Speed),
@@ -129,7 +129,7 @@ fn test_select_balanced_maximum_security_speed() {
 }
 
 #[test]
-fn test_select_balanced_maximum_security_balanced() {
+fn test_select_balanced_maximum_security_balanced_succeeds() {
     // Maximum uses Hybrid mode (only Quantum uses PQ-only)
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::Maximum, PerformancePreference::Balanced),
@@ -138,7 +138,7 @@ fn test_select_balanced_maximum_security_balanced() {
 }
 
 #[test]
-fn test_select_balanced_maximum_security_memory() {
+fn test_select_balanced_maximum_security_memory_succeeds() {
     // Maximum uses Hybrid mode (only Quantum uses PQ-only)
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::Maximum, PerformancePreference::Memory),
@@ -147,7 +147,7 @@ fn test_select_balanced_maximum_security_memory() {
 }
 
 #[test]
-fn test_select_balanced_high_security_speed() {
+fn test_select_balanced_high_security_speed_succeeds() {
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::High, PerformancePreference::Speed),
         TlsMode::Hybrid
@@ -155,7 +155,7 @@ fn test_select_balanced_high_security_speed() {
 }
 
 #[test]
-fn test_select_balanced_high_security_balanced() {
+fn test_select_balanced_high_security_balanced_succeeds() {
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::High, PerformancePreference::Balanced),
         TlsMode::Hybrid
@@ -163,7 +163,7 @@ fn test_select_balanced_high_security_balanced() {
 }
 
 #[test]
-fn test_select_balanced_high_security_memory() {
+fn test_select_balanced_high_security_memory_succeeds() {
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::High, PerformancePreference::Memory),
         TlsMode::Hybrid
@@ -171,7 +171,7 @@ fn test_select_balanced_high_security_memory() {
 }
 
 #[test]
-fn test_select_balanced_standard_security_speed() {
+fn test_select_balanced_standard_security_speed_succeeds() {
     // Standard security + Speed preference = Hybrid (all non-Quantum levels use Hybrid)
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::Standard, PerformancePreference::Speed),
@@ -180,7 +180,7 @@ fn test_select_balanced_standard_security_speed() {
 }
 
 #[test]
-fn test_select_balanced_standard_security_balanced() {
+fn test_select_balanced_standard_security_balanced_succeeds() {
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::Standard, PerformancePreference::Balanced),
         TlsMode::Hybrid
@@ -188,7 +188,7 @@ fn test_select_balanced_standard_security_balanced() {
 }
 
 #[test]
-fn test_select_balanced_quantum_security_any_preference() {
+fn test_select_balanced_quantum_security_any_preference_succeeds() {
     // Quantum security always returns PQ-only regardless of performance
     assert_eq!(
         TlsPolicyEngine::select_balanced(SecurityLevel::Quantum, PerformancePreference::Speed),
@@ -209,7 +209,7 @@ fn test_select_balanced_quantum_security_any_preference() {
 // ============================================================================
 
 #[test]
-fn test_context_default() {
+fn test_context_default_succeeds() {
     let ctx = TlsContext::default();
     assert_eq!(ctx.security_level, SecurityLevel::High);
     assert_eq!(ctx.performance_preference, PerformancePreference::Balanced);
@@ -217,19 +217,19 @@ fn test_context_default() {
 }
 
 #[test]
-fn test_context_with_use_case() {
+fn test_context_with_use_case_succeeds() {
     let ctx = TlsContext::with_use_case(TlsUseCase::Government);
     assert_eq!(ctx.use_case, Some(TlsUseCase::Government));
 }
 
 #[test]
-fn test_context_with_security_level() {
+fn test_context_with_security_level_succeeds() {
     let ctx = TlsContext::with_security_level(SecurityLevel::Maximum);
     assert_eq!(ctx.security_level, SecurityLevel::Maximum);
 }
 
 #[test]
-fn test_context_builder_pattern() {
+fn test_context_builder_pattern_succeeds() {
     let ctx = TlsContext::default()
         .security_level(SecurityLevel::Maximum)
         .performance_preference(PerformancePreference::Speed)
@@ -243,21 +243,21 @@ fn test_context_builder_pattern() {
 }
 
 #[test]
-fn test_context_pq_not_available_forces_classic() {
+fn test_context_pq_not_available_forces_classic_succeeds() {
     let ctx = TlsContext::default().pq_available(false);
     let mode = TlsPolicyEngine::select_with_context(&ctx);
     assert_eq!(mode, TlsMode::Classic);
 }
 
 #[test]
-fn test_context_with_use_case_selection() {
+fn test_context_with_use_case_selection_succeeds() {
     let ctx = TlsContext::with_use_case(TlsUseCase::Government);
     let mode = TlsPolicyEngine::select_with_context(&ctx);
     assert_eq!(mode, TlsMode::Pq);
 }
 
 #[test]
-fn test_context_maximum_security_with_webserver() {
+fn test_context_maximum_security_with_webserver_succeeds() {
     // Maximum security still uses Hybrid mode (only Quantum uses PQ-only)
     let ctx = TlsContext::default()
         .security_level(SecurityLevel::Maximum)
@@ -268,7 +268,7 @@ fn test_context_maximum_security_with_webserver() {
 }
 
 #[test]
-fn test_context_quantum_security_override() {
+fn test_context_quantum_security_override_succeeds() {
     // Quantum security should use PQ-only mode regardless of use case
     let ctx = TlsContext::default()
         .security_level(SecurityLevel::Quantum)
@@ -283,53 +283,53 @@ fn test_context_quantum_security_override() {
 // ============================================================================
 
 #[test]
-fn test_constraints_default() {
+fn test_constraints_default_succeeds() {
     let constraints = TlsConstraints::default();
     assert!(!constraints.requires_classic());
     assert!(constraints.allows_pq());
 }
 
 #[test]
-fn test_constraints_maximum_compatibility_requires_classic() {
+fn test_constraints_maximum_compatibility_requires_classic_succeeds() {
     let constraints = TlsConstraints::maximum_compatibility();
     assert!(constraints.requires_classic());
     assert!(!constraints.allows_pq());
 }
 
 #[test]
-fn test_constraints_high_security_allows_pq() {
+fn test_constraints_high_security_allows_pq_succeeds() {
     let constraints = TlsConstraints::high_security();
     assert!(!constraints.requires_classic());
     assert!(constraints.allows_pq());
 }
 
 #[test]
-fn test_constraints_client_no_pq_support() {
+fn test_constraints_client_no_pq_support_succeeds() {
     let constraints = TlsConstraints { client_supports_pq: Some(false), ..Default::default() };
     assert!(constraints.requires_classic());
     assert!(!constraints.allows_pq());
 }
 
 #[test]
-fn test_constraints_require_compatibility() {
+fn test_constraints_require_compatibility_succeeds() {
     let constraints = TlsConstraints { require_compatibility: true, ..Default::default() };
     assert!(constraints.requires_classic());
 }
 
 #[test]
-fn test_constraints_strict_latency() {
+fn test_constraints_strict_latency_succeeds() {
     let constraints = TlsConstraints { max_handshake_latency_ms: Some(10), ..Default::default() };
     assert!(constraints.requires_classic());
 }
 
 #[test]
-fn test_constraints_strict_size() {
+fn test_constraints_strict_size_has_correct_size() {
     let constraints = TlsConstraints { max_client_hello_size: Some(512), ..Default::default() };
     assert!(constraints.requires_classic());
 }
 
 #[test]
-fn test_context_with_constraints_forces_classic() {
+fn test_context_with_constraints_forces_classic_succeeds() {
     let ctx = TlsContext::default()
         .security_level(SecurityLevel::Maximum)
         .constraints(TlsConstraints::maximum_compatibility());
@@ -343,44 +343,44 @@ fn test_context_with_constraints_forces_classic() {
 // ============================================================================
 
 #[test]
-fn test_tls_config_with_use_case_webserver() {
+fn test_tls_config_with_use_case_webserver_succeeds() {
     let config = TlsConfig::new().use_case(TlsUseCase::WebServer);
     assert_eq!(config.mode, TlsMode::Hybrid);
 }
 
 #[test]
-fn test_tls_config_with_use_case_iot() {
+fn test_tls_config_with_use_case_iot_succeeds() {
     let config = TlsConfig::new().use_case(TlsUseCase::IoT);
     assert_eq!(config.mode, TlsMode::Classic);
 }
 
 #[test]
-fn test_tls_config_with_use_case_government() {
+fn test_tls_config_with_use_case_government_succeeds() {
     let config = TlsConfig::new().use_case(TlsUseCase::Government);
     assert_eq!(config.mode, TlsMode::Pq);
 }
 
 #[test]
-fn test_tls_config_with_security_level_maximum() {
+fn test_tls_config_with_security_level_maximum_succeeds() {
     // Maximum uses Hybrid mode (only Quantum uses PQ-only)
     let config = TlsConfig::new().security_level(SecurityLevel::Maximum);
     assert_eq!(config.mode, TlsMode::Hybrid);
 }
 
 #[test]
-fn test_tls_config_with_security_level_standard() {
+fn test_tls_config_with_security_level_standard_succeeds() {
     let config = TlsConfig::new().security_level(SecurityLevel::Standard);
     assert_eq!(config.mode, TlsMode::Hybrid);
 }
 
 #[test]
-fn test_tls_config_with_security_level_quantum() {
+fn test_tls_config_with_security_level_quantum_succeeds() {
     let config = TlsConfig::new().security_level(SecurityLevel::Quantum);
     assert_eq!(config.mode, TlsMode::Pq);
 }
 
 #[test]
-fn test_tls_config_builder_chain() {
+fn test_tls_config_builder_chain_succeeds() {
     let config =
         TlsConfig::new().use_case(TlsUseCase::FinancialServices).with_tracing().with_fallback(true);
 
@@ -390,7 +390,7 @@ fn test_tls_config_builder_chain() {
 }
 
 #[test]
-fn test_tls_policy_engine_create_config_speed() {
+fn test_tls_policy_engine_create_config_speed_succeeds() {
     let ctx = TlsContext::default().performance_preference(PerformancePreference::Speed);
 
     let config = TlsPolicyEngine::create_config(&ctx);
@@ -399,7 +399,7 @@ fn test_tls_policy_engine_create_config_speed() {
 }
 
 #[test]
-fn test_tls_policy_engine_create_config_memory() {
+fn test_tls_policy_engine_create_config_memory_succeeds() {
     let ctx = TlsContext::default().performance_preference(PerformancePreference::Memory);
 
     let config = TlsPolicyEngine::create_config(&ctx);
@@ -408,7 +408,7 @@ fn test_tls_policy_engine_create_config_memory() {
 }
 
 #[test]
-fn test_tls_policy_engine_create_config_maximum_security() {
+fn test_tls_policy_engine_create_config_maximum_security_succeeds() {
     let ctx = TlsContext::default().security_level(SecurityLevel::Maximum);
 
     let config = TlsPolicyEngine::create_config(&ctx);
@@ -421,7 +421,7 @@ fn test_tls_policy_engine_create_config_maximum_security() {
 // ============================================================================
 
 #[test]
-fn test_all_use_cases_have_recommendations() {
+fn test_all_use_cases_have_recommendations_succeeds() {
     for use_case in TlsUseCase::all() {
         let mode = TlsPolicyEngine::recommend_mode(*use_case);
         // Every use case should return a valid mode
@@ -430,13 +430,13 @@ fn test_all_use_cases_have_recommendations() {
 }
 
 #[test]
-fn test_use_case_count() {
+fn test_use_case_count_succeeds() {
     // Ensure we have 10 use cases as documented
     assert_eq!(TlsUseCase::all().len(), 10);
 }
 
 #[test]
-fn test_all_use_cases_have_descriptions() {
+fn test_all_use_cases_have_descriptions_is_documented() {
     for use_case in TlsUseCase::all() {
         let desc = use_case.description();
         assert!(!desc.is_empty());
@@ -444,13 +444,13 @@ fn test_all_use_cases_have_descriptions() {
 }
 
 #[test]
-fn test_use_case_equality() {
+fn test_use_case_equality_succeeds() {
     assert_eq!(TlsUseCase::WebServer, TlsUseCase::WebServer);
     assert_ne!(TlsUseCase::WebServer, TlsUseCase::IoT);
 }
 
 #[test]
-fn test_tls_mode_equality() {
+fn test_tls_mode_equality_succeeds() {
     assert_eq!(TlsMode::Hybrid, TlsMode::Hybrid);
     assert_ne!(TlsMode::Classic, TlsMode::Pq);
 }
@@ -460,7 +460,7 @@ fn test_tls_mode_equality() {
 // ============================================================================
 
 #[test]
-fn test_create_config_classic() {
+fn test_create_config_classic_succeeds() {
     let ctx = TlsContext::default().pq_available(false);
 
     let config = TlsPolicyEngine::create_config(&ctx);
@@ -468,7 +468,7 @@ fn test_create_config_classic() {
 }
 
 #[test]
-fn test_create_config_hybrid() {
+fn test_create_config_hybrid_succeeds() {
     let ctx = TlsContext::default().security_level(SecurityLevel::High);
 
     let config = TlsPolicyEngine::create_config(&ctx);
@@ -476,7 +476,7 @@ fn test_create_config_hybrid() {
 }
 
 #[test]
-fn test_create_config_pq() {
+fn test_create_config_pq_succeeds() {
     // Only Quantum security level creates PQ-only config
     let ctx = TlsContext::default().security_level(SecurityLevel::Quantum);
 
@@ -485,7 +485,7 @@ fn test_create_config_pq() {
 }
 
 #[test]
-fn test_create_config_maximum() {
+fn test_create_config_maximum_succeeds() {
     // Maximum security level uses Hybrid mode
     let ctx = TlsContext::default().security_level(SecurityLevel::Maximum);
 

@@ -20,7 +20,7 @@
 //! Security: Requires breaking BOTH components
 //!
 //! ### Custom Hybrid (via `latticearc::hybrid`)
-//! Uses `hybrid::kem` module:
+//! Uses `hybrid::kem_hybrid` module:
 //! - ML-KEM-768 from `latticearc::primitives`
 //! - X25519 from aws-lc-rs
 //! - HKDF for secret combination (NIST SP 800-56C)
@@ -45,12 +45,13 @@
 //! - Handshake succeeds in both cases
 
 use crate::tls::{TlsError, TlsMode};
-use rand::{CryptoRng, Rng};
 use rustls::crypto::CryptoProvider;
 use std::mem;
+use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, Zeroizing};
 
 /// Post-quantum key exchange configuration
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PqKexMode {
     /// Use rustls native PQ support (X25519MLKEM768, MLKEM768, MLKEM1024)
@@ -254,6 +255,12 @@ impl SecureSharedSecret {
     }
 }
 
+impl std::fmt::Debug for SecureSharedSecret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecureSharedSecret").field("data", &"[REDACTED]").finish()
+    }
+}
+
 impl Drop for SecureSharedSecret {
     fn drop(&mut self) {
         // Zeroize the secret when dropped
@@ -267,16 +274,21 @@ impl Zeroize for SecureSharedSecret {
     }
 }
 
+impl ConstantTimeEq for SecureSharedSecret {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.secret.ct_eq(&other.secret)
+    }
+}
+
 /// Perform hybrid key generation
 ///
 /// # Errors
 ///
-/// Returns an error if the hybrid key generation fails due to RNG issues
-/// or internal cryptographic errors.
-pub fn perform_hybrid_keygen<R: Rng + CryptoRng>(
-    rng: &mut R,
-) -> Result<(crate::hybrid::kem::HybridPublicKey, crate::hybrid::kem::HybridSecretKey), TlsError> {
-    crate::hybrid::kem::generate_keypair(rng).map_err(|e| TlsError::KeyExchange {
+/// Returns an error if the hybrid key generation fails due to internal
+/// cryptographic errors (aws-lc-rs manages its own entropy).
+pub fn perform_hybrid_keygen()
+-> Result<(crate::hybrid::HybridKemPublicKey, crate::hybrid::HybridKemSecretKey), TlsError> {
+    crate::hybrid::kem_generate_keypair().map_err(|e| TlsError::KeyExchange {
         message: format!("Hybrid keygen failed: {}", e),
         method: "X25519MLKEM768".to_string(),
         operation: Some("keygen".to_string()),
@@ -292,11 +304,10 @@ pub fn perform_hybrid_keygen<R: Rng + CryptoRng>(
 ///
 /// Returns an error if the encapsulation operation fails due to an invalid
 /// public key or internal cryptographic errors.
-pub fn perform_hybrid_encapsulate<R: Rng + CryptoRng>(
-    rng: &mut R,
-    pk: &crate::hybrid::kem::HybridPublicKey,
-) -> Result<crate::hybrid::kem::EncapsulatedKey, TlsError> {
-    crate::hybrid::kem::encapsulate(rng, pk).map_err(|e| TlsError::KeyExchange {
+pub fn perform_hybrid_encapsulate(
+    pk: &crate::hybrid::HybridKemPublicKey,
+) -> Result<crate::hybrid::EncapsulatedKey, TlsError> {
+    crate::hybrid::encapsulate(pk).map_err(|e| TlsError::KeyExchange {
         message: format!("Hybrid encapsulation failed: {}", e),
         method: "X25519MLKEM768".to_string(),
         operation: Some("encapsulate".to_string()),
@@ -313,10 +324,10 @@ pub fn perform_hybrid_encapsulate<R: Rng + CryptoRng>(
 /// Returns an error if the decapsulation operation fails due to an invalid
 /// ciphertext, corrupted secret key, or internal cryptographic errors.
 pub fn perform_hybrid_decapsulate_secure(
-    sk: &crate::hybrid::kem::HybridSecretKey,
-    ct: &crate::hybrid::kem::EncapsulatedKey,
+    sk: &crate::hybrid::HybridKemSecretKey,
+    ct: &crate::hybrid::EncapsulatedKey,
 ) -> Result<SecureSharedSecret, TlsError> {
-    let secret = crate::hybrid::kem::decapsulate(sk, ct).map_err(|e| TlsError::KeyExchange {
+    let secret = crate::hybrid::decapsulate(sk, ct).map_err(|e| TlsError::KeyExchange {
         message: format!("Hybrid decapsulation failed: {}", e),
         method: "X25519MLKEM768".to_string(),
         operation: Some("decapsulate".to_string()),
@@ -324,7 +335,9 @@ pub fn perform_hybrid_decapsulate_secure(
         context: Box::default(),
         recovery: Box::new(crate::tls::error::RecoveryHint::NoRecovery),
     })?;
-    Ok(SecureSharedSecret::new(secret))
+    // `secret` is `Zeroizing<Vec<u8>>`; take ownership of inner Vec.
+    // SecureSharedSecret holds its own zeroization, so the outer wrapper is dropped safely.
+    Ok(SecureSharedSecret::new((*secret).clone()))
 }
 
 /// Perform hybrid decapsulation
@@ -341,8 +354,8 @@ pub fn perform_hybrid_decapsulate_secure(
 /// Returns an error if the decapsulation operation fails due to an invalid
 /// ciphertext, corrupted secret key, or internal cryptographic errors.
 pub fn perform_hybrid_decapsulate(
-    sk: &crate::hybrid::kem::HybridSecretKey,
-    ct: &crate::hybrid::kem::EncapsulatedKey,
+    sk: &crate::hybrid::HybridKemSecretKey,
+    ct: &crate::hybrid::EncapsulatedKey,
 ) -> Result<Zeroizing<Vec<u8>>, TlsError> {
     let secure_secret = perform_hybrid_decapsulate_secure(sk, ct)?;
     Ok(Zeroizing::new(secure_secret.into_inner_raw()))
@@ -355,7 +368,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_kex_info_hybrid() {
+    fn test_kex_info_hybrid_is_correct() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::RustlsPq);
         assert_eq!(info.method, "X25519MLKEM768");
         assert!(info.is_pq_secure);
@@ -363,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kex_info_classical() {
+    fn test_kex_info_classical_is_correct() {
         let info = get_kex_info(TlsMode::Classic, PqKexMode::Classical);
         assert_eq!(info.method, "X25519 (ECDHE)");
         assert!(!info.is_pq_secure);
@@ -371,78 +384,76 @@ mod tests {
     }
 
     #[test]
-    fn test_pq_availability() {
+    fn test_pq_availability_is_correct() {
         assert!(is_pq_available());
     }
 
     #[test]
-    fn test_custom_hybrid_availability() {
+    fn test_custom_hybrid_availability_is_correct() {
         assert!(is_custom_hybrid_available());
     }
 
     #[test]
-    fn test_hybrid_key_exchange() {
-        let mut rng = rand::thread_rng();
-
+    fn test_hybrid_key_exchange_roundtrip() {
         // Generate keypair
-        let (pk, sk) = perform_hybrid_keygen(&mut rng).expect("Failed to generate keypair");
+        let (pk, sk) = perform_hybrid_keygen().expect("Failed to generate keypair");
 
         // Encapsulate
-        let enc = perform_hybrid_encapsulate(&mut rng, &pk).expect("Failed to encapsulate");
+        let enc = perform_hybrid_encapsulate(&pk).expect("Failed to encapsulate");
 
         // Decapsulate securely
         let secure_ss =
             perform_hybrid_decapsulate_secure(&sk, &enc).expect("Failed to decapsulate");
 
         // Verify
-        assert_eq!(secure_ss.secret.as_slice(), enc.shared_secret.as_slice());
+        assert_eq!(secure_ss.secret.as_slice(), enc.shared_secret());
         assert_eq!(secure_ss.secret.len(), 64);
 
         // Test regular decapsulation
         let ss = perform_hybrid_decapsulate(&sk, &enc).expect("Failed to decapsulate");
-        assert_eq!(ss.as_slice(), enc.shared_secret.as_slice());
+        assert_eq!(ss.as_slice(), enc.shared_secret());
         assert_eq!(ss.len(), 64);
     }
 
     #[test]
-    fn test_get_kex_provider() {
+    fn test_get_kex_provider_succeeds() {
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_classical() {
+    fn test_get_kex_provider_classical_succeeds() {
         let provider = get_kex_provider(TlsMode::Classic, PqKexMode::Classical);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_custom_hybrid() {
+    fn test_get_kex_provider_custom_hybrid_succeeds() {
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::CustomHybrid);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_pq_rustls() {
+    fn test_get_kex_provider_pq_rustls_succeeds() {
         let provider = get_kex_provider(TlsMode::Pq, PqKexMode::RustlsPq);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_pq_custom_hybrid() {
+    fn test_get_kex_provider_pq_custom_hybrid_succeeds() {
         let provider = get_kex_provider(TlsMode::Pq, PqKexMode::CustomHybrid);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_get_kex_provider_classic_with_rustls_pq() {
+    fn test_get_kex_provider_classic_with_rustls_pq_succeeds() {
         // Classic mode overrides kex_mode
         let provider = get_kex_provider(TlsMode::Classic, PqKexMode::RustlsPq);
         assert!(provider.is_ok());
     }
 
     #[test]
-    fn test_pq_groups_preferred_in_hybrid_mode() {
+    fn test_pq_groups_preferred_in_hybrid_mode_is_correct() {
         // Verify that PQ/hybrid groups come before classical-only groups
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
             .expect("Provider should be available");
@@ -470,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pq_groups_preferred_in_pq_mode() {
+    fn test_pq_groups_preferred_in_pq_mode_is_correct() {
         // Same ordering guarantee for PQ-only mode
         let provider = get_kex_provider(TlsMode::Pq, PqKexMode::RustlsPq)
             .expect("Provider should be available");
@@ -486,7 +497,7 @@ mod tests {
     }
 
     #[test]
-    fn test_native_pq_groups_available() {
+    fn test_native_pq_groups_are_available_succeeds() {
         // Verify rustls 0.23.37+ default_provider() includes X25519MLKEM768
         // natively (no rustls-post-quantum crate needed)
         let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::RustlsPq)
@@ -510,7 +521,7 @@ mod tests {
     // === KexInfo tests ===
 
     #[test]
-    fn test_kex_info_custom_hybrid() {
+    fn test_kex_info_custom_hybrid_is_correct() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::CustomHybrid);
         assert!(info.method.contains("Custom Hybrid"));
         assert!(info.is_pq_secure);
@@ -519,14 +530,14 @@ mod tests {
     }
 
     #[test]
-    fn test_kex_info_pq_mode() {
+    fn test_kex_info_pq_mode_is_correct() {
         let info = get_kex_info(TlsMode::Pq, PqKexMode::RustlsPq);
         assert!(info.is_pq_secure);
         assert_eq!(info.method, "X25519MLKEM768");
     }
 
     #[test]
-    fn test_kex_info_classic_overrides_kex_mode() {
+    fn test_kex_info_classic_overrides_kex_mode_is_correct() {
         let info = get_kex_info(TlsMode::Classic, PqKexMode::RustlsPq);
         assert!(!info.is_pq_secure);
         assert!(info.method.contains("X25519"));
@@ -535,20 +546,20 @@ mod tests {
     // === SecureSharedSecret tests ===
 
     #[test]
-    fn test_secure_shared_secret_new_and_ref() {
+    fn test_secure_shared_secret_new_and_ref_is_correct() {
         let secret = SecureSharedSecret::new(vec![1, 2, 3, 4]);
         assert_eq!(secret.secret_ref(), &[1, 2, 3, 4]);
     }
 
     #[test]
-    fn test_secure_shared_secret_as_ref() {
+    fn test_secure_shared_secret_as_ref_returns_correct_slice_succeeds() {
         let secret = SecureSharedSecret::new(vec![5, 6, 7]);
         let slice: &[u8] = secret.as_ref();
         assert_eq!(slice, &[5, 6, 7]);
     }
 
     #[test]
-    fn test_secure_shared_secret_into_inner() {
+    fn test_secure_shared_secret_into_inner_returns_correct_value_succeeds() {
         let secret = SecureSharedSecret::new(vec![10, 20, 30]);
         let zeroizing = secret.into_inner();
         assert_eq!(zeroizing.as_slice(), &[10, 20, 30]);
@@ -556,21 +567,21 @@ mod tests {
     }
 
     #[test]
-    fn test_secure_shared_secret_into_inner_raw() {
+    fn test_secure_shared_secret_into_inner_raw_returns_correct_value_succeeds() {
         let secret = SecureSharedSecret::new(vec![40, 50, 60]);
         let raw = secret.into_inner_raw();
         assert_eq!(raw, vec![40, 50, 60]);
     }
 
     #[test]
-    fn test_secure_shared_secret_zeroize() {
+    fn test_secure_shared_secret_zeroize_succeeds() {
         let mut secret = SecureSharedSecret::new(vec![1, 2, 3, 4, 5]);
         secret.zeroize();
         assert!(secret.secret_ref().iter().all(|&b| b == 0));
     }
 
     #[test]
-    fn test_secure_shared_secret_drop_zeroizes() {
+    fn test_secure_shared_secret_drop_zeroizes_succeeds() {
         // Verify drop impl compiles and runs without panic
         let secret = SecureSharedSecret::new(vec![99; 64]);
         drop(secret);
@@ -579,7 +590,7 @@ mod tests {
     // === PqKexMode tests ===
 
     #[test]
-    fn test_pq_kex_mode_eq() {
+    fn test_pq_kex_mode_eq_is_correct() {
         assert_eq!(PqKexMode::RustlsPq, PqKexMode::RustlsPq);
         assert_eq!(PqKexMode::Classical, PqKexMode::Classical);
         assert_ne!(PqKexMode::RustlsPq, PqKexMode::Classical);
@@ -587,7 +598,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pq_kex_mode_debug() {
+    fn test_pq_kex_mode_debug_produces_expected_output_succeeds() {
         let debug_str = format!("{:?}", PqKexMode::CustomHybrid);
         assert!(debug_str.contains("CustomHybrid"));
     }

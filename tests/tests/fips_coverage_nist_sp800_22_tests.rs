@@ -23,19 +23,19 @@ use latticearc_tests::validation::nist_sp800_22::NistSp800_22Tester;
 // ============================================================================
 
 #[test]
-fn test_tester_default() {
+fn test_tester_default_succeeds_with_expected_bits_tested_succeeds() {
     let tester = NistSp800_22Tester::default();
     // Default: significance_level = 0.01, min_sequence_length = 1000
     let data = vec![0u8; 1000];
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.bits_tested, 8000);
 }
 
 #[test]
-fn test_tester_custom_params() {
+fn test_tester_custom_params_succeeds_with_expected_bits_tested_succeeds() {
     let tester = NistSp800_22Tester::new(0.05, 500);
     let data = vec![0xAAu8; 500];
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.bits_tested, 4000);
 }
 
@@ -44,11 +44,11 @@ fn test_tester_custom_params() {
 // ============================================================================
 
 #[test]
-fn test_short_sequence_returns_empty_results() {
+fn test_short_sequence_returns_empty_results_succeeds() {
     let tester = NistSp800_22Tester::default();
     // min_sequence_length = 1000, so 1000/8 = 125 bytes minimum
     let short_data = vec![0u8; 10];
-    let result = tester.test_bit_sequence(&short_data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&short_data).unwrap();
     assert!(!result.passed);
     assert!(result.test_results.is_empty());
     assert_eq!(result.bits_tested, 80);
@@ -57,19 +57,19 @@ fn test_short_sequence_returns_empty_results() {
 }
 
 #[test]
-fn test_exactly_at_minimum_length() {
+fn test_exactly_at_minimum_length_runs_tests_has_correct_size() {
     let tester = NistSp800_22Tester::new(0.01, 800);
     // 800/8 = 100 bytes minimum
     let data = vec![0xF0u8; 100];
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.bits_tested, 800);
     assert!(!result.test_results.is_empty());
 }
 
 #[test]
-fn test_empty_data() {
+fn test_empty_data_returns_failed_result_fails() {
     let tester = NistSp800_22Tester::default();
-    let result = tester.test_bit_sequence(&[]).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&[]).unwrap();
     assert!(!result.passed);
     assert!(result.test_results.is_empty());
     assert_eq!(result.bits_tested, 0);
@@ -80,7 +80,7 @@ fn test_empty_data() {
 // ============================================================================
 
 #[test]
-fn test_bytes_to_bits_single_byte() {
+fn test_bytes_to_bits_single_byte_produces_8_bits_succeeds() {
     let tester = NistSp800_22Tester::default();
     let bits = tester.bytes_to_bits(&[0b10110100]);
     assert_eq!(bits.len(), 8);
@@ -88,28 +88,28 @@ fn test_bytes_to_bits_single_byte() {
 }
 
 #[test]
-fn test_bytes_to_bits_all_zeros() {
+fn test_bytes_to_bits_all_zeros_produces_all_false_succeeds() {
     let tester = NistSp800_22Tester::default();
     let bits = tester.bytes_to_bits(&[0x00]);
     assert_eq!(bits, vec![false; 8]);
 }
 
 #[test]
-fn test_bytes_to_bits_all_ones() {
+fn test_bytes_to_bits_all_ones_produces_all_true_succeeds() {
     let tester = NistSp800_22Tester::default();
     let bits = tester.bytes_to_bits(&[0xFF]);
     assert_eq!(bits, vec![true; 8]);
 }
 
 #[test]
-fn test_bytes_to_bits_empty() {
+fn test_bytes_to_bits_empty_returns_empty_vec_succeeds() {
     let tester = NistSp800_22Tester::default();
     let bits = tester.bytes_to_bits(&[]);
     assert!(bits.is_empty());
 }
 
 #[test]
-fn test_bytes_to_bits_multiple_bytes() {
+fn test_bytes_to_bits_multiple_bytes_produces_correct_length_has_correct_size() {
     let tester = NistSp800_22Tester::default();
     let bits = tester.bytes_to_bits(&[0xFF, 0x00]);
     assert_eq!(bits.len(), 16);
@@ -122,7 +122,7 @@ fn test_bytes_to_bits_multiple_bytes() {
 // ============================================================================
 
 #[test]
-fn test_entropy_all_zeros() {
+fn test_entropy_all_zeros_returns_zero_succeeds() {
     let tester = NistSp800_22Tester::default();
     let bits = vec![false; 1000];
     let entropy = tester.estimate_entropy(&bits);
@@ -130,7 +130,7 @@ fn test_entropy_all_zeros() {
 }
 
 #[test]
-fn test_entropy_all_ones() {
+fn test_entropy_all_ones_returns_zero_succeeds() {
     let tester = NistSp800_22Tester::default();
     let bits = vec![true; 1000];
     let entropy = tester.estimate_entropy(&bits);
@@ -138,7 +138,7 @@ fn test_entropy_all_ones() {
 }
 
 #[test]
-fn test_entropy_balanced() {
+fn test_entropy_balanced_returns_near_one_succeeds() {
     let tester = NistSp800_22Tester::default();
     let mut bits = vec![false; 500];
     bits.extend(vec![true; 500]);
@@ -148,14 +148,14 @@ fn test_entropy_balanced() {
 }
 
 #[test]
-fn test_entropy_empty() {
+fn test_entropy_empty_returns_zero_succeeds() {
     let tester = NistSp800_22Tester::default();
     let entropy = tester.estimate_entropy(&[]);
     assert_eq!(entropy, 0.0);
 }
 
 #[test]
-fn test_entropy_skewed() {
+fn test_entropy_skewed_returns_value_between_zero_and_one_succeeds() {
     let tester = NistSp800_22Tester::default();
     let mut bits = vec![true; 900];
     bits.extend(vec![false; 100]);
@@ -170,27 +170,27 @@ fn test_entropy_skewed() {
 // ============================================================================
 
 #[test]
-fn test_all_zeros_data() {
+fn test_all_zeros_data_fails_randomness_tests_fails() {
     let tester = NistSp800_22Tester::default();
     let data = vec![0x00u8; 1000];
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert!(!result.passed); // All zeros should fail randomness tests
     assert_eq!(result.test_results.len(), 6);
 }
 
 #[test]
-fn test_all_ones_data() {
+fn test_all_ones_data_fails_randomness_tests_fails() {
     let tester = NistSp800_22Tester::default();
     let data = vec![0xFFu8; 1000];
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert!(!result.passed);
 }
 
 #[test]
-fn test_alternating_bits() {
+fn test_alternating_bits_runs_all_six_tests_succeeds() {
     let tester = NistSp800_22Tester::default();
     let data = vec![0xAAu8; 1000]; // 10101010 pattern
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.bits_tested, 8000);
     assert_eq!(result.test_results.len(), 6);
 }
@@ -200,7 +200,7 @@ fn test_random_data_passes() {
     let tester = NistSp800_22Tester::default();
     let mut data = vec![0u8; 2000];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut data);
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.bits_tested, 16000);
     assert_eq!(result.algorithm, "NIST SP 800-22");
     // Random data should generally pass most tests
@@ -213,21 +213,21 @@ fn test_random_data_passes() {
 // ============================================================================
 
 #[test]
-fn test_medium_sequence_block_sizes() {
+fn test_medium_sequence_block_sizes_runs_all_six_tests_has_correct_size() {
     // 128..=6272 range uses block_size=8, k=3
     let tester = NistSp800_22Tester::new(0.01, 128);
     let data = vec![0xAAu8; 200]; // 1600 bits
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.test_results.len(), 6);
 }
 
 #[test]
-fn test_large_sequence_block_sizes() {
+fn test_large_sequence_block_sizes_runs_all_six_tests_has_correct_size() {
     // 6273..=75000 range uses block_size=128, k=5
     let tester = NistSp800_22Tester::new(0.01, 128);
     let mut data = vec![0u8; 10000]; // 80000 bits
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut data);
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.test_results.len(), 6);
 }
 
@@ -236,11 +236,11 @@ fn test_large_sequence_block_sizes() {
 // ============================================================================
 
 #[test]
-fn test_result_test_names() {
+fn test_result_test_names_include_all_six_nist_tests_succeeds() {
     let tester = NistSp800_22Tester::default();
     let mut data = vec![0u8; 1000];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut data);
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
 
     let names: Vec<&str> = result.test_results.iter().map(|r| r.test_name.as_str()).collect();
     assert!(names.contains(&"Frequency (Monobit) Test"));
@@ -252,11 +252,11 @@ fn test_result_test_names() {
 }
 
 #[test]
-fn test_result_p_values_in_range() {
+fn test_result_p_values_in_range_are_non_negative_succeeds() {
     let tester = NistSp800_22Tester::default();
     let mut data = vec![0u8; 1000];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut data);
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
 
     for test_result in &result.test_results {
         // p-values should be non-negative
@@ -274,25 +274,25 @@ fn test_result_p_values_in_range() {
 // ============================================================================
 
 #[test]
-fn test_small_custom_min_length() {
+fn test_small_custom_min_length_succeeds() {
     // Very small min_sequence_length to exercise edge cases in block tests
     let tester = NistSp800_22Tester::new(0.01, 16);
     let data = vec![0xABu8; 2]; // 16 bits exactly
-    let result = tester.test_bit_sequence(&data).unwrap();
+    let result = tester.test_bit_sequence_succeeds(&data).unwrap();
     assert_eq!(result.bits_tested, 16);
     // Some tests may fail or return early with insufficient data
 }
 
 #[test]
-fn test_significance_level_affects_pass_rate() {
+fn test_significance_level_affects_pass_rate_returns_six_results_succeeds() {
     let mut data = vec![0u8; 1000];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut data);
 
     let strict = NistSp800_22Tester::new(0.10, 1000);
-    let result_strict = strict.test_bit_sequence(&data).unwrap();
+    let result_strict = strict.test_bit_sequence_succeeds(&data).unwrap();
 
     let lenient = NistSp800_22Tester::new(0.001, 1000);
-    let result_lenient = lenient.test_bit_sequence(&data).unwrap();
+    let result_lenient = lenient.test_bit_sequence_succeeds(&data).unwrap();
 
     // Both should have 6 test results
     assert_eq!(result_strict.test_results.len(), 6);

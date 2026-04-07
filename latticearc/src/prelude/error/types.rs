@@ -47,9 +47,6 @@ pub enum LatticeArcError {
     /// Authentication failed
     #[error("Authentication error: {0}")]
     AuthenticationError(String),
-    /// Signature verification failed
-    #[error("Signature verification failed")]
-    VerificationError,
     /// Invalid signature
     #[error("Invalid signature: {0}")]
     InvalidSignature(String),
@@ -234,7 +231,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_lattice_arc_error_display_messages() {
+    fn test_lattice_arc_error_display_messages_match_expected_strings_fails() {
         let cases: Vec<(LatticeArcError, &str)> = vec![
             (LatticeArcError::EncryptionError("aes".to_string()), "Encryption error: aes"),
             (LatticeArcError::DecryptionError("gcm".to_string()), "Decryption error: gcm"),
@@ -250,7 +247,6 @@ mod tests {
                 LatticeArcError::AuthenticationError("auth".to_string()),
                 "Authentication error: auth",
             ),
-            (LatticeArcError::VerificationError, "Signature verification failed"),
             (LatticeArcError::InvalidSignature("bad".to_string()), "Invalid signature: bad"),
             (LatticeArcError::SerializationError("json".to_string()), "Serialization error: json"),
             (LatticeArcError::IoError("disk".to_string()), "I/O error: disk"),
@@ -269,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_structured_variants() {
+    fn test_lattice_arc_error_structured_variants_display_correct_messages_fails() {
         let err = LatticeArcError::InvalidSignatureLength { expected: 64, got: 32 };
         let msg = format!("{err}");
         assert!(msg.contains("64"));
@@ -285,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_clone_eq() {
+    fn test_lattice_arc_error_clone_eq_same_values_are_equal_fails() {
         let err = LatticeArcError::EncryptionError("test".to_string());
         let cloned = err.clone();
         assert_eq!(err, cloned);
@@ -295,14 +291,14 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_debug() {
+    fn test_lattice_arc_error_debug_contains_variant_name_fails() {
         let err = LatticeArcError::EncryptionError("test".to_string());
         let debug = format!("{:?}", err);
         assert!(debug.contains("EncryptionError"));
     }
 
     #[test]
-    fn test_lattice_arc_error_serialization() {
+    fn test_lattice_arc_error_serialization_fails() {
         let err = LatticeArcError::InvalidInput("bad data".to_string());
         let json = serde_json::to_string(&err).unwrap();
         assert!(json.contains("InvalidInput"));
@@ -312,9 +308,8 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_serialization_unit_variants() {
+    fn test_lattice_arc_error_serialization_unit_variants_fails() {
         let variants = vec![
-            LatticeArcError::VerificationError,
             LatticeArcError::RandomError,
             LatticeArcError::CircuitBreakerOpen,
             LatticeArcError::ResourceExhausted,
@@ -331,7 +326,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_serialization_structured() {
+    fn test_lattice_arc_error_serialization_structured_fails() {
         let err = LatticeArcError::InvalidKeyLength { expected: 32, actual: 16 };
         let json = serde_json::to_string(&err).unwrap();
         let deserialized: LatticeArcError = serde_json::from_str(&json).unwrap();
@@ -344,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_unsupported_version() {
+    fn test_lattice_arc_error_unsupported_version_displays_and_serializes_correctly_fails() {
         let err = LatticeArcError::UnsupportedVersion(42);
         assert_eq!(format!("{err}"), "Unsupported version: 42");
 
@@ -354,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lattice_arc_error_remaining_display() {
+    fn test_lattice_arc_error_remaining_display_messages_match_expected_fails() {
         // Cover remaining variants for Display completeness
         let remaining: Vec<(LatticeArcError, &str)> = vec![
             (LatticeArcError::DeserializationError("x".to_string()), "Deserialization error: x"),

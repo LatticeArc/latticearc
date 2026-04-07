@@ -12,8 +12,8 @@
 )]
 
 use latticearc::types::config::CoreConfig;
-use latticearc::types::selector::CryptoPolicyEngine;
 use latticearc::types::types::{SecurityLevel, UseCase};
+use latticearc::unified_api::selector::CryptoPolicyEngine;
 use proptest::prelude::*;
 
 /// Generate an arbitrary SecurityLevel.

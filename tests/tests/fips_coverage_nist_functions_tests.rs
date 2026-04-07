@@ -22,7 +22,7 @@ use latticearc_tests::validation::nist_functions::{
 // ============================================================================
 
 #[test]
-fn test_randomized_hasher_default() {
+fn test_randomized_hasher_default_is_correct() {
     let hasher = RandomizedHasher::default();
     let result = hasher.hash(b"test message").unwrap();
     assert!(!result.hash.is_empty());
@@ -32,7 +32,7 @@ fn test_randomized_hasher_default() {
 }
 
 #[test]
-fn test_randomized_hash_config_default() {
+fn test_randomized_hash_config_default_is_correct() {
     let config = RandomizedHashConfig::default();
     assert_eq!(config.algorithm, "SHA-256");
     assert_eq!(config.mode, RandomizedHashMode::SaltPrefix);
@@ -45,7 +45,7 @@ fn test_randomized_hash_config_default() {
 // ============================================================================
 
 #[test]
-fn test_hash_mode_none() {
+fn test_hash_mode_none_succeeds() {
     let config = RandomizedHashConfig {
         algorithm: "SHA-256".to_string(),
         mode: RandomizedHashMode::None,
@@ -59,7 +59,7 @@ fn test_hash_mode_none() {
 }
 
 #[test]
-fn test_hash_mode_salt_prefix() {
+fn test_hash_mode_salt_prefix_succeeds() {
     let config = RandomizedHashConfig {
         algorithm: "SHA-256".to_string(),
         mode: RandomizedHashMode::SaltPrefix,
@@ -73,7 +73,7 @@ fn test_hash_mode_salt_prefix() {
 }
 
 #[test]
-fn test_hash_mode_salt_suffix() {
+fn test_hash_mode_salt_suffix_succeeds() {
     let config = RandomizedHashConfig {
         algorithm: "SHA-256".to_string(),
         mode: RandomizedHashMode::SaltSuffix,
@@ -86,7 +86,7 @@ fn test_hash_mode_salt_suffix() {
 }
 
 #[test]
-fn test_hash_mode_salt_distributed() {
+fn test_hash_mode_salt_distributed_succeeds() {
     let config = RandomizedHashConfig {
         algorithm: "SHA-256".to_string(),
         mode: RandomizedHashMode::SaltDistributed,
@@ -103,7 +103,7 @@ fn test_hash_mode_salt_distributed() {
 // ============================================================================
 
 #[test]
-fn test_hash_sha384() {
+fn test_hash_sha384_has_correct_length_has_correct_size() {
     let config = RandomizedHashConfig {
         algorithm: "SHA-384".to_string(),
         mode: RandomizedHashMode::SaltPrefix,
@@ -117,7 +117,7 @@ fn test_hash_sha384() {
 }
 
 #[test]
-fn test_hash_sha512() {
+fn test_hash_sha512_has_correct_length_has_correct_size() {
     let config = RandomizedHashConfig {
         algorithm: "SHA-512".to_string(),
         mode: RandomizedHashMode::SaltPrefix,
@@ -135,7 +135,7 @@ fn test_hash_sha512() {
 // ============================================================================
 
 #[test]
-fn test_verify_valid_hash() {
+fn test_verify_valid_hash_succeeds() {
     let hasher = RandomizedHasher::default();
     let hash_result = hasher.hash(b"test message").unwrap();
     let is_valid = hasher.verify(b"test message", &hash_result).unwrap();
@@ -143,7 +143,7 @@ fn test_verify_valid_hash() {
 }
 
 #[test]
-fn test_verify_wrong_message() {
+fn test_verify_wrong_message_fails() {
     let hasher = RandomizedHasher::default();
     let hash_result = hasher.hash(b"test message").unwrap();
     let is_valid = hasher.verify(b"wrong message", &hash_result).unwrap();
@@ -151,7 +151,7 @@ fn test_verify_wrong_message() {
 }
 
 #[test]
-fn test_verify_with_different_modes() {
+fn test_verify_with_different_modes_succeeds() {
     for mode in [
         RandomizedHashMode::SaltPrefix,
         RandomizedHashMode::SaltSuffix,
@@ -175,14 +175,14 @@ fn test_verify_with_different_modes() {
 // ============================================================================
 
 #[test]
-fn test_hash_empty_message() {
+fn test_hash_empty_message_succeeds() {
     let hasher = RandomizedHasher::default();
     let result = hasher.hash(b"").unwrap();
     assert!(!result.hash.is_empty());
 }
 
 #[test]
-fn test_hash_large_message() {
+fn test_hash_large_message_succeeds() {
     let hasher = RandomizedHasher::default();
     let large_message = vec![0xABu8; 100_000];
     let result = hasher.hash(&large_message).unwrap();
@@ -190,7 +190,7 @@ fn test_hash_large_message() {
 }
 
 #[test]
-fn test_hash_randomness() {
+fn test_hash_randomness_produces_different_outputs_succeeds() {
     let hasher = RandomizedHasher::default();
     let result1 = hasher.hash(b"same message").unwrap();
     let result2 = hasher.hash(b"same message").unwrap();
@@ -204,7 +204,7 @@ fn test_hash_randomness() {
 // ============================================================================
 
 #[test]
-fn test_randomized_hash_fields() {
+fn test_randomized_hash_fields_are_correct() {
     let hasher = RandomizedHasher::default();
     let result = hasher.hash(b"test").unwrap();
     assert_eq!(result.algorithm, "SHA-256");
@@ -214,7 +214,7 @@ fn test_randomized_hash_fields() {
 }
 
 #[test]
-fn test_randomized_hash_mode_equality() {
+fn test_randomized_hash_mode_equality_is_correct() {
     assert_eq!(RandomizedHashMode::None, RandomizedHashMode::None);
     assert_eq!(RandomizedHashMode::SaltPrefix, RandomizedHashMode::SaltPrefix);
     assert_ne!(RandomizedHashMode::SaltPrefix, RandomizedHashMode::SaltSuffix);
@@ -225,7 +225,7 @@ fn test_randomized_hash_mode_equality() {
 }
 
 #[test]
-fn test_randomized_hash_config_clone() {
+fn test_randomized_hash_config_clone_is_correct() {
     let config = RandomizedHashConfig::default();
     let cloned = config.clone();
     assert_eq!(cloned.algorithm, config.algorithm);

@@ -10,7 +10,7 @@
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::unified_api::{encrypt, decrypt, CryptoConfig, UseCase};
-//! use latticearc::types::crypto_types::{EncryptKey, DecryptKey};
+//! use latticearc::unified_api::crypto_types::{EncryptKey, DecryptKey};
 //!
 //! // Symmetric encryption with use case
 //! let key = [0u8; 32];
@@ -31,14 +31,14 @@ use chrono::Utc;
 use zeroize::Zeroizing;
 
 use crate::primitives::sig::{
-    ml_dsa::MlDsaParameterSet, slh_dsa::SecurityLevel as SlhDsaSecurityLevel,
+    fndsa::FnDsaSecurityLevel, ml_dsa::MlDsaParameterSet, slh_dsa::SlhDsaSecurityLevel,
 };
 
-use crate::types::crypto_types::{
+use crate::unified_api::crypto_types::{
     DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme, HybridComponents,
 };
 use crate::unified_api::{
-    config::CoreConfig,
+    CoreConfig,
     error::{CoreError, Result},
     selector::CryptoPolicyEngine,
     types::{AlgorithmSelection, CryptoConfig, SignedData, SignedMetadata},
@@ -61,12 +61,12 @@ use crate::hybrid::encrypt_hybrid::{HybridCiphertext, decrypt_hybrid, encrypt_hy
 /// Generate a hybrid ML-DSA + Ed25519 keypair for the given parameter set.
 fn generate_hybrid_signing_keypair_for(
     params: MlDsaParameterSet,
-) -> Result<(Vec<u8>, crate::types::PrivateKey)> {
+) -> Result<(crate::types::PublicKey, crate::types::PrivateKey)> {
     let (pq_pk, pq_sk) = generate_ml_dsa_keypair(params)?;
     let (ed_pk, ed_sk) = generate_keypair()?;
-    let combined_pk = [pq_pk, ed_pk].concat();
+    let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
     let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
-    Ok((combined_pk, crate::types::PrivateKey::new(combined_sk)))
+    Ok((crate::types::PublicKey::new(combined_pk), crate::types::PrivateKey::new(combined_sk)))
 }
 
 /// Sign a message with a hybrid ML-DSA + Ed25519 key.
@@ -136,7 +136,7 @@ pub(super) fn fips_verify_operational() -> Result<()> {
     Ok(())
 }
 
-use crate::types::resource_limits::{
+use crate::primitives::resource_limits::{
     validate_decryption_size, validate_encryption_size, validate_signature_size,
 };
 
@@ -204,7 +204,7 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 
 /// ChaCha20-Poly1305 decrypt (expects: nonce || ciphertext || tag)
 #[cfg(not(feature = "fips"))]
-fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
     if encrypted.len() < 28 {
         return Err(CoreError::DecryptionFailed(
             "Encrypted data too short for ChaCha20-Poly1305 (need nonce + tag)".to_string(),
@@ -252,7 +252,7 @@ fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, SecurityLevel};
-/// use latticearc::types::crypto_types::EncryptKey;
+/// use latticearc::unified_api::crypto_types::EncryptKey;
 ///
 /// // Symmetric encryption (AES-256-GCM)
 /// let key = [0u8; 32];
@@ -317,23 +317,22 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
         }
         // Hybrid ML-KEM + X25519 + HKDF + AES-256-GCM
         (EncryptKey::Hybrid(pk), _) if scheme.requires_hybrid_key() => {
-            let mut rng = rand::rngs::OsRng;
-            let ct = encrypt_hybrid(&mut rng, pk, data, None).map_err(|e| {
+            let ct = encrypt_hybrid(pk, data, None).map_err(|e| {
                 CoreError::EncryptionFailed(format!("Hybrid encryption failed: {}", e))
             })?;
             let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
-            EncryptedOutput {
+            EncryptedOutput::new(
                 scheme,
-                ciphertext: ct.symmetric_ciphertext,
-                nonce: ct.nonce,
-                tag: ct.tag,
-                hybrid_data: Some(HybridComponents {
-                    ml_kem_ciphertext: ct.kem_ciphertext,
-                    ecdh_ephemeral_pk: ct.ecdh_ephemeral_pk,
+                ct.symmetric_ciphertext().to_vec(),
+                ct.nonce().to_vec(),
+                ct.tag().to_vec(),
+                Some(HybridComponents {
+                    ml_kem_ciphertext: ct.kem_ciphertext().to_vec(),
+                    ecdh_ephemeral_pk: ct.ecdh_ephemeral_pk().to_vec(),
                 }),
                 timestamp,
-                key_id: None,
-            }
+                None,
+            )
         }
         // This arm should be unreachable due to validate_key_matches_scheme above
         _ => {
@@ -344,7 +343,7 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
         }
     };
 
-    crate::log_crypto_operation_complete!("encrypt", result_size = output.ciphertext.len(), scheme = %output.scheme);
+    crate::log_crypto_operation_complete!("encrypt", result_size = output.ciphertext().len(), scheme = %output.scheme());
 
     Ok(output)
 }
@@ -372,15 +371,7 @@ fn symmetric_bytes_to_output(
 
     let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
 
-    Ok(EncryptedOutput {
-        scheme,
-        ciphertext: encrypted.to_vec(),
-        nonce,
-        tag,
-        hybrid_data: None,
-        timestamp,
-        key_id: None,
-    })
+    Ok(EncryptedOutput::new(scheme, encrypted.to_vec(), nonce, tag, None, timestamp, None))
 }
 
 /// Decrypt data encrypted by `encrypt()`.
@@ -393,7 +384,7 @@ fn symmetric_bytes_to_output(
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use latticearc::unified_api::{encrypt, decrypt, CryptoConfig};
-/// use latticearc::types::crypto_types::{EncryptKey, DecryptKey};
+/// use latticearc::unified_api::crypto_types::{EncryptKey, DecryptKey};
 ///
 /// let key = [0u8; 32];
 /// let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
@@ -415,27 +406,27 @@ pub fn decrypt(
     encrypted: &EncryptedOutput,
     key: DecryptKey<'_>,
     config: CryptoConfig,
-) -> Result<Vec<u8>> {
+) -> Result<Zeroizing<Vec<u8>>> {
     fips_verify_operational()?;
     config.validate()?;
-    config.validate_scheme_compliance(encrypted.scheme.as_str())?;
+    config.validate_scheme_compliance(encrypted.scheme().as_str())?;
 
     // Type-safe key-scheme validation
-    CryptoPolicyEngine::validate_decrypt_key_matches_scheme(&key, &encrypted.scheme)
+    CryptoPolicyEngine::validate_decrypt_key_matches_scheme(&key, encrypted.scheme())
         .map_err(|e| CoreError::ConfigurationError(e.to_string()))?;
 
-    crate::log_crypto_operation_start!("decrypt", scheme = %encrypted.scheme, data_size = encrypted.ciphertext.len());
+    crate::log_crypto_operation_start!("decrypt", scheme = %encrypted.scheme(), data_size = encrypted.ciphertext().len());
 
-    validate_decryption_size(encrypted.ciphertext.len())
+    validate_decryption_size(encrypted.ciphertext().len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
-    let result = match (&key, &encrypted.scheme) {
+    let result: Result<Zeroizing<Vec<u8>>> = match (&key, encrypted.scheme()) {
         // Symmetric AES-256-GCM
         (DecryptKey::Symmetric(k), EncryptionScheme::Aes256Gcm) => {
             if k.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
             }
-            decrypt_aes_gcm_internal(&encrypted.ciphertext, k)
+            decrypt_aes_gcm_internal(encrypted.ciphertext(), k)
         }
         // Symmetric ChaCha20-Poly1305 (non-FIPS only)
         #[cfg(not(feature = "fips"))]
@@ -443,7 +434,7 @@ pub fn decrypt(
             if k.len() != 32 {
                 return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
             }
-            decrypt_chacha20_internal(&encrypted.ciphertext, k)
+            decrypt_chacha20_internal(encrypted.ciphertext(), k)
         }
         #[cfg(feature = "fips")]
         (DecryptKey::Symmetric(_), EncryptionScheme::ChaCha20Poly1305) => {
@@ -452,21 +443,23 @@ pub fn decrypt(
             ));
         }
         // Hybrid ML-KEM + X25519 + HKDF + AES-256-GCM
-        (DecryptKey::Hybrid(sk), _) if encrypted.scheme.requires_hybrid_key() => {
-            let hybrid_data = encrypted.hybrid_data.as_ref().ok_or_else(|| {
+        (DecryptKey::Hybrid(sk), scheme) if scheme.requires_hybrid_key() => {
+            let hybrid_data = encrypted.hybrid_data().ok_or_else(|| {
                 CoreError::DecryptionFailed(
                     "Hybrid scheme but no hybrid_data in EncryptedOutput".to_string(),
                 )
             })?;
 
-            let ct = HybridCiphertext {
-                kem_ciphertext: hybrid_data.ml_kem_ciphertext.clone(),
-                ecdh_ephemeral_pk: hybrid_data.ecdh_ephemeral_pk.clone(),
-                symmetric_ciphertext: encrypted.ciphertext.clone(),
-                nonce: encrypted.nonce.clone(),
-                tag: encrypted.tag.clone(),
-            };
+            let ct = HybridCiphertext::new(
+                hybrid_data.ml_kem_ciphertext.clone(),
+                hybrid_data.ecdh_ephemeral_pk.clone(),
+                encrypted.ciphertext().to_vec(),
+                encrypted.nonce().to_vec(),
+                encrypted.tag().to_vec(),
+            );
 
+            // `decrypt_hybrid` returns `Zeroizing<Vec<u8>>` — propagate directly,
+            // do NOT `.to_vec()` which would strip the zeroizing wrapper.
             decrypt_hybrid(sk, &ct, None).map_err(|e| {
                 CoreError::DecryptionFailed(format!("Hybrid decryption failed: {}", e))
             })
@@ -475,18 +468,18 @@ pub fn decrypt(
         _ => {
             return Err(CoreError::InvalidInput(format!(
                 "Key type does not match scheme '{}'",
-                encrypted.scheme
+                encrypted.scheme()
             )));
         }
     };
 
     match result {
         Ok(plaintext) => {
-            crate::log_crypto_operation_complete!("decrypt", result_size = plaintext.len(), scheme = %encrypted.scheme);
+            crate::log_crypto_operation_complete!("decrypt", result_size = plaintext.len(), scheme = %encrypted.scheme());
             Ok(plaintext)
         }
         Err(e) => {
-            crate::log_crypto_operation_error!("decrypt", e, scheme = %encrypted.scheme);
+            crate::log_crypto_operation_error!("decrypt", e, scheme = %encrypted.scheme());
             Err(e)
         }
     }
@@ -519,15 +512,15 @@ pub fn generate_signing_keypair(
 
     let (public_key, secret_key) = match scheme.as_str() {
         "ml-dsa-44" | "pq-ml-dsa-44" => {
-            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44)?;
+            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44)?;
             (pk, sk)
         }
         "ml-dsa-65" | "pq-ml-dsa-65" => {
-            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA65)?;
+            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
             (pk, sk)
         }
         "ml-dsa-87" | "pq-ml-dsa-87" => {
-            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87)?;
+            let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87)?;
             (pk, sk)
         }
         "slh-dsa-shake-128s" => {
@@ -547,20 +540,20 @@ pub fn generate_signing_keypair(
             (pk, sk)
         }
         "hybrid-ml-dsa-44-ed25519" => {
-            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MLDSA44)?
+            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa44)?
         }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
-            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MLDSA65)?
+            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa65)?
         }
         "hybrid-ml-dsa-87-ed25519" => {
-            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MLDSA87)?
+            generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa87)?
         }
         _ => {
             return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
         }
     };
 
-    Ok((public_key, Zeroizing::new(secret_key.as_ref().to_vec()), scheme))
+    Ok((public_key.into_bytes(), Zeroizing::new(secret_key.as_ref().to_vec()), scheme))
 }
 
 /// Sign a message using caller-provided keys (unified API).
@@ -594,19 +587,19 @@ pub fn sign_with_key(
 
     crate::log_crypto_operation_start!("sign_with_key", scheme = %scheme, message_size = message.len());
 
-    // Uses string-based dispatch. A future SignatureScheme enum
-    // (analogous to EncryptionScheme) would provide compile-time exhaustiveness.
+    // Uses string-based dispatch. The SignatureScheme enum exists in
+    // types::crypto but is not yet wired into this path for compile-time exhaustiveness.
     let (result_pk, signature) = match scheme.as_str() {
         "ml-dsa-44" | "pq-ml-dsa-44" => {
-            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MLDSA44)?;
+            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MlDsa44)?;
             (public_key.to_vec(), sig)
         }
         "ml-dsa-65" | "pq-ml-dsa-65" => {
-            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MLDSA65)?;
+            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MlDsa65)?;
             (public_key.to_vec(), sig)
         }
         "ml-dsa-87" | "pq-ml-dsa-87" => {
-            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MLDSA87)?;
+            let sig = sign_pq_ml_dsa_unverified(message, secret_key, MlDsaParameterSet::MlDsa87)?;
             (public_key.to_vec(), sig)
         }
         "slh-dsa-shake-128s" => {
@@ -625,7 +618,7 @@ pub fn sign_with_key(
             (public_key.to_vec(), sig)
         }
         "fn-dsa" => {
-            let sig = sign_pq_fn_dsa_unverified(message, secret_key)?;
+            let sig = sign_pq_fn_dsa_unverified(message, secret_key, FnDsaSecurityLevel::Level512)?;
             (public_key.to_vec(), sig)
         }
         #[cfg(not(feature = "fips"))]
@@ -634,13 +627,13 @@ pub fn sign_with_key(
             (public_key.to_vec(), sig)
         }
         "hybrid-ml-dsa-44-ed25519" => {
-            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MLDSA44)?
+            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MlDsa44)?
         }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
-            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MLDSA65)?
+            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MlDsa65)?
         }
         "hybrid-ml-dsa-87-ed25519" => {
-            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MLDSA87)?
+            sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MlDsa87)?
         }
         _ => {
             return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
@@ -721,19 +714,19 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
-            MlDsaParameterSet::MLDSA44,
+            MlDsaParameterSet::MlDsa44,
         ),
         "ml-dsa-65" | "pq-ml-dsa-65" => verify_pq_ml_dsa_unverified(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
-            MlDsaParameterSet::MLDSA65,
+            MlDsaParameterSet::MlDsa65,
         ),
         "ml-dsa-87" | "pq-ml-dsa-87" => verify_pq_ml_dsa_unverified(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
-            MlDsaParameterSet::MLDSA87,
+            MlDsaParameterSet::MlDsa87,
         ),
         "slh-dsa-shake-128s" => verify_pq_slh_dsa_unverified(
             &signed.data,
@@ -757,6 +750,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
+            FnDsaSecurityLevel::Level512,
         ),
         "hybrid-ml-dsa-44-ed25519" => {
             const ML_DSA_44_PK_LEN: usize = 1312;
@@ -798,7 +792,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
                 &signed.data,
                 pq_sig,
                 pq_pk,
-                MlDsaParameterSet::MLDSA44,
+                MlDsaParameterSet::MlDsa44,
             )?;
             let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
             Ok(pq_valid && ed_valid)
@@ -809,7 +803,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             const ED25519_PK_LEN: usize = 32;
 
             let sig_len = signed.metadata.signature.len();
-            if sig_len < 3293 {
+            if sig_len < 3309 {
                 return Err(CoreError::InvalidInput("Hybrid signature too short".to_string()));
             }
 
@@ -846,7 +840,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
                 &signed.data,
                 pq_sig,
                 pq_pk,
-                MlDsaParameterSet::MLDSA65,
+                MlDsaParameterSet::MlDsa65,
             )?;
             let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
             Ok(pq_valid && ed_valid)
@@ -895,7 +889,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
                 &signed.data,
                 pq_sig,
                 pq_pk,
-                MlDsaParameterSet::MLDSA87,
+                MlDsaParameterSet::MlDsa87,
             )?;
             let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
             Ok(pq_valid && ed_valid)
@@ -965,7 +959,7 @@ mod tests {
 
     // Sign/Verify tests with different security levels
     #[test]
-    fn test_sign_verify_with_standard_security() -> Result<()> {
+    fn test_sign_verify_with_standard_security_succeeds() -> Result<()> {
         let message = b"Test message with standard security";
         let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
 
@@ -981,7 +975,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_with_high_security() -> Result<()> {
+    fn test_sign_verify_with_high_security_succeeds() -> Result<()> {
         let message = b"Test message with high security";
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
 
@@ -994,7 +988,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_with_maximum_security() -> Result<()> {
+    fn test_sign_verify_with_maximum_security_succeeds() -> Result<()> {
         let message = b"Test message with maximum security";
         let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
 
@@ -1007,7 +1001,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_wrong_message() -> Result<()> {
+    fn test_sign_verify_wrong_message_fails() -> Result<()> {
         let message = b"Original message";
         let config = CryptoConfig::new();
 
@@ -1027,7 +1021,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_corrupted_signature() -> Result<()> {
+    fn test_sign_verify_corrupted_signature_fails() -> Result<()> {
         let message = b"Test message";
         let config = CryptoConfig::new();
 
@@ -1049,7 +1043,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_empty_message() -> Result<()> {
+    fn test_sign_empty_message_succeeds() -> Result<()> {
         let message = b"";
         let config = CryptoConfig::new();
 
@@ -1062,7 +1056,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_large_message() -> Result<()> {
+    fn test_sign_large_message_succeeds() -> Result<()> {
         let message = vec![0xABu8; 10_000]; // 10KB message
         let config = CryptoConfig::new();
 
@@ -1076,7 +1070,7 @@ mod tests {
 
     // Use case selection tests
     #[test]
-    fn test_sign_with_financial_transactions_use_case() -> Result<()> {
+    fn test_sign_with_financial_transactions_use_case_succeeds() -> Result<()> {
         let message = b"Financial transaction data";
         let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
 
@@ -1095,7 +1089,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_with_authentication_use_case() -> Result<()> {
+    fn test_sign_with_authentication_use_case_succeeds() -> Result<()> {
         let message = b"Authentication data";
         let config = CryptoConfig::new().use_case(UseCase::Authentication);
 
@@ -1108,7 +1102,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_with_firmware_signing_use_case() -> Result<()> {
+    fn test_sign_with_firmware_signing_use_case_succeeds() -> Result<()> {
         let message = b"Firmware binary data";
         let config = CryptoConfig::new().use_case(UseCase::FirmwareSigning);
 
@@ -1122,7 +1116,7 @@ mod tests {
 
     // Invalid key tests
     #[test]
-    fn test_encrypt_with_invalid_key_length() {
+    fn test_encrypt_with_invalid_key_length_returns_error() {
         let message = b"Test message";
         let short_key = vec![0x42u8; 16]; // Too short for AES-256
         let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
@@ -1132,17 +1126,17 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_empty_ciphertext() {
+    fn test_decrypt_empty_ciphertext_returns_error() {
         let key = vec![0x42u8; 32];
-        let empty_encrypted = EncryptedOutput {
-            scheme: EncryptionScheme::Aes256Gcm,
-            ciphertext: vec![],
-            nonce: vec![],
-            tag: vec![],
-            hybrid_data: None,
-            timestamp: 0,
-            key_id: None,
-        };
+        let empty_encrypted = EncryptedOutput::new(
+            EncryptionScheme::Aes256Gcm,
+            vec![],
+            vec![],
+            vec![],
+            None,
+            0,
+            None,
+        );
 
         // Empty ciphertext should be rejected (too short for nonce)
         let result = decrypt(&empty_encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
@@ -1151,7 +1145,7 @@ mod tests {
 
     // Cross-algorithm tests for signing
     #[test]
-    fn test_sign_verify_multiple_security_levels() -> Result<()> {
+    fn test_sign_verify_multiple_security_levels_succeed_roundtrip() -> Result<()> {
         let message = b"Test cross-level signatures";
 
         let levels = [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
@@ -1171,7 +1165,7 @@ mod tests {
 
     // Test specific algorithm branches in sign_with_key/verify
     #[test]
-    fn test_sign_verify_metadata_populated() -> Result<()> {
+    fn test_sign_verify_metadata_is_populated_roundtrip() -> Result<()> {
         let message = b"Test metadata";
         let config = CryptoConfig::new();
 
@@ -1187,7 +1181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_with_corrupted_public_key() -> Result<()> {
+    fn test_verify_with_corrupted_public_key_fails() -> Result<()> {
         let message = b"Test message";
         let config = CryptoConfig::new();
 
@@ -1209,7 +1203,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_binary_message() -> Result<()> {
+    fn test_sign_verify_binary_message_succeeds() -> Result<()> {
         let message = vec![0x00, 0xFF, 0x7F, 0x80, 0x01, 0xFE];
         let config = CryptoConfig::new();
 
@@ -1221,7 +1215,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_unicode_message() -> Result<()> {
+    fn test_sign_verify_unicode_message_succeeds() -> Result<()> {
         let message = "Test with Unicode: 你好世界 🔐".as_bytes();
         let config = CryptoConfig::new();
 
@@ -1233,7 +1227,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_with_blockchain_transaction_use_case() -> Result<()> {
+    fn test_sign_verify_with_blockchain_transaction_use_case_succeeds() -> Result<()> {
         let message = b"Blockchain transaction data";
         let config = CryptoConfig::new().use_case(UseCase::BlockchainTransaction);
 
@@ -1245,7 +1239,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_with_legal_documents_use_case() -> Result<()> {
+    fn test_sign_verify_with_legal_documents_use_case_succeeds() -> Result<()> {
         let message = b"Legal document hash";
         let config = CryptoConfig::new().use_case(UseCase::LegalDocuments);
 
@@ -1257,7 +1251,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_multiple_messages() -> Result<()> {
+    fn test_sign_multiple_messages_succeeds() -> Result<()> {
         let config = CryptoConfig::new();
         let messages =
             vec![b"First message".as_ref(), b"Second message".as_ref(), b"Third message".as_ref()];
@@ -1272,7 +1266,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_produces_unique_signatures() -> Result<()> {
+    fn test_sign_produces_unique_signatures_are_unique() -> Result<()> {
         let message = b"Same message";
         let config = CryptoConfig::new();
 
@@ -1293,7 +1287,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_rejects_empty_signature() {
+    fn test_verify_rejects_empty_signature_fails() {
         let signed = SignedData {
             data: b"Test message".to_vec(),
             metadata: SignedMetadata {
@@ -1311,7 +1305,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_rejects_empty_public_key() {
+    fn test_verify_rejects_empty_public_key_fails() {
         let signed = SignedData {
             data: b"Test message".to_vec(),
             metadata: SignedMetadata {
@@ -1330,16 +1324,16 @@ mod tests {
 
     // Decrypt error handling (doesn't require encrypt roundtrip)
     #[test]
-    fn test_decrypt_with_short_key() {
-        let encrypted = EncryptedOutput {
-            scheme: EncryptionScheme::Aes256Gcm,
-            ciphertext: vec![1, 2, 3, 4],
-            nonce: vec![0u8; 12],
-            tag: vec![0u8; 16],
-            hybrid_data: None,
-            timestamp: 0,
-            key_id: None,
-        };
+    fn test_decrypt_with_short_key_returns_error() {
+        let encrypted = EncryptedOutput::new(
+            EncryptionScheme::Aes256Gcm,
+            vec![1, 2, 3, 4],
+            vec![0u8; 12],
+            vec![0u8; 16],
+            None,
+            0,
+            None,
+        );
         let short_key = vec![0x42u8; 16]; // Too short
 
         let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
@@ -1347,19 +1341,19 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_unknown_scheme() {
+    fn test_decrypt_unknown_scheme_returns_error() {
         // EncryptionScheme is an enum so there are no "unknown" schemes.
         // Instead, test that a key-scheme mismatch is rejected:
         // use a HybridMlKem768 scheme but provide a symmetric key → should error.
-        let encrypted = EncryptedOutput {
-            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
-            ciphertext: vec![0x12u8; 40],
-            nonce: vec![0u8; 12],
-            tag: vec![0u8; 16],
-            hybrid_data: None, // missing hybrid_data — decryption must fail
-            timestamp: 0,
-            key_id: None,
-        };
+        let encrypted = EncryptedOutput::new(
+            EncryptionScheme::HybridMlKem768Aes256Gcm,
+            vec![0x12u8; 40],
+            vec![0u8; 12],
+            vec![0u8; 16],
+            None, // missing hybrid_data — decryption must fail
+            0,
+            None,
+        );
         let key = vec![0x42u8; 32];
 
         // Symmetric key with hybrid scheme → key-scheme mismatch, must error
@@ -1375,22 +1369,24 @@ mod tests {
             .name("slh_dsa_128s".to_string())
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                use crate::primitives::sig::slh_dsa::SecurityLevel;
                 use crate::unified_api::convenience::keygen::generate_slh_dsa_keypair;
                 use crate::unified_api::convenience::pq_sig::sign_pq_slh_dsa_unverified;
 
-                let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake128s).unwrap();
+                let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).unwrap();
                 let message = b"SLH-DSA-128s test message";
-                let signature =
-                    sign_pq_slh_dsa_unverified(message, sk.as_ref(), SecurityLevel::Shake128s)
-                        .unwrap();
+                let signature = sign_pq_slh_dsa_unverified(
+                    message,
+                    sk.as_ref(),
+                    SlhDsaSecurityLevel::Shake128s,
+                )
+                .unwrap();
 
                 let signed_data = SignedData {
                     data: message.to_vec(),
                     metadata: SignedMetadata {
                         signature,
                         signature_algorithm: "slh-dsa-shake-128s".to_string(),
-                        public_key: pk,
+                        public_key: pk.into_bytes(),
                         key_id: None,
                     },
                     scheme: "slh-dsa-shake-128s".to_string(),
@@ -1411,22 +1407,24 @@ mod tests {
             .name("slh_dsa_192s".to_string())
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                use crate::primitives::sig::slh_dsa::SecurityLevel;
                 use crate::unified_api::convenience::keygen::generate_slh_dsa_keypair;
                 use crate::unified_api::convenience::pq_sig::sign_pq_slh_dsa_unverified;
 
-                let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake192s).unwrap();
+                let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s).unwrap();
                 let message = b"SLH-DSA-192s test message";
-                let signature =
-                    sign_pq_slh_dsa_unverified(message, sk.as_ref(), SecurityLevel::Shake192s)
-                        .unwrap();
+                let signature = sign_pq_slh_dsa_unverified(
+                    message,
+                    sk.as_ref(),
+                    SlhDsaSecurityLevel::Shake192s,
+                )
+                .unwrap();
 
                 let signed_data = SignedData {
                     data: message.to_vec(),
                     metadata: SignedMetadata {
                         signature,
                         signature_algorithm: "slh-dsa-shake-192s".to_string(),
-                        public_key: pk,
+                        public_key: pk.into_bytes(),
                         key_id: None,
                     },
                     scheme: "slh-dsa-shake-192s".to_string(),
@@ -1447,22 +1445,24 @@ mod tests {
             .name("slh_dsa_256s".to_string())
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
-                use crate::primitives::sig::slh_dsa::SecurityLevel;
                 use crate::unified_api::convenience::keygen::generate_slh_dsa_keypair;
                 use crate::unified_api::convenience::pq_sig::sign_pq_slh_dsa_unverified;
 
-                let (pk, sk) = generate_slh_dsa_keypair(SecurityLevel::Shake256s).unwrap();
+                let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s).unwrap();
                 let message = b"SLH-DSA-256s test message";
-                let signature =
-                    sign_pq_slh_dsa_unverified(message, sk.as_ref(), SecurityLevel::Shake256s)
-                        .unwrap();
+                let signature = sign_pq_slh_dsa_unverified(
+                    message,
+                    sk.as_ref(),
+                    SlhDsaSecurityLevel::Shake256s,
+                )
+                .unwrap();
 
                 let signed_data = SignedData {
                     data: message.to_vec(),
                     metadata: SignedMetadata {
                         signature,
                         signature_algorithm: "slh-dsa-shake-256s".to_string(),
-                        public_key: pk,
+                        public_key: pk.into_bytes(),
                         key_id: None,
                     },
                     scheme: "slh-dsa-shake-256s".to_string(),
@@ -1490,14 +1490,16 @@ mod tests {
 
                 let (pk, sk) = generate_fn_dsa_keypair().unwrap();
                 let message = b"FN-DSA test message";
-                let signature = sign_pq_fn_dsa_unverified(message, sk.as_ref()).unwrap();
+                let signature =
+                    sign_pq_fn_dsa_unverified(message, sk.as_ref(), FnDsaSecurityLevel::Level512)
+                        .unwrap();
 
                 let signed_data = SignedData {
                     data: message.to_vec(),
                     metadata: SignedMetadata {
                         signature,
                         signature_algorithm: "fn-dsa".to_string(),
-                        public_key: pk,
+                        public_key: pk.into_bytes(),
                         key_id: None,
                     },
                     scheme: "fn-dsa".to_string(),
@@ -1525,9 +1527,9 @@ mod tests {
                     generate_keypair, generate_ml_dsa_keypair,
                 };
 
-                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
                 let (ed_pk, ed_sk) = generate_keypair().unwrap();
-                let combined_pk = [pq_pk, ed_pk].concat();
+                let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
                 let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
 
                 let message = b"Hybrid ML-DSA-44 + Ed25519 test";
@@ -1557,9 +1559,9 @@ mod tests {
                     generate_keypair, generate_ml_dsa_keypair,
                 };
 
-                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MLDSA87).unwrap();
+                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87).unwrap();
                 let (ed_pk, ed_sk) = generate_keypair().unwrap();
-                let combined_pk = [pq_pk, ed_pk].concat();
+                let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
                 let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
 
                 let message = b"Hybrid ML-DSA-87 + Ed25519 test";
@@ -1579,7 +1581,7 @@ mod tests {
     // === Error handling tests for sign_with_key ===
 
     #[test]
-    fn test_sign_with_invalid_hybrid_key_lengths() {
+    fn test_sign_with_invalid_hybrid_key_lengths_returns_error() {
         std::thread::Builder::new()
             .name("hybrid_bad_key".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -1612,7 +1614,7 @@ mod tests {
     // === Ed25519 fallback test ===
 
     #[test]
-    fn test_verify_with_unsupported_scheme_rejected() {
+    fn test_verify_with_unsupported_scheme_rejected_fails() {
         let signed = SignedData {
             data: b"test".to_vec(),
             metadata: SignedMetadata {
@@ -1633,7 +1635,7 @@ mod tests {
     // === Encryption with different security levels ===
 
     #[test]
-    fn test_encrypt_decrypt_with_maximum_security() {
+    fn test_encrypt_decrypt_with_maximum_security_succeeds() {
         std::thread::Builder::new()
             .name("max_security_enc".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -1657,7 +1659,7 @@ mod tests {
     // === select_encryption_scheme and select_signature_scheme ===
 
     #[test]
-    fn test_select_scheme_with_use_case() {
+    fn test_select_scheme_with_use_case_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
         let scheme = select_signature_scheme(&config);
         assert!(scheme.is_ok(), "Should select a scheme for SecureMessaging");
@@ -1668,7 +1670,7 @@ mod tests {
     }
 
     #[test]
-    fn test_select_encryption_scheme_with_use_case() {
+    fn test_select_encryption_scheme_with_use_case_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
         let scheme = select_encryption_scheme_typed(&config);
         assert!(scheme.is_ok(), "Should select encryption scheme for SecureMessaging");
@@ -1677,7 +1679,7 @@ mod tests {
     // === Verify error branches for hybrid schemes ===
 
     #[test]
-    fn test_verify_hybrid_44_signature_too_short() {
+    fn test_verify_hybrid_44_signature_too_short_returns_error() {
         let signed = SignedData {
             data: b"test".to_vec(),
             metadata: SignedMetadata {
@@ -1694,7 +1696,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_hybrid_44_invalid_pk_length() {
+    fn test_verify_hybrid_44_invalid_pk_length_returns_error() {
         let signed = SignedData {
             data: b"test".to_vec(),
             metadata: SignedMetadata {
@@ -1711,7 +1713,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_hybrid_65_signature_too_short() {
+    fn test_verify_hybrid_65_signature_too_short_returns_error() {
         let signed = SignedData {
             data: b"test".to_vec(),
             metadata: SignedMetadata {
@@ -1728,7 +1730,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_hybrid_65_invalid_pk_length() {
+    fn test_verify_hybrid_65_invalid_pk_length_returns_error() {
         let signed = SignedData {
             data: b"test".to_vec(),
             metadata: SignedMetadata {
@@ -1745,7 +1747,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_hybrid_87_signature_too_short() {
+    fn test_verify_hybrid_87_signature_too_short_returns_error() {
         let signed = SignedData {
             data: b"test".to_vec(),
             metadata: SignedMetadata {
@@ -1762,7 +1764,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_hybrid_87_invalid_pk_length() {
+    fn test_verify_hybrid_87_invalid_pk_length_returns_error() {
         let signed = SignedData {
             data: b"test".to_vec(),
             metadata: SignedMetadata {
@@ -1781,13 +1783,13 @@ mod tests {
     // === sign_with_key error branches for hybrid ===
 
     #[test]
-    fn test_sign_with_key_hybrid_44_invalid_sk_length() {
+    fn test_sign_with_key_hybrid_44_invalid_sk_length_returns_error() {
         std::thread::Builder::new()
             .name("hybrid_44_bad_sk".to_string())
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
-                let pq_pk_len = MlDsaParameterSet::MLDSA44.public_key_size();
+                let pq_pk_len = MlDsaParameterSet::MlDsa44.public_key_size();
 
                 let message = b"test";
                 let bad_sk = vec![0u8; 10]; // Wrong length
@@ -1826,35 +1828,35 @@ mod tests {
     // strings to substitute. The typed scheme field prevents these scenarios at compile time.
 
     #[test]
-    fn test_decrypt_unknown_scheme_short_key() {
+    fn test_decrypt_unknown_scheme_short_key_returns_error() {
         // EncryptionScheme is an enum — no unknown schemes exist.
         // Test: short symmetric key with AES-GCM scheme → key length error.
-        let encrypted = EncryptedOutput {
-            scheme: EncryptionScheme::Aes256Gcm,
-            ciphertext: vec![1, 2, 3, 4],
-            nonce: vec![0u8; 12],
-            tag: vec![0u8; 16],
-            hybrid_data: None,
-            timestamp: 0,
-            key_id: None,
-        };
+        let encrypted = EncryptedOutput::new(
+            EncryptionScheme::Aes256Gcm,
+            vec![1, 2, 3, 4],
+            vec![0u8; 12],
+            vec![0u8; 16],
+            None,
+            0,
+            None,
+        );
         let short_key = vec![0x42u8; 16]; // Too short for AES-256-GCM
         let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_decrypt_short_key_ml_kem_scheme() {
+    fn test_decrypt_short_key_ml_kem_scheme_returns_error() {
         // Test: EncryptedOutput with HybridMlKem768 scheme + DecryptKey::Symmetric → mismatch error.
-        let encrypted = EncryptedOutput {
-            scheme: EncryptionScheme::HybridMlKem768Aes256Gcm,
-            ciphertext: vec![1, 2, 3, 4],
-            nonce: vec![0u8; 12],
-            tag: vec![0u8; 16],
-            hybrid_data: None,
-            timestamp: 0,
-            key_id: None,
-        };
+        let encrypted = EncryptedOutput::new(
+            EncryptionScheme::HybridMlKem768Aes256Gcm,
+            vec![1, 2, 3, 4],
+            vec![0u8; 12],
+            vec![0u8; 16],
+            None,
+            0,
+            None,
+        );
         let key = vec![0x42u8; 32];
         // Symmetric key with hybrid scheme → key-scheme mismatch, must error
         let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new());
@@ -1862,7 +1864,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypt_empty_data() {
+    fn test_encrypt_empty_data_returns_error() {
         let key = vec![0x42u8; 32];
         let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
         let encrypted = encrypt(b"", EncryptKey::Symmetric(&key), config).unwrap();
@@ -1874,7 +1876,7 @@ mod tests {
     // === Key-scheme mismatch tests (the core anti-degradation guarantee) ===
 
     #[test]
-    fn test_encrypt_symmetric_key_default_config_rejects_hybrid_scheme() {
+    fn test_encrypt_symmetric_key_default_config_rejects_hybrid_scheme_fails() {
         // CryptoConfig::new() selects a hybrid scheme by default.
         // Passing EncryptKey::Symmetric MUST fail — never silently degrade.
         let key = vec![0x42u8; 32];
@@ -1889,7 +1891,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypt_hybrid_key_symmetric_scheme_rejects() {
+    fn test_encrypt_hybrid_key_symmetric_scheme_rejects_fails() {
         // force_scheme(Symmetric) selects AES-256-GCM, but EncryptKey::Hybrid
         // is provided — must fail.
         let (pk, _sk) = crate::unified_api::convenience::generate_hybrid_keypair().unwrap();
@@ -1905,7 +1907,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_symmetric_key_hybrid_encrypted_data_rejects() {
+    fn test_decrypt_symmetric_key_hybrid_encrypted_data_rejects_fails() {
         // Encrypt with hybrid key, try to decrypt with symmetric key.
         let (pk, _sk) = crate::unified_api::convenience::generate_hybrid_keypair().unwrap();
         let encrypted = encrypt(b"hello", EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
@@ -1917,7 +1919,7 @@ mod tests {
     // === Use case-based encryption ===
 
     #[test]
-    fn test_encrypt_decrypt_with_use_case() {
+    fn test_encrypt_decrypt_with_use_case_succeeds() {
         let key = vec![0x42u8; 32];
         let data = b"UseCase-based encryption test";
         let config = CryptoConfig::new()
@@ -1927,24 +1929,24 @@ mod tests {
         let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
         let decrypted =
             decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
-        assert_eq!(decrypted, data);
+        assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
     #[test]
-    fn test_encrypt_with_iot_use_case() {
+    fn test_encrypt_with_iot_use_case_succeeds() {
         let key = vec![0x42u8; 32];
         let data = b"IoT device data";
         let config =
             CryptoConfig::new().use_case(UseCase::IoTDevice).force_scheme(CryptoScheme::Symmetric);
 
         let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
-        assert!(!encrypted.ciphertext.is_empty());
+        assert!(!encrypted.ciphertext().is_empty());
     }
 
     // === Keygen through generate_signing_keypair with different use cases ===
 
     #[test]
-    fn test_generate_signing_keypair_iot_use_case_rejected() {
+    fn test_generate_signing_keypair_iot_use_case_rejected_fails() {
         // IoT use case maps to an encryption scheme (hybrid-ml-kem-512-aes-256-gcm),
         // not a signing scheme. Keygen should reject it.
         let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
@@ -1953,7 +1955,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_signing_keypair_file_storage_use_case_rejected() {
+    fn test_generate_signing_keypair_file_storage_use_case_rejected_fails() {
         // FileStorage use case maps to an encryption scheme, not signing.
         let config = CryptoConfig::new().use_case(UseCase::FileStorage);
         let result = generate_signing_keypair(config);
@@ -1963,7 +1965,7 @@ mod tests {
     // === Additional keygen scheme branches ===
 
     #[test]
-    fn test_generate_signing_keypair_blockchain_use_case() {
+    fn test_generate_signing_keypair_blockchain_use_case_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::BlockchainTransaction);
         let result = generate_signing_keypair(config);
         assert!(result.is_ok());
@@ -1974,14 +1976,14 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_signing_keypair_legal_use_case() {
+    fn test_generate_signing_keypair_legal_use_case_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::LegalDocuments);
         let result = generate_signing_keypair(config);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_generate_signing_keypair_firmware_use_case() {
+    fn test_generate_signing_keypair_firmware_use_case_succeeds() {
         let config = CryptoConfig::new().use_case(UseCase::FirmwareSigning);
         let result = generate_signing_keypair(config);
         assert!(result.is_ok());
@@ -1990,7 +1992,7 @@ mod tests {
     // === Verified session API tests ===
 
     #[test]
-    fn test_encrypt_decrypt_with_verified_session() {
+    fn test_encrypt_decrypt_with_verified_session_succeeds() {
         std::thread::Builder::new()
             .name("enc_verified".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2001,7 +2003,8 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                        .unwrap();
 
                 let config =
                     CryptoConfig::new().session(&session).force_scheme(CryptoScheme::Symmetric);
@@ -2016,7 +2019,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_verify_with_verified_session() {
+    fn test_sign_verify_with_verified_session_succeeds() {
         std::thread::Builder::new()
             .name("sign_verified".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2026,7 +2029,8 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                        .unwrap();
 
                 let config = CryptoConfig::new().session(&session);
                 let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
@@ -2042,7 +2046,7 @@ mod tests {
     // === Expired session API tests (T-008) ===
 
     #[test]
-    fn test_encrypt_with_expired_session_returns_session_expired() {
+    fn test_encrypt_with_expired_session_returns_session_expired_succeeds() {
         std::thread::Builder::new()
             .name("enc_expired".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2050,7 +2054,8 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                        .unwrap();
                 let expired = session.expired_clone();
 
                 let key = vec![0x42u8; 32];
@@ -2070,7 +2075,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_with_expired_session_returns_session_expired() {
+    fn test_decrypt_with_expired_session_returns_session_expired_succeeds() {
         std::thread::Builder::new()
             .name("dec_expired".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2085,7 +2090,8 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                        .unwrap();
                 let expired = session.expired_clone();
 
                 let config = CryptoConfig::new().session(&expired);
@@ -2103,7 +2109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_with_expired_session_returns_session_expired() {
+    fn test_sign_with_expired_session_returns_session_expired_succeeds() {
         std::thread::Builder::new()
             .name("sign_expired".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2111,7 +2117,8 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                        .unwrap();
 
                 // Generate a valid keypair first
                 let (pk, sk, _scheme) = generate_signing_keypair(CryptoConfig::new()).unwrap();
@@ -2132,7 +2139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_with_expired_session_returns_session_expired() {
+    fn test_verify_with_expired_session_returns_session_expired_succeeds() {
         std::thread::Builder::new()
             .name("verify_expired".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2147,7 +2154,8 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                        .unwrap();
                 let expired = session.expired_clone();
 
                 let config = CryptoConfig::new().session(&expired);
@@ -2167,13 +2175,13 @@ mod tests {
     // === sign_with_key hybrid error branches ===
 
     #[test]
-    fn test_sign_with_key_hybrid_87_wrong_sk_length() {
+    fn test_sign_with_key_hybrid_87_wrong_sk_length_returns_error() {
         std::thread::Builder::new()
             .name("hybrid_87_bad_sk".to_string())
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
-                let pq_pk_len = MlDsaParameterSet::MLDSA87.public_key_size();
+                let pq_pk_len = MlDsaParameterSet::MlDsa87.public_key_size();
 
                 let message = b"test";
                 let bad_sk = vec![0u8; 10]; // Wrong length
@@ -2203,13 +2211,13 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_with_key_hybrid_44_wrong_pk_length() {
+    fn test_sign_with_key_hybrid_44_wrong_pk_length_returns_error() {
         std::thread::Builder::new()
             .name("hybrid_44_bad_pk".to_string())
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
-                let pq_sk_len = MlDsaParameterSet::MLDSA44.secret_key_size();
+                let pq_sk_len = MlDsaParameterSet::MlDsa44.secret_key_size();
 
                 let message = b"test";
                 let sk = vec![0u8; pq_sk_len + 32]; // Correct SK length
@@ -2225,15 +2233,10 @@ mod tests {
             .unwrap();
     }
 
-    // === Verify decrypt with different scheme names for coverage ===
-    // NOTE: test_decrypt_with_hybrid_scheme_names has been removed. EncryptionScheme is now an
-    // enum, so substituting arbitrary scheme strings is no longer possible. Key-scheme mismatch
-    // is caught at the type level.
-
     // === Encrypt with short key for hybrid/PQ scheme path ===
 
     #[test]
-    fn test_encrypt_short_key_with_use_case() {
+    fn test_encrypt_short_key_with_use_case_returns_error() {
         let short_key = vec![0x42u8; 16]; // Too short
         let config = CryptoConfig::new()
             .use_case(UseCase::FileStorage)
@@ -2245,7 +2248,7 @@ mod tests {
     // === select_encryption_scheme_typed with SecurityLevel ===
 
     #[test]
-    fn test_select_encryption_scheme_with_security_level() {
+    fn test_select_encryption_scheme_with_security_level_succeeds() {
         let levels = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
         for level in levels {
             let config = CryptoConfig::new().security_level(level.clone());
@@ -2257,7 +2260,7 @@ mod tests {
     // === select_signature_scheme with SecurityLevel ===
 
     #[test]
-    fn test_select_signature_scheme_with_security_levels() {
+    fn test_select_signature_scheme_with_security_levels_succeeds() {
         let levels = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
         for level in levels {
             let config = CryptoConfig::new().security_level(level.clone());
@@ -2269,7 +2272,7 @@ mod tests {
     // === SecurityLevel::Quantum flow (PQ-only signatures) ===
 
     #[test]
-    fn test_sign_verify_quantum_security_level() {
+    fn test_sign_verify_quantum_security_level_succeeds() {
         std::thread::Builder::new()
             .name("quantum_sig".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2300,7 +2303,7 @@ mod tests {
     // === Encrypt/decrypt with different security levels ===
 
     #[test]
-    fn test_encrypt_decrypt_standard_security_level() {
+    fn test_encrypt_decrypt_standard_security_level_succeeds() {
         let key = vec![0x42u8; 32];
         let data = b"Standard level encryption";
         let config = CryptoConfig::new()
@@ -2310,11 +2313,11 @@ mod tests {
         let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
         let decrypted =
             decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
-        assert_eq!(decrypted, data);
+        assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
     #[test]
-    fn test_encrypt_decrypt_maximum_security_level() {
+    fn test_encrypt_decrypt_maximum_security_level_succeeds() {
         let key = vec![0x42u8; 32];
         let data = b"Maximum level encryption";
         let config = CryptoConfig::new()
@@ -2324,7 +2327,7 @@ mod tests {
         let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config).unwrap();
         let decrypted =
             decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
-        assert_eq!(decrypted, data);
+        assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
     // === ChaCha20-Poly1305 unified API dispatch ===
@@ -2338,12 +2341,12 @@ mod tests {
         // Force ChaCha20-Poly1305 via the internal scheme selection
         let encrypted = encrypt_chacha20_internal(data, &key).unwrap();
         let decrypted = decrypt_chacha20_internal(&encrypted, &key).unwrap();
-        assert_eq!(&decrypted, data);
+        assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
     #[cfg(not(feature = "fips"))]
     #[test]
-    fn test_encrypt_decrypt_chacha20poly1305_via_unified_api() {
+    fn test_encrypt_decrypt_chacha20poly1305_via_unified_api_succeeds() {
         let key = [0xAAu8; 32];
         let data = b"ChaCha20 unified dispatch test";
 
@@ -2355,23 +2358,23 @@ mod tests {
 
         // Decrypt via unified decrypt
         let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
-        assert_eq!(decrypted, data);
+        assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
     #[cfg(feature = "fips")]
     #[test]
-    fn test_chacha20poly1305_rejected_in_fips_mode() {
+    fn test_chacha20poly1305_rejected_in_fips_mode_fails() {
         let key = [0xBBu8; 32];
         let encrypted_bytes = vec![0u8; 100]; // doesn't matter, should fail before decryption
-        let output = EncryptedOutput {
-            scheme: EncryptionScheme::ChaCha20Poly1305,
-            ciphertext: encrypted_bytes,
-            nonce: vec![0u8; 12],
-            tag: vec![0u8; 16],
-            hybrid_data: None,
-            timestamp: 0,
-            key_id: None,
-        };
+        let output = EncryptedOutput::new(
+            EncryptionScheme::ChaCha20Poly1305,
+            encrypted_bytes,
+            vec![0u8; 12],
+            vec![0u8; 16],
+            None,
+            0,
+            None,
+        );
 
         let result = decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new());
         assert!(result.is_err(), "ChaCha20 should be rejected in FIPS mode");
@@ -2380,7 +2383,7 @@ mod tests {
     // === Generate signing keypair with all use cases ===
 
     #[test]
-    fn test_generate_signing_keypair_authentication_use_case() {
+    fn test_generate_signing_keypair_authentication_use_case_succeeds() {
         std::thread::Builder::new()
             .name("auth_keygen".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2401,7 +2404,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_signing_keypair_digital_certificate_use_case() {
+    fn test_generate_signing_keypair_digital_certificate_use_case_succeeds() {
         std::thread::Builder::new()
             .name("cert_keygen".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2424,7 +2427,7 @@ mod tests {
     // === Sign message wrapper for various use cases ===
 
     #[test]
-    fn test_sign_message_standard_level() {
+    fn test_sign_message_standard_level_succeeds() {
         std::thread::Builder::new()
             .name("sign_standard".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -2444,16 +2447,12 @@ mod tests {
             .unwrap();
     }
 
-    // === Decrypt fallback path (unknown scheme) ===
-    // NOTE: test_decrypt_unknown_scheme_rejected has been removed. EncryptionScheme is now an
-    // enum, so constructing an EncryptedOutput with an unknown scheme is impossible at compile time.
-
     // ========================================================================
     // Compliance enforcement tests
     // ========================================================================
 
     #[test]
-    fn test_cnsa_verify_rejects_ed25519() -> Result<()> {
+    fn test_cnsa_verify_rejects_ed25519_fails() -> Result<()> {
         // Sign with ed25519 (default Standard security uses ed25519-based hybrid)
         let message = b"compliance test";
         let config_default = CryptoConfig::new().security_level(SecurityLevel::Standard);
@@ -2475,7 +2474,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_verify_rejects_standalone_ed25519_signature() -> Result<()> {
+    fn test_cnsa_verify_rejects_standalone_ed25519_signature_fails() -> Result<()> {
         // Manually construct a SignedData with ed25519 scheme
         let signed = SignedData {
             data: b"test data".to_vec(),
@@ -2500,7 +2499,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fips_decrypt_allows_aes_gcm() -> Result<()> {
+    fn test_fips_decrypt_allows_aes_gcm_succeeds() -> Result<()> {
         // Encrypt with symmetric force (produces AES-256-GCM)
         let key = vec![0x42u8; 32];
         let data = b"fips compliance test";
@@ -2510,18 +2509,18 @@ mod tests {
             CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
         )?;
 
-        assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
+        assert_eq!(encrypted.scheme(), &EncryptionScheme::Aes256Gcm);
 
         // Decrypt with FIPS config should succeed (AES-256-GCM is FIPS-approved)
         let fips_config =
             CryptoConfig::new().compliance(crate::types::types::ComplianceMode::Fips140_3);
         let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), fips_config)?;
-        assert_eq!(plaintext, data);
+        assert_eq!(plaintext.as_slice(), data.as_slice());
         Ok(())
     }
 
     #[test]
-    fn test_cnsa_decrypt_rejects_aes_gcm() -> Result<()> {
+    fn test_cnsa_decrypt_rejects_aes_gcm_fails() -> Result<()> {
         // Encrypt with symmetric force (produces AES-256-GCM)
         let key = vec![0x42u8; 32];
         let data = b"cnsa decrypt test";
@@ -2531,7 +2530,7 @@ mod tests {
             CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
         )?;
 
-        assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
+        assert_eq!(encrypted.scheme(), &EncryptionScheme::Aes256Gcm);
 
         // Decrypt with CNSA 2.0 should reject (aes-256-gcm is classical-only)
         // CNSA 2.0 requires SecurityLevel::Quantum to pass validate()
@@ -2546,7 +2545,7 @@ mod tests {
     }
 
     #[test]
-    fn test_default_compliance_allows_all_in_verify() -> Result<()> {
+    fn test_default_compliance_allows_all_in_verify_succeeds() -> Result<()> {
         // Sign and verify with default compliance — should always work
         let message = b"default compliance test";
         let config = CryptoConfig::new();
@@ -2559,7 +2558,7 @@ mod tests {
     }
 
     #[test]
-    fn test_default_compliance_allows_all_in_decrypt() -> Result<()> {
+    fn test_default_compliance_allows_all_in_decrypt_succeeds() -> Result<()> {
         // Encrypt and decrypt with default compliance — should always work
         let key = vec![0x42u8; 32];
         let data = b"default compliance decrypt test";
@@ -2571,12 +2570,12 @@ mod tests {
 
         let default_config = CryptoConfig::new();
         let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), default_config)?;
-        assert_eq!(plaintext, data);
+        assert_eq!(plaintext.as_slice(), data.as_slice());
         Ok(())
     }
 
     #[test]
-    fn test_fips_verify_allows_pq_signatures() -> Result<()> {
+    fn test_fips_verify_allows_pq_signatures_succeeds() -> Result<()> {
         // Sign with PQ algorithm (ML-DSA-65)
         let message = b"pq fips compliance test";
         let config = CryptoConfig::new().security_level(SecurityLevel::High);
@@ -2591,7 +2590,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_verify_allows_hybrid_signatures() -> Result<()> {
+    fn test_cnsa_verify_allows_hybrid_signatures_succeeds() -> Result<()> {
         // Sign with hybrid (default High security → hybrid-ml-dsa-65-ed25519)
         let message = b"hybrid cnsa test";
         let config = CryptoConfig::new().security_level(SecurityLevel::High);

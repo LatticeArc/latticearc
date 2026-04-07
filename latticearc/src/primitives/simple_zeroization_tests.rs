@@ -16,7 +16,7 @@ fn verify_non_zero(bytes: &[u8]) -> bool {
 }
 
 #[test]
-fn test_simple_zeroize_function() {
+fn test_simple_zeroize_function_succeeds() {
     let mut data = create_test_secret(64);
     assert!(verify_non_zero(&data), "Data should be non-zero initially");
 
@@ -26,7 +26,7 @@ fn test_simple_zeroize_function() {
 }
 
 #[test]
-fn test_concurrent_zeroization() {
+fn test_concurrent_zeroization_succeeds() {
     use std::sync::Arc;
     use std::thread;
 
@@ -54,7 +54,7 @@ fn test_concurrent_zeroization() {
 }
 
 #[test]
-fn test_zeroization_with_large_data() {
+fn test_zeroization_with_large_data_succeeds() {
     let expected_size = 1024 * 1024;
     let mut data = create_test_secret(expected_size);
     assert!(verify_non_zero(&data), "Large data should be non-zero");
@@ -68,7 +68,7 @@ fn test_zeroization_with_large_data() {
 }
 
 #[test]
-fn test_zeroization_edge_cases() {
+fn test_zeroization_edge_cases_succeeds() {
     let mut empty_data: Vec<u8> = vec![];
     empty_data.zeroize();
     assert!(empty_data.is_empty(), "Empty data should remain empty after zeroize");

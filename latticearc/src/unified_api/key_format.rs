@@ -39,7 +39,7 @@
 //! # CBOR Format
 //!
 //! Same logical schema. Key material stored as CBOR byte strings (`bstr`) —
-//! no base64 encoding, no string overhead. See [`PortableKey::to_cbor`].
+//! no base64 encoding, no string overhead. See [`crate::unified_api::key_format::PortableKey::to_cbor`].
 //!
 //! # Enterprise Extension Model
 //!
@@ -224,6 +224,7 @@ impl KeyAlgorithm {
 // ============================================================================
 
 /// Key type classifier.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeyType {
@@ -246,6 +247,7 @@ pub enum KeyType {
 ///
 /// Uses untagged serde: a single `"raw"` field indicates a single key,
 /// while `"pq"` + `"classical"` indicates a composite hybrid key.
+#[non_exhaustive]
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum KeyData {
@@ -422,6 +424,14 @@ impl KeyData {
 /// the concrete key type (e.g., `HybridPublicKey`, `HybridSecretKey`) via the
 /// `to_hybrid_*` bridge methods, and work with those instead. Secret key
 /// material inside `KeyData` is zeroized on drop via the explicit `Drop` impl.
+///
+/// # Constant-Time Comparison
+///
+/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because key material is stored
+/// as Base64-encoded strings inside the `KeyData` enum, not as raw bytes amenable
+/// to byte-level constant-time comparison. This type is a serialization container
+/// (not a runtime key), and is not compared in any production code path. Use the
+/// concrete key types extracted via `to_hybrid_*` for cryptographic operations.
 ///
 /// # Example
 ///
@@ -740,10 +750,10 @@ impl PortableKey {
     /// Returns an error if secret key export fails.
     pub fn from_hybrid_kem_keypair(
         use_case: crate::types::types::UseCase,
-        pk: &crate::hybrid::kem_hybrid::HybridPublicKey,
-        sk: &crate::hybrid::kem_hybrid::HybridSecretKey,
+        pk: &crate::hybrid::kem_hybrid::HybridKemPublicKey,
+        sk: &crate::hybrid::kem_hybrid::HybridKemSecretKey,
     ) -> Result<(Self, Self)> {
-        let algorithm = match pk.security_level {
+        let algorithm = match pk.security_level() {
             crate::primitives::kem::MlKemSecurityLevel::MlKem512 => {
                 KeyAlgorithm::HybridMlKem512X25519
             }
@@ -761,7 +771,7 @@ impl PortableKey {
             security_level: None,
             algorithm,
             key_type: KeyType::Public,
-            key_data: KeyData::from_composite(&pk.ml_kem_pk, &pk.ecdh_pk),
+            key_data: KeyData::from_composite(pk.ml_kem_pk(), pk.ecdh_pk()),
             created: Utc::now(),
             metadata: BTreeMap::new(),
         };
@@ -791,7 +801,7 @@ impl PortableKey {
     ///
     /// # Errors
     /// Returns an error if the algorithm is not a hybrid KEM or key data is invalid.
-    pub fn to_hybrid_public_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridPublicKey> {
+    pub fn to_hybrid_public_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemPublicKey> {
         let level = match self.algorithm {
             KeyAlgorithm::HybridMlKem512X25519 => {
                 crate::primitives::kem::MlKemSecurityLevel::MlKem512
@@ -811,11 +821,7 @@ impl PortableKey {
 
         let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
 
-        Ok(crate::hybrid::kem_hybrid::HybridPublicKey {
-            ml_kem_pk: pq_bytes,
-            ecdh_pk: classical_bytes,
-            security_level: level,
-        })
+        Ok(crate::hybrid::kem_hybrid::HybridKemPublicKey::new(pq_bytes, classical_bytes, level))
     }
 
     /// Reconstruct a `HybridSecretKey` from a portable key pair.
@@ -832,7 +838,7 @@ impl PortableKey {
     pub fn to_hybrid_secret_key(
         &self,
         public_key: &PortableKey,
-    ) -> Result<crate::hybrid::kem_hybrid::HybridSecretKey> {
+    ) -> Result<crate::hybrid::kem_hybrid::HybridKemSecretKey> {
         let level = match self.algorithm {
             KeyAlgorithm::HybridMlKem512X25519 => {
                 crate::primitives::kem::MlKemSecurityLevel::MlKem512
@@ -869,7 +875,7 @@ impl PortableKey {
         let mut ecdh_seed = zeroize::Zeroizing::new([0u8; 32]);
         ecdh_seed.copy_from_slice(&ecdh_seed_vec);
 
-        crate::hybrid::kem_hybrid::HybridSecretKey::from_serialized(
+        crate::hybrid::kem_hybrid::HybridKemSecretKey::from_serialized(
             level, &ml_kem_sk, &ml_kem_pk, &ecdh_seed,
         )
         .map_err(|e| CoreError::InvalidKey(format!("Secret key reconstruction: {e}")))
@@ -891,14 +897,14 @@ impl PortableKey {
     /// * `sk` - Hybrid signature secret key (ML-DSA + Ed25519)
     ///
     /// # Errors
-    /// Returns an error if `pk.ml_dsa_pk.len()` does not match any known ML-DSA
+    /// Returns an error if `pk.ml_dsa_pk().len()` does not match any known ML-DSA
     /// parameter set (1312, 1952, or 2592 bytes).
     pub fn from_hybrid_sig_keypair(
         use_case: crate::types::types::UseCase,
-        pk: &crate::hybrid::sig_hybrid::HybridPublicKey,
-        sk: &crate::hybrid::sig_hybrid::HybridSecretKey,
+        pk: &crate::hybrid::sig_hybrid::HybridSigPublicKey,
+        sk: &crate::hybrid::sig_hybrid::HybridSigSecretKey,
     ) -> Result<(Self, Self)> {
-        let algorithm = match pk.ml_dsa_pk.len() {
+        let algorithm = match pk.ml_dsa_pk().len() {
             1312 => KeyAlgorithm::HybridMlDsa44Ed25519,
             1952 => KeyAlgorithm::HybridMlDsa65Ed25519,
             2592 => KeyAlgorithm::HybridMlDsa87Ed25519,
@@ -916,7 +922,7 @@ impl PortableKey {
             security_level: None,
             algorithm,
             key_type: KeyType::Public,
-            key_data: KeyData::from_composite(&pk.ml_dsa_pk, &pk.ed25519_pk),
+            key_data: KeyData::from_composite(pk.ml_dsa_pk(), pk.ed25519_pk()),
             created: Utc::now(),
             metadata: BTreeMap::new(),
         };
@@ -927,7 +933,7 @@ impl PortableKey {
             security_level: None,
             algorithm,
             key_type: KeyType::Secret,
-            key_data: KeyData::from_composite(&sk.ml_dsa_sk, &sk.ed25519_sk),
+            key_data: KeyData::from_composite(sk.ml_dsa_sk(), sk.ed25519_sk()),
             created: Utc::now(),
             metadata: BTreeMap::new(),
         };
@@ -939,7 +945,9 @@ impl PortableKey {
     ///
     /// # Errors
     /// Returns an error if the algorithm is not a hybrid signature or key data is invalid.
-    pub fn to_hybrid_sig_public_key(&self) -> Result<crate::hybrid::sig_hybrid::HybridPublicKey> {
+    pub fn to_hybrid_sig_public_key(
+        &self,
+    ) -> Result<crate::hybrid::sig_hybrid::HybridSigPublicKey> {
         if !matches!(
             self.algorithm,
             KeyAlgorithm::HybridMlDsa44Ed25519
@@ -954,17 +962,16 @@ impl PortableKey {
 
         let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
 
-        Ok(crate::hybrid::sig_hybrid::HybridPublicKey {
-            ml_dsa_pk: pq_bytes,
-            ed25519_pk: classical_bytes,
-        })
+        Ok(crate::hybrid::sig_hybrid::HybridSigPublicKey::new(pq_bytes, classical_bytes))
     }
 
     /// Extract a hybrid signature `HybridSecretKey` from a portable key.
     ///
     /// # Errors
     /// Returns an error if the algorithm is not hybrid signature or key data is invalid.
-    pub fn to_hybrid_sig_secret_key(&self) -> Result<crate::hybrid::sig_hybrid::HybridSecretKey> {
+    pub fn to_hybrid_sig_secret_key(
+        &self,
+    ) -> Result<crate::hybrid::sig_hybrid::HybridSigSecretKey> {
         if !matches!(
             self.algorithm,
             KeyAlgorithm::HybridMlDsa44Ed25519
@@ -985,10 +992,10 @@ impl PortableKey {
 
         let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
 
-        Ok(crate::hybrid::sig_hybrid::HybridSecretKey {
-            ml_dsa_sk: zeroize::Zeroizing::new(pq_bytes),
-            ed25519_sk: zeroize::Zeroizing::new(classical_bytes),
-        })
+        Ok(crate::hybrid::sig_hybrid::HybridSigSecretKey::new(
+            zeroize::Zeroizing::new(pq_bytes),
+            zeroize::Zeroizing::new(classical_bytes),
+        ))
     }
 
     // --- Bridge: Simple keypair (Ed25519, ML-KEM, ML-DSA, etc.) ---
@@ -1136,7 +1143,7 @@ impl PortableKey {
         pk: &crate::primitives::kem::ml_kem::MlKemPublicKey,
         sk: &crate::primitives::kem::ml_kem::MlKemSecretKey,
     ) -> (Self, Self) {
-        let algorithm = match pk.security_level {
+        let algorithm = match pk.security_level() {
             crate::primitives::kem::MlKemSecurityLevel::MlKem512 => KeyAlgorithm::MlKem512,
             crate::primitives::kem::MlKemSecurityLevel::MlKem768 => KeyAlgorithm::MlKem768,
             crate::primitives::kem::MlKemSecurityLevel::MlKem1024 => KeyAlgorithm::MlKem1024,
@@ -1593,7 +1600,7 @@ mod tests {
     // --- KeyAlgorithm serde roundtrip ---
 
     #[test]
-    fn test_key_algorithm_serde_all_variants() {
+    fn test_key_algorithm_serde_all_variants_roundtrip() {
         let variants = [
             (KeyAlgorithm::MlKem512, "\"ml-kem-512\""),
             (KeyAlgorithm::MlKem768, "\"ml-kem-768\""),
@@ -1627,7 +1634,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_algorithm_is_hybrid() {
+    fn test_key_algorithm_is_hybrid_returns_correct_bool_succeeds() {
         assert!(KeyAlgorithm::HybridMlKem768X25519.is_hybrid());
         assert!(KeyAlgorithm::HybridMlDsa65Ed25519.is_hybrid());
         assert!(!KeyAlgorithm::MlKem768.is_hybrid());
@@ -1635,7 +1642,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_algorithm_is_symmetric() {
+    fn test_key_algorithm_is_symmetric_returns_correct_bool_succeeds() {
         assert!(KeyAlgorithm::Aes256.is_symmetric());
         assert!(KeyAlgorithm::ChaCha20.is_symmetric());
         assert!(!KeyAlgorithm::MlKem768.is_symmetric());
@@ -1644,7 +1651,7 @@ mod tests {
     // --- KeyType serde ---
 
     #[test]
-    fn test_key_type_serde() {
+    fn test_key_type_serde_roundtrip() {
         for (variant, expected) in [
             (KeyType::Public, "\"public\""),
             (KeyType::Secret, "\"secret\""),
@@ -1690,7 +1697,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_data_debug_redacts() {
+    fn test_key_data_debug_redacts_secret_content_succeeds() {
         let kd = KeyData::from_raw(&[0xDE, 0xAD]);
         let debug = format!("{:?}", kd);
         assert!(!debug.contains("3q0"), "Debug should not contain base64 key material");
@@ -1700,7 +1707,7 @@ mod tests {
     // --- JSON roundtrip ---
 
     #[test]
-    fn test_json_roundtrip_ml_kem_768_public() {
+    fn test_json_roundtrip_ml_kem_768_public_roundtrip() {
         let key = PortableKey::new(
             KeyAlgorithm::MlKem768,
             KeyType::Public,
@@ -1716,7 +1723,7 @@ mod tests {
     }
 
     #[test]
-    fn test_json_roundtrip_aes_symmetric() {
+    fn test_json_roundtrip_aes_symmetric_roundtrip() {
         let key = PortableKey::new(
             KeyAlgorithm::Aes256,
             KeyType::Symmetric,
@@ -1729,7 +1736,7 @@ mod tests {
     }
 
     #[test]
-    fn test_json_roundtrip_hybrid_kem() {
+    fn test_json_roundtrip_hybrid_kem_roundtrip() {
         let key = PortableKey::new(
             KeyAlgorithm::HybridMlKem768X25519,
             KeyType::Secret,
@@ -1746,7 +1753,7 @@ mod tests {
     // --- CBOR roundtrip ---
 
     #[test]
-    fn test_cbor_roundtrip_ml_kem_768() {
+    fn test_cbor_roundtrip_ml_kem_768_roundtrip() {
         let key = PortableKey::new(
             KeyAlgorithm::MlKem768,
             KeyType::Public,
@@ -1761,7 +1768,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cbor_roundtrip_hybrid_sig() {
+    fn test_cbor_roundtrip_hybrid_sig_roundtrip() {
         let key = PortableKey::new(
             KeyAlgorithm::HybridMlDsa65Ed25519,
             KeyType::Secret,
@@ -1774,7 +1781,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cbor_smaller_than_json() {
+    fn test_cbor_smaller_than_json_is_correct() {
         let key = PortableKey::new(
             KeyAlgorithm::MlKem768,
             KeyType::Public,
@@ -1789,7 +1796,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cbor_json_cross_format_consistency() {
+    fn test_cbor_json_cross_format_consistency_roundtrip() {
         let key = PortableKey::new(
             KeyAlgorithm::MlDsa65,
             KeyType::Public,
@@ -1812,14 +1819,14 @@ mod tests {
     // --- Validation ---
 
     #[test]
-    fn test_validate_symmetric_wrong_key_type() {
+    fn test_validate_symmetric_wrong_key_type_fails() {
         let key =
             PortableKey::new(KeyAlgorithm::Aes256, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
         assert!(key.validate().is_err());
     }
 
     #[test]
-    fn test_validate_non_symmetric_with_symmetric_type() {
+    fn test_validate_non_symmetric_with_symmetric_type_fails() {
         let key = PortableKey::new(
             KeyAlgorithm::MlKem768,
             KeyType::Symmetric,
@@ -1829,7 +1836,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_hybrid_with_single_data() {
+    fn test_validate_hybrid_with_single_data_fails() {
         let key = PortableKey::new(
             KeyAlgorithm::HybridMlKem768X25519,
             KeyType::Public,
@@ -1839,7 +1846,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_non_hybrid_with_composite_data() {
+    fn test_validate_non_hybrid_with_composite_data_fails() {
         let key = PortableKey::new(
             KeyAlgorithm::MlKem768,
             KeyType::Public,
@@ -1849,7 +1856,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_bad_base64() {
+    fn test_validate_bad_base64_fails() {
         let key = PortableKey {
             version: 1,
             use_case: None,
@@ -1866,7 +1873,7 @@ mod tests {
     // --- Debug redaction ---
 
     #[test]
-    fn test_debug_redacts_secret_key() {
+    fn test_debug_redacts_secret_key_content_succeeds() {
         let key = PortableKey::new(
             KeyAlgorithm::MlDsa65,
             KeyType::Secret,
@@ -1878,7 +1885,7 @@ mod tests {
     }
 
     #[test]
-    fn test_debug_shows_public_key_type() {
+    fn test_debug_shows_public_key_type_in_output_succeeds() {
         let key = PortableKey::new(
             KeyAlgorithm::MlDsa65,
             KeyType::Public,
@@ -1892,7 +1899,7 @@ mod tests {
     // --- Metadata ---
 
     #[test]
-    fn test_metadata_roundtrip() {
+    fn test_metadata_roundtrip_via_json_roundtrip() {
         let mut key = PortableKey::new(
             KeyAlgorithm::Aes256,
             KeyType::Symmetric,
@@ -1909,7 +1916,7 @@ mod tests {
     }
 
     #[test]
-    fn test_metadata_omitted_when_empty() {
+    fn test_metadata_omitted_when_empty_in_json_succeeds() {
         let key =
             PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
         let json = key.to_json().unwrap();
@@ -1919,7 +1926,7 @@ mod tests {
     // --- File I/O ---
 
     #[test]
-    fn test_json_file_roundtrip() {
+    fn test_json_file_roundtrip_via_disk_roundtrip() {
         let dir = std::env::temp_dir().join("latticearc_key_format_test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test_key.json");
@@ -1940,7 +1947,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cbor_file_roundtrip() {
+    fn test_cbor_file_roundtrip_via_disk_roundtrip() {
         let dir = std::env::temp_dir().join("latticearc_key_cbor_test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test_key.cbor");
@@ -1961,7 +1968,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn test_file_permissions_secret_key() {
+    fn test_file_permissions_secret_key_are_restricted_succeeds() {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = std::env::temp_dir().join("latticearc_key_perms_test");
@@ -1985,7 +1992,7 @@ mod tests {
     // --- Legacy format ---
 
     #[test]
-    fn test_from_legacy_json() {
+    fn test_from_legacy_json_succeeds() {
         let legacy = r#"{
             "algorithm": "ML-DSA-65",
             "key_type": "public",
@@ -2000,7 +2007,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_legacy_json_secret() {
+    fn test_from_legacy_json_secret_succeeds() {
         let legacy = r#"{
             "algorithm": "ed25519",
             "key_type": "private",
@@ -2011,13 +2018,13 @@ mod tests {
     }
 
     #[test]
-    fn test_from_legacy_json_unknown_algorithm() {
+    fn test_from_legacy_json_unknown_algorithm_fails() {
         let legacy = r#"{"algorithm":"UNKNOWN-999","key_type":"public","key":"AQID"}"#;
         assert!(PortableKey::from_legacy_json(legacy).is_err());
     }
 
     #[test]
-    fn test_from_legacy_json_unknown_key_type() {
+    fn test_from_legacy_json_unknown_key_type_fails() {
         let legacy = r#"{"algorithm":"ed25519","key_type":"unknown","key":"AQID"}"#;
         assert!(PortableKey::from_legacy_json(legacy).is_err());
     }
@@ -2090,36 +2097,36 @@ mod tests {
     // --- Edge cases ---
 
     #[test]
-    fn test_from_json_invalid_json() {
+    fn test_from_json_invalid_json_fails() {
         assert!(PortableKey::from_json("not json").is_err());
     }
 
     #[test]
-    fn test_from_cbor_invalid_data() {
+    fn test_from_cbor_invalid_data_fails() {
         assert!(PortableKey::from_cbor(&[0xFF, 0xFF]).is_err());
     }
 
     #[test]
-    fn test_from_json_missing_fields() {
+    fn test_from_json_missing_fields_fails() {
         assert!(PortableKey::from_json(r#"{"version":1}"#).is_err());
     }
 
     #[test]
-    fn test_read_nonexistent_file() {
+    fn test_read_nonexistent_file_fails() {
         assert!(
             PortableKey::read_from_file(std::path::Path::new("/nonexistent/path.json")).is_err()
         );
     }
 
     #[test]
-    fn test_version_is_current() {
+    fn test_version_is_current_format_has_correct_size() {
         let key =
             PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
         assert_eq!(key.version(), PortableKey::CURRENT_VERSION);
     }
 
     #[test]
-    fn test_with_created() {
+    fn test_with_created_sets_timestamp_succeeds() {
         let ts = DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").unwrap().with_timezone(&Utc);
         let key = PortableKey::with_created(
             KeyAlgorithm::Ed25519,
@@ -2131,7 +2138,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pretty_json_contains_newlines() {
+    fn test_pretty_json_contains_newlines_and_indentation_is_correct() {
         let key =
             PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
         let pretty = key.to_json_pretty().unwrap();
@@ -2141,7 +2148,7 @@ mod tests {
     // --- UseCase / SecurityLevel constructors ---
 
     #[test]
-    fn test_for_use_case_file_storage() {
+    fn test_for_use_case_file_storage_is_correct() {
         use crate::types::types::UseCase;
         let key = PortableKey::for_use_case(
             UseCase::FileStorage,
@@ -2155,7 +2162,7 @@ mod tests {
     }
 
     #[test]
-    fn test_for_use_case_iot() {
+    fn test_for_use_case_iot_is_correct() {
         use crate::types::types::UseCase;
         let key = PortableKey::for_use_case(
             UseCase::IoTDevice,
@@ -2168,7 +2175,7 @@ mod tests {
     }
 
     #[test]
-    fn test_for_use_case_secure_messaging() {
+    fn test_for_use_case_secure_messaging_is_correct() {
         use crate::types::types::UseCase;
         let key = PortableKey::for_use_case(
             UseCase::SecureMessaging,
@@ -2180,7 +2187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_for_security_level_high() {
+    fn test_for_security_level_high_is_correct() {
         use crate::types::types::SecurityLevel;
         let key = PortableKey::for_security_level(
             SecurityLevel::High,
@@ -2193,7 +2200,7 @@ mod tests {
     }
 
     #[test]
-    fn test_for_security_level_quantum() {
+    fn test_for_security_level_quantum_is_correct() {
         use crate::types::types::SecurityLevel;
         let key = PortableKey::for_security_level(
             SecurityLevel::Quantum,
@@ -2206,7 +2213,7 @@ mod tests {
     }
 
     #[test]
-    fn test_for_use_case_with_level_security_takes_precedence() {
+    fn test_for_use_case_with_level_security_takes_precedence_succeeds() {
         use crate::types::types::{SecurityLevel, UseCase};
         // UseCase::IoTDevice would resolve to MlKem512
         // SecurityLevel::Maximum should take precedence → MlKem1024
@@ -2223,7 +2230,7 @@ mod tests {
     }
 
     #[test]
-    fn test_for_use_case_json_includes_use_case_field() {
+    fn test_for_use_case_json_includes_use_case_field_succeeds() {
         use crate::types::types::UseCase;
         let key = PortableKey::for_use_case(
             UseCase::DatabaseEncryption,
@@ -2236,7 +2243,7 @@ mod tests {
     }
 
     #[test]
-    fn test_for_security_level_json_includes_security_level_field() {
+    fn test_for_security_level_json_includes_security_level_field_succeeds() {
         use crate::types::types::SecurityLevel;
         let key = PortableKey::for_security_level(
             SecurityLevel::Standard,
@@ -2276,10 +2283,9 @@ mod tests {
     fn proof_e2e_file_storage_two_process() {
         use crate::hybrid::kem_hybrid;
         use crate::types::types::UseCase;
-        let mut rng = rand::rngs::OsRng;
 
         // === PROCESS A: Key provisioning ===
-        let (pk, sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = kem_hybrid::generate_keypair().unwrap();
         let (portable_pk, portable_sk) =
             PortableKey::from_hybrid_kem_keypair(UseCase::FileStorage, &pk, &sk).unwrap();
         let pk_json = portable_pk.to_json().unwrap();
@@ -2295,8 +2301,8 @@ mod tests {
         // === PROCESS B: Sender encrypts using PK from JSON ===
         let sender_pk = PortableKey::from_json(&pk_json).unwrap();
         let sender_hybrid_pk = sender_pk.to_hybrid_public_key().unwrap();
-        let encapsulated = kem_hybrid::encapsulate(&mut rng, &sender_hybrid_pk).unwrap();
-        let sender_shared_secret = encapsulated.shared_secret.as_slice().to_vec();
+        let encapsulated = kem_hybrid::encapsulate(&sender_hybrid_pk).unwrap();
+        let sender_shared_secret = encapsulated.shared_secret().to_vec();
 
         // === PROCESS A: Receiver decrypts using SK + PK from JSON ===
         let receiver_pk_portable = PortableKey::from_json(&pk_json).unwrap();
@@ -2333,10 +2339,9 @@ mod tests {
     fn proof_e2e_secure_messaging_cbor_two_process() {
         use crate::hybrid::kem_hybrid;
         use crate::types::types::UseCase;
-        let mut rng = rand::rngs::OsRng;
 
         // === PROCESS A: Key provisioning, export to CBOR ===
-        let (pk, sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = kem_hybrid::generate_keypair().unwrap();
         let (portable_pk, portable_sk) =
             PortableKey::from_hybrid_kem_keypair(UseCase::SecureMessaging, &pk, &sk).unwrap();
         let pk_cbor = portable_pk.to_cbor().unwrap();
@@ -2352,8 +2357,8 @@ mod tests {
         // === PROCESS B: Receives PK CBOR, encapsulates ===
         let sender_pk = PortableKey::from_cbor(&pk_cbor).unwrap();
         let sender_hybrid_pk = sender_pk.to_hybrid_public_key().unwrap();
-        let encapsulated = kem_hybrid::encapsulate(&mut rng, &sender_hybrid_pk).unwrap();
-        let sender_ss = encapsulated.shared_secret.as_slice().to_vec();
+        let encapsulated = kem_hybrid::encapsulate(&sender_hybrid_pk).unwrap();
+        let sender_ss = encapsulated.shared_secret().to_vec();
 
         // === PROCESS A: Reconstructs SK from CBOR, decapsulates ===
         let receiver_pk_portable = PortableKey::from_cbor(&pk_cbor).unwrap();
@@ -2388,17 +2393,16 @@ mod tests {
     fn proof_e2e_legal_document_signing_two_process() {
         use crate::hybrid::sig_hybrid;
         use crate::types::types::UseCase;
-        let mut rng = rand::rngs::OsRng;
 
         // === SIGNER (Process A): Generate, export, sign ===
-        let (pk, sk) = sig_hybrid::generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = sig_hybrid::generate_keypair().unwrap();
         let (portable_pk, _portable_sk) =
             PortableKey::from_hybrid_sig_keypair(UseCase::LegalDocuments, &pk, &sk).unwrap();
         let pk_json = portable_pk.to_json().unwrap();
 
         let message = b"WHEREAS the parties agree to the following terms and conditions...";
         let signature = sig_hybrid::sign(&sk, message).unwrap();
-        let sig_bytes = signature.ml_dsa_sig.len() + signature.ed25519_sig.len();
+        let sig_bytes = signature.ml_dsa_sig().len() + signature.ed25519_sig().len();
 
         // Signer drops keys — only JSON + signature remain
         drop(pk);
@@ -2445,10 +2449,8 @@ mod tests {
         let sk_json_path = dir.join("cloud.sec.json");
         let pk_cbor_path = dir.join("cloud.pub.cbor");
 
-        let mut rng = rand::rngs::OsRng;
-
         // === PROCESS A: Key provisioning, write to files ===
-        let (pk, sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = kem_hybrid::generate_keypair().unwrap();
         let (portable_pk, portable_sk) =
             PortableKey::from_hybrid_kem_keypair(UseCase::CloudStorage, &pk, &sk).unwrap();
         portable_pk.write_to_file(&pk_json_path).unwrap();
@@ -2462,8 +2464,8 @@ mod tests {
         // === PROCESS B: Load PK from JSON file, encapsulate ===
         let sender_pk =
             PortableKey::read_from_file(&pk_json_path).unwrap().to_hybrid_public_key().unwrap();
-        let encapsulated = kem_hybrid::encapsulate(&mut rng, &sender_pk).unwrap();
-        let sender_ss = encapsulated.shared_secret.as_slice().to_vec();
+        let encapsulated = kem_hybrid::encapsulate(&sender_pk).unwrap();
+        let sender_ss = encapsulated.shared_secret().to_vec();
 
         // === PROCESS A: Load SK + PK from JSON files, decapsulate ===
         let receiver_pk_portable = PortableKey::read_from_file(&pk_json_path).unwrap();
@@ -2477,9 +2479,9 @@ mod tests {
             .unwrap()
             .to_hybrid_public_key()
             .unwrap();
-        let enc2 = kem_hybrid::encapsulate(&mut rng, &cbor_pk).unwrap();
+        let enc2 = kem_hybrid::encapsulate(&cbor_pk).unwrap();
         let dec2 = kem_hybrid::decapsulate(&receiver_sk, &enc2).unwrap();
-        let cbor_match = dec2.as_slice() == enc2.shared_secret.as_slice();
+        let cbor_match = dec2.as_slice() == enc2.shared_secret();
 
         let json_size = std::fs::metadata(&pk_json_path).unwrap().len();
         let cbor_size = std::fs::metadata(&pk_cbor_path).unwrap().len();
@@ -2510,9 +2512,8 @@ mod tests {
     fn proof_e2e_cross_format_consistency() {
         use crate::hybrid::kem_hybrid;
         use crate::types::types::UseCase;
-        let mut rng = rand::rngs::OsRng;
 
-        let (pk, sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = kem_hybrid::generate_keypair().unwrap();
         let (portable_pk, portable_sk) =
             PortableKey::from_hybrid_kem_keypair(UseCase::DatabaseEncryption, &pk, &sk).unwrap();
         let json = portable_pk.to_json().unwrap();
@@ -2532,18 +2533,18 @@ mod tests {
             .to_hybrid_secret_key(&pk_portable_for_sk)
             .unwrap();
 
-        let keys_match = pk_from_json.ml_kem_pk == pk_from_cbor.ml_kem_pk
-            && pk_from_json.ecdh_pk == pk_from_cbor.ecdh_pk;
+        let keys_match = pk_from_json.ml_kem_pk() == pk_from_cbor.ml_kem_pk()
+            && pk_from_json.ecdh_pk() == pk_from_cbor.ecdh_pk();
 
         // Encapsulate with JSON-restored PK, decapsulate with JSON-restored SK
-        let enc1 = kem_hybrid::encapsulate(&mut rng, &pk_from_json).unwrap();
+        let enc1 = kem_hybrid::encapsulate(&pk_from_json).unwrap();
         let dec1 = kem_hybrid::decapsulate(&sk_restored, &enc1).unwrap();
-        let json_kem_ok = dec1.as_slice() == enc1.shared_secret.as_slice();
+        let json_kem_ok = dec1.as_slice() == enc1.shared_secret();
 
         // Encapsulate with CBOR-restored PK, decapsulate with same SK
-        let enc2 = kem_hybrid::encapsulate(&mut rng, &pk_from_cbor).unwrap();
+        let enc2 = kem_hybrid::encapsulate(&pk_from_cbor).unwrap();
         let dec2 = kem_hybrid::decapsulate(&sk_restored, &enc2).unwrap();
-        let cbor_kem_ok = dec2.as_slice() == enc2.shared_secret.as_slice();
+        let cbor_kem_ok = dec2.as_slice() == enc2.shared_secret();
 
         assert!(keys_match);
         assert!(json_kem_ok);
@@ -2570,9 +2571,8 @@ mod tests {
     fn proof_e2e_enterprise_metadata_roundtrip() {
         use crate::hybrid::kem_hybrid;
         use crate::types::types::UseCase;
-        let mut rng = rand::rngs::OsRng;
 
-        let (pk, sk) = kem_hybrid::generate_keypair(&mut rng).unwrap();
+        let (pk, sk) = kem_hybrid::generate_keypair().unwrap();
         let (mut portable_pk, portable_sk) =
             PortableKey::from_hybrid_kem_keypair(UseCase::HealthcareRecords, &pk, &sk).unwrap();
 
@@ -2607,9 +2607,9 @@ mod tests {
         let pk_for_sk = PortableKey::from_json(&pk_json).unwrap();
         let json_sk =
             PortableKey::from_json(&sk_json).unwrap().to_hybrid_secret_key(&pk_for_sk).unwrap();
-        let enc = kem_hybrid::encapsulate(&mut rng, &json_pk).unwrap();
+        let enc = kem_hybrid::encapsulate(&json_pk).unwrap();
         let dec = kem_hybrid::decapsulate(&json_sk, &enc).unwrap();
-        let kem_ok = dec.as_slice() == enc.shared_secret.as_slice();
+        let kem_ok = dec.as_slice() == enc.shared_secret();
 
         // CBOR: metadata preserved
         let from_cbor = PortableKey::from_cbor(&pk_cbor).unwrap();
@@ -2696,14 +2696,14 @@ mod tests {
     // --- Error path tests ---
 
     #[test]
-    fn test_to_hybrid_public_key_wrong_algorithm() {
+    fn test_to_hybrid_public_key_wrong_algorithm_fails() {
         let key =
             PortableKey::new(KeyAlgorithm::Ed25519, KeyType::Public, KeyData::from_raw(&[0u8; 32]));
         assert!(key.to_hybrid_public_key().is_err());
     }
 
     #[test]
-    fn test_to_hybrid_sig_public_key_wrong_algorithm() {
+    fn test_to_hybrid_sig_public_key_wrong_algorithm_fails() {
         let key = PortableKey::new(
             KeyAlgorithm::MlKem768,
             KeyType::Public,
@@ -2713,7 +2713,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_use_cases_resolve() {
+    fn test_all_use_cases_resolve_to_algorithm_is_correct() {
         use crate::types::types::UseCase;
         let all = [
             UseCase::SecureMessaging,
@@ -2753,7 +2753,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_security_levels_resolve() {
+    fn test_all_security_levels_resolve_to_algorithm_is_correct() {
         use crate::types::types::SecurityLevel;
         let levels = [
             (SecurityLevel::Standard, KeyAlgorithm::HybridMlKem512X25519),

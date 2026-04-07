@@ -169,6 +169,7 @@ pub use tls13::{
 pub use tracing::{TlsMetrics, TlsSpan, TracingConfig, init_tracing};
 
 /// TLS configuration modes
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TlsMode {
     /// Classic TLS 1.3 with ECDHE only (not PQ secure)
@@ -184,8 +185,12 @@ pub enum TlsMode {
 #[derive(Debug, Clone)]
 pub struct ClientAuthConfig {
     /// Path to client certificate file (PEM format)
+    ///
+    /// Consumer: create_client_config()
     pub cert_path: String,
     /// Path to client private key file (PEM format)
+    ///
+    /// Consumer: create_client_config()
     pub key_path: String,
 }
 
@@ -202,6 +207,7 @@ impl ClientAuthConfig {
 }
 
 /// Server-side client verification mode for mTLS
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ClientVerificationMode {
     /// No client certificate required (default)
@@ -217,8 +223,12 @@ pub enum ClientVerificationMode {
 #[derive(Debug, Clone)]
 pub struct SessionPersistenceConfig {
     /// Path to session cache file
+    ///
+    /// Consumer: create_session_store()
     pub path: std::path::PathBuf,
     /// Maximum number of sessions to cache
+    ///
+    /// Consumer: create_session_store()
     pub max_sessions: usize,
 }
 
@@ -252,8 +262,8 @@ pub struct TlsConfig {
     pub retry_policy: Option<RetryPolicy>,
     /// Enable fallback strategies.
     ///
-    /// Consumer: not yet wired — stored and set by `TlsSelector` but never read
-    /// by any downstream consumer in the `From<&TlsConfig> for Tls13Config` path.
+    /// Consumer: `TlsSelector::select()` — sets to false for PQ-only modes.
+    /// Not yet read in `From<&TlsConfig> for Tls13Config` conversion path.
     pub enable_fallback: bool,
     /// ALPN protocols to negotiate (e.g., "h2", "http/1.1").
     ///
@@ -299,8 +309,8 @@ pub struct TlsConfig {
     pub max_protocol_version: Option<rustls::ProtocolVersion>,
     /// Client authentication configuration for mTLS (client-side).
     ///
-    /// Consumer: not yet wired in `From<&TlsConfig>` — mTLS client auth requires
-    /// loading client certificates at connection time, not at config conversion.
+    /// Consumer: partially wired — `create_client_config()` uses this for mTLS
+    /// certificate loading. Not consumed in the `From<&TlsConfig> for Tls13Config` path.
     pub client_auth: Option<ClientAuthConfig>,
     /// Server-side client verification mode for mTLS.
     ///
@@ -793,9 +803,6 @@ impl From<&TlsConfig> for Tls13Config {
     }
 }
 
-/// Version information
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// Check if post-quantum support is enabled
 ///
 /// # Returns
@@ -812,36 +819,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tls_mode_default() {
+    fn test_tls_mode_default_is_hybrid_succeeds() {
         assert_eq!(TlsMode::default(), TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_tls_config_new() {
+    fn test_tls_config_new_sets_expected_fields_succeeds() {
         let config = TlsConfig::new();
         assert_eq!(config.mode, TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_tls_config_with_use_case_webserver() {
+    fn test_tls_config_with_use_case_webserver_sets_use_case_succeeds() {
         let config = TlsConfig::new().use_case(TlsUseCase::WebServer);
         assert_eq!(config.mode, TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_tls_config_with_use_case_iot() {
+    fn test_tls_config_with_use_case_iot_sets_use_case_succeeds() {
         let config = TlsConfig::new().use_case(TlsUseCase::IoT);
         assert_eq!(config.mode, TlsMode::Classic);
     }
 
     #[test]
-    fn test_tls_config_with_use_case_government() {
+    fn test_tls_config_with_use_case_government_sets_use_case_succeeds() {
         let config = TlsConfig::new().use_case(TlsUseCase::Government);
         assert_eq!(config.mode, TlsMode::Pq);
     }
 
     #[test]
-    fn test_tls_config_with_security_level_maximum() {
+    fn test_tls_config_with_security_level_maximum_sets_security_level_succeeds() {
         use crate::unified_api::SecurityLevel;
 
         // Maximum uses Hybrid for defense-in-depth
@@ -850,7 +857,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_config_with_security_level_quantum() {
+    fn test_tls_config_with_security_level_quantum_sets_security_level_succeeds() {
         use crate::unified_api::SecurityLevel;
 
         // Quantum is PQ-only (no classical key exchange)
@@ -859,7 +866,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_config_with_security_level_standard() {
+    fn test_tls_config_with_security_level_standard_sets_security_level_succeeds() {
         use crate::unified_api::SecurityLevel;
 
         // Standard uses Hybrid
@@ -868,26 +875,26 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_config_with_tracing() {
+    fn test_tls_config_with_tracing_sets_tracing_config_succeeds() {
         let config = TlsConfig::new().with_tracing();
         assert!(config.enable_tracing);
     }
 
     #[test]
-    fn test_tls_config_with_retry() {
+    fn test_tls_config_with_retry_sets_retry_count_succeeds() {
         let policy = RetryPolicy::default();
         let config = TlsConfig::new().with_retry_policy(policy);
         assert!(config.retry_policy.is_some());
     }
 
     #[test]
-    fn test_tls_config_with_fallback() {
+    fn test_tls_config_with_fallback_sets_fallback_flag_succeeds() {
         let config = TlsConfig::new().with_fallback(false);
         assert!(!config.enable_fallback);
     }
 
     #[test]
-    fn test_tls_config_builder_chain() {
+    fn test_tls_config_builder_chain_sets_all_fields_succeeds() {
         let config = TlsConfig::new()
             .use_case(TlsUseCase::FinancialServices)
             .with_tracing()
@@ -899,19 +906,19 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config() {
+    fn test_tls13_config_from_tls_config_succeeds() {
         let tls_config = TlsConfig::new();
         let tls13_config = Tls13Config::from(&tls_config);
         assert_eq!(tls13_config.mode, TlsMode::Hybrid);
     }
 
     #[test]
-    fn test_version() {
-        assert!(!VERSION.is_empty());
+    fn test_version_is_nonempty_succeeds() {
+        assert!(!crate::unified_api::VERSION.is_empty());
     }
 
     #[test]
-    fn test_pq_enabled() {
+    fn test_pq_enabled_returns_bool_succeeds() {
         // PQ is always enabled
         assert!(pq_enabled());
     }
@@ -919,7 +926,7 @@ mod tests {
     // === TlsConfig builder method coverage ===
 
     #[test]
-    fn test_tls_config_with_alpn_protocols() {
+    fn test_tls_config_with_alpn_protocols_sets_alpn_list_succeeds() {
         let config = TlsConfig::new().with_alpn_protocols(vec!["h2", "http/1.1"]);
         assert_eq!(config.alpn_protocols.len(), 2);
         assert_eq!(config.alpn_protocols[0], b"h2");
@@ -927,57 +934,57 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_config_with_max_fragment_size() {
+    fn test_tls_config_with_max_fragment_size_sets_fragment_size_has_correct_size() {
         let config = TlsConfig::new().with_max_fragment_size(4096);
         assert_eq!(config.max_fragment_size, Some(4096));
     }
 
     #[test]
-    fn test_tls_config_with_early_data() {
+    fn test_tls_config_with_early_data_sets_early_data_flag_succeeds() {
         let config = TlsConfig::new().with_early_data(16384);
         assert!(config.enable_early_data);
         assert_eq!(config.max_early_data_size, 16384);
     }
 
     #[test]
-    fn test_tls_config_with_session_lifetime() {
+    fn test_tls_config_with_session_lifetime_sets_lifetime_succeeds() {
         let config = TlsConfig::new().with_session_lifetime(3600);
         assert_eq!(config.session_lifetime, 3600);
     }
 
     #[test]
-    fn test_tls_config_with_resumption() {
+    fn test_tls_config_with_resumption_sets_resumption_flag_succeeds() {
         let config = TlsConfig::new().with_resumption(false);
         assert!(!config.enable_resumption);
     }
 
     #[test]
-    fn test_tls_config_with_key_logging() {
+    fn test_tls_config_with_key_logging_sets_key_log_flag_succeeds() {
         let config = TlsConfig::new().with_key_logging();
         assert!(config.enable_key_logging);
     }
 
     #[test]
-    fn test_tls_config_with_cipher_suites() {
+    fn test_tls_config_with_cipher_suites_sets_suite_list_succeeds() {
         let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
         let config = TlsConfig::new().with_cipher_suites(suites);
         assert!(config.cipher_suites.is_some());
     }
 
     #[test]
-    fn test_tls_config_with_min_protocol_version() {
+    fn test_tls_config_with_min_protocol_version_sets_min_version_succeeds() {
         let config = TlsConfig::new().with_min_protocol_version(rustls::ProtocolVersion::TLSv1_2);
         assert_eq!(config.min_protocol_version, Some(rustls::ProtocolVersion::TLSv1_2));
     }
 
     #[test]
-    fn test_tls_config_with_max_protocol_version() {
+    fn test_tls_config_with_max_protocol_version_sets_max_version_succeeds() {
         let config = TlsConfig::new().with_max_protocol_version(rustls::ProtocolVersion::TLSv1_3);
         assert_eq!(config.max_protocol_version, Some(rustls::ProtocolVersion::TLSv1_3));
     }
 
     #[test]
-    fn test_tls_config_with_client_auth() {
+    fn test_tls_config_with_client_auth_sets_client_auth_config_succeeds() {
         let config = TlsConfig::new().with_client_auth("client.crt", "client.key");
         assert!(config.client_auth.is_some());
         let auth = config.client_auth.as_ref().expect("should have client auth");
@@ -986,19 +993,19 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_config_with_client_verification() {
+    fn test_tls_config_with_client_verification_sets_verification_mode_succeeds() {
         let config = TlsConfig::new().with_client_verification(ClientVerificationMode::Required);
         assert_eq!(config.client_verification, ClientVerificationMode::Required);
     }
 
     #[test]
-    fn test_tls_config_with_client_ca_certs() {
+    fn test_tls_config_with_client_ca_certs_sets_ca_certs_succeeds() {
         let config = TlsConfig::new().with_client_ca_certs("ca-bundle.crt");
         assert_eq!(config.client_ca_certs.as_deref(), Some("ca-bundle.crt"));
     }
 
     #[test]
-    fn test_tls_config_with_session_persistence() {
+    fn test_tls_config_with_session_persistence_sets_persistence_config_succeeds() {
         let config = TlsConfig::new()
             .with_session_persistence(std::env::temp_dir().join("sessions.bin"), 500);
         assert!(config.session_persistence.is_some());
@@ -1009,13 +1016,13 @@ mod tests {
     // === validate() tests ===
 
     #[test]
-    fn test_tls_config_validate_default() {
+    fn test_tls_config_validate_default_succeeds() {
         let config = TlsConfig::new();
         assert!(config.validate().is_ok());
     }
 
     #[test]
-    fn test_tls_config_validate_valid_range() {
+    fn test_tls_config_validate_valid_range_succeeds() {
         let config = TlsConfig::new()
             .with_min_protocol_version(rustls::ProtocolVersion::TLSv1_2)
             .with_max_protocol_version(rustls::ProtocolVersion::TLSv1_3);
@@ -1023,7 +1030,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_config_validate_min_only() {
+    fn test_tls_config_validate_min_only_succeeds() {
         // min version set, max None => filters by >= min
         let mut config = TlsConfig::new();
         config.min_protocol_version = Some(rustls::ProtocolVersion::TLSv1_2);
@@ -1032,7 +1039,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_config_validate_no_min() {
+    fn test_tls_config_validate_no_min_fails() {
         // No min version => skip validation entirely
         let mut config = TlsConfig::new();
         config.min_protocol_version = None;
@@ -1042,7 +1049,7 @@ mod tests {
     // === ClientAuthConfig tests ===
 
     #[test]
-    fn test_client_auth_config_new() {
+    fn test_client_auth_config_new_stores_fields_succeeds() {
         let auth = ClientAuthConfig::new("cert.pem", "key.pem");
         assert_eq!(auth.cert_path, "cert.pem");
         assert_eq!(auth.key_path, "key.pem");
@@ -1051,12 +1058,12 @@ mod tests {
     // === ClientVerificationMode tests ===
 
     #[test]
-    fn test_client_verification_mode_default() {
+    fn test_client_verification_mode_default_is_none_succeeds() {
         assert_eq!(ClientVerificationMode::default(), ClientVerificationMode::None);
     }
 
     #[test]
-    fn test_client_verification_mode_variants() {
+    fn test_client_verification_mode_variants_are_distinct_are_unique() {
         assert_ne!(ClientVerificationMode::None, ClientVerificationMode::Optional);
         assert_ne!(ClientVerificationMode::Optional, ClientVerificationMode::Required);
     }
@@ -1064,7 +1071,7 @@ mod tests {
     // === SessionPersistenceConfig tests ===
 
     #[test]
-    fn test_session_persistence_config_new() {
+    fn test_session_persistence_config_new_stores_fields_succeeds() {
         let sp = SessionPersistenceConfig::new(std::env::temp_dir().join("sess.bin"), 100);
         assert_eq!(sp.path, std::env::temp_dir().join("sess.bin"));
         assert_eq!(sp.max_sessions, 100);
@@ -1073,21 +1080,21 @@ mod tests {
     // === From<&TlsConfig> for Tls13Config conversion coverage ===
 
     #[test]
-    fn test_tls13_config_from_classic_tls_config() {
+    fn test_tls13_config_from_classic_tls_config_sets_non_pq_mode_succeeds() {
         let tls_config = TlsConfig { mode: TlsMode::Classic, ..TlsConfig::default() };
         let tls13 = Tls13Config::from(&tls_config);
         assert_eq!(tls13.mode, TlsMode::Classic);
     }
 
     #[test]
-    fn test_tls13_config_from_pq_tls_config() {
+    fn test_tls13_config_from_pq_tls_config_sets_pq_mode_succeeds() {
         let tls_config = TlsConfig { mode: TlsMode::Pq, ..TlsConfig::default() };
         let tls13 = Tls13Config::from(&tls_config);
         assert_eq!(tls13.mode, TlsMode::Pq);
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_alpn() {
+    fn test_tls13_config_from_tls_config_alpn_sets_alpn_protocols_succeeds() {
         let tls_config = TlsConfig::new().with_alpn_protocols(vec!["h2"]);
         let tls13 = Tls13Config::from(&tls_config);
         assert_eq!(tls13.alpn_protocols.len(), 1);
@@ -1095,14 +1102,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_fragment_size() {
+    fn test_tls13_config_from_tls_config_fragment_size_sets_fragment_size_has_correct_size() {
         let tls_config = TlsConfig::new().with_max_fragment_size(8192);
         let tls13 = Tls13Config::from(&tls_config);
         assert_eq!(tls13.max_fragment_size, Some(8192));
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_early_data() {
+    fn test_tls13_config_from_tls_config_early_data_sets_early_data_succeeds() {
         let tls_config = TlsConfig::new().with_early_data(32768);
         let tls13 = Tls13Config::from(&tls_config);
         assert!(tls13.enable_early_data);
@@ -1110,7 +1117,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_cipher_suites() {
+    fn test_tls13_config_from_tls_config_cipher_suites_sets_suite_list_succeeds() {
         let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
         let tls_config = TlsConfig::new().with_cipher_suites(suites);
         let tls13 = Tls13Config::from(&tls_config);
@@ -1118,14 +1125,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_key_logging() {
+    fn test_tls13_config_from_tls_config_key_logging_sets_key_log_flag_succeeds() {
         let tls_config = TlsConfig::new().with_key_logging();
         let tls13 = Tls13Config::from(&tls_config);
         assert!(tls13.key_log.is_some());
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_client_verification() {
+    fn test_tls13_config_from_tls_config_client_verification_sets_verification_mode_succeeds() {
         let tls_config =
             TlsConfig::new().with_client_verification(ClientVerificationMode::Required);
         let tls13 = Tls13Config::from(&tls_config);
@@ -1133,7 +1140,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_protocol_versions() {
+    fn test_tls13_config_from_tls_config_protocol_versions_sets_version_range_succeeds() {
         let tls_config = TlsConfig::new()
             .with_min_protocol_version(rustls::ProtocolVersion::TLSv1_3)
             .with_max_protocol_version(rustls::ProtocolVersion::TLSv1_3);
@@ -1142,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls13_config_from_tls_config_protocol_versions_min_only() {
+    fn test_tls13_config_from_tls_config_protocol_versions_min_only_sets_min_version_succeeds() {
         let mut tls_config = TlsConfig::new();
         tls_config.min_protocol_version = Some(rustls::ProtocolVersion::TLSv1_3);
         tls_config.max_protocol_version = None;
@@ -1153,7 +1160,7 @@ mod tests {
     // === TlsMode tests ===
 
     #[test]
-    fn test_tls_mode_clone_copy_eq_debug() {
+    fn test_tls_mode_clone_copy_eq_debug_work_correctly_succeeds() {
         let mode = TlsMode::Hybrid;
         let cloned = mode;
         let copied = mode;
@@ -1164,7 +1171,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tls_mode_all_variants() {
+    fn test_tls_mode_all_variants_are_distinct_are_unique() {
         assert_ne!(TlsMode::Classic, TlsMode::Hybrid);
         assert_ne!(TlsMode::Hybrid, TlsMode::Pq);
         assert_ne!(TlsMode::Classic, TlsMode::Pq);
@@ -1173,7 +1180,7 @@ mod tests {
     // === Full builder chain test ===
 
     #[test]
-    fn test_tls_config_full_builder_chain() {
+    fn test_tls_config_full_builder_chain_sets_all_fields_succeeds() {
         let config = TlsConfig::new()
             .use_case(TlsUseCase::FinancialServices)
             .with_tracing()
@@ -1201,7 +1208,7 @@ mod tests {
     // === TlsConfig::default field values ===
 
     #[test]
-    fn test_tls_config_default_values() {
+    fn test_tls_config_default_values_are_expected_succeeds() {
         let config = TlsConfig::default();
         assert_eq!(config.mode, TlsMode::Hybrid);
         assert!(!config.enable_tracing);
@@ -1228,7 +1235,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_enable_resumption_false_disables_sessions() {
+    fn test_enable_resumption_false_disables_sessions_succeeds() {
         let tls_config = TlsConfig::new().with_resumption(false);
         let tls13 = Tls13Config::from(&tls_config);
         // When enable_resumption=false, Tls13Config should have Resumption::disabled()
@@ -1242,14 +1249,14 @@ mod tests {
     }
 
     #[test]
-    fn test_enable_resumption_true_keeps_default() {
+    fn test_enable_resumption_true_keeps_default_succeeds() {
         let tls_config = TlsConfig::new().with_resumption(true);
         let _tls13 = Tls13Config::from(&tls_config);
         // Should succeed without error; resumption remains enabled
     }
 
     #[test]
-    fn test_session_persistence_wired_to_tls13() {
+    fn test_session_persistence_wired_to_tls13_succeeds() {
         let tls_config = TlsConfig::new()
             .with_session_persistence(std::env::temp_dir().join("test_sessions.bin"), 256);
         let _tls13 = Tls13Config::from(&tls_config);
@@ -1262,7 +1269,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_enable_early_data_influences_tls13_config() {
+    fn test_enable_early_data_influences_tls13_config_succeeds() {
         let config_a = TlsConfig::new(); // early data disabled by default
         let tls13_a = Tls13Config::from(&config_a);
 
@@ -1276,7 +1283,7 @@ mod tests {
     }
 
     #[test]
-    fn test_max_early_data_size_influences_tls13_config() {
+    fn test_max_early_data_size_influences_tls13_config_has_correct_size() {
         let config_a = TlsConfig::new().with_early_data(1024);
         let tls13_a = Tls13Config::from(&config_a);
 
@@ -1290,7 +1297,7 @@ mod tests {
     }
 
     #[test]
-    fn test_max_fragment_size_influences_tls13_config() {
+    fn test_max_fragment_size_influences_tls13_config_has_correct_size() {
         let config_a = TlsConfig::new(); // None by default
         let tls13_a = Tls13Config::from(&config_a);
 
@@ -1304,7 +1311,7 @@ mod tests {
     }
 
     #[test]
-    fn test_alpn_protocols_influences_tls13_config() {
+    fn test_alpn_protocols_influences_tls13_config_succeeds() {
         let config_a = TlsConfig::new(); // no ALPN by default
         let tls13_a = Tls13Config::from(&config_a);
 
@@ -1318,7 +1325,7 @@ mod tests {
     }
 
     #[test]
-    fn test_enable_key_logging_influences_tls13_config() {
+    fn test_enable_key_logging_influences_tls13_config_succeeds() {
         let config_a = TlsConfig::new(); // key logging off by default
         let tls13_a = Tls13Config::from(&config_a);
 
@@ -1334,7 +1341,7 @@ mod tests {
     }
 
     #[test]
-    fn test_client_verification_influences_tls13_config() {
+    fn test_client_verification_influences_tls13_config_succeeds() {
         let config_a = TlsConfig::new(); // default client verification
         let tls13_a = Tls13Config::from(&config_a);
 
@@ -1348,7 +1355,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mode_influences_tls13_config() {
+    fn test_mode_influences_tls13_config_succeeds() {
         let mut config_a = TlsConfig::new();
         config_a.mode = TlsMode::Hybrid;
         let tls13_a = Tls13Config::from(&config_a);

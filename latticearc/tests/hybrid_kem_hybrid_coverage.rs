@@ -8,18 +8,17 @@
 //! Coverage tests for kem_hybrid.rs error paths and edge cases.
 
 use latticearc::hybrid::kem_hybrid::{
-    HybridKemError, HybridPublicKey, decapsulate, derive_hybrid_shared_secret, encapsulate,
+    HybridKemError, HybridKemPublicKey, decapsulate, derive_hybrid_shared_secret, encapsulate,
     generate_keypair,
 };
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
-use rand::rngs::OsRng;
 
 // ============================================================================
 // derive_hybrid_shared_secret error paths
 // ============================================================================
 
 #[test]
-fn test_derive_rejects_wrong_mlkem_ss_length() {
+fn test_derive_rejects_wrong_mlkem_ss_length_fails() {
     let ml_kem_ss = vec![0u8; 16]; // Should be 32
     let ecdh_ss = vec![0u8; 32];
     let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &[0u8; 32], &[0u8; 32]);
@@ -34,7 +33,7 @@ fn test_derive_rejects_wrong_mlkem_ss_length() {
 }
 
 #[test]
-fn test_derive_rejects_wrong_ecdh_ss_length() {
+fn test_derive_rejects_wrong_ecdh_ss_length_fails() {
     let ml_kem_ss = vec![0u8; 32];
     let ecdh_ss = vec![0u8; 16]; // Should be 32
     let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &[0u8; 32], &[0u8; 32]);
@@ -49,19 +48,19 @@ fn test_derive_rejects_wrong_ecdh_ss_length() {
 }
 
 #[test]
-fn test_derive_rejects_empty_mlkem_ss() {
+fn test_derive_rejects_empty_mlkem_ss_fails() {
     let result = derive_hybrid_shared_secret(&[], &[0u8; 32], &[0u8; 32], &[0u8; 32]);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_derive_rejects_empty_ecdh_ss() {
+fn test_derive_rejects_empty_ecdh_ss_fails() {
     let result = derive_hybrid_shared_secret(&[0u8; 32], &[], &[0u8; 32], &[0u8; 32]);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_derive_accepts_valid_inputs() {
+fn test_derive_accepts_valid_inputs_succeeds() {
     let ml_kem_ss = vec![0xAAu8; 32];
     let ecdh_ss = vec![0xBBu8; 32];
     let static_pk = vec![0xCCu8; 32];
@@ -73,7 +72,7 @@ fn test_derive_accepts_valid_inputs() {
 }
 
 #[test]
-fn test_derive_deterministic() {
+fn test_derive_deterministic_is_deterministic() {
     let ml_kem_ss = vec![1u8; 32];
     let ecdh_ss = vec![2u8; 32];
     let static_pk = vec![3u8; 32];
@@ -84,7 +83,7 @@ fn test_derive_deterministic() {
 }
 
 #[test]
-fn test_derive_different_inputs_different_outputs() {
+fn test_derive_different_inputs_different_outputs_succeeds() {
     let ml_kem_ss_a = vec![1u8; 32];
     let ml_kem_ss_b = vec![2u8; 32];
     let ecdh_ss = vec![0u8; 32];
@@ -95,7 +94,7 @@ fn test_derive_different_inputs_different_outputs() {
 }
 
 #[test]
-fn test_derive_context_binding() {
+fn test_derive_context_binding_succeeds() {
     let ml_kem_ss = vec![5u8; 32];
     let ecdh_ss = vec![6u8; 32];
     let pk_a = vec![7u8; 32];
@@ -111,14 +110,13 @@ fn test_derive_context_binding() {
 // ============================================================================
 
 #[test]
-fn test_encapsulate_rejects_wrong_ecdh_pk_length() {
-    let mut rng = OsRng;
-    let pk = HybridPublicKey {
-        ml_kem_pk: vec![0u8; 1184],
-        ecdh_pk: vec![0u8; 16], // Should be 32
-        security_level: MlKemSecurityLevel::MlKem768,
-    };
-    let result = encapsulate(&mut rng, &pk);
+fn test_encapsulate_rejects_wrong_ecdh_pk_length_fails() {
+    let pk = HybridKemPublicKey::new(
+        vec![0u8; 1184],
+        vec![0u8; 16], // Should be 32
+        MlKemSecurityLevel::MlKem768,
+    );
+    let result = encapsulate(&pk);
     assert!(result.is_err());
     match result.unwrap_err() {
         HybridKemError::InvalidKeyMaterial(msg) => {
@@ -129,14 +127,9 @@ fn test_encapsulate_rejects_wrong_ecdh_pk_length() {
 }
 
 #[test]
-fn test_encapsulate_rejects_empty_ecdh_pk() {
-    let mut rng = OsRng;
-    let pk = HybridPublicKey {
-        ml_kem_pk: vec![0u8; 1184],
-        ecdh_pk: vec![],
-        security_level: MlKemSecurityLevel::MlKem768,
-    };
-    let result = encapsulate(&mut rng, &pk);
+fn test_encapsulate_rejects_empty_ecdh_pk_fails() {
+    let pk = HybridKemPublicKey::new(vec![0u8; 1184], vec![], MlKemSecurityLevel::MlKem768);
+    let result = encapsulate(&pk);
     assert!(result.is_err());
 }
 
@@ -145,15 +138,14 @@ fn test_encapsulate_rejects_empty_ecdh_pk() {
 // ============================================================================
 
 #[test]
-fn test_decapsulate_rejects_wrong_ecdh_pk_length() {
-    let mut rng = OsRng;
-    let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_decapsulate_rejects_wrong_ecdh_pk_length_fails() {
+    let (_pk, sk) = generate_keypair().unwrap();
 
-    let enc = latticearc::hybrid::kem_hybrid::EncapsulatedKey {
-        ml_kem_ct: vec![0u8; 1088],
-        ecdh_pk: vec![0u8; 16], // Should be 32
-        shared_secret: zeroize::Zeroizing::new(vec![]),
-    };
+    let enc = latticearc::hybrid::kem_hybrid::EncapsulatedKey::new(
+        vec![0u8; 1088],
+        vec![0u8; 16], // Should be 32
+        zeroize::Zeroizing::new(vec![]),
+    );
     let result = decapsulate(&sk, &enc);
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -169,37 +161,37 @@ fn test_decapsulate_rejects_wrong_ecdh_pk_length() {
 // ============================================================================
 
 #[test]
-fn test_error_display_ml_kem() {
+fn test_error_display_ml_kem_fails() {
     let err = HybridKemError::MlKemError("test".to_string());
     assert!(format!("{}", err).contains("ML-KEM"));
 }
 
 #[test]
-fn test_error_display_ecdh() {
+fn test_error_display_ecdh_fails() {
     let err = HybridKemError::EcdhError("test".to_string());
     assert!(format!("{}", err).contains("ECDH"));
 }
 
 #[test]
-fn test_error_display_kdf() {
+fn test_error_display_kdf_fails() {
     let err = HybridKemError::KdfError("test".to_string());
     assert!(format!("{}", err).contains("Key derivation"));
 }
 
 #[test]
-fn test_error_display_invalid_key() {
+fn test_error_display_invalid_key_fails() {
     let err = HybridKemError::InvalidKeyMaterial("test".to_string());
     assert!(format!("{}", err).contains("Invalid key material"));
 }
 
 #[test]
-fn test_error_display_crypto() {
+fn test_error_display_crypto_fails() {
     let err = HybridKemError::CryptoError("test".to_string());
     assert!(format!("{}", err).contains("Cryptographic operation"));
 }
 
 #[test]
-fn test_error_clone_eq() {
+fn test_error_clone_eq_fails() {
     let err1 = HybridKemError::MlKemError("a".to_string());
     let err2 = err1.clone();
     assert_eq!(err1, err2);
@@ -209,46 +201,43 @@ fn test_error_clone_eq() {
 }
 
 #[test]
-fn test_error_debug() {
+fn test_error_debug_fails() {
     let err = HybridKemError::KdfError("info".to_string());
     let debug = format!("{:?}", err);
     assert!(debug.contains("KdfError"));
 }
 
 // ============================================================================
-// HybridPublicKey and HybridSecretKey coverage
+// HybridKemPublicKey and HybridKemSecretKey coverage
 // ============================================================================
 
 #[test]
-fn test_public_key_clone_and_debug() {
-    let mut rng = OsRng;
-    let (pk, _sk) = generate_keypair(&mut rng).unwrap();
+fn test_public_key_clone_and_debug_succeeds() {
+    let (pk, _sk) = generate_keypair().unwrap();
 
     let cloned = pk.clone();
-    assert_eq!(cloned.ml_kem_pk, pk.ml_kem_pk);
-    assert_eq!(cloned.ecdh_pk, pk.ecdh_pk);
+    assert_eq!(cloned.ml_kem_pk(), pk.ml_kem_pk());
+    assert_eq!(cloned.ecdh_pk(), pk.ecdh_pk());
 
     let debug = format!("{:?}", pk);
-    assert!(debug.contains("HybridPublicKey"));
+    assert!(debug.contains("HybridKemPublicKey"));
 }
 
 #[test]
-fn test_secret_key_debug() {
-    let mut rng = OsRng;
-    let (_pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_secret_key_debug_succeeds() {
+    let (_pk, sk) = generate_keypair().unwrap();
 
     let debug = format!("{:?}", sk);
-    assert!(debug.contains("HybridSecretKey"));
+    assert!(debug.contains("HybridKemSecretKey"));
 }
 
 #[test]
-fn test_secret_key_accessors() {
-    let mut rng = OsRng;
-    let (pk, sk) = generate_keypair(&mut rng).unwrap();
+fn test_secret_key_accessors_succeeds() {
+    let (pk, sk) = generate_keypair().unwrap();
 
     // SK's public key bytes should match PK
-    assert_eq!(sk.ml_kem_pk_bytes(), pk.ml_kem_pk);
-    assert_eq!(sk.ecdh_public_key_bytes(), pk.ecdh_pk);
+    assert_eq!(sk.ml_kem_pk_bytes(), pk.ml_kem_pk());
+    assert_eq!(sk.ecdh_public_key_bytes(), pk.ecdh_pk());
 }
 
 // ============================================================================
@@ -256,21 +245,19 @@ fn test_secret_key_accessors() {
 // ============================================================================
 
 #[test]
-fn test_encapsulated_key_debug() {
-    let mut rng = OsRng;
-    let (pk, _sk) = generate_keypair(&mut rng).unwrap();
-    let enc = encapsulate(&mut rng, &pk).unwrap();
+fn test_encapsulated_key_debug_succeeds() {
+    let (pk, _sk) = generate_keypair().unwrap();
+    let enc = encapsulate(&pk).unwrap();
 
     let debug = format!("{:?}", enc);
     assert!(debug.contains("EncapsulatedKey"));
 }
 
 #[test]
-fn test_encapsulated_key_shared_secret_length() {
-    let mut rng = OsRng;
-    let (pk, _sk) = generate_keypair(&mut rng).unwrap();
-    let enc = encapsulate(&mut rng, &pk).unwrap();
-    assert_eq!(enc.shared_secret.len(), 64, "Hybrid shared secret should be 64 bytes");
-    assert_eq!(enc.ml_kem_ct.len(), 1088, "ML-KEM ciphertext should be 1088 bytes");
-    assert_eq!(enc.ecdh_pk.len(), 32, "Ephemeral ECDH PK should be 32 bytes");
+fn test_encapsulated_key_shared_secret_length_has_correct_size() {
+    let (pk, _sk) = generate_keypair().unwrap();
+    let enc = encapsulate(&pk).unwrap();
+    assert_eq!(enc.shared_secret().len(), 64, "Hybrid shared secret should be 64 bytes");
+    assert_eq!(enc.ml_kem_ct().len(), 1088, "ML-KEM ciphertext should be 1088 bytes");
+    assert_eq!(enc.ecdh_pk().len(), 32, "Ephemeral ECDH PK should be 32 bytes");
 }

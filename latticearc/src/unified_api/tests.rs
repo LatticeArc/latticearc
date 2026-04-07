@@ -4,7 +4,7 @@
 use crate::unified_api::*;
 
 #[test]
-fn test_basic_encryption() {
+fn test_basic_encryption_succeeds() {
     std::thread::Builder::new()
         .name("test_basic_encryption".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -29,7 +29,7 @@ fn test_basic_encryption() {
 }
 
 #[test]
-fn test_basic_signing() {
+fn test_basic_signing_succeeds() {
     std::thread::Builder::new()
         .name("test_basic_signing".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -55,7 +55,7 @@ fn test_basic_signing() {
 }
 
 #[test]
-fn test_keypair_generation() {
+fn test_keypair_generation_succeeds() {
     std::thread::Builder::new()
         .name("test_keypair_generation".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -73,7 +73,7 @@ fn test_keypair_generation() {
 }
 
 #[test]
-fn test_configuration_validation() {
+fn test_configuration_validation_returns_expected_succeeds() {
     let config = CoreConfig::new();
     let result = config.validate();
     assert!(result.is_ok(), "Default config validation failed: {:?}", result.err());
@@ -85,7 +85,7 @@ fn test_configuration_validation() {
 }
 
 #[test]
-fn test_zero_trust_authentication() {
+fn test_zero_trust_authentication_succeeds() {
     std::thread::Builder::new()
         .name("test_zero_trust_authentication".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -96,11 +96,11 @@ fn test_zero_trust_authentication() {
 
             let auth = auth.unwrap();
             let challenge = auth.generate_challenge().unwrap();
-            let proof = auth.generate_proof(&challenge.data);
+            let proof = auth.generate_proof(challenge.data());
             assert!(proof.is_ok(), "Proof generation failed: {:?}", proof.err());
 
             let proof = proof.unwrap();
-            let verified = auth.verify_proof(&proof, &challenge.data);
+            let verified = auth.verify_proof(&proof, challenge.data());
             assert!(verified.unwrap(), "Proof verification failed");
         })
         .unwrap()
@@ -109,7 +109,7 @@ fn test_zero_trust_authentication() {
 }
 
 #[test]
-fn test_verified_session_establishment() {
+fn test_verified_session_establishment_succeeds() {
     std::thread::Builder::new()
         .name("test_verified_session_establishment".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -128,7 +128,7 @@ fn test_verified_session_establishment() {
 }
 
 #[test]
-fn test_session_verified_encryption() {
+fn test_session_verified_encryption_succeeds() {
     std::thread::Builder::new()
         .name("test_session_verified_encryption".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -163,14 +163,14 @@ fn test_session_verified_encryption() {
 }
 
 #[test]
-fn test_use_case_config() {
+fn test_use_case_config_returns_expected_succeeds() {
     let config = UseCaseConfig::new(UseCase::SecureMessaging);
     let result = config.validate();
     assert!(result.is_ok(), "UseCaseConfig validation failed: {:?}", result.err());
 }
 
 #[test]
-fn test_hardware_types_exist() {
+fn test_hardware_types_exist_returns_expected_succeeds() {
     // Hardware trait definitions and types are available
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
@@ -188,7 +188,7 @@ fn test_hardware_types_exist() {
 }
 
 #[test]
-fn test_context_aware_selection() {
+fn test_context_aware_selection_returns_expected_succeeds() {
     let config = CoreConfig::default();
     let data = b"test data for context-aware selection";
 
@@ -200,7 +200,7 @@ fn test_context_aware_selection() {
 }
 
 #[test]
-fn test_encryption_decryption_with_security_level() {
+fn test_encryption_decryption_with_security_level_succeeds() {
     std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
@@ -226,7 +226,7 @@ fn test_encryption_decryption_with_security_level() {
 }
 
 #[test]
-fn test_signature_verification_with_use_case() {
+fn test_signature_verification_with_use_case_succeeds() {
     std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
@@ -256,7 +256,7 @@ fn test_signature_verification_with_use_case() {
 }
 
 #[test]
-fn test_key_derivation() {
+fn test_key_derivation_succeeds() {
     let password = b"test_password";
     let salt = b"test_salt";
     let length = 32;
@@ -269,7 +269,7 @@ fn test_key_derivation() {
 }
 
 #[test]
-fn test_hmac() {
+fn test_hmac_succeeds() {
     let key = b"test_hmac_key";
     let data = b"test data for hmac";
 
@@ -285,7 +285,7 @@ fn test_hmac() {
 }
 
 #[test]
-fn test_initialization() {
+fn test_initialization_succeeds() {
     std::thread::Builder::new()
         .name("test_initialization".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -303,7 +303,7 @@ fn test_initialization() {
 }
 
 #[test]
-fn test_version() {
+fn test_version_returns_expected_succeeds() {
     assert!(!VERSION.is_empty());
     assert!(VERSION.contains('.'));
 }
@@ -313,7 +313,7 @@ fn test_version() {
 // ============================================================================
 
 #[test]
-fn test_unified_api_aes_gcm_roundtrip() {
+fn test_unified_api_aes_gcm_roundtrip_succeeds() {
     std::thread::Builder::new()
         .name("test_unified_api_aes_gcm_roundtrip".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -336,7 +336,7 @@ fn test_unified_api_aes_gcm_roundtrip() {
 }
 
 #[test]
-fn test_unified_api_hybrid_scheme_falls_back_to_aes_gcm() {
+fn test_unified_api_hybrid_scheme_falls_back_to_aes_gcm_succeeds() {
     std::thread::Builder::new()
         .name("test_unified_api_hybrid_fallback".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -358,10 +358,10 @@ fn test_unified_api_hybrid_scheme_falls_back_to_aes_gcm() {
 
             // The stored scheme should be aes-256-gcm
             assert_eq!(
-                encrypted.scheme,
-                EncryptionScheme::Aes256Gcm,
+                encrypted.scheme(),
+                &EncryptionScheme::Aes256Gcm,
                 "Scheme should be Aes256Gcm, got: {}",
-                encrypted.scheme
+                encrypted.scheme()
             );
 
             // Roundtrip: decrypt should work with the same key
@@ -376,7 +376,7 @@ fn test_unified_api_hybrid_scheme_falls_back_to_aes_gcm() {
 }
 
 #[test]
-fn test_unified_api_default_encrypt_decrypt_roundtrip() {
+fn test_unified_api_default_encrypt_decrypt_roundtrip_succeeds() {
     std::thread::Builder::new()
         .name("test_unified_api_default_roundtrip".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -393,7 +393,7 @@ fn test_unified_api_default_encrypt_decrypt_roundtrip() {
             )
             .expect("Default encrypt should succeed");
 
-            assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
+            assert_eq!(encrypted.scheme(), &EncryptionScheme::Aes256Gcm);
 
             let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
                 .expect("Default decrypt should succeed");
@@ -406,7 +406,7 @@ fn test_unified_api_default_encrypt_decrypt_roundtrip() {
 }
 
 #[test]
-fn test_symmetric_roundtrip_all_use_cases() {
+fn test_symmetric_roundtrip_all_use_cases_succeeds() {
     std::thread::Builder::new()
         .name("test_symmetric_roundtrip_all_use_cases".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -455,8 +455,8 @@ fn test_symmetric_roundtrip_all_use_cases() {
 
                 // All use cases with symmetric key forced should produce AES-256-GCM
                 assert_eq!(
-                    encrypted.scheme,
-                    EncryptionScheme::Aes256Gcm,
+                    encrypted.scheme(),
+                    &EncryptionScheme::Aes256Gcm,
                     "UseCase {:?} should have Aes256Gcm scheme",
                     uc
                 );
@@ -473,7 +473,7 @@ fn test_symmetric_roundtrip_all_use_cases() {
 }
 
 #[test]
-fn test_symmetric_roundtrip_all_security_levels() {
+fn test_symmetric_roundtrip_all_security_levels_succeeds() {
     std::thread::Builder::new()
         .name("test_symmetric_roundtrip_all_security_levels".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -497,8 +497,8 @@ fn test_symmetric_roundtrip_all_security_levels() {
 
                 // All security levels with symmetric key forced should produce AES-256-GCM
                 assert_eq!(
-                    encrypted.scheme,
-                    EncryptionScheme::Aes256Gcm,
+                    encrypted.scheme(),
+                    &EncryptionScheme::Aes256Gcm,
                     "SecurityLevel {:?} should have Aes256Gcm scheme",
                     level
                 );
@@ -515,7 +515,7 @@ fn test_symmetric_roundtrip_all_security_levels() {
 }
 
 #[test]
-fn test_unified_api_rejects_short_key() {
+fn test_unified_api_rejects_short_key_returns_expected_fails() {
     std::thread::Builder::new()
         .name("test_unified_api_rejects_short_key".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -537,13 +537,13 @@ fn test_unified_api_rejects_short_key() {
 
 /// Test hybrid encryption roundtrip with ML-KEM-768 + X25519 via unified API.
 #[test]
-fn test_hybrid_encryption_roundtrip() {
+fn test_hybrid_encryption_roundtrip_succeeds() {
     std::thread::Builder::new()
         .name("test_hybrid_encryption_roundtrip".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
-            use crate::types::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme};
             use crate::unified_api::convenience::generate_hybrid_keypair;
+            use crate::unified_api::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme};
 
             let data = b"Secret message for hybrid encryption test";
 
@@ -556,12 +556,12 @@ fn test_hybrid_encryption_roundtrip() {
                 .expect("Hybrid encryption should succeed");
 
             // Verify structure
-            assert_eq!(encrypted.scheme, EncryptionScheme::HybridMlKem768Aes256Gcm);
-            assert!(encrypted.hybrid_data.is_some(), "Hybrid data should be present");
-            let hd = encrypted.hybrid_data.as_ref().unwrap();
+            assert_eq!(encrypted.scheme(), &EncryptionScheme::HybridMlKem768Aes256Gcm);
+            assert!(encrypted.hybrid_data().is_some(), "Hybrid data should be present");
+            let hd = encrypted.hybrid_data().unwrap();
             assert_eq!(hd.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
             assert_eq!(hd.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
-            assert_eq!(encrypted.nonce.len(), 12, "AES-GCM nonce should be 12 bytes");
+            assert_eq!(encrypted.nonce().len(), 12, "AES-GCM nonce should be 12 bytes");
 
             // Decrypt via unified API
             let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())
@@ -575,7 +575,7 @@ fn test_hybrid_encryption_roundtrip() {
 }
 
 #[test]
-fn test_scheme_selection_for_security_levels() {
+fn test_scheme_selection_for_security_levels_returns_expected_succeeds() {
     // Test that the CryptoPolicyEngine correctly selects schemes based on security level
     let data = b"test data";
 
@@ -604,7 +604,7 @@ fn test_scheme_selection_for_security_levels() {
 }
 
 #[test]
-fn test_encrypted_data_contains_scheme_metadata() {
+fn test_encrypted_data_contains_scheme_metadata_returns_expected_succeeds() {
     std::thread::Builder::new()
         .name("test_encrypted_data_contains_scheme_metadata".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -621,7 +621,7 @@ fn test_encrypted_data_contains_scheme_metadata() {
             .expect("Encryption should succeed");
 
             // Verify scheme is stored correctly as enum
-            assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
+            assert_eq!(encrypted.scheme(), &EncryptionScheme::Aes256Gcm);
 
             // Verify decryption works
             let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
@@ -634,7 +634,7 @@ fn test_encrypted_data_contains_scheme_metadata() {
 }
 
 #[test]
-fn test_decrypt_honors_scheme_from_encrypted_data() {
+fn test_decrypt_honors_scheme_from_encrypted_data_succeeds() {
     std::thread::Builder::new()
         .name("test_decrypt_honors_scheme".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -651,7 +651,7 @@ fn test_decrypt_honors_scheme_from_encrypted_data() {
             .expect("Encryption should succeed");
 
             // Verify scheme is AES-256-GCM
-            assert_eq!(encrypted.scheme, EncryptionScheme::Aes256Gcm);
+            assert_eq!(encrypted.scheme(), &EncryptionScheme::Aes256Gcm);
 
             // Decrypt should use scheme from EncryptedOutput, not from CryptoConfig
             let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())
@@ -668,7 +668,7 @@ fn test_decrypt_honors_scheme_from_encrypted_data() {
 // ============================================================================
 
 #[test]
-fn test_init() {
+fn test_init_succeeds() {
     std::thread::Builder::new()
         .name("test_init".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -682,7 +682,7 @@ fn test_init() {
 }
 
 #[test]
-fn test_init_with_config_default() {
+fn test_init_with_config_default_succeeds() {
     std::thread::Builder::new()
         .name("test_init_with_config_default".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -697,7 +697,7 @@ fn test_init_with_config_default() {
 }
 
 #[test]
-fn test_self_tests_passed_after_init() {
+fn test_self_tests_passed_after_init_returns_expected_succeeds() {
     std::thread::Builder::new()
         .name("test_self_tests_passed".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -715,14 +715,14 @@ fn test_self_tests_passed_after_init() {
 }
 
 #[test]
-fn test_version_constant() {
+fn test_version_constant_returns_expected_succeeds() {
     assert!(!crate::VERSION.is_empty(), "VERSION should not be empty");
     // Should be a semver-like string
     assert!(crate::VERSION.contains('.'), "VERSION should contain a dot separator");
 }
 
 #[test]
-fn test_init_with_invalid_config() {
+fn test_init_with_invalid_config_returns_expected_fails() {
     // Invalid config should fail validation before self-tests
     let invalid_config = crate::unified_api::CoreConfig::new()
         .with_security_level(SecurityLevel::Standard)
@@ -732,7 +732,7 @@ fn test_init_with_invalid_config() {
 }
 
 #[test]
-fn test_self_tests_passed_is_bool() {
+fn test_self_tests_passed_is_bool_returns_expected_succeeds() {
     // Just verify it returns a bool without panicking
     let _passed: bool = crate::unified_api::self_tests_passed();
 }
@@ -742,7 +742,7 @@ fn test_self_tests_passed_is_bool() {
 // ============================================================================
 
 #[test]
-fn test_zeroized_bytes_basic() {
+fn test_zeroized_bytes_basic_succeeds() {
     let data = vec![1u8, 2, 3, 4, 5];
     let zb = ZeroizedBytes::new(data.clone());
     assert_eq!(zb.as_slice(), &[1, 2, 3, 4, 5]);
@@ -757,7 +757,7 @@ fn test_zeroized_bytes_basic() {
 }
 
 #[test]
-fn test_zeroized_bytes_empty() {
+fn test_zeroized_bytes_empty_succeeds() {
     let zb = ZeroizedBytes::new(vec![]);
     assert!(zb.is_empty());
     assert_eq!(zb.len(), 0);
@@ -765,19 +765,19 @@ fn test_zeroized_bytes_empty() {
 }
 
 #[test]
-fn test_keypair_accessors() {
-    let pk = vec![10u8, 20, 30];
-    let sk = ZeroizedBytes::new(vec![40, 50, 60]);
+fn test_keypair_accessors_returns_expected_succeeds() {
+    let pk = crate::types::PublicKey::new(vec![10u8, 20, 30]);
+    let sk = crate::types::PrivateKey::new(vec![40, 50, 60]);
     let kp = KeyPair::new(pk.clone(), sk);
     assert_eq!(kp.public_key(), &pk);
     assert_eq!(kp.private_key().as_slice(), &[40, 50, 60]);
-    // Direct field access
-    assert_eq!(kp.public_key, pk);
-    assert_eq!(kp.private_key.as_slice(), &[40, 50, 60]);
+    // Getter access
+    assert_eq!(kp.public_key(), &pk);
+    assert_eq!(kp.private_key().as_slice(), &[40, 50, 60]);
 }
 
 #[test]
-fn test_security_level_variants() {
+fn test_security_level_variants_returns_expected_succeeds() {
     let standard = SecurityLevel::Standard;
     let high = SecurityLevel::High;
     let maximum = SecurityLevel::Maximum;
@@ -799,7 +799,7 @@ fn test_security_level_variants() {
 }
 
 #[test]
-fn test_performance_preference_variants() {
+fn test_performance_preference_variants_returns_expected_succeeds() {
     let speed = PerformancePreference::Speed;
     let memory = PerformancePreference::Memory;
     let balanced = PerformancePreference::Balanced;
@@ -817,7 +817,7 @@ fn test_performance_preference_variants() {
 }
 
 #[test]
-fn test_use_case_all_variants() {
+fn test_use_case_all_variants_returns_expected_succeeds() {
     // Ensure all 24 variants can be constructed and are distinct
     let variants: Vec<UseCase> = vec![
         UseCase::SecureMessaging,
@@ -856,7 +856,7 @@ fn test_use_case_all_variants() {
 }
 
 #[test]
-fn test_crypto_scheme_variants() {
+fn test_crypto_scheme_variants_returns_expected_succeeds() {
     let hybrid = CryptoScheme::Hybrid;
     let symmetric = CryptoScheme::Symmetric;
     let asymmetric = CryptoScheme::Asymmetric;
@@ -871,7 +871,7 @@ fn test_crypto_scheme_variants() {
 }
 
 #[test]
-fn test_crypto_context_default() {
+fn test_crypto_context_default_returns_expected_succeeds() {
     let ctx = CryptoContext::default();
     assert_eq!(ctx.security_level, SecurityLevel::High);
     assert_eq!(ctx.performance_preference, PerformancePreference::Balanced);
@@ -880,13 +880,13 @@ fn test_crypto_context_default() {
 }
 
 #[test]
-fn test_algorithm_selection_default() {
+fn test_algorithm_selection_default_returns_expected_succeeds() {
     let sel = AlgorithmSelection::default();
     assert_eq!(sel, AlgorithmSelection::SecurityLevel(SecurityLevel::High));
 }
 
 #[test]
-fn test_algorithm_selection_variants() {
+fn test_algorithm_selection_variants_returns_expected_succeeds() {
     let by_use_case = AlgorithmSelection::UseCase(UseCase::FileStorage);
     let by_level = AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum);
     assert_ne!(by_use_case, by_level);
@@ -896,7 +896,7 @@ fn test_algorithm_selection_variants() {
 }
 
 #[test]
-fn test_crypto_config_builder() {
+fn test_crypto_config_builder_returns_expected_succeeds() {
     let config = CryptoConfig::new();
     assert!(config.get_session().is_none());
     assert!(!config.is_verified());
@@ -906,26 +906,26 @@ fn test_crypto_config_builder() {
 }
 
 #[test]
-fn test_crypto_config_use_case() {
+fn test_crypto_config_use_case_returns_expected_succeeds() {
     let config = CryptoConfig::new().use_case(UseCase::HealthcareRecords);
     assert_eq!(*config.get_selection(), AlgorithmSelection::UseCase(UseCase::HealthcareRecords));
 }
 
 #[test]
-fn test_crypto_config_security_level() {
+fn test_crypto_config_security_level_returns_expected_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     assert_eq!(*config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum));
 }
 
 #[test]
-fn test_crypto_config_default_trait() {
+fn test_crypto_config_default_trait_returns_expected_succeeds() {
     let config: CryptoConfig<'_> = CryptoConfig::default();
     assert!(config.get_session().is_none());
     assert_eq!(*config.get_selection(), AlgorithmSelection::default());
 }
 
 #[test]
-fn test_encrypted_metadata() {
+fn test_encrypted_metadata_returns_expected_succeeds() {
     let meta = EncryptedMetadata {
         nonce: vec![1, 2, 3],
         tag: Some(vec![4, 5, 6]),
@@ -943,7 +943,7 @@ fn test_encrypted_metadata() {
 }
 
 #[test]
-fn test_signed_metadata() {
+fn test_signed_metadata_returns_expected_succeeds() {
     let meta = SignedMetadata {
         signature: vec![1, 2, 3],
         signature_algorithm: "ed25519".to_string(),
@@ -958,7 +958,7 @@ fn test_signed_metadata() {
 }
 
 #[test]
-fn test_encrypted_data_type_alias() {
+fn test_encrypted_data_type_alias_returns_expected_succeeds() {
     let encrypted = EncryptedData {
         data: vec![10, 20, 30],
         metadata: EncryptedMetadata { nonce: vec![1], tag: None, key_id: None },
@@ -972,7 +972,7 @@ fn test_encrypted_data_type_alias() {
 }
 
 #[test]
-fn test_crypto_config_overrides() {
+fn test_crypto_config_overrides_returns_expected_succeeds() {
     // Setting use_case then security_level should use security_level
     let config =
         CryptoConfig::new().use_case(UseCase::FileStorage).security_level(SecurityLevel::Standard);
@@ -989,7 +989,7 @@ fn test_crypto_config_overrides() {
 // ============================================================================
 
 #[test]
-fn test_verification_status_is_verified() {
+fn test_verification_status_is_verified_returns_expected_succeeds() {
     assert!(VerificationStatus::Verified.is_verified());
     assert!(!VerificationStatus::Expired.is_verified());
     assert!(!VerificationStatus::Failed.is_verified());
@@ -997,7 +997,7 @@ fn test_verification_status_is_verified() {
 }
 
 #[test]
-fn test_hardware_info_best_accelerator_preferred() {
+fn test_hardware_info_best_accelerator_preferred_returns_expected_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu, HardwareType::Gpu],
         preferred_accelerator: Some(HardwareType::Gpu),
@@ -1012,7 +1012,7 @@ fn test_hardware_info_best_accelerator_preferred() {
 }
 
 #[test]
-fn test_hardware_info_best_accelerator_fallback_to_first() {
+fn test_hardware_info_best_accelerator_fallback_to_first_returns_expected_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Fpga, HardwareType::Cpu],
         preferred_accelerator: None,
@@ -1027,7 +1027,7 @@ fn test_hardware_info_best_accelerator_fallback_to_first() {
 }
 
 #[test]
-fn test_hardware_info_best_accelerator_none() {
+fn test_hardware_info_best_accelerator_none_returns_expected_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![],
         preferred_accelerator: None,
@@ -1042,7 +1042,7 @@ fn test_hardware_info_best_accelerator_none() {
 }
 
 #[test]
-fn test_hardware_info_summary() {
+fn test_hardware_info_summary_returns_expected_succeeds() {
     let info = HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
         preferred_accelerator: Some(HardwareType::Cpu),
@@ -1060,7 +1060,7 @@ fn test_hardware_info_summary() {
 }
 
 #[test]
-fn test_hardware_type_variants() {
+fn test_hardware_type_variants_returns_expected_succeeds() {
     let types = vec![
         HardwareType::Cpu,
         HardwareType::Gpu,
@@ -1078,7 +1078,7 @@ fn test_hardware_type_variants() {
 }
 
 #[test]
-fn test_data_characteristics_fields() {
+fn test_data_characteristics_fields_returns_expected_succeeds() {
     let dc = DataCharacteristics { size: 1024, entropy: 7.5, pattern_type: PatternType::Random };
     assert_eq!(dc.size, 1024);
     assert!((dc.entropy - 7.5).abs() < f64::EPSILON);
@@ -1089,7 +1089,7 @@ fn test_data_characteristics_fields() {
 }
 
 #[test]
-fn test_pattern_type_variants() {
+fn test_pattern_type_variants_returns_expected_succeeds() {
     let patterns = vec![
         PatternType::Random,
         PatternType::Structured,
@@ -1113,7 +1113,7 @@ fn test_pattern_type_variants() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_with_verified_session() {
+fn test_aes_gcm_with_verified_session_succeeds() {
     std::thread::Builder::new()
         .name("test_aes_gcm_verified".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1121,7 +1121,7 @@ fn test_aes_gcm_with_verified_session() {
             use crate::unified_api::zero_trust::SecurityMode;
 
             let (pk, sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(&pk, sk.as_slice()).unwrap();
+            let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).unwrap();
 
             let key = vec![0x42u8; 32];
             let data = b"Verified AES-GCM test";
@@ -1137,7 +1137,7 @@ fn test_aes_gcm_with_verified_session() {
 }
 
 #[test]
-fn test_aes_gcm_with_config_verified_session() {
+fn test_aes_gcm_with_config_verified_session_succeeds() {
     std::thread::Builder::new()
         .name("test_aes_gcm_config_verified".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1145,8 +1145,8 @@ fn test_aes_gcm_with_config_verified_session() {
             use crate::unified_api::zero_trust::SecurityMode;
 
             let (pk, sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(&pk, sk.as_slice()).unwrap();
-            let config = crate::unified_api::config::CoreConfig::default();
+            let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).unwrap();
+            let config = crate::unified_api::CoreConfig::default();
 
             let key = vec![0x42u8; 32];
             let data = b"Config verified AES-GCM test";
@@ -1173,7 +1173,7 @@ fn test_aes_gcm_with_config_verified_session() {
 // ============================================================================
 
 #[test]
-fn test_generate_signing_keypair_quantum_level() {
+fn test_generate_signing_keypair_quantum_level_succeeds() {
     std::thread::Builder::new()
         .name("keygen_quantum".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1192,7 +1192,7 @@ fn test_generate_signing_keypair_quantum_level() {
 }
 
 #[test]
-fn test_generate_signing_keypair_all_use_cases() {
+fn test_generate_signing_keypair_all_use_cases_succeeds() {
     std::thread::Builder::new()
         .name("keygen_use_cases".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1243,7 +1243,7 @@ fn test_generate_signing_keypair_all_use_cases() {
 // ============================================================================
 
 #[test]
-fn test_sign_with_key_hybrid_44_wrong_sk_length() {
+fn test_sign_with_key_hybrid_44_wrong_sk_length_returns_expected_fails() {
     std::thread::Builder::new()
         .name("hybrid44_bad_sk".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1270,7 +1270,7 @@ fn test_sign_with_key_hybrid_44_wrong_sk_length() {
 }
 
 #[test]
-fn test_sign_with_key_hybrid_87_wrong_key_lengths() {
+fn test_sign_with_key_hybrid_87_wrong_key_lengths_returns_expected_fails() {
     std::thread::Builder::new()
         .name("hybrid87_bad_keys".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1301,7 +1301,7 @@ fn test_sign_with_key_hybrid_87_wrong_key_lengths() {
 // ============================================================================
 
 #[test]
-fn test_verify_hybrid_44_short_signature() {
+fn test_verify_hybrid_44_short_signature_returns_expected_succeeds() {
     let signed = SignedData {
         data: b"test".to_vec(),
         metadata: SignedMetadata {
@@ -1319,7 +1319,7 @@ fn test_verify_hybrid_44_short_signature() {
 }
 
 #[test]
-fn test_verify_hybrid_44_wrong_pk_length() {
+fn test_verify_hybrid_44_wrong_pk_length_returns_expected_fails() {
     let signed = SignedData {
         data: b"test".to_vec(),
         metadata: SignedMetadata {
@@ -1337,7 +1337,7 @@ fn test_verify_hybrid_44_wrong_pk_length() {
 }
 
 #[test]
-fn test_verify_hybrid_87_short_signature() {
+fn test_verify_hybrid_87_short_signature_returns_expected_succeeds() {
     let signed = SignedData {
         data: b"test".to_vec(),
         metadata: SignedMetadata {
@@ -1355,7 +1355,7 @@ fn test_verify_hybrid_87_short_signature() {
 }
 
 #[test]
-fn test_verify_hybrid_87_wrong_pk_length() {
+fn test_verify_hybrid_87_wrong_pk_length_returns_expected_fails() {
     let signed = SignedData {
         data: b"test".to_vec(),
         metadata: SignedMetadata {
@@ -1373,17 +1373,17 @@ fn test_verify_hybrid_87_wrong_pk_length() {
 }
 
 #[test]
-fn test_decrypt_with_short_key_fails() {
+fn test_decrypt_with_short_key_fails_returns_expected_fails() {
     // Create an EncryptedOutput with AES-256-GCM scheme but malformed ciphertext
-    let encrypted = EncryptedOutput {
-        scheme: EncryptionScheme::Aes256Gcm,
-        ciphertext: vec![1, 2, 3, 4],
-        nonce: vec![0u8; 12],
-        tag: vec![0u8; 16],
-        hybrid_data: None,
-        timestamp: 0,
-        key_id: None,
-    };
+    let encrypted = EncryptedOutput::new(
+        EncryptionScheme::Aes256Gcm,
+        vec![1, 2, 3, 4],
+        vec![0u8; 12],
+        vec![0u8; 16],
+        None,
+        0,
+        None,
+    );
     let short_key = vec![0x42u8; 16];
 
     let result = decrypt(&encrypted, DecryptKey::Symmetric(&short_key), CryptoConfig::new());
@@ -1391,7 +1391,7 @@ fn test_decrypt_with_short_key_fails() {
 }
 
 #[test]
-fn test_encrypt_empty_data() {
+fn test_encrypt_empty_data_succeeds() {
     std::thread::Builder::new()
         .name("encrypt_empty".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -1404,7 +1404,7 @@ fn test_encrypt_empty_data() {
             )
             .unwrap();
             // Empty plaintext still produces ciphertext (nonce + auth tag)
-            assert!(!encrypted.ciphertext.is_empty());
+            assert!(!encrypted.ciphertext().is_empty());
 
             let decrypted =
                 decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new()).unwrap();
@@ -1416,7 +1416,7 @@ fn test_encrypt_empty_data() {
 }
 
 #[test]
-fn test_verify_hybrid_65_short_signature() {
+fn test_verify_hybrid_65_short_signature_returns_expected_succeeds() {
     let signed = SignedData {
         data: b"test".to_vec(),
         metadata: SignedMetadata {
@@ -1434,7 +1434,7 @@ fn test_verify_hybrid_65_short_signature() {
 }
 
 #[test]
-fn test_verify_hybrid_65_wrong_pk_length() {
+fn test_verify_hybrid_65_wrong_pk_length_returns_expected_fails() {
     let signed = SignedData {
         data: b"test".to_vec(),
         metadata: SignedMetadata {
@@ -1456,7 +1456,7 @@ fn test_verify_hybrid_65_wrong_pk_length() {
 // ============================================================================
 
 #[test]
-fn test_unified_encrypt_decrypt_with_verified_session() {
+fn test_unified_encrypt_decrypt_with_verified_session_succeeds() {
     std::thread::Builder::new()
         .name("unified_verified".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1465,7 +1465,7 @@ fn test_unified_encrypt_decrypt_with_verified_session() {
             let key = vec![0x42u8; 32];
 
             let (auth_pk, auth_sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+            let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
 
             let config =
                 CryptoConfig::new().session(&session).force_scheme(CryptoScheme::Symmetric);
@@ -1479,7 +1479,7 @@ fn test_unified_encrypt_decrypt_with_verified_session() {
 }
 
 #[test]
-fn test_unified_sign_verify_with_verified_session() {
+fn test_unified_sign_verify_with_verified_session_succeeds() {
     std::thread::Builder::new()
         .name("sign_verified".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1487,7 +1487,7 @@ fn test_unified_sign_verify_with_verified_session() {
             let message = b"Verified session signing test";
 
             let (auth_pk, auth_sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(&auth_pk, auth_sk.as_ref()).unwrap();
+            let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
 
             let config = CryptoConfig::new().session(&session);
             let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
@@ -1501,7 +1501,7 @@ fn test_unified_sign_verify_with_verified_session() {
 }
 
 #[test]
-fn test_encrypt_decrypt_with_use_case_secure_messaging() {
+fn test_encrypt_decrypt_with_use_case_secure_messaging_succeeds() {
     std::thread::Builder::new()
         .name("secure_msg".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1522,7 +1522,7 @@ fn test_encrypt_decrypt_with_use_case_secure_messaging() {
 }
 
 #[test]
-fn test_encrypt_decrypt_with_use_case_financial() {
+fn test_encrypt_decrypt_with_use_case_financial_succeeds() {
     std::thread::Builder::new()
         .name("financial".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1545,7 +1545,7 @@ fn test_encrypt_decrypt_with_use_case_financial() {
 // ---- Coverage: double init, custom config, VERSION format ----
 
 #[test]
-fn test_double_init_is_safe() {
+fn test_double_init_is_safe_succeeds() {
     std::thread::Builder::new()
         .name("double_init".to_string())
         .stack_size(32 * 1024 * 1024)
@@ -1561,7 +1561,7 @@ fn test_double_init_is_safe() {
 }
 
 #[test]
-fn test_version_is_semver() {
+fn test_version_is_semver_returns_expected_succeeds() {
     let version = crate::VERSION;
     let parts: Vec<&str> = version.split('.').collect();
     assert!(parts.len() >= 2, "VERSION should have at least major.minor: {}", version);
@@ -1570,7 +1570,7 @@ fn test_version_is_semver() {
 }
 
 #[test]
-fn test_init_with_config_custom_security() {
+fn test_init_with_config_custom_security_succeeds() {
     std::thread::Builder::new()
         .name("custom_config".to_string())
         .stack_size(32 * 1024 * 1024)

@@ -42,28 +42,28 @@ use latticearc::{CryptoConfig, DecryptKey, EncryptKey, decrypt, encrypt};
 // ============================================================================
 
 #[test]
-fn test_mlkem512_public_key_size() -> Result<()> {
+fn test_mlkem512_public_key_size_has_correct_size() -> Result<()> {
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)?;
     assert_eq!(pk.len(), 800, "ML-KEM-512 public key should be 800 bytes");
     Ok(())
 }
 
 #[test]
-fn test_mlkem768_public_key_size() -> Result<()> {
+fn test_mlkem768_public_key_size_has_correct_size() -> Result<()> {
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
     assert_eq!(pk.len(), 1184, "ML-KEM-768 public key should be 1184 bytes");
     Ok(())
 }
 
 #[test]
-fn test_mlkem1024_public_key_size() -> Result<()> {
+fn test_mlkem1024_public_key_size_has_correct_size() -> Result<()> {
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)?;
     assert_eq!(pk.len(), 1568, "ML-KEM-1024 public key should be 1568 bytes");
     Ok(())
 }
 
 #[test]
-fn test_all_mlkem_key_sizes() -> Result<()> {
+fn test_all_mlkem_key_sizes_has_correct_size() -> Result<()> {
     let test_cases = vec![
         (MlKemSecurityLevel::MlKem512, 800, "ML-KEM-512"),
         (MlKemSecurityLevel::MlKem768, 1184, "ML-KEM-768"),
@@ -96,13 +96,13 @@ fn test_hybrid_keypair_generation_succeeds() -> Result<()> {
 }
 
 #[test]
-fn test_hybrid_keypair_uniqueness() -> Result<()> {
+fn test_hybrid_keypair_uniqueness_are_unique() -> Result<()> {
     let (pk1, _sk1) = generate_hybrid_keypair()?;
     let (pk2, _sk2) = generate_hybrid_keypair()?;
 
     // Public keys should be different
-    assert_ne!(pk1.ml_kem_pk, pk2.ml_kem_pk, "ML-KEM PKs should differ");
-    assert_ne!(pk1.ecdh_pk, pk2.ecdh_pk, "X25519 PKs should differ");
+    assert_ne!(pk1.ml_kem_pk(), pk2.ml_kem_pk(), "ML-KEM PKs should differ");
+    assert_ne!(pk1.ecdh_pk(), pk2.ecdh_pk(), "X25519 PKs should differ");
 
     Ok(())
 }

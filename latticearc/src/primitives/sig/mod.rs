@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -43,27 +43,37 @@
 //! - **SLH-DSA-SHAKE-256s**: NIST Security Category 5
 //!   - Highest security level
 //!
-//! ### FN-DSA (FIPS 206)
-//! Few-Time Digital Signature Algorithm based on NTRU lattice.
-//! Provides compact signatures with lattice-based security.
+//! ### FN-DSA (draft FIPS 206 / Falcon)
+//! Fast-Fourier Lattice-based signature scheme based on NTRU lattices. NIST
+//! selected Falcon for standardization as FIPS 206, but **the final standard
+//! has not been published yet** (Falcon remains in the standardization
+//! pipeline as of this writing).
+//! "FN" stands for "Falcon-NTRU"; despite the name, FN-DSA is a *many-time*
+//! signature scheme — there is no upper bound on the number of signatures
+//! producible per key (prior revisions of this doc incorrectly called it
+//! "Few-Time"). Provides compact signatures with lattice-based security.
 //!
-//! - **FN-DSA-512**: ~128-bit security (Level I)
+//! - **FN-DSA-512**: NIST Category 1 (~103-bit quantum, ~128-bit classical)
 //!   - Public key: 897 bytes
 //!   - Secret key: 1281 bytes
-//!   - Signature: 666 bytes
+//!   - Signature: ~666 bytes average (variable-length encoding)
 //!
-//! - **FN-DSA-1024**: ~256-bit security (Level V)
+//! - **FN-DSA-1024**: NIST Category 5 (~230-bit quantum, ~256-bit classical)
 //!   - Public key: 1793 bytes
 //!   - Secret key: 2305 bytes
-//!   - Signature: 1280 bytes
+//!   - Signature: ~1280 bytes average
 //!
 //! ## Classical Algorithms
 //!
-//! - **ECDSA**: Elliptic Curve Digital Signature Algorithm
-//!   - P-256, P-384, P-521 curves
-//!
-//! - **Ed25519**: EdDSA signature scheme using Curve25519
-//!   - Fast, secure, widely adopted
+//! This crate only exposes **Ed25519** (EdDSA over Curve25519) as a classical
+//! signature primitive. It is used in the hybrid ML-DSA-65 + Ed25519
+//! construction in [`hybrid::sig_hybrid`](crate::hybrid::sig_hybrid) and as a
+//! standalone signer via [`primitives::ec::ed25519`](crate::primitives::ec::ed25519).
+//! **ECDSA over NIST P-curves (P-256/P-384/P-521) is NOT implemented** —
+//! prior revisions of this doc listed them, which was aspirational. For
+//! secp256k1 blockchain / interoperability use cases, see
+//! `crate::primitives::ec::secp256k1` (available with the default feature set;
+//! gated out under `--features fips`).
 //!
 //! ## Security Properties
 //!
@@ -98,10 +108,10 @@
 //! ### ML-DSA Signing and Verification
 //!
 //! ```no_run
-//! use latticearc::primitives::sig::{MlDsaParameterSet, generate_keypair, sign, verify};
+//! use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 //!
 //! // Generate keypair
-//! let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)?;
+//! let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)?;
 //!
 //! // Sign a message
 //! let message = b"Hello, post-quantum world!";
@@ -116,9 +126,9 @@
 //! ### SLH-DSA with Context
 //!
 //! ```no_run
-//! use latticearc::primitives::sig::slh_dsa::{SecurityLevel, SigningKey, VerifyingKey};
+//! use latticearc::primitives::sig::slh_dsa::{SlhDsaSecurityLevel, SigningKey, VerifyingKey};
 //!
-//! let (sk, pk) = SigningKey::generate(SecurityLevel::Shake128s)?;
+//! let (sk, pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
 //!
 //! let message = b"Important document";
 //! let context = b"my-application-v1"; // Domain separation
@@ -134,7 +144,7 @@
 //!
 //! - **ML-DSA**: [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final/)
 //! - **SLH-DSA**: [FIPS 205](https://csrc.nist.gov/pubs/fips/205/final/)
-//! - **FN-DSA**: [FIPS 206](https://csrc.nist.gov/pubs/fips/206/final/)
+//! - **FN-DSA**: [FIPS 206 (pending, Falcon selected for standardization)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
 //!
 //! All implementations use audited FIPS-standard crates (fips204, fips205, fn-dsa).
 //!
@@ -173,7 +183,12 @@ pub mod fndsa;
 pub mod ml_dsa;
 pub mod slh_dsa;
 
-// Re-exports for convenience
-pub use fndsa::*;
-pub use ml_dsa::*;
-pub use slh_dsa::*;
+// Each algorithm submodule owns the canonical path for its types. We do NOT
+// glob-re-export their contents here because `SigningKey` / `VerifyingKey`
+// collide across fndsa, ml_dsa, and slh_dsa. Downstream consumers should
+// import the specific algorithm they want:
+//   use latticearc::primitives::sig::fndsa::{SigningKey, VerifyingKey};
+//
+// Parameter-set and security-level enums are re-exported from
+// `crate::primitives` with algorithm-prefixed names (`FnDsaSecurityLevel`,
+// `SlhDsaSecurityLevel`, `MlDsaParameterSet`).

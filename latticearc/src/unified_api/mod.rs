@@ -26,7 +26,7 @@
 //! let (public_key, private_key) = generate_keypair()?;
 //!
 //! // Establish a Zero Trust verified session (recommended)
-//! let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 //!
 //! // Symmetric encryption with session verification
 //! let key = [0u8; 32];
@@ -64,7 +64,7 @@
 //! let (public_key, private_key) = generate_keypair()?;
 //!
 //! // Step 2: Establish a verified session (performs challenge-response)
-//! let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 //!
 //! // Step 3: Use the session for cryptographic operations
 //! let key = [0u8; 32];
@@ -120,7 +120,7 @@
 //!
 //! # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
 //! let (pk, sk) = generate_keypair()?;
-//! let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+//! let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
 //!
 //! // Session is valid for 30 minutes by default
 //! assert!(session.is_valid());
@@ -171,7 +171,7 @@
 //! fn perform_crypto_operation(
 //!     session: &VerifiedSession,
 //!     data: &[u8],
-//!     pk: &latticearc::hybrid::kem_hybrid::HybridPublicKey,
+//!     pk: &latticearc::hybrid::kem_hybrid::HybridKemPublicKey,
 //! ) -> Result<EncryptedOutput, CoreError> {
 //!     // Validate session before operation
 //!     session.verify_valid()?;  // Returns Err(SessionExpired) if expired
@@ -182,47 +182,45 @@
 
 /// Persistent audit storage with rotation and integrity verification.
 pub mod audit;
-/// Configuration types for cryptographic operations.
-pub mod config;
 /// Convenience APIs for high-level cryptographic operations.
 pub mod convenience;
+/// Type-safe encryption scheme types (EncryptKey, DecryptKey, EncryptionScheme, EncryptedOutput).
+pub mod crypto_types;
 /// Error types and result aliases.
 pub mod error;
-/// Hardware type re-exports (trait definitions only).
-pub mod hardware;
 /// Portable key serialization format (v1).
 pub mod key_format;
-/// Key lifecycle management per NIST SP 800-57.
-pub mod key_lifecycle;
 /// Security-conscious logging utilities.
 pub mod logging;
-/// Cryptographic policy engine for intelligent scheme selection.
+/// Cryptographic policy engine for policy-based scheme selection.
 pub mod selector;
 /// Serialization utilities for cryptographic types.
 pub mod serialization;
-/// Core traits for cryptographic operations.
-pub mod traits;
 /// Fundamental cryptographic types.
 pub mod types;
 /// Zero-trust authentication primitives.
 pub mod zero_trust;
 
-use rand_core::RngCore;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[allow(deprecated)]
+pub use crate::types::config::{
+    CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig, UseCaseConfig,
+    ZeroTrustConfig,
+};
 pub use audit::{
     AuditConfig, AuditEvent, AuditEventBuilder, AuditEventType, AuditOutcome, AuditStorage,
     FileAuditStorage,
 };
-pub use config::{
-    CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig, UseCaseConfig,
-    ZeroTrustConfig,
-};
 pub use error::{CoreError, Result};
-// Hardware types are re-exported from traits below (hardware module is re-exports only)
-pub use key_lifecycle::{
+// Hardware types re-exported directly from traits (there is no `hardware` submodule).
+pub use crate::types::key_lifecycle::{
     CustodianRole, KeyCustodian, KeyLifecycleRecord, KeyLifecycleState, KeyStateMachine,
     StateTransition,
+};
+pub use crate::types::traits::{
+    ContinuousVerifiable, DataCharacteristics, HardwareCapabilities, HardwareInfo, HardwareType,
+    PatternType, ProofOfPossession, SchemeSelector, VerificationStatus, ZeroTrustAuthenticable,
 };
 pub use selector::{
     // Classical schemes
@@ -249,12 +247,6 @@ pub use selector::{
     PQ_SIGNATURE_65,
     PQ_SIGNATURE_87,
     PerformanceMetrics,
-};
-pub use traits::{
-    ContinuousVerifiable, DataCharacteristics, Decryptable, Encryptable, HardwareAccelerator,
-    HardwareAware, HardwareCapabilities, HardwareInfo, HardwareType, KeyDerivable, PatternType,
-    ProofOfPossession, SchemeSelector, Signable, Verifiable, VerificationStatus,
-    ZeroTrustAuthenticable,
 };
 pub use types::{
     AlgorithmSelection, ComplianceMode, CryptoConfig, CryptoContext, CryptoPayload, CryptoScheme,
@@ -452,73 +444,49 @@ pub fn self_tests_passed() -> bool {
 
 /// Run FIPS 140-3 power-up self-tests
 fn run_power_up_self_tests() -> Result<()> {
-    use sha3::{Digest, Sha3_256};
-
-    // Test 1: SHA-3 KAT
-    let mut hasher = Sha3_256::new();
-    hasher.update(b"abc");
-    let hash = hasher.finalize();
+    // Test 1: SHA-3 KAT — routed through the primitives wrapper so the
+    // self-test exercises the same call path production code uses, rather
+    // than a bare `sha3::Sha3_256` instance that could diverge over time.
+    let hash = crate::primitives::hash::sha3::sha3_256(b"abc");
     let expected_sha3 = [
         0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90,
         0xbd, 0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b, 0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43,
         0x15, 0x32,
     ];
-    if hash.as_slice() != expected_sha3 {
+    if !bool::from(subtle::ConstantTimeEq::ct_eq(hash.as_slice(), expected_sha3.as_slice())) {
         return Err(CoreError::SelfTestFailed {
             component: "SHA-3".to_string(),
             status: "KAT failed".to_string(),
         });
     }
 
-    // Test 2: AES-GCM encryption/decryption
-    use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
-    let mut key_bytes = [0u8; 32];
-    rand::rngs::OsRng.try_fill_bytes(&mut key_bytes).map_err(|_e| CoreError::SelfTestFailed {
-        component: "RNG".to_string(),
-        status: "failed to generate random key bytes".to_string(),
-    })?;
+    // Test 2: AES-GCM encryption/decryption via the primitives wrapper.
+    // Going through AesGcm256 ensures the self-test exercises the same path
+    // that production crypto code uses (ZeroizeOnDrop, zero-key warning, etc.),
+    // not a bare aws-lc-rs call that could diverge over time.
+    use crate::primitives::aead::AeadCipher;
+    use crate::primitives::aead::aes_gcm::AesGcm256;
 
-    let unbound =
-        UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| CoreError::SelfTestFailed {
-            component: "AES-GCM".to_string(),
-            status: "key creation failed".to_string(),
-        })?;
-    let encrypt_key = LessSafeKey::new(unbound);
-
-    let mut nonce_bytes = [0u8; 12];
-    rand::rngs::OsRng.try_fill_bytes(&mut nonce_bytes).map_err(|_e| CoreError::SelfTestFailed {
-        component: "RNG".to_string(),
-        status: "failed to generate random nonce bytes".to_string(),
+    let key = AesGcm256::generate_key();
+    let cipher = AesGcm256::new(&*key).map_err(|e| CoreError::SelfTestFailed {
+        component: "AES-GCM".to_string(),
+        status: format!("key creation failed: {e}"),
     })?;
+    let nonce = AesGcm256::generate_nonce();
 
     let plaintext = b"test message for AES-GCM";
-    let mut ciphertext = plaintext.to_vec();
-    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-    encrypt_key.seal_in_place_append_tag(nonce, Aad::empty(), &mut ciphertext).map_err(|_e| {
-        CoreError::SelfTestFailed {
+    let (ct, tag) =
+        cipher.encrypt(&nonce, plaintext, None).map_err(|e| CoreError::SelfTestFailed {
             component: "AES-GCM".to_string(),
-            status: "encryption failed".to_string(),
-        }
-    })?;
-
-    // Create new key for decryption (nonce was consumed)
-    let unbound2 =
-        UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_e| CoreError::SelfTestFailed {
-            component: "AES-GCM".to_string(),
-            status: "key creation failed".to_string(),
+            status: format!("encryption failed: {e}"),
         })?;
-    let decrypt_key = LessSafeKey::new(unbound2);
-    let nonce2 = Nonce::assume_unique_for_key(nonce_bytes);
-
     let decrypted =
-        decrypt_key.open_in_place(nonce2, Aad::empty(), &mut ciphertext).map_err(|_e| {
-            CoreError::SelfTestFailed {
-                component: "AES-GCM".to_string(),
-                status: "decryption failed".to_string(),
-            }
+        cipher.decrypt(&nonce, &ct, &tag, None).map_err(|e| CoreError::SelfTestFailed {
+            component: "AES-GCM".to_string(),
+            status: format!("decryption failed: {e}"),
         })?;
 
-    if decrypted != plaintext {
+    if !bool::from(subtle::ConstantTimeEq::ct_eq(decrypted.as_slice(), &plaintext[..])) {
         return Err(CoreError::SelfTestFailed {
             component: "AES-GCM".to_string(),
             status: "decryption mismatch".to_string(),

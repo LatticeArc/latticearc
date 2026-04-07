@@ -6,6 +6,7 @@ use thiserror::Error;
 pub type Result<T> = std::result::Result<T, ZkpError>;
 
 /// Errors that can occur during ZKP operations
+#[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum ZkpError {
     /// Invalid commitment

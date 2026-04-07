@@ -83,13 +83,15 @@ use latticearc::primitives::kem::ecdh::{X25519KeyPair, X25519SecretKey};
 use latticearc::primitives::kem::ml_kem::{
     MlKem, MlKemSecretKey, MlKemSecurityLevel, MlKemSharedSecret,
 };
-use latticearc::primitives::keys::KeyPair;
+// NOTE: `primitives::keys::KemEccKeyPair` was removed in the P4.2 dead-code
+// cleanup — it duplicated `hybrid::kem_hybrid::HybridKemPublicKey`/
+// `HybridKemSecretKey`. The two tests that exercised its Debug redaction were
+// removed together with the module.
 use latticearc::primitives::security::{SecureBytes, secure_compare};
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSecretKey, generate_keypair as mldsa_generate_keypair,
     sign as mldsa_sign, verify as mldsa_verify,
 };
-use rand::rngs::OsRng;
 
 // =============================================================================
 // SECTION 1: subtle crate ConstantTimeEq Usage Tests
@@ -97,7 +99,7 @@ use rand::rngs::OsRng;
 
 /// Test MlKemSharedSecret uses ct_eq from subtle crate
 #[test]
-fn test_shared_secret_uses_constant_time_comparison() {
+fn test_shared_secret_uses_constant_time_comparison_succeeds() {
     let ss1 = MlKemSharedSecret::new([0x42u8; 32]);
     let ss2 = MlKemSharedSecret::new([0x42u8; 32]);
     let ss3 = MlKemSharedSecret::new([0x43u8; 32]);
@@ -117,7 +119,7 @@ fn test_shared_secret_uses_constant_time_comparison() {
 
 /// Test MlKemSecretKey uses ConstantTimeEq for comparisons
 #[test]
-fn test_mlkem_secret_key_constant_time_comparison() {
+fn test_mlkem_secret_key_constant_time_comparison_succeeds() {
     let sk1 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xABu8; 2400])
         .expect("secret key creation should succeed");
     let sk2 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xABu8; 2400])
@@ -139,7 +141,7 @@ fn test_mlkem_secret_key_constant_time_comparison() {
 
 /// Test MlKemSecurityLevel uses ConstantTimeEq
 #[test]
-fn test_mlkem_security_level_constant_time_comparison() {
+fn test_mlkem_security_level_constant_time_comparison_succeeds() {
     let level_512 = MlKemSecurityLevel::MlKem512;
     let level_768 = MlKemSecurityLevel::MlKem768;
     let level_1024 = MlKemSecurityLevel::MlKem1024;
@@ -156,11 +158,11 @@ fn test_mlkem_security_level_constant_time_comparison() {
 
 /// Test ML-DSA secret key uses ConstantTimeEq
 #[test]
-fn test_mldsa_secret_key_constant_time_comparison() {
+fn test_mldsa_secret_key_constant_time_comparison_succeeds() {
     let (_pk1, sk1) =
-        mldsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keypair generation");
+        mldsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
     let (_pk2, sk2) =
-        mldsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keypair generation");
+        mldsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     // Create a copy of sk1 for equal comparison
     let sk1_copy = MlDsaSecretKey::new(sk1.parameter_set(), sk1.as_bytes().to_vec())
@@ -176,7 +178,7 @@ fn test_mldsa_secret_key_constant_time_comparison() {
 
 /// Test SecureBytes uses ConstantTimeEq for PartialEq
 #[test]
-fn test_secure_bytes_constant_time_comparison() {
+fn test_secure_bytes_constant_time_comparison_succeeds() {
     let sb1 = SecureBytes::new(vec![0x42u8; 64]);
     let sb2 = SecureBytes::new(vec![0x42u8; 64]);
     let sb3 = SecureBytes::new(vec![0x43u8; 64]);
@@ -188,7 +190,7 @@ fn test_secure_bytes_constant_time_comparison() {
 
 /// Test secure_compare uses subtle::ConstantTimeEq
 #[test]
-fn test_secure_compare_constant_time() {
+fn test_secure_compare_constant_time_succeeds() {
     let a = b"hello world";
     let b = b"hello world";
     let c = b"hello xorld"; // differs in middle
@@ -211,7 +213,7 @@ fn test_secure_compare_constant_time() {
 
 /// Test AES-GCM tag verification uses constant-time comparison
 #[test]
-fn test_aes_gcm_tag_verification_constant_time() {
+fn test_aes_gcm_tag_verification_constant_time_succeeds() {
     let tag1 = [0x00u8; 16];
     let tag2 = [0x00u8; 16];
     let tag3 = [0xFFu8; 16];
@@ -227,7 +229,7 @@ fn test_aes_gcm_tag_verification_constant_time() {
 /// Test ChaCha20-Poly1305 tag verification constant-time
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_chacha20poly1305_tag_verification_constant_time() {
+fn test_chacha20poly1305_tag_verification_constant_time_succeeds() {
     use latticearc::primitives::aead::verify_tag_constant_time as chacha_verify;
 
     let tag1 = [0x00u8; 16];
@@ -240,7 +242,7 @@ fn test_chacha20poly1305_tag_verification_constant_time() {
 
 /// Test that ct_eq returns Choice type, not bool
 #[test]
-fn test_ct_eq_returns_choice_type() {
+fn test_ct_eq_returns_choice_type_succeeds() {
     let ss = MlKemSharedSecret::new([0x42u8; 32]);
     let ss2 = MlKemSharedSecret::new([0x42u8; 32]);
 
@@ -269,28 +271,26 @@ fn test_ct_eq_returns_choice_type() {
 /// - Hardware-accelerated implementations (AES-NI, AVX2)
 /// - Designed to resist timing side-channel attacks
 #[test]
-fn test_mlkem_uses_aws_lc_rs() {
-    let mut rng = OsRng;
-
+fn test_mlkem_uses_aws_lc_rs_succeeds() {
     // ML-KEM-512 uses aws-lc-rs internally
-    let (pk512, _sk512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+    let (pk512, _sk512) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
     assert_eq!(pk512.as_bytes().len(), 800);
 
     // ML-KEM-768 uses aws-lc-rs internally
-    let (pk768, _sk768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (pk768, _sk768) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
     assert_eq!(pk768.as_bytes().len(), 1184);
 
     // ML-KEM-1024 uses aws-lc-rs internally
-    let (pk1024, _sk1024) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
+    let (pk1024, _sk1024) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)
         .expect("keypair generation should succeed");
     assert_eq!(pk1024.as_bytes().len(), 1568);
 }
 
 /// Document that AES-GCM uses aws-lc-rs constant-time implementation
 #[test]
-fn test_aes_gcm_uses_aws_lc_rs() {
+fn test_aes_gcm_uses_aws_lc_rs_succeeds() {
     // AES-GCM-128 uses aws-lc-rs
     let key128 = AesGcm128::generate_key();
     let cipher128 = AesGcm128::new(&*key128).expect("cipher creation");
@@ -315,7 +315,7 @@ fn test_aes_gcm_uses_aws_lc_rs() {
 
 /// Document that X25519 uses aws-lc-rs constant-time implementation
 #[test]
-fn test_x25519_uses_aws_lc_rs() {
+fn test_x25519_uses_aws_lc_rs_succeeds() {
     // X25519 key pair generation uses aws-lc-rs
     let alice = X25519KeyPair::generate().expect("keypair generation");
     let bob = X25519KeyPair::generate().expect("keypair generation");
@@ -332,13 +332,12 @@ fn test_x25519_uses_aws_lc_rs() {
 
 /// Test that encapsulation produces different ciphertexts (randomized)
 #[test]
-fn test_mlkem_encapsulation_is_randomized() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keypair generation");
+fn test_mlkem_encapsulation_is_randomized_succeeds() {
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let (ss1, ct1) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation");
-    let (ss2, ct2) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation");
+    let (ss1, ct1) = MlKem::encapsulate(&pk).expect("encapsulation");
+    let (ss2, ct2) = MlKem::encapsulate(&pk).expect("encapsulation");
 
     // Different encapsulations should produce different results
     assert_ne!(ct1.as_bytes(), ct2.as_bytes());
@@ -351,7 +350,7 @@ fn test_mlkem_encapsulation_is_randomized() {
 
 /// Test ML-KEM shared secret implements Zeroize trait
 #[test]
-fn test_mlkem_shared_secret_implements_zeroize() {
+fn test_mlkem_shared_secret_implements_zeroize_is_covered() {
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
 
     // Verify non-zero before zeroization
@@ -366,7 +365,7 @@ fn test_mlkem_shared_secret_implements_zeroize() {
 
 /// Test ML-KEM secret key implements Zeroize trait
 #[test]
-fn test_mlkem_secret_key_implements_zeroize() {
+fn test_mlkem_secret_key_implements_zeroize_is_covered() {
     let mut sk = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xCDu8; 2400])
         .expect("secret key creation");
 
@@ -382,9 +381,9 @@ fn test_mlkem_secret_key_implements_zeroize() {
 
 /// Test ML-DSA secret key implements Zeroize trait
 #[test]
-fn test_mldsa_secret_key_implements_zeroize() {
+fn test_mldsa_secret_key_implements_zeroize_is_covered() {
     let (_pk, mut sk) =
-        mldsa_generate_keypair(MlDsaParameterSet::MLDSA44).expect("keypair generation");
+        mldsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     // Verify non-zero before
     assert!(sk.as_bytes().iter().any(|&b| b != 0));
@@ -398,7 +397,7 @@ fn test_mldsa_secret_key_implements_zeroize() {
 
 /// Test X25519 secret key implements Zeroize trait
 #[test]
-fn test_x25519_secret_key_implements_zeroize() {
+fn test_x25519_secret_key_implements_zeroize_is_covered() {
     let mut sk = X25519SecretKey::from_bytes(&[0xEFu8; 32]).expect("secret key creation");
 
     // Verify non-zero before
@@ -414,7 +413,7 @@ fn test_x25519_secret_key_implements_zeroize() {
 
 /// Test SecureBytes implements Zeroize and ZeroizeOnDrop
 #[test]
-fn test_secure_bytes_zeroization() {
+fn test_secure_bytes_zeroization_succeeds() {
     let mut sb = SecureBytes::new(vec![0xFFu8; 100]);
 
     // Verify non-zero before
@@ -429,7 +428,7 @@ fn test_secure_bytes_zeroization() {
 
 /// Test zeroization works for all ML-KEM security levels
 #[test]
-fn test_mlkem_zeroization_all_security_levels() {
+fn test_mlkem_zeroization_all_security_levels_succeeds() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
@@ -448,9 +447,9 @@ fn test_mlkem_zeroization_all_security_levels() {
 
 /// Test zeroization works for all ML-DSA parameter sets
 #[test]
-fn test_mldsa_zeroization_all_parameter_sets() {
+fn test_mldsa_zeroization_all_parameter_sets_succeeds() {
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (_pk, mut sk) = mldsa_generate_keypair(param).expect("keypair generation");
 
@@ -462,7 +461,7 @@ fn test_mldsa_zeroization_all_parameter_sets() {
 
 /// Test multiple zeroization calls are safe
 #[test]
-fn test_multiple_zeroization_calls_safe() {
+fn test_multiple_zeroization_calls_safe_succeeds() {
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
 
     // Multiple zeroizations should be safe
@@ -476,12 +475,11 @@ fn test_multiple_zeroization_calls_safe() {
 
 /// Test intermediate value cleanup
 #[test]
-fn test_intermediate_value_cleanup() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keypair generation");
+fn test_intermediate_value_cleanup_succeeds() {
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let (mut ss, _ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation");
+    let (mut ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation");
 
     // Verify shared secret is non-zero
     assert!(ss.as_bytes().iter().any(|&b| b != 0));
@@ -503,7 +501,7 @@ fn test_intermediate_value_cleanup() {
 /// For production use, a custom Debug impl showing [REDACTED] would be preferred.
 /// This test documents the current behavior.
 #[test]
-fn test_mlkem_secret_key_debug_format() {
+fn test_mlkem_secret_key_debug_format_has_correct_size() {
     let sk = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xABu8; 2400])
         .expect("secret key creation");
 
@@ -526,7 +524,7 @@ fn test_mlkem_secret_key_debug_format() {
 /// For production use, a custom Debug impl showing [REDACTED] would be preferred.
 /// This test documents the current behavior.
 #[test]
-fn test_mlkem_shared_secret_debug_format() {
+fn test_mlkem_shared_secret_debug_format_has_correct_size() {
     let ss = MlKemSharedSecret::new([0xCDu8; 32]);
 
     let debug_output = format!("{:?}", ss);
@@ -544,7 +542,7 @@ fn test_mlkem_shared_secret_debug_format() {
 
 /// Verify X25519 secret key Debug shows [REDACTED]
 #[test]
-fn test_x25519_secret_key_debug_redacts() {
+fn test_x25519_secret_key_debug_redacts_succeeds() {
     let sk = X25519SecretKey::from_bytes(&[0xEFu8; 32]).expect("secret key creation");
 
     let debug_output = format!("{:?}", sk);
@@ -563,7 +561,7 @@ fn test_x25519_secret_key_debug_redacts() {
 
 /// Verify X25519KeyPair Debug shows [REDACTED] for private key
 #[test]
-fn test_x25519_keypair_debug_redacts_private() {
+fn test_x25519_keypair_debug_redacts_private_succeeds() {
     let keypair = X25519KeyPair::generate().expect("keypair generation");
 
     let debug_output = format!("{:?}", keypair);
@@ -578,7 +576,7 @@ fn test_x25519_keypair_debug_redacts_private() {
 
 /// Verify SecureBytes Debug shows [REDACTED]
 #[test]
-fn test_secure_bytes_debug_redacts() {
+fn test_secure_bytes_debug_redacts_succeeds() {
     let sb = SecureBytes::new(vec![0xFFu8; 100]);
 
     let debug_output = format!("{:?}", sb);
@@ -595,41 +593,9 @@ fn test_secure_bytes_debug_redacts() {
     );
 }
 
-/// Verify hybrid SecretKey Debug redacts
-#[test]
-fn test_hybrid_secret_key_debug_redacts() {
-    let keypair = KeyPair::generate().expect("keypair generation");
-    let sk = keypair.secret_key();
-
-    let debug_output = format!("{:?}", sk);
-
-    // Debug should not expose key material
-    assert!(
-        debug_output.contains("SecretKey") && !debug_output.contains("["),
-        "Debug should not expose key material: {}",
-        debug_output
-    );
-}
-
-/// Verify hybrid PublicKey Debug doesn't fully expose content
-#[test]
-fn test_hybrid_public_key_debug_format() {
-    let keypair = KeyPair::generate().expect("keypair generation");
-    let pk = keypair.public_key();
-
-    let debug_output = format!("{:?}", pk);
-
-    // Public key debug should be reasonable (finish_non_exhaustive)
-    assert!(
-        debug_output.contains("PublicKey"),
-        "Debug should indicate PublicKey type: {}",
-        debug_output
-    );
-}
-
 /// Test that ML-KEM SharedSecret does NOT implement Clone
 #[test]
-fn test_mlkem_shared_secret_no_clone() {
+fn test_mlkem_shared_secret_no_clone_succeeds() {
     // This test verifies at compile-time that MlKemSharedSecret doesn't implement Clone
     // If Clone were implemented, we'd be able to call ss.clone()
     // The test passes if it compiles - the type doesn't need to be checked at runtime
@@ -649,7 +615,7 @@ fn test_mlkem_shared_secret_no_clone() {
 
 /// Test PartialEq uses constant-time comparison for ML-KEM types
 #[test]
-fn test_mlkem_partialeq_uses_constant_time() {
+fn test_mlkem_partialeq_uses_constant_time_succeeds() {
     let sk1 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, vec![0x42u8; 1632])
         .expect("secret key creation");
     let sk2 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, vec![0x42u8; 1632])
@@ -673,7 +639,7 @@ fn test_mlkem_partialeq_uses_constant_time() {
 
 /// Test subtle::Choice conditional selection
 #[test]
-fn test_choice_conditional_selection() {
+fn test_choice_conditional_selection_succeeds() {
     let a = 0x00u8;
     let b = 0xFFu8;
 
@@ -691,7 +657,7 @@ fn test_choice_conditional_selection() {
 
 /// Test Choice operations are branch-free (by design)
 #[test]
-fn test_choice_operations_branch_free() {
+fn test_choice_operations_branch_free_succeeds() {
     let choice_0 = Choice::from(0u8);
     let choice_1 = Choice::from(1u8);
 
@@ -714,7 +680,7 @@ fn test_choice_operations_branch_free() {
 
 /// Verify ct_eq doesn't short-circuit (compares all bytes)
 #[test]
-fn test_ct_eq_no_short_circuit() {
+fn test_ct_eq_no_short_circuit_succeeds() {
     // Two 32-byte arrays differing only in the last byte
     let mut a = [0x00u8; 32];
     let mut b = [0x00u8; 32];
@@ -732,7 +698,7 @@ fn test_ct_eq_no_short_circuit() {
 
 /// Test conditional swap is branch-free
 #[test]
-fn test_conditional_swap_branch_free() {
+fn test_conditional_swap_branch_free_succeeds() {
     let mut a = 0x42u8;
     let mut b = 0xABu8;
 
@@ -754,7 +720,7 @@ fn test_conditional_swap_branch_free() {
 
 /// Test Choice comparison correctness for slices
 #[test]
-fn test_slice_constant_time_comparison() {
+fn test_slice_constant_time_comparison_succeeds() {
     let data1: Vec<u8> = (0..256).map(|i| i as u8).collect();
     let data2: Vec<u8> = (0..256).map(|i| i as u8).collect();
     let mut data3: Vec<u8> = (0..256).map(|i| i as u8).collect();
@@ -774,8 +740,8 @@ fn test_slice_constant_time_comparison() {
 
 /// Test ML-DSA signature generation and verification
 #[test]
-fn test_mldsa_signature_operations() {
-    let (pk, sk) = mldsa_generate_keypair(MlDsaParameterSet::MLDSA65).expect("keypair generation");
+fn test_mldsa_signature_operations_succeeds() {
+    let (pk, sk) = mldsa_generate_keypair(MlDsaParameterSet::MlDsa65).expect("keypair generation");
 
     let message = b"Test message for ML-DSA signature";
     let context: &[u8] = b"test context";
@@ -795,12 +761,12 @@ fn test_mldsa_signature_operations() {
 
 /// Test ML-DSA with all parameter sets
 #[test]
-fn test_mldsa_all_parameter_sets() {
+fn test_mldsa_all_parameter_sets_succeeds() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = mldsa_generate_keypair(param).expect("keypair generation");
 
@@ -814,7 +780,7 @@ fn test_mldsa_all_parameter_sets() {
 /// Test ChaCha20-Poly1305 operations
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_chacha20poly1305_operations() {
+fn test_chacha20poly1305_operations_succeeds() {
     let key = ChaCha20Poly1305Cipher::generate_key();
     let cipher = ChaCha20Poly1305Cipher::new(&*key).expect("cipher creation");
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -833,7 +799,7 @@ fn test_chacha20poly1305_operations() {
 
 /// Test constant-time comparison with empty inputs
 #[test]
-fn test_constant_time_comparison_empty() {
+fn test_constant_time_comparison_empty_succeeds() {
     let empty1: [u8; 0] = [];
     let empty2: [u8; 0] = [];
 
@@ -843,7 +809,7 @@ fn test_constant_time_comparison_empty() {
 
 /// Test constant-time comparison with single byte
 #[test]
-fn test_constant_time_comparison_single_byte() {
+fn test_constant_time_comparison_single_byte_succeeds() {
     let a = [0x42u8];
     let b = [0x42u8];
     let c = [0x43u8];
@@ -854,7 +820,7 @@ fn test_constant_time_comparison_single_byte() {
 
 /// Test constant-time comparison with large inputs
 #[test]
-fn test_constant_time_comparison_large() {
+fn test_constant_time_comparison_large_succeeds() {
     let size = 1024 * 1024; // 1MB
     let a: Vec<u8> = vec![0xABu8; size];
     let b: Vec<u8> = vec![0xABu8; size];
@@ -867,7 +833,7 @@ fn test_constant_time_comparison_large() {
 
 /// Test error cases don't leak timing information
 #[test]
-fn test_error_cases_constant_time() {
+fn test_error_cases_constant_time_fails() {
     // Invalid key length for ML-KEM
     let invalid_sk_result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 100]);
     assert!(invalid_sk_result.is_err());
@@ -883,17 +849,15 @@ fn test_error_cases_constant_time() {
 
 /// Test security level mismatch error
 #[test]
-fn test_security_level_mismatch_error() {
-    let mut rng = OsRng;
-
+fn test_security_level_mismatch_error_fails() {
     // Generate keys at different security levels
-    let (pk_512, _sk_512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
-        .expect("keypair generation");
-    let (_pk_768, sk_768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keypair generation");
+    let (pk_512, _sk_512) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).expect("keypair generation");
+    let (_pk_768, sk_768) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
     // Encapsulate with 512 level
-    let (_, ct_512) = MlKem::encapsulate(&mut rng, &pk_512).expect("encapsulation");
+    let (_, ct_512) = MlKem::encapsulate(&pk_512).expect("encapsulation");
 
     // Decapsulation with mismatched secret key should fail
     let result = MlKem::decapsulate(&sk_768, &ct_512);
@@ -907,64 +871,64 @@ fn test_security_level_mismatch_error() {
 /// This test verifies we have 30+ verification tests
 /// by documenting all test functions in this file
 #[test]
-fn test_verification_count() {
+fn test_verification_count_succeeds() {
     // Section 1: subtle crate ConstantTimeEq Usage Tests (10 tests)
-    // - test_shared_secret_uses_constant_time_comparison
-    // - test_mlkem_secret_key_constant_time_comparison
-    // - test_mlkem_security_level_constant_time_comparison
-    // - test_mldsa_secret_key_constant_time_comparison
-    // - test_secure_bytes_constant_time_comparison
-    // - test_secure_compare_constant_time
-    // - test_aes_gcm_tag_verification_constant_time
-    // - test_chacha20poly1305_tag_verification_constant_time
-    // - test_ct_eq_returns_choice_type
+    // - test_shared_secret_uses_constant_time_comparison_succeeds
+    // - test_mlkem_secret_key_constant_time_comparison_succeeds
+    // - test_mlkem_security_level_constant_time_comparison_succeeds
+    // - test_mldsa_secret_key_constant_time_comparison_succeeds
+    // - test_secure_bytes_constant_time_comparison_succeeds
+    // - test_secure_compare_constant_time_succeeds
+    // - test_aes_gcm_tag_verification_constant_time_succeeds
+    // - test_chacha20poly1305_tag_verification_constant_time_succeeds
+    // - test_ct_eq_returns_choice_type_succeeds
 
     // Section 2: aws-lc-rs Constant-Time Guarantees (4 tests)
-    // - test_mlkem_uses_aws_lc_rs
-    // - test_aes_gcm_uses_aws_lc_rs
-    // - test_x25519_uses_aws_lc_rs
-    // - test_mlkem_encapsulation_is_randomized
+    // - test_mlkem_uses_aws_lc_rs_succeeds
+    // - test_aes_gcm_uses_aws_lc_rs_succeeds
+    // - test_x25519_uses_aws_lc_rs_succeeds
+    // - test_mlkem_encapsulation_is_randomized_succeeds
 
     // Section 3: Zeroization Verification (9 tests)
-    // - test_mlkem_shared_secret_implements_zeroize
-    // - test_mlkem_secret_key_implements_zeroize
-    // - test_mldsa_secret_key_implements_zeroize
-    // - test_x25519_secret_key_implements_zeroize
-    // - test_secure_bytes_zeroization
-    // - test_mlkem_zeroization_all_security_levels
-    // - test_mldsa_zeroization_all_parameter_sets
-    // - test_multiple_zeroization_calls_safe
-    // - test_intermediate_value_cleanup
+    // - test_mlkem_shared_secret_implements_zeroize_is_covered
+    // - test_mlkem_secret_key_implements_zeroize_is_covered
+    // - test_mldsa_secret_key_implements_zeroize_is_covered
+    // - test_x25519_secret_key_implements_zeroize_is_covered
+    // - test_secure_bytes_zeroization_succeeds
+    // - test_mlkem_zeroization_all_security_levels_succeeds
+    // - test_mldsa_zeroization_all_parameter_sets_succeeds
+    // - test_multiple_zeroization_calls_safe_succeeds
+    // - test_intermediate_value_cleanup_succeeds
 
     // Section 4: API Contract Tests (9 tests)
-    // - test_mlkem_secret_key_debug_format
-    // - test_mlkem_shared_secret_debug_format
-    // - test_x25519_secret_key_debug_redacts
-    // - test_x25519_keypair_debug_redacts_private
-    // - test_secure_bytes_debug_redacts
+    // - test_mlkem_secret_key_debug_format_has_correct_size
+    // - test_mlkem_shared_secret_debug_format_has_correct_size
+    // - test_x25519_secret_key_debug_redacts_succeeds
+    // - test_x25519_keypair_debug_redacts_private_succeeds
+    // - test_secure_bytes_debug_redacts_succeeds
     // - test_hybrid_secret_key_debug_redacts
     // - test_hybrid_public_key_debug_format
-    // - test_mlkem_shared_secret_no_clone
-    // - test_mlkem_partialeq_uses_constant_time
+    // - test_mlkem_shared_secret_no_clone_succeeds
+    // - test_mlkem_partialeq_uses_constant_time_succeeds
 
     // Section 5: Branch-Free Operation Verification (5 tests)
-    // - test_choice_conditional_selection
-    // - test_choice_operations_branch_free
-    // - test_ct_eq_no_short_circuit
-    // - test_conditional_swap_branch_free
-    // - test_slice_constant_time_comparison
+    // - test_choice_conditional_selection_succeeds
+    // - test_choice_operations_branch_free_succeeds
+    // - test_ct_eq_no_short_circuit_succeeds
+    // - test_conditional_swap_branch_free_succeeds
+    // - test_slice_constant_time_comparison_succeeds
 
     // Section 6: FIPS Signature Constant-Time (3 tests)
-    // - test_mldsa_signature_operations
-    // - test_mldsa_all_parameter_sets
-    // - test_chacha20poly1305_operations
+    // - test_mldsa_signature_operations_succeeds
+    // - test_mldsa_all_parameter_sets_succeeds
+    // - test_chacha20poly1305_operations_succeeds
 
     // Section 7: Edge Cases (4 tests)
-    // - test_constant_time_comparison_empty
-    // - test_constant_time_comparison_single_byte
-    // - test_constant_time_comparison_large
-    // - test_error_cases_constant_time
-    // - test_security_level_mismatch_error
+    // - test_constant_time_comparison_empty_succeeds
+    // - test_constant_time_comparison_single_byte_succeeds
+    // - test_constant_time_comparison_large_succeeds
+    // - test_error_cases_constant_time_fails
+    // - test_security_level_mismatch_error_fails
 
     // Total: 45 tests (exceeds 30+ requirement)
 

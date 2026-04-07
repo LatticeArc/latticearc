@@ -22,7 +22,7 @@ use latticearc::primitives::security::{
 // ============================================================================
 
 #[test]
-fn test_secure_bytes_new_and_accessors() {
+fn test_secure_bytes_new_and_accessors_succeeds() {
     let data = vec![1u8, 2, 3, 4, 5];
     let sb = SecureBytes::new(data.clone());
     assert_eq!(sb.len(), 5);
@@ -32,7 +32,7 @@ fn test_secure_bytes_new_and_accessors() {
 }
 
 #[test]
-fn test_secure_bytes_from_slice() {
+fn test_secure_bytes_from_slice_succeeds() {
     let data = [10u8, 20, 30];
     let sb = SecureBytes::from(&data);
     assert_eq!(sb.len(), 3);
@@ -40,21 +40,21 @@ fn test_secure_bytes_from_slice() {
 }
 
 #[test]
-fn test_secure_bytes_zeros() {
+fn test_secure_bytes_zeros_succeeds() {
     let sb = SecureBytes::zeros(16);
     assert_eq!(sb.len(), 16);
     assert!(sb.as_slice().iter().all(|&b| b == 0));
 }
 
 #[test]
-fn test_secure_bytes_empty() {
+fn test_secure_bytes_empty_succeeds() {
     let sb = SecureBytes::new(vec![]);
     assert!(sb.is_empty());
     assert_eq!(sb.len(), 0);
 }
 
 #[test]
-fn test_secure_bytes_extend() {
+fn test_secure_bytes_extend_succeeds() {
     let mut sb = SecureBytes::new(vec![1, 2]);
     sb.extend_from_slice(&[3, 4, 5]);
     assert_eq!(sb.len(), 5);
@@ -62,7 +62,7 @@ fn test_secure_bytes_extend() {
 }
 
 #[test]
-fn test_secure_bytes_as_mut_slice() {
+fn test_secure_bytes_as_mut_slice_succeeds() {
     let mut sb = SecureBytes::new(vec![0u8; 4]);
     let slice = sb.as_mut_slice();
     slice[0] = 0xFF;
@@ -70,14 +70,14 @@ fn test_secure_bytes_as_mut_slice() {
 }
 
 #[test]
-fn test_secure_bytes_into_vec() {
+fn test_secure_bytes_into_vec_succeeds() {
     let sb = SecureBytes::new(vec![10, 20, 30]);
     let v = sb.into_vec();
     assert_eq!(v, vec![10, 20, 30]);
 }
 
 #[test]
-fn test_secure_bytes_resize() {
+fn test_secure_bytes_resize_succeeds() {
     let mut sb = SecureBytes::new(vec![1, 2, 3]);
     sb.resize(5);
     assert_eq!(sb.len(), 5);
@@ -89,14 +89,14 @@ fn test_secure_bytes_resize() {
 }
 
 #[test]
-fn test_secure_bytes_deref() {
+fn test_secure_bytes_deref_succeeds() {
     let sb = SecureBytes::new(vec![1, 2, 3]);
     let slice: &[u8] = &sb;
     assert_eq!(slice, &[1, 2, 3]);
 }
 
 #[test]
-fn test_secure_bytes_deref_mut() {
+fn test_secure_bytes_deref_mut_succeeds() {
     let mut sb = SecureBytes::new(vec![0u8; 3]);
     let slice: &mut [u8] = &mut sb;
     slice[1] = 42;
@@ -104,14 +104,14 @@ fn test_secure_bytes_deref_mut() {
 }
 
 #[test]
-fn test_secure_bytes_as_ref() {
+fn test_secure_bytes_as_ref_succeeds() {
     let sb = SecureBytes::new(vec![5, 6, 7]);
     let r: &[u8] = sb.as_ref();
     assert_eq!(r, &[5, 6, 7]);
 }
 
 #[test]
-fn test_secure_bytes_debug_redacted() {
+fn test_secure_bytes_debug_redacted_succeeds() {
     let sb = SecureBytes::new(vec![0xDE, 0xAD]);
     let debug = format!("{:?}", sb);
     assert!(debug.contains("REDACTED"));
@@ -121,7 +121,7 @@ fn test_secure_bytes_debug_redacted() {
 }
 
 #[test]
-fn test_secure_bytes_constant_time_eq() {
+fn test_secure_bytes_constant_time_eq_succeeds() {
     let a = SecureBytes::new(vec![1, 2, 3]);
     let b = SecureBytes::new(vec![1, 2, 3]);
     let c = SecureBytes::new(vec![1, 2, 4]);
@@ -135,7 +135,7 @@ fn test_secure_bytes_constant_time_eq() {
 // Clone intentionally removed from SecureBytes to prevent copies of secret data
 
 #[test]
-fn test_secure_bytes_from_vec() {
+fn test_secure_bytes_from_vec_succeeds() {
     let v = vec![1u8, 2, 3];
     let sb: SecureBytes = v.into();
     assert_eq!(sb.len(), 3);
@@ -146,27 +146,27 @@ fn test_secure_bytes_from_vec() {
 // ============================================================================
 
 #[test]
-fn test_secure_compare_equal_slices() {
+fn test_secure_compare_equal_slices_succeeds() {
     assert!(secure_compare(b"hello", b"hello"));
 }
 
 #[test]
-fn test_secure_compare_different_content() {
+fn test_secure_compare_different_content_succeeds() {
     assert!(!secure_compare(b"hello", b"world"));
 }
 
 #[test]
-fn test_secure_compare_different_lengths() {
+fn test_secure_compare_different_lengths_has_correct_size() {
     assert!(!secure_compare(b"hello", b"hi"));
 }
 
 #[test]
-fn test_secure_compare_empty() {
+fn test_secure_compare_empty_succeeds() {
     assert!(secure_compare(b"", b""));
 }
 
 #[test]
-fn test_secure_compare_one_empty() {
+fn test_secure_compare_one_empty_succeeds() {
     assert!(!secure_compare(b"", b"a"));
     assert!(!secure_compare(b"a", b""));
 }
@@ -176,7 +176,7 @@ fn test_secure_compare_one_empty() {
 // ============================================================================
 
 #[test]
-fn test_secure_zeroize() {
+fn test_secure_zeroize_succeeds() {
     let mut data = vec![0xFFu8; 32];
     secure_zeroize(&mut data);
     assert!(data.iter().all(|&b| b == 0));
@@ -187,7 +187,7 @@ fn test_secure_zeroize() {
 // ============================================================================
 
 #[test]
-fn test_memory_pool_new() {
+fn test_memory_pool_new_succeeds() {
     let pool = MemoryPool::new();
     let mem = pool.allocate(64).unwrap();
     assert_eq!(mem.len(), 64);
@@ -195,14 +195,14 @@ fn test_memory_pool_new() {
 }
 
 #[test]
-fn test_memory_pool_default() {
+fn test_memory_pool_default_succeeds() {
     let pool = MemoryPool::default();
     let mem = pool.allocate(32).unwrap();
     assert_eq!(mem.len(), 32);
 }
 
 #[test]
-fn test_memory_pool_allocate_reuse() {
+fn test_memory_pool_allocate_reuse_succeeds() {
     let pool = MemoryPool::new();
 
     // Allocate and deallocate
@@ -229,7 +229,7 @@ fn test_memory_pool_allocate_too_large_fails() {
 }
 
 #[test]
-fn test_memory_pool_deallocate_pool_limit() {
+fn test_memory_pool_deallocate_pool_limit_succeeds() {
     let pool = MemoryPool::new();
 
     // Deallocate more than MAX_POOL_SIZE (100) items
@@ -244,7 +244,7 @@ fn test_memory_pool_deallocate_pool_limit() {
 }
 
 #[test]
-fn test_get_memory_pool_singleton() {
+fn test_get_memory_pool_singleton_succeeds() {
     let pool1 = get_memory_pool();
     let pool2 = get_memory_pool();
     // Both should point to the same pool (singleton)
@@ -257,7 +257,7 @@ fn test_get_memory_pool_singleton() {
 // ============================================================================
 
 #[test]
-fn test_rng_handle_secure() {
+fn test_rng_handle_secure_succeeds() {
     let rng = RngHandle::secure().unwrap();
     let mut buf = vec![0u8; 32];
     rng.fill_bytes(&mut buf).unwrap();
@@ -266,7 +266,7 @@ fn test_rng_handle_secure() {
 }
 
 #[test]
-fn test_rng_handle_next_u64() {
+fn test_rng_handle_next_u64_succeeds() {
     let rng = RngHandle::secure().unwrap();
     let val = rng.next_u64().unwrap();
     // Just verify it doesn't error (value is random)
@@ -274,14 +274,14 @@ fn test_rng_handle_next_u64() {
 }
 
 #[test]
-fn test_rng_handle_next_u32() {
+fn test_rng_handle_next_u32_succeeds() {
     let rng = RngHandle::secure().unwrap();
     let val = rng.next_u32().unwrap();
     let _ = val;
 }
 
 #[test]
-fn test_rng_handle_thread_local() {
+fn test_rng_handle_thread_local_succeeds() {
     let rng = RngHandle::ThreadLocal;
     let mut buf = vec![0u8; 16];
     rng.fill_bytes(&mut buf).unwrap();
@@ -299,38 +299,38 @@ fn test_rng_handle_thread_local() {
 // ============================================================================
 
 #[test]
-fn test_generate_secure_random_bytes() {
+fn test_generate_secure_random_bytes_succeeds() {
     let bytes = generate_secure_random_bytes(32).unwrap();
     assert_eq!(bytes.len(), 32);
     assert!(!bytes.iter().all(|&b| b == 0));
 }
 
 #[test]
-fn test_generate_secure_random_bytes_zero_length() {
+fn test_generate_secure_random_bytes_zero_length_has_correct_size() {
     let bytes = generate_secure_random_bytes(0).unwrap();
     assert!(bytes.is_empty());
 }
 
 #[test]
-fn test_generate_secure_random_u64() {
+fn test_generate_secure_random_u64_succeeds() {
     let val = generate_secure_random_u64().unwrap();
     let _ = val;
 }
 
 #[test]
-fn test_generate_secure_random_u32() {
+fn test_generate_secure_random_u32_succeeds() {
     let val = generate_secure_random_u32().unwrap();
     let _ = val;
 }
 
 #[test]
-fn test_get_global_secure_rng() {
+fn test_get_global_secure_rng_succeeds() {
     let rng = get_global_secure_rng().unwrap();
     let _ = rng; // Just verify it doesn't error
 }
 
 #[test]
-fn test_initialize_global_secure_rng() {
+fn test_initialize_global_secure_rng_succeeds() {
     let result = initialize_global_secure_rng();
     assert!(result.is_ok());
 }

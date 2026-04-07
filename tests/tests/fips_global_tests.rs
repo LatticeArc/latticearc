@@ -80,7 +80,7 @@ mod validator_tests {
 
     /// Test that validation produces results with expected algorithm test keys.
     #[test]
-    fn test_validation_contains_algorithm_tests() {
+    fn test_validation_contains_algorithm_tests_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -92,7 +92,7 @@ mod validator_tests {
 
     /// Test ModuleInterfaces scope includes interface tests.
     #[test]
-    fn test_module_interfaces_validation() {
+    fn test_module_interfaces_validation_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::ModuleInterfaces);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -104,7 +104,7 @@ mod validator_tests {
 
     /// Test FullModule scope includes all test types.
     #[test]
-    fn test_full_module_validation_test_keys() {
+    fn test_full_module_validation_test_keys_are_present_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -120,7 +120,7 @@ mod validator_tests {
 
     /// Test validation metadata is populated.
     #[test]
-    fn test_validation_metadata() {
+    fn test_validation_metadata_contains_expected_fields_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -130,7 +130,7 @@ mod validator_tests {
 
     /// Test security level is at least Level 1 for AlgorithmsOnly.
     #[test]
-    fn test_security_level_algorithms_only() {
+    fn test_security_level_algorithms_only_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -149,9 +149,9 @@ mod algorithm_tests {
     /// Test AES algorithm validation.
     /// This tests the same code path as run_conditional_self_test("aes").
     #[test]
-    fn test_aes_algorithm() {
+    fn test_aes_algorithm_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_aes_algorithm().expect("AES test should execute");
+        let result = validator.test_aes_algorithm_succeeds().expect("AES test should execute");
         assert!(result.passed, "AES test should pass");
         assert!(!result.test_id.is_empty());
         assert!(result.test_id.contains("aes"), "test_id should contain 'aes'");
@@ -160,9 +160,9 @@ mod algorithm_tests {
     /// Test SHA-3 algorithm validation.
     /// This tests the same code path as run_conditional_self_test("sha3").
     #[test]
-    fn test_sha3_algorithm() {
+    fn test_sha3_algorithm_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_sha3_algorithm().expect("SHA-3 test should execute");
+        let result = validator.test_sha3_algorithm_succeeds().expect("SHA-3 test should execute");
         assert!(result.passed, "SHA-3 test should pass");
         assert!(!result.test_id.is_empty());
         assert!(result.test_id.contains("sha3"), "test_id should contain 'sha3'");
@@ -171,9 +171,9 @@ mod algorithm_tests {
     /// Test ML-KEM algorithm validation.
     /// This tests the same code path as run_conditional_self_test("mlkem").
     #[test]
-    fn test_mlkem_algorithm() {
+    fn test_mlkem_algorithm_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_mlkem_algorithm().expect("ML-KEM test should execute");
+        let result = validator.test_mlkem_algorithm_succeeds().expect("ML-KEM test should execute");
         assert!(result.passed, "ML-KEM test should pass");
         assert!(!result.test_id.is_empty());
         assert!(result.test_id.contains("mlkem"), "test_id should contain 'mlkem'");
@@ -182,9 +182,9 @@ mod algorithm_tests {
     /// Test self-tests execution (tests that it runs, not necessarily passes).
     /// Note: The self_tests function has a known HMAC KAT issue in some environments.
     #[test]
-    fn test_self_tests_executes() {
+    fn test_self_tests_executes_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_self_tests().expect("Self-tests should execute");
+        let result = validator.test_self_tests_succeeds().expect("Self-tests should execute");
 
         // Verify it executed and has output
         assert!(!result.test_id.is_empty());
@@ -213,7 +213,7 @@ mod is_fips_initialized_tests {
     /// Test is_fips_initialized returns a boolean.
     /// This tests lines 171-173 of global.rs.
     #[test]
-    fn test_is_fips_initialized_returns_bool() {
+    fn test_is_fips_initialized_returns_bool_succeeds() {
         // Just verify it's callable and returns a bool
         let result: bool = is_fips_initialized();
         // Result depends on whether another test initialized FIPS
@@ -222,7 +222,7 @@ mod is_fips_initialized_tests {
 
     /// Test is_fips_initialized is consistent across calls.
     #[test]
-    fn test_is_fips_initialized_consistency() {
+    fn test_is_fips_initialized_consistency_succeeds() {
         let result1 = is_fips_initialized();
         let result2 = is_fips_initialized();
         let result3 = is_fips_initialized();
@@ -234,7 +234,7 @@ mod is_fips_initialized_tests {
 
     /// Test is_fips_initialized works from multiple threads.
     #[test]
-    fn test_is_fips_initialized_thread_safe() {
+    fn test_is_fips_initialized_thread_safe_succeeds() {
         let handles: Vec<_> = (0..4)
             .map(|_| {
                 std::thread::spawn(|| {
@@ -261,7 +261,7 @@ mod get_fips_validation_result_tests {
     /// Test get_fips_validation_result returns Option<ValidationResult>.
     /// This tests lines 176-178 of global.rs.
     #[test]
-    fn test_get_fips_validation_result_returns_option() {
+    fn test_get_fips_validation_result_returns_option_succeeds() {
         // Just verify it's callable and returns the right type
         let result: Option<ValidationResult> = get_fips_validation_result();
         // Result is None if not initialized, Some if initialized
@@ -270,7 +270,7 @@ mod get_fips_validation_result_tests {
 
     /// Test get_fips_validation_result is consistent.
     #[test]
-    fn test_get_fips_validation_result_consistency() {
+    fn test_get_fips_validation_result_consistency_is_correct() {
         let result1 = get_fips_validation_result();
         let result2 = get_fips_validation_result();
 
@@ -286,7 +286,7 @@ mod get_fips_validation_result_tests {
 
     /// Test get_fips_validation_result is thread-safe.
     #[test]
-    fn test_get_fips_validation_result_thread_safe() {
+    fn test_get_fips_validation_result_thread_safe_succeeds() {
         let handles: Vec<_> = (0..4)
             .map(|_| {
                 std::thread::spawn(|| {
@@ -312,9 +312,9 @@ mod result_property_tests {
 
     /// Test TestResult properties.
     #[test]
-    fn test_test_result_properties() {
+    fn test_test_result_properties_return_correct_values_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result: TestResult = validator.test_aes_algorithm().expect("Should succeed");
+        let result: TestResult = validator.test_aes_algorithm_succeeds().expect("Should succeed");
 
         // Verify all fields are accessible
         assert!(!result.test_id.is_empty());
@@ -333,7 +333,7 @@ mod result_property_tests {
 
     /// Test ValidationResult properties from AlgorithmsOnly validation.
     #[test]
-    fn test_validation_result_properties() {
+    fn test_validation_result_properties_return_correct_values_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result: ValidationResult = validator.validate_module().expect("Should succeed");
 
@@ -348,7 +348,7 @@ mod result_property_tests {
 
     /// Test ValidationResult.is_valid() method.
     #[test]
-    fn test_validation_result_is_valid_method() {
+    fn test_validation_result_is_valid_method_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -359,7 +359,7 @@ mod result_property_tests {
 
     /// Test ValidationResult.critical_issues() method.
     #[test]
-    fn test_validation_result_critical_issues() {
+    fn test_validation_result_critical_issues_shows_in_properties_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -379,7 +379,7 @@ mod rng_test_logic_tests {
     /// Test the RNG sampling logic used by continuous_rng_test.
     /// This tests the logic in lines 138-148 of global.rs.
     #[test]
-    fn test_rng_samples_are_different() {
+    fn test_rng_samples_are_different_succeeds() {
         let mut sample1 = [0u8; 32];
         let mut sample2 = [0u8; 32];
 
@@ -393,7 +393,7 @@ mod rng_test_logic_tests {
     /// Test the bit distribution logic used by continuous_rng_test.
     /// This tests the logic in lines 150-165 of global.rs.
     #[test]
-    fn test_rng_bit_distribution() {
+    fn test_rng_bit_distribution_is_valid() {
         let mut sample1 = [0u8; 32];
         let mut sample2 = [0u8; 32];
 
@@ -420,7 +420,7 @@ mod rng_test_logic_tests {
 
     /// Test bit counting algorithm multiple times.
     #[test]
-    fn test_bit_counting_multiple_samples() {
+    fn test_bit_counting_multiple_samples_succeeds() {
         for _ in 0..100 {
             let mut sample = [0u8; 64];
             rand::thread_rng().fill_bytes(&mut sample);
@@ -440,7 +440,7 @@ mod rng_test_logic_tests {
 
     /// Test the exact bit distribution check from continuous_rng_test.
     #[test]
-    fn test_exact_bit_distribution_check() {
+    fn test_exact_bit_distribution_check_succeeds() {
         // Test the exact logic from continuous_rng_test (lines 150-165)
         for _ in 0..50 {
             let mut sample1 = [0u8; 32];
@@ -476,7 +476,7 @@ mod validation_scope_tests {
 
     /// Test AlgorithmsOnly scope produces valid results.
     #[test]
-    fn test_algorithms_only_scope() {
+    fn test_algorithms_only_scope_has_expected_test_count_is_correct() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -487,7 +487,7 @@ mod validation_scope_tests {
     /// Test ModuleInterfaces scope produces valid results.
     /// Note: ModuleInterfaces includes interface tests which may have issues.
     #[test]
-    fn test_module_interfaces_scope() {
+    fn test_module_interfaces_scope_has_expected_test_count_is_correct() {
         let validator = FIPSValidator::new(ValidationScope::ModuleInterfaces);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -500,7 +500,7 @@ mod validation_scope_tests {
 
     /// Test AlgorithmsOnly scope has fewer tests than FullModule.
     #[test]
-    fn test_scope_test_counts() {
+    fn test_scope_test_counts_match_expected_values_is_correct() {
         let alg_validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let alg_result = alg_validator.validate_module().expect("Should succeed");
 
@@ -531,7 +531,7 @@ mod fips_level_tests {
 
     /// Test FIPSLevel ordering.
     #[test]
-    fn test_fips_level_ordering() {
+    fn test_fips_level_ordering_succeeds() {
         assert!(FIPSLevel::Level1 < FIPSLevel::Level2);
         assert!(FIPSLevel::Level2 < FIPSLevel::Level3);
         assert!(FIPSLevel::Level3 < FIPSLevel::Level4);
@@ -539,7 +539,7 @@ mod fips_level_tests {
 
     /// Test FIPSLevel equality.
     #[test]
-    fn test_fips_level_equality() {
+    fn test_fips_level_equality_succeeds() {
         assert_eq!(FIPSLevel::Level1, FIPSLevel::Level1);
         assert_eq!(FIPSLevel::Level2, FIPSLevel::Level2);
         assert_eq!(FIPSLevel::Level3, FIPSLevel::Level3);
@@ -552,7 +552,7 @@ mod fips_level_tests {
 
     /// Test FIPSLevel from validation result.
     #[test]
-    fn test_fips_level_from_validation() {
+    fn test_fips_level_from_validation_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -576,7 +576,7 @@ mod certificate_tests {
 
     /// Test certificate generation for valid result.
     #[test]
-    fn test_certificate_generation_success() {
+    fn test_certificate_generation_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -592,7 +592,7 @@ mod certificate_tests {
 
     /// Test remediation guidance for valid result.
     #[test]
-    fn test_remediation_guidance_no_issues() {
+    fn test_remediation_guidance_no_issues_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -617,7 +617,7 @@ mod thread_safety_tests {
 
     /// Test validator is thread-safe.
     #[test]
-    fn test_validator_thread_safety() {
+    fn test_validator_thread_safety_succeeds() {
         let handles: Vec<_> = (0..4)
             .map(|_| {
                 thread::spawn(|| {
@@ -637,7 +637,7 @@ mod thread_safety_tests {
 
     /// Test algorithm tests are thread-safe.
     #[test]
-    fn test_algorithm_tests_thread_safety() {
+    fn test_algorithm_tests_thread_safety_succeeds() {
         let algorithms = Arc::new(vec!["aes", "sha3", "mlkem"]);
 
         let handles: Vec<_> = (0..4)
@@ -649,10 +649,10 @@ mod thread_safety_tests {
 
                     for _ in 0..10 {
                         let result = match alg {
-                            "aes" => validator.test_aes_algorithm(),
-                            "sha3" => validator.test_sha3_algorithm(),
-                            "mlkem" => validator.test_mlkem_algorithm(),
-                            _ => validator.test_aes_algorithm(), // fallback
+                            "aes" => validator.test_aes_algorithm_succeeds(),
+                            "sha3" => validator.test_sha3_algorithm_succeeds(),
+                            "mlkem" => validator.test_mlkem_algorithm_succeeds(),
+                            _ => validator.test_aes_algorithm_succeeds(), // fallback
                         };
                         assert!(result.is_ok());
                     }
@@ -667,7 +667,7 @@ mod thread_safety_tests {
 
     /// Test global state functions are thread-safe.
     #[test]
-    fn test_global_state_thread_safety() {
+    fn test_global_state_thread_safety_succeeds() {
         let handles: Vec<_> = (0..8)
             .map(|i| {
                 thread::spawn(move || {
@@ -700,7 +700,7 @@ mod edge_case_tests {
 
     /// Test repeated validation calls with AlgorithmsOnly scope.
     #[test]
-    fn test_repeated_validation() {
+    fn test_repeated_validation_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
 
         for _ in 0..10 {
@@ -711,7 +711,7 @@ mod edge_case_tests {
 
     /// Test rapid is_fips_initialized calls.
     #[test]
-    fn test_rapid_is_initialized_calls() {
+    fn test_rapid_is_initialized_calls_succeeds() {
         for _ in 0..1000 {
             let _ = is_fips_initialized();
         }
@@ -719,7 +719,7 @@ mod edge_case_tests {
 
     /// Test rapid get_fips_validation_result calls.
     #[test]
-    fn test_rapid_get_result_calls() {
+    fn test_rapid_get_result_calls_succeeds() {
         for _ in 0..1000 {
             let _ = get_fips_validation_result();
         }
@@ -727,7 +727,7 @@ mod edge_case_tests {
 
     /// Test algorithm tests with different scopes.
     #[test]
-    fn test_algorithm_tests_different_scopes() {
+    fn test_algorithm_tests_different_scopes_succeeds() {
         for scope in [
             ValidationScope::AlgorithmsOnly,
             ValidationScope::ModuleInterfaces,
@@ -736,9 +736,9 @@ mod edge_case_tests {
             let validator = FIPSValidator::new(scope);
 
             // Algorithm tests should work regardless of scope
-            assert!(validator.test_aes_algorithm().is_ok());
-            assert!(validator.test_sha3_algorithm().is_ok());
-            assert!(validator.test_mlkem_algorithm().is_ok());
+            assert!(validator.test_aes_algorithm_succeeds().is_ok());
+            assert!(validator.test_sha3_algorithm_succeeds().is_ok());
+            assert!(validator.test_mlkem_algorithm_succeeds().is_ok());
         }
     }
 }
@@ -752,7 +752,7 @@ mod integration_tests {
 
     /// Test full validation workflow with AlgorithmsOnly scope.
     #[test]
-    fn test_validation_workflow() {
+    fn test_validation_workflow_succeeds() {
         // 1. Create validator
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
 
@@ -774,13 +774,13 @@ mod integration_tests {
 
     /// Test algorithm validation workflow.
     #[test]
-    fn test_algorithm_validation_workflow() {
+    fn test_algorithm_validation_workflow_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
 
         // Test core algorithms that reliably pass
-        let aes = validator.test_aes_algorithm().expect("AES should succeed");
-        let sha3 = validator.test_sha3_algorithm().expect("SHA3 should succeed");
-        let mlkem = validator.test_mlkem_algorithm().expect("MLKEM should succeed");
+        let aes = validator.test_aes_algorithm_succeeds().expect("AES should succeed");
+        let sha3 = validator.test_sha3_algorithm_succeeds().expect("SHA3 should succeed");
+        let mlkem = validator.test_mlkem_algorithm_succeeds().expect("MLKEM should succeed");
 
         // All should pass
         assert!(aes.passed, "AES should pass");
@@ -806,7 +806,7 @@ mod init_tests {
     /// but we can test the exact same validator logic it uses.
     /// This covers the validation logic in lines 38-39 of global.rs.
     #[test]
-    fn test_init_validation_logic() {
+    fn test_init_validation_logic_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Validation should succeed");
 
@@ -827,7 +827,7 @@ mod init_tests {
     /// Test that the validator produces consistent results as init() would use.
     /// This covers the validation and level determination logic.
     #[test]
-    fn test_init_validator_produces_consistent_results() {
+    fn test_init_validator_produces_consistent_results_succeeds() {
         let validator1 = FIPSValidator::new(ValidationScope::FullModule);
         let result1 = validator1.validate_module().expect("Should succeed");
 
@@ -841,7 +841,7 @@ mod init_tests {
     /// Test the init early-return path by checking is_fips_initialized.
     /// Covers lines 32-34 of global.rs (the if-already-initialized check).
     #[test]
-    fn test_is_fips_initialized_check() {
+    fn test_is_fips_initialized_check_succeeds() {
         // Whether init has been called or not, is_fips_initialized should return
         // a consistent boolean without panicking
         let v1 = is_fips_initialized();
@@ -852,7 +852,7 @@ mod init_tests {
     /// Test get_fips_validation_result before explicit init.
     /// Covers lines 176-178 of global.rs.
     #[test]
-    fn test_get_result_before_explicit_init() {
+    fn test_get_result_before_explicit_init_succeeds() {
         let result = get_fips_validation_result();
         // Result may be None if init() hasn't been called,
         // or Some if another test triggered it
@@ -870,39 +870,39 @@ mod conditional_self_test_logic_tests {
     use super::*;
 
     /// Test AES algorithm test -- same code path as run_conditional_self_test("aes").
-    /// Covers the validator.test_aes_algorithm() call at line 81.
+    /// Covers the validator.test_aes_algorithm_succeeds() call at line 81.
     #[test]
-    fn test_aes_self_test_logic_passed_path() {
+    fn test_aes_self_test_logic_passed_path_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_aes_algorithm().expect("AES should execute");
+        let result = validator.test_aes_algorithm_succeeds().expect("AES should execute");
         // This tests the `if !result.passed` check at line 82 (taking the false/passed path)
         assert!(result.passed, "AES test should pass");
     }
 
     /// Test SHA-3 algorithm test -- same code path as run_conditional_self_test("sha3").
-    /// Covers the validator.test_sha3_algorithm() call at line 92.
+    /// Covers the validator.test_sha3_algorithm_succeeds() call at line 92.
     #[test]
-    fn test_sha3_self_test_logic_passed_path() {
+    fn test_sha3_self_test_logic_passed_path_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_sha3_algorithm().expect("SHA3 should execute");
+        let result = validator.test_sha3_algorithm_succeeds().expect("SHA3 should execute");
         assert!(result.passed, "SHA3 test should pass");
     }
 
     /// Test ML-KEM algorithm test -- same code path as run_conditional_self_test("mlkem").
-    /// Covers the validator.test_mlkem_algorithm() call at line 103.
+    /// Covers the validator.test_mlkem_algorithm_succeeds() call at line 103.
     #[test]
-    fn test_mlkem_self_test_logic_passed_path() {
+    fn test_mlkem_self_test_logic_passed_path_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_mlkem_algorithm().expect("MLKEM should execute");
+        let result = validator.test_mlkem_algorithm_succeeds().expect("MLKEM should execute");
         assert!(result.passed, "MLKEM test should pass");
     }
 
     /// Test self-tests (default branch) -- same as run_conditional_self_test("unknown").
-    /// Covers the validator.test_self_tests() call at line 114.
+    /// Covers the validator.test_self_tests_succeeds() call at line 114.
     #[test]
-    fn test_self_tests_default_branch_logic() {
+    fn test_self_tests_default_branch_logic_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-        let result = validator.test_self_tests().expect("Self-tests should execute");
+        let result = validator.test_self_tests_succeeds().expect("Self-tests should execute");
 
         // The self_tests may fail due to HMAC KAT, but should execute
         assert!(!result.test_id.is_empty());
@@ -914,7 +914,7 @@ mod conditional_self_test_logic_tests {
     /// Test the error message formatting used in run_conditional_self_test.
     /// Covers the format! calls at lines 85, 96, 108, 118.
     #[test]
-    fn test_error_message_formatting() {
+    fn test_error_message_formatting_is_correct() {
         // Simulate error messages from each match arm
         let aes_msg = format!("AES conditional self-test failed: {}", "test error".to_string());
         assert!(aes_msg.contains("AES conditional self-test failed"));
@@ -934,7 +934,7 @@ mod conditional_self_test_logic_tests {
     /// Test that unwrap_or_default produces an empty string for None.
     /// This covers the .unwrap_or_default() at lines 86, 97, 109, 119.
     #[test]
-    fn test_error_message_unwrap_or_default() {
+    fn test_error_message_unwrap_or_default_fails() {
         let none_msg: Option<String> = None;
         let default = none_msg.unwrap_or_default();
         assert!(default.is_empty());
@@ -957,7 +957,7 @@ mod continuous_rng_direct_tests {
     /// Test the complete RNG test logic (sample + comparison + distribution).
     /// Mirrors the full continuous_rng_test() body at lines 138-167.
     #[test]
-    fn test_continuous_rng_logic_full() {
+    fn test_continuous_rng_logic_full_succeeds() {
         let mut sample1 = [0u8; 32];
         let mut sample2 = [0u8; 32];
 
@@ -986,7 +986,7 @@ mod continuous_rng_direct_tests {
 
     /// Test the identical sample error construction at lines 145-148.
     #[test]
-    fn test_identical_sample_error() {
+    fn test_identical_sample_error_fails() {
         use latticearc::prelude::error::LatticeArcError;
 
         let err = LatticeArcError::ValidationError {
@@ -998,7 +998,7 @@ mod continuous_rng_direct_tests {
 
     /// Test the distribution out-of-range error construction at lines 159-164.
     #[test]
-    fn test_distribution_error() {
+    fn test_distribution_error_fails() {
         use latticearc::prelude::error::LatticeArcError;
 
         let ones_ratio = 0.35_f64;
@@ -1015,7 +1015,7 @@ mod continuous_rng_direct_tests {
 
     /// Test the lock error construction at lines 57-59 of init().
     #[test]
-    fn test_lock_error_construction() {
+    fn test_lock_error_construction_fails() {
         use latticearc::prelude::error::LatticeArcError;
 
         let err = LatticeArcError::ValidationError {
@@ -1037,7 +1037,7 @@ mod fullmodule_integration_tests {
     /// Test FullModule validation produces result with all test categories.
     /// This is the same validation that init() performs at line 39.
     #[test]
-    fn test_fullmodule_has_all_test_categories() {
+    fn test_fullmodule_has_all_test_categories_present_is_correct() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -1053,7 +1053,7 @@ mod fullmodule_integration_tests {
 
     /// Test FullModule validation has metadata.
     #[test]
-    fn test_fullmodule_has_metadata() {
+    fn test_fullmodule_has_metadata_present_is_correct() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -1063,7 +1063,7 @@ mod fullmodule_integration_tests {
 
     /// Test FullModule validation scope is correct.
     #[test]
-    fn test_fullmodule_scope() {
+    fn test_fullmodule_scope_is_full_module_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Should succeed");
 
@@ -1072,7 +1072,7 @@ mod fullmodule_integration_tests {
 
     /// Test FullModule validation ID format.
     #[test]
-    fn test_fullmodule_validation_id() {
+    fn test_fullmodule_validation_id_is_nonempty_succeeds() {
         let validator = FIPSValidator::new(ValidationScope::FullModule);
         let result = validator.validate_module().expect("Should succeed");
 

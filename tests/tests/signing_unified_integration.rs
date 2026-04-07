@@ -63,7 +63,7 @@ fn test_hybrid_default_roundtrip() {
 // ============================================================================
 
 #[test]
-fn test_persistent_identity() {
+fn test_persistent_identity_all_messages_verify_succeeds() {
     let config = CryptoConfig::new();
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -84,7 +84,7 @@ fn test_persistent_identity() {
 // ============================================================================
 
 #[test]
-fn test_pq_only_ml_dsa_87() {
+fn test_pq_only_ml_dsa_87_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -106,7 +106,7 @@ fn test_pq_only_ml_dsa_87() {
 // ============================================================================
 
 #[test]
-fn test_ml_dsa_44_standard() {
+fn test_ml_dsa_44_standard_roundtrip_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -128,7 +128,7 @@ fn test_ml_dsa_44_standard() {
 // ============================================================================
 
 #[test]
-fn test_cross_key_rejection() {
+fn test_cross_key_rejection_fails_verification_fails() {
     let config = CryptoConfig::new();
     let (pk_a, sk_a, _) = generate_signing_keypair(config.clone()).unwrap();
     let (pk_b, _sk_b, _) = generate_signing_keypair(config.clone()).unwrap();
@@ -154,7 +154,7 @@ fn test_cross_key_rejection() {
 // ============================================================================
 
 #[test]
-fn test_tampered_message_rejection() {
+fn test_tampered_message_rejection_fails_verification_fails() {
     let config = CryptoConfig::new();
     let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -176,7 +176,7 @@ fn test_tampered_message_rejection() {
 // ============================================================================
 
 #[test]
-fn test_tampered_signature_rejection() {
+fn test_tampered_signature_rejection_fails_verification_fails() {
     let config = CryptoConfig::new();
     let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -200,7 +200,7 @@ fn test_tampered_signature_rejection() {
 // ============================================================================
 
 #[test]
-fn test_scheme_consistency() {
+fn test_scheme_consistency_keygen_and_sign_match_succeeds() {
     let levels = [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
 
     for level in &levels {
@@ -223,7 +223,7 @@ fn test_scheme_consistency() {
 // ============================================================================
 
 #[test]
-fn test_empty_message() {
+fn test_empty_message_sign_verify_succeeds() {
     let config = CryptoConfig::new();
     let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -239,7 +239,7 @@ fn test_empty_message() {
 // ============================================================================
 
 #[test]
-fn test_large_message() {
+fn test_large_message_sign_verify_succeeds() {
     let config = CryptoConfig::new();
     let (pk, sk, _) = generate_signing_keypair(config.clone()).unwrap();
 

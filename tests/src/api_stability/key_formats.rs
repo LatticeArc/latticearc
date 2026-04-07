@@ -7,7 +7,6 @@ mod tests {
     use latticearc::primitives::kem::ml_kem::{
         MlKem, MlKemCiphertext, MlKemError, MlKemPublicKey, MlKemSecurityLevel,
     };
-    use rand::rngs::OsRng;
 
     // ========================================================================
     // Public API Surface Tests
@@ -15,8 +14,7 @@ mod tests {
 
     #[test]
     fn api_stability_public_key_has_to_bytes() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
 
         // Verify to_bytes() exists and returns Vec<u8>
@@ -25,8 +23,7 @@ mod tests {
 
     #[test]
     fn api_stability_public_key_from_bytes_exists() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
 
         let bytes = pk.to_bytes();
@@ -39,10 +36,9 @@ mod tests {
 
     #[test]
     fn api_stability_ciphertext_into_bytes() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // Verify into_bytes() exists (MlKemCiphertext uses consuming conversion)
         let _bytes: Vec<u8> = ct.into_bytes();
@@ -50,10 +46,9 @@ mod tests {
 
     #[test]
     fn api_stability_ciphertext_as_bytes() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // Verify as_bytes() exists for borrowing
         let _bytes: &[u8] = ct.as_bytes();
@@ -61,10 +56,9 @@ mod tests {
 
     #[test]
     fn api_stability_shared_secret_as_bytes() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
-        let (ss, _ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // Verify as_bytes() exists and returns &[u8]
         let _bytes: &[u8] = ss.as_bytes();
@@ -76,10 +70,9 @@ mod tests {
 
     #[test]
     fn api_stability_ciphertext_new_exists() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         let bytes = ct.into_bytes();
 
@@ -113,30 +106,26 @@ mod tests {
 
     #[test]
     fn api_stability_generate_keypair_signature() {
-        let mut rng = OsRng;
-
         // Verify generate_keypair takes (rng, level) and returns Result<(PK, SK), Error>
-        let result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512);
+        let result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512);
         assert!(result.is_ok());
     }
 
     #[test]
     fn api_stability_encapsulate_signature() {
-        let mut rng = OsRng;
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
 
         // Verify encapsulate takes (rng, pk) and returns Result<(SS, CT), Error>
-        let result = MlKem::encapsulate(&mut rng, &pk);
+        let result = MlKem::encapsulate(&pk);
         assert!(result.is_ok());
     }
 
     #[test]
     fn api_stability_decapsulate_signature() {
-        let mut rng = OsRng;
-        let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+        let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
             .expect("keypair generation should succeed");
-        let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // Verify decapsulate takes (sk, ct) and returns Result<SS, Error>
         let result = MlKem::decapsulate(&sk, &ct);

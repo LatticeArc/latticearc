@@ -39,14 +39,13 @@
 use latticearc::primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemError, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
 };
-use rand::rngs::OsRng;
 
 // ============================================================================
 // Public Key Construction Negative Tests
 // ============================================================================
 
 #[test]
-fn test_ml_kem_512_public_key_empty_bytes() {
+fn test_ml_kem_512_public_key_empty_bytes_succeeds() {
     let empty = vec![];
     let result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem512, empty);
     assert!(result.is_err(), "Should fail with empty public key bytes");
@@ -60,7 +59,7 @@ fn test_ml_kem_512_public_key_empty_bytes() {
 }
 
 #[test]
-fn test_ml_kem_512_public_key_wrong_length() {
+fn test_ml_kem_512_public_key_wrong_length_fails() {
     // MlKem512 expects 800 bytes, provide 1184 (MlKem768 size)
     let wrong_size = vec![0u8; 1184];
     let result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem512, wrong_size);
@@ -77,7 +76,7 @@ fn test_ml_kem_512_public_key_wrong_length() {
 }
 
 #[test]
-fn test_ml_kem_768_public_key_truncated() {
+fn test_ml_kem_768_public_key_truncated_succeeds() {
     // MlKem768 expects 1184 bytes, provide less
     let truncated = vec![0u8; 100];
     let result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem768, truncated);
@@ -94,7 +93,7 @@ fn test_ml_kem_768_public_key_truncated() {
 }
 
 #[test]
-fn test_ml_kem_1024_public_key_oversized() {
+fn test_ml_kem_1024_public_key_oversized_succeeds() {
     // MlKem1024 expects 1568 bytes, provide more
     let oversized = vec![0u8; 2000];
     let result = MlKemPublicKey::new(MlKemSecurityLevel::MlKem1024, oversized);
@@ -115,7 +114,7 @@ fn test_ml_kem_1024_public_key_oversized() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_512_secret_key_empty_bytes() {
+fn test_ml_kem_512_secret_key_empty_bytes_succeeds() {
     let empty = vec![];
     let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, empty);
     assert!(result.is_err(), "Should fail with empty secret key bytes");
@@ -129,7 +128,7 @@ fn test_ml_kem_512_secret_key_empty_bytes() {
 }
 
 #[test]
-fn test_ml_kem_768_secret_key_wrong_length() {
+fn test_ml_kem_768_secret_key_wrong_length_fails() {
     // MlKem768 expects 2400 bytes, provide 1632 (MlKem512 size)
     let wrong_size = vec![0u8; 1632];
     let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, wrong_size);
@@ -146,7 +145,7 @@ fn test_ml_kem_768_secret_key_wrong_length() {
 }
 
 #[test]
-fn test_ml_kem_1024_secret_key_truncated() {
+fn test_ml_kem_1024_secret_key_truncated_succeeds() {
     // MlKem1024 expects 3168 bytes, provide less
     let truncated = vec![0u8; 1000];
     let result = MlKemSecretKey::new(MlKemSecurityLevel::MlKem1024, truncated);
@@ -167,7 +166,7 @@ fn test_ml_kem_1024_secret_key_truncated() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_512_ciphertext_empty_bytes() {
+fn test_ml_kem_512_ciphertext_empty_bytes_succeeds() {
     let empty = vec![];
     let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem512, empty);
     assert!(result.is_err(), "Should fail with empty ciphertext bytes");
@@ -181,7 +180,7 @@ fn test_ml_kem_512_ciphertext_empty_bytes() {
 }
 
 #[test]
-fn test_ml_kem_512_ciphertext_wrong_length() {
+fn test_ml_kem_512_ciphertext_wrong_length_fails() {
     // MlKem512 expects 768 bytes, provide 1088 (MlKem768 size)
     let wrong_size = vec![0u8; 1088];
     let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem512, wrong_size);
@@ -198,7 +197,7 @@ fn test_ml_kem_512_ciphertext_wrong_length() {
 }
 
 #[test]
-fn test_ml_kem_768_ciphertext_truncated() {
+fn test_ml_kem_768_ciphertext_truncated_succeeds() {
     // MlKem768 expects 1088 bytes, provide less
     let truncated = vec![0u8; 500];
     let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem768, truncated);
@@ -215,7 +214,7 @@ fn test_ml_kem_768_ciphertext_truncated() {
 }
 
 #[test]
-fn test_ml_kem_1024_ciphertext_oversized() {
+fn test_ml_kem_1024_ciphertext_oversized_succeeds() {
     // MlKem1024 expects 1568 bytes, provide more
     let oversized = vec![0u8; 2000];
     let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem1024, oversized);
@@ -237,8 +236,7 @@ fn test_ml_kem_1024_ciphertext_oversized() {
 
 #[test]
 fn test_ml_kem_512_public_key_from_bytes_roundtrip() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
 
     let pk_bytes = pk.to_bytes();
@@ -249,9 +247,8 @@ fn test_ml_kem_512_public_key_from_bytes_roundtrip() {
 }
 
 #[test]
-fn test_ml_kem_768_public_key_from_wrong_level() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+fn test_ml_kem_768_public_key_from_wrong_level_fails() {
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
     let pk_bytes = pk.to_bytes();
@@ -275,16 +272,14 @@ fn test_ml_kem_768_public_key_from_wrong_level() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_encapsulate_with_junk_public_key() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_encapsulate_with_junk_public_key_succeeds() {
     // Create junk public key with correct size but invalid data
     let junk_bytes = vec![0xDEu8; 800]; // Correct size for MlKem512
     let junk_pk = MlKemPublicKey::new(MlKemSecurityLevel::MlKem512, junk_bytes)
         .expect("construction with correct size should succeed");
 
     // Encapsulation should fail with invalid key data
-    let result = MlKem::encapsulate(&mut rng, &junk_pk);
+    let result = MlKem::encapsulate(&junk_pk);
     assert!(result.is_err(), "Should fail with junk public key");
 
     match result {
@@ -300,14 +295,12 @@ fn test_ml_kem_encapsulate_with_junk_public_key() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_decapsulate_with_junk_ciphertext() {
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+fn test_ml_kem_decapsulate_with_junk_ciphertext_succeeds() {
+    let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
 
     // Encapsulate to get the real shared secret
-    let (real_ss, _real_ct) =
-        MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+    let (real_ss, _real_ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     // Create junk ciphertext with correct size
     let junk_bytes = vec![0x42u8; 768]; // Correct size for MlKem512
@@ -326,14 +319,12 @@ fn test_ml_kem_decapsulate_with_junk_ciphertext() {
 }
 
 #[test]
-fn test_ml_kem_decapsulate_with_all_zeros_ciphertext() {
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+fn test_ml_kem_decapsulate_with_all_zeros_ciphertext_succeeds() {
+    let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
     // Encapsulate to get the real shared secret
-    let (real_ss, _real_ct) =
-        MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+    let (real_ss, _real_ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     // Create all-zeros ciphertext
     let zero_bytes = vec![0u8; 1088]; // Correct size for MlKem768
@@ -352,14 +343,12 @@ fn test_ml_kem_decapsulate_with_all_zeros_ciphertext() {
 }
 
 #[test]
-fn test_ml_kem_decapsulate_with_all_ones_ciphertext() {
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
+fn test_ml_kem_decapsulate_with_all_ones_ciphertext_succeeds() {
+    let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024)
         .expect("keypair generation should succeed");
 
     // Encapsulate to get the real shared secret
-    let (real_ss, _real_ct) =
-        MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+    let (real_ss, _real_ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     // Create all-ones ciphertext
     let ones_bytes = vec![0xFFu8; 1568]; // Correct size for MlKem1024
@@ -382,17 +371,14 @@ fn test_ml_kem_decapsulate_with_all_ones_ciphertext() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_decapsulate_512_ciphertext_with_768_key() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_decapsulate_512_ciphertext_with_768_key_succeeds() {
     // Generate MlKem512 keypair and ciphertext
-    let (pk_512, _sk_512) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+    let (pk_512, _sk_512) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
-    let (_ss_512, ct_512) =
-        MlKem::encapsulate(&mut rng, &pk_512).expect("encapsulation should succeed");
+    let (_ss_512, ct_512) = MlKem::encapsulate(&pk_512).expect("encapsulation should succeed");
 
     // Generate MlKem768 keypair
-    let (_pk_768, sk_768) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (_pk_768, sk_768) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
     // Try to decapsulate MlKem512 ciphertext with MlKem768 key
@@ -406,12 +392,11 @@ fn test_ml_kem_decapsulate_512_ciphertext_with_768_key() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_decapsulate_corrupted_ciphertext() {
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+fn test_ml_kem_decapsulate_corrupted_ciphertext_fails() {
+    let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
 
-    let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+    let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     // Corrupt the ciphertext
     let mut ct_bytes = ct.into_bytes();
@@ -434,12 +419,10 @@ fn test_ml_kem_decapsulate_corrupted_ciphertext() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_generate_multiple_keypairs_different() {
-    let mut rng = OsRng;
-
-    let (pk1, _sk1) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+fn test_ml_kem_generate_multiple_keypairs_different_succeeds() {
+    let (pk1, _sk1) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
-    let (pk2, _sk2) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+    let (pk2, _sk2) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
     // Public keys should be different
@@ -447,14 +430,12 @@ fn test_ml_kem_generate_multiple_keypairs_different() {
 }
 
 #[test]
-fn test_ml_kem_encapsulate_produces_different_ciphertexts() {
-    let mut rng = OsRng;
-
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+fn test_ml_kem_encapsulate_produces_different_ciphertexts_succeeds() {
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
 
-    let (_ss1, ct1) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
-    let (_ss2, ct2) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+    let (_ss1, ct1) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
+    let (_ss2, ct2) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     // Ciphertexts should be different (different randomness)
     assert_ne!(ct1.into_bytes(), ct2.into_bytes(), "Ciphertexts should differ");
@@ -465,17 +446,13 @@ fn test_ml_kem_encapsulate_produces_different_ciphertexts() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_shared_secret_length_encapsulation_only() {
-    let mut rng = OsRng;
-
+fn test_ml_kem_shared_secret_length_encapsulation_only_has_correct_size() {
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) =
-            MlKem::generate_keypair(&mut rng, level).expect("keypair generation should succeed");
+        let (pk, _sk) = MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
-        let (ss_enc, _ct) =
-            MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (ss_enc, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // All ML-KEM variants produce 32-byte shared secrets
         assert_eq!(ss_enc.as_bytes().len(), 32, "Shared secret should be 32 bytes");
@@ -484,15 +461,12 @@ fn test_ml_kem_shared_secret_length_encapsulation_only() {
 
 #[test]
 fn test_ml_kem_shared_secret_length_full_roundtrip() {
-    let mut rng = OsRng;
-
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, sk) =
-            MlKem::generate_keypair(&mut rng, level).expect("keypair generation should succeed");
+        let (pk, sk) = MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
-        let (ss_enc, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+        let (ss_enc, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
         let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
         // All ML-KEM variants produce 32-byte shared secrets
@@ -508,8 +482,7 @@ fn test_ml_kem_shared_secret_length_full_roundtrip() {
 
 #[test]
 fn test_ml_kem_public_key_to_bytes_consistent() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
         .expect("keypair generation should succeed");
 
     let bytes1 = pk.to_bytes();
@@ -519,12 +492,11 @@ fn test_ml_kem_public_key_to_bytes_consistent() {
 }
 
 #[test]
-fn test_ml_kem_ciphertext_into_bytes_consumes() {
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
+fn test_ml_kem_ciphertext_into_bytes_consumes_succeeds() {
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("keypair generation should succeed");
 
-    let (_ss, ct) = MlKem::encapsulate(&mut rng, &pk).expect("encapsulation should succeed");
+    let (_ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     let ct_bytes = ct.into_bytes();
     assert_eq!(ct_bytes.len(), 1088, "MlKem768 ciphertext should be 1088 bytes");

@@ -53,7 +53,7 @@ mod ml_kem_test_vector_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_vector_1_field_access() {
+    fn test_ml_kem_512_vector_1_field_access_matches_nist_vector_matches_expected() {
         // Access all fields of the first ML-KEM-512 test vector
         let vector = &ml_kem_kat::ML_KEM_512_VECTORS[0];
 
@@ -66,7 +66,7 @@ mod ml_kem_test_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_512_vector_2_field_access() {
+    fn test_ml_kem_512_vector_2_field_access_matches_nist_vector_matches_expected() {
         // Access all fields of the second ML-KEM-512 test vector
         let vector = &ml_kem_kat::ML_KEM_512_VECTORS[1];
 
@@ -79,7 +79,7 @@ mod ml_kem_test_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_vector_1_field_access() {
+    fn test_ml_kem_768_vector_1_field_access_matches_nist_vector_matches_expected() {
         // Access all fields of the first ML-KEM-768 test vector
         let vector = &ml_kem_kat::ML_KEM_768_VECTORS[0];
 
@@ -92,7 +92,7 @@ mod ml_kem_test_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_vector_2_field_access() {
+    fn test_ml_kem_768_vector_2_field_access_matches_nist_vector_matches_expected() {
         // Access all fields of the second ML-KEM-768 test vector
         let vector = &ml_kem_kat::ML_KEM_768_VECTORS[1];
 
@@ -105,7 +105,7 @@ mod ml_kem_test_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_vector_1_field_access() {
+    fn test_ml_kem_1024_vector_1_field_access_matches_nist_vector_matches_expected() {
         // Access all fields of the first ML-KEM-1024 test vector
         let vector = &ml_kem_kat::ML_KEM_1024_VECTORS[0];
 
@@ -118,7 +118,7 @@ mod ml_kem_test_vector_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_vector_2_field_access() {
+    fn test_ml_kem_1024_vector_2_field_access_matches_nist_vector_matches_expected() {
         // Access all fields of the second ML-KEM-1024 test vector
         let vector = &ml_kem_kat::ML_KEM_1024_VECTORS[1];
 
@@ -139,7 +139,7 @@ mod test_vector_decoding_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_seed_decoding() {
+    fn test_ml_kem_512_seed_decoding_matches_nist_vector_matches_expected() {
         // Verify seeds can be decoded correctly
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             let result = decode_hex(vector.seed);
@@ -151,7 +151,7 @@ mod test_vector_decoding_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_seed_decoding() {
+    fn test_ml_kem_768_seed_decoding_matches_nist_vector_matches_expected() {
         // Verify seeds can be decoded correctly
         for vector in ml_kem_kat::ML_KEM_768_VECTORS {
             let result = decode_hex(vector.seed);
@@ -163,7 +163,7 @@ mod test_vector_decoding_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_seed_decoding() {
+    fn test_ml_kem_1024_seed_decoding_matches_nist_vector_matches_expected() {
         // Verify seeds can be decoded correctly
         for vector in ml_kem_kat::ML_KEM_1024_VECTORS {
             let result = decode_hex(vector.seed);
@@ -175,7 +175,7 @@ mod test_vector_decoding_tests {
     }
 
     #[test]
-    fn test_ml_kem_512_expected_ss_decoding() {
+    fn test_ml_kem_512_expected_ss_decoding_matches_nist_vector_matches_expected() {
         // Verify expected shared secrets can be decoded
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             let result = decode_hex(vector.expected_ss);
@@ -197,7 +197,7 @@ mod test_vector_decoding_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_expected_ss_decoding() {
+    fn test_ml_kem_768_expected_ss_decoding_matches_nist_vector_matches_expected() {
         // Verify expected shared secrets can be decoded
         for vector in ml_kem_kat::ML_KEM_768_VECTORS {
             let result = decode_hex(vector.expected_ss);
@@ -219,7 +219,7 @@ mod test_vector_decoding_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_expected_ss_decoding() {
+    fn test_ml_kem_1024_expected_ss_decoding_matches_nist_vector_matches_expected() {
         // Verify expected shared secrets can be decoded
         for vector in ml_kem_kat::ML_KEM_1024_VECTORS {
             let result = decode_hex(vector.expected_ss);
@@ -249,28 +249,28 @@ mod kat_runner_function_tests {
     use super::*;
 
     #[test]
-    fn test_run_ml_kem_512_kat_success() {
+    fn test_run_ml_kem_512_kat_success_matches_nist_vector_matches_expected() {
         // Test the main ML-KEM-512 KAT runner function
         let result = ml_kem_kat::run_ml_kem_512_kat();
         assert!(result.is_ok(), "ML-KEM-512 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_768_kat_success() {
+    fn test_run_ml_kem_768_kat_success_matches_nist_vector_matches_expected() {
         // Test the main ML-KEM-768 KAT runner function
         let result = ml_kem_kat::run_ml_kem_768_kat();
         assert!(result.is_ok(), "ML-KEM-768 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_run_ml_kem_1024_kat_success() {
+    fn test_run_ml_kem_1024_kat_success_matches_nist_vector_matches_expected() {
         // Test the main ML-KEM-1024 KAT runner function
         let result = ml_kem_kat::run_ml_kem_1024_kat();
         assert!(result.is_ok(), "ML-KEM-1024 KAT failed: {:?}", result);
     }
 
     #[test]
-    fn test_all_ml_kem_variants_succeed() {
+    fn test_all_ml_kem_variants_succeed_matches_nist_vector_matches_expected() {
         // Run all variants and ensure they all pass
         let results = vec![
             ("ML-KEM-512", ml_kem_kat::run_ml_kem_512_kat()),
@@ -292,7 +292,7 @@ mod kat_runner_integration_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_with_kat_runner() {
+    fn test_ml_kem_512_with_kat_runner_matches_nist_vector_matches_expected() {
         let mut runner = KatRunner::new();
         runner.run_test("ML-KEM-512-Full", "ML-KEM-512", || ml_kem_kat::run_ml_kem_512_kat());
 
@@ -303,7 +303,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_with_kat_runner() {
+    fn test_ml_kem_768_with_kat_runner_matches_nist_vector_matches_expected() {
         let mut runner = KatRunner::new();
         runner.run_test("ML-KEM-768-Full", "ML-KEM-768", || ml_kem_kat::run_ml_kem_768_kat());
 
@@ -314,7 +314,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_with_kat_runner() {
+    fn test_ml_kem_1024_with_kat_runner_matches_nist_vector_matches_expected() {
         let mut runner = KatRunner::new();
         runner.run_test("ML-KEM-1024-Full", "ML-KEM-1024", || ml_kem_kat::run_ml_kem_1024_kat());
 
@@ -325,7 +325,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_all_ml_kem_variants_with_kat_runner() {
+    fn test_all_ml_kem_variants_with_kat_runner_matches_nist_vector_matches_expected() {
         let mut runner = KatRunner::new();
 
         runner.run_test("ML-KEM-512", "ML-KEM", || ml_kem_kat::run_ml_kem_512_kat());
@@ -340,7 +340,7 @@ mod kat_runner_integration_tests {
     }
 
     #[test]
-    fn test_ml_kem_runner_records_execution_time() {
+    fn test_ml_kem_runner_records_execution_time_matches_expected() {
         let mut runner = KatRunner::new();
         runner.run_test("ML-KEM-512-Timed", "ML-KEM-512", || ml_kem_kat::run_ml_kem_512_kat());
 
@@ -362,22 +362,22 @@ mod vector_structure_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_vector_count() {
+    fn test_ml_kem_512_vector_count_matches_expected() {
         assert_eq!(ml_kem_kat::ML_KEM_512_VECTORS.len(), 2, "Expected 2 ML-KEM-512 test vectors");
     }
 
     #[test]
-    fn test_ml_kem_768_vector_count() {
+    fn test_ml_kem_768_vector_count_matches_expected() {
         assert_eq!(ml_kem_kat::ML_KEM_768_VECTORS.len(), 2, "Expected 2 ML-KEM-768 test vectors");
     }
 
     #[test]
-    fn test_ml_kem_1024_vector_count() {
+    fn test_ml_kem_1024_vector_count_matches_expected() {
         assert_eq!(ml_kem_kat::ML_KEM_1024_VECTORS.len(), 2, "Expected 2 ML-KEM-1024 test vectors");
     }
 
     #[test]
-    fn test_total_ml_kem_vector_count() {
+    fn test_total_ml_kem_vector_count_matches_expected() {
         let total = ml_kem_kat::ML_KEM_512_VECTORS.len()
             + ml_kem_kat::ML_KEM_768_VECTORS.len()
             + ml_kem_kat::ML_KEM_1024_VECTORS.len();
@@ -386,7 +386,7 @@ mod vector_structure_tests {
     }
 
     #[test]
-    fn test_vector_names_are_unique() {
+    fn test_vector_names_are_unique_matches_expected() {
         let mut names = Vec::new();
 
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
@@ -407,7 +407,7 @@ mod vector_structure_tests {
     }
 
     #[test]
-    fn test_ml_kem_512_vector_names_follow_convention() {
+    fn test_ml_kem_512_vector_names_follow_convention_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             assert!(
                 vector.test_name.starts_with("ML-KEM-512"),
@@ -418,7 +418,7 @@ mod vector_structure_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_vector_names_follow_convention() {
+    fn test_ml_kem_768_vector_names_follow_convention_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_768_VECTORS {
             assert!(
                 vector.test_name.starts_with("ML-KEM-768"),
@@ -429,7 +429,7 @@ mod vector_structure_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_vector_names_follow_convention() {
+    fn test_ml_kem_1024_vector_names_follow_convention_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_1024_VECTORS {
             assert!(
                 vector.test_name.starts_with("ML-KEM-1024"),
@@ -448,7 +448,7 @@ mod hex_validation_tests {
     use super::*;
 
     #[test]
-    fn test_all_ml_kem_512_hex_strings_valid() {
+    fn test_all_ml_kem_512_hex_strings_valid_matches_nist_vector_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             // Each field should be valid hex
             assert!(decode_hex(vector.seed).is_ok(), "Invalid seed hex in {}", vector.test_name);
@@ -476,7 +476,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_all_ml_kem_768_hex_strings_valid() {
+    fn test_all_ml_kem_768_hex_strings_valid_matches_nist_vector_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_768_VECTORS {
             // Each field should be valid hex
             assert!(decode_hex(vector.seed).is_ok(), "Invalid seed hex in {}", vector.test_name);
@@ -504,7 +504,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_all_ml_kem_1024_hex_strings_valid() {
+    fn test_all_ml_kem_1024_hex_strings_valid_matches_nist_vector_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_1024_VECTORS {
             // Each field should be valid hex
             assert!(decode_hex(vector.seed).is_ok(), "Invalid seed hex in {}", vector.test_name);
@@ -532,7 +532,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_seed_hex_has_correct_length() {
+    fn test_seed_hex_has_correct_length_matches_nist_vector_matches_expected() {
         // Seeds should be 64 bytes = 128 hex characters
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             let seed = vector.seed.replace(char::is_whitespace, "");
@@ -564,7 +564,7 @@ mod hex_validation_tests {
     }
 
     #[test]
-    fn test_shared_secret_hex_has_correct_length() {
+    fn test_shared_secret_hex_has_correct_length_matches_nist_vector_matches_expected() {
         // Shared secrets should be 32 bytes = 64 hex characters
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             let ss = vector.expected_ss.replace(char::is_whitespace, "");
@@ -604,7 +604,7 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_nist_kat_error_test_failed_format() {
+    fn test_nist_kat_error_test_failed_format_matches_expected() {
         let error = NistKatError::TestFailed {
             algorithm: "ML-KEM-512".to_string(),
             test_name: "Test-1".to_string(),
@@ -618,21 +618,21 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_implementation_error_format() {
+    fn test_nist_kat_error_implementation_error_format_matches_expected() {
         let error = NistKatError::ImplementationError("KeyGen failed".to_string());
         let error_string = error.to_string();
         assert!(error_string.contains("KeyGen failed"));
     }
 
     #[test]
-    fn test_nist_kat_error_hex_error_format() {
+    fn test_nist_kat_error_hex_error_format_matches_expected() {
         let error = NistKatError::HexError("Invalid hex character".to_string());
         let error_string = error.to_string();
         assert!(error_string.contains("Invalid hex character"));
     }
 
     #[test]
-    fn test_decode_hex_invalid_character_error() {
+    fn test_decode_hex_invalid_character_error_matches_expected() {
         let result = decode_hex("xyz");
         assert!(result.is_err());
         match result {
@@ -644,7 +644,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_odd_length_error() {
+    fn test_decode_hex_odd_length_error_matches_expected() {
         let result = decode_hex("abc");
         assert!(result.is_err());
         match result {
@@ -662,28 +662,28 @@ mod kem_operation_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_keygen_encaps_decaps_cycle() {
+    fn test_ml_kem_512_keygen_encaps_decaps_cycle_matches_nist_vector_matches_expected() {
         // This test exercises the full KEM cycle that run_ml_kem_512_kat uses
         let result = ml_kem_kat::run_ml_kem_512_kat();
         assert!(result.is_ok(), "ML-KEM-512 cycle failed: {:?}", result);
     }
 
     #[test]
-    fn test_ml_kem_768_keygen_encaps_decaps_cycle() {
+    fn test_ml_kem_768_keygen_encaps_decaps_cycle_matches_nist_vector_matches_expected() {
         // This test exercises the full KEM cycle that run_ml_kem_768_kat uses
         let result = ml_kem_kat::run_ml_kem_768_kat();
         assert!(result.is_ok(), "ML-KEM-768 cycle failed: {:?}", result);
     }
 
     #[test]
-    fn test_ml_kem_1024_keygen_encaps_decaps_cycle() {
+    fn test_ml_kem_1024_keygen_encaps_decaps_cycle_matches_nist_vector_matches_expected() {
         // This test exercises the full KEM cycle that run_ml_kem_1024_kat uses
         let result = ml_kem_kat::run_ml_kem_1024_kat();
         assert!(result.is_ok(), "ML-KEM-1024 cycle failed: {:?}", result);
     }
 
     #[test]
-    fn test_ml_kem_512_multiple_runs() {
+    fn test_ml_kem_512_multiple_runs_matches_nist_vector_matches_expected() {
         // Run multiple times to ensure consistency
         for i in 0..3 {
             let result = ml_kem_kat::run_ml_kem_512_kat();
@@ -692,7 +692,7 @@ mod kem_operation_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_multiple_runs() {
+    fn test_ml_kem_768_multiple_runs_matches_nist_vector_matches_expected() {
         // Run multiple times to ensure consistency
         for i in 0..3 {
             let result = ml_kem_kat::run_ml_kem_768_kat();
@@ -701,7 +701,7 @@ mod kem_operation_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_multiple_runs() {
+    fn test_ml_kem_1024_multiple_runs_matches_nist_vector_matches_expected() {
         // Run multiple times to ensure consistency
         for i in 0..3 {
             let result = ml_kem_kat::run_ml_kem_1024_kat();
@@ -718,7 +718,7 @@ mod seed_pattern_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_zero_seed_vector() {
+    fn test_ml_kem_512_zero_seed_vector_matches_nist_vector_matches_expected() {
         // First vector uses all-zeros seed
         let vector = &ml_kem_kat::ML_KEM_512_VECTORS[0];
         let seed = decode_hex(vector.seed).expect("Seed decode failed");
@@ -730,7 +730,7 @@ mod seed_pattern_tests {
     }
 
     #[test]
-    fn test_ml_kem_512_all_ones_seed_vector() {
+    fn test_ml_kem_512_all_ones_seed_vector_matches_nist_vector_matches_expected() {
         // Second vector uses all-ones seed (0xFF)
         let vector = &ml_kem_kat::ML_KEM_512_VECTORS[1];
         let seed = decode_hex(vector.seed).expect("Seed decode failed");
@@ -742,7 +742,7 @@ mod seed_pattern_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_zero_seed_vector() {
+    fn test_ml_kem_768_zero_seed_vector_matches_nist_vector_matches_expected() {
         // First vector uses all-zeros seed
         let vector = &ml_kem_kat::ML_KEM_768_VECTORS[0];
         let seed = decode_hex(vector.seed).expect("Seed decode failed");
@@ -752,7 +752,7 @@ mod seed_pattern_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_incremental_seed_vector() {
+    fn test_ml_kem_768_incremental_seed_vector_matches_nist_vector_matches_expected() {
         // Second vector uses incremental pattern
         let vector = &ml_kem_kat::ML_KEM_768_VECTORS[1];
         let seed = decode_hex(vector.seed).expect("Seed decode failed");
@@ -765,7 +765,7 @@ mod seed_pattern_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_zero_seed_vector() {
+    fn test_ml_kem_1024_zero_seed_vector_matches_nist_vector_matches_expected() {
         // First vector uses all-zeros seed
         let vector = &ml_kem_kat::ML_KEM_1024_VECTORS[0];
         let seed = decode_hex(vector.seed).expect("Seed decode failed");
@@ -775,7 +775,7 @@ mod seed_pattern_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_repeating_seed_vector() {
+    fn test_ml_kem_1024_repeating_seed_vector_matches_nist_vector_matches_expected() {
         // Second vector uses 0xAA repeating pattern
         let vector = &ml_kem_kat::ML_KEM_1024_VECTORS[1];
         let seed = decode_hex(vector.seed).expect("Seed decode failed");
@@ -793,7 +793,7 @@ mod field_completeness_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_all_fields_present() {
+    fn test_ml_kem_512_all_fields_present_matches_nist_vector_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             // All fields must be non-empty
             assert!(!vector.test_name.is_empty(), "test_name is empty");
@@ -822,7 +822,7 @@ mod field_completeness_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_all_fields_present() {
+    fn test_ml_kem_768_all_fields_present_matches_nist_vector_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_768_VECTORS {
             assert!(!vector.test_name.is_empty(), "test_name is empty");
             assert!(!vector.seed.is_empty(), "seed is empty for {}", vector.test_name);
@@ -850,7 +850,7 @@ mod field_completeness_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_all_fields_present() {
+    fn test_ml_kem_1024_all_fields_present_matches_nist_vector_matches_expected() {
         for vector in ml_kem_kat::ML_KEM_1024_VECTORS {
             assert!(!vector.test_name.is_empty(), "test_name is empty");
             assert!(!vector.seed.is_empty(), "seed is empty for {}", vector.test_name);
@@ -886,7 +886,7 @@ mod boundary_tests {
     use super::*;
 
     #[test]
-    fn test_first_and_last_vectors_512() {
+    fn test_first_and_last_vectors_512_matches_nist_vector_matches_expected() {
         // Test first vector
         let first = &ml_kem_kat::ML_KEM_512_VECTORS[0];
         assert_eq!(first.test_name, "ML-KEM-512-KAT-1");
@@ -898,7 +898,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_first_and_last_vectors_768() {
+    fn test_first_and_last_vectors_768_matches_nist_vector_matches_expected() {
         let first = &ml_kem_kat::ML_KEM_768_VECTORS[0];
         assert_eq!(first.test_name, "ML-KEM-768-KAT-1");
 
@@ -908,7 +908,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_first_and_last_vectors_1024() {
+    fn test_first_and_last_vectors_1024_matches_nist_vector_matches_expected() {
         let first = &ml_kem_kat::ML_KEM_1024_VECTORS[0];
         assert_eq!(first.test_name, "ML-KEM-1024-KAT-1");
 
@@ -918,7 +918,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_iterating_all_512_vectors() {
+    fn test_iterating_all_512_vectors_matches_nist_vector_matches_expected() {
         let mut count = 0;
         for vector in ml_kem_kat::ML_KEM_512_VECTORS {
             let _ = vector.test_name;
@@ -929,7 +929,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_iterating_all_768_vectors() {
+    fn test_iterating_all_768_vectors_matches_nist_vector_matches_expected() {
         let mut count = 0;
         for vector in ml_kem_kat::ML_KEM_768_VECTORS {
             let _ = vector.test_name;
@@ -940,7 +940,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_iterating_all_1024_vectors() {
+    fn test_iterating_all_1024_vectors_matches_nist_vector_matches_expected() {
         let mut count = 0;
         for vector in ml_kem_kat::ML_KEM_1024_VECTORS {
             let _ = vector.test_name;
@@ -960,7 +960,7 @@ mod performance_tests {
     use std::time::Instant;
 
     #[test]
-    fn test_ml_kem_512_completes_in_reasonable_time() {
+    fn test_ml_kem_512_completes_in_reasonable_time_matches_expected() {
         let start = Instant::now();
         let result = ml_kem_kat::run_ml_kem_512_kat();
         let duration = start.elapsed();
@@ -971,7 +971,7 @@ mod performance_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_completes_in_reasonable_time() {
+    fn test_ml_kem_768_completes_in_reasonable_time_matches_expected() {
         let start = Instant::now();
         let result = ml_kem_kat::run_ml_kem_768_kat();
         let duration = start.elapsed();
@@ -981,7 +981,7 @@ mod performance_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_completes_in_reasonable_time() {
+    fn test_ml_kem_1024_completes_in_reasonable_time_matches_expected() {
         let start = Instant::now();
         let result = ml_kem_kat::run_ml_kem_1024_kat();
         let duration = start.elapsed();
@@ -999,7 +999,7 @@ mod security_level_tests {
     use super::*;
 
     #[test]
-    fn test_ml_kem_512_is_security_level_1() {
+    fn test_ml_kem_512_is_security_level_1_matches_expected() {
         // ML-KEM-512 provides NIST Security Level 1 (128-bit classical)
         // Verify we have test vectors for this security level
         assert!(!ml_kem_kat::ML_KEM_512_VECTORS.is_empty());
@@ -1010,7 +1010,7 @@ mod security_level_tests {
     }
 
     #[test]
-    fn test_ml_kem_768_is_security_level_3() {
+    fn test_ml_kem_768_is_security_level_3_matches_expected() {
         // ML-KEM-768 provides NIST Security Level 3 (192-bit classical)
         assert!(!ml_kem_kat::ML_KEM_768_VECTORS.is_empty());
 
@@ -1019,7 +1019,7 @@ mod security_level_tests {
     }
 
     #[test]
-    fn test_ml_kem_1024_is_security_level_5() {
+    fn test_ml_kem_1024_is_security_level_5_matches_expected() {
         // ML-KEM-1024 provides NIST Security Level 5 (256-bit classical)
         assert!(!ml_kem_kat::ML_KEM_1024_VECTORS.is_empty());
 
@@ -1028,7 +1028,7 @@ mod security_level_tests {
     }
 
     #[test]
-    fn test_all_security_levels_covered() {
+    fn test_all_security_levels_covered_matches_expected() {
         // Ensure we have coverage for all three NIST security levels
         let levels = vec![
             ("Level 1", ml_kem_kat::ML_KEM_512_VECTORS.len()),

@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -16,12 +16,12 @@
 //! - Secure memory handling with zeroization
 
 use crate::prelude::error::{LatticeArcError, Result};
-use hmac::{Hmac, Mac};
-use sha2::{Sha256, Sha512};
+use aws_lc_rs::hmac::{self, HMAC_SHA256, HMAC_SHA512};
 use subtle::ConstantTimeEq;
-use zeroize::Zeroize;
+use zeroize::Zeroizing;
 
 /// PBKDF2 pseudorandom function types
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PrfType {
     /// HMAC-SHA256 (recommended for most applications)
@@ -34,12 +34,16 @@ pub enum PrfType {
 #[derive(Debug, Clone)]
 pub struct Pbkdf2Params {
     /// Salt value (minimum 16 bytes recommended)
+    /// Consumer: pbkdf2()
     pub salt: Vec<u8>,
     /// Iteration count (minimum 1000, default 600,000 per OWASP 2023 for HMAC-SHA256)
+    /// Consumer: pbkdf2()
     pub iterations: u32,
     /// Desired key length in bytes
+    /// Consumer: pbkdf2()
     pub key_length: usize,
     /// PRF to use
+    /// Consumer: pbkdf2()
     pub prf: PrfType,
 }
 
@@ -108,22 +112,21 @@ impl Pbkdf2Params {
 }
 
 /// PBKDF2 key derivation result
+///
+/// The key material is wrapped in `Zeroizing` for automatic zeroization on drop.
 pub struct Pbkdf2Result {
-    /// Derived key
-    pub key: Vec<u8>,
+    /// Derived key (zeroized on drop)
+    key: Zeroizing<Vec<u8>>,
     /// Parameters used for derivation
-    pub params: Pbkdf2Params,
+    params: Pbkdf2Params,
 }
 
-impl Zeroize for Pbkdf2Result {
-    fn zeroize(&mut self) {
-        self.key.zeroize();
-    }
-}
-
-impl Drop for Pbkdf2Result {
-    fn drop(&mut self) {
-        self.zeroize();
+impl std::fmt::Debug for Pbkdf2Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pbkdf2Result")
+            .field("key", &"[REDACTED]")
+            .field("params", &self.params)
+            .finish()
     }
 }
 
@@ -132,6 +135,18 @@ impl Pbkdf2Result {
     #[must_use]
     pub fn key(&self) -> &[u8] {
         &self.key
+    }
+
+    /// Get the length of the derived key
+    #[must_use]
+    pub fn key_length(&self) -> usize {
+        self.key.len()
+    }
+
+    /// Get the parameters used for derivation
+    #[must_use]
+    pub fn params(&self) -> &Pbkdf2Params {
+        &self.params
     }
 
     /// Verify a password against this result
@@ -209,7 +224,8 @@ pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
     };
 
     let block_count = params.key_length.div_ceil(prf_output_len);
-    let mut derived_key = vec![0u8; params.key_length];
+    // Wrap in Zeroizing so partial key material is erased on early return via `?`.
+    let mut derived_key: Zeroizing<Vec<u8>> = Zeroizing::new(vec![0u8; params.key_length]);
     let mut offset = 0;
 
     // Generate each block of the derived key
@@ -221,7 +237,7 @@ pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
             ))
         })?;
         let block =
-            generate_block(password, &params.salt, params.iterations, block_index_u32, params.prf)?;
+            generate_block(password, &params.salt, params.iterations, block_index_u32, params.prf);
         let copy_len = std::cmp::min(block.len(), params.key_length.saturating_sub(offset));
         let end_offset = offset.checked_add(copy_len).ok_or_else(|| {
             LatticeArcError::InvalidParameter("Derived key offset overflow".to_string())
@@ -239,56 +255,57 @@ pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
     Ok(Pbkdf2Result { key: derived_key, params: params.clone() })
 }
 
-/// Generate a single block of the PBKDF2 output
+/// Generate a single block of the PBKDF2 output.
+///
+/// The returned buffer contains derived key material and is wrapped in
+/// `Zeroizing` to erase it automatically on drop, including on early error
+/// returns from the caller. Infallible: all underlying HMAC operations are
+/// infallible for valid key lengths (checked in `pbkdf2()`).
 fn generate_block(
     password: &[u8],
     salt: &[u8],
     iterations: u32,
     block_index: u32,
     prf: PrfType,
-) -> Result<Vec<u8>> {
+) -> Zeroizing<Vec<u8>> {
     // Convert block index to bytes (big-endian)
     let mut block_input = salt.to_vec();
     block_input.extend_from_slice(&block_index.to_be_bytes());
 
     // U_1 = PRF(password, salt || INT(block_index))
-    let mut u = compute_prf(password, &block_input, prf)?;
-    let mut result = u.clone();
+    let mut u = compute_prf(password, &block_input, prf);
+    let mut result: Zeroizing<Vec<u8>> = Zeroizing::new(u.to_vec());
 
     // U_2 = PRF(password, U_1) ⊕ U_1
     // U_3 = PRF(password, U_2) ⊕ U_2
     // ...
     // U_c = PRF(password, U_{c-1}) ⊕ U_{c-1}
     for _ in 1..iterations {
-        u = compute_prf(password, &u, prf)?;
+        u = compute_prf(password, &u, prf);
         for (res_byte, u_byte) in result.iter_mut().zip(u.iter()) {
             *res_byte ^= u_byte;
         }
     }
 
-    Ok(result)
+    result
 }
 
-/// Compute PRF (HMAC) for PBKDF2
-fn compute_prf(password: &[u8], data: &[u8], prf: PrfType) -> Result<Vec<u8>> {
-    match prf {
-        PrfType::HmacSha256 => {
-            let mut hmac = Hmac::<Sha256>::new_from_slice(password).map_err(|_e| {
-                LatticeArcError::InvalidParameter("Password too long for HMAC-SHA256".to_string())
-            })?;
-            hmac.update(data);
-            let result = hmac.finalize().into_bytes();
-            Ok(result.to_vec())
-        }
-        PrfType::HmacSha512 => {
-            let mut hmac = Hmac::<Sha512>::new_from_slice(password).map_err(|_e| {
-                LatticeArcError::InvalidParameter("Password too long for HMAC-SHA512".to_string())
-            })?;
-            hmac.update(data);
-            let result = hmac.finalize().into_bytes();
-            Ok(result.to_vec())
-        }
-    }
+/// Compute PRF (HMAC) for PBKDF2.
+///
+/// Returns the HMAC output wrapped in `Zeroizing` because it is used directly
+/// as derived key material (both `U_1` and the XOR-chained iterates `U_i`).
+/// Infallible: aws-lc-rs `hmac::Key::new` accepts any key length, and
+/// `hmac::sign` cannot fail for HMAC-SHA256/SHA-512.
+fn compute_prf(password: &[u8], data: &[u8], prf: PrfType) -> Zeroizing<Vec<u8>> {
+    // Delegates to aws-lc-rs HMAC for FIPS-validated constant-time operation.
+    // The same backend is used by HKDF, SP800-108, and the mac::hmac wrapper.
+    let algorithm = match prf {
+        PrfType::HmacSha256 => HMAC_SHA256,
+        PrfType::HmacSha512 => HMAC_SHA512,
+    };
+    let key = hmac::Key::new(algorithm, password);
+    let tag = hmac::sign(&key, data);
+    Zeroizing::new(tag.as_ref().to_vec())
 }
 
 /// Password-based key derivation with default parameters
@@ -341,7 +358,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pbkdf2_basic() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_pbkdf2_basic_roundtrip() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let password = b"password";
         let salt = b"salt123456789012"; // 16 bytes
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
@@ -357,7 +374,8 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_different_passwords() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_pbkdf2_different_passwords_produce_different_keys_succeeds()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
         let salt = b"salt123456789012";
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
@@ -369,7 +387,8 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_different_salts() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn test_pbkdf2_different_salts_produce_different_keys_succeeds()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
         let params1 = Pbkdf2Params::with_salt(b"salt123456789012").iterations(1000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(b"salt223456789012").iterations(1000).key_length(32);
 
@@ -381,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_different_iterations() {
+    fn test_pbkdf2_different_iterations_produce_different_keys_succeeds() {
         let password = b"password";
         let salt = b"salt123456789012";
         let params1 = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
@@ -394,7 +413,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_simple() {
+    fn test_pbkdf2_simple_produces_different_keys_with_different_salts_succeeds() {
         let password = b"testpassword";
         let result1 = pbkdf2_simple(password).unwrap();
         let result2 = pbkdf2_simple(password).unwrap();
@@ -406,7 +425,7 @@ mod tests {
     }
 
     #[test]
-    fn test_password_verification() {
+    fn test_password_verification_is_correct() {
         let password = b"correctpassword";
         let wrong_password = b"wrongpassword";
 
@@ -420,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_password_function() {
+    fn test_verify_password_function_is_correct() {
         let password = b"testpass";
         let salt = b"1234567890123456"; // 16 bytes
 
@@ -442,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_validation() {
+    fn test_pbkdf2_validation_fails_for_invalid_params_fails() {
         let password = b"pass";
         let salt = b"salt";
 
@@ -464,7 +483,7 @@ mod tests {
     }
 
     #[test]
-    fn test_prf_types() {
+    fn test_prf_types_produce_correct_key_lengths_has_correct_size() {
         let password = b"password";
         let salt = b"salt123456789012";
 
@@ -483,11 +502,11 @@ mod tests {
         assert_eq!(result_sha512.key.len(), 64);
 
         // Different PRFs should produce different outputs
-        assert_ne!(result_sha256.key, &result_sha512.key[..32]);
+        assert_ne!(result_sha256.key(), &result_sha512.key()[..32]);
     }
 
     #[test]
-    fn test_zeroize_on_drop() {
+    fn test_zeroize_on_drop_succeeds() {
         let password = b"password";
         let salt = b"salt123456789012";
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
@@ -507,13 +526,13 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_params_new_zero_salt_length() {
+    fn test_pbkdf2_params_new_zero_salt_length_fails() {
         let result = Pbkdf2Params::new(0);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_pbkdf2_params_new_valid() {
+    fn test_pbkdf2_params_new_valid_has_correct_defaults_succeeds() {
         let params = Pbkdf2Params::new(16).unwrap();
         assert_eq!(params.salt.len(), 16);
         assert_eq!(params.iterations, 600_000);
@@ -522,7 +541,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_multi_block_sha256() {
+    fn test_pbkdf2_multi_block_sha256_has_correct_length_has_correct_size() {
         // key_length > 32 requires multiple blocks for SHA256
         let password = b"password";
         let salt = b"salt123456789012";
@@ -533,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_multi_block_sha512() {
+    fn test_pbkdf2_multi_block_sha512_has_correct_length_has_correct_size() {
         // key_length > 64 requires multiple blocks for SHA512
         let password = b"password";
         let salt = b"salt123456789012";
@@ -545,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_result_key_accessor() {
+    fn test_pbkdf2_result_key_accessor_returns_correct_value_succeeds() {
         let password = b"password";
         let salt = b"salt123456789012";
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
@@ -556,7 +575,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_params_builder_chain() {
+    fn test_pbkdf2_params_builder_chain_is_correct() {
         let params = Pbkdf2Params::with_salt(b"saltsaltsaltsalt")
             .iterations(5000)
             .key_length(48)
@@ -568,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn test_prf_type_debug_clone_eq() {
+    fn test_prf_type_debug_clone_eq_is_correct() {
         let prf = PrfType::HmacSha256;
         let cloned = prf;
         assert_eq!(prf, cloned);

@@ -68,122 +68,96 @@ where
     result
 }
 
-/// Helper to run multiple iterations and return average duration
-#[allow(dead_code)]
-fn measure_iterations<F>(iterations: usize, operation: F) -> Duration
-where
-    F: Fn(),
-{
-    let start = Instant::now();
-    for _ in 0..iterations {
-        operation();
-    }
-    let total = start.elapsed();
-
-    Duration::from_nanos(total.as_nanos().checked_div(iterations as u128).unwrap_or(0) as u64)
-}
-
 // ============================================================================
 // SECTION 1: CRYPTOGRAPHIC OPERATION BENCHMARKS (15+ tests)
 // ============================================================================
 
 /// Test 1: ML-KEM-512 keygen completes within reasonable time
 #[test]
-fn test_mlkem_512_keygen_timing_bound() {
+fn test_mlkem_512_keygen_timing_bound_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     timed_operation("ML-KEM-512 keygen", MAX_SINGLE_OP_TIME, || {
-        let result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512);
+        let result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512);
         assert!(result.is_ok(), "ML-KEM-512 keygen should succeed");
     });
 }
 
 /// Test 2: ML-KEM-768 keygen completes within reasonable time
 #[test]
-fn test_mlkem_768_keygen_timing_bound() {
+fn test_mlkem_768_keygen_timing_bound_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     timed_operation("ML-KEM-768 keygen", MAX_SINGLE_OP_TIME, || {
-        let result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
         assert!(result.is_ok(), "ML-KEM-768 keygen should succeed");
     });
 }
 
 /// Test 3: ML-KEM-1024 keygen completes within reasonable time
 #[test]
-fn test_mlkem_1024_keygen_timing_bound() {
+fn test_mlkem_1024_keygen_timing_bound_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     timed_operation("ML-KEM-1024 keygen", MAX_SINGLE_OP_TIME, || {
-        let result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024);
+        let result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024);
         assert!(result.is_ok(), "ML-KEM-1024 keygen should succeed");
     });
 }
 
 /// Test 4: ML-KEM encapsulation completes within reasonable time
 #[test]
-fn test_mlkem_encapsulation_timing_bound() {
+fn test_mlkem_encapsulation_timing_bound_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     timed_operation("ML-KEM encapsulation", MAX_SINGLE_OP_TIME, || {
-        let result = MlKem::encapsulate(&mut rng, &pk);
+        let result = MlKem::encapsulate(&pk);
         assert!(result.is_ok(), "ML-KEM encapsulation should succeed");
     });
 }
 
 /// Test 5: ML-DSA-44 keygen completes within reasonable time
 #[test]
-fn test_mldsa_44_keygen_timing_bound() {
+fn test_mldsa_44_keygen_timing_bound_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     timed_operation("ML-DSA-44 keygen", MAX_SINGLE_OP_TIME, || {
-        let result = generate_keypair(MlDsaParameterSet::MLDSA44);
+        let result = generate_keypair(MlDsaParameterSet::MlDsa44);
         assert!(result.is_ok(), "ML-DSA-44 keygen should succeed");
     });
 }
 
 /// Test 6: ML-DSA-65 keygen completes within reasonable time
 #[test]
-fn test_mldsa_65_keygen_timing_bound() {
+fn test_mldsa_65_keygen_timing_bound_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     timed_operation("ML-DSA-65 keygen", MAX_SINGLE_OP_TIME, || {
-        let result = generate_keypair(MlDsaParameterSet::MLDSA65);
+        let result = generate_keypair(MlDsaParameterSet::MlDsa65);
         assert!(result.is_ok(), "ML-DSA-65 keygen should succeed");
     });
 }
 
 /// Test 7: ML-DSA-87 keygen completes within reasonable time
 #[test]
-fn test_mldsa_87_keygen_timing_bound() {
+fn test_mldsa_87_keygen_timing_bound_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     timed_operation("ML-DSA-87 keygen", MAX_SINGLE_OP_TIME, || {
-        let result = generate_keypair(MlDsaParameterSet::MLDSA87);
+        let result = generate_keypair(MlDsaParameterSet::MlDsa87);
         assert!(result.is_ok(), "ML-DSA-87 keygen should succeed");
     });
 }
 
 /// Test 8: ML-DSA signing completes within reasonable time
 #[test]
-fn test_mldsa_sign_timing_bound() {
+fn test_mldsa_sign_timing_bound_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
 
-    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
     let message = b"Test message for signing performance";
 
     timed_operation("ML-DSA signing", MAX_SINGLE_OP_TIME, || {
@@ -194,10 +168,10 @@ fn test_mldsa_sign_timing_bound() {
 
 /// Test 9: ML-DSA verification completes within reasonable time
 #[test]
-fn test_mldsa_verify_timing_bound() {
+fn test_mldsa_verify_timing_bound_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 
-    let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65).expect("keygen should succeed");
+    let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
     let message = b"Test message for verification performance";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
 
@@ -210,7 +184,7 @@ fn test_mldsa_verify_timing_bound() {
 
 /// Test 10: AES-GCM-256 encryption completes within reasonable time
 #[test]
-fn test_aes_gcm_256_encrypt_timing_bound() {
+fn test_aes_gcm_256_encrypt_timing_bound_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -227,7 +201,7 @@ fn test_aes_gcm_256_encrypt_timing_bound() {
 
 /// Test 11: AES-GCM-256 decryption completes within reasonable time
 #[test]
-fn test_aes_gcm_256_decrypt_timing_bound() {
+fn test_aes_gcm_256_decrypt_timing_bound_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -246,7 +220,7 @@ fn test_aes_gcm_256_decrypt_timing_bound() {
 /// Test 12: ChaCha20-Poly1305 encryption completes within reasonable time
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_chacha20_poly1305_encrypt_timing_bound() {
+fn test_chacha20_poly1305_encrypt_timing_bound_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
@@ -263,7 +237,7 @@ fn test_chacha20_poly1305_encrypt_timing_bound() {
 
 /// Test 13: SHA-256 hashing completes within reasonable time
 #[test]
-fn test_sha256_hash_timing_bound() {
+fn test_sha256_hash_timing_bound_succeeds() {
     use latticearc::primitives::hash::sha2::sha256;
 
     let data = vec![0xAB; 1024]; // 1KB
@@ -276,7 +250,7 @@ fn test_sha256_hash_timing_bound() {
 
 /// Test 14: SHA-512 hashing completes within reasonable time
 #[test]
-fn test_sha512_hash_timing_bound() {
+fn test_sha512_hash_timing_bound_succeeds() {
     use latticearc::primitives::hash::sha2::sha512;
 
     let data = vec![0xAB; 1024]; // 1KB
@@ -289,7 +263,7 @@ fn test_sha512_hash_timing_bound() {
 
 /// Test 15: HKDF derivation completes within reasonable time
 #[test]
-fn test_hkdf_derivation_timing_bound() {
+fn test_hkdf_derivation_timing_bound_succeeds() {
     use latticearc::primitives::kdf::hkdf::hkdf;
 
     let ikm = vec![0xAB; 32];
@@ -304,7 +278,7 @@ fn test_hkdf_derivation_timing_bound() {
 
 /// Test 16: AES-GCM-128 encryption completes within reasonable time
 #[test]
-fn test_aes_gcm_128_encrypt_timing_bound() {
+fn test_aes_gcm_128_encrypt_timing_bound_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm128;
 
@@ -325,7 +299,7 @@ fn test_aes_gcm_128_encrypt_timing_bound() {
 
 /// Test 17: AES-GCM-256 bulk encryption throughput sanity check
 #[test]
-fn test_aes_gcm_256_bulk_encryption_throughput() {
+fn test_aes_gcm_256_bulk_encryption_throughput_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -357,7 +331,7 @@ fn test_aes_gcm_256_bulk_encryption_throughput() {
 #[test]
 #[cfg(not(feature = "fips"))]
 // Must run in release mode (flaky under coverage instrumentation)
-fn test_chacha20_poly1305_bulk_encryption_throughput() {
+fn test_chacha20_poly1305_bulk_encryption_throughput_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
@@ -387,16 +361,14 @@ fn test_chacha20_poly1305_bulk_encryption_throughput() {
 
 /// Test 19: ML-KEM keygen rate is reasonable
 #[test]
-fn test_mlkem_keygen_rate() {
+fn test_mlkem_keygen_rate_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
     let iterations = 100;
 
     let start = Instant::now();
     for _ in 0..iterations {
-        let _result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
+        let _result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
     }
     let elapsed = start.elapsed();
 
@@ -408,10 +380,10 @@ fn test_mlkem_keygen_rate() {
 
 /// Test 20: ML-DSA signing rate is reasonable
 #[test]
-fn test_mldsa_sign_rate() {
+fn test_mldsa_sign_rate_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
 
-    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"Test message for signing rate measurement";
     let iterations = 100;
 
@@ -429,10 +401,10 @@ fn test_mldsa_sign_rate() {
 
 /// Test 21: ML-DSA verification rate is reasonable
 #[test]
-fn test_mldsa_verify_rate() {
+fn test_mldsa_verify_rate_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 
-    let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+    let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"Test message for verification rate measurement";
     let signature = sign(&sk, message, &[]).expect("signing should succeed");
     let iterations = 100;
@@ -452,7 +424,7 @@ fn test_mldsa_verify_rate() {
 /// Test 22: SHA-256 throughput is reasonable
 #[test]
 // Must run in release mode (flaky under coverage instrumentation)
-fn test_sha256_throughput() {
+fn test_sha256_throughput_succeeds() {
     use latticearc::primitives::hash::sha2::sha256;
 
     let data = vec![0xAB; 1024 * 1024]; // 1MB
@@ -478,7 +450,7 @@ fn test_sha256_throughput() {
 /// Test 23: SHA-512 throughput is reasonable
 #[test]
 // Must run in release mode (flaky under coverage instrumentation)
-fn test_sha512_throughput() {
+fn test_sha512_throughput_succeeds() {
     use latticearc::primitives::hash::sha2::sha512;
 
     let data = vec![0xAB; 1024 * 1024]; // 1MB
@@ -503,7 +475,7 @@ fn test_sha512_throughput() {
 
 /// Test 24: HKDF derivation rate is reasonable
 #[test]
-fn test_hkdf_derivation_rate() {
+fn test_hkdf_derivation_rate_succeeds() {
     use latticearc::primitives::kdf::hkdf::hkdf;
 
     let ikm = vec![0xAB; 32];
@@ -525,10 +497,10 @@ fn test_hkdf_derivation_rate() {
 
 /// Test 25: Batch signature processing completes within bounds
 #[test]
-fn test_batch_signature_processing() {
+fn test_batch_signature_processing_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
 
-    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen should succeed");
+    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
     let batch_size = 50;
     let messages: Vec<Vec<u8>> =
@@ -543,19 +515,17 @@ fn test_batch_signature_processing() {
 
 /// Test 26: ML-KEM encapsulation rate is reasonable
 #[test]
-fn test_mlkem_encapsulation_rate() {
+fn test_mlkem_encapsulation_rate_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+    let (pk, _sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     let iterations = 100;
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let _result = MlKem::encapsulate(&mut rng, &pk).unwrap();
+        let _result = MlKem::encapsulate(&pk).unwrap();
     }
 
     let elapsed = start.elapsed();
@@ -571,13 +541,11 @@ fn test_mlkem_encapsulation_rate() {
 
 /// Test 27: ML-KEM-512 key sizes match FIPS 203 specification
 #[test]
-fn test_mlkem_512_key_sizes() {
+fn test_mlkem_512_key_sizes_has_correct_size() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512)
-        .expect("keygen should succeed");
+    let (pk, sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).expect("keygen should succeed");
 
     // FIPS 203 specifies these sizes
     assert_eq!(pk.as_bytes().len(), 800, "ML-KEM-512 public key should be 800 bytes");
@@ -586,13 +554,11 @@ fn test_mlkem_512_key_sizes() {
 
 /// Test 28: ML-KEM-768 key sizes match FIPS 203 specification
 #[test]
-fn test_mlkem_768_key_sizes() {
+fn test_mlkem_768_key_sizes_has_correct_size() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768)
-        .expect("keygen should succeed");
+    let (pk, sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
 
     // FIPS 203 specifies these sizes
     assert_eq!(pk.as_bytes().len(), 1184, "ML-KEM-768 public key should be 1184 bytes");
@@ -601,13 +567,11 @@ fn test_mlkem_768_key_sizes() {
 
 /// Test 29: ML-KEM-1024 key sizes match FIPS 203 specification
 #[test]
-fn test_mlkem_1024_key_sizes() {
+fn test_mlkem_1024_key_sizes_has_correct_size() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
-    let (pk, sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024)
-        .expect("keygen should succeed");
+    let (pk, sk) =
+        MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024).expect("keygen should succeed");
 
     // FIPS 203 specifies these sizes
     assert_eq!(pk.as_bytes().len(), 1568, "ML-KEM-1024 public key should be 1568 bytes");
@@ -616,75 +580,72 @@ fn test_mlkem_1024_key_sizes() {
 
 /// Test 30: ML-KEM ciphertext sizes match specification
 #[test]
-fn test_mlkem_ciphertext_sizes() {
+fn test_mlkem_ciphertext_sizes_has_correct_size() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     // ML-KEM-512
-    let (pk512, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512).unwrap();
-    let (_ss, ct512) = MlKem::encapsulate(&mut rng, &pk512).unwrap();
+    let (pk512, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).unwrap();
+    let (_ss, ct512) = MlKem::encapsulate(&pk512).unwrap();
     assert_eq!(ct512.as_bytes().len(), 768, "ML-KEM-512 ciphertext should be 768 bytes");
 
     // ML-KEM-768
-    let (pk768, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).unwrap();
-    let (_ss, ct768) = MlKem::encapsulate(&mut rng, &pk768).unwrap();
+    let (pk768, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
+    let (_ss, ct768) = MlKem::encapsulate(&pk768).unwrap();
     assert_eq!(ct768.as_bytes().len(), 1088, "ML-KEM-768 ciphertext should be 1088 bytes");
 
     // ML-KEM-1024
-    let (pk1024, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem1024).unwrap();
-    let (_ss, ct1024) = MlKem::encapsulate(&mut rng, &pk1024).unwrap();
+    let (pk1024, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem1024).unwrap();
+    let (_ss, ct1024) = MlKem::encapsulate(&pk1024).unwrap();
     assert_eq!(ct1024.as_bytes().len(), 1568, "ML-KEM-1024 ciphertext should be 1568 bytes");
 }
 
 /// Test 31: ML-DSA key sizes match FIPS 204 specification
 #[test]
-fn test_mldsa_key_sizes() {
+fn test_mldsa_key_sizes_has_correct_size() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     // ML-DSA-44
-    let (pk44, sk44) = generate_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+    let (pk44, sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     assert_eq!(pk44.len(), 1312, "ML-DSA-44 public key should be 1312 bytes");
     assert_eq!(sk44.len(), 2560, "ML-DSA-44 secret key should be 2560 bytes");
 
     // ML-DSA-65
-    let (pk65, sk65) = generate_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+    let (pk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     assert_eq!(pk65.len(), 1952, "ML-DSA-65 public key should be 1952 bytes");
     assert_eq!(sk65.len(), 4032, "ML-DSA-65 secret key should be 4032 bytes");
 
     // ML-DSA-87
-    let (pk87, sk87) = generate_keypair(MlDsaParameterSet::MLDSA87).unwrap();
+    let (pk87, sk87) = generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
     assert_eq!(pk87.len(), 2592, "ML-DSA-87 public key should be 2592 bytes");
     assert_eq!(sk87.len(), 4896, "ML-DSA-87 secret key should be 4896 bytes");
 }
 
 /// Test 32: ML-DSA signature sizes match FIPS 204 specification
 #[test]
-fn test_mldsa_signature_sizes() {
+fn test_mldsa_signature_sizes_has_correct_size() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
 
     let message = b"Test message for signature size check";
 
     // ML-DSA-44
-    let (_pk44, sk44) = generate_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+    let (_pk44, sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let sig44 = sign(&sk44, message, &[]).unwrap();
     assert_eq!(sig44.len(), 2420, "ML-DSA-44 signature should be 2420 bytes");
 
     // ML-DSA-65
-    let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MLDSA65).unwrap();
+    let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let sig65 = sign(&sk65, message, &[]).unwrap();
     assert_eq!(sig65.len(), 3309, "ML-DSA-65 signature should be 3309 bytes");
 
     // ML-DSA-87
-    let (_pk87, sk87) = generate_keypair(MlDsaParameterSet::MLDSA87).unwrap();
+    let (_pk87, sk87) = generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
     let sig87 = sign(&sk87, message, &[]).unwrap();
     assert_eq!(sig87.len(), 4627, "ML-DSA-87 signature should be 4627 bytes");
 }
 
 /// Test 33: AES-GCM ciphertext expansion is correct (no expansion + 16 byte tag)
 #[test]
-fn test_aes_gcm_ciphertext_expansion() {
+fn test_aes_gcm_ciphertext_expansion_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -713,7 +674,7 @@ fn test_aes_gcm_ciphertext_expansion() {
 /// Test 34: ChaCha20-Poly1305 ciphertext expansion is correct
 #[test]
 #[cfg(not(feature = "fips"))]
-fn test_chacha20_poly1305_ciphertext_expansion() {
+fn test_chacha20_poly1305_ciphertext_expansion_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 
@@ -741,7 +702,7 @@ fn test_chacha20_poly1305_ciphertext_expansion() {
 
 /// Test 35: SHA hash output sizes are correct
 #[test]
-fn test_sha_hash_output_sizes() {
+fn test_sha_hash_output_sizes_has_correct_size() {
     use latticearc::primitives::hash::sha2::{sha256, sha384, sha512};
 
     let data = b"Test data for hash output size verification";
@@ -758,25 +719,23 @@ fn test_sha_hash_output_sizes() {
 
 /// Test 36: No memory leak in repeated keygen operations
 #[test]
-fn test_no_memory_leak_keygen() {
+fn test_no_memory_leak_keygen_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
     let iterations = 100;
 
     // Simply run many iterations; if there's a major leak, the test process
     // would eventually run out of memory or slow down significantly
     timed_operation("Repeated keygen (leak test)", MAX_BULK_OP_TIME, || {
         for _ in 0..iterations {
-            let _keypair = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+            let _keypair = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
         }
     });
 }
 
 /// Test 37: No memory leak in repeated encryption operations
 #[test]
-fn test_no_memory_leak_encryption() {
+fn test_no_memory_leak_encryption_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -799,7 +758,7 @@ fn test_no_memory_leak_encryption() {
 
 /// Test 38: AES-GCM scales with data size (increasing data sizes)
 #[test]
-fn test_aes_gcm_scaling_with_data_size() {
+fn test_aes_gcm_scaling_with_data_size_has_correct_size() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -832,7 +791,7 @@ fn test_aes_gcm_scaling_with_data_size() {
 
 /// Test 39: SHA-256 scales with data size
 #[test]
-fn test_sha256_scaling_with_data_size() {
+fn test_sha256_scaling_with_data_size_has_correct_size() {
     use latticearc::primitives::hash::sha2::sha256;
 
     let sizes = [1024, 4096, 16384, 65536, 262144]; // 1KB to 256KB
@@ -855,9 +814,8 @@ fn test_sha256_scaling_with_data_size() {
 
 /// Test 40: Concurrent ML-KEM operations scale reasonably
 #[test]
-fn test_concurrent_mlkem_operations() {
+fn test_concurrent_mlkem_operations_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
     let thread_count = 4;
     let operations_per_thread = 10;
@@ -869,9 +827,8 @@ fn test_concurrent_mlkem_operations() {
     for _ in 0..thread_count {
         let success_count_clone = Arc::clone(&success_count);
         let handle = thread::spawn(move || {
-            let mut rng = OsRng;
             for _ in 0..operations_per_thread {
-                if MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768).is_ok() {
+                if MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).is_ok() {
                     success_count_clone.fetch_add(1, Ordering::SeqCst);
                 }
             }
@@ -903,7 +860,7 @@ fn test_concurrent_mlkem_operations() {
 
 /// Test 41: Concurrent AES-GCM operations scale reasonably
 #[test]
-fn test_concurrent_aes_gcm_operations() {
+fn test_concurrent_aes_gcm_operations_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -951,7 +908,7 @@ fn test_concurrent_aes_gcm_operations() {
 
 /// Test 42: Large message handling (1MB)
 #[test]
-fn test_large_message_1mb() {
+fn test_large_message_1mb_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -963,13 +920,17 @@ fn test_large_message_1mb() {
     timed_operation("1MB encryption", MAX_LARGE_MSG_TIME, || {
         let (ciphertext, tag) = cipher.encrypt(&nonce, &plaintext, None).unwrap();
         let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, None).unwrap();
-        assert_eq!(plaintext, decrypted, "Decrypted data should match original");
+        assert_eq!(
+            plaintext.as_slice(),
+            decrypted.as_slice(),
+            "Decrypted data should match original"
+        );
     });
 }
 
 /// Test 43: Large message handling (10MB)
 #[test]
-fn test_large_message_10mb() {
+fn test_large_message_10mb_succeeds() {
     use latticearc::primitives::aead::AeadCipher;
     use latticearc::primitives::aead::aes_gcm::AesGcm256;
 
@@ -987,7 +948,7 @@ fn test_large_message_10mb() {
 
 /// Test 44: Large message hashing (10MB)
 #[test]
-fn test_large_message_hashing_10mb() {
+fn test_large_message_hashing_10mb_succeeds() {
     use latticearc::primitives::hash::sha2::sha256;
 
     let data = vec![0xAB; 10 * 1024 * 1024]; // 10MB
@@ -1000,17 +961,15 @@ fn test_large_message_hashing_10mb() {
 
 /// Test 45: Performance histogram for cryptographic operations
 #[test]
-fn test_performance_histogram_crypto_ops() {
+fn test_performance_histogram_crypto_ops_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
     let mut histogram = Histogram::new(100);
 
     // Collect timing samples
     for _ in 0..100 {
         let mut timer = Timer::start();
-        let _result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768);
+        let _result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768);
         histogram.record(timer.stop());
     }
 
@@ -1025,25 +984,23 @@ fn test_performance_histogram_crypto_ops() {
 
 /// Test 46: Metrics collector for tracking crypto performance
 #[test]
-fn test_metrics_collector_crypto_tracking() {
+fn test_metrics_collector_crypto_tracking_succeeds() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
     let collector = MetricsCollector::new();
 
     // Track keygen operations
     for _ in 0..10 {
         let start = Instant::now();
-        let _result = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512);
+        let _result = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512);
         collector.record_operation("mlkem512_keygen", start.elapsed());
     }
 
     // Track encapsulation operations
-    let (pk, _sk) = MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem512).unwrap();
+    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).unwrap();
     for _ in 0..10 {
         let start = Instant::now();
-        let _result = MlKem::encapsulate(&mut rng, &pk);
+        let _result = MlKem::encapsulate(&pk);
         collector.record_operation("mlkem512_encaps", start.elapsed());
     }
 
@@ -1058,7 +1015,7 @@ fn test_metrics_collector_crypto_tracking() {
 
 /// Test 47: HKDF scaling with output length
 #[test]
-fn test_hkdf_scaling_with_output_length() {
+fn test_hkdf_scaling_with_output_length_has_correct_size() {
     use latticearc::primitives::kdf::hkdf::hkdf;
 
     let ikm = vec![0xAB; 32];
@@ -1072,7 +1029,7 @@ fn test_hkdf_scaling_with_output_length() {
         let result = hkdf(&ikm, Some(&salt), Some(info), length).unwrap();
         let duration = start.elapsed();
 
-        assert_eq!(result.key.len(), length, "HKDF output should be {} bytes", length);
+        assert_eq!(result.key().len(), length, "HKDF output should be {} bytes", length);
         assert!(
             duration.as_secs() < 1,
             "HKDF with {} byte output took too long: {:?}",
@@ -1084,18 +1041,15 @@ fn test_hkdf_scaling_with_output_length() {
 
 /// Test 48: ML-KEM shared secret is always 32 bytes
 #[test]
-fn test_mlkem_shared_secret_size() {
+fn test_mlkem_shared_secret_size_has_correct_size() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     // All security levels should produce 32-byte shared secrets
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = MlKem::generate_keypair(&mut rng, level).unwrap();
-        let (shared_secret, _ct) = MlKem::encapsulate(&mut rng, &pk).unwrap();
+        let (pk, _sk) = MlKem::generate_keypair(level).unwrap();
+        let (shared_secret, _ct) = MlKem::encapsulate(&pk).unwrap();
 
         assert_eq!(
             shared_secret.as_bytes().len(),
@@ -1108,7 +1062,7 @@ fn test_mlkem_shared_secret_size() {
 
 /// Test 49: Concurrent signature operations scale reasonably
 #[test]
-fn test_concurrent_signature_operations() {
+fn test_concurrent_signature_operations_succeeds() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
 
     let thread_count = 4;
@@ -1116,7 +1070,7 @@ fn test_concurrent_signature_operations() {
     let success_count = Arc::new(AtomicUsize::new(0));
 
     // Generate keypair once (shared across threads - but each thread signs)
-    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44).unwrap();
+    let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let sk_bytes = sk.as_bytes().to_vec();
 
     let start = Instant::now();
@@ -1128,7 +1082,7 @@ fn test_concurrent_signature_operations() {
         let handle = thread::spawn(move || {
             // Recreate secret key from bytes for this thread
             let sk = latticearc::primitives::sig::ml_dsa::MlDsaSecretKey::new(
-                MlDsaParameterSet::MLDSA44,
+                MlDsaParameterSet::MlDsa44,
                 sk_bytes_clone,
             )
             .expect("SK reconstruction should succeed");
@@ -1161,7 +1115,7 @@ fn test_concurrent_signature_operations() {
 
 /// Test 50: Performance comparison baseline - establish that operations are measurable
 #[test]
-fn test_performance_measurement_baseline() {
+fn test_performance_measurement_baseline_succeeds() {
     // This test establishes that our performance measurement infrastructure works correctly
 
     // Test 1: Timer measures non-zero time for actual work

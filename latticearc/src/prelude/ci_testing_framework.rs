@@ -8,11 +8,8 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
-use crate::prelude::domains;
 use crate::prelude::error::LatticeArcError;
-use rand::RngCore;
-use rand::rngs::OsRng;
-
+use crate::types::domains;
 /// Comprehensive CI test suite for prelude.
 ///
 /// Provides automated testing for all prelude utility functions,
@@ -88,25 +85,25 @@ impl PreludeCiTestSuite {
     /// Run memory safety tests.
     fn run_memory_safety_tests() -> Result<bool, LatticeArcError> {
         let tester = crate::prelude::memory_safety_testing::UtilityMemorySafetyTester::new();
-        tester.test_memory_safety()?;
-        tester.test_concurrent_safety()?;
+        tester.test_memory_safety_succeeds()?;
+        tester.test_concurrent_safety_succeeds()?;
         Ok(true)
     }
 
     /// Run basic unit tests.
     fn run_unit_tests() -> Result<bool, LatticeArcError> {
         // Test core utility functions
-        Self::test_hex_functions()?;
-        Self::test_uuid_functions()?;
-        Self::test_domain_constants()?;
-        Self::test_error_handling()?;
+        Self::test_hex_functions_succeeds()?;
+        Self::test_uuid_functions_succeeds()?;
+        Self::test_domain_constants_succeeds()?;
+        Self::test_error_handling_fails()?;
 
         tracing::info!("Unit tests passed");
         Ok(true)
     }
 
     /// Test hex encoding/decoding.
-    fn test_hex_functions() -> Result<(), LatticeArcError> {
+    fn test_hex_functions_succeeds() -> Result<(), LatticeArcError> {
         let test_data = vec![0, 1, 255, 127, 64];
 
         // Test encoding
@@ -126,9 +123,9 @@ impl PreludeCiTestSuite {
         }
 
         for _ in 0..10 {
-            let mut rng = OsRng;
             let mut data = vec![0u8; 32];
-            rng.fill_bytes(&mut data);
+            let rand_data = crate::primitives::rand::csprng::random_bytes(32);
+            data.copy_from_slice(&rand_data);
             let encoded = hex::encode(&data);
             let decoded = hex::decode(&encoded)?;
             if data != decoded {
@@ -142,7 +139,7 @@ impl PreludeCiTestSuite {
     }
 
     /// Test UUID functions.
-    fn test_uuid_functions() -> Result<(), LatticeArcError> {
+    fn test_uuid_functions_succeeds() -> Result<(), LatticeArcError> {
         for _ in 0..10 {
             let uuid = uuid::Uuid::new_v4();
 
@@ -179,7 +176,7 @@ impl PreludeCiTestSuite {
     }
 
     /// Test domain constants.
-    fn test_domain_constants() -> Result<(), LatticeArcError> {
+    fn test_domain_constants_succeeds() -> Result<(), LatticeArcError> {
         // Test all domain constants are non-empty
         if domains::HYBRID_KEM.is_empty() {
             return Err(LatticeArcError::ValidationError {
@@ -232,7 +229,7 @@ impl PreludeCiTestSuite {
     }
 
     /// Test error handling.
-    fn test_error_handling() -> Result<(), LatticeArcError> {
+    fn test_error_handling_fails() -> Result<(), LatticeArcError> {
         let test_errors = vec![
             LatticeArcError::InvalidInput("test".to_string()),
             LatticeArcError::NetworkError("connection failed".to_string()),
@@ -423,7 +420,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ci_test_suite() {
+    fn test_ci_test_suite_all_critical_tests_pass_succeeds() {
         let mut suite = PreludeCiTestSuite::new();
         let report = suite.run_ci_tests().unwrap();
 
@@ -436,19 +433,19 @@ mod tests {
     }
 
     #[test]
-    fn test_ci_integration() {
+    fn test_ci_integration_succeeds() {
         assert!(ci_integration::run_ci_tests().is_ok());
     }
 
     #[test]
-    fn test_prelude_ci_test_suite_default() {
+    fn test_prelude_ci_test_suite_default_succeeds() {
         let suite = PreludeCiTestSuite;
         // Just verify default construction works
         let _ = suite;
     }
 
     #[test]
-    fn test_generate_report_with_failures() {
+    fn test_generate_report_with_failures_fails() {
         let report = PreludeCiReport {
             unit_tests_passed: false,
             property_tests_passed: true,
@@ -471,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_report_with_side_channel_assessments() {
+    fn test_generate_report_with_side_channel_assessments_succeeds() {
         use crate::prelude::side_channel_analysis::{
             Severity, SideChannelAssessment, SideChannelType,
         };
@@ -498,7 +495,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_critical_tests_passed_with_high_severity() {
+    fn test_all_critical_tests_passed_with_high_severity_succeeds() {
         use crate::prelude::side_channel_analysis::{
             Severity, SideChannelAssessment, SideChannelType,
         };
@@ -524,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn test_performance_results_debug() {
+    fn test_performance_results_debug_succeeds() {
         let perf = PerformanceResults::default();
         let debug = format!("{:?}", perf);
         assert!(debug.contains("PerformanceResults"));
@@ -533,7 +530,7 @@ mod tests {
     // ---- Coverage: generate_report and ci_integration ----
 
     #[test]
-    fn test_generate_report_all_passing() {
+    fn test_generate_report_all_passing_succeeds() {
         let mut suite = PreludeCiTestSuite::new();
         let report = suite.run_ci_tests().unwrap();
 
@@ -545,7 +542,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_critical_tests_passed_true() {
+    fn test_all_critical_tests_passed_true_when_all_pass_succeeds() {
         let report = PreludeCiReport {
             unit_tests_passed: true,
             property_tests_passed: true,
@@ -559,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ci_report_default_field_values() {
+    fn test_ci_report_default_field_values_succeeds() {
         let report = PreludeCiReport::default();
         assert!(!report.unit_tests_passed);
         assert!(!report.property_tests_passed);
@@ -570,13 +567,13 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ci_tests_standalone_function() {
+    fn test_run_ci_tests_standalone_function_succeeds() {
         let result = ci_integration::run_ci_tests();
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_generate_report_with_optional_sections() {
+    fn test_generate_report_with_optional_sections_succeeds() {
         let report = PreludeCiReport {
             unit_tests_passed: true,
             property_tests_passed: true,
@@ -594,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_report_issues_detected() {
+    fn test_generate_report_issues_detected_succeeds() {
         let report = PreludeCiReport {
             unit_tests_passed: false,
             property_tests_passed: true,

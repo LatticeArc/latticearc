@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.4.4 | **License**: Apache 2.0
+**Version**: 0.5.0 | **License**: Apache 2.0
 
 ---
 
@@ -265,7 +265,7 @@ assert_eq!(shared_secret, recovered);
 ```rust
 use latticearc::primitives::sig::ml_dsa::*;
 
-let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA65)?;
+let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)?;
 let signature = sign(&sk, b"Important message", b"")?;
 let verified = verify(&pk, b"Important message", &signature, b"")?;
 ```
@@ -361,7 +361,10 @@ match operation() {
 
 ### Security Levels
 
+All public enums in LatticeArc are `#[non_exhaustive]`. Match arms must include a `_` wildcard to remain compatible with future variants.
+
 ```rust
+#[non_exhaustive]
 pub enum SecurityLevel {
     Standard, // NIST Level 1 (128-bit equivalent), hybrid mode
     High,     // NIST Level 3 (192-bit equivalent), hybrid mode (default)
@@ -373,6 +376,7 @@ pub enum SecurityLevel {
 ### Use Cases
 
 ```rust
+#[non_exhaustive]
 pub enum UseCase {
     SecureMessaging, EmailEncryption, VpnTunnel, ApiSecurity,
     FileStorage, DatabaseEncryption, CloudStorage, BackupArchive, ConfigSecrets,
@@ -383,6 +387,57 @@ pub enum UseCase {
     AuditLog,
 }
 ```
+
+### Private Fields — Use Getter Methods
+
+`HybridCiphertext`, `EncryptedOutput`, and `KeyPair` all have private fields. Access their contents through the provided getter methods:
+
+```rust
+// HybridCiphertext — use getters, not field access
+let ct: &HybridCiphertext = ...;
+let kem_bytes = ct.kem_ciphertext();        // &[u8]
+let sym_bytes = ct.symmetric_ciphertext();  // &[u8]
+
+// EncryptedOutput — use getters, not field access
+let out: &EncryptedOutput = ...;
+let scheme = out.scheme();     // &EncryptionScheme
+let ciphertext = out.ciphertext(); // &[u8]
+let nonce = out.nonce();       // &[u8]
+let tag = out.tag();           // &[u8]
+
+// KeyPair — use getters, not field access
+let kp: &KeyPair = ...;
+let pk = kp.public_key();   // &PublicKey
+let sk = kp.private_key();  // &PrivateKey
+```
+
+### Sealed Traits
+
+The `AeadCipher` trait (and the `EcKeyPair` / `EcSignature` EC traits) are sealed — they cannot be implemented outside of this crate. This prevents downstream code from bypassing the library's security invariants.
+
+```rust
+// AeadCipher is sealed: only AesGcm128, AesGcm256, and ChaCha20Poly1305Cipher implement it.
+// You cannot add your own AeadCipher impl from outside the crate.
+use latticearc::primitives::aead::AeadCipher;
+```
+
+### SignatureScheme Variants
+
+The `SignatureScheme` enum uses specific variant names for FN-DSA:
+
+```rust
+#[non_exhaustive]
+pub enum SignatureScheme {
+    MlDsa44, MlDsa65, MlDsa87,
+    SlhDsaShake128f, /* ... other SLH-DSA variants ... */
+    FnDsa512,   // formerly FnDsa — maps to FN-DSA-512 (NIST Level 1)
+    FnDsa1024,  // new in 0.5.0 — maps to FN-DSA-1024 (NIST Level 5)
+    HybridMlDsa65Ed25519,
+    /* ... */
+}
+```
+
+Wire-format `"fn-dsa"` still parses to `FnDsa512` for backward compatibility.
 
 ---
 

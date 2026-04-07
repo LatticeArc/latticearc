@@ -343,21 +343,21 @@ mod nist_compliance_validator_tests {
     use super::*;
 
     #[test]
-    fn test_validator_creation() {
+    fn test_validator_creation_succeeds() {
         let _validator = NistComplianceValidator::new();
         // Validator should be created successfully with initialized criteria
         assert!(true, "NistComplianceValidator created successfully");
     }
 
     #[test]
-    fn test_validator_default() {
+    fn test_validator_default_succeeds() {
         let _validator = NistComplianceValidator::default();
         // Default should be equivalent to new()
         assert!(true, "NistComplianceValidator::default() works");
     }
 
     #[test]
-    fn test_get_algorithm_criteria_mlkem_512() {
+    fn test_get_algorithm_criteria_mlkem_512_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "512".to_string() };
 
@@ -370,7 +370,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_mlkem_768() {
+    fn test_get_algorithm_criteria_mlkem_768_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
 
@@ -381,7 +381,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_mlkem_1024() {
+    fn test_get_algorithm_criteria_mlkem_1024_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "1024".to_string() };
 
@@ -392,7 +392,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_mldsa_44() {
+    fn test_get_algorithm_criteria_mldsa_44_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "44".to_string() };
 
@@ -404,7 +404,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_mldsa_65() {
+    fn test_get_algorithm_criteria_mldsa_65_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "65".to_string() };
 
@@ -414,7 +414,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_mldsa_87() {
+    fn test_get_algorithm_criteria_mldsa_87_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "87".to_string() };
 
@@ -424,7 +424,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_mldsa_128() {
+    fn test_get_algorithm_criteria_mldsa_128_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "128".to_string() };
 
@@ -434,7 +434,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_slhdsa_sha2_128s() {
+    fn test_get_algorithm_criteria_slhdsa_sha2_128s_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "SHA2-128s".to_string() };
 
@@ -446,7 +446,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_slhdsa_sha2_128f() {
+    fn test_get_algorithm_criteria_slhdsa_sha2_128f_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "SHA2-128f".to_string() };
 
@@ -456,7 +456,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_slhdsa_sha2_256s() {
+    fn test_get_algorithm_criteria_slhdsa_sha2_256s_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "SHA2-256s".to_string() };
 
@@ -466,7 +466,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_slhdsa_sha2_256f() {
+    fn test_get_algorithm_criteria_slhdsa_sha2_256f_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "SHA2-256f".to_string() };
 
@@ -476,7 +476,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_fndsa_512() {
+    fn test_get_algorithm_criteria_fndsa_512_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::FnDsa { variant: "512".to_string() };
 
@@ -488,7 +488,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_fndsa_1024() {
+    fn test_get_algorithm_criteria_fndsa_1024_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::FnDsa { variant: "1024".to_string() };
 
@@ -498,7 +498,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_unknown_algorithm() {
+    fn test_get_algorithm_criteria_unknown_algorithm_returns_default_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "unknown".to_string() };
 
@@ -512,7 +512,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_get_algorithm_criteria_hybrid_kem() {
+    fn test_get_algorithm_criteria_hybrid_kem_returns_correct_criteria_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::HybridKem;
 
@@ -523,7 +523,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_batch_fully_compliant() {
+    fn test_validate_batch_fully_compliant_returns_compliant_status_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
 
@@ -538,7 +538,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_batch_partially_compliant() {
+    fn test_validate_batch_partially_compliant_returns_partial_status_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "44".to_string() };
 
@@ -551,7 +551,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_batch_non_compliant() {
+    fn test_validate_batch_non_compliant_returns_non_compliant_status_succeeds() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "128s".to_string() };
 
@@ -563,7 +563,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_batch_report_structure() {
+    fn test_validate_batch_report_structure_has_correct_format() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::FnDsa { variant: "512".to_string() };
 
@@ -578,7 +578,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_batch_performance_metrics() {
+    fn test_validate_batch_performance_metrics_are_correct() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "512".to_string() };
 
@@ -591,7 +591,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_batch_detailed_results() {
+    fn test_validate_batch_detailed_results_are_correct() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
 
@@ -612,7 +612,7 @@ mod nist_compliance_validator_tests {
     // Security Level Validation Tests
 
     #[test]
-    fn test_validate_security_level_mlkem_512_valid() {
+    fn test_validate_security_level_mlkem_512_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "512".to_string() };
 
@@ -621,7 +621,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mlkem_768_valid() {
+    fn test_validate_security_level_mlkem_768_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
 
@@ -630,7 +630,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mlkem_1024_valid() {
+    fn test_validate_security_level_mlkem_1024_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "1024".to_string() };
 
@@ -639,7 +639,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mlkem_invalid() {
+    fn test_validate_security_level_mlkem_invalid_returns_error() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlKem { variant: "512".to_string() };
 
@@ -649,7 +649,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mldsa_44_valid() {
+    fn test_validate_security_level_mldsa_44_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "44".to_string() };
 
@@ -658,7 +658,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mldsa_65_valid() {
+    fn test_validate_security_level_mldsa_65_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "65".to_string() };
 
@@ -667,7 +667,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mldsa_87_valid() {
+    fn test_validate_security_level_mldsa_87_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "87".to_string() };
 
@@ -676,7 +676,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mldsa_128_valid() {
+    fn test_validate_security_level_mldsa_128_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "128".to_string() };
 
@@ -685,7 +685,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_mldsa_invalid() {
+    fn test_validate_security_level_mldsa_invalid_returns_error() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::MlDsa { variant: "44".to_string() };
 
@@ -694,7 +694,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_slhdsa_128s_valid() {
+    fn test_validate_security_level_slhdsa_128s_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "128s".to_string() };
 
@@ -703,7 +703,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_slhdsa_128f_valid() {
+    fn test_validate_security_level_slhdsa_128f_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "128f".to_string() };
 
@@ -712,7 +712,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_slhdsa_256s_valid() {
+    fn test_validate_security_level_slhdsa_256s_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "256s".to_string() };
 
@@ -721,7 +721,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_slhdsa_256f_valid() {
+    fn test_validate_security_level_slhdsa_256f_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "256f".to_string() };
 
@@ -730,7 +730,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_slhdsa_invalid() {
+    fn test_validate_security_level_slhdsa_invalid_returns_error() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::SlhDsa { variant: "128s".to_string() };
 
@@ -739,7 +739,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_fndsa_512_valid() {
+    fn test_validate_security_level_fndsa_512_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::FnDsa { variant: "512".to_string() };
 
@@ -748,7 +748,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_fndsa_1024_valid() {
+    fn test_validate_security_level_fndsa_1024_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::FnDsa { variant: "1024".to_string() };
 
@@ -757,7 +757,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_fndsa_invalid() {
+    fn test_validate_security_level_fndsa_invalid_returns_error() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::FnDsa { variant: "512".to_string() };
 
@@ -766,7 +766,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_hybrid_kem_valid() {
+    fn test_validate_security_level_hybrid_kem_valid_returns_ok() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::HybridKem;
 
@@ -781,7 +781,7 @@ mod nist_compliance_validator_tests {
     }
 
     #[test]
-    fn test_validate_security_level_hybrid_kem_invalid() {
+    fn test_validate_security_level_hybrid_kem_invalid_returns_error() {
         let validator = NistComplianceValidator::new();
         let algorithm = CavpAlgorithm::HybridKem;
 
@@ -799,7 +799,7 @@ mod pipeline_config_tests {
     use super::*;
 
     #[test]
-    fn test_pipeline_config_default() {
+    fn test_pipeline_config_default_has_expected_values_succeeds() {
         let config = EnhancedPipelineConfig::default();
 
         assert!(config.parallel_execution);
@@ -811,7 +811,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_custom() {
+    fn test_pipeline_config_custom_has_correct_values_succeeds() {
         let config = EnhancedPipelineConfig {
             parallel_execution: false,
             max_threads: 4,
@@ -830,7 +830,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_clone() {
+    fn test_pipeline_config_clone_produces_equal_value_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let cloned = config.clone();
 
@@ -840,7 +840,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_debug() {
+    fn test_pipeline_config_debug_has_correct_format() {
         let config = EnhancedPipelineConfig::default();
         let debug_str = format!("{:?}", config);
 
@@ -857,26 +857,26 @@ mod storage_backend_tests {
     use super::*;
 
     #[test]
-    fn test_storage_backend_memory() {
+    fn test_storage_backend_memory_is_accessible() {
         let backend = StorageBackend::Memory;
         assert!(matches!(backend, StorageBackend::Memory));
     }
 
     #[test]
-    fn test_storage_backend_file() {
+    fn test_storage_backend_file_is_accessible() {
         let backend = StorageBackend::File;
         assert!(matches!(backend, StorageBackend::File));
     }
 
     #[test]
-    fn test_storage_backend_clone() {
+    fn test_storage_backend_clone_produces_equal_value_succeeds() {
         let backend = StorageBackend::Memory;
         let cloned = backend.clone();
         assert!(matches!(cloned, StorageBackend::Memory));
     }
 
     #[test]
-    fn test_storage_backend_debug() {
+    fn test_storage_backend_debug_has_correct_format() {
         let backend = StorageBackend::Memory;
         let debug_str = format!("{:?}", backend);
         assert!(debug_str.contains("Memory"));
@@ -891,7 +891,7 @@ mod cavp_test_executor_tests {
     use super::*;
 
     #[test]
-    fn test_executor_creation() {
+    fn test_executor_creation_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -900,7 +900,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execute_mlkem_keygen_vector() {
+    fn test_execute_mlkem_keygen_vector_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -914,7 +914,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execute_mldsa_signature_vector() {
+    fn test_execute_mldsa_signature_vector_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -925,7 +925,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execute_slhdsa_vector() {
+    fn test_execute_slhdsa_vector_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -936,7 +936,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execute_fndsa_vector() {
+    fn test_execute_fndsa_vector_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -947,7 +947,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execute_hybrid_vector() {
+    fn test_execute_hybrid_vector_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -958,7 +958,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execute_timeout_simulation() {
+    fn test_execute_timeout_simulation_completes_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -973,7 +973,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execute_missing_seed_keygen() {
+    fn test_execute_missing_seed_keygen_returns_error() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -989,7 +989,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_execution_time_recorded() {
+    fn test_execution_time_recorded_correctly_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -1000,7 +1000,7 @@ mod cavp_test_executor_tests {
     }
 
     #[test]
-    fn test_result_metadata_populated() {
+    fn test_result_metadata_populated_correctly_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
 
@@ -1021,7 +1021,7 @@ mod cavp_validation_orchestrator_tests {
     use super::*;
 
     #[test]
-    fn test_orchestrator_creation() {
+    fn test_orchestrator_creation_succeeds() {
         let config = EnhancedPipelineConfig::default();
         let executor = EnhancedCavpTestExecutor::new(config);
         let orchestrator = CavpValidationOrchestrator::new(executor);
@@ -1031,14 +1031,14 @@ mod cavp_validation_orchestrator_tests {
     }
 
     #[test]
-    fn test_orchestrator_default() {
+    fn test_orchestrator_default_succeeds() {
         let orchestrator = CavpValidationOrchestrator::default();
         // Default orchestrator should work
         drop(orchestrator);
     }
 
     #[test]
-    fn test_compliance_generator_access() {
+    fn test_compliance_generator_access_succeeds() {
         let orchestrator = CavpValidationOrchestrator::default();
         let generator = orchestrator.compliance_generator();
 
@@ -1048,7 +1048,7 @@ mod cavp_validation_orchestrator_tests {
     }
 
     #[test]
-    fn test_run_full_validation_single_algorithm() {
+    fn test_run_full_validation_single_algorithm_succeeds() {
         let orchestrator = CavpValidationOrchestrator::default();
 
         let vectors =
@@ -1064,7 +1064,7 @@ mod cavp_validation_orchestrator_tests {
     }
 
     #[test]
-    fn test_run_full_validation_multiple_algorithms() {
+    fn test_run_full_validation_multiple_algorithms_succeeds() {
         let orchestrator = CavpValidationOrchestrator::default();
 
         let vectors = vec![
@@ -1082,7 +1082,7 @@ mod cavp_validation_orchestrator_tests {
     }
 
     #[test]
-    fn test_run_full_validation_empty() {
+    fn test_run_full_validation_empty_succeeds() {
         let orchestrator = CavpValidationOrchestrator::default();
 
         let vectors: Vec<CavpTestVector> = vec![];
@@ -1094,7 +1094,7 @@ mod cavp_validation_orchestrator_tests {
     }
 
     #[test]
-    fn test_run_full_validation_with_failures() {
+    fn test_run_full_validation_with_failures_reports_errors_fails() {
         let orchestrator = CavpValidationOrchestrator::default();
 
         let vectors = vec![
@@ -1112,7 +1112,7 @@ mod cavp_validation_orchestrator_tests {
     }
 
     #[test]
-    fn test_orchestrator_grouping_by_algorithm() {
+    fn test_orchestrator_grouping_by_algorithm_is_correct() {
         let orchestrator = CavpValidationOrchestrator::default();
 
         let vectors = vec![
@@ -1136,7 +1136,7 @@ mod test_category_tests {
     use super::*;
 
     #[test]
-    fn test_category_from_vector_id_keygen() {
+    fn test_category_from_vector_id_keygen_returns_correct_category_matches_expected() {
         let category = TestCategory::from_vector_id("ML-KEM-keygen-001");
         assert!(matches!(category, TestCategory::KeyGeneration));
 
@@ -1145,7 +1145,7 @@ mod test_category_tests {
     }
 
     #[test]
-    fn test_category_from_vector_id_signature() {
+    fn test_category_from_vector_id_signature_returns_correct_category_matches_expected() {
         let category = TestCategory::from_vector_id("ML-DSA-sig-001");
         assert!(matches!(category, TestCategory::Signature));
 
@@ -1157,7 +1157,7 @@ mod test_category_tests {
     }
 
     #[test]
-    fn test_category_from_vector_id_encryption() {
+    fn test_category_from_vector_id_encryption_returns_correct_category_matches_expected() {
         let category = TestCategory::from_vector_id("enc-001");
         assert!(matches!(category, TestCategory::Encryption));
 
@@ -1166,7 +1166,7 @@ mod test_category_tests {
     }
 
     #[test]
-    fn test_category_from_vector_id_decryption() {
+    fn test_category_from_vector_id_decryption_returns_correct_category_matches_expected() {
         let category = TestCategory::from_vector_id("dec-001");
         assert!(matches!(category, TestCategory::Decryption));
 
@@ -1175,7 +1175,7 @@ mod test_category_tests {
     }
 
     #[test]
-    fn test_category_from_vector_id_compliance() {
+    fn test_category_from_vector_id_compliance_returns_correct_category_matches_expected() {
         // Default category when no pattern matches
         let category = TestCategory::from_vector_id("random_test_001");
         assert!(matches!(category, TestCategory::Compliance));
@@ -1193,13 +1193,13 @@ mod test_result_tests {
     use super::*;
 
     #[test]
-    fn test_result_from_bool_passed() {
+    fn test_result_from_bool_passed_returns_passed_succeeds() {
         let result = TestResult::from_bool(true);
         assert!(matches!(result, TestResult::Passed));
     }
 
     #[test]
-    fn test_result_from_bool_failed() {
+    fn test_result_from_bool_failed_returns_failed_fails() {
         let result = TestResult::from_bool(false);
         assert!(matches!(result, TestResult::Failed(_)));
     }
@@ -1213,7 +1213,7 @@ mod cavp_batch_result_tests {
     use super::*;
 
     #[test]
-    fn test_batch_result_new() {
+    fn test_batch_result_new_has_correct_fields_succeeds() {
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let batch = CavpBatchResult::new("TEST-BATCH".to_string(), algorithm.clone());
 
@@ -1225,7 +1225,7 @@ mod cavp_batch_result_tests {
     }
 
     #[test]
-    fn test_batch_result_add_test_result() {
+    fn test_batch_result_add_test_result_updates_count_succeeds() {
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let mut batch = CavpBatchResult::new("TEST-BATCH".to_string(), algorithm.clone());
 
@@ -1246,7 +1246,7 @@ mod cavp_batch_result_tests {
     }
 
     #[test]
-    fn test_batch_result_update_status_passed() {
+    fn test_batch_result_update_status_passed_is_correct() {
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let mut batch = CavpBatchResult::new("TEST-BATCH".to_string(), algorithm.clone());
 
@@ -1269,7 +1269,7 @@ mod cavp_batch_result_tests {
     }
 
     #[test]
-    fn test_batch_result_update_status_failed() {
+    fn test_batch_result_update_status_failed_is_correct() {
         let algorithm = CavpAlgorithm::MlDsa { variant: "44".to_string() };
         let mut batch = CavpBatchResult::new("TEST-BATCH".to_string(), algorithm.clone());
 
@@ -1293,7 +1293,7 @@ mod cavp_batch_result_tests {
     }
 
     #[test]
-    fn test_batch_result_update_status_mixed() {
+    fn test_batch_result_update_status_mixed_is_correct() {
         let algorithm = CavpAlgorithm::SlhDsa { variant: "128s".to_string() };
         let mut batch = CavpBatchResult::new("TEST-BATCH".to_string(), algorithm.clone());
 
@@ -1327,7 +1327,7 @@ mod cavp_batch_result_tests {
     }
 
     #[test]
-    fn test_batch_result_generate_ci_report() {
+    fn test_batch_result_generate_ci_report_succeeds() {
         let algorithm = CavpAlgorithm::FnDsa { variant: "512".to_string() };
         let mut batch = CavpBatchResult::new("TEST-BATCH".to_string(), algorithm.clone());
 
@@ -1359,7 +1359,7 @@ mod cavp_test_metadata_tests {
     use super::*;
 
     #[test]
-    fn test_metadata_default() {
+    fn test_metadata_default_has_expected_values_succeeds() {
         let metadata = CavpTestMetadata::default();
 
         assert!(!metadata.environment.os.is_empty());
@@ -1371,7 +1371,7 @@ mod cavp_test_metadata_tests {
     }
 
     #[test]
-    fn test_environment_default() {
+    fn test_environment_default_has_expected_values_succeeds() {
         let env = TestEnvironment::default();
 
         assert!(!env.os.is_empty());
@@ -1381,7 +1381,7 @@ mod cavp_test_metadata_tests {
     }
 
     #[test]
-    fn test_configuration_default() {
+    fn test_configuration_default_has_expected_values_succeeds() {
         let config = TestConfiguration::default();
 
         assert_eq!(config.iterations, 1);
@@ -1399,67 +1399,67 @@ mod cavp_algorithm_tests {
     use super::*;
 
     #[test]
-    fn test_algorithm_name_mlkem() {
+    fn test_algorithm_name_mlkem_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::MlKem { variant: "768".to_string() };
         assert_eq!(algo.name(), "ML-KEM-768");
     }
 
     #[test]
-    fn test_algorithm_name_mldsa() {
+    fn test_algorithm_name_mldsa_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::MlDsa { variant: "44".to_string() };
         assert_eq!(algo.name(), "ML-DSA-44");
     }
 
     #[test]
-    fn test_algorithm_name_slhdsa() {
+    fn test_algorithm_name_slhdsa_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::SlhDsa { variant: "128s".to_string() };
         assert_eq!(algo.name(), "SLH-DSA-128s");
     }
 
     #[test]
-    fn test_algorithm_name_fndsa() {
+    fn test_algorithm_name_fndsa_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::FnDsa { variant: "512".to_string() };
         assert_eq!(algo.name(), "FN-DSA-512");
     }
 
     #[test]
-    fn test_algorithm_name_hybrid() {
+    fn test_algorithm_name_hybrid_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::HybridKem;
         assert_eq!(algo.name(), "Hybrid-KEM");
     }
 
     #[test]
-    fn test_fips_standard_mlkem() {
+    fn test_fips_standard_mlkem_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::MlKem { variant: "768".to_string() };
         assert_eq!(algo.fips_standard(), "FIPS 203");
     }
 
     #[test]
-    fn test_fips_standard_mldsa() {
+    fn test_fips_standard_mldsa_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::MlDsa { variant: "65".to_string() };
         assert_eq!(algo.fips_standard(), "FIPS 204");
     }
 
     #[test]
-    fn test_fips_standard_slhdsa() {
+    fn test_fips_standard_slhdsa_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::SlhDsa { variant: "256f".to_string() };
         assert_eq!(algo.fips_standard(), "FIPS 205");
     }
 
     #[test]
-    fn test_fips_standard_fndsa() {
+    fn test_fips_standard_fndsa_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::FnDsa { variant: "1024".to_string() };
         assert_eq!(algo.fips_standard(), "FIPS 206");
     }
 
     #[test]
-    fn test_fips_standard_hybrid() {
+    fn test_fips_standard_hybrid_returns_correct_string_succeeds() {
         let algo = CavpAlgorithm::HybridKem;
         assert_eq!(algo.fips_standard(), "FIPS 203 + FIPS 197");
     }
 
     #[test]
-    fn test_algorithm_equality() {
+    fn test_algorithm_equality_matches_expected() {
         let algo1 = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let algo2 = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let algo3 = CavpAlgorithm::MlKem { variant: "512".to_string() };
@@ -1469,7 +1469,7 @@ mod cavp_algorithm_tests {
     }
 
     #[test]
-    fn test_algorithm_hash() {
+    fn test_algorithm_hash_deduplicates_correctly_succeeds() {
         use std::collections::HashSet;
 
         let mut set = HashSet::new();
@@ -1481,7 +1481,7 @@ mod cavp_algorithm_tests {
     }
 
     #[test]
-    fn test_algorithm_clone() {
+    fn test_algorithm_clone_produces_equal_value_succeeds() {
         let algo = CavpAlgorithm::SlhDsa { variant: "128s".to_string() };
         let cloned = algo.clone();
 
@@ -1497,7 +1497,7 @@ mod cavp_test_result_tests {
     use super::*;
 
     #[test]
-    fn test_result_new_passed() {
+    fn test_result_new_passed_has_correct_fields_succeeds() {
         let algorithm = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let result = CavpTestResult::new(
             "TEST-001".to_string(),
@@ -1517,7 +1517,7 @@ mod cavp_test_result_tests {
     }
 
     #[test]
-    fn test_result_new_failed() {
+    fn test_result_new_failed_has_correct_fields_fails() {
         let algorithm = CavpAlgorithm::MlDsa { variant: "44".to_string() };
         let result = CavpTestResult::new(
             "TEST-002".to_string(),
@@ -1533,7 +1533,7 @@ mod cavp_test_result_tests {
     }
 
     #[test]
-    fn test_result_failed_constructor() {
+    fn test_result_failed_constructor_has_correct_fields_fails() {
         let algorithm = CavpAlgorithm::SlhDsa { variant: "128s".to_string() };
         let result = CavpTestResult::failed(
             "TEST-003".to_string(),
@@ -1551,7 +1551,7 @@ mod cavp_test_result_tests {
     }
 
     #[test]
-    fn test_result_timestamp() {
+    fn test_result_timestamp_is_set_succeeds() {
         let algorithm = CavpAlgorithm::FnDsa { variant: "512".to_string() };
         let before = Utc::now();
 
@@ -1580,13 +1580,13 @@ mod compliance_status_tests {
     use super::*;
 
     #[test]
-    fn test_fully_compliant() {
+    fn test_fully_compliant_status_is_correct() {
         let status = ComplianceStatus::FullyCompliant;
         assert!(matches!(status, ComplianceStatus::FullyCompliant));
     }
 
     #[test]
-    fn test_partially_compliant() {
+    fn test_partially_compliant_status_is_correct() {
         let status =
             ComplianceStatus::PartiallyCompliant { exceptions: vec!["Minor issue".to_string()] };
 
@@ -1599,7 +1599,7 @@ mod compliance_status_tests {
     }
 
     #[test]
-    fn test_non_compliant() {
+    fn test_non_compliant_status_is_correct() {
         let status =
             ComplianceStatus::NonCompliant { failures: vec!["Critical failure".to_string()] };
 
@@ -1612,7 +1612,7 @@ mod compliance_status_tests {
     }
 
     #[test]
-    fn test_insufficient_data() {
+    fn test_insufficient_data_status_is_correct() {
         let status = ComplianceStatus::InsufficientData;
         assert!(matches!(status, ComplianceStatus::InsufficientData));
     }
@@ -1626,7 +1626,7 @@ mod security_requirement_tests {
     use super::*;
 
     #[test]
-    fn test_security_requirement_creation() {
+    fn test_security_requirement_creation_has_correct_fields_succeeds() {
         let req = SecurityRequirement {
             requirement_id: "FIPS203-4.1".to_string(),
             description: "Key generation shall be deterministic".to_string(),
@@ -1640,7 +1640,7 @@ mod security_requirement_tests {
     }
 
     #[test]
-    fn test_security_requirement_optional() {
+    fn test_security_requirement_optional_has_correct_fields_succeeds() {
         let req = SecurityRequirement {
             requirement_id: "OPT-001".to_string(),
             description: "Optional feature".to_string(),
@@ -1661,7 +1661,7 @@ mod compliance_criteria_tests {
     use super::*;
 
     #[test]
-    fn test_criteria_creation() {
+    fn test_criteria_creation_has_correct_fields_succeeds() {
         let criteria = ComplianceCriteria {
             min_pass_rate: 100.0,
             max_execution_time_ms: 5000,
@@ -1675,7 +1675,7 @@ mod compliance_criteria_tests {
     }
 
     #[test]
-    fn test_criteria_with_requirements() {
+    fn test_criteria_with_requirements_has_correct_fields_succeeds() {
         let criteria = ComplianceCriteria {
             min_pass_rate: 100.0,
             max_execution_time_ms: 1000,
@@ -1708,7 +1708,7 @@ mod integration_tests {
     use super::*;
 
     #[test]
-    fn test_full_validation_workflow() {
+    fn test_full_validation_workflow_succeeds() {
         // Create orchestrator
         let orchestrator = CavpValidationOrchestrator::default();
 
@@ -1735,7 +1735,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_full_validation_with_compliance_report() {
+    fn test_full_validation_with_compliance_report_succeeds() {
         let orchestrator = CavpValidationOrchestrator::default();
         let validator = NistComplianceValidator::new();
 
@@ -1759,7 +1759,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_executor_with_custom_config() {
+    fn test_executor_with_custom_config_succeeds() {
         let config = EnhancedPipelineConfig {
             parallel_execution: false,
             max_threads: 1,
@@ -1777,7 +1777,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_all_algorithm_variants() {
+    fn test_all_algorithm_variants_are_accessible() {
         let orchestrator = CavpValidationOrchestrator::default();
         let validator = NistComplianceValidator::new();
 
@@ -1808,7 +1808,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_large_batch_processing() {
+    fn test_large_batch_processing_completes_succeeds() {
         let orchestrator = CavpValidationOrchestrator::default();
 
         // Create a large batch of test vectors

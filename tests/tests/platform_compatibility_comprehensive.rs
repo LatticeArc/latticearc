@@ -44,7 +44,8 @@
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
     clippy::absurd_extreme_comparisons,
-    unused_qualifications
+    unused_qualifications,
+    deprecated
 )]
 
 use std::mem;
@@ -53,13 +54,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use latticearc::unified_api::{
-    config::{
-        CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig,
-        UseCaseConfig, ZeroTrustConfig,
-    },
+    CoreConfig, EncryptionConfig, HardwareConfig, HardwareType, ProofComplexity, SignatureConfig,
+    UseCaseConfig, ZeroTrustConfig,
     error::CoreError,
     selector::{CryptoPolicyEngine, PerformanceMetrics},
-    traits::HardwareType,
     types::{
         AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, EncryptedMetadata, KeyPair,
         PerformancePreference, SecurityLevel, UseCase, ZeroizedBytes,
@@ -75,7 +73,7 @@ use latticearc::unified_api::{
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_endianness_detection() {
+fn test_endianness_detection_is_compatible_succeeds() {
     // Verify we can detect the current platform's endianness
     #[cfg(target_endian = "little")]
     {
@@ -93,7 +91,7 @@ fn test_endianness_detection() {
 }
 
 #[test]
-fn test_endianness_consistent_serialization() {
+fn test_endianness_consistent_serialization_succeeds() {
     // Ensure cryptographic values serialize consistently regardless of platform
     let test_value: u64 = 0x0102030405060708;
 
@@ -109,7 +107,7 @@ fn test_endianness_consistent_serialization() {
 }
 
 #[test]
-fn test_endianness_crypto_key_consistency() {
+fn test_endianness_crypto_key_consistency_is_compatible_succeeds() {
     // Cryptographic keys should be byte-order independent
     let key_bytes: [u8; 32] = [
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
@@ -125,7 +123,7 @@ fn test_endianness_crypto_key_consistency() {
 }
 
 #[test]
-fn test_endianness_nonce_handling() {
+fn test_endianness_nonce_handling_is_compatible_succeeds() {
     // Nonces must be consistent across platforms
     let nonce: [u8; 12] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b];
 
@@ -140,7 +138,7 @@ fn test_endianness_nonce_handling() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_integer_sizes_documented() {
+fn test_integer_sizes_documented_is_compatible_has_correct_size() {
     // Document and verify integer sizes across platforms
     assert!(mem::size_of::<usize>() >= 4, "usize must be at least 32 bits");
     assert!(mem::size_of::<isize>() >= 4, "isize must be at least 32 bits");
@@ -154,7 +152,7 @@ fn test_integer_sizes_documented() {
 }
 
 #[test]
-fn test_integer_overflow_handled_safely() {
+fn test_integer_overflow_handled_safely_succeeds() {
     // Verify arithmetic operations handle overflow safely
     let max_u64: u64 = u64::MAX;
     let result = max_u64.saturating_add(1);
@@ -168,7 +166,7 @@ fn test_integer_overflow_handled_safely() {
 }
 
 #[test]
-fn test_timestamp_u64_range() {
+fn test_timestamp_u64_range_is_compatible_succeeds() {
     // Timestamps should fit in u64 for all realistic values
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -183,7 +181,7 @@ fn test_timestamp_u64_range() {
 }
 
 #[test]
-fn test_size_calculations_no_overflow() {
+fn test_size_calculations_no_overflow_succeeds() {
     // Test that size calculations don't overflow on large data
     let large_size: usize = 1024 * 1024 * 100; // 100 MB
 
@@ -203,7 +201,7 @@ fn test_size_calculations_no_overflow() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_struct_alignment() {
+fn test_struct_alignment_is_compatible_succeeds() {
     // Verify struct alignment is platform-appropriate
     assert!(mem::align_of::<CoreConfig>() >= 1);
     assert!(mem::align_of::<EncryptedMetadata>() >= 1);
@@ -211,7 +209,7 @@ fn test_struct_alignment() {
 }
 
 #[test]
-fn test_vector_alignment() {
+fn test_vector_alignment_is_compatible_matches_expected() {
     // Vec<u8> should be properly aligned for all platforms
     let data: Vec<u8> = vec![0u8; 1024];
     let ptr = data.as_ptr();
@@ -231,7 +229,7 @@ fn test_vector_alignment() {
 }
 
 #[test]
-fn test_atomic_alignment() {
+fn test_atomic_alignment_is_compatible_succeeds() {
     // Atomic types must be properly aligned
     let atomic_bool = AtomicBool::new(false);
     let atomic_u64 = AtomicU64::new(0);
@@ -249,7 +247,7 @@ fn test_atomic_alignment() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_pointer_size_documented() {
+fn test_pointer_size_documented_is_compatible_has_correct_size() {
     // Document pointer sizes
     #[cfg(target_pointer_width = "32")]
     {
@@ -265,7 +263,7 @@ fn test_pointer_size_documented() {
 }
 
 #[test]
-fn test_size_bounds_portable() {
+fn test_size_bounds_portable_is_compatible_has_correct_size() {
     // Verify size constants work across pointer widths
     let max_key_size: usize = 32768; // 32 KB - reasonable for any platform
     let max_message_size: usize = 1024 * 1024 * 16; // 16 MB
@@ -275,7 +273,7 @@ fn test_size_bounds_portable() {
 }
 
 #[test]
-fn test_boxed_types_pointer_independent() {
+fn test_boxed_types_pointer_independent_is_compatible_succeeds() {
     // Box<T> should work correctly regardless of pointer size
     let boxed_data: Box<[u8; 1024]> = Box::new([0u8; 1024]);
     assert_eq!(boxed_data.len(), 1024);
@@ -285,7 +283,7 @@ fn test_boxed_types_pointer_independent() {
 }
 
 #[test]
-fn test_arc_reference_counting() {
+fn test_arc_reference_counting_succeeds() {
     // Arc should work correctly across platforms
     use std::sync::Arc;
 
@@ -302,7 +300,7 @@ fn test_arc_reference_counting() {
 // ============================================================================
 
 #[test]
-fn test_default_features_available() {
+fn test_default_features_available_is_compatible_succeeds() {
     // Test that default features provide expected functionality
     let config = CoreConfig::default();
     assert!(config.validate().is_ok());
@@ -314,7 +312,7 @@ fn test_default_features_available() {
 }
 
 #[test]
-fn test_all_security_levels_available() {
+fn test_all_security_levels_available_is_compatible_succeeds() {
     // All security levels should be available regardless of features
     let levels = vec![
         SecurityLevel::Standard,
@@ -336,7 +334,7 @@ fn test_all_security_levels_available() {
 }
 
 #[test]
-fn test_all_crypto_schemes_available() {
+fn test_all_crypto_schemes_available_is_compatible_succeeds() {
     // All crypto schemes should be accessible
     let schemes = vec![
         CryptoScheme::Hybrid,
@@ -352,7 +350,7 @@ fn test_all_crypto_schemes_available() {
 }
 
 #[test]
-fn test_all_use_cases_available() {
+fn test_all_use_cases_available_is_compatible_succeeds() {
     // All use cases should be available
     let use_cases = vec![
         UseCase::SecureMessaging,
@@ -387,12 +385,12 @@ fn test_all_use_cases_available() {
 }
 
 #[test]
-fn test_feature_hardware_types() {
+fn test_feature_hardware_types_is_compatible_succeeds() {
     // Hardware type definitions should be usable
-    let info = latticearc::unified_api::traits::HardwareInfo {
+    let info = latticearc::types::traits::HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
         preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: latticearc::unified_api::traits::HardwareCapabilities {
+        capabilities: latticearc::types::traits::HardwareCapabilities {
             simd_support: true,
             aes_ni: true,
             threads: 1,
@@ -403,7 +401,7 @@ fn test_feature_hardware_types() {
 }
 
 #[test]
-fn test_feature_config_types() {
+fn test_feature_config_types_is_compatible_succeeds() {
     // All config types should be constructible
     let _core = CoreConfig::new();
     let _encryption = EncryptionConfig::new();
@@ -414,7 +412,7 @@ fn test_feature_config_types() {
 }
 
 #[test]
-fn test_feature_conditional_compilation_markers() {
+fn test_feature_conditional_compilation_markers_is_compatible_succeeds() {
     // Verify conditional compilation works correctly
     #[cfg(debug_assertions)]
     {
@@ -432,7 +430,7 @@ fn test_feature_conditional_compilation_markers() {
 }
 
 #[test]
-fn test_feature_target_os_detection() {
+fn test_feature_target_os_detection_is_compatible_succeeds() {
     // Verify OS detection works
     #[cfg(target_os = "linux")]
     {
@@ -454,7 +452,7 @@ fn test_feature_target_os_detection() {
 }
 
 #[test]
-fn test_feature_target_arch_detection() {
+fn test_feature_target_arch_detection_is_compatible_succeeds() {
     // Verify architecture detection works
     #[cfg(target_arch = "x86_64")]
     {
@@ -476,7 +474,7 @@ fn test_feature_target_arch_detection() {
 }
 
 #[test]
-fn test_feature_optional_dependencies() {
+fn test_feature_optional_dependencies_is_compatible_succeeds() {
     // Test that optional functionality degrades gracefully
     let config = HardwareConfig::new().with_acceleration(false).with_force_cpu(true);
 
@@ -490,7 +488,7 @@ fn test_feature_optional_dependencies() {
 // ============================================================================
 
 #[test]
-fn test_env_debug_release_behavior_consistency() {
+fn test_env_debug_release_behavior_consistency_is_compatible_succeeds() {
     // Core behavior should be consistent between debug and release
     let config = CoreConfig::default();
 
@@ -505,7 +503,7 @@ fn test_env_debug_release_behavior_consistency() {
 }
 
 #[test]
-fn test_env_thread_local_storage() {
+fn test_env_thread_local_storage_succeeds() {
     // Test thread-local storage availability
     thread_local! {
         static THREAD_CONFIG: std::cell::RefCell<Option<CoreConfig>> = std::cell::RefCell::new(None);
@@ -523,7 +521,7 @@ fn test_env_thread_local_storage() {
 }
 
 #[test]
-fn test_env_thread_local_isolation() {
+fn test_env_thread_local_isolation_succeeds() {
     // Thread-local storage should be isolated between threads
     use std::sync::mpsc;
 
@@ -550,11 +548,11 @@ fn test_env_thread_local_isolation() {
 }
 
 #[test]
-fn test_env_random_number_generation() {
+fn test_env_random_number_generation_succeeds() {
     // Random number generation should work
     use rand::RngCore;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rngs::OsRng;
     let mut buffer = [0u8; 32];
     rng.fill_bytes(&mut buffer);
 
@@ -569,7 +567,7 @@ fn test_env_random_number_generation() {
 }
 
 #[test]
-fn test_env_random_reproducibility_with_seed() {
+fn test_env_random_reproducibility_with_seed_succeeds() {
     // Test that key derivation with same inputs produces reproducible outputs
     use latticearc::unified_api::derive_key_unverified;
 
@@ -588,7 +586,7 @@ fn test_env_random_reproducibility_with_seed() {
 }
 
 #[test]
-fn test_env_time_operations() {
+fn test_env_time_operations_succeeds() {
     // Time operations should work consistently
     let start = Instant::now();
     thread::sleep(Duration::from_millis(10));
@@ -602,7 +600,7 @@ fn test_env_time_operations() {
 }
 
 #[test]
-fn test_env_system_time() {
+fn test_env_system_time_succeeds() {
     // System time should be available
     let now = std::time::SystemTime::now();
     let since_epoch = now.duration_since(std::time::UNIX_EPOCH);
@@ -615,7 +613,7 @@ fn test_env_system_time() {
 }
 
 #[test]
-fn test_env_monotonic_time() {
+fn test_env_monotonic_time_succeeds() {
     // Instant should be monotonic
     let times: Vec<Instant> = (0..10).map(|_| Instant::now()).collect();
 
@@ -627,7 +625,7 @@ fn test_env_monotonic_time() {
 }
 
 #[test]
-fn test_env_multithreaded_config_access() {
+fn test_env_multithreaded_config_access_succeeds() {
     // Config should be safely accessible from multiple threads
     use std::sync::Arc;
 
@@ -649,7 +647,7 @@ fn test_env_multithreaded_config_access() {
 }
 
 #[test]
-fn test_env_stack_overflow_prevention() {
+fn test_env_stack_overflow_prevention_succeeds() {
     // Deep recursion should be handled (test reasonable depth)
     fn recursive_validate(config: &CoreConfig, depth: u32) -> bool {
         if depth == 0 {
@@ -668,7 +666,7 @@ fn test_env_stack_overflow_prevention() {
 // ============================================================================
 
 #[test]
-fn test_config_crypto_config_default() {
+fn test_config_crypto_config_default_is_compatible_succeeds() {
     let config = CryptoConfig::new();
 
     assert!(!config.is_verified());
@@ -679,7 +677,7 @@ fn test_config_crypto_config_default() {
 }
 
 #[test]
-fn test_config_crypto_config_with_use_case() {
+fn test_config_crypto_config_with_use_case_is_compatible_succeeds() {
     let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
 
     assert!(matches!(
@@ -689,7 +687,7 @@ fn test_config_crypto_config_with_use_case() {
 }
 
 #[test]
-fn test_config_crypto_config_security_level_override() {
+fn test_config_crypto_config_security_level_override_is_compatible_succeeds() {
     let config =
         CryptoConfig::new().use_case(UseCase::IoTDevice).security_level(SecurityLevel::Maximum);
 
@@ -701,7 +699,7 @@ fn test_config_crypto_config_security_level_override() {
 }
 
 #[test]
-fn test_config_security_level_all_combinations() {
+fn test_config_security_level_all_combinations_is_compatible_succeeds() {
     let levels = vec![
         SecurityLevel::Standard,
         SecurityLevel::High,
@@ -716,7 +714,7 @@ fn test_config_security_level_all_combinations() {
 }
 
 #[test]
-fn test_config_hardware_detection_fallback() {
+fn test_config_hardware_detection_fallback_is_compatible_succeeds() {
     // Test hardware detection with fallback enabled
     let config = HardwareConfig::new().with_acceleration(true).with_fallback(true);
 
@@ -729,7 +727,7 @@ fn test_config_hardware_detection_fallback() {
 }
 
 #[test]
-fn test_config_hardware_cpu_only_mode() {
+fn test_config_hardware_cpu_only_mode_is_compatible_succeeds() {
     let config = HardwareConfig::new().with_acceleration(false).with_force_cpu(true);
 
     assert!(config.validate().is_ok());
@@ -737,7 +735,7 @@ fn test_config_hardware_cpu_only_mode() {
 }
 
 #[test]
-fn test_config_hardware_accelerator_preferences() {
+fn test_config_hardware_accelerator_preferences_is_compatible_succeeds() {
     let config = HardwareConfig::new()
         .with_preferred_accelerator(HardwareType::Gpu)
         .with_preferred_accelerator(HardwareType::Fpga)
@@ -748,7 +746,7 @@ fn test_config_hardware_accelerator_preferences() {
 }
 
 #[test]
-fn test_config_policy_engine_all_security_levels() {
+fn test_config_policy_engine_all_security_levels_is_compatible_succeeds() {
     let data = b"test data for policy engine";
 
     for level in [
@@ -776,7 +774,7 @@ fn test_config_policy_engine_all_security_levels() {
 }
 
 #[test]
-fn test_config_zero_trust_configurations() {
+fn test_config_zero_trust_configurations_is_compatible_succeeds() {
     let configs = vec![
         ZeroTrustConfig::new()
             .with_timeout(1000)
@@ -800,13 +798,13 @@ fn test_config_zero_trust_configurations() {
 }
 
 #[test]
-fn test_config_encryption_validates() {
+fn test_config_encryption_validates_is_compatible_succeeds() {
     let config = EncryptionConfig::new();
     assert!(config.validate().is_ok());
 }
 
 #[test]
-fn test_config_use_case_nested_validation() {
+fn test_config_use_case_nested_validation_is_compatible_succeeds() {
     // Test that all nested configs in UseCaseConfig validate together
     let use_cases = vec![
         UseCase::SecureMessaging,
@@ -830,7 +828,7 @@ fn test_config_use_case_nested_validation() {
 }
 
 #[test]
-fn test_config_performance_metrics_adaptive() {
+fn test_config_performance_metrics_adaptive_is_compatible_succeeds() {
     let data = b"test data";
     let config = CoreConfig::new()
         .with_performance_preference(PerformancePreference::Balanced)
@@ -844,9 +842,7 @@ fn test_config_performance_metrics_adaptive() {
     // Test with high memory pressure
     let high_memory_metrics = PerformanceMetrics {
         encryption_speed_ms: 100.0,
-        decryption_speed_ms: 50.0,
         memory_usage_mb: 600.0, // High memory usage
-        cpu_usage_percent: 50.0,
     };
 
     let memory_config = CoreConfig::new()
@@ -862,7 +858,7 @@ fn test_config_performance_metrics_adaptive() {
 // ============================================================================
 
 #[test]
-fn test_zeroized_bytes_drop() {
+fn test_zeroized_bytes_drop_succeeds() {
     // ZeroizedBytes should properly clean up on drop
     let sensitive_data = vec![0xABu8; 64];
     let zeroized = ZeroizedBytes::new(sensitive_data.clone());
@@ -875,11 +871,11 @@ fn test_zeroized_bytes_drop() {
 }
 
 #[test]
-fn test_keypair_construction() {
+fn test_keypair_construction_succeeds() {
     // KeyPair should work on all platforms
-    use latticearc::unified_api::types::PrivateKey;
+    use latticearc::unified_api::types::{PrivateKey, PublicKey};
 
-    let public_key = vec![1u8, 2, 3, 4, 5];
+    let public_key = PublicKey::new(vec![1u8, 2, 3, 4, 5]);
     let private_key = PrivateKey::new(vec![10, 20, 30, 40, 50]);
 
     let keypair = KeyPair::new(public_key.clone(), private_key);
@@ -889,7 +885,7 @@ fn test_keypair_construction() {
 }
 
 #[test]
-fn test_concurrent_policy_engine_access() {
+fn test_concurrent_policy_engine_access_succeeds() {
     // Policy engine should be thread-safe
     use std::sync::Arc;
 
@@ -912,14 +908,14 @@ fn test_concurrent_policy_engine_access() {
 }
 
 #[test]
-fn test_hardware_types_thread_safe() {
+fn test_hardware_types_thread_safe_is_compatible_succeeds() {
     // Hardware types should be usable across threads
     use std::sync::Arc;
 
-    let info = Arc::new(latticearc::unified_api::traits::HardwareInfo {
+    let info = Arc::new(latticearc::types::traits::HardwareInfo {
         available_accelerators: vec![HardwareType::Cpu],
         preferred_accelerator: Some(HardwareType::Cpu),
-        capabilities: latticearc::unified_api::traits::HardwareCapabilities {
+        capabilities: latticearc::types::traits::HardwareCapabilities {
             simd_support: true,
             aes_ni: true,
             threads: 1,
@@ -942,7 +938,7 @@ fn test_hardware_types_thread_safe() {
 }
 
 #[test]
-fn test_error_types_send_sync() {
+fn test_error_types_send_sync_is_compatible_fails() {
     // Errors should be Send + Sync for async contexts
     fn assert_send_sync<T: Send + Sync>() {}
 
@@ -950,7 +946,7 @@ fn test_error_types_send_sync() {
 }
 
 #[test]
-fn test_config_types_clone() {
+fn test_config_types_clone_succeeds() {
     // All config types should be cloneable
     let core = CoreConfig::default();
     let core_clone = core.clone();
@@ -966,7 +962,7 @@ fn test_config_types_clone() {
 }
 
 #[test]
-fn test_config_debug_formatting() {
+fn test_config_debug_formatting_succeeds() {
     // All config types should have Debug implementations
     let core = CoreConfig::default();
     let debug_str = format!("{:?}", core);
@@ -978,7 +974,7 @@ fn test_config_debug_formatting() {
 }
 
 #[test]
-fn test_memory_layout_stability() {
+fn test_memory_layout_stability_is_compatible_has_correct_size() {
     // Document memory layout for potential ABI concerns
     // Note: These may change between versions, this documents current state
 

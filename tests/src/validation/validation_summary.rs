@@ -273,7 +273,7 @@ impl ComplianceReporter {
             });
         }
 
-        let rng_results = self.nist_tester.test_bit_sequence(&test_data)?;
+        let rng_results = self.nist_tester.test_bit_sequence_succeeds(&test_data)?;
 
         let randomness_quality = if rng_results.passed && rng_results.entropy_estimate >= 7.5 {
             RandomnessQuality::Excellent

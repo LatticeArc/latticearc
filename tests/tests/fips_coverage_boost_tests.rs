@@ -19,7 +19,7 @@
 use latticearc_tests::validation::rfc_vectors::{RfcTestError, RfcTestResults};
 
 #[test]
-fn test_rfc_results_new_and_default() {
+fn test_rfc_results_new_and_default_have_zero_counts_succeeds() {
     let results = RfcTestResults::new();
     assert_eq!(results.total, 0);
     assert_eq!(results.passed, 0);
@@ -29,7 +29,7 @@ fn test_rfc_results_new_and_default() {
 }
 
 #[test]
-fn test_rfc_results_add_pass() {
+fn test_rfc_results_add_pass_increments_counts_succeeds() {
     let mut results = RfcTestResults::new();
     results.add_pass();
     results.add_pass();
@@ -40,7 +40,7 @@ fn test_rfc_results_add_pass() {
 }
 
 #[test]
-fn test_rfc_results_add_failure() {
+fn test_rfc_results_add_failure_increments_failed_count_fails() {
     let mut results = RfcTestResults::new();
     results.add_pass();
     results.add_failure("test vector mismatch".to_string());
@@ -52,7 +52,7 @@ fn test_rfc_results_add_failure() {
 }
 
 #[test]
-fn test_rfc_test_error_display() {
+fn test_rfc_test_error_display_has_correct_format() {
     let err = RfcTestError::TestFailed {
         rfc: "RFC 5869".to_string(),
         test_name: "test-1".to_string(),
@@ -69,7 +69,7 @@ fn test_rfc_test_error_display() {
 use latticearc_tests::validation::wycheproof::{WycheproofError, WycheproofResults};
 
 #[test]
-fn test_wycheproof_results_new() {
+fn test_wycheproof_results_new_has_zero_counts_matches_expected() {
     let results = WycheproofResults::new();
     assert_eq!(results.passed, 0);
     assert_eq!(results.failed, 0);
@@ -78,7 +78,7 @@ fn test_wycheproof_results_new() {
 }
 
 #[test]
-fn test_wycheproof_results_operations() {
+fn test_wycheproof_results_operations_accumulate_correctly_matches_expected() {
     let mut results = WycheproofResults::new();
     results.add_pass();
     results.add_pass();
@@ -93,7 +93,7 @@ fn test_wycheproof_results_operations() {
 }
 
 #[test]
-fn test_wycheproof_error_display() {
+fn test_wycheproof_error_display_has_correct_format() {
     let err = WycheproofError::TestFailed { tc_id: 42, message: "verification failed".to_string() };
     let msg = format!("{}", err);
     assert!(msg.contains("42") || msg.contains("failed"));
@@ -109,32 +109,32 @@ use latticearc_tests::validation::nist_kat::sha2_kat::{
 };
 
 #[test]
-fn test_sha256_kat() {
+fn test_sha256_kat_passes() {
     assert!(run_sha256_kat().is_ok());
 }
 
 #[test]
-fn test_sha224_kat() {
+fn test_sha224_kat_passes() {
     assert!(run_sha224_kat().is_ok());
 }
 
 #[test]
-fn test_sha384_kat() {
+fn test_sha384_kat_passes() {
     assert!(run_sha384_kat().is_ok());
 }
 
 #[test]
-fn test_sha512_kat() {
+fn test_sha512_kat_passes() {
     assert!(run_sha512_kat().is_ok());
 }
 
 #[test]
-fn test_sha512_224_kat() {
+fn test_sha512_224_kat_passes() {
     assert!(run_sha512_224_kat().is_ok());
 }
 
 #[test]
-fn test_sha512_256_kat() {
+fn test_sha512_256_kat_passes() {
     assert!(run_sha512_256_kat().is_ok());
 }
 
@@ -147,22 +147,22 @@ use latticearc_tests::validation::nist_kat::hmac_kat::{
 };
 
 #[test]
-fn test_hmac_sha256_kat() {
+fn test_hmac_sha256_kat_passes() {
     assert!(run_hmac_sha256_kat().is_ok());
 }
 
 #[test]
-fn test_hmac_sha224_kat() {
+fn test_hmac_sha224_kat_passes() {
     assert!(run_hmac_sha224_kat().is_ok());
 }
 
 #[test]
-fn test_hmac_sha384_kat() {
+fn test_hmac_sha384_kat_passes() {
     assert!(run_hmac_sha384_kat().is_ok());
 }
 
 #[test]
-fn test_hmac_sha512_kat() {
+fn test_hmac_sha512_kat_passes() {
     assert!(run_hmac_sha512_kat().is_ok());
 }
 
@@ -173,14 +173,14 @@ fn test_hmac_sha512_kat() {
 use latticearc_tests::validation::fips_validation::{FIPSValidator, ValidationScope};
 
 #[test]
-fn test_fips_validator_algorithms_only() {
+fn test_fips_validator_algorithms_only_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
     let result = validator.validate_module();
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_fips_validator_full_module() {
+fn test_fips_validator_full_module_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::FullModule);
     let result = validator.validate_module();
     assert!(result.is_ok());
@@ -199,19 +199,19 @@ fn test_fips_validator_full_module() {
 }
 
 #[test]
-fn test_fips_validator_module_interfaces() {
+fn test_fips_validator_module_interfaces_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::ModuleInterfaces);
     let result = validator.validate_module();
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_fips_validator_individual_tests() {
+fn test_fips_validator_individual_tests_succeeds() {
     let validator = FIPSValidator::new(ValidationScope::AlgorithmsOnly);
-    assert!(validator.test_aes_algorithm().is_ok());
-    assert!(validator.test_sha3_algorithm().is_ok());
-    assert!(validator.test_mlkem_algorithm().is_ok());
-    assert!(validator.test_self_tests().is_ok());
+    assert!(validator.test_aes_algorithm_succeeds().is_ok());
+    assert!(validator.test_sha3_algorithm_succeeds().is_ok());
+    assert!(validator.test_mlkem_algorithm_succeeds().is_ok());
+    assert!(validator.test_self_tests_succeeds().is_ok());
 }
 
 // ============================================================
@@ -223,7 +223,7 @@ use latticearc_tests::validation::validation_summary::ComplianceReporter;
 use std::time::Duration;
 
 #[test]
-fn test_compliance_reporter_with_kat_results() {
+fn test_compliance_reporter_with_kat_results_matches_expected() {
     let reporter = ComplianceReporter::new(0.05);
 
     let kat_results = vec![
@@ -252,7 +252,7 @@ fn test_compliance_reporter_with_kat_results() {
 }
 
 #[test]
-fn test_compliance_reporter_all_passing() {
+fn test_compliance_reporter_all_passing_returns_non_empty_report_succeeds() {
     let reporter = ComplianceReporter::new(0.01);
 
     let kat_results = vec![
@@ -266,7 +266,7 @@ fn test_compliance_reporter_all_passing() {
 }
 
 #[test]
-fn test_compliance_reporter_multiple_algorithms() {
+fn test_compliance_reporter_multiple_algorithms_groups_by_prefix_succeeds() {
     let reporter = ComplianceReporter::new(0.05);
 
     let kat_results = vec![

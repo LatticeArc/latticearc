@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -22,17 +22,21 @@
 use crate::primitives::aead::{
     AeadCipher, AeadError, CHACHA20_POLY1305_KEY_LEN, Nonce, TAG_LEN, Tag,
 };
-use crate::types::resource_limits::{validate_decryption_size, validate_encryption_size};
+use crate::primitives::resource_limits::{validate_decryption_size, validate_encryption_size};
 use chacha20poly1305::{
     ChaCha20Poly1305,
     aead::{Aead, AeadCore, KeyInit, OsRng},
 };
 use rand::RngCore;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// ChaCha20-Poly1305 AEAD cipher
-#[derive(Clone)]
+///
+/// Stores key bytes directly (like AES-GCM) for proper `ZeroizeOnDrop` support.
+/// The `ChaCha20Poly1305` cipher is constructed transiently for each operation.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct ChaCha20Poly1305Cipher {
-    cipher: ChaCha20Poly1305,
+    key_bytes: [u8; CHACHA20_POLY1305_KEY_LEN],
 }
 
 impl AeadCipher for ChaCha20Poly1305Cipher {
@@ -42,10 +46,10 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         if key.len() != Self::KEY_LEN {
             return Err(AeadError::InvalidKeyLength);
         }
-
-        let cipher =
-            ChaCha20Poly1305::new_from_slice(key).map_err(|_e| AeadError::InvalidKeyLength)?;
-        Ok(ChaCha20Poly1305Cipher { cipher })
+        super::warn_if_all_zero_key(key, "ChaCha20-Poly1305");
+        let mut key_bytes = [0u8; CHACHA20_POLY1305_KEY_LEN];
+        key_bytes.copy_from_slice(key);
+        Ok(ChaCha20Poly1305Cipher { key_bytes })
     }
 
     fn generate_nonce() -> Nonce {
@@ -64,20 +68,20 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
         validate_encryption_size(plaintext.len()).map_err(
-            |e: crate::types::resource_limits::ResourceError| {
+            |e: crate::primitives::resource_limits::ResourceError| {
                 AeadError::EncryptionFailed(e.to_string())
             },
         )?;
 
+        let cipher = ChaCha20Poly1305::new_from_slice(&self.key_bytes)
+            .map_err(|_e| AeadError::InvalidKeyLength)?;
         let chacha_nonce = (*nonce).into();
 
         let ciphertext_with_tag = match aad {
-            Some(aad) => self
-                .cipher
+            Some(aad) => cipher
                 .encrypt(&chacha_nonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
                 .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
-            None => self
-                .cipher
+            None => cipher
                 .encrypt(&chacha_nonce, plaintext)
                 .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
         };
@@ -107,35 +111,39 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         ciphertext: &[u8],
         tag: &Tag,
         aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>, AeadError> {
+    ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
         validate_decryption_size(ciphertext.len()).map_err(
-            |e: crate::types::resource_limits::ResourceError| {
-                AeadError::DecryptionFailed(e.to_string())
+            |_e: crate::primitives::resource_limits::ResourceError| {
+                AeadError::DecryptionFailed("ciphertext exceeds resource limits".to_string())
             },
         )?;
 
+        let cipher = ChaCha20Poly1305::new_from_slice(&self.key_bytes)
+            .map_err(|_e| AeadError::InvalidKeyLength)?;
         let chacha_nonce = (*nonce).into();
 
-        // Combine ciphertext and tag for as_chacha20poly1305 crate
-        let mut ciphertext_with_tag = Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN));
+        // Combine ciphertext and tag for the chacha20poly1305 crate.
+        // Wrap in Zeroizing so the plaintext residue is scrubbed on drop (B2).
+        let mut ciphertext_with_tag: Zeroizing<Vec<u8>> =
+            Zeroizing::new(Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN)));
         ciphertext_with_tag.extend_from_slice(ciphertext);
         ciphertext_with_tag.extend_from_slice(tag);
 
         let plaintext = match aad {
-            Some(aad) => self
-                .cipher
+            Some(aad) => cipher
                 .decrypt(
                     &chacha_nonce,
                     chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
                 )
-                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
-            None => self
-                .cipher
-                .decrypt(&chacha_nonce, ciphertext_with_tag.as_ref())
-                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
+                .map_err(|_e| {
+                    AeadError::DecryptionFailed("AEAD authentication failed".to_string())
+                })?,
+            None => cipher.decrypt(&chacha_nonce, ciphertext_with_tag.as_ref()).map_err(|_e| {
+                AeadError::DecryptionFailed("AEAD authentication failed".to_string())
+            })?,
         };
 
-        Ok(plaintext)
+        Ok(Zeroizing::new(plaintext))
     }
 }
 
@@ -143,9 +151,10 @@ impl ChaCha20Poly1305Cipher {
     /// Generate a random key for ChaCha20-Poly1305.
     ///
     /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop.
-    pub fn generate_key() -> zeroize::Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
+    #[must_use]
+    pub fn generate_key() -> Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
         let key_bytes = ChaCha20Poly1305::generate_key(&mut OsRng);
-        let mut result = zeroize::Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
+        let mut result = Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
         result.copy_from_slice(key_bytes.as_slice());
         result
     }
@@ -156,22 +165,30 @@ impl ChaCha20Poly1305Cipher {
 /// Uses XChaCha20 stream cipher with 192-bit nonce for better nonce reuse safety.
 /// Follows RFC 8439 draft for extended nonce variant.
 ///
+/// This type does **not** implement `AeadCipher` because XChaCha20 natively uses
+/// 24-byte nonces while the trait constrains nonces to 12 bytes. Use the native
+/// [`encrypt_x`](XChaCha20Poly1305Cipher::encrypt_x) /
+/// [`decrypt_x`](XChaCha20Poly1305Cipher::decrypt_x) methods with
+/// [`generate_xnonce`](XChaCha20Poly1305Cipher::generate_xnonce) for full 2^192 nonce entropy.
+///
 /// # Example
 ///
 /// ```rust
-/// use latticearc::primitives::aead::{AeadCipher, chacha20poly1305::XChaCha20Poly1305Cipher};
+/// use latticearc::primitives::aead::chacha20poly1305::XChaCha20Poly1305Cipher;
 ///
-/// let key = [0u8; 32]; // 256-bit key
-/// let cipher = XChaCha20Poly1305Cipher::new(&key).unwrap();
-/// let nonce = XChaCha20Poly1305Cipher::generate_nonce();
+/// let key = XChaCha20Poly1305Cipher::generate_key();
+/// let cipher = XChaCha20Poly1305Cipher::new(&*key).unwrap();
+/// let nonce = XChaCha20Poly1305Cipher::generate_xnonce();
 /// let plaintext = b"secret message";
-/// let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, None).unwrap();
-/// let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, None).unwrap();
+/// let (ciphertext, tag) = cipher.encrypt_x(&nonce, plaintext, None).unwrap();
+/// let decrypted = cipher.decrypt_x(&nonce, &ciphertext, &tag, None).unwrap();
 /// assert_eq!(plaintext, decrypted.as_slice());
 /// ```
-#[derive(Clone)]
+/// Stores key bytes directly (like AES-GCM) for proper `ZeroizeOnDrop` support.
+/// The `XChaCha20Poly1305` cipher is constructed transiently for each operation.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct XChaCha20Poly1305Cipher {
-    cipher: chacha20poly1305::XChaCha20Poly1305,
+    key_bytes: [u8; CHACHA20_POLY1305_KEY_LEN],
 }
 
 /// Nonce length for XChaCha20-Poly1305 (24 bytes / 192 bits)
@@ -180,121 +197,28 @@ pub const XNONCE_LEN: usize = 24;
 /// XNonce type for XChaCha20-Poly1305
 pub type XNonce = [u8; XNONCE_LEN];
 
-impl AeadCipher for XChaCha20Poly1305Cipher {
-    const KEY_LEN: usize = CHACHA20_POLY1305_KEY_LEN;
-
-    fn new(key: &[u8]) -> Result<Self, AeadError> {
-        if key.len() != Self::KEY_LEN {
+impl XChaCha20Poly1305Cipher {
+    /// Create a new XChaCha20-Poly1305 cipher from key bytes.
+    ///
+    /// # Errors
+    /// Returns `AeadError::InvalidKeyLength` if `key` is not exactly 32 bytes.
+    pub fn new(key: &[u8]) -> Result<Self, AeadError> {
+        if key.len() != CHACHA20_POLY1305_KEY_LEN {
             return Err(AeadError::InvalidKeyLength);
         }
-
-        let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(key)
-            .map_err(|_e| AeadError::InvalidKeyLength)?;
-        Ok(XChaCha20Poly1305Cipher { cipher })
+        super::warn_if_all_zero_key(key, "XChaCha20-Poly1305");
+        let mut key_bytes = [0u8; CHACHA20_POLY1305_KEY_LEN];
+        key_bytes.copy_from_slice(key);
+        Ok(XChaCha20Poly1305Cipher { key_bytes })
     }
 
-    /// Generate a 12-byte random nonce.
-    ///
-    /// **Warning:** The `AeadCipher` trait constrains nonces to 12 bytes, but
-    /// XChaCha20-Poly1305 natively uses 24-byte nonces. This method returns a
-    /// 12-byte nonce that `encrypt`/`decrypt` will zero-pad to 24 bytes,
-    /// effectively reducing the nonce space from 2^192 to 2^96.
-    /// For full 24-byte nonce entropy, use [`XChaCha20Poly1305Cipher::generate_xnonce`]
-    /// with [`encrypt_x`](XChaCha20Poly1305Cipher::encrypt_x) /
-    /// [`decrypt_x`](XChaCha20Poly1305Cipher::decrypt_x) instead.
-    fn generate_nonce() -> Nonce {
-        let mut nonce = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce);
-        nonce
-    }
-
-    fn encrypt(
-        &self,
-        nonce: &Nonce,
-        plaintext: &[u8],
-        aad: Option<&[u8]>,
-    ) -> Result<(Vec<u8>, Tag), AeadError> {
-        // Convert 12-byte nonce to 24-byte XNonce
-        let mut xnonce = [0u8; XNONCE_LEN];
-        if let Some(dest) = xnonce.get_mut(..12) {
-            dest.copy_from_slice(nonce);
-        }
-        let xnonce = xnonce.into();
-
-        let ciphertext_with_tag = match aad {
-            Some(aad) => self
-                .cipher
-                .encrypt(&xnonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
-                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
-            None => self
-                .cipher
-                .encrypt(&xnonce, plaintext)
-                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
-        };
-
-        // Split ciphertext and tag
-        if ciphertext_with_tag.len() < TAG_LEN {
-            return Err(AeadError::EncryptionFailed("ciphertext too short".to_string()));
-        }
-        // Safe: validated len >= TAG_LEN above
-        let ct_len = ciphertext_with_tag.len().saturating_sub(TAG_LEN);
-        let ciphertext = ciphertext_with_tag
-            .get(..ct_len)
-            .ok_or_else(|| AeadError::EncryptionFailed("invalid ciphertext length".to_string()))?
-            .to_vec();
-        let mut tag = [0u8; TAG_LEN];
-        let tag_slice = ciphertext_with_tag
-            .get(ct_len..)
-            .ok_or_else(|| AeadError::EncryptionFailed("invalid tag offset".to_string()))?;
-        tag.copy_from_slice(tag_slice);
-
-        Ok((ciphertext, tag))
-    }
-
-    fn decrypt(
-        &self,
-        nonce: &Nonce,
-        ciphertext: &[u8],
-        tag: &Tag,
-        aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>, AeadError> {
-        // Convert 12-byte nonce to 24-byte XNonce
-        let mut xnonce = [0u8; XNONCE_LEN];
-        if let Some(dest) = xnonce.get_mut(..12) {
-            dest.copy_from_slice(nonce);
-        }
-        let xnonce = xnonce.into();
-
-        // Combine ciphertext and tag for the chacha20poly1305 crate
-        let mut ciphertext_with_tag = Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN));
-        ciphertext_with_tag.extend_from_slice(ciphertext);
-        ciphertext_with_tag.extend_from_slice(tag);
-
-        let plaintext = match aad {
-            Some(aad) => self
-                .cipher
-                .decrypt(
-                    &xnonce,
-                    chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
-                )
-                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
-            None => self
-                .cipher
-                .decrypt(&xnonce, ciphertext_with_tag.as_ref())
-                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
-        };
-
-        Ok(plaintext)
-    }
-}
-
-impl XChaCha20Poly1305Cipher {
     /// Generate a random key for XChaCha20-Poly1305.
     ///
     /// Returns a `Zeroizing` wrapper that automatically zeroes the key on drop.
-    pub fn generate_key() -> zeroize::Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
+    #[must_use]
+    pub fn generate_key() -> Zeroizing<[u8; CHACHA20_POLY1305_KEY_LEN]> {
         let key_bytes = chacha20poly1305::XChaCha20Poly1305::generate_key(&mut OsRng);
-        let mut result = zeroize::Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
+        let mut result = Zeroizing::new([0u8; CHACHA20_POLY1305_KEY_LEN]);
         result.copy_from_slice(key_bytes.as_slice());
         result
     }
@@ -321,15 +245,15 @@ impl XChaCha20Poly1305Cipher {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
+        let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
+            .map_err(|_e| AeadError::InvalidKeyLength)?;
         let xnonce = (*nonce).into();
 
         let ciphertext_with_tag = match aad {
-            Some(aad) => self
-                .cipher
+            Some(aad) => cipher
                 .encrypt(&xnonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
                 .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
-            None => self
-                .cipher
+            None => cipher
                 .encrypt(&xnonce, plaintext)
                 .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
         };
@@ -362,28 +286,31 @@ impl XChaCha20Poly1305Cipher {
         ciphertext: &[u8],
         tag: &Tag,
         aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>, AeadError> {
+    ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
+        let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
+            .map_err(|_e| AeadError::InvalidKeyLength)?;
         let xnonce = (*nonce).into();
 
-        let mut ciphertext_with_tag = Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN));
+        let mut ciphertext_with_tag: Zeroizing<Vec<u8>> =
+            Zeroizing::new(Vec::with_capacity(ciphertext.len().saturating_add(TAG_LEN)));
         ciphertext_with_tag.extend_from_slice(ciphertext);
         ciphertext_with_tag.extend_from_slice(tag);
 
         let plaintext = match aad {
-            Some(aad) => self
-                .cipher
+            Some(aad) => cipher
                 .decrypt(
                     &xnonce,
                     chacha20poly1305::aead::Payload { msg: &ciphertext_with_tag, aad },
                 )
-                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
-            None => self
-                .cipher
-                .decrypt(&xnonce, ciphertext_with_tag.as_ref())
-                .map_err(|e| AeadError::DecryptionFailed(e.to_string()))?,
+                .map_err(|_e| {
+                    AeadError::DecryptionFailed("AEAD authentication failed".to_string())
+                })?,
+            None => cipher.decrypt(&xnonce, ciphertext_with_tag.as_ref()).map_err(|_e| {
+                AeadError::DecryptionFailed("AEAD authentication failed".to_string())
+            })?,
         };
 
-        Ok(plaintext)
+        Ok(Zeroizing::new(plaintext))
     }
 }
 
@@ -396,7 +323,7 @@ mod tests {
     use zeroize::Zeroize;
 
     #[test]
-    fn test_chacha20_poly1305_key_generation() {
+    fn test_chacha20_poly1305_key_generation_succeeds() {
         let key1 = ChaCha20Poly1305Cipher::generate_key();
         let key2 = ChaCha20Poly1305Cipher::generate_key();
         assert_eq!(key1.len(), CHACHA20_POLY1305_KEY_LEN);
@@ -406,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_invalid_key_length() {
+    fn test_chacha20_poly1305_invalid_key_length_fails() {
         let key = [0u8; 16]; // Wrong length
         let result = ChaCha20Poly1305Cipher::new(&key);
         assert!(result.is_err());
@@ -418,7 +345,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_encryption_decryption() {
+    fn test_chacha20_poly1305_encrypt_decrypt_roundtrip() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -431,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_with_aad() {
+    fn test_chacha20_poly1305_with_aad_roundtrip() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -445,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_with_aad_verification_failure() {
+    fn test_chacha20_poly1305_with_aad_verification_failure_fails() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -467,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_invalid_tag() {
+    fn test_chacha20_poly1305_invalid_tag_fails() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -489,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_corrupted_ciphertext() {
+    fn test_chacha20_poly1305_corrupted_ciphertext_fails() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -513,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn test_constant_time_tag_verification() {
+    fn test_chacha20_poly1305_constant_time_tag_verification_is_correct() {
         let tag1 = [1u8; 16];
         let tag2 = [1u8; 16];
         let tag3 = [2u8; 16];
@@ -523,14 +450,14 @@ mod tests {
     }
 
     #[test]
-    fn test_zeroize_data() {
+    fn test_chacha20_poly1305_zeroize_data_clears_bytes_succeeds() {
         let mut data = vec![0xFF; 100];
         zeroize_data(&mut data);
         assert_eq!(data, vec![0u8; 100]);
     }
 
     #[test]
-    fn test_chacha20poly1305_key_zeroization() {
+    fn test_chacha20poly1305_key_zeroization_succeeds() {
         let mut key = ChaCha20Poly1305Cipher::generate_key();
 
         assert!(!key.iter().all(|&b| b == 0), "ChaCha20Poly1305 key should contain non-zero data");
@@ -541,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20poly1305_nonce_zeroization() {
+    fn test_chacha20poly1305_nonce_zeroization_succeeds() {
         let mut nonce = ChaCha20Poly1305Cipher::generate_nonce();
 
         assert!(
@@ -555,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20poly1305_ciphertext_zeroization() {
+    fn test_chacha20poly1305_ciphertext_zeroization_succeeds() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -574,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_empty_plaintext() {
+    fn test_chacha20_poly1305_empty_plaintext_roundtrip() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -589,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_large_plaintext() {
+    fn test_chacha20_poly1305_large_plaintext_roundtrip() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -604,7 +531,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_large_aad() {
+    fn test_chacha20_poly1305_large_aad_roundtrip() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -620,7 +547,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_multiple_encryptions() {
+    fn test_chacha20_poly1305_multiple_encryptions_all_roundtrip() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
 
@@ -634,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn test_xchacha20_poly1305_key_generation() {
+    fn test_xchacha20_poly1305_key_generation_succeeds() {
         let key1 = XChaCha20Poly1305Cipher::generate_key();
         let key2 = XChaCha20Poly1305Cipher::generate_key();
         assert_eq!(key1.len(), CHACHA20_POLY1305_KEY_LEN);
@@ -644,34 +571,34 @@ mod tests {
     }
 
     #[test]
-    fn test_xchacha20_poly1305_encryption_decryption() {
+    fn test_xchacha20_poly1305_encrypt_decrypt_roundtrip() {
         let key = XChaCha20Poly1305Cipher::generate_key();
         let cipher = XChaCha20Poly1305Cipher::new(&*key).unwrap();
-        let nonce = XChaCha20Poly1305Cipher::generate_nonce();
+        let nonce = XChaCha20Poly1305Cipher::generate_xnonce();
         let plaintext = b"Hello, XChaCha20!";
 
-        let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, None).unwrap();
-        let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, None).unwrap();
+        let (ciphertext, tag) = cipher.encrypt_x(&nonce, plaintext, None).unwrap();
+        let decrypted = cipher.decrypt_x(&nonce, &ciphertext, &tag, None).unwrap();
 
         assert_eq!(plaintext, decrypted.as_slice());
     }
 
     #[test]
-    fn test_xchacha20_poly1305_with_aad() {
+    fn test_xchacha20_poly1305_with_aad_roundtrip() {
         let key = XChaCha20Poly1305Cipher::generate_key();
         let cipher = XChaCha20Poly1305Cipher::new(&*key).unwrap();
-        let nonce = XChaCha20Poly1305Cipher::generate_nonce();
+        let nonce = XChaCha20Poly1305Cipher::generate_xnonce();
         let plaintext = b"Secret data";
         let aad = b"Additional authenticated data";
 
-        let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).unwrap();
-        let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad)).unwrap();
+        let (ciphertext, tag) = cipher.encrypt_x(&nonce, plaintext, Some(aad)).unwrap();
+        let decrypted = cipher.decrypt_x(&nonce, &ciphertext, &tag, Some(aad)).unwrap();
 
         assert_eq!(plaintext, decrypted.as_slice());
     }
 
     #[test]
-    fn test_chacha20_poly1305_rfc_test_vector_1() {
+    fn test_chacha20_poly1305_rfc_test_vector_1_matches_vector() {
         // RFC 8439 Test Case 1 - ChaCha20-Poly1305
         let key: [u8; 32] = [
             0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d,
@@ -709,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_wrong_key() {
+    fn test_chacha20_poly1305_wrong_key_fails() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -731,7 +658,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_empty_aad() {
+    fn test_chacha20_poly1305_empty_aad_roundtrip() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -745,7 +672,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_wrong_nonce() {
+    fn test_chacha20_poly1305_wrong_nonce_fails() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce1 = ChaCha20Poly1305Cipher::generate_nonce();
@@ -766,7 +693,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_encryption_size_limit() {
+    fn test_chacha20_poly1305_encryption_size_limit_has_correct_size() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -785,7 +712,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chacha20_poly1305_decryption_size_limit() {
+    fn test_chacha20_poly1305_decryption_size_limit_has_correct_size() {
         let key = ChaCha20Poly1305Cipher::generate_key();
         let cipher = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let nonce = ChaCha20Poly1305Cipher::generate_nonce();

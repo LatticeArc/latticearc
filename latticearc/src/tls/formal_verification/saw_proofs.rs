@@ -13,6 +13,7 @@
 //! - Integration point for SAW proof results
 
 /// SAW proof status for a crypto primitive.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofStatus {
     /// Proof completed and verified.
@@ -128,20 +129,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_saw_proofs_registry() {
+    fn test_saw_proofs_registry_has_five_specs_succeeds() {
         let proofs = SawProofs::new();
         assert_eq!(proofs.specs().len(), 5);
     }
 
     #[test]
-    fn test_saw_proofs_verified_count() {
+    fn test_saw_proofs_verified_count_is_three_succeeds() {
         let proofs = SawProofs::new();
         let verified = proofs.with_status(ProofStatus::Verified);
         assert_eq!(verified.len(), 3); // AES-GCM, X25519, HKDF
     }
 
     #[test]
-    fn test_saw_proofs_in_progress() {
+    fn test_saw_proofs_in_progress_succeeds() {
         let proofs = SawProofs::new();
         let in_progress = proofs.with_status(ProofStatus::InProgress);
         assert_eq!(in_progress.len(), 1); // ML-KEM
@@ -149,20 +150,20 @@ mod tests {
     }
 
     #[test]
-    fn test_saw_proofs_not_applicable() {
+    fn test_saw_proofs_not_applicable_succeeds() {
         let proofs = SawProofs::new();
         let na = proofs.with_status(ProofStatus::NotApplicable);
         assert_eq!(na.len(), 1); // TLS state machine
     }
 
     #[test]
-    fn test_all_verified_false_due_to_ml_kem() {
+    fn test_all_verified_false_due_to_ml_kem_succeeds() {
         let proofs = SawProofs::new();
         assert!(!proofs.all_verified()); // ML-KEM is InProgress
     }
 
     #[test]
-    fn test_saw_proofs_summary() {
+    fn test_saw_proofs_summary_counts_are_correct() {
         let proofs = SawProofs::new();
         let (verified, in_progress, not_started, not_applicable) = proofs.summary();
         assert_eq!(verified, 3);
@@ -172,13 +173,13 @@ mod tests {
     }
 
     #[test]
-    fn test_proof_status_eq() {
+    fn test_proof_status_eq_same_values_are_equal_succeeds() {
         assert_eq!(ProofStatus::Verified, ProofStatus::Verified);
         assert_ne!(ProofStatus::Verified, ProofStatus::InProgress);
     }
 
     #[test]
-    fn test_saw_spec_debug() {
+    fn test_saw_spec_debug_contains_primitive_name_succeeds() {
         let spec = SawSpec {
             primitive: "test".to_string(),
             status: ProofStatus::Verified,
@@ -190,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn test_saw_proofs_default() {
+    fn test_saw_proofs_default_has_non_empty_specs_succeeds() {
         let proofs = SawProofs::default();
         assert!(!proofs.specs().is_empty());
     }

@@ -15,7 +15,6 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-    let mut rng = rand::thread_rng();
 
     // Use data as plaintext
     let plaintext = data;
@@ -27,20 +26,20 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Test 1: Encrypt with default context
-    match encrypt(&mut rng, pk.as_bytes(), plaintext, None) {
+    match encrypt(pk.as_bytes(), plaintext, None) {
         Ok(ciphertext) => {
             // Verify ciphertext components have expected sizes
             assert_eq!(
-                ciphertext.kem_ciphertext.len(),
+                ciphertext.kem_ciphertext().len(),
                 1088,
                 "KEM ciphertext must be 1088 bytes for ML-KEM-768"
             );
-            assert_eq!(ciphertext.nonce.len(), 12, "Nonce must be 12 bytes");
-            assert_eq!(ciphertext.tag.len(), 16, "Tag must be 16 bytes");
+            assert_eq!(ciphertext.nonce().len(), 12, "Nonce must be 12 bytes");
+            assert_eq!(ciphertext.tag().len(), 16, "Tag must be 16 bytes");
 
             // Symmetric ciphertext should match plaintext length
             assert_eq!(
-                ciphertext.symmetric_ciphertext.len(),
+                ciphertext.symmetric_ciphertext().len(),
                 plaintext.len(),
                 "Symmetric ciphertext length should match plaintext"
             );
@@ -56,20 +55,20 @@ fuzz_target!(|data: &[u8]| {
         aad: data.get(..16.min(data.len())).unwrap_or(&[]).to_vec(),
     };
 
-    match encrypt(&mut rng, pk.as_bytes(), plaintext, Some(&context)) {
+    match encrypt(pk.as_bytes(), plaintext, Some(&context)) {
         Ok(ciphertext) => {
-            assert_eq!(ciphertext.kem_ciphertext.len(), 1088);
-            assert_eq!(ciphertext.nonce.len(), 12);
-            assert_eq!(ciphertext.tag.len(), 16);
+            assert_eq!(ciphertext.kem_ciphertext().len(), 1088);
+            assert_eq!(ciphertext.nonce().len(), 12);
+            assert_eq!(ciphertext.tag().len(), 16);
         }
         Err(_) => {}
     }
 
     // Test 3: Encrypt empty plaintext
-    match encrypt(&mut rng, pk.as_bytes(), &[], None) {
+    match encrypt(pk.as_bytes(), &[], None) {
         Ok(ciphertext) => {
-            assert!(ciphertext.symmetric_ciphertext.is_empty());
-            assert_eq!(ciphertext.tag.len(), 16);
+            assert!(ciphertext.symmetric_ciphertext().is_empty());
+            assert_eq!(ciphertext.tag().len(), 16);
         }
         Err(_) => {}
     }
@@ -77,7 +76,7 @@ fuzz_target!(|data: &[u8]| {
     // Test 4: Invalid public key length
     let invalid_pk = &data[..800.min(data.len())];
     if invalid_pk.len() != 1184 {
-        let result = encrypt(&mut rng, invalid_pk, plaintext, None);
+        let result = encrypt(invalid_pk, plaintext, None);
         assert!(result.is_err(), "Invalid public key length should fail");
     }
 
@@ -86,7 +85,7 @@ fuzz_target!(|data: &[u8]| {
         let fuzzed_pk = &data[..1184];
         // This may or may not fail depending on whether the fuzzed bytes
         // are a valid ML-KEM public key structure
-        let _ = encrypt(&mut rng, fuzzed_pk, plaintext, None);
+        let _ = encrypt(fuzzed_pk, plaintext, None);
     }
 
     // Test 6: Large AAD
@@ -94,19 +93,19 @@ fuzz_target!(|data: &[u8]| {
         info: b"Large-AAD-Test".to_vec(),
         aad: data.to_vec(), // Use entire fuzz input as AAD
     };
-    let _ = encrypt(&mut rng, pk.as_bytes(), plaintext, Some(&large_aad));
+    let _ = encrypt(pk.as_bytes(), plaintext, Some(&large_aad));
 
     // Test 7: Multiple encryptions of same plaintext should produce different results
     if let (Ok(ct1), Ok(ct2)) = (
-        encrypt(&mut rng, pk.as_bytes(), plaintext, None),
-        encrypt(&mut rng, pk.as_bytes(), plaintext, None),
+        encrypt(pk.as_bytes(), plaintext, None),
+        encrypt(pk.as_bytes(), plaintext, None),
     ) {
         // Nonces should differ (random)
-        assert_ne!(ct1.nonce, ct2.nonce, "Nonces should be different for each encryption");
+        assert_ne!(ct1.nonce(), ct2.nonce(), "Nonces should be different for each encryption");
 
         // KEM ciphertexts should differ (random encapsulation)
         assert_ne!(
-            ct1.kem_ciphertext, ct2.kem_ciphertext,
+            ct1.kem_ciphertext(), ct2.kem_ciphertext(),
             "KEM ciphertexts should be different"
         );
     }

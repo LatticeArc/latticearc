@@ -53,6 +53,7 @@ pub(crate) fn run(args: DecryptArgs) -> Result<()> {
         KeyType::Public => {
             bail!("Cannot decrypt with a public key. Provide the secret key.");
         }
+        _ => anyhow::bail!("Unsupported KeyType variant"),
     };
 
     write_output(&args.output, &plaintext)
@@ -67,6 +68,10 @@ fn decrypt_symmetric(
         bail!("AES-256 requires a 32-byte key, got {} bytes", key_bytes.len());
     }
 
+    // `latticearc::decrypt` returns `Zeroizing<Vec<u8>>`; for the CLI we hand
+    // back an owned `Vec<u8>` since the caller immediately writes to stdout
+    // or a file. The brief plaintext copy here is acceptable because the
+    // original buffer is still scrubbed on drop at the library boundary.
     let decrypted = latticearc::decrypt(
         encrypted,
         latticearc::DecryptKey::Symmetric(&key_bytes),
@@ -74,7 +79,7 @@ fn decrypt_symmetric(
     )
     .map_err(|e| anyhow::anyhow!("Decryption failed: {e}"))?;
 
-    Ok(decrypted)
+    Ok(decrypted.to_vec())
 }
 
 fn read_input_string(path: &Option<PathBuf>) -> Result<String> {

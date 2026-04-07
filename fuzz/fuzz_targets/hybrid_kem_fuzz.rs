@@ -21,7 +21,6 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Generate keypair
-    let mut rng = rand::thread_rng();
     if let Ok((pk, sk)) = MlKem::generate_keypair(&mut rng, level) {
         // Encapsulate to get shared secret and ciphertext
         if let Ok((ss1, ct)) = MlKem::encapsulate(&mut rng, &pk) {

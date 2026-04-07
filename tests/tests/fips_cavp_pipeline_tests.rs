@@ -646,7 +646,7 @@ mod pipeline_config_tests {
     use super::*;
 
     #[test]
-    fn test_pipeline_config_default_values() {
+    fn test_pipeline_config_default_values_are_correct() {
         let config = PipelineConfig::default();
 
         assert_eq!(config.max_concurrent_tests, 4);
@@ -657,7 +657,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_custom_values() {
+    fn test_pipeline_config_custom_values_are_correct() {
         let config = PipelineConfig {
             max_concurrent_tests: 16,
             test_timeout: Duration::from_secs(120),
@@ -674,7 +674,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_clone() {
+    fn test_pipeline_config_clone_produces_equal_value_succeeds() {
         let config = PipelineConfig {
             max_concurrent_tests: 8,
             test_timeout: Duration::from_secs(60),
@@ -693,7 +693,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_debug() {
+    fn test_pipeline_config_debug_has_correct_format() {
         let config = PipelineConfig::default();
         let debug_str = format!("{:?}", config);
 
@@ -703,7 +703,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_edge_values() {
+    fn test_pipeline_config_edge_values_are_accepted_succeeds() {
         let config = PipelineConfig {
             max_concurrent_tests: 0,
             test_timeout: Duration::ZERO,
@@ -718,7 +718,7 @@ mod pipeline_config_tests {
     }
 
     #[test]
-    fn test_pipeline_config_large_values() {
+    fn test_pipeline_config_large_values_are_accepted_succeeds() {
         let config = PipelineConfig {
             max_concurrent_tests: usize::MAX,
             test_timeout: Duration::from_secs(86400), // 24 hours
@@ -741,7 +741,7 @@ mod executor_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_executor_creation_with_default_config() {
+    async fn test_executor_creation_with_default_config_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let _executor = CavpTestExecutor::new(config, storage);
@@ -749,7 +749,7 @@ mod executor_tests {
     }
 
     #[tokio::test]
-    async fn test_executor_creation_with_custom_config() {
+    async fn test_executor_creation_with_custom_config_succeeds() {
         let config = PipelineConfig {
             max_concurrent_tests: 1,
             test_timeout: Duration::from_millis(100),
@@ -762,7 +762,7 @@ mod executor_tests {
     }
 
     #[tokio::test]
-    async fn test_executor_with_shared_storage() {
+    async fn test_executor_with_shared_storage_succeeds() {
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let config1 = PipelineConfig::default();
         let config2 = PipelineConfig::default();
@@ -792,7 +792,7 @@ mod mlkem_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_mlkem_768_keygen() {
+    async fn test_mlkem_768_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -809,7 +809,7 @@ mod mlkem_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_encapsulation_missing_ek() {
+    async fn test_mlkem_encapsulation_missing_ek_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -824,7 +824,7 @@ mod mlkem_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_encapsulation_invalid_ek_length() {
+    async fn test_mlkem_encapsulation_invalid_ek_length_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -840,7 +840,7 @@ mod mlkem_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_decapsulation_missing_dk() {
+    async fn test_mlkem_decapsulation_missing_dk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -856,7 +856,7 @@ mod mlkem_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_decapsulation_invalid_ciphertext_length() {
+    async fn test_mlkem_decapsulation_invalid_ciphertext_length_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -875,7 +875,7 @@ mod mlkem_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_unsupported_variant() {
+    async fn test_mlkem_unsupported_variant_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -892,7 +892,7 @@ mod mlkem_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_signature_operation_invalid() {
+    async fn test_mlkem_signature_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -909,7 +909,7 @@ mod mlkem_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_verification_operation_invalid() {
+    async fn test_mlkem_verification_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -933,12 +933,12 @@ mod mldsa_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_mldsa_44_keygen() {
+    async fn test_mldsa_44_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
 
-        let vector = create_mldsa_keygen_vector("MLDSA44-KEYGEN", "44");
+        let vector = create_mldsa_keygen_vector("MlDsa44-KEYGEN", "44");
         let result = executor.execute_single_test_vector(&vector).await;
 
         assert!(result.is_ok());
@@ -949,12 +949,12 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_65_keygen() {
+    async fn test_mldsa_65_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
 
-        let vector = create_mldsa_keygen_vector("MLDSA65-KEYGEN", "65");
+        let vector = create_mldsa_keygen_vector("MlDsa65-KEYGEN", "65");
         let result = executor.execute_single_test_vector(&vector).await;
 
         assert!(result.is_ok());
@@ -965,12 +965,12 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_87_keygen() {
+    async fn test_mldsa_87_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
 
-        let vector = create_mldsa_keygen_vector("MLDSA87-KEYGEN", "87");
+        let vector = create_mldsa_keygen_vector("MlDsa87-KEYGEN", "87");
         let result = executor.execute_single_test_vector(&vector).await;
 
         assert!(result.is_ok());
@@ -981,7 +981,7 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_unsupported_variant() {
+    async fn test_mldsa_unsupported_variant_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -995,13 +995,13 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_signature_missing_sk() {
+    async fn test_mldsa_signature_missing_sk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
 
         let vector = create_mldsa_signature_vector(
-            "MLDSA44-SIG-NO-SK",
+            "MlDsa44-SIG-NO-SK",
             "44",
             vec![], // Empty sk
             b"Test message".to_vec(),
@@ -1014,13 +1014,13 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_signature_missing_message() {
+    async fn test_mldsa_signature_missing_message_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
 
         let mut vector =
-            create_mldsa_signature_vector("MLDSA44-SIG-NO-MSG", "44", vec![0x11; 2560], vec![]);
+            create_mldsa_signature_vector("MlDsa44-SIG-NO-MSG", "44", vec![0x11; 2560], vec![]);
         vector.inputs.message = None;
         let result = executor.execute_single_test_vector(&vector).await;
 
@@ -1030,13 +1030,13 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_verification_missing_pk() {
+    async fn test_mldsa_verification_missing_pk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
 
         let vector = create_mldsa_verification_vector(
-            "MLDSA44-VERIFY-NO-PK",
+            "MlDsa44-VERIFY-NO-PK",
             "44",
             vec![], // Empty pk
             b"Test message".to_vec(),
@@ -1050,13 +1050,13 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_verification_missing_signature() {
+    async fn test_mldsa_verification_missing_signature_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
 
         let mut vector = create_mldsa_verification_vector(
-            "MLDSA44-VERIFY-NO-SIG",
+            "MlDsa44-VERIFY-NO-SIG",
             "44",
             vec![0x33; 1312],
             b"Test message".to_vec(),
@@ -1071,7 +1071,7 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_encapsulation_operation_invalid() {
+    async fn test_mldsa_encapsulation_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1088,7 +1088,7 @@ mod mldsa_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_decapsulation_operation_invalid() {
+    async fn test_mldsa_decapsulation_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1112,7 +1112,7 @@ mod slhdsa_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_slhdsa_shake_128s_keygen() {
+    async fn test_slhdsa_shake_128s_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1128,7 +1128,7 @@ mod slhdsa_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_shake_192s_keygen() {
+    async fn test_slhdsa_shake_192s_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1144,7 +1144,7 @@ mod slhdsa_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_shake_256s_keygen() {
+    async fn test_slhdsa_shake_256s_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1160,7 +1160,7 @@ mod slhdsa_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_unsupported_variant() {
+    async fn test_slhdsa_unsupported_variant_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1174,7 +1174,7 @@ mod slhdsa_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_signature_missing_sk() {
+    async fn test_slhdsa_signature_missing_sk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1193,7 +1193,7 @@ mod slhdsa_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_signature_invalid_sk_length() {
+    async fn test_slhdsa_signature_invalid_sk_length_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1213,7 +1213,7 @@ mod slhdsa_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_verification_missing_pk() {
+    async fn test_slhdsa_verification_missing_pk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1233,7 +1233,7 @@ mod slhdsa_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_encapsulation_operation_invalid() {
+    async fn test_slhdsa_encapsulation_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1257,7 +1257,7 @@ mod fndsa_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_fndsa_512_keygen() {
+    async fn test_fndsa_512_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1271,7 +1271,7 @@ mod fndsa_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_1024_keygen() {
+    async fn test_fndsa_1024_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1285,7 +1285,7 @@ mod fndsa_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_unsupported_variant() {
+    async fn test_fndsa_unsupported_variant_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1299,7 +1299,7 @@ mod fndsa_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_signature_missing_sk() {
+    async fn test_fndsa_signature_missing_sk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1318,7 +1318,7 @@ mod fndsa_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_verification_missing_pk() {
+    async fn test_fndsa_verification_missing_pk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1338,7 +1338,7 @@ mod fndsa_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_encapsulation_operation_invalid() {
+    async fn test_fndsa_encapsulation_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1354,7 +1354,7 @@ mod fndsa_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_decapsulation_operation_invalid() {
+    async fn test_fndsa_decapsulation_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1378,7 +1378,7 @@ mod hybrid_kem_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_hybrid_kem_keygen() {
+    async fn test_hybrid_kem_keygen_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1392,7 +1392,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_keygen_missing_seed() {
+    async fn test_hybrid_kem_keygen_missing_seed_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1409,7 +1409,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_keygen_short_seed() {
+    async fn test_hybrid_kem_keygen_short_seed_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1425,7 +1425,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_encapsulation_missing_ek() {
+    async fn test_hybrid_kem_encapsulation_missing_ek_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1444,7 +1444,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_encapsulation_missing_m() {
+    async fn test_hybrid_kem_encapsulation_missing_m_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1464,7 +1464,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_decapsulation_missing_dk() {
+    async fn test_hybrid_kem_decapsulation_missing_dk_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1483,7 +1483,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_decapsulation_missing_c() {
+    async fn test_hybrid_kem_decapsulation_missing_c_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1503,7 +1503,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_signature_operation_invalid() {
+    async fn test_hybrid_kem_signature_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1519,7 +1519,7 @@ mod hybrid_kem_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_verification_operation_invalid() {
+    async fn test_hybrid_kem_verification_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1543,7 +1543,7 @@ mod batch_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_batch_empty_vectors() {
+    async fn test_batch_empty_vectors_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1559,7 +1559,7 @@ mod batch_tests {
     }
 
     #[tokio::test]
-    async fn test_batch_single_vector() {
+    async fn test_batch_single_vector_completes_matches_expected() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1573,7 +1573,7 @@ mod batch_tests {
     }
 
     #[tokio::test]
-    async fn test_batch_multiple_vectors_same_algorithm() {
+    async fn test_batch_multiple_vectors_same_algorithm_completes_matches_expected() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1592,7 +1592,7 @@ mod batch_tests {
     }
 
     #[tokio::test]
-    async fn test_batch_mixed_algorithms() {
+    async fn test_batch_mixed_algorithms_completes_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1612,7 +1612,7 @@ mod batch_tests {
     }
 
     #[tokio::test]
-    async fn test_batch_with_storage_verification() {
+    async fn test_batch_with_storage_verification_persists_correctly_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage.clone());
@@ -1638,7 +1638,7 @@ mod batch_tests {
     }
 
     #[tokio::test]
-    async fn test_batch_pass_rate_calculation() {
+    async fn test_batch_pass_rate_calculation_is_correct() {
         let mut batch = CavpBatchResult::new(
             "PASS-RATE-TEST".to_string(),
             CavpAlgorithm::MlKem { variant: "768".to_string() },
@@ -1677,7 +1677,7 @@ mod batch_tests {
     }
 
     #[tokio::test]
-    async fn test_batch_large_count() {
+    async fn test_batch_large_count_completes_succeeds() {
         let config = PipelineConfig { max_concurrent_tests: 8, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1702,14 +1702,14 @@ mod pipeline_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_pipeline_creation() {
+    async fn test_pipeline_creation_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let _pipeline = CavpValidationPipeline::new(config, storage);
     }
 
     #[tokio::test]
-    async fn test_pipeline_run_algorithm_validation() {
+    async fn test_pipeline_run_algorithm_validation_succeeds() {
         let config = PipelineConfig { generate_reports: false, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -1729,7 +1729,7 @@ mod pipeline_tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_run_full_validation_single_algorithm() {
+    async fn test_pipeline_run_full_validation_single_algorithm_succeeds() {
         let config = PipelineConfig { generate_reports: false, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -1747,7 +1747,7 @@ mod pipeline_tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_run_full_validation_multiple_algorithms() {
+    async fn test_pipeline_run_full_validation_multiple_algorithms_succeeds() {
         let config = PipelineConfig { generate_reports: false, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -1767,7 +1767,7 @@ mod pipeline_tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_run_full_validation_empty() {
+    async fn test_pipeline_run_full_validation_empty_succeeds() {
         let config = PipelineConfig { generate_reports: false, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -1781,7 +1781,7 @@ mod pipeline_tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_create_sample_vectors() {
+    async fn test_pipeline_create_sample_vectors_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -1801,7 +1801,7 @@ mod pipeline_tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_create_sample_vectors_zero_count() {
+    async fn test_pipeline_create_sample_vectors_zero_count_returns_empty_matches_expected() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -1813,7 +1813,7 @@ mod pipeline_tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_with_report_generation() {
+    async fn test_pipeline_with_report_generation_succeeds() {
         let config = PipelineConfig { generate_reports: true, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -1835,20 +1835,20 @@ mod compliance_tests {
     use super::*;
 
     #[test]
-    fn test_compliance_generator_creation() {
+    fn test_compliance_generator_creation_succeeds() {
         let generator = CavpComplianceGenerator::new();
         // Generator should be created with default criteria
         let _ = generator;
     }
 
     #[test]
-    fn test_compliance_generator_default() {
+    fn test_compliance_generator_default_succeeds() {
         let generator = CavpComplianceGenerator::default();
         let _ = generator;
     }
 
     #[tokio::test]
-    async fn test_compliance_report_generation() {
+    async fn test_compliance_report_generation_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1867,7 +1867,7 @@ mod compliance_tests {
     }
 
     #[tokio::test]
-    async fn test_compliance_report_empty_batches() {
+    async fn test_compliance_report_empty_batches_returns_error() {
         let generator = CavpComplianceGenerator::new();
         let result = generator.generate_report(&[]);
 
@@ -1875,7 +1875,7 @@ mod compliance_tests {
     }
 
     #[tokio::test]
-    async fn test_compliance_json_export() {
+    async fn test_compliance_json_export_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1895,7 +1895,7 @@ mod compliance_tests {
     }
 
     #[tokio::test]
-    async fn test_compliance_xml_export() {
+    async fn test_compliance_xml_export_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1915,7 +1915,7 @@ mod compliance_tests {
     }
 
     #[tokio::test]
-    async fn test_compliance_multiple_batches() {
+    async fn test_compliance_multiple_batches_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -1946,7 +1946,7 @@ mod result_tests {
     use super::*;
 
     #[test]
-    fn test_cavp_test_result_new_passing() {
+    fn test_cavp_test_result_new_passing_has_correct_fields_succeeds() {
         let result = CavpTestResult::new(
             "TEST-001".to_string(),
             CavpAlgorithm::MlKem { variant: "768".to_string() },
@@ -1963,7 +1963,7 @@ mod result_tests {
     }
 
     #[test]
-    fn test_cavp_test_result_new_failing() {
+    fn test_cavp_test_result_new_failing_has_correct_fields_fails() {
         let result = CavpTestResult::new(
             "TEST-002".to_string(),
             CavpAlgorithm::MlDsa { variant: "44".to_string() },
@@ -1979,7 +1979,7 @@ mod result_tests {
     }
 
     #[test]
-    fn test_cavp_test_result_failed() {
+    fn test_cavp_test_result_failed_has_correct_fields_fails() {
         let result = CavpTestResult::failed(
             "TEST-003".to_string(),
             CavpAlgorithm::SlhDsa { variant: "shake-128s".to_string() },
@@ -1997,7 +1997,7 @@ mod result_tests {
     }
 
     #[test]
-    fn test_cavp_batch_result_new() {
+    fn test_cavp_batch_result_new_has_correct_fields_succeeds() {
         let batch = CavpBatchResult::new(
             "BATCH-001".to_string(),
             CavpAlgorithm::FnDsa { variant: "512".to_string() },
@@ -2010,7 +2010,7 @@ mod result_tests {
     }
 
     #[test]
-    fn test_cavp_batch_result_add_test_result() {
+    fn test_cavp_batch_result_add_test_result_updates_count_succeeds() {
         let mut batch = CavpBatchResult::new("BATCH-002".to_string(), CavpAlgorithm::HybridKem);
 
         let result = CavpTestResult::new(
@@ -2030,7 +2030,7 @@ mod result_tests {
     }
 
     #[test]
-    fn test_cavp_validation_status_variants() {
+    fn test_cavp_validation_status_variants_are_accessible() {
         let passed = CavpValidationStatus::Passed;
         let failed = CavpValidationStatus::Failed;
         let incomplete = CavpValidationStatus::Incomplete;
@@ -2051,7 +2051,7 @@ mod algorithm_tests {
     use super::*;
 
     #[test]
-    fn test_algorithm_name() {
+    fn test_algorithm_name_returns_correct_string_succeeds() {
         assert_eq!(CavpAlgorithm::MlKem { variant: "768".to_string() }.name(), "ML-KEM-768");
         assert_eq!(CavpAlgorithm::MlDsa { variant: "44".to_string() }.name(), "ML-DSA-44");
         assert_eq!(
@@ -2063,7 +2063,7 @@ mod algorithm_tests {
     }
 
     #[test]
-    fn test_algorithm_fips_standard() {
+    fn test_algorithm_fips_standard_returns_correct_string_succeeds() {
         assert_eq!(CavpAlgorithm::MlKem { variant: "768".to_string() }.fips_standard(), "FIPS 203");
         assert_eq!(CavpAlgorithm::MlDsa { variant: "44".to_string() }.fips_standard(), "FIPS 204");
         assert_eq!(
@@ -2075,7 +2075,7 @@ mod algorithm_tests {
     }
 
     #[test]
-    fn test_algorithm_equality() {
+    fn test_algorithm_equality_matches_expected() {
         let a1 = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let a2 = CavpAlgorithm::MlKem { variant: "768".to_string() };
         let a3 = CavpAlgorithm::MlKem { variant: "512".to_string() };
@@ -2085,7 +2085,7 @@ mod algorithm_tests {
     }
 
     #[test]
-    fn test_algorithm_hash() {
+    fn test_algorithm_hash_deduplicates_correctly_succeeds() {
         use std::collections::HashSet;
 
         let mut set = HashSet::new();
@@ -2105,7 +2105,7 @@ mod test_type_tests {
     use super::*;
 
     #[test]
-    fn test_cavp_test_type_variants() {
+    fn test_cavp_test_type_variants_are_accessible() {
         let keygen = CavpTestType::KeyGen;
         let encap = CavpTestType::Encapsulation;
         let decap = CavpTestType::Decapsulation;
@@ -2120,13 +2120,13 @@ mod test_type_tests {
     }
 
     #[test]
-    fn test_cavp_test_type_equality() {
+    fn test_cavp_test_type_equality_matches_expected() {
         assert_eq!(CavpTestType::KeyGen, CavpTestType::KeyGen);
         assert_ne!(CavpTestType::KeyGen, CavpTestType::Signature);
     }
 
     #[test]
-    fn test_cavp_test_type_hash() {
+    fn test_cavp_test_type_hash_deduplicates_correctly_succeeds() {
         use std::collections::HashSet;
 
         let mut set = HashSet::new();
@@ -2146,7 +2146,7 @@ mod metadata_tests {
     use super::*;
 
     #[test]
-    fn test_cavp_test_metadata_default() {
+    fn test_cavp_test_metadata_default_has_expected_values_succeeds() {
         let metadata = CavpTestMetadata::default();
 
         assert!(!metadata.environment.os.is_empty());
@@ -2156,7 +2156,7 @@ mod metadata_tests {
     }
 
     #[test]
-    fn test_test_environment_default() {
+    fn test_test_environment_default_has_expected_values_succeeds() {
         let env = TestEnvironment::default();
 
         assert!(!env.os.is_empty());
@@ -2166,7 +2166,7 @@ mod metadata_tests {
     }
 
     #[test]
-    fn test_test_configuration_default() {
+    fn test_test_configuration_default_has_expected_values_succeeds() {
         let config = TestConfiguration::default();
 
         assert_eq!(config.iterations, 1);
@@ -2184,7 +2184,7 @@ mod edge_case_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_very_long_test_id() {
+    async fn test_very_long_test_id_is_accepted() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2198,7 +2198,7 @@ mod edge_case_tests {
     }
 
     #[tokio::test]
-    async fn test_unicode_in_notes() {
+    async fn test_unicode_in_notes_is_accepted() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2211,7 +2211,7 @@ mod edge_case_tests {
     }
 
     #[tokio::test]
-    async fn test_empty_expected_output() {
+    async fn test_empty_expected_output_is_accepted() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2224,7 +2224,7 @@ mod edge_case_tests {
     }
 
     #[tokio::test]
-    async fn test_large_seed() {
+    async fn test_large_seed_is_accepted() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2237,7 +2237,7 @@ mod edge_case_tests {
     }
 
     #[tokio::test]
-    async fn test_special_characters_in_source() {
+    async fn test_special_characters_in_source_is_accepted() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2268,7 +2268,7 @@ mod full_cycle_tests {
     // -------------------------------------------------------------------------
 
     #[tokio::test]
-    async fn test_mlkem_768_full_encapsulation_cycle() {
+    async fn test_mlkem_768_full_encapsulation_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2289,7 +2289,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_768_full_decapsulation_cycle() {
+    async fn test_mlkem_768_full_decapsulation_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2316,7 +2316,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mlkem_768_complete_kem_cycle() {
+    async fn test_mlkem_768_complete_kem_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2356,7 +2356,7 @@ mod full_cycle_tests {
     // -------------------------------------------------------------------------
 
     #[tokio::test]
-    async fn test_mldsa_44_full_signature_cycle() {
+    async fn test_mldsa_44_full_signature_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2367,7 +2367,7 @@ mod full_cycle_tests {
         let message = b"Test message for ML-DSA-44 signing".to_vec();
 
         let vector =
-            create_mldsa_signature_vector("MLDSA44-SIG-VALID", "44", sk_bytes.to_vec(), message);
+            create_mldsa_signature_vector("MlDsa44-SIG-VALID", "44", sk_bytes.to_vec(), message);
         let result = executor.execute_single_test_vector(&vector).await;
 
         assert!(result.is_ok());
@@ -2377,7 +2377,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_44_full_verification_cycle() {
+    async fn test_mldsa_44_full_verification_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2390,7 +2390,7 @@ mod full_cycle_tests {
         let pk_bytes = pk.into_bytes();
 
         let vector = create_mldsa_verification_vector(
-            "MLDSA44-VERIFY-VALID",
+            "MlDsa44-VERIFY-VALID",
             "44",
             pk_bytes.to_vec(),
             message,
@@ -2405,7 +2405,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_65_full_signature_cycle() {
+    async fn test_mldsa_65_full_signature_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2415,7 +2415,7 @@ mod full_cycle_tests {
         let message = b"Test message for ML-DSA-65 signing".to_vec();
 
         let vector =
-            create_mldsa_signature_vector("MLDSA65-SIG-VALID", "65", sk_bytes.to_vec(), message);
+            create_mldsa_signature_vector("MlDsa65-SIG-VALID", "65", sk_bytes.to_vec(), message);
         let result = executor.execute_single_test_vector(&vector).await;
 
         assert!(result.is_ok());
@@ -2425,7 +2425,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_65_full_verification_cycle() {
+    async fn test_mldsa_65_full_verification_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2437,7 +2437,7 @@ mod full_cycle_tests {
         let pk_bytes = pk.into_bytes();
 
         let vector = create_mldsa_verification_vector(
-            "MLDSA65-VERIFY-VALID",
+            "MlDsa65-VERIFY-VALID",
             "65",
             pk_bytes.to_vec(),
             message,
@@ -2451,7 +2451,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_87_full_signature_cycle() {
+    async fn test_mldsa_87_full_signature_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2461,7 +2461,7 @@ mod full_cycle_tests {
         let message = b"Test message for ML-DSA-87 signing".to_vec();
 
         let vector =
-            create_mldsa_signature_vector("MLDSA87-SIG-VALID", "87", sk_bytes.to_vec(), message);
+            create_mldsa_signature_vector("MlDsa87-SIG-VALID", "87", sk_bytes.to_vec(), message);
         let result = executor.execute_single_test_vector(&vector).await;
 
         assert!(result.is_ok());
@@ -2471,7 +2471,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_87_full_verification_cycle() {
+    async fn test_mldsa_87_full_verification_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2483,7 +2483,7 @@ mod full_cycle_tests {
         let pk_bytes = pk.into_bytes();
 
         let vector = create_mldsa_verification_vector(
-            "MLDSA87-VERIFY-VALID",
+            "MlDsa87-VERIFY-VALID",
             "87",
             pk_bytes.to_vec(),
             message,
@@ -2497,7 +2497,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_mldsa_44_invalid_signature_verification() {
+    async fn test_mldsa_44_invalid_signature_verification_fails() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2510,7 +2510,7 @@ mod full_cycle_tests {
         let pk_bytes = pk.into_bytes();
 
         let vector = create_mldsa_verification_vector(
-            "MLDSA44-VERIFY-INVALID-SIG",
+            "MlDsa44-VERIFY-INVALID-SIG",
             "44",
             pk_bytes.to_vec(),
             message,
@@ -2529,7 +2529,7 @@ mod full_cycle_tests {
     // -------------------------------------------------------------------------
 
     #[tokio::test]
-    async fn test_slhdsa_shake_128s_full_signature_cycle() {
+    async fn test_slhdsa_shake_128s_full_signature_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2553,7 +2553,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_shake_128s_full_verification_cycle() {
+    async fn test_slhdsa_shake_128s_full_verification_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2579,7 +2579,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_shake_192s_full_signature_cycle() {
+    async fn test_slhdsa_shake_192s_full_signature_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2603,7 +2603,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_shake_192s_full_verification_cycle() {
+    async fn test_slhdsa_shake_192s_full_verification_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2629,7 +2629,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_shake_256s_full_signature_cycle() {
+    async fn test_slhdsa_shake_256s_full_signature_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2653,7 +2653,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_shake_256s_full_verification_cycle() {
+    async fn test_slhdsa_shake_256s_full_verification_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2679,7 +2679,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_invalid_signature_verification() {
+    async fn test_slhdsa_invalid_signature_verification_fails() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2707,7 +2707,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_missing_message_for_signature() {
+    async fn test_slhdsa_missing_message_for_signature_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2731,7 +2731,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_missing_message_for_verification() {
+    async fn test_slhdsa_missing_message_for_verification_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2756,7 +2756,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_missing_signature_for_verification() {
+    async fn test_slhdsa_missing_signature_for_verification_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2781,7 +2781,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_slhdsa_decapsulation_operation_invalid() {
+    async fn test_slhdsa_decapsulation_operation_invalid_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -2802,7 +2802,7 @@ mod full_cycle_tests {
     // -------------------------------------------------------------------------
 
     #[tokio::test]
-    async fn test_fndsa_512_full_signature_cycle() {
+    async fn test_fndsa_512_full_signature_cycle_succeeds() {
         use fn_dsa::{
             FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
             vrfy_key_size,
@@ -2834,7 +2834,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_512_full_verification_cycle() {
+    async fn test_fndsa_512_full_verification_cycle_succeeds() {
         use fn_dsa::{
             DOMAIN_NONE, FN_DSA_LOGN_512, HASH_ID_RAW, KeyPairGenerator, KeyPairGeneratorStandard,
             SigningKey, SigningKeyStandard, sign_key_size, signature_size, vrfy_key_size,
@@ -2876,7 +2876,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_1024_full_signature_cycle() {
+    async fn test_fndsa_1024_full_signature_cycle_succeeds() {
         use fn_dsa::{
             FN_DSA_LOGN_1024, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
             vrfy_key_size,
@@ -2906,7 +2906,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_1024_full_verification_cycle() {
+    async fn test_fndsa_1024_full_verification_cycle_succeeds() {
         use fn_dsa::{
             DOMAIN_NONE, FN_DSA_LOGN_1024, HASH_ID_RAW, KeyPairGenerator, KeyPairGeneratorStandard,
             SigningKey, SigningKeyStandard, sign_key_size, signature_size, vrfy_key_size,
@@ -2945,7 +2945,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_invalid_signature_verification() {
+    async fn test_fndsa_invalid_signature_verification_fails() {
         use fn_dsa::{
             FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
             signature_size, vrfy_key_size,
@@ -2983,7 +2983,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_missing_message_for_signature() {
+    async fn test_fndsa_missing_message_for_signature_returns_error() {
         use fn_dsa::{
             FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
             vrfy_key_size,
@@ -3013,7 +3013,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_missing_message_for_verification() {
+    async fn test_fndsa_missing_message_for_verification_returns_error() {
         use fn_dsa::{
             FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
             signature_size, vrfy_key_size,
@@ -3048,7 +3048,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_fndsa_missing_signature_for_verification() {
+    async fn test_fndsa_missing_signature_for_verification_returns_error() {
         use fn_dsa::{
             FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
             vrfy_key_size,
@@ -3087,7 +3087,7 @@ mod full_cycle_tests {
     // -------------------------------------------------------------------------
 
     #[tokio::test]
-    async fn test_hybrid_kem_full_encapsulation_cycle() {
+    async fn test_hybrid_kem_full_encapsulation_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -3117,7 +3117,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_full_decapsulation_cycle() {
+    async fn test_hybrid_kem_full_decapsulation_cycle_succeeds() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -3156,7 +3156,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_encapsulation_invalid_m_length() {
+    async fn test_hybrid_kem_encapsulation_invalid_m_length_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -3182,7 +3182,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_decapsulation_invalid_dk_length() {
+    async fn test_hybrid_kem_decapsulation_invalid_dk_length_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -3200,7 +3200,7 @@ mod full_cycle_tests {
     }
 
     #[tokio::test]
-    async fn test_hybrid_kem_decapsulation_invalid_c_length() {
+    async fn test_hybrid_kem_decapsulation_invalid_c_length_returns_error() {
         let config = PipelineConfig::default();
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let executor = CavpTestExecutor::new(config, storage);
@@ -3233,7 +3233,7 @@ mod report_generation_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_pipeline_full_validation_with_reports() {
+    async fn test_pipeline_full_validation_with_reports_succeeds() {
         let config = PipelineConfig { generate_reports: true, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -3251,7 +3251,7 @@ mod report_generation_tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_algorithm_validation_with_reports() {
+    async fn test_pipeline_algorithm_validation_with_reports_succeeds() {
         let config = PipelineConfig { generate_reports: true, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -3268,7 +3268,7 @@ mod report_generation_tests {
     }
 
     #[tokio::test]
-    async fn test_compliance_report_for_all_algorithms() {
+    async fn test_compliance_report_for_all_algorithms_succeeds() {
         let config = PipelineConfig { generate_reports: true, ..Default::default() };
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
         let pipeline = CavpValidationPipeline::new(config, storage);
@@ -3297,7 +3297,7 @@ mod storage_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_storage_list_batches_by_algorithm() {
+    async fn test_storage_list_batches_by_algorithm_returns_correct_results_succeeds() {
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
 
         let mut batch1 = CavpBatchResult::new(
@@ -3337,7 +3337,7 @@ mod storage_tests {
     }
 
     #[tokio::test]
-    async fn test_storage_list_batches_empty() {
+    async fn test_storage_list_batches_empty_returns_empty_vec_succeeds() {
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
 
         let algorithm = CavpAlgorithm::MlDsa { variant: "87".to_string() };
@@ -3347,7 +3347,7 @@ mod storage_tests {
     }
 
     #[tokio::test]
-    async fn test_storage_list_results_empty() {
+    async fn test_storage_list_results_empty_returns_empty_vec_succeeds() {
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
 
         let algorithm = CavpAlgorithm::SlhDsa { variant: "shake-256s".to_string() };
@@ -3357,7 +3357,7 @@ mod storage_tests {
     }
 
     #[tokio::test]
-    async fn test_storage_retrieve_nonexistent_result() {
+    async fn test_storage_retrieve_nonexistent_result_returns_none() {
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
 
         let result = storage.retrieve_result("NONEXISTENT-TEST-ID");
@@ -3367,7 +3367,7 @@ mod storage_tests {
     }
 
     #[tokio::test]
-    async fn test_storage_retrieve_nonexistent_batch() {
+    async fn test_storage_retrieve_nonexistent_batch_returns_none() {
         let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
 
         let result = storage.retrieve_batch("NONEXISTENT-BATCH-ID");
@@ -3387,7 +3387,7 @@ mod compliance_status_tests {
     };
 
     #[test]
-    fn test_compliance_status_non_compliant() {
+    fn test_compliance_status_non_compliant_has_correct_failures_fails() {
         let status = ComplianceStatus::NonCompliant {
             failures: vec!["Test 1 failed".to_string(), "Test 2 failed".to_string()],
         };
@@ -3400,7 +3400,7 @@ mod compliance_status_tests {
     }
 
     #[test]
-    fn test_compliance_status_partially_compliant() {
+    fn test_compliance_status_partially_compliant_has_exceptions_succeeds() {
         let status =
             ComplianceStatus::PartiallyCompliant { exceptions: vec!["Exception 1".to_string()] };
 
@@ -3412,13 +3412,13 @@ mod compliance_status_tests {
     }
 
     #[test]
-    fn test_compliance_status_insufficient_data() {
+    fn test_compliance_status_insufficient_data_is_accessible() {
         let status = ComplianceStatus::InsufficientData;
         assert!(matches!(status, ComplianceStatus::InsufficientData));
     }
 
     #[test]
-    fn test_test_result_skipped() {
+    fn test_test_result_skipped_has_correct_reason_succeeds() {
         let result = TestResult::Skipped("Not applicable".to_string());
         if let TestResult::Skipped(reason) = result {
             assert_eq!(reason, "Not applicable");
@@ -3428,7 +3428,7 @@ mod compliance_status_tests {
     }
 
     #[test]
-    fn test_test_result_error() {
+    fn test_test_result_error_has_correct_reason_fails() {
         let result = TestResult::Error("System error".to_string());
         if let TestResult::Error(reason) = result {
             assert_eq!(reason, "System error");
@@ -3438,7 +3438,7 @@ mod compliance_status_tests {
     }
 
     #[test]
-    fn test_test_category_variants() {
+    fn test_test_category_variants_are_accessible() {
         let categories = vec![
             TestCategory::Correctness,
             TestCategory::Security,
@@ -3465,7 +3465,7 @@ mod security_requirement_tests {
     use latticearc_tests::validation::cavp::compliance::{ComplianceCriteria, SecurityRequirement};
 
     #[test]
-    fn test_security_requirement_creation() {
+    fn test_security_requirement_creation_has_correct_fields_succeeds() {
         let req = SecurityRequirement {
             requirement_id: "SEC-001".to_string(),
             description: "Test requirement".to_string(),
@@ -3479,7 +3479,7 @@ mod security_requirement_tests {
     }
 
     #[test]
-    fn test_compliance_criteria_creation() {
+    fn test_compliance_criteria_creation_has_correct_fields_succeeds() {
         let criteria = ComplianceCriteria {
             min_pass_rate: 95.0,
             max_execution_time_ms: 5000,
@@ -3508,7 +3508,7 @@ mod performance_metrics_tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_memory_usage_metrics() {
+    fn test_memory_usage_metrics_has_correct_values_succeeds() {
         let metrics = MemoryUsageMetrics {
             peak_memory_bytes: 1024 * 1024,
             avg_memory_bytes: 512 * 1024,
@@ -3521,7 +3521,7 @@ mod performance_metrics_tests {
     }
 
     #[test]
-    fn test_throughput_metrics() {
+    fn test_throughput_metrics_has_correct_values_succeeds() {
         let mut latency_percentiles = HashMap::new();
         latency_percentiles.insert("p50".to_string(), 10.0);
         latency_percentiles.insert("p95".to_string(), 50.0);
@@ -3539,7 +3539,7 @@ mod performance_metrics_tests {
     }
 
     #[test]
-    fn test_performance_metrics_creation() {
+    fn test_performance_metrics_creation_has_correct_values_succeeds() {
         let metrics = PerformanceMetrics {
             avg_execution_time_ms: 50.0,
             min_execution_time_ms: 10,
@@ -3571,7 +3571,7 @@ mod test_summary_tests {
     use latticearc_tests::validation::cavp::compliance::TestSummary;
 
     #[test]
-    fn test_test_summary_creation() {
+    fn test_test_summary_creation_has_correct_fields_succeeds() {
         let summary = TestSummary {
             total_tests: 100,
             passed_tests: 95,
@@ -3590,7 +3590,7 @@ mod test_summary_tests {
     }
 
     #[test]
-    fn test_test_summary_zero_tests() {
+    fn test_test_summary_zero_tests_has_zero_values_succeeds() {
         let summary = TestSummary {
             total_tests: 0,
             passed_tests: 0,
@@ -3616,7 +3616,7 @@ mod detailed_test_result_tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_detailed_test_result_creation() {
+    fn test_detailed_test_result_creation_has_correct_fields_succeeds() {
         let mut additional_details = HashMap::new();
         additional_details.insert("key1".to_string(), "value1".to_string());
         additional_details.insert("key2".to_string(), "value2".to_string());
@@ -3638,7 +3638,7 @@ mod detailed_test_result_tests {
     }
 
     #[test]
-    fn test_compliance_test_result_creation() {
+    fn test_compliance_test_result_creation_has_correct_fields_succeeds() {
         let mut details = HashMap::new();
         details.insert("vector_id".to_string(), "VEC-001".to_string());
 

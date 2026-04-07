@@ -22,7 +22,7 @@ use latticearc::{ComplianceMode, CryptoScheme, DecryptKey, EncryptKey, fips_avai
 // ============================================================
 
 #[test]
-fn test_encrypt_default_config() {
+fn test_encrypt_default_config_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"Test data for default config";
     let config = CryptoConfig::new();
@@ -33,12 +33,12 @@ fn test_encrypt_default_config() {
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
-    assert!(!encrypted.scheme.as_str().is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
+    assert!(!encrypted.scheme().as_str().is_empty());
 }
 
 #[test]
-fn test_encrypt_use_case_file_storage() {
+fn test_encrypt_use_case_file_storage_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"File storage encryption test";
     let config = CryptoConfig::new().use_case(UseCase::FileStorage);
@@ -49,11 +49,11 @@ fn test_encrypt_use_case_file_storage() {
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
 }
 
 #[test]
-fn test_encrypt_use_case_secure_messaging() {
+fn test_encrypt_use_case_secure_messaging_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"Secure messaging encryption test";
     let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
@@ -64,11 +64,11 @@ fn test_encrypt_use_case_secure_messaging() {
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
 }
 
 #[test]
-fn test_encrypt_use_case_iot_device() {
+fn test_encrypt_use_case_iot_device_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"IoT device encryption test";
     let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
@@ -79,11 +79,11 @@ fn test_encrypt_use_case_iot_device() {
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
 }
 
 #[test]
-fn test_encrypt_security_level_maximum() {
+fn test_encrypt_security_level_maximum_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"Maximum security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
@@ -94,11 +94,11 @@ fn test_encrypt_security_level_maximum() {
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
 }
 
 #[test]
-fn test_encrypt_security_level_standard() {
+fn test_encrypt_security_level_standard_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"Standard security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
@@ -109,11 +109,11 @@ fn test_encrypt_security_level_standard() {
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
 }
 
 #[test]
-fn test_encrypt_security_level_high() {
+fn test_encrypt_security_level_high_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"High security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
@@ -124,11 +124,11 @@ fn test_encrypt_security_level_high() {
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
 }
 
 #[test]
-fn test_encrypt_invalid_key_too_short() {
+fn test_encrypt_invalid_key_too_short_fails() {
     let short_key = vec![0x42u8; 10];
     let data = b"test data";
     let config = CryptoConfig::new();
@@ -142,7 +142,7 @@ fn test_encrypt_invalid_key_too_short() {
 }
 
 #[test]
-fn test_encrypt_empty_data() {
+fn test_encrypt_empty_data_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"";
     let config = CryptoConfig::new();
@@ -154,7 +154,7 @@ fn test_encrypt_empty_data() {
     )
     .unwrap();
     // AES-GCM produces nonce+tag even for empty plaintext
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
 }
 
 // ============================================================
@@ -162,7 +162,7 @@ fn test_encrypt_empty_data() {
 // ============================================================
 
 #[test]
-fn test_encrypt_decrypt_roundtrip_default() {
+fn test_encrypt_decrypt_roundtrip_default_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"Roundtrip test data with default config";
     let config = CryptoConfig::new();
@@ -174,11 +174,11 @@ fn test_encrypt_decrypt_roundtrip_default() {
     )
     .unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 #[test]
-fn test_encrypt_decrypt_roundtrip_file_storage() {
+fn test_encrypt_decrypt_roundtrip_file_storage_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"File storage roundtrip";
     let config = CryptoConfig::new().use_case(UseCase::FileStorage);
@@ -190,11 +190,11 @@ fn test_encrypt_decrypt_roundtrip_file_storage() {
     )
     .unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 #[test]
-fn test_encrypt_decrypt_roundtrip_iot() {
+fn test_encrypt_decrypt_roundtrip_iot_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"IoT device roundtrip";
     let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
@@ -206,11 +206,11 @@ fn test_encrypt_decrypt_roundtrip_iot() {
     )
     .unwrap();
     let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 #[test]
-fn test_decrypt_empty_data() {
+fn test_decrypt_empty_data_succeeds() {
     let key = vec![0x42u8; 32];
     let config = CryptoConfig::new();
 
@@ -225,7 +225,7 @@ fn test_decrypt_empty_data() {
 }
 
 #[test]
-fn test_decrypt_invalid_key_too_short() {
+fn test_decrypt_invalid_key_too_short_fails() {
     let key = vec![0x42u8; 32];
     let short_key = vec![0x42u8; 10];
     let data = b"test";
@@ -247,7 +247,7 @@ fn test_decrypt_invalid_key_too_short() {
 // ============================================================
 
 #[test]
-fn test_sign_verify_authentication_use_case_keypair() {
+fn test_sign_verify_authentication_use_case_keypair_succeeds() {
     // Authentication use case maps to a signing scheme (hybrid-ml-dsa)
     let config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
@@ -261,7 +261,7 @@ fn test_sign_verify_authentication_use_case_keypair() {
 }
 
 #[test]
-fn test_sign_verify_iot_use_case_rejected() {
+fn test_sign_verify_iot_use_case_is_rejected() {
     // IoT use case maps to an encryption scheme, not a signing scheme
     let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
     let result = generate_signing_keypair(config);
@@ -269,7 +269,7 @@ fn test_sign_verify_iot_use_case_rejected() {
 }
 
 #[test]
-fn test_sign_verify_default_scheme() {
+fn test_sign_verify_default_scheme_succeeds() {
     let config = CryptoConfig::new();
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -280,7 +280,7 @@ fn test_sign_verify_default_scheme() {
 }
 
 #[test]
-fn test_sign_verify_maximum_security() {
+fn test_sign_verify_maximum_security_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -291,7 +291,7 @@ fn test_sign_verify_maximum_security() {
 }
 
 #[test]
-fn test_sign_verify_standard_security() {
+fn test_sign_verify_standard_security_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -302,7 +302,7 @@ fn test_sign_verify_standard_security() {
 }
 
 #[test]
-fn test_sign_verify_file_storage_use_case_rejected() {
+fn test_sign_verify_file_storage_use_case_is_rejected() {
     // FileStorage maps to an encryption scheme (hybrid-ml-kem-1024-aes-256-gcm),
     // not a signing scheme. Keygen should reject it.
     let config = CryptoConfig::new().use_case(UseCase::FileStorage);
@@ -311,7 +311,7 @@ fn test_sign_verify_file_storage_use_case_rejected() {
 }
 
 #[test]
-fn test_sign_verify_secure_messaging_use_case_rejected() {
+fn test_sign_verify_secure_messaging_use_case_is_rejected() {
     // SecureMessaging maps to an encryption scheme (hybrid-ml-kem-768-aes-256-gcm),
     // not a signing scheme. Keygen should reject it.
     let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
@@ -324,7 +324,7 @@ fn test_sign_verify_secure_messaging_use_case_rejected() {
 // ============================================================
 
 #[test]
-fn test_sign_verify_quantum_security() {
+fn test_sign_verify_quantum_security_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
     assert!(
@@ -340,7 +340,7 @@ fn test_sign_verify_quantum_security() {
 }
 
 #[test]
-fn test_encrypt_security_level_quantum() {
+fn test_encrypt_security_level_quantum_succeeds() {
     let key = vec![0x42u8; 32];
     let data = b"Quantum security level encryption";
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
@@ -351,9 +351,9 @@ fn test_encrypt_security_level_quantum() {
         config.clone().force_scheme(CryptoScheme::Symmetric),
     )
     .unwrap();
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext().is_empty());
     let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), config).unwrap();
-    assert_eq!(decrypted, data);
+    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 // ============================================================
@@ -361,7 +361,7 @@ fn test_encrypt_security_level_quantum() {
 // ============================================================
 
 #[test]
-fn test_sign_verify_authentication_use_case() {
+fn test_sign_verify_authentication_use_case_succeeds() {
     let config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -372,7 +372,7 @@ fn test_sign_verify_authentication_use_case() {
 }
 
 #[test]
-fn test_sign_verify_financial_use_case() {
+fn test_sign_verify_financial_use_case_succeeds() {
     let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
     // Override auto-FIPS only when feature not available (test verifies signing, not FIPS)
     let config = if fips_available() { config } else { config.compliance(ComplianceMode::Default) };
@@ -389,20 +389,20 @@ fn test_sign_verify_financial_use_case() {
 // ============================================================
 
 #[test]
-fn test_unified_api_init() {
+fn test_unified_api_init_succeeds() {
     let result = latticearc::unified_api::init();
     assert!(result.is_ok(), "init() should succeed");
 }
 
 #[test]
-fn test_unified_api_init_with_default_config() {
-    let config = latticearc::unified_api::config::CoreConfig::default();
+fn test_unified_api_init_with_default_config_succeeds() {
+    let config = latticearc::unified_api::CoreConfig::default();
     let result = latticearc::unified_api::init_with_config(&config);
     assert!(result.is_ok(), "init_with_config(default) should succeed");
 }
 
 #[test]
-fn test_self_tests_passed() {
+fn test_self_tests_passed_after_init_succeeds() {
     // Run init first to ensure self-tests have run
     let _ = latticearc::unified_api::init();
     assert!(
@@ -412,7 +412,7 @@ fn test_self_tests_passed() {
 }
 
 #[test]
-fn test_version_string() {
+fn test_version_string_is_nonempty_succeeds() {
     assert!(!latticearc::unified_api::VERSION.is_empty(), "VERSION should not be empty");
 }
 
@@ -421,7 +421,7 @@ fn test_version_string() {
 // ============================================================
 
 #[test]
-fn test_verify_with_wrong_signature() {
+fn test_verify_with_wrong_signature_fails() {
     let config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -442,7 +442,7 @@ fn test_verify_with_wrong_signature() {
 }
 
 #[test]
-fn test_verify_with_wrong_message() {
+fn test_verify_with_wrong_message_fails() {
     let config = CryptoConfig::new().use_case(UseCase::Authentication);
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -464,7 +464,7 @@ fn test_verify_with_wrong_message() {
 // ============================================================
 
 #[test]
-fn test_sign_hybrid_44_sk_wrong_length() {
+fn test_sign_hybrid_44_sk_wrong_length_fails() {
     // Generate hybrid-44 keypair: uses IoTDevice which maps to ml-dsa-44 or hybrid-44
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
@@ -479,7 +479,7 @@ fn test_sign_hybrid_44_sk_wrong_length() {
 }
 
 #[test]
-fn test_sign_hybrid_pk_wrong_length() {
+fn test_sign_hybrid_pk_wrong_length_fails() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
     let (_pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -492,7 +492,7 @@ fn test_sign_hybrid_pk_wrong_length() {
 }
 
 #[test]
-fn test_sign_hybrid_65_sk_wrong_length() {
+fn test_sign_hybrid_65_sk_wrong_length_fails() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -504,7 +504,7 @@ fn test_sign_hybrid_65_sk_wrong_length() {
 }
 
 #[test]
-fn test_sign_hybrid_87_sk_wrong_length() {
+fn test_sign_hybrid_87_sk_wrong_length_fails() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -516,7 +516,7 @@ fn test_sign_hybrid_87_sk_wrong_length() {
 }
 
 #[test]
-fn test_sign_hybrid_87_pk_wrong_length() {
+fn test_sign_hybrid_87_pk_wrong_length_fails() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     let (_pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -532,7 +532,7 @@ fn test_sign_hybrid_87_pk_wrong_length() {
 // ============================================================
 
 #[test]
-fn test_verify_pq_ml_dsa_44_scheme() {
+fn test_verify_pq_ml_dsa_44_scheme_succeeds() {
     // Generate Quantum-level keys (pure ML-DSA, not hybrid)
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
@@ -552,7 +552,7 @@ fn test_verify_pq_ml_dsa_44_scheme() {
 }
 
 #[test]
-fn test_verify_pq_ml_dsa_65_scheme() {
+fn test_verify_pq_ml_dsa_65_scheme_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -570,7 +570,7 @@ fn test_verify_pq_ml_dsa_65_scheme() {
 }
 
 #[test]
-fn test_verify_pq_ml_dsa_87_scheme() {
+fn test_verify_pq_ml_dsa_87_scheme_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
@@ -592,7 +592,7 @@ fn test_verify_pq_ml_dsa_87_scheme() {
 // ============================================================
 
 #[test]
-fn test_sign_with_key_pq_ml_dsa_scheme() {
+fn test_sign_with_key_pq_ml_dsa_scheme_succeeds() {
     // Quantum SecurityLevel should select pq-ml-dsa-* schemes
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();

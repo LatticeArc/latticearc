@@ -93,11 +93,13 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
+use crate::types::traits::{
+    ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable,
+};
 use crate::unified_api::{
-    config::{ProofComplexity, ZeroTrustConfig},
+    ProofComplexity, ZeroTrustConfig,
     error::{CoreError, Result},
     logging::session_id_to_hex,
-    traits::{ContinuousVerifiable, ProofOfPossession, VerificationStatus, ZeroTrustAuthenticable},
 };
 use crate::{
     log_zero_trust_auth_failure, log_zero_trust_auth_success, log_zero_trust_challenge_generated,
@@ -110,7 +112,6 @@ use crate::{
 // Re-export TrustLevel from types module (pure Rust, no FFI deps)
 pub use crate::types::zero_trust::TrustLevel;
 use chrono::{DateTime, Duration, Utc};
-use rand_core::{OsRng, RngCore};
 use std::cell::RefCell;
 use subtle::ConstantTimeEq;
 
@@ -143,7 +144,7 @@ use subtle::ConstantTimeEq;
 /// let (pk, sk) = generate_keypair()?;
 ///
 /// // With Zero Trust verification (recommended)
-/// let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+/// let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
 /// # let data = b"secret";
 /// # let key = [0u8; 32];
 /// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
@@ -154,6 +155,7 @@ use subtle::ConstantTimeEq;
 /// # }
 /// ```
 ///
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum SecurityMode<'a> {
     /// Use a verified session for Zero Trust security.
@@ -181,7 +183,7 @@ impl<'a> SecurityMode<'a> {
     /// # use latticearc::unified_api::{SecurityMode, VerifiedSession, generate_keypair};
     /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
     /// # let (pk, sk) = generate_keypair()?;
-    /// # let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+    /// # let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
     /// let mode = SecurityMode::Verified(&session);
     /// assert!(mode.is_verified());
     ///
@@ -268,7 +270,7 @@ impl Default for SecurityMode<'_> {
 /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
 /// # let (public_key, private_key) = generate_keypair()?;
 /// // Establish a verified session (performs challenge-response)
-/// let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+/// let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 ///
 /// // Use the session for cryptographic operations
 /// # let data = b"secret";
@@ -277,7 +279,6 @@ impl Default for SecurityMode<'_> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct VerifiedSession {
     /// Unique session identifier.
     session_id: [u8; 32],
@@ -289,6 +290,18 @@ pub struct VerifiedSession {
     public_key: PublicKey,
     /// When this session expires.
     expires_at: DateTime<Utc>,
+}
+
+impl std::fmt::Debug for VerifiedSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VerifiedSession")
+            .field("session_id", &"[REDACTED]")
+            .field("authenticated_at", &self.authenticated_at)
+            .field("trust_level", &self.trust_level)
+            .field("public_key", &"[REDACTED]")
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 /// Default session lifetime in seconds (30 minutes).
@@ -313,22 +326,22 @@ impl VerifiedSession {
     /// # use latticearc::unified_api::{VerifiedSession, generate_keypair};
     /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
     /// # let (public_key, private_key) = generate_keypair()?;
-    /// let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+    /// let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
     /// assert!(session.is_valid());
     /// # Ok(())
     /// # }
     /// ```
     pub fn establish(public_key: &[u8], private_key: &[u8]) -> Result<Self> {
         // Create owned copies for the auth handler
-        let pk: PublicKey = public_key.to_vec();
-        let sk: PrivateKey = crate::types::ZeroizedBytes::new(private_key.to_vec());
+        let pk: PublicKey = PublicKey::new(public_key.to_vec());
+        let sk: PrivateKey = PrivateKey::new(private_key.to_vec());
 
         let auth = ZeroTrustAuth::new(pk, sk)?;
         let mut session = ZeroTrustSession::new(auth);
 
         // Self-authentication: prove we possess the private key
         let challenge = session.initiate_authentication()?;
-        let proof = session.auth.generate_proof(&challenge.data)?;
+        let proof = session.auth.generate_proof(challenge.data())?;
         session.verify_response(&proof)?;
 
         session.into_verified()
@@ -353,12 +366,14 @@ impl VerifiedSession {
             ));
         }
 
-        // Generate unique session ID
+        // Generate unique session ID via the primitives layer.
+        let session_id_vec = crate::primitives::security::generate_secure_random_bytes(32)
+            .map_err(|_e| CoreError::EntropyDepleted {
+                message: "Failed to generate session ID".to_string(),
+                action: "Check system entropy source".to_string(),
+            })?;
         let mut session_id = [0u8; 32];
-        OsRng.try_fill_bytes(&mut session_id).map_err(|_e| CoreError::EntropyDepleted {
-            message: "Failed to generate session ID".to_string(),
-            action: "Check system entropy source".to_string(),
-        })?;
+        session_id.copy_from_slice(&session_id_vec);
 
         let now = Utc::now();
         let expires_at = now
@@ -548,13 +563,13 @@ impl ZeroTrustAuth {
     /// This function does not currently return errors, but returns `Result` for
     /// API consistency and future extensibility.
     pub fn verify_challenge_age(&self, challenge: &Challenge) -> Result<bool> {
-        let elapsed = Utc::now().signed_duration_since(challenge.timestamp);
+        let elapsed = Utc::now().signed_duration_since(challenge.timestamp());
         let elapsed_ms = elapsed.num_milliseconds();
 
         // Negative elapsed time means the challenge is from the future, which is invalid
         // Convert safely: negative values are treated as invalid (elapsed > timeout)
         let elapsed_u64 = u64::try_from(elapsed_ms).unwrap_or(u64::MAX);
-        Ok(elapsed_u64 <= challenge.timeout_ms)
+        Ok(elapsed_u64 <= challenge.timeout_ms())
     }
 
     /// Starts a new continuous verification session.
@@ -617,8 +632,8 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
     ) -> std::result::Result<bool, Self::Error> {
         // SECURITY: Use constant-time comparison to prevent timing attacks
         // An attacker should not be able to determine which bytes of the challenge matched
-        let len_eq = proof.challenge.len().ct_eq(&challenge.len());
-        let content_eq = proof.challenge.ct_eq(challenge);
+        let len_eq = proof.challenge().len().ct_eq(&challenge.len());
+        let content_eq = proof.challenge().ct_eq(challenge);
         let challenge_matches: bool = (len_eq & content_eq).into();
 
         if !challenge_matches {
@@ -626,7 +641,7 @@ impl ZeroTrustAuthenticable for ZeroTrustAuth {
             return Ok(false);
         }
 
-        let result = self.verify_proof_data(&proof.proof, challenge)?;
+        let result = self.verify_proof_data(proof.proof_data(), challenge)?;
         log_zero_trust_proof_verified!(result);
         Ok(result)
     }
@@ -667,14 +682,34 @@ impl ProofOfPossession for ZeroTrustAuth {
     ///
     /// Returns `CoreError::InvalidKeyLength` if the public key has incorrect length.
     fn verify_pop(&self, pop: &Self::Pop) -> std::result::Result<bool, Self::Error> {
+        // Freshness check: reject proofs older than PROOF_OF_POSSESSION_MAX_AGE.
+        // This prevents replay of stale PoPs captured from prior sessions (P5.2 C4).
+        // Using chrono::Duration so the bound is expressed in seconds regardless
+        // of timezone or DST quirks.
+        const PROOF_OF_POSSESSION_MAX_AGE_SECS: i64 = 5 * 60; // 5 minutes
+        let elapsed = Utc::now().signed_duration_since(pop.timestamp());
+        if elapsed.num_seconds() > PROOF_OF_POSSESSION_MAX_AGE_SECS {
+            return Err(CoreError::InvalidInput(format!(
+                "Proof-of-possession is stale: {}s > {}s",
+                elapsed.num_seconds(),
+                PROOF_OF_POSSESSION_MAX_AGE_SECS
+            )));
+        }
+        // Also reject proofs dated more than 30 seconds in the future (clock skew tolerance).
+        if elapsed.num_seconds() < -30 {
+            return Err(CoreError::InvalidInput(
+                "Proof-of-possession timestamp is in the future".to_string(),
+            ));
+        }
+
         // Timestamps after 1970 are always positive, use safe conversion
-        let ts_secs = u64::try_from(pop.timestamp.timestamp()).unwrap_or(0);
+        let ts_secs = u64::try_from(pop.timestamp().timestamp()).unwrap_or(0);
         let message = format!("proof-of-possession-{}", ts_secs);
 
         crate::unified_api::convenience::ed25519::verify_ed25519_internal(
             message.as_bytes(),
-            &pop.signature,
-            &pop.public_key,
+            pop.signature(),
+            pop.public_key().as_slice(),
         )
     }
 }
@@ -730,7 +765,7 @@ impl ContinuousVerifiable for ZeroTrustAuth {
     /// key format is invalid for Ed25519 signing.
     fn reauthenticate(&self) -> Result<()> {
         let challenge = self.generate_challenge()?;
-        let _proof = self.generate_proof(&challenge.data)?;
+        let _proof = self.generate_proof(challenge.data())?;
 
         *self.last_verification.borrow_mut() = Utc::now();
         Ok(())
@@ -741,16 +776,40 @@ impl ContinuousVerifiable for ZeroTrustAuth {
 #[derive(Debug, Clone)]
 pub struct Challenge {
     /// Random challenge data.
-    pub data: Vec<u8>,
+    data: Vec<u8>,
     /// When the challenge was created.
-    pub timestamp: DateTime<Utc>,
+    timestamp: DateTime<Utc>,
     /// Required proof complexity.
-    pub complexity: ProofComplexity,
+    complexity: ProofComplexity,
     /// Timeout in milliseconds.
-    pub timeout_ms: u64,
+    timeout_ms: u64,
 }
 
 impl Challenge {
+    /// Returns the random challenge bytes.
+    #[must_use]
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Returns the timestamp when the challenge was created.
+    #[must_use]
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
+    }
+
+    /// Returns the required proof complexity for this challenge.
+    #[must_use]
+    pub fn complexity(&self) -> &ProofComplexity {
+        &self.complexity
+    }
+
+    /// Returns the timeout in milliseconds for this challenge.
+    #[must_use]
+    pub fn timeout_ms(&self) -> u64 {
+        self.timeout_ms
+    }
+
     /// Returns `true` if the challenge has expired.
     #[must_use]
     pub fn is_expired(&self) -> bool {
@@ -765,16 +824,57 @@ impl Challenge {
 #[derive(Debug, Clone)]
 pub struct ZeroKnowledgeProof {
     /// The original challenge that was responded to.
-    pub challenge: Vec<u8>,
+    challenge: Vec<u8>,
     /// The cryptographic proof data.
-    pub proof: Vec<u8>,
+    proof: Vec<u8>,
     /// When the proof was generated.
-    pub timestamp: DateTime<Utc>,
+    timestamp: DateTime<Utc>,
     /// Complexity level of the proof.
-    pub complexity: ProofComplexity,
+    complexity: ProofComplexity,
 }
 
 impl ZeroKnowledgeProof {
+    /// Creates a new `ZeroKnowledgeProof` with the given fields.
+    #[must_use]
+    pub fn new(
+        challenge: Vec<u8>,
+        proof: Vec<u8>,
+        timestamp: DateTime<Utc>,
+        complexity: ProofComplexity,
+    ) -> Self {
+        Self { challenge, proof, timestamp, complexity }
+    }
+
+    /// Returns the challenge bytes this proof was generated for.
+    #[must_use]
+    pub fn challenge(&self) -> &[u8] {
+        &self.challenge
+    }
+
+    /// Returns the cryptographic proof data.
+    #[must_use]
+    pub fn proof_data(&self) -> &[u8] {
+        &self.proof
+    }
+
+    /// Returns a mutable reference to the proof data (e.g., for tampering in tests).
+    #[must_use]
+    pub fn proof_data_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.proof
+    }
+
+    /// Returns the timestamp when the proof was generated.
+    #[must_use]
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
+    }
+
+    /// Returns the complexity level of the proof.
+    #[must_use]
+    pub fn complexity(&self) -> &ProofComplexity {
+        &self.complexity
+    }
+
     /// Returns `true` if the proof has a valid format.
     #[must_use]
     pub fn is_valid_format(&self) -> bool {
@@ -786,11 +886,43 @@ impl ZeroKnowledgeProof {
 #[derive(Debug, Clone)]
 pub struct ProofOfPossessionData {
     /// Public key associated with the proof.
-    pub public_key: PublicKey,
+    public_key: PublicKey,
     /// Signature proving possession.
-    pub signature: Vec<u8>,
+    signature: Vec<u8>,
     /// When the proof was generated.
-    pub timestamp: DateTime<Utc>,
+    timestamp: DateTime<Utc>,
+}
+
+impl ProofOfPossessionData {
+    /// Creates a new `ProofOfPossessionData` with the given fields.
+    #[must_use]
+    pub fn new(public_key: PublicKey, signature: Vec<u8>, timestamp: DateTime<Utc>) -> Self {
+        Self { public_key, signature, timestamp }
+    }
+
+    /// Returns the public key associated with this proof.
+    #[must_use]
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public_key
+    }
+
+    /// Returns a mutable reference to the signature bytes (e.g., for tampering in tests).
+    #[must_use]
+    pub fn signature_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.signature
+    }
+
+    /// Returns the signature bytes proving possession.
+    #[must_use]
+    pub fn signature(&self) -> &[u8] {
+        &self.signature
+    }
+
+    /// Returns the timestamp when the proof was generated.
+    #[must_use]
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
+    }
 }
 
 /// A continuous verification session.
@@ -857,10 +989,11 @@ fn generate_challenge_data(complexity: &ProofComplexity) -> Result<Vec<u8>> {
         ProofComplexity::High => 128,
     };
 
-    let mut data = vec![0u8; size];
-    OsRng.try_fill_bytes(&mut data).map_err(|_e| CoreError::EntropyDepleted {
-        message: "Failed to generate random bytes for challenge".to_string(),
-        action: "Check system entropy source".to_string(),
+    let data = crate::primitives::security::generate_secure_random_bytes(size).map_err(|e| {
+        CoreError::EntropyDepleted {
+            message: format!("Failed to generate challenge: {e}"),
+            action: "Check system entropy source".to_string(),
+        }
     })?;
     Ok(data)
 }
@@ -933,7 +1066,7 @@ impl ZeroTrustAuth {
                 crate::unified_api::convenience::ed25519::verify_ed25519_internal(
                     challenge,
                     proof,
-                    &self.public_key,
+                    self.public_key.as_slice(),
                 )
             }
             ProofComplexity::Medium => {
@@ -941,7 +1074,6 @@ impl ZeroTrustAuth {
                 if proof.len() < 72 {
                     return Ok(false);
                 }
-                // Use safe slice access
                 let signature = proof.get(..64).ok_or_else(|| {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
@@ -951,6 +1083,16 @@ impl ZeroTrustAuth {
                 let timestamp_bytes: [u8; 8] = timestamp_slice.try_into().map_err(|_e| {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
+
+                // Reject stale proofs (>5 min drift).
+                // Timestamp is encoded as chrono milliseconds in little-endian.
+                let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
+                let now_ms = Utc::now().timestamp_millis();
+                let drift_ms = now_ms.abs_diff(proof_ts_ms);
+                if drift_ms > 300_000 {
+                    tracing::warn!(drift_ms, "proof timestamp outside 5-min freshness window");
+                    return Ok(false);
+                }
 
                 // Reconstruct signed message
                 let mut message = challenge.to_vec();
@@ -959,7 +1101,7 @@ impl ZeroTrustAuth {
                 crate::unified_api::convenience::ed25519::verify_ed25519_internal(
                     &message,
                     signature,
-                    &self.public_key,
+                    self.public_key.as_slice(),
                 )
             }
             ProofComplexity::High => {
@@ -967,7 +1109,6 @@ impl ZeroTrustAuth {
                 if proof.len() < 72 {
                     return Ok(false);
                 }
-                // Use safe slice access
                 let signature = proof.get(..64).ok_or_else(|| {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
@@ -977,6 +1118,16 @@ impl ZeroTrustAuth {
                 let timestamp_bytes: [u8; 8] = timestamp_slice.try_into().map_err(|_e| {
                     CoreError::AuthenticationFailed("Invalid proof format".to_string())
                 })?;
+
+                // Reject stale proofs (>5 min drift).
+                // Timestamp is encoded as chrono milliseconds in little-endian.
+                let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
+                let now_ms = Utc::now().timestamp_millis();
+                let drift_ms = now_ms.abs_diff(proof_ts_ms);
+                if drift_ms > 300_000 {
+                    tracing::warn!(drift_ms, "proof timestamp outside 5-min freshness window");
+                    return Ok(false);
+                }
 
                 // Reconstruct signed message with public key binding
                 let mut message = challenge.to_vec();
@@ -986,7 +1137,7 @@ impl ZeroTrustAuth {
                 crate::unified_api::convenience::ed25519::verify_ed25519_internal(
                     &message,
                     signature,
-                    &self.public_key,
+                    self.public_key.as_slice(),
                 )
             }
         }
@@ -1048,7 +1199,7 @@ impl ZeroTrustSession {
             return Err(CoreError::AuthenticationFailed("Challenge expired".to_string()));
         }
 
-        let verified = self.auth.verify_proof(proof, &challenge.data)?;
+        let verified = self.auth.verify_proof(proof, challenge.data())?;
         self.verified = verified;
 
         if !verified {
@@ -1072,7 +1223,7 @@ impl ZeroTrustSession {
     ///
     /// Returns `CoreError::InvalidInput` if the private key format is invalid.
     pub fn generate_proof(&self, challenge: &Challenge) -> Result<ZeroKnowledgeProof> {
-        self.auth.generate_proof(&challenge.data)
+        self.auth.generate_proof(challenge.data())
     }
 
     /// Returns `true` if the session has been successfully authenticated.
@@ -1144,13 +1295,13 @@ mod tests {
 
     // TrustLevel tests
     #[test]
-    fn test_trust_level_default() {
+    fn test_trust_level_default_has_correct_value_succeeds() {
         let level = TrustLevel::default();
         assert_eq!(level, TrustLevel::Untrusted);
     }
 
     #[test]
-    fn test_trust_level_variants() {
+    fn test_trust_level_variants_are_correct() {
         assert_eq!(TrustLevel::Untrusted as i32, 0);
         assert_eq!(TrustLevel::Partial as i32, 1);
         assert_eq!(TrustLevel::Trusted as i32, 2);
@@ -1158,7 +1309,7 @@ mod tests {
     }
 
     #[test]
-    fn test_trust_level_is_trusted() {
+    fn test_trust_level_is_trusted_succeeds() {
         assert!(!TrustLevel::Untrusted.is_trusted());
         assert!(TrustLevel::Partial.is_trusted());
         assert!(TrustLevel::Trusted.is_trusted());
@@ -1166,7 +1317,7 @@ mod tests {
     }
 
     #[test]
-    fn test_trust_level_is_fully_trusted() {
+    fn test_trust_level_is_fully_trusted_succeeds() {
         assert!(!TrustLevel::Untrusted.is_fully_trusted());
         assert!(!TrustLevel::Partial.is_fully_trusted());
         assert!(!TrustLevel::Trusted.is_fully_trusted());
@@ -1174,7 +1325,7 @@ mod tests {
     }
 
     #[test]
-    fn test_trust_level_ordering() {
+    fn test_trust_level_ordering_is_correct() {
         assert!(TrustLevel::Untrusted < TrustLevel::Partial);
         assert!(TrustLevel::Partial < TrustLevel::Trusted);
         assert!(TrustLevel::Trusted < TrustLevel::FullyTrusted);
@@ -1182,14 +1333,14 @@ mod tests {
 
     // SecurityMode tests
     #[test]
-    fn test_security_mode_unverified_is_unverified() {
+    fn test_security_mode_unverified_is_unverified_succeeds() {
         let mode = SecurityMode::Unverified;
         assert!(mode.is_unverified());
         assert!(!mode.is_verified());
     }
 
     #[test]
-    fn test_security_mode_validate_unverified() -> Result<()> {
+    fn test_security_mode_validate_unverified_succeeds() -> Result<()> {
         let mode = SecurityMode::Unverified;
         mode.validate()?;
         Ok(())
@@ -1197,9 +1348,9 @@ mod tests {
 
     // VerifiedSession tests
     #[test]
-    fn test_verified_session_establish() -> Result<()> {
+    fn test_verified_session_establish_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         assert!(session.is_valid());
         // After self-authentication during establish, trust level is upgraded
@@ -1208,9 +1359,9 @@ mod tests {
     }
 
     #[test]
-    fn test_verified_session_session_id() -> Result<()> {
+    fn test_verified_session_session_id_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let session_id = session.session_id();
         assert_eq!(session_id.len(), 32);
@@ -1218,9 +1369,9 @@ mod tests {
     }
 
     #[test]
-    fn test_verified_session_public_key() -> Result<()> {
+    fn test_verified_session_public_key_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let pk = session.public_key();
         assert!(!pk.is_empty());
@@ -1228,9 +1379,9 @@ mod tests {
     }
 
     #[test]
-    fn test_verified_session_timestamps() -> Result<()> {
+    fn test_verified_session_timestamps_are_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let authenticated_at = session.authenticated_at();
         let expires_at = session.expires_at();
@@ -1240,18 +1391,18 @@ mod tests {
     }
 
     #[test]
-    fn test_verified_session_verify_valid() -> Result<()> {
+    fn test_verified_session_verify_valid_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         session.verify_valid()?;
         Ok(())
     }
 
     #[test]
-    fn test_security_mode_verified_with_session() -> Result<()> {
+    fn test_security_mode_verified_with_session_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let mode = SecurityMode::Verified(&session);
         assert!(mode.is_verified());
@@ -1260,9 +1411,9 @@ mod tests {
     }
 
     #[test]
-    fn test_security_mode_verified_validate() -> Result<()> {
+    fn test_security_mode_verified_validate_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let mode = SecurityMode::Verified(&session);
         mode.validate()?;
@@ -1270,9 +1421,9 @@ mod tests {
     }
 
     #[test]
-    fn test_security_mode_verified_session() -> Result<()> {
+    fn test_security_mode_verified_session_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let mode = SecurityMode::Verified(&session);
         assert!(mode.session().is_some());
@@ -1280,14 +1431,14 @@ mod tests {
     }
 
     #[test]
-    fn test_security_mode_unverified_session() {
+    fn test_security_mode_unverified_session_returns_none_succeeds() {
         let mode = SecurityMode::Unverified;
         assert!(mode.session().is_none());
     }
 
     // ZeroTrustAuth tests
     #[test]
-    fn test_zero_trust_auth_new() -> Result<()> {
+    fn test_zero_trust_auth_new_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1297,7 +1448,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_with_config() -> Result<()> {
+    fn test_zero_trust_auth_with_config_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config =
             ZeroTrustConfig::new().with_timeout(10000).with_complexity(ProofComplexity::High);
@@ -1308,7 +1459,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_generate_challenge() -> Result<()> {
+    fn test_zero_trust_auth_generate_challenge_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1318,7 +1469,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_multiple_challenges() -> Result<()> {
+    fn test_zero_trust_auth_multiple_challenges_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1332,7 +1483,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_verify_challenge_age() -> Result<()> {
+    fn test_zero_trust_auth_verify_challenge_age_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1344,7 +1495,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_start_continuous_verification() -> Result<()> {
+    fn test_zero_trust_auth_start_continuous_verification_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1357,7 +1508,7 @@ mod tests {
 
     // Challenge tests
     #[test]
-    fn test_challenge_not_expired_when_fresh() -> Result<()> {
+    fn test_challenge_is_not_expired_when_fresh_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1368,7 +1519,7 @@ mod tests {
 
     // ZeroTrustSession tests
     #[test]
-    fn test_zero_trust_session_new() -> Result<()> {
+    fn test_zero_trust_session_new_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1378,7 +1529,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_session_initiate_authentication() -> Result<()> {
+    fn test_zero_trust_session_initiate_authentication_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1390,7 +1541,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_session_not_authenticated_initially() -> Result<()> {
+    fn test_zero_trust_session_is_not_authenticated_initially_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1401,7 +1552,7 @@ mod tests {
 
     // ProofComplexity tests
     #[test]
-    fn test_proof_complexity_variants() {
+    fn test_proof_complexity_variants_are_correct() {
         let _low = ProofComplexity::Low;
         let _medium = ProofComplexity::Medium;
         let _high = ProofComplexity::High;
@@ -1411,18 +1562,18 @@ mod tests {
 
     // Integration tests
     #[test]
-    fn test_verified_session_with_multiple_instances() -> Result<()> {
+    fn test_verified_session_with_multiple_instances_succeeds() -> Result<()> {
         // Test creating multiple sessions
         for _ in 0..3 {
             let (public_key, private_key) = generate_keypair()?;
-            let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+            let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
             assert!(session.is_valid());
         }
         Ok(())
     }
 
     #[test]
-    fn test_zero_trust_config_variations() -> Result<()> {
+    fn test_zero_trust_config_variations_all_succeed_succeeds() -> Result<()> {
         // Test with different configurations
         let configs = vec![
             ZeroTrustConfig::new().with_timeout(5000),
@@ -1441,7 +1592,7 @@ mod tests {
     }
 
     #[test]
-    fn test_trust_level_progression() {
+    fn test_trust_level_progression_is_correct() {
         let levels = vec![
             TrustLevel::Untrusted,
             TrustLevel::Partial,
@@ -1455,12 +1606,12 @@ mod tests {
     }
 
     #[test]
-    fn test_verified_session_multiple_sessions() -> Result<()> {
+    fn test_verified_session_multiple_sessions_all_succeed_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
 
         // Create multiple sessions with same keys
-        let session1 = VerifiedSession::establish(&public_key, private_key.as_ref())?;
-        let session2 = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         // Sessions should have different IDs
         assert!(session1.is_valid());
@@ -1470,7 +1621,7 @@ mod tests {
     }
 
     #[test]
-    fn test_challenge_generation_produces_unique_challenges() -> Result<()> {
+    fn test_challenge_generation_produces_unique_challenges_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1487,7 +1638,7 @@ mod tests {
     }
 
     #[test]
-    fn test_continuous_session_validation() -> Result<()> {
+    fn test_continuous_session_validation_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_continuous_verification(true);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
@@ -1498,7 +1649,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_with_all_complexity_levels() -> Result<()> {
+    fn test_zero_trust_auth_with_all_complexity_levels_succeeds() -> Result<()> {
         let complexities =
             vec![ProofComplexity::Low, ProofComplexity::Medium, ProofComplexity::High];
 
@@ -1517,7 +1668,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_security_mode_default_is_unverified() {
+    fn test_security_mode_default_is_unverified_succeeds() {
         let mode = SecurityMode::default();
         assert!(mode.is_unverified());
         assert!(!mode.is_verified());
@@ -1525,9 +1676,9 @@ mod tests {
     }
 
     #[test]
-    fn test_security_mode_from_verified_session() -> Result<()> {
+    fn test_security_mode_from_verified_session_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let mode: SecurityMode = SecurityMode::from(&session);
         assert!(mode.is_verified());
@@ -1549,25 +1700,22 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_session_verify_response_no_challenge() -> Result<()> {
+    fn test_zero_trust_session_verify_response_returns_error_without_challenge_fails() -> Result<()>
+    {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
         let mut session = ZeroTrustSession::new(auth);
 
         // Try verify without initiating authentication
-        let fake_proof = ZeroKnowledgeProof {
-            challenge: vec![1, 2, 3],
-            proof: vec![0u8; 64],
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::Low,
-        };
+        let fake_proof =
+            ZeroKnowledgeProof::new(vec![1, 2, 3], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
         let result = session.verify_response(&fake_proof);
         assert!(result.is_err());
         Ok(())
     }
 
     #[test]
-    fn test_zero_trust_session_session_age_ms() -> Result<()> {
+    fn test_zero_trust_session_session_age_ms_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
         let session = ZeroTrustSession::new(auth);
@@ -1579,7 +1727,7 @@ mod tests {
     }
 
     #[test]
-    fn test_continuous_session_auth_public_key() -> Result<()> {
+    fn test_continuous_session_auth_public_key_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key.clone(), private_key)?;
 
@@ -1589,7 +1737,7 @@ mod tests {
     }
 
     #[test]
-    fn test_continuous_session_update_verification() -> Result<()> {
+    fn test_continuous_session_update_verification_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1602,37 +1750,25 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_knowledge_proof_is_valid_format() {
+    fn test_zero_knowledge_proof_has_valid_format_has_correct_size() {
         // Valid format
-        let valid = ZeroKnowledgeProof {
-            challenge: vec![1, 2, 3],
-            proof: vec![0u8; 64],
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::Low,
-        };
+        let valid =
+            ZeroKnowledgeProof::new(vec![1, 2, 3], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
         assert!(valid.is_valid_format());
 
         // Empty challenge
-        let empty_challenge = ZeroKnowledgeProof {
-            challenge: vec![],
-            proof: vec![0u8; 64],
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::Low,
-        };
+        let empty_challenge =
+            ZeroKnowledgeProof::new(vec![], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
         assert!(!empty_challenge.is_valid_format());
 
         // Empty proof
-        let empty_proof = ZeroKnowledgeProof {
-            challenge: vec![1],
-            proof: vec![],
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::Low,
-        };
+        let empty_proof =
+            ZeroKnowledgeProof::new(vec![1], vec![], Utc::now(), ProofComplexity::Low);
         assert!(!empty_proof.is_valid_format());
     }
 
     #[test]
-    fn test_zero_trust_auth_reauthenticate() -> Result<()> {
+    fn test_zero_trust_auth_reauthenticate_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1642,7 +1778,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_verify_continuously_verified() -> Result<()> {
+    fn test_zero_trust_auth_verify_continuously_verified_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1653,7 +1789,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_trust_auth_verify_continuously_with_cv_enabled() -> Result<()> {
+    fn test_zero_trust_auth_verify_continuously_with_cv_enabled_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new()
             .with_continuous_verification(true)
@@ -1667,7 +1803,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_proof_empty_challenge_error() -> Result<()> {
+    fn test_generate_proof_returns_error_for_empty_challenge_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
@@ -1677,12 +1813,12 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_proof_wrong_challenge() -> Result<()> {
+    fn test_verify_proof_returns_error_for_wrong_challenge_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
         let challenge = auth.generate_challenge()?;
-        let proof = auth.generate_proof(&challenge.data)?;
+        let proof = auth.generate_proof(challenge.data())?;
 
         // Verify with a different challenge should fail
         let different_challenge = vec![0xFF; 32];
@@ -1692,57 +1828,57 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_proof_short_proof_data() -> Result<()> {
+    fn test_verify_proof_returns_error_for_short_proof_data_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
 
         let challenge_data = vec![1u8; 32];
-        let short_proof = ZeroKnowledgeProof {
-            challenge: challenge_data.clone(),
-            proof: vec![0u8; 10], // Too short (< 64 bytes)
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::Low,
-        };
+        let short_proof = ZeroKnowledgeProof::new(
+            challenge_data.clone(),
+            vec![0u8; 10], // Too short (< 64 bytes)
+            Utc::now(),
+            ProofComplexity::Low,
+        );
         let result = auth.verify_proof(&short_proof, &challenge_data)?;
         assert!(!result);
         Ok(())
     }
 
     #[test]
-    fn test_full_challenge_response_low_complexity() -> Result<()> {
+    fn test_full_challenge_response_low_complexity_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::Low);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge = auth.generate_challenge()?;
-        let proof = auth.generate_proof(&challenge.data)?;
-        let verified = auth.verify_proof(&proof, &challenge.data)?;
+        let proof = auth.generate_proof(challenge.data())?;
+        let verified = auth.verify_proof(&proof, challenge.data())?;
         assert!(verified);
         Ok(())
     }
 
     #[test]
-    fn test_full_challenge_response_medium_complexity() -> Result<()> {
+    fn test_full_challenge_response_medium_complexity_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::Medium);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge = auth.generate_challenge()?;
-        let proof = auth.generate_proof(&challenge.data)?;
-        let verified = auth.verify_proof(&proof, &challenge.data)?;
+        let proof = auth.generate_proof(challenge.data())?;
+        let verified = auth.verify_proof(&proof, challenge.data())?;
         assert!(verified);
         Ok(())
     }
 
     #[test]
-    fn test_full_challenge_response_high_complexity() -> Result<()> {
+    fn test_full_challenge_response_high_complexity_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::High);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge = auth.generate_challenge()?;
-        let proof = auth.generate_proof(&challenge.data)?;
-        let verified = auth.verify_proof(&proof, &challenge.data)?;
+        let proof = auth.generate_proof(challenge.data())?;
+        let verified = auth.verify_proof(&proof, challenge.data())?;
         assert!(verified);
         Ok(())
     }
@@ -1759,14 +1895,14 @@ mod tests {
     }
 
     #[test]
-    fn test_full_session_flow_with_into_verified() -> Result<()> {
+    fn test_full_session_flow_with_into_verified_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let auth = ZeroTrustAuth::new(public_key, private_key)?;
         let mut session = ZeroTrustSession::new(auth);
 
         // Initiate -> prove -> verify -> convert
         let challenge = session.initiate_authentication()?;
-        let proof = session.auth.generate_proof(&challenge.data)?;
+        let proof = session.auth.generate_proof(challenge.data())?;
         let verified = session.verify_response(&proof)?;
         assert!(verified);
         assert!(session.is_authenticated());
@@ -1778,9 +1914,9 @@ mod tests {
     }
 
     #[test]
-    fn test_verified_session_debug() -> Result<()> {
+    fn test_verified_session_debug_has_correct_format() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         // VerifiedSession does not implement Clone (sessions are non-cloneable by design).
         // Verify Debug output instead.
@@ -1790,13 +1926,13 @@ mod tests {
     }
 
     #[test]
-    fn test_security_mode_debug() -> Result<()> {
+    fn test_security_mode_debug_has_correct_format() -> Result<()> {
         let mode = SecurityMode::Unverified;
         let debug = format!("{:?}", mode);
         assert!(debug.contains("Unverified"));
 
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
         let verified_mode = SecurityMode::Verified(&session);
         let debug2 = format!("{:?}", verified_mode);
         assert!(debug2.contains("Verified"));
@@ -1804,15 +1940,15 @@ mod tests {
     }
 
     #[test]
-    fn test_challenge_fields() -> Result<()> {
+    fn test_challenge_fields_are_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config =
             ZeroTrustConfig::new().with_timeout(5000).with_complexity(ProofComplexity::High);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge = auth.generate_challenge()?;
-        assert_eq!(challenge.data.len(), 128); // High complexity = 128 bytes
-        assert_eq!(challenge.timeout_ms, 5000);
+        assert_eq!(challenge.data().len(), 128); // High complexity = 128 bytes
+        assert_eq!(challenge.timeout_ms(), 5000);
         assert!(!challenge.is_expired());
 
         let debug = format!("{:?}", challenge);
@@ -1827,7 +1963,7 @@ mod tests {
     #[test]
     fn test_verified_session_expired_verify_valid_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         // Manually create an expired session by setting expires_at in the past
         let expired_session = VerifiedSession {
@@ -1849,9 +1985,9 @@ mod tests {
     }
 
     #[test]
-    fn test_security_mode_validate_expired_session() -> Result<()> {
+    fn test_security_mode_validate_expired_session_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
 
         let expired_session = VerifiedSession {
             session_id: *session.session_id(),
@@ -1872,7 +2008,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_continuous_verification_pending_after_interval() -> Result<()> {
+    fn test_continuous_verification_pending_after_interval_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         // Set verification_interval to 1ms so it immediately triggers Pending
         let config =
@@ -1888,90 +2024,229 @@ mod tests {
     }
 
     #[test]
-    fn test_challenge_generation_low_complexity_size() -> Result<()> {
+    fn test_challenge_generation_low_complexity_has_correct_size() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::Low);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge = auth.generate_challenge()?;
-        assert_eq!(challenge.data.len(), 32, "Low complexity = 32 bytes");
+        assert_eq!(challenge.data().len(), 32, "Low complexity = 32 bytes");
         Ok(())
     }
 
     #[test]
-    fn test_challenge_generation_medium_complexity_size() -> Result<()> {
+    fn test_challenge_generation_medium_complexity_has_correct_size() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::Medium);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge = auth.generate_challenge()?;
-        assert_eq!(challenge.data.len(), 64, "Medium complexity = 64 bytes");
+        assert_eq!(challenge.data().len(), 64, "Medium complexity = 64 bytes");
         Ok(())
     }
 
     #[test]
-    fn test_verify_proof_medium_short_proof_rejects() -> Result<()> {
+    fn test_verify_proof_medium_short_proof_rejects_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::Medium);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge_data = vec![1u8; 64];
         // Proof is 64 bytes (just signature, no timestamp) — too short for Medium (needs 72)
-        let short_proof = ZeroKnowledgeProof {
-            challenge: challenge_data.clone(),
-            proof: vec![0u8; 64],
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::Medium,
-        };
+        let short_proof = ZeroKnowledgeProof::new(
+            challenge_data.clone(),
+            vec![0u8; 64],
+            Utc::now(),
+            ProofComplexity::Medium,
+        );
         let result = auth.verify_proof(&short_proof, &challenge_data)?;
         assert!(!result, "Medium-complexity proof without timestamp should fail");
         Ok(())
     }
 
     #[test]
-    fn test_verify_proof_high_short_proof_rejects() -> Result<()> {
+    fn test_verify_proof_high_short_proof_rejects_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
         let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::High);
         let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
 
         let challenge_data = vec![1u8; 128];
         // Proof is 70 bytes — too short for High (needs 72)
-        let short_proof = ZeroKnowledgeProof {
-            challenge: challenge_data.clone(),
-            proof: vec![0u8; 70],
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::High,
-        };
+        let short_proof = ZeroKnowledgeProof::new(
+            challenge_data.clone(),
+            vec![0u8; 70],
+            Utc::now(),
+            ProofComplexity::High,
+        );
         let result = auth.verify_proof(&short_proof, &challenge_data)?;
         assert!(!result, "High-complexity proof too short should fail");
         Ok(())
     }
 
     #[test]
-    fn test_zero_knowledge_proof_debug_and_clone() {
-        let proof = ZeroKnowledgeProof {
-            challenge: vec![1, 2, 3],
-            proof: vec![0u8; 64],
-            timestamp: Utc::now(),
-            complexity: ProofComplexity::Low,
-        };
+    fn test_zero_knowledge_proof_debug_and_clone_succeeds() {
+        let proof =
+            ZeroKnowledgeProof::new(vec![1, 2, 3], vec![0u8; 64], Utc::now(), ProofComplexity::Low);
         let cloned = proof.clone();
-        assert_eq!(cloned.challenge, proof.challenge);
-        assert_eq!(cloned.proof, proof.proof);
+        assert_eq!(cloned.challenge(), proof.challenge());
+        assert_eq!(cloned.proof_data(), proof.proof_data());
         let debug = format!("{:?}", proof);
         assert!(debug.contains("ZeroKnowledgeProof"));
     }
 
     #[test]
-    fn test_proof_of_possession_data_debug_and_clone() {
-        let pop = ProofOfPossessionData {
-            public_key: vec![1, 2, 3],
-            signature: vec![0u8; 64],
-            timestamp: Utc::now(),
-        };
+    fn test_proof_of_possession_data_debug_and_clone_succeeds() {
+        let pop =
+            ProofOfPossessionData::new(PublicKey::new(vec![1, 2, 3]), vec![0u8; 64], Utc::now());
         let cloned = pop.clone();
-        assert_eq!(cloned.public_key, pop.public_key);
+        assert_eq!(cloned.public_key(), pop.public_key());
         let debug = format!("{:?}", pop);
         assert!(debug.contains("ProofOfPossessionData"));
+    }
+
+    // =========================================================================
+    // Pattern P4: ZeroTrustConfig Parameter Influence Tests
+    // Each test proves changing ONLY one field changes the observable output.
+    // =========================================================================
+
+    #[test]
+    fn test_challenge_timeout_ms_influences_challenge_timeout_succeeds() -> Result<()> {
+        let (public_key_a, private_key_a) = generate_keypair()?;
+        let config_a = ZeroTrustConfig::new().with_timeout(1000);
+        let auth_a = ZeroTrustAuth::with_config(public_key_a, private_key_a, config_a)?;
+        let challenge_a = auth_a.generate_challenge()?;
+
+        let (public_key_b, private_key_b) = generate_keypair()?;
+        let config_b = ZeroTrustConfig::new().with_timeout(9999);
+        let auth_b = ZeroTrustAuth::with_config(public_key_b, private_key_b, config_b)?;
+        let challenge_b = auth_b.generate_challenge()?;
+
+        assert_ne!(
+            challenge_a.timeout_ms(),
+            challenge_b.timeout_ms(),
+            "challenge_timeout_ms must influence the timeout embedded in generated challenges"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_proof_complexity_influences_challenge_data_size_has_correct_size() -> Result<()> {
+        let (public_key_a, private_key_a) = generate_keypair()?;
+        let config_a = ZeroTrustConfig::new().with_complexity(ProofComplexity::Low);
+        let auth_a = ZeroTrustAuth::with_config(public_key_a, private_key_a, config_a)?;
+        let challenge_a = auth_a.generate_challenge()?;
+
+        let (public_key_b, private_key_b) = generate_keypair()?;
+        let config_b = ZeroTrustConfig::new().with_complexity(ProofComplexity::High);
+        let auth_b = ZeroTrustAuth::with_config(public_key_b, private_key_b, config_b)?;
+        let challenge_b = auth_b.generate_challenge()?;
+
+        // Low => 32-byte challenge, High => 128-byte challenge
+        assert_ne!(
+            challenge_a.data().len(),
+            challenge_b.data().len(),
+            "proof_complexity must influence the size of generated challenge data"
+        );
+        assert_eq!(challenge_a.data().len(), 32, "Low complexity must produce 32-byte challenge");
+        assert_eq!(
+            challenge_b.data().len(),
+            128,
+            "High complexity must produce 128-byte challenge"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_proof_complexity_influences_proof_data_size_has_correct_size() -> Result<()> {
+        let (public_key_a, private_key_a) = generate_keypair()?;
+        let config_a = ZeroTrustConfig::new().with_complexity(ProofComplexity::Low);
+        let auth_a = ZeroTrustAuth::with_config(public_key_a, private_key_a, config_a)?;
+        let challenge_a = auth_a.generate_challenge()?;
+        let proof_a = auth_a.generate_proof(challenge_a.data())?;
+
+        let (public_key_b, private_key_b) = generate_keypair()?;
+        let config_b = ZeroTrustConfig::new().with_complexity(ProofComplexity::Medium);
+        let auth_b = ZeroTrustAuth::with_config(public_key_b, private_key_b, config_b)?;
+        let challenge_b = auth_b.generate_challenge()?;
+        let proof_b = auth_b.generate_proof(challenge_b.data())?;
+
+        // Low: only signature (64 bytes), Medium: signature + 8-byte timestamp (72 bytes)
+        assert_ne!(
+            proof_a.proof_data().len(),
+            proof_b.proof_data().len(),
+            "proof_complexity must influence the size of generated proof data"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_continuous_verification_influences_verify_continuously_succeeds() -> Result<()> {
+        let (public_key_a, private_key_a) = generate_keypair()?;
+        // continuous_verification=false: verify_continuously returns Verified immediately
+        let config_a = ZeroTrustConfig::new()
+            .with_continuous_verification(false)
+            .with_verification_interval(1); // 1ms interval — irrelevant when cv=false
+        let auth_a = ZeroTrustAuth::with_config(public_key_a, private_key_a, config_a)?;
+
+        let (public_key_b, private_key_b) = generate_keypair()?;
+        // continuous_verification=true with 1ms interval triggers Pending immediately
+        let config_b =
+            ZeroTrustConfig::new().with_continuous_verification(true).with_verification_interval(1);
+        let auth_b = ZeroTrustAuth::with_config(public_key_b, private_key_b, config_b)?;
+
+        // Sleep to ensure the 1ms verification interval elapses for auth_b
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
+        // auth_a (cv=false) must stay Verified since cv is disabled
+        let status_a = auth_a.verify_continuously()?;
+        // auth_b (cv=true, 1ms) must go Pending after the interval elapses
+        let status_b = auth_b.verify_continuously()?;
+
+        // cv=false → Verified; cv=true + 1ms → Pending (interval already elapsed)
+        assert_eq!(
+            status_a,
+            VerificationStatus::Verified,
+            "continuous_verification=false must return Verified without interval check"
+        );
+        assert_eq!(
+            status_b,
+            VerificationStatus::Pending,
+            "continuous_verification=true with 1ms interval must return Pending after elapsed"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_verification_interval_ms_influences_continuous_session_validity_succeeds() -> Result<()>
+    {
+        let (public_key_a, private_key_a) = generate_keypair()?;
+        // Very short interval (1ms): is_valid() will return false almost immediately
+        let config_a =
+            ZeroTrustConfig::new().with_continuous_verification(true).with_verification_interval(1);
+        let auth_a = ZeroTrustAuth::with_config(public_key_a, private_key_a, config_a)?;
+
+        let (public_key_b, private_key_b) = generate_keypair()?;
+        // Long interval (1 hour): is_valid() stays true
+        let config_b = ZeroTrustConfig::new()
+            .with_continuous_verification(true)
+            .with_verification_interval(3_600_000);
+        let auth_b = ZeroTrustAuth::with_config(public_key_b, private_key_b, config_b)?;
+
+        let session_a = auth_a.start_continuous_verification();
+        let session_b = auth_b.start_continuous_verification();
+
+        // Let 1ms pass so the short-interval session expires
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
+        let valid_a = session_a.is_valid()?;
+        let valid_b = session_b.is_valid()?;
+
+        assert_ne!(
+            valid_a, valid_b,
+            "verification_interval_ms must influence continuous session validity"
+        );
+        assert!(!valid_a, "1ms interval session must be invalid after 5ms sleep");
+        assert!(valid_b, "1-hour interval session must remain valid");
+        Ok(())
     }
 }

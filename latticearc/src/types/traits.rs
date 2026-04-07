@@ -1,280 +1,26 @@
 //! Core traits for cryptographic operations.
 //!
-//! Defines the interfaces for encryption, decryption, signing, verification,
-//! key derivation, and hardware-aware operations. All traits are pure Rust
+//! Defines zero-trust authentication, proof-of-possession, continuous
+//! verification, and scheme-selection interfaces. All traits are pure Rust
 //! with zero FFI dependencies.
+//!
+//! # Historical note
+//!
+//! Earlier revisions of this module defined a much broader catalogue of
+//! generic traits (`Encryptable`, `Decryptable`, `Signable`, `Verifiable`,
+//! `KeyDerivable`, `AsyncEncryptable`, ..., `HardwareAware`,
+//! `HardwareAccelerator`, ...). None of them had any implementors in the
+//! crate, and they diverged from the actually-used APIs exposed by
+//! [`primitives`](crate::primitives) and [`unified_api`](crate::unified_api).
+//! They were removed as part of the design-pattern consistency cleanup
+//! (P4.1). The traits below are the only ones that currently have live
+//! implementors.
 
 // Traits use `std::result::Result<T, Self::Error>` with generic associated error types,
 // which cannot use the crate's `Result<T>` alias (fixed to `TypeError`).
 #![allow(unused_qualifications)]
 
 use crate::types::types::CryptoContext;
-use async_trait::async_trait;
-
-/// Trait for types that can encrypt data.
-pub trait Encryptable {
-    /// The output type of encryption operations.
-    type Output;
-    /// The error type for encryption failures.
-    type Error;
-
-    /// Encrypts data with default settings.
-    ///
-    /// # Errors
-    /// Returns an error if encryption fails (implementation-defined).
-    fn encrypt(&self, data: &[u8]) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Encrypts data with the provided cryptographic context.
-    ///
-    /// # Errors
-    /// Returns an error if encryption fails (implementation-defined).
-    fn encrypt_with_context(
-        &self,
-        data: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-}
-
-/// Trait for types that can decrypt data.
-pub trait Decryptable {
-    /// The output type of decryption operations.
-    type Output;
-    /// The error type for decryption failures.
-    type Error;
-
-    /// Decrypts data with default settings.
-    ///
-    /// # Errors
-    /// Returns an error if decryption fails (implementation-defined).
-    fn decrypt(&self, encrypted: &[u8]) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Decrypts data with the provided cryptographic context.
-    ///
-    /// # Errors
-    /// Returns an error if decryption fails (implementation-defined).
-    fn decrypt_with_context(
-        &self,
-        encrypted: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-}
-
-/// Trait for types that can sign messages.
-pub trait Signable {
-    /// The output type of signing operations (typically a signature).
-    type Output;
-    /// The error type for signing failures.
-    type Error;
-
-    /// Signs a message with default settings.
-    ///
-    /// # Errors
-    /// Returns an error if signing fails (implementation-defined).
-    fn sign(&self, message: &[u8]) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Signs a message with the provided cryptographic context.
-    ///
-    /// # Errors
-    /// Returns an error if signing fails (implementation-defined).
-    fn sign_with_context(
-        &self,
-        message: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-}
-
-/// Trait for types that can verify signatures.
-pub trait Verifiable {
-    /// The error type for verification failures.
-    type Error;
-
-    /// Verifies a signature against a message.
-    ///
-    /// # Errors
-    /// Returns an error if verification fails (implementation-defined).
-    fn verify(&self, message: &[u8], signature: &[u8]) -> std::result::Result<bool, Self::Error>;
-
-    /// Verifies a signature with the provided cryptographic context.
-    ///
-    /// # Errors
-    /// Returns an error if verification fails (implementation-defined).
-    fn verify_with_context(
-        &self,
-        message: &[u8],
-        signature: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<bool, Self::Error>;
-}
-
-/// Trait for types that can derive keys.
-pub trait KeyDerivable {
-    /// The output type of key derivation (typically a key).
-    type Output;
-    /// The error type for derivation failures.
-    type Error;
-
-    /// Derives a key from input material and application-specific info.
-    ///
-    /// # Errors
-    /// Returns an error if key derivation fails (implementation-defined).
-    fn derive_key(
-        &self,
-        input: &[u8],
-        info: &[u8],
-        length: usize,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Derives a key from a password using a salt.
-    ///
-    /// # Errors
-    /// Returns an error if key derivation fails (implementation-defined).
-    fn derive_key_from_password(
-        &self,
-        password: &str,
-        salt: &[u8],
-        length: usize,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-}
-
-/// Async version of [`Encryptable`] for async cryptographic operations.
-#[async_trait]
-pub trait AsyncEncryptable: Send + Sync {
-    /// The output type of encryption operations.
-    type Output;
-    /// The error type for encryption failures.
-    type Error;
-
-    /// Encrypts data asynchronously with default settings.
-    ///
-    /// # Errors
-    /// Returns an error if encryption fails (implementation-defined).
-    async fn encrypt(&self, data: &[u8]) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Encrypts data asynchronously with the provided context.
-    ///
-    /// # Errors
-    /// Returns an error if encryption fails (implementation-defined).
-    async fn encrypt_with_context(
-        &self,
-        data: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Encrypts multiple data chunks in batch.
-    ///
-    /// # Errors
-    /// Returns an error if any encryption fails (implementation-defined).
-    async fn encrypt_batch(
-        &self,
-        data: &[&[u8]],
-    ) -> std::result::Result<Vec<Self::Output>, Self::Error>;
-}
-
-/// Async version of [`Decryptable`] for async cryptographic operations.
-#[async_trait]
-pub trait AsyncDecryptable: Send + Sync {
-    /// The output type of decryption operations.
-    type Output;
-    /// The error type for decryption failures.
-    type Error;
-
-    /// Decrypts data asynchronously with default settings.
-    ///
-    /// # Errors
-    /// Returns an error if decryption fails (implementation-defined).
-    async fn decrypt(&self, encrypted: &[u8]) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Decrypts data asynchronously with the provided context.
-    ///
-    /// # Errors
-    /// Returns an error if decryption fails (implementation-defined).
-    async fn decrypt_with_context(
-        &self,
-        encrypted: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Decrypts multiple ciphertexts in batch.
-    ///
-    /// # Errors
-    /// Returns an error if any decryption fails (implementation-defined).
-    async fn decrypt_batch(
-        &self,
-        encrypted: &[&[u8]],
-    ) -> std::result::Result<Vec<Self::Output>, Self::Error>;
-}
-
-/// Async version of [`Signable`] for async cryptographic operations.
-#[async_trait]
-pub trait AsyncSignable: Send + Sync {
-    /// The output type of signing operations.
-    type Output;
-    /// The error type for signing failures.
-    type Error;
-
-    /// Signs a message asynchronously with default settings.
-    ///
-    /// # Errors
-    /// Returns an error if signing fails (implementation-defined).
-    async fn sign(&self, message: &[u8]) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Signs a message asynchronously with the provided context.
-    ///
-    /// # Errors
-    /// Returns an error if signing fails (implementation-defined).
-    async fn sign_with_context(
-        &self,
-        message: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<Self::Output, Self::Error>;
-
-    /// Signs multiple messages in batch.
-    ///
-    /// # Errors
-    /// Returns an error if any signing fails (implementation-defined).
-    async fn sign_batch(
-        &self,
-        messages: &[&[u8]],
-    ) -> std::result::Result<Vec<Self::Output>, Self::Error>;
-}
-
-/// Async version of [`Verifiable`] for async cryptographic operations.
-#[async_trait]
-pub trait AsyncVerifiable: Send + Sync {
-    /// The error type for verification failures.
-    type Error;
-
-    /// Verifies a signature asynchronously.
-    ///
-    /// # Errors
-    /// Returns an error if verification fails (implementation-defined).
-    async fn verify(
-        &self,
-        message: &[u8],
-        signature: &[u8],
-    ) -> std::result::Result<bool, Self::Error>;
-
-    /// Verifies a signature asynchronously with the provided context.
-    ///
-    /// # Errors
-    /// Returns an error if verification fails (implementation-defined).
-    async fn verify_with_context(
-        &self,
-        message: &[u8],
-        signature: &[u8],
-        ctx: &CryptoContext,
-    ) -> std::result::Result<bool, Self::Error>;
-
-    /// Verifies multiple signatures in batch.
-    ///
-    /// # Errors
-    /// Returns an error if any verification fails (implementation-defined).
-    async fn verify_batch(
-        &self,
-        messages: &[&[u8]],
-        signatures: &[&[u8]],
-    ) -> std::result::Result<Vec<bool>, Self::Error>;
-}
 
 /// Trait for zero-trust authentication with challenge-response proofs.
 pub trait ZeroTrustAuthenticable {
@@ -339,6 +85,7 @@ pub trait ContinuousVerifiable {
 }
 
 /// Status of continuous verification.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum VerificationStatus {
@@ -376,34 +123,8 @@ mod kani_proofs {
     }
 }
 
-/// Trait for hardware-aware operations.
-pub trait HardwareAware {
-    /// The error type for hardware operations.
-    type Error;
-
-    /// Detects available hardware accelerators.
-    fn detect_hardware(&self) -> HardwareInfo;
-
-    /// Routes an operation to the best available hardware.
-    ///
-    /// # Errors
-    /// Returns an error if the operation fails (implementation-defined).
-    fn route_to_best_hardware<F, R>(&self, f: F) -> std::result::Result<R, Self::Error>
-    where
-        F: FnOnce(&dyn HardwareAccelerator) -> std::result::Result<R, Self::Error>;
-}
-
-/// Trait for hardware accelerator implementations.
-pub trait HardwareAccelerator {
-    /// Returns the human-readable name of the accelerator.
-    fn name(&self) -> &str;
-    /// Returns the type of hardware.
-    fn hardware_type(&self) -> HardwareType;
-    /// Returns whether the accelerator is currently available.
-    fn is_available(&self) -> bool;
-}
-
 /// Type of hardware accelerator.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum HardwareType {
     /// CPU with SIMD extensions.
@@ -499,6 +220,7 @@ pub struct DataCharacteristics {
 }
 
 /// Type of pattern detected in data.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum PatternType {
     /// High-entropy random data.

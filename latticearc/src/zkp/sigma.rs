@@ -15,22 +15,66 @@
 //! - Special soundness: Given two accepting transcripts with same A, extract witness
 //! - Honest-verifier zero-knowledge: Simulator can produce indistinguishable transcripts
 
+use crate::primitives::hash::sha2::sha256;
 use crate::zkp::error::{Result, ZkpError};
 use k256::elliptic_curve::{PrimeField, ops::Reduce};
-use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A sigma protocol proof (non-interactive via Fiat-Shamir)
-#[derive(Debug, Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SigmaProof {
     /// Commitment (first message)
-    pub commitment: Vec<u8>,
+    commitment: Vec<u8>,
     /// Challenge (derived via Fiat-Shamir)
-    pub challenge: [u8; 32],
+    challenge: [u8; 32],
     /// Response (third message)
-    pub response: Vec<u8>,
+    response: Vec<u8>,
+}
+
+impl SigmaProof {
+    /// Construct a proof from its constituent parts.
+    #[must_use]
+    pub fn new(commitment: Vec<u8>, challenge: [u8; 32], response: Vec<u8>) -> Self {
+        Self { commitment, challenge, response }
+    }
+
+    /// Return a reference to the commitment bytes (first message).
+    #[must_use]
+    pub fn commitment(&self) -> &[u8] {
+        &self.commitment
+    }
+
+    /// Return a reference to the Fiat-Shamir challenge bytes.
+    #[must_use]
+    pub fn challenge(&self) -> &[u8; 32] {
+        &self.challenge
+    }
+
+    /// Return a reference to the response bytes (third message).
+    #[must_use]
+    pub fn response(&self) -> &[u8] {
+        &self.response
+    }
+
+    /// Return a mutable reference to the challenge bytes.
+    ///
+    /// Intended for test tampering scenarios only.
+    #[must_use]
+    pub fn challenge_mut(&mut self) -> &mut [u8; 32] {
+        &mut self.challenge
+    }
+}
+
+impl std::fmt::Debug for SigmaProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SigmaProof")
+            .field("commitment", &format!("[{} bytes]", self.commitment.len()))
+            .field("challenge", &"[REDACTED]")
+            .field("response", &"[REDACTED]")
+            .finish()
+    }
 }
 
 /// Trait for implementing sigma protocols
@@ -107,6 +151,7 @@ pub struct FiatShamir<P: SigmaProtocol> {
 
 impl<P: SigmaProtocol> FiatShamir<P> {
     /// Create a new Fiat-Shamir wrapper
+    #[must_use]
     pub fn new(protocol: P, domain_separator: &[u8]) -> Self {
         Self { protocol, domain_separator: domain_separator.to_vec() }
     }
@@ -126,13 +171,13 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         let commitment_bytes = self.protocol.serialize_commitment(&commitment);
 
         // Step 2: Compute Fiat-Shamir challenge
-        let challenge = self.compute_challenge(statement, &commitment_bytes, context);
+        let challenge = self.compute_challenge(statement, &commitment_bytes, context)?;
 
         // Step 3: Generate response
         let response = self.protocol.respond(witness, commit_state, &challenge)?;
         let response_bytes = self.protocol.serialize_response(&response);
 
-        Ok(SigmaProof { commitment: commitment_bytes, challenge, response: response_bytes })
+        Ok(SigmaProof::new(commitment_bytes, challenge, response_bytes))
     }
 
     /// Verify a non-interactive proof
@@ -146,18 +191,18 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         context: &[u8],
     ) -> Result<bool> {
         // Recompute challenge
-        let expected_challenge = self.compute_challenge(statement, &proof.commitment, context);
+        let expected_challenge = self.compute_challenge(statement, proof.commitment(), context)?;
 
         // Constant-time challenge comparison to prevent timing side-channels
-        if expected_challenge.ct_eq(&proof.challenge).unwrap_u8() == 0 {
+        if expected_challenge.ct_eq(proof.challenge()).unwrap_u8() == 0 {
             return Ok(false);
         }
 
         // Deserialize and verify
-        let commitment = self.protocol.deserialize_commitment(&proof.commitment)?;
-        let response = self.protocol.deserialize_response(&proof.response)?;
+        let commitment = self.protocol.deserialize_commitment(proof.commitment())?;
+        let response = self.protocol.deserialize_response(proof.response())?;
 
-        self.protocol.verify(statement, &commitment, &proof.challenge, &response)
+        self.protocol.verify(statement, &commitment, proof.challenge(), &response)
     }
 
     /// Compute Fiat-Shamir challenge
@@ -165,34 +210,42 @@ impl<P: SigmaProtocol> FiatShamir<P> {
     /// # Safety
     /// Uses saturating conversion for length encoding. ZKP data is always
     /// small enough to fit in u32, but we use saturating_cast for safety.
+    ///
+    /// # Errors
+    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
     fn compute_challenge(
         &self,
         statement: &P::Statement,
         commitment: &[u8],
         context: &[u8],
-    ) -> [u8; 32] {
-        let mut hasher = Sha256::new();
-
-        // Domain separation
-        hasher.update(&self.domain_separator);
-
-        // Statement - use saturating conversion (ZKP data is always small)
+    ) -> Result<[u8; 32]> {
+        // Accumulate into a buffer and route through the primitives wrapper
+        // so hash backends remain swappable in one place.
         let statement_bytes = self.protocol.serialize_statement(statement);
         let statement_len = u32::try_from(statement_bytes.len()).unwrap_or(u32::MAX);
-        hasher.update(statement_len.to_le_bytes());
-        hasher.update(&statement_bytes);
-
-        // Commitment
         let commitment_len = u32::try_from(commitment.len()).unwrap_or(u32::MAX);
-        hasher.update(commitment_len.to_le_bytes());
-        hasher.update(commitment);
-
-        // Context
         let context_len = u32::try_from(context.len()).unwrap_or(u32::MAX);
-        hasher.update(context_len.to_le_bytes());
-        hasher.update(context);
 
-        hasher.finalize().into()
+        let mut buf = Vec::with_capacity(
+            self.domain_separator
+                .len()
+                .saturating_add(4)
+                .saturating_add(statement_bytes.len())
+                .saturating_add(4)
+                .saturating_add(commitment.len())
+                .saturating_add(4)
+                .saturating_add(context.len()),
+        );
+        buf.extend_from_slice(&self.domain_separator);
+        buf.extend_from_slice(&statement_len.to_le_bytes());
+        buf.extend_from_slice(&statement_bytes);
+        buf.extend_from_slice(&commitment_len.to_le_bytes());
+        buf.extend_from_slice(commitment);
+        buf.extend_from_slice(&context_len.to_le_bytes());
+        buf.extend_from_slice(context);
+
+        // ZKP payloads are always well below the 1 GiB SHA-256 DoS cap.
+        sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))
     }
 }
 
@@ -202,16 +255,66 @@ impl<P: SigmaProtocol> FiatShamir<P> {
 
 /// Proof that two discrete logs are equal
 /// Given (G, H, P, Q), prove knowledge of x such that P = x*G and Q = x*H
-#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct DlogEqualityProof {
     /// First commitment A = k*G
-    pub a: [u8; 33],
+    /// Consumer: verify(), a()
+    a: [u8; 33],
     /// Second commitment B = k*H
-    pub b: [u8; 33],
+    /// Consumer: verify(), b()
+    b: [u8; 33],
     /// Challenge
-    pub challenge: [u8; 32],
+    /// Consumer: verify(), challenge()
+    challenge: [u8; 32],
     /// Response s = k + c*x
-    pub response: [u8; 32],
+    /// Consumer: verify(), response()
+    response: [u8; 32],
+}
+
+impl DlogEqualityProof {
+    /// Construct a proof from raw field bytes.
+    ///
+    /// This is intended for deserialization and testing. Callers are responsible
+    /// for ensuring the bytes represent a valid proof.
+    #[must_use]
+    pub fn new(a: [u8; 33], b: [u8; 33], challenge: [u8; 32], response: [u8; 32]) -> Self {
+        Self { a, b, challenge, response }
+    }
+
+    /// Return the first commitment bytes A = k*G (compressed, 33 bytes).
+    #[must_use]
+    pub fn a(&self) -> &[u8; 33] {
+        &self.a
+    }
+
+    /// Return the second commitment bytes B = k*H (compressed, 33 bytes).
+    #[must_use]
+    pub fn b(&self) -> &[u8; 33] {
+        &self.b
+    }
+
+    /// Return the Fiat-Shamir challenge bytes (32 bytes).
+    #[must_use]
+    pub fn challenge(&self) -> &[u8; 32] {
+        &self.challenge
+    }
+
+    /// Return the response scalar bytes s = k + c*x (32 bytes).
+    #[must_use]
+    pub fn response(&self) -> &[u8; 32] {
+        &self.response
+    }
+}
+
+impl std::fmt::Debug for DlogEqualityProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DlogEqualityProof")
+            .field("a", &self.a)
+            .field("b", &self.b)
+            .field("challenge", &"[REDACTED]")
+            .field("response", &"[REDACTED]")
+            .finish()
+    }
 }
 
 /// Statement for discrete log equality
@@ -244,7 +347,7 @@ impl DlogEqualityProof {
     ) -> Result<Self> {
         use k256::{
             FieldBytes, Scalar,
-            elliptic_curve::{Field, group::GroupEncoding},
+            elliptic_curve::{group::GroupEncoding, ops::Reduce},
         };
 
         // Parse generators
@@ -255,8 +358,11 @@ impl DlogEqualityProof {
         let x: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(secret)).into();
         let x = x.ok_or(ZkpError::InvalidScalar)?;
 
-        // Random nonce
-        let k = Scalar::random(&mut rand::rngs::OsRng);
+        // Random nonce via primitives layer
+        let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
+        let k = <Scalar as Reduce<k256::U256>>::reduce_bytes(k256::FieldBytes::from_slice(
+            &nonce_bytes,
+        ));
 
         // Commitments
         let a_point = g * k;
@@ -268,7 +374,7 @@ impl DlogEqualityProof {
             .map_err(|e| ZkpError::SerializationError(format!("Failed to serialize B: {}", e)))?;
 
         // Challenge
-        let challenge = Self::compute_challenge(statement, &a_bytes, &b_bytes, context);
+        let challenge = Self::compute_challenge(statement, &a_bytes, &b_bytes, context)?;
         let c = <Scalar as Reduce<k256::U256>>::reduce_bytes(FieldBytes::from_slice(&challenge));
 
         // Response
@@ -298,7 +404,7 @@ impl DlogEqualityProof {
         let b = Self::parse_point(&self.b)?;
 
         // Constant-time challenge comparison to prevent timing side-channels
-        let expected_challenge = Self::compute_challenge(statement, &self.a, &self.b, context);
+        let expected_challenge = Self::compute_challenge(statement, &self.a, &self.b, context)?;
         if expected_challenge.ct_eq(&self.challenge).unwrap_u8() == 0 {
             return Ok(false);
         }
@@ -309,14 +415,15 @@ impl DlogEqualityProof {
         let c =
             <Scalar as Reduce<k256::U256>>::reduce_bytes(FieldBytes::from_slice(&self.challenge));
 
-        // Verify: s*G == A + c*P and s*H == B + c*Q
+        // Verify: s*G == A + c*P and s*H == B + c*Q (constant-time comparison)
         let lhs1 = g * s;
         let rhs1 = a + p * c;
 
         let lhs2 = h * s;
         let rhs2 = b + q * c;
 
-        Ok(lhs1 == rhs1 && lhs2 == rhs2)
+        // Use bitwise AND to avoid short-circuit evaluation
+        Ok(bool::from(lhs1.ct_eq(&rhs1)) & bool::from(lhs2.ct_eq(&rhs2)))
     }
 
     fn parse_point(bytes: &[u8; 33]) -> Result<k256::ProjectivePoint> {
@@ -330,22 +437,31 @@ impl DlogEqualityProof {
         point.ok_or(ZkpError::InvalidPublicKey)
     }
 
+    /// # Errors
+    /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
     fn compute_challenge(
         statement: &DlogEqualityStatement,
         a: &[u8; 33],
         b: &[u8; 33],
         context: &[u8],
-    ) -> [u8; 32] {
-        let mut hasher = Sha256::new();
-        hasher.update(b"arc-zkp/dlog-equality-v1");
-        hasher.update(statement.g);
-        hasher.update(statement.h);
-        hasher.update(statement.p);
-        hasher.update(statement.q);
-        hasher.update(a);
-        hasher.update(b);
-        hasher.update(context);
-        hasher.finalize().into()
+    ) -> Result<[u8; 32]> {
+        // Accumulate into a buffer and route through the primitives wrapper
+        // so hash backends remain swappable in one place.
+        let label = b"arc-zkp/dlog-equality-v1";
+        let mut buf = Vec::with_capacity(
+            label.len().saturating_add(33 * 4).saturating_add(33 * 2).saturating_add(context.len()),
+        );
+        buf.extend_from_slice(label);
+        buf.extend_from_slice(&statement.g);
+        buf.extend_from_slice(&statement.h);
+        buf.extend_from_slice(&statement.p);
+        buf.extend_from_slice(&statement.q);
+        buf.extend_from_slice(a);
+        buf.extend_from_slice(b);
+        buf.extend_from_slice(context);
+
+        // 200 bytes of compressed points and labels — well below SHA-256 DoS cap.
+        sha256(&buf).map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {}", e)))
     }
 }
 
@@ -358,7 +474,7 @@ mod tests {
     };
 
     #[test]
-    fn test_dlog_equality_proof() {
+    fn test_dlog_equality_proof_succeeds() {
         // Generate secret
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
@@ -384,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_wrong_context() {
+    fn test_dlog_equality_wrong_context_fails_verification_fails() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
@@ -406,7 +522,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_wrong_secret() {
+    fn test_dlog_equality_wrong_secret_fails_verification_fails() {
         // Prove with one secret, verify with a statement that uses a different discrete log
         let x_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = x_key.to_bytes().into();
@@ -437,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_tampered_challenge() {
+    fn test_dlog_equality_tampered_challenge_fails_verification_fails() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
@@ -461,7 +577,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_tampered_response() {
+    fn test_dlog_equality_tampered_response_fails_verification_fails() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
@@ -490,7 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_invalid_point() {
+    fn test_dlog_equality_invalid_point_returns_error() {
         // Use invalid SEC1 prefix byte (must be 0x02 or 0x03 for compressed)
         let mut invalid_point: [u8; 33] = [0x05; 33]; // Invalid prefix
         invalid_point[0] = 0x05;
@@ -507,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_proof_fields() {
+    fn test_dlog_equality_proof_fields_are_populated_succeeds() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
@@ -540,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_statement_clone_debug() {
+    fn test_dlog_equality_statement_clone_debug_succeeds() {
         let g: [u8; 33] =
             <[u8; 33]>::try_from(ProjectivePoint::GENERATOR.to_affine().to_bytes().as_slice())
                 .unwrap();
@@ -554,20 +670,19 @@ mod tests {
     }
 
     #[test]
-    fn test_sigma_proof_fields() {
-        let proof =
-            SigmaProof { commitment: vec![1, 2, 3], challenge: [0u8; 32], response: vec![4, 5, 6] };
+    fn test_sigma_proof_fields_are_populated_succeeds() {
+        let proof = SigmaProof::new(vec![1, 2, 3], [0u8; 32], vec![4, 5, 6]);
         let proof2 = proof.clone();
-        assert_eq!(proof.commitment, proof2.commitment);
-        assert_eq!(proof.challenge, proof2.challenge);
-        assert_eq!(proof.response, proof2.response);
+        assert_eq!(proof.commitment(), proof2.commitment());
+        assert_eq!(proof.challenge(), proof2.challenge());
+        assert_eq!(proof.response(), proof2.response());
 
         let debug = format!("{:?}", proof);
         assert!(debug.contains("SigmaProof"));
     }
 
     #[test]
-    fn test_dlog_equality_different_generators() {
+    fn test_dlog_equality_different_generators_succeeds() {
         // Use a different multiplier for H
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
@@ -609,10 +724,10 @@ mod tests {
             witness: &Self::Witness,
         ) -> Result<(Self::Commitment, Vec<u8>)> {
             // Deterministic commitment: hash of witness
-            let mut hasher = Sha256::new();
-            hasher.update(b"mock-commit");
-            hasher.update(witness);
-            let commitment = hasher.finalize().to_vec();
+            let mut buf = Vec::with_capacity(b"mock-commit".len() + witness.len());
+            buf.extend_from_slice(b"mock-commit");
+            buf.extend_from_slice(witness);
+            let commitment = sha256(&buf).unwrap().to_vec();
             // State = copy of witness for respond()
             Ok((commitment, witness.clone()))
         }
@@ -624,11 +739,13 @@ mod tests {
             challenge: &[u8; 32],
         ) -> Result<Self::Response> {
             // Response: hash(commitment_state || challenge)
-            let mut hasher = Sha256::new();
-            hasher.update(b"mock-response");
-            hasher.update(&commitment_state);
-            hasher.update(challenge);
-            Ok(hasher.finalize().to_vec())
+            let mut buf = Vec::with_capacity(
+                b"mock-response".len() + commitment_state.len() + challenge.len(),
+            );
+            buf.extend_from_slice(b"mock-response");
+            buf.extend_from_slice(&commitment_state);
+            buf.extend_from_slice(challenge);
+            Ok(sha256(&buf).unwrap().to_vec())
         }
 
         fn verify(
@@ -665,7 +782,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fiat_shamir_prove_verify_roundtrip() {
+    fn test_fiat_shamir_prove_verify_roundtrip_succeeds() {
         let fs = FiatShamir::new(MockSigmaProtocol, b"test-domain");
         let statement = vec![1u8; 32];
         let witness = vec![42u8; 16];
@@ -673,9 +790,9 @@ mod tests {
         let proof = fs.prove(&statement, &witness, b"context").unwrap();
 
         // Proof fields should be populated
-        assert_eq!(proof.commitment.len(), 32);
-        assert_eq!(proof.challenge.len(), 32);
-        assert_eq!(proof.response.len(), 32);
+        assert_eq!(proof.commitment().len(), 32);
+        assert_eq!(proof.challenge().len(), 32);
+        assert_eq!(proof.response().len(), 32);
 
         // Verification should succeed
         assert!(fs.verify(&statement, &proof, b"context").unwrap());
@@ -700,14 +817,14 @@ mod tests {
         let witness = vec![42u8; 16];
 
         let mut proof = fs.prove(&statement, &witness, b"ctx").unwrap();
-        proof.challenge[0] ^= 0xFF; // Tamper with challenge
+        proof.challenge_mut()[0] ^= 0xFF; // Tamper with challenge
 
         // Recomputed challenge won't match tampered one
         assert!(!fs.verify(&statement, &proof, b"ctx").unwrap());
     }
 
     #[test]
-    fn test_fiat_shamir_different_domain_separators() {
+    fn test_fiat_shamir_different_domain_separators_produce_different_proofs_succeeds() {
         let fs1 = FiatShamir::new(MockSigmaProtocol, b"domain-1");
         let fs2 = FiatShamir::new(MockSigmaProtocol, b"domain-2");
         let statement = vec![1u8; 32];
@@ -720,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fiat_shamir_different_statements() {
+    fn test_fiat_shamir_different_statements_produce_different_proofs_succeeds() {
         let fs = FiatShamir::new(MockSigmaProtocol, b"domain");
         let statement1 = vec![1u8; 32];
         let statement2 = vec![2u8; 32];
@@ -733,7 +850,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fiat_shamir_empty_domain_and_context() {
+    fn test_fiat_shamir_empty_domain_and_context_succeeds() {
         let fs = FiatShamir::new(MockSigmaProtocol, b"");
         let statement = vec![0u8; 32];
         let witness = vec![0u8; 8];
@@ -743,7 +860,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_empty_context() {
+    fn test_dlog_equality_empty_context_succeeds() {
         let secret_key = SecretKey::random(&mut rand::thread_rng());
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();

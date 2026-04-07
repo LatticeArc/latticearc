@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 
@@ -8,22 +8,38 @@
 //! Ed25519 signature implementation using ed25519-dalek crate.
 //! Provides high-performance, RFC 8032 compliant Ed25519 signatures.
 
-use super::traits::{EcKeyPair, EcSignature};
+use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::rngs::OsRng;
+use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
 /// Ed25519 key pair implementation
+///
+/// The secret key is automatically zeroized on drop via `ed25519_dalek::SigningKey`'s
+/// own `ZeroizeOnDrop` impl (enabled by the `zeroize` feature on `ed25519-dalek`).
 pub struct Ed25519KeyPair {
     public_key: VerifyingKey,
     secret_key: SigningKey,
 }
 
-impl EcKeyPair for Ed25519KeyPair {
-    type PublicKey = VerifyingKey;
-    type SecretKey = SigningKey;
+impl std::fmt::Debug for Ed25519KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ed25519KeyPair")
+            .field("public_key", &self.public_key)
+            .field("secret_key", &"[REDACTED]")
+            .finish()
+    }
+}
 
+impl ConstantTimeEq for Ed25519KeyPair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.secret_key.to_bytes().ct_eq(&other.secret_key.to_bytes())
+    }
+}
+
+impl EcKeyPair for Ed25519KeyPair {
     fn generate() -> Result<Self> {
         let secret_key = SigningKey::generate(&mut OsRng {});
         let public_key = VerifyingKey::from(&secret_key);
@@ -54,14 +70,6 @@ impl EcKeyPair for Ed25519KeyPair {
         Ok(Self { public_key, secret_key })
     }
 
-    fn public_key(&self) -> &Self::PublicKey {
-        &self.public_key
-    }
-
-    fn secret_key(&self) -> &Self::SecretKey {
-        &self.secret_key
-    }
-
     fn public_key_bytes(&self) -> Vec<u8> {
         self.public_key.to_bytes().to_vec()
     }
@@ -74,18 +82,37 @@ impl EcKeyPair for Ed25519KeyPair {
 /// Ed25519 signature operations
 pub struct Ed25519Signature;
 
+impl sealed::Sealed for Ed25519KeyPair {}
+impl sealed::Sealed for Ed25519Signature {}
+
 impl EcSignature for Ed25519Signature {
     type Signature = Signature;
 
+    /// Verify an Ed25519 signature.
+    ///
+    /// Uses `verify_strict` which rejects non-canonical signatures per
+    /// RFC 8032 Section 8.4 (cofactor-less verification).
+    ///
+    /// # Errors
+    /// Returns `InvalidKeyLength` if `public_key_bytes` is not exactly 32 bytes,
+    /// `InvalidKey` if the public key is not on the Ed25519 curve, or
+    /// `SignatureVerificationError` if the signature is invalid.
     fn verify(public_key_bytes: &[u8], message: &[u8], signature: &Self::Signature) -> Result<()> {
+        if public_key_bytes.len() != 32 {
+            return Err(LatticeArcError::InvalidKeyLength {
+                expected: 32,
+                actual: public_key_bytes.len(),
+            });
+        }
         let mut pk_bytes = [0u8; 32];
         pk_bytes.copy_from_slice(public_key_bytes);
         let public_key = VerifyingKey::from_bytes(&pk_bytes)
             .map_err(|e| LatticeArcError::InvalidKey(e.to_string()))?;
 
-        public_key
-            .verify_strict(message, signature)
-            .map_err(|_e| LatticeArcError::VerificationError)
+        public_key.verify_strict(message, signature).map_err(|_e| {
+            // Opaque error string to avoid leaking implementation details.
+            LatticeArcError::SignatureVerificationError("Ed25519 verification failed".to_string())
+        })
     }
 
     fn signature_len() -> usize {
@@ -113,10 +140,11 @@ impl EcSignature for Ed25519Signature {
 impl Ed25519KeyPair {
     /// Sign a message with this key pair.
     ///
-    /// # Errors
-    /// This function is infallible for valid key pairs but returns Result for API consistency.
-    pub fn sign(&self, message: &[u8]) -> Result<Signature> {
-        Ok(self.secret_key.sign(message))
+    /// Ed25519 signing is infallible for valid key pairs (which this type
+    /// guarantees by construction). Returns the signature directly.
+    #[must_use]
+    pub fn sign(&self, message: &[u8]) -> Signature {
+        self.secret_key.sign(message)
     }
 }
 
@@ -129,7 +157,7 @@ mod tests {
     use crate::prelude::error::Result;
 
     #[test]
-    fn test_ed25519_keypair_generation() -> Result<()> {
+    fn test_ed25519_keypair_generation_succeeds() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
         assert_eq!(keypair.public_key_bytes().len(), 32);
         assert_eq!(keypair.secret_key_bytes().len(), 32);
@@ -137,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_keypair_from_secret() -> Result<()> {
+    fn test_ed25519_keypair_from_secret_roundtrip() -> Result<()> {
         let original = Ed25519KeyPair::generate()?;
         let secret_bytes = original.secret_key_bytes();
         let reconstructed = Ed25519KeyPair::from_secret_key(&secret_bytes)?;
@@ -147,10 +175,10 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_sign_verify() -> Result<()> {
+    fn test_ed25519_sign_verify_roundtrip() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
         let message = b"Hello, Ed25519!";
-        let signature = keypair.sign(message)?;
+        let signature = keypair.sign(message);
 
         let public_key_bytes = keypair.public_key_bytes();
         Ed25519Signature::verify(&public_key_bytes, message, &signature)?;
@@ -163,10 +191,10 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_signature_serialization() -> Result<()> {
+    fn test_ed25519_signature_serialization_roundtrip() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
         let message = b"Test message";
-        let signature = keypair.sign(message)?;
+        let signature = keypair.sign(message);
 
         let sig_bytes = Ed25519Signature::signature_bytes(&signature);
         assert_eq!(sig_bytes.len(), 64);
@@ -179,7 +207,7 @@ mod tests {
 
     // RFC 8032 test vectors
     #[test]
-    fn test_ed25519_rfc8032_test_vector_1() -> Result<()> {
+    fn test_ed25519_rfc8032_test_vector_1_matches_expected() -> Result<()> {
         // RFC 8032 Section 7.1, TEST 1 (empty message)
         let secret_key =
             hex::decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
@@ -197,7 +225,7 @@ mod tests {
         let keypair = Ed25519KeyPair::from_secret_key(&secret_key)?;
         assert_eq!(keypair.public_key_bytes(), expected_public);
 
-        let signature = keypair.sign(message)?;
+        let signature = keypair.sign(message);
         assert_eq!(Ed25519Signature::signature_bytes(&signature), expected_signature);
 
         Ed25519Signature::verify(&expected_public, message, &signature)?;
@@ -205,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_rfc8032_test_vector_2() -> Result<()> {
+    fn test_ed25519_rfc8032_test_vector_2_matches_expected() -> Result<()> {
         // RFC 8032 Section 7.1, TEST 2 (1-byte message)
         let secret_key =
             hex::decode("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb")
@@ -223,7 +251,7 @@ mod tests {
         let keypair = Ed25519KeyPair::from_secret_key(&secret_key)?;
         assert_eq!(keypair.public_key_bytes(), expected_public);
 
-        let signature = keypair.sign(&message)?;
+        let signature = keypair.sign(&message);
         assert_eq!(Ed25519Signature::signature_bytes(&signature), expected_signature);
 
         Ed25519Signature::verify(&expected_public, &message, &signature)?;
@@ -231,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_rfc8032_test_vector_3() -> Result<()> {
+    fn test_ed25519_rfc8032_test_vector_3_matches_expected() -> Result<()> {
         // RFC 8032 Section 7.1, TEST 3 (2-byte message)
         let secret_key =
             hex::decode("c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7")
@@ -250,7 +278,7 @@ mod tests {
         let keypair = Ed25519KeyPair::from_secret_key(&secret_key)?;
         assert_eq!(keypair.public_key_bytes(), expected_public);
 
-        let signature = keypair.sign(&message)?;
+        let signature = keypair.sign(&message);
         assert_eq!(Ed25519Signature::signature_bytes(&signature), expected_signature);
 
         Ed25519Signature::verify(&expected_public, &message, &signature)?;
@@ -259,10 +287,10 @@ mod tests {
 
     // Corrupted signature tests
     #[test]
-    fn test_ed25519_corrupted_signature() -> Result<()> {
+    fn test_ed25519_corrupted_signature_fails_verification_fails() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
         let message = b"Test message for corruption";
-        let signature = keypair.sign(message)?;
+        let signature = keypair.sign(message);
         let mut sig_bytes = Ed25519Signature::signature_bytes(&signature);
 
         // Corrupt first byte
@@ -276,11 +304,11 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_signature_with_wrong_public_key() -> Result<()> {
+    fn test_ed25519_signature_with_wrong_public_key_fails() -> Result<()> {
         let keypair1 = Ed25519KeyPair::generate()?;
         let keypair2 = Ed25519KeyPair::generate()?;
         let message = b"Test message";
-        let signature = keypair1.sign(message)?;
+        let signature = keypair1.sign(message);
 
         // Verify with wrong public key should fail
         assert!(
@@ -292,17 +320,17 @@ mod tests {
 
     // Invalid input tests
     #[test]
-    fn test_ed25519_invalid_secret_key_length() {
+    fn test_ed25519_invalid_secret_key_length_fails() {
         let invalid_secret = vec![0u8; 16]; // Wrong length
         let result = Ed25519KeyPair::from_secret_key(&invalid_secret);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_ed25519_invalid_public_key() {
+    fn test_ed25519_invalid_public_key_fails_verification_fails() {
         let keypair = Ed25519KeyPair::generate().expect("Key generation should succeed");
         let message = b"Test message";
-        let signature = keypair.sign(message).expect("Signing should succeed");
+        let signature = keypair.sign(message);
 
         // Invalid public key (all zeros)
         let invalid_pk = vec![0u8; 32];
@@ -311,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_invalid_signature_length() {
+    fn test_ed25519_invalid_signature_length_fails() {
         let invalid_sig = vec![0u8; 32]; // Should be 64
         let result = Ed25519Signature::signature_from_bytes(&invalid_sig);
         assert!(result.is_err());
@@ -323,13 +351,13 @@ mod tests {
 
     // Signature malleability tests
     #[test]
-    fn test_ed25519_signature_deterministic() -> Result<()> {
+    fn test_ed25519_signature_deterministic_produces_same_output_is_deterministic() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
         let message = b"Test message for determinism";
 
         // Ed25519 signatures are deterministic
-        let sig1 = keypair.sign(message)?;
-        let sig2 = keypair.sign(message)?;
+        let sig1 = keypair.sign(message);
+        let sig2 = keypair.sign(message);
 
         assert_eq!(
             Ed25519Signature::signature_bytes(&sig1),
@@ -340,32 +368,32 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_empty_message() -> Result<()> {
+    fn test_ed25519_empty_message_roundtrip() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
         let message = b"";
-        let signature = keypair.sign(message)?;
+        let signature = keypair.sign(message);
 
         Ed25519Signature::verify(&keypair.public_key_bytes(), message, &signature)?;
         Ok(())
     }
 
     #[test]
-    fn test_ed25519_large_message() -> Result<()> {
+    fn test_ed25519_large_message_roundtrip() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
         let message = vec![0xAB; 10_000]; // 10KB message
-        let signature = keypair.sign(&message)?;
+        let signature = keypair.sign(&message);
 
         Ed25519Signature::verify(&keypair.public_key_bytes(), &message, &signature)?;
         Ok(())
     }
 
     #[test]
-    fn test_ed25519_multiple_messages_same_keypair() -> Result<()> {
+    fn test_ed25519_multiple_messages_same_keypair_succeeds() -> Result<()> {
         let keypair = Ed25519KeyPair::generate()?;
 
         for i in 0..10 {
             let message = format!("Message number {}", i);
-            let signature = keypair.sign(message.as_bytes())?;
+            let signature = keypair.sign(message.as_bytes());
             Ed25519Signature::verify(&keypair.public_key_bytes(), message.as_bytes(), &signature)?;
         }
 
@@ -373,23 +401,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_signature_size() {
+    fn test_ed25519_signature_size_is_correct() {
         assert_eq!(Ed25519Signature::signature_len(), 64);
     }
 
     #[test]
-    fn test_ed25519_getter_accessors() -> Result<()> {
-        let keypair = Ed25519KeyPair::generate()?;
-        let pk = keypair.public_key();
-        let sk = keypair.secret_key();
-        // Verify getters return consistent data
-        assert_eq!(pk.to_bytes().to_vec(), keypair.public_key_bytes());
-        assert_eq!(sk.to_bytes().to_vec(), *keypair.secret_key_bytes());
-        Ok(())
-    }
-
-    #[test]
-    fn test_ed25519_from_secret_key_too_long() {
+    fn test_ed25519_from_secret_key_too_long_fails() {
         let too_long = vec![0u8; 64];
         let result = Ed25519KeyPair::from_secret_key(&too_long);
         assert!(result.is_err());

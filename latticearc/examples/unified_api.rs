@@ -76,8 +76,8 @@ fn main() {
         println!(
             "  {:25} scheme={:40} {} bytes -> roundtrip OK",
             name,
-            enc.scheme,
-            enc.ciphertext.len()
+            enc.scheme(),
+            enc.ciphertext().len()
         );
     }
     println!("\n  All {} use cases passed!\n", passed);
@@ -108,8 +108,8 @@ fn main() {
         println!(
             "  {:10} scheme={:40} {} bytes -> roundtrip OK",
             name,
-            enc.scheme,
-            enc.ciphertext.len()
+            enc.scheme(),
+            enc.ciphertext().len()
         );
     }
     println!("\n  All 4 security levels passed!\n");
@@ -128,7 +128,11 @@ fn main() {
     let dec = decrypt(&enc, DecryptKey::Symmetric(&key), CryptoConfig::new())
         .expect("decrypt should succeed");
     assert_eq!(dec.as_slice(), plaintext);
-    println!("  Default: scheme={}, {} bytes -> roundtrip OK\n", enc.scheme, enc.ciphertext.len());
+    println!(
+        "  Default: scheme={}, {} bytes -> roundtrip OK\n",
+        enc.scheme(),
+        enc.ciphertext().len()
+    );
 
     // ====================================================================
     // Section 4: Cross-matrix (UseCase x SecurityLevel) spot checks
@@ -153,7 +157,7 @@ fn main() {
         let dec = decrypt(&enc, DecryptKey::Symmetric(&key), CryptoConfig::new())
             .unwrap_or_else(|e| panic!("decrypt failed for {}: {}", name, e));
         assert_eq!(dec.as_slice(), plaintext);
-        println!("  {:30} scheme={:40} roundtrip OK", name, enc.scheme);
+        println!("  {:30} scheme={:40} roundtrip OK", name, enc.scheme());
     }
     println!();
 

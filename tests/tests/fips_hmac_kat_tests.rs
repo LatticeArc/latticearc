@@ -65,13 +65,13 @@ mod hmac_sha256_tests {
     use super::*;
 
     #[test]
-    fn test_run_hmac_sha256_kat_passes() {
+    fn test_run_hmac_sha256_kat_succeeds() {
         let result = run_hmac_sha256_kat();
         assert!(result.is_ok(), "HMAC-SHA256 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_hmac_sha256_all_vectors_individually() {
+    fn test_hmac_sha256_all_vectors_individually_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let key = decode_hex(vector.key).unwrap();
             let message = decode_hex(vector.message).unwrap();
@@ -93,7 +93,7 @@ mod hmac_sha256_tests {
     }
 
     #[test]
-    fn test_hmac_sha256_output_length() {
+    fn test_hmac_sha256_output_length_matches_expected() {
         // HMAC-SHA256 should always produce 32 bytes (256 bits)
         let key = b"test key";
         let message = b"test message";
@@ -106,7 +106,7 @@ mod hmac_sha256_tests {
     }
 
     #[test]
-    fn test_hmac_sha256_rfc_4231_test_case_1() {
+    fn test_hmac_sha256_rfc_4231_test_case_1_matches_rfc_vector_matches_expected() {
         // RFC 4231 Test Case 1: 20-byte key "Hi There"
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message = decode_hex("4869205468657265").unwrap(); // "Hi There"
@@ -121,7 +121,7 @@ mod hmac_sha256_tests {
     }
 
     #[test]
-    fn test_hmac_sha256_rfc_4231_test_case_2() {
+    fn test_hmac_sha256_rfc_4231_test_case_2_matches_rfc_vector_matches_expected() {
         // RFC 4231 Test Case 2: Short key "Jefe" with "what do ya want for nothing?"
         let key = decode_hex("4a656665").unwrap(); // "Jefe"
         let message =
@@ -137,7 +137,7 @@ mod hmac_sha256_tests {
     }
 
     #[test]
-    fn test_hmac_sha256_incremental_update() {
+    fn test_hmac_sha256_incremental_update_matches_expected() {
         // Test that incremental updates work correctly
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message = decode_hex("4869205468657265").unwrap();
@@ -161,7 +161,7 @@ mod hmac_sha256_tests {
     }
 
     #[test]
-    fn test_hmac_sha256_empty_message() {
+    fn test_hmac_sha256_empty_message_matches_expected() {
         // Test with empty message
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message: &[u8] = &[];
@@ -175,7 +175,7 @@ mod hmac_sha256_tests {
     }
 
     #[test]
-    fn test_hmac_sha256_long_key() {
+    fn test_hmac_sha256_long_key_matches_rfc_vector_matches_expected() {
         // RFC 4231 Test Case 6: 131-byte key (longer than block size)
         let key = decode_hex(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
@@ -208,13 +208,13 @@ mod hmac_sha224_tests {
     use super::*;
 
     #[test]
-    fn test_run_hmac_sha224_kat_passes() {
+    fn test_run_hmac_sha224_kat_succeeds() {
         let result = run_hmac_sha224_kat();
         assert!(result.is_ok(), "HMAC-SHA224 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_hmac_sha224_all_vectors_individually() {
+    fn test_hmac_sha224_all_vectors_individually_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let key = decode_hex(vector.key).unwrap();
             let message = decode_hex(vector.message).unwrap();
@@ -236,7 +236,7 @@ mod hmac_sha224_tests {
     }
 
     #[test]
-    fn test_hmac_sha224_output_length() {
+    fn test_hmac_sha224_output_length_matches_expected() {
         // HMAC-SHA224 should always produce 28 bytes (224 bits)
         let key = b"test key";
         let message = b"test message";
@@ -249,7 +249,7 @@ mod hmac_sha224_tests {
     }
 
     #[test]
-    fn test_hmac_sha224_rfc_4231_test_case_1() {
+    fn test_hmac_sha224_rfc_4231_test_case_1_matches_rfc_vector_matches_expected() {
         // RFC 4231 Test Case 1
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message = decode_hex("4869205468657265").unwrap();
@@ -264,7 +264,7 @@ mod hmac_sha224_tests {
     }
 
     #[test]
-    fn test_hmac_sha224_empty_message() {
+    fn test_hmac_sha224_empty_message_matches_expected() {
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message: &[u8] = &[];
 
@@ -285,13 +285,13 @@ mod hmac_sha384_tests {
     use super::*;
 
     #[test]
-    fn test_run_hmac_sha384_kat_passes() {
+    fn test_run_hmac_sha384_kat_succeeds() {
         let result = run_hmac_sha384_kat();
         assert!(result.is_ok(), "HMAC-SHA384 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_hmac_sha384_all_vectors_individually() {
+    fn test_hmac_sha384_all_vectors_individually_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let key = decode_hex(vector.key).unwrap();
             let message = decode_hex(vector.message).unwrap();
@@ -313,7 +313,7 @@ mod hmac_sha384_tests {
     }
 
     #[test]
-    fn test_hmac_sha384_output_length() {
+    fn test_hmac_sha384_output_length_matches_expected() {
         // HMAC-SHA384 should always produce 48 bytes (384 bits)
         let key = b"test key";
         let message = b"test message";
@@ -326,7 +326,7 @@ mod hmac_sha384_tests {
     }
 
     #[test]
-    fn test_hmac_sha384_rfc_4231_test_case_1() {
+    fn test_hmac_sha384_rfc_4231_test_case_1_matches_rfc_vector_matches_expected() {
         // RFC 4231 Test Case 1
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message = decode_hex("4869205468657265").unwrap();
@@ -343,7 +343,7 @@ mod hmac_sha384_tests {
     }
 
     #[test]
-    fn test_hmac_sha384_empty_message() {
+    fn test_hmac_sha384_empty_message_matches_expected() {
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message: &[u8] = &[];
 
@@ -364,13 +364,13 @@ mod hmac_sha512_tests {
     use super::*;
 
     #[test]
-    fn test_run_hmac_sha512_kat_passes() {
+    fn test_run_hmac_sha512_kat_succeeds() {
         let result = run_hmac_sha512_kat();
         assert!(result.is_ok(), "HMAC-SHA512 KAT should pass: {:?}", result.err());
     }
 
     #[test]
-    fn test_hmac_sha512_all_vectors_individually() {
+    fn test_hmac_sha512_all_vectors_individually_match_expected_matches_expected() {
         for vector in HMAC_VECTORS {
             let key = decode_hex(vector.key).unwrap();
             let message = decode_hex(vector.message).unwrap();
@@ -392,7 +392,7 @@ mod hmac_sha512_tests {
     }
 
     #[test]
-    fn test_hmac_sha512_output_length() {
+    fn test_hmac_sha512_output_length_matches_expected() {
         // HMAC-SHA512 should always produce 64 bytes (512 bits)
         let key = b"test key";
         let message = b"test message";
@@ -405,7 +405,7 @@ mod hmac_sha512_tests {
     }
 
     #[test]
-    fn test_hmac_sha512_rfc_4231_test_case_1() {
+    fn test_hmac_sha512_rfc_4231_test_case_1_matches_rfc_vector_matches_expected() {
         // RFC 4231 Test Case 1
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message = decode_hex("4869205468657265").unwrap();
@@ -422,7 +422,7 @@ mod hmac_sha512_tests {
     }
 
     #[test]
-    fn test_hmac_sha512_empty_message() {
+    fn test_hmac_sha512_empty_message_matches_expected() {
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message: &[u8] = &[];
 
@@ -435,7 +435,7 @@ mod hmac_sha512_tests {
     }
 
     #[test]
-    fn test_hmac_sha512_long_key_and_message() {
+    fn test_hmac_sha512_long_key_and_message_matches_rfc_vector_matches_expected() {
         // RFC 4231 Test Case 7: 131-byte key with longer message
         let key = decode_hex(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
@@ -470,7 +470,7 @@ mod test_vector_structure_tests {
     use super::*;
 
     #[test]
-    fn test_hmac_vector_count() {
+    fn test_hmac_vector_count_matches_expected() {
         // RFC 4231 has 6 test vectors (Test Case 5 - truncation is often omitted)
         assert_eq!(
             HMAC_VECTORS.len(),
@@ -480,7 +480,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_hmac_vector_fields_not_empty() {
+    fn test_hmac_vector_fields_not_empty_matches_expected() {
         for vector in HMAC_VECTORS {
             assert!(!vector.test_name.is_empty(), "Test name should not be empty");
             assert!(!vector.key.is_empty(), "Key should not be empty");
@@ -517,7 +517,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_expected_mac_lengths() {
+    fn test_expected_mac_lengths_match_expected_has_correct_size() {
         for vector in HMAC_VECTORS {
             // SHA-224: 224/4 = 56 hex chars
             assert_eq!(
@@ -554,7 +554,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_all_hex_values_valid() {
+    fn test_all_hex_values_valid_succeeds() {
         for vector in HMAC_VECTORS {
             assert!(
                 decode_hex(vector.key).is_ok(),
@@ -598,7 +598,7 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_nist_kat_error_test_failed_display() {
+    fn test_nist_kat_error_test_failed_display_matches_expected() {
         let error = NistKatError::TestFailed {
             algorithm: "HMAC-SHA256".to_string(),
             test_name: "RFC-4231-Test-Case-1".to_string(),
@@ -611,7 +611,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_hex_error_display() {
+    fn test_nist_kat_error_hex_error_display_matches_expected() {
         let error = NistKatError::HexError("Invalid character 'g' at position 0".to_string());
         let display_str = format!("{}", error);
         assert!(display_str.contains("Hex"));
@@ -619,7 +619,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_implementation_error_display() {
+    fn test_nist_kat_error_implementation_error_display_matches_expected() {
         let error = NistKatError::ImplementationError("HMAC creation failed".to_string());
         let display_str = format!("{}", error);
         assert!(display_str.contains("Implementation error"));
@@ -659,7 +659,7 @@ mod cross_algorithm_tests {
     use super::*;
 
     #[test]
-    fn test_same_key_message_different_algorithms() {
+    fn test_same_key_message_different_algorithms_produce_different_macs_succeeds() {
         // The same key and message should produce different MACs for different algorithms
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message = decode_hex("4869205468657265").unwrap();
@@ -687,7 +687,7 @@ mod cross_algorithm_tests {
     }
 
     #[test]
-    fn test_all_hmac_variants_run_successfully() {
+    fn test_all_hmac_variants_run_successfully_matches_expected() {
         // Run all KAT tests and ensure they all pass
         assert!(run_hmac_sha224_kat().is_ok(), "HMAC-SHA224 KAT failed");
         assert!(run_hmac_sha256_kat().is_ok(), "HMAC-SHA256 KAT failed");
@@ -704,7 +704,7 @@ mod determinism_tests {
     use super::*;
 
     #[test]
-    fn test_hmac_sha256_deterministic() {
+    fn test_hmac_sha256_deterministic_matches_expected() {
         // Same input should always produce same output
         let key = decode_hex("deadbeefcafe").unwrap();
         let message = decode_hex("0123456789abcdef").unwrap();
@@ -721,7 +721,7 @@ mod determinism_tests {
     }
 
     #[test]
-    fn test_hmac_sha512_deterministic() {
+    fn test_hmac_sha512_deterministic_matches_expected() {
         let key = decode_hex("cafebabe").unwrap();
         let message = decode_hex("fedcba9876543210").unwrap();
 
@@ -737,7 +737,7 @@ mod determinism_tests {
     }
 
     #[test]
-    fn test_multiple_kat_runs_consistent() {
+    fn test_multiple_kat_runs_are_consistent() {
         // Running KAT multiple times should always succeed
         for _ in 0..5 {
             assert!(run_hmac_sha224_kat().is_ok());
@@ -756,7 +756,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_single_byte_key() {
+    fn test_single_byte_key_matches_expected() {
         // Test with minimum size key (1 byte)
         let key = vec![0x42_u8];
         let message = b"test message";
@@ -769,7 +769,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_large_key() {
+    fn test_large_key_matches_expected() {
         // Test with a very large key (256 bytes)
         let key = vec![0xaa_u8; 256];
         let message = b"test message";
@@ -782,7 +782,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_large_message() {
+    fn test_large_message_matches_expected() {
         // Test with a large message (1 MB)
         let key = b"test key";
         let message = vec![0x61_u8; 1024 * 1024]; // 1 MB of 'a'
@@ -798,7 +798,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_zeros_key() {
+    fn test_all_zeros_key_matches_expected() {
         let key = vec![0x00_u8; 32];
         let message = b"test message";
 
@@ -810,7 +810,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_ones_key() {
+    fn test_all_ones_key_matches_expected() {
         let key = vec![0xFF_u8; 32];
         let message = b"test message";
 
@@ -822,7 +822,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_block_boundary_key_sizes() {
+    fn test_block_boundary_key_sizes_match_expected_has_correct_size() {
         // SHA-256 has a block size of 64 bytes
         // Test keys at block boundaries
         for size in [63_usize, 64, 65, 127, 128, 129] {
@@ -843,7 +843,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_block_boundary_message_sizes() {
+    fn test_block_boundary_message_sizes_match_expected_has_correct_size() {
         // Test messages at block boundaries
         for size in [63_usize, 64, 65, 127, 128, 129] {
             let key = b"test key";
@@ -863,7 +863,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_sha512_block_boundary_key_sizes() {
+    fn test_sha512_block_boundary_key_sizes_match_expected_has_correct_size() {
         // SHA-512 has a block size of 128 bytes
         for size in [127_usize, 128, 129, 255, 256, 257] {
             let key = vec![0x61_u8; size];
@@ -892,7 +892,7 @@ mod integration_tests {
     use latticearc_tests::validation::nist_kat::{KatRunner, KatSummary};
 
     #[test]
-    fn test_hmac_kat_runner_integration() {
+    fn test_hmac_kat_runner_integration_succeeds() {
         let mut runner = KatRunner::new();
 
         runner.run_test("HMAC-SHA224", "HMAC", || run_hmac_sha224_kat());
@@ -912,7 +912,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn test_comprehensive_hmac_validation() {
+    fn test_comprehensive_hmac_validation_succeeds() {
         println!("\n========================================");
         println!("Comprehensive HMAC Validation Suite");
         println!("========================================\n");
@@ -976,7 +976,7 @@ mod rfc_4231_tests {
     use super::*;
 
     #[test]
-    fn test_rfc_4231_test_case_3_50_bytes_dd() {
+    fn test_rfc_4231_test_case_3_50_bytes_dd_matches_rfc_vector_matches_expected() {
         // Test Case 3: 20-byte key (all 0xaa) with 50 bytes of 0xdd
         let key = decode_hex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let message = decode_hex(
@@ -993,7 +993,7 @@ mod rfc_4231_tests {
     }
 
     #[test]
-    fn test_rfc_4231_test_case_4_incremental_key() {
+    fn test_rfc_4231_test_case_4_incremental_key_matches_rfc_vector_matches_expected() {
         // Test Case 4: 25-byte key (incremental 0x01..0x19) with 50 bytes of 0xcd
         let key = decode_hex("0102030405060708090a0b0c0d0e0f10111213141516171819").unwrap();
         let message = decode_hex(
@@ -1010,7 +1010,7 @@ mod rfc_4231_tests {
     }
 
     #[test]
-    fn test_rfc_4231_verifies_different_key_produces_different_mac() {
+    fn test_rfc_4231_verifies_different_key_produces_different_mac_succeeds() {
         // Verify that changing the key produces a different MAC
         let key1 = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let key2 = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0c").unwrap(); // Last byte changed
@@ -1032,7 +1032,7 @@ mod rfc_4231_tests {
     }
 
     #[test]
-    fn test_rfc_4231_verifies_different_message_produces_different_mac() {
+    fn test_rfc_4231_verifies_different_message_produces_different_mac_succeeds() {
         // Verify that changing the message produces a different MAC
         let key = decode_hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
         let message1 = decode_hex("4869205468657265").unwrap(); // "Hi There"
@@ -1063,7 +1063,7 @@ mod hmac_test_vector_tests {
     use latticearc_tests::validation::nist_kat::hmac_kat::HmacTestVector;
 
     #[test]
-    fn test_hmac_test_vector_struct_fields_accessible() {
+    fn test_hmac_test_vector_struct_fields_accessible_matches_expected() {
         // Access each field to ensure they're public
         let vector = &HMAC_VECTORS[0];
         let _test_name: &str = vector.test_name;
@@ -1076,7 +1076,7 @@ mod hmac_test_vector_tests {
     }
 
     #[test]
-    fn test_hmac_test_vector_can_be_constructed() {
+    fn test_hmac_test_vector_can_be_constructed_succeeds() {
         // Verify the struct can be constructed (ensuring it's public)
         let _vector = HmacTestVector {
             test_name: "Test-Custom",
@@ -1090,7 +1090,7 @@ mod hmac_test_vector_tests {
     }
 
     #[test]
-    fn test_first_vector_is_rfc_4231_test_case_1() {
+    fn test_first_vector_is_rfc_4231_test_case_1_matches_expected() {
         let vector = &HMAC_VECTORS[0];
         assert_eq!(vector.test_name, "RFC-4231-Test-Case-1");
         assert_eq!(vector.key, "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
@@ -1098,7 +1098,7 @@ mod hmac_test_vector_tests {
     }
 
     #[test]
-    fn test_second_vector_is_rfc_4231_test_case_2() {
+    fn test_second_vector_is_rfc_4231_test_case_2_matches_expected() {
         let vector = &HMAC_VECTORS[1];
         assert_eq!(vector.test_name, "RFC-4231-Test-Case-2");
         assert_eq!(vector.key, "4a656665"); // "Jefe"

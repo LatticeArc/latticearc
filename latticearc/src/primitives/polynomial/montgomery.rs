@@ -1,5 +1,5 @@
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
 // JUSTIFICATION: Montgomery reduction is modular arithmetic over finite fields.
@@ -90,7 +90,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_montgomery_reduction() -> Result<()> {
+    fn test_montgomery_reduction_succeeds() -> Result<()> {
         // Use a prime modulus suitable for Montgomery reduction
         let modulus = 12289i64; // A common NTT prime
         let reducer = MontgomeryReducer::new(modulus)?;
@@ -109,19 +109,19 @@ mod tests {
     }
 
     #[test]
-    fn test_montgomery_reducer_zero_modulus() {
+    fn test_montgomery_reducer_zero_modulus_succeeds() {
         let result = MontgomeryReducer::new(0);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_montgomery_reducer_negative_modulus() {
+    fn test_montgomery_reducer_negative_modulus_succeeds() {
         let result = MontgomeryReducer::new(-1);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_montgomery_identity_operations() -> Result<()> {
+    fn test_montgomery_identity_operations_succeeds() -> Result<()> {
         let modulus = 12289i64;
         let reducer = MontgomeryReducer::new(modulus)?;
 
@@ -134,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn test_montgomery_multiplication_by_one() -> Result<()> {
+    fn test_montgomery_multiplication_by_one_succeeds() -> Result<()> {
         let modulus = 12289i64;
         let reducer = MontgomeryReducer::new(modulus)?;
 

@@ -37,7 +37,6 @@
 
 use std::time::Instant;
 
-use rand::rngs::OsRng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
@@ -97,7 +96,7 @@ where
 // ============================================================================
 
 #[test]
-fn test_constant_time_eq_shared_secrets() {
+fn test_constant_time_eq_shared_secrets_succeeds() {
     const ITERATIONS: usize = 1000;
     const WARMUP: usize = 100;
 
@@ -156,7 +155,7 @@ fn test_constant_time_eq_shared_secrets() {
 }
 
 #[test]
-fn test_constant_time_eq_raw_bytes() {
+fn test_constant_time_eq_raw_bytes_succeeds() {
     let a = [0xAA_u8; 64];
     let b = [0xAA_u8; 64];
     let c = [0xBB_u8; 64];
@@ -170,7 +169,7 @@ fn test_constant_time_eq_raw_bytes() {
 // ============================================================================
 
 #[test]
-fn test_zeroize_byte_array() {
+fn test_zeroize_byte_array_succeeds() {
     let mut secret = [0xABu8; 32];
     assert!(secret.iter().any(|&b| b != 0), "Secret should start non-zero");
     secret.zeroize();
@@ -178,7 +177,7 @@ fn test_zeroize_byte_array() {
 }
 
 #[test]
-fn test_zeroize_vec() {
+fn test_zeroize_vec_succeeds() {
     let mut secret = vec![0xCD_u8; 64];
     assert!(!secret.is_empty());
     secret.zeroize();
@@ -194,7 +193,7 @@ fn test_zeroize_vec() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_encrypt_timing_consistency() {
+fn test_aes_gcm_encrypt_timing_consistency_succeeds() {
     const ITERATIONS: usize = 500;
     const WARMUP: usize = 50;
 
@@ -226,7 +225,7 @@ fn test_aes_gcm_encrypt_timing_consistency() {
 }
 
 #[test]
-fn test_aes_gcm_decrypt_timing_consistency() {
+fn test_aes_gcm_decrypt_timing_consistency_succeeds() {
     const ITERATIONS: usize = 500;
     const WARMUP: usize = 50;
 
@@ -260,7 +259,7 @@ fn test_aes_gcm_decrypt_timing_consistency() {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_tag_verification_constant_time() {
+fn test_aes_gcm_tag_verification_constant_time_succeeds() {
     use latticearc::primitives::aead::verify_tag_constant_time;
 
     // Matching tags
@@ -279,7 +278,7 @@ fn test_aes_gcm_tag_verification_constant_time() {
 }
 
 #[test]
-fn test_zeroize_data_function() {
+fn test_zeroize_data_function_succeeds() {
     use latticearc::primitives::aead::zeroize_data;
 
     let mut data = vec![0xFFu8; 128];
@@ -292,12 +291,12 @@ fn test_zeroize_data_function() {
 // ============================================================================
 
 #[test]
-fn test_ml_kem_encap_timing_smoke() {
+fn test_ml_kem_encap_timing_smoke_succeeds() {
     // Use generate_decapsulation_keypair to get a DecapsulationKey instance
     let keypair =
         MlKem::generate_decapsulation_keypair(MlKemSecurityLevel::MlKem768).expect("keygen failed");
 
-    let (ss_enc, ct) = MlKem::encapsulate(&mut OsRng, keypair.public_key()).expect("encap failed");
+    let (ss_enc, ct) = MlKem::encapsulate(keypair.public_key()).expect("encap failed");
     let ss_dec = keypair.decapsulate(&ct).expect("decap failed");
 
     assert!(bool::from(ss_enc.ct_eq(&ss_dec)), "Encap/decap shared secrets must match");
@@ -308,8 +307,8 @@ fn test_ml_kem_encap_timing_smoke() {
 // ============================================================================
 
 #[test]
-fn test_ml_dsa_sign_verify_smoke() {
-    let (pk, sk) = generate_keypair(MlDsaParameterSet::MLDSA44).expect("keygen failed");
+fn test_ml_dsa_sign_verify_smoke_roundtrip() {
+    let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen failed");
     let message = b"Side-channel resistance smoke test";
 
     let sig = sign(&sk, message, &[]).expect("sign failed");

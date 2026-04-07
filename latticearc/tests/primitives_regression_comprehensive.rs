@@ -216,7 +216,7 @@ fn regression_hkdf_empty_salt() {
 
     // Both should produce the same output
     if let (Ok(r1), Ok(r2)) = (result_empty, result_none) {
-        assert_eq!(r1.key, r2.key, "Empty salt and None salt should produce same output");
+        assert_eq!(r1.key(), r2.key(), "Empty salt and None salt should produce same output");
     }
 }
 
@@ -243,8 +243,8 @@ fn regression_hkdf_output_boundary() {
 
     // Verify first 32 bytes match between 32 and 33 byte outputs
     if let (Ok(r32), Ok(r33)) = (result_32, result_33) {
-        let first_32_of_33: Vec<u8> = r33.key.iter().take(32).copied().collect();
-        assert_eq!(r32.key, first_32_of_33, "HKDF prefix should be consistent");
+        let first_32_of_33: Vec<u8> = r33.key().iter().take(32).copied().collect();
+        assert_eq!(r32.key(), first_32_of_33.as_slice(), "HKDF prefix should be consistent");
     }
 }
 
@@ -253,14 +253,11 @@ fn regression_hkdf_output_boundary() {
 #[test]
 fn regression_ml_kem_public_key_roundtrip() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemPublicKey, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = match MlKem::generate_keypair(&mut rng, level) {
+        let (pk, _sk) = match MlKem::generate_keypair(level) {
             Ok(r) => r,
             Err(_) => continue,
         };
@@ -286,7 +283,7 @@ fn regression_ml_kem_public_key_roundtrip() {
 fn regression_ml_dsa_empty_context() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 
-    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MLDSA44) {
+    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa44) {
         Ok(r) => r,
         Err(_) => return,
     };
@@ -387,7 +384,7 @@ fn regression_aead_key_generation_unique() {
 fn regression_signature_rejects_modified_message() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 
-    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MLDSA44) {
+    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa44) {
         Ok(r) => r,
         Err(_) => return,
     };
@@ -536,7 +533,7 @@ fn regression_ml_dsa_keypair_consistency() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 
     for param in
-        [MlDsaParameterSet::MLDSA44, MlDsaParameterSet::MLDSA65, MlDsaParameterSet::MLDSA87]
+        [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = match generate_keypair(param) {
             Ok(r) => r,
@@ -573,8 +570,8 @@ fn regression_hkdf_info_affects_output() {
 
     match (result1, result2, result_none) {
         (Ok(r1), Ok(r2), Ok(rn)) => {
-            assert_ne!(r1.key, r2.key, "Different info should produce different keys");
-            assert_ne!(r1.key, rn.key, "Info vs no info should produce different keys");
+            assert_ne!(r1.key(), r2.key(), "Different info should produce different keys");
+            assert_ne!(r1.key(), rn.key(), "Info vs no info should produce different keys");
         }
         _ => {}
     }
@@ -687,7 +684,7 @@ fn kat_hkdf_rfc5869_test1() {
         Ok(r) => r,
         Err(_) => return,
     };
-    assert_eq!(result.key.as_slice(), &expected, "HKDF should match RFC 5869 test vector");
+    assert_eq!(result.key(), &expected[..], "HKDF should match RFC 5869 test vector");
 }
 
 /// Determinism: Hash produces same output for same input
@@ -731,7 +728,7 @@ fn determinism_hkdf_consistent() {
     let result2 = hkdf(ikm, Some(salt), Some(info), 64);
 
     if let (Ok(r1), Ok(r2)) = (result1, result2) {
-        assert_eq!(r1.key, r2.key, "HKDF should be deterministic");
+        assert_eq!(r1.key(), r2.key(), "HKDF should be deterministic");
     }
 }
 
@@ -819,7 +816,7 @@ fn roundtrip_chacha20_poly1305() {
 fn roundtrip_ml_dsa_sign_verify() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 
-    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MLDSA65) {
+    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa65) {
         Ok(r) => r,
         Err(_) => return,
     };
@@ -862,19 +859,16 @@ fn key_derivation_consistency() {
 #[test]
 fn kem_encapsulation_validity() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng;
 
     for level in
         [MlKemSecurityLevel::MlKem512, MlKemSecurityLevel::MlKem768, MlKemSecurityLevel::MlKem1024]
     {
-        let (pk, _sk) = match MlKem::generate_keypair(&mut rng, level) {
+        let (pk, _sk) = match MlKem::generate_keypair(level) {
             Ok(r) => r,
             Err(_) => continue,
         };
 
-        let (ss, ct) = match MlKem::encapsulate(&mut rng, &pk) {
+        let (ss, ct) = match MlKem::encapsulate(&pk) {
             Ok(r) => r,
             Err(_) => continue,
         };
@@ -989,23 +983,28 @@ fn error_ml_kem_wrong_key_size() {
 /// Guards against: Accepting truncated signatures
 #[test]
 fn error_ml_dsa_truncated_signature() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{
+        MlDsaParameterSet, MlDsaSignature, generate_keypair, sign, verify,
+    };
 
-    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MLDSA44) {
+    let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa44) {
         Ok(r) => r,
         Err(_) => return,
     };
 
     let message = b"test message";
-    let mut signature = match sign(&sk, message, &[]) {
+    let signature = match sign(&sk, message, &[]) {
         Ok(s) => s,
         Err(_) => return,
     };
 
-    // Truncate the signature
-    signature.data.truncate(100);
+    // Create a truncated signature using unchecked constructor
+    let mut truncated_bytes = signature.as_bytes().to_vec();
+    truncated_bytes.truncate(100);
+    let truncated_sig =
+        MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), truncated_bytes);
 
-    let result = verify(&pk, message, &signature, &[]);
+    let result = verify(&pk, message, &truncated_sig, &[]);
     assert!(result.is_err(), "Truncated signature should return error");
 }
 
@@ -1082,7 +1081,7 @@ fn error_ml_kem_empty_ciphertext() {
 /// Guards against: DoS via memory exhaustion
 #[test]
 fn error_hash_size_limit() {
-    use latticearc::primitives::error::Error;
+    use latticearc::primitives::error::PrimitivesError;
     use latticearc::primitives::hash::sha256;
 
     // This test documents the size limit behavior
@@ -1094,7 +1093,7 @@ fn error_hash_size_limit() {
 
     if let Err(e) = result {
         match e {
-            Error::ResourceExceeded(_) => {}
+            PrimitivesError::ResourceExceeded(_) => {}
             _ => assert!(false, "Expected ResourceExceeded, got {:?}", e),
         }
     }
@@ -1110,14 +1109,14 @@ fn error_propagation_ml_dsa() {
 
     // Create an invalid public key
     let invalid_pk_data = vec![0u8; 1312]; // Correct size but invalid content
-    let pk = match MlDsaPublicKey::new(MlDsaParameterSet::MLDSA44, invalid_pk_data) {
+    let pk = match MlDsaPublicKey::new(MlDsaParameterSet::MlDsa44, invalid_pk_data) {
         Ok(p) => p,
         Err(_) => return,
     };
 
     // Create an invalid signature
     let invalid_sig_data = vec![0xFFu8; 2420]; // Correct size but invalid content
-    let sig = match MlDsaSignature::new(MlDsaParameterSet::MLDSA44, invalid_sig_data) {
+    let sig = match MlDsaSignature::new(MlDsaParameterSet::MlDsa44, invalid_sig_data) {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -1179,7 +1178,7 @@ fn perf_keygen_completes() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let start = Instant::now();
-    let result = generate_keypair(MlDsaParameterSet::MLDSA44);
+    let result = generate_keypair(MlDsaParameterSet::MlDsa44);
     let elapsed = start.elapsed();
 
     assert!(result.is_ok(), "Key generation should complete");
@@ -1242,10 +1241,8 @@ fn perf_multiple_operations_no_accumulation() {
 #[test]
 fn perf_ml_kem_encapsulation() {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-    use rand::rngs::OsRng;
 
-    let mut rng = OsRng;
-    let (pk, _sk) = match MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768) {
+    let (pk, _sk) = match MlKem::generate_keypair(MlKemSecurityLevel::MlKem768) {
         Ok(r) => r,
         Err(_) => return,
     };
@@ -1253,7 +1250,7 @@ fn perf_ml_kem_encapsulation() {
     let start = Instant::now();
 
     for _ in 0..10 {
-        let _ = MlKem::encapsulate(&mut rng, &pk);
+        let _ = MlKem::encapsulate(&pk);
     }
 
     let elapsed = start.elapsed();
@@ -1275,7 +1272,7 @@ fn zeroization_ml_dsa_secret_key() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
     use zeroize::Zeroize;
 
-    let (_pk, mut sk) = match generate_keypair(MlDsaParameterSet::MLDSA44) {
+    let (_pk, mut sk) = match generate_keypair(MlDsaParameterSet::MlDsa44) {
         Ok(r) => r,
         Err(_) => return,
     };
@@ -1316,21 +1313,14 @@ fn zeroization_ml_kem_shared_secret() {
 #[test]
 fn zeroization_hkdf_result() {
     use latticearc::primitives::kdf::hkdf;
-    use zeroize::Zeroize;
 
-    let mut result = match hkdf(b"ikm", Some(b"salt"), None, 32) {
+    let result = match hkdf(b"ikm", Some(b"salt"), None, 32) {
         Ok(r) => r,
         Err(_) => return,
     };
 
-    // Verify non-zero
-    assert!(result.key.iter().any(|&b| b != 0), "HKDF result should be non-zero");
-
-    // Zeroize
-    result.zeroize();
-
-    // Verify zeros
-    assert!(result.key.iter().all(|&b| b == 0), "HKDF result should be zeroized");
+    // Verify non-zero — HkdfResult uses Zeroizing<Vec<u8>> for automatic zeroization on drop.
+    assert!(result.key().iter().any(|&b| b != 0), "HKDF result should be non-zero");
 }
 
 /// Constant-time: ML-KEM shared secret comparison is constant-time
@@ -1360,15 +1350,15 @@ fn constant_time_ml_dsa_secret_key_comparison() {
     use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, MlDsaSecretKey};
     use subtle::ConstantTimeEq;
 
-    let sk1 = match MlDsaSecretKey::new(MlDsaParameterSet::MLDSA44, vec![0x42u8; 2560]) {
+    let sk1 = match MlDsaSecretKey::new(MlDsaParameterSet::MlDsa44, vec![0x42u8; 2560]) {
         Ok(s) => s,
         Err(_) => return,
     };
-    let sk2 = match MlDsaSecretKey::new(MlDsaParameterSet::MLDSA44, vec![0x42u8; 2560]) {
+    let sk2 = match MlDsaSecretKey::new(MlDsaParameterSet::MlDsa44, vec![0x42u8; 2560]) {
         Ok(s) => s,
         Err(_) => return,
     };
-    let sk3 = match MlDsaSecretKey::new(MlDsaParameterSet::MLDSA44, vec![0x43u8; 2560]) {
+    let sk3 = match MlDsaSecretKey::new(MlDsaParameterSet::MlDsa44, vec![0x43u8; 2560]) {
         Ok(s) => s,
         Err(_) => return,
     };

@@ -101,7 +101,7 @@ fn derive_hkdf(args: &KdfArgs, salt: &[u8]) -> Result<Vec<u8>> {
 }
 
 fn derive_pbkdf2(args: &KdfArgs, salt: &[u8]) -> Result<Vec<u8>> {
-    let password = args.input.as_bytes();
+    let password = zeroize::Zeroizing::new(args.input.as_bytes().to_vec());
 
     if args.length == 0 {
         bail!("Output length must be > 0");
@@ -111,7 +111,7 @@ fn derive_pbkdf2(args: &KdfArgs, salt: &[u8]) -> Result<Vec<u8>> {
         .iterations(args.iterations)
         .key_length(args.length);
 
-    let result = latticearc::primitives::kdf::pbkdf2(password, &params)
+    let result = latticearc::primitives::kdf::pbkdf2(&password, &params)
         .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?;
 
     Ok(result.key().to_vec())

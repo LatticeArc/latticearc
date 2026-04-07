@@ -38,7 +38,7 @@ impl KeyType for HkdfOutputLen {
 }
 
 /// Test AES algorithm using FIPS 197 NIST test vectors
-pub fn test_aes_algorithm() -> Result<TestResult, LatticeArcError> {
+pub fn test_aes_algorithm_succeeds() -> Result<TestResult, LatticeArcError> {
     let start_time = std::time::Instant::now();
     let mut test_details = Vec::new();
     let mut all_passed = true;
@@ -137,7 +137,7 @@ pub fn test_aes_algorithm() -> Result<TestResult, LatticeArcError> {
 
 /// Test SHA-3 algorithm using FIPS 202 NIST test vectors
 #[allow(clippy::unnecessary_wraps)] // Result signature for consistency with fallible test functions
-pub fn test_sha3_algorithm() -> Result<TestResult, LatticeArcError> {
+pub fn test_sha3_algorithm_succeeds() -> Result<TestResult, LatticeArcError> {
     let start_time = std::time::Instant::now();
     let mut test_details = Vec::new();
     let mut all_passed = true;
@@ -241,7 +241,7 @@ pub fn test_sha3_algorithm() -> Result<TestResult, LatticeArcError> {
 }
 
 /// Test ML-KEM (FIPS 203) algorithm using reference implementation
-pub fn test_mlkem_algorithm() -> Result<TestResult, LatticeArcError> {
+pub fn test_mlkem_algorithm_succeeds() -> Result<TestResult, LatticeArcError> {
     use fips203::ml_kem_768;
     use fips203::traits::{Decaps, Encaps, KeyGen, SerDes};
 

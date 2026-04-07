@@ -42,11 +42,9 @@ serde_json = { workspace = true }
 zeroize = { workspace = true }
 subtle = { workspace = true }
 chrono = { workspace = true }
-async-trait = { workspace = true }
 uuid = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
-arrayref = { workspace = true }
 
 # =============================================================================
 # Cryptography - FIPS 140-3 validated

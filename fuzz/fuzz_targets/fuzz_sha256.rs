@@ -11,25 +11,25 @@ use latticearc::primitives::hash::{sha256, sha384, sha512, sha3_256, sha3_384, s
 
 fuzz_target!(|data: &[u8]| {
     // Test SHA-256
-    test_sha256(data);
+    test_sha256_succeeds(data);
 
     // Test SHA-384
-    test_sha384(data);
+    test_sha384_succeeds(data);
 
     // Test SHA-512
-    test_sha512(data);
+    test_sha512_succeeds(data);
 
     // Test SHA3-256
-    test_sha3_256(data);
+    test_sha3_256_succeeds(data);
 
     // Test SHA3-384
-    test_sha3_384(data);
+    test_sha3_384_succeeds(data);
 
     // Test SHA3-512
-    test_sha3_512(data);
+    test_sha3_512_succeeds(data);
 });
 
-fn test_sha256(data: &[u8]) {
+fn test_sha256_succeeds(data: &[u8]) {
     if let Ok(hash1) = sha256(data) {
         // Verify hash length (32 bytes)
         assert_eq!(hash1.len(), 32, "SHA-256 hash must be 32 bytes");
@@ -62,7 +62,7 @@ fn test_sha256(data: &[u8]) {
     }
 }
 
-fn test_sha384(data: &[u8]) {
+fn test_sha384_succeeds(data: &[u8]) {
     if let Ok(hash1) = sha384(data) {
         // Verify hash length (48 bytes)
         assert_eq!(hash1.len(), 48, "SHA-384 hash must be 48 bytes");
@@ -83,7 +83,7 @@ fn test_sha384(data: &[u8]) {
     }
 }
 
-fn test_sha512(data: &[u8]) {
+fn test_sha512_succeeds(data: &[u8]) {
     if let Ok(hash1) = sha512(data) {
         // Verify hash length (64 bytes)
         assert_eq!(hash1.len(), 64, "SHA-512 hash must be 64 bytes");
@@ -104,7 +104,7 @@ fn test_sha512(data: &[u8]) {
     }
 }
 
-fn test_sha3_256(data: &[u8]) {
+fn test_sha3_256_succeeds(data: &[u8]) {
     // SHA3 functions return arrays directly, not Result
     let hash1 = sha3_256(data);
 
@@ -121,7 +121,7 @@ fn test_sha3_256(data: &[u8]) {
     }
 }
 
-fn test_sha3_384(data: &[u8]) {
+fn test_sha3_384_succeeds(data: &[u8]) {
     // SHA3 functions return arrays directly, not Result
     let hash1 = sha3_384(data);
 
@@ -133,7 +133,7 @@ fn test_sha3_384(data: &[u8]) {
     assert_eq!(hash1, hash2, "SHA3-384 must be deterministic");
 }
 
-fn test_sha3_512(data: &[u8]) {
+fn test_sha3_512_succeeds(data: &[u8]) {
     // SHA3 functions return arrays directly, not Result
     let hash1 = sha3_512(data);
 

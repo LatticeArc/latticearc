@@ -67,7 +67,7 @@ mod public_api_tests {
     }
 
     #[test]
-    fn test_run_chacha20_poly1305_kat_multiple_times() {
+    fn test_run_chacha20_poly1305_kat_multiple_times_succeeds() {
         // Running KAT multiple times should always succeed (deterministic)
         for _ in 0..5 {
             let result = run_chacha20_poly1305_kat();
@@ -84,20 +84,20 @@ mod test_vector_structure_tests {
     use super::*;
 
     #[test]
-    fn test_vector_count() {
+    fn test_vector_count_matches_expected() {
         // Ensure we have at least one test vector
         assert!(!CHACHA20_POLY1305_VECTORS.is_empty(), "Should have at least one test vector");
     }
 
     #[test]
-    fn test_vector_names_not_empty() {
+    fn test_vector_names_not_empty_matches_expected() {
         for vector in CHACHA20_POLY1305_VECTORS {
             assert!(!vector.test_name.is_empty(), "Test name should not be empty");
         }
     }
 
     #[test]
-    fn test_vector_key_length() {
+    fn test_vector_key_length_matches_rfc_vector_matches_expected() {
         // ChaCha20-Poly1305 requires 256-bit (32-byte) keys = 64 hex chars
         for vector in CHACHA20_POLY1305_VECTORS {
             assert_eq!(
@@ -110,7 +110,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_vector_nonce_length() {
+    fn test_vector_nonce_length_matches_rfc_vector_matches_expected() {
         // ChaCha20-Poly1305 uses 96-bit (12-byte) nonces = 24 hex chars
         for vector in CHACHA20_POLY1305_VECTORS {
             assert_eq!(
@@ -123,7 +123,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_vector_tag_length() {
+    fn test_vector_tag_length_matches_rfc_vector_matches_expected() {
         // Poly1305 produces 128-bit (16-byte) tags = 32 hex chars
         for vector in CHACHA20_POLY1305_VECTORS {
             assert_eq!(
@@ -136,7 +136,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_vector_ciphertext_length_matches_plaintext() {
+    fn test_vector_ciphertext_length_matches_plaintext_matches_expected() {
         // Ciphertext length should equal plaintext length (stream cipher)
         for vector in CHACHA20_POLY1305_VECTORS {
             assert_eq!(
@@ -149,7 +149,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_vector_hex_strings_valid() {
+    fn test_vector_hex_strings_valid_matches_expected() {
         for vector in CHACHA20_POLY1305_VECTORS {
             assert!(
                 decode_hex(vector.key).is_ok(),
@@ -185,7 +185,7 @@ mod test_vector_structure_tests {
     }
 
     #[test]
-    fn test_vector_struct_fields_accessible() {
+    fn test_vector_struct_fields_accessible_succeeds() {
         // Verify all struct fields are accessible
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         let _name: &str = vector.test_name;
@@ -206,7 +206,7 @@ mod vector_validation_tests {
     use super::*;
 
     #[test]
-    fn test_rfc8439_test_vector_1() {
+    fn test_rfc8439_test_vector_1_matches_rfc_vector_matches_expected() {
         // Manually verify RFC 8439 Section 2.8.2 test vector
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         assert_eq!(vector.test_name, "RFC-8439-Test-Vector-1");
@@ -234,7 +234,7 @@ mod vector_validation_tests {
     }
 
     #[test]
-    fn test_all_vectors_individually() {
+    fn test_all_vectors_individually_match_rfc_vector_matches_expected() {
         for vector in CHACHA20_POLY1305_VECTORS {
             let key = decode_hex(vector.key).unwrap();
             let nonce = decode_hex(vector.nonce).unwrap();
@@ -271,7 +271,12 @@ mod vector_validation_tests {
                 .decrypt((&nonce[..]).into(), payload_dec)
                 .expect("decryption should succeed");
 
-            assert_eq!(decrypted, plaintext, "Decryption mismatch for test '{}'", vector.test_name);
+            assert_eq!(
+                decrypted.as_slice(),
+                plaintext.as_slice(),
+                "Decryption mismatch for test '{}'",
+                vector.test_name
+            );
         }
     }
 }
@@ -284,7 +289,7 @@ mod aead_property_tests {
     use super::*;
 
     #[test]
-    fn test_encryption_decryption_roundtrip() {
+    fn test_encryption_decryption_roundtrip_succeeds() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"test message for ChaCha20-Poly1305";
@@ -304,7 +309,7 @@ mod aead_property_tests {
     }
 
     #[test]
-    fn test_empty_plaintext_encryption() {
+    fn test_empty_plaintext_encryption_succeeds() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"";
@@ -327,7 +332,7 @@ mod aead_property_tests {
     }
 
     #[test]
-    fn test_empty_aad_encryption() {
+    fn test_empty_aad_encryption_succeeds() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"message without aad";
@@ -347,7 +352,7 @@ mod aead_property_tests {
     }
 
     #[test]
-    fn test_both_empty_encryption() {
+    fn test_both_empty_encryption_succeeds() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"";
@@ -369,7 +374,7 @@ mod aead_property_tests {
     }
 
     #[test]
-    fn test_large_plaintext_encryption() {
+    fn test_large_plaintext_encryption_succeeds() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = vec![0x61u8; 1024 * 64]; // 64 KB
@@ -388,11 +393,11 @@ mod aead_property_tests {
             .decrypt((&nonce).into(), Payload { msg: &ciphertext, aad })
             .expect("decryption should succeed");
 
-        assert_eq!(decrypted, plaintext);
+        assert_eq!(decrypted.as_slice(), plaintext.as_slice());
     }
 
     #[test]
-    fn test_large_aad_encryption() {
+    fn test_large_aad_encryption_succeeds() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"message";
@@ -412,7 +417,7 @@ mod aead_property_tests {
     }
 
     #[test]
-    fn test_ciphertext_length() {
+    fn test_ciphertext_length_matches_expected() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let aad = b"aad";
@@ -595,7 +600,7 @@ mod error_handling_tests {
     use super::*;
 
     #[test]
-    fn test_nist_kat_error_test_failed_display() {
+    fn test_nist_kat_error_test_failed_display_matches_expected() {
         let error = NistKatError::TestFailed {
             algorithm: "ChaCha20-Poly1305".to_string(),
             test_name: "RFC-8439-Test-Vector-1".to_string(),
@@ -609,7 +614,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_hex_error_display() {
+    fn test_nist_kat_error_hex_error_display_matches_expected() {
         let error = NistKatError::HexError("invalid hex character".to_string());
 
         let display = format!("{}", error);
@@ -618,7 +623,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_nist_kat_error_implementation_error_display() {
+    fn test_nist_kat_error_implementation_error_display_matches_expected() {
         let error = NistKatError::ImplementationError("Invalid key length".to_string());
 
         let display = format!("{}", error);
@@ -627,21 +632,21 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_valid() {
+    fn test_decode_hex_valid_succeeds() {
         let result = decode_hex("616263");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0x61, 0x62, 0x63]);
     }
 
     #[test]
-    fn test_decode_hex_empty() {
+    fn test_decode_hex_empty_succeeds() {
         let result = decode_hex("");
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }
 
     #[test]
-    fn test_decode_hex_invalid_chars() {
+    fn test_decode_hex_invalid_chars_fails() {
         let result = decode_hex("GHIJ");
         assert!(result.is_err());
         match result {
@@ -653,7 +658,7 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_odd_length() {
+    fn test_decode_hex_odd_length_has_correct_size() {
         let result = decode_hex("abc");
         assert!(result.is_err());
         match result {
@@ -665,14 +670,14 @@ mod error_handling_tests {
     }
 
     #[test]
-    fn test_decode_hex_uppercase() {
+    fn test_decode_hex_uppercase_succeeds() {
         let result = decode_hex("ABCDEF");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0xAB, 0xCD, 0xEF]);
     }
 
     #[test]
-    fn test_decode_hex_mixed_case() {
+    fn test_decode_hex_mixed_case_succeeds() {
         let result = decode_hex("AbCdEf");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), vec![0xAB, 0xCD, 0xEF]);
@@ -687,7 +692,7 @@ mod edge_case_tests {
     use super::*;
 
     #[test]
-    fn test_single_byte_plaintext() {
+    fn test_single_byte_plaintext_roundtrip() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = [0x61u8];
@@ -709,7 +714,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_zeros_key() {
+    fn test_all_zeros_key_roundtrip() {
         let key = [0u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"test message";
@@ -729,7 +734,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_all_ones_key() {
+    fn test_all_ones_key_roundtrip() {
         let key = [0xFFu8; 32];
         let nonce = [0xFFu8; 12];
         let plaintext = b"test message";
@@ -749,7 +754,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_different_nonces_produce_different_ciphertext() {
+    fn test_different_nonces_produce_different_ciphertext_are_unique() {
         let key = [0x42u8; 32];
         let nonce1 = [0u8; 12];
         let nonce2 = [1u8; 12];
@@ -773,7 +778,7 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_same_nonce_produces_same_ciphertext() {
+    fn test_same_nonce_produces_same_ciphertext_succeeds() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"same message";
@@ -801,7 +806,7 @@ mod boundary_tests {
     use super::*;
 
     #[test]
-    fn test_block_boundary_plaintexts() {
+    fn test_block_boundary_plaintexts_roundtrip() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let aad = b"aad";
@@ -820,12 +825,17 @@ mod boundary_tests {
                 .decrypt((&nonce).into(), Payload { msg: &ciphertext, aad })
                 .expect("decryption should succeed");
 
-            assert_eq!(decrypted, plaintext, "Roundtrip failed for {} byte plaintext", len);
+            assert_eq!(
+                decrypted.as_slice(),
+                plaintext.as_slice(),
+                "Roundtrip failed for {} byte plaintext",
+                len
+            );
         }
     }
 
     #[test]
-    fn test_maximum_nonce_value() {
+    fn test_maximum_nonce_value_roundtrip() {
         let key = [0x42u8; 32];
         let nonce = [0xFFu8; 12]; // Maximum nonce value
         let plaintext = b"test message";
@@ -845,7 +855,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_minimum_nonce_value() {
+    fn test_minimum_nonce_value_roundtrip() {
         let key = [0x42u8; 32];
         let nonce = [0x00u8; 12]; // Minimum nonce value
         let plaintext = b"test message";
@@ -865,7 +875,7 @@ mod boundary_tests {
     }
 
     #[test]
-    fn test_single_bit_difference_in_key() {
+    fn test_single_bit_difference_in_key_matches_expected() {
         let key1 = [0x42u8; 32];
         let mut key2 = key1;
         key2[0] ^= 0x01; // Single bit difference
@@ -900,7 +910,7 @@ mod determinism_tests {
     use super::*;
 
     #[test]
-    fn test_encryption_is_deterministic() {
+    fn test_encryption_is_deterministic_for_same_inputs_is_deterministic() {
         let key = [0x42u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"deterministic test";
@@ -923,7 +933,7 @@ mod determinism_tests {
     }
 
     #[test]
-    fn test_kat_is_deterministic() {
+    fn test_kat_is_deterministic_for_same_vectors_matches_expected() {
         // Run KAT multiple times and verify consistency
         for _ in 0..10 {
             let result = run_chacha20_poly1305_kat();
@@ -941,7 +951,7 @@ mod integration_tests {
     use latticearc_tests::validation::nist_kat::{KatRunner, KatSummary};
 
     #[test]
-    fn test_chacha20_poly1305_kat_runner_integration() {
+    fn test_chacha20_poly1305_kat_runner_integration_succeeds() {
         let mut runner = KatRunner::new();
 
         runner.run_test("ChaCha20-Poly1305", "AEAD", || run_chacha20_poly1305_kat());
@@ -966,7 +976,7 @@ mod rfc8439_compliance_tests {
     use super::*;
 
     #[test]
-    fn test_rfc8439_key_size() {
+    fn test_rfc8439_key_size_matches_rfc_vector_matches_expected() {
         // RFC 8439 specifies 256-bit keys
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         let key = decode_hex(vector.key).unwrap();
@@ -974,7 +984,7 @@ mod rfc8439_compliance_tests {
     }
 
     #[test]
-    fn test_rfc8439_nonce_size() {
+    fn test_rfc8439_nonce_size_matches_rfc_vector_matches_expected() {
         // RFC 8439 specifies 96-bit nonces for IETF variant
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         let nonce = decode_hex(vector.nonce).unwrap();
@@ -982,7 +992,7 @@ mod rfc8439_compliance_tests {
     }
 
     #[test]
-    fn test_rfc8439_tag_size() {
+    fn test_rfc8439_tag_size_matches_rfc_vector_matches_expected() {
         // RFC 8439 specifies 128-bit authentication tags
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         let tag = decode_hex(vector.expected_tag).unwrap();
@@ -990,7 +1000,7 @@ mod rfc8439_compliance_tests {
     }
 
     #[test]
-    fn test_rfc8439_aead_construction() {
+    fn test_rfc8439_aead_construction_matches_rfc_vector_matches_expected() {
         // Verify the AEAD construction follows RFC 8439 Section 2.8
         let vector = &CHACHA20_POLY1305_VECTORS[0];
 
@@ -1019,7 +1029,7 @@ mod content_verification_tests {
     use super::*;
 
     #[test]
-    fn test_rfc8439_plaintext_content() {
+    fn test_rfc8439_plaintext_content_matches_rfc_vector_matches_expected() {
         // RFC 8439 Section 2.8.2 plaintext is the Sunscreen message
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         let plaintext = decode_hex(vector.plaintext).unwrap();
@@ -1037,7 +1047,7 @@ mod content_verification_tests {
     }
 
     #[test]
-    fn test_rfc8439_aad_content() {
+    fn test_rfc8439_aad_content_matches_rfc_vector_matches_expected() {
         // RFC 8439 Section 2.8.2 AAD
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         let aad = decode_hex(vector.aad).unwrap();
@@ -1047,7 +1057,7 @@ mod content_verification_tests {
     }
 
     #[test]
-    fn test_rfc8439_nonce_content() {
+    fn test_rfc8439_nonce_content_matches_rfc_vector_matches_expected() {
         // RFC 8439 Section 2.8.2 nonce
         let vector = &CHACHA20_POLY1305_VECTORS[0];
         let nonce = decode_hex(vector.nonce).unwrap();
@@ -1068,7 +1078,7 @@ mod cross_validation_tests {
     use super::*;
 
     #[test]
-    fn test_verify_against_known_chacha20_output() {
+    fn test_verify_against_known_chacha20_output_matches_rfc_vector_matches_expected() {
         // Additional verification using known test vectors
         let key =
             decode_hex("808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f").unwrap();
@@ -1109,7 +1119,7 @@ mod cross_validation_tests {
 // =============================================================================
 
 #[test]
-fn test_chacha20_poly1305_comprehensive_summary() {
+fn test_chacha20_poly1305_comprehensive_summary_matches_expected() {
     println!("\n========================================");
     println!("ChaCha20-Poly1305 KAT Test Summary");
     println!("========================================\n");

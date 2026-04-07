@@ -128,7 +128,7 @@ fn make_detailed_result(
 // ============================================================================
 
 #[test]
-fn test_generator_new() {
+fn test_generator_new_sets_fields_succeeds() {
     let dg = NistDocumentationGenerator::new(
         "TestOrg".to_string(),
         "TestModule".to_string(),
@@ -141,7 +141,7 @@ fn test_generator_new() {
 }
 
 #[test]
-fn test_generator_default() {
+fn test_generator_default_sets_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     assert_eq!(dg.organization, "LatticeArc Project");
     assert_eq!(dg.module_name, "LatticeArc Validation");
@@ -154,7 +154,7 @@ fn test_generator_default() {
 // ============================================================================
 
 #[test]
-fn test_certificate_basic_header() {
+fn test_certificate_basic_header_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let cert = dg.generate_compliance_certificate(&report).unwrap();
@@ -170,7 +170,7 @@ fn test_certificate_basic_header() {
 }
 
 #[test]
-fn test_certificate_test_summary() {
+fn test_certificate_test_summary_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let cert = dg.generate_compliance_certificate(&report).unwrap();
@@ -184,7 +184,7 @@ fn test_certificate_test_summary() {
 }
 
 #[test]
-fn test_certificate_performance_metrics() {
+fn test_certificate_performance_metrics_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let cert = dg.generate_compliance_certificate(&report).unwrap();
@@ -198,7 +198,7 @@ fn test_certificate_performance_metrics() {
 }
 
 #[test]
-fn test_certificate_compliance_criteria() {
+fn test_certificate_compliance_criteria_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let cert = dg.generate_compliance_certificate(&report).unwrap();
@@ -210,7 +210,7 @@ fn test_certificate_compliance_criteria() {
 }
 
 #[test]
-fn test_certificate_with_security_requirements() {
+fn test_certificate_with_security_requirements_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let reqs = vec![make_security_req("SEC-001", true), make_security_req("SEC-002", false)];
     let report = make_report(
@@ -236,7 +236,7 @@ fn test_certificate_with_security_requirements() {
 }
 
 #[test]
-fn test_certificate_with_detailed_results() {
+fn test_certificate_with_detailed_results_formats_all_statuses_has_correct_size() {
     let dg = NistDocumentationGenerator::default();
     let detailed = vec![
         make_detailed_result("T-001", TestResult::Passed, HashMap::new()),
@@ -270,7 +270,7 @@ fn test_certificate_with_detailed_results() {
 }
 
 #[test]
-fn test_certificate_footer() {
+fn test_certificate_footer_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let cert = dg.generate_compliance_certificate(&report).unwrap();
@@ -285,7 +285,7 @@ fn test_certificate_footer() {
 // ============================================================================
 
 #[test]
-fn test_technical_report_header() {
+fn test_technical_report_header_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let tech = dg.generate_technical_report(&report).unwrap();
@@ -298,7 +298,7 @@ fn test_technical_report_header() {
 }
 
 #[test]
-fn test_technical_report_executive_summary() {
+fn test_technical_report_executive_summary_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let tech = dg.generate_technical_report(&report).unwrap();
@@ -310,7 +310,7 @@ fn test_technical_report_executive_summary() {
 }
 
 #[test]
-fn test_technical_report_detailed_results_with_details() {
+fn test_technical_report_detailed_results_with_details_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let mut details = HashMap::new();
     details.insert("vector_id".to_string(), "V001".to_string());
@@ -337,7 +337,7 @@ fn test_technical_report_detailed_results_with_details() {
 }
 
 #[test]
-fn test_technical_report_performance_analysis() {
+fn test_technical_report_performance_analysis_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let tech = dg.generate_technical_report(&report).unwrap();
@@ -356,7 +356,7 @@ fn test_technical_report_performance_analysis() {
 }
 
 #[test]
-fn test_technical_report_compliance_analysis_met() {
+fn test_technical_report_compliance_analysis_met_shows_yes_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let tech = dg.generate_technical_report(&report).unwrap();
@@ -368,7 +368,7 @@ fn test_technical_report_compliance_analysis_met() {
 }
 
 #[test]
-fn test_technical_report_compliance_analysis_not_met() {
+fn test_technical_report_compliance_analysis_not_met_shows_no_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(
         ComplianceStatus::NonCompliant { failures: vec!["low pass rate".to_string()] },
@@ -380,7 +380,7 @@ fn test_technical_report_compliance_analysis_not_met() {
 }
 
 #[test]
-fn test_technical_report_security_requirements_mandatory() {
+fn test_technical_report_security_requirements_mandatory_shows_verified_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let reqs = vec![make_security_req("REQ-M1", true)];
     let report = make_report(
@@ -404,7 +404,7 @@ fn test_technical_report_security_requirements_mandatory() {
 }
 
 #[test]
-fn test_technical_report_security_requirements_optional() {
+fn test_technical_report_security_requirements_optional_shows_verified_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let reqs = vec![make_security_req("REQ-O1", false)];
     let report = make_report(
@@ -425,7 +425,7 @@ fn test_technical_report_security_requirements_optional() {
 }
 
 #[test]
-fn test_technical_report_nist_standards() {
+fn test_technical_report_nist_standards_shows_fully_compliant_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_report(
         CavpAlgorithm::HybridKem,
@@ -447,7 +447,7 @@ fn test_technical_report_nist_standards() {
 }
 
 #[test]
-fn test_technical_report_recommendations_perfect() {
+fn test_technical_report_recommendations_perfect_shows_all_passed_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let tech = dg.generate_technical_report(&report).unwrap();
@@ -458,7 +458,7 @@ fn test_technical_report_recommendations_perfect() {
 }
 
 #[test]
-fn test_technical_report_recommendations_minor_issues() {
+fn test_technical_report_recommendations_minor_issues_shows_address_failures_fails() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 97.0);
     let tech = dg.generate_technical_report(&report).unwrap();
@@ -468,7 +468,7 @@ fn test_technical_report_recommendations_minor_issues() {
 }
 
 #[test]
-fn test_technical_report_recommendations_significant_issues() {
+fn test_technical_report_recommendations_significant_issues_shows_comprehensive_review_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(
         ComplianceStatus::NonCompliant { failures: vec!["critical failure".to_string()] },
@@ -481,7 +481,7 @@ fn test_technical_report_recommendations_significant_issues() {
 }
 
 #[test]
-fn test_technical_report_appendix() {
+fn test_technical_report_appendix_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let tech = dg.generate_technical_report(&report).unwrap();
@@ -497,7 +497,7 @@ fn test_technical_report_appendix() {
 // ============================================================================
 
 #[test]
-fn test_audit_trail_empty_reports() {
+fn test_audit_trail_empty_reports_shows_zero_totals_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let trail = dg.generate_audit_trail(&[]).unwrap();
 
@@ -508,7 +508,7 @@ fn test_audit_trail_empty_reports() {
 }
 
 #[test]
-fn test_audit_trail_single_report() {
+fn test_audit_trail_single_report_contains_expected_fields_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let trail = dg.generate_audit_trail(&[report]).unwrap();
@@ -522,7 +522,7 @@ fn test_audit_trail_single_report() {
 }
 
 #[test]
-fn test_audit_trail_partially_compliant() {
+fn test_audit_trail_partially_compliant_shows_exceptions_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(
         ComplianceStatus::PartiallyCompliant {
@@ -539,7 +539,7 @@ fn test_audit_trail_partially_compliant() {
 }
 
 #[test]
-fn test_audit_trail_non_compliant() {
+fn test_audit_trail_non_compliant_shows_failures_fails() {
     let dg = NistDocumentationGenerator::default();
     let report = make_simple_report(
         ComplianceStatus::NonCompliant { failures: vec!["Critical security failure".to_string()] },
@@ -553,7 +553,7 @@ fn test_audit_trail_non_compliant() {
 }
 
 #[test]
-fn test_audit_trail_compliance_trends_improvement() {
+fn test_audit_trail_compliance_trends_improvement_shows_improvement_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let r1 = make_simple_report(ComplianceStatus::FullyCompliant, 90.0);
     let r2 = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
@@ -565,7 +565,7 @@ fn test_audit_trail_compliance_trends_improvement() {
 }
 
 #[test]
-fn test_audit_trail_compliance_trends_decline() {
+fn test_audit_trail_compliance_trends_decline_shows_decline_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let r1 = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let r2 = make_simple_report(
@@ -578,7 +578,7 @@ fn test_audit_trail_compliance_trends_decline() {
 }
 
 #[test]
-fn test_audit_trail_summary_statistics() {
+fn test_audit_trail_summary_statistics_shows_counts_by_status_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let r1 = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let r2 = make_simple_report(
@@ -599,7 +599,7 @@ fn test_audit_trail_summary_statistics() {
 }
 
 #[test]
-fn test_audit_trail_certified_status() {
+fn test_audit_trail_certified_status_shows_certified_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let r1 = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
     let trail = dg.generate_audit_trail(&[r1]).unwrap();
@@ -610,7 +610,7 @@ fn test_audit_trail_certified_status() {
 }
 
 #[test]
-fn test_audit_trail_conditionally_certified() {
+fn test_audit_trail_conditionally_certified_shows_conditionally_certified_succeeds() {
     let dg = NistDocumentationGenerator::default();
     // Need total_passed/total_tests >= 95% but < 100%, and non_compliant == 0
     let r1 = make_report(
@@ -632,7 +632,7 @@ fn test_audit_trail_conditionally_certified() {
 }
 
 #[test]
-fn test_audit_trail_not_certified() {
+fn test_audit_trail_not_certified_shows_not_certified_succeeds() {
     let dg = NistDocumentationGenerator::default();
     let r1 = make_simple_report(
         ComplianceStatus::NonCompliant { failures: vec!["major failure".to_string()] },
@@ -649,7 +649,7 @@ fn test_audit_trail_not_certified() {
 // ============================================================================
 
 #[test]
-fn test_format_compliance_status_all_variants() {
+fn test_format_compliance_status_all_variants_produce_correct_strings_has_correct_size() {
     let dg = NistDocumentationGenerator::default();
 
     let fully = make_simple_report(ComplianceStatus::FullyCompliant, 100.0);
@@ -682,7 +682,7 @@ fn test_format_compliance_status_all_variants() {
 // ============================================================================
 
 #[test]
-fn test_format_test_result_all_variants() {
+fn test_format_test_result_all_variants_produce_correct_strings_has_correct_size() {
     let dg = NistDocumentationGenerator::default();
     let detailed = vec![
         make_detailed_result("R-P", TestResult::Passed, HashMap::new()),
@@ -715,7 +715,7 @@ fn test_format_test_result_all_variants() {
 // ============================================================================
 
 #[test]
-fn test_certificate_with_different_algorithms() {
+fn test_certificate_with_different_algorithms_succeeds() {
     let dg = NistDocumentationGenerator::default();
 
     let algorithms = vec![
