@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["compose","encrypt","encrypt_hybrid","kem","kem_hybrid","sig","sig_hybrid"]};
+window.SIDEBAR_ITEMS = {"mod":["compose","encrypt_hybrid","kem_hybrid","sig_hybrid"]};

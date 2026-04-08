@@ -273,7 +273,7 @@
 <a href=#273 id=273 data-nosnippet>273</a>            });
 <a href=#274 id=274 data-nosnippet>274</a>        }
 <a href=#275 id=275 data-nosnippet>275</a>
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>rng_results = <span class="self">self</span>.nist_tester.test_bit_sequence(<span class="kw-2">&amp;</span>test_data)<span class="question-mark">?</span>;
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>rng_results = <span class="self">self</span>.nist_tester.test_bit_sequence_succeeds(<span class="kw-2">&amp;</span>test_data)<span class="question-mark">?</span>;
 <a href=#277 id=277 data-nosnippet>277</a>
 <a href=#278 id=278 data-nosnippet>278</a>        <span class="kw">let </span>randomness_quality = <span class="kw">if </span>rng_results.passed &amp;&amp; rng_results.entropy_estimate &gt;= <span class="number">7.5 </span>{
 <a href=#279 id=279 data-nosnippet>279</a>            RandomnessQuality::Excellent

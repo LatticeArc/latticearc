@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CompositionError","SecurityLevel"],"fn":["verify_hybrid_kem_security","verify_hybrid_signature_security"],"struct":["HybridSecurityProof"]};
+window.SIDEBAR_ITEMS = {"enum":["CompositionError","HybridSecurityLevel"],"fn":["verify_hybrid_kem_security","verify_hybrid_signature_security"],"struct":["HybridSecurityProof"]};

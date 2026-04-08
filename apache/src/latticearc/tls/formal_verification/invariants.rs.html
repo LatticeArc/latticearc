@@ -124,7 +124,7 @@
 <a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#125 id=125 data-nosnippet>125</a>
 <a href=#126 id=126 data-nosnippet>126</a>    <span class="attr">#[test]
-<a href=#127 id=127 data-nosnippet>127</a>    </span><span class="kw">fn </span>test_default_invariants_pass_default_config() {
+<a href=#127 id=127 data-nosnippet>127</a>    </span><span class="kw">fn </span>test_default_invariants_pass_default_config_succeeds() {
 <a href=#128 id=128 data-nosnippet>128</a>        <span class="kw">let </span>inv = TlsInvariants::new();
 <a href=#129 id=129 data-nosnippet>129</a>        <span class="kw">let </span>config = TlsConfig::new();
 <a href=#130 id=130 data-nosnippet>130</a>        <span class="kw">let </span>result = inv.check(<span class="kw-2">&amp;</span>config);
@@ -133,7 +133,7 @@
 <a href=#133 id=133 data-nosnippet>133</a>    }
 <a href=#134 id=134 data-nosnippet>134</a>
 <a href=#135 id=135 data-nosnippet>135</a>    <span class="attr">#[test]
-<a href=#136 id=136 data-nosnippet>136</a>    </span><span class="kw">fn </span>test_strict_invariants_fail_classic_mode() {
+<a href=#136 id=136 data-nosnippet>136</a>    </span><span class="kw">fn </span>test_strict_invariants_fail_classic_mode_fails() {
 <a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">let </span>inv = TlsInvariants::strict();
 <a href=#138 id=138 data-nosnippet>138</a>        <span class="kw">let </span>config = TlsConfig { mode: TlsMode::Classic, ..TlsConfig::default() };
 <a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">let </span>result = inv.check(<span class="kw-2">&amp;</span>config);
@@ -142,7 +142,7 @@
 <a href=#142 id=142 data-nosnippet>142</a>    }
 <a href=#143 id=143 data-nosnippet>143</a>
 <a href=#144 id=144 data-nosnippet>144</a>    <span class="attr">#[test]
-<a href=#145 id=145 data-nosnippet>145</a>    </span><span class="kw">fn </span>test_strict_invariants_pass_hybrid_mode() {
+<a href=#145 id=145 data-nosnippet>145</a>    </span><span class="kw">fn </span>test_strict_invariants_pass_hybrid_mode_succeeds() {
 <a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">let </span>inv = TlsInvariants::strict();
 <a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">let </span>config = TlsConfig::new(); <span class="comment">// default is Hybrid
 <a href=#148 id=148 data-nosnippet>148</a>        </span><span class="kw">let </span>result = inv.check(<span class="kw-2">&amp;</span>config);
@@ -150,7 +150,7 @@
 <a href=#150 id=150 data-nosnippet>150</a>    }
 <a href=#151 id=151 data-nosnippet>151</a>
 <a href=#152 id=152 data-nosnippet>152</a>    <span class="attr">#[test]
-<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">fn </span>test_strict_invariants_fail_key_logging() {
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">fn </span>test_strict_invariants_fail_key_logging_fails() {
 <a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">let </span>inv = TlsInvariants::strict();
 <a href=#155 id=155 data-nosnippet>155</a>        <span class="kw">let </span>config = TlsConfig::new().with_key_logging();
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">let </span>result = inv.check(<span class="kw-2">&amp;</span>config);
@@ -159,7 +159,7 @@
 <a href=#159 id=159 data-nosnippet>159</a>    }
 <a href=#160 id=160 data-nosnippet>160</a>
 <a href=#161 id=161 data-nosnippet>161</a>    <span class="attr">#[test]
-<a href=#162 id=162 data-nosnippet>162</a>    </span><span class="kw">fn </span>test_custom_min_version() {
+<a href=#162 id=162 data-nosnippet>162</a>    </span><span class="kw">fn </span>test_custom_min_version_rejects_tls12_fails() {
 <a href=#163 id=163 data-nosnippet>163</a>        <span class="kw">let </span>inv = TlsInvariants::new().with_min_tls_version(<span class="number">0x0304</span>);
 <a href=#164 id=164 data-nosnippet>164</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = TlsConfig::new();
 <a href=#165 id=165 data-nosnippet>165</a>        config.min_protocol_version = <span class="prelude-val">Some</span>(rustls::ProtocolVersion::TLSv1_2);
@@ -169,7 +169,7 @@
 <a href=#169 id=169 data-nosnippet>169</a>    }
 <a href=#170 id=170 data-nosnippet>170</a>
 <a href=#171 id=171 data-nosnippet>171</a>    <span class="attr">#[test]
-<a href=#172 id=172 data-nosnippet>172</a>    </span><span class="kw">fn </span>test_pq_required_builder() {
+<a href=#172 id=172 data-nosnippet>172</a>    </span><span class="kw">fn </span>test_pq_required_builder_succeeds() {
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">let </span>inv = TlsInvariants::new().with_pq_required(<span class="bool-val">true</span>);
 <a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">let </span>config = TlsConfig { mode: TlsMode::Classic, ..TlsConfig::default() };
 <a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">let </span>result = inv.check(<span class="kw-2">&amp;</span>config);
@@ -177,7 +177,7 @@
 <a href=#177 id=177 data-nosnippet>177</a>    }
 <a href=#178 id=178 data-nosnippet>178</a>
 <a href=#179 id=179 data-nosnippet>179</a>    <span class="attr">#[test]
-<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="kw">fn </span>test_invariant_result_debug() {
+<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="kw">fn </span>test_invariant_result_debug_succeeds() {
 <a href=#181 id=181 data-nosnippet>181</a>        <span class="kw">let </span>result = InvariantResult { passed: <span class="bool-val">true</span>, violations: <span class="macro">vec!</span>[] };
 <a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">let </span>debug = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, result);
 <a href=#183 id=183 data-nosnippet>183</a>        <span class="macro">assert!</span>(debug.contains(<span class="string">"passed: true"</span>));

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["blake2b_256"]};
+window.SIDEBAR_ITEMS = {"fn":["blake2b_256","blake2s_256"]};

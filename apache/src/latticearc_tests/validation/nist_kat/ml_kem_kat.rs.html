@@ -255,19 +255,19 @@
 <a href=#255 id=255 data-nosnippet>255</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#256 id=256 data-nosnippet>256</a>
 <a href=#257 id=257 data-nosnippet>257</a>    <span class="attr">#[test]
-<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">fn </span>test_ml_kem_512_kat() {
+<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">fn </span>test_ml_kem_512_kat_matches_expected() {
 <a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">let </span>result = run_ml_kem_512_kat();
 <a href=#260 id=260 data-nosnippet>260</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-512 KAT failed: {:?}"</span>, result);
 <a href=#261 id=261 data-nosnippet>261</a>    }
 <a href=#262 id=262 data-nosnippet>262</a>
 <a href=#263 id=263 data-nosnippet>263</a>    <span class="attr">#[test]
-<a href=#264 id=264 data-nosnippet>264</a>    </span><span class="kw">fn </span>test_ml_kem_768_kat() {
+<a href=#264 id=264 data-nosnippet>264</a>    </span><span class="kw">fn </span>test_ml_kem_768_kat_matches_expected() {
 <a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">let </span>result = run_ml_kem_768_kat();
 <a href=#266 id=266 data-nosnippet>266</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-768 KAT failed: {:?}"</span>, result);
 <a href=#267 id=267 data-nosnippet>267</a>    }
 <a href=#268 id=268 data-nosnippet>268</a>
 <a href=#269 id=269 data-nosnippet>269</a>    <span class="attr">#[test]
-<a href=#270 id=270 data-nosnippet>270</a>    </span><span class="kw">fn </span>test_ml_kem_1024_kat() {
+<a href=#270 id=270 data-nosnippet>270</a>    </span><span class="kw">fn </span>test_ml_kem_1024_kat_matches_expected() {
 <a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">let </span>result = run_ml_kem_1024_kat();
 <a href=#272 id=272 data-nosnippet>272</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-1024 KAT failed: {:?}"</span>, result);
 <a href=#273 id=273 data-nosnippet>273</a>    }
@@ -277,42 +277,42 @@
 <a href=#277 id=277 data-nosnippet>277</a>    // ========================================================================
 <a href=#278 id=278 data-nosnippet>278</a>
 <a href=#279 id=279 data-nosnippet>279</a>    </span><span class="attr">#[test]
-<a href=#280 id=280 data-nosnippet>280</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_test_individual_vector_1() {
+<a href=#280 id=280 data-nosnippet>280</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_individual_vector_1_matches_expected() {
 <a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>ML_KEM_512_VECTORS[<span class="number">0</span>];
 <a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">let </span>result = run_ml_kem_512_test(vector);
 <a href=#283 id=283 data-nosnippet>283</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-512 vector 1 failed: {:?}"</span>, result);
 <a href=#284 id=284 data-nosnippet>284</a>    }
 <a href=#285 id=285 data-nosnippet>285</a>
 <a href=#286 id=286 data-nosnippet>286</a>    <span class="attr">#[test]
-<a href=#287 id=287 data-nosnippet>287</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_test_individual_vector_2() {
+<a href=#287 id=287 data-nosnippet>287</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_individual_vector_2_matches_expected() {
 <a href=#288 id=288 data-nosnippet>288</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>ML_KEM_512_VECTORS[<span class="number">1</span>];
 <a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">let </span>result = run_ml_kem_512_test(vector);
 <a href=#290 id=290 data-nosnippet>290</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-512 vector 2 failed: {:?}"</span>, result);
 <a href=#291 id=291 data-nosnippet>291</a>    }
 <a href=#292 id=292 data-nosnippet>292</a>
 <a href=#293 id=293 data-nosnippet>293</a>    <span class="attr">#[test]
-<a href=#294 id=294 data-nosnippet>294</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_test_individual_vector_1() {
+<a href=#294 id=294 data-nosnippet>294</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_individual_vector_1_matches_expected() {
 <a href=#295 id=295 data-nosnippet>295</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>ML_KEM_768_VECTORS[<span class="number">0</span>];
 <a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span>result = run_ml_kem_768_test(vector);
 <a href=#297 id=297 data-nosnippet>297</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-768 vector 1 failed: {:?}"</span>, result);
 <a href=#298 id=298 data-nosnippet>298</a>    }
 <a href=#299 id=299 data-nosnippet>299</a>
 <a href=#300 id=300 data-nosnippet>300</a>    <span class="attr">#[test]
-<a href=#301 id=301 data-nosnippet>301</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_test_individual_vector_2() {
+<a href=#301 id=301 data-nosnippet>301</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_individual_vector_2_matches_expected() {
 <a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>ML_KEM_768_VECTORS[<span class="number">1</span>];
 <a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">let </span>result = run_ml_kem_768_test(vector);
 <a href=#304 id=304 data-nosnippet>304</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-768 vector 2 failed: {:?}"</span>, result);
 <a href=#305 id=305 data-nosnippet>305</a>    }
 <a href=#306 id=306 data-nosnippet>306</a>
 <a href=#307 id=307 data-nosnippet>307</a>    <span class="attr">#[test]
-<a href=#308 id=308 data-nosnippet>308</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_test_individual_vector_1() {
+<a href=#308 id=308 data-nosnippet>308</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_individual_vector_1_matches_expected() {
 <a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>ML_KEM_1024_VECTORS[<span class="number">0</span>];
 <a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>result = run_ml_kem_1024_test(vector);
 <a href=#311 id=311 data-nosnippet>311</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-1024 vector 1 failed: {:?}"</span>, result);
 <a href=#312 id=312 data-nosnippet>312</a>    }
 <a href=#313 id=313 data-nosnippet>313</a>
 <a href=#314 id=314 data-nosnippet>314</a>    <span class="attr">#[test]
-<a href=#315 id=315 data-nosnippet>315</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_test_individual_vector_2() {
+<a href=#315 id=315 data-nosnippet>315</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_individual_vector_2_matches_expected() {
 <a href=#316 id=316 data-nosnippet>316</a>        <span class="kw">let </span>vector = <span class="kw-2">&amp;</span>ML_KEM_1024_VECTORS[<span class="number">1</span>];
 <a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">let </span>result = run_ml_kem_1024_test(vector);
 <a href=#318 id=318 data-nosnippet>318</a>        <span class="macro">assert!</span>(result.is_ok(), <span class="string">"ML-KEM-1024 vector 2 failed: {:?}"</span>, result);
@@ -323,7 +323,7 @@
 <a href=#323 id=323 data-nosnippet>323</a>    // ========================================================================
 <a href=#324 id=324 data-nosnippet>324</a>
 <a href=#325 id=325 data-nosnippet>325</a>    </span><span class="attr">#[test]
-<a href=#326 id=326 data-nosnippet>326</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_test_invalid_seed_hex() {
+<a href=#326 id=326 data-nosnippet>326</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_invalid_seed_hex_returns_error() {
 <a href=#327 id=327 data-nosnippet>327</a>        <span class="kw">let </span>vector = MlKemTestVector {
 <a href=#328 id=328 data-nosnippet>328</a>            test_name: <span class="string">"ML-KEM-512-INVALID-SEED"</span>,
 <a href=#329 id=329 data-nosnippet>329</a>            seed: <span class="string">"zzzz"</span>,
@@ -342,7 +342,7 @@
 <a href=#342 id=342 data-nosnippet>342</a>    }
 <a href=#343 id=343 data-nosnippet>343</a>
 <a href=#344 id=344 data-nosnippet>344</a>    <span class="attr">#[test]
-<a href=#345 id=345 data-nosnippet>345</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_test_invalid_ss_hex() {
+<a href=#345 id=345 data-nosnippet>345</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_invalid_ss_hex_returns_error() {
 <a href=#346 id=346 data-nosnippet>346</a>        <span class="comment">// Valid seed but invalid expected_ss hex
 <a href=#347 id=347 data-nosnippet>347</a>        </span><span class="kw">let </span>vector = MlKemTestVector {
 <a href=#348 id=348 data-nosnippet>348</a>            test_name: <span class="string">"ML-KEM-512-INVALID-SS"</span>,
@@ -358,7 +358,7 @@
 <a href=#358 id=358 data-nosnippet>358</a>    }
 <a href=#359 id=359 data-nosnippet>359</a>
 <a href=#360 id=360 data-nosnippet>360</a>    <span class="attr">#[test]
-<a href=#361 id=361 data-nosnippet>361</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_test_invalid_seed_hex() {
+<a href=#361 id=361 data-nosnippet>361</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_invalid_seed_hex_returns_error() {
 <a href=#362 id=362 data-nosnippet>362</a>        <span class="kw">let </span>vector = MlKemTestVector {
 <a href=#363 id=363 data-nosnippet>363</a>            test_name: <span class="string">"ML-KEM-768-INVALID-SEED"</span>,
 <a href=#364 id=364 data-nosnippet>364</a>            seed: <span class="string">"xyz123"</span>,
@@ -372,7 +372,7 @@
 <a href=#372 id=372 data-nosnippet>372</a>    }
 <a href=#373 id=373 data-nosnippet>373</a>
 <a href=#374 id=374 data-nosnippet>374</a>    <span class="attr">#[test]
-<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_test_invalid_seed_hex() {
+<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_invalid_seed_hex_returns_error() {
 <a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span>vector = MlKemTestVector {
 <a href=#377 id=377 data-nosnippet>377</a>            test_name: <span class="string">"ML-KEM-1024-INVALID-SEED"</span>,
 <a href=#378 id=378 data-nosnippet>378</a>            seed: <span class="string">"not_hex"</span>,
@@ -390,7 +390,7 @@
 <a href=#390 id=390 data-nosnippet>390</a>    // ========================================================================
 <a href=#391 id=391 data-nosnippet>391</a>
 <a href=#392 id=392 data-nosnippet>392</a>    </span><span class="attr">#[test]
-<a href=#393 id=393 data-nosnippet>393</a>    </span><span class="kw">fn </span>test_ml_kem_test_vector_struct_fields_512() {
+<a href=#393 id=393 data-nosnippet>393</a>    </span><span class="kw">fn </span>test_ml_kem_512_test_vector_fields_are_non_empty_matches_expected() {
 <a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">for </span>vector <span class="kw">in </span>ML_KEM_512_VECTORS {
 <a href=#395 id=395 data-nosnippet>395</a>            <span class="comment">// Exercise all field reads for coverage
 <a href=#396 id=396 data-nosnippet>396</a>            </span><span class="macro">assert!</span>(!vector.test_name.is_empty());
@@ -403,7 +403,7 @@
 <a href=#403 id=403 data-nosnippet>403</a>    }
 <a href=#404 id=404 data-nosnippet>404</a>
 <a href=#405 id=405 data-nosnippet>405</a>    <span class="attr">#[test]
-<a href=#406 id=406 data-nosnippet>406</a>    </span><span class="kw">fn </span>test_ml_kem_test_vector_struct_fields_768() {
+<a href=#406 id=406 data-nosnippet>406</a>    </span><span class="kw">fn </span>test_ml_kem_768_test_vector_fields_are_non_empty_matches_expected() {
 <a href=#407 id=407 data-nosnippet>407</a>        <span class="kw">for </span>vector <span class="kw">in </span>ML_KEM_768_VECTORS {
 <a href=#408 id=408 data-nosnippet>408</a>            <span class="macro">assert!</span>(!vector.test_name.is_empty());
 <a href=#409 id=409 data-nosnippet>409</a>            <span class="macro">assert!</span>(!vector.seed.is_empty());
@@ -415,7 +415,7 @@
 <a href=#415 id=415 data-nosnippet>415</a>    }
 <a href=#416 id=416 data-nosnippet>416</a>
 <a href=#417 id=417 data-nosnippet>417</a>    <span class="attr">#[test]
-<a href=#418 id=418 data-nosnippet>418</a>    </span><span class="kw">fn </span>test_ml_kem_test_vector_struct_fields_1024() {
+<a href=#418 id=418 data-nosnippet>418</a>    </span><span class="kw">fn </span>test_ml_kem_1024_test_vector_fields_are_non_empty_matches_expected() {
 <a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">for </span>vector <span class="kw">in </span>ML_KEM_1024_VECTORS {
 <a href=#420 id=420 data-nosnippet>420</a>            <span class="macro">assert!</span>(!vector.test_name.is_empty());
 <a href=#421 id=421 data-nosnippet>421</a>            <span class="macro">assert!</span>(!vector.seed.is_empty());
@@ -432,7 +432,7 @@
 <a href=#432 id=432 data-nosnippet>432</a>    // ========================================================================
 <a href=#433 id=433 data-nosnippet>433</a>
 <a href=#434 id=434 data-nosnippet>434</a>    </span><span class="attr">#[test]
-<a href=#435 id=435 data-nosnippet>435</a>    </span><span class="kw">fn </span>test_decode_all_512_vector_fields() {
+<a href=#435 id=435 data-nosnippet>435</a>    </span><span class="kw">fn </span>test_decode_all_512_vector_fields_succeed_matches_expected() {
 <a href=#436 id=436 data-nosnippet>436</a>        <span class="kw">for </span>vector <span class="kw">in </span>ML_KEM_512_VECTORS {
 <a href=#437 id=437 data-nosnippet>437</a>            <span class="kw">let </span>seed = decode_hex(vector.seed);
 <a href=#438 id=438 data-nosnippet>438</a>            <span class="macro">assert!</span>(seed.is_ok(), <span class="string">"seed decode failed for {}"</span>, vector.test_name);
@@ -448,7 +448,7 @@
 <a href=#448 id=448 data-nosnippet>448</a>    }
 <a href=#449 id=449 data-nosnippet>449</a>
 <a href=#450 id=450 data-nosnippet>450</a>    <span class="attr">#[test]
-<a href=#451 id=451 data-nosnippet>451</a>    </span><span class="kw">fn </span>test_decode_all_768_vector_fields() {
+<a href=#451 id=451 data-nosnippet>451</a>    </span><span class="kw">fn </span>test_decode_all_768_vector_fields_succeed_matches_expected() {
 <a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">for </span>vector <span class="kw">in </span>ML_KEM_768_VECTORS {
 <a href=#453 id=453 data-nosnippet>453</a>            <span class="kw">let </span>seed = decode_hex(vector.seed);
 <a href=#454 id=454 data-nosnippet>454</a>            <span class="macro">assert!</span>(seed.is_ok(), <span class="string">"seed decode failed for {}"</span>, vector.test_name);
@@ -464,7 +464,7 @@
 <a href=#464 id=464 data-nosnippet>464</a>    }
 <a href=#465 id=465 data-nosnippet>465</a>
 <a href=#466 id=466 data-nosnippet>466</a>    <span class="attr">#[test]
-<a href=#467 id=467 data-nosnippet>467</a>    </span><span class="kw">fn </span>test_decode_all_1024_vector_fields() {
+<a href=#467 id=467 data-nosnippet>467</a>    </span><span class="kw">fn </span>test_decode_all_1024_vector_fields_succeed_matches_expected() {
 <a href=#468 id=468 data-nosnippet>468</a>        <span class="kw">for </span>vector <span class="kw">in </span>ML_KEM_1024_VECTORS {
 <a href=#469 id=469 data-nosnippet>469</a>            <span class="kw">let </span>seed = decode_hex(vector.seed);
 <a href=#470 id=470 data-nosnippet>470</a>            <span class="macro">assert!</span>(seed.is_ok(), <span class="string">"seed decode failed for {}"</span>, vector.test_name);
@@ -485,7 +485,7 @@
 <a href=#485 id=485 data-nosnippet>485</a>    // ========================================================================
 <a href=#486 id=486 data-nosnippet>486</a>
 <a href=#487 id=487 data-nosnippet>487</a>    </span><span class="attr">#[test]
-<a href=#488 id=488 data-nosnippet>488</a>    </span><span class="kw">fn </span>test_kem_512_test_failed_error_construction() {
+<a href=#488 id=488 data-nosnippet>488</a>    </span><span class="kw">fn </span>test_kem_512_test_failed_error_construction_has_correct_format() {
 <a href=#489 id=489 data-nosnippet>489</a>        <span class="kw">let </span>err = NistKatError::TestFailed {
 <a href=#490 id=490 data-nosnippet>490</a>            algorithm: <span class="string">"ML-KEM-512"</span>.to_string(),
 <a href=#491 id=491 data-nosnippet>491</a>            test_name: <span class="string">"ML-KEM-512-KAT-1"</span>.to_string(),
@@ -498,7 +498,7 @@
 <a href=#498 id=498 data-nosnippet>498</a>    }
 <a href=#499 id=499 data-nosnippet>499</a>
 <a href=#500 id=500 data-nosnippet>500</a>    <span class="attr">#[test]
-<a href=#501 id=501 data-nosnippet>501</a>    </span><span class="kw">fn </span>test_kem_768_test_failed_error_construction() {
+<a href=#501 id=501 data-nosnippet>501</a>    </span><span class="kw">fn </span>test_kem_768_test_failed_error_construction_has_correct_format() {
 <a href=#502 id=502 data-nosnippet>502</a>        <span class="kw">let </span>err = NistKatError::TestFailed {
 <a href=#503 id=503 data-nosnippet>503</a>            algorithm: <span class="string">"ML-KEM-768"</span>.to_string(),
 <a href=#504 id=504 data-nosnippet>504</a>            test_name: <span class="string">"ML-KEM-768-KAT-1"</span>.to_string(),
@@ -509,7 +509,7 @@
 <a href=#509 id=509 data-nosnippet>509</a>    }
 <a href=#510 id=510 data-nosnippet>510</a>
 <a href=#511 id=511 data-nosnippet>511</a>    <span class="attr">#[test]
-<a href=#512 id=512 data-nosnippet>512</a>    </span><span class="kw">fn </span>test_kem_1024_test_failed_error_construction() {
+<a href=#512 id=512 data-nosnippet>512</a>    </span><span class="kw">fn </span>test_kem_1024_test_failed_error_construction_has_correct_format() {
 <a href=#513 id=513 data-nosnippet>513</a>        <span class="kw">let </span>err = NistKatError::TestFailed {
 <a href=#514 id=514 data-nosnippet>514</a>            algorithm: <span class="string">"ML-KEM-1024"</span>.to_string(),
 <a href=#515 id=515 data-nosnippet>515</a>            test_name: <span class="string">"ML-KEM-1024-KAT-1"</span>.to_string(),
@@ -520,21 +520,21 @@
 <a href=#520 id=520 data-nosnippet>520</a>    }
 <a href=#521 id=521 data-nosnippet>521</a>
 <a href=#522 id=522 data-nosnippet>522</a>    <span class="attr">#[test]
-<a href=#523 id=523 data-nosnippet>523</a>    </span><span class="kw">fn </span>test_kem_implementation_error_keygen() {
+<a href=#523 id=523 data-nosnippet>523</a>    </span><span class="kw">fn </span>test_kem_implementation_error_keygen_has_correct_format() {
 <a href=#524 id=524 data-nosnippet>524</a>        <span class="kw">let </span>err = NistKatError::ImplementationError(<span class="macro">format!</span>(<span class="string">"KeyGen failed: {:?}"</span>, <span class="string">"test error"</span>));
 <a href=#525 id=525 data-nosnippet>525</a>        <span class="kw">let </span>msg = err.to_string();
 <a href=#526 id=526 data-nosnippet>526</a>        <span class="macro">assert!</span>(msg.contains(<span class="string">"KeyGen failed"</span>));
 <a href=#527 id=527 data-nosnippet>527</a>    }
 <a href=#528 id=528 data-nosnippet>528</a>
 <a href=#529 id=529 data-nosnippet>529</a>    <span class="attr">#[test]
-<a href=#530 id=530 data-nosnippet>530</a>    </span><span class="kw">fn </span>test_kem_implementation_error_encaps() {
+<a href=#530 id=530 data-nosnippet>530</a>    </span><span class="kw">fn </span>test_kem_implementation_error_encaps_has_correct_format() {
 <a href=#531 id=531 data-nosnippet>531</a>        <span class="kw">let </span>err = NistKatError::ImplementationError(<span class="macro">format!</span>(<span class="string">"Encaps failed: {:?}"</span>, <span class="string">"test error"</span>));
 <a href=#532 id=532 data-nosnippet>532</a>        <span class="kw">let </span>msg = err.to_string();
 <a href=#533 id=533 data-nosnippet>533</a>        <span class="macro">assert!</span>(msg.contains(<span class="string">"Encaps failed"</span>));
 <a href=#534 id=534 data-nosnippet>534</a>    }
 <a href=#535 id=535 data-nosnippet>535</a>
 <a href=#536 id=536 data-nosnippet>536</a>    <span class="attr">#[test]
-<a href=#537 id=537 data-nosnippet>537</a>    </span><span class="kw">fn </span>test_kem_implementation_error_decaps() {
+<a href=#537 id=537 data-nosnippet>537</a>    </span><span class="kw">fn </span>test_kem_implementation_error_decaps_has_correct_format() {
 <a href=#538 id=538 data-nosnippet>538</a>        <span class="kw">let </span>err = NistKatError::ImplementationError(<span class="macro">format!</span>(<span class="string">"Decaps failed: {:?}"</span>, <span class="string">"test error"</span>));
 <a href=#539 id=539 data-nosnippet>539</a>        <span class="kw">let </span>msg = err.to_string();
 <a href=#540 id=540 data-nosnippet>540</a>        <span class="macro">assert!</span>(msg.contains(<span class="string">"Decaps failed"</span>));
@@ -545,14 +545,14 @@
 <a href=#545 id=545 data-nosnippet>545</a>    // ========================================================================
 <a href=#546 id=546 data-nosnippet>546</a>
 <a href=#547 id=547 data-nosnippet>547</a>    </span><span class="attr">#[test]
-<a href=#548 id=548 data-nosnippet>548</a>    </span><span class="kw">fn </span>test_vector_counts() {
+<a href=#548 id=548 data-nosnippet>548</a>    </span><span class="kw">fn </span>test_vector_counts_are_correct() {
 <a href=#549 id=549 data-nosnippet>549</a>        <span class="macro">assert_eq!</span>(ML_KEM_512_VECTORS.len(), <span class="number">2</span>);
 <a href=#550 id=550 data-nosnippet>550</a>        <span class="macro">assert_eq!</span>(ML_KEM_768_VECTORS.len(), <span class="number">2</span>);
 <a href=#551 id=551 data-nosnippet>551</a>        <span class="macro">assert_eq!</span>(ML_KEM_1024_VECTORS.len(), <span class="number">2</span>);
 <a href=#552 id=552 data-nosnippet>552</a>    }
 <a href=#553 id=553 data-nosnippet>553</a>
 <a href=#554 id=554 data-nosnippet>554</a>    <span class="attr">#[test]
-<a href=#555 id=555 data-nosnippet>555</a>    </span><span class="kw">fn </span>test_vector_naming_conventions() {
+<a href=#555 id=555 data-nosnippet>555</a>    </span><span class="kw">fn </span>test_vector_naming_conventions_are_correct() {
 <a href=#556 id=556 data-nosnippet>556</a>        <span class="kw">for </span>(i, vector) <span class="kw">in </span>ML_KEM_512_VECTORS.iter().enumerate() {
 <a href=#557 id=557 data-nosnippet>557</a>            <span class="macro">assert!</span>(
 <a href=#558 id=558 data-nosnippet>558</a>                vector.test_name.starts_with(<span class="string">"ML-KEM-512"</span>),
@@ -584,7 +584,7 @@
 <a href=#584 id=584 data-nosnippet>584</a>    // ========================================================================
 <a href=#585 id=585 data-nosnippet>585</a>
 <a href=#586 id=586 data-nosnippet>586</a>    </span><span class="attr">#[test]
-<a href=#587 id=587 data-nosnippet>587</a>    </span><span class="kw">fn </span>test_ml_kem_512_kat_repeated() {
+<a href=#587 id=587 data-nosnippet>587</a>    </span><span class="kw">fn </span>test_ml_kem_512_kat_repeated_matches_expected() {
 <a href=#588 id=588 data-nosnippet>588</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">3 </span>{
 <a href=#589 id=589 data-nosnippet>589</a>            <span class="kw">let </span>result = run_ml_kem_512_kat();
 <a href=#590 id=590 data-nosnippet>590</a>            <span class="macro">assert!</span>(result.is_ok());
@@ -592,7 +592,7 @@
 <a href=#592 id=592 data-nosnippet>592</a>    }
 <a href=#593 id=593 data-nosnippet>593</a>
 <a href=#594 id=594 data-nosnippet>594</a>    <span class="attr">#[test]
-<a href=#595 id=595 data-nosnippet>595</a>    </span><span class="kw">fn </span>test_ml_kem_768_kat_repeated() {
+<a href=#595 id=595 data-nosnippet>595</a>    </span><span class="kw">fn </span>test_ml_kem_768_kat_repeated_matches_expected() {
 <a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">3 </span>{
 <a href=#597 id=597 data-nosnippet>597</a>            <span class="kw">let </span>result = run_ml_kem_768_kat();
 <a href=#598 id=598 data-nosnippet>598</a>            <span class="macro">assert!</span>(result.is_ok());
@@ -600,7 +600,7 @@
 <a href=#600 id=600 data-nosnippet>600</a>    }
 <a href=#601 id=601 data-nosnippet>601</a>
 <a href=#602 id=602 data-nosnippet>602</a>    <span class="attr">#[test]
-<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="kw">fn </span>test_ml_kem_1024_kat_repeated() {
+<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="kw">fn </span>test_ml_kem_1024_kat_repeated_matches_expected() {
 <a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">3 </span>{
 <a href=#605 id=605 data-nosnippet>605</a>            <span class="kw">let </span>result = run_ml_kem_1024_kat();
 <a href=#606 id=606 data-nosnippet>606</a>            <span class="macro">assert!</span>(result.is_ok());
@@ -612,7 +612,7 @@
 <a href=#612 id=612 data-nosnippet>612</a>    // ========================================================================
 <a href=#613 id=613 data-nosnippet>613</a>
 <a href=#614 id=614 data-nosnippet>614</a>    </span><span class="attr">#[test]
-<a href=#615 id=615 data-nosnippet>615</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_test_with_custom_valid_vector() {
+<a href=#615 id=615 data-nosnippet>615</a>    </span><span class="kw">fn </span>test_run_ml_kem_512_with_custom_valid_vector_matches_expected() {
 <a href=#616 id=616 data-nosnippet>616</a>        <span class="comment">// Use a valid 64-byte seed hex to exercise the full code path
 <a href=#617 id=617 data-nosnippet>617</a>        </span><span class="kw">let </span>vector = MlKemTestVector {
 <a href=#618 id=618 data-nosnippet>618</a>            test_name: <span class="string">"ML-KEM-512-CUSTOM"</span>,
@@ -628,7 +628,7 @@
 <a href=#628 id=628 data-nosnippet>628</a>    }
 <a href=#629 id=629 data-nosnippet>629</a>
 <a href=#630 id=630 data-nosnippet>630</a>    <span class="attr">#[test]
-<a href=#631 id=631 data-nosnippet>631</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_test_with_custom_valid_vector() {
+<a href=#631 id=631 data-nosnippet>631</a>    </span><span class="kw">fn </span>test_run_ml_kem_768_with_custom_valid_vector_matches_expected() {
 <a href=#632 id=632 data-nosnippet>632</a>        <span class="kw">let </span>vector = MlKemTestVector {
 <a href=#633 id=633 data-nosnippet>633</a>            test_name: <span class="string">"ML-KEM-768-CUSTOM"</span>,
 <a href=#634 id=634 data-nosnippet>634</a>            seed: <span class="string">"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\
@@ -643,7 +643,7 @@
 <a href=#643 id=643 data-nosnippet>643</a>    }
 <a href=#644 id=644 data-nosnippet>644</a>
 <a href=#645 id=645 data-nosnippet>645</a>    <span class="attr">#[test]
-<a href=#646 id=646 data-nosnippet>646</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_test_with_custom_valid_vector() {
+<a href=#646 id=646 data-nosnippet>646</a>    </span><span class="kw">fn </span>test_run_ml_kem_1024_with_custom_valid_vector_matches_expected() {
 <a href=#647 id=647 data-nosnippet>647</a>        <span class="kw">let </span>vector = MlKemTestVector {
 <a href=#648 id=648 data-nosnippet>648</a>            test_name: <span class="string">"ML-KEM-1024-CUSTOM"</span>,
 <a href=#649 id=649 data-nosnippet>649</a>            seed: <span class="string">"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\

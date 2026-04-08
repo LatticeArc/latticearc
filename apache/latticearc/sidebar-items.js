@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["hybrid","perf","prelude","primitives","tls","types","unified_api"]};
+window.SIDEBAR_ITEMS = {"mod":["hybrid","perf","prelude","primitives","tls","types","unified_api"],"struct":["Zeroizing"]};
