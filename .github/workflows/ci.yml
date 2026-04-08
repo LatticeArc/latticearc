@@ -276,7 +276,7 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@e9e8e031bcd90cdbe8ac6bb1d376f8596e587fbf # main
+      uses: taiki-e/install-action@8002e0e61dfa209f5a4071401b4662c95b4e2ead # main
       with:
         tool: cargo-llvm-cov
 
@@ -656,7 +656,7 @@ jobs:
         echo "benchmark_duration_seconds $BENCH_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-performance/instance/${{ github.run_id }}/operation/benchmark-run || true
 
     - name: Performance regression detection
-      uses: benchmark-action/github-action-benchmark@a7bc2366eda11037936ea57d811a43b3418d3073 # v1
+      uses: benchmark-action/github-action-benchmark@a60cea5bc7b49e15c1f58f411161f99e0df48372 # v1
       continue-on-error: true
       with:
         tool: 'cargo'
@@ -870,7 +870,7 @@ jobs:
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@e9e8e031bcd90cdbe8ac6bb1d376f8596e587fbf # main
+      uses: taiki-e/install-action@8002e0e61dfa209f5a4071401b4662c95b4e2ead # main
       with:
         tool: cargo-hack
 
