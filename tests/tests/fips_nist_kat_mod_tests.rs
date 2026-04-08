@@ -105,18 +105,18 @@ mod re_export_tests {
 
     #[test]
     fn test_ml_kem_kat_module_exported_is_accessible() {
-        // Verify ML-KEM KAT module is accessible
-        assert!(!ml_kem_kat::ML_KEM_512_VECTORS.is_empty());
-        assert!(!ml_kem_kat::ML_KEM_768_VECTORS.is_empty());
-        assert!(!ml_kem_kat::ML_KEM_1024_VECTORS.is_empty());
+        // Verify ML-KEM KAT fingerprints are accessible
+        assert!(!ml_kem_kat::ML_KEM_512_FINGERPRINTS.is_empty());
+        assert!(!ml_kem_kat::ML_KEM_768_FINGERPRINTS.is_empty());
+        assert!(!ml_kem_kat::ML_KEM_1024_FINGERPRINTS.is_empty());
     }
 
     #[test]
     fn test_ml_dsa_kat_module_exported_is_accessible() {
-        // Verify ML-DSA KAT module is accessible
-        assert!(!ml_dsa_kat::ML_DSA_44_VECTORS.is_empty());
-        assert!(!ml_dsa_kat::ML_DSA_65_VECTORS.is_empty());
-        assert!(!ml_dsa_kat::ML_DSA_87_VECTORS.is_empty());
+        // Verify ML-DSA KAT fingerprints are accessible
+        assert_eq!(ml_dsa_kat::ML_DSA_44_FINGERPRINT.pk_len, 1312);
+        assert_eq!(ml_dsa_kat::ML_DSA_65_FINGERPRINT.pk_len, 1952);
+        assert_eq!(ml_dsa_kat::ML_DSA_87_FINGERPRINT.pk_len, 2592);
     }
 }
 
@@ -932,18 +932,18 @@ mod edge_case_tests {
     }
 
     #[test]
-    fn test_ml_kem_vector_struct_field_access_succeeds() {
-        let kem_vector = &ml_kem_kat::ML_KEM_512_VECTORS[0];
-        assert!(!kem_vector.test_name.is_empty());
-        assert!(!kem_vector.seed.is_empty());
+    fn test_ml_kem_fingerprint_struct_field_access_succeeds() {
+        let fp = &ml_kem_kat::ML_KEM_512_FINGERPRINTS[0];
+        assert!(!fp.test_name.is_empty());
+        assert!(!fp.ek_first32.is_empty());
+        assert!(!fp.dk_first32.is_empty());
     }
 
     #[test]
-    fn test_ml_dsa_vector_struct_field_access_succeeds() {
-        let dsa_vector = &ml_dsa_kat::ML_DSA_44_VECTORS[0];
-        assert!(!dsa_vector.test_name.is_empty());
-        assert!(!dsa_vector.seed.is_empty());
-        // Message can be empty
+    fn test_ml_dsa_fingerprint_struct_field_access_succeeds() {
+        let fp = &ml_dsa_kat::ML_DSA_44_FINGERPRINT;
+        assert!(!fp.test_name.is_empty());
+        assert!(!fp.pk_first32.is_empty());
     }
 
     #[test]
@@ -1087,32 +1087,44 @@ mod vector_count_tests {
     }
 
     #[test]
-    fn test_ml_kem_512_vector_count_is_correct() {
-        assert_eq!(ml_kem_kat::ML_KEM_512_VECTORS.len(), 2, "Expected 2 ML-KEM-512 vectors");
+    fn test_ml_kem_512_fingerprint_count_is_correct() {
+        assert_eq!(
+            ml_kem_kat::ML_KEM_512_FINGERPRINTS.len(),
+            1,
+            "Expected 1 ML-KEM-512 fingerprint"
+        );
     }
 
     #[test]
-    fn test_ml_kem_768_vector_count_is_correct() {
-        assert_eq!(ml_kem_kat::ML_KEM_768_VECTORS.len(), 2, "Expected 2 ML-KEM-768 vectors");
+    fn test_ml_kem_768_fingerprint_count_is_correct() {
+        assert_eq!(
+            ml_kem_kat::ML_KEM_768_FINGERPRINTS.len(),
+            1,
+            "Expected 1 ML-KEM-768 fingerprint"
+        );
     }
 
     #[test]
-    fn test_ml_kem_1024_vector_count_is_correct() {
-        assert_eq!(ml_kem_kat::ML_KEM_1024_VECTORS.len(), 2, "Expected 2 ML-KEM-1024 vectors");
+    fn test_ml_kem_1024_fingerprint_count_is_correct() {
+        assert_eq!(
+            ml_kem_kat::ML_KEM_1024_FINGERPRINTS.len(),
+            1,
+            "Expected 1 ML-KEM-1024 fingerprint"
+        );
     }
 
     #[test]
-    fn test_ml_dsa_44_vector_count_is_correct() {
-        assert_eq!(ml_dsa_kat::ML_DSA_44_VECTORS.len(), 2, "Expected 2 ML-DSA-44 vectors");
+    fn test_ml_dsa_44_fingerprint_exists() {
+        assert_eq!(ml_dsa_kat::ML_DSA_44_FINGERPRINT.pk_len, 1312);
     }
 
     #[test]
-    fn test_ml_dsa_65_vector_count_is_correct() {
-        assert_eq!(ml_dsa_kat::ML_DSA_65_VECTORS.len(), 2, "Expected 2 ML-DSA-65 vectors");
+    fn test_ml_dsa_65_fingerprint_exists() {
+        assert_eq!(ml_dsa_kat::ML_DSA_65_FINGERPRINT.pk_len, 1952);
     }
 
     #[test]
-    fn test_ml_dsa_87_vector_count_is_correct() {
-        assert_eq!(ml_dsa_kat::ML_DSA_87_VECTORS.len(), 2, "Expected 2 ML-DSA-87 vectors");
+    fn test_ml_dsa_87_fingerprint_exists() {
+        assert_eq!(ml_dsa_kat::ML_DSA_87_FINGERPRINT.pk_len, 2592);
     }
 }

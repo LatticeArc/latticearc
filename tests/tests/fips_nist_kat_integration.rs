@@ -171,13 +171,14 @@ fn test_vector_count_matches_expected() {
     // Verify we have adequate test coverage
     println!("\nVerifying test vector counts...");
 
-    let ml_kem_512_count = ml_kem_kat::ML_KEM_512_VECTORS.len();
-    let ml_kem_768_count = ml_kem_kat::ML_KEM_768_VECTORS.len();
-    let ml_kem_1024_count = ml_kem_kat::ML_KEM_1024_VECTORS.len();
+    let ml_kem_512_count = ml_kem_kat::ML_KEM_512_FINGERPRINTS.len();
+    let ml_kem_768_count = ml_kem_kat::ML_KEM_768_FINGERPRINTS.len();
+    let ml_kem_1024_count = ml_kem_kat::ML_KEM_1024_FINGERPRINTS.len();
 
-    let ml_dsa_44_count = ml_dsa_kat::ML_DSA_44_VECTORS.len();
-    let ml_dsa_65_count = ml_dsa_kat::ML_DSA_65_VECTORS.len();
-    let ml_dsa_87_count = ml_dsa_kat::ML_DSA_87_VECTORS.len();
+    // ML-DSA uses single fingerprints (not arrays), count as 1 each
+    let ml_dsa_44_count = 1_usize;
+    let ml_dsa_65_count = 1_usize;
+    let ml_dsa_87_count = 1_usize;
 
     let aes_128_gcm_count = aes_gcm_kat::AES_128_GCM_VECTORS.len();
     let aes_256_gcm_count = aes_gcm_kat::AES_256_GCM_VECTORS.len();
