@@ -218,7 +218,7 @@ mod h5_chacha20_zeroize_on_drop {
         // Create new cipher from same key to verify decryption
         let cipher2 = ChaCha20Poly1305Cipher::new(&*key).unwrap();
         let decrypted = cipher2.decrypt(&nonce, &ct, &tag, None).unwrap();
-        assert_eq!(decrypted, b"data");
+        assert_eq!(&*decrypted, b"data");
     }
 }
 
@@ -539,7 +539,7 @@ mod m10_dlog_equality_debug_redaction {
             "Debug output must contain [REDACTED]: {debug_output}"
         );
         // Ensure actual response bytes are not in the debug string
-        let response_hex = hex::encode(proof.response);
+        let response_hex = hex::encode(proof.response());
         assert!(
             !debug_output.contains(&response_hex),
             "Debug output must not contain raw response bytes"

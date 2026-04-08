@@ -1006,7 +1006,7 @@ fn test_maximum_size_inputs_repeatedly_has_correct_size() {
         if let Ok((ciphertext, tag)) = enc_result {
             let dec_result = cipher.decrypt(&nonce, &ciphertext, &tag, None);
             if let Ok(decrypted) = dec_result {
-                if decrypted == large_data {
+                if *decrypted == large_data {
                     success_count += 1;
                 }
             }
@@ -1357,7 +1357,7 @@ fn test_stress_comprehensive_summary_succeeds() {
         let chacha_pt = chacha_cipher
             .decrypt(&chacha_nonce, &chacha_ct, &chacha_tag, None)
             .expect("ChaCha20 decrypt should succeed");
-        assert_eq!(chacha_pt, b"test");
+        assert_eq!(&*chacha_pt, b"test");
     }
 
     // 5. ECDH operations
