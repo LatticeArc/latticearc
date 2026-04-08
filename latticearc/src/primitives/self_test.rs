@@ -24,14 +24,10 @@
 //! ## Usage
 //!
 //! ```no_run
-//! use latticearc::primitives::self_test::{run_power_up_tests, SelfTestResult};
+//! use latticearc::primitives::self_test::run_power_up_tests;
 //!
-//! // Run power-up tests on module initialization
 //! let result = run_power_up_tests();
-//! match result {
-//!     SelfTestResult::Pass => println!("All self-tests passed"),
-//!     SelfTestResult::Fail(msg) => panic!("Self-test failed: {}", msg),
-//! }
+//! assert!(result.is_pass(), "FIPS 140-3 power-up self-tests must pass");
 //! ```
 //!
 //! ## FIPS 140-3 Compliance Notes

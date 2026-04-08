@@ -775,6 +775,7 @@ impl MlKem {
     /// an external RNG. For deterministic test vectors use
     /// [`generate_keypair_with_seed`](Self::generate_keypair_with_seed), which
     /// feeds a caller-provided seed through a ChaCha20 PRNG.
+    #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
     #[instrument(level = "debug", fields(security_level = ?security_level))]
     pub fn generate_keypair(
         security_level: MlKemSecurityLevel,
@@ -800,6 +801,7 @@ impl MlKem {
     /// is accepted only for API symmetry with seed-based test helpers; the
     /// returned key pair is **not** deterministic (each invocation produces a
     /// fresh key). See `test_keygen_non_deterministic_despite_same_seed_is_deterministic`.
+    #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
     #[instrument(level = "debug", skip(seed), fields(seed_len = seed.len(), security_level = ?security_level))]
     pub fn generate_keypair_with_seed(
         seed: &[u8],
@@ -826,6 +828,7 @@ impl MlKem {
     ///
     /// # Errors
     /// Returns an error if key generation or serialization fails.
+    #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
     #[instrument(level = "debug", fields(security_level = ?config.security_level))]
     pub fn generate_keypair_with_config(
         config: MlKemConfig,

@@ -28,6 +28,7 @@ use crate::unified_api::error::{CoreError, Result};
 /// - The generated keypair fails FIPS 186-5 validation
 /// - The public key is the identity element (all zeros)
 /// - The keypair consistency test signature verification fails
+#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
 pub fn generate_keypair() -> Result<(PublicKey, PrivateKey)> {
     super::api::fips_verify_operational()?;
     debug!("Generating Ed25519 keypair");
@@ -65,6 +66,7 @@ pub fn generate_keypair() -> Result<(PublicKey, PrivateKey)> {
 /// Returns an error if:
 /// - The configuration validation fails
 /// - The generated keypair fails FIPS 186-5 validation
+#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
 pub fn generate_keypair_with_config(config: &CoreConfig) -> Result<(PublicKey, PrivateKey)> {
     config.validate()?;
     generate_keypair()

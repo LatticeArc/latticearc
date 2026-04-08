@@ -165,6 +165,20 @@ macro_rules! impl_aes_gcm {
             }
         }
 
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_struct(stringify!($name))
+                    .field("key_bytes", &"[REDACTED]")
+                    .finish()
+            }
+        }
+
+        impl subtle::ConstantTimeEq for $name {
+            fn ct_eq(&self, other: &Self) -> subtle::Choice {
+                self.key_bytes.ct_eq(&other.key_bytes)
+            }
+        }
+
         impl $name {
             /// Generate a random key.
             ///

@@ -22,6 +22,8 @@ use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A sigma protocol proof (non-interactive via Fiat-Shamir)
+// AUDIT-ACCEPTED: Clone is required because proofs are transmitted to verifiers.
+// Proof material is not long-term secret — it is ephemeral per proof session.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SigmaProof {
@@ -74,6 +76,14 @@ impl std::fmt::Debug for SigmaProof {
             .field("challenge", &"[REDACTED]")
             .field("response", &"[REDACTED]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for SigmaProof {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.commitment.ct_eq(&other.commitment)
+            & self.challenge.ct_eq(&other.challenge)
+            & self.response.ct_eq(&other.response)
     }
 }
 
@@ -255,6 +265,8 @@ impl<P: SigmaProtocol> FiatShamir<P> {
 
 /// Proof that two discrete logs are equal
 /// Given (G, H, P, Q), prove knowledge of x such that P = x*G and Q = x*H
+// AUDIT-ACCEPTED: Clone is required because proofs are transmitted to verifiers.
+// Proof material is not long-term secret — it is ephemeral per proof session.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct DlogEqualityProof {
     /// First commitment A = k*G
@@ -309,11 +321,20 @@ impl DlogEqualityProof {
 impl std::fmt::Debug for DlogEqualityProof {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DlogEqualityProof")
-            .field("a", &self.a)
-            .field("b", &self.b)
+            .field("a", &"[REDACTED]")
+            .field("b", &"[REDACTED]")
             .field("challenge", &"[REDACTED]")
             .field("response", &"[REDACTED]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for DlogEqualityProof {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.a.ct_eq(&other.a)
+            & self.b.ct_eq(&other.b)
+            & self.challenge.ct_eq(&other.challenge)
+            & self.response.ct_eq(&other.response)
     }
 }
 
@@ -346,7 +367,7 @@ impl DlogEqualityProof {
         context: &[u8],
     ) -> Result<Self> {
         use k256::{
-            FieldBytes, Scalar,
+            FieldBytes, Scalar, U256,
             elliptic_curve::{group::GroupEncoding, ops::Reduce},
         };
 
@@ -360,9 +381,7 @@ impl DlogEqualityProof {
 
         // Random nonce via primitives layer
         let nonce_bytes = crate::primitives::rand::csprng::random_bytes(32);
-        let k = <Scalar as Reduce<k256::U256>>::reduce_bytes(k256::FieldBytes::from_slice(
-            &nonce_bytes,
-        ));
+        let k = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&nonce_bytes));
 
         // Commitments
         let a_point = g * k;
@@ -375,7 +394,7 @@ impl DlogEqualityProof {
 
         // Challenge
         let challenge = Self::compute_challenge(statement, &a_bytes, &b_bytes, context)?;
-        let c = <Scalar as Reduce<k256::U256>>::reduce_bytes(FieldBytes::from_slice(&challenge));
+        let c = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&challenge));
 
         // Response
         let s = k + c * x;
@@ -393,7 +412,7 @@ impl DlogEqualityProof {
     /// Uses secp256k1 scalar and point operations for verification.
     #[allow(clippy::arithmetic_side_effects)] // EC math is modular, cannot overflow
     pub fn verify(&self, statement: &DlogEqualityStatement, context: &[u8]) -> Result<bool> {
-        use k256::{FieldBytes, Scalar};
+        use k256::{FieldBytes, Scalar, U256};
 
         // Parse points
         let g = Self::parse_point(&statement.g)?;
@@ -412,8 +431,7 @@ impl DlogEqualityProof {
         // Parse response and challenge
         let s: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&self.response)).into();
         let s = s.ok_or(ZkpError::InvalidScalar)?;
-        let c =
-            <Scalar as Reduce<k256::U256>>::reduce_bytes(FieldBytes::from_slice(&self.challenge));
+        let c = <Scalar as Reduce<U256>>::reduce_bytes(FieldBytes::from_slice(&self.challenge));
 
         // Verify: s*G == A + c*P and s*H == B + c*Q (constant-time comparison)
         let lhs1 = g * s;

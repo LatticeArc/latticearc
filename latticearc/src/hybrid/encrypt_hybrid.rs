@@ -393,10 +393,10 @@ pub fn decrypt(
     // `cipher.decrypt` already returns `Zeroizing<Vec<u8>>` — propagate directly.
     let plaintext = cipher
         .decrypt(&nonce_bytes, ciphertext.symmetric_ciphertext(), &tag_bytes, Some(&ctx.aad))
-        .map_err(|e| {
-            HybridEncryptionError::DecryptionError(format!(
-                "AES-GCM decryption/authentication failed: {e}"
-            ))
+        .map_err(|_aead_err| {
+            // SECURITY: Opaque error per SP 800-38D §5.2.2 — do not propagate
+            // the underlying error to prevent padding/MAC oracle attacks.
+            HybridEncryptionError::DecryptionError("hybrid decryption failed".to_string())
         })?;
 
     Ok(plaintext)
@@ -522,10 +522,10 @@ pub fn decrypt_hybrid(
     // `cipher.decrypt` already returns `Zeroizing<Vec<u8>>` — propagate directly.
     let plaintext = cipher
         .decrypt(&nonce_bytes, ciphertext.symmetric_ciphertext(), &tag_bytes, Some(&ctx.aad))
-        .map_err(|e| {
-            HybridEncryptionError::DecryptionError(format!(
-                "AES-GCM decryption/authentication failed: {e}"
-            ))
+        .map_err(|_aead_err| {
+            // SECURITY: Opaque error per SP 800-38D §5.2.2 — do not propagate
+            // the underlying error to prevent padding/MAC oracle attacks.
+            HybridEncryptionError::DecryptionError("hybrid decryption failed".to_string())
         })?;
 
     Ok(plaintext)

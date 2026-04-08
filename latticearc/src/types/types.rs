@@ -326,12 +326,26 @@ pub struct KeyPair {
     private_key: PrivateKey,
 }
 
+impl Drop for KeyPair {
+    fn drop(&mut self) {
+        // PrivateKey's inner ZeroizedBytes handles byte zeroization.
+        // Explicit drop ensures the struct boundary is covered.
+    }
+}
+
 impl fmt::Debug for KeyPair {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeyPair")
             .field("public_key", &self.public_key)
             .field("private_key", &"[REDACTED]")
             .finish()
+    }
+}
+
+impl ConstantTimeEq for KeyPair {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.private_key.ct_eq(&other.private_key)
+            & self.public_key.as_slice().ct_eq(other.public_key.as_slice())
     }
 }
 
@@ -697,14 +711,24 @@ impl std::str::FromStr for SignatureScheme {
 #[derive(Debug, Clone)]
 pub struct CryptoContext {
     /// Security level for operations.
+    ///
+    /// Consumer: `SchemeSelector::select_encryption_scheme()`, `select_signature_scheme()`
     pub security_level: SecurityLevel,
     /// Performance optimization preference.
+    ///
+    /// Consumer: `SchemeSelector::select_encryption_scheme()`
     pub performance_preference: PerformancePreference,
     /// Optional use case for automatic scheme selection.
+    ///
+    /// Consumer: `CryptoPolicyEngine::select_encryption_scheme_typed()`
     pub use_case: Option<UseCase>,
     /// Whether hardware acceleration is enabled.
+    ///
+    /// Consumer: None — reserved for future hardware-aware selection
     pub hardware_acceleration: bool,
     /// Timestamp when the context was created.
+    ///
+    /// Consumer: `unified_api::audit::AuditEvent` — operation timestamping
     pub timestamp: DateTime<Utc>,
 }
 

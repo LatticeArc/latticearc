@@ -52,7 +52,7 @@ impl std::fmt::Debug for HashOpening {
     }
 }
 
-impl subtle::ConstantTimeEq for HashOpening {
+impl ConstantTimeEq for HashOpening {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
         self.value.as_slice().ct_eq(other.value.as_slice())
             & self.randomness.ct_eq(&other.randomness)
@@ -175,7 +175,7 @@ impl std::fmt::Debug for PedersenOpening {
     }
 }
 
-impl subtle::ConstantTimeEq for PedersenOpening {
+impl ConstantTimeEq for PedersenOpening {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
         self.value.ct_eq(&other.value) & self.blinding.ct_eq(&other.blinding)
     }
