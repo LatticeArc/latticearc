@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["decrypt_symmetric","read_input_string","run","write_output"],"struct":["DecryptArgs"]};
+window.SIDEBAR_ITEMS = {"fn":["decrypt_hybrid","decrypt_symmetric","read_input_string","run","write_output"],"struct":["DecryptArgs"]};

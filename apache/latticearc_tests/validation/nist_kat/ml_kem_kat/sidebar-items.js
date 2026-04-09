@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["ML_KEM_1024_VECTORS","ML_KEM_512_VECTORS","ML_KEM_768_VECTORS"],"fn":["run_ml_kem_1024_kat","run_ml_kem_512_kat","run_ml_kem_768_kat"],"struct":["MlKemTestVector"]};
+window.SIDEBAR_ITEMS = {"constant":["ML_KEM_1024_FINGERPRINTS","ML_KEM_512_FINGERPRINTS","ML_KEM_768_FINGERPRINTS"],"fn":["run_ml_kem_1024_kat","run_ml_kem_512_kat","run_ml_kem_768_kat"],"struct":["MlKemKeygenFingerprint"]};

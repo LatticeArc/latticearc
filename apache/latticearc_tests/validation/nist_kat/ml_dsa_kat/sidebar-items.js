@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["ML_DSA_44_VECTORS","ML_DSA_65_VECTORS","ML_DSA_87_VECTORS"],"fn":["run_ml_dsa_44_kat","run_ml_dsa_65_kat","run_ml_dsa_87_kat"],"struct":["MlDsaTestVector"]};
+window.SIDEBAR_ITEMS = {"constant":["ML_DSA_44_FINGERPRINT","ML_DSA_65_FINGERPRINT","ML_DSA_87_FINGERPRINT"],"fn":["run_ml_dsa_44_kat","run_ml_dsa_65_kat","run_ml_dsa_87_kat"],"struct":["MlDsaKeygenFingerprint"]};
