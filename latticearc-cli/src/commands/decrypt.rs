@@ -44,12 +44,7 @@ pub(crate) fn run(args: DecryptArgs) -> Result<()> {
 
     let plaintext = match key_file.key_type {
         KeyType::Symmetric => decrypt_symmetric(&encrypted, &key_file)?,
-        KeyType::Secret => {
-            bail!(
-                "Hybrid decryption requires an in-memory secret key. \
-                 Use the library API directly for hybrid decryption."
-            );
-        }
+        KeyType::Secret => decrypt_hybrid(&encrypted, &key_file)?,
         KeyType::Public => {
             bail!("Cannot decrypt with a public key. Provide the secret key.");
         }
@@ -62,24 +57,38 @@ pub(crate) fn run(args: DecryptArgs) -> Result<()> {
 fn decrypt_symmetric(
     encrypted: &latticearc::EncryptedOutput,
     key_file: &KeyFile,
-) -> Result<Vec<u8>> {
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     let key_bytes = key_file.key_bytes()?;
     if key_bytes.len() != 32 {
         bail!("AES-256 requires a 32-byte key, got {} bytes", key_bytes.len());
     }
 
-    // `latticearc::decrypt` returns `Zeroizing<Vec<u8>>`; for the CLI we hand
-    // back an owned `Vec<u8>` since the caller immediately writes to stdout
-    // or a file. The brief plaintext copy here is acceptable because the
-    // original buffer is still scrubbed on drop at the library boundary.
-    let decrypted = latticearc::decrypt(
+    latticearc::decrypt(
         encrypted,
         latticearc::DecryptKey::Symmetric(&key_bytes),
         latticearc::CryptoConfig::new(),
     )
-    .map_err(|e| anyhow::anyhow!("Decryption failed: {e}"))?;
+    .map_err(|e| anyhow::anyhow!("Decryption failed: {e}"))
+}
 
-    Ok(decrypted.to_vec())
+fn decrypt_hybrid(
+    encrypted: &latticearc::EncryptedOutput,
+    key_file: &KeyFile,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    // Reconstruct HybridKemSecretKey from the PortableKey.
+    // ML-KEM public key is extracted from the secret key file's metadata
+    // (stored at keygen time, following PKCS#12 bundling pattern).
+    let hybrid_sk = key_file
+        .portable_key()
+        .to_hybrid_secret_key()
+        .map_err(|e| anyhow::anyhow!("Failed to reconstruct hybrid secret key: {e}"))?;
+
+    latticearc::decrypt(
+        encrypted,
+        latticearc::DecryptKey::Hybrid(&hybrid_sk),
+        latticearc::CryptoConfig::new(),
+    )
+    .map_err(|e| anyhow::anyhow!("Hybrid decryption failed: {e}"))
 }
 
 fn read_input_string(path: &Option<PathBuf>) -> Result<String> {

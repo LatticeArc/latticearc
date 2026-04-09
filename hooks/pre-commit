@@ -104,4 +104,41 @@ if [ -f "$CI_YML" ]; then
     fi
 fi
 
+# CLI smoke test: keygen → encrypt → decrypt roundtrip
+echo "Running CLI smoke tests..."
+REPO_ROOT_CLI="$(git rev-parse --show-toplevel)"
+CLI="$REPO_ROOT_CLI/target/release/latticearc-cli"
+if [ -x "$CLI" ]; then
+    CLI_TMP=$(mktemp -d)
+    CLI_OK=true
+
+    # AES-256 roundtrip
+    "$CLI" keygen --algorithm aes256 --output "$CLI_TMP/aes" > /dev/null 2>&1
+    echo "cli-smoke-test" > "$CLI_TMP/pt.txt"
+    "$CLI" encrypt --key "$CLI_TMP/aes/aes256.key.json" --input "$CLI_TMP/pt.txt" --output "$CLI_TMP/ct.bin" > /dev/null 2>&1
+    "$CLI" decrypt --key "$CLI_TMP/aes/aes256.key.json" --input "$CLI_TMP/ct.bin" --output "$CLI_TMP/dec.txt" > /dev/null 2>&1
+    if ! diff "$CLI_TMP/pt.txt" "$CLI_TMP/dec.txt" > /dev/null 2>&1; then
+        echo "❌ CLI AES-256 roundtrip failed"
+        CLI_OK=false
+    fi
+
+    # Hybrid roundtrip
+    "$CLI" keygen --algorithm hybrid --output "$CLI_TMP/hybrid" > /dev/null 2>&1
+    "$CLI" encrypt --mode hybrid --key "$CLI_TMP/hybrid/hybrid-kem.pub.json" --input "$CLI_TMP/pt.txt" --output "$CLI_TMP/hct.bin" > /dev/null 2>&1
+    "$CLI" decrypt --key "$CLI_TMP/hybrid/hybrid-kem.sec.json" --input "$CLI_TMP/hct.bin" --output "$CLI_TMP/hdec.txt" > /dev/null 2>&1
+    if ! diff "$CLI_TMP/pt.txt" "$CLI_TMP/hdec.txt" > /dev/null 2>&1; then
+        echo "❌ CLI hybrid roundtrip failed"
+        CLI_OK=false
+    fi
+
+    rm -rf "$CLI_TMP"
+    if $CLI_OK; then
+        echo "✅ CLI smoke tests passed"
+    else
+        exit 1
+    fi
+else
+    echo "⚠️  CLI binary not found (skipping — run: cargo build --release -p latticearc-cli)"
+fi
+
 echo "Pre-commit checks passed."

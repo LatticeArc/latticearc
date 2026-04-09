@@ -249,20 +249,19 @@ latticearc-cli encrypt --mode <MODE> --input <FILE> --key <KEY_FILE> [--output <
 
 **Modes:** `aes256-gcm` (symmetric, SP 800-38D), `hybrid` (ML-KEM-768 + X25519 + AES-256-GCM), `chacha20-poly1305` (symmetric, RFC 8439)
 
-**Example:**
+**Examples:**
 
 ```bash
-# Use-case driven (library selects optimal scheme)
-latticearc-cli encrypt --use-case file-storage \
+# Symmetric encryption (AES-256-GCM)
+latticearc-cli encrypt --key keys/aes256.key.json \
   --input database-backup.sql \
-  --output database-backup.enc.json \
-  --key keys/aes256.key.json
+  --output database-backup.enc.json
 
-# Expert mode
-latticearc-cli encrypt --mode aes256-gcm \
-  --input database-backup.sql \
-  --output database-backup.enc.json \
-  --key keys/aes256.key.json
+# Hybrid post-quantum encryption (encrypt with public key)
+latticearc-cli keygen --algorithm hybrid --output ./keys
+latticearc-cli encrypt --mode hybrid --key keys/hybrid-kem.pub.json \
+  --input secret-report.pdf \
+  --output secret-report.enc.json
 ```
 
 ### `decrypt` — Decrypt Data
@@ -274,16 +273,27 @@ tampered with, decryption will fail (integrity check).
 latticearc-cli decrypt --input <ENCRYPTED_FILE> --key <KEY_FILE> [--output <FILE>]
 ```
 
+For **symmetric** decryption, provide the same key used for encryption.
+For **hybrid** decryption, provide the **secret key** — the public key is
+embedded in the secret key file (no separate public key file needed).
+
 If `--output` is omitted, decrypted data is printed to stdout (text) or as hex
 (binary).
 
-**Example:**
+**Examples:**
 
 ```bash
+# Symmetric decrypt
 latticearc-cli decrypt \
   --input database-backup.enc.json \
   --output database-backup.sql \
   --key keys/aes256.key.json
+
+# Hybrid post-quantum decrypt (secret key only — public key embedded)
+latticearc-cli decrypt \
+  --input secret-report.enc.json \
+  --output secret-report.pdf \
+  --key keys/hybrid-kem.sec.json
 ```
 
 ### `hash` — Hash Data
@@ -370,6 +380,30 @@ key serialization. Keys are identified by **use case** or **security level** (ma
 the library API works), with the algorithm auto-derived. Both JSON and CBOR formats are supported.
 
 See [`docs/KEY_FORMAT.md`](../docs/KEY_FORMAT.md) for the full specification.
+
+### How Keys Work
+
+```
+SYMMETRIC (AES-256):         HYBRID (ML-KEM + X25519):
+
+  ┌──────────┐                 ┌──────────┐  ┌──────────┐
+  │ .key.json│                 │ .pub.json│  │ .sec.json│
+  │          │                 │          │  │          │
+  │ AES key  │                 │ ML-KEM PK│  │ ML-KEM SK│
+  │ (32 B)   │                 │ (1184 B) │  │ (2400 B) │
+  └──────────┘                 │ X25519 PK│  │ X25519   │
+       │                       │ (32 B)   │  │ seed(32B)│
+       ▼                       └──────────┘  │ ML-KEM PK│ ◀ in metadata
+  encrypt + decrypt              │            │ (1184 B) │
+  (same key)                     ▼            └──────────┘
+                              encrypt              │
+                              (public key)         ▼
+                                                decrypt
+                                              (secret key only)
+```
+
+**Hybrid secret keys are self-contained** — the ML-KEM public key is stored in
+the secret key file's metadata, so you only need one file to decrypt.
 
 ```json
 {

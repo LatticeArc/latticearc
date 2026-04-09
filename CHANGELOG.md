@@ -9,12 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.5.1] - 2026-04-09
+
+Security fixes, CLI hybrid decrypt, real KAT vectors, and Level 7 scenario tests.
+
 ### Security
 
 - **AEAD error opacity**: 4 decrypt paths in `hybrid/encrypt_hybrid.rs`,
   `unified_api/convenience/api.rs`, and `unified_api/convenience/aes_gcm.rs`
   now use opaque "decryption failed" messages per SP 800-38D §5.2.2 instead
   of forwarding internal "AEAD authentication failed" strings.
+- **Hybrid secret key self-contained**: ML-KEM public key stored in secret key
+  file metadata at keygen time (PKCS#12 pattern). Decryption no longer requires
+  a separate public key file. `to_hybrid_secret_key()` API simplified.
+- **Plaintext zeroization in CLI**: `decrypt_symmetric` and `decrypt_hybrid`
+  return `Zeroizing<Vec<u8>>` — no unzeroized plaintext copy in memory.
+
+### Added
+
+- **CLI hybrid decrypt**: Was a hard-coded error ("requires in-memory secret
+  key"). Now fully functional via `PortableKey::to_hybrid_secret_key()`.
+- **Level 7 scenario tests**: Key rotation (200 msgs + destruction),
+  multi-algorithm (all 5 EncryptionScheme variants), audit trail (10 ops +
+  zero-trust session + no-secrets-in-debug), hybrid E2E (keygen → JSON →
+  encrypt → serialize → decrypt with SK only).
 
 ### Fixed
 
@@ -33,8 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tests asserted `enable_fallback=true` but the actual default is `false`.
 - **CI compatibility**: Fixed `unnecessary_qualification` warnings triggered by
   `RUSTFLAGS=-D warnings` on CI (newer rustc). Updated KAT checksums.
-- **Consumer tags** added to `CryptoContext` fields per Pattern 8.
-- **Allow justification comments** added where missing per Pattern 12.
+- **Ed25519 sign API**: Removed erroneous `.expect()` on `sign()` which returns
+  `Signature`, not `Result`. Hidden by `#[cfg(not(feature = "fips"))]`.
+- **`Zeroizing<Vec<u8>>` assertion fixes**: Corrected `assert_eq!` for
+  `Zeroizing` return type in tests hidden by feature flags.
 
 ---
 

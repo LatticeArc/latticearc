@@ -1854,3 +1854,270 @@ fn scheme_verified_security_level_standard_succeeds() {
     );
     let _ = std::fs::remove_file(&path);
 }
+
+// ============================================================================
+// Design Doc Level 7 — Missing Scenario Tests
+// ============================================================================
+
+/// Scenario 4 (full): Key rotation under load.
+/// Encrypt 100 messages with key v1 → rotate → encrypt 100 with v2 →
+/// decrypt all 200 (100 with v1, 100 with v2) → destroy v1 → v1 decrypt fails.
+#[test]
+fn scenario_key_rotation_under_load_200_messages_succeeds() {
+    let key_v1 = [0x71u8; 32];
+    let key_v2 = [0x72u8; 32];
+
+    #[derive(Serialize, Deserialize)]
+    struct VersionedCiphertext {
+        key_version: u32,
+        encrypted_json: String,
+    }
+
+    let mut store: Vec<VersionedCiphertext> = Vec::new();
+
+    let mut encrypt_batch = |key: &[u8; 32], version: u32, prefix: &str| {
+        for i in 0..100u32 {
+            let msg = format!("{prefix}-{i:03}");
+            let encrypted = encrypt(
+                msg.as_bytes(),
+                EncryptKey::Symmetric(key),
+                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+            )
+            .expect("encrypt");
+            let data: latticearc::EncryptedData = encrypted.into();
+            let json = serialize_encrypted_data(&data).expect("serialize");
+            store.push(VersionedCiphertext { key_version: version, encrypted_json: json });
+        }
+    };
+
+    encrypt_batch(&key_v1, 1, "v1-message");
+    encrypt_batch(&key_v2, 2, "v2-message");
+
+    assert_eq!(store.len(), 200);
+
+    // Persist to file
+    let store_json = serde_json::to_string(&store).unwrap();
+    let mut file = NamedTempFile::new().unwrap();
+    file.write_all(store_json.as_bytes()).unwrap();
+    let temp_path = file.into_temp_path(); // keep alive until end of test
+
+    // Load and decrypt all 200
+    let loaded: Vec<VersionedCiphertext> =
+        serde_json::from_str(&std::fs::read_to_string(&*temp_path).unwrap()).unwrap();
+    assert_eq!(loaded.len(), 200);
+
+    for (i, item) in loaded.iter().enumerate() {
+        let output: EncryptedOutput = deserialize_encrypted_data(&item.encrypted_json)
+            .expect("deserialize")
+            .try_into()
+            .expect("valid scheme");
+        let key = match item.key_version {
+            1 => &key_v1,
+            2 => &key_v2,
+            _ => panic!("unknown version"),
+        };
+        let decrypted =
+            decrypt(&output, DecryptKey::Symmetric(key), CryptoConfig::new()).expect("decrypt");
+        let expected = if item.key_version == 1 {
+            format!("v1-message-{:03}", i)
+        } else {
+            format!("v2-message-{:03}", i - 100)
+        };
+        assert_eq!(std::str::from_utf8(&decrypted).unwrap(), expected, "Message {i} mismatch");
+    }
+
+    // Simulate key destruction: in production, key_v1 would be zeroized via
+    // Zeroizing<[u8; 32]>. Here we prove that any key other than the original
+    // fails decryption — the AEAD auth tag rejects wrong keys.
+    let destroyed_key = [0u8; 32];
+    let first_v1 = &loaded[0];
+    let output: EncryptedOutput =
+        deserialize_encrypted_data(&first_v1.encrypted_json).unwrap().try_into().unwrap();
+    let result = decrypt(&output, DecryptKey::Symmetric(&destroyed_key), CryptoConfig::new());
+    assert!(result.is_err(), "Destroyed key v1 must not decrypt v1 ciphertext");
+
+    // Key v2 still works
+    let last_v2 = &loaded[199];
+    let output: EncryptedOutput =
+        deserialize_encrypted_data(&last_v2.encrypted_json).unwrap().try_into().unwrap();
+    let decrypted =
+        decrypt(&output, DecryptKey::Symmetric(&key_v2), CryptoConfig::new()).expect("v2 works");
+    assert_eq!(std::str::from_utf8(&decrypted).unwrap(), "v2-message-099");
+    drop(temp_path); // cleanup
+}
+
+/// Scenario 5: Multi-algorithm compatibility.
+/// Encrypt the same plaintext with every EncryptionScheme variant →
+/// serialize each → decrypt each → verify all match original.
+#[test]
+fn scenario_multi_algorithm_encrypt_same_plaintext_all_schemes_succeeds() {
+    let plaintext = b"Same plaintext encrypted with every scheme variant";
+    let sym_key = [0x55u8; 32];
+
+    // Scheme 1: AES-256-GCM
+    let enc_aes = encrypt(
+        plaintext,
+        EncryptKey::Symmetric(&sym_key),
+        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
+    )
+    .expect("AES-256-GCM encrypt");
+    assert_eq!(enc_aes.scheme(), &EncryptionScheme::Aes256Gcm);
+
+    // Scheme 2: ChaCha20-Poly1305 (non-FIPS only)
+    #[cfg(not(feature = "fips"))]
+    let enc_chacha = {
+        let enc = encrypt(
+            plaintext,
+            EncryptKey::Symmetric(&sym_key),
+            CryptoConfig::new().force_scheme(CryptoScheme::SymmetricChaCha20),
+        )
+        .expect("ChaCha20 encrypt");
+        assert_eq!(enc.scheme(), &EncryptionScheme::ChaCha20Poly1305);
+        Some(enc)
+    };
+    #[cfg(feature = "fips")]
+    let _enc_chacha: Option<EncryptedOutput> = None;
+
+    // Scheme 3-5: Hybrid ML-KEM-512/768/1024
+    let levels = [
+        (MlKemSecurityLevel::MlKem512, EncryptionScheme::HybridMlKem512Aes256Gcm),
+        (MlKemSecurityLevel::MlKem768, EncryptionScheme::HybridMlKem768Aes256Gcm),
+        (MlKemSecurityLevel::MlKem1024, EncryptionScheme::HybridMlKem1024Aes256Gcm),
+    ];
+
+    let mut hybrid_outputs: Vec<(
+        EncryptedOutput,
+        latticearc::hybrid::kem_hybrid::HybridKemSecretKey,
+    )> = Vec::new();
+
+    for (level, expected_scheme) in &levels {
+        let (pk, sk) = generate_hybrid_keypair_with_level(*level).expect("keygen");
+        // Force the scheme to match the key's security level
+        let security = match level {
+            MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,
+            MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
+            MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+            _ => unreachable!("only 512/768/1024 levels are tested"),
+        };
+        let enc = encrypt(
+            plaintext,
+            EncryptKey::Hybrid(&pk),
+            CryptoConfig::new().security_level(security),
+        )
+        .expect("hybrid encrypt");
+        assert_eq!(enc.scheme(), expected_scheme);
+        hybrid_outputs.push((enc, sk));
+    }
+
+    // Serialize all → drop → deserialize → decrypt → verify plaintext match
+    let aes_json = serialize_encrypted_output(&enc_aes).expect("serialize aes");
+    drop(enc_aes);
+    let dec_aes: EncryptedOutput = deserialize_encrypted_output(&aes_json).expect("deser aes");
+    let pt_aes =
+        decrypt(&dec_aes, DecryptKey::Symmetric(&sym_key), CryptoConfig::new()).expect("dec aes");
+    assert_eq!(pt_aes.as_slice(), plaintext, "AES-256-GCM roundtrip");
+
+    #[cfg(not(feature = "fips"))]
+    if let Some(enc_cc) = enc_chacha {
+        let cc_json = serialize_encrypted_output(&enc_cc).expect("serialize chacha");
+        drop(enc_cc);
+        let dec_cc: EncryptedOutput = deserialize_encrypted_output(&cc_json).expect("deser chacha");
+        let pt_cc = decrypt(&dec_cc, DecryptKey::Symmetric(&sym_key), CryptoConfig::new())
+            .expect("dec chacha");
+        assert_eq!(pt_cc.as_slice(), plaintext, "ChaCha20 roundtrip");
+    }
+
+    for (enc, sk) in &hybrid_outputs {
+        let json = serialize_encrypted_output(enc).expect("serialize hybrid");
+        let loaded: EncryptedOutput = deserialize_encrypted_output(&json).expect("deser hybrid");
+        let pt = decrypt(&loaded, DecryptKey::Hybrid(sk), CryptoConfig::new()).expect("dec hybrid");
+        assert_eq!(pt.as_slice(), plaintext, "Hybrid roundtrip for {:?}", enc.scheme());
+    }
+
+    // Verify schemes differ between outputs
+    let schemes: Vec<&EncryptionScheme> = hybrid_outputs.iter().map(|(e, _)| e.scheme()).collect();
+    assert_ne!(schemes[0], schemes[1], "512 and 768 schemes must differ");
+    assert_ne!(schemes[1], schemes[2], "768 and 1024 schemes must differ");
+}
+
+/// Scenario 6: Compliance audit trail.
+/// Establish zero-trust session → perform 10 crypto operations →
+/// verify all produce results → verify no secret material in debug output.
+#[test]
+fn scenario_audit_trail_10_ops_no_secrets_in_debug_succeeds() {
+    // Establish zero-trust session
+    let (pk, sk) = generate_keypair().expect("keygen");
+    let session =
+        VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session establishment");
+
+    let key = [0x66u8; 32];
+
+    // Perform 10 distinct crypto operations under verified session
+    let mut debug_outputs: Vec<String> = Vec::new();
+    let mut ciphertexts: Vec<EncryptedOutput> = Vec::new();
+
+    for i in 0..10u32 {
+        let msg = format!("Audit operation {i}: user=admin action=UPDATE resource=/api/data/{i}");
+        let encrypted = encrypt(
+            msg.as_bytes(),
+            EncryptKey::Symmetric(&key),
+            CryptoConfig::new()
+                .use_case(UseCase::AuditLog)
+                .session(&session)
+                .force_scheme(CryptoScheme::Symmetric),
+        )
+        .unwrap_or_else(|e| panic!("Operation {i} encrypt failed: {e}"));
+
+        // Capture debug output of encrypted data
+        debug_outputs.push(format!("{encrypted:?}"));
+        ciphertexts.push(encrypted);
+    }
+
+    // Verify all 10 operations produced ciphertext
+    assert_eq!(ciphertexts.len(), 10, "Must have 10 encrypted outputs");
+    for (i, ct) in ciphertexts.iter().enumerate() {
+        assert!(!ct.ciphertext().is_empty(), "Op {i}: ciphertext must not be empty");
+    }
+
+    // Verify NO secret material appears in debug output
+    let key_hex = hex::encode(key);
+    let key_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, key);
+    for (i, dbg) in debug_outputs.iter().enumerate() {
+        assert!(!dbg.contains(&key_hex), "Op {i}: debug output must not contain key hex");
+        assert!(!dbg.contains(&key_b64), "Op {i}: debug output must not contain key base64");
+        // Check raw key bytes don't appear
+        // Check that repeated key byte patterns don't appear in debug output
+        for byte in &key {
+            if *byte != 0 && *byte != 1 {
+                assert!(
+                    !dbg.contains(&format!("[{byte}, {byte}, {byte}, {byte}]")),
+                    "Op {i}: debug output must not contain repeated key byte patterns"
+                );
+            }
+        }
+    }
+
+    // Decrypt all 10 to verify integrity
+    for (i, ct) in ciphertexts.iter().enumerate() {
+        let decrypted =
+            decrypt(ct, DecryptKey::Symmetric(&key), CryptoConfig::new()).expect("decrypt");
+        let expected =
+            format!("Audit operation {i}: user=admin action=UPDATE resource=/api/data/{i}");
+        assert_eq!(
+            std::str::from_utf8(&decrypted).unwrap(),
+            expected,
+            "Op {i}: decrypted content mismatch"
+        );
+    }
+
+    // Verify timestamps are monotonically non-decreasing
+    let timestamps: Vec<u64> = ciphertexts.iter().map(EncryptedOutput::timestamp).collect();
+    for window in timestamps.windows(2) {
+        assert!(
+            window[0] <= window[1],
+            "Timestamps must be monotonic: {} > {}",
+            window[0],
+            window[1]
+        );
+    }
+}

@@ -60,6 +60,10 @@
 use std::collections::BTreeMap;
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
+
+/// Metadata key for the ML-KEM public key stored in hybrid secret key files.
+/// Used in `from_hybrid_kem_keypair` (write) and `to_hybrid_secret_key` (read).
+const ML_KEM_PK_METADATA_KEY: &str = "ml_kem_pk";
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
@@ -783,6 +787,17 @@ impl PortableKey {
             .ecdh_seed_bytes()
             .map_err(|e| CoreError::InvalidKey(format!("ECDH seed export: {e}")))?;
 
+        // Store ML-KEM public key in metadata so the secret key file is
+        // self-contained for decryption (no separate public key file needed).
+        // This follows the PKCS#12 pattern of bundling public + private material.
+        // Note: ECDH public key is not stored — it's derived from the seed at
+        // reconstruction time via X25519StaticKeyPair::from_seed_bytes().
+        let mut sk_metadata = BTreeMap::new();
+        sk_metadata.insert(
+            ML_KEM_PK_METADATA_KEY.to_string(),
+            serde_json::Value::String(BASE64_ENGINE.encode(pk.ml_kem_pk())),
+        );
+
         let sec_key = Self {
             version: Self::CURRENT_VERSION,
             use_case: Some(use_case),
@@ -791,7 +806,7 @@ impl PortableKey {
             key_type: KeyType::Secret,
             key_data: KeyData::from_composite(&ml_kem_sk, &*ecdh_seed),
             created: Utc::now(),
-            metadata: BTreeMap::new(),
+            metadata: sk_metadata,
         };
 
         Ok((pub_key, sec_key))
@@ -835,10 +850,11 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the algorithm is not hybrid KEM, key data is invalid,
     /// or key reconstruction fails.
-    pub fn to_hybrid_secret_key(
-        &self,
-        public_key: &PortableKey,
-    ) -> Result<crate::hybrid::kem_hybrid::HybridKemSecretKey> {
+    ///
+    /// The ML-KEM public key is extracted from the secret key file's metadata
+    /// (stored at keygen time), making the secret key file fully self-contained.
+    /// No separate public key file is needed for decryption.
+    pub fn to_hybrid_secret_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemSecretKey> {
         let level = match self.algorithm {
             KeyAlgorithm::HybridMlKem512X25519 => {
                 crate::primitives::kem::MlKemSecurityLevel::MlKem512
@@ -863,7 +879,24 @@ impl PortableKey {
         }
 
         let (ml_kem_sk, ecdh_seed_vec) = self.key_data.decode_composite()?;
-        let (ml_kem_pk, _ecdh_pk) = public_key.key_data.decode_composite()?;
+
+        // Extract ML-KEM public key from metadata (stored at keygen time)
+        let ml_kem_pk = self
+            .metadata
+            .get(ML_KEM_PK_METADATA_KEY)
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                CoreError::InvalidKey(
+                    "Secret key file missing 'ml_kem_pk' metadata. \
+                     Re-generate the keypair with the latest CLI."
+                        .to_string(),
+                )
+            })
+            .and_then(|b64| {
+                BASE64_ENGINE
+                    .decode(b64)
+                    .map_err(|e| CoreError::InvalidKey(format!("Invalid ml_kem_pk base64: {e}")))
+            })?;
 
         if ecdh_seed_vec.len() != 32 {
             return Err(CoreError::InvalidKey(format!(
@@ -2304,10 +2337,9 @@ mod tests {
         let encapsulated = kem_hybrid::encapsulate(&sender_hybrid_pk).unwrap();
         let sender_shared_secret = encapsulated.shared_secret().to_vec();
 
-        // === PROCESS A: Receiver decrypts using SK + PK from JSON ===
-        let receiver_pk_portable = PortableKey::from_json(&pk_json).unwrap();
+        // === PROCESS A: Receiver decrypts using SK from JSON ===
         let receiver_sk_portable = PortableKey::from_json(&sk_json).unwrap();
-        let receiver_sk = receiver_sk_portable.to_hybrid_secret_key(&receiver_pk_portable).unwrap();
+        let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_shared_secret = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
         let secrets_match = receiver_shared_secret.as_slice() == sender_shared_secret.as_slice();
         let uc_preserved = receiver_sk_portable.use_case() == Some(UseCase::FileStorage);
@@ -2361,9 +2393,8 @@ mod tests {
         let sender_ss = encapsulated.shared_secret().to_vec();
 
         // === PROCESS A: Reconstructs SK from CBOR, decapsulates ===
-        let receiver_pk_portable = PortableKey::from_cbor(&pk_cbor).unwrap();
         let receiver_sk_portable = PortableKey::from_cbor(&sk_cbor).unwrap();
-        let receiver_sk = receiver_sk_portable.to_hybrid_secret_key(&receiver_pk_portable).unwrap();
+        let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_ss = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
         let secrets_match = receiver_ss.as_slice() == sender_ss.as_slice();
 
@@ -2467,10 +2498,9 @@ mod tests {
         let encapsulated = kem_hybrid::encapsulate(&sender_pk).unwrap();
         let sender_ss = encapsulated.shared_secret().to_vec();
 
-        // === PROCESS A: Load SK + PK from JSON files, decapsulate ===
-        let receiver_pk_portable = PortableKey::read_from_file(&pk_json_path).unwrap();
+        // === PROCESS A: Load SK from JSON file, decapsulate ===
         let receiver_sk_portable = PortableKey::read_from_file(&sk_json_path).unwrap();
-        let receiver_sk = receiver_sk_portable.to_hybrid_secret_key(&receiver_pk_portable).unwrap();
+        let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_ss = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
         let json_match = receiver_ss.as_slice() == sender_ss.as_slice();
 
@@ -2527,11 +2557,7 @@ mod tests {
         // Restore from both formats
         let pk_from_json = PortableKey::from_json(&json).unwrap().to_hybrid_public_key().unwrap();
         let pk_from_cbor = PortableKey::from_cbor(&cbor).unwrap().to_hybrid_public_key().unwrap();
-        let pk_portable_for_sk = PortableKey::from_json(&json).unwrap();
-        let sk_restored = PortableKey::from_json(&sk_json)
-            .unwrap()
-            .to_hybrid_secret_key(&pk_portable_for_sk)
-            .unwrap();
+        let sk_restored = PortableKey::from_json(&sk_json).unwrap().to_hybrid_secret_key().unwrap();
 
         let keys_match = pk_from_json.ml_kem_pk() == pk_from_cbor.ml_kem_pk()
             && pk_from_json.ecdh_pk() == pk_from_cbor.ecdh_pk();
@@ -2604,9 +2630,7 @@ mod tests {
         let dept_ok =
             from_json.metadata().get("department") == Some(&serde_json::json!("cardiology"));
         let json_pk = from_json.to_hybrid_public_key().unwrap();
-        let pk_for_sk = PortableKey::from_json(&pk_json).unwrap();
-        let json_sk =
-            PortableKey::from_json(&sk_json).unwrap().to_hybrid_secret_key(&pk_for_sk).unwrap();
+        let json_sk = PortableKey::from_json(&sk_json).unwrap().to_hybrid_secret_key().unwrap();
         let enc = kem_hybrid::encapsulate(&json_pk).unwrap();
         let dec = kem_hybrid::decapsulate(&json_sk, &enc).unwrap();
         let kem_ok = dec.as_slice() == enc.shared_secret();

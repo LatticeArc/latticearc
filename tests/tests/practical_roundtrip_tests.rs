@@ -666,8 +666,8 @@ fn roundtrip_portable_key_persist_and_encrypt_succeeds() {
     // === Process A: Load SK + PK from files, decapsulate ===
     let sk_json = read_from_tempfile(&sk_file);
     let sk_portable = PortableKey::from_json(&sk_json).expect("deserialize SK");
-    let pk_for_sk = PortableKey::from_json(&pk_json).expect("deserialize PK again");
-    let hybrid_sk = sk_portable.to_hybrid_secret_key(&pk_for_sk).expect("reconstruct SK");
+    // Public key stored in SK metadata at keygen time (PKCS#12 pattern) — no separate PK file needed
+    let hybrid_sk = sk_portable.to_hybrid_secret_key().expect("reconstruct SK");
     let receiver_ss = kem_hybrid::decapsulate(&hybrid_sk, &encapsulated).expect("decapsulate");
 
     let match_ok = receiver_ss.as_slice() == sender_ss.as_slice();
@@ -733,6 +733,66 @@ fn roundtrip_portable_key_symmetric_encrypt_succeeds() {
          \"roundtrip_match\":{match_ok},\
          \"status\":\"PASS\"}}",
         plaintext.len(),
+    );
+}
+
+// ============================================================================
+// 5b. Hybrid full encrypt→serialize→deserialize→decrypt (real-world mirror)
+// ============================================================================
+
+/// E2E: Hybrid encrypt with public key → serialize encrypted output + secret key
+/// to JSON → drop everything → deserialize both from JSON → decrypt with secret
+/// key only (no public key file). This mirrors the real-world usage pattern where
+/// a CLI or service stores keys on disk and decrypts in a separate process.
+#[test]
+fn roundtrip_hybrid_encrypt_serialize_decrypt_from_sk_only_succeeds() {
+    use latticearc::PortableKey;
+    use latticearc::hybrid::kem_hybrid;
+    use latticearc::unified_api::serialization::{
+        deserialize_encrypted_output, serialize_encrypted_output,
+    };
+
+    let plaintext = b"Cross-process hybrid encrypt/decrypt roundtrip test";
+
+    // === Process A: Generate keypair, export to JSON ===
+    let (pk, sk) = kem_hybrid::generate_keypair().expect("keygen");
+    let (pk_portable, sk_portable) =
+        PortableKey::from_hybrid_kem_keypair(UseCase::CloudStorage, &pk, &sk).expect("export");
+
+    let pk_json: String = pk_portable.to_json().expect("pk json");
+    let sk_json: String = sk_portable.to_json().expect("sk json");
+
+    // Drop the in-memory keys — simulate separate processes
+    drop(pk);
+    drop(sk);
+    drop(pk_portable);
+    drop(sk_portable);
+
+    // === Process B: Load public key from JSON, encrypt via unified API ===
+    let pk_loaded = PortableKey::from_json(&pk_json).expect("load pk");
+    let hybrid_pk = pk_loaded.to_hybrid_public_key().expect("extract pk");
+
+    let encrypted =
+        encrypt(plaintext, EncryptKey::Hybrid(&hybrid_pk), CryptoConfig::new()).expect("encrypt");
+
+    // Serialize EncryptedOutput to JSON (simulate writing to disk)
+    let encrypted_json = serialize_encrypted_output(&encrypted).expect("serialize");
+    drop(encrypted);
+    drop(hybrid_pk);
+
+    // === Process C: Load ONLY secret key from JSON, decrypt ===
+    // No public key file needed — ML-KEM pk stored in secret key metadata
+    let sk_loaded = PortableKey::from_json(&sk_json).expect("load sk");
+    let hybrid_sk = sk_loaded.to_hybrid_secret_key().expect("reconstruct sk");
+
+    let encrypted_loaded = deserialize_encrypted_output(&encrypted_json).expect("deserialize");
+    let decrypted = decrypt(&encrypted_loaded, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig::new())
+        .expect("decrypt");
+
+    assert_eq!(
+        decrypted.as_slice(),
+        plaintext,
+        "Hybrid encrypt→serialize→deserialize→decrypt must match"
     );
 }
 

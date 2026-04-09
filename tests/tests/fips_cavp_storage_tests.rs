@@ -1500,7 +1500,7 @@ mod integration_tests {
                 },
                 security_level: 256,
                 vector_version: "3.0".to_string(),
-                implementation_version: "0.5.0".to_string(),
+                implementation_version: "0.5.1".to_string(),
                 configuration: TestConfiguration {
                     iterations: 1000,
                     timeout: Duration::from_secs(300),
