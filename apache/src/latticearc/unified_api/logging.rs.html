@@ -783,9 +783,9 @@
 <a href=#783 id=783 data-nosnippet>783</a>    // inputs here are log-payload fragments — orders of magnitude smaller than
 <a href=#784 id=784 data-nosnippet>784</a>    // the 1 GiB DoS cap that guards the wrapper — so treating the Result as
 <a href=#785 id=785 data-nosnippet>785</a>    // infallible is sound.
-<a href=#786 id=786 data-nosnippet>786</a>    </span><span class="attr">#[allow(clippy::expect_used)]
-<a href=#787 id=787 data-nosnippet>787</a>    </span><span class="kw">let </span>result = <span class="kw">crate</span>::primitives::hash::sha2::sha256(data)
-<a href=#788 id=788 data-nosnippet>788</a>        .expect(<span class="string">"SHA-256 is infallible for in-memory byte slices"</span>);
+<a href=#786 id=786 data-nosnippet>786</a>    </span><span class="kw">let </span><span class="prelude-val">Ok</span>(result) = <span class="kw">crate</span>::primitives::hash::sha2::sha256(data) <span class="kw">else </span>{
+<a href=#787 id=787 data-nosnippet>787</a>        <span class="kw">return </span>String::from(<span class="string">"hash-error"</span>);
+<a href=#788 id=788 data-nosnippet>788</a>    };
 <a href=#789 id=789 data-nosnippet>789</a>    <span class="comment">// SHA-256 always produces 32 bytes, so .get(..8) will always succeed.
 <a href=#790 id=790 data-nosnippet>790</a>    // Using .get() for safe array access per project lint rules.
 <a href=#791 id=791 data-nosnippet>791</a>    </span>result.get(..<span class="number">8</span>).map_or_else(|| hex::encode(result), hex::encode)

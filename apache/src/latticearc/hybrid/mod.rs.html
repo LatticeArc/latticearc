@@ -54,34 +54,41 @@
 <a href=#54 id=54 data-nosnippet>54</a>//! - [`kem_hybrid`](crate::hybrid::kem_hybrid) - Hybrid key encapsulation using ML-KEM + X25519
 <a href=#55 id=55 data-nosnippet>55</a>//! - [`sig_hybrid`](crate::hybrid::sig_hybrid) - Hybrid signatures using ML-DSA + Ed25519
 <a href=#56 id=56 data-nosnippet>56</a>//! - [`compose`](crate::hybrid::compose) - Formal security proofs for hybrid composition
-<a href=#57 id=57 data-nosnippet>57</a>//!
-<a href=#58 id=58 data-nosnippet>58</a>//! # Security Properties
-<a href=#59 id=59 data-nosnippet>59</a>//!
-<a href=#60 id=60 data-nosnippet>60</a>//! | Construction      | Composition     | Security Guarantee                    |
-<a href=#61 id=61 data-nosnippet>61</a>//! |-------------------|-----------------|---------------------------------------|
-<a href=#62 id=62 data-nosnippet>62</a>//! | Hybrid KEM        | HKDF dual-PRF   | Secure if ML-KEM OR X25519 is secure  |
-<a href=#63 id=63 data-nosnippet>63</a>//! | Hybrid Signature  | AND             | Secure if ML-DSA AND Ed25519 secure   |
-<a href=#64 id=64 data-nosnippet>64</a>//! | Hybrid Encryption | HKDF dual-PRF   | Secure if either KEM component secure |
-<a href=#65 id=65 data-nosnippet>65</a>
-<a href=#66 id=66 data-nosnippet>66</a></span><span class="kw">pub mod </span>compose;
-<a href=#67 id=67 data-nosnippet>67</a><span class="kw">pub mod </span>encrypt_hybrid;
-<a href=#68 id=68 data-nosnippet>68</a><span class="kw">pub mod </span>kem_hybrid;
-<a href=#69 id=69 data-nosnippet>69</a><span class="kw">pub mod </span>sig_hybrid;
-<a href=#70 id=70 data-nosnippet>70</a>
-<a href=#71 id=71 data-nosnippet>71</a><span class="comment">// Re-exports for convenience - use explicit exports to avoid ambiguity.
-<a href=#72 id=72 data-nosnippet>72</a>// All hybrid types are reachable directly via `crate::hybrid::*`; the previous
-<a href=#73 id=73 data-nosnippet>73</a>// `hybrid::kem` / `hybrid::sig` / `hybrid::encrypt` inline re-export modules
-<a href=#74 id=74 data-nosnippet>74</a>// were removed as they duplicated this surface.
-<a href=#75 id=75 data-nosnippet>75</a></span><span class="kw">pub use </span>encrypt_hybrid::{
-<a href=#76 id=76 data-nosnippet>76</a>    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, decrypt_hybrid,
-<a href=#77 id=77 data-nosnippet>77</a>    derive_encryption_key, encrypt, encrypt_hybrid,
-<a href=#78 id=78 data-nosnippet>78</a>};
-<a href=#79 id=79 data-nosnippet>79</a><span class="kw">pub use </span>kem_hybrid::{
-<a href=#80 id=80 data-nosnippet>80</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
-<a href=#81 id=81 data-nosnippet>81</a>    derive_hybrid_shared_secret, encapsulate, generate_keypair <span class="kw">as </span>kem_generate_keypair,
-<a href=#82 id=82 data-nosnippet>82</a>};
-<a href=#83 id=83 data-nosnippet>83</a><span class="kw">pub use </span>sig_hybrid::{
-<a href=#84 id=84 data-nosnippet>84</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
-<a href=#85 id=85 data-nosnippet>85</a>    generate_keypair <span class="kw">as </span>sig_generate_keypair, sign, verify,
-<a href=#86 id=86 data-nosnippet>86</a>};
+<a href=#57 id=57 data-nosnippet>57</a>//! - [`pq_only`](mod@crate::hybrid::pq_only) - PQ-only encryption using ML-KEM + HKDF + AES-256-GCM (no X25519)
+<a href=#58 id=58 data-nosnippet>58</a>//!
+<a href=#59 id=59 data-nosnippet>59</a>//! # Security Properties
+<a href=#60 id=60 data-nosnippet>60</a>//!
+<a href=#61 id=61 data-nosnippet>61</a>//! | Construction      | Composition     | Security Guarantee                    |
+<a href=#62 id=62 data-nosnippet>62</a>//! |-------------------|-----------------|---------------------------------------|
+<a href=#63 id=63 data-nosnippet>63</a>//! | Hybrid KEM        | HKDF dual-PRF   | Secure if ML-KEM OR X25519 is secure  |
+<a href=#64 id=64 data-nosnippet>64</a>//! | Hybrid Signature  | AND             | Secure if ML-DSA AND Ed25519 secure   |
+<a href=#65 id=65 data-nosnippet>65</a>//! | Hybrid Encryption | HKDF dual-PRF   | Secure if either KEM component secure |
+<a href=#66 id=66 data-nosnippet>66</a>//! | PQ-Only Encrypt   | ML-KEM + HKDF   | Secure if ML-KEM is secure            |
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a></span><span class="kw">pub mod </span>compose;
+<a href=#69 id=69 data-nosnippet>69</a><span class="kw">pub mod </span>encrypt_hybrid;
+<a href=#70 id=70 data-nosnippet>70</a><span class="kw">pub mod </span>kem_hybrid;
+<a href=#71 id=71 data-nosnippet>71</a><span class="kw">pub mod </span>pq_only;
+<a href=#72 id=72 data-nosnippet>72</a><span class="kw">pub mod </span>sig_hybrid;
+<a href=#73 id=73 data-nosnippet>73</a>
+<a href=#74 id=74 data-nosnippet>74</a><span class="comment">// Re-exports for convenience - use explicit exports to avoid ambiguity.
+<a href=#75 id=75 data-nosnippet>75</a>// All hybrid types are reachable directly via `crate::hybrid::*`; the previous
+<a href=#76 id=76 data-nosnippet>76</a>// `hybrid::kem` / `hybrid::sig` / `hybrid::encrypt` inline re-export modules
+<a href=#77 id=77 data-nosnippet>77</a>// were removed as they duplicated this surface.
+<a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">pub use </span>encrypt_hybrid::{
+<a href=#79 id=79 data-nosnippet>79</a>    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, decrypt_hybrid,
+<a href=#80 id=80 data-nosnippet>80</a>    derive_encryption_key, encrypt, encrypt_hybrid,
+<a href=#81 id=81 data-nosnippet>81</a>};
+<a href=#82 id=82 data-nosnippet>82</a><span class="kw">pub use </span>kem_hybrid::{
+<a href=#83 id=83 data-nosnippet>83</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
+<a href=#84 id=84 data-nosnippet>84</a>    derive_hybrid_shared_secret, encapsulate, generate_keypair <span class="kw">as </span>kem_generate_keypair,
+<a href=#85 id=85 data-nosnippet>85</a>};
+<a href=#86 id=86 data-nosnippet>86</a><span class="kw">pub use </span>pq_only::{
+<a href=#87 id=87 data-nosnippet>87</a>    PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
+<a href=#88 id=88 data-nosnippet>88</a>    encrypt_pq_only, generate_pq_keypair, generate_pq_keypair_with_level,
+<a href=#89 id=89 data-nosnippet>89</a>};
+<a href=#90 id=90 data-nosnippet>90</a><span class="kw">pub use </span>sig_hybrid::{
+<a href=#91 id=91 data-nosnippet>91</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
+<a href=#92 id=92 data-nosnippet>92</a>    generate_keypair <span class="kw">as </span>sig_generate_keypair, sign, verify,
+<a href=#93 id=93 data-nosnippet>93</a>};
 </code></pre></div></section></main></body></html>
