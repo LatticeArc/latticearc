@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Comprehensive tests for TLS auto-selector
 //!
 //! Tests cover:

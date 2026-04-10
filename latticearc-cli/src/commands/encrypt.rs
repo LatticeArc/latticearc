@@ -1,6 +1,6 @@
 //! Encrypt command — authenticated encryption of files.
 //!
-//! Supports two encryption modes:
+//! Supports three encryption modes:
 //!
 //! - **AES-256-GCM** (SP 800-38D) — symmetric authenticated encryption using a
 //!   shared 32-byte key. Provides confidentiality + integrity. Each encryption
@@ -8,6 +8,8 @@
 //! - **Hybrid** (ML-KEM-768 + X25519 + AES-256-GCM) — post-quantum hybrid
 //!   encryption using a recipient's public key. Generates an ephemeral keypair
 //!   internally.
+//! - **PQ-only** (ML-KEM + AES-256-GCM) — pure post-quantum encryption without
+//!   a classical (X25519) component. Required for CNSA 2.0 compliance.
 //!
 //! **Output format:** The encrypted data is written as a self-contained JSON file
 //! containing the Base64-encoded ciphertext, nonce, and algorithm metadata. This
@@ -21,7 +23,7 @@ use std::path::PathBuf;
 use crate::keyfile::{KeyFile, KeyType};
 
 /// Encryption mode.
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum)]
 pub(crate) enum EncryptMode {
     /// AES-256-GCM symmetric encryption (FIPS validated).
     Aes256Gcm,
@@ -29,6 +31,8 @@ pub(crate) enum EncryptMode {
     Chacha20Poly1305,
     /// Hybrid ML-KEM-768 + X25519 + AES-256-GCM (generates ephemeral keypair).
     Hybrid,
+    /// PQ-only ML-KEM + AES-256-GCM (no classical component, CNSA 2.0).
+    PqOnly,
 }
 
 /// Arguments for the `encrypt` subcommand.
@@ -70,7 +74,9 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
         if args.mode.is_some() {
             eprintln!(
                 "Warning: --mode is ignored when --use-case is provided. \
-                 The library selects the optimal encryption scheme automatically."
+                 The library selects the optimal encryption scheme automatically. \
+                 For PQ-only with a use case, pass --use-case <X> on its own \
+                 with a PQ-only key (the library auto-detects CryptoMode from the key type)."
             );
         }
         let json_output = encrypt_with_config(&plaintext, &key_file, &args)?;
@@ -83,6 +89,7 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
         EncryptMode::Aes256Gcm => encrypt_symmetric(&plaintext, &key_file)?,
         EncryptMode::Chacha20Poly1305 => encrypt_chacha20(&plaintext, &key_file)?,
         EncryptMode::Hybrid => encrypt_hybrid(&plaintext, &key_file)?,
+        EncryptMode::PqOnly => encrypt_pq_only_mode(&plaintext, &key_file, &args)?,
     };
 
     write_output(&args.output, &json_output)
@@ -174,6 +181,39 @@ fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
         latticearc::CryptoConfig::new(),
     )
     .map_err(|e| anyhow::anyhow!("Hybrid encryption failed: {e}"))?;
+
+    latticearc::unified_api::serialization::serialize_encrypted_output(&encrypted)
+        .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
+}
+
+fn encrypt_pq_only_mode(
+    plaintext: &[u8],
+    key_file: &KeyFile,
+    args: &EncryptArgs,
+) -> Result<String> {
+    if key_file.key_type != KeyType::Public {
+        bail!("Expected public key file for PQ-only encryption, got {:?}", key_file.key_type);
+    }
+
+    let pk_bytes = key_file.key_bytes()?;
+    let level =
+        super::common::resolve_ml_kem_level(key_file.portable_key().algorithm()).map_err(|e| {
+            anyhow::anyhow!("{e}. Generate one with: latticearc-cli keygen --algorithm ml-kem768")
+        })?;
+
+    let pq_pk = latticearc::PqOnlyPublicKey::from_bytes(level, &pk_bytes)
+        .map_err(|e| anyhow::anyhow!("Invalid PQ-only public key: {e}"))?;
+
+    let security_level = super::common::ml_kem_to_security_level(level);
+    let mut config = latticearc::CryptoConfig::new()
+        .crypto_mode(latticearc::CryptoMode::PqOnly)
+        .security_level(args.security_level.unwrap_or(security_level));
+    if let Some(ref compliance) = args.compliance {
+        config = config.compliance(compliance.clone());
+    }
+
+    let encrypted = latticearc::encrypt(plaintext, latticearc::EncryptKey::PqOnly(&pq_pk), config)
+        .map_err(|e| anyhow::anyhow!("PQ-only encryption failed: {e}"))?;
 
     latticearc::unified_api::serialization::serialize_encrypted_output(&encrypted)
         .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))

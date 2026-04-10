@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 #![deny(unsafe_code)]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -454,8 +455,8 @@ fn test_hybrid_encrypt_decrypt_through_facade_roundtrip() {
     let encrypted =
         encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt");
     let hybrid = encrypted.hybrid_data().expect("should have hybrid_data");
-    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088);
-    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32);
+    assert_eq!(hybrid.ml_kem_ciphertext().len(), 1088);
+    assert_eq!(hybrid.ecdh_ephemeral_pk().len(), 32);
 
     let decrypted =
         decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).expect("decrypt");

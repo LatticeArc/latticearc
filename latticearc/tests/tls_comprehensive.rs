@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::float_cmp)]
 

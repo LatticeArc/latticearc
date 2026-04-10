@@ -559,8 +559,8 @@ fn test_hybrid_encryption_roundtrip_succeeds() {
             assert_eq!(encrypted.scheme(), &EncryptionScheme::HybridMlKem768Aes256Gcm);
             assert!(encrypted.hybrid_data().is_some(), "Hybrid data should be present");
             let hd = encrypted.hybrid_data().unwrap();
-            assert_eq!(hd.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
-            assert_eq!(hd.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
+            assert_eq!(hd.ml_kem_ciphertext().len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
+            assert_eq!(hd.ecdh_ephemeral_pk().len(), 32, "X25519 PK should be 32 bytes");
             assert_eq!(encrypted.nonce().len(), 12, "AES-GCM nonce should be 12 bytes");
 
             // Decrypt via unified API

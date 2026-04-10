@@ -1,6 +1,6 @@
 # NIST Post-Quantum Cryptography Compliance
 
-LatticeArc implements all four NIST post-quantum standards (FIPS 203-206) with CAVP validation and a clear FIPS 140-3 certification path.
+LatticeArc implements all four NIST post-quantum standards (FIPS 203–205, draft 206) with CAVP validation and a clear FIPS 140-3 certification path.
 
 ## Standards Overview
 
@@ -13,7 +13,7 @@ graph LR
     subgraph "Digital Signatures"
         DSA[FIPS 204<br/>ML-DSA]
         SLH[FIPS 205<br/>SLH-DSA]
-        FN[FIPS 206<br/>FN-DSA]
+        FN[draft FIPS 206<br/>FN-DSA]
     end
 
     subgraph "Implementation"
@@ -42,13 +42,13 @@ graph LR
 | FIPS 203 | ML-KEM | `aws-lc-rs` | Yes, with `--features fips` (Cert #4631, #4759, #4816) | Complete |
 | FIPS 204 | ML-DSA | `fips204` crate | No (awaiting aws-lc-rs) | Complete* |
 | FIPS 205 | SLH-DSA | `fips205` crate | No (audited, not FIPS-validated) | Complete |
-| FIPS 206 | FN-DSA | `fn-dsa` crate | No (partial validation) | Complete |
+| draft FIPS 206 | FN-DSA | `fn-dsa` crate | No (partial validation) | Complete |
 
 *ML-DSA uses the `fips204` pure Rust crate. For FIPS 140-3 certification, migration to `aws-lc-rs` is required once the ML-DSA Rust API is stabilized (tracking: aws/aws-lc-rs#773). Our PRs #1029 and #1034 shipped in aws-lc-rs v1.16.0; ML-DSA FIPS API stabilization is still pending.
 
 ## FIPS 140-3 Considerations
 
-LatticeArc implements FIPS 203-206 algorithms but is **NOT** FIPS 140-3 validated.
+LatticeArc implements FIPS 203–205, draft 206 algorithms but is **NOT** FIPS 140-3 validated.
 
 ### ComplianceMode
 
@@ -237,7 +237,7 @@ let signature = sign_pq_slh_dsa(message, &sk, SecurityLevel::Shake128s, Security
 let is_valid = verify_pq_slh_dsa(message, &signature, &pk, SecurityLevel::Shake128s, SecurityMode::Unverified)?;
 ```
 
-## FIPS 206: FN-DSA (FFT over NTRU Lattice Digital Signature)
+## draft FIPS 206: FN-DSA (FFT over NTRU Lattice Digital Signature)
 
 ### Algorithm Variants
 
@@ -251,13 +251,13 @@ let is_valid = verify_pq_slh_dsa(message, &signature, &pk, SecurityLevel::Shake1
 ```rust
 use latticearc::*;
 
-// Key generation (FIPS 206 Section 6.1)
+// Key generation (draft FIPS 206 Section 6.1)
 let (pk, sk) = generate_fn_dsa_keypair()?;
 
-// Sign (FIPS 206 Section 6.2)
+// Sign (draft FIPS 206 Section 6.2)
 let signature = sign_pq_fn_dsa(message, &sk, SecurityMode::Unverified)?;
 
-// Verify (FIPS 206 Section 6.3)
+// Verify (draft FIPS 206 Section 6.3)
 let is_valid = verify_pq_fn_dsa(message, &signature, &pk, SecurityMode::Unverified)?;
 ```
 
@@ -268,7 +268,7 @@ flowchart LR
     L1["Level 1-2\nAES-128"] --> STD[Standard]
     L3["Level 3-4\nAES-192"] --> HIGH["High (default)"]
     L5["Level 5\nAES-256"] --> MAX[Maximum]
-    L5 --> QTM[Quantum]
+    L5 --> QTM["Quantum\n(deprecated)"]
 
     classDef nist fill:#3498db,stroke:#333,color:#fff
     classDef arc fill:#27ae60,stroke:#333,color:#fff
@@ -282,7 +282,11 @@ flowchart LR
 | 2 | SHA-256 collision | `SecurityLevel::Standard` |
 | 3 | AES-192 key recovery | `SecurityLevel::High` (default) |
 | 4 | SHA-384 collision | `SecurityLevel::High` |
-| 5 | AES-256 key recovery | `SecurityLevel::Maximum` / `SecurityLevel::Quantum` |
+| 5 | AES-256 key recovery | `SecurityLevel::Maximum` (use `CryptoMode::PqOnly` for PQ-only mode) |
+
+> **Note (v0.6.0):** `SecurityLevel::Quantum` is deprecated and was previously an alias for
+> `SecurityLevel::Maximum` in PQ-only mode. Use `SecurityLevel::Maximum` with `CryptoMode::PqOnly`
+> instead. `SecurityLevel::Quantum` will be removed in a future release.
 
 ### Recommendations
 
@@ -342,6 +346,6 @@ LatticeArc uses standard encodings per FIPS specifications:
 - [FIPS 203: ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
 - [FIPS 204: ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
 - [FIPS 205: SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final)
-- [FN-DSA (FIPS 206, draft)](https://csrc.nist.gov/projects/post-quantum-cryptography) — FN-DSA (Falcon) standardization is ongoing as of 2026-04; no final `/pubs/fips/206/` URL exists yet
+- [FN-DSA (draft FIPS 206, draft)](https://csrc.nist.gov/projects/post-quantum-cryptography) — FN-DSA (Falcon) standardization is ongoing as of 2026-04; no final `/pubs/fips/206/` URL exists yet
 - [SP 800-208: Hash-Based Signatures](https://csrc.nist.gov/pubs/sp/800/208/final)
 - [NIST PQC Project](https://csrc.nist.gov/projects/post-quantum-cryptography)

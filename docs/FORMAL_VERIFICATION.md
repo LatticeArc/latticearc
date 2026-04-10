@@ -138,7 +138,7 @@ These catch bugs when someone adds a new enum variant but forgets to handle it â
 
 | Proof | What It Guarantees |
 |-------|-------------------|
-| `domain_constants_pairwise_distinct` | All 4 HKDF domain constants (HYBRID_KEM, CASCADE_OUTER, CASCADE_INNER, SIGNATURE_BIND) are pairwise distinct |
+| `domain_constants_pairwise_distinct` | All 10 HKDF domain constants are pairwise distinct (includes `PQ_ONLY_ENCRYPTION_INFO` added in 0.6.0) |
 
 This is a critical security property â€” if any two domain constants collide, different protocol layers derive the same keys, destroying cryptographic isolation (NIST SP 800-108).
 

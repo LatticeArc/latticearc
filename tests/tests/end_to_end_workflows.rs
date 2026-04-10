@@ -47,8 +47,8 @@ fn test_hybrid_encrypt_decrypt_roundtrip_succeeds() {
     let encrypted =
         encrypt(plaintext, EncryptKey::Hybrid(&pk), CryptoConfig::new()).expect("encrypt failed");
     let hybrid = encrypted.hybrid_data().expect("should have hybrid_data");
-    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
-    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
+    assert_eq!(hybrid.ml_kem_ciphertext().len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
+    assert_eq!(hybrid.ecdh_ephemeral_pk().len(), 32, "X25519 PK should be 32 bytes");
     assert_eq!(encrypted.nonce().len(), 12, "AES-GCM nonce should be 12 bytes");
     assert_eq!(encrypted.tag().len(), 16, "AES-GCM tag should be 16 bytes");
 

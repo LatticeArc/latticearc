@@ -475,16 +475,13 @@ fn test_keypair_to_serializable_conversion_succeeds() {
     let original = create_test_keypair();
     let serializable = SerializableKeyPair::from(&original);
 
-    assert!(!serializable.public_key.is_empty());
-    assert!(!serializable.private_key.is_empty());
+    assert!(!serializable.public_key().is_empty());
+    assert!(!serializable.private_key().is_empty());
 }
 
 #[test]
 fn test_serializable_to_keypair_conversion_succeeds() -> Result<()> {
-    let serializable = SerializableKeyPair {
-        public_key: "AQIDBA==".to_string(),
-        private_key: "BQYHCA==".to_string(),
-    };
+    let serializable = SerializableKeyPair::new("AQIDBA==".to_string(), "BQYHCA==".to_string());
 
     let keypair: KeyPair = serializable.try_into()?;
     assert_eq!(keypair.public_key().as_slice(), &[1, 2, 3, 4]);

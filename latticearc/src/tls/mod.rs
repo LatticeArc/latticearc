@@ -815,6 +815,7 @@ pub const fn pq_enabled() -> bool {
 #[cfg(test)]
 #[allow(clippy::indexing_slicing)]
 #[allow(clippy::expect_used)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 

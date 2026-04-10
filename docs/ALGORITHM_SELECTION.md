@@ -8,7 +8,7 @@ LatticeArc's algorithm choices: what we include, what we skip, and why.
 
 ## Design Principles
 
-1. **Standards-First** - Only NIST-standardized algorithms (FIPS 203-206, 186-5)
+1. **Standards-First** - Only NIST-standardized algorithms (FIPS 203–205, draft 206, 186-5)
 2. **Performance Matters** - Choose faster algorithms when security is equivalent
 3. **Safety by Default** - Prefer misuse-resistant designs
 4. **FIPS-Ready** - Use validated backends for certification path
@@ -22,7 +22,7 @@ LatticeArc's algorithm choices: what we include, what we skip, and why.
 
 ```mermaid
 flowchart LR
-    subgraph "Post-Quantum (FIPS 203-206)"
+    subgraph "Post-Quantum (FIPS 203–205, draft 206)"
         KEM["ML-KEM\n512 / 768 / 1024"]
         DSA["ML-DSA\n44 / 65 / 87"]
         SLH["SLH-DSA\nSHAKE / SHA2"]
@@ -83,7 +83,7 @@ flowchart LR
 - Stateless (no state management like XMSS)
 - Most conservative PQ signature scheme
 
-#### FN-DSA (FIPS 206) — Fast Lattice Signatures
+#### FN-DSA (draft FIPS 206) — Fast Lattice Signatures
 
 | Feature | Value |
 |---------|-------|
@@ -213,7 +213,7 @@ flowchart TB
 | **ML-KEM** | aws-lc-rs | 1.16.0 | FIPS 140-3 validated (with `--features fips`) |
 | **ML-DSA** | fips204 | 0.4.6 | NIST-compliant, awaiting aws-lc-rs stabilization |
 | **SLH-DSA** | fips205 | 0.4.1 | NIST-compliant (not FIPS-validated) |
-| **FN-DSA** | fn-dsa | 0.3.0 | FIPS 206 compliant (not FIPS-validated) |
+| **FN-DSA** | fn-dsa | 0.3.0 | draft FIPS 206 compliant (not FIPS-validated) |
 | **Ed25519** | ed25519-dalek | 2.1.1 | Audited, constant-time |
 | **X25519** | aws-lc-rs | 1.16.0 | FIPS 140-3 validated (with `--features fips`) |
 | **AES-GCM** | aws-lc-rs | 1.16.0 | FIPS 140-3 validated (with `--features fips`) |
@@ -377,7 +377,7 @@ flowchart TB
 - [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) - ML-KEM
 - [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final) - ML-DSA
 - [FIPS 205](https://csrc.nist.gov/pubs/fips/205/final) - SLH-DSA
-- [FN-DSA (FIPS 206, draft)](https://csrc.nist.gov/projects/post-quantum-cryptography) - FN-DSA (standardization ongoing as of 2026-04)
+- [FN-DSA (draft FIPS 206, draft)](https://csrc.nist.gov/projects/post-quantum-cryptography) - FN-DSA (standardization ongoing as of 2026-04)
 - [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) - Digital Signature Standard (includes EdDSA)
 
 ### Performance Sources

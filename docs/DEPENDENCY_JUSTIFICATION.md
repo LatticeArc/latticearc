@@ -1,18 +1,18 @@
 # Dependency Justification Document
 
 **Project:** LatticeArc - Post-Quantum Cryptography Library
-**Version:** 0.5.1
+**Version:** 0.6.0
 **Date:** 2026-02-19
 **SBOM Format:** CycloneDX 1.5, SPDX 2.3
 
 ## Executive Summary
 
-All dependencies vetted for security (audits, memory safety), licensing (Apache/MIT/BSD — no copyleft), standards compliance (FIPS 203-206), and supply chain (crates.io only). **376 total components** including transitive dependencies.
+All dependencies vetted for security (audits, memory safety), licensing (Apache/MIT/BSD — no copyleft), standards compliance (FIPS 203–205, draft 206), and supply chain (crates.io only). **376 total components** including transitive dependencies.
 
 ```mermaid
 flowchart TB
     subgraph "latticearc"
-        LA[LatticeArc 0.5.1]
+        LA[LatticeArc 0.6.0]
     end
 
     subgraph "FIPS-Validated"
@@ -118,7 +118,7 @@ flowchart TB
 - **Usage**: `latticearc-tests` (test vectors)
 
 #### 6. fn-dsa (v0.3.0)
-- **Purpose**: FN-DSA (FFT-based Lattice Signatures) - FIPS 206
+- **Purpose**: FN-DSA (FFT-based Lattice Signatures) - draft FIPS 206
 - **Justification**:
   - Falcon signature scheme implementation
   - Smallest signature size among PQC schemes
@@ -418,7 +418,7 @@ The workspace contains 3 crates (consolidated from 11 in v0.1.0):
 
 2. **fn-dsa** (Unlicense)
    - **Risk**: Public domain may have patent concerns
-   - **Mitigation**: Legal review, NIST FIPS 206 compliance
+   - **Mitigation**: Legal review, NIST draft FIPS 206 compliance
    - **Timeline**: Ongoing monitoring
 
 ### Medium-Risk Dependencies
@@ -446,7 +446,7 @@ All RustCrypto crates (sha2, blake2, aes-gcm, etc.) - well-audited, widely used,
 | FIPS 203 (ML-KEM) | aws-lc-rs, fips203 | ✅ Validated (aws-lc-rs) |
 | FIPS 204 (ML-DSA) | fips204 | ⏳ Awaiting aws-lc-rs |
 | FIPS 205 (SLH-DSA) | fips205 | ✅ Audited |
-| FIPS 206 (FN-DSA) | fn-dsa | 🔄 Partial |
+| draft FIPS 206 (FN-DSA) | fn-dsa | 🔄 Partial |
 | FIPS 180-4 (SHA-2) | sha2, aws-lc-rs | ✅ Validated |
 | FIPS 202 (SHA-3) | sha3 | ✅ Standard |
 | SP 800-38D (AES-GCM) | aws-lc-rs (production), aes-gcm (tests only) | ✅ Validated |

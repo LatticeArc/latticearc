@@ -4,7 +4,7 @@
 
 ### What is LatticeArc?
 
-LatticeArc is a post-quantum cryptography library for Rust implementing NIST FIPS 203-206 standards. It provides key encapsulation, digital signatures, and hybrid encryption resistant to both classical and quantum computer attacks.
+LatticeArc is a post-quantum cryptography library for Rust implementing NIST FIPS 203–205, draft 206 standards. It provides key encapsulation, digital signatures, and hybrid encryption resistant to both classical and quantum computer attacks.
 
 ### Why should I use post-quantum cryptography?
 
@@ -20,7 +20,7 @@ Expert estimates vary widely (2030-2050+). However, "harvest now, decrypt later"
 
 ### Is LatticeArc production-ready?
 
-LatticeArc implements NIST-standardized algorithms (FIPS 203-206) and follows security best practices. However:
+LatticeArc implements NIST-standardized algorithms (FIPS 203–205, draft 206) and follows security best practices. However:
 - It has not yet undergone third-party security audit
 - It is not FIPS 140-3 validated
 - Use hybrid mode for defense-in-depth

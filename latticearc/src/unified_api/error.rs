@@ -223,7 +223,7 @@ impl From<TypeError> for CoreError {
             }
             TypeError::ConfigurationError(msg) => CoreError::ConfigurationError(msg),
             TypeError::UnknownScheme(scheme) => {
-                CoreError::DecryptionFailed(format!("Unknown encryption scheme: {scheme}"))
+                CoreError::ConfigurationError(format!("Unknown encryption scheme: {scheme}"))
             }
         }
     }

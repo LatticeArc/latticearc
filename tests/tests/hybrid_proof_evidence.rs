@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Hybrid Cryptography Proof Evidence Suite
 //!
 //! Structured proof records for every hybrid crypto operation. Each test performs a real
@@ -31,7 +33,7 @@ use latticearc::tls::pq_key_exchange::{KexInfo, PqKexMode, get_kex_info, is_pq_a
 use latticearc::tls::{TlsConfig, TlsMode, TlsPolicyEngine, TlsUseCase, tls13::Tls13Config};
 use latticearc::{
     ComplianceMode, CryptoConfig, DecryptKey, EncryptKey, EncryptedOutput, EncryptionScheme,
-    HybridComponents, SecurityLevel, SecurityMode, UseCase, decrypt,
+    HybridComponents, PortableKey, SecurityLevel, SecurityMode, UseCase, decrypt,
     decrypt_aes_gcm_with_aad_unverified, deserialize_encrypted_output, encrypt,
     encrypt_aes_gcm_with_aad_unverified, fips_available, generate_fn_dsa_keypair,
     generate_hybrid_keypair_with_level, generate_hybrid_signing_keypair, generate_ml_dsa_keypair,
@@ -193,13 +195,13 @@ fn proof_all_22_usecases_select_correct_scheme() {
         assert!(encrypted.hybrid_data().is_some(), "UseCase::{name} must produce hybrid_data");
         let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
-            hybrid.ml_kem_ciphertext.len(),
+            hybrid.ml_kem_ciphertext().len(),
             ct_size,
             "UseCase::{name} ML-KEM CT size: expected {ct_size}, got {}",
-            hybrid.ml_kem_ciphertext.len()
+            hybrid.ml_kem_ciphertext().len()
         );
         assert_eq!(
-            hybrid.ecdh_ephemeral_pk.len(),
+            hybrid.ecdh_ephemeral_pk().len(),
             32,
             "UseCase::{name} ECDH ephemeral PK must be 32 bytes"
         );
@@ -229,8 +231,8 @@ fn proof_all_22_usecases_select_correct_scheme() {
              \"roundtrip\":\"PASS\",\
              \"status\":\"PASS\"}}",
             encrypted.scheme(),
-            hybrid.ml_kem_ciphertext.len(),
-            hybrid.ecdh_ephemeral_pk.len(),
+            hybrid.ml_kem_ciphertext().len(),
+            hybrid.ecdh_ephemeral_pk().len(),
             encrypted.nonce().len(),
             encrypted.tag().len(),
             data.len(),
@@ -294,7 +296,7 @@ fn proof_security_level(level: SecurityLevel, expected_scheme: EncryptionScheme,
         encrypted.scheme()
     );
     let hybrid = encrypted.hybrid_data().unwrap();
-    assert_eq!(hybrid.ml_kem_ciphertext.len(), ct_size);
+    assert_eq!(hybrid.ml_kem_ciphertext().len(), ct_size);
 
     let config = CryptoConfig::new().security_level(level);
     let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), config)
@@ -310,7 +312,7 @@ fn proof_security_level(level: SecurityLevel, expected_scheme: EncryptionScheme,
          \"roundtrip\":\"PASS\",\
          \"status\":\"PASS\"}}",
         encrypted.scheme(),
-        hybrid.ml_kem_ciphertext.len(),
+        hybrid.ml_kem_ciphertext().len(),
     );
 }
 
@@ -368,7 +370,7 @@ fn proof_ml_kem_nist_params(
         .unwrap_or_else(|e| panic!("encrypt for {level_name}: {e}"));
 
     let hybrid = encrypted.hybrid_data().unwrap();
-    assert_eq!(hybrid.ml_kem_ciphertext.len(), expected_ct, "{level_name} live CT size");
+    assert_eq!(hybrid.ml_kem_ciphertext().len(), expected_ct, "{level_name} live CT size");
 
     // Roundtrip
     let config = CryptoConfig::new().security_level(security_level);
@@ -388,7 +390,7 @@ fn proof_ml_kem_nist_params(
          \"status\":\"PASS\"}}",
         actual_ct,
         pk.ml_kem_pk().len(),
-        hybrid.ml_kem_ciphertext.len(),
+        hybrid.ml_kem_ciphertext().len(),
     );
 }
 
@@ -451,8 +453,8 @@ fn proof_variable_size_roundtrip(size: usize, label: &str) {
          \"roundtrip\":\"PASS\",\
          \"status\":\"PASS\"}}",
         encrypted.ciphertext().len(),
-        hybrid.ml_kem_ciphertext.len(),
-        hybrid.ecdh_ephemeral_pk.len(),
+        hybrid.ml_kem_ciphertext().len(),
+        hybrid.ecdh_ephemeral_pk().len(),
         encrypted.nonce().len(),
         encrypted.tag().len(),
         encrypted.scheme(),
@@ -710,11 +712,13 @@ fn proof_serialization_roundtrip(
     let orig_hybrid = original.hybrid_data().unwrap();
     let rest_hybrid = restored.hybrid_data().unwrap();
     assert_eq!(
-        orig_hybrid.ml_kem_ciphertext, rest_hybrid.ml_kem_ciphertext,
+        orig_hybrid.ml_kem_ciphertext(),
+        rest_hybrid.ml_kem_ciphertext(),
         "ML-KEM CT must survive serialization for {level_name}"
     );
     assert_eq!(
-        orig_hybrid.ecdh_ephemeral_pk, rest_hybrid.ecdh_ephemeral_pk,
+        orig_hybrid.ecdh_ephemeral_pk(),
+        rest_hybrid.ecdh_ephemeral_pk(),
         "ECDH ephemeral PK must survive serialization for {level_name}"
     );
 
@@ -860,14 +864,11 @@ fn proof_negative_wrong_verify_key_fails() {
 fn proof_negative_corrupted_ml_kem_ct_fails() {
     proof_corrupted_field("ml_kem_ciphertext", |enc| {
         let tampered_hybrid = enc.hybrid_data().map(|h| {
-            let mut ml_kem_ct = h.ml_kem_ciphertext.clone();
+            let mut ml_kem_ct = h.ml_kem_ciphertext().to_vec();
             if !ml_kem_ct.is_empty() {
                 ml_kem_ct[0] ^= 0xFF;
             }
-            HybridComponents {
-                ml_kem_ciphertext: ml_kem_ct,
-                ecdh_ephemeral_pk: h.ecdh_ephemeral_pk.clone(),
-            }
+            HybridComponents::new(ml_kem_ct, h.ecdh_ephemeral_pk().to_vec())
         });
         EncryptedOutput::new(
             enc.scheme().clone(),
@@ -885,14 +886,11 @@ fn proof_negative_corrupted_ml_kem_ct_fails() {
 fn proof_negative_corrupted_ecdh_pk_fails() {
     proof_corrupted_field("ecdh_ephemeral_pk", |enc| {
         let tampered_hybrid = enc.hybrid_data().map(|h| {
-            let mut ecdh_pk = h.ecdh_ephemeral_pk.clone();
+            let mut ecdh_pk = h.ecdh_ephemeral_pk().to_vec();
             if !ecdh_pk.is_empty() {
                 ecdh_pk[0] ^= 0xFF;
             }
-            HybridComponents {
-                ml_kem_ciphertext: h.ml_kem_ciphertext.clone(),
-                ecdh_ephemeral_pk: ecdh_pk,
-            }
+            HybridComponents::new(h.ml_kem_ciphertext().to_vec(), ecdh_pk)
         });
         EncryptedOutput::new(
             enc.scheme().clone(),
@@ -1564,11 +1562,13 @@ fn proof_at_rest_roundtrip(
     );
     if let (Some(orig_h), Some(rest_h)) = (encrypted.hybrid_data(), restored.hybrid_data()) {
         assert_eq!(
-            orig_h.ml_kem_ciphertext, rest_h.ml_kem_ciphertext,
+            orig_h.ml_kem_ciphertext(),
+            rest_h.ml_kem_ciphertext(),
             "ML-KEM CT lost for {test_name}"
         );
         assert_eq!(
-            orig_h.ecdh_ephemeral_pk, rest_h.ecdh_ephemeral_pk,
+            orig_h.ecdh_ephemeral_pk(),
+            rest_h.ecdh_ephemeral_pk(),
             "ECDH PK lost for {test_name}"
         );
     }
@@ -1898,6 +1898,183 @@ fn proof_exhaustive_mode_matrix_succeeds() {
          \"tls_modes\":3,\
          \"kex_modes\":3,\
          \"all_passed\":true,\
+         \"status\":\"PASS\"}}"
+    );
+}
+
+// ============================================================================
+// Section 14: Key Persistence — Serialize SK → Drop → Reload → Decrypt (v0.5.2)
+//
+// Proves the full real-world key lifecycle: keygen → export to JSON → drop all
+// in-memory keys → reload from JSON → decrypt. This is the path every CLI user
+// and application takes. Tests that the secret key file is self-contained
+// (ML-KEM public key stored in metadata, no separate PK file needed).
+// ============================================================================
+
+#[test]
+fn proof_key_persistence_hybrid_512_succeeds() {
+    proof_key_persistence(
+        MlKemSecurityLevel::MlKem512,
+        SecurityLevel::Standard,
+        UseCase::IoTDevice,
+        "hybrid_512",
+    );
+}
+
+#[test]
+fn proof_key_persistence_hybrid_768_succeeds() {
+    proof_key_persistence(
+        MlKemSecurityLevel::MlKem768,
+        SecurityLevel::High,
+        UseCase::SecureMessaging,
+        "hybrid_768",
+    );
+}
+
+#[test]
+fn proof_key_persistence_hybrid_1024_succeeds() {
+    proof_key_persistence(
+        MlKemSecurityLevel::MlKem1024,
+        SecurityLevel::Maximum,
+        UseCase::GovernmentClassified,
+        "hybrid_1024",
+    );
+}
+
+fn proof_key_persistence(
+    key_level: MlKemSecurityLevel,
+    security_level: SecurityLevel,
+    use_case: UseCase,
+    test_name: &str,
+) {
+    let plaintext = format!("Key persistence proof: {test_name}");
+    let pre_hash = sha3_hex(plaintext.as_bytes());
+
+    // === PROCESS A: Generate keypair, export to JSON, drop everything ===
+    let (pk_json, sk_json) = {
+        let (pk, sk) = generate_hybrid_keypair_with_level(key_level)
+            .unwrap_or_else(|e| panic!("keygen for {test_name}: {e}"));
+        let (pk_portable, sk_portable) = PortableKey::from_hybrid_kem_keypair(use_case, &pk, &sk)
+            .unwrap_or_else(|e| panic!("export for {test_name}: {e}"));
+        let pk_j: String = pk_portable.to_json().unwrap_or_else(|e| panic!("pk json: {e}"));
+        let sk_j: String = sk_portable.to_json().unwrap_or_else(|e| panic!("sk json: {e}"));
+        // pk, sk, pk_portable, sk_portable all dropped here
+        (pk_j, sk_j)
+    };
+
+    let pk_json_len = pk_json.len();
+    let sk_json_len = sk_json.len();
+
+    // Verify SK JSON contains ml_kem_pk metadata
+    let sk_has_pk_metadata = sk_json.contains("ml_kem_pk");
+    assert!(sk_has_pk_metadata, "{test_name}: secret key JSON must contain ml_kem_pk metadata");
+
+    // === PROCESS B: Load PK from JSON, encrypt ===
+    let encrypted_json = {
+        let pk_loaded = PortableKey::from_json(&pk_json)
+            .unwrap_or_else(|e| panic!("load pk for {test_name}: {e}"));
+        let hybrid_pk = pk_loaded
+            .to_hybrid_public_key()
+            .unwrap_or_else(|e| panic!("extract pk for {test_name}: {e}"));
+        let config = CryptoConfig::new().security_level(security_level);
+        let encrypted = encrypt(plaintext.as_bytes(), EncryptKey::Hybrid(&hybrid_pk), config)
+            .unwrap_or_else(|e| panic!("encrypt for {test_name}: {e}"));
+        // pk_loaded, hybrid_pk, encrypted all dropped here
+        serialize_encrypted_output(&encrypted)
+            .unwrap_or_else(|e| panic!("serialize ct for {test_name}: {e}"))
+    };
+
+    let ct_json_len = encrypted_json.len();
+
+    // === PROCESS C: Load ONLY SK from JSON, decrypt ===
+    let sk_loaded =
+        PortableKey::from_json(&sk_json).unwrap_or_else(|e| panic!("load sk for {test_name}: {e}"));
+    let hybrid_sk = sk_loaded
+        .to_hybrid_secret_key()
+        .unwrap_or_else(|e| panic!("reconstruct sk for {test_name}: {e}"));
+    let ct_loaded = deserialize_encrypted_output(&encrypted_json)
+        .unwrap_or_else(|e| panic!("load ct for {test_name}: {e}"));
+    let config = CryptoConfig::new().security_level(security_level);
+    let decrypted = decrypt(&ct_loaded, DecryptKey::Hybrid(&hybrid_sk), config)
+        .unwrap_or_else(|e| panic!("decrypt for {test_name}: {e}"));
+
+    let post_hash = sha3_hex(decrypted.as_ref());
+    assert_eq!(
+        pre_hash, post_hash,
+        "{test_name}: SHA3 hash mismatch after key persistence roundtrip"
+    );
+    assert_eq!(decrypted.as_slice(), plaintext.as_bytes(), "{test_name}: byte mismatch");
+
+    println!(
+        "[PROOF] {{\"section\":14,\"test\":\"key_persistence_{test_name}\",\
+         \"description\":\"keygen→JSON→drop→reload SK only→decrypt\",\
+         \"level\":\"{test_name}\",\
+         \"use_case\":\"{use_case:?}\",\
+         \"pk_json_bytes\":{pk_json_len},\
+         \"sk_json_bytes\":{sk_json_len},\
+         \"ct_json_bytes\":{ct_json_len},\
+         \"sk_self_contained\":true,\
+         \"ml_kem_pk_in_metadata\":{sk_has_pk_metadata},\
+         \"sha3_before\":\"{pre_hash}\",\
+         \"sha3_after\":\"{post_hash}\",\
+         \"hash_match\":true,\
+         \"no_separate_pk_needed\":true,\
+         \"status\":\"PASS\"}}",
+    );
+}
+
+#[test]
+fn proof_key_persistence_wrong_sk_rejects() {
+    let plaintext = b"Negative key persistence proof";
+
+    // Generate two independent keypairs
+    let (pk_a, _sk_a) =
+        generate_hybrid_keypair_with_level(MlKemSecurityLevel::MlKem768).expect("keygen A");
+    let (_pk_b, sk_b) =
+        generate_hybrid_keypair_with_level(MlKemSecurityLevel::MlKem768).expect("keygen B");
+
+    // Export both to JSON
+    let (pk_a_portable, _) =
+        PortableKey::from_hybrid_kem_keypair(UseCase::SecureMessaging, &pk_a, &_sk_a)
+            .expect("export A");
+    let (_, sk_b_portable) =
+        PortableKey::from_hybrid_kem_keypair(UseCase::SecureMessaging, &_pk_b, &sk_b)
+            .expect("export B");
+
+    let pk_a_json: String = pk_a_portable.to_json().expect("pk A json");
+    let sk_b_json: String = sk_b_portable.to_json().expect("sk B json");
+
+    // Drop all in-memory keys
+    drop(pk_a);
+    drop(_sk_a);
+    drop(_pk_b);
+    drop(sk_b);
+    drop(pk_a_portable);
+    drop(sk_b_portable);
+
+    // Encrypt with A's public key
+    let pk_loaded = PortableKey::from_json(&pk_a_json).expect("load pk A");
+    let hybrid_pk = pk_loaded.to_hybrid_public_key().expect("extract pk A");
+    let encrypted =
+        encrypt(plaintext, EncryptKey::Hybrid(&hybrid_pk), CryptoConfig::new()).expect("encrypt");
+    let ct_json = serialize_encrypted_output(&encrypted).expect("serialize");
+    drop(encrypted);
+    drop(hybrid_pk);
+
+    // Attempt decrypt with B's secret key (should fail)
+    let sk_loaded = PortableKey::from_json(&sk_b_json).expect("load sk B");
+    let hybrid_sk = sk_loaded.to_hybrid_secret_key().expect("reconstruct sk B");
+    let ct_loaded = deserialize_encrypted_output(&ct_json).expect("load ct");
+    let result = decrypt(&ct_loaded, DecryptKey::Hybrid(&hybrid_sk), CryptoConfig::new());
+
+    assert!(result.is_err(), "Decrypting A's ciphertext with B's secret key must fail");
+
+    println!(
+        "[PROOF] {{\"section\":14,\"test\":\"key_persistence_wrong_sk_rejects\",\
+         \"description\":\"Encrypt with A's PK (from JSON), decrypt with B's SK (from JSON) fails\",\
+         \"keys_from_json\":true,\
+         \"all_memory_dropped\":true,\
+         \"cross_key_rejected\":true,\
          \"status\":\"PASS\"}}"
     );
 }

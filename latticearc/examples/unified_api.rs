@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Unified API Example — encrypt/decrypt with CryptoConfig
 //!
 //! Demonstrates ALL 24 use cases and ALL 4 security levels with the primary

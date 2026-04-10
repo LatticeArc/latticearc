@@ -109,8 +109,8 @@ impl CryptoPolicyEngine {
 
     /// Returns the scheme string for a specific scheme category.
     ///
-    /// All selections return hybrid or PQ-only schemes. Classical-only schemes
-    /// (e.g., bare AES-GCM or Ed25519) are never selected.
+    /// For `PostQuantum`, returns a parseable PQ-only encryption scheme string
+    /// that maps to `EncryptionScheme::PqMlKem768Aes256Gcm`.
     #[must_use]
     pub fn force_scheme(scheme: &crate::types::CryptoScheme) -> String {
         match *scheme {
@@ -118,7 +118,7 @@ impl CryptoPolicyEngine {
             crate::types::CryptoScheme::Symmetric => "aes-256-gcm".to_string(),
             crate::types::CryptoScheme::SymmetricChaCha20 => "chacha20-poly1305".to_string(),
             crate::types::CryptoScheme::Asymmetric => "pq-ml-dsa-65".to_string(),
-            crate::types::CryptoScheme::PostQuantum => DEFAULT_PQ_ENCRYPTION_SCHEME.to_string(),
+            crate::types::CryptoScheme::PostQuantum => PQ_ENCRYPTION_768.to_string(),
         }
     }
 
@@ -129,6 +129,7 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     #[must_use = "scheme selection should be used for algorithm configuration"]
+    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_pq_encryption_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
             SecurityLevel::Standard => Ok(PQ_ENCRYPTION_512.to_string()),
@@ -144,6 +145,7 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     #[must_use = "scheme selection should be used for algorithm configuration"]
+    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_pq_signature_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
             SecurityLevel::Standard => Ok(PQ_SIGNATURE_44.to_string()),
@@ -216,6 +218,7 @@ impl CryptoPolicyEngine {
     }
 
     /// Select scheme based only on security level (no data analysis).
+    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     fn select_for_security_level(config: &CoreConfig) -> String {
         match &config.security_level {
             SecurityLevel::Quantum => PQ_ENCRYPTION_1024.to_string(),
@@ -232,6 +235,7 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     #[must_use = "scheme selection should be used for algorithm configuration"]
+    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_signature_scheme(config: &CoreConfig) -> Result<String> {
         match &config.security_level {
             SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),
@@ -336,22 +340,45 @@ impl CryptoPolicyEngine {
         }
     }
 
-    /// Select encryption scheme based on security level, returning a type-safe enum.
+    /// Select a hybrid encryption scheme based on security level.
     ///
-    /// When hardware acceleration is unavailable, ChaCha20-Poly1305 is preferred for
-    /// Standard/High levels. Quantum/Maximum levels always require hybrid PQC regardless
-    /// of hardware support — degrading to classical-only would violate the security contract.
+    /// Always returns a hybrid scheme (`CryptoMode::Hybrid`). For PQ-only
+    /// scheme selection, use [`select_encryption_scheme_typed_with_mode`] instead.
     #[must_use]
+    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_encryption_scheme_typed(config: &CoreConfig) -> EncryptionScheme {
-        // All levels use hybrid PQC schemes. Hardware acceleration only affects
-        // whether AES-GCM is fast — it does NOT warrant downgrading to
-        // classical-only encryption (that would violate the PQ security contract).
-        match &config.security_level {
-            SecurityLevel::Quantum | SecurityLevel::Maximum => {
-                EncryptionScheme::HybridMlKem1024Aes256Gcm
-            }
-            SecurityLevel::High => EncryptionScheme::HybridMlKem768Aes256Gcm,
-            SecurityLevel::Standard => EncryptionScheme::HybridMlKem512Aes256Gcm,
+        Self::select_encryption_scheme_typed_with_mode(
+            config,
+            crate::types::types::CryptoMode::Hybrid,
+        )
+    }
+
+    /// Select encryption scheme with an explicit `CryptoMode`.
+    ///
+    /// This is the primary typed scheme selector that respects the crypto mode.
+    #[must_use]
+    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
+    pub fn select_encryption_scheme_typed_with_mode(
+        config: &CoreConfig,
+        mode: crate::types::types::CryptoMode,
+    ) -> EncryptionScheme {
+        use crate::types::types::CryptoMode;
+
+        match mode {
+            CryptoMode::PqOnly => match &config.security_level {
+                SecurityLevel::Quantum | SecurityLevel::Maximum => {
+                    EncryptionScheme::PqMlKem1024Aes256Gcm
+                }
+                SecurityLevel::High => EncryptionScheme::PqMlKem768Aes256Gcm,
+                SecurityLevel::Standard => EncryptionScheme::PqMlKem512Aes256Gcm,
+            },
+            CryptoMode::Hybrid => match &config.security_level {
+                SecurityLevel::Quantum | SecurityLevel::Maximum => {
+                    EncryptionScheme::HybridMlKem1024Aes256Gcm
+                }
+                SecurityLevel::High => EncryptionScheme::HybridMlKem768Aes256Gcm,
+                SecurityLevel::Standard => EncryptionScheme::HybridMlKem512Aes256Gcm,
+            },
         }
     }
 
@@ -362,33 +389,22 @@ impl CryptoPolicyEngine {
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - A symmetric key is provided for a hybrid scheme
-    /// - A hybrid key is provided for a symmetric scheme
+    /// Returns an error if the key type doesn't match the scheme requirements.
     pub fn validate_key_matches_scheme(
         key: &EncryptKey<'_>,
         scheme: &EncryptionScheme,
     ) -> Result<()> {
-        match (key, scheme.requires_hybrid_key()) {
-            (EncryptKey::Symmetric(_), true) => Err(TypeError::ConfigurationError(format!(
-                "Scheme '{}' requires a hybrid key (EncryptKey::Hybrid), \
-                 but a symmetric key was provided. Use generate_hybrid_keypair() \
-                 to create a hybrid keypair.",
-                scheme
-            ))),
-            (EncryptKey::Hybrid(_), false) => Err(TypeError::ConfigurationError(format!(
-                "Scheme '{}' requires a symmetric key (EncryptKey::Symmetric), \
-                 but a hybrid key was provided.",
-                scheme
-            ))),
-            _ => {
-                // For hybrid keys, verify ML-KEM security level matches scheme
-                if let (EncryptKey::Hybrid(pk), Some(expected_level)) = (key, scheme.ml_kem_level())
+        match (key, scheme) {
+            // Symmetric key for symmetric scheme — OK
+            (EncryptKey::Symmetric(_), s) if s.requires_symmetric_key() => Ok(()),
+            // Hybrid key for hybrid scheme — check level
+            (EncryptKey::Hybrid(pk), s) if s.requires_hybrid_key() => {
+                if let Some(expected_level) = s.ml_kem_level()
                     && pk.security_level() != expected_level
                 {
                     return Err(TypeError::ConfigurationError(format!(
-                        "Scheme '{}' requires ML-KEM-{} key, but the provided key \
-                         was generated at ML-KEM-{} level. Use \
+                        "Scheme '{}' requires {} key, but the provided key \
+                         was generated at {} level. Use \
                          generate_hybrid_keypair_with_level({:?}).",
                         scheme,
                         expected_level.name(),
@@ -398,6 +414,47 @@ impl CryptoPolicyEngine {
                 }
                 Ok(())
             }
+            // PQ-only key for PQ-only scheme — check level
+            (EncryptKey::PqOnly(pk), s) if s.requires_pq_key() => {
+                if let Some(expected_level) = s.ml_kem_level()
+                    && pk.security_level() != expected_level
+                {
+                    return Err(TypeError::ConfigurationError(format!(
+                        "Scheme '{}' requires {} key, but the provided PQ-only key \
+                         was generated at {} level. Use \
+                         generate_pq_keypair_with_level({:?}).",
+                        scheme,
+                        expected_level.name(),
+                        pk.security_level().name(),
+                        expected_level
+                    )));
+                }
+                Ok(())
+            }
+            // Mismatches
+            (EncryptKey::Symmetric(_), _) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' requires a hybrid or PQ-only key, \
+                 but a symmetric key was provided.",
+                scheme
+            ))),
+            (EncryptKey::Hybrid(_), _) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' does not accept a hybrid key. Expected: {}.",
+                scheme,
+                if scheme.requires_pq_key() {
+                    "EncryptKey::PqOnly"
+                } else {
+                    "EncryptKey::Symmetric"
+                }
+            ))),
+            (EncryptKey::PqOnly(_), _) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' does not accept a PQ-only key. Expected: {}.",
+                scheme,
+                if scheme.requires_hybrid_key() {
+                    "EncryptKey::Hybrid"
+                } else {
+                    "EncryptKey::Symmetric"
+                }
+            ))),
         }
     }
 
@@ -410,25 +467,17 @@ impl CryptoPolicyEngine {
         key: &DecryptKey<'_>,
         scheme: &EncryptionScheme,
     ) -> Result<()> {
-        match (key, scheme.requires_hybrid_key()) {
-            (DecryptKey::Symmetric(_), true) => Err(TypeError::ConfigurationError(format!(
-                "Scheme '{}' requires a hybrid secret key (DecryptKey::Hybrid), \
-                 but a symmetric key was provided.",
-                scheme
-            ))),
-            (DecryptKey::Hybrid(_), false) => Err(TypeError::ConfigurationError(format!(
-                "Scheme '{}' requires a symmetric key (DecryptKey::Symmetric), \
-                 but a hybrid key was provided.",
-                scheme
-            ))),
-            _ => {
-                // For hybrid keys, verify ML-KEM security level matches scheme
-                if let (DecryptKey::Hybrid(sk), Some(expected_level)) = (key, scheme.ml_kem_level())
+        match (key, scheme) {
+            // Symmetric key for symmetric scheme — OK
+            (DecryptKey::Symmetric(_), s) if s.requires_symmetric_key() => Ok(()),
+            // Hybrid key for hybrid scheme — check level
+            (DecryptKey::Hybrid(sk), s) if s.requires_hybrid_key() => {
+                if let Some(expected_level) = s.ml_kem_level()
                     && sk.security_level() != expected_level
                 {
                     return Err(TypeError::ConfigurationError(format!(
-                        "Scheme '{}' requires ML-KEM-{} key, but the provided key \
-                         was generated at ML-KEM-{} level.",
+                        "Scheme '{}' requires {} key, but the provided key \
+                         was generated at {} level.",
                         scheme,
                         expected_level.name(),
                         sk.security_level().name(),
@@ -436,6 +485,45 @@ impl CryptoPolicyEngine {
                 }
                 Ok(())
             }
+            // PQ-only key for PQ-only scheme — check level
+            (DecryptKey::PqOnly(sk), s) if s.requires_pq_key() => {
+                if let Some(expected_level) = s.ml_kem_level()
+                    && sk.security_level() != expected_level
+                {
+                    return Err(TypeError::ConfigurationError(format!(
+                        "Scheme '{}' requires {} key, but the provided PQ-only key \
+                         was generated at {} level.",
+                        scheme,
+                        expected_level.name(),
+                        sk.security_level().name(),
+                    )));
+                }
+                Ok(())
+            }
+            // Mismatches
+            (DecryptKey::Symmetric(_), _) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' requires a hybrid or PQ-only secret key, \
+                 but a symmetric key was provided.",
+                scheme
+            ))),
+            (DecryptKey::Hybrid(_), _) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' does not accept a hybrid key for decryption. Expected: {}.",
+                scheme,
+                if scheme.requires_pq_key() {
+                    "DecryptKey::PqOnly"
+                } else {
+                    "DecryptKey::Symmetric"
+                }
+            ))),
+            (DecryptKey::PqOnly(_), _) => Err(TypeError::ConfigurationError(format!(
+                "Scheme '{}' does not accept a PQ-only key for decryption. Expected: {}.",
+                scheme,
+                if scheme.requires_hybrid_key() {
+                    "DecryptKey::Hybrid"
+                } else {
+                    "DecryptKey::Symmetric"
+                }
+            ))),
         }
     }
 }
@@ -564,6 +652,27 @@ fn detect_pattern_type(data: &[u8]) -> PatternType {
 }
 
 // =============================================================================
+// SECURITY LEVEL ↔ ML-KEM LEVEL MAPPING
+// =============================================================================
+
+use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
+
+/// Map `MlKemSecurityLevel` to the corresponding `SecurityLevel`.
+///
+/// This is the canonical reverse mapping — the forward direction
+/// (`SecurityLevel → MlKemSecurityLevel`) lives in
+/// [`expected_ml_kem_level`](crate::unified_api::convenience::pq_kem).
+#[must_use]
+#[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
+pub fn ml_kem_level_to_security_level(level: MlKemSecurityLevel) -> SecurityLevel {
+    match level {
+        MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,
+        MlKemSecurityLevel::MlKem768 => SecurityLevel::High,
+        MlKemSecurityLevel::MlKem1024 => SecurityLevel::Maximum,
+    }
+}
+
+// =============================================================================
 // SCHEME CONSTANTS
 // =============================================================================
 
@@ -586,11 +695,6 @@ pub const HYBRID_SIGNATURE_65: &str = "hybrid-ml-dsa-65-ed25519";
 /// Hybrid signature variant using ML-DSA-87 and Ed25519.
 pub const HYBRID_SIGNATURE_87: &str = "hybrid-ml-dsa-87-ed25519";
 
-/// Default PQ-only encryption scheme
-pub const DEFAULT_PQ_ENCRYPTION_SCHEME: &str = "pq-ml-kem-768-aes-256-gcm";
-/// Default PQ-only signature scheme
-pub const DEFAULT_PQ_SIGNATURE_SCHEME: &str = "pq-ml-dsa-65";
-
 /// PQ-only encryption variant using ML-KEM-512 and AES-256-GCM.
 pub const PQ_ENCRYPTION_512: &str = "pq-ml-kem-512-aes-256-gcm";
 /// PQ-only encryption variant using ML-KEM-768 and AES-256-GCM.
@@ -604,6 +708,11 @@ pub const PQ_SIGNATURE_44: &str = "pq-ml-dsa-44";
 pub const PQ_SIGNATURE_65: &str = "pq-ml-dsa-65";
 /// PQ-only signature variant using ML-DSA-87.
 pub const PQ_SIGNATURE_87: &str = "pq-ml-dsa-87";
+
+/// Default PQ-only encryption scheme (alias for [`PQ_ENCRYPTION_768`]).
+pub const DEFAULT_PQ_ENCRYPTION_SCHEME: &str = PQ_ENCRYPTION_768;
+/// Default PQ-only signature scheme (alias for [`PQ_SIGNATURE_65`]).
+pub const DEFAULT_PQ_SIGNATURE_SCHEME: &str = PQ_SIGNATURE_65;
 
 /// ChaCha20-Poly1305 symmetric encryption (fast without AES-NI hardware).
 pub const CHACHA20_POLY1305: &str = "chacha20-poly1305";
@@ -1059,6 +1168,81 @@ mod tests {
             result_a, result_b,
             "security_level must influence typed encryption scheme selection"
         );
+    }
+
+    // --- select_encryption_scheme_typed_with_mode tests ---
+
+    #[test]
+    fn test_selector_pq_only_standard_returns_pq512() {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let scheme = CryptoPolicyEngine::select_encryption_scheme_typed_with_mode(
+            &config,
+            crate::types::types::CryptoMode::PqOnly,
+        );
+        assert_eq!(scheme, EncryptionScheme::PqMlKem512Aes256Gcm);
+    }
+
+    #[test]
+    fn test_selector_pq_only_high_returns_pq768() {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::High);
+        let scheme = CryptoPolicyEngine::select_encryption_scheme_typed_with_mode(
+            &config,
+            crate::types::types::CryptoMode::PqOnly,
+        );
+        assert_eq!(scheme, EncryptionScheme::PqMlKem768Aes256Gcm);
+    }
+
+    #[test]
+    fn test_selector_pq_only_maximum_returns_pq1024() {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Maximum);
+        let scheme = CryptoPolicyEngine::select_encryption_scheme_typed_with_mode(
+            &config,
+            crate::types::types::CryptoMode::PqOnly,
+        );
+        assert_eq!(scheme, EncryptionScheme::PqMlKem1024Aes256Gcm);
+    }
+
+    #[test]
+    fn test_selector_hybrid_mode_unchanged_by_refactor() {
+        let config = CoreConfig::new().with_security_level(SecurityLevel::Standard);
+        let scheme = CryptoPolicyEngine::select_encryption_scheme_typed_with_mode(
+            &config,
+            crate::types::types::CryptoMode::Hybrid,
+        );
+        assert_eq!(scheme, EncryptionScheme::HybridMlKem512Aes256Gcm);
+    }
+
+    // --- PQ key level mismatch tests ---
+
+    #[test]
+    fn test_pq_key_level_mismatch_encrypt_rejected() {
+        use crate::hybrid::pq_only::generate_pq_keypair_with_level;
+        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
+
+        let (pk_512, _) = generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem512).unwrap();
+        // Scheme expects 768, key is 512
+        let result = CryptoPolicyEngine::validate_key_matches_scheme(
+            &EncryptKey::PqOnly(&pk_512),
+            &EncryptionScheme::PqMlKem768Aes256Gcm,
+        );
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(err.contains("ML-KEM"));
+    }
+
+    #[test]
+    fn test_pq_key_level_mismatch_decrypt_rejected() {
+        use crate::hybrid::pq_only::generate_pq_keypair_with_level;
+        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
+
+        let (_, sk_512) = generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem512).unwrap();
+        let result = CryptoPolicyEngine::validate_decrypt_key_matches_scheme(
+            &DecryptKey::PqOnly(&sk_512),
+            &EncryptionScheme::PqMlKem1024Aes256Gcm,
+        );
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(err.contains("ML-KEM"));
     }
 
     #[test]

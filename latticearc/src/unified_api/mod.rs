@@ -249,10 +249,10 @@ pub use selector::{
     PerformanceMetrics,
 };
 pub use types::{
-    AlgorithmSelection, ComplianceMode, CryptoConfig, CryptoContext, CryptoPayload, CryptoScheme,
-    DecryptKey, EncryptKey, EncryptedData, EncryptedMetadata, EncryptedOutput, EncryptionScheme,
-    HashOutput, HybridComponents, KeyPair, PerformancePreference, PrivateKey, PublicKey,
-    SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
+    AlgorithmSelection, ComplianceMode, CryptoConfig, CryptoContext, CryptoMode, CryptoPayload,
+    CryptoScheme, DecryptKey, EncryptKey, EncryptedData, EncryptedMetadata, EncryptedOutput,
+    EncryptionScheme, HashOutput, HybridComponents, KeyPair, PerformancePreference, PrivateKey,
+    PublicKey, SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
     fips_available,
 };
 pub use zero_trust::{
@@ -527,6 +527,7 @@ fn run_power_up_self_tests() -> Result<()> {
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    deprecated
 )]
 mod tests;

@@ -4,112 +4,192 @@
 [![docs.rs](https://docs.rs/latticearc/badge.svg)](https://docs.rs/latticearc)
 [![CI](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml)
 [![NIST CAVP Tests](https://github.com/LatticeArc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/fips-validation.yml)
-[![FIPS 203-206](https://img.shields.io/badge/FIPS_203--206-implemented-blue)](docs/NIST_COMPLIANCE.md)
+[![FIPS 203–205](https://img.shields.io/badge/FIPS_203--205-implemented-blue)](docs/NIST_COMPLIANCE.md)
 [![codecov](https://codecov.io/gh/LatticeArc/latticearc/branch/main/graph/badge.svg)](https://codecov.io/gh/LatticeArc/latticearc)
 [![CodeQL](https://github.com/LatticeArc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-LatticeArc is a post-quantum cryptography library for Rust that implements all four NIST FIPS 203-206 standards. It defaults to hybrid mode (PQ + classical) so your data stays protected even if a flaw is found in any single algorithm, and ships as a single crate with a minimal, use-case-driven API.
+LatticeArc is a post-quantum cryptography library for Rust that implements all four NIST PQC standards (FIPS 203–206) with a FIPS 140-3 validated backend. It ships as a single crate with a use-case-driven API — you describe what you're protecting, the library selects the right algorithm, security level, and compliance mode automatically. Hybrid (PQ + classical) by default for defense-in-depth, with PQ-only mode available for CNSA 2.0.
 
-> **New in 0.4 — `latticearc-cli`**: Post-quantum cryptography from the command line. Generate keys, sign, encrypt, and verify — driven by **22 use cases**, not algorithm names. Tell it *what* you're protecting (`--use-case healthcare-records`, `--use-case legal-documents`), and the policy engine selects the right NIST algorithm, hybrid mode, and security level automatically. No cryptography expertise required. [Quick start →](latticearc-cli/README.md) | [Cheat sheet →](latticearc-cli/QUICK_REFERENCE.md)
+## The Problem
 
-## Why Post-Quantum Cryptography?
+Quantum computers will break RSA and ECC. NIST published new standards (FIPS 203–206) in 2024, but using them correctly is hard:
 
-Today's public-key cryptography (RSA, ECC) will be broken by quantum computers running Shor's algorithm. While large-scale quantum computers don't exist yet, **data captured today can be decrypted in the future** — a threat known as "harvest now, decrypt later." NIST has standardized four quantum-resistant algorithm families (FIPS 203-206) to address this, with a [2035 migration deadline](https://csrc.nist.gov/projects/post-quantum-cryptography).
+| What you have to do today | Lines of code | What can go wrong |
+|--------------------------|---------------|-------------------|
+| Pick the right algorithm for your use case | Research 4 standards, 11 parameter sets | Wrong security level, wrong algorithm type |
+| Combine PQ + classical for defense-in-depth | Wire up ML-KEM + X25519 + HKDF + AES-GCM | Broken key combiner, missing domain separation |
+| Handle key material safely | Manual zeroization, constant-time comparisons | Secret leaks via Debug, timing side-channels |
+| Meet compliance requirements | FIPS 140-3, CNSA 2.0 mode restrictions | Accidentally using non-compliant algorithms |
 
-### Why Hybrid?
+LatticeArc solves all of this. You say **what** you're protecting, the library handles **how**:
 
-ML-KEM and ML-DSA were standardized in 2024 — they're mathematically sound but young. [NIST SP 800-227](https://csrc.nist.gov/pubs/sp/800/227/final) recommends hybrid schemes that combine PQ + classical algorithms:
+```rust
+use latticearc::{encrypt, decrypt, CryptoConfig, UseCase, EncryptKey, DecryptKey};
+
+let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+let encrypted = encrypt(b"patient records",
+    EncryptKey::Hybrid(&pk),
+    CryptoConfig::new().use_case(UseCase::HealthcareRecords))?;
+let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
+// ML-KEM-1024 + X25519 + HKDF-SHA256 + AES-256-GCM — selected automatically
+```
+
+Three lines. FIPS-grade hybrid encryption. Automatic secret zeroization. No algorithm research required.
+
+## Why Hybrid by Default?
+
+The PQ algorithms (ML-KEM, ML-DSA) were standardized in August 2024. They're mathematically sound but young. LatticeArc defaults to **hybrid mode** — combining PQ + classical algorithms — so both must fail for an attacker to succeed:
 
 - **If a flaw is found in ML-KEM** → X25519 still protects your key exchange
 - **If ECC is broken by a quantum computer** → ML-KEM still protects your key exchange
-- **Both must fail** for an attacker to succeed
 
-LatticeArc defaults to hybrid everywhere — encryption, signatures, and TLS key exchange.
+This is supported by [NIST](https://csrc.nist.gov/projects/post-quantum-cryptography/faqs) (permits hybrid), [NSA CNSA 2.0](https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF) (hybrid during transition), and [ENISA](https://www.enisa.europa.eu/publications/post-quantum-cryptography-current-state-and-quantum-mitigation) (recommends hybrid now). PQ-only mode (`CryptoMode::PqOnly`) is available when you need it — e.g., CNSA 2.0 final state.
 
 ## Highlights
 
-- **All four NIST standards** — ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (FIPS 206)
-- **Hybrid by default** — PQ + classical, per [NIST SP 800-227](https://csrc.nist.gov/pubs/sp/800/227/final). If *either* algorithm holds, your data is safe
+- **All 4 NIST PQC standards** — ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (draft FIPS 206)
+- **Hybrid by default** — PQ + classical for defense in depth; PQ-only mode for CNSA 2.0
 - **22 use cases** with automatic algorithm selection — from IoT to government classified
+- **Two orthogonal axes** — `SecurityLevel` (NIST 1/3/5) x `CryptoMode` (Hybrid/PqOnly)
 - **Zero-trust sessions** — per-operation authentication before any crypto operation
-- **Formal verification** — 27 Kani proofs, 69 Proptest property tests, SAW-verified primitives (via aws-lc-rs)
+- **Formal verification** — 27 Kani proofs, Proptest property suites, SAW-verified primitives (via aws-lc-rs)
 - **FIPS 140-3 ready** — `--features fips` enables the validated aws-lc-rs backend
 - **Single crate, minimal API** — `cargo add latticearc` and go
 
+## How It Works
+
+```mermaid
+flowchart LR
+    subgraph "You provide"
+        DATA["Plaintext"]
+        KEY["Key type"]
+        CFG["CryptoConfig"]
+    end
+
+    subgraph "LatticeArc decides"
+        ENGINE["Policy\nEngine"]
+    end
+
+    subgraph "Hybrid mode"
+        H_KEM["ML-KEM\nencapsulate"]
+        H_ECDH["X25519\nkey exchange"]
+        H_HKDF["HKDF\ncombine"]
+        H_AES["AES-256-GCM\nencrypt"]
+        H_KEM --> H_HKDF
+        H_ECDH --> H_HKDF
+        H_HKDF --> H_AES
+    end
+
+    subgraph "PQ-only mode"
+        P_KEM["ML-KEM\nencapsulate"]
+        P_HKDF["HKDF\nderive"]
+        P_AES["AES-256-GCM\nencrypt"]
+        P_KEM --> P_HKDF
+        P_HKDF --> P_AES
+    end
+
+    DATA --> ENGINE
+    KEY --> ENGINE
+    CFG --> ENGINE
+    ENGINE -->|"CryptoMode::Hybrid"| H_KEM
+    ENGINE -->|"CryptoMode::PqOnly"| P_KEM
+
+    style ENGINE fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style H_AES fill:#10b981,stroke:#059669,color:#fff
+    style P_AES fill:#3b82f6,stroke:#1d4ed8,color:#fff
+```
+
+> **Hybrid** = secure if *either* algorithm holds. **PQ-only** = pure post-quantum for CNSA 2.0.
+
 ## Quick Start
+
+### Library
 
 ```toml
 [dependencies]
-latticearc = "0.5"
+latticearc = "0.6"
 ```
-
-### Encryption
 
 ```rust
 use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 
-// Hybrid encryption: ML-KEM-768 + X25519 + HKDF + AES-256-GCM
+// Hybrid encryption (default): ML-KEM-768 + X25519 + HKDF + AES-256-GCM
 let (pk, sk) = latticearc::generate_hybrid_keypair()?;
 let encrypted = encrypt(b"secret data", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 ```
 
-### Digital Signatures
+```rust
+use latticearc::{encrypt, decrypt, CryptoConfig, CryptoMode, EncryptKey, DecryptKey};
+
+// PQ-only encryption: ML-KEM-768 + HKDF + AES-256-GCM (no classical component)
+let (pk, sk) = latticearc::generate_pq_keypair()
+    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+let config = CryptoConfig::new().crypto_mode(CryptoMode::PqOnly);
+let encrypted = encrypt(b"classified", EncryptKey::PqOnly(&pk), config.clone())?;
+let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config)?;
+```
 
 ```rust
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
+// Digital signatures: ML-DSA-65 + Ed25519 hybrid
 let config = CryptoConfig::new();
 let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 let signed = sign_with_key(b"document", &sk, &pk, config.clone())?;
-let is_valid = verify(&signed, config)?;
+assert!(verify(&signed, config)?);
 ```
 
-### Hybrid Signatures
+### CLI
 
-```rust
-use latticearc::{generate_hybrid_signing_keypair, sign_hybrid, verify_hybrid_signature, SecurityMode};
-
-// Generate hybrid signing keypair (ML-DSA-65 + Ed25519)
-let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Unverified)?;
-
-// Sign (both ML-DSA and Ed25519 signatures generated)
-let signature = sign_hybrid(b"document", &sk, SecurityMode::Unverified)?;
-
-// Verify (both must pass for signature to be valid)
-let valid = verify_hybrid_signature(b"document", &signature, &pk, SecurityMode::Unverified)?;
-```
-
-## Command-Line Tool
-
-LatticeArc ships a CLI for key generation, signing, encryption, hashing, and key derivation — no code required. Download a prebuilt binary from the [releases page](https://github.com/latticearc/latticearc/releases), or build from source:
+No code required. Tell the CLI **what** you're protecting — it selects the algorithm.
 
 ```bash
-# Install from source
-cargo install --path latticearc-cli  # installs latticearc-cli binary
-
-# Generate signing keys for a use case — library selects the optimal algorithm
-latticearc-cli keygen --use-case legal-documents --output ./keys
-
-# Sign a document (unified API — embeds scheme + timestamp + public key)
-latticearc-cli sign --input contract.pdf \
-  --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
-  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
-
-# Verify (public key is embedded in the SignedData envelope — no --key needed)
-latticearc-cli verify --input contract.pdf --signature contract.pdf.sig.json
-
-# Encrypt / decrypt
-latticearc-cli keygen --algorithm aes256 --output ./keys
-latticearc-cli encrypt --use-case file-storage --input secrets.txt --output secrets.enc.json --key keys/aes256.key.json
-latticearc-cli decrypt --input secrets.enc.json --output secrets.txt --key keys/aes256.key.json
-
-# Hash
-latticearc-cli hash --algorithm sha-256 --input document.pdf
+cargo install --path latticearc-cli
 ```
 
-The CLI mirrors the library's use-case-driven design — you express intent (`--use-case`, `--security-level`), and the policy engine selects the algorithm. Expert users can override with `--algorithm` directly. Supports all four NIST PQC standards (FIPS 203-206), hybrid modes, AES-256-GCM, Ed25519, HKDF, and PBKDF2. Keys are stored in the [LatticeArc Portable Key (LPK)](docs/KEY_FORMAT.md) format — dual JSON + CBOR with UseCase/SecurityLevel-first design. See [`latticearc-cli/README.md`](latticearc-cli/README.md) for the full command reference.
+**Sign a legal document:**
+
+```bash
+latticearc-cli keygen --use-case legal-documents --output ./keys
+latticearc-cli sign --input contract.pdf \
+  --key keys/hybrid-ml-dsa-87-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-87-ed25519.pub.json
+latticearc-cli verify --input contract.pdf \
+  --signature contract.pdf.sig.json \
+  --key keys/hybrid-ml-dsa-87-ed25519.pub.json
+```
+
+**Encrypt healthcare records (symmetric):**
+
+```bash
+latticearc-cli keygen --algorithm aes256 --output ./keys
+latticearc-cli encrypt --use-case healthcare-records \
+  --input patient.json --output patient.enc.json \
+  --key keys/aes256.key.json
+latticearc-cli decrypt --input patient.enc.json \
+  --output patient.json --key keys/aes256.key.json
+```
+
+**PQ-only encryption (CNSA 2.0):**
+
+```bash
+latticearc-cli keygen --algorithm ml-kem768 --output ./keys
+latticearc-cli encrypt --mode pq-only \
+  --input classified.pdf --output classified.enc.json \
+  --key keys/ml-kem-768.pub.json
+latticearc-cli decrypt --input classified.enc.json \
+  --output classified.pdf --key keys/ml-kem-768.sec.json
+```
+
+**Hash a file:**
+
+```bash
+latticearc-cli hash --algorithm sha-256 --input firmware.bin
+```
+
+> The CLI supports 22 use cases, 12 algorithms, hybrid + PQ-only modes, and the [LatticeArc Portable Key](docs/KEY_FORMAT.md) format. See [`latticearc-cli/README.md`](latticearc-cli/README.md) for the full reference.
 
 ## Build Prerequisites
 
@@ -145,37 +225,23 @@ cargo build --features fips
 
 ## Algorithm Selection
 
-LatticeArc automatically selects algorithms based on your configuration:
+Two orthogonal axes control what LatticeArc selects:
 
 ```mermaid
-flowchart TB
-    CONFIG[CryptoConfig::new]
-    UC[.use_case]
-    SL[.security_level]
-    DEF[defaults]
-    ENGINE[CryptoPolicyEngine]
-    LOW[ML-KEM-512 + AES]
-    HIGH[ML-KEM-768 + AES]
-    MAX[ML-KEM-1024 + AES]
-
-    CONFIG --> UC
-    CONFIG --> SL
-    CONFIG --> DEF
-    UC --> ENGINE
-    SL --> ENGINE
-    DEF --> ENGINE
-    ENGINE --> LOW
-    ENGINE --> HIGH
-    ENGINE --> MAX
-
-    style CONFIG fill:#3b82f6,stroke:#1d4ed8,color:#fff
-    style ENGINE fill:#8b5cf6,stroke:#6d28d9,color:#fff
-    style UC fill:#e2e8f0,stroke:#64748b
-    style SL fill:#e2e8f0,stroke:#64748b
-    style DEF fill:#e2e8f0,stroke:#64748b
-    style LOW fill:#fef3c7,stroke:#d97706
-    style HIGH fill:#d1fae5,stroke:#059669
-    style MAX fill:#10b981,stroke:#059669,color:#fff
+quadrantChart
+    title SecurityLevel x CryptoMode
+    x-axis "Hybrid (PQ + classical)" --> "PQ-only (CNSA 2.0)"
+    y-axis "NIST Level 1" --> "NIST Level 5"
+    quadrant-1 PQ ML-KEM-1024
+    quadrant-2 Hybrid ML-KEM-1024 + X25519
+    quadrant-3 Hybrid ML-KEM-512 + X25519
+    quadrant-4 PQ ML-KEM-512
+    Maximum + PqOnly: [0.85, 0.90]
+    Maximum + Hybrid: [0.15, 0.90]
+    High + PqOnly: [0.85, 0.55]
+    High + Hybrid: [0.15, 0.55]
+    Standard + PqOnly: [0.85, 0.15]
+    Standard + Hybrid: [0.15, 0.15]
 ```
 
 ### By Use Case (Recommended)
@@ -202,12 +268,14 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
 
 ### By Security Level
 
-| Level | Mode | Encryption | Signatures | NIST Level |
-|-------|------|------------|------------|------------|
-| `Quantum` | PQ-only | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 | 5 |
-| `Maximum` | Hybrid | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 | 5 |
-| `High` (default) | Hybrid | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 | 3 |
-| `Standard` | Hybrid | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 | 1 |
+| Level | NIST Level | Encryption (Hybrid) | Encryption (PQ-only) | Signatures |
+|-------|------------|---------------------|----------------------|------------|
+| `Maximum` | 5 | ML-KEM-1024 + X25519 + AES-256-GCM | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 |
+| `High` (default) | 3 | ML-KEM-768 + X25519 + AES-256-GCM | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 |
+| `Standard` | 1 | ML-KEM-512 + X25519 + AES-256-GCM | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 |
+
+> `SecurityLevel` selects the NIST level. `CryptoMode` selects hybrid vs PQ-only (default: `Hybrid`).
+> `SecurityLevel::Quantum` is deprecated since 0.6.0 — use `SecurityLevel::Maximum` + `CryptoMode::PqOnly`.
 
 ### Compliance Modes
 
@@ -215,7 +283,7 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
 |------|---------------|----------------|----------|
 | `ComplianceMode::Default` | No | Yes | Development, general use |
 | `ComplianceMode::Fips140_3` | Yes | Yes | Healthcare, financial, government |
-| `ComplianceMode::Cnsa2_0` | Yes | No | NSA CNSA 2.0 (PQ-only mandated) |
+| `ComplianceMode::Cnsa2_0` | Yes | No | NSA CNSA 2.0 — requires `CryptoMode::PqOnly` |
 
 ```rust
 use latticearc::{encrypt, CryptoConfig, ComplianceMode, UseCase, EncryptKey};
@@ -246,28 +314,27 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&enc_pk),
     CryptoConfig::new().session(&session))?;
 ```
 
-## Post-Quantum TLS
+## Key Format
 
-Native PQ key exchange via rustls 0.23.37+ — no extra dependencies needed:
+Keys are stored in the **LatticeArc Portable Key (LPK)** format — a schema-first dual-format system supporting both JSON (human-readable) and CBOR (compact binary). Keys are identified by **use case** or **security level**, not algorithm — the algorithm is auto-derived and stored for version stability.
 
-```rust
-use latticearc::tls::{TlsConfig, TlsUseCase};
-
-let config = TlsConfig::new()
-    .use_case(TlsUseCase::WebServer);
+```json
+{
+  "version": 1,
+  "use_case": "healthcare-records",
+  "algorithm": "hybrid-ml-kem-1024-x25519",
+  "key_type": "public",
+  "key_data": { "pq": "Base64...", "classical": "Base64..." },
+  "created": "2026-04-09T..."
+}
 ```
 
-| Use Case | TLS Mode | Key Exchange |
-|----------|----------|--------------|
-| `WebServer` | Hybrid | X25519MLKEM768 (+ X25519 fallback) |
-| `FinancialServices` | Hybrid | X25519MLKEM768 (+ X25519 fallback) |
-| `Healthcare` | Hybrid | X25519MLKEM768 (+ X25519 fallback) |
-| `Government` | PQ-only | ML-KEM-1024 |
-| `IoT` | Classic | X25519 |
+- **Composite keys**: Hybrid keys store PQ and classical components separately (`pq` + `classical` fields)
+- **PQ-only keys**: Single-component (`raw` field) — no classical component
+- **Secret key permissions**: Automatically set to `0600` (owner-only) by the CLI
+- **Enterprise extensible**: Open `metadata` map for expiry, hardware binding, etc.
 
-PQ groups are preferred when both sides support them. Clients without PQ support automatically fall back to X25519.
-
-> See [Unified API Guide](docs/UNIFIED_API_GUIDE.md) for the full 10-case TLS table.
+> See [Key Format Specification](docs/KEY_FORMAT.md) for the full schema, algorithm resolution tables, and CBOR encoding details.
 
 ## Algorithms & Backends
 
@@ -276,7 +343,7 @@ PQ groups are preferred when both sides support them. Clients without PQ support
 | **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs (FIPS 140-3 validated) |
 | **PQ Signatures** | ML-DSA-44/65/87 (FIPS 204) | fips204 |
 | **PQ Hash Signatures** | SLH-DSA (FIPS 205) | fips205 |
-| **PQ Lattice Signatures** | FN-DSA-512/1024 (FIPS 206) | fn-dsa |
+| **PQ Lattice Signatures** | FN-DSA-512/1024 (draft FIPS 206) | fn-dsa |
 | **Classical Signatures** | Ed25519 | ed25519-dalek (audited) |
 | **Classical Key Exchange** | X25519 | aws-lc-rs |
 | **Symmetric Encryption** | AES-256-GCM, ChaCha20-Poly1305 | aws-lc-rs, chacha20poly1305 |
@@ -290,7 +357,7 @@ Correctness is verified at three layers:
 | Layer | Tool | What it proves |
 |-------|------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | Mathematical correctness of C implementations |
-| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (69 tests) | Roundtrip, non-malleability, key independence |
+| **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (76 tests) | Roundtrip, non-malleability, key independence |
 | **Type invariants** | [Kani](https://github.com/model-checking/kani) (27 proofs) | State machine rules, config validation, domain separation |
 
 See [Formal Verification](docs/FORMAL_VERIFICATION.md) for the complete proof inventory.
@@ -304,7 +371,6 @@ See [Formal Verification](docs/FORMAL_VERIFICATION.md) for the complete proof in
 | SLH-DSA | `fips205` | NIST compliant (not FIPS-validated) |
 | FN-DSA | `fn-dsa` | NIST compliant (not FIPS-validated) |
 | Ed25519 | `ed25519-dalek` | Audited |
-| TLS | `rustls` | Audited by Cure53 |
 
 ### Limitations
 
@@ -319,39 +385,71 @@ See [Formal Verification](docs/FORMAL_VERIFICATION.md) for the complete proof in
 
 Report security issues to: Security@LatticeArc.com — see [SECURITY.md](SECURITY.md).
 
-## Runnable Examples
+## Architecture
 
-```bash
-cargo run --example basic_encryption
-cargo run --example hybrid_encryption
-cargo run --example unified_api
-cargo run --example zero_knowledge_proofs
+```mermaid
+block-beta
+    columns 3
+
+    block:API["Unified API"]:3
+        columns 3
+        encrypt["encrypt()"] decrypt["decrypt()"] sign["sign_with_key()"]
+    end
+
+    block:CONFIG["Configuration"]:3
+        columns 3
+        cc["CryptoConfig"] mode["CryptoMode"] level["SecurityLevel"]
+    end
+
+    block:HYBRID["Hybrid & PQ-Only Encryption"]:2
+        columns 2
+        henc["hybrid\nML-KEM + X25519\n+ HKDF + AES-GCM"]
+        pqenc["pq_only\nML-KEM\n+ HKDF + AES-GCM"]
+    end
+
+    block:SIG["Signatures"]:1
+        columns 1
+        hsig["ML-DSA + Ed25519\nSLH-DSA · FN-DSA"]
+    end
+
+    block:PRIM["Primitives"]:3
+        columns 5
+        kem["ML-KEM\nFIPS 203"] dsa["ML-DSA\nFIPS 204"] slh["SLH-DSA\nFIPS 205"] fn["FN-DSA\nFIPS 206"] sym["AES-GCM\nX25519 · Ed25519"]
+    end
+
+    block:BACK["Backends"]:3
+        columns 3
+        awslc["aws-lc-rs\n(FIPS 140-3)"] fips204["fips204 · fips205"] fndsa["fn-dsa · ed25519-dalek"]
+    end
+
+    style API fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style CONFIG fill:#e2e8f0,stroke:#64748b
+    style HYBRID fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style SIG fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style PRIM fill:#10b981,stroke:#059669,color:#fff
+    style BACK fill:#fef3c7,stroke:#d97706
 ```
-
-> See `latticearc/examples/` for the full list: `digital_signatures`, `true_hybrid_encryption`, `post_quantum_signatures`, `tls_policy`, `complete_secure_workflow`, `comprehensive_benchmark`.
-
-## Crate Structure
 
 | Crate / Module | Description |
 |----------------|-------------|
 | [`latticearc`](latticearc/) | Single publishable crate — all modules below |
-| `latticearc::types` | Pure-Rust domain types, traits, config, policy engine (zero FFI, Kani-verifiable) |
-| `latticearc::unified_api` | Unified API layer with crypto operations and zero-trust |
-| `latticearc::primitives` | Cryptographic primitives (KEM, signatures, AEAD, hash, KDF) |
-| `latticearc::hybrid` | Hybrid encryption combining PQC and classical |
-| `latticearc::tls` | Post-quantum TLS integration |
+| `latticearc::unified_api` | Top-level API: `encrypt()`, `decrypt()`, `sign_with_key()`, `verify()` |
+| `latticearc::hybrid` | Hybrid (PQ + classical) and PQ-only encryption |
+| `latticearc::primitives` | KEM, signatures, AEAD, hash, KDF |
+| `latticearc::types` | Domain types, traits, config, policy engine (zero FFI, Kani-verifiable) |
 | `latticearc::zkp` | Zero-knowledge proofs (Schnorr, Sigma, Pedersen) |
-| `latticearc::prelude` | Error types and testing infrastructure |
-| `latticearc::perf` | Performance benchmarking utilities |
+| [`latticearc-cli`](latticearc-cli/) | Command-line tool — 22 use cases, 12 algorithms |
 | [`latticearc-tests`](tests/) | CAVP, KAT, integration tests (dev-only, not published) |
 
 ## Documentation
 
-- [API Reference](https://docs.rs/latticearc)
+- [API Reference](https://docs.rs/latticearc) — full Rustdoc for all public types and functions
+- [CLI Reference](latticearc-cli/README.md) — command-line tool: 8 commands, 22 use cases, 12 algorithms
 - [Unified API Guide](docs/UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
+- [Key Format Specification](docs/KEY_FORMAT.md) — LPK v1 schema, JSON + CBOR, algorithm resolution
 - [Architecture](docs/DESIGN.md) — crate structure, design decisions
 - [Security Guide](docs/SECURITY_GUIDE.md) — threat model, secure usage patterns
-- [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
+- [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203–205, draft 206 conformance details
 - [Formal Verification](docs/FORMAL_VERIFICATION.md) — SAW, Proptest, Kani proof inventory
 - [FAQ](docs/FAQ.md)
 

@@ -54,6 +54,7 @@
 //! - [`kem_hybrid`](crate::hybrid::kem_hybrid) - Hybrid key encapsulation using ML-KEM + X25519
 //! - [`sig_hybrid`](crate::hybrid::sig_hybrid) - Hybrid signatures using ML-DSA + Ed25519
 //! - [`compose`](crate::hybrid::compose) - Formal security proofs for hybrid composition
+//! - [`pq_only`](mod@crate::hybrid::pq_only) - PQ-only encryption using ML-KEM + HKDF + AES-256-GCM (no X25519)
 //!
 //! # Security Properties
 //!
@@ -62,10 +63,12 @@
 //! | Hybrid KEM        | HKDF dual-PRF   | Secure if ML-KEM OR X25519 is secure  |
 //! | Hybrid Signature  | AND             | Secure if ML-DSA AND Ed25519 secure   |
 //! | Hybrid Encryption | HKDF dual-PRF   | Secure if either KEM component secure |
+//! | PQ-Only Encrypt   | ML-KEM + HKDF   | Secure if ML-KEM is secure            |
 
 pub mod compose;
 pub mod encrypt_hybrid;
 pub mod kem_hybrid;
+pub mod pq_only;
 pub mod sig_hybrid;
 
 // Re-exports for convenience - use explicit exports to avoid ambiguity.
@@ -79,6 +82,10 @@ pub use encrypt_hybrid::{
 pub use kem_hybrid::{
     EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
     derive_hybrid_shared_secret, encapsulate, generate_keypair as kem_generate_keypair,
+};
+pub use pq_only::{
+    PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
+    encrypt_pq_only, generate_pq_keypair, generate_pq_keypair_with_level,
 };
 pub use sig_hybrid::{
     HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,

@@ -1009,8 +1009,8 @@ fn test_hybrid_encryption_works_correctly_succeeds() {
 
     // EncryptedOutput has hybrid_data with ml_kem_ciphertext, ecdh_ephemeral_pk
     let hybrid = encrypted.hybrid_data().expect("hybrid_data must be present");
-    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT");
-    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK");
+    assert_eq!(hybrid.ml_kem_ciphertext().len(), 1088, "ML-KEM-768 CT");
+    assert_eq!(hybrid.ecdh_ephemeral_pk().len(), 32, "X25519 PK");
 
     let decrypted =
         decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()).expect("decrypt");

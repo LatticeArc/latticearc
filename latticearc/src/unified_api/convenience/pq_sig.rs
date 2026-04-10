@@ -38,6 +38,7 @@ use crate::unified_api::zero_trust::SecurityMode;
 use crate::primitives::resource_limits::validate_signature_size;
 
 /// Maps `CoreConfig.security_level` to the expected `MlDsaParameterSet`.
+#[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
 fn expected_ml_dsa_params(security_level: SecurityLevel) -> MlDsaParameterSet {
     match security_level {
         SecurityLevel::Standard => MlDsaParameterSet::MlDsa44,
@@ -59,6 +60,7 @@ fn check_ml_dsa_config_consistency(explicit: MlDsaParameterSet, config: &CoreCon
 }
 
 /// Maps `CoreConfig.security_level` to the expected `SlhDsaSecurityLevel`.
+#[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
 fn expected_slh_dsa_level(security_level: SecurityLevel) -> SlhDsaSecurityLevel {
     match security_level {
         SecurityLevel::Standard => SlhDsaSecurityLevel::Shake128s,

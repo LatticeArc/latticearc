@@ -1,9 +1,9 @@
 # FIPS 140-3 Security Policy
 
 **Module Name**: LatticeArc Cryptographic Module
-**Module Version**: 0.5.1
+**Module Version**: 0.6.0
 **Module Type**: Software (FIPS 140-3 Level 1)
-**Date**: 2026-02-24
+**Date**: 2026-04-09
 **Status**: Pre-submission draft — not yet CMVP validated
 
 > **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
@@ -18,7 +18,7 @@
 | Field | Value |
 |-------|-------|
 | Module Name | LatticeArc Cryptographic Module |
-| Module Version | 0.5.1 |
+| Module Version | 0.6.0 |
 | Module Type | Software library |
 | Security Level | Level 1 (overall) |
 | Language | Rust (edition 2024, MSRV 1.93) |
@@ -87,7 +87,7 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 | ML-KEM-512/768/1024 | FIPS 203 | aws-lc-rs | Key encapsulation |
 | ML-DSA-44/65/87 | FIPS 204 | fips204 crate | Digital signatures |
 | SLH-DSA-SHAKE-128s/f, 192s/f, 256s/f | FIPS 205 | fips205 crate | Hash-based signatures |
-| FN-DSA-512/1024 | FIPS 206 | fn-dsa crate | Lattice signatures |
+| FN-DSA-512/1024 | draft FIPS 206 | fn-dsa crate | Lattice signatures |
 | AES-256-GCM | SP 800-38D | aws-lc-rs | Authenticated encryption |
 | SHA-256 | FIPS 180-4 | aws-lc-rs | Hashing |
 | SHA3-256 | FIPS 202 | sha3 crate | Hashing |
@@ -134,7 +134,7 @@ The `ComplianceMode` enum (`latticearc::types::ComplianceMode`) provides runtime
 |------|--------------------|--------------------|-------------|
 | `Default` | `false` | `true` | No compliance restrictions — all algorithms available |
 | `Fips140_3` | `true` | `true` | Requires `fips` feature; only FIPS-validated backends |
-| `Cnsa2_0` | `true` | `false` | Requires `fips` feature; PQ-only (CNSA 2.0 mandates no classical fallback) |
+| `Cnsa2_0` | `true` | `false` | Requires `fips` feature + `CryptoMode::PqOnly`; CNSA 2.0 mandates no classical fallback |
 
 Both `requires_fips()` and `allows_hybrid()` are formally verified by Kani proofs to return correct values exhaustively over all variants.
 
@@ -276,6 +276,8 @@ Not applicable — software-only module (FIPS 140-3 Level 1).
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.6.0 | 2026-04-09 | Restructured SecurityLevel/CryptoMode: added `CryptoMode` enum, deprecated `SecurityLevel::Quantum`, PQ-only encryption via unified API, CNSA 2.0 checks `CryptoMode::PqOnly` |
+| 0.5.2 | 2026-04-09 | Feature-gate compilation fixes, error type mapping fix, pre-commit feature matrix, key persistence proof tests |
 | 0.5.1 | 2026-04-09 | Security: AEAD error opacity, self-contained hybrid secret keys, real KAT vectors, CLI hybrid decrypt, Level 7 scenario tests |
 | 0.5.0 | 2026-04-06 | Deep audit remediation: field privatization, sealed traits, non_exhaustive enums, primitives-only architecture enforcement, constant-time equality on all secret types |
 | 0.4.4 | 2026-04-01 | ECDH shared secret zeroization, PCT feature-gate fix, version bump |

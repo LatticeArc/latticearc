@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Practical Use-Case Round-Trip Tests — Process-Isolated
 //!
 //! Every UseCase enum variant, every SecurityLevel, and both SecurityMode variants
@@ -148,8 +150,8 @@ impl SerializableHybridEncrypted {
         use base64::{Engine, engine::general_purpose::STANDARD};
         let hybrid = output.hybrid_data().expect("hybrid_data must be present");
         Self {
-            kem_ciphertext: STANDARD.encode(&hybrid.ml_kem_ciphertext),
-            ecdh_ephemeral_pk: STANDARD.encode(&hybrid.ecdh_ephemeral_pk),
+            kem_ciphertext: STANDARD.encode(hybrid.ml_kem_ciphertext()),
+            ecdh_ephemeral_pk: STANDARD.encode(hybrid.ecdh_ephemeral_pk()),
             symmetric_ciphertext: STANDARD.encode(output.ciphertext()),
             nonce: STANDARD.encode(output.nonce()),
             tag: STANDARD.encode(output.tag()),
@@ -164,10 +166,10 @@ impl SerializableHybridEncrypted {
             STANDARD.decode(&self.symmetric_ciphertext).unwrap(),
             STANDARD.decode(&self.nonce).unwrap(),
             STANDARD.decode(&self.tag).unwrap(),
-            Some(HybridComponents {
-                ml_kem_ciphertext: STANDARD.decode(&self.kem_ciphertext).unwrap(),
-                ecdh_ephemeral_pk: STANDARD.decode(&self.ecdh_ephemeral_pk).unwrap(),
-            }),
+            Some(HybridComponents::new(
+                STANDARD.decode(&self.kem_ciphertext).unwrap(),
+                STANDARD.decode(&self.ecdh_ephemeral_pk).unwrap(),
+            )),
             chrono::Utc::now().timestamp().unsigned_abs(),
             None,
         )

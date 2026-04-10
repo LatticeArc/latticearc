@@ -522,6 +522,23 @@ impl std::fmt::Debug for PortableKey {
     }
 }
 
+impl subtle::ConstantTimeEq for PortableKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        // Constant-time comparison of key data to prevent timing side-channels
+        // when comparing secret or symmetric keys.
+        match (&self.key_data, &other.key_data) {
+            (KeyData::Single { raw: a }, KeyData::Single { raw: b }) => {
+                a.as_bytes().ct_eq(b.as_bytes())
+            }
+            (
+                KeyData::Composite { pq: a_pq, classical: a_cl },
+                KeyData::Composite { pq: b_pq, classical: b_cl },
+            ) => a_pq.as_bytes().ct_eq(b_pq.as_bytes()) & a_cl.as_bytes().ct_eq(b_cl.as_bytes()),
+            _ => subtle::Choice::from(0),
+        }
+    }
+}
+
 /// Resolve a `UseCase` to a `KeyAlgorithm` for encryption keys.
 ///
 /// This mirrors the `CryptoPolicyEngine::recommend_encryption_scheme` mapping.
@@ -559,6 +576,7 @@ fn resolve_use_case_algorithm(use_case: crate::types::types::UseCase) -> KeyAlgo
 
 /// Resolve a `SecurityLevel` to a `KeyAlgorithm` for encryption keys.
 #[must_use]
+#[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
 fn resolve_security_level_algorithm(level: crate::types::types::SecurityLevel) -> KeyAlgorithm {
     use crate::types::types::SecurityLevel;
     match level {
@@ -1625,7 +1643,8 @@ fn parse_legacy_algorithm(s: &str) -> Result<KeyAlgorithm> {
     clippy::arithmetic_side_effects,
     clippy::print_stdout,
     clippy::cast_precision_loss,
-    clippy::useless_vec
+    clippy::useless_vec,
+    deprecated
 )]
 mod tests {
     use super::*;

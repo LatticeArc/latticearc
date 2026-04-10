@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 #![deny(unsafe_code)]
 // Test files use unwrap(), expect(), and panic! for assertions
 #![allow(clippy::unwrap_used)]

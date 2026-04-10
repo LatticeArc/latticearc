@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! TLS Policy Engine Example
 //!
 //! Demonstrates ALL 10 TLS use cases with TlsPolicyEngine mode selection,

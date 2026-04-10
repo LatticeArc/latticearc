@@ -11,6 +11,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-04-09
+
+Restructured SecurityLevel / CryptoMode system to separate two orthogonal axes:
+NIST security level (1/3/5) and crypto mode (hybrid vs PQ-only).
+
+### Added
+
+- **`CryptoMode` enum** (`Hybrid` / `PqOnly`): New orthogonal axis for selecting
+  hybrid (PQ + classical) or PQ-only encryption. Any `SecurityLevel` can be combined
+  with either mode.
+- **`CryptoConfig::crypto_mode()`** builder method: Sets hybrid or PQ-only mode.
+  `CryptoMode::Hybrid` is the default (backward compatible).
+- **`SecurityLevel::resolve()`**: Helper that maps `(SecurityLevel, CryptoMode)` pairs.
+  `Quantum` resolves to `(Maximum, PqOnly)`.
+- **3 new `EncryptionScheme` variants**: `PqMlKem512Aes256Gcm`, `PqMlKem768Aes256Gcm`,
+  `PqMlKem1024Aes256Gcm` — PQ-only counterparts to the hybrid variants.
+- **`EncryptKey::PqOnly` / `DecryptKey::PqOnly`**: New key type variants for the
+  unified `encrypt()` / `decrypt()` API. Compiler enforces correct key-scheme pairing.
+- **`PqOnlyPublicKey` / `PqOnlySecretKey`**: ML-KEM-only key types (no X25519).
+  Generated via `generate_pq_keypair()` / `generate_pq_keypair_with_level()`.
+- **`PQ_ONLY_ENCRYPTION_INFO`** domain constant: HKDF domain separation for the
+  PQ-only unified API path (distinct from the convenience API's `PQ_KEM_AEAD_KEY_INFO`).
+- **`EncryptionScheme::requires_pq_key()`**: Predicate for PQ-only scheme variants.
+- **7 new tests**: PQ-only roundtrip (512/768/1024), cross-mode rejection (2),
+  backward-compat (`SecurityLevel::Quantum`), empty-data roundtrip.
+
+### Changed
+
+- **CNSA 2.0 validation**: Now checks `CryptoMode::PqOnly` instead of
+  `SecurityLevel::Quantum`. Use `.crypto_mode(CryptoMode::PqOnly)` for CNSA 2.0.
+- **`force_scheme(PostQuantum)`**: Now returns parseable `pq-ml-kem-768-aes-256-gcm`
+  (previously returned unparseable string).
+- **Use case + PqOnly**: `CryptoConfig::new().use_case(X).crypto_mode(PqOnly)` now
+  correctly produces PQ-only schemes at the use-case-recommended NIST level.
+
+### Deprecated
+
+- **`SecurityLevel::Quantum`**: Use `SecurityLevel::Maximum` with
+  `CryptoMode::PqOnly` instead. The old variant still works — it auto-resolves to
+  `(Maximum, PqOnly)` for backward compatibility.
+
+---
+
+## [0.5.2] - 2026-04-09
+
+### Fixed
+
+- **Feature-gate compilation bugs**: Test file `primitives_self_test_conditional_kats.rs`
+  missing `#![cfg(feature = "fips-self-test")]` gate. Ed25519 `sign().expect()` in
+  `cross_validation_tests.rs` hidden by `#[cfg(not(feature = "fips"))]`.
+- **Error type mapping**: `TypeError::UnknownScheme` was incorrectly mapped to
+  `CoreError::DecryptionFailed` — now maps to `CoreError::ConfigurationError`.
+- **Pre-commit hook**: Now tests 3 feature combinations (`--all-features`,
+  no features, `fips-self-test` only) to catch code hidden behind feature gates.
+- **Proof evidence tests**: Added Section 14 (key persistence) — 4 tests proving
+  keygen→JSON→drop→reload SK only→decrypt works for all 3 ML-KEM levels plus
+  cross-key rejection.
+
+---
+
 ## [0.5.1] - 2026-04-09
 
 Security fixes, CLI hybrid decrypt, real KAT vectors, and Level 7 scenario tests.

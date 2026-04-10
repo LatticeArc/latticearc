@@ -81,10 +81,30 @@ pub struct SerializableSignedMetadata {
 /// lifetimes short and avoid cloning where possible.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SerializableKeyPair {
-    /// Base64-encoded public key
-    pub public_key: String,
-    /// Base64-encoded private key
-    pub private_key: String,
+    /// Base64-encoded public key.
+    public_key: String,
+    /// Base64-encoded private key.
+    private_key: String,
+}
+
+impl SerializableKeyPair {
+    /// Create a new `SerializableKeyPair` from base64-encoded key strings.
+    #[must_use]
+    pub fn new(public_key: String, private_key: String) -> Self {
+        Self { public_key, private_key }
+    }
+
+    /// Returns the base64-encoded public key.
+    #[must_use]
+    pub fn public_key(&self) -> &str {
+        &self.public_key
+    }
+
+    /// Returns the base64-encoded private key.
+    #[must_use]
+    pub fn private_key(&self) -> &str {
+        &self.private_key
+    }
 }
 
 impl std::fmt::Debug for SerializableKeyPair {
@@ -362,8 +382,8 @@ impl From<&EncryptedOutput> for SerializableEncryptedOutput {
             nonce: BASE64_ENGINE.encode(output.nonce()),
             tag: BASE64_ENGINE.encode(output.tag()),
             hybrid_data: output.hybrid_data().map(|hd| SerializableHybridComponents {
-                ml_kem_ciphertext: BASE64_ENGINE.encode(&hd.ml_kem_ciphertext),
-                ecdh_ephemeral_pk: BASE64_ENGINE.encode(&hd.ecdh_ephemeral_pk),
+                ml_kem_ciphertext: BASE64_ENGINE.encode(hd.ml_kem_ciphertext()),
+                ecdh_ephemeral_pk: BASE64_ENGINE.encode(hd.ecdh_ephemeral_pk()),
             }),
             timestamp: output.timestamp(),
             key_id: output.key_id().map(str::to_owned),
@@ -408,7 +428,7 @@ impl TryFrom<SerializableEncryptedOutput> for EncryptedOutput {
                             e
                         ))
                     })?;
-                Ok(HybridComponents { ml_kem_ciphertext, ecdh_ephemeral_pk })
+                Ok(HybridComponents::new(ml_kem_ciphertext, ecdh_ephemeral_pk))
             })
             .transpose()?;
 
@@ -740,10 +760,7 @@ mod tests {
             vec![0xBE, 0xEF, 0xCA, 0xFE],
             vec![0u8; 12],
             vec![0xBB; 16],
-            Some(HybridComponents {
-                ml_kem_ciphertext: vec![0xCC; 1088],
-                ecdh_ephemeral_pk: vec![0xDD; 32],
-            }),
+            Some(HybridComponents::new(vec![0xCC; 1088], vec![0xDD; 32])),
             1_700_000_001,
             None,
         )
@@ -779,8 +796,8 @@ mod tests {
 
         let orig_hd = original.hybrid_data().unwrap();
         let deser_hd = deserialized.hybrid_data().unwrap();
-        assert_eq!(orig_hd.ml_kem_ciphertext, deser_hd.ml_kem_ciphertext);
-        assert_eq!(orig_hd.ecdh_ephemeral_pk, deser_hd.ecdh_ephemeral_pk);
+        assert_eq!(orig_hd.ml_kem_ciphertext(), deser_hd.ml_kem_ciphertext());
+        assert_eq!(orig_hd.ecdh_ephemeral_pk(), deser_hd.ecdh_ephemeral_pk());
     }
 
     #[test]
@@ -860,10 +877,7 @@ mod tests {
                 vec![0u8; 12],
                 vec![0u8; 16],
                 if scheme.requires_hybrid_key() {
-                    Some(HybridComponents {
-                        ml_kem_ciphertext: vec![0xAA; 32],
-                        ecdh_ephemeral_pk: vec![0xBB; 32],
-                    })
+                    Some(HybridComponents::new(vec![0xAA; 32], vec![0xBB; 32]))
                 } else {
                     None
                 },

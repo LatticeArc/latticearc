@@ -11,7 +11,7 @@
 //! **Key types accepted:**
 //! - `symmetric` — for AES-256-GCM decryption
 //! - `public` — rejected with a clear error message
-//! - `secret` — reserved for hybrid decryption (library API only)
+//! - `secret` — for hybrid or PQ-only decryption (auto-detected from scheme)
 
 use anyhow::{Context, Result, bail};
 use clap::Args;
@@ -44,7 +44,14 @@ pub(crate) fn run(args: DecryptArgs) -> Result<()> {
 
     let plaintext = match key_file.key_type {
         KeyType::Symmetric => decrypt_symmetric(&encrypted, &key_file)?,
-        KeyType::Secret => decrypt_hybrid(&encrypted, &key_file)?,
+        KeyType::Secret => {
+            // Determine if this is a hybrid or PQ-only secret key
+            if encrypted.scheme().requires_pq_key() {
+                decrypt_pq_only(&encrypted, &key_file)?
+            } else {
+                decrypt_hybrid(&encrypted, &key_file)?
+            }
+        }
         KeyType::Public => {
             bail!("Cannot decrypt with a public key. Provide the secret key.");
         }
@@ -89,6 +96,25 @@ fn decrypt_hybrid(
         latticearc::CryptoConfig::new(),
     )
     .map_err(|e| anyhow::anyhow!("Hybrid decryption failed: {e}"))
+}
+
+fn decrypt_pq_only(
+    encrypted: &latticearc::EncryptedOutput,
+    key_file: &KeyFile,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    let level = super::common::resolve_ml_kem_level(key_file.portable_key().algorithm())
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    let sk_bytes = key_file.key_bytes()?;
+    let pq_sk = latticearc::PqOnlySecretKey::from_bytes(level, &sk_bytes)
+        .map_err(|e| anyhow::anyhow!("Invalid PQ-only secret key: {e}"))?;
+
+    latticearc::decrypt(
+        encrypted,
+        latticearc::DecryptKey::PqOnly(&pq_sk),
+        latticearc::CryptoConfig::new().crypto_mode(latticearc::CryptoMode::PqOnly),
+    )
+    .map_err(|e| anyhow::anyhow!("PQ-only decryption failed: {e}"))
 }
 
 fn read_input_string(path: &Option<PathBuf>) -> Result<String> {

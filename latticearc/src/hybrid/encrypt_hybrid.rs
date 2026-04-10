@@ -276,6 +276,12 @@ pub fn derive_encryption_key(
 
 /// Hybrid encryption using ML-KEM + AES-256-GCM with HPKE-style key derivation.
 ///
+/// # Security
+///
+/// - AES-256-GCM nonce generated internally from OS CSPRNG (SP 800-38D §8.2)
+/// - HKDF key derivation uses `HYBRID_ENCRYPTION_INFO` domain separation (SP 800-56C)
+/// - ML-KEM shared secret is zeroized after key derivation
+///
 /// # Errors
 ///
 /// Returns an error if:
@@ -407,6 +413,13 @@ pub fn decrypt(
 /// This function performs real hybrid key encapsulation (combining post-quantum
 /// ML-KEM with classical X25519 ECDH via HKDF) before AES-256-GCM encryption.
 /// Security holds if *either* ML-KEM or X25519 remains secure.
+///
+/// # Security
+///
+/// - Hybrid security: breaks only if BOTH ML-KEM and X25519 are compromised
+/// - AES-256-GCM nonce generated internally from OS CSPRNG (SP 800-38D §8.2)
+/// - HKDF dual-PRF combiner with domain separation (SP 800-56C)
+/// - All shared secrets are zeroized after key derivation
 ///
 /// # Errors
 ///

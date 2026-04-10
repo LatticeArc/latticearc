@@ -148,9 +148,9 @@ fn test_hybrid_encrypted_output_structure_succeeds() {
 
     let hybrid = result.hybrid_data().expect("hybrid_data should be present");
     // ML-KEM-768 ciphertext = 1088 bytes
-    assert_eq!(hybrid.ml_kem_ciphertext.len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
+    assert_eq!(hybrid.ml_kem_ciphertext().len(), 1088, "ML-KEM-768 CT should be 1088 bytes");
     // X25519 ephemeral public key = 32 bytes
-    assert_eq!(hybrid.ecdh_ephemeral_pk.len(), 32, "X25519 PK should be 32 bytes");
+    assert_eq!(hybrid.ecdh_ephemeral_pk().len(), 32, "X25519 PK should be 32 bytes");
     // AES-GCM nonce = 12 bytes
     assert_eq!(result.nonce().len(), 12, "AES-GCM nonce should be 12 bytes");
     // AES-GCM tag = 16 bytes
@@ -181,11 +181,11 @@ fn test_hybrid_encryption_non_deterministic() {
     let h3 = result3.hybrid_data().unwrap();
 
     // KEM ciphertexts should differ (randomized encapsulation)
-    assert_ne!(h1.ml_kem_ciphertext, h2.ml_kem_ciphertext, "KEM CTs should differ");
-    assert_ne!(h1.ml_kem_ciphertext, h3.ml_kem_ciphertext, "KEM CTs should differ");
+    assert_ne!(h1.ml_kem_ciphertext(), h2.ml_kem_ciphertext(), "KEM CTs should differ");
+    assert_ne!(h1.ml_kem_ciphertext(), h3.ml_kem_ciphertext(), "KEM CTs should differ");
 
     // Ephemeral ECDH keys should differ
-    assert_ne!(h1.ecdh_ephemeral_pk, h2.ecdh_ephemeral_pk, "ECDH PKs should differ");
+    assert_ne!(h1.ecdh_ephemeral_pk(), h2.ecdh_ephemeral_pk(), "ECDH PKs should differ");
 
     // Nonces should differ
     assert_ne!(result1.nonce(), result2.nonce(), "Nonces should differ");
@@ -216,7 +216,7 @@ fn test_encryption_randomness_stress_test_succeeds() {
     for _ in 0..iterations {
         let result = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
         let hybrid = result.hybrid_data().unwrap();
-        kem_cts.push(hybrid.ml_kem_ciphertext.clone());
+        kem_cts.push(hybrid.ml_kem_ciphertext().to_vec());
     }
 
     // All KEM ciphertexts should be unique
@@ -312,14 +312,11 @@ fn test_tampered_kem_ciphertext_detected_fails() {
     let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
     let tampered_hybrid = encrypted.hybrid_data().map(|h| {
-        let mut ml_kem_ct = h.ml_kem_ciphertext.clone();
+        let mut ml_kem_ct = h.ml_kem_ciphertext().to_vec();
         if !ml_kem_ct.is_empty() {
             ml_kem_ct[0] ^= 0xFF;
         }
-        HybridComponents {
-            ml_kem_ciphertext: ml_kem_ct,
-            ecdh_ephemeral_pk: h.ecdh_ephemeral_pk.clone(),
-        }
+        HybridComponents::new(ml_kem_ct, h.ecdh_ephemeral_pk().to_vec())
     });
     let tampered = EncryptedOutput::new(
         encrypted.scheme().clone(),
@@ -343,14 +340,11 @@ fn test_tampered_ecdh_pk_detected_fails() {
     let encrypted = encrypt(message, EncryptKey::Hybrid(&pk), CryptoConfig::new()).unwrap();
 
     let tampered_hybrid = encrypted.hybrid_data().map(|h| {
-        let mut ecdh_pk = h.ecdh_ephemeral_pk.clone();
+        let mut ecdh_pk = h.ecdh_ephemeral_pk().to_vec();
         if !ecdh_pk.is_empty() {
             ecdh_pk[0] ^= 0xFF;
         }
-        HybridComponents {
-            ml_kem_ciphertext: h.ml_kem_ciphertext.clone(),
-            ecdh_ephemeral_pk: ecdh_pk,
-        }
+        HybridComponents::new(h.ml_kem_ciphertext().to_vec(), ecdh_pk)
     });
     let tampered = EncryptedOutput::new(
         encrypted.scheme().clone(),

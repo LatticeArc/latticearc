@@ -783,9 +783,9 @@ fn sha256_first_16_hex(data: &[u8]) -> String {
     // inputs here are log-payload fragments — orders of magnitude smaller than
     // the 1 GiB DoS cap that guards the wrapper — so treating the Result as
     // infallible is sound.
-    #[allow(clippy::expect_used)]
-    let result = crate::primitives::hash::sha2::sha256(data)
-        .expect("SHA-256 is infallible for in-memory byte slices");
+    let Ok(result) = crate::primitives::hash::sha2::sha256(data) else {
+        return String::from("hash-error");
+    };
     // SHA-256 always produces 32 bytes, so .get(..8) will always succeed.
     // Using .get() for safe array access per project lint rules.
     result.get(..8).map_or_else(|| hex::encode(result), hex::encode)

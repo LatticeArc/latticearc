@@ -57,6 +57,7 @@ use super::pq_sig::{
 use crate::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 
 use crate::hybrid::encrypt_hybrid::{HybridCiphertext, decrypt_hybrid, encrypt_hybrid};
+use crate::hybrid::pq_only;
 
 /// Generate a hybrid ML-DSA + Ed25519 keypair for the given parameter set.
 fn generate_hybrid_signing_keypair_for(
@@ -144,18 +145,44 @@ use crate::primitives::resource_limits::{
 // Internal Helpers
 // ============================================================================
 
+/// Extract nonce and tag from `EncryptedOutput` as fixed-size arrays.
+fn extract_nonce_tag(encrypted: &EncryptedOutput) -> Result<([u8; 12], [u8; 16])> {
+    let nonce: [u8; 12] = encrypted.nonce().try_into().map_err(|_slice_err| {
+        CoreError::DecryptionFailed(format!(
+            "Invalid nonce length: expected 12, got {}",
+            encrypted.nonce().len()
+        ))
+    })?;
+    let tag: [u8; 16] = encrypted.tag().try_into().map_err(|_slice_err| {
+        CoreError::DecryptionFailed(format!(
+            "Invalid tag length: expected 16, got {}",
+            encrypted.tag().len()
+        ))
+    })?;
+    Ok((nonce, tag))
+}
+
 /// Select encryption scheme based on CryptoConfig, returning a type-safe enum.
 ///
 /// This is the type-safe replacement for `select_encryption_scheme`.
+/// Respects `CryptoConfig.crypto_mode` to select hybrid vs PQ-only schemes.
 fn select_encryption_scheme_typed(options: &CryptoConfig) -> Result<EncryptionScheme> {
+    let mode = options.get_crypto_mode();
     match options.get_selection() {
         AlgorithmSelection::UseCase(use_case) => {
             let config = CoreConfig::default();
-            Ok(CryptoPolicyEngine::recommend_encryption_scheme(use_case, &config)?)
+            let scheme = CryptoPolicyEngine::recommend_encryption_scheme(use_case, &config)?;
+            // PQ-only mode: convert hybrid scheme to its PQ-only equivalent
+            if matches!(mode, crate::types::types::CryptoMode::PqOnly)
+                && let Some(pq_scheme) = scheme.to_pq_equivalent()
+            {
+                return Ok(pq_scheme);
+            }
+            Ok(scheme)
         }
         AlgorithmSelection::SecurityLevel(level) => {
             let config = CoreConfig::default().with_security_level(*level);
-            Ok(CryptoPolicyEngine::select_encryption_scheme_typed(&config))
+            Ok(CryptoPolicyEngine::select_encryption_scheme_typed_with_mode(&config, mode))
         }
         AlgorithmSelection::ForcedScheme(scheme) => {
             let scheme_str = CryptoPolicyEngine::force_scheme(scheme);
@@ -327,10 +354,27 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
                 ct.symmetric_ciphertext().to_vec(),
                 ct.nonce().to_vec(),
                 ct.tag().to_vec(),
-                Some(HybridComponents {
-                    ml_kem_ciphertext: ct.kem_ciphertext().to_vec(),
-                    ecdh_ephemeral_pk: ct.ecdh_ephemeral_pk().to_vec(),
-                }),
+                Some(HybridComponents::new(
+                    ct.kem_ciphertext().to_vec(),
+                    ct.ecdh_ephemeral_pk().to_vec(),
+                )),
+                timestamp,
+                None,
+            )
+        }
+        // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
+        (EncryptKey::PqOnly(pk), _) if scheme.requires_pq_key() => {
+            let ct = pq_only::encrypt_pq_only(pk, data).map_err(|e| {
+                CoreError::EncryptionFailed(format!("PQ-only encryption failed: {}", e))
+            })?;
+            let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
+            let (kem_ct, sym_ct, nonce, tag) = ct.into_parts();
+            EncryptedOutput::new(
+                scheme,
+                sym_ct,
+                nonce.to_vec(),
+                tag.to_vec(),
+                Some(HybridComponents::new(kem_ct, vec![])),
                 timestamp,
                 None,
             )
@@ -452,8 +496,8 @@ pub fn decrypt(
             })?;
 
             let ct = HybridCiphertext::new(
-                hybrid_data.ml_kem_ciphertext.clone(),
-                hybrid_data.ecdh_ephemeral_pk.clone(),
+                hybrid_data.ml_kem_ciphertext().to_vec(),
+                hybrid_data.ecdh_ephemeral_pk().to_vec(),
                 encrypted.ciphertext().to_vec(),
                 encrypted.nonce().to_vec(),
                 encrypted.tag().to_vec(),
@@ -464,6 +508,25 @@ pub fn decrypt(
             decrypt_hybrid(sk, &ct, None).map_err(|e| {
                 CoreError::DecryptionFailed(format!("Hybrid decryption failed: {}", e))
             })
+        }
+        // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
+        (DecryptKey::PqOnly(sk), scheme) if scheme.requires_pq_key() => {
+            let hybrid_data = encrypted.hybrid_data().ok_or_else(|| {
+                CoreError::DecryptionFailed(
+                    "PQ-only scheme but no hybrid_data in EncryptedOutput".to_string(),
+                )
+            })?;
+
+            let (nonce, tag) = extract_nonce_tag(encrypted)?;
+
+            pq_only::decrypt_pq_only(
+                sk,
+                hybrid_data.ml_kem_ciphertext(),
+                encrypted.ciphertext(),
+                &nonce,
+                &tag,
+            )
+            .map_err(|e| CoreError::DecryptionFailed(format!("PQ-only decryption failed: {}", e)))
         }
         // Unreachable due to validate_decrypt_key_matches_scheme above
         _ => {
@@ -945,12 +1008,13 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications
+    unused_qualifications,
+    deprecated
 )]
 mod tests {
     use super::*;
     use crate::types::types::CryptoScheme;
-    use crate::{CryptoConfig, SecurityLevel, UseCase};
+    use crate::{CryptoConfig, CryptoMode, SecurityLevel, UseCase};
 
     /// Helper: generate keypair + sign + return signed data
     fn sign_message(message: &[u8], config: CryptoConfig) -> Result<SignedData> {
@@ -1885,7 +1949,9 @@ mod tests {
         assert!(result.is_err(), "Symmetric key + hybrid scheme (default config) must be rejected");
         let err = format!("{}", result.unwrap_err());
         assert!(
-            err.contains("requires a hybrid key") || err.contains("mismatch"),
+            err.contains("requires a hybrid key")
+                || err.contains("requires a hybrid or PQ-only key")
+                || err.contains("mismatch"),
             "Error should mention key type mismatch, got: {}",
             err
         );
@@ -1901,7 +1967,9 @@ mod tests {
         assert!(result.is_err(), "Hybrid key + symmetric scheme must be rejected");
         let err = format!("{}", result.unwrap_err());
         assert!(
-            err.contains("requires a symmetric key") || err.contains("mismatch"),
+            err.contains("requires a symmetric key")
+                || err.contains("does not accept a hybrid key")
+                || err.contains("mismatch"),
             "Error should mention key type mismatch, got: {}",
             err
         );
@@ -2279,12 +2347,15 @@ mod tests {
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 let message = b"Quantum-only signature test";
+                // SecurityLevel::Quantum is deprecated — it now resolves to
+                // (Maximum, PqOnly). For signing, Maximum maps to the highest
+                // hybrid signature scheme (ml-dsa-87).
                 let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
 
                 let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
                 assert!(
-                    scheme.contains("pq-ml-dsa"),
-                    "Quantum level should select PQ-only: {}",
+                    scheme.contains("ml-dsa-87"),
+                    "Quantum (→Maximum) level should select ML-DSA-87: {}",
                     scheme
                 );
                 assert!(!pk.is_empty());
@@ -2294,7 +2365,7 @@ mod tests {
                 assert_eq!(signed.scheme, scheme);
 
                 let valid = verify(&signed, config).unwrap();
-                assert!(valid, "PQ-only signature should verify");
+                assert!(valid, "Signature should verify");
             })
             .unwrap()
             .join()
@@ -2460,7 +2531,7 @@ mod tests {
         let signed = sign_message(message, config_default)?;
 
         // If the scheme is "ed25519", CNSA 2.0 should reject it
-        // CNSA 2.0 requires SecurityLevel::Quantum to pass validate()
+        // CNSA 2.0 requires CryptoMode::PqOnly — Quantum auto-resolves to (Maximum, PqOnly)
         if signed.scheme == "ed25519" {
             let cnsa_config = CryptoConfig::new()
                 .security_level(SecurityLevel::Quantum)
@@ -2534,7 +2605,7 @@ mod tests {
         assert_eq!(encrypted.scheme(), &EncryptionScheme::Aes256Gcm);
 
         // Decrypt with CNSA 2.0 should reject (aes-256-gcm is classical-only)
-        // CNSA 2.0 requires SecurityLevel::Quantum to pass validate()
+        // CNSA 2.0 requires CryptoMode::PqOnly — Quantum auto-resolves to (Maximum, PqOnly)
         let cnsa_config = CryptoConfig::new()
             .security_level(SecurityLevel::Quantum)
             .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
@@ -2598,7 +2669,7 @@ mod tests {
         let signed = sign_message(message, config)?;
 
         // Hybrid schemes are allowed under CNSA 2.0 (transitional per NIST SP 800-227)
-        // Note: CNSA 2.0 config requires SecurityLevel::Quantum to pass validate()
+        // Note: CNSA 2.0 config requires CryptoMode::PqOnly — Quantum resolves to (Maximum, PqOnly)
         if signed.scheme.contains("hybrid") {
             let cnsa_config = CryptoConfig::new()
                 .security_level(SecurityLevel::Quantum)
@@ -2607,5 +2678,99 @@ mod tests {
             assert!(is_valid);
         }
         Ok(())
+    }
+
+    // =========================================================================
+    // PQ-Only Unified API Tests (CryptoMode::PqOnly)
+    // =========================================================================
+
+    #[test]
+    fn test_pq_only_encrypt_decrypt_roundtrip_768_succeeds() {
+        use crate::hybrid::pq_only::generate_pq_keypair;
+        let (pk, sk) = generate_pq_keypair().unwrap();
+        let data = b"PQ-only unified API roundtrip test";
+        let config =
+            CryptoConfig::new().crypto_mode(CryptoMode::PqOnly).security_level(SecurityLevel::High);
+        let encrypted = encrypt(data, EncryptKey::PqOnly(&pk), config.clone()).unwrap();
+        assert_eq!(encrypted.scheme().as_str(), "pq-ml-kem-768-aes-256-gcm");
+        let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).unwrap();
+        assert_eq!(decrypted.as_slice(), data.as_slice());
+    }
+
+    #[test]
+    fn test_pq_only_encrypt_decrypt_roundtrip_512_succeeds() {
+        use crate::hybrid::pq_only::generate_pq_keypair_with_level;
+        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
+        let (pk, sk) = generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem512).unwrap();
+        let data = b"PQ-only 512 roundtrip";
+        let config = CryptoConfig::new()
+            .crypto_mode(CryptoMode::PqOnly)
+            .security_level(SecurityLevel::Standard);
+        let encrypted = encrypt(data, EncryptKey::PqOnly(&pk), config.clone()).unwrap();
+        assert_eq!(encrypted.scheme().as_str(), "pq-ml-kem-512-aes-256-gcm");
+        let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).unwrap();
+        assert_eq!(decrypted.as_slice(), data.as_slice());
+    }
+
+    #[test]
+    fn test_pq_only_encrypt_decrypt_roundtrip_1024_succeeds() {
+        use crate::hybrid::pq_only::generate_pq_keypair_with_level;
+        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
+        let (pk, sk) = generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem1024).unwrap();
+        let data = b"PQ-only 1024 roundtrip";
+        let config = CryptoConfig::new()
+            .crypto_mode(CryptoMode::PqOnly)
+            .security_level(SecurityLevel::Maximum);
+        let encrypted = encrypt(data, EncryptKey::PqOnly(&pk), config.clone()).unwrap();
+        assert_eq!(encrypted.scheme().as_str(), "pq-ml-kem-1024-aes-256-gcm");
+        let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).unwrap();
+        assert_eq!(decrypted.as_slice(), data.as_slice());
+    }
+
+    #[test]
+    fn test_pq_only_key_rejects_hybrid_scheme_fails() {
+        // PQ-only key + hybrid config (default) must be rejected
+        use crate::hybrid::pq_only::generate_pq_keypair;
+        let (pk, _sk) = generate_pq_keypair().unwrap();
+        let config = CryptoConfig::new(); // default = Hybrid mode
+        let result = encrypt(b"test", EncryptKey::PqOnly(&pk), config);
+        assert!(result.is_err(), "PQ-only key + hybrid scheme must fail");
+    }
+
+    #[test]
+    fn test_hybrid_key_rejects_pq_only_scheme_fails() {
+        // Hybrid key + PqOnly mode must be rejected
+        let (pk, _sk) = crate::unified_api::convenience::generate_hybrid_keypair().unwrap();
+        let config =
+            CryptoConfig::new().crypto_mode(CryptoMode::PqOnly).security_level(SecurityLevel::High);
+        let result = encrypt(b"test", EncryptKey::Hybrid(&pk), config);
+        assert!(result.is_err(), "Hybrid key + PQ-only scheme must fail");
+    }
+
+    #[test]
+    fn test_deprecated_quantum_pq_only_backward_compat_succeeds() {
+        // SecurityLevel::Quantum auto-sets PqOnly mode — verify it still works
+        use crate::hybrid::pq_only::generate_pq_keypair_with_level;
+        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
+        let (pk, sk) = generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem1024).unwrap();
+        let data = b"Backward compat: Quantum -> Maximum+PqOnly";
+        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+        assert_eq!(config.get_crypto_mode(), CryptoMode::PqOnly);
+
+        let encrypted = encrypt(data, EncryptKey::PqOnly(&pk), config.clone()).unwrap();
+        assert!(encrypted.scheme().requires_pq_key());
+        let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).unwrap();
+        assert_eq!(decrypted.as_slice(), data.as_slice());
+    }
+
+    #[test]
+    fn test_pq_only_empty_data_roundtrip_succeeds() {
+        use crate::hybrid::pq_only::generate_pq_keypair;
+        let (pk, sk) = generate_pq_keypair().unwrap();
+        let config =
+            CryptoConfig::new().crypto_mode(CryptoMode::PqOnly).security_level(SecurityLevel::High);
+        let encrypted = encrypt(b"", EncryptKey::PqOnly(&pk), config.clone()).unwrap();
+        let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).unwrap();
+        assert!(decrypted.is_empty());
     }
 }

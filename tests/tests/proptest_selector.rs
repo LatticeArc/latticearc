@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Property-based tests for `CryptoPolicyEngine` (scheme selector).
 //!
 //! Tests determinism, security monotonicity, and coverage of all

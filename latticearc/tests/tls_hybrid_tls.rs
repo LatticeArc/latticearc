@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 #![deny(unsafe_code)]
 // Test files use unwrap() for simplicity
 #![allow(clippy::unwrap_used)]

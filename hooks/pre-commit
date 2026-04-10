@@ -28,10 +28,22 @@ fi
 
 echo "Running cargo check..."
 
-# Verify code compiles cleanly
+# Verify code compiles cleanly (all features)
 if ! cargo check --workspace --all-features 2>&1; then
     echo ""
-    echo "Compilation failed! Please fix errors before committing."
+    echo "Compilation failed (--all-features)! Please fix errors before committing."
+    exit 1
+fi
+
+# Also check without features — catches code hidden by feature gates
+if ! cargo check -p latticearc --tests 2>&1; then
+    echo ""
+    echo "Compilation failed (no features)! Code hidden behind feature gates has errors."
+    exit 1
+fi
+if ! cargo check -p latticearc --features fips-self-test --tests 2>&1; then
+    echo ""
+    echo "Compilation failed (fips-self-test only)! Fix feature-gated code."
     exit 1
 fi
 

@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.5.1 | **License**: Apache 2.0
+**Version**: 0.6.0 | **License**: Apache 2.0
 
 ---
 
@@ -177,6 +177,16 @@ let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::SecureMessaging, &co
 let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?;
 ```
 
+#### Reverse Level Mapping
+
+```rust
+use latticearc::unified_api::selector::ml_kem_level_to_security_level;
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+
+let level = ml_kem_level_to_security_level(MlKemSecurityLevel::MlKem768);
+// → SecurityLevel::High
+```
+
 ### Configuration
 
 ```mermaid
@@ -184,20 +194,23 @@ flowchart LR
     NEW[CryptoConfig::new] --> UC[.use_case]
     NEW --> SL[.security_level]
     NEW --> SS[.session]
+    NEW --> CM[.crypto_mode]
     UC --> CFG[Configured CryptoConfig]
     SL --> CFG
     SS --> CFG
+    CM --> CFG
 
     classDef builder fill:#3b82f6,stroke:#1d4ed8,color:#fff
     classDef result fill:#10b981,stroke:#059669,color:#fff
 
-    class NEW,UC,SL,SS builder
+    class NEW,UC,SL,SS,CM builder
     class CFG result
 ```
 
 | Option | Type | Default | Description |
 |--------|------|----------|-------------|
 | `security_level` | `SecurityLevel` | `High` | Security strength level |
+| `crypto_mode` | `CryptoMode` | `Hybrid` | Hybrid (PQ + classical) or PqOnly mode |
 | `performance_preference` | `PerformancePreference` | `Balanced` | Performance vs security trade-off |
 | `compliance_mode` | `ComplianceMode` | `Default` | `Default`, `Fips140_3`, or `Cnsa2_0` |
 | `enable_zeroization` | `bool` | `true` | Auto-zeroize sensitive data |
@@ -369,7 +382,19 @@ pub enum SecurityLevel {
     Standard, // NIST Level 1 (128-bit equivalent), hybrid mode
     High,     // NIST Level 3 (192-bit equivalent), hybrid mode (default)
     Maximum,  // NIST Level 5 (256-bit equivalent), hybrid mode
-    Quantum,  // NIST Level 5, PQ-only (no classical fallback)
+    #[deprecated(since = "0.6.0")]
+    Quantum,  // Deprecated: use (Maximum, CryptoMode::PqOnly) instead
+}
+```
+
+### CryptoMode
+
+```rust
+/// Cryptographic mode (new in 0.6.0)
+#[non_exhaustive]
+pub enum CryptoMode {
+    Hybrid,  // PQ + classical (default)
+    PqOnly,  // Pure post-quantum, no classical component
 }
 ```
 
@@ -404,11 +429,26 @@ let scheme = out.scheme();     // &EncryptionScheme
 let ciphertext = out.ciphertext(); // &[u8]
 let nonce = out.nonce();       // &[u8]
 let tag = out.tag();           // &[u8]
+// Note: When constructing with `EncryptedOutput::new()`, PQ-only schemes require
+// `hybrid_data` with an empty `ecdh_ephemeral_pk`. This invariant is enforced by
+// `debug_assert!` in debug builds.
 
 // KeyPair — use getters, not field access
 let kp: &KeyPair = ...;
 let pk = kp.public_key();   // &PublicKey
 let sk = kp.private_key();  // &PrivateKey
+```
+
+#### PqOnlyCiphertext (0.6.0+)
+
+```rust
+let ct = encrypt_pq_only(&pk, plaintext)?;
+ct.ml_kem_ciphertext();    // &[u8]
+ct.symmetric_ciphertext(); // &[u8]
+ct.nonce();                // &[u8; 12]
+ct.tag();                  // &[u8; TAG_LEN]
+// Or take ownership:
+let (kem_ct, sym_ct, nonce, tag) = ct.into_parts();
 ```
 
 ### Sealed Traits
@@ -439,13 +479,59 @@ pub enum SignatureScheme {
 
 Wire-format `"fn-dsa"` still parses to `FnDsa512` for backward compatibility.
 
+### EncryptionScheme Variants
+
+```rust
+#[non_exhaustive]
+pub enum EncryptionScheme {
+    Symmetric,                // AES-256-GCM with a symmetric key
+    Hybrid,                   // ML-KEM-768 + X25519 + HKDF + AES-256-GCM
+    HybridClassical,          // X25519 + HKDF + AES-256-GCM (no PQ)
+    HybridMlKem512,           // ML-KEM-512 + X25519 + HKDF + AES-256-GCM
+    HybridMlKem1024,          // ML-KEM-1024 + X25519 + HKDF + AES-256-GCM
+    // New in 0.6.0 — PQ-only (no classical component)
+    PqMlKem512Aes256Gcm,      // ML-KEM-512 + AES-256-GCM, no classical KEM
+    PqMlKem768Aes256Gcm,      // ML-KEM-768 + AES-256-GCM, no classical KEM
+    PqMlKem1024Aes256Gcm,     // ML-KEM-1024 + AES-256-GCM, no classical KEM
+}
+```
+
+#### `to_pq_equivalent()`
+
+Converts a hybrid encryption scheme to its PQ-only counterpart at the same NIST level.
+Returns `None` for symmetric or already-PQ-only schemes.
+
+```rust
+let hybrid = EncryptionScheme::HybridMlKem768Aes256Gcm;
+let pq = hybrid.to_pq_equivalent();
+// → Some(EncryptionScheme::PqMlKem768Aes256Gcm)
+```
+
+### EncryptKey / DecryptKey Variants
+
+```rust
+#[non_exhaustive]
+pub enum EncryptKey<'a> {
+    Symmetric(&'a [u8; 32]),          // AES-256-GCM symmetric key
+    Hybrid(&'a HybridPublicKey),      // PQ + classical hybrid public key
+    PqOnly(&'a MlKemPublicKey),       // Pure PQ public key (new in 0.6.0)
+}
+
+#[non_exhaustive]
+pub enum DecryptKey<'a> {
+    Symmetric(&'a [u8; 32]),          // AES-256-GCM symmetric key
+    Hybrid(&'a HybridSecretKey),      // PQ + classical hybrid secret key
+    PqOnly(&'a MlKemSecretKey),       // Pure PQ secret key (new in 0.6.0)
+}
+```
+
 ---
 
 ## Further Reading
 
 - [Unified API Guide](UNIFIED_API_GUIDE.md) — algorithm selection, use cases, builder API
 - [Security Guide](SECURITY_GUIDE.md) — threat model, secure usage patterns
-- [NIST Compliance](NIST_COMPLIANCE.md) — FIPS 203-206 conformance details
+- [NIST Compliance](NIST_COMPLIANCE.md) — FIPS 203–205, draft 206 conformance details
 - [API Reference](https://docs.rs/latticearc) — generated docs on docs.rs
 
 ---

@@ -56,6 +56,33 @@
 //! # }
 //! ```
 //!
+//! ### PQ-Only Encryption (0.6.0+)
+//!
+//! Use [`CryptoMode::PqOnly`] for pure post-quantum encryption without a classical
+//! component. Required for CNSA 2.0 compliance.
+//!
+//! ```rust,no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use latticearc::{encrypt, decrypt, CryptoConfig, CryptoMode, EncryptKey, DecryptKey};
+//!
+//! // PQ-only: ML-KEM-768 + HKDF + AES-256-GCM (no X25519)
+//! let (pk, sk) = latticearc::generate_pq_keypair()
+//!     .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+//! let config = CryptoConfig::new().crypto_mode(CryptoMode::PqOnly);
+//! let encrypted = encrypt(b"secret", EncryptKey::PqOnly(&pk), config.clone())?;
+//! let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config)?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! For low-level access to the PQ-only ciphertext components, use
+//! [`PqOnlyCiphertext`](hybrid::pq_only::PqOnlyCiphertext) getters or `into_parts()`.
+//! To convert a hybrid scheme to its PQ-only equivalent at the same NIST level:
+//! [`EncryptionScheme::to_pq_equivalent()`].
+//!
+//! > **`SecurityLevel::Quantum`** is deprecated since 0.6.0. Use
+//! > `SecurityLevel::Maximum` with `CryptoMode::PqOnly` instead.
+//!
 //! ## Digital Signatures
 //!
 //! ```rust,no_run
@@ -292,6 +319,8 @@ pub use unified_api::{
     // Unified configuration for cryptographic operations
     CryptoConfig,
     CryptoContext,
+    // Cryptographic mode (hybrid vs PQ-only)
+    CryptoMode,
     CryptoPayload,
     CryptoScheme,
     DataCharacteristics,
@@ -337,6 +366,11 @@ pub use unified_api::{
     // Initialization
     init,
     init_with_config,
+};
+
+// PQ-only key types and key generation
+pub use hybrid::pq_only::{
+    PqOnlyPublicKey, PqOnlySecretKey, generate_pq_keypair, generate_pq_keypair_with_level,
 };
 
 // ============================================================================

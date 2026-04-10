@@ -57,7 +57,7 @@ requirements govern their code.
 | ML-KEM (512/768/1024) | FIPS 203 | Module-Lattice Key Encapsulation Mechanism | `primitives::kem::ml_kem` via aws-lc-rs (FIPS 140-3 Cert #4631, #4759, #4816) |
 | ML-DSA (44/65/87) | FIPS 204 | Module-Lattice Digital Signature Algorithm | `primitives::sig::ml_dsa` via `fips204` crate |
 | SLH-DSA | FIPS 205 | Stateless Hash-Based Digital Signature Algorithm | `primitives::sig::slh_dsa` via `fips205` crate |
-| FN-DSA (512/1024) | Draft FIPS 206 | FFT-over-NTRU-Lattice Digital Signature Algorithm | `primitives::sig::fndsa` via `fn-dsa` crate |
+| FN-DSA (512/1024) | Draft draft FIPS 206 | FFT-over-NTRU-Lattice Digital Signature Algorithm | `primitives::sig::fndsa` via `fn-dsa` crate |
 | AES-GCM (128/256) | SP 800-38D | Galois/Counter Mode for Authenticated Encryption | `primitives::aead::aes_gcm` via aws-lc-rs |
 | HKDF-SHA256 | SP 800-56C Rev.2 / RFC 5869 | Key Derivation using HMAC-based Extract-and-Expand | `primitives::kdf::hkdf` via aws-lc-rs HMAC |
 | HMAC-SHA256 | FIPS 198-1 / SP 800-107 | Keyed-Hash Message Authentication Code | `primitives::mac::hmac` via aws-lc-rs |
@@ -91,7 +91,7 @@ requirements govern their code.
 
 | FIPS 140-3 Section | Requirement | How We Comply |
 |-------------------|-------------|---------------|
-| **§7.4** | Approved security functions only | All crypto operations use NIST-approved algorithms (FIPS 203-206, SP 800-38D, SP 800-56C). Non-approved algorithms (secp256k1 ZKP) are disabled under `feature = "fips"`. |
+| **§7.4** | Approved security functions only | All crypto operations use NIST-approved algorithms (FIPS 203–205, draft 206, SP 800-38D, SP 800-56C). Non-approved algorithms (secp256k1 ZKP) are disabled under `feature = "fips"`. |
 | **§7.7** | Pairwise consistency test for keypairs | `primitives::pct` module runs PCT after every keypair generation (ML-DSA, FN-DSA). |
 | **§7.10.1** | Power-up self-test | `primitives::self_test` runs KAT vectors for AES-GCM on module load. |
 | **§7.10.2** | Module integrity test | `primitives::self_test` computes HMAC-SHA256 over module binary, compares against expected value. |
@@ -240,6 +240,9 @@ impl Ciphertext {
 }
 ```
 
+Note: Consuming structs expose `into_parts()` for destructuring without field access
+(see `PqOnlyCiphertext::into_parts()`).
+
 ### Anti-Pattern 6: Bare Vec<u8> Returns for Secrets
 ```rust
 // WRONG — caller may forget to zeroize the returned key
@@ -334,6 +337,26 @@ pub fn encrypt(data: &[u8], key: &Key) -> Result<Vec<u8>, Error> {
     // ... crypto operations ...
 }
 ```
+
+## Structural Invariants with `debug_assert!`
+
+`debug_assert!` is used for structural invariants in constructors (e.g., `EncryptedOutput::new()`
+validates PQ-only scheme has empty ECDH key). These fire in debug/test builds without runtime
+cost in release.
+
+```rust
+// PATTERN: debug_assert! for structural invariants (not security checks)
+pub fn new(scheme: CryptoScheme, components: HybridComponents) -> Self {
+    debug_assert!(
+        scheme != CryptoScheme::PqOnly || components.ecdh_ephemeral_pk.is_empty(),
+        "PQ-only output must have empty ECDH component"
+    );
+    Self { scheme, components }
+}
+```
+
+Note: `debug_assert!` is appropriate only for programmer-error invariants that are guaranteed
+by construction. Security-critical checks must use `Result`-returning validation (not `assert!`).
 
 ## Import Organization
 
@@ -746,6 +769,19 @@ shared_secret = HKDF-SHA256(
     info = domain_label ‖ len(pk_static) ‖ pk_static ‖ len(pk_ephemeral) ‖ pk_ephemeral
 )
 ```
+
+---
+
+### Pattern 7b: PQ-Only Construction
+
+PQ-only encryption follows the same ML-KEM → HKDF → AES-256-GCM pipeline as hybrid,
+but omits the X25519 component. Key differences:
+
+- **Domain separation**: Uses `PQ_ONLY_ENCRYPTION_INFO` (distinct from `HYBRID_ENCRYPTION_INFO`)
+- **Key types**: `PqOnlyPublicKey` / `PqOnlySecretKey` (no classical component)
+- **EncryptedOutput**: Reuses `HybridComponents` with empty `ecdh_ephemeral_pk`.
+  Invariant enforced by `debug_assert!` in `EncryptedOutput::new()`.
+- **Security**: Secure if ML-KEM is secure (no classical fallback)
 
 ---
 

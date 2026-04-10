@@ -107,6 +107,8 @@ pub struct CryptoConfig<'a> {
     compliance: ComplianceMode,
     /// Whether the user explicitly set compliance (vs. auto-set by use_case).
     compliance_explicit: bool,
+    /// Cryptographic mode: hybrid (default) or PQ-only.
+    crypto_mode: CryptoMode,
 }
 
 impl<'a> Default for CryptoConfig<'a> {
@@ -116,7 +118,7 @@ impl<'a> Default for CryptoConfig<'a> {
 }
 
 impl<'a> CryptoConfig<'a> {
-    /// Creates new configuration with defaults (High security, no session, no compliance restrictions).
+    /// Creates new configuration with defaults (High security, hybrid mode, no session, no compliance restrictions).
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -124,6 +126,7 @@ impl<'a> CryptoConfig<'a> {
             selection: AlgorithmSelection::default(),
             compliance: ComplianceMode::Default,
             compliance_explicit: false,
+            crypto_mode: CryptoMode::Hybrid,
         }
     }
 
@@ -159,9 +162,42 @@ impl<'a> CryptoConfig<'a> {
     ///
     /// Use this when your use case doesn't fit predefined options.
     /// This overrides any previously set use case.
+    ///
+    /// If `SecurityLevel::Quantum` (deprecated) is passed, it is resolved
+    /// to `SecurityLevel::Maximum` with `CryptoMode::PqOnly`.
     #[must_use]
+    #[allow(deprecated)]
     pub fn security_level(mut self, level: SecurityLevel) -> Self {
-        self.selection = AlgorithmSelection::SecurityLevel(level);
+        let (resolved_level, resolved_mode) = level.resolve();
+        self.selection = AlgorithmSelection::SecurityLevel(resolved_level);
+        // Only auto-set PqOnly if the deprecated Quantum variant triggered it
+        if resolved_mode == CryptoMode::PqOnly {
+            self.crypto_mode = CryptoMode::PqOnly;
+        }
+        self
+    }
+
+    /// Sets the cryptographic mode (hybrid or PQ-only).
+    ///
+    /// - `CryptoMode::Hybrid` (default): PQ + classical algorithms for defense-in-depth
+    /// - `CryptoMode::PqOnly`: Pure post-quantum, no classical component
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use latticearc::unified_api::{CryptoConfig, encrypt, EncryptKey};
+    /// # use latticearc::types::types::CryptoMode;
+    /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
+    /// let (pk, _sk) = latticearc::hybrid::pq_only::generate_pq_keypair()
+    ///     .map_err(|e| latticearc::unified_api::error::CoreError::InvalidInput(e.to_string()))?;
+    /// encrypt(b"data", EncryptKey::PqOnly(&pk), CryptoConfig::new()
+    ///     .crypto_mode(CryptoMode::PqOnly))?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn crypto_mode(mut self, mode: CryptoMode) -> Self {
+        self.crypto_mode = mode;
         self
     }
 
@@ -229,6 +265,12 @@ impl<'a> CryptoConfig<'a> {
     #[must_use]
     pub fn get_compliance(&self) -> &ComplianceMode {
         &self.compliance
+    }
+
+    /// Returns the cryptographic mode (hybrid or PQ-only).
+    #[must_use]
+    pub fn get_crypto_mode(&self) -> CryptoMode {
+        self.crypto_mode
     }
 
     /// Returns true if a session is set (verified mode).
@@ -300,15 +342,15 @@ impl<'a> CryptoConfig<'a> {
     /// Checks:
     /// 1. Session expiry (if present)
     /// 2. FIPS feature availability (if compliance mode requires it)
-    /// 3. CNSA 2.0 security level requirements (must be `Quantum`)
+    /// 3. CNSA 2.0 requires `CryptoMode::PqOnly`
     ///
     /// # Errors
     ///
     /// Returns `CoreError::SessionExpired` if the session has expired.
     /// Returns `CoreError::FeatureNotAvailable` if compliance mode requires FIPS
     /// but the `fips` feature is not enabled.
-    /// Returns `CoreError::ConfigurationError` if CNSA 2.0 is set but the security
-    /// level is not `Quantum`.
+    /// Returns `CoreError::ConfigurationError` if CNSA 2.0 is set but the crypto
+    /// mode is not `PqOnly`.
     pub fn validate(&self) -> crate::unified_api::error::Result<()> {
         use crate::unified_api::error::CoreError;
 
@@ -326,13 +368,14 @@ impl<'a> CryptoConfig<'a> {
             )));
         }
 
-        // 3. CNSA 2.0 requires SecurityLevel::Quantum (PQ-only)
+        // 3. CNSA 2.0 requires CryptoMode::PqOnly
         if matches!(self.compliance, ComplianceMode::Cnsa2_0)
-            && let AlgorithmSelection::SecurityLevel(ref level) = self.selection
-            && !matches!(level, SecurityLevel::Quantum)
+            && !matches!(self.crypto_mode, CryptoMode::PqOnly)
         {
             return Err(CoreError::ConfigurationError(
-                "CNSA 2.0 compliance requires SecurityLevel::Quantum (PQ-only)".to_string(),
+                "CNSA 2.0 compliance requires CryptoMode::PqOnly. \
+                 Use .crypto_mode(CryptoMode::PqOnly) on your CryptoConfig."
+                    .to_string(),
             ));
         }
 
@@ -341,7 +384,7 @@ impl<'a> CryptoConfig<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, deprecated)]
 mod tests {
     use super::*;
 
@@ -378,6 +421,18 @@ mod tests {
         assert!(!config.is_verified());
         assert!(config.get_session().is_none());
         assert_eq!(*config.get_selection(), AlgorithmSelection::SecurityLevel(SecurityLevel::High));
+        assert_eq!(config.get_crypto_mode(), CryptoMode::Hybrid);
+    }
+
+    #[test]
+    fn test_crypto_config_crypto_mode_builder_sets_pq_only() {
+        let config = CryptoConfig::new().crypto_mode(CryptoMode::PqOnly);
+        assert_eq!(config.get_crypto_mode(), CryptoMode::PqOnly);
+    }
+
+    #[test]
+    fn test_crypto_config_crypto_mode_default_is_hybrid() {
+        assert_eq!(CryptoConfig::new().get_crypto_mode(), CryptoMode::Hybrid);
     }
 
     #[test]
@@ -476,8 +531,8 @@ mod tests {
     }
 
     #[test]
-    fn test_cnsa_requires_quantum_is_correct() {
-        // CNSA 2.0 with a non-Quantum security level should fail validation
+    fn test_cnsa_requires_pq_only_mode_is_correct() {
+        // CNSA 2.0 with Hybrid mode should fail validation
         let config = CryptoConfig::new()
             .compliance(ComplianceMode::Cnsa2_0)
             .security_level(SecurityLevel::High);
@@ -485,7 +540,36 @@ mod tests {
         assert!(result.is_err());
         let err_msg = format!("{}", result.unwrap_err());
         assert!(err_msg.contains("CNSA 2.0"));
-        assert!(err_msg.contains("Quantum"));
+        assert!(err_msg.contains("PqOnly"));
+    }
+
+    #[test]
+    fn test_cnsa_with_pq_only_mode_passes_validation() {
+        // CNSA 2.0 with PqOnly mode should pass (ignoring fips feature check)
+        let config = CryptoConfig::new()
+            .compliance(ComplianceMode::Cnsa2_0)
+            .crypto_mode(CryptoMode::PqOnly)
+            .security_level(SecurityLevel::Maximum);
+        // On non-fips builds this will fail on FIPS check, not CNSA check
+        let result = config.validate();
+        if cfg!(feature = "fips") {
+            assert!(result.is_ok());
+        } else {
+            // Should fail on FIPS availability, not on CNSA mode check
+            let err_msg = format!("{}", result.unwrap_err());
+            assert!(err_msg.contains("fips"));
+        }
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_security_level_quantum_auto_sets_pq_only() {
+        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+        assert_eq!(config.get_crypto_mode(), CryptoMode::PqOnly);
+        assert_eq!(
+            *config.get_selection(),
+            AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum)
+        );
     }
 
     #[cfg(not(feature = "fips"))]

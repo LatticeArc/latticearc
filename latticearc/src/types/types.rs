@@ -369,10 +369,44 @@ impl KeyPair {
     }
 }
 
+/// Cryptographic mode: hybrid (PQ + classical) or PQ-only.
+///
+/// This enum is orthogonal to [`SecurityLevel`] (which selects NIST levels 1/3/5).
+/// Together they form a 2D configuration: `(SecurityLevel, CryptoMode)`.
+///
+/// # Examples
+///
+/// ```rust
+/// use latticearc::types::types::{CryptoMode, SecurityLevel};
+///
+/// // Default: hybrid mode at NIST Level 3
+/// let mode = CryptoMode::default();
+/// assert_eq!(mode, CryptoMode::Hybrid);
+///
+/// // PQ-only for CNSA 2.0 compliance
+/// let mode = CryptoMode::PqOnly;
+/// ```
+#[non_exhaustive]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "kebab-case")]
+#[cfg_attr(kani, derive(kani::Arbitrary))]
+pub enum CryptoMode {
+    /// Hybrid mode: PQ + classical algorithms for defense-in-depth.
+    /// This is the recommended mode during the post-quantum transition.
+    #[default]
+    Hybrid,
+    /// PQ-only mode: pure post-quantum algorithms, no classical component.
+    /// Required for CNSA 2.0 compliance. Use with any `SecurityLevel`.
+    PqOnly,
+}
+
 /// Security level for cryptographic operations.
 ///
-/// All levels use hybrid encryption (PQ + classical) by default for defense-in-depth
-/// during the post-quantum transition period, except `Quantum` which is PQ-only.
+/// Selects the NIST security level (1/3/5) which determines algorithm parameters.
+/// The cryptographic mode (hybrid vs PQ-only) is controlled separately via
+/// [`CryptoMode`]. All levels default to hybrid mode.
 ///
 /// Higher levels provide stronger protection but may impact performance.
 #[non_exhaustive]
@@ -382,24 +416,44 @@ impl KeyPair {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 pub enum SecurityLevel {
-    /// NIST Level 1 (128-bit equivalent). Hybrid mode.
-    /// Uses ML-KEM-512 + X25519, ML-DSA-44 + Ed25519.
+    /// NIST Level 1 (128-bit equivalent).
+    /// Uses ML-KEM-512 (+ X25519 in hybrid mode), ML-DSA-44 (+ Ed25519 in hybrid mode).
     /// Suitable for resource-constrained devices and general use.
     Standard,
-    /// NIST Level 3 (192-bit equivalent). Hybrid mode. (default)
-    /// Uses ML-KEM-768 + X25519, ML-DSA-65 + Ed25519.
+    /// NIST Level 3 (192-bit equivalent). (default)
+    /// Uses ML-KEM-768 (+ X25519 in hybrid mode), ML-DSA-65 (+ Ed25519 in hybrid mode).
     /// Recommended for most applications.
     #[default]
     High,
-    /// NIST Level 5 (256-bit equivalent). Hybrid mode.
-    /// Uses ML-KEM-1024 + X25519, ML-DSA-87 + Ed25519.
+    /// NIST Level 5 (256-bit equivalent).
+    /// Uses ML-KEM-1024 (+ X25519 in hybrid mode), ML-DSA-87 (+ Ed25519 in hybrid mode).
     /// For high-value assets and long-term security.
     Maximum,
-    /// NIST Level 5 (256-bit equivalent). PQ-only mode.
-    /// Uses ML-KEM-1024, ML-DSA-87 (no classical algorithms).
-    /// For CNSA 2.0 compliance and government use cases.
-    /// Must be explicitly selected - no UseCase defaults to this.
+    /// Deprecated: use `SecurityLevel::Maximum` with `CryptoMode::PqOnly` instead.
+    ///
+    /// This variant conflated two orthogonal axes (security level and crypto mode).
+    /// It is equivalent to `(SecurityLevel::Maximum, CryptoMode::PqOnly)`.
+    #[deprecated(
+        since = "0.6.0",
+        note = "Use SecurityLevel::Maximum with CryptoMode::PqOnly instead"
+    )]
     Quantum,
+}
+
+impl SecurityLevel {
+    /// Resolve a potentially-deprecated `SecurityLevel` into its canonical
+    /// `(SecurityLevel, CryptoMode)` pair.
+    ///
+    /// `SecurityLevel::Quantum` resolves to `(Maximum, PqOnly)`.
+    /// All other variants resolve to `(self, Hybrid)`.
+    #[must_use]
+    #[allow(deprecated)]
+    pub fn resolve(self) -> (Self, CryptoMode) {
+        match self {
+            Self::Quantum => (Self::Maximum, CryptoMode::PqOnly),
+            other => (other, CryptoMode::Hybrid),
+        }
+    }
 }
 
 /// Compliance mode for cryptographic operations.
@@ -438,7 +492,7 @@ pub enum ComplianceMode {
     /// Allows hybrid (PQ + classical) algorithms.
     Fips140_3,
     /// CNSA 2.0 compliance.
-    /// Requires the `fips` feature and `SecurityLevel::Quantum` (PQ-only).
+    /// Requires the `fips` feature and `CryptoMode::PqOnly`.
     /// Disallows hybrid algorithms — only pure post-quantum schemes are permitted.
     Cnsa2_0,
 }
@@ -844,7 +898,7 @@ mod kani_proofs {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, deprecated)]
 mod tests {
     use super::*;
 
@@ -991,6 +1045,69 @@ mod tests {
     fn test_security_level_debug_produces_nonempty_string_succeeds() {
         let debug = format!("{:?}", SecurityLevel::Quantum);
         assert!(debug.contains("Quantum"));
+    }
+
+    // --- SecurityLevel::resolve() tests ---
+
+    #[test]
+    fn test_security_level_resolve_quantum_returns_maximum_pq_only() {
+        let (level, mode) = SecurityLevel::Quantum.resolve();
+        assert_eq!(level, SecurityLevel::Maximum);
+        assert_eq!(mode, CryptoMode::PqOnly);
+    }
+
+    #[test]
+    fn test_security_level_resolve_standard_returns_hybrid() {
+        let (level, mode) = SecurityLevel::Standard.resolve();
+        assert_eq!(level, SecurityLevel::Standard);
+        assert_eq!(mode, CryptoMode::Hybrid);
+    }
+
+    #[test]
+    fn test_security_level_resolve_high_returns_hybrid() {
+        let (level, mode) = SecurityLevel::High.resolve();
+        assert_eq!(level, SecurityLevel::High);
+        assert_eq!(mode, CryptoMode::Hybrid);
+    }
+
+    #[test]
+    fn test_security_level_resolve_maximum_returns_hybrid() {
+        let (level, mode) = SecurityLevel::Maximum.resolve();
+        assert_eq!(level, SecurityLevel::Maximum);
+        assert_eq!(mode, CryptoMode::Hybrid);
+    }
+
+    // --- CryptoMode tests ---
+
+    #[test]
+    fn test_crypto_mode_default_is_hybrid() {
+        assert_eq!(CryptoMode::default(), CryptoMode::Hybrid);
+    }
+
+    #[test]
+    fn test_crypto_mode_serde_roundtrip() {
+        let pq = CryptoMode::PqOnly;
+        let json = serde_json::to_string(&pq).unwrap();
+        assert_eq!(json, "\"pq-only\"");
+        let parsed: CryptoMode = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, CryptoMode::PqOnly);
+
+        let hybrid = CryptoMode::Hybrid;
+        let json = serde_json::to_string(&hybrid).unwrap();
+        assert_eq!(json, "\"hybrid\"");
+        let parsed: CryptoMode = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, CryptoMode::Hybrid);
+    }
+
+    #[test]
+    fn test_crypto_mode_serde_rejects_unknown_string() {
+        let result = serde_json::from_str::<CryptoMode>("\"classic\"");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_crypto_mode_variants_are_distinct() {
+        assert_ne!(CryptoMode::Hybrid, CryptoMode::PqOnly);
     }
 
     // --- PerformancePreference tests ---

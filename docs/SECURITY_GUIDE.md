@@ -21,7 +21,7 @@ flowchart LR
 
 | Threat | Protection | Mechanism |
 |--------|------------|-----------|
-| Quantum attacks | Full | FIPS 203-206 PQ algorithms |
+| Quantum attacks | Full | FIPS 203–205, draft 206 PQ algorithms |
 | Classical cryptanalysis | Full | Hybrid PQ + classical |
 | Timing side-channels | Best effort | `subtle` crate constant-time |
 | Memory disclosure | Best effort | `zeroize` automatic clearing |
@@ -325,7 +325,7 @@ use latticearc::primitives::aead::AeadCipher;
 flowchart LR
     S["Standard\n128-bit"] --> H["High (default)\n192-bit"]
     H --> M["Maximum\n256-bit"]
-    M --> Q["Quantum\n256-bit PQ-only"]
+    M --> Q["Maximum + PqOnly\n(Quantum deprecated)"]
 
     classDef level fill:#3498db,stroke:#333,color:#fff
     class S,H,M,Q level
@@ -336,7 +336,11 @@ flowchart LR
 | `Standard` | ML-KEM-512, ML-DSA-44 | Hybrid | 1 | General purpose, IoT |
 | `High` (default) | ML-KEM-768, ML-DSA-65 | Hybrid | 3 | Production, sensitive data |
 | `Maximum` | ML-KEM-1024, ML-DSA-87 | Hybrid | 5 | Financial, regulated |
-| `Quantum` | ML-KEM-1024, ML-DSA-87 | PQ-only | 5 | Government (CNSA 2.0) |
+| `Maximum` + `CryptoMode::PqOnly` | ML-KEM-1024, ML-DSA-87 | PQ-only | 5 | Government (CNSA 2.0) |
+
+> **Note (v0.6.0):** `SecurityLevel::Quantum` is deprecated. Use `SecurityLevel::Maximum` with
+> `CryptoMode::PqOnly` to get PQ-only mode. `SecurityLevel::Quantum` will be removed in a future
+> release.
 
 ### Recommendations
 
@@ -447,7 +451,7 @@ async fn encrypt_with_limit(data: &[u8], key: &[u8; 32]) -> Result<EncryptedOutp
 
 ### FIPS 140-3
 
-LatticeArc implements FIPS 203-206 algorithms but is **not** FIPS 140-3 validated.
+LatticeArc implements FIPS 203–205, draft 206 algorithms but is **not** FIPS 140-3 validated.
 
 For FIPS 140-3 compliance:
 1. Use algorithms as specified (no modifications)
@@ -493,4 +497,4 @@ Report security vulnerabilities according to [SECURITY.md](../SECURITY.md):
 - [FIPS 203: ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
 - [FIPS 204: ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
 - [FIPS 205: SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final)
-- [FIPS 206: FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final)
+- [draft FIPS 206: FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final)

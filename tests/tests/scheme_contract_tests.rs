@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Scheme Contract Tests — Standards-Grade UseCase × Scheme × Key Level Matrix
 //!
 //! These tests verify the **contract** between UseCase/SecurityLevel selection and the
@@ -165,13 +167,13 @@ fn test_all_22_usecases_select_correct_hybrid_scheme_succeeds() {
         assert!(encrypted.hybrid_data().is_some(), "UseCase::{uc:?} must produce hybrid_data");
         let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
-            hybrid.ml_kem_ciphertext.len(),
+            hybrid.ml_kem_ciphertext().len(),
             ct_size,
             "UseCase::{uc:?} ML-KEM ciphertext size: expected {ct_size}, got {}",
-            hybrid.ml_kem_ciphertext.len()
+            hybrid.ml_kem_ciphertext().len()
         );
         assert_eq!(
-            hybrid.ecdh_ephemeral_pk.len(),
+            hybrid.ecdh_ephemeral_pk().len(),
             32,
             "UseCase::{uc:?} ECDH ephemeral PK must be 32 bytes"
         );
@@ -227,7 +229,7 @@ fn test_all_4_security_levels_select_correct_scheme_succeeds() {
         );
         let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
-            hybrid.ml_kem_ciphertext.len(),
+            hybrid.ml_kem_ciphertext().len(),
             ct_size,
             "SecurityLevel::{level:?} ML-KEM CT size mismatch"
         );
@@ -285,13 +287,13 @@ fn test_scheme_metadata_matches_ciphertext_structure_succeeds() {
 
         let hybrid = encrypted.hybrid_data().unwrap();
         assert_eq!(
-            hybrid.ml_kem_ciphertext.len(),
+            hybrid.ml_kem_ciphertext().len(),
             *ct_size,
             "Scheme {scheme}: ML-KEM CT expected {ct_size} bytes, got {}",
-            hybrid.ml_kem_ciphertext.len()
+            hybrid.ml_kem_ciphertext().len()
         );
         assert_eq!(
-            hybrid.ecdh_ephemeral_pk.len(),
+            hybrid.ecdh_ephemeral_pk().len(),
             32,
             "Scheme {scheme}: ECDH ephemeral PK must be 32 bytes"
         );
@@ -421,11 +423,13 @@ fn test_hybrid_encrypted_output_serialization_preserves_scheme_succeeds() {
         let orig_hybrid = original.hybrid_data().unwrap();
         let rest_hybrid = restored.hybrid_data().unwrap();
         assert_eq!(
-            orig_hybrid.ml_kem_ciphertext, rest_hybrid.ml_kem_ciphertext,
+            orig_hybrid.ml_kem_ciphertext(),
+            rest_hybrid.ml_kem_ciphertext(),
             "ML-KEM ciphertext must survive serialization for {key_level:?}"
         );
         assert_eq!(
-            orig_hybrid.ecdh_ephemeral_pk, rest_hybrid.ecdh_ephemeral_pk,
+            orig_hybrid.ecdh_ephemeral_pk(),
+            rest_hybrid.ecdh_ephemeral_pk(),
             "ECDH ephemeral PK must survive serialization for {key_level:?}"
         );
 

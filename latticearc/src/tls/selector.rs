@@ -1,6 +1,8 @@
 #![deny(unsafe_code)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::panic)]
+// SecurityLevel::Quantum is deprecated but TLS code still handles it for backward compat
+#![allow(deprecated)]
 
 //! TLS Policy Engine
 //!

@@ -36,8 +36,8 @@ fn main() {
     println!("  Nonce:      {} bytes", encrypted.nonce().len());
     println!("  Tag:        {} bytes", encrypted.tag().len());
     if let Some(hd) = encrypted.hybrid_data() {
-        println!("  ML-KEM CT:  {} bytes", hd.ml_kem_ciphertext.len());
-        println!("  ECDH ePK:   {} bytes", hd.ecdh_ephemeral_pk.len());
+        println!("  ML-KEM CT:  {} bytes", hd.ml_kem_ciphertext().len());
+        println!("  ECDH ePK:   {} bytes", hd.ecdh_ephemeral_pk().len());
     }
 
     // --- Decrypt ---

@@ -63,13 +63,21 @@ pub const MODULE_INTEGRITY_HMAC_KEY: &[u8] = b"LatticeArc-FIPS-140-3-Module-Inte
 /// AES-256 keys from ML-KEM shared secrets with domain separation.
 pub const PQ_KEM_AEAD_KEY_INFO: &[u8] = b"LatticeArc-PqKem-AeadKey-v1";
 
+/// Domain for PQ-only unified API encryption HKDF key derivation.
+///
+/// Used in `encrypt_pq_only` / `decrypt_pq_only` to derive AES-256 keys from
+/// ML-KEM shared secrets. Distinct from [`PQ_KEM_AEAD_KEY_INFO`] because
+/// the unified API produces structured `EncryptedOutput` (separate nonce/tag/ciphertext
+/// fields), while the convenience API produces a concatenated wire format.
+pub const PQ_ONLY_ENCRYPTION_INFO: &[u8] = b"LatticeArc-PqOnly-Encryption-v1";
+
 // Formal verification with Kani
 #[cfg(kani)]
 #[allow(clippy::indexing_slicing)]
 mod kani_proofs {
     use super::*;
 
-    /// Proves all 9 HKDF domain constants are pairwise distinct (C(9,2)=36 pairs).
+    /// Proves all 10 HKDF domain constants are pairwise distinct (C(10,2)=45 pairs).
     /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
     #[kani::proof]
     fn domain_constants_pairwise_distinct() {
@@ -83,6 +91,7 @@ mod kani_proofs {
             DERIVE_KEY_INFO,
             MODULE_INTEGRITY_HMAC_KEY,
             PQ_KEM_AEAD_KEY_INFO,
+            PQ_ONLY_ENCRYPTION_INFO,
         ];
         let n = constants.len();
         let mut i = 0;

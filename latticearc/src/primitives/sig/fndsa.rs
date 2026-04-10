@@ -561,6 +561,12 @@ impl Drop for KeyPair {
     }
 }
 
+impl ConstantTimeEq for KeyPair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        self.signing_key.ct_eq(&other.signing_key)
+    }
+}
+
 impl Zeroize for KeyPair {
     fn zeroize(&mut self) {
         self.signing_key.zeroize();

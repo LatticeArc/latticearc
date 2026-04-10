@@ -88,7 +88,7 @@ graph TB
         KEM[ML-KEM<br/>FIPS 203]
         DSA[ML-DSA<br/>FIPS 204]
         SLH[SLH-DSA<br/>FIPS 205]
-        FN[FN-DSA<br/>FIPS 206]
+        FN[FN-DSA<br/>draft FIPS 206]
         AES[AES-GCM]
         ED[Ed25519]
     end
@@ -276,7 +276,9 @@ let config = CryptoConfig::new()
 
 // CNSA 2.0 (PQ-only, no hybrid)
 let config = CryptoConfig::new()
-    .compliance(ComplianceMode::Cnsa2_0);
+    .compliance(ComplianceMode::Cnsa2_0)
+    .crypto_mode(CryptoMode::PqOnly)
+    .security_level(SecurityLevel::Maximum);
 
 // Full configuration with Zero Trust session
 let config = CryptoConfig::new()
@@ -293,6 +295,7 @@ let config = CryptoConfig::new()
 | `.use_case(UseCase)` | Select algorithm by use case |
 | `.security_level(SecurityLevel)` | Select algorithm by security level |
 | `.compliance(ComplianceMode)` | Set compliance mode (Default, Fips140_3, Cnsa2_0) |
+| `.crypto_mode(CryptoMode)` | Select hybrid or PQ-only mode (default: Hybrid). PqOnly required for CNSA 2.0. |
 | `.session(&VerifiedSession)` | Enable Zero Trust verification |
 
 ## TlsConfig
@@ -381,19 +384,32 @@ All 24 use cases with their algorithm mappings (all hybrid PQ + classical by def
 
 ### By Security Level
 
-| Level | Mode | Encryption | Signature | NIST Level |
-|-------|------|------------|-----------|------------|
-| `Quantum` | PQ-only | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 | 5 |
-| `Maximum` | Hybrid | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 | 5 |
-| `High` (default) | Hybrid | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 | 3 |
-| `Standard` | Hybrid | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 | 1 |
+| Level | Encryption | Signature | NIST Level |
+|-------|------------|-----------|------------|
+| `Standard` | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 | 1 |
+| `High` (default) | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 | 3 |
+| `Maximum` | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 | 5 |
+
+> **Note:** `CryptoMode` (Hybrid / PqOnly) is orthogonal to `SecurityLevel` — use `.crypto_mode(CryptoMode::PqOnly)` to strip classical algorithms from any level. `SecurityLevel::Quantum` is deprecated since 0.6.0 — use `SecurityLevel::Maximum` with `CryptoMode::PqOnly`.
 
 ### Security Level Details
 
 - **Standard**: NIST Level 1 (128-bit equivalent). Hybrid mode using ML-KEM-512 + X25519, ML-DSA-44 + Ed25519. Suitable for resource-constrained devices and general use.
 - **High**: NIST Level 3 (192-bit equivalent). Hybrid mode using ML-KEM-768 + X25519, ML-DSA-65 + Ed25519. Recommended for most production applications. **(Default)**
-- **Maximum**: NIST Level 5 (256-bit equivalent). Hybrid mode using ML-KEM-1024 + X25519, ML-DSA-87 + Ed25519. For high-value assets and long-term security.
-- **Quantum**: NIST Level 5 (256-bit equivalent). PQ-only mode using ML-KEM-1024, ML-DSA-87 (no classical algorithms). For CNSA 2.0 compliance and government use cases. Must be explicitly selected.
+- **Maximum**: NIST Level 5 (256-bit equivalent). Hybrid mode using ML-KEM-1024 + X25519, ML-DSA-87 + Ed25519. For high-value assets and long-term security. Pair with `CryptoMode::PqOnly` for CNSA 2.0 compliance and government use cases.
+- **Quantum** *(deprecated since 0.6.0)*: Previously a shorthand for NIST Level 5 PQ-only mode. Use `SecurityLevel::Maximum` combined with `.crypto_mode(CryptoMode::PqOnly)` instead. `CryptoMode` is now an independent axis, allowing any security level to run in PQ-only mode.
+
+### Utility: Reverse Level Mapping
+
+CLI integrators can resolve a key file's ML-KEM level back to a `SecurityLevel`:
+
+```rust
+use latticearc::unified_api::selector::ml_kem_level_to_security_level;
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+
+let level = ml_kem_level_to_security_level(MlKemSecurityLevel::MlKem768);
+assert_eq!(level, SecurityLevel::High);
+```
 
 ## Zero Trust Authentication
 

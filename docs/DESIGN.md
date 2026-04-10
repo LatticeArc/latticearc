@@ -8,7 +8,7 @@ This document describes the architecture of LatticeArc, a post-quantum cryptogra
 2. **Hybrid by Default**: All encryption uses PQ + classical algorithms—no classical-only paths exposed
 3. **Zero Trust Framework**: Challenge-response authentication with ZKP support
 4. **Modularity**: Use only what you need, from high-level to low-level APIs
-5. **FIPS Compliance**: NIST FIPS 203-206 compliant implementations with `ComplianceMode` (Default, Fips140_3, Cnsa2_0) and `fips` feature flag
+5. **FIPS Compliance**: NIST FIPS 203–205, draft 206 compliant implementations with `ComplianceMode` (Default, Fips140_3, Cnsa2_0) and `fips` feature flag
 
 ## Architecture Overview
 
@@ -191,16 +191,29 @@ flowchart TD
     USECASE -->|Yes| RECOMMEND[recommend_scheme<br/>for use case]
     USECASE -->|No| SECLEVEL{Security Level?}
 
-    SECLEVEL -->|Maximum/Quantum| MAX[hybrid-ml-kem-1024]
-    SECLEVEL -->|High| HIGH[hybrid-ml-kem-768]
-    SECLEVEL -->|Standard| STD[hybrid-ml-kem-512]
-    SECLEVEL -->|Default| DEFAULT[hybrid-ml-kem-768]
+    SECLEVEL -->|Maximum| MAX{CryptoMode?}
+    SECLEVEL -->|High| HIGH{CryptoMode?}
+    SECLEVEL -->|Standard| STD{CryptoMode?}
+    SECLEVEL -->|Default| DEF{CryptoMode?}
 
-    RECOMMEND --> OUTPUT[/"Selected Hybrid Scheme"/]
-    MAX --> OUTPUT
-    HIGH --> OUTPUT
-    STD --> OUTPUT
-    DEFAULT --> OUTPUT
+    MAX -->|Hybrid| MAX_H[hybrid-ml-kem-1024]
+    MAX -->|PqOnly| MAX_P[pq-ml-kem-1024]
+    HIGH -->|Hybrid| HIGH_H[hybrid-ml-kem-768]
+    HIGH -->|PqOnly| HIGH_P[pq-ml-kem-768]
+    STD -->|Hybrid| STD_H[hybrid-ml-kem-512]
+    STD -->|PqOnly| STD_P[pq-ml-kem-512]
+    DEF -->|Hybrid| DEF_H[hybrid-ml-kem-768]
+    DEF -->|PqOnly| DEF_P[pq-ml-kem-768]
+
+    RECOMMEND --> OUTPUT[/"Selected Scheme"/]
+    MAX_H --> OUTPUT
+    MAX_P --> OUTPUT
+    HIGH_H --> OUTPUT
+    HIGH_P --> OUTPUT
+    STD_H --> OUTPUT
+    STD_P --> OUTPUT
+    DEF_H --> OUTPUT
+    DEF_P --> OUTPUT
 
     OUTPUT --> END([End])
 
@@ -269,7 +282,7 @@ The underlying cryptography library (`aws-lc-rs`) handles AES-NI, SHA extensions
 
 ## Encryption Data Flow
 
-All encryption in LatticeArc uses hybrid mode (PQ + Classical) for defense-in-depth:
+All encryption uses ML-KEM. Hybrid mode adds X25519 for defense-in-depth; PQ-only mode (`CryptoMode::PqOnly`) omits the classical component (required for CNSA 2.0).
 
 ```mermaid
 flowchart LR
@@ -368,7 +381,7 @@ Low-level cryptographic primitives:
 | Module | Algorithms |
 |--------|-----------|
 | `kem/` | ML-KEM-512/768/1024 (FIPS 203), X25519 (ECDH) |
-| `sig/` | ML-DSA-44/65/87 (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (FIPS 206) |
+| `sig/` | ML-DSA-44/65/87 (FIPS 204), SLH-DSA (FIPS 205), FN-DSA (draft FIPS 206) |
 | `aead/` | AES-256-GCM, ChaCha20-Poly1305 |
 | `kdf/` | HKDF-SHA256, PBKDF2, SP800-108 Counter KDF |
 | `hash/` | SHA-2, SHA-3 |
@@ -384,6 +397,7 @@ Hybrid cryptography combining PQ + classical:
 | HybridKem | ML-KEM + X25519 |
 | HybridSignature | ML-DSA + Ed25519 |
 | HybridEncrypt | ML-KEM + AES-GCM |
+| pq_only | ML-KEM + HKDF + AES-256-GCM (no X25519). PQ-only encryption for CNSA 2.0. |
 
 ### `latticearc::tls`
 
@@ -536,5 +550,5 @@ CoreConfig (internal to policy engine)
 - [FIPS 203: ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
 - [FIPS 204: ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
 - [FIPS 205: SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final)
-- [FIPS 206: FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final)
+- [draft FIPS 206: FN-DSA](https://csrc.nist.gov/projects/post-quantum-cryptography/pubs/fips/206/final)
 - [Rustls](https://github.com/rustls/rustls)

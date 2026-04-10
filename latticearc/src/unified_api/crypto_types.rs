@@ -13,6 +13,7 @@
 use std::fmt;
 
 use crate::hybrid::kem_hybrid::{HybridKemPublicKey, HybridKemSecretKey};
+use crate::hybrid::pq_only::{PqOnlyPublicKey, PqOnlySecretKey};
 use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
 
 /// What kind of key the caller is providing for encryption.
@@ -39,9 +40,12 @@ pub enum EncryptKey<'a> {
     /// Symmetric key (AES-256-GCM, ChaCha20-Poly1305).
     /// Must be exactly 32 bytes for both algorithms.
     Symmetric(&'a [u8]),
-    /// Hybrid PQ public key (ML-KEM-768 + X25519).
-    /// Used for true hybrid encryption with KEM encapsulation.
+    /// Hybrid PQ public key (ML-KEM + X25519).
+    /// Used for hybrid encryption with KEM encapsulation.
     Hybrid(&'a HybridKemPublicKey),
+    /// PQ-only public key (ML-KEM, no X25519).
+    /// Used for pure post-quantum encryption without a classical component.
+    PqOnly(&'a PqOnlyPublicKey),
 }
 
 impl fmt::Debug for EncryptKey<'_> {
@@ -52,6 +56,7 @@ impl fmt::Debug for EncryptKey<'_> {
                 .field(&format!("[{} bytes]", key.len()))
                 .finish(),
             Self::Hybrid(_) => f.debug_tuple("EncryptKey::Hybrid").field(&"[REDACTED]").finish(),
+            Self::PqOnly(_) => f.debug_tuple("EncryptKey::PqOnly").field(&"[REDACTED]").finish(),
         }
     }
 }
@@ -64,8 +69,10 @@ impl fmt::Debug for EncryptKey<'_> {
 pub enum DecryptKey<'a> {
     /// Symmetric key for AES-256-GCM or ChaCha20-Poly1305.
     Symmetric(&'a [u8]),
-    /// Hybrid PQ secret key for ML-KEM-768 + X25519 decapsulation.
+    /// Hybrid PQ secret key for ML-KEM + X25519 decapsulation.
     Hybrid(&'a HybridKemSecretKey),
+    /// PQ-only secret key for ML-KEM decapsulation (no X25519).
+    PqOnly(&'a PqOnlySecretKey),
 }
 
 impl fmt::Debug for DecryptKey<'_> {
@@ -76,6 +83,7 @@ impl fmt::Debug for DecryptKey<'_> {
                 .field(&format!("[{} bytes]", key.len()))
                 .finish(),
             Self::Hybrid(_) => f.debug_tuple("DecryptKey::Hybrid").field(&"[REDACTED]").finish(),
+            Self::PqOnly(_) => f.debug_tuple("DecryptKey::PqOnly").field(&"[REDACTED]").finish(),
         }
     }
 }
@@ -107,10 +115,16 @@ pub enum EncryptionScheme {
     HybridMlKem768Aes256Gcm,
     /// Hybrid ML-KEM-1024 + X25519 + HKDF-SHA256 + AES-256-GCM.
     HybridMlKem1024Aes256Gcm,
+    /// PQ-only ML-KEM-512 + HKDF-SHA256 + AES-256-GCM (no X25519).
+    PqMlKem512Aes256Gcm,
+    /// PQ-only ML-KEM-768 + HKDF-SHA256 + AES-256-GCM (no X25519).
+    PqMlKem768Aes256Gcm,
+    /// PQ-only ML-KEM-1024 + HKDF-SHA256 + AES-256-GCM (no X25519).
+    PqMlKem1024Aes256Gcm,
 }
 
 impl EncryptionScheme {
-    /// Returns `true` if this scheme requires a hybrid (asymmetric PQ) key.
+    /// Returns `true` if this scheme requires a hybrid (PQ + classical) key.
     #[must_use]
     pub const fn requires_hybrid_key(&self) -> bool {
         matches!(
@@ -121,25 +135,53 @@ impl EncryptionScheme {
         )
     }
 
+    /// Returns `true` if this scheme requires a PQ-only key (no classical component).
+    #[must_use]
+    pub const fn requires_pq_key(&self) -> bool {
+        matches!(
+            self,
+            Self::PqMlKem512Aes256Gcm | Self::PqMlKem768Aes256Gcm | Self::PqMlKem1024Aes256Gcm
+        )
+    }
+
     /// Returns `true` if this scheme uses a symmetric key.
     #[must_use]
     pub const fn requires_symmetric_key(&self) -> bool {
         matches!(self, Self::Aes256Gcm | Self::ChaCha20Poly1305)
     }
 
-    /// Returns the ML-KEM security level for hybrid schemes, or `None` for symmetric.
+    /// Returns the ML-KEM security level for hybrid or PQ-only schemes,
+    /// or `None` for symmetric.
     #[must_use]
     pub const fn ml_kem_level(&self) -> Option<MlKemSecurityLevel> {
         match self {
-            Self::HybridMlKem512Aes256Gcm => Some(MlKemSecurityLevel::MlKem512),
-            Self::HybridMlKem768Aes256Gcm => Some(MlKemSecurityLevel::MlKem768),
-            Self::HybridMlKem1024Aes256Gcm => Some(MlKemSecurityLevel::MlKem1024),
+            Self::HybridMlKem512Aes256Gcm | Self::PqMlKem512Aes256Gcm => {
+                Some(MlKemSecurityLevel::MlKem512)
+            }
+            Self::HybridMlKem768Aes256Gcm | Self::PqMlKem768Aes256Gcm => {
+                Some(MlKemSecurityLevel::MlKem768)
+            }
+            Self::HybridMlKem1024Aes256Gcm | Self::PqMlKem1024Aes256Gcm => {
+                Some(MlKemSecurityLevel::MlKem1024)
+            }
             Self::Aes256Gcm | Self::ChaCha20Poly1305 => None,
         }
     }
 
-    /// Returns the legacy string identifier for backward compatibility with
-    /// serialization and logging.
+    /// Convert a hybrid scheme to its PQ-only equivalent at the same NIST level.
+    ///
+    /// Returns `None` for symmetric or already-PQ-only schemes.
+    #[must_use]
+    pub const fn to_pq_equivalent(&self) -> Option<Self> {
+        match self {
+            Self::HybridMlKem512Aes256Gcm => Some(Self::PqMlKem512Aes256Gcm),
+            Self::HybridMlKem768Aes256Gcm => Some(Self::PqMlKem768Aes256Gcm),
+            Self::HybridMlKem1024Aes256Gcm => Some(Self::PqMlKem1024Aes256Gcm),
+            _ => None,
+        }
+    }
+
+    /// Returns the string identifier for serialization and logging.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
@@ -148,10 +190,13 @@ impl EncryptionScheme {
             Self::HybridMlKem512Aes256Gcm => "hybrid-ml-kem-512-aes-256-gcm",
             Self::HybridMlKem768Aes256Gcm => "hybrid-ml-kem-768-aes-256-gcm",
             Self::HybridMlKem1024Aes256Gcm => "hybrid-ml-kem-1024-aes-256-gcm",
+            Self::PqMlKem512Aes256Gcm => "pq-ml-kem-512-aes-256-gcm",
+            Self::PqMlKem768Aes256Gcm => "pq-ml-kem-768-aes-256-gcm",
+            Self::PqMlKem1024Aes256Gcm => "pq-ml-kem-1024-aes-256-gcm",
         }
     }
 
-    /// Parse a legacy scheme string into an `EncryptionScheme`.
+    /// Parse a scheme string into an `EncryptionScheme`.
     ///
     /// Returns `None` for unrecognized strings (e.g. signature schemes).
     #[must_use]
@@ -162,6 +207,9 @@ impl EncryptionScheme {
             "hybrid-ml-kem-512-aes-256-gcm" => Some(Self::HybridMlKem512Aes256Gcm),
             "hybrid-ml-kem-768-aes-256-gcm" => Some(Self::HybridMlKem768Aes256Gcm),
             "hybrid-ml-kem-1024-aes-256-gcm" => Some(Self::HybridMlKem1024Aes256Gcm),
+            "pq-ml-kem-512-aes-256-gcm" => Some(Self::PqMlKem512Aes256Gcm),
+            "pq-ml-kem-768-aes-256-gcm" => Some(Self::PqMlKem768Aes256Gcm),
+            "pq-ml-kem-1024-aes-256-gcm" => Some(Self::PqMlKem1024Aes256Gcm),
             _ => None,
         }
     }
@@ -181,9 +229,35 @@ impl fmt::Display for EncryptionScheme {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HybridComponents {
     /// ML-KEM ciphertext (1088 bytes for ML-KEM-768).
-    pub ml_kem_ciphertext: Vec<u8>,
-    /// X25519 ephemeral public key (32 bytes).
-    pub ecdh_ephemeral_pk: Vec<u8>,
+    ml_kem_ciphertext: Vec<u8>,
+    /// X25519 ephemeral public key (32 bytes). Empty for PQ-only schemes.
+    ecdh_ephemeral_pk: Vec<u8>,
+}
+
+impl HybridComponents {
+    /// Create new hybrid components from KEM ciphertext and ECDH ephemeral public key.
+    #[must_use]
+    pub fn new(ml_kem_ciphertext: Vec<u8>, ecdh_ephemeral_pk: Vec<u8>) -> Self {
+        Self { ml_kem_ciphertext, ecdh_ephemeral_pk }
+    }
+
+    /// Returns the ML-KEM ciphertext bytes.
+    #[must_use]
+    pub fn ml_kem_ciphertext(&self) -> &[u8] {
+        &self.ml_kem_ciphertext
+    }
+
+    /// Returns the X25519 ephemeral public key bytes. Empty for PQ-only schemes.
+    #[must_use]
+    pub fn ecdh_ephemeral_pk(&self) -> &[u8] {
+        &self.ecdh_ephemeral_pk
+    }
+
+    /// Consumes self and returns `(ml_kem_ciphertext, ecdh_ephemeral_pk)`.
+    #[must_use]
+    pub fn into_parts(self) -> (Vec<u8>, Vec<u8>) {
+        (self.ml_kem_ciphertext, self.ecdh_ephemeral_pk)
+    }
 }
 
 /// Unified encrypted output replacing both `EncryptedData` and `HybridEncryptionResult`.
@@ -194,8 +268,9 @@ pub struct HybridComponents {
 ///
 /// # Invariants
 ///
-/// - `scheme.requires_hybrid_key()` ↔ `hybrid_data.is_some()`
-/// - `scheme.requires_symmetric_key()` ↔ `hybrid_data.is_none()`
+/// - `scheme.requires_hybrid_key()` → `hybrid_data.is_some()` with non-empty ECDH key
+/// - `scheme.requires_pq_key()` → `hybrid_data.is_some()` with empty ECDH key (KEM ciphertext only)
+/// - `scheme.requires_symmetric_key()` → `hybrid_data.is_none()`
 /// - `nonce` is always 12 bytes (AES-GCM and ChaCha20-Poly1305 both use 96-bit nonces)
 /// - `tag` is always 16 bytes (both AEAD algorithms produce 128-bit tags)
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -229,6 +304,12 @@ impl EncryptedOutput {
         timestamp: u64,
         key_id: Option<String>,
     ) -> Self {
+        // Enforce PQ-only invariant: ecdh_ephemeral_pk must be empty
+        debug_assert!(
+            !scheme.requires_pq_key()
+                || hybrid_data.as_ref().is_some_and(|h| h.ecdh_ephemeral_pk.is_empty()),
+            "PQ-only scheme must have hybrid_data with empty ecdh_ephemeral_pk"
+        );
         Self { scheme, ciphertext, nonce, tag, hybrid_data, timestamp, key_id }
     }
 
@@ -352,6 +433,9 @@ mod tests {
             EncryptionScheme::HybridMlKem512Aes256Gcm,
             EncryptionScheme::HybridMlKem768Aes256Gcm,
             EncryptionScheme::HybridMlKem1024Aes256Gcm,
+            EncryptionScheme::PqMlKem512Aes256Gcm,
+            EncryptionScheme::PqMlKem768Aes256Gcm,
+            EncryptionScheme::PqMlKem1024Aes256Gcm,
         ];
         for scheme in &schemes {
             let s = scheme.as_str();
@@ -373,13 +457,22 @@ mod tests {
     fn test_encryption_scheme_requires_key_type_succeeds() {
         assert!(EncryptionScheme::Aes256Gcm.requires_symmetric_key());
         assert!(!EncryptionScheme::Aes256Gcm.requires_hybrid_key());
+        assert!(!EncryptionScheme::Aes256Gcm.requires_pq_key());
         assert!(EncryptionScheme::ChaCha20Poly1305.requires_symmetric_key());
         assert!(!EncryptionScheme::ChaCha20Poly1305.requires_hybrid_key());
 
         assert!(!EncryptionScheme::HybridMlKem768Aes256Gcm.requires_symmetric_key());
         assert!(EncryptionScheme::HybridMlKem768Aes256Gcm.requires_hybrid_key());
+        assert!(!EncryptionScheme::HybridMlKem768Aes256Gcm.requires_pq_key());
         assert!(EncryptionScheme::HybridMlKem512Aes256Gcm.requires_hybrid_key());
         assert!(EncryptionScheme::HybridMlKem1024Aes256Gcm.requires_hybrid_key());
+
+        // PQ-only schemes
+        assert!(EncryptionScheme::PqMlKem512Aes256Gcm.requires_pq_key());
+        assert!(EncryptionScheme::PqMlKem768Aes256Gcm.requires_pq_key());
+        assert!(EncryptionScheme::PqMlKem1024Aes256Gcm.requires_pq_key());
+        assert!(!EncryptionScheme::PqMlKem768Aes256Gcm.requires_hybrid_key());
+        assert!(!EncryptionScheme::PqMlKem768Aes256Gcm.requires_symmetric_key());
     }
 
     #[test]
@@ -427,6 +520,48 @@ mod tests {
         };
         assert!(output.hybrid_data.is_some());
         assert!(output.scheme.requires_hybrid_key());
+    }
+
+    #[test]
+    fn test_encrypted_output_pq_only_invariant_succeeds() {
+        let output = EncryptedOutput {
+            scheme: EncryptionScheme::PqMlKem768Aes256Gcm,
+            ciphertext: vec![0xAA; 32],
+            nonce: vec![0u8; 12],
+            tag: vec![0xBB; 16],
+            hybrid_data: Some(HybridComponents {
+                ml_kem_ciphertext: vec![0xCC; 1088],
+                ecdh_ephemeral_pk: vec![], // PQ-only: empty ECDH key
+            }),
+            timestamp: 1700000002,
+            key_id: None,
+        };
+        assert!(output.scheme.requires_pq_key());
+        assert!(!output.scheme.requires_hybrid_key());
+        assert!(output.hybrid_data.is_some());
+        // PQ-only invariant: ECDH key must be empty
+        assert!(output.hybrid_data.as_ref().unwrap().ecdh_ephemeral_pk.is_empty());
+    }
+
+    #[test]
+    fn test_encrypted_output_pq_only_to_legacy_roundtrip() {
+        let output = EncryptedOutput::new(
+            EncryptionScheme::PqMlKem768Aes256Gcm,
+            vec![0xDE, 0xAD],
+            vec![0u8; 12],
+            vec![0xAA; 16],
+            Some(HybridComponents {
+                ml_kem_ciphertext: vec![0xCC; 1088],
+                ecdh_ephemeral_pk: vec![],
+            }),
+            1700000000,
+            Some("pq-key-001".to_string()),
+        );
+        // Convert to legacy EncryptedData and back
+        let legacy: EncryptedData = output.into();
+        assert_eq!(legacy.scheme, "pq-ml-kem-768-aes-256-gcm");
+        let restored = EncryptedOutput::try_from(legacy).unwrap();
+        assert_eq!(restored.scheme(), &EncryptionScheme::PqMlKem768Aes256Gcm);
     }
 
     #[test]

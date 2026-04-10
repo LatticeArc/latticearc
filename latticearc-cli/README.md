@@ -139,7 +139,7 @@ latticearc-cli keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
 | `standard` | NIST Level 1 (128-bit equivalent) |
 | `high` | NIST Level 3 (192-bit, **default**) |
 | `maximum` | NIST Level 5 (256-bit) |
-| `quantum` | NIST Level 5, PQ-only (no classical hybrid, CNSA 2.0) |
+| `quantum` | *Deprecated* — use `maximum` + `--mode pq-only` instead |
 
 **Expert algorithms** (12 available):
 
@@ -149,7 +149,7 @@ latticearc-cli keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
 | `ml-kem512/768/1024` | KEM | FIPS 203 |
 | `ml-dsa44/65/87` | Signature | FIPS 204 |
 | `slh-dsa128s` | Signature | FIPS 205 |
-| `fn-dsa512` | Signature | FIPS 206 |
+| `fn-dsa512` | Signature | draft FIPS 206 |
 | `ed25519` | Signature | RFC 8032 |
 | `hybrid` | KEM | FIPS 203 + X25519 |
 | `hybrid-sign` | Signature | FIPS 204 + RFC 8032 |
@@ -247,7 +247,7 @@ latticearc-cli encrypt --use-case <USE_CASE> --input <FILE> --key <KEY_FILE> [--
 latticearc-cli encrypt --mode <MODE> --input <FILE> --key <KEY_FILE> [--output <FILE>]
 ```
 
-**Modes:** `aes256-gcm` (symmetric, SP 800-38D), `hybrid` (ML-KEM-768 + X25519 + AES-256-GCM), `chacha20-poly1305` (symmetric, RFC 8439)
+**Modes:** `aes256-gcm` (symmetric, SP 800-38D), `hybrid` (ML-KEM-768 + X25519 + AES-256-GCM), `pq-only` (ML-KEM + AES-256-GCM, CNSA 2.0), `chacha20-poly1305` (symmetric, RFC 8439)
 
 **Examples:**
 
@@ -262,6 +262,12 @@ latticearc-cli keygen --algorithm hybrid --output ./keys
 latticearc-cli encrypt --mode hybrid --key keys/hybrid-kem.pub.json \
   --input secret-report.pdf \
   --output secret-report.enc.json
+
+# PQ-only encryption (CNSA 2.0 — no classical component)
+latticearc-cli keygen --algorithm ml-kem768 --output ./keys
+latticearc-cli encrypt --mode pq-only --key keys/ml-kem-768.pub.json \
+  --input classified.pdf \
+  --output classified.enc.json
 ```
 
 ### `decrypt` — Decrypt Data
@@ -528,7 +534,7 @@ enforced by our test suite (83 tests, all passing).
 | Algorithm | Standard | Public Key | Secret Key | Signature |
 |-----------|----------|------------|------------|-----------|
 | SLH-DSA-SHAKE-128s | FIPS 205 | 32 B | 64 B | 7,856 B |
-| FN-DSA-512 | FIPS 206 | 897 B | 1,281 B | ~666 B (variable) |
+| FN-DSA-512 | draft FIPS 206 | 897 B | 1,281 B | ~666 B (variable) |
 | Ed25519 | RFC 8032 | 32 B | 32 B | 64 B |
 
 **Key Encapsulation (FIPS 203 — ML-KEM):**

@@ -185,6 +185,8 @@ impl Histogram {
     }
 
     /// Calculate statistics for the collected samples
+    // Statistical calculations require float casting and modular arithmetic
+    // that cannot overflow on timing sample values (nanosecond durations).
     #[allow(clippy::arithmetic_side_effects)]
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_precision_loss)]
@@ -268,6 +270,7 @@ impl Histogram {
     }
 
     /// Calculate a specific percentile
+    // Float ↔ integer casting for percentile index computation on sample arrays
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_precision_loss)]
     #[allow(clippy::cast_sign_loss)]
@@ -308,7 +311,7 @@ impl MetricsCollector {
     }
 
     /// Record a single operation timing
-    #[allow(clippy::arithmetic_side_effects)]
+    #[allow(clippy::arithmetic_side_effects)] // Histogram bucket indexing on bounded duration values
     pub fn record_operation(&self, name: &str, duration: Duration) {
         if let Ok(mut histograms) = self.histograms.lock() {
             histograms

@@ -4211,3 +4211,146 @@ fn test_ml_dsa_signature_randomized_succeeds() {
         "[PROOF] {{\"test\": \"ml_dsa_signature_randomized\", \"category\": \"nist-conformance\", \"standard\": \"FIPS 204\", \"algorithm\": \"ML-DSA-65\", \"both_verify\": true, \"signatures_differ\": {sigs_differ}, \"hedged_signing\": true}}"
     );
 }
+
+// ============================================================================
+// S33: PQ-Only Encryption CLI Tests
+// ============================================================================
+
+/// PQ-only encrypt/decrypt roundtrip at ML-KEM-768 via CLI.
+#[test]
+fn test_cli_pq_only_encrypt_decrypt_roundtrip_succeeds() {
+    let dir = temp_dir();
+    let d = dir.path().to_str().unwrap();
+
+    // Generate ML-KEM-768 keypair (PQ-only, no hybrid)
+    run_ok(&["keygen", "--algorithm", "ml-kem768", "--output", d]);
+
+    let pk_path = dir.path().join("ml-kem-768.pub.json");
+    let sk_path = dir.path().join("ml-kem-768.sec.json");
+    assert!(pk_path.exists(), "ML-KEM-768 public key should exist");
+    assert!(sk_path.exists(), "ML-KEM-768 secret key should exist");
+
+    // Write plaintext
+    let plaintext = "PQ-only CLI encryption test data";
+    let input_path = dir.path().join("input.txt");
+    std::fs::write(&input_path, plaintext).unwrap();
+
+    let enc_path = dir.path().join("encrypted.json");
+
+    // Encrypt with --mode pq-only
+    run_ok(&[
+        "encrypt",
+        "--mode",
+        "pq-only",
+        "--key",
+        pk_path.to_str().unwrap(),
+        "--input",
+        input_path.to_str().unwrap(),
+        "--output",
+        enc_path.to_str().unwrap(),
+    ]);
+    assert!(enc_path.exists(), "Encrypted file should exist");
+
+    let dec_path = dir.path().join("decrypted.txt");
+
+    // Decrypt
+    run_ok(&[
+        "decrypt",
+        "--key",
+        sk_path.to_str().unwrap(),
+        "--input",
+        enc_path.to_str().unwrap(),
+        "--output",
+        dec_path.to_str().unwrap(),
+    ]);
+
+    let decrypted = std::fs::read_to_string(&dec_path).unwrap();
+    assert_eq!(decrypted, plaintext, "Decrypted data must match original");
+
+    println!(
+        "[PROOF] {{\"test\": \"cli_pq_only_roundtrip\", \"category\": \"cli-e2e\", \
+         \"algorithm\": \"ML-KEM-768\", \"mode\": \"pq-only\", \"result\": \"MATCH\"}}"
+    );
+}
+
+/// PQ-only encrypt with symmetric key file should fail.
+#[test]
+fn test_cli_pq_only_wrong_key_type_fails() {
+    let dir = temp_dir();
+    let d = dir.path().to_str().unwrap();
+
+    // Generate symmetric key
+    run_ok(&["keygen", "--algorithm", "aes256", "--output", d]);
+    let sym_key = dir.path().join("aes256.key.json");
+
+    let input_path = dir.path().join("input.txt");
+    std::fs::write(&input_path, "test").unwrap();
+
+    // Try PQ-only encrypt with symmetric key — should fail
+    let stderr = run_fail(&[
+        "encrypt",
+        "--mode",
+        "pq-only",
+        "--key",
+        sym_key.to_str().unwrap(),
+        "--input",
+        input_path.to_str().unwrap(),
+    ]);
+    assert!(
+        stderr.contains("public key") || stderr.contains("Public"),
+        "Error should mention needing a public key, got: {stderr}"
+    );
+}
+
+/// PQ-only encrypt at all 3 ML-KEM levels.
+#[test]
+fn test_cli_pq_only_all_levels_roundtrip_succeeds() {
+    for (algo, pk_name, sk_name) in [
+        ("ml-kem512", "ml-kem-512.pub.json", "ml-kem-512.sec.json"),
+        ("ml-kem768", "ml-kem-768.pub.json", "ml-kem-768.sec.json"),
+        ("ml-kem1024", "ml-kem-1024.pub.json", "ml-kem-1024.sec.json"),
+    ] {
+        let dir = temp_dir();
+        let d = dir.path().to_str().unwrap();
+
+        run_ok(&["keygen", "--algorithm", algo, "--output", d]);
+
+        let pk_path = dir.path().join(pk_name);
+        let sk_path = dir.path().join(sk_name);
+
+        let input_path = dir.path().join("input.txt");
+        std::fs::write(&input_path, format!("PQ-only {algo} test")).unwrap();
+
+        let enc_path = dir.path().join("enc.json");
+        run_ok(&[
+            "encrypt",
+            "--mode",
+            "pq-only",
+            "--key",
+            pk_path.to_str().unwrap(),
+            "--input",
+            input_path.to_str().unwrap(),
+            "--output",
+            enc_path.to_str().unwrap(),
+        ]);
+
+        let dec_path = dir.path().join("dec.txt");
+        run_ok(&[
+            "decrypt",
+            "--key",
+            sk_path.to_str().unwrap(),
+            "--input",
+            enc_path.to_str().unwrap(),
+            "--output",
+            dec_path.to_str().unwrap(),
+        ]);
+
+        let decrypted = std::fs::read_to_string(&dec_path).unwrap();
+        assert_eq!(decrypted, format!("PQ-only {algo} test"));
+
+        println!(
+            "[PROOF] {{\"test\": \"cli_pq_only_{algo}\", \"category\": \"cli-e2e\", \
+             \"result\": \"MATCH\"}}"
+        );
+    }
+}

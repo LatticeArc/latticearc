@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Coverage tests for the unified encrypt/decrypt/sign_with_key/verify API
 //! in arc-core/src/convenience/api.rs. Exercises different CryptoConfig
 //! selections (UseCase, SecurityLevel) to hit uncovered scheme branches.

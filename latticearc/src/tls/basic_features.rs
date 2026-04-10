@@ -519,6 +519,7 @@ pub fn get_config_info(config: &TlsConfig) -> String {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 #[allow(clippy::expect_used)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::unified_api::SecurityLevel;

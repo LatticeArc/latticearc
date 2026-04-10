@@ -26,7 +26,7 @@ extension points for enterprise features.
 
 Keys are identified by **use case** or **security level** — mirroring how the
 library's API works. Users pick a use case (`FileStorage`, `SecureMessaging`) or
-a security level (`Standard`, `High`, `Maximum`, `Quantum`), and the library's
+a security level (`Standard`, `High`, `Maximum`), and the library's
 policy engine selects the optimal algorithm. At least one must be present.
 
 If both are set, **security level takes precedence** for algorithm resolution
@@ -241,7 +241,7 @@ CBOR is the recommended format for:
 |-------|------|----------|-------------|
 | `version` | `u32` | Yes | Format version. Currently `1`. |
 | `use_case` | `UseCase` | At least one of `use_case` or `security_level` | Use case that determined algorithm selection. |
-| `security_level` | `SecurityLevel` | At least one of `use_case` or `security_level` | NIST security level (`standard`, `high`, `maximum`, `quantum`). Takes precedence if both present. |
+| `security_level` | `SecurityLevel` | At least one of `use_case` or `security_level` | NIST security level (`standard`, `high`, `maximum`). `quantum` is deprecated since 0.6.0 — use `maximum` with `CryptoMode::PqOnly`. Takes precedence if both present. |
 | `algorithm` | `KeyAlgorithm` | Yes (auto-derived) | Resolved algorithm. Auto-populated from `use_case`/`security_level`. Stored for version-stability. |
 | `key_type` | `KeyType` | Yes | `"public"`, `"secret"`, or `"symmetric"`. |
 | `key_data` | `KeyData` | Yes | Key material — single (`raw`) or composite (`pq` + `classical`). |
@@ -262,7 +262,11 @@ CBOR is the recommended format for:
 | `standard` | `hybrid-ml-kem-512-x25519` | Level 1 (128-bit) |
 | `high` | `hybrid-ml-kem-768-x25519` | Level 3 (192-bit) |
 | `maximum` | `hybrid-ml-kem-1024-x25519` | Level 5 (256-bit) |
-| `quantum` | `ml-kem-1024` | Level 5 (PQ-only, CNSA 2.0) |
+| `quantum` (deprecated) | `ml-kem-1024` | Level 5 (PQ-only) — use `maximum` + `CryptoMode::PqOnly` |
+
+> **PQ-only keys (0.6.0+):** When `CryptoMode::PqOnly` is used, the resolved algorithm
+> is `ml-kem-512`, `ml-kem-768`, or `ml-kem-1024` (no X25519 component). The key format
+> uses `KeyData::Single` (not `Composite`) since there is no classical key component.
 
 ### UseCase → Algorithm
 
@@ -297,12 +301,12 @@ CBOR is the recommended format for:
 | `slh-dsa-shake-128s` | FIPS 205 | 32 B | 64 B |
 | `slh-dsa-shake-256f` | FIPS 205 | 64 B | 128 B |
 
-### Lattice Signatures (FIPS 206)
+### Lattice Signatures (draft FIPS 206)
 
 | Identifier | Standard | PK Size | SK Size |
 |------------|----------|---------|---------|
-| `fn-dsa-512` | FIPS 206 | 897 B | 1,281 B |
-| `fn-dsa-1024` | FIPS 206 | 1,793 B | 2,305 B |
+| `fn-dsa-512` | draft FIPS 206 | 897 B | 1,281 B |
+| `fn-dsa-1024` | draft FIPS 206 | 1,793 B | 2,305 B |
 
 ### Classical
 
@@ -416,7 +420,7 @@ key.set_metadata("compliance".into(), serde_json::json!("FIPS-140-3"));
 | FIPS 203 (ML-KEM) | Algorithm parameter sets, key sizes |
 | FIPS 204 (ML-DSA) | Algorithm parameter sets, key sizes |
 | FIPS 205 (SLH-DSA) | Algorithm parameter sets |
-| FIPS 206 (FN-DSA) | Algorithm parameter sets |
+| draft FIPS 206 (FN-DSA) | Algorithm parameter sets |
 | RFC 8949 (CBOR) | Binary serialization format |
 | RFC 9881 (ML-DSA in X.509) | OIDs, seed-only private key format |
 | RFC 9935 (ML-KEM in X.509) | OIDs, seed-only private key format |

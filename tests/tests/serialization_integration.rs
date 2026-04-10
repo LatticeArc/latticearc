@@ -610,16 +610,14 @@ fn test_serializable_keypair_from_keypair_succeeds() {
 
     let serializable = SerializableKeyPair::from(&keypair);
 
-    assert_eq!(serializable.public_key, BASE64_ENGINE.encode(b"public"));
-    assert_eq!(serializable.private_key, BASE64_ENGINE.encode(b"private"));
+    assert_eq!(serializable.public_key(), BASE64_ENGINE.encode(b"public"));
+    assert_eq!(serializable.private_key(), BASE64_ENGINE.encode(b"private"));
 }
 
 #[test]
 fn test_keypair_from_serializable_succeeds() {
-    let serializable = SerializableKeyPair {
-        public_key: BASE64_ENGINE.encode(b"public"),
-        private_key: BASE64_ENGINE.encode(b"private"),
-    };
+    let serializable =
+        SerializableKeyPair::new(BASE64_ENGINE.encode(b"public"), BASE64_ENGINE.encode(b"private"));
 
     let keypair: KeyPair = serializable.try_into().expect("conversion should succeed");
 
