@@ -9,7 +9,7 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
@@ -325,6 +325,10 @@ tracing-appender = { version = "0.2" }
 
 # CLI
 clap = { version = "4.6", features = ["derive", "env", "wrap_help"] }
+# Secure password prompt — reads without echo. Used by `latticearc-cli` for
+# passphrase-based key protection. Transitively depends on `libc` (Unix) /
+# `windows-sys` (Windows); `libc` is already allowed via aws-lc-sys.
+rpassword = { version = "7.4" }
 
 # Common utilities
 parking_lot = { version = "0.12.5" }

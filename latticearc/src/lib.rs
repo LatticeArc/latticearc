@@ -9,11 +9,15 @@
 //! all 4 NIST standards (FIPS 203–206), post-quantum TLS, and FIPS 140-3 backend
 //! — one crate, zero unsafe.
 //!
-//! > **IMPORTANT**: LatticeArc is NOT FIPS 140-3 certified. Only the aws-lc-rs
-//! > backend algorithms (ML-KEM, AES-GCM, HKDF, SHA-2) run through a FIPS 140-3
-//! > validated module. ML-DSA (fips204), SLH-DSA (fips205), and FN-DSA (fn-dsa)
-//! > implement NIST-standard algorithms but use non-validated crate implementations.
-//! > Use `--features fips` to enable the validated aws-lc-rs backend.
+//! > **IMPORTANT — FIPS terminology:** this crate distinguishes *algorithm
+//! > conformance* (implementing the NIST specs FIPS 203/204/205/206) from
+//! > *module validation* (FIPS 140-3 CMVP certification of a cryptographic
+//! > module). LatticeArc implements the algorithms for all four standards but
+//! > is **not itself CMVP-validated**. With `--features fips`, AES-GCM,
+//! > ML-KEM, HKDF, and SHA-2 are routed through the FIPS 140-3 validated
+//! > aws-lc-rs backend. ML-DSA (`fips204`), SLH-DSA (`fips205`), and FN-DSA
+//! > (`fn-dsa`) are NIST-conformant but use non-validated crate
+//! > implementations regardless of feature flags.
 //!
 //! ## Why LatticeArc?
 //!

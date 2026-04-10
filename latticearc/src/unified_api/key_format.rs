@@ -64,6 +64,30 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
 /// Metadata key for the ML-KEM public key stored in hybrid secret key files.
 /// Used in `from_hybrid_kem_keypair` (write) and `to_hybrid_secret_key` (read).
 const ML_KEM_PK_METADATA_KEY: &str = "ml_kem_pk";
+
+// --- Passphrase-encryption envelope constants (LPK v1 encrypted variant) ---
+
+/// Current version of the encrypted-key envelope schema.
+const ENCRYPTED_ENVELOPE_VERSION: u32 = 1;
+/// KDF identifier for the encrypted-key envelope.
+const PBKDF2_KDF_ID: &str = "PBKDF2-HMAC-SHA256";
+/// AEAD identifier for the encrypted-key envelope.
+const AES_GCM_AEAD_ID: &str = "AES-256-GCM";
+/// PBKDF2 default iteration count (OWASP 2023 recommendation for HMAC-SHA256).
+const PBKDF2_DEFAULT_ITERATIONS: u32 = 600_000;
+/// PBKDF2 minimum iteration count accepted when loading an encrypted key.
+const PBKDF2_MIN_ITERATIONS: u32 = 100_000;
+/// PBKDF2 salt length in bytes (SP 800-132 recommends ≥ 16).
+const PBKDF2_SALT_LEN: usize = 16;
+/// PBKDF2 minimum salt length accepted when loading an encrypted key.
+const PBKDF2_MIN_SALT_LEN: usize = 16;
+/// AES-256-GCM nonce length in bytes (NIST SP 800-38D).
+const AES_GCM_NONCE_LEN: usize = 12;
+/// AES-256-GCM tag length in bytes.
+const AES_GCM_TAG_LEN: usize = 16;
+/// AES-256 key length in bytes.
+const AES_256_KEY_LEN: usize = 32;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
@@ -221,6 +245,55 @@ impl KeyAlgorithm {
                 | Self::HybridMlDsa87Ed25519
         )
     }
+
+    /// Canonical wire name for this algorithm.
+    ///
+    /// This is the same value that the serde `rename` attributes emit for
+    /// each variant. Used by the passphrase-encrypted-key AAD construction,
+    /// which needs a stable `&str` independent of serde's JSON-encoding
+    /// rules. **Load-bearing for encrypted key files** — changing the
+    /// returned string breaks every existing encrypted key file. A pinned
+    /// byte-level test (`test_key_algorithm_canonical_name_matches_serde`)
+    /// guards this against drift from the serde attribute values.
+    #[must_use]
+    pub fn canonical_name(self) -> &'static str {
+        match self {
+            Self::MlKem512 => "ml-kem-512",
+            Self::MlKem768 => "ml-kem-768",
+            Self::MlKem1024 => "ml-kem-1024",
+            Self::MlDsa44 => "ml-dsa-44",
+            Self::MlDsa65 => "ml-dsa-65",
+            Self::MlDsa87 => "ml-dsa-87",
+            Self::SlhDsaShake128s => "slh-dsa-shake-128s",
+            Self::SlhDsaShake256f => "slh-dsa-shake-256f",
+            Self::FnDsa512 => "fn-dsa-512",
+            Self::FnDsa1024 => "fn-dsa-1024",
+            Self::Ed25519 => "ed25519",
+            Self::X25519 => "x25519",
+            Self::Aes256 => "aes-256",
+            Self::ChaCha20 => "chacha20",
+            Self::HybridMlKem768X25519 => "hybrid-ml-kem-768-x25519",
+            Self::HybridMlKem512X25519 => "hybrid-ml-kem-512-x25519",
+            Self::HybridMlKem1024X25519 => "hybrid-ml-kem-1024-x25519",
+            Self::HybridMlDsa65Ed25519 => "hybrid-ml-dsa-65-ed25519",
+            Self::HybridMlDsa44Ed25519 => "hybrid-ml-dsa-44-ed25519",
+            Self::HybridMlDsa87Ed25519 => "hybrid-ml-dsa-87-ed25519",
+        }
+    }
+}
+
+impl KeyType {
+    /// Canonical wire name for this key type — matches the serde
+    /// `rename_all = "lowercase"` output. Load-bearing for encrypted
+    /// key files; see [`KeyAlgorithm::canonical_name`].
+    #[must_use]
+    pub fn canonical_name(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Secret => "secret",
+            Self::Symmetric => "symmetric",
+        }
+    }
 }
 
 // ============================================================================
@@ -244,17 +317,52 @@ pub enum KeyType {
 // KeyData
 // ============================================================================
 
-/// Key material container — single or composite (hybrid).
+/// Key material container — single, composite (hybrid), or passphrase-encrypted.
 ///
 /// In JSON: uses base64-encoded strings.
 /// In CBOR: uses raw byte strings (`bstr`) — no base64 encoding.
 ///
-/// Uses untagged serde: a single `"raw"` field indicates a single key,
-/// while `"pq"` + `"classical"` indicates a composite hybrid key.
+/// Uses untagged serde. Variants are disambiguated by their field names:
+/// `"enc"` (with KDF metadata) → [`KeyData::Encrypted`], `"raw"` → [`KeyData::Single`],
+/// `"pq"` + `"classical"` → [`KeyData::Composite`]. `Encrypted` is listed first
+/// so serde matches it before falling back to Single/Composite.
 #[non_exhaustive]
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum KeyData {
+    /// Passphrase-encrypted key material.
+    ///
+    /// The inner `KeyData` (`Single` or `Composite`) is serialized to JSON and
+    /// then encrypted with AES-256-GCM using a key derived from a user
+    /// passphrase via PBKDF2-HMAC-SHA256 (SP 800-132). Layout:
+    ///
+    /// 1. Derive 32-byte AES key: `PBKDF2-HMAC-SHA256(passphrase, salt, iters)`
+    /// 2. Serialize plaintext `KeyData` to JSON bytes
+    /// 3. Encrypt JSON bytes with AES-256-GCM using a fresh random nonce.
+    ///    AAD binds every envelope field (version, algorithm, key_type,
+    ///    KDF name, iteration count, salt, AEAD name) plus the enclosing
+    ///    `PortableKey`'s `algorithm` and `key_type`, so tampering with
+    ///    any metadata on disk causes AEAD authentication to fail.
+    /// 4. Store KDF params, nonce, and `ciphertext || tag` base64-encoded
+    ///
+    /// Format version `1` fixes the algorithm choices to
+    /// `PBKDF2-HMAC-SHA256` + `AES-256-GCM`; future versions may add alternatives.
+    Encrypted {
+        /// Envelope format version (currently `1`).
+        enc: u32,
+        /// KDF identifier (currently `"PBKDF2-HMAC-SHA256"`).
+        kdf: String,
+        /// PBKDF2 iteration count (recommended ≥ 600_000 per OWASP 2023).
+        kdf_iterations: u32,
+        /// Base64-encoded PBKDF2 salt (16 bytes recommended).
+        kdf_salt: String,
+        /// AEAD identifier (currently `"AES-256-GCM"`).
+        aead: String,
+        /// Base64-encoded AES-GCM nonce (12 bytes).
+        nonce: String,
+        /// Base64-encoded `ciphertext || tag` (tag is the trailing 16 bytes).
+        ciphertext: String,
+    },
     /// Single-component key (e.g., ML-KEM public key, AES symmetric key).
     Single {
         /// Base64-encoded key bytes (JSON) or raw bytes (CBOR).
@@ -278,6 +386,16 @@ impl std::fmt::Debug for KeyData {
                 .field("pq", &"[...]")
                 .field("classical", &"[...]")
                 .finish(),
+            Self::Encrypted { enc, kdf, kdf_iterations, aead, .. } => f
+                .debug_struct("Encrypted")
+                .field("enc", enc)
+                .field("kdf", kdf)
+                .field("kdf_iterations", kdf_iterations)
+                .field("aead", aead)
+                .field("kdf_salt", &"[...]")
+                .field("nonce", &"[...]")
+                .field("ciphertext", &"[REDACTED]")
+                .finish(),
         }
     }
 }
@@ -292,12 +410,19 @@ impl Drop for KeyData {
                 pq.zeroize();
                 classical.zeroize();
             }
+            Self::Encrypted { ciphertext, nonce, kdf_salt, .. } => {
+                // The ciphertext is already encrypted, but zeroize the base64
+                // string residue anyway so nothing lingers in memory.
+                ciphertext.zeroize();
+                nonce.zeroize();
+                kdf_salt.zeroize();
+            }
         }
     }
 }
 
 impl KeyData {
-    /// Decode the single raw key bytes (returns error if composite).
+    /// Decode the single raw key bytes (returns error if composite or encrypted).
     ///
     /// # Security
     ///
@@ -307,7 +432,8 @@ impl KeyData {
     /// [`decode_raw_zeroized`](Self::decode_raw_zeroized) for secret key data.
     ///
     /// # Errors
-    /// Returns an error if this is a composite key or Base64 decoding fails.
+    /// Returns an error if this is a composite key, the key is passphrase-encrypted
+    /// (call [`PortableKey::decrypt_with_passphrase`] first), or Base64 decoding fails.
     pub fn decode_raw(&self) -> Result<Vec<u8>> {
         match self {
             Self::Single { raw } => BASE64_ENGINE
@@ -315,6 +441,10 @@ impl KeyData {
                 .map_err(|e| CoreError::SerializationError(format!("Invalid key base64: {e}"))),
             Self::Composite { .. } => Err(CoreError::InvalidKey(
                 "Expected single key data but found composite".to_string(),
+            )),
+            Self::Encrypted { .. } => Err(CoreError::InvalidKey(
+                "Key is passphrase-encrypted; call PortableKey::decrypt_with_passphrase first"
+                    .to_string(),
             )),
         }
     }
@@ -331,7 +461,7 @@ impl KeyData {
         self.decode_raw().map(zeroize::Zeroizing::new)
     }
 
-    /// Decode composite key components (returns error if single).
+    /// Decode composite key components (returns error if single or encrypted).
     ///
     /// # Security
     ///
@@ -342,7 +472,8 @@ impl KeyData {
     /// secret key data.
     ///
     /// # Errors
-    /// Returns an error if this is a single key or Base64 decoding fails.
+    /// Returns an error if this is a single key, the key is passphrase-encrypted
+    /// (call [`PortableKey::decrypt_with_passphrase`] first), or Base64 decoding fails.
     pub fn decode_composite(&self) -> Result<(Vec<u8>, Vec<u8>)> {
         match self {
             Self::Composite { pq, classical } => {
@@ -356,6 +487,10 @@ impl KeyData {
             }
             Self::Single { .. } => Err(CoreError::InvalidKey(
                 "Expected composite key data but found single".to_string(),
+            )),
+            Self::Encrypted { .. } => Err(CoreError::InvalidKey(
+                "Key is passphrase-encrypted; call PortableKey::decrypt_with_passphrase first"
+                    .to_string(),
             )),
         }
     }
@@ -525,7 +660,9 @@ impl std::fmt::Debug for PortableKey {
 impl subtle::ConstantTimeEq for PortableKey {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
         // Constant-time comparison of key data to prevent timing side-channels
-        // when comparing secret or symmetric keys.
+        // when comparing secret or symmetric keys. Encrypted variants are not
+        // compared by content — their ciphertexts are not directly meaningful
+        // (different nonces → different ciphertexts for the same plaintext).
         match (&self.key_data, &other.key_data) {
             (KeyData::Single { raw: a }, KeyData::Single { raw: b }) => {
                 a.as_bytes().ct_eq(b.as_bytes())
@@ -1363,7 +1500,7 @@ impl PortableKey {
             )));
         }
 
-        // Hybrid ↔ composite key data
+        // Hybrid ↔ composite key data (encrypted variant is opaque — skip this check).
         match (&self.key_data, self.algorithm.is_hybrid()) {
             (KeyData::Composite { .. }, false) => {
                 return Err(CoreError::InvalidKey(format!(
@@ -1380,7 +1517,7 @@ impl PortableKey {
             _ => {}
         }
 
-        // Verify base64 decodes
+        // Verify base64 decodes / envelope shape
         match &self.key_data {
             KeyData::Single { raw } => {
                 let _ = BASE64_ENGINE
@@ -1395,9 +1532,375 @@ impl PortableKey {
                     CoreError::SerializationError(format!("Invalid classical base64: {e}"))
                 })?;
             }
+            KeyData::Encrypted { enc, kdf, kdf_iterations, kdf_salt, aead, nonce, ciphertext } => {
+                Self::validate_encrypted_envelope_fields(
+                    *enc,
+                    kdf,
+                    *kdf_iterations,
+                    kdf_salt,
+                    aead,
+                    nonce,
+                    ciphertext,
+                )?;
+            }
         }
 
         Ok(())
+    }
+
+    /// Validate an encrypted-envelope's metadata and base64-decodable sizes.
+    ///
+    /// Shared between [`Self::validate`] (which rejects malformed keys at
+    /// load time) and [`Self::decrypt_with_passphrase`] (which uses this to
+    /// defend against direct construction of an unvalidated encrypted
+    /// variant). Does not verify the AEAD tag — that happens in
+    /// `decrypt_with_passphrase` after key derivation.
+    fn validate_encrypted_envelope_fields(
+        enc: u32,
+        kdf: &str,
+        kdf_iterations: u32,
+        kdf_salt: &str,
+        aead: &str,
+        nonce: &str,
+        ciphertext: &str,
+    ) -> Result<()> {
+        if enc != ENCRYPTED_ENVELOPE_VERSION {
+            return Err(CoreError::InvalidKey(format!(
+                "Unsupported encrypted key envelope version {enc}, expected {ENCRYPTED_ENVELOPE_VERSION}",
+            )));
+        }
+        if kdf != PBKDF2_KDF_ID {
+            return Err(CoreError::InvalidKey(format!(
+                "Unsupported KDF {kdf:?}, expected {PBKDF2_KDF_ID:?}",
+            )));
+        }
+        if aead != AES_GCM_AEAD_ID {
+            return Err(CoreError::InvalidKey(format!(
+                "Unsupported AEAD {aead:?}, expected {AES_GCM_AEAD_ID:?}",
+            )));
+        }
+        if kdf_iterations < PBKDF2_MIN_ITERATIONS {
+            return Err(CoreError::InvalidKey(format!(
+                "PBKDF2 iteration count {kdf_iterations} below minimum {PBKDF2_MIN_ITERATIONS}",
+            )));
+        }
+        let salt = BASE64_ENGINE
+            .decode(kdf_salt)
+            .map_err(|e| CoreError::SerializationError(format!("Invalid KDF salt base64: {e}")))?;
+        if salt.len() < PBKDF2_MIN_SALT_LEN {
+            return Err(CoreError::InvalidKey(format!(
+                "PBKDF2 salt length {} below minimum {PBKDF2_MIN_SALT_LEN}",
+                salt.len(),
+            )));
+        }
+        let nonce_bytes = BASE64_ENGINE
+            .decode(nonce)
+            .map_err(|e| CoreError::SerializationError(format!("Invalid nonce base64: {e}")))?;
+        if nonce_bytes.len() != AES_GCM_NONCE_LEN {
+            return Err(CoreError::InvalidKey(format!(
+                "AES-GCM nonce length {} != {AES_GCM_NONCE_LEN}",
+                nonce_bytes.len(),
+            )));
+        }
+        let ct_bytes = BASE64_ENGINE.decode(ciphertext).map_err(|e| {
+            CoreError::SerializationError(format!("Invalid ciphertext base64: {e}"))
+        })?;
+        if ct_bytes.len() < AES_GCM_TAG_LEN {
+            return Err(CoreError::InvalidKey(
+                "Encrypted key ciphertext shorter than AES-GCM tag".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    // --- Passphrase-based encryption (LPK v1 encrypted variant) ---
+
+    /// Returns `true` if the key material is passphrase-encrypted.
+    ///
+    /// Encrypted keys must be unwrapped via [`Self::decrypt_with_passphrase`]
+    /// before their raw bytes can be extracted via [`KeyData::decode_raw`] or
+    /// [`KeyData::decode_composite`].
+    #[must_use]
+    pub fn is_encrypted(&self) -> bool {
+        matches!(self.key_data, KeyData::Encrypted { .. })
+    }
+
+    /// Encrypt the key material in place using a passphrase.
+    ///
+    /// Derives a 32-byte AES key via PBKDF2-HMAC-SHA256 (600,000 iterations,
+    /// 16-byte random salt) and encrypts the JSON-serialized `KeyData` under
+    /// AES-256-GCM with a fresh 12-byte random nonce. The full envelope
+    /// (version, algorithm, key_type, KDF name, iteration count, salt, AEAD
+    /// name) is mixed into the AEAD AAD, so tampering with any metadata
+    /// field on disk causes decryption to fail at the tag check. See
+    /// [`Self::encryption_aad`] for the exact byte layout.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the key is already encrypted, if the passphrase is
+    /// empty, or if the KDF / AEAD operation fails.
+    pub fn encrypt_with_passphrase(&mut self, passphrase: &[u8]) -> Result<()> {
+        if self.is_encrypted() {
+            return Err(CoreError::InvalidKey("Key is already passphrase-encrypted".to_string()));
+        }
+        if passphrase.is_empty() {
+            return Err(CoreError::InvalidKey("Passphrase must not be empty".to_string()));
+        }
+
+        // 1. Serialize the current plaintext KeyData to its own JSON. We
+        //    serialize only the KeyData (not the whole PortableKey) so the
+        //    ciphertext is self-contained and round-trips cleanly.
+        let plaintext_json = serde_json::to_vec(&self.key_data).map_err(|e| {
+            CoreError::SerializationError(format!(
+                "Failed to serialize key data for encryption: {e}"
+            ))
+        })?;
+        let plaintext = zeroize::Zeroizing::new(plaintext_json);
+
+        // 2. Generate a fresh random salt.
+        let salt = crate::primitives::rand::csprng::random_bytes(PBKDF2_SALT_LEN);
+
+        // 3. Derive the AES key via PBKDF2-HMAC-SHA256.
+        let kdf_params = crate::primitives::kdf::pbkdf2::Pbkdf2Params::with_salt(&salt)
+            .iterations(PBKDF2_DEFAULT_ITERATIONS)
+            .key_length(AES_256_KEY_LEN);
+        let derived = crate::primitives::kdf::pbkdf2::pbkdf2(passphrase, &kdf_params)
+            .map_err(|e| CoreError::InvalidKey(format!("PBKDF2 derivation failed: {e}")))?;
+
+        // 4. Encrypt via AES-256-GCM with a fresh random nonce. Bind the
+        //    full envelope (version, algorithm, key_type, KDF name,
+        //    iterations, salt, AEAD name) to the ciphertext via AAD so an
+        //    attacker who modifies any of these fields on disk breaks the
+        //    AEAD tag.
+        use crate::primitives::aead::AeadCipher;
+        let cipher = crate::primitives::aead::aes_gcm::AesGcm256::new(derived.key())
+            .map_err(|e| CoreError::InvalidKey(format!("Failed to initialize AES-256-GCM: {e}")))?;
+        let aad = Self::encryption_aad(
+            ENCRYPTED_ENVELOPE_VERSION,
+            self.algorithm,
+            self.key_type,
+            PBKDF2_KDF_ID,
+            PBKDF2_DEFAULT_ITERATIONS,
+            &salt,
+            AES_GCM_AEAD_ID,
+        );
+        let (nonce, mut ct, tag) = cipher
+            .seal(&plaintext, Some(&aad))
+            .map_err(|e| CoreError::InvalidKey(format!("AES-256-GCM sealing failed: {e}")))?;
+
+        // 5. Pack ciphertext || tag for on-wire storage.
+        ct.extend_from_slice(&tag);
+
+        // 6. Replace the plaintext KeyData with the encrypted envelope.
+        self.key_data = KeyData::Encrypted {
+            enc: ENCRYPTED_ENVELOPE_VERSION,
+            kdf: PBKDF2_KDF_ID.to_string(),
+            kdf_iterations: PBKDF2_DEFAULT_ITERATIONS,
+            kdf_salt: BASE64_ENGINE.encode(&salt),
+            aead: AES_GCM_AEAD_ID.to_string(),
+            nonce: BASE64_ENGINE.encode(nonce),
+            ciphertext: BASE64_ENGINE.encode(&ct),
+        };
+
+        Ok(())
+    }
+
+    /// Decrypt the key material in place using a passphrase.
+    ///
+    /// Reverses [`Self::encrypt_with_passphrase`]. On success the `key_data`
+    /// field is replaced with the underlying `Single` or `Composite` variant.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the key is not encrypted, the envelope is
+    /// malformed, the passphrase is wrong (AEAD authentication fails), or
+    /// the decrypted plaintext is not a valid `KeyData` serialization.
+    pub fn decrypt_with_passphrase(&mut self, passphrase: &[u8]) -> Result<()> {
+        if passphrase.is_empty() {
+            return Err(CoreError::InvalidKey("Passphrase must not be empty".to_string()));
+        }
+
+        // Borrow the envelope to validate shape and decode its fields into
+        // owned bytes. After validation the `kdf` and `aead` string fields
+        // are known to equal the envelope's fixed constants, so we don't
+        // bother cloning them into `Decoded` — we pass the constants to
+        // `encryption_aad` at the call site instead.
+        struct Decoded {
+            enc: u32,
+            kdf_iterations: u32,
+            salt: Vec<u8>,
+            nonce: [u8; AES_GCM_NONCE_LEN],
+            ct_and_tag: Vec<u8>,
+        }
+        let decoded = match &self.key_data {
+            KeyData::Encrypted { enc, kdf, kdf_iterations, kdf_salt, aead, nonce, ciphertext } => {
+                Self::validate_encrypted_envelope_fields(
+                    *enc,
+                    kdf,
+                    *kdf_iterations,
+                    kdf_salt,
+                    aead,
+                    nonce,
+                    ciphertext,
+                )?;
+                let salt = BASE64_ENGINE.decode(kdf_salt).map_err(|e| {
+                    CoreError::SerializationError(format!("Invalid KDF salt base64: {e}"))
+                })?;
+                let nonce_bytes = BASE64_ENGINE.decode(nonce).map_err(|e| {
+                    CoreError::SerializationError(format!("Invalid nonce base64: {e}"))
+                })?;
+                let mut nonce_array = [0u8; AES_GCM_NONCE_LEN];
+                nonce_array.copy_from_slice(&nonce_bytes);
+                let ct_and_tag = BASE64_ENGINE.decode(ciphertext).map_err(|e| {
+                    CoreError::SerializationError(format!("Invalid ciphertext base64: {e}"))
+                })?;
+                Decoded {
+                    enc: *enc,
+                    kdf_iterations: *kdf_iterations,
+                    salt,
+                    nonce: nonce_array,
+                    ct_and_tag,
+                }
+            }
+            _ => {
+                return Err(CoreError::InvalidKey("Key is not passphrase-encrypted".to_string()));
+            }
+        };
+        let Decoded { enc, kdf_iterations, salt, nonce: nonce_array, ct_and_tag } = decoded;
+
+        let tag_offset = ct_and_tag
+            .len()
+            .checked_sub(AES_GCM_TAG_LEN)
+            .ok_or_else(|| CoreError::InvalidKey("Ciphertext shorter than tag".to_string()))?;
+        let (ct_bytes, tag_bytes) = ct_and_tag.split_at(tag_offset);
+        let mut tag_array = [0u8; AES_GCM_TAG_LEN];
+        tag_array.copy_from_slice(tag_bytes);
+
+        // Derive the AES key from the passphrase + salt.
+        let kdf_params = crate::primitives::kdf::pbkdf2::Pbkdf2Params::with_salt(&salt)
+            .iterations(kdf_iterations)
+            .key_length(AES_256_KEY_LEN);
+        let derived = crate::primitives::kdf::pbkdf2::pbkdf2(passphrase, &kdf_params)
+            .map_err(|e| CoreError::InvalidKey(format!("PBKDF2 derivation failed: {e}")))?;
+
+        // Decrypt. A wrong passphrase produces a wrong AES key, which causes
+        // AEAD authentication to fail with an opaque error — we do NOT leak
+        // whether the passphrase was wrong vs. the envelope was corrupted.
+        // The AAD binds the full envelope so any tampered metadata field
+        // also breaks the tag.
+        use crate::primitives::aead::AeadCipher;
+        let cipher = crate::primitives::aead::aes_gcm::AesGcm256::new(derived.key())
+            .map_err(|e| CoreError::InvalidKey(format!("Failed to initialize AES-256-GCM: {e}")))?;
+        // `kdf` and `aead` are the constants: `validate_encrypted_envelope_fields`
+        // rejected any other value, so we can pass the literals directly
+        // instead of cloning them out of the borrowed envelope.
+        let aad = Self::encryption_aad(
+            enc,
+            self.algorithm,
+            self.key_type,
+            PBKDF2_KDF_ID,
+            kdf_iterations,
+            &salt,
+            AES_GCM_AEAD_ID,
+        );
+        let plaintext = cipher
+            .decrypt(&nonce_array, ct_bytes, &tag_array, Some(&aad))
+            .map_err(|_e| {
+                CoreError::InvalidKey(
+                    "Passphrase-protected key unwrap failed (wrong passphrase or corrupted envelope)"
+                        .to_string(),
+                )
+            })?;
+
+        // Deserialize the plaintext bytes back into a KeyData variant.
+        let new_key_data: KeyData = serde_json::from_slice(&plaintext).map_err(|e| {
+            CoreError::SerializationError(format!("Failed to deserialize decrypted key data: {e}"))
+        })?;
+        // Reject nested encryption (prevents re-wrap confusion).
+        if matches!(new_key_data, KeyData::Encrypted { .. }) {
+            return Err(CoreError::InvalidKey(
+                "Decrypted payload was itself an encrypted envelope".to_string(),
+            ));
+        }
+
+        self.key_data = new_key_data;
+        Ok(())
+    }
+
+    /// Build the AAD bound to an encrypted key envelope.
+    ///
+    /// AEAD AAD is authenticated (not encrypted), so fields folded in here
+    /// are protected against tampering but not against disclosure. Binding
+    /// all envelope parameters — version, algorithm, key type, KDF name,
+    /// iteration count, salt, and AEAD name — ensures that any attacker
+    /// modification of a stored key file's metadata or KDF parameters
+    /// causes `cipher.decrypt` to fail with an opaque error.
+    ///
+    /// Uses stable kebab-case / lowercase names (`ml-kem-768`, `secret`)
+    /// via `canonical_name` accessors on the enums. These are load-bearing:
+    /// changing the returned strings breaks every existing encrypted key
+    /// file. A pinned byte-level test in the `tests` module guards this.
+    ///
+    /// # Byte layout
+    ///
+    /// ```text
+    /// "latticearc-lpk-v1-enc" || 0x00
+    /// || enc (u32 BE)
+    /// || algorithm_name || 0x00
+    /// || key_type_name || 0x00
+    /// || kdf_name || 0x00
+    /// || kdf_iterations (u32 BE)
+    /// || kdf_salt_len (u32 BE) || kdf_salt_raw_bytes
+    /// || aead_name
+    /// ```
+    ///
+    /// Length prefixes and null separators prevent ambiguity between
+    /// adjacent variable-length fields. The salt is included as its raw
+    /// (base64-decoded) bytes, not the base64 string, so an attacker
+    /// cannot use base64 non-canonical encodings to get past the check.
+    fn encryption_aad(
+        enc: u32,
+        algorithm: KeyAlgorithm,
+        key_type: KeyType,
+        kdf: &str,
+        kdf_iterations: u32,
+        kdf_salt: &[u8],
+        aead: &str,
+    ) -> Vec<u8> {
+        let algorithm_name = algorithm.canonical_name();
+        let key_type_name = key_type.canonical_name();
+
+        let mut aad = Vec::with_capacity(
+            b"latticearc-lpk-v1-enc"
+                .len()
+                .saturating_add(1) // null
+                .saturating_add(4) // enc
+                .saturating_add(algorithm_name.len())
+                .saturating_add(1)
+                .saturating_add(key_type_name.len())
+                .saturating_add(1)
+                .saturating_add(kdf.len())
+                .saturating_add(1)
+                .saturating_add(4) // kdf_iterations
+                .saturating_add(4) // salt len
+                .saturating_add(kdf_salt.len())
+                .saturating_add(aead.len()),
+        );
+        aad.extend_from_slice(b"latticearc-lpk-v1-enc");
+        aad.push(0);
+        aad.extend_from_slice(&enc.to_be_bytes());
+        aad.extend_from_slice(algorithm_name.as_bytes());
+        aad.push(0);
+        aad.extend_from_slice(key_type_name.as_bytes());
+        aad.push(0);
+        aad.extend_from_slice(kdf.as_bytes());
+        aad.push(0);
+        aad.extend_from_slice(&kdf_iterations.to_be_bytes());
+        let salt_len_u32 = u32::try_from(kdf_salt.len()).unwrap_or(u32::MAX);
+        aad.extend_from_slice(&salt_len_u32.to_be_bytes());
+        aad.extend_from_slice(kdf_salt);
+        aad.extend_from_slice(aead.as_bytes());
+        aad
     }
 
     // --- JSON serialization ---
@@ -1644,10 +2147,398 @@ fn parse_legacy_algorithm(s: &str) -> Result<KeyAlgorithm> {
     clippy::print_stdout,
     clippy::cast_precision_loss,
     clippy::useless_vec,
+    clippy::panic,
     deprecated
 )]
 mod tests {
     use super::*;
+
+    // ------------------------------------------------------------------
+    // Passphrase-encrypted key roundtrip
+    // ------------------------------------------------------------------
+
+    fn sample_single_key() -> PortableKey {
+        // AES-256 symmetric key (Single variant).
+        let raw = [0x11u8; 32];
+        PortableKey::new(KeyAlgorithm::Aes256, KeyType::Symmetric, KeyData::from_raw(&raw))
+    }
+
+    fn sample_composite_key() -> PortableKey {
+        // Hybrid ML-KEM-768 + X25519 public key lookalike (Composite variant).
+        let pq = vec![0x22u8; 1184];
+        let classical = vec![0x33u8; 32];
+        PortableKey::new(
+            KeyAlgorithm::HybridMlKem768X25519,
+            KeyType::Public,
+            KeyData::from_composite(&pq, &classical),
+        )
+    }
+
+    #[test]
+    fn test_encrypt_with_passphrase_single_roundtrip() {
+        let mut key = sample_single_key();
+        let plain_raw = key.key_data().decode_raw().unwrap();
+        let passphrase = b"correct horse battery staple";
+
+        key.encrypt_with_passphrase(passphrase).unwrap();
+        assert!(key.is_encrypted());
+        assert!(key.key_data().decode_raw().is_err());
+
+        key.validate().expect("encrypted envelope must validate");
+
+        key.decrypt_with_passphrase(passphrase).unwrap();
+        assert!(!key.is_encrypted());
+        assert_eq!(key.key_data().decode_raw().unwrap(), plain_raw);
+    }
+
+    #[test]
+    fn test_encrypt_with_passphrase_composite_roundtrip() {
+        let mut key = sample_composite_key();
+        let (pq_plain, cl_plain) = key.key_data().decode_composite().unwrap();
+        let passphrase = b"hunter2-but-stronger";
+
+        key.encrypt_with_passphrase(passphrase).unwrap();
+        assert!(key.is_encrypted());
+        assert!(key.key_data().decode_composite().is_err());
+
+        key.decrypt_with_passphrase(passphrase).unwrap();
+        let (pq_out, cl_out) = key.key_data().decode_composite().unwrap();
+        assert_eq!(pq_out, pq_plain);
+        assert_eq!(cl_out, cl_plain);
+    }
+
+    #[test]
+    fn test_encrypt_with_passphrase_wrong_passphrase_fails() {
+        let mut key = sample_single_key();
+        key.encrypt_with_passphrase(b"correct passphrase").unwrap();
+
+        let err = key
+            .decrypt_with_passphrase(b"wrong passphrase")
+            .expect_err("wrong passphrase must fail");
+        // The error must NOT disclose whether the passphrase was wrong vs the
+        // envelope was corrupted — the message is a fixed opaque phrase.
+        // Compare the EXACT string so a future code change that diverges
+        // the two paths (e.g. distinct "PBKDF2 failure" vs "tag mismatch"
+        // errors) will break this test.
+        assert_eq!(
+            err.to_string(),
+            "Invalid key: Passphrase-protected key unwrap failed \
+             (wrong passphrase or corrupted envelope)"
+        );
+    }
+
+    /// Corrupting the ciphertext bytes must produce the **same** opaque
+    /// error as providing a wrong passphrase. If decrypt ever gained a
+    /// distinct code path for "tag failure" vs "post-KDF AES init failure",
+    /// a passphrase oracle would open up — this test pins the error string
+    /// to catch that regression.
+    #[test]
+    fn test_encrypt_with_passphrase_corrupted_ciphertext_matches_wrong_passphrase_error() {
+        let mut key = sample_single_key();
+        key.encrypt_with_passphrase(b"correct passphrase").unwrap();
+
+        // Decode, flip the middle byte, re-encode. Round-tripping through
+        // base64 keeps the envelope structurally valid so the corruption
+        // surfaces at AEAD verification rather than at the base64 decode
+        // pre-check in validate_encrypted_envelope_fields.
+        let KeyData::Encrypted { ciphertext, .. } = &mut key.key_data else {
+            panic!("expected encrypted variant");
+        };
+        let mut raw = BASE64_ENGINE.decode(ciphertext.as_str()).unwrap();
+        let mid = raw.len() / 2;
+        raw[mid] ^= 0x01;
+        *ciphertext = BASE64_ENGINE.encode(&raw);
+
+        let err = key
+            .decrypt_with_passphrase(b"correct passphrase")
+            .expect_err("corrupted ciphertext must fail");
+        // Exact-match: the error must be byte-identical to the wrong-passphrase error.
+        assert_eq!(
+            err.to_string(),
+            "Invalid key: Passphrase-protected key unwrap failed \
+             (wrong passphrase or corrupted envelope)"
+        );
+    }
+
+    #[test]
+    fn test_encrypt_with_passphrase_empty_rejected() {
+        let mut key = sample_single_key();
+        assert!(key.encrypt_with_passphrase(b"").is_err());
+    }
+
+    #[test]
+    fn test_encrypt_with_passphrase_double_encrypt_rejected() {
+        let mut key = sample_single_key();
+        key.encrypt_with_passphrase(b"once").unwrap();
+        assert!(key.encrypt_with_passphrase(b"twice").is_err());
+    }
+
+    #[test]
+    fn test_decrypt_with_passphrase_on_plaintext_fails() {
+        let mut key = sample_single_key();
+        assert!(key.decrypt_with_passphrase(b"anything").is_err());
+    }
+
+    #[test]
+    fn test_encrypted_key_json_roundtrip() {
+        let mut key = sample_single_key();
+        let plain_raw = key.key_data().decode_raw().unwrap();
+        key.encrypt_with_passphrase(b"json roundtrip").unwrap();
+
+        let json = key.to_json().unwrap();
+        // Sanity: the envelope should be valid JSON and visibly contain the
+        // envelope marker "kdf" so we know serde picked the Encrypted variant.
+        assert!(json.contains("\"kdf\""));
+        assert!(json.contains("PBKDF2-HMAC-SHA256"));
+
+        let mut reloaded = PortableKey::from_json(&json).unwrap();
+        assert!(reloaded.is_encrypted());
+        reloaded.decrypt_with_passphrase(b"json roundtrip").unwrap();
+        assert_eq!(reloaded.key_data().decode_raw().unwrap(), plain_raw);
+    }
+
+    #[test]
+    fn test_encrypted_key_aad_binds_algorithm() {
+        // An encrypted blob must not decrypt after the enclosing
+        // PortableKey's algorithm field has been swapped — AEAD
+        // authentication must fail.
+        let mut key = sample_single_key();
+        key.encrypt_with_passphrase(b"aad binding").unwrap();
+
+        let tampered_data = key.key_data.clone();
+        let mut tampered =
+            PortableKey::new(KeyAlgorithm::ChaCha20, KeyType::Symmetric, tampered_data);
+
+        assert!(tampered.decrypt_with_passphrase(b"aad binding").is_err());
+    }
+
+    #[test]
+    fn test_encrypted_key_aad_binds_key_type() {
+        // Companion to `test_encrypted_key_aad_binds_algorithm`: the AAD also
+        // covers `key_type`, so a swap from Symmetric → Secret must fail
+        // AEAD verification even when the algorithm is unchanged.
+        let mut key = sample_single_key();
+        key.encrypt_with_passphrase(b"aad binding").unwrap();
+
+        let tampered_data = key.key_data.clone();
+        // Swap Symmetric → Secret. `Aes256` isn't a valid algorithm for a
+        // Secret key at load time, but `decrypt_with_passphrase` runs the
+        // AEAD check before any such validation, so the test still exercises
+        // the AAD binding path before the type validator would reject the
+        // combination.
+        let mut tampered = PortableKey::new(KeyAlgorithm::Aes256, KeyType::Secret, tampered_data);
+
+        assert!(tampered.decrypt_with_passphrase(b"aad binding").is_err());
+    }
+
+    // --- Encrypted envelope negative validation tests ---
+
+    /// Snapshot of a freshly-encrypted envelope's fields, used to build
+    /// tampered copies that exercise each rejection branch of
+    /// `validate_encrypted_envelope_fields`. Cloning via this helper
+    /// sidesteps `KeyData`'s `Drop` impl, which forbids partial moves.
+    #[derive(Clone)]
+    struct EnvelopeSnapshot {
+        enc: u32,
+        kdf: String,
+        kdf_iterations: u32,
+        kdf_salt: String,
+        aead: String,
+        nonce: String,
+        ciphertext: String,
+    }
+
+    impl EnvelopeSnapshot {
+        fn capture(key: &PortableKey) -> Option<Self> {
+            match &key.key_data {
+                KeyData::Encrypted {
+                    enc,
+                    kdf,
+                    kdf_iterations,
+                    kdf_salt,
+                    aead,
+                    nonce,
+                    ciphertext,
+                } => Some(Self {
+                    enc: *enc,
+                    kdf: kdf.clone(),
+                    kdf_iterations: *kdf_iterations,
+                    kdf_salt: kdf_salt.clone(),
+                    aead: aead.clone(),
+                    nonce: nonce.clone(),
+                    ciphertext: ciphertext.clone(),
+                }),
+                _ => None,
+            }
+        }
+
+        fn into_key_data(self) -> KeyData {
+            KeyData::Encrypted {
+                enc: self.enc,
+                kdf: self.kdf,
+                kdf_iterations: self.kdf_iterations,
+                kdf_salt: self.kdf_salt,
+                aead: self.aead,
+                nonce: self.nonce,
+                ciphertext: self.ciphertext,
+            }
+        }
+    }
+
+    /// Build a valid encrypted sample key and return it alongside a snapshot
+    /// of its envelope fields.
+    fn make_valid_encrypted_key() -> (PortableKey, EnvelopeSnapshot) {
+        let mut key = sample_single_key();
+        key.encrypt_with_passphrase(b"envelope validation").unwrap();
+        let snapshot = EnvelopeSnapshot::capture(&key).expect("sample key is freshly encrypted");
+        (key, snapshot)
+    }
+
+    #[test]
+    fn test_validate_rejects_wrong_envelope_version() {
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.enc = 99;
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("wrong envelope version must be rejected");
+        assert!(err.to_string().contains("Unsupported encrypted key envelope version 99"));
+    }
+
+    #[test]
+    fn test_validate_rejects_unknown_kdf() {
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.kdf = "scrypt".to_string();
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("unknown KDF must be rejected");
+        assert!(err.to_string().contains("Unsupported KDF"));
+    }
+
+    #[test]
+    fn test_validate_rejects_unknown_aead() {
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.aead = "ChaCha20-Poly1305".to_string();
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("unknown AEAD must be rejected");
+        assert!(err.to_string().contains("Unsupported AEAD"));
+    }
+
+    #[test]
+    fn test_validate_rejects_too_few_pbkdf2_iterations() {
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.kdf_iterations = 50_000; // below PBKDF2_MIN_ITERATIONS
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("low iteration count must be rejected");
+        assert!(err.to_string().contains("PBKDF2 iteration count 50000 below minimum"));
+    }
+
+    #[test]
+    fn test_validate_rejects_short_salt() {
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.kdf_salt = BASE64_ENGINE.encode([0u8; 8]); // 8 < PBKDF2_MIN_SALT_LEN
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("short salt must be rejected");
+        assert!(err.to_string().contains("PBKDF2 salt length 8 below minimum"));
+    }
+
+    #[test]
+    fn test_validate_rejects_wrong_nonce_length() {
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.nonce = BASE64_ENGINE.encode([0u8; 8]); // 8 != AES_GCM_NONCE_LEN
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("wrong nonce length must be rejected");
+        assert!(err.to_string().contains("AES-GCM nonce length 8"));
+    }
+
+    #[test]
+    fn test_validate_rejects_ciphertext_shorter_than_tag() {
+        let (mut key, mut snapshot) = make_valid_encrypted_key();
+        snapshot.ciphertext = BASE64_ENGINE.encode([0u8; 4]); // 4 < AES_GCM_TAG_LEN
+        key.key_data = snapshot.into_key_data();
+        let err = key.validate().expect_err("short ciphertext must be rejected");
+        assert!(err.to_string().contains("Encrypted key ciphertext shorter than AES-GCM tag"));
+    }
+
+    /// Pinned byte layout for the encrypted-envelope AAD.
+    ///
+    /// This is the on-the-wire AEAD AAD used for every passphrase-encrypted
+    /// key. Any change to the layout — including a change to
+    /// `KeyAlgorithm::canonical_name`, `KeyType::canonical_name`, the
+    /// envelope constants, the field ordering, or the separator bytes —
+    /// invalidates every existing encrypted key file. This test pins the
+    /// exact bytes for a fixed fixture so an accidental drift shows up in
+    /// CI before landing.
+    #[test]
+    fn test_encryption_aad_byte_layout_is_stable() {
+        let salt = [0xAA_u8; 16];
+        let aad = PortableKey::encryption_aad(
+            1,
+            KeyAlgorithm::Aes256,
+            KeyType::Symmetric,
+            "PBKDF2-HMAC-SHA256",
+            600_000,
+            &salt,
+            "AES-256-GCM",
+        );
+
+        let mut expected: Vec<u8> = Vec::new();
+        expected.extend_from_slice(b"latticearc-lpk-v1-enc");
+        expected.push(0);
+        expected.extend_from_slice(&1u32.to_be_bytes());
+        expected.extend_from_slice(b"aes-256");
+        expected.push(0);
+        expected.extend_from_slice(b"symmetric");
+        expected.push(0);
+        expected.extend_from_slice(b"PBKDF2-HMAC-SHA256");
+        expected.push(0);
+        expected.extend_from_slice(&600_000u32.to_be_bytes());
+        expected.extend_from_slice(&16u32.to_be_bytes());
+        expected.extend_from_slice(&salt);
+        expected.extend_from_slice(b"AES-256-GCM");
+
+        assert_eq!(aad, expected);
+    }
+
+    /// Pin every `KeyAlgorithm` and `KeyType` canonical name against its
+    /// serde-rename string. If they diverge, the canonical_name used in the
+    /// AAD will silently mismatch the on-disk `algorithm`/`key_type` fields
+    /// of existing keys. Failing this test means one of the constants must
+    /// be updated deliberately and all existing encrypted keys must be
+    /// re-wrapped.
+    #[test]
+    fn test_canonical_names_match_serde_rename() {
+        fn serde_name<T: Serialize>(t: &T) -> String {
+            let s = serde_json::to_string(t).unwrap();
+            // Strip the surrounding quotes produced by JSON string encoding.
+            s.trim_matches('"').to_string()
+        }
+        let algorithms = [
+            KeyAlgorithm::MlKem512,
+            KeyAlgorithm::MlKem768,
+            KeyAlgorithm::MlKem1024,
+            KeyAlgorithm::MlDsa44,
+            KeyAlgorithm::MlDsa65,
+            KeyAlgorithm::MlDsa87,
+            KeyAlgorithm::SlhDsaShake128s,
+            KeyAlgorithm::SlhDsaShake256f,
+            KeyAlgorithm::FnDsa512,
+            KeyAlgorithm::FnDsa1024,
+            KeyAlgorithm::Ed25519,
+            KeyAlgorithm::X25519,
+            KeyAlgorithm::Aes256,
+            KeyAlgorithm::ChaCha20,
+            KeyAlgorithm::HybridMlKem512X25519,
+            KeyAlgorithm::HybridMlKem768X25519,
+            KeyAlgorithm::HybridMlKem1024X25519,
+            KeyAlgorithm::HybridMlDsa44Ed25519,
+            KeyAlgorithm::HybridMlDsa65Ed25519,
+            KeyAlgorithm::HybridMlDsa87Ed25519,
+        ];
+        for alg in algorithms {
+            assert_eq!(alg.canonical_name(), serde_name(&alg), "canonical_name drift for {alg:?}");
+        }
+        for kt in [KeyType::Public, KeyType::Secret, KeyType::Symmetric] {
+            assert_eq!(kt.canonical_name(), serde_name(&kt), "canonical_name drift for {kt:?}");
+        }
+    }
 
     // --- KeyAlgorithm serde roundtrip ---
 

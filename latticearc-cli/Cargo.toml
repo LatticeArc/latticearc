@@ -25,6 +25,7 @@ chrono = { workspace = true }
 anyhow = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
+rpassword = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

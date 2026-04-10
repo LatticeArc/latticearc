@@ -622,8 +622,14 @@ pub fn verify_pq_fn_dsa_with_config(
 }
 
 // ============================================================================
-// Unverified API - ML-DSA (Opt-Out)
+// Unverified API — ML-DSA / SLH-DSA / FN-DSA (Opt-Out)
 // ============================================================================
+// See `convenience::mod` docs for the shared security guidance on when to use
+// `_unverified` variants.
+
+// ----------------------------------------------------------------------------
+// ML-DSA
+// ----------------------------------------------------------------------------
 
 /// Sign a message using ML-DSA without Zero Trust verification.
 ///

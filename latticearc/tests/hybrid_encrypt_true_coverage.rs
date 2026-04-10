@@ -9,6 +9,9 @@
     clippy::arithmetic_side_effects,
     clippy::cast_precision_loss
 )]
+// Legacy `encrypt`/`decrypt` are deprecated; the tests below intentionally exercise
+// them to preserve coverage of the legacy ML-KEM-only code path.
+#![allow(deprecated)]
 
 use latticearc::hybrid::encrypt_hybrid::{
     HybridCiphertext, HybridEncryptionContext, decrypt_hybrid, encrypt_hybrid,

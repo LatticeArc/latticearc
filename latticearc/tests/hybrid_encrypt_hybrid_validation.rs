@@ -2,6 +2,9 @@
 //! Tests validation errors that don't require actual ML-KEM decapsulation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
+// Legacy `encrypt`/`decrypt` are deprecated; the tests below intentionally exercise
+// them to preserve validation coverage of the legacy ML-KEM-only code path.
+#![allow(deprecated)]
 
 use latticearc::hybrid::encrypt_hybrid::{
     HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, encrypt,

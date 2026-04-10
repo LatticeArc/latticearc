@@ -3,6 +3,43 @@
 
 use crate::unified_api::*;
 
+/// Compile-time exhaustiveness guard for
+/// `test_generate_signing_keypair_all_use_cases_succeeds`.
+///
+/// This function is never called at runtime — it exists purely so that
+/// adding a new `UseCase` variant forces the test's fixture list to be
+/// updated. A new variant fails compilation here until the match arm is
+/// added, and the companion `assert_eq!(all_use_cases.len(), ...)` at
+/// runtime catches a matching omission in the fixture.
+#[allow(dead_code)]
+fn assert_all_signing_use_cases_covered(uc: crate::types::types::UseCase) {
+    use crate::types::types::UseCase;
+    match uc {
+        UseCase::SecureMessaging
+        | UseCase::EmailEncryption
+        | UseCase::VpnTunnel
+        | UseCase::ApiSecurity
+        | UseCase::FileStorage
+        | UseCase::DatabaseEncryption
+        | UseCase::CloudStorage
+        | UseCase::BackupArchive
+        | UseCase::ConfigSecrets
+        | UseCase::Authentication
+        | UseCase::SessionToken
+        | UseCase::DigitalCertificate
+        | UseCase::KeyExchange
+        | UseCase::FinancialTransactions
+        | UseCase::LegalDocuments
+        | UseCase::BlockchainTransaction
+        | UseCase::HealthcareRecords
+        | UseCase::GovernmentClassified
+        | UseCase::PaymentCard
+        | UseCase::IoTDevice
+        | UseCase::FirmwareSigning
+        | UseCase::AuditLog => (),
+    }
+}
+
 #[test]
 fn test_basic_encryption_succeeds() {
     std::thread::Builder::new()
@@ -1197,40 +1234,86 @@ fn test_generate_signing_keypair_all_use_cases_succeeds() {
         .name("keygen_use_cases".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
-            // Only signing-oriented use cases can generate signing keypairs.
-            // Encryption-oriented use cases (IoT, FileStorage, etc.) correctly
-            // return errors because their schemes are for encryption, not signing.
-            let signing_use_cases = vec![
+            // EVERY use case must produce a signing keypair AND a working
+            // sign/verify round-trip. The signing scheme is derived from the
+            // use case's `SecurityLevel` (via `UseCaseConfig`), not from the
+            // use case's encryption scheme — so even encryption-oriented use
+            // cases (IoT, FileStorage, HealthcareRecords, ...) must produce a
+            // valid hybrid ML-DSA + Ed25519 keypair sized to their intended
+            // security level.
+            //
+            // Regression: prior to the use-case scheme dispatch fix,
+            // `select_signature_scheme` accidentally routed UseCase variants
+            // through the encryption scheme selector, so encryption-oriented
+            // use cases crashed keygen with "Unsupported signing scheme:
+            // hybrid-ml-kem-*-aes-256-gcm". The original coverage list only
+            // named 12 of 22 variants and missed exactly the encryption-
+            // oriented ones the bug affected — explicitly enumerate all 22
+            // here so a future variant addition surfaces loudly at match time
+            // via the `_ =>` exhaustiveness stub below.
+            let all_use_cases: Vec<UseCase> = vec![
+                UseCase::SecureMessaging,
+                UseCase::EmailEncryption,
+                UseCase::VpnTunnel,
+                UseCase::ApiSecurity,
+                UseCase::FileStorage,
+                UseCase::DatabaseEncryption,
+                UseCase::CloudStorage,
+                UseCase::BackupArchive,
+                UseCase::ConfigSecrets,
                 UseCase::Authentication,
+                UseCase::SessionToken,
                 UseCase::DigitalCertificate,
+                UseCase::KeyExchange,
                 UseCase::FinancialTransactions,
                 UseCase::LegalDocuments,
                 UseCase::BlockchainTransaction,
-                UseCase::FirmwareSigning,
-            ];
-            for uc in signing_use_cases {
-                let config = CryptoConfig::new().use_case(uc.clone());
-                let result = generate_signing_keypair(config);
-                assert!(result.is_ok(), "Keypair generation failed for {:?}", uc);
-            }
-
-            // Encryption-oriented use cases should fail keygen
-            let encryption_use_cases = vec![
-                UseCase::SecureMessaging,
-                UseCase::IoTDevice,
-                UseCase::GovernmentClassified,
                 UseCase::HealthcareRecords,
+                UseCase::GovernmentClassified,
                 UseCase::PaymentCard,
+                UseCase::IoTDevice,
+                UseCase::FirmwareSigning,
                 UseCase::AuditLog,
             ];
-            for uc in encryption_use_cases {
-                let config = CryptoConfig::new().use_case(uc.clone());
-                let result = generate_signing_keypair(config);
-                assert!(
-                    result.is_err(),
-                    "Encryption use case {:?} should not produce signing keypair",
-                    uc
+            // The companion `assert_all_signing_use_cases_covered` function
+            // (defined at module scope below) carries an exhaustive match on
+            // `UseCase` and compile-fails if a new variant is added without
+            // a corresponding entry in `all_use_cases` above. The runtime
+            // `assert_eq` on the count guards against the two lists drifting.
+            assert_eq!(all_use_cases.len(), 22, "Every UseCase variant must be tested");
+            let message = b"regression test for use-case-driven signing";
+            for uc in all_use_cases {
+                let config = CryptoConfig::new().use_case(uc);
+                let (pk, sk, scheme) = generate_signing_keypair(config)
+                    .unwrap_or_else(|e| panic!("Keypair generation failed for {:?}: {e}", uc));
+                // The scheme MUST be one of the known signing schemes.
+                let is_signing_scheme = matches!(
+                    scheme.as_str(),
+                    "hybrid-ml-dsa-44-ed25519"
+                        | "hybrid-ml-dsa-65-ed25519"
+                        | "hybrid-ml-dsa-87-ed25519"
+                        | "ml-dsa-44"
+                        | "ml-dsa-65"
+                        | "ml-dsa-87"
+                        | "pq-ml-dsa-44"
+                        | "pq-ml-dsa-65"
+                        | "pq-ml-dsa-87"
+                        | "slh-dsa-shake-128s"
+                        | "slh-dsa-shake-192s"
+                        | "slh-dsa-shake-256s"
+                        | "fn-dsa"
+                        | "ed25519"
                 );
+                assert!(is_signing_scheme, "{:?} produced non-signing scheme {scheme:?}", uc);
+                // Functional assertion: the keypair must actually sign and verify.
+                // A regression that produces non-empty-but-wrong-size keys
+                // would not be caught by length checks alone.
+                let signed =
+                    crate::sign_with_key(message, &sk, &pk, CryptoConfig::new().use_case(uc))
+                        .unwrap_or_else(|e| panic!("sign_with_key failed for {:?}: {e}", uc));
+                let valid = crate::verify(&signed, CryptoConfig::new().use_case(uc))
+                    .unwrap_or_else(|e| panic!("verify failed for {:?}: {e}", uc));
+                assert!(valid, "signature did not verify for {:?}", uc);
             }
         })
         .unwrap()

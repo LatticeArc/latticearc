@@ -308,7 +308,8 @@ pub fn decrypt_pq_ml_kem_with_config(
 }
 
 // ============================================================================
-// Unverified API (opt-out functions for scenarios where Zero Trust is not required)
+// Unverified API (Opt-Out) — see `convenience::mod` docs for the shared
+// security guidance on when to use `_unverified` variants.
 // ============================================================================
 
 /// Encrypt data using ML-KEM without Zero Trust verification.

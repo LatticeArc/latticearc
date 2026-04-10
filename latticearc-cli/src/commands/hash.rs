@@ -98,11 +98,13 @@ pub(crate) fn run(args: HashArgs) -> Result<()> {
 
 fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
     if let Some(p) = path {
+        super::common::enforce_input_size_limit(
+            p,
+            super::common::CLI_MAX_HASH_INPUT_BYTES,
+            "hash",
+        )?;
         std::fs::read(p).with_context(|| format!("Failed to read {}", p.display()))
     } else {
-        use std::io::Read;
-        let mut buf = Vec::new();
-        std::io::stdin().read_to_end(&mut buf).context("Failed to read from stdin")?;
-        Ok(buf)
+        super::common::read_stdin_with_limit(super::common::CLI_MAX_HASH_INPUT_BYTES, "hash")
     }
 }

@@ -123,3 +123,153 @@ pub(crate) fn build_config<'a>(
 
     config
 }
+
+/// Maximum input size for symmetric / KEM-bound encrypt commands. Matches
+/// `latticearc::primitives::resource_limits` defaults (100 MiB plaintext).
+pub(crate) const CLI_MAX_ENCRYPTION_INPUT_BYTES: u64 = 100 * 1024 * 1024;
+
+/// Maximum input size for decrypt commands. Decrypt reads a JSON envelope
+/// containing the ciphertext (base64-encoded), so the wire size can be ~1.5x
+/// the plaintext limit. Cap at 200 MiB to give the library room to enforce
+/// its 100 MiB plaintext limit on the decoded bytes.
+pub(crate) const CLI_MAX_DECRYPTION_INPUT_BYTES: u64 = 200 * 1024 * 1024;
+
+/// Maximum input size for sign / verify commands.
+///
+/// The CLI pre-check exists purely for OOM protection — it is NOT a duplicate
+/// of the library's semantic limits. The library's unified `sign_with_key`
+/// path independently enforces its own `validate_signature_size` bound (64
+/// KiB by default), while legacy primitive paths (`sign_ed25519`,
+/// `sign_pq_ml_dsa`, etc.) accept arbitrarily large inputs. The CLI aligns
+/// with the encryption limit so that any legitimate operation succeeds and
+/// only truly runaway inputs are blocked at the CLI boundary.
+pub(crate) const CLI_MAX_SIGNATURE_INPUT_BYTES: u64 = 100 * 1024 * 1024;
+
+/// Maximum input size for hash commands. Hashing has no library-level limit,
+/// but a 1 GiB ceiling protects against accidental OOM if the user pipes
+/// `/dev/urandom` or a multi-gigabyte file. Adjust if you need to hash
+/// larger blobs (use streaming instead).
+pub(crate) const CLI_MAX_HASH_INPUT_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// Reject `path` if its file size exceeds `limit_bytes`.
+///
+/// Pre-checked before `std::fs::read` so the CLI fails fast with a clear
+/// error rather than allocating gigabytes only to hit a library limit later.
+/// Returns `Ok(())` if the file does not exist (the read call will surface
+/// the missing-file error with its own context).
+pub(crate) fn enforce_input_size_limit(
+    path: &std::path::Path,
+    limit_bytes: u64,
+    operation: &str,
+) -> anyhow::Result<()> {
+    let Ok(meta) = std::fs::metadata(path) else {
+        // Let the subsequent read produce a more useful error message.
+        return Ok(());
+    };
+    if meta.len() > limit_bytes {
+        anyhow::bail!(
+            "Input file {} is {} bytes; the {operation} command rejects inputs larger than {limit_bytes} bytes. \
+             Split the file or use a streaming workflow.",
+            path.display(),
+            meta.len(),
+        );
+    }
+    Ok(())
+}
+
+/// Read bytes from stdin, capped at `limit_bytes`.
+///
+/// Since stdin cannot be stat-ed, the cap is enforced by a bounded reader
+/// (`take(limit + 1)`) so we can detect overflow by observing whether the
+/// reader returned more than `limit_bytes`. Returns a user-facing error
+/// mentioning `operation` on overflow.
+pub(crate) fn read_stdin_with_limit(limit_bytes: u64, operation: &str) -> anyhow::Result<Vec<u8>> {
+    use anyhow::Context;
+    use std::io::Read;
+    let mut buf = Vec::new();
+    let mut limited = std::io::stdin().take(limit_bytes.saturating_add(1));
+    limited.read_to_end(&mut buf).context("Failed to read from stdin")?;
+    if buf.len() as u64 > limit_bytes {
+        anyhow::bail!(
+            "Stdin input exceeded {limit_bytes} bytes; the {operation} command rejects \
+             inputs larger than this. Split the file or use a streaming workflow."
+        );
+    }
+    Ok(buf)
+}
+
+/// Read a UTF-8 string from stdin, capped at `limit_bytes`.
+///
+/// Used by commands that operate on JSON envelopes (decrypt, verify) where
+/// the input must already be text.
+pub(crate) fn read_stdin_string_with_limit(
+    limit_bytes: u64,
+    operation: &str,
+) -> anyhow::Result<String> {
+    use anyhow::Context;
+    use std::io::Read;
+    let mut buf = String::new();
+    let mut limited = std::io::stdin().take(limit_bytes.saturating_add(1));
+    limited.read_to_string(&mut buf).context("Failed to read from stdin")?;
+    if buf.len() as u64 > limit_bytes {
+        anyhow::bail!(
+            "Stdin input exceeded {limit_bytes} bytes; the {operation} command rejects \
+             inputs larger than this. Split the file or use a streaming workflow."
+        );
+    }
+    Ok(buf)
+}
+
+/// Infer a `SecurityLevel` from a key file's algorithm.
+///
+/// Used by `sign`/`verify` when the caller loads an existing key file and
+/// hasn't explicitly chosen a scheme. The library's signature-scheme selector
+/// maps `SecurityLevel::{Standard, High, Maximum}` to
+/// `hybrid-ml-dsa-{44, 65, 87}-ed25519` respectively (see
+/// `latticearc::unified_api::selector::SimpleSchemeSelector::select_signature_scheme`),
+/// so passing the inferred level produces a config that will select the same
+/// scheme the key was generated under.
+///
+/// Returns `None` for non-signing algorithms (KEMs, symmetric) — callers
+/// should fall back to their own defaults or surface an error.
+pub(crate) fn infer_signature_security_level(
+    algorithm: latticearc::unified_api::key_format::KeyAlgorithm,
+) -> Option<SecurityLevel> {
+    use latticearc::unified_api::key_format::KeyAlgorithm;
+    match algorithm {
+        // Hybrid signing schemes — map to the security level the selector
+        // resolves back to the same scheme.
+        KeyAlgorithm::HybridMlDsa44Ed25519 => Some(SecurityLevel::Standard),
+        KeyAlgorithm::HybridMlDsa65Ed25519 => Some(SecurityLevel::High),
+        KeyAlgorithm::HybridMlDsa87Ed25519 => Some(SecurityLevel::Maximum),
+        // PQ-only ML-DSA — same SecurityLevel mapping, but the caller must
+        // also force PQ-only mode via CryptoConfig if that path is desired.
+        KeyAlgorithm::MlDsa44 => Some(SecurityLevel::Standard),
+        KeyAlgorithm::MlDsa65 => Some(SecurityLevel::High),
+        KeyAlgorithm::MlDsa87 => Some(SecurityLevel::Maximum),
+        _ => None,
+    }
+}
+
+/// Build a `CryptoConfig` for a sign/verify operation, filling in defaults
+/// from the key file's algorithm when the user hasn't specified a scheme.
+///
+/// Precedence (highest wins):
+///   1. Explicit `--use-case` or `--security-level`
+///   2. Level inferred from the key file's algorithm
+///   3. Library default
+pub(crate) fn build_signing_config<'a>(
+    use_case: Option<UseCase>,
+    security_level: Option<SecurityLevel>,
+    compliance: &Option<ComplianceMode>,
+    key_algorithm: latticearc::unified_api::key_format::KeyAlgorithm,
+) -> latticearc::CryptoConfig<'a> {
+    let effective_level = security_level.or_else(|| {
+        if use_case.is_some() {
+            None // caller supplied a use case; don't override with inferred level
+        } else {
+            infer_signature_security_level(key_algorithm)
+        }
+    });
+    build_config(use_case, effective_level, compliance)
+}

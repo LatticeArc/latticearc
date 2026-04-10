@@ -77,12 +77,12 @@ fn sign_hybrid_ml_dsa_ed25519(
     public_key: &[u8],
     params: MlDsaParameterSet,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
+    use crate::primitives::ec::ed25519::ED25519_SECRET_KEY_LEN;
     let pq_sk_len = params.secret_key_size();
     let pq_pk_len = params.public_key_size();
-    const ED25519_SK_LEN: usize = 32;
 
     let expected_sk_len = pq_sk_len
-        .checked_add(ED25519_SK_LEN)
+        .checked_add(ED25519_SECRET_KEY_LEN)
         .ok_or_else(|| CoreError::InvalidKey("Secret key length overflow".to_string()))?;
     if secret_key.len() != expected_sk_len {
         return Err(CoreError::InvalidKey(format!(
@@ -90,8 +90,9 @@ fn sign_hybrid_ml_dsa_ed25519(
             secret_key.len()
         )));
     }
+    use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN;
     let expected_pk_len = pq_pk_len
-        .checked_add(32)
+        .checked_add(ED25519_PUBLIC_KEY_LEN)
         .ok_or_else(|| CoreError::InvalidKey("Public key length overflow".to_string()))?;
     if public_key.len() != expected_pk_len {
         return Err(CoreError::InvalidKey(format!(
@@ -197,11 +198,18 @@ fn select_encryption_scheme_typed(options: &CryptoConfig) -> Result<EncryptionSc
 }
 
 /// Select signature scheme based on CryptoConfig.
+///
+/// Use cases are routed through `UseCaseConfig`, which carries an explicit
+/// signature `CoreConfig` (with the right `SecurityLevel`) for every use case.
+/// We must NOT use `recommend_scheme(use_case, ...)` here — that helper returns
+/// the *encryption* scheme for many use cases (e.g. `IoTDevice` →
+/// `hybrid-ml-kem-512-aes-256-gcm`), which would be a fatal type error in a
+/// signature dispatcher.
 fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
     match options.get_selection() {
         AlgorithmSelection::UseCase(use_case) => {
-            // For use cases, recommend based on the use case
-            Ok(CryptoPolicyEngine::recommend_scheme(use_case, &CoreConfig::default())?)
+            let uc_config = crate::types::config::UseCaseConfig::new(*use_case);
+            Ok(CryptoPolicyEngine::select_signature_scheme(&uc_config.signature)?)
         }
         AlgorithmSelection::SecurityLevel(level) => {
             let config = CoreConfig::default().with_security_level(*level);
@@ -764,6 +772,7 @@ pub fn sign_with_key(
 /// - Signature is malformed or invalid
 #[must_use = "verification result must be used or errors will be silently dropped"]
 pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
+    use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN as ED25519_PK_LEN;
     fips_verify_operational()?;
     config.validate()?;
     config.validate_scheme_compliance(&signed.scheme)?;
@@ -818,7 +827,6 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
         ),
         "hybrid-ml-dsa-44-ed25519" => {
             const ML_DSA_44_PK_LEN: usize = 1312;
-            const ED25519_PK_LEN: usize = 32;
 
             let sig_len = signed.metadata.signature.len();
             if sig_len < 2420 {
@@ -864,7 +872,6 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
             // ML-DSA-65 public key is 1952 bytes, Ed25519 is 32 bytes
             const ML_DSA_65_PK_LEN: usize = 1952;
-            const ED25519_PK_LEN: usize = 32;
 
             let sig_len = signed.metadata.signature.len();
             if sig_len < 3309 {
@@ -912,7 +919,6 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
         "hybrid-ml-dsa-87-ed25519" => {
             // ML-DSA-87 public key is 2592 bytes, Ed25519 is 32 bytes
             const ML_DSA_87_PK_LEN: usize = 2592;
-            const ED25519_PK_LEN: usize = 32;
 
             let sig_len = signed.metadata.signature.len();
             if sig_len < 4627 {
@@ -2015,20 +2021,43 @@ mod tests {
     // === Keygen through generate_signing_keypair with different use cases ===
 
     #[test]
-    fn test_generate_signing_keypair_iot_use_case_rejected_fails() {
-        // IoT use case maps to an encryption scheme (hybrid-ml-kem-512-aes-256-gcm),
-        // not a signing scheme. Keygen should reject it.
+    fn test_generate_signing_keypair_iot_use_case_succeeds() {
+        // `IoTDevice` is fundamentally a low-resource use case, not a category
+        // that bans signing. `select_signature_scheme` routes use cases through
+        // `UseCaseConfig`, which assigns IoT → `SecurityLevel::Standard`, so
+        // signing keygen returns `hybrid-ml-dsa-44-ed25519` (the L1 hybrid).
+        //
+        // Regression: prior to the use-case scheme dispatch fix, this call
+        // crashed with "Unsupported signing scheme: hybrid-ml-kem-512-aes-256-gcm"
+        // because the dispatcher accidentally routed through the encryption
+        // scheme selector.
         let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
-        let result = generate_signing_keypair(config);
-        assert!(result.is_err(), "IoT encryption scheme should not be used for signing keypair");
+        let (pk, sk, scheme) =
+            generate_signing_keypair(config).expect("IoT signing keygen must succeed");
+        assert_eq!(scheme, "hybrid-ml-dsa-44-ed25519");
+        assert!(!pk.is_empty());
+        assert!(!sk.is_empty());
     }
 
     #[test]
-    fn test_generate_signing_keypair_file_storage_use_case_rejected_fails() {
-        // FileStorage use case maps to an encryption scheme, not signing.
+    fn test_generate_signing_keypair_file_storage_use_case_succeeds() {
+        // `FileStorage` is a "long-term security" use case → `SecurityLevel::Maximum`,
+        // which selects the L5 hybrid signing scheme.
         let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-        let result = generate_signing_keypair(config);
-        assert!(result.is_err(), "FileStorage encryption scheme should not be used for signing");
+        let (_, _, scheme) =
+            generate_signing_keypair(config).expect("FileStorage signing keygen must succeed");
+        assert_eq!(scheme, "hybrid-ml-dsa-87-ed25519");
+    }
+
+    #[test]
+    fn test_generate_signing_keypair_secure_messaging_use_case_succeeds() {
+        // SecureMessaging defaults to `SecurityLevel::High` (the `UseCaseConfig`
+        // base level when no explicit level is set), which selects the L3
+        // hybrid signing scheme.
+        let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
+        let (_, _, scheme) =
+            generate_signing_keypair(config).expect("SecureMessaging signing keygen must succeed");
+        assert_eq!(scheme, "hybrid-ml-dsa-65-ed25519");
     }
 
     // === Additional keygen scheme branches ===

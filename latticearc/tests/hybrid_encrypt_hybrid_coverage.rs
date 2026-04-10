@@ -6,6 +6,9 @@
 #![allow(clippy::print_stderr)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(missing_docs)]
+// Legacy `encrypt`/`decrypt` are deprecated; the tests below intentionally exercise
+// them to preserve coverage of the legacy ML-KEM-only code path.
+#![allow(deprecated)]
 
 //! Coverage tests for encrypt_hybrid.rs
 //!

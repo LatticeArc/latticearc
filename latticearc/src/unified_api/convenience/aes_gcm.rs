@@ -347,7 +347,8 @@ pub fn decrypt_aes_gcm_with_config(
 }
 
 // ============================================================================
-// Unverified API (Opt-Out)
+// Unverified API (Opt-Out) — see `convenience::mod` docs for the shared
+// security guidance on when to use `_unverified` variants.
 // ============================================================================
 
 /// Encrypt data using AES-256-GCM without Zero Trust verification.

@@ -4354,3 +4354,92 @@ fn test_cli_pq_only_all_levels_roundtrip_succeeds() {
         );
     }
 }
+
+// ============================================================================
+// S23: Use-case-driven keygen + sign + verify
+// ============================================================================
+//
+// End-to-end coverage of the `--use-case` path of `keygen` through a full
+// keygen → sign (via the unified `--public-key` path) → verify round-trip.
+//
+// Three independent pieces of logic are exercised here that the library-level
+// `test_generate_signing_keypair_all_use_cases_succeeds` does not cover:
+//
+//   1. `select_signature_scheme` routing `UseCase` variants to their signing
+//      scheme (not their encryption scheme) via `UseCaseConfig`.
+//   2. `generate_from_config` writing hybrid ML-DSA + Ed25519 keys as
+//      `KeyData::Composite` so that `PortableKey::validate()` accepts them.
+//   3. `sign_unified` inferring the signing scheme from the loaded public
+//      key's algorithm when no use case / security level is supplied.
+
+/// Helper: full keygen → sign → verify round-trip via the CLI for a given
+/// use case. Asserts the expected signing scheme name and verifies the
+/// signature validates against the generated public key.
+fn use_case_keygen_sign_verify_roundtrip(use_case: &str, expected_scheme: &str) {
+    let dir = temp_dir();
+    run_ok(&["keygen", "--use-case", use_case, "--output", dir.path().to_str().unwrap()]);
+
+    let sk_path = dir.path().join(format!("{expected_scheme}.sec.json"));
+    let pk_path = dir.path().join(format!("{expected_scheme}.pub.json"));
+    assert!(sk_path.exists(), "secret key not written for {use_case}: {}", sk_path.display());
+    assert!(pk_path.exists(), "public key not written for {use_case}: {}", pk_path.display());
+
+    let msg_path = dir.path().join("message.txt");
+    std::fs::write(&msg_path, format!("regression fixture for {use_case}")).unwrap();
+
+    let sig_path = dir.path().join("message.sig");
+    run_ok(&[
+        "sign",
+        "--key",
+        sk_path.to_str().unwrap(),
+        "--public-key",
+        pk_path.to_str().unwrap(),
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--output",
+        sig_path.to_str().unwrap(),
+    ]);
+
+    let verify_out = run_ok(&[
+        "verify",
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--signature",
+        sig_path.to_str().unwrap(),
+    ]);
+    assert!(
+        verify_out.contains("VALID"),
+        "verify did not report VALID for {use_case}: {verify_out}"
+    );
+    assert!(
+        verify_out.contains(expected_scheme),
+        "verify output did not contain {expected_scheme}: {verify_out}"
+    );
+}
+
+#[test]
+fn test_cli_keygen_use_case_iot_device_roundtrip_succeeds() {
+    // IoT → SecurityLevel::Standard → hybrid ML-DSA-44 + Ed25519
+    use_case_keygen_sign_verify_roundtrip("iot-device", "hybrid-ml-dsa-44-ed25519");
+}
+
+#[test]
+fn test_cli_keygen_use_case_secure_messaging_roundtrip_succeeds() {
+    // SecureMessaging → SecurityLevel::High (default) → hybrid ML-DSA-65 + Ed25519
+    use_case_keygen_sign_verify_roundtrip("secure-messaging", "hybrid-ml-dsa-65-ed25519");
+}
+
+#[test]
+fn test_cli_keygen_use_case_legal_documents_roundtrip_succeeds() {
+    // LegalDocuments → SecurityLevel::Maximum → hybrid ML-DSA-87 + Ed25519
+    use_case_keygen_sign_verify_roundtrip("legal-documents", "hybrid-ml-dsa-87-ed25519");
+}
+
+#[test]
+fn test_cli_keygen_use_case_file_storage_roundtrip_succeeds() {
+    // FileStorage is encryption-oriented; the use-case → signing scheme
+    // dispatcher must still route it to the signature side of the policy
+    // engine (SecurityLevel::Maximum → hybrid ML-DSA-87 + Ed25519) rather
+    // than returning the encryption scheme.
+    use_case_keygen_sign_verify_roundtrip("file-storage", "hybrid-ml-dsa-87-ed25519");
+}

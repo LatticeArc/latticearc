@@ -3,6 +3,29 @@
 //! This module provides a unified, high-level API for encryption, decryption,
 //! signing, and verification with automatic algorithm selection.
 //!
+//! ## Security: `_unverified` variants
+//!
+//! Most operations in this module come in two forms:
+//!
+//! 1. A **Zero-Trust-aware** form that takes `SecurityMode` (or an equivalent
+//!    parameter) and performs session validation before executing the
+//!    cryptographic operation — e.g.
+//!    `encrypt_aes_gcm(data, key, SecurityMode::Verified(&session))`.
+//!
+//! 2. An **`_unverified` shortcut** that skips session validation and executes
+//!    the operation directly — e.g. `encrypt_aes_gcm_unverified(data, key)`.
+//!    These wrappers exist for contexts where Zero Trust verification is not
+//!    applicable (e.g. local-only encryption, internal dispatch layers, KAT
+//!    reproduction) and for direct invocation from tests.
+//!
+//! **Production guidance:** prefer the `SecurityMode::Verified` form. Reach for
+//! `_unverified` only when you have an explicit reason not to involve a
+//! `VerifiedSession` — and make that reason reviewable at the call site.
+//! The verified form also requires a `VerifiedSession` reference, which is
+//! type-enforced and cannot be stumbled into; the `_unverified` form carries
+//! the word "unverified" in its name so that code review can catch accidental
+//! use.
+//!
 //! ## Unified API
 //!
 //! All operations use `CryptoConfig` for configuration:

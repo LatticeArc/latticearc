@@ -463,6 +463,11 @@ pub fn derive_key_with_info(
     derive_key_with_info_internal(password, salt, length, info)
 }
 
+// ============================================================================
+// Unverified API (Opt-Out) — see `convenience::mod` docs for the shared
+// security guidance on when to use `_unverified` variants.
+// ============================================================================
+
 /// Derive a key using HKDF-SHA256 with a caller-supplied info string without
 /// Zero Trust verification.
 ///

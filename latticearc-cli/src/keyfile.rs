@@ -53,17 +53,25 @@ impl KeyFile {
     }
 
     /// Read a key file from disk (supports both PortableKey and legacy formats).
+    ///
+    /// If the file contains a passphrase-encrypted key, prompts for the
+    /// passphrase via [`resolve_existing_passphrase`] and unwraps it before
+    /// returning. Plaintext key files are returned as-is.
     pub fn read_from(path: &std::path::Path) -> Result<Self> {
         let data = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
 
         // Try PortableKey first, fall back to legacy format
-        let inner = PortableKey::from_json(&data)
+        let mut inner = PortableKey::from_json(&data)
             .or_else(|_| {
                 PortableKey::from_legacy_json(&data)
                     .map_err(|e| anyhow::anyhow!("Invalid key file: {e}"))
             })
             .with_context(|| format!("Failed to parse {}", path.display()))?;
+
+        // Transparently unlock passphrase-protected keys.
+        unlock_if_encrypted(&mut inner)
+            .with_context(|| format!("Failed to unlock {}", path.display()))?;
 
         let algorithm = format!("{:?}", inner.algorithm()).to_lowercase().replace('_', "-");
         let key_type = inner.key_type();
@@ -127,10 +135,28 @@ pub(crate) fn write_key(
     key_bytes: &[u8],
     label: Option<String>,
 ) -> Result<()> {
+    write_key_protected(path, algorithm, key_type, key_bytes, label, None)
+}
+
+/// Write a single-component key, optionally encrypting secret/symmetric material
+/// with a passphrase before persisting to disk.
+///
+/// `passphrase = Some(pp)` invokes [`PortableKey::encrypt_with_passphrase`] before
+/// serializing. Public keys with `passphrase = Some(_)` are written unencrypted —
+/// public keys do not need confidentiality protection.
+pub(crate) fn write_key_protected(
+    path: &std::path::Path,
+    algorithm: KeyAlgorithm,
+    key_type: LpkKeyType,
+    key_bytes: &[u8],
+    label: Option<String>,
+    passphrase: Option<&[u8]>,
+) -> Result<()> {
     let mut key = PortableKey::new(algorithm, key_type, KeyData::from_raw(key_bytes));
     if let Some(l) = label {
         key.set_label(l);
     }
+    encrypt_if_secret(&mut key, key_type, passphrase)?;
     key.write_to_file(path).with_context(|| format!("Failed to write {}", path.display()))
 }
 
@@ -143,12 +169,116 @@ pub(crate) fn write_composite_key(
     classical_bytes: &[u8],
     label: Option<String>,
 ) -> Result<()> {
+    write_composite_key_protected(path, algorithm, key_type, pq_bytes, classical_bytes, label, None)
+}
+
+/// Composite-key counterpart to [`write_key_protected`].
+pub(crate) fn write_composite_key_protected(
+    path: &std::path::Path,
+    algorithm: KeyAlgorithm,
+    key_type: LpkKeyType,
+    pq_bytes: &[u8],
+    classical_bytes: &[u8],
+    label: Option<String>,
+    passphrase: Option<&[u8]>,
+) -> Result<()> {
     let mut key =
         PortableKey::new(algorithm, key_type, KeyData::from_composite(pq_bytes, classical_bytes));
     if let Some(l) = label {
         key.set_label(l);
     }
+    encrypt_if_secret(&mut key, key_type, passphrase)?;
     key.write_to_file(path).with_context(|| format!("Failed to write {}", path.display()))
+}
+
+/// Apply passphrase encryption to secret/symmetric keys only.
+///
+/// Public keys are written in plaintext regardless: they need integrity, not
+/// confidentiality, and encrypting them at rest would prevent verifiers from
+/// loading them without coordinating a passphrase.
+fn encrypt_if_secret(
+    key: &mut PortableKey,
+    key_type: LpkKeyType,
+    passphrase: Option<&[u8]>,
+) -> Result<()> {
+    let Some(pp) = passphrase else {
+        return Ok(());
+    };
+    if !matches!(key_type, LpkKeyType::Secret | LpkKeyType::Symmetric) {
+        return Ok(());
+    }
+    key.encrypt_with_passphrase(pp)
+        .map_err(|e| anyhow::anyhow!("Failed to encrypt key with passphrase: {e}"))
+}
+
+// ============================================================================
+// Passphrase prompts
+// ============================================================================
+
+/// Read a passphrase from the controlling terminal without echoing it.
+///
+/// Used by `keygen` to prompt for a new passphrase (asks twice and verifies
+/// they match) and by load paths to prompt for an existing passphrase.
+pub(crate) fn read_passphrase(prompt: &str) -> Result<zeroize::Zeroizing<String>> {
+    let pp = rpassword::prompt_password(prompt)
+        .map_err(|e| anyhow::anyhow!("Failed to read passphrase: {e}"))?;
+    Ok(zeroize::Zeroizing::new(pp))
+}
+
+/// Read a *new* passphrase from the terminal, prompting twice and rejecting
+/// mismatches or empty values. Used at keygen time.
+pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
+    let pp1 = read_passphrase("Enter passphrase to protect secret key: ")?;
+    if pp1.is_empty() {
+        bail!("Passphrase must not be empty");
+    }
+    let pp2 = read_passphrase("Confirm passphrase: ")?;
+    if pp1.as_bytes() != pp2.as_bytes() {
+        bail!("Passphrases did not match");
+    }
+    Ok(pp1)
+}
+
+/// Resolve a passphrase from the `LATTICEARC_PASSPHRASE` env var (for
+/// scripting / CI) or fall through to `tty_fallback()` — typically a prompt.
+///
+/// Note: passphrases must NEVER be passed as command-line arguments — they
+/// would be visible in `ps`, shell history, and crash dumps.
+fn resolve_passphrase(
+    tty_fallback: impl FnOnce() -> Result<zeroize::Zeroizing<String>>,
+) -> Result<zeroize::Zeroizing<String>> {
+    if let Ok(pp) = std::env::var("LATTICEARC_PASSPHRASE") {
+        if pp.is_empty() {
+            bail!("LATTICEARC_PASSPHRASE is set but empty");
+        }
+        return Ok(zeroize::Zeroizing::new(pp));
+    }
+    tty_fallback()
+}
+
+/// Resolve a *new* passphrase for protecting a key being written to disk:
+/// reads `LATTICEARC_PASSPHRASE` or falls back to a double-confirm tty prompt.
+pub(crate) fn resolve_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
+    resolve_passphrase(read_new_passphrase)
+}
+
+/// Resolve an *existing* passphrase for unwrapping a key loaded from disk:
+/// reads `LATTICEARC_PASSPHRASE` or falls back to a single-line tty prompt.
+pub(crate) fn resolve_existing_passphrase() -> Result<zeroize::Zeroizing<String>> {
+    resolve_passphrase(|| read_passphrase("Enter passphrase to unlock secret key: "))
+}
+
+/// Decrypt a `PortableKey` in place if it is passphrase-protected, prompting
+/// the user for the passphrase via [`resolve_existing_passphrase`].
+///
+/// Plaintext keys are returned unchanged.
+pub(crate) fn unlock_if_encrypted(key: &mut PortableKey) -> Result<()> {
+    if !key.is_encrypted() {
+        return Ok(());
+    }
+    let pp = resolve_existing_passphrase()?;
+    key.decrypt_with_passphrase(pp.as_bytes())
+        .map_err(|e| anyhow::anyhow!("Failed to unlock key: {e}"))
 }
 
 /// Parse a hybrid signing PK from concatenated raw bytes (pq ++ classical).

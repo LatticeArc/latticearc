@@ -11,6 +11,152 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.1] - 2026-04-10
+
+Bug-fix and hardening release. Fixes a fatal use-case keygen bug, adds
+passphrase-based protection for on-disk secret keys, cements the FIPS
+terminology, and improves test coverage and test quality.
+
+### Added
+
+- **`AeadCipher::seal` default method**: Generates a fresh random nonce and
+  returns `(Nonce, Vec<u8>, Tag)`. Structurally prevents caller-controlled
+  nonce reuse for AES-GCM and ChaCha20-Poly1305. Documented as the preferred
+  primitive-layer encryption entry point over `encrypt` (which takes an
+  explicit nonce for KAT / protocol use).
+- **Passphrase-encrypted `KeyData::Encrypted` variant**: New `PortableKey`
+  envelope using PBKDF2-HMAC-SHA256 (600k iterations) + AES-256-GCM. The
+  AEAD AAD binds the full envelope (version, algorithm, key_type, KDF name,
+  iteration count, salt, AEAD name), so tampering with any metadata field
+  on disk causes decryption to fail at the tag check.
+- **`PortableKey::encrypt_with_passphrase` / `decrypt_with_passphrase` /
+  `is_encrypted`**: In-place passphrase protection API with opaque error
+  messages (no wrong-passphrase vs corrupted-envelope oracle).
+- **`PortableKey::validate_encrypted_envelope_fields`**: Shared helper called
+  from both `validate()` (load-time) and `decrypt_with_passphrase` (decrypt-
+  time) so no path runs key derivation on an unvalidated envelope.
+- **`KeyAlgorithm::canonical_name` / `KeyType::canonical_name`**: Stable
+  kebab-case/lowercase names used by the passphrase-encrypted AAD
+  construction. Load-bearing for encrypted key files — pinned against
+  serde rename output by `test_canonical_names_match_serde_rename`.
+- **`latticearc-cli keygen --passphrase` flag**: Opt-in passphrase protection
+  for on-disk secret keys. Passphrase sourced from `LATTICEARC_PASSPHRASE`
+  env var or an interactive tty prompt (double-confirm, no-echo). Never
+  accepted on argv.
+- **`ED25519_PUBLIC_KEY_LEN` / `ED25519_SECRET_KEY_LEN` /
+  `ED25519_SIGNATURE_LEN`** constants in `primitives::ec::ed25519`,
+  re-exported from `ed25519_dalek` so there is a single source of truth.
+- **CLI input-size limits**: `enforce_input_size_limit`, `read_stdin_with_limit`,
+  and `read_stdin_string_with_limit` helpers in `commands::common` cap
+  `sign` / `verify` / `encrypt` / `decrypt` / `hash` inputs before read so
+  a runaway file/pipe can't OOM the process.
+
+### Fixed
+
+- **Use-case keygen crashed for encryption-oriented use cases**:
+  `select_signature_scheme` routed `UseCase` variants through the
+  encryption scheme selector, so `IoTDevice`, `FileStorage`, `SecureMessaging`,
+  and other encryption-oriented cases crashed with `"Unsupported signing
+  scheme: hybrid-ml-kem-*-aes-256-gcm"`. Now routes through
+  `UseCaseConfig::new(*use_case).signature` for the correct ML-DSA hybrid
+  scheme at the use case's security level.
+- **Use-case-generated hybrid keys were unloadable**: `generate_from_config`
+  wrote hybrid ML-DSA + Ed25519 keys as `KeyData::Single` with concatenated
+  bytes. `PortableKey::validate()` correctly rejects hybrid algorithms with
+  `Single` key data, so the key files were syntactically valid JSON but
+  could never be loaded. Now routed through
+  `PortableKey::from_hybrid_sig_keypair` which produces the correct
+  `KeyData::Composite` encoding.
+- **Sign-time scheme inference**: `sign_unified` previously derived the
+  signing scheme from the default `CryptoConfig`, not from the loaded key
+  file's algorithm, so a correctly-encoded hybrid-87 key was rejected with
+  a length mismatch against the default hybrid-65 scheme. Now infers the
+  security level from the key file's `KeyAlgorithm` via the new
+  `infer_signature_security_level` helper.
+- **Hybrid encryption keygen failure was silent**: `generate_from_config`
+  wrapped the encryption keypair generation in `eprintln!("Note: skipped")`
+  and exited 0, so users saw "Generated" but `encryption.sec.json` was
+  missing. Now propagates the error via `?` so the whole keygen command
+  fails atomically.
+- **CI timing-independence test failed on Windows/macOS**: The old test
+  measured op1 fully, then op2 fully, so the first-measured operation
+  paid all the cold-cache/codegen cost (ratios up to 7.2x on macOS CI,
+  vs the 2.0x ceiling). Rewritten to use interleaved measurement with
+  50-iteration warmup and median-over-mean to eliminate cold-start bias.
+- **Legacy `encrypt_hybrid::encrypt` / `decrypt`**: Marked `#[deprecated]`
+  with a migration note pointing to `encrypt_hybrid` / `decrypt_hybrid`.
+  The legacy functions were ML-KEM-768 only and not true hybrid (no ECDH
+  component).
+- **FIPS terminology reconciled**: `README.md` line 12 previously conflated
+  *algorithm conformance* (FIPS 203/204/205/206) with *module validation*
+  (FIPS 140-3 CMVP). Rewritten to distinguish the two and state the exact
+  scope: AES-GCM / ML-KEM / HKDF / SHA-2 route through the validated
+  aws-lc-rs backend with `--features fips`; PQ signatures are NIST-
+  conformant but not CMVP-validated; the library boundary is not
+  CMVP-certified. `lib.rs` banner updated to match. Badge fixed from
+  `FIPS 203–205` to `NIST PQC FIPS 203–206`.
+- **Deleted broken dead file** `tests/src/validation/constant_time.rs`:
+  Contained orphaned code blocks outside any function (stray merge
+  leftovers), a fake `constant_time_verify` that always returned false
+  for valid signatures, and duplicates of `subtle` crate functionality.
+  Not referenced from `mod.rs` — never compiled.
+
+### Security
+
+- **AEAD AAD binding**: All passphrase-encrypted key files bind their full
+  envelope parameters (including KDF iteration count and salt) to the AEAD
+  AAD. An attacker modifying any metadata field on disk — including
+  downgrading `kdf_iterations` or swapping the salt — causes authentication
+  to fail before key derivation runs.
+- **Opaque decryption errors**: `decrypt_with_passphrase` returns a fixed
+  error message for both wrong passphrases and corrupted ciphertexts, so
+  there is no passphrase oracle. Pinned by
+  `test_encrypt_with_passphrase_corrupted_ciphertext_matches_wrong_passphrase_error`.
+- **Secure passphrase input**: Passphrases are read via the `rpassword`
+  crate (no echo) and wrapped in `zeroize::Zeroizing<String>` end-to-end.
+  Passphrases on command-line arguments are not supported.
+
+### Tests
+
+- **+11 library tests**: 8 passphrase-encryption tests (single + composite
+  roundtrip, wrong passphrase, corrupted ciphertext, empty passphrase,
+  double-encrypt, decrypt-on-plaintext, JSON roundtrip, AAD algorithm
+  binding, AAD key_type binding), 7 envelope-validation negative tests
+  (wrong version, unknown KDF, unknown AEAD, low iterations, short salt,
+  wrong nonce length, short ciphertext), and 2 pinned tests
+  (`test_encryption_aad_byte_layout_is_stable`,
+  `test_canonical_names_match_serde_rename`).
+- **+4 CLI integration tests**: Full `keygen --use-case` → `sign` →
+  `verify` regression tests covering the three security-level tiers plus
+  a previously-broken encryption-oriented use case.
+- **`test_generate_signing_keypair_all_use_cases_succeeds`**: Expanded
+  from 12 to all 22 `UseCase` variants, each with a functional
+  sign+verify round-trip. Compile-time exhaustiveness guarded by the new
+  module-level `assert_all_signing_use_cases_covered` fn.
+- **Lib test count**: 2097 → 2108. All pass in ~40s release mode.
+- **CLI integration count**: 86 → 90.
+
+### Internal
+
+- **Simplified `Decoded` struct in `decrypt_with_passphrase`**: removed
+  `kdf: String` and `aead: String` fields after validation proved them
+  equal to the envelope constants. Saves two `String` allocations per
+  decrypt.
+- **Eliminated duplicated Ed25519 length magic numbers**: four local
+  `const ED25519_*_LEN: usize = 32` declarations across the library and
+  CLI now import from `primitives::ec::ed25519`.
+- **Single source of truth for passphrase resolution**: `resolve_new_passphrase`
+  and `resolve_existing_passphrase` now share a `resolve_passphrase`
+  helper that encapsulates the `LATTICEARC_PASSPHRASE` env-var path.
+- **Shared stdin-limit helpers**: `read_stdin_with_limit` and
+  `read_stdin_string_with_limit` replace three copies of inline
+  `take + length check + bail!` across `encrypt.rs`, `hash.rs`, and
+  `decrypt.rs`.
+- **Collapsed 6 per-submodule "Unverified API" security comment blocks**
+  into 2-line references to the authoritative `convenience::mod` docs.
+
+---
+
 ## [0.6.0] - 2026-04-09
 
 Restructured SecurityLevel / CryptoMode system to separate two orthogonal axes:

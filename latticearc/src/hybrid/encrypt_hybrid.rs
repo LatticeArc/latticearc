@@ -26,18 +26,21 @@
 //!
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::hybrid::encrypt_hybrid::{encrypt, decrypt, HybridEncryptionContext};
-//! # let ml_kem_pk = vec![0u8; 1184]; // ML-KEM-768 public key (placeholder)
-//! # let ml_kem_sk = vec![0u8; 2400]; // ML-KEM-768 secret key (placeholder)
+//! use latticearc::hybrid::encrypt_hybrid::{
+//!     encrypt_hybrid, decrypt_hybrid, HybridEncryptionContext,
+//! };
+//! use latticearc::hybrid::kem_hybrid;
+//! use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+//!
+//! // Generate a hybrid (ML-KEM + X25519) keypair at the desired security level.
+//! let (hybrid_pk, hybrid_sk) =
+//!     kem_hybrid::generate_keypair_with_level(MlKemSecurityLevel::MlKem768)?;
 //!
 //! let plaintext = b"Secret message";
 //! let context = HybridEncryptionContext::default();
 //!
-//! // Encrypt with ML-KEM public key
-//! let ciphertext = encrypt(&ml_kem_pk, plaintext, Some(&context))?;
-//!
-//! // Decrypt with ML-KEM secret key
-//! let decrypted = decrypt(&ml_kem_sk, &ciphertext, Some(&context))?;
+//! let ciphertext = encrypt_hybrid(&hybrid_pk, plaintext, Some(&context))?;
+//! let decrypted = decrypt_hybrid(&hybrid_sk, &ciphertext, Some(&context))?;
 //! # Ok(())
 //! # }
 //! ```
@@ -274,7 +277,14 @@ pub fn derive_encryption_key(
     Ok(key)
 }
 
-/// Hybrid encryption using ML-KEM + AES-256-GCM with HPKE-style key derivation.
+/// Legacy ML-KEM-768-only encryption using raw public-key bytes.
+///
+/// # Deprecated
+///
+/// This function is limited to ML-KEM-768 (hard-coded 1184-byte public key)
+/// and is *not* a true hybrid — it omits the X25519 ECDH component. Prefer
+/// [`encrypt_hybrid`], which accepts a [`HybridKemPublicKey`] carrying the
+/// security level and performs a proper ML-KEM + X25519 hybrid combination.
 ///
 /// # Security
 ///
@@ -289,6 +299,10 @@ pub fn derive_encryption_key(
 /// - ML-KEM encapsulation fails
 /// - Key derivation fails
 /// - AES-GCM encryption fails
+#[deprecated(
+    since = "0.6.1",
+    note = "ML-KEM-768 only and not a true hybrid (no ECDH). Use `encrypt_hybrid` with a `HybridKemPublicKey` — supports ML-KEM-512/768/1024 and performs ML-KEM + X25519 hybrid combination."
+)]
 pub fn encrypt(
     ml_kem_pk: &[u8],
     plaintext: &[u8],
@@ -336,7 +350,14 @@ pub fn encrypt(
     ))
 }
 
-/// Hybrid decryption using ML-KEM + AES-256-GCM with HPKE-style key derivation.
+/// Legacy ML-KEM-768-only decryption using raw secret-key bytes.
+///
+/// # Deprecated
+///
+/// Counterpart to the deprecated [`encrypt`] function. Use [`decrypt_hybrid`]
+/// with a [`HybridKemSecretKey`], which supports ML-KEM-512/768/1024 and
+/// verifies the ciphertext structure against the key's security level at
+/// runtime.
 ///
 /// # Errors
 ///
@@ -346,6 +367,10 @@ pub fn encrypt(
 /// - ML-KEM decapsulation fails
 /// - Key derivation fails
 /// - AES-GCM decryption or authentication fails
+#[deprecated(
+    since = "0.6.1",
+    note = "ML-KEM-768 only and not a true hybrid (no ECDH). Use `decrypt_hybrid` with a `HybridKemSecretKey` — supports ML-KEM-512/768/1024."
+)]
 pub fn decrypt(
     ml_kem_sk: &[u8],
     ciphertext: &HybridCiphertext,
@@ -546,6 +571,7 @@ pub fn decrypt_hybrid(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
+#[allow(deprecated)] // Tests intentionally exercise the deprecated legacy `encrypt`/`decrypt` paths
 mod tests {
     use super::*;
 

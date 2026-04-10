@@ -15,6 +15,22 @@ use rand::rngs::OsRng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
+// RFC 8032 §5.1.5 / §5.1.6 byte lengths, re-exported from `ed25519-dalek` so
+// there is a single source of truth. These are re-exports rather than locally
+// defined constants to guarantee they track the upstream crate's view of
+// Ed25519 key and signature sizes.
+
+/// Length of an Ed25519 public key in bytes.
+pub use ed25519_dalek::PUBLIC_KEY_LENGTH as ED25519_PUBLIC_KEY_LEN;
+
+/// Length of an Ed25519 secret key seed in bytes — the input to
+/// [`ed25519_dalek::SigningKey::from_bytes`]. This is the seed, not the
+/// expanded 64-byte form (seed || derived public key).
+pub use ed25519_dalek::SECRET_KEY_LENGTH as ED25519_SECRET_KEY_LEN;
+
+/// Length of an Ed25519 signature in bytes.
+pub use ed25519_dalek::SIGNATURE_LENGTH as ED25519_SIGNATURE_LEN;
+
 /// Ed25519 key pair implementation
 ///
 /// The secret key is automatically zeroized on drop via `ed25519_dalek::SigningKey`'s

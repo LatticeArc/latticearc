@@ -148,7 +148,8 @@ pub fn verify_hybrid_signature_with_config(
 }
 
 // ============================================================================
-// Unverified Convenience Variants
+// Unverified Convenience Variants — see `convenience::mod` docs for the
+// shared security guidance on when to use `_unverified` variants.
 // ============================================================================
 
 /// Generate a hybrid signing keypair without Zero Trust verification.

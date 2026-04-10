@@ -263,11 +263,18 @@ fn test_sign_verify_authentication_use_case_keypair_succeeds() {
 }
 
 #[test]
-fn test_sign_verify_iot_use_case_is_rejected() {
-    // IoT use case maps to an encryption scheme, not a signing scheme
+fn test_sign_verify_iot_use_case_succeeds() {
+    // `IoTDevice` is a resource-constrained use case, not a category that
+    // bans signing. `UseCaseConfig::new(IoTDevice)` assigns
+    // `SecurityLevel::Standard`, so signing keygen returns
+    // `hybrid-ml-dsa-44-ed25519` (L1 hybrid).
     let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
-    let result = generate_signing_keypair(config);
-    assert!(result.is_err(), "IoT encryption scheme should not be used for signing");
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+    assert_eq!(scheme, "hybrid-ml-dsa-44-ed25519");
+
+    let message = b"IoT use case sign/verify test";
+    let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
+    assert!(verify(&signed, config).unwrap(), "signature must verify");
 }
 
 #[test]
@@ -304,21 +311,31 @@ fn test_sign_verify_standard_security_succeeds() {
 }
 
 #[test]
-fn test_sign_verify_file_storage_use_case_is_rejected() {
-    // FileStorage maps to an encryption scheme (hybrid-ml-kem-1024-aes-256-gcm),
-    // not a signing scheme. Keygen should reject it.
+fn test_sign_verify_file_storage_use_case_succeeds() {
+    // `FileStorage` is a long-term-security use case → `SecurityLevel::Maximum`
+    // → the L5 hybrid signing scheme. The policy engine routes the encryption
+    // scheme selector only for encryption operations; signing keygen pulls the
+    // security level from `UseCaseConfig` instead.
     let config = CryptoConfig::new().use_case(UseCase::FileStorage);
-    let result = generate_signing_keypair(config);
-    assert!(result.is_err(), "FileStorage encryption scheme should not be used for signing");
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+    assert_eq!(scheme, "hybrid-ml-dsa-87-ed25519");
+
+    let message = b"FileStorage use case sign/verify test";
+    let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
+    assert!(verify(&signed, config).unwrap(), "signature must verify");
 }
 
 #[test]
-fn test_sign_verify_secure_messaging_use_case_is_rejected() {
-    // SecureMessaging maps to an encryption scheme (hybrid-ml-kem-768-aes-256-gcm),
-    // not a signing scheme. Keygen should reject it.
+fn test_sign_verify_secure_messaging_use_case_succeeds() {
+    // `SecureMessaging` uses the `UseCaseConfig` default security level
+    // (`SecurityLevel::High`), which selects the L3 hybrid signing scheme.
     let config = CryptoConfig::new().use_case(UseCase::SecureMessaging);
-    let result = generate_signing_keypair(config);
-    assert!(result.is_err(), "SecureMessaging encryption scheme should not be used for signing");
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+    assert_eq!(scheme, "hybrid-ml-dsa-65-ed25519");
+
+    let message = b"SecureMessaging use case sign/verify test";
+    let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
+    assert!(verify(&signed, config).unwrap(), "signature must verify");
 }
 
 // ============================================================

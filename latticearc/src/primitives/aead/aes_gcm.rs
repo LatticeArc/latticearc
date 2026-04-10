@@ -284,6 +284,39 @@ mod tests {
     }
 
     #[test]
+    fn test_aes_gcm_256_seal_generates_fresh_nonce_per_call() {
+        let key = AesGcm256::generate_key();
+        let cipher = AesGcm256::new(&*key).unwrap();
+        let plaintext = b"seal must generate a fresh nonce per call";
+
+        let (nonce1, ct1, tag1) = cipher.seal(plaintext, None).unwrap();
+        let (nonce2, ct2, tag2) = cipher.seal(plaintext, None).unwrap();
+
+        // Same key + same plaintext must produce distinct nonces → distinct ciphertexts.
+        assert_ne!(nonce1, nonce2, "seal() must generate a fresh nonce per call");
+        assert_ne!(ct1, ct2, "fresh nonces must produce distinct ciphertexts");
+        assert_ne!(tag1, tag2, "fresh nonces must produce distinct tags");
+
+        // Both sealed blobs decrypt correctly.
+        let pt1 = cipher.decrypt(&nonce1, &ct1, &tag1, None).unwrap();
+        let pt2 = cipher.decrypt(&nonce2, &ct2, &tag2, None).unwrap();
+        assert_eq!(plaintext, pt1.as_slice());
+        assert_eq!(plaintext, pt2.as_slice());
+    }
+
+    #[test]
+    fn test_aes_gcm_128_seal_roundtrip_with_aad() {
+        let key = AesGcm128::generate_key();
+        let cipher = AesGcm128::new(&*key).unwrap();
+        let plaintext = b"seal with aad";
+        let aad = b"context";
+
+        let (nonce, ct, tag) = cipher.seal(plaintext, Some(aad)).unwrap();
+        let decrypted = cipher.decrypt(&nonce, &ct, &tag, Some(aad)).unwrap();
+        assert_eq!(plaintext, decrypted.as_slice());
+    }
+
+    #[test]
     fn test_aes_gcm_128_with_aad_roundtrip() {
         let key = AesGcm128::generate_key();
         let cipher = AesGcm128::new(&*key).unwrap();

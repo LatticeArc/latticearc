@@ -65,6 +65,11 @@ pub(crate) struct VerifyArgs {
 
 /// Execute the verify command.
 pub(crate) fn run(args: VerifyArgs) -> Result<()> {
+    super::common::enforce_input_size_limit(
+        &args.input,
+        super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
+        "verify",
+    )?;
     let sig_json = std::fs::read_to_string(&args.signature)
         .with_context(|| format!("Failed to read {}", args.signature.display()))?;
 

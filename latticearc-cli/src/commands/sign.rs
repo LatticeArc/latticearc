@@ -66,6 +66,11 @@ pub(crate) struct SignArgs {
 
 /// Execute the sign command.
 pub(crate) fn run(args: SignArgs) -> Result<()> {
+    super::common::enforce_input_size_limit(
+        &args.input,
+        super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
+        "sign",
+    )?;
     let data = std::fs::read(&args.input)
         .with_context(|| format!("Failed to read {}", args.input.display()))?;
 
@@ -150,6 +155,13 @@ pub(crate) fn run(args: SignArgs) -> Result<()> {
 ///
 /// Produces a `SignedData` envelope (scheme + timestamp + public key + signature)
 /// that can be verified by the library's `verify()` function directly.
+///
+/// When the caller hasn't passed `--use-case` / `--security-level`, the
+/// signing scheme is inferred from the public key file's algorithm so that
+/// keys generated via `keygen --use-case ...` sign under the same scheme they
+/// were generated with. Without this inference, the library would fall back
+/// to its default scheme (hybrid-ml-dsa-65-ed25519) and reject the key as a
+/// length mismatch.
 fn sign_unified(
     data: &[u8],
     sk_bytes: &[u8],
@@ -162,7 +174,12 @@ fn sign_unified(
     }
     let pk_bytes = pk_file.key_bytes()?;
 
-    let config = super::common::build_config(args.use_case, args.security_level, &args.compliance);
+    let config = super::common::build_signing_config(
+        args.use_case,
+        args.security_level,
+        &args.compliance,
+        pk_file.portable_key().algorithm(),
+    );
 
     let signed = latticearc::sign_with_key(data, sk_bytes, &pk_bytes, config)
         .map_err(|e| anyhow::anyhow!("Signing failed: {e}"))?;

@@ -4,12 +4,14 @@
 [![docs.rs](https://docs.rs/latticearc/badge.svg)](https://docs.rs/latticearc)
 [![CI](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/ci.yml)
 [![NIST CAVP Tests](https://github.com/LatticeArc/latticearc/actions/workflows/fips-validation.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/fips-validation.yml)
-[![FIPS 203–205](https://img.shields.io/badge/FIPS_203--205-implemented-blue)](docs/NIST_COMPLIANCE.md)
+[![NIST PQC FIPS 203–206](https://img.shields.io/badge/NIST_PQC_FIPS_203--206-implemented-blue)](docs/NIST_COMPLIANCE.md)
 [![codecov](https://codecov.io/gh/LatticeArc/latticearc/branch/main/graph/badge.svg)](https://codecov.io/gh/LatticeArc/latticearc)
 [![CodeQL](https://github.com/LatticeArc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-LatticeArc is a post-quantum cryptography library for Rust that implements all four NIST PQC standards (FIPS 203–206) with a FIPS 140-3 validated backend. It ships as a single crate with a use-case-driven API — you describe what you're protecting, the library selects the right algorithm, security level, and compliance mode automatically. Hybrid (PQ + classical) by default for defense-in-depth, with PQ-only mode available for CNSA 2.0.
+LatticeArc is a post-quantum cryptography library for Rust that implements all four NIST PQC algorithm standards (FIPS 203–206) and routes AES-GCM / ML-KEM / HKDF / SHA-2 through the FIPS 140-3 validated aws-lc-rs backend (opt-in via `--features fips`). It ships as a single crate with a use-case-driven API — you describe what you're protecting, the library selects the right algorithm, security level, and compliance mode automatically. Hybrid (PQ + classical) by default for defense-in-depth, with PQ-only mode available for CNSA 2.0.
+
+> **On "FIPS":** This repo distinguishes *algorithm-level conformance* (FIPS 203/204/205/206 — the NIST specs) from *module-level validation* (FIPS 140-3 CMVP — lab-certified cryptographic module). LatticeArc implements the algorithms in (1); only a subset routes through a module that satisfies (2). The library itself has not undergone CMVP validation. See [Algorithm Validation Status](#algorithm-validation-status) and `docs/NIST_COMPLIANCE.md` for the exact scope.
 
 ## The Problem
 
@@ -35,7 +37,7 @@ let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new()
 // ML-KEM-1024 + X25519 + HKDF-SHA256 + AES-256-GCM — selected automatically
 ```
 
-Three lines. FIPS-grade hybrid encryption. Automatic secret zeroization. No algorithm research required.
+Three lines. NIST-conformant hybrid encryption. Automatic secret zeroization. No algorithm research required.
 
 ## Why Hybrid by Default?
 
@@ -54,7 +56,7 @@ This is supported by [NIST](https://csrc.nist.gov/projects/post-quantum-cryptogr
 - **Two orthogonal axes** — `SecurityLevel` (NIST 1/3/5) x `CryptoMode` (Hybrid/PqOnly)
 - **Zero-trust sessions** — per-operation authentication before any crypto operation
 - **Formal verification** — 27 Kani proofs, Proptest property suites, SAW-verified primitives (via aws-lc-rs)
-- **FIPS 140-3 ready** — `--features fips` enables the validated aws-lc-rs backend
+- **FIPS 140-3 backend (partial)** — `--features fips` routes AES-GCM, ML-KEM, HKDF, and SHA-2 through the validated aws-lc-rs module. PQ signatures (ML-DSA, SLH-DSA, FN-DSA) use non-validated crates. The library itself is not CMVP-certified.
 - **Single crate, minimal API** — `cargo add latticearc` and go
 
 ## How It Works
@@ -340,10 +342,10 @@ Keys are stored in the **LatticeArc Portable Key (LPK)** format — a schema-fir
 
 | Category | Algorithms | Backend |
 |----------|-----------|---------|
-| **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs (FIPS 140-3 validated) |
-| **PQ Signatures** | ML-DSA-44/65/87 (FIPS 204) | fips204 |
-| **PQ Hash Signatures** | SLH-DSA (FIPS 205) | fips205 |
-| **PQ Lattice Signatures** | FN-DSA-512/1024 (draft FIPS 206) | fn-dsa |
+| **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs (routed through FIPS 140-3 validated module with `--features fips`) |
+| **PQ Signatures** | ML-DSA-44/65/87 (FIPS 204) | fips204 (NIST-conformant, not CMVP-validated) |
+| **PQ Hash Signatures** | SLH-DSA (FIPS 205) | fips205 (NIST-conformant, not CMVP-validated) |
+| **PQ Lattice Signatures** | FN-DSA-512/1024 (draft FIPS 206) | fn-dsa (NIST-conformant, not CMVP-validated) |
 | **Classical Signatures** | Ed25519 | ed25519-dalek (audited) |
 | **Classical Key Exchange** | X25519 | aws-lc-rs |
 | **Symmetric Encryption** | AES-256-GCM, ChaCha20-Poly1305 | aws-lc-rs, chacha20poly1305 |
@@ -374,9 +376,10 @@ See [Formal Verification](docs/FORMAL_VERIFICATION.md) for the complete proof in
 
 ### Limitations
 
-- **Not FIPS 140-3 certified** — aws-lc-rs provides a validated backend; LatticeArc itself has not undergone CMVP validation (FIPS-ready: module integrity test implemented, KAT suite complete)
-- **Not independently audited** — We welcome security researchers to review our code
-- **Pre-1.0 software** — API may change between versions
+- **Not FIPS 140-3 (CMVP) validated** — LatticeArc as a cryptographic module has not undergone CMVP certification. With `--features fips`, AES-GCM / ML-KEM / HKDF / SHA-2 are routed through the FIPS 140-3 validated aws-lc-rs backend; PQ signatures (ML-DSA, SLH-DSA, FN-DSA) and the overall library boundary are not validated. See [NIST Compliance](docs/NIST_COMPLIANCE.md) for the exact algorithm-by-algorithm boundary.
+- **"FIPS" terminology** — this README distinguishes *algorithm conformance* (the library implements FIPS 203/204/205/206 per NIST spec) from *module validation* (CMVP certification). Conformance is claimed; module validation is not.
+- **Not independently audited** — We welcome security researchers to review our code.
+- **Pre-1.0 software** — API may change between versions.
 
 ### Upstream Contributions
 

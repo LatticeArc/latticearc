@@ -258,11 +258,9 @@ pub fn verify_ed25519_with_config(
 }
 
 // ============================================================================
-// Unverified API (Opt-Out)
+// Unverified API (Opt-Out) — see `convenience::mod` docs for the shared
+// security guidance on when to use `_unverified` variants.
 // ============================================================================
-//
-// These functions skip Zero Trust session validation. They are a valid choice
-// for scenarios where session management is not needed or not possible.
 
 /// Sign data using Ed25519 without Zero Trust verification.
 ///

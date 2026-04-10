@@ -81,30 +81,86 @@ pub trait AeadCipher: sealed::Sealed {
     where
         Self: Sized;
 
-    /// Generate a random nonce
+    /// Generate a random nonce from the OS CSPRNG.
     fn generate_nonce() -> Nonce;
 
-    /// Encrypt plaintext with optional associated data
+    /// Encrypt plaintext with a caller-supplied nonce.
+    ///
+    /// # Security
+    ///
+    /// **Prefer [`AeadCipher::seal`]** unless you have a specific reason to control
+    /// the nonce value. `seal` generates a fresh random nonce per call, eliminating
+    /// caller-controlled nonce reuse — the single most catastrophic misuse of
+    /// AES-GCM / ChaCha20-Poly1305.
+    ///
+    /// This low-level method exists for:
+    /// - NIST KAT reproduction (deterministic inputs required)
+    /// - Protocol-specified nonce derivation (e.g., TLS 1.3 per-record nonce)
+    /// - Deterministic encryption constructions
+    ///
+    /// Reusing a `(key, nonce)` pair with AES-GCM *catastrophically* breaks both
+    /// confidentiality (XOR of plaintexts recoverable) and integrity (forgery via
+    /// authentication key recovery). See NIST SP 800-38D §8.2 and
+    /// Joux, "Authentication Failures in NIST version of GCM" (2006).
     ///
     /// # Arguments
     ///
-    /// * `nonce` - Unique nonce for this encryption (must be 12 bytes)
-    /// * `plaintext` - Data to encrypt
-    /// * `aad` - Optional associated data (authenticated but not encrypted)
+    /// * `nonce` - 12-byte nonce; MUST be unique for every call with this key.
+    /// * `plaintext` - Data to encrypt.
+    /// * `aad` - Optional associated data (authenticated, not encrypted).
     ///
     /// # Returns
     ///
-    /// Tuple of (ciphertext, authentication_tag)
+    /// Tuple of (ciphertext, authentication_tag).
     ///
     /// # Errors
     ///
-    /// Returns `AeadError` if encryption fails
+    /// Returns `AeadError` if encryption fails.
     fn encrypt(
         &self,
         nonce: &Nonce,
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError>;
+
+    /// Encrypt plaintext with an internally-generated random nonce.
+    ///
+    /// This is the preferred primitive-layer encryption entry point: the nonce
+    /// is drawn fresh from the OS CSPRNG per call (96 bits), making
+    /// caller-controlled nonce reuse structurally impossible. The returned
+    /// nonce must be transmitted alongside the ciphertext so the receiver can
+    /// decrypt.
+    ///
+    /// Under the RBG-based construction of NIST SP 800-38D §8.2.2, a single
+    /// key supports up to 2^32 invocations before the collision bound becomes
+    /// relevant — more than enough for typical workloads. Rotate keys
+    /// periodically if you approach that scale.
+    ///
+    /// Use [`AeadCipher::encrypt`] only when the protocol or test vector
+    /// requires a caller-controlled nonce.
+    ///
+    /// # Arguments
+    ///
+    /// * `plaintext` - Data to encrypt.
+    /// * `aad` - Optional associated data (authenticated, not encrypted).
+    ///
+    /// # Returns
+    ///
+    /// Tuple of `(nonce, ciphertext, tag)`. The nonce MUST be stored alongside
+    /// the ciphertext for decryption.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AeadError` if encryption fails.
+    fn seal(
+        &self,
+        plaintext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<(Nonce, Vec<u8>, Tag), AeadError> {
+        let nonce = Self::generate_nonce();
+        let (ciphertext, tag) = self.encrypt(&nonce, plaintext, aad)?;
+        Ok((nonce, ciphertext, tag))
+    }
 
     /// Decrypt ciphertext with optional associated data
     ///
