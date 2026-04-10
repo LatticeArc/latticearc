@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["COMPLIANCE_MODES","SECURITY_LEVELS","USE_CASES"],"fn":["build_config","parse_compliance","parse_security_level","parse_use_case"]};
+window.SIDEBAR_ITEMS = {"constant":["COMPLIANCE_MODES","SECURITY_LEVELS","USE_CASES"],"fn":["build_config","ml_kem_to_security_level","parse_compliance","parse_security_level","parse_use_case","resolve_ml_kem_level"]};
