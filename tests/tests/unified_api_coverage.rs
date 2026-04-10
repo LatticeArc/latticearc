@@ -573,40 +573,37 @@ fn test_verify_pq_ml_dsa_65_scheme_succeeds() {
 
 #[test]
 fn test_verify_pq_ml_dsa_87_scheme_succeeds() {
-    let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-    let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
-
-    let message = b"PQ-only ML-DSA-87 verification test";
-    let mut signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
-
-    if signed.scheme.contains("ml-dsa-87") || signed.scheme.contains("pq-ml-dsa-87") {
-        signed.scheme = "pq-ml-dsa-87".to_string();
-        let result = verify(&signed, config);
-        match result {
-            Ok(valid) => assert!(valid, "pq-ml-dsa-87 should verify with correct keys"),
-            Err(e) => panic!("Unexpected error verifying pq-ml-dsa-87: {}", e),
-        }
-    }
-}
-
-// ============================================================
-// Sign with pq-ml-dsa-* scheme name via Quantum SecurityLevel
-// ============================================================
-
-#[test]
-fn test_sign_with_key_pq_ml_dsa_scheme_succeeds() {
-    // Quantum SecurityLevel should select pq-ml-dsa-* schemes
+    // Note: In 0.6.0, SecurityLevel::Quantum resolves to Maximum, which selects
+    // hybrid-ml-dsa-87-ed25519 for signing. CryptoMode only affects encryption
+    // routing, not signing. This test verifies the resolved hybrid scheme works.
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
     assert!(
-        scheme.starts_with("pq-ml-dsa") || scheme.starts_with("ml-dsa"),
-        "Quantum level should use pure ML-DSA, got: {}",
-        scheme
+        scheme.contains("ml-dsa-87"),
+        "Quantum (→Maximum) should select ml-dsa-87 variant, got: {scheme}"
     );
+
+    let message = b"ML-DSA-87 verification test";
+    let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
+    let valid = verify(&signed, config).unwrap();
+    assert!(valid, "Signature should verify");
+}
+
+// ============================================================
+// Sign with ml-dsa-87 variant via Quantum SecurityLevel
+// ============================================================
+
+#[test]
+fn test_sign_with_key_pq_ml_dsa_scheme_succeeds() {
+    // Note: In 0.6.0, Quantum resolves to Maximum, which selects ml-dsa-87.
+    let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+    let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
+
+    assert!(scheme.contains("ml-dsa-87"), "Quantum (→Maximum) should use ML-DSA-87, got: {scheme}");
 
     let message = b"Quantum security level signing";
     let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
     let valid = verify(&signed, config).unwrap();
-    assert!(valid, "PQ-only scheme {} should verify correctly", scheme);
+    assert!(valid, "Scheme {scheme} should verify correctly");
 }

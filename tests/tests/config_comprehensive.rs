@@ -594,11 +594,26 @@ fn test_crypto_config_use_case_setter_updates_correctly_succeeds() {
 
 #[test]
 fn test_crypto_config_security_level_setter_updates_correctly_succeeds() {
+    // SecurityLevel::Quantum is deprecated in 0.6.0 and resolves to
+    // (Maximum, CryptoMode::PqOnly). Verify both axes are set correctly.
     let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
     match config.get_selection() {
-        AlgorithmSelection::SecurityLevel(sl) => assert_eq!(*sl, SecurityLevel::Quantum),
+        AlgorithmSelection::SecurityLevel(sl) => assert_eq!(*sl, SecurityLevel::Maximum),
         _ => panic!("Expected SecurityLevel variant"),
     }
+    assert_eq!(
+        config.get_crypto_mode(),
+        latticearc::CryptoMode::PqOnly,
+        "Quantum must auto-set PqOnly mode"
+    );
+
+    // Non-deprecated levels pass through unchanged.
+    let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
+    match config.get_selection() {
+        AlgorithmSelection::SecurityLevel(sl) => assert_eq!(*sl, SecurityLevel::Maximum),
+        _ => panic!("Expected SecurityLevel variant"),
+    }
+    assert_eq!(config.get_crypto_mode(), latticearc::CryptoMode::Hybrid);
 }
 
 #[test]

@@ -269,11 +269,35 @@ fn proof_security_level_maximum_selects_ml_kem_1024() {
 }
 
 #[test]
-fn proof_security_level_quantum_selects_ml_kem_1024() {
-    proof_security_level(
-        SecurityLevel::Quantum,
-        EncryptionScheme::HybridMlKem1024Aes256Gcm,
-        "Quantum",
+fn proof_security_level_quantum_selects_pq_ml_kem_1024() {
+    // Since 0.6.0, SecurityLevel::Quantum resolves to (Maximum, PqOnly),
+    // which selects PqMlKem1024Aes256Gcm (no classical component).
+    let data = b"Proof evidence: Quantum -> PQ-only ML-KEM-1024";
+    let (pk, sk) = latticearc::generate_pq_keypair_with_level(
+        latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem1024,
+    )
+    .expect("pq keypair gen failed");
+
+    let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+    let encrypted =
+        encrypt(data, EncryptKey::PqOnly(&pk), config.clone()).expect("encrypt failed for Quantum");
+
+    assert_eq!(
+        encrypted.scheme(),
+        &EncryptionScheme::PqMlKem1024Aes256Gcm,
+        "SecurityLevel::Quantum should select PqMlKem1024Aes256Gcm"
+    );
+
+    let decrypted =
+        decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).expect("decrypt failed for Quantum");
+    assert_eq!(decrypted.as_slice(), data);
+
+    println!(
+        "[PROOF] {{\"section\":2,\"test\":\"security_level_quantum\",\
+         \"security_level\":\"Quantum\",\
+         \"resolves_to\":\"Maximum+PqOnly\",\
+         \"scheme\":\"pq-ml-kem-1024-aes-256-gcm\",\
+         \"status\":\"PASS\"}}"
     );
 }
 

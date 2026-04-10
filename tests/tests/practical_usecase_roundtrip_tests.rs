@@ -1707,16 +1707,17 @@ fn compliance_mode_fips140_3_roundtrip() {
 
 #[test]
 fn compliance_mode_cnsa2_0_roundtrip() {
-    // CNSA 2.0 allows hybrid as transitional (per NIST SP 800-227).
-    // Use ML-KEM-1024 hybrid keypair with Quantum security level.
-    let msg = b"ComplianceMode::Cnsa2_0 - FIPS + Quantum";
-    let level = MlKemSecurityLevel::MlKem1024;
-    let (pk, sk) = generate_hybrid_keypair_with_level(level).expect("keygen");
+    // CNSA 2.0 (since 0.6.0) requires CryptoMode::PqOnly.
+    // SecurityLevel::Quantum resolves to (Maximum, PqOnly) automatically,
+    // but the key type must be PqOnly (not hybrid).
+    let msg = b"ComplianceMode::Cnsa2_0 - PQ-only";
+    let (pk, sk) =
+        latticearc::generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem1024).expect("keygen");
     let config = CryptoConfig::new()
         .compliance(ComplianceMode::Cnsa2_0)
         .security_level(SecurityLevel::Quantum);
-    let encrypted = encrypt(msg, EncryptKey::Hybrid(&pk), config)
-        .expect("CNSA 2.0 + hybrid should succeed (transitional per SP 800-227)");
+    let encrypted =
+        encrypt(msg, EncryptKey::PqOnly(&pk), config).expect("CNSA 2.0 + PQ-only should succeed");
 
     let json = serialize_encrypted_output(&encrypted).expect("serialize");
     let path = std::env::temp_dir().join(format!("latticearc-cnsa-{}", uuid::Uuid::new_v4()));
@@ -1727,7 +1728,7 @@ fn compliance_mode_cnsa2_0_roundtrip() {
     let config = CryptoConfig::new()
         .compliance(ComplianceMode::Cnsa2_0)
         .security_level(SecurityLevel::Quantum);
-    let decrypted = decrypt(&deserialized, DecryptKey::Hybrid(&sk), config).expect("decrypt");
+    let decrypted = decrypt(&deserialized, DecryptKey::PqOnly(&sk), config).expect("decrypt");
     assert_eq!(decrypted.as_slice(), msg);
     let _ = std::fs::remove_file(&path);
 }

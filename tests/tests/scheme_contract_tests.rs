@@ -197,13 +197,15 @@ fn test_all_22_usecases_select_correct_hybrid_scheme_succeeds() {
 
 #[test]
 fn test_all_4_security_levels_select_correct_scheme_succeeds() {
+    // Note: In 0.6.0, SecurityLevel::Quantum auto-resolves to (Maximum, PqOnly),
+    // which routes to PqMlKem1024Aes256Gcm — tested separately in PQ-only tests.
+    // This test covers the 3 hybrid security levels.
     let data = b"Contract test: SecurityLevel -> Scheme selection";
 
     let cases: Vec<(SecurityLevel, EncryptionScheme)> = vec![
         (SecurityLevel::Standard, EncryptionScheme::HybridMlKem512Aes256Gcm),
         (SecurityLevel::High, EncryptionScheme::HybridMlKem768Aes256Gcm),
         (SecurityLevel::Maximum, EncryptionScheme::HybridMlKem1024Aes256Gcm),
-        (SecurityLevel::Quantum, EncryptionScheme::HybridMlKem1024Aes256Gcm),
     ];
 
     for (level, expected_scheme) in &cases {
