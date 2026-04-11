@@ -4443,3 +4443,61 @@ fn test_cli_keygen_use_case_file_storage_roundtrip_succeeds() {
     // than returning the encryption scheme.
     use_case_keygen_sign_verify_roundtrip("file-storage", "hybrid-ml-dsa-87-ed25519");
 }
+
+#[test]
+fn test_cli_reads_cbor_encoded_symmetric_key() {
+    // The CLI `keygen` command writes JSON, but `read_from` must accept
+    // CBOR-encoded LPK files produced by the library API (or any other
+    // LPK-compatible tool). Regression guard: a prior version of the CLI
+    // only parsed JSON and silently rejected CBOR files despite the
+    // CLI README claiming CBOR was supported.
+    use latticearc::PortableKey;
+    use latticearc::unified_api::key_format::{KeyAlgorithm, KeyData, KeyType};
+
+    let dir = temp_dir();
+
+    // Build a valid AES-256 PortableKey via the library and serialize to CBOR.
+    let raw = [0x55u8; 32];
+    let key = PortableKey::new(KeyAlgorithm::Aes256, KeyType::Symmetric, KeyData::from_raw(&raw));
+    let cbor_bytes = key.to_cbor().expect("CBOR serialization");
+    let cbor_path = dir.path().join("aes256-cbor.key");
+    std::fs::write(&cbor_path, &cbor_bytes).unwrap();
+
+    // Use the CBOR-encoded key to encrypt and decrypt a message through the CLI.
+    let msg_path = dir.path().join("msg.txt");
+    std::fs::write(&msg_path, b"cbor cli smoke test").unwrap();
+    let ct_path = dir.path().join("msg.ct");
+    run_ok(&[
+        "encrypt",
+        "--key",
+        cbor_path.to_str().unwrap(),
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--output",
+        ct_path.to_str().unwrap(),
+    ]);
+    let dec_path = dir.path().join("msg.out");
+    run_ok(&[
+        "decrypt",
+        "--key",
+        cbor_path.to_str().unwrap(),
+        "--input",
+        ct_path.to_str().unwrap(),
+        "--output",
+        dec_path.to_str().unwrap(),
+    ]);
+
+    // Sanity: confirm the file is actually CBOR, not JSON. `to_cbor` emits
+    // a CBOR map, which starts with a byte in the range 0xa0..=0xb7 (short
+    // map header, RFC 8949 §3.1). This range is NOT valid as the first
+    // byte of JSON (`{` = 0x7b, whitespace, etc.), so a read of this file
+    // as JSON would fail at byte 0.
+    let first = cbor_bytes[0];
+    assert!(
+        (0xa0..=0xb7).contains(&first),
+        "expected CBOR short map header (0xa0..=0xb7), got 0x{first:02x}",
+    );
+
+    let decrypted = std::fs::read(&dec_path).unwrap();
+    assert_eq!(decrypted, b"cbor cli smoke test");
+}

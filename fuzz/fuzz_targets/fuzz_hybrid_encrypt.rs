@@ -1,26 +1,29 @@
 #![deny(unsafe_code)]
 #![no_main]
+// Fuzz target intentionally exercises the deprecated legacy
+// `encrypt_hybrid::encrypt` path — that path's negative-input handling is
+// what we want to fuzz, separate from the v0.6.0+ `encrypt_hybrid()` API.
+#![allow(deprecated)]
 
 //! Fuzz testing for hybrid encryption (ML-KEM + AES-GCM)
 //!
 //! Tests that hybrid encryption handles arbitrary plaintext data
 //! without crashing and produces valid ciphertexts.
 
-use libfuzzer_sys::fuzz_target;
-use latticearc::hybrid::encrypt_hybrid::{encrypt, HybridEncryptionContext};
+use latticearc::hybrid::encrypt_hybrid::{HybridEncryptionContext, encrypt};
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
         return;
     }
 
-
     // Use data as plaintext
     let plaintext = data;
 
     // Generate ML-KEM keypair for testing
-    let (pk, _sk) = match MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768) {
+    let (pk, _sk) = match MlKem::generate_keypair(MlKemSecurityLevel::MlKem768) {
         Ok(kp) => kp,
         Err(_) => return,
     };
@@ -96,16 +99,16 @@ fuzz_target!(|data: &[u8]| {
     let _ = encrypt(pk.as_bytes(), plaintext, Some(&large_aad));
 
     // Test 7: Multiple encryptions of same plaintext should produce different results
-    if let (Ok(ct1), Ok(ct2)) = (
-        encrypt(pk.as_bytes(), plaintext, None),
-        encrypt(pk.as_bytes(), plaintext, None),
-    ) {
+    if let (Ok(ct1), Ok(ct2)) =
+        (encrypt(pk.as_bytes(), plaintext, None), encrypt(pk.as_bytes(), plaintext, None))
+    {
         // Nonces should differ (random)
         assert_ne!(ct1.nonce(), ct2.nonce(), "Nonces should be different for each encryption");
 
         // KEM ciphertexts should differ (random encapsulation)
         assert_ne!(
-            ct1.kem_ciphertext(), ct2.kem_ciphertext(),
+            ct1.kem_ciphertext(),
+            ct2.kem_ciphertext(),
             "KEM ciphertexts should be different"
         );
     }

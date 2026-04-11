@@ -1,14 +1,19 @@
 #![deny(unsafe_code)]
 #![no_main]
+// Fuzz target intentionally exercises the deprecated legacy
+// `encrypt_hybrid::encrypt` / `decrypt` paths.
+#![allow(deprecated)]
 
 //! Fuzz testing for hybrid decryption (ML-KEM + AES-GCM)
 //!
 //! Tests that hybrid decryption handles arbitrary ciphertext data
 //! without crashing and correctly rejects invalid inputs.
 
-use libfuzzer_sys::fuzz_target;
-use latticearc::hybrid::encrypt_hybrid::{decrypt, encrypt, HybridCiphertext, HybridEncryptionContext};
+use latticearc::hybrid::encrypt_hybrid::{
+    HybridCiphertext, HybridEncryptionContext, decrypt, encrypt,
+};
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Need enough data for ciphertext components:
@@ -17,9 +22,8 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
 
-
     // Generate ML-KEM keypair
-    let (pk, _sk) = match MlKem::generate_keypair(&mut rng, MlKemSecurityLevel::MlKem768) {
+    let (pk, _sk) = match MlKem::generate_keypair(MlKemSecurityLevel::MlKem768) {
         Ok(kp) => kp,
         Err(_) => return,
     };
@@ -78,13 +82,8 @@ fuzz_target!(|data: &[u8]| {
 
     // Test 3: Invalid secret key length
     let short_sk = vec![0u8; 1000];
-    let valid_ct = HybridCiphertext::new(
-        vec![0u8; 1088],
-        vec![],
-        vec![0u8; 32],
-        vec![0u8; 12],
-        vec![0u8; 16],
-    );
+    let valid_ct =
+        HybridCiphertext::new(vec![0u8; 1088], vec![], vec![0u8; 32], vec![0u8; 12], vec![0u8; 16]);
     let result = decrypt(&short_sk, &valid_ct, None);
     assert!(result.is_err(), "Invalid secret key length should fail");
 
@@ -92,10 +91,8 @@ fuzz_target!(|data: &[u8]| {
     let plaintext = data.get(..32.min(data.len())).unwrap_or(&[]);
     if let Ok(ct) = encrypt(pk.as_bytes(), plaintext, None) {
         // Decrypt with wrong context should fail
-        let wrong_context = HybridEncryptionContext {
-            info: b"Wrong-Context".to_vec(),
-            aad: b"wrong aad".to_vec(),
-        };
+        let wrong_context =
+            HybridEncryptionContext { info: b"Wrong-Context".to_vec(), aad: b"wrong aad".to_vec() };
         let _ = decrypt(&fake_sk, &ct, Some(&wrong_context));
     }
 
@@ -127,13 +124,8 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 6: Empty symmetric ciphertext
-    let empty_sym_ct = HybridCiphertext::new(
-        vec![0u8; 1088],
-        vec![],
-        vec![],
-        vec![0u8; 12],
-        vec![0u8; 16],
-    );
+    let empty_sym_ct =
+        HybridCiphertext::new(vec![0u8; 1088], vec![], vec![], vec![0u8; 12], vec![0u8; 16]);
     let _ = decrypt(&fake_sk, &empty_sym_ct, None);
 
     // Test 7: Very large symmetric ciphertext

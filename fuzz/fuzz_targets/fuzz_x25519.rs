@@ -6,8 +6,8 @@
 //! Tests that X25519 ECDH operations handle arbitrary input data
 //! without crashing and produce valid shared secrets.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::kem::ecdh::X25519KeyPair;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Test 1: Generate keypairs and perform key agreement
@@ -26,10 +26,7 @@ fuzz_target!(|data: &[u8]| {
 
         if let (Ok(as_val), Ok(bs_val)) = (alice_secret, bob_secret) {
             // Shared secrets must match
-            assert_eq!(
-                as_val, bs_val,
-                "Shared secrets must match for valid key exchange"
-            );
+            assert_eq!(as_val, bs_val, "Shared secrets must match for valid key exchange");
 
             // Shared secret must be 32 bytes
             assert_eq!(as_val.len(), 32, "X25519 shared secret must be 32 bytes");

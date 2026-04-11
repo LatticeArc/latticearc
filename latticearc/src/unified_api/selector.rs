@@ -24,7 +24,7 @@ use crate::unified_api::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme}
 /// significant relative to message size.
 ///
 /// **Security Note**: Classical fallback ONLY occurs when ALL of:
-/// 1. Security level is `Medium` or `Low` (user accepts reduced security)
+/// 1. `SecurityLevel::Standard` (user accepts NIST Level 1, 128-bit security)
 /// 2. Performance preference is `Speed` (user prioritizes performance)
 /// 3. Data size is below this threshold
 ///

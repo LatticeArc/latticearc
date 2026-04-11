@@ -6,8 +6,8 @@
 //! Tests that ML-DSA signing handles arbitrary message data
 //! without crashing and produces valid signatures.
 
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 use libfuzzer_sys::fuzz_target;
-use latticearc::primitives::sig::ml_dsa::{generate_keypair, sign, verify, MlDsaParameterSet};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
@@ -16,9 +16,9 @@ fuzz_target!(|data: &[u8]| {
 
     // Select parameter set based on first byte
     let param = match data[0] % 3 {
-        0 => MlDsaParameterSet::MLDSA44,
-        1 => MlDsaParameterSet::MLDSA65,
-        _ => MlDsaParameterSet::MLDSA87,
+        0 => MlDsaParameterSet::MlDsa44,
+        1 => MlDsaParameterSet::MlDsa65,
+        _ => MlDsaParameterSet::MlDsa87,
     };
 
     // Use remaining data as message

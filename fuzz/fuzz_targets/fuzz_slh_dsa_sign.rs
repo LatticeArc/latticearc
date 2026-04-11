@@ -6,8 +6,8 @@
 //! Tests that SLH-DSA operations handle arbitrary message data
 //! without crashing and produce valid signatures.
 
+use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel, VerifyingKey};
 use libfuzzer_sys::fuzz_target;
-use latticearc::primitives::sig::slh_dsa::{SecurityLevel, SigningKey, VerifyingKey};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
@@ -17,9 +17,9 @@ fuzz_target!(|data: &[u8]| {
     // Select security level based on first byte
     // Use only Shake128s for speed (SLH-DSA is slow)
     let level = match data[0] % 3 {
-        0 => SecurityLevel::Shake128s,
-        1 => SecurityLevel::Shake128s, // Use 128s more often for speed
-        _ => SecurityLevel::Shake192s,
+        0 => SlhDsaSecurityLevel::Shake128s,
+        1 => SlhDsaSecurityLevel::Shake128s, // Use 128s more often for speed
+        _ => SlhDsaSecurityLevel::Shake192s,
     };
 
     // Use remaining data as message

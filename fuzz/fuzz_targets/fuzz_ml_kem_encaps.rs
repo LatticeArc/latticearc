@@ -6,15 +6,14 @@
 //! Tests that ML-KEM encapsulation handles arbitrary public key data
 //! without crashing and produces valid ciphertexts for valid keys.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemPublicKey, MlKemSecurityLevel};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 800 bytes (ML-KEM-512 public key size)
     if data.is_empty() {
         return;
     }
-
 
     // Select security level based on first byte
     let (level, pk_size) = match data[0] % 3 {
@@ -24,8 +23,8 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Test 1: Encapsulation with valid generated key
-    if let Ok((pk, _sk)) = MlKem::generate_keypair(&mut rng, level) {
-        match MlKem::encapsulate(&mut rng, &pk) {
+    if let Ok((pk, _sk)) = MlKem::generate_keypair(level) {
+        match MlKem::encapsulate(&pk) {
             Ok((ss, ct)) => {
                 // Verify shared secret is 32 bytes
                 assert_eq!(ss.as_bytes().len(), 32, "Shared secret must be 32 bytes");
@@ -46,7 +45,7 @@ fuzz_target!(|data: &[u8]| {
         match MlKemPublicKey::new(level, pk_bytes.to_vec()) {
             Ok(pk) => {
                 // Attempt encapsulation - should not crash
-                let _ = MlKem::encapsulate(&mut rng, &pk);
+                let _ = MlKem::encapsulate(&pk);
             }
             Err(_) => {
                 // Invalid public key rejected - expected behavior

@@ -11,6 +11,136 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.2] - 2026-04-11
+
+Infrastructure and hygiene release. Repairs the `fuzz` crate (which had
+bitrotted unnoticed because it is excluded from the workspace), expands the
+pre-commit hook to compile every reachable line of code in every feature
+combination, fixes a misleading `derive_key` API surface that encouraged
+insecure password-based key derivation, adds CBOR key file support to the
+CLI, and reconciles stale docstrings.
+
+### Fixed
+
+- **Repaired the entire `fuzz` crate.** Prior to this release, ~10 fuzz
+  targets and the `fuzz_regression_tests.rs` file did not compile:
+    - 7 fuzz targets referenced an undeclared `rng` local, a relic of an
+      older `MlKem::generate_keypair(&mut rng, ...)` signature. Removed
+      the stale argument from every call site.
+    - 3 fuzz targets used obsolete `MLDSA44`/`MLDSA65`/`MLDSA87` uppercase
+      enum variants — renamed to `MlDsa44`/`MlDsa65`/`MlDsa87`.
+    - `fuzz_ed25519.rs` wrapped the now-infallible `Ed25519KeyPair::sign`
+      in `if let Ok(sig) = ...` — unwrapped.
+    - `fuzz_slh_dsa_sign.rs` imported `SecurityLevel` from a pre-v0.6.0
+      path that no longer exists — renamed to `SlhDsaSecurityLevel`.
+    - `fuzz/tests/fuzz_regression_tests.rs` (562 lines, 27 tests) still
+      used the pre-consolidation `arc_primitives::*` module path from a
+      multi-crate workspace that was merged into `latticearc` in v0.6.0.
+      Rewrote all imports to `latticearc::primitives::*` and adapted
+      call sites to the current `MlDsaSignature::from_bytes_unchecked`,
+      `HkdfResult::key()`, and `VerifyingKey::from_bytes(bytes, level)`
+      argument order. All 27 regression tests pass.
+- **Stale `selector.rs` doc comment**: the `CLASSICAL_FALLBACK_SIZE_THRESHOLD`
+  security note referenced `SecurityLevel::Medium` and `SecurityLevel::Low`,
+  which have never existed. Rewrote to use the current `Standard` / `High`
+  / `Maximum` naming.
+- **CLI only parsed JSON key files** despite README claiming "Both JSON and
+  CBOR formats are supported". `keyfile::read_from` now accepts LPK JSON,
+  legacy CLI v1 JSON, and LPK CBOR (auto-detected from the byte stream),
+  matching the library capability. Added a CLI integration test pinning
+  the CBOR read path.
+- **Double JSON parse in `parse_key_bytes`**: the CBOR fallback path
+  re-parsed the input as JSON just to construct an error message, wasting
+  a full parse of potentially large key files. Captured the error on the
+  first attempt and threaded it through.
+- **Insecure password-based KDF in `examples/complete_secure_workflow.rs`**:
+  the example used `derive_key(password, static_salt, ...)` — HKDF with a
+  hardcoded salt provides zero brute-force resistance and defeats salting.
+  Rewrote the example to use PBKDF2-HMAC-SHA256 at 600,000 iterations with
+  a per-run random 16-byte salt (the same primitive already exported by the
+  library for this use case). Also scrubbed the SSN-lookalike fixture data
+  to a neutral `Record-ID: RCRD-0001` string so the example can't be mistaken
+  for real-PII guidance.
+- **`test_ml_kem_encapsulation_sizes_has_correct_size`** (fuzz regression)
+  wrapped every assertion in `if let Ok(...)` with no `else` branch, so a
+  regression that broke keygen entirely would make the test vacuously green.
+  Changed to unwrap-or-panic so real library breakage surfaces.
+
+### Changed
+
+- **`derive_key` doc comment rewritten** with a prominent `# Do NOT use this
+  for passwords` subsection citing HKDF's lack of work factor, directing
+  password-based callers to `primitives::kdf::pbkdf2::pbkdf2`, and referencing
+  the corrected example. The parameter formerly named `password` is now
+  named `ikm` (input keying material) to make the contract explicit — this
+  is not a breaking change since Rust argument names aren't API-load-bearing
+  for positional calls.
+- **CLI README** clarified: `keygen` writes JSON; `read` accepts JSON and
+  CBOR interchangeably (previous wording implied symmetry that wasn't
+  there).
+
+### Added
+
+- **New CLI integration test** `test_cli_reads_cbor_encoded_symmetric_key`:
+  builds a CBOR `PortableKey` via the library API, writes it to disk, and
+  exercises `encrypt` + `decrypt` via the CLI binary against that CBOR
+  file. Pins the CBOR map-header byte range (`0xa0..=0xb7`, RFC 8949 §3.1)
+  to prove the test is actually exercising the binary path and not a JSON
+  round-trip.
+
+### Infrastructure
+
+- **Pre-commit hook: compile every reachable line, every feature combination.**
+  The previous hook ran `cargo check --workspace` and missed the `fuzz` crate
+  entirely (it is `exclude = ["fuzz"]` in the workspace Cargo.toml) — which
+  is exactly how the `fuzz` crate fell into ~6 months of bitrot without
+  anyone noticing. The new hook runs:
+    1. `cargo check --workspace --no-default-features --all-targets` —
+       catches code hidden behind default feature gates.
+    2. `cargo check --workspace --all-features --all-targets` — catches
+       examples, benches, and every test binary.
+    3. `cargo check -p latticearc --features fips-self-test --all-targets` —
+       isolates the FIPS self-test gate, which has its own code paths.
+    4. `cd fuzz && cargo check --all-targets` — compiles every fuzz target
+       binary **and** the out-of-workspace regression test crate.
+    5. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+       on the workspace.
+    6. `cd fuzz && cargo clippy --all-targets` on the fuzz crate (without
+       `-D warnings`, so the fuzz Cargo.toml's warn-level lints don't get
+       escalated to errors and drown real regressions in harness noise).
+    7. Conditional `cd fuzz && cargo test --test fuzz_regression_tests
+       --release` — only runs when `fuzz/` files are actually staged, so
+       the slow SLH-DSA tests don't slow down every unrelated commit.
+    8. CLI smoke test with a new `run_cli_step` helper that captures each
+       CLI command's stdout+stderr on failure and prints the exact
+       invocation + output, instead of the old silent-redirect shape.
+  The hook's new compile matrix adds ~25 seconds per commit on top of the
+  existing clippy + test steps — a small price for guaranteeing that bitrot
+  can't accumulate in the fuzz crate unnoticed again.
+- **Fuzz crate lint policy rewritten.** The previous `[lints]` config set
+  `warnings = "deny"` at the rust level plus hard-deny on `unwrap_used`,
+  `expect_used`, `indexing_slicing`, and `panic`. This shape is correct for
+  production crypto but drowns fuzz harnesses in noise: every `data[0]`,
+  every `if let Ok(sig) = ...`, every `assert!` trips a denial. Retuned:
+    - Hard-deny `todo!` and `unimplemented!` (these panic in fuzz runs
+      and would mask real crashes); `unsafe_code` stays forbidden via
+      `[lints.rust]`.
+    - Allow stylistic patterns that are idiomatic in fuzz harnesses:
+      `indexing_slicing`, `single_match`, `collapsible_if`, `get_first`,
+      `unwrap_used`, `expect_used`, `panic`.
+    - Keep crypto-relevant lints (`arithmetic_side_effects`, `cast_*`,
+      `float_cmp`, `implicit_clone`) at `warn` level so real bugs still
+      surface, without being promoted to errors by a blanket
+      `warnings = "deny"`.
+- **Dead-code suppression audit in the hook**: the pre-existing grep filter
+  for `#[allow(dead_code)]` in production code didn't match files named
+  exactly `tests.rs` (only `_tests.rs` with an underscore). Fixed the
+  pattern so `latticearc/src/unified_api/tests.rs` is correctly treated as
+  a test context, unblocking the `assert_all_signing_use_cases_covered`
+  compile-time exhaustiveness helper from v0.6.1.
+
+---
+
 ## [0.6.1] - 2026-04-10
 
 Bug-fix and hardening release. Fixes a fatal use-case keygen bug, adds

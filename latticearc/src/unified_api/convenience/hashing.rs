@@ -246,28 +246,40 @@ pub fn hash_data(data: &[u8]) -> [u8; 32] {
 // Unified API with SecurityMode
 // ============================================================================
 
-/// Derive a key from a password and salt using HKDF.
+/// Derive a key from high-entropy input keying material using HKDF-SHA256
+/// (RFC 5869 / SP 800-56C).
 ///
-/// Uses `SecurityMode` to specify verification behavior:
-/// - `SecurityMode::Verified(&session)`: Validates session before derivation
+/// # Do NOT use this for passwords
+///
+/// HKDF is designed for *high-entropy* inputs: Diffie-Hellman shared secrets,
+/// raw random bytes from a CSPRNG, output of another KEM, and so on. It
+/// performs **no work factor** and provides **zero brute-force resistance**
+/// against low-entropy inputs. Passing a user passphrase here gives an
+/// attacker who steals the ciphertext a line-rate password oracle.
+///
+/// For password-based key derivation, use
+/// [`crate::primitives::kdf::pbkdf2::pbkdf2`] with at least 600,000 iterations
+/// of HMAC-SHA256 (OWASP 2023 recommendation) and a **fresh per-user random
+/// salt** stored alongside the ciphertext. A complete worked example lives in
+/// `examples/complete_secure_workflow.rs`.
+///
+/// The `ikm` parameter is named as such to make this contract explicit — it
+/// is *input keying material*, not a password.
+///
+/// # Security modes
+///
+/// - `SecurityMode::Verified(&session)`: Validates the session before derivation
 /// - `SecurityMode::Unverified`: Skips session validation
 ///
-/// # Example
+/// # Example (HKDF with a DH shared secret — correct use)
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::unified_api::{derive_key, SecurityMode, VerifiedSession};
-/// # let password = b"password";
-/// # let salt = b"salt";
-/// # let pk = [0u8; 32];
-/// # let sk = [0u8; 32];
-///
-/// // With Zero Trust (recommended)
-/// let session = VerifiedSession::establish(&pk, &sk)?;
-/// let key = derive_key(password, salt, 32, SecurityMode::Verified(&session))?;
-///
-/// // Without verification (opt-out)
-/// let key = derive_key(password, salt, 32, SecurityMode::Unverified)?;
+/// use latticearc::unified_api::{derive_key, SecurityMode};
+/// // `shared_secret` is e.g. the output of X25519 or ML-KEM — high entropy.
+/// # let shared_secret = [0u8; 32];
+/// # let salt = [0u8; 16]; // per-session random salt, optional
+/// let key = derive_key(&shared_secret, &salt, 32, SecurityMode::Unverified)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -280,14 +292,9 @@ pub fn hash_data(data: &[u8]) -> [u8; 32] {
 /// - The salt is empty
 /// - The requested length is zero
 /// - The HKDF expansion operation fails
-pub fn derive_key(
-    password: &[u8],
-    salt: &[u8],
-    length: usize,
-    mode: SecurityMode,
-) -> Result<Vec<u8>> {
+pub fn derive_key(ikm: &[u8], salt: &[u8], length: usize, mode: SecurityMode) -> Result<Vec<u8>> {
     mode.validate()?;
-    derive_key_internal(password, salt, length)
+    derive_key_internal(ikm, salt, length)
 }
 
 /// Compute HMAC-SHA256 of data.

@@ -6,8 +6,8 @@
 //! Tests that hash_data produces consistent results with arbitrary input.
 //! (Cross-border compliance features are available in LatticeArc Enterprise)
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::unified_api::hash_data;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Hash the input data

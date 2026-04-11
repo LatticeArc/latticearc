@@ -6,8 +6,8 @@
 //! Tests that HMAC operations handle arbitrary input gracefully
 //! and verify constant-time properties.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes: 16 for key, 16 for message
@@ -18,11 +18,7 @@ fuzz_target!(|data: &[u8]| {
     // Split input
     let key = &data[..16];
     let message = &data[16..32];
-    let fake_tag = if data.len() >= 64 {
-        &data[32..64]
-    } else {
-        &data[32..]
-    };
+    let fake_tag = if data.len() >= 64 { &data[32..64] } else { &data[32..] };
 
     // Compute valid HMAC
     if let Ok(valid_tag) = hmac_sha256(key, message) {
@@ -34,22 +30,34 @@ fuzz_target!(|data: &[u8]| {
 
         // Test 3: Wrong message should fail
         let wrong_msg = b"different message";
-        assert!(!verify_hmac_sha256(key, wrong_msg, &valid_tag), "Wrong message must fail verification");
+        assert!(
+            !verify_hmac_sha256(key, wrong_msg, &valid_tag),
+            "Wrong message must fail verification"
+        );
 
         // Test 4: Wrong key should fail
         let wrong_key = b"wrong key here!!";
-        assert!(!verify_hmac_sha256(wrong_key, message, &valid_tag), "Wrong key must fail verification");
+        assert!(
+            !verify_hmac_sha256(wrong_key, message, &valid_tag),
+            "Wrong key must fail verification"
+        );
 
         // Test 5: Corrupted tag should fail
         if valid_tag.len() > 0 {
             let mut corrupted_tag = valid_tag.clone();
             corrupted_tag[0] ^= 0xFF;
-            assert!(!verify_hmac_sha256(key, message, &corrupted_tag), "Corrupted tag must fail verification");
+            assert!(
+                !verify_hmac_sha256(key, message, &corrupted_tag),
+                "Corrupted tag must fail verification"
+            );
 
             // Flip last byte too
             if corrupted_tag.len() > 1 {
                 corrupted_tag[corrupted_tag.len() - 1] ^= 0xFF;
-                assert!(!verify_hmac_sha256(key, message, &corrupted_tag), "Corrupted tag must fail verification");
+                assert!(
+                    !verify_hmac_sha256(key, message, &corrupted_tag),
+                    "Corrupted tag must fail verification"
+                );
             }
         }
 
@@ -62,7 +70,10 @@ fuzz_target!(|data: &[u8]| {
         if data.len() >= 128 {
             let large_msg = &data[32..128];
             if let Ok(large_tag) = hmac_sha256(key, large_msg) {
-                assert!(verify_hmac_sha256(key, large_msg, &large_tag), "Large message HMAC must verify");
+                assert!(
+                    verify_hmac_sha256(key, large_msg, &large_tag),
+                    "Large message HMAC must verify"
+                );
             }
         }
     }

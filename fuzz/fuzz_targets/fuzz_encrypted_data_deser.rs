@@ -7,11 +7,11 @@
 //! handle arbitrary byte sequences without crashing, and that any
 //! successfully deserialised value survives a serialize-then-parse roundtrip.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::{
     deserialize_encrypted_data, deserialize_encrypted_output, serialize_encrypted_data,
     serialize_encrypted_output,
 };
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // JSON must be valid UTF-8.

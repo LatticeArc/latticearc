@@ -11,32 +11,65 @@ cargo-fuzz = true
 [lints.rust]
 # Forbid unsafe code entirely - critical for cryptographic security
 unsafe_code = "forbid"
-# Treat warnings as errors for enterprise compliance
-warnings = "deny"
+# Note: we deliberately do NOT set `warnings = "deny"` here. The workspace
+# library does that, but fuzz targets legitimately trigger stylistic-warning
+# lints (e.g. arithmetic_side_effects on `i % len` inside a bounded loop)
+# that are noise in a fuzz harness. Real errors (unresolved imports, wrong
+# arg counts, etc.) are still hard errors via rustc itself; we just don't
+# escalate *every* clippy warn to an error for this crate.
 
 [lints.clippy]
-# Security-focused clippy lints
-unwrap_used = "deny"          # Prevent unwrap that could panic
-expect_used = "deny"          # Prevent expect that could panic
-indexing_slicing = "deny"     # Prevent direct indexing that could panic
-panic = "deny"                # Prevent explicit panics
-todo = "deny"                 # No TODOs in production crypto code
-unimplemented = "deny"        # No unimplemented! calls
-# Additional crypto-relevant lints
-arithmetic_side_effects = "warn"  # Warn on potential overflow
-cast_lossless = "warn"            # Warn on potentially lossy casts
-cast_possible_truncation = "warn" # Warn on truncation risks
-cast_possible_wrap = "warn"       # Warn on wrapping casts
-cast_precision_loss = "warn"      # Warn on precision loss
-cast_sign_loss = "warn"           # Warn on sign loss
-float_cmp = "warn"                # Warn on float comparisons (avoid in crypto)
-implicit_clone = "warn"           # Warn on implicit clones
-inefficient_to_string = "warn"    # Warn on inefficient string conversions
-lossy_float_literal = "warn"      # Warn on lossy float literals
-redundant_clone = "warn"          # Warn on redundant clones
-string_add = "warn"               # Warn on string concatenation
-string_add_assign = "warn"        # Warn on string append
-unnecessary_cast = "warn"         # Warn on unnecessary casts
+# =============================================================================
+# Fuzz-crate lint profile
+# =============================================================================
+# Fuzz targets run on deliberately-malformed input and intentionally use
+# compact patterns (indexing, single_match, collapsible_if) that would be
+# noise in production crypto code but accurately reflect the shape of a
+# fuzz harness. The lints below are tuned for that:
+#
+#   * Hard-deny the things that are actively dangerous (unsafe_code is
+#     forbidden in [lints.rust], and `todo!`/`unimplemented!` are denied
+#     here because they panic in fuzz runs and would mask real crashes).
+#   * Allow stylistic nits that conflict with how fuzz harnesses are
+#     commonly written: indexing into fuzz-input slices, early-bailing
+#     `if let Ok(...)`, etc.
+#   * Keep crypto-relevant warnings (arithmetic overflow, float compare)
+#     so real bugs still surface.
+
+# Dangerous in any code path — never allow.
+todo = "deny"
+unimplemented = "deny"
+
+# Allowed: fuzz harnesses index into bounded slices, use single-match for
+# "exercise the Ok path", and rely on `unwrap`/`expect` on paths that are
+# either provably-succeeding (generate_key) or intentionally-panicking
+# (assertion of a fuzz invariant).
+unwrap_used = "allow"
+expect_used = "allow"
+indexing_slicing = "allow"
+panic = "allow"
+single_match = "allow"
+collapsible_if = "allow"
+collapsible_match = "allow"
+get_first = "allow"
+redundant_clone = "allow"
+map_identity = "allow"
+
+# Crypto-relevant checks that should still warn, not deny — these often
+# indicate real bugs in fuzz targets too.
+arithmetic_side_effects = "warn"
+cast_lossless = "warn"
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_precision_loss = "warn"
+cast_sign_loss = "warn"
+float_cmp = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+lossy_float_literal = "warn"
+string_add = "warn"
+string_add_assign = "warn"
+unnecessary_cast = "warn"
 
 [features]
 default = []

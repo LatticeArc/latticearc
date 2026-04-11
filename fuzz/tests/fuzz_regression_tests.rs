@@ -11,7 +11,6 @@
 //! - SLH-DSA (FIPS 205) - Hash-based signatures
 //! - AES-GCM - Authenticated encryption
 //! - ChaCha20-Poly1305 - Authenticated encryption
-//! - Hybrid encryption - ML-KEM + AES-GCM
 //! - Hash functions - SHA-2, SHA-3
 //! - Key derivation - HKDF, PBKDF2
 //! - HMAC - Message authentication
@@ -22,18 +21,22 @@
 //! cargo test --package fuzz --test fuzz_regression_tests
 //! ```
 
-use arc_primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
-use arc_primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
-use arc_primitives::aead::AeadCipher;
-use arc_primitives::hash::{sha256, sha384, sha512, sha3_256};
-use arc_primitives::kdf::hkdf::hkdf;
-use arc_primitives::kem::ml_kem::{MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecurityLevel};
-use arc_primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
-use arc_primitives::sig::ml_dsa::{
-    generate_keypair as ml_dsa_generate, sign as ml_dsa_sign, verify as ml_dsa_verify,
-    MlDsaParameterSet,
+use latticearc::primitives::aead::AeadCipher;
+use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
+use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
+use latticearc::primitives::hash::{sha2::sha256, sha2::sha384, sha2::sha512, sha3::sha3_256};
+use latticearc::primitives::kdf::hkdf::hkdf;
+use latticearc::primitives::kem::ml_kem::{
+    MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecurityLevel,
 };
-use arc_primitives::sig::slh_dsa::{SecurityLevel as SlhDsaLevel, SigningKey, VerifyingKey};
+use latticearc::primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
+use latticearc::primitives::sig::ml_dsa::{
+    MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate, sign as ml_dsa_sign,
+    verify as ml_dsa_verify,
+};
+use latticearc::primitives::sig::slh_dsa::{
+    SigningKey, SlhDsaSecurityLevel as SlhDsaLevel, VerifyingKey,
+};
 
 // ============================================================================
 // ML-KEM Regression Tests
@@ -56,10 +59,16 @@ mod ml_kem_regression {
     #[test]
     fn test_ml_kem_invalid_ct_size_768_fails() {
         let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem768, vec![0u8; 1087]);
-        assert!(result.is_err(), "Should reject 1087-byte ciphertext for ML-KEM-768 (requires 1088)");
+        assert!(
+            result.is_err(),
+            "Should reject 1087-byte ciphertext for ML-KEM-768 (requires 1088)"
+        );
 
         let result = MlKemCiphertext::new(MlKemSecurityLevel::MlKem768, vec![0u8; 1089]);
-        assert!(result.is_err(), "Should reject 1089-byte ciphertext for ML-KEM-768 (requires 1088)");
+        assert!(
+            result.is_err(),
+            "Should reject 1089-byte ciphertext for ML-KEM-768 (requires 1088)"
+        );
     }
 
     /// Test ML-KEM-1024 parameter validation
@@ -72,38 +81,46 @@ mod ml_kem_regression {
         assert_eq!(level.shared_secret_size(), 32);
     }
 
-    /// Test that encapsulation produces consistent ciphertext sizes
+    /// Test that encapsulation produces consistent ciphertext sizes.
+    ///
+    /// A previous version of this test wrapped the assertions in
+    /// `if let Ok(...)` with no `else` branch, so the test would silently
+    /// pass if keygen or encapsulation ever broke — a regression meant to
+    /// detect failures could no longer detect the most important one.
+    /// We now unwrap: ML-KEM keygen and encapsulate are infallible for the
+    /// fixed security levels used here, and a failure here is a real
+    /// library bug the hook should surface.
     #[test]
     fn test_ml_kem_encapsulation_sizes_has_correct_size() {
-
         for level in [
             MlKemSecurityLevel::MlKem512,
             MlKemSecurityLevel::MlKem768,
             MlKemSecurityLevel::MlKem1024,
         ] {
-            if let Ok((pk, _sk)) = MlKem::generate_keypair(&mut rng, level) {
-                if let Ok((ss, ct)) = MlKem::encapsulate(&mut rng, &pk) {
-                    assert_eq!(ss.as_bytes().len(), 32, "Shared secret must be 32 bytes");
-                    assert_eq!(
-                        ct.as_bytes().len(),
-                        level.ciphertext_size(),
-                        "Ciphertext size mismatch for {:?}",
-                        level
-                    );
-                }
-            }
+            let (pk, _sk) = MlKem::generate_keypair(level)
+                .unwrap_or_else(|e| panic!("keygen failed for {level:?}: {e}"));
+            let (ss, ct) = MlKem::encapsulate(&pk)
+                .unwrap_or_else(|e| panic!("encapsulate failed for {level:?}: {e}"));
+            assert_eq!(ss.as_bytes().len(), 32, "shared secret must be 32 bytes");
+            assert_eq!(
+                ct.as_bytes().len(),
+                level.ciphertext_size(),
+                "ciphertext size mismatch for {level:?}",
+            );
         }
     }
 
     /// Regression: All-zero public key handling
+    ///
+    /// An all-zero public key is structurally valid (correct length) but
+    /// cryptographically degenerate. The library must not crash when
+    /// encapsulating against it — either a clean error or a well-formed
+    /// (but insecure) ciphertext is acceptable.
     #[test]
     fn test_ml_kem_zero_public_key_succeeds() {
-
-        // All-zero public key is technically valid in structure but cryptographically weak
         let zero_pk = MlKemPublicKey::new(MlKemSecurityLevel::MlKem768, vec![0u8; 1184]);
         if let Ok(pk) = zero_pk {
-            // Encapsulation may fail or succeed - should not crash
-            let _ = MlKem::encapsulate(&mut rng, &pk);
+            let _ = MlKem::encapsulate(&pk);
         }
     }
 }
@@ -115,22 +132,34 @@ mod ml_kem_regression {
 mod ml_dsa_regression {
     use super::*;
 
+    /// Flip one byte of an ML-DSA signature and return a new, unchecked
+    /// `MlDsaSignature` carrying the corrupted bytes.
+    ///
+    /// `MlDsaSignature` stores its bytes in a private field, so corruption
+    /// tests can't mutate in place — they rebuild the signature via
+    /// `from_bytes_unchecked`, which preserves the tamper but keeps the
+    /// length invariant intact.
+    fn flip_byte(sig: &MlDsaSignature, offset: usize) -> MlDsaSignature {
+        let mut bytes = sig.to_bytes();
+        bytes[offset] ^= 0xFF;
+        MlDsaSignature::from_bytes_unchecked(sig.parameter_set(), bytes)
+    }
+
     /// Test ML-DSA signature corruption detection
     #[test]
     fn test_ml_dsa_corrupted_signature_bytes_fails() {
         let (pk, sk) = ml_dsa_generate(MlDsaParameterSet::MlDsa44).unwrap();
         let message = b"Test message for corruption detection";
-        let mut sig = ml_dsa_sign(&sk, message, &[]).unwrap();
+        let sig = ml_dsa_sign(&sk, message, &[]).unwrap();
 
         // Corruption patterns that should all fail verification
         let corruption_offsets = [0, 100, 500, 1000, sig.len() - 1];
 
         for offset in corruption_offsets {
             if offset < sig.len() {
-                sig.data[offset] ^= 0xFF;
-                let result = ml_dsa_verify(&pk, message, &sig, &[]).unwrap();
+                let corrupted = flip_byte(&sig, offset);
+                let result = ml_dsa_verify(&pk, message, &corrupted, &[]).unwrap();
                 assert!(!result, "Corrupted signature at offset {} must fail", offset);
-                sig.data[offset] ^= 0xFF; // Restore
             }
         }
     }
@@ -150,11 +179,9 @@ mod ml_dsa_regression {
     /// Regression: Empty message signing
     #[test]
     fn test_ml_dsa_empty_message_succeeds() {
-        for param in [
-            MlDsaParameterSet::MlDsa44,
-            MlDsaParameterSet::MlDsa65,
-            MlDsaParameterSet::MlDsa87,
-        ] {
+        for param in
+            [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
+        {
             let (pk, sk) = ml_dsa_generate(param).unwrap();
             let sig = ml_dsa_sign(&sk, &[], &[]).unwrap();
             assert!(ml_dsa_verify(&pk, &[], &sig, &[]).unwrap());
@@ -225,7 +252,7 @@ mod slh_dsa_regression {
 
         // Serialize and deserialize public key
         let pk_bytes = pk.to_bytes();
-        let pk_restored = VerifyingKey::from_bytes(SlhDsaLevel::Shake128s, &pk_bytes).unwrap();
+        let pk_restored = VerifyingKey::from_bytes(&pk_bytes, SlhDsaLevel::Shake128s).unwrap();
 
         // Sign and verify with restored key
         let message = b"Key serialization test";
@@ -245,7 +272,7 @@ mod aead_regression {
     #[test]
     fn test_aes_gcm_empty_plaintext_succeeds() {
         let key = AesGcm256::generate_key();
-        let cipher = AesGcm256::new(&key).unwrap();
+        let cipher = AesGcm256::new(&*key).unwrap();
         let nonce = AesGcm256::generate_nonce();
 
         let (ct, tag) = cipher.encrypt(&nonce, &[], None).unwrap();
@@ -260,7 +287,7 @@ mod aead_regression {
     #[test]
     fn test_aes_gcm_aad_mismatch_fails() {
         let key = AesGcm128::generate_key();
-        let cipher = AesGcm128::new(&key).unwrap();
+        let cipher = AesGcm128::new(&*key).unwrap();
         let nonce = AesGcm128::generate_nonce();
         let plaintext = b"AAD mismatch test";
         let aad = b"correct AAD";
@@ -278,7 +305,7 @@ mod aead_regression {
     }
 
     /// Regression: ChaCha20-Poly1305 nonce uniqueness
-        #[test]
+    #[test]
     fn test_chacha_nonce_produces_different_ct_succeeds() {
         let key = [0x42u8; 32];
         let cipher = ChaCha20Poly1305Cipher::new(&key).unwrap();
@@ -306,7 +333,7 @@ mod aead_regression {
     }
 
     /// Regression: ChaCha20-Poly1305 invalid key length rejection
-        #[test]
+    #[test]
     fn test_chacha_invalid_key_lengths_fails() {
         assert!(ChaCha20Poly1305Cipher::new(&[0u8; 31]).is_err());
         assert!(ChaCha20Poly1305Cipher::new(&[0u8; 33]).is_err());
@@ -389,7 +416,7 @@ mod kdf_regression {
         let result1 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let result2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
 
-        assert_eq!(result1.key, result2.key, "HKDF must be deterministic");
+        assert_eq!(result1.key(), result2.key(), "HKDF must be deterministic");
     }
 
     /// Test HKDF domain separation
@@ -403,7 +430,7 @@ mod kdf_regression {
         let result1 = hkdf(ikm, Some(salt), Some(info1), 32).unwrap();
         let result2 = hkdf(ikm, Some(salt), Some(info2), 32).unwrap();
 
-        assert_ne!(result1.key, result2.key, "Different info must produce different keys");
+        assert_ne!(result1.key(), result2.key(), "Different info must produce different keys");
     }
 
     /// Regression: HKDF output length validation
@@ -447,25 +474,29 @@ mod hmac_regression {
         assert!(!verify_hmac_sha256(key, b"wrong message", &tag));
 
         // Corrupted tag
-        let mut corrupted = tag.clone();
+        let mut corrupted = tag;
         corrupted[0] ^= 0xFF;
         assert!(!verify_hmac_sha256(key, message, &corrupted));
     }
 
-    /// Regression: Empty key and message handling
+    /// Regression: Empty key and message handling.
+    ///
+    /// `hmac_sha256` rejects an empty key (RFC 2104 allows any length but
+    /// the library enforces a ≥ 1-byte minimum as a safety guard — an
+    /// all-empty key is never meaningful). An empty message is accepted.
     #[test]
     fn test_hmac_empty_inputs_fails() {
-        // Empty key
-        let result = hmac_sha256(&[], b"message");
-        assert!(result.is_ok(), "Empty key should be allowed");
+        // Empty key — must be rejected.
+        assert!(hmac_sha256(&[], b"message").is_err(), "Empty HMAC key must be rejected");
 
-        // Empty message
-        let result = hmac_sha256(b"key", &[]);
-        assert!(result.is_ok(), "Empty message should be allowed");
+        // Empty message with non-empty key — must succeed.
+        assert!(hmac_sha256(b"key", &[]).is_ok(), "Empty message with valid key must succeed");
 
-        // Both empty
-        let result = hmac_sha256(&[], &[]);
-        assert!(result.is_ok(), "Both empty should be allowed");
+        // Both empty — rejected because key is empty.
+        assert!(
+            hmac_sha256(&[], &[]).is_err(),
+            "Empty key + empty message must be rejected (empty key)"
+        );
     }
 
     /// Test HMAC tag truncation detection

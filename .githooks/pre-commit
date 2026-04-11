@@ -1,21 +1,29 @@
 #!/bin/bash
 # Pre-commit hook: Full quality checks before committing
 #
-# To enable this hook, run:
+# To enable this hook, either:
 #   git config core.hooksPath .githooks
+# Or:
+#   ./hooks/install.sh
 
 set -e
 
-echo "Running cargo fmt..."
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
 
-# Format all code
+echo "Running cargo fmt..."
 cargo fmt --all
 
-# Check if formatting made any changes
+# Also format the `fuzz` crate, which is excluded from the workspace.
+if [ -f fuzz/Cargo.toml ]; then
+    (cd fuzz && cargo fmt --all)
+fi
+
+# If formatting rewrote anything, re-stage just the files that were already
+# part of this commit (don't pull in unrelated working-tree changes).
 if ! git diff --quiet; then
     echo ""
     echo "Code was reformatted. Adding changes to commit..."
-    # Add any formatted files that were already staged
     git diff --name-only | while read file; do
         if git diff --cached --name-only | grep -q "^$file$"; then
             git add "$file"
@@ -24,39 +32,149 @@ if ! git diff --quiet; then
     echo "Formatting complete. Staged files updated."
 fi
 
-echo "Running cargo check..."
+# ============================================================================
+# Compile every line of code, every possible way.
+# ============================================================================
+#
+# A previous release shipped with the `fuzz` crate broken for ~7 files because
+# `fuzz` is `exclude = ["fuzz"]` in the workspace and none of the hook's
+# original `cargo check --workspace` invocations touched it. The checks below
+# cover:
+#
+#   1. Workspace crates with every feature flag combination we care about.
+#   2. The out-of-workspace `fuzz` crate (libFuzzer targets + regression tests).
+#   3. Every target kind: lib, bins, tests, examples, benches, fuzz targets.
+#
+# If a reachable-from-src file does not compile under one of these passes,
+# the hook blocks the commit.
+#
+# Matrix rationale:
+#   --no-default-features + --all-targets  catches code hidden behind default
+#     features (e.g. feature-gated modules that silently break when disabled).
+#   --all-features + --all-targets          catches the superset, including
+#     every example and test binary.
+#   --features fips-self-test               isolates the FIPS self-test path,
+#     which historically shipped broken when only --all-features was checked.
+#
+# Each invocation runs as a `cargo check`, which is ~10x faster than `cargo
+# build`. The actual test run happens once, later in the hook.
 
-# Verify code compiles cleanly
-if ! cargo check --workspace --all-features 2>&1; then
+echo "Running cargo check matrix..."
+
+# Workspace: no features, all targets
+if ! cargo check --workspace --no-default-features --all-targets 2>&1; then
     echo ""
-    echo "Compilation failed! Please fix errors before committing."
+    echo "❌ Compilation failed: --no-default-features --all-targets"
+    echo "   Feature-gated code is broken when default features are disabled."
     exit 1
 fi
+
+# Workspace: all features, all targets (includes examples + tests + benches)
+if ! cargo check --workspace --all-features --all-targets 2>&1; then
+    echo ""
+    echo "❌ Compilation failed: --all-features --all-targets"
+    exit 1
+fi
+
+# Workspace: FIPS self-test path (isolated — has its own gating)
+if ! cargo check -p latticearc --features fips-self-test --all-targets 2>&1; then
+    echo ""
+    echo "❌ Compilation failed: --features fips-self-test --all-targets"
+    echo "   FIPS self-test gated code has errors."
+    exit 1
+fi
+
+# ----------------------------------------------------------------------------
+# Out-of-workspace `fuzz` crate
+# ----------------------------------------------------------------------------
+# `fuzz` is `exclude = ["fuzz"]` at the workspace root so it doesn't slow down
+# every `cargo check --workspace`, but that also means bitrot hides there
+# indefinitely. We run `cargo check --all-targets` inside fuzz/ separately
+# so every fuzz target binary, regression test, and helper module compiles.
+if [ -f fuzz/Cargo.toml ]; then
+    if ! (cd fuzz && cargo check --all-targets 2>&1); then
+        echo ""
+        echo "❌ Compilation failed: fuzz/ (--all-targets)"
+        echo "   Fuzz targets or regression tests are broken."
+        echo "   This crate is excluded from the workspace so normal"
+        echo "   cargo check will not catch it — fix errors here before commit."
+        exit 1
+    fi
+fi
+echo "✅ Compilation checks passed (workspace + fuzz, all feature combos)"
+
+# ============================================================================
+# Clippy (deny warnings on every target)
+# ============================================================================
 
 echo "Running clippy..."
 if ! cargo clippy --workspace --all-targets --all-features -- -D warnings > /dev/null 2>&1; then
-    echo "❌ Clippy errors found"
+    echo "❌ Clippy errors found (workspace)"
     echo "   Run: cargo clippy --workspace --all-targets --all-features -- -D warnings"
     exit 1
 fi
-echo "✅ Clippy passed"
+
+# Also clippy the fuzz crate. We do NOT pass `-- -D warnings` here: the fuzz
+# crate's Cargo.toml sets `deny` on the crypto-relevant lints that matter
+# (todo, unimplemented, unsafe_code) and keeps stylistic lints at `warn`
+# because fuzz targets legitimately use patterns like `i % len` in bounded
+# loops. Forcing all warnings to errors would drown real regressions in
+# harness noise. Clippy errors (from the deny-level lints) still fail the
+# command because cargo clippy exits non-zero on any hard error.
+if [ -f fuzz/Cargo.toml ]; then
+    if ! (cd fuzz && cargo clippy --all-targets > /dev/null 2>&1); then
+        echo "❌ Clippy errors found (fuzz/)"
+        echo "   Run: (cd fuzz && cargo clippy --all-targets)"
+        exit 1
+    fi
+fi
+echo "✅ Clippy passed (workspace + fuzz)"
+
+# ============================================================================
+# Dead-code suppression audit
+# ============================================================================
+
+echo "Checking for dead code suppressions..."
+# Audit every `#[allow(dead_code)]` in production source and flag only
+# those that are outside a test context. A test context is:
+#   - a file whose name ends in `_tests.rs`, `tests.rs`, or equals `tests.rs`
+#   - a file under a `/tests/` directory segment
+#   - any hit preceded on the same line by `#[cfg(test)]` or inside `mod tests`
+# This catches real dead-code suppressions in shipping code while allowing
+# the `fn assert_all_signing_use_cases_covered` compile-time exhaustiveness
+# helper in latticearc/src/unified_api/tests.rs (a test-only file).
+DEAD_CODE_HITS=$(grep -rn '#\[allow(dead_code)\]' latticearc/src/ latticearc-cli/src/ --include='*.rs' \
+    | grep -v '#\[cfg(test)\]' \
+    | grep -v '_tests\.rs:' \
+    | grep -v '/tests\.rs:' \
+    | grep -v '/tests/' \
+    | grep -v 'mod tests' || true)
+
+if [ -n "$DEAD_CODE_HITS" ]; then
+    echo "❌ #[allow(dead_code)] found in production code. Use it or delete it:"
+    echo "$DEAD_CODE_HITS"
+    exit 1
+fi
+echo "✅ No dead code suppressions in production"
+
+# ============================================================================
+# Tests (workspace, release mode)
+# ============================================================================
 
 echo "Running tests (release mode)..."
-TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1) || true
+TEST_OUTPUT=$(cargo test --workspace --all-features --release 2>&1)
 TEST_FAILED=$(echo "$TEST_OUTPUT" | grep -c "test result: FAILED" || true)
 
 if [ "$TEST_FAILED" -gt 0 ]; then
-    # TLS handshake tests need TCP sockets, which fail in sandboxed environments.
-    # The error line format: "error: test failed, to rerun pass `...--test tls_...'`"
-    FAILED_TARGETS=$(echo "$TEST_OUTPUT" | grep -oE "to rerun pass.*--test [a-zA-Z_0-9]+" | grep -oE "\-\-test [a-zA-Z_0-9]+" | awk '{print $2}')
-    NON_TLS=$(echo "$FAILED_TARGETS" | grep -cv "^tls" || true)
+    # Filter out known sandbox failures (only PermissionDenied/TcpListener bind errors)
+    REAL_FAILURES=$(echo "$TEST_OUTPUT" | grep "test result: FAILED" | grep -v "PermissionDenied\|Os { code: 1\|TcpListener" || true)
 
-    if [ "$NON_TLS" -eq 0 ] && [ -n "$FAILED_TARGETS" ]; then
+    if [ -z "$REAL_FAILURES" ]; then
         TOTAL_PASSED=$(echo "$TEST_OUTPUT" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}')
-        echo "✅ $TOTAL_PASSED tests passed (TLS sandbox failures ignored — verified in CI)"
+        echo "✅ $TOTAL_PASSED tests passed (TLS sandbox failures ignored)"
     else
         echo "❌ Tests failed"
-        echo "$TEST_OUTPUT" | grep -B 2 -A 5 "FAILED"
+        echo "$TEST_OUTPUT" | grep -A 10 "test result: FAILED"
         exit 1
     fi
 else
@@ -64,12 +182,13 @@ else
     echo "✅ All $TOTAL_PASSED tests passed"
 fi
 
-# Verify CI test targets match actual test files
-# Catches stale target names after renames/consolidation
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# ============================================================================
+# CI test target verification
+# ============================================================================
+# Verify CI test targets match actual test files — catches stale target names
+# after renames/consolidation.
 CI_YML="$REPO_ROOT/.github/workflows/ci.yml"
 if [ -f "$CI_YML" ]; then
-    # Only run if ci.yml or test files changed
     CHANGED=$(git diff --cached --name-only)
     if echo "$CHANGED" | grep -qE '(ci\.yml|tests/.*\.rs)'; then
         echo "Verifying CI test targets..."
@@ -88,5 +207,99 @@ if [ -f "$CI_YML" ]; then
         echo "✅ All CI test targets verified"
     fi
 fi
+
+# ============================================================================
+# Fuzz regression tests (only when fuzz/ changed)
+# ============================================================================
+# The fuzz crate's regression tests guard against reintroduction of bugs
+# found by libFuzzer. They're slow (SLH-DSA variants take ~5 min combined),
+# so we only run them when something under `fuzz/` is actually being
+# committed — the same pattern used for CI-target verification above.
+if [ -f fuzz/Cargo.toml ]; then
+    FUZZ_CHANGED=$(git diff --cached --name-only | grep -E '^fuzz/' || true)
+    if [ -n "$FUZZ_CHANGED" ]; then
+        echo "fuzz/ files staged — running fuzz regression tests..."
+        if ! (cd fuzz && cargo test --test fuzz_regression_tests --release 2>&1); then
+            echo "❌ Fuzz regression tests failed"
+            echo "   Run: (cd fuzz && cargo test --test fuzz_regression_tests --release)"
+            exit 1
+        fi
+        echo "✅ Fuzz regression tests passed"
+    fi
+fi
+
+# ============================================================================
+# CLI smoke test: keygen → encrypt → decrypt roundtrip
+# ============================================================================
+#
+# We deliberately rebuild the CLI under the default feature set before
+# running the smoke test. A previous run of `cargo test --release
+# --all-features` can leave behind a FIPS-enabled CLI binary that links
+# against `aws_lc_fips_*.dylib` with no rpath, causing a dyld crash at
+# smoke-test time. Rebuilding without `--all-features` ensures the binary
+# matches the non-FIPS link configuration the smoke test expects.
+
+echo "Rebuilding CLI for smoke test (default features)..."
+if ! BUILD_OUT=$(cargo build -p latticearc-cli --release 2>&1); then
+    echo "❌ CLI rebuild failed:"
+    echo "$BUILD_OUT"
+    exit 1
+fi
+
+echo "Running CLI smoke tests..."
+CLI="$REPO_ROOT/target/release/latticearc-cli"
+if [ ! -x "$CLI" ]; then
+    echo "⚠️  CLI binary not found at $CLI (skipping smoke tests)"
+    echo "Pre-commit checks passed."
+    exit 0
+fi
+
+# Temporarily disable `set -e` inside the smoke test block so a failing CLI
+# command produces a helpful message and exit, not a silent script abort.
+# Each command's output is captured so that a non-zero exit surfaces the
+# CLI's own error (invalid key length, missing file, etc.) in the hook log.
+CLI_TMP=$(mktemp -d)
+CLI_OK=true
+set +e
+
+run_cli_step() {
+    local desc="$1"
+    shift
+    local out
+    if ! out=$("$CLI" "$@" 2>&1); then
+        echo "❌ CLI smoke test — $desc failed:"
+        echo "   command: $*"
+        echo "$out" | sed 's/^/   /'
+        CLI_OK=false
+        return 1
+    fi
+    return 0
+}
+
+# AES-256 roundtrip
+echo "cli-smoke-test" > "$CLI_TMP/pt.txt"
+run_cli_step "AES-256 keygen" keygen --algorithm aes256 --output "$CLI_TMP/aes" \
+    && run_cli_step "AES-256 encrypt" encrypt --key "$CLI_TMP/aes/aes256.key.json" --input "$CLI_TMP/pt.txt" --output "$CLI_TMP/ct.bin" \
+    && run_cli_step "AES-256 decrypt" decrypt --key "$CLI_TMP/aes/aes256.key.json" --input "$CLI_TMP/ct.bin" --output "$CLI_TMP/dec.txt" \
+    && if ! diff "$CLI_TMP/pt.txt" "$CLI_TMP/dec.txt" > /dev/null; then
+        echo "❌ CLI smoke test — AES-256 roundtrip plaintext mismatch"
+        CLI_OK=false
+    fi
+
+# Hybrid roundtrip
+run_cli_step "hybrid keygen" keygen --algorithm hybrid --output "$CLI_TMP/hybrid" \
+    && run_cli_step "hybrid encrypt" encrypt --mode hybrid --key "$CLI_TMP/hybrid/hybrid-kem.pub.json" --input "$CLI_TMP/pt.txt" --output "$CLI_TMP/hct.bin" \
+    && run_cli_step "hybrid decrypt" decrypt --key "$CLI_TMP/hybrid/hybrid-kem.sec.json" --input "$CLI_TMP/hct.bin" --output "$CLI_TMP/hdec.txt" \
+    && if ! diff "$CLI_TMP/pt.txt" "$CLI_TMP/hdec.txt" > /dev/null; then
+        echo "❌ CLI smoke test — hybrid roundtrip plaintext mismatch"
+        CLI_OK=false
+    fi
+
+set -e
+rm -rf "$CLI_TMP"
+if ! $CLI_OK; then
+    exit 1
+fi
+echo "✅ CLI smoke tests passed"
 
 echo "Pre-commit checks passed."

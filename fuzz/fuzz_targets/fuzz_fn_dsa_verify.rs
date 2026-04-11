@@ -7,8 +7,8 @@
 //! without crashing and correctly rejects malformed or wrong-key signatures.
 //! Uses Level512 for speed (FN-DSA-512, ~128-bit security).
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair, Signature};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 32 {

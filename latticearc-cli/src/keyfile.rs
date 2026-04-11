@@ -12,6 +12,41 @@ use latticearc::unified_api::key_format::{
 // Re-export KeyType for backward compatibility with command files
 pub(crate) use latticearc::unified_api::key_format::KeyType;
 
+/// Parse key-file bytes, trying every supported format in turn.
+///
+/// Order:
+/// 1. If the bytes are valid UTF-8, try LPK JSON, then legacy CLI v1 JSON.
+/// 2. Fall through to LPK CBOR either way (binary inputs, or text that
+///    happened to round-trip through a UTF-8 check but is really CBOR).
+///
+/// On total failure, the returned error mentions every format attempted
+/// and preserves the LPK JSON error — the most common failure mode — as
+/// its inner cause, instead of surfacing a low-level CBOR parse error
+/// from bytes that were never CBOR.
+fn parse_key_bytes(bytes: &[u8]) -> Result<PortableKey> {
+    let text = std::str::from_utf8(bytes).ok();
+
+    if let Some(text) = text {
+        // Keep the JSON error for the final message instead of reparsing below.
+        let json_err = match PortableKey::from_json(text) {
+            Ok(key) => return Ok(key),
+            Err(e) => e,
+        };
+        if let Ok(key) = PortableKey::from_legacy_json(text) {
+            return Ok(key);
+        }
+        if let Ok(key) = PortableKey::from_cbor(bytes) {
+            return Ok(key);
+        }
+        return Err(anyhow::anyhow!(
+            "Invalid key file (tried JSON, legacy JSON, CBOR): {json_err}"
+        ));
+    }
+
+    // Binary path: LPK CBOR only.
+    PortableKey::from_cbor(bytes).map_err(|e| anyhow::anyhow!("Invalid CBOR key file: {e}"))
+}
+
 // ============================================================================
 // KeyFile — backward-compatible wrapper around PortableKey
 // ============================================================================
@@ -52,21 +87,25 @@ impl KeyFile {
         }
     }
 
-    /// Read a key file from disk (supports both PortableKey and legacy formats).
+    /// Read a key file from disk.
+    ///
+    /// Accepts all three LPK formats plus the legacy CLI v1 JSON format:
+    /// - **LPK JSON** (UTF-8 text, default format written by `keygen`)
+    /// - **LPK CBOR** (binary, RFC 8949 — compact wire/storage format)
+    /// - **Legacy CLI v1 JSON** (pre-LPK format — backward compat path)
+    ///
+    /// Format detection is heuristic: the file bytes are first tested for
+    /// valid UTF-8 + JSON, then fallback to CBOR. A pure-binary CBOR file
+    /// will fail the UTF-8 check and route directly to the CBOR parser.
     ///
     /// If the file contains a passphrase-encrypted key, prompts for the
     /// passphrase via [`resolve_existing_passphrase`] and unwraps it before
     /// returning. Plaintext key files are returned as-is.
     pub fn read_from(path: &std::path::Path) -> Result<Self> {
-        let data = std::fs::read_to_string(path)
-            .with_context(|| format!("Failed to read {}", path.display()))?;
+        let bytes =
+            std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
 
-        // Try PortableKey first, fall back to legacy format
-        let mut inner = PortableKey::from_json(&data)
-            .or_else(|_| {
-                PortableKey::from_legacy_json(&data)
-                    .map_err(|e| anyhow::anyhow!("Invalid key file: {e}"))
-            })
+        let mut inner = parse_key_bytes(&bytes)
             .with_context(|| format!("Failed to parse {}", path.display()))?;
 
         // Transparently unlock passphrase-protected keys.

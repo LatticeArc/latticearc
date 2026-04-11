@@ -6,9 +6,9 @@
 //! Tests that ChaCha20-Poly1305 encrypt/decrypt operations don't crash
 //! with arbitrary input data and handle all error cases gracefully.
 
-use libfuzzer_sys::fuzz_target;
-use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
 use latticearc::primitives::aead::AeadCipher;
+use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes for key + nonce + plaintext

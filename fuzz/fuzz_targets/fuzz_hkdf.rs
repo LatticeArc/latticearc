@@ -6,8 +6,8 @@
 //! Tests that HKDF operations handle arbitrary input data
 //! without crashing and produce consistent outputs.
 
+use latticearc::primitives::kdf::hkdf::{hkdf, hkdf_expand, hkdf_extract, hkdf_simple};
 use libfuzzer_sys::fuzz_target;
-use latticearc::primitives::kdf::hkdf::{hkdf, hkdf_extract, hkdf_expand, hkdf_simple};
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 32 {
@@ -102,7 +102,11 @@ fn test_hkdf_full_succeeds(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>)
                 let different_info = Some(b"different info string".as_slice());
                 if info != different_info {
                     if let Ok(okm_diff) = hkdf(ikm, salt, different_info, output_len) {
-                        assert_ne!(okm.key(), okm_diff.key(), "Different info should produce different output");
+                        assert_ne!(
+                            okm.key(),
+                            okm_diff.key(),
+                            "Different info should produce different output"
+                        );
                     }
                 }
             }

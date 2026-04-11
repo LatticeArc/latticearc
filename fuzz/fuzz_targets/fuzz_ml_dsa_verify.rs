@@ -6,10 +6,10 @@
 //! Tests that ML-DSA verification handles arbitrary signature and message data
 //! without crashing and correctly rejects invalid signatures.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::sig::ml_dsa::{
-    generate_keypair, sign, verify, MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature,
+    MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature, generate_keypair, sign, verify,
 };
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 32 {
@@ -18,9 +18,9 @@ fuzz_target!(|data: &[u8]| {
 
     // Select parameter set based on first byte
     let param = match data[0] % 3 {
-        0 => MlDsaParameterSet::MLDSA44,
-        1 => MlDsaParameterSet::MLDSA65,
-        _ => MlDsaParameterSet::MLDSA87,
+        0 => MlDsaParameterSet::MlDsa44,
+        1 => MlDsaParameterSet::MlDsa65,
+        _ => MlDsaParameterSet::MlDsa87,
     };
 
     // Use portions of data for message
@@ -132,15 +132,15 @@ fuzz_target!(|data: &[u8]| {
 
     // Test 7: Cross-parameter set verification (should fail)
     let other_param = match param {
-        MlDsaParameterSet::MLDSA44 => MlDsaParameterSet::MLDSA65,
-        MlDsaParameterSet::MLDSA65 => MlDsaParameterSet::MLDSA87,
-        MlDsaParameterSet::MLDSA87 => MlDsaParameterSet::MLDSA44,
+        MlDsaParameterSet::MlDsa44 => MlDsaParameterSet::MlDsa65,
+        MlDsaParameterSet::MlDsa65 => MlDsaParameterSet::MlDsa87,
+        MlDsaParameterSet::MlDsa87 => MlDsaParameterSet::MlDsa44,
         _ => return, // Handle any future variants
     };
 
     if let Ok((other_pk, _other_sk)) = generate_keypair(other_param) {
         if let Ok(sig) = sign(&sk, message, &[]) {
-            // Verify signature from MLDSA44 with MLDSA65 key - should fail
+            // Verify signature from MlDsa44 with MlDsa65 key - should fail
             match verify(&other_pk, message, &sig, &[]) {
                 Ok(is_valid) => {
                     assert!(!is_valid, "Cross-parameter verification must fail");

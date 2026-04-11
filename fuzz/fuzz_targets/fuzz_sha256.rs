@@ -6,8 +6,8 @@
 //! Tests that SHA-256 operations handle arbitrary input data
 //! without crashing and produce consistent outputs.
 
+use latticearc::primitives::hash::{sha3_256, sha3_384, sha3_512, sha256, sha384, sha512};
 use libfuzzer_sys::fuzz_target;
-use latticearc::primitives::hash::{sha256, sha384, sha512, sha3_256, sha3_384, sha3_512};
 
 fuzz_target!(|data: &[u8]| {
     // Test SHA-256

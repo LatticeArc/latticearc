@@ -6,8 +6,8 @@
 //! Tests ML-KEM key generation, encapsulation, and decapsulation
 //! with various security levels.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 32 {
@@ -24,13 +24,13 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Generate keypair
-    let (pk, sk) = match MlKem::generate_keypair(&mut rng, level) {
+    let (pk, sk) = match MlKem::generate_keypair(level) {
         Ok(kp) => kp,
         Err(_) => return,
     };
 
     // Encapsulate - returns (shared_secret, ciphertext)
-    let (ss1, ct) = match MlKem::encapsulate(&mut rng, &pk) {
+    let (ss1, ct) = match MlKem::encapsulate(&pk) {
         Ok(result) => result,
         Err(_) => return,
     };

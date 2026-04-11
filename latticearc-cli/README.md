@@ -383,7 +383,9 @@ latticearc-cli info
 
 Keys are stored using the **LatticeArc Portable Key (LPK)** format — the library's standard
 key serialization. Keys are identified by **use case** or **security level** (matching how
-the library API works), with the algorithm auto-derived. Both JSON and CBOR formats are supported.
+the library API works), with the algorithm auto-derived. The CLI writes keys as JSON
+(human-readable, `.json` extension) and reads both JSON and CBOR interchangeably, so
+CBOR-encoded keys produced by the library API or other LPK tooling load without conversion.
 
 See [`docs/KEY_FORMAT.md`](../docs/KEY_FORMAT.md) for the full specification.
 

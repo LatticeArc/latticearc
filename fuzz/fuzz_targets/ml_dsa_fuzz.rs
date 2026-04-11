@@ -6,8 +6,8 @@
 //! Tests that ML-DSA signature verification doesn't crash or panic
 //! with arbitrary signature and message data.
 
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
 use libfuzzer_sys::fuzz_target;
-use latticearc::primitives::sig::ml_dsa::{generate_keypair, sign, verify, MlDsaParameterSet};
 
 fuzz_target!(|data: &[u8]| {
     // Need at least 32 bytes for message
@@ -19,8 +19,8 @@ fuzz_target!(|data: &[u8]| {
     let message = &data[..32];
     let context = &[]; // Empty context for testing
 
-    // Generate a valid keypair (MLDSA44 for speed)
-    if let Ok((pk, sk)) = generate_keypair(MlDsaParameterSet::MLDSA44) {
+    // Generate a valid keypair (MlDsa44 for speed)
+    if let Ok((pk, sk)) = generate_keypair(MlDsaParameterSet::MlDsa44) {
         // Create a valid signature for the message
         if let Ok(valid_sig) = sign(&sk, message, context) {
             // Test 1: Valid signature should verify

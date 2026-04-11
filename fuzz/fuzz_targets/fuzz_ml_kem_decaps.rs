@@ -6,14 +6,13 @@
 //! Tests that ML-KEM decapsulation handles arbitrary ciphertext data
 //! without crashing and correctly rejects malformed inputs.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemCiphertext, MlKemSecurityLevel};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
         return;
     }
-
 
     // Select security level based on first byte
     let (level, ct_size) = match data[0] % 3 {
@@ -23,8 +22,8 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Test 1: Generate valid keypair and test with valid ciphertext
-    if let Ok((pk, sk)) = MlKem::generate_keypair(&mut rng, level) {
-        if let Ok((_ss1, ct)) = MlKem::encapsulate(&mut rng, &pk) {
+    if let Ok((pk, sk)) = MlKem::generate_keypair(level) {
+        if let Ok((_ss1, ct)) = MlKem::encapsulate(&pk) {
             // Decapsulation should not crash
             let _ = MlKem::decapsulate(&sk, &ct);
         }
@@ -38,7 +37,7 @@ fuzz_target!(|data: &[u8]| {
         match MlKemCiphertext::new(level, ct_bytes.to_vec()) {
             Ok(ct) => {
                 // Generate keypair for decapsulation attempt
-                if let Ok((_pk, sk)) = MlKem::generate_keypair(&mut rng, level) {
+                if let Ok((_pk, sk)) = MlKem::generate_keypair(level) {
                     // Attempt decapsulation - should not crash
                     let _ = MlKem::decapsulate(&sk, &ct);
                 }
@@ -50,8 +49,8 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 3: Test with corrupted valid ciphertext
-    if let Ok((pk, sk)) = MlKem::generate_keypair(&mut rng, level) {
-        if let Ok((_ss, ct)) = MlKem::encapsulate(&mut rng, &pk) {
+    if let Ok((pk, sk)) = MlKem::generate_keypair(level) {
+        if let Ok((_ss, ct)) = MlKem::encapsulate(&pk) {
             // Corrupt the ciphertext
             let ct_bytes = ct.as_bytes();
             if !ct_bytes.is_empty() && !data.is_empty() {

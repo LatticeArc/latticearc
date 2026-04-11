@@ -7,8 +7,8 @@
 //! without crashing, and that any successfully parsed key survives a
 //! serialize-then-parse roundtrip.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::PortableKey;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Only proceed if the input is valid UTF-8; JSON must be text.

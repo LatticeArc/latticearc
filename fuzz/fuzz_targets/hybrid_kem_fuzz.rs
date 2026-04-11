@@ -5,8 +5,8 @@
 //!
 //! Tests that ML-KEM encapsulate/decapsulate produces matching shared secrets.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Use first byte to select security level
@@ -21,9 +21,9 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Generate keypair
-    if let Ok((pk, sk)) = MlKem::generate_keypair(&mut rng, level) {
+    if let Ok((pk, sk)) = MlKem::generate_keypair(level) {
         // Encapsulate to get shared secret and ciphertext
-        if let Ok((ss1, ct)) = MlKem::encapsulate(&mut rng, &pk) {
+        if let Ok((ss1, ct)) = MlKem::encapsulate(&pk) {
             // Decapsulate to recover shared secret
             if let Ok(ss2) = MlKem::decapsulate(&sk, &ct) {
                 // Shared secrets must match

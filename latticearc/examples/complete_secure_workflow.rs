@@ -2,7 +2,7 @@
 //!
 //! Full end-to-end lifecycle demonstrating:
 //! 1. Key generation (persistent signing identity)
-//! 2. Key derivation from password
+//! 2. Password-based key derivation via PBKDF2 with a per-use random salt
 //! 3. Encryption of sensitive data
 //! 4. Signing the encrypted data (non-repudiation)
 //! 5. Serialization for storage/transmission
@@ -17,10 +17,12 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::print_stdout)]
 
+use latticearc::primitives::kdf::pbkdf2::{Pbkdf2Params, pbkdf2};
+use latticearc::primitives::rand::csprng::random_bytes;
 use latticearc::{
-    CryptoConfig, SecurityLevel, SecurityMode, decrypt_aes_gcm, derive_key,
-    deserialize_signed_data, encrypt_aes_gcm, generate_signing_keypair, hash_data,
-    serialize_signed_data, sign_with_key, verify,
+    CryptoConfig, SecurityLevel, SecurityMode, decrypt_aes_gcm, deserialize_signed_data,
+    encrypt_aes_gcm, generate_signing_keypair, hash_data, serialize_signed_data, sign_with_key,
+    verify,
 };
 
 fn main() {
@@ -36,25 +38,40 @@ fn main() {
     println!("  Scheme: {}, PK: {} bytes", scheme, sign_pk.len());
 
     // -----------------------------------------------------------------------
-    // Step 2: Derive encryption key from password using HKDF
+    // Step 2: Derive encryption key from a password using PBKDF2
     // -----------------------------------------------------------------------
-    println!("\nStep 2: Derive encryption key from password...");
+    //
+    // Password-based key derivation MUST use a slow, memory-or-cpu-hard KDF
+    // to make brute-force attacks expensive. Using HKDF directly on a
+    // password is a security antipattern: HKDF assumes high-entropy input
+    // keying material (DH shared secrets, raw random bytes) and provides
+    // zero work factor, so an attacker who steals the ciphertext can try
+    // passwords at line rate.
+    //
+    // This example uses PBKDF2-HMAC-SHA256 at 600,000 iterations (OWASP
+    // 2023 recommendation) with a fresh 16-byte random salt. The salt is
+    // stored alongside the ciphertext so the same password + salt produces
+    // the same key on decrypt, but different salts on other encryptions
+    // prevent rainbow-table attacks across users.
+    println!("\nStep 2: Derive encryption key from password via PBKDF2...");
     let password = b"correct horse battery staple";
-    let salt = b"unique-application-salt-v1";
-    let enc_key =
-        derive_key(password, salt, 32, SecurityMode::Unverified).expect("key derivation failed");
-    println!("  Derived {} byte encryption key", enc_key.len());
+    let salt = random_bytes(16);
+    let params = Pbkdf2Params::with_salt(&salt).iterations(600_000).key_length(32);
+    let derived = pbkdf2(password, &params).expect("PBKDF2 derivation failed");
+    let enc_key: Vec<u8> = derived.key().to_vec();
+    println!("  Derived {}-byte encryption key (PBKDF2, 600k iters)", enc_key.len());
 
-    // Verify determinism: same inputs → same key
-    let enc_key2 = derive_key(password, salt, 32, SecurityMode::Unverified).unwrap();
-    assert_eq!(enc_key, enc_key2, "KDF must be deterministic");
-    println!("  Determinism verified: same inputs produce same key");
+    // Verify determinism: same password + same salt → same key.
+    let derived2 = pbkdf2(password, &params).expect("PBKDF2 re-derivation failed");
+    assert_eq!(enc_key, derived2.key(), "PBKDF2 must be deterministic for fixed salt + iters");
+    println!("  Determinism verified: same password + salt produce same key");
 
     // -----------------------------------------------------------------------
     // Step 3: Encrypt sensitive data
     // -----------------------------------------------------------------------
     println!("\nStep 3: Encrypt sensitive data...");
-    let original_data = b"Patient ID: 12345\nDiagnosis: Healthy\nSSN: 123-45-6789";
+    // Example fixture — not real patient data.
+    let original_data = b"Record-ID: RCRD-0001\nCategory: Example\nNotes: fixture data";
     let original_hash = hash_data(original_data);
     println!(
         "  Original: {} bytes, SHA3-256: {:02x?}...",

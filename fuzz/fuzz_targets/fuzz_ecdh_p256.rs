@@ -6,8 +6,8 @@
 //! Tests that P-256 ECDH operations handle arbitrary input data
 //! without crashing and produce valid shared secrets.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::primitives::kem::ecdh::EcdhP256KeyPair;
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Test 1: Generate keypairs and perform key agreement
@@ -26,10 +26,7 @@ fuzz_target!(|data: &[u8]| {
 
         if let (Ok(as_val), Ok(bs_val)) = (alice_secret, bob_secret) {
             // Shared secrets must match
-            assert_eq!(
-                as_val, bs_val,
-                "Shared secrets must match for valid key exchange"
-            );
+            assert_eq!(as_val, bs_val, "Shared secrets must match for valid key exchange");
 
             // Shared secret must be 32 bytes (x-coordinate)
             assert_eq!(as_val.len(), 32, "P-256 shared secret must be 32 bytes");
@@ -77,10 +74,7 @@ fuzz_target!(|data: &[u8]| {
     // Test 6: Public key format validation (must start with 0x04 for uncompressed)
     if let Ok(keypair) = EcdhP256KeyPair::generate() {
         let pk = keypair.public_key_bytes();
-        assert_eq!(
-            pk[0], 0x04,
-            "Uncompressed P-256 public key must start with 0x04"
-        );
+        assert_eq!(pk[0], 0x04, "Uncompressed P-256 public key must start with 0x04");
     }
 
     // Test 7: Key agreement with point at infinity (invalid)

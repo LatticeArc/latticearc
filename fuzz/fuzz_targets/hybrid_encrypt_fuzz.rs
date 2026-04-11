@@ -6,8 +6,8 @@
 //! Tests that the unified encrypt/decrypt API roundtrips correctly
 //! with arbitrary plaintext data using ML-KEM-768 + X25519 + AES-GCM hybrid encryption.
 
-use libfuzzer_sys::fuzz_target;
 use latticearc::{CryptoConfig, DecryptKey, EncryptKey, decrypt, encrypt, generate_hybrid_keypair};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Use entire fuzz input as plaintext (can be empty)

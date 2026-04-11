@@ -6,8 +6,8 @@
 //! Tests that PBKDF2 operations handle arbitrary input data
 //! without crashing and produce consistent outputs.
 
+use latticearc::primitives::kdf::pbkdf2::{Pbkdf2Params, PrfType, pbkdf2, pbkdf2_simple};
 use libfuzzer_sys::fuzz_target;
-use latticearc::primitives::kdf::pbkdf2::{pbkdf2, pbkdf2_simple, Pbkdf2Params, PrfType};
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 16 {
@@ -58,7 +58,11 @@ fn test_pbkdf2_with_params_succeeds(password: &[u8], salt: &[u8], iterations: u3
             };
             if let Ok(result_diff) = pbkdf2(different_password, &params2) {
                 if password != different_password {
-                    assert_ne!(result.key(), result_diff.key(), "Different password should produce different output");
+                    assert_ne!(
+                        result.key(),
+                        result_diff.key(),
+                        "Different password should produce different output"
+                    );
                 }
             }
 
@@ -72,7 +76,11 @@ fn test_pbkdf2_with_params_succeeds(password: &[u8], salt: &[u8], iterations: u3
             };
             if let Ok(result_diff) = pbkdf2(password, &params3) {
                 if salt != different_salt {
-                    assert_ne!(result.key(), result_diff.key(), "Different salt should produce different output");
+                    assert_ne!(
+                        result.key(),
+                        result_diff.key(),
+                        "Different salt should produce different output"
+                    );
                 }
             }
         }
