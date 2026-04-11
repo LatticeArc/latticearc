@@ -76,19 +76,23 @@
 <a href=#76 id=76 data-nosnippet>76</a>// `hybrid::kem` / `hybrid::sig` / `hybrid::encrypt` inline re-export modules
 <a href=#77 id=77 data-nosnippet>77</a>// were removed as they duplicated this surface.
 <a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">pub use </span>encrypt_hybrid::{
-<a href=#79 id=79 data-nosnippet>79</a>    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, decrypt_hybrid,
-<a href=#80 id=80 data-nosnippet>80</a>    derive_encryption_key, encrypt, encrypt_hybrid,
+<a href=#79 id=79 data-nosnippet>79</a>    HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt_hybrid,
+<a href=#80 id=80 data-nosnippet>80</a>    derive_encryption_key, encrypt_hybrid,
 <a href=#81 id=81 data-nosnippet>81</a>};
-<a href=#82 id=82 data-nosnippet>82</a><span class="kw">pub use </span>kem_hybrid::{
-<a href=#83 id=83 data-nosnippet>83</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
-<a href=#84 id=84 data-nosnippet>84</a>    derive_hybrid_shared_secret, encapsulate, generate_keypair <span class="kw">as </span>kem_generate_keypair,
-<a href=#85 id=85 data-nosnippet>85</a>};
-<a href=#86 id=86 data-nosnippet>86</a><span class="kw">pub use </span>pq_only::{
-<a href=#87 id=87 data-nosnippet>87</a>    PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
-<a href=#88 id=88 data-nosnippet>88</a>    encrypt_pq_only, generate_pq_keypair, generate_pq_keypair_with_level,
+<a href=#82 id=82 data-nosnippet>82</a><span class="comment">// Deprecated legacy ML-KEM-768-only paths — kept re-exported for source-compat,
+<a href=#83 id=83 data-nosnippet>83</a>// but isolated here so the re-export site itself doesn't emit deprecation warnings.
+<a href=#84 id=84 data-nosnippet>84</a></span><span class="attr">#[allow(deprecated)]
+<a href=#85 id=85 data-nosnippet>85</a></span><span class="kw">pub use </span>encrypt_hybrid::{decrypt, encrypt};
+<a href=#86 id=86 data-nosnippet>86</a><span class="kw">pub use </span>kem_hybrid::{
+<a href=#87 id=87 data-nosnippet>87</a>    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
+<a href=#88 id=88 data-nosnippet>88</a>    derive_hybrid_shared_secret, encapsulate, generate_keypair <span class="kw">as </span>kem_generate_keypair,
 <a href=#89 id=89 data-nosnippet>89</a>};
-<a href=#90 id=90 data-nosnippet>90</a><span class="kw">pub use </span>sig_hybrid::{
-<a href=#91 id=91 data-nosnippet>91</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
-<a href=#92 id=92 data-nosnippet>92</a>    generate_keypair <span class="kw">as </span>sig_generate_keypair, sign, verify,
+<a href=#90 id=90 data-nosnippet>90</a><span class="kw">pub use </span>pq_only::{
+<a href=#91 id=91 data-nosnippet>91</a>    PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
+<a href=#92 id=92 data-nosnippet>92</a>    encrypt_pq_only, generate_pq_keypair, generate_pq_keypair_with_level,
 <a href=#93 id=93 data-nosnippet>93</a>};
+<a href=#94 id=94 data-nosnippet>94</a><span class="kw">pub use </span>sig_hybrid::{
+<a href=#95 id=95 data-nosnippet>95</a>    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
+<a href=#96 id=96 data-nosnippet>96</a>    generate_keypair <span class="kw">as </span>sig_generate_keypair, sign, verify,
+<a href=#97 id=97 data-nosnippet>97</a>};
 </code></pre></div></section></main></body></html>

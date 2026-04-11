@@ -98,12 +98,14 @@
 <a href=#98 id=98 data-nosnippet>98</a>
 <a href=#99 id=99 data-nosnippet>99</a><span class="kw">fn </span>read_input(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
 <a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = path {
-<a href=#101 id=101 data-nosnippet>101</a>        std::fs::read(p).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to read {}"</span>, p.display()))
-<a href=#102 id=102 data-nosnippet>102</a>    } <span class="kw">else </span>{
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">use </span>std::io::Read;
-<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf = Vec::new();
-<a href=#105 id=105 data-nosnippet>105</a>        std::io::stdin().read_to_end(<span class="kw-2">&amp;mut </span>buf).context(<span class="string">"Failed to read from stdin"</span>)<span class="question-mark">?</span>;
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="prelude-val">Ok</span>(buf)
-<a href=#107 id=107 data-nosnippet>107</a>    }
-<a href=#108 id=108 data-nosnippet>108</a>}
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="kw">super</span>::common::enforce_input_size_limit(
+<a href=#102 id=102 data-nosnippet>102</a>            p,
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="kw">super</span>::common::CLI_MAX_HASH_INPUT_BYTES,
+<a href=#104 id=104 data-nosnippet>104</a>            <span class="string">"hash"</span>,
+<a href=#105 id=105 data-nosnippet>105</a>        )<span class="question-mark">?</span>;
+<a href=#106 id=106 data-nosnippet>106</a>        std::fs::read(p).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to read {}"</span>, p.display()))
+<a href=#107 id=107 data-nosnippet>107</a>    } <span class="kw">else </span>{
+<a href=#108 id=108 data-nosnippet>108</a>        <span class="kw">super</span>::common::read_stdin_with_limit(<span class="kw">super</span>::common::CLI_MAX_HASH_INPUT_BYTES, <span class="string">"hash"</span>)
+<a href=#109 id=109 data-nosnippet>109</a>    }
+<a href=#110 id=110 data-nosnippet>110</a>}
 </code></pre></div></section></main></body></html>

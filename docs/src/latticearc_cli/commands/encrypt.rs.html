@@ -221,25 +221,30 @@
 <a href=#221 id=221 data-nosnippet>221</a>
 <a href=#222 id=222 data-nosnippet>222</a><span class="kw">fn </span>read_input(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
 <a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = path {
-<a href=#224 id=224 data-nosnippet>224</a>        std::fs::read(p).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to read {}"</span>, p.display()))
-<a href=#225 id=225 data-nosnippet>225</a>    } <span class="kw">else </span>{
-<a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">use </span>std::io::Read;
-<a href=#227 id=227 data-nosnippet>227</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf = Vec::new();
-<a href=#228 id=228 data-nosnippet>228</a>        std::io::stdin().read_to_end(<span class="kw-2">&amp;mut </span>buf).context(<span class="string">"Failed to read from stdin"</span>)<span class="question-mark">?</span>;
-<a href=#229 id=229 data-nosnippet>229</a>        <span class="prelude-val">Ok</span>(buf)
-<a href=#230 id=230 data-nosnippet>230</a>    }
-<a href=#231 id=231 data-nosnippet>231</a>}
-<a href=#232 id=232 data-nosnippet>232</a>
-<a href=#233 id=233 data-nosnippet>233</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">match </span>path {
-<a href=#235 id=235 data-nosnippet>235</a>        <span class="prelude-val">Some</span>(p) =&gt; {
-<a href=#236 id=236 data-nosnippet>236</a>            std::fs::write(p, data).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
-<a href=#237 id=237 data-nosnippet>237</a>            <span class="macro">println!</span>(<span class="string">"Encrypted data written to: {}"</span>, p.display());
-<a href=#238 id=238 data-nosnippet>238</a>        }
-<a href=#239 id=239 data-nosnippet>239</a>        <span class="prelude-val">None </span>=&gt; {
-<a href=#240 id=240 data-nosnippet>240</a>            <span class="macro">println!</span>(<span class="string">"{data}"</span>);
-<a href=#241 id=241 data-nosnippet>241</a>        }
-<a href=#242 id=242 data-nosnippet>242</a>    }
-<a href=#243 id=243 data-nosnippet>243</a>    <span class="prelude-val">Ok</span>(())
-<a href=#244 id=244 data-nosnippet>244</a>}
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">super</span>::common::enforce_input_size_limit(
+<a href=#225 id=225 data-nosnippet>225</a>            p,
+<a href=#226 id=226 data-nosnippet>226</a>            <span class="kw">super</span>::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
+<a href=#227 id=227 data-nosnippet>227</a>            <span class="string">"encrypt"</span>,
+<a href=#228 id=228 data-nosnippet>228</a>        )<span class="question-mark">?</span>;
+<a href=#229 id=229 data-nosnippet>229</a>        std::fs::read(p).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to read {}"</span>, p.display()))
+<a href=#230 id=230 data-nosnippet>230</a>    } <span class="kw">else </span>{
+<a href=#231 id=231 data-nosnippet>231</a>        <span class="kw">super</span>::common::read_stdin_with_limit(
+<a href=#232 id=232 data-nosnippet>232</a>            <span class="kw">super</span>::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
+<a href=#233 id=233 data-nosnippet>233</a>            <span class="string">"encrypt"</span>,
+<a href=#234 id=234 data-nosnippet>234</a>        )
+<a href=#235 id=235 data-nosnippet>235</a>    }
+<a href=#236 id=236 data-nosnippet>236</a>}
+<a href=#237 id=237 data-nosnippet>237</a>
+<a href=#238 id=238 data-nosnippet>238</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">match </span>path {
+<a href=#240 id=240 data-nosnippet>240</a>        <span class="prelude-val">Some</span>(p) =&gt; {
+<a href=#241 id=241 data-nosnippet>241</a>            std::fs::write(p, data).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
+<a href=#242 id=242 data-nosnippet>242</a>            <span class="macro">println!</span>(<span class="string">"Encrypted data written to: {}"</span>, p.display());
+<a href=#243 id=243 data-nosnippet>243</a>        }
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="prelude-val">None </span>=&gt; {
+<a href=#245 id=245 data-nosnippet>245</a>            <span class="macro">println!</span>(<span class="string">"{data}"</span>);
+<a href=#246 id=246 data-nosnippet>246</a>        }
+<a href=#247 id=247 data-nosnippet>247</a>    }
+<a href=#248 id=248 data-nosnippet>248</a>    <span class="prelude-val">Ok</span>(())
+<a href=#249 id=249 data-nosnippet>249</a>}
 </code></pre></div></section></main></body></html>
