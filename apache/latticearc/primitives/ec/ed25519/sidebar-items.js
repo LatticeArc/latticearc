@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Ed25519KeyPair","Ed25519Signature"]};
+window.SIDEBAR_ITEMS = {"constant":["ED25519_PUBLIC_KEY_LEN","ED25519_SECRET_KEY_LEN","ED25519_SIGNATURE_LEN"],"struct":["Ed25519KeyPair","Ed25519Signature"]};
