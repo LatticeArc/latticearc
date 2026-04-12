@@ -551,7 +551,7 @@ enforced by our test suite (83 tests, all passing).
 
 | Algorithm | Standard | Key/Output Size | Notes |
 |-----------|----------|-----------------|-------|
-| AES-256-GCM | FIPS 197 + SP 800-38D | 32 B key, 12 B nonce, 16 B tag | FIPS validated |
+| AES-256-GCM | FIPS 197 + SP 800-38D | 32 B key, 12 B nonce, 16 B tag | Routes through CMVP-validated aws-lc-rs with `--features fips` |
 | SHA3-256 | FIPS 202 | 32 B output | |
 | SHA-256 | FIPS 180-4 | 32 B output | |
 | SHA-512 | FIPS 180-4 | 64 B output | |

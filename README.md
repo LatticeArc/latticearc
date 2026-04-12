@@ -9,9 +9,9 @@
 [![CodeQL](https://github.com/LatticeArc/latticearc/actions/workflows/codeql.yml/badge.svg)](https://github.com/LatticeArc/latticearc/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-LatticeArc is a post-quantum cryptography library for Rust that implements all four NIST PQC algorithm standards (FIPS 203–206) and routes AES-GCM / ML-KEM / HKDF / SHA-2 through the FIPS 140-3 validated aws-lc-rs backend (opt-in via `--features fips`). It ships as a single crate with a use-case-driven API — you describe what you're protecting, the library selects the right algorithm, security level, and compliance mode automatically. Hybrid (PQ + classical) by default for defense-in-depth, with PQ-only mode available for CNSA 2.0.
+LatticeArc is a post-quantum cryptography library for Rust. It implements all four NIST PQC algorithm standards (FIPS 203–206) and ships as a single crate with a use-case-driven API — you describe what you're protecting, the library selects the right algorithm, security level, and compliance mode automatically. Hybrid (PQ + classical) by default for defense-in-depth, with PQ-only mode available for CNSA 2.0.
 
-> **On "FIPS":** This repo distinguishes *algorithm-level conformance* (FIPS 203/204/205/206 — the NIST specs) from *module-level validation* (FIPS 140-3 CMVP — lab-certified cryptographic module). LatticeArc implements the algorithms in (1); only a subset routes through a module that satisfies (2). The library itself has not undergone CMVP validation. See [Algorithm Validation Status](#algorithm-validation-status) and `docs/NIST_COMPLIANCE.md` for the exact scope.
+Opt-in FIPS routing (`--features fips`) sends AES-GCM, ML-KEM, HKDF, and SHA-2 through a CMVP-validated aws-lc-rs build; the PQ signature algorithms use NIST-conformant but non-validated crates. LatticeArc itself is not a CMVP-certified cryptographic module — see [Algorithms & Backends](#algorithms--backends) for the exact per-algorithm scope.
 
 ## The Problem
 
@@ -56,8 +56,32 @@ This is supported by [NIST](https://csrc.nist.gov/projects/post-quantum-cryptogr
 - **Two orthogonal axes** — `SecurityLevel` (NIST 1/3/5) x `CryptoMode` (Hybrid/PqOnly)
 - **Zero-trust sessions** — per-operation authentication before any crypto operation
 - **Formal verification** — 27 Kani proofs, Proptest property suites, SAW-verified primitives (via aws-lc-rs)
-- **FIPS 140-3 backend (partial)** — `--features fips` routes AES-GCM, ML-KEM, HKDF, and SHA-2 through the validated aws-lc-rs module. PQ signatures (ML-DSA, SLH-DSA, FN-DSA) use non-validated crates. The library itself is not CMVP-certified.
+- **Opt-in FIPS backend** — `--features fips` routes AES-GCM, ML-KEM, HKDF, and SHA-2 through a CMVP-validated aws-lc-rs build. PQ signatures use NIST-conformant but non-validated crates. See [Algorithms & Backends](#algorithms--backends).
 - **Single crate, minimal API** — `cargo add latticearc` and go
+
+## When to Use LatticeArc
+
+Most PQ deployment today is TLS hybrid key exchange — Chrome, Firefox, Go, and OpenSSL
+all ship X25519MLKEM768 by default. LatticeArc targets a different problem:
+**application-layer PQ crypto** — encrypting records, signing documents, protecting keys
+at rest — where you need more than a raw primitive but less than a TLS stack.
+
+**Use it when you want:**
+
+- **Hybrid composition without the wiring.** General-purpose hybrid PQ+classical encrypt/decrypt (ML-KEM + X25519 + HKDF + AES-GCM as a complete AEAD pipeline) is DIY in every other library. TLS stacks do hybrid key exchange, but not application-layer encryption. LatticeArc ships the full pipeline as the default mode.
+- **Use-case-driven algorithm selection.** Say `UseCase::HealthcareRecords` — the library selects algorithm, security level, and compliance mode. 22 workload types, two compliance modes, two crypto modes. No other library or CLI in any language offers this.
+- **A CLI backed by the same library code.** The CLI isn't a separate tool with its own trust boundary — it's a thin frontend over the `latticearc` crate. Ops teams get keygen, encrypt, decrypt, sign, verify, and hash without writing Rust. Non-Rust teams (Python, Go, Node) can evaluate PQC end-to-end through the CLI before committing to the SDK.
+- **Opt-in FIPS routing.** `--features fips` routes AES-GCM, ML-KEM, HKDF, and SHA-2 through a CMVP-validated aws-lc-rs build. No code changes. `ComplianceMode` adds runtime algorithm constraints on top.
+
+**Reach for something else when:**
+
+- **You need a single low-level primitive.** If you only want ML-KEM-768, the underlying crates we wrap (`aws-lc-rs`, `fips204`, `fips205`, `fn-dsa`) are smaller dependencies. LatticeArc's value is the composition, not the primitive.
+- **You need a CMVP-certified cryptographic module end-to-end.** LatticeArc is not a CMVP-certified module. No CMVP-validated backend exists for PQ signatures today. See [Algorithms & Backends](#algorithms--backends).
+- **You need cross-language bindings.** LatticeArc is Rust-only (no C API, no Python bindings). liboqs provides C, Python, Go, Java, and Rust from one project.
+- **You target `no_std` or embedded.** LatticeArc is `std`-only. wolfCrypt is the leader for embedded PQ.
+- **You need a TLS stack.** Use rustls (with `prefer-post-quantum`), OpenSSL 3.5, or wolfSSL.
+
+> For a detailed comparison with other PQC libraries, CLIs, and managed services across languages, see the [Ecosystem Map](docs/ECOSYSTEM.md).
 
 ## How It Works
 
@@ -298,7 +322,7 @@ let config = CryptoConfig::new()
 let encrypted = encrypt(b"patient data", EncryptKey::Hybrid(&pk), config)?;
 ```
 
-> **Compile-time vs runtime:** The `fips` feature flag enables the FIPS 140-3 validated aws-lc-rs backend. `ComplianceMode` provides runtime algorithm constraints on top of that. See [NIST Compliance](docs/NIST_COMPLIANCE.md) for details.
+> **Compile-time vs runtime:** The `fips` feature flag switches aws-lc-rs to its CMVP-validated build. `ComplianceMode` layers runtime algorithm constraints on top. See [Algorithms & Backends](#algorithms--backends) for the per-algorithm validation status and [NIST Compliance](docs/NIST_COMPLIANCE.md) for the full scope.
 
 ## Zero Trust Sessions
 
@@ -340,17 +364,33 @@ Keys are stored in the **LatticeArc Portable Key (LPK)** format — a schema-fir
 
 ## Algorithms & Backends
 
+**Algorithm conformance ≠ module validation.** LatticeArc implements the NIST
+algorithm specs (FIPS 203 / 204 / 205 / 206) by delegating to audited third-party
+crates. Separately, `--features fips` switches the aws-lc-rs dependency to its
+CMVP-validated FIPS build; at that point AES-GCM, ML-KEM, HKDF, and SHA-2 run
+through a validated module. PQ signatures (ML-DSA, SLH-DSA, FN-DSA) always use
+non-validated crates — there is no CMVP-certified backend for them yet. The
+LatticeArc library as a whole is **not** a CMVP-certified cryptographic module.
+
+The table below is the source of truth for which algorithms go through a
+validated module:
+
 | Category | Algorithms | Backend |
 |----------|-----------|---------|
-| **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs (routed through FIPS 140-3 validated module with `--features fips`) |
-| **PQ Signatures** | ML-DSA-44/65/87 (FIPS 204) | fips204 (NIST-conformant, not CMVP-validated) |
-| **PQ Hash Signatures** | SLH-DSA (FIPS 205) | fips205 (NIST-conformant, not CMVP-validated) |
-| **PQ Lattice Signatures** | FN-DSA-512/1024 (draft FIPS 206) | fn-dsa (NIST-conformant, not CMVP-validated) |
-| **Classical Signatures** | Ed25519 | ed25519-dalek (audited) |
-| **Classical Key Exchange** | X25519 | aws-lc-rs |
-| **Symmetric Encryption** | AES-256-GCM, ChaCha20-Poly1305 | aws-lc-rs, chacha20poly1305 |
+| **PQ Key Encapsulation** | ML-KEM-512/768/1024 (FIPS 203) | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
+| **PQ Signatures** | ML-DSA-44/65/87 (FIPS 204) | fips204 — NIST-conformant, not CMVP-validated |
+| **PQ Hash Signatures** | SLH-DSA (FIPS 205) | fips205 — NIST-conformant, not CMVP-validated |
+| **PQ Lattice Signatures** | FN-DSA-512/1024 (draft FIPS 206) | fn-dsa — NIST-conformant, not CMVP-validated |
+| **Classical Signatures** | Ed25519 | ed25519-dalek — audited |
+| **Classical Key Exchange** | X25519 | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
+| **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
+| **Symmetric Encryption** | ChaCha20-Poly1305 | chacha20poly1305 crate — non-FIPS |
+| **Hash** | SHA-2 (256/384/512) | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
+| **Hash** | SHA-3, BLAKE2 | sha3 / blake2 crates — non-FIPS |
+| **KDF** | HKDF-SHA256 | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
 
-> With `--features fips`, aws-lc-rs operations run through the FIPS 140-3 validated module. For detailed rationale and ecosystem positioning, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md).
+> For rationale and ecosystem positioning, see [Algorithm Selection Guide](docs/ALGORITHM_SELECTION.md)
+> and [NIST Compliance](docs/NIST_COMPLIANCE.md).
 
 ## Verification
 
@@ -366,20 +406,24 @@ See [Formal Verification](docs/FORMAL_VERIFICATION.md) for the complete proof in
 
 ## Security
 
-| Component | Backend | Status |
-|-----------|---------|--------|
-| ML-KEM, AES-GCM, HKDF | `aws-lc-rs` | FIPS 140-3 validated (with `--features fips`) |
-| ML-DSA | `fips204` | NIST compliant (not FIPS-validated) |
-| SLH-DSA | `fips205` | NIST compliant (not FIPS-validated) |
-| FN-DSA | `fn-dsa` | NIST compliant (not FIPS-validated) |
-| Ed25519 | `ed25519-dalek` | Audited |
+LatticeArc is designed with the assumption that any single algorithm may be
+broken — hybrid mode ensures an attacker must defeat both the PQ and classical
+component to win. Key material is zeroized on drop, tag comparisons run in
+constant time, and secret types have manual `Debug` impls that redact their
+contents to prevent accidental logging.
+
+For the per-algorithm validation status (what's CMVP-validated, what's only
+NIST-conformant), see [Algorithms & Backends](#algorithms--backends) above.
 
 ### Limitations
 
-- **Not FIPS 140-3 (CMVP) validated** — LatticeArc as a cryptographic module has not undergone CMVP certification. With `--features fips`, AES-GCM / ML-KEM / HKDF / SHA-2 are routed through the FIPS 140-3 validated aws-lc-rs backend; PQ signatures (ML-DSA, SLH-DSA, FN-DSA) and the overall library boundary are not validated. See [NIST Compliance](docs/NIST_COMPLIANCE.md) for the exact algorithm-by-algorithm boundary.
-- **"FIPS" terminology** — this README distinguishes *algorithm conformance* (the library implements FIPS 203/204/205/206 per NIST spec) from *module validation* (CMVP certification). Conformance is claimed; module validation is not.
-- **Not independently audited** — We welcome security researchers to review our code.
-- **Pre-1.0 software** — API may change between versions.
+- **Not a CMVP-certified cryptographic module.** LatticeArc itself has not
+  undergone CMVP certification, and no CMVP-certified backend exists for the
+  PQ signature algorithms (ML-DSA, SLH-DSA, FN-DSA). Workloads that strictly
+  require module validation should use `--features fips` for the subset that
+  routes through aws-lc-rs and a separately-certified module for the rest.
+- **Not independently audited.** We welcome security researchers to review our code.
+- **Pre-1.0 software.** API may change between versions.
 
 ### Upstream Contributions
 
@@ -422,7 +466,7 @@ block-beta
 
     block:BACK["Backends"]:3
         columns 3
-        awslc["aws-lc-rs\n(FIPS 140-3)"] fips204["fips204 · fips205"] fndsa["fn-dsa · ed25519-dalek"]
+        awslc["aws-lc-rs\n(FIPS opt-in)"] fips204["fips204 · fips205"] fndsa["fn-dsa · ed25519-dalek"]
     end
 
     style API fill:#3b82f6,stroke:#1d4ed8,color:#fff
@@ -452,7 +496,7 @@ block-beta
 - [Key Format Specification](docs/KEY_FORMAT.md) — LPK v1 schema, JSON + CBOR, algorithm resolution
 - [Architecture](docs/DESIGN.md) — crate structure, design decisions
 - [Security Guide](docs/SECURITY_GUIDE.md) — threat model, secure usage patterns
-- [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203–205, draft 206 conformance details
+- [NIST Compliance](docs/NIST_COMPLIANCE.md) — FIPS 203–206 conformance details and CMVP scope
 - [Formal Verification](docs/FORMAL_VERIFICATION.md) — SAW, Proptest, Kani proof inventory
 - [FAQ](docs/FAQ.md)
 

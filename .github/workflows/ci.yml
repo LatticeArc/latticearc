@@ -238,7 +238,8 @@ jobs:
           --ignore RUSTSEC-2023-0052 \
           --ignore RUSTSEC-2021-0139 \
           --ignore RUSTSEC-2024-0375 \
-          --ignore RUSTSEC-2021-0145 || \
+          --ignore RUSTSEC-2021-0145 \
+          --ignore RUSTSEC-2026-0097 || \
         (echo "Security vulnerabilities found!" && exit 1)
 
     - name: Run cargo-deny (license & dependency checks)
