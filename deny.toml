@@ -22,7 +22,13 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 
 # Ignore specific advisories (only if necessary)
-ignore = []
+ignore = [
+    # rand 0.8 unsoundness with custom loggers calling rand::rng() during reseed.
+    # We use rand 0.8.5 (no patch in 0.8 series; fix is 0.9.3+). Our code does
+    # not use custom loggers that call rand::rng(), so the trigger conditions are
+    # not met. rand 0.9 upgrade is a separate breaking-API task.
+    "RUSTSEC-2026-0097",
+]
 
 [bans]
 # Allow or deny multiple versions of the same crate

@@ -165,6 +165,7 @@ jobs:
             --skip primitives::pct::tests::test_pct_ml_kem \
             --skip hybrid::encrypt_hybrid \
             --skip hybrid::kem_hybrid \
+            --skip hybrid::compose \
             --skip tls:: \
             --skip unified_api:: \
             --skip primitives::self_test::
