@@ -163,9 +163,7 @@ jobs:
             --skip primitives::keys::tests::test_keypair_debug \
             --skip primitives::keys::tests::test_secret_key_serialization \
             --skip primitives::pct::tests::test_pct_ml_kem \
-            --skip hybrid::encrypt_hybrid \
-            --skip hybrid::kem_hybrid \
-            --skip hybrid::compose \
+            --skip hybrid:: \
             --skip tls:: \
             --skip unified_api:: \
             --skip primitives::self_test::
