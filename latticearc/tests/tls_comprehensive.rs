@@ -1211,7 +1211,7 @@ mod pq_key_exchange_tests {
     fn test_kex_info_custom_hybrid_succeeds() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::CustomHybrid);
 
-        assert!(info.method.contains("Custom Hybrid"));
+        assert_eq!(info.method, "X25519MLKEM768");
         assert!(info.is_pq_secure);
         assert_eq!(info.ss_size, 64);
     }

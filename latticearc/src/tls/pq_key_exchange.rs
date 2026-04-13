@@ -45,10 +45,22 @@
 //! - Handshake succeeds in both cases
 
 use crate::tls::{TlsError, TlsMode};
-use rustls::crypto::CryptoProvider;
+use rustls::NamedGroup;
+use rustls::crypto::{CryptoProvider, SupportedKxGroup};
 use std::mem;
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, Zeroizing};
+
+fn is_mlkem_group(group: &dyn SupportedKxGroup) -> bool {
+    matches!(
+        group.name(),
+        NamedGroup::X25519MLKEM768
+            | NamedGroup::secp256r1MLKEM768
+            | NamedGroup::MLKEM768
+            | NamedGroup::MLKEM1024
+            | NamedGroup::MLKEM512
+    )
+}
 
 /// Post-quantum key exchange configuration
 #[non_exhaustive]
@@ -56,7 +68,14 @@ use zeroize::{Zeroize, Zeroizing};
 pub enum PqKexMode {
     /// Use rustls native PQ support (X25519MLKEM768, MLKEM768, MLKEM1024)
     RustlsPq,
-    /// Use custom hybrid implementation (`latticearc::hybrid`)
+    /// Historically intended to route through a `latticearc::hybrid`-backed
+    /// `SupportedKxGroup`. No such rustls integration exists today, so this
+    /// variant currently behaves identically to [`PqKexMode::RustlsPq`] —
+    /// rustls 0.23.37+ negotiates `X25519MLKEM768` natively regardless. For
+    /// the standalone custom combiner outside TLS, call
+    /// [`perform_hybrid_keygen`], [`perform_hybrid_encapsulate`], and
+    /// [`perform_hybrid_decapsulate`] directly. Prefer
+    /// [`PqKexMode::RustlsPq`] in new TLS code.
     CustomHybrid,
     /// Use classical ECDHE only
     Classical,
@@ -106,24 +125,13 @@ pub struct KexInfo {
 /// ```
 pub fn get_kex_provider(mode: TlsMode, kex_mode: PqKexMode) -> Result<CryptoProvider, TlsError> {
     match (mode, kex_mode) {
-        (TlsMode::Hybrid | TlsMode::Pq, PqKexMode::RustlsPq) => {
-            // rustls 0.23.37+ default_provider() includes X25519MLKEM768 natively
+        (TlsMode::Hybrid | TlsMode::Pq, PqKexMode::RustlsPq | PqKexMode::CustomHybrid) => {
             let mut provider = rustls::crypto::aws_lc_rs::default_provider();
-            // Prefer PQ groups for Hybrid/Pq modes
-            provider.kx_groups.sort_by_key(|group| {
-                let name = format!("{:?}", group.name());
-                if name.contains("MLKEM") { 0 } else { 1 }
-            });
+            provider.kx_groups.sort_by_key(|g| if is_mlkem_group(*g) { 0 } else { 1 });
             Ok(provider)
         }
 
-        (TlsMode::Hybrid | TlsMode::Pq, PqKexMode::CustomHybrid) => {
-            // Use custom hybrid implementation
-            Ok(rustls::crypto::aws_lc_rs::default_provider())
-        }
-
         (TlsMode::Classic, _) | (_, PqKexMode::Classical) => {
-            // Use default provider for classical mode
             Ok(rustls::crypto::aws_lc_rs::default_provider())
         }
     }
@@ -140,7 +148,7 @@ pub fn get_kex_provider(mode: TlsMode, kex_mode: PqKexMode) -> Result<CryptoProv
 #[must_use]
 pub fn get_kex_info(mode: TlsMode, kex_mode: PqKexMode) -> KexInfo {
     match (mode, kex_mode) {
-        (TlsMode::Hybrid | TlsMode::Pq, PqKexMode::RustlsPq) => KexInfo {
+        (TlsMode::Hybrid | TlsMode::Pq, PqKexMode::RustlsPq | PqKexMode::CustomHybrid) => KexInfo {
             method: "X25519MLKEM768".to_string(),
             security_level: "Hybrid (Post-Quantum + Classical)".to_string(),
             is_pq_secure: true,
@@ -148,16 +156,6 @@ pub fn get_kex_info(mode: TlsMode, kex_mode: PqKexMode) -> KexInfo {
             sk_size: 32 + 2400, // X25519 (32) + ML-KEM-768 SK (2400)
             ct_size: 32 + 1088, // X25519 (32) + ML-KEM-768 CT (1088)
             ss_size: 64,        // 64-byte shared secret
-        },
-
-        (TlsMode::Hybrid | TlsMode::Pq, PqKexMode::CustomHybrid) => KexInfo {
-            method: "Custom Hybrid (X25519 + ML-KEM-768)".to_string(),
-            security_level: "Hybrid (Post-Quantum + Classical)".to_string(),
-            is_pq_secure: true,
-            pk_size: 32 + 1184,
-            sk_size: 32 + 2400,
-            ct_size: 32 + 1088,
-            ss_size: 64,
         },
 
         (TlsMode::Classic, _) | (_, PqKexMode::Classical) => KexInfo {
@@ -172,30 +170,26 @@ pub fn get_kex_info(mode: TlsMode, kex_mode: PqKexMode) -> KexInfo {
     }
 }
 
-/// Check if post-quantum key exchange is available.
+/// Check if post-quantum key exchange is available at runtime.
 ///
-/// This checks compile-time availability (rustls with aws-lc-rs backend provides
-/// native PQ key exchange since 0.23.22+). PQ key exchange is always
-/// available when `latticearc` is compiled.
-///
-/// # Returns
-/// Always returns true (PQ support is compiled in unconditionally)
+/// Inspects `rustls::crypto::aws_lc_rs::default_provider()` and returns `true`
+/// iff it exposes at least one ML-KEM key-exchange group (e.g. `X25519MLKEM768`).
+/// This depends on the linked rustls / aws-lc-rs versions — rustls 0.23.37+
+/// ships PQ groups in `DEFAULT_KX_GROUPS`, older versions do not.
 #[must_use]
 pub fn is_pq_available() -> bool {
-    true
+    rustls::crypto::aws_lc_rs::default_provider().kx_groups.iter().any(|g| is_mlkem_group(*g))
 }
 
-/// Check if custom hybrid key exchange is available.
+/// Check if custom-hybrid key exchange is available at runtime.
 ///
-/// Returns `true` if the custom hybrid provider can be constructed. Currently
-/// this returns the aws-lc-rs default provider (same as classical mode), as
-/// the custom X25519+ML-KEM combination is handled natively by rustls.
-///
-/// # Returns
-/// Always returns true (falls back to aws-lc-rs default provider)
+/// `CustomHybrid` delegates to rustls-native `X25519MLKEM768`, so this is
+/// equivalent to [`is_pq_available`] for the TLS provider path. The standalone
+/// combiner in [`crate::hybrid`] (used by `perform_hybrid_*`) is always compiled
+/// in but is not exposed as a rustls `SupportedKxGroup`.
 #[must_use]
 pub fn is_custom_hybrid_available() -> bool {
-    true
+    is_pq_available()
 }
 
 /// Secure shared secret container with automatic zeroization
@@ -523,10 +517,22 @@ mod tests {
     #[test]
     fn test_kex_info_custom_hybrid_is_correct() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::CustomHybrid);
-        assert!(info.method.contains("Custom Hybrid"));
+        assert_eq!(info.method, "X25519MLKEM768");
         assert!(info.is_pq_secure);
         assert_eq!(info.ss_size, 64);
         assert_eq!(info.pk_size, 32 + 1184);
+    }
+
+    #[test]
+    fn test_custom_hybrid_sorts_pq_groups_first() {
+        let provider = get_kex_provider(TlsMode::Hybrid, PqKexMode::CustomHybrid)
+            .expect("Provider should be available");
+        let first = *provider.kx_groups.first().expect("Provider must have at least one kx_group");
+        assert!(
+            is_mlkem_group(first),
+            "CustomHybrid must sort PQ groups first, got: {:?}",
+            first.name()
+        );
     }
 
     #[test]

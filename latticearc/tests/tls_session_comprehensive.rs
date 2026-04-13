@@ -327,7 +327,7 @@ mod key_exchange {
     #[test]
     fn test_hybrid_kex_x25519_ml_kem_succeeds() {
         let info = get_kex_info(TlsMode::Hybrid, PqKexMode::CustomHybrid);
-        assert_eq!(info.method, "Custom Hybrid (X25519 + ML-KEM-768)");
+        assert_eq!(info.method, "X25519MLKEM768");
         assert!(info.is_pq_secure);
         assert_eq!(info.ss_size, 64);
     }

@@ -9,15 +9,17 @@
 //!
 //! # API note: infallible vs fallible
 //!
-//! Unlike the SHA-2 wrappers in [`crate::primitives::hash::sha2`], the SHA-3
-//! functions return `[u8; N]` directly instead of `Result<[u8; N], _>`. SHA-2
-//! was given an explicit 1 GiB input cap as a DoS-defense and therefore must
-//! be fallible; SHA-3 intentionally does not impose that cap because the
-//! SHAKE-based construction has much lower per-byte cost in practice and
-//! callers are expected to enforce their own limits (see
-//! [`crate::primitives::resource_limits`]). This asymmetry is deliberate —
-//! do not "fix" it by making one match the other without considering the
-//! DoS-budget tradeoff.
+//! SHA-3 returns `[u8; N]` directly; the SHA-2 wrappers in
+//! [`crate::primitives::hash::sha2`] return `Result<[u8; N], _>` because they
+//! reject inputs larger than 1 GB. Callers that need input bounding should
+//! check length before calling — DoS control belongs at ingress (HTTP body
+//! limits, decoder caps, [`crate::primitives::resource_limits`]), not inside
+//! the hash primitive.
+//!
+//! Performance note: SHA-3 (Keccak-f[1600]) is not cheaper per byte than
+//! SHA-2; on x86 with SHA-NI, SHA-256 runs roughly 3-8x faster than software
+//! SHA-3. The missing cap here is a pragmatic choice, not a performance
+//! argument.
 
 use sha3::{Digest, Sha3_256, Sha3_384, Sha3_512};
 
