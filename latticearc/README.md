@@ -23,12 +23,12 @@ Opt-in FIPS routing (`--features fips`) sends AES-GCM, ML-KEM, HKDF, and SHA-2 t
 
 ## When to Use LatticeArc
 
-Most PQ deployment today is TLS hybrid key exchange. LatticeArc targets **application-layer PQ crypto** — encrypting records, signing documents, protecting keys at rest.
+Most PQ *rollout activity* today is TLS hybrid key exchange — that's where harvest-now-decrypt-later attacks hit first. But the larger migration is just beginning: **key wrapping and signatures for data at rest.** AES-256 already resists quantum attacks (Grover leaves ~128 bits); what's not quantum-safe is the RSA/ECDH that protects the AES keys inside every KMS, encrypted database, secret manager, and signed document. LatticeArc targets that layer — the quantum-vulnerable crypto sitting under most "encryption at rest" claims.
 
 **Use it when you want:**
 
-- **Hybrid composition without the wiring.** General-purpose hybrid encrypt/decrypt (ML-KEM + X25519 + HKDF + AES-GCM as a complete AEAD pipeline) is DIY in every other library. LatticeArc ships the full pipeline as the default mode.
-- **Use-case-driven selection.** `UseCase::HealthcareRecords` auto-selects algorithm, security level, and compliance mode. 22 workload types, two compliance modes. No other library or CLI offers this.
+- **Hybrid composition without the wiring.** age 1.3 and Sequoia PGP ship hybrid PQ encryption for *file* and *OpenPGP* formats. For a library-level, format-agnostic hybrid encrypt/decrypt pipeline (ML-KEM + X25519 + HKDF + AES-GCM) you can point at arbitrary data, wiring it up yourself is still DIY in most crypto libraries. LatticeArc ships it as the default mode.
+- **Use-case-driven selection.** `UseCase::HealthcareRecords` auto-selects algorithm, security level, and compliance mode. 22 workload types, three compliance modes. No other library or CLI offers this.
 - **A CLI from the same trust boundary.** Ops teams get keygen, encrypt, sign, verify, and hash without writing Rust. Non-Rust teams can evaluate PQC through the CLI before committing to the SDK.
 - **Opt-in FIPS routing.** `--features fips` routes AES-GCM, ML-KEM, HKDF, and SHA-2 through CMVP-validated aws-lc-rs — no code changes.
 

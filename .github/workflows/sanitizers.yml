@@ -118,6 +118,7 @@ jobs:
           echo "- Thread leaks" >> $GITHUB_STEP_SUMMARY
 
   # MemorySanitizer - Detects uninitialized memory reads
+  #
   # Note: MSan cannot instrument C FFI code. aws-lc-rs (used for AES-GCM,
   # ML-KEM, ECDH, HKDF) is a C library that MSan sees as a black box. Memory
   # allocated/initialized inside aws-lc-rs appears "uninitialized" to MSan.
@@ -125,10 +126,20 @@ jobs:
   # is almost entirely integration tests calling aws-lc-rs. Within latticearc,
   # we exclude modules that call aws-lc-rs FFI. Pure-Rust modules
   # (hash, signatures, zkp, keys::roundtrip) still run under MSan.
-  # Tracking: #36 (upstream: aws/aws-lc-rs#1077 — msan feature flag)
+  #
+  # Non-blocking: this job runs `continue-on-error: true`. aws-lc static state
+  # is initialized lazily on crate load (before any skipped test can opt out)
+  # and destroyed in `__run_exit_handlers` at process exit, so the teardown
+  # path routinely surfaces `out_len.i.i.i`-style warnings in uninstrumentable
+  # C code regardless of which tests run. Making this job blocking would gate
+  # merges on an upstream issue we cannot fix in this repo. ASan/TSan/LSan
+  # remain blocking and provide C-FFI coverage MSan cannot.
+  # Tracking: #36 (upstream: aws/aws-lc-rs#1077 — msan feature flag). Flip
+  # `continue-on-error` to `false` once the upstream feature ships.
   msan:
     name: MemorySanitizer
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -239,11 +250,12 @@ jobs:
           echo "|-----------|---------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| AddressSanitizer | Memory errors | ${{ needs.asan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ThreadSanitizer | Data races | ${{ needs.tsan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| MemorySanitizer | Uninitialized reads | ${{ needs.msan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| MemorySanitizer | Uninitialized reads | ${{ needs.msan.result }} (non-blocking) |" >> $GITHUB_STEP_SUMMARY
           echo "| LeakSanitizer | Memory leaks | ${{ needs.lsan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Notes" >> $GITHUB_STEP_SUMMARY
           echo "- All sanitizers use \`-C opt-level=1\` to keep hash-based crypto fast while preserving instrumentation" >> $GITHUB_STEP_SUMMARY
           echo "- **MSan only**: aws-lc-rs FFI consumers excluded (C code not instrumentable by MSan)" >> $GITHUB_STEP_SUMMARY
+          echo "- **MSan non-blocking**: aws-lc static state initialized/destroyed in uninstrumentable C code surfaces at teardown regardless of skipped tests. ASan/TSan/LSan remain blocking. Flip to blocking once aws/aws-lc-rs#1077 ships." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "All tests run. No tests skipped (except MSan FFI exclusions)." >> $GITHUB_STEP_SUMMARY

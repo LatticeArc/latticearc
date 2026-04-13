@@ -13,6 +13,19 @@ published new standards — ML-KEM, ML-DSA, SLH-DSA — designed to resist both
 classical and quantum attacks. LatticeArc implements these standards so you can
 protect your data today against tomorrow's threats.
 
+### Why This Matters for Data at Rest
+
+AES-256 itself already resists quantum attacks (Grover's algorithm only halves
+effective key strength, leaving ~128 bits post-quantum). What breaks under a
+quantum computer is the **RSA/ECDH layer that protects the AES keys** —
+key wrapping in KMS, key exchange to encrypted databases, RSA-encrypted backup
+keys, signed software updates, and authenticated file transfers.
+
+This CLI uses hybrid ML-KEM + X25519 + HKDF + AES-GCM to encrypt files, and
+hybrid ML-DSA + Ed25519 to sign them. Both the PQ and classical components must
+be broken for an attacker to win — so you're protected whether the threat is
+quantum-capable or simply a flaw found in the young PQ algorithms.
+
 ## Installation
 
 ### From Prebuilt Binaries (Recommended)

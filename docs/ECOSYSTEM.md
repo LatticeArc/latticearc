@@ -17,6 +17,32 @@ exists; a dash means it doesn't. "Partial" and footnotes explain nuance. The
 [Where LatticeArc Fits](#where-latticearc-fits) section at the end summarizes our
 positioning honestly.
 
+## Framing: What Problem Is Each Tool Solving?
+
+Not every PQC project is trying to solve the same problem. Before reading the tables,
+it helps to separate three distinct layers of the PQ migration — because a project
+that's comprehensive in one layer may be absent in another, and that's not a defect:
+
+**Layer 1 — Transport (TLS / SSH / VPN).** Protect traffic in motion.
+Where harvest-now-decrypt-later attacks land first. Dominated by TLS hybrid key
+exchange (X25519MLKEM768). Examples: rustls, OpenSSL 3.5, Go `crypto/tls`, BoringSSL,
+wolfSSL, AWS s2n-tls.
+
+**Layer 2 — Key protection for data at rest.** Protect the AES keys that protect the
+data. This is where most of the quantum-vulnerable surface *actually* lives, because
+AES-256 itself is already quantum-resistant (Grover leaves ~128 bits), but the RSA/ECDH
+wrapping those AES keys is not. This layer sits inside every KMS, every encrypted
+database, every secret manager, every backup system, and every signed long-lived
+artifact. Deployment is much earlier than TLS — the tooling is thin. LatticeArc targets
+this layer.
+
+**Layer 3 — Primitives.** Raw algorithm implementations. Used by builders of
+Layers 1 and 2. Examples: aws-lc-rs, pqcrypto, fips204/205, fn-dsa, RustCrypto.
+
+A TLS stack is not "behind" on data-at-rest — it's not trying to solve that problem.
+A primitive library is not "behind" on hybrid composition — composition is a different
+layer. Read the tables with that lens.
+
 ---
 
 ## 1. Libraries
@@ -30,32 +56,34 @@ into applications.
 |------------|:----------:|:---------:|:--------:|:------------------------------------:|:-----------:|
 | **ML-KEM (FIPS 203)** | 512/768/1024 | 512/768/1024 | 512/768/1024 | 512/768/1024 | 512/768/1024 |
 | **ML-DSA (FIPS 204)** | 44/65/87 | 44/65/87 ^1^ | 44/65/87 | 44/65/87 | 44/65/87 |
-| **SLH-DSA (FIPS 205)** | All param sets | -- | SPHINCS+ variants | All param sets | SPHINCS+ variants |
-| **FN-DSA (FIPS 206)** | 512/1024 | -- | Falcon variants | -- | Falcon variants |
+| **SLH-DSA (FIPS 205)** | SHAKE-128s/192s/256s (3 of 12) | -- | pre-std SPHINCS+ ^2a^ | All 12 param sets | pre-std SPHINCS+ ^2a^ |
+| **FN-DSA (FIPS 206)** | 512/1024 | -- | pre-std Falcon ^2b^ | -- | pre-std Falcon ^2b^ |
 | **Hybrid PQ+Classical** | Yes (default) | -- | -- | X-Wing KEM only ^2^ | -- |
-| **AEAD composition** | Yes (ML-KEM + HKDF + AES-GCM) | AES-GCM standalone | -- | -- | -- |
+| **AEAD pipeline (non-TLS)** | Yes (ML-KEM + HKDF + AES-GCM) | AES-GCM standalone | -- | -- | -- |
 | **Use-case selection** | 22 use cases | -- | -- | -- | -- |
 | **CLI companion** | Yes (latticearc-cli) | -- | -- | -- | -- |
 | **FIPS 140-3 backend** | Opt-in via `--features fips` ^3^ | Yes (CMVP validated) | -- | -- | -- |
 | **Architecture** | Pure Rust + aws-lc-rs for FIPS | C (aws-lc) FFI | C (PQClean) FFI | Pure Rust | C (liboqs) FFI |
 
-^1^ ML-DSA in aws-lc-rs was added in v1.13.0, initially behind the `unstable` feature flag. Stabilization was planned for v1.14.0+.
+^1^ ML-DSA in aws-lc-rs was added in v1.13.0 behind the `unstable` feature flag. Still unstable as of v1.16.2 (April 2026); stabilization timeline not publicly committed.
 ^2^ RustCrypto's `x-wing` crate implements the X-Wing hybrid KEM (ML-KEM-768 + X25519). It is a KEM-only composition, not a full encrypt/decrypt pipeline.
+^2a^ `pqcrypto-sphincsplus` and liboqs ship pre-standardization SPHINCS+ variants (SHA2/SHAKE × 128s/f, 192s/f, 256s/f). These predate the final FIPS 205 SLH-DSA spec and are not byte-identical to FIPS 205.
+^2b^ `pqcrypto-falcon` and liboqs ship pre-standardization Falcon-512/1024. The FIPS 206 FN-DSA standard is still in draft; finalized bytes may differ.
 ^3^ LatticeArc routes AES-GCM, ML-KEM, HKDF, and SHA-2 through the CMVP-validated aws-lc-rs FIPS build. PQ signatures always use non-validated crates. LatticeArc itself is not a CMVP-certified module.
 
 ### 1.2 C / C++
 
 | Capability | OpenSSL 3.5 | aws-lc (C) | liboqs | wolfCrypt | BoringSSL |
 |------------|:-----------:|:----------:|:------:|:---------:|:---------:|
-| **ML-KEM (FIPS 203)** | 512/768/1024 | 512/768/1024 | 512/768/1024 | 512/768/1024 | 768 ^4^ |
-| **ML-DSA (FIPS 204)** | 44/65/87 | 44/65/87 | 44/65/87 | 44/65/87 | 65/87 ^4^ |
-| **SLH-DSA (FIPS 205)** | All param sets | -- | SPHINCS+ variants | -- | -- |
-| **FN-DSA (FIPS 206)** | -- | -- | Falcon variants | -- | -- |
+| **ML-KEM (FIPS 203)** | 512/768/1024 | 512/768/1024 | 512/768/1024 | 512/768/1024 | 768/1024 ^4^ |
+| **ML-DSA (FIPS 204)** | 44/65/87 | 44/65/87 | 44/65/87 | 44/65/87 | 44/65/87 ^4^ |
+| **SLH-DSA (FIPS 205)** | All 12 param sets | -- | pre-std SPHINCS+ ^2a^ | -- | -- |
+| **FN-DSA (FIPS 206)** | -- | -- | pre-std Falcon ^2b^ | -- | -- |
 | **Hybrid TLS KEM** | X25519MLKEM768 (default) | X25519MLKEM768 | Multiple hybrids via oqs-provider | Yes | X25519MLKEM768 |
 | **FIPS 140-3 validated** | Pending ^5^ | Yes (Certificate #4631+) | -- | In progress | -- |
 | **Embedded / no_std** | No | No | No | Yes | No |
 
-^4^ BoringSSL supports ML-KEM and ML-DSA in production (Chrome, Android) but the parameter set coverage is narrower and the API is not designed for general-purpose use outside Google.
+^4^ BoringSSL supports ML-KEM-768/1024 and ML-DSA-44/65/87 in production (Chrome, Android). ML-KEM-512 is intentionally not implemented (BoringSSL notes "You should prefer ML-KEM-768 where possible"). The API is not designed for general-purpose use outside Google.
 ^5^ OpenSSL 3.5's FIPS provider is undergoing CMVP testing; not yet certified as of April 2026.
 
 ### 1.3 Go
@@ -82,12 +110,13 @@ into applications.
 
 ### 1.5 Java / JVM
 
-| Capability | Bouncy Castle | JDK 24+ (JEP 527) |
-|------------|:-------------:|:------------------:|
-| **ML-KEM** | 512/768/1024 | X25519MLKEM768 (TLS only) |
-| **ML-DSA** | 44/65/87 | -- |
-| **SLH-DSA** | All param sets | -- |
-| **Hybrid general-purpose** | -- | TLS hybrid only |
+| Capability | Bouncy Castle | JDK stdlib |
+|------------|:-------------:|:----------:|
+| **ML-KEM (FIPS 203)** | 512/768/1024 | 512/768/1024 (JDK 24, JEP 496) |
+| **ML-DSA (FIPS 204)** | 44/65/87 | 44/65/87 (JDK 24, JEP 497) |
+| **SLH-DSA (FIPS 205)** | All 12 param sets | -- |
+| **Hybrid TLS KEM** | -- | X25519MLKEM768 (JDK 27, JEP 527) |
+| **Hybrid general-purpose** | -- | -- |
 
 ---
 
@@ -100,7 +129,7 @@ Tools that provide PQ operations from the command line without requiring library
 | **latticearc-cli** | Rust | 512/768/1024 | 44/65/87 | 128s | 512 | PQ+Classical (default) | 22 use cases | LPK (JSON + CBOR) |
 | **openssl** (3.5+) | C | 512/768/1024 | 44/65/87 | Yes | -- | TLS only | -- | PEM/DER |
 | **oqs-provider + openssl** | C | 512/768/1024 | 44/65/87 | Yes | Falcon | TLS + X.509 hybrids | -- | PEM/DER |
-| **age** (1.3+) | Go | 768 (hybrid with X25519) | -- | -- | -- | Yes (KEM only) | -- | age-native |
+| **age** (1.3+) | Go | 768 (hybrid with X25519, via HPKE) | -- | -- | -- | Yes (HPKE pipeline) | -- | age-native |
 | **GnuPG** (2.5 beta) | C | Kyber (pre-standard) ^7^ | -- | -- | -- | -- | -- | OpenPGP v5 |
 | **Sequoia sq** | Rust | Planned (H1 2026) | Planned (H1 2026) | -- | -- | Planned (ML-KEM+X25519, ML-DSA+Ed25519) | -- | OpenPGP |
 | **quantcrypt** | Python | Yes (PQClean) | Yes (PQClean) | Yes | -- | -- | -- | Custom |
@@ -141,16 +170,22 @@ KEM for TLS 1.3 only, not general-purpose encryption or signing.
 ## 5. What's Missing Across the Ecosystem
 
 These are gaps we observed while surveying the landscape — not criticisms. The PQ
-transition is early, and every project is making pragmatic tradeoffs.
+transition is early, and every project is making pragmatic tradeoffs. The "Layer"
+column maps each gap to the three-layer framing above.
 
-| Gap | Who it affects | Current state |
-|-----|---------------|---------------|
-| **No CMVP-validated PQ signature backend** | Anyone needing FIPS 140-3 for ML-DSA/SLH-DSA | aws-lc has ML-DSA in FIPS module, but the Rust API was unstable. No CMVP cert covers SLH-DSA or FN-DSA anywhere. |
-| **libsodium has no PQ algorithms** | Massive cross-language user base (C, Python, JS, Go, .NET) | ML-KEM is "on the roadmap" per maintainer; blocked on standardized hybrid scheme and SHAKE/SHA-3 implementation. |
-| **pyca/cryptography has no PQ yet** | Python's dominant crypto library | ML-KEM API design in progress (issue #12824). Target: H1 2026. Needs backend support from BoringSSL/aws-lc, not OpenSSL. |
-| **GnuPG PQ is pre-standard** | GPG users wanting PQ encryption | GnuPG 2.5 beta uses Kyber (not final ML-KEM). OpenPGP PQ spec expected H1 2026. |
-| **No general-purpose hybrid composition** | Developers who need PQ+classical encryption (not just TLS) | TLS hybrid is widespread. General-purpose hybrid encrypt/decrypt (KEM + KDF + AEAD) remains DIY in most ecosystems. age 1.3 is the notable exception for KEM. |
-| **FN-DSA (FIPS 206) coverage is thin** | Users wanting compact lattice signatures | Only pqcrypto (Falcon), liboqs, and LatticeArc ship FN-DSA. The standard is still in draft. |
+| Gap | Layer | Who it affects | Current state |
+|-----|:-----:|---------------|---------------|
+| **No CMVP-validated PQ signature backend** | 2, 3 | Anyone needing FIPS 140-3 for ML-DSA/SLH-DSA at rest or in signed artifacts | aws-lc has ML-DSA in FIPS module, but the Rust API was unstable. No CMVP cert covers SLH-DSA or FN-DSA anywhere. |
+| **libsodium has no PQ algorithms** | 2, 3 | Massive cross-language user base (C, Python, JS, Go, .NET) building data-at-rest encryption | ML-KEM is "on the roadmap" per maintainer; blocked on standardized hybrid scheme and SHAKE/SHA-3 implementation. |
+| **pyca/cryptography has no PQ yet** | 2, 3 | Python's dominant crypto library — used for key wrapping, signing, envelope encryption | ML-KEM API design in progress (issue #12824). Target: H1 2026. Needs backend support from BoringSSL/aws-lc, not OpenSSL. |
+| **GnuPG PQ is pre-standard** | 2 | GPG users wanting PQ encryption for email and long-lived artifacts | GnuPG 2.5 beta uses Kyber (not final ML-KEM). OpenPGP PQ spec expected H1 2026. |
+| **Thin hybrid composition in general-purpose crypto libraries** | 2 | Anyone who needs PQ+classical envelope encryption or key wrapping outside TLS and outside OpenPGP/age's formats | TLS hybrid (Layer 1) is widespread, but *library-level* hybrid encrypt/decrypt exposed as a general API is rare. age 1.3 ships hybrid file encryption via HPKE (ML-KEM-768 + X25519). Sequoia PGP will ship OpenPGP hybrid in H1 2026. Outside those format-specific tools, hybrid composition in general-purpose libraries remains DIY. |
+| **FN-DSA (FIPS 206) coverage is thin** | 2 | Users wanting compact lattice signatures for signed artifacts at rest | Only pqcrypto (Falcon), liboqs, and LatticeArc ship FN-DSA. The standard is still in draft. |
+
+**Layer 1 (TLS) is well-served.** Layer 3 (primitives) is well-served. The gap is
+**Layer 2** — the key-protection and signature tooling for data at rest. That's where
+most of the industry's quantum-vulnerable surface sits, and it's where the ecosystem
+is thinnest.
 
 ---
 
@@ -163,22 +198,25 @@ guardrails, and a CLI — backed by the same library code.
 
 ### What we're ahead on
 
-These three capabilities are not available together in any other project we surveyed:
+These capabilities are not available together in any other project we surveyed:
 
-1. **General-purpose hybrid PQ+classical composition.** Most PQ deployment today is TLS
-   hybrid key exchange (X25519MLKEM768). General-purpose hybrid encrypt/decrypt — where
-   the library combines ML-KEM + X25519 + HKDF + AES-GCM into a complete AEAD pipeline —
-   is DIY everywhere else. age 1.3 does hybrid KEM but not the AEAD pipeline.
+1. **All 4 NIST PQC standards in one crate, with hybrid composition by default.** age 1.3
+   ships hybrid ML-KEM-768 + X25519 file encryption via HPKE, which is excellent for its
+   scope — but it's KEM-only (no PQ signatures) and file-encryption-shaped. Sequoia PGP
+   will ship ML-KEM+X25519 and ML-DSA+Ed25519 composition for OpenPGP (H1 2026 target).
+   LatticeArc is the one project today that ships hybrid encrypt/decrypt **and** ML-DSA
+   / SLH-DSA / FN-DSA signatures in a single general-purpose dependency.
 
-2. **Use-case-driven algorithm selection.** 22 workload types, two compliance modes, two
-   crypto modes (Hybrid / PQ-Only). No other library or CLI in any language offers
-   "I'm protecting healthcare records" → automatic algorithm, security level, and
-   compliance mode selection.
+2. **Use-case-driven algorithm selection.** 22 workload types, three compliance modes
+   (Default / FIPS 140-3 / CNSA 2.0), two crypto modes (Hybrid / PQ-Only). No other
+   library or CLI in any language offers "I'm protecting healthcare records" → automatic
+   algorithm, security level, and compliance mode selection.
 
 3. **Library + CLI from the same trust boundary.** The CLI is a thin frontend over the
    `latticearc` crate. AAD binding, constant-time tag compare, zeroization, and use-case
-   selection all carry over. openssl and oqs-provider have CLIs, but they don't offer
-   use-case selection or general-purpose hybrid encrypt/decrypt.
+   selection all carry over. openssl, oqs-provider, age, and Sequoia sq have CLIs, but
+   none of them combines general-purpose hybrid encrypt/decrypt, the full PQ signature
+   family, and use-case selection in one tool.
 
 ### What we're on par with
 
@@ -200,16 +238,33 @@ These are not gaps — they're different problems with established solutions:
 
 ### Positioning
 
-LatticeArc targets **application-layer PQ crypto** — signing documents, encrypting
-records, protecting keys at rest. The PQ transition today is dominated by TLS hybrid
-key exchange, which is a transport-layer problem with mature solutions (see table above).
-Application-layer PQ encryption is a smaller market *right now*, but it's growing as
-organizations move from transport protection to data-at-rest and document-level
-encryption.
+Most PQ *rollout activity* today is TLS hybrid key exchange — Chrome, Firefox, Go,
+and OpenSSL all ship X25519MLKEM768 by default. That's because TLS has central
+distribution (a Chrome update reaches millions overnight) and a concrete, imminent
+threat: harvest-now-decrypt-later attacks on encrypted traffic.
 
-Our bet is that developers making that move need a higher-level tool than raw primitives,
-and that "wire up ML-KEM + X25519 + HKDF + AES-GCM yourself" is an adoption barrier
-that a composition layer can remove.
+But TLS is a narrow slice of where the PQ migration actually has to land. The larger
+exposed surface is **key wrapping, key encapsulation, and signatures for data at rest**:
+
+- AES-256 encryption itself already resists quantum attacks. Grover's algorithm only
+  halves effective key strength, leaving AES-256 at ~128 bits post-quantum.
+- What's **not** quantum-safe is the classical crypto that protects the AES keys:
+  RSA and ECDH are both broken by Shor's algorithm on a sufficiently large quantum
+  computer.
+- That classical layer sits inside every KMS (wrapping data keys), every encrypted
+  database (exchanging keys via TLS-terminated handshakes stored in logs), every
+  secret manager (RSA-encrypting vault keys), every signed document (RSA/ECDSA
+  signatures over long-lived artifacts), and every backup system (encrypting archive
+  keys for long-term storage).
+
+Nearly every industry claim of "data is encrypted at rest" rests on a quantum-vulnerable
+key-protection layer. That's where LatticeArc fits: hybrid ML-KEM + X25519 + HKDF +
+AES-GCM as a complete pipeline for protecting the keys that protect the data, plus
+ML-DSA / SLH-DSA / FN-DSA for signatures over long-lived artifacts.
+
+The market is not small. What's currently small is the *tooling* for this layer — most
+libraries ship primitives, not compositions, and "wire up ML-KEM + X25519 + HKDF +
+AES-GCM yourself" is an adoption barrier that a composition layer can remove.
 
 ---
 

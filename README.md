@@ -15,7 +15,15 @@ Opt-in FIPS routing (`--features fips`) sends AES-GCM, ML-KEM, HKDF, and SHA-2 t
 
 ## The Problem
 
-Quantum computers will break RSA and ECC. NIST published new standards (FIPS 203–206) in 2024, but using them correctly is hard:
+Quantum computers break RSA and ECC. That matters more than it first sounds: **AES-256
+itself is already quantum-safe** (Grover's algorithm only halves effective key strength,
+leaving ~128 bits), but the RSA and ECDH keys that *wrap* those AES keys are not. That
+classical key-protection layer lives inside every KMS, every encrypted database, every
+secret manager, every signed artifact, and every encrypted backup — the things the
+industry labels "encrypted at rest."
+
+NIST published new standards (FIPS 203–206) in 2024 to replace that classical layer,
+but using them correctly is hard:
 
 | What you have to do today | Lines of code | What can go wrong |
 |--------------------------|---------------|-------------------|
@@ -61,15 +69,26 @@ This is supported by [NIST](https://csrc.nist.gov/projects/post-quantum-cryptogr
 
 ## When to Use LatticeArc
 
-Most PQ deployment today is TLS hybrid key exchange — Chrome, Firefox, Go, and OpenSSL
-all ship X25519MLKEM768 by default. LatticeArc targets a different problem:
-**application-layer PQ crypto** — encrypting records, signing documents, protecting keys
-at rest — where you need more than a raw primitive but less than a TLS stack.
+Most PQ *rollout activity* today is TLS hybrid key exchange — Chrome, Firefox, Go, and
+OpenSSL all ship X25519MLKEM768 by default. That's because TLS has central distribution
+(a Chrome update reaches millions) and a crystallizing threat (harvest-now-decrypt-later).
+
+But the larger migration is just beginning: **key wrapping, key encapsulation, and
+signatures for data at rest.** AES-256 already resists quantum attacks — Grover's
+algorithm only halves effective key strength, leaving AES-256 at ~128 bits post-quantum.
+What's *not* quantum-safe is the RSA/ECDH layer that protects the AES keys. Every KMS,
+every encrypted database, every secret manager, every signed document, every backup
+system relies on classical key-protection crypto that a quantum computer breaks.
+
+LatticeArc targets that layer: hybrid ML-KEM + X25519 + HKDF + AES-GCM as a complete
+pipeline for protecting the keys that protect your data, plus ML-DSA / SLH-DSA / FN-DSA
+for signatures. It's the quantum-vulnerable layer sitting under most of the industry's
+"encryption at rest" claims.
 
 **Use it when you want:**
 
-- **Hybrid composition without the wiring.** General-purpose hybrid PQ+classical encrypt/decrypt (ML-KEM + X25519 + HKDF + AES-GCM as a complete AEAD pipeline) is DIY in every other library. TLS stacks do hybrid key exchange, but not application-layer encryption. LatticeArc ships the full pipeline as the default mode.
-- **Use-case-driven algorithm selection.** Say `UseCase::HealthcareRecords` — the library selects algorithm, security level, and compliance mode. 22 workload types, two compliance modes, two crypto modes. No other library or CLI in any language offers this.
+- **Hybrid composition without the wiring.** age 1.3 ships a hybrid file-encryption format via HPKE, Sequoia PGP is adding hybrid OpenPGP in H1 2026 — both are format-specific (age keys, OpenPGP packets). For *library-level* hybrid encrypt/decrypt that works with arbitrary data and your own key storage, wiring up ML-KEM + X25519 + HKDF + AES-GCM is still DIY in most crypto libraries. LatticeArc ships the full pipeline as the default mode, format-agnostic.
+- **Use-case-driven algorithm selection.** Say `UseCase::HealthcareRecords` — the library selects algorithm, security level, and compliance mode. 22 workload types, three compliance modes, two crypto modes. No other library or CLI in any language offers this.
 - **A CLI backed by the same library code.** The CLI isn't a separate tool with its own trust boundary — it's a thin frontend over the `latticearc` crate. Ops teams get keygen, encrypt, decrypt, sign, verify, and hash without writing Rust. Non-Rust teams (Python, Go, Node) can evaluate PQC end-to-end through the CLI before committing to the SDK.
 - **Opt-in FIPS routing.** `--features fips` routes AES-GCM, ML-KEM, HKDF, and SHA-2 through a CMVP-validated aws-lc-rs build. No code changes. `ComplianceMode` adds runtime algorithm constraints on top.
 
