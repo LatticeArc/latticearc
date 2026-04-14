@@ -175,7 +175,7 @@ jobs:
         key: ${{ runner.os }}-crypto-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run NIST KAT compliance tests
-      run: cargo test --package latticearc-tests --test nist_kat_tests --all-features --release
+      run: cargo test --package latticearc-tests --test nist_kat_runner --all-features --release
 
     - name: Run cryptographic validation tests
       run: cargo test --package latticearc-tests --all-features --release

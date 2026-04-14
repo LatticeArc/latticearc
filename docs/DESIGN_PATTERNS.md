@@ -1169,7 +1169,7 @@ Test these complete workflows:
 | **Config-driven encryption** | Use `CryptoConfig` with different `SecurityLevel` values → verify scheme selection → encrypt/decrypt roundtrip |
 | **Cross-level compatibility** | Encrypt with ML-KEM-768 keypair → attempt decrypt with ML-KEM-512 keypair → verify correct error (not garbage) |
 
-**Where:** `tests/tests/practical_*_tests.rs`, `tests/tests/*_e2e_*.rs`
+**Where:** `tests/tests/practical_*.rs`, `tests/tests/*_e2e_*.rs`
 
 ## Level 7: Real-World Usage Mirroring
 
