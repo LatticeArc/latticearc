@@ -242,23 +242,6 @@ doc = false
 bench = false
 
 # ============================================================================
-# Hybrid Fuzzing (Tasks 3.2.9-3.2.10)
-# ============================================================================
-
-[[bin]]
-name = "fuzz_hybrid_encrypt"
-path = "fuzz_targets/fuzz_hybrid_encrypt.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
-name = "fuzz_hybrid_decrypt"
-path = "fuzz_targets/fuzz_hybrid_decrypt.rs"
-test = false
-doc = false
-bench = false
-
 # ============================================================================
 # Key Derivation Fuzzing
 # ============================================================================

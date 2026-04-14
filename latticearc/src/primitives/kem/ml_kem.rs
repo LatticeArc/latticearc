@@ -772,50 +772,15 @@ impl MlKem {
     ///
     /// # Entropy source
     /// aws-lc-rs uses its internal FIPS-approved DRBG — callers cannot supply
-    /// an external RNG. For deterministic test vectors use
-    /// [`generate_keypair_with_seed`](Self::generate_keypair_with_seed), which
-    /// feeds a caller-provided seed through a ChaCha20 PRNG.
+    /// an external RNG. Deterministic seed-based key generation is not supported
+    /// by the current backend; tests requiring deterministic vectors must use
+    /// the backend's own KAT interface directly.
     #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
     #[instrument(level = "debug", fields(security_level = ?security_level))]
     pub fn generate_keypair(
         security_level: MlKemSecurityLevel,
     ) -> Result<(MlKemPublicKey, MlKemSecretKey), MlKemError> {
         Self::generate_keypair_with_config(MlKemConfig { security_level })
-    }
-
-    /// Generate a keypair using a deterministic seed for testing
-    ///
-    /// # Arguments
-    /// * `seed` - 32-byte seed for deterministic key generation
-    /// * `security_level` - The security level to use
-    ///
-    /// # Returns
-    /// A tuple of (public_key, secret_key)
-    ///
-    /// # Errors
-    /// Returns an error if key generation fails.
-    ///
-    /// # Note
-    /// aws-lc-rs uses its internal FIPS-approved DRBG and does NOT expose a
-    /// caller-provided entropy source for key generation. The `seed` argument
-    /// is accepted only for API symmetry with seed-based test helpers; the
-    /// returned key pair is **not** deterministic (each invocation produces a
-    /// fresh key). See `test_keygen_non_deterministic_despite_same_seed_is_deterministic`.
-    #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
-    #[instrument(level = "debug", skip(seed), fields(seed_len = seed.len(), security_level = ?security_level))]
-    pub fn generate_keypair_with_seed(
-        seed: &[u8],
-        security_level: MlKemSecurityLevel,
-    ) -> Result<(MlKemPublicKey, MlKemSecretKey), MlKemError> {
-        // Seed is validated for length (so callers can still size-check their
-        // inputs) but is not fed to aws-lc-rs's internal DRBG.
-        if seed.len() < 32 {
-            return Err(MlKemError::KeyGenerationError(format!(
-                "seed must be at least 32 bytes, got {}",
-                seed.len()
-            )));
-        }
-        Self::generate_keypair(security_level)
     }
 
     /// Generate an ML-KEM keypair with SIMD configuration
@@ -915,8 +880,8 @@ impl MlKem {
     ///
     /// # Entropy source
     /// aws-lc-rs uses its internal FIPS-approved DRBG — callers cannot supply
-    /// an external RNG. For deterministic test vectors use
-    /// [`encapsulate_with_seed`](Self::encapsulate_with_seed).
+    /// an external RNG. Deterministic seeded encapsulation is not supported by
+    /// the current backend.
     ///
     /// # Errors
     /// Returns an error if the public key is invalid or encapsulation fails.
@@ -929,39 +894,6 @@ impl MlKem {
             .map_err(|e| MlKemError::EncapsulationError(e.to_string()))?;
 
         Self::encapsulate_with_config(public_key)
-    }
-
-    /// Encapsulate with a caller-supplied seed.
-    ///
-    /// # Arguments
-    /// * `public_key` - The public key to encapsulate to
-    /// * `seed` - 32-byte seed (validated for length only)
-    ///
-    /// # Returns
-    /// A tuple of (shared_secret, ciphertext)
-    ///
-    /// # Note
-    /// Like [`generate_keypair_with_seed`](Self::generate_keypair_with_seed),
-    /// the `seed` is **not** actually threaded into the aws-lc-rs DRBG — the
-    /// backing implementation uses its own FIPS-approved entropy source. The
-    /// method is retained for API symmetry and to let callers size-check their
-    /// seeds; the resulting ciphertext is not deterministic.
-    ///
-    /// # Errors
-    /// Returns an error if the public key is invalid, the seed is shorter than
-    /// 32 bytes, or encapsulation fails.
-    #[instrument(level = "debug", skip(public_key, seed), fields(pk_len = public_key.as_bytes().len(), seed_len = seed.len()))]
-    pub fn encapsulate_with_seed(
-        public_key: &MlKemPublicKey,
-        seed: &[u8],
-    ) -> Result<(MlKemSharedSecret, MlKemCiphertext), MlKemError> {
-        if seed.len() < 32 {
-            return Err(MlKemError::EncapsulationError(format!(
-                "seed must be at least 32 bytes, got {}",
-                seed.len()
-            )));
-        }
-        Self::encapsulate(public_key)
     }
 
     /// Encapsulate a shared secret with SIMD configuration
@@ -1370,44 +1302,6 @@ mod tests {
     // Deterministic key generation tests
     // aws-lc-rs uses an internal FIPS-approved DRBG that adds its own entropy.
     // External seeds do NOT produce deterministic output — this is correct FIPS behavior.
-    #[test]
-    fn test_keygen_non_deterministic_despite_same_seed_is_deterministic() -> Result<(), MlKemError>
-    {
-        let seed = [0x42u8; 32];
-
-        let (pk1, _sk1) = MlKem::generate_keypair_with_seed(&seed, MlKemSecurityLevel::MlKem512)?;
-        let (pk2, _sk2) = MlKem::generate_keypair_with_seed(&seed, MlKemSecurityLevel::MlKem512)?;
-
-        // FIPS DRBG adds internal entropy — same seed does NOT produce same keys
-        assert_ne!(
-            pk1.as_bytes(),
-            pk2.as_bytes(),
-            "aws-lc-rs FIPS DRBG should make output non-deterministic"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_keygen_with_seed_produces_valid_keys_all_levels_succeeds() -> Result<(), MlKemError> {
-        let seed = [0xAAu8; 32];
-
-        for level in [
-            MlKemSecurityLevel::MlKem512,
-            MlKemSecurityLevel::MlKem768,
-            MlKemSecurityLevel::MlKem1024,
-        ] {
-            let (pk, _sk) = MlKem::generate_keypair_with_seed(&seed, level)?;
-            assert_eq!(
-                pk.as_bytes().len(),
-                level.public_key_size(),
-                "Key size should be correct for {}",
-                level.name()
-            );
-        }
-        Ok(())
-    }
-
     // Invalid public key tests
     #[test]
     fn test_encapsulate_with_invalid_public_key_length_fails() {
@@ -1627,16 +1521,6 @@ mod tests {
         assert!(debug.contains("[REDACTED]"));
         // Verify secret key material is not leaked in Debug output
         assert!(debug.contains("decaps_key: \"[REDACTED]\""));
-        Ok(())
-    }
-
-    #[test]
-    fn test_encapsulate_with_seed_succeeds() -> Result<(), MlKemError> {
-        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
-        let seed = [0x42u8; 32];
-        let (ss, ct) = MlKem::encapsulate_with_seed(&pk, &seed)?;
-        assert_eq!(ss.as_bytes().len(), 32);
-        assert_eq!(ct.as_bytes().len(), MlKemSecurityLevel::MlKem768.ciphertext_size());
         Ok(())
     }
 

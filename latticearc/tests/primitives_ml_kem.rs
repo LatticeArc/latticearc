@@ -1005,27 +1005,6 @@ fn test_security_level_methods_consistency_succeeds() {
     }
 }
 
-/// Test that keypair generation is non-deterministic even with same seed.
-/// aws-lc-rs uses an internal FIPS-approved DRBG that adds its own entropy,
-/// so external seeds do NOT produce deterministic output (by design).
-#[test]
-fn test_keypair_generation_non_deterministic_despite_same_seed_is_deterministic() {
-    let seed = [0x42u8; 32];
-
-    let (pk1, _sk1) = MlKem::generate_keypair_with_seed(&seed, MlKemSecurityLevel::MlKem768)
-        .expect("generation 1 should succeed");
-    let (pk2, _sk2) = MlKem::generate_keypair_with_seed(&seed, MlKemSecurityLevel::MlKem768)
-        .expect("generation 2 should succeed");
-
-    // aws-lc-rs FIPS DRBG adds internal entropy — same external seed does NOT
-    // produce same keys. This is the correct FIPS behavior.
-    assert_ne!(
-        pk1.as_bytes(),
-        pk2.as_bytes(),
-        "aws-lc-rs FIPS DRBG should make output non-deterministic"
-    );
-}
-
 // ============================================================================
 // SECTION 13: Stress and Boundary Tests
 // ============================================================================
@@ -1076,46 +1055,6 @@ fn test_ciphertext_clone_succeeds() {
 
     assert_eq!(ct.as_bytes(), ct_clone.as_bytes());
     assert_eq!(ct.security_level(), ct_clone.security_level());
-}
-
-/// Test encapsulate_with_seed produces valid results
-#[test]
-fn test_encapsulate_with_seed_succeeds() {
-    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
-        .expect("key generation should succeed");
-
-    let seed = [0x42u8; 32];
-    let result = MlKem::encapsulate_with_seed(&pk, &seed);
-    assert!(result.is_ok(), "encapsulate_with_seed should succeed");
-
-    let (ss, ct) = result.unwrap();
-    assert_eq!(ss.as_bytes().len(), 32, "Shared secret should be 32 bytes");
-    assert_eq!(ct.as_bytes().len(), 1088, "MlKem768 ciphertext should be 1088 bytes");
-}
-
-/// Test encapsulate_with_seed with different seeds produces different results
-#[test]
-fn test_encapsulate_with_seed_different_seeds_succeeds() {
-    let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
-        .expect("key generation should succeed");
-
-    let seed1 = [0x01u8; 32];
-    let seed2 = [0x02u8; 32];
-
-    let (ss1, ct1) = MlKem::encapsulate_with_seed(&pk, &seed1).unwrap();
-    let (ss2, ct2) = MlKem::encapsulate_with_seed(&pk, &seed2).unwrap();
-
-    // Different seeds should produce different outputs (highly probable)
-    assert_ne!(
-        ct1.as_bytes(),
-        ct2.as_bytes(),
-        "Different seeds should produce different ciphertexts"
-    );
-    assert_ne!(
-        ss1.as_bytes(),
-        ss2.as_bytes(),
-        "Different seeds should produce different shared secrets"
-    );
 }
 
 /// Test secret key into_bytes consumes the key

@@ -79,10 +79,6 @@ pub use encrypt_hybrid::{
     HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt_hybrid,
     derive_encryption_key, encrypt_hybrid,
 };
-// Deprecated legacy ML-KEM-768-only paths — kept re-exported for source-compat,
-// but isolated here so the re-export site itself doesn't emit deprecation warnings.
-#[allow(deprecated)]
-pub use encrypt_hybrid::{decrypt, encrypt};
 pub use kem_hybrid::{
     EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
     derive_hybrid_shared_secret, encapsulate, generate_keypair as kem_generate_keypair,

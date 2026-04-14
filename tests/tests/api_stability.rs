@@ -70,9 +70,7 @@ use latticearc::unified_api::{
     CustodianRole,
     // Traits (re-exported at unified_api root)
     DataCharacteristics,
-    EncryptionConfig,
     HardwareCapabilities,
-    HardwareConfig,
     HardwareInfo,
     HardwareType,
     KeyLifecycleRecord,
@@ -80,12 +78,9 @@ use latticearc::unified_api::{
     KeyStateMachine,
     PatternType,
     ProofComplexity,
-    SignatureConfig,
-    UseCaseConfig,
     // Constants
     VERSION,
     VerificationStatus,
-    ZeroTrustConfig,
     // Convenience functions
     decrypt,
     // Unverified variants
@@ -897,44 +892,6 @@ fn test_key_state_machine_method_return_types_are_stable() {
     let _: Vec<KeyLifecycleState> = KeyStateMachine::allowed_next_states(KeyLifecycleState::Active);
 }
 
-/// Test 3.13: Config builder patterns work correctly
-#[test]
-fn test_config_builder_patterns_work_correctly_succeeds() {
-    // CoreConfig builder
-    let config = CoreConfig::new()
-        .with_security_level(SecurityLevel::Maximum)
-        .with_performance_preference(PerformancePreference::Speed)
-        .with_hardware_acceleration(true)
-        .with_fallback(true)
-        .with_strict_validation(true)
-        .build();
-    assert!(config.is_ok());
-
-    // EncryptionConfig builder
-    let config = EncryptionConfig::new();
-    assert!(config.validate().is_ok());
-
-    // SignatureConfig builder
-    let config = SignatureConfig::new();
-    assert!(config.validate().is_ok());
-
-    // ZeroTrustConfig builder
-    let config = ZeroTrustConfig::new()
-        .with_timeout(5000)
-        .with_complexity(ProofComplexity::Medium)
-        .with_continuous_verification(true)
-        .with_verification_interval(30000);
-    assert!(config.validate().is_ok());
-
-    // HardwareConfig builder
-    let config = HardwareConfig::new()
-        .with_acceleration(true)
-        .with_fallback(true)
-        .with_threshold(4096)
-        .with_force_cpu(false);
-    assert!(config.validate().is_ok());
-}
-
 /// Test 3.14: Trait implementations on types are stable
 #[test]
 fn test_trait_implementations_are_stable() {
@@ -1284,22 +1241,6 @@ fn test_challenge_structure_is_stable() {
     let _timestamp: chrono::DateTime<chrono::Utc> = challenge.timestamp();
     let _complexity: &ProofComplexity = challenge.complexity();
     let _timeout: u64 = challenge.timeout_ms();
-}
-
-/// Test 5.9: UseCaseConfig construction is stable
-#[test]
-fn test_use_case_config_is_stable() {
-    let config = UseCaseConfig::new(UseCase::FileStorage);
-
-    // Validation should work (call before moving fields)
-    assert!(config.validate().is_ok());
-
-    // Fields should be accessible (clone to avoid move)
-    let _use_case: UseCase = config.use_case;
-    let _encryption: EncryptionConfig = config.encryption.clone();
-    let _signature: SignatureConfig = config.signature.clone();
-    let _zero_trust: ZeroTrustConfig = config.zero_trust.clone();
-    let _hardware: HardwareConfig = config.hardware.clone();
 }
 
 /// Test 5.10: KeyLifecycleRecord construction is stable

@@ -43,10 +43,8 @@
     deprecated
 )]
 
-use latticearc::types::traits::HardwareType;
 use latticearc::unified_api::{
-    CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig, UseCaseConfig,
-    ZeroTrustConfig,
+    CoreConfig, EncryptionConfig, ProofComplexity, SignatureConfig, UseCaseConfig, ZeroTrustConfig,
     error::TypeError,
     types::{
         AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, PerformancePreference,
@@ -511,37 +509,6 @@ fn test_zero_trust_config_validation_failure_continuous_zero_interval_returns_er
     }
 }
 
-#[test]
-fn test_hardware_config_validation_success_returns_ok() {
-    let config =
-        HardwareConfig::new().with_acceleration(true).with_fallback(true).with_threshold(4096);
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_hardware_config_validation_failure_zero_threshold_returns_error() {
-    let config = HardwareConfig::new().with_threshold(0);
-
-    let result = config.validate();
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_hardware_config_validation_failure_force_cpu_with_acceleration_returns_error() {
-    let config = HardwareConfig::new().with_acceleration(true).with_force_cpu(true);
-
-    let result = config.validate();
-    assert!(result.is_err());
-
-    match result {
-        Err(TypeError::ConfigurationError(msg)) => {
-            assert!(msg.contains("CPU") || msg.contains("acceleration"));
-        }
-        _ => panic!("Expected ConfigurationError"),
-    }
-}
-
 // ============================================================================
 // Test 1.9.6: Algorithm Selector for Each Use Case
 // ============================================================================
@@ -788,38 +755,6 @@ fn test_proof_complexity_variants_are_accessible() {
     assert_ne!(ProofComplexity::Low, ProofComplexity::High);
 }
 
-#[test]
-fn test_hardware_config_default_has_expected_values_succeeds() {
-    let config = HardwareConfig::default();
-
-    assert!(config.acceleration_enabled);
-    assert!(config.fallback_enabled);
-    assert_eq!(config.threshold_bytes, 4096);
-    assert!(config.preferred_accelerators.is_empty());
-    assert!(!config.force_cpu);
-}
-
-#[test]
-fn test_hardware_config_builder_with_accelerator_sets_correctly_succeeds() {
-    let config = HardwareConfig::new()
-        .with_preferred_accelerator(HardwareType::Gpu)
-        .with_preferred_accelerator(HardwareType::Fpga);
-
-    assert_eq!(config.preferred_accelerators.len(), 2);
-    assert!(config.preferred_accelerators.contains(&HardwareType::Gpu));
-    assert!(config.preferred_accelerators.contains(&HardwareType::Fpga));
-}
-
-#[test]
-fn test_hardware_config_force_cpu_mode_sets_correctly_succeeds() {
-    let config = HardwareConfig::new().with_acceleration(false).with_force_cpu(true);
-
-    assert!(!config.acceleration_enabled);
-    assert!(config.force_cpu);
-    // Should validate when acceleration is disabled
-    assert!(config.validate().is_ok());
-}
-
 // ============================================================================
 // Edge Cases and Boundary Tests
 // ============================================================================
@@ -835,12 +770,6 @@ fn test_config_with_minimum_values_is_accepted() {
 fn test_config_with_maximum_values_is_accepted() {
     let config = ZeroTrustConfig::new().with_timeout(u64::MAX).with_verification_interval(u64::MAX);
 
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_hardware_config_minimum_threshold_is_accepted() {
-    let config = HardwareConfig::new().with_threshold(1);
     assert!(config.validate().is_ok());
 }
 

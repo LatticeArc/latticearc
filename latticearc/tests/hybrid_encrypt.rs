@@ -10,18 +10,14 @@ mod hybrid {
     #![allow(clippy::print_stderr)]
     #![allow(clippy::cast_possible_truncation)]
     #![allow(missing_docs)]
-    // Legacy `encrypt`/`decrypt` are deprecated; the tests below intentionally exercise
-    // them to preserve coverage of the legacy ML-KEM-only code path.
-    #![allow(deprecated)]
-
     //! Coverage tests for encrypt_hybrid.rs
     //!
     //! Targets uncovered error paths, validation branches, and edge cases
     //! in the hybrid encryption module.
 
     use latticearc::hybrid::encrypt_hybrid::{
-        HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, decrypt_hybrid,
-        derive_encryption_key, encrypt, encrypt_hybrid,
+        HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt_hybrid,
+        derive_encryption_key, encrypt_hybrid,
     };
     use latticearc::hybrid::kem_hybrid::generate_keypair;
 
@@ -129,120 +125,6 @@ mod hybrid {
         let key_no = derive_encryption_key(&secret, &ctx_no_aad).unwrap();
         let key_with = derive_encryption_key(&secret, &ctx_with_aad).unwrap();
         assert_ne!(key_no, key_with);
-    }
-
-    // ============================================================================
-    // encrypt() error paths
-    // ============================================================================
-
-    #[test]
-    fn test_encrypt_rejects_wrong_pk_size_fails() {
-        let bad_pk = vec![0u8; 100]; // Wrong size (should be 1184)
-        let result = encrypt(&bad_pk, b"hello", None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("1184"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_encrypt_rejects_empty_pk_fails() {
-        let result = encrypt(&[], b"hello", None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_encrypt_rejects_oversized_pk_fails() {
-        let big_pk = vec![0u8; 2000];
-        let result = encrypt(&big_pk, b"hello", None);
-        assert!(result.is_err());
-    }
-
-    // ============================================================================
-    // decrypt() validation error paths
-    // ============================================================================
-
-    #[test]
-    fn test_decrypt_rejects_wrong_sk_size_fails() {
-        let bad_sk = vec![0u8; 100]; // Should be 2400
-        let ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 12],
-            vec![0u8; 16],
-        );
-        let result = decrypt(&bad_sk, &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("2400"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_decrypt_rejects_wrong_ct_size_fails() {
-        let sk = vec![0u8; 2400];
-        let ct = HybridCiphertext::new(
-            vec![0u8; 500], // Should be 1088
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 12],
-            vec![0u8; 16],
-        );
-        let result = decrypt(&sk, &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("1088"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_decrypt_rejects_wrong_nonce_size_fails() {
-        let sk = vec![0u8; 2400];
-        let ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 8], // Should be 12
-            vec![0u8; 16],
-        );
-        let result = decrypt(&sk, &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("12"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_decrypt_rejects_wrong_tag_size_fails() {
-        let sk = vec![0u8; 2400];
-        let ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 12],
-            vec![0u8; 8], // Should be 16
-        );
-        let result = decrypt(&sk, &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("16"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
     }
 
     // ============================================================================
@@ -512,33 +394,6 @@ mod hybrid {
     // fails due to ML-KEM decapsulation limitation
     // ============================================================================
 
-    #[test]
-    fn test_encrypt_none_context_uses_default_succeeds() {
-        // Generate a valid ML-KEM public key
-        let (pk, _sk) = latticearc::primitives::kem::ml_kem::MlKem::generate_keypair(
-            latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem768,
-        )
-        .unwrap();
-
-        // Encrypt with None context (uses default)
-        let result = encrypt(pk.as_bytes(), b"test", None);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_encrypt_with_explicit_context_succeeds() {
-        let (pk, _sk) = latticearc::primitives::kem::ml_kem::MlKem::generate_keypair(
-            latticearc::primitives::kem::ml_kem::MlKemSecurityLevel::MlKem768,
-        )
-        .unwrap();
-
-        let ctx = HybridEncryptionContext { info: b"explicit".to_vec(), aad: b"aad-data".to_vec() };
-        let result = encrypt(pk.as_bytes(), b"test", Some(&ctx));
-        assert!(result.is_ok());
-        let ct = result.unwrap();
-        assert!(ct.ecdh_ephemeral_pk().is_empty(), "Legacy path has no ECDH PK");
-    }
-
     // ============================================================================
     // Error equality and Debug
     // ============================================================================
@@ -580,123 +435,10 @@ mod validation {
     //! Tests validation errors that don't require actual ML-KEM decapsulation.
 
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
-    // Legacy `encrypt`/`decrypt` are deprecated; the tests below intentionally exercise
-    // them to preserve validation coverage of the legacy ML-KEM-only code path.
-    #![allow(deprecated)]
 
     use latticearc::hybrid::encrypt_hybrid::{
-        HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt, encrypt,
+        HybridCiphertext, HybridEncryptionContext, HybridEncryptionError,
     };
-
-    #[test]
-    fn test_decrypt_wrong_ml_kem_sk_length_fails() {
-        let ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 12],
-            vec![0u8; 16],
-        );
-        // SK must be 2400 bytes
-        let result = decrypt(&[0u8; 100], &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("2400"), "Error should mention expected size: {}", msg);
-            }
-            other => panic!("Expected InvalidInput, got: {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_decrypt_wrong_kem_ciphertext_length_fails() {
-        let ct = HybridCiphertext::new(
-            vec![0u8; 500],
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 12],
-            vec![0u8; 16],
-        ); // Wrong: should be 1088
-        let result = decrypt(&[0u8; 2400], &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("1088"), "Error should mention expected size: {}", msg);
-            }
-            other => panic!("Expected InvalidInput, got: {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_decrypt_wrong_nonce_length_fails() {
-        let ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 8],
-            vec![0u8; 16],
-        ); // Wrong: nonce should be 12
-        let result = decrypt(&[0u8; 2400], &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("12"), "Error should mention expected nonce size: {}", msg);
-            }
-            other => panic!("Expected InvalidInput, got: {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_decrypt_wrong_tag_length_fails() {
-        let ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 32],
-            vec![0u8; 12],
-            vec![0u8; 8],
-        ); // Wrong: tag should be 16
-        let result = decrypt(&[0u8; 2400], &ct, None);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("16"), "Error should mention expected tag size: {}", msg);
-            }
-            other => panic!("Expected InvalidInput, got: {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_encrypt_invalid_pk_length_fails() {
-        let result = encrypt(&[0u8; 100], b"test", None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_encrypt_with_context_succeeds() {
-        use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
-
-        let context =
-            HybridEncryptionContext { info: b"test-info".to_vec(), aad: b"test-aad".to_vec() };
-
-        let result = encrypt(pk.as_bytes(), b"secret data", Some(&context));
-        assert!(result.is_ok(), "Encrypt with context should succeed");
-        let ct = result.unwrap();
-        assert_eq!(ct.kem_ciphertext().len(), 1088);
-        assert_eq!(ct.nonce().len(), 12);
-        assert_eq!(ct.tag().len(), 16);
-        assert!(!ct.symmetric_ciphertext().is_empty());
-    }
-
-    #[test]
-    fn test_encrypt_default_context_succeeds() {
-        use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
-
-        // None context uses default
-        let result = encrypt(pk.as_bytes(), b"test data", None);
-        assert!(result.is_ok(), "Encrypt with None context should succeed");
-    }
 
     #[test]
     fn test_hybrid_ciphertext_clone_debug_succeeds() {
@@ -750,24 +492,6 @@ mod validation {
         assert_eq!(e1.clone(), e1);
         assert_ne!(e1, e2);
     }
-
-    #[test]
-    fn test_decrypt_with_wrong_sk_bytes_valid_length_fails() {
-        // Valid lengths but garbage bytes — should fail at ML-KEM decapsulation
-        let ct = HybridCiphertext::new(
-            vec![0xAA; 1088],
-            vec![],
-            vec![0xBB; 32],
-            vec![0xCC; 12],
-            vec![0xDD; 16],
-        );
-
-        // Valid length (2400) but wrong key material
-        let fake_sk = vec![0xFF; 2400];
-        let result = decrypt(&fake_sk, &ct, None);
-        // This should fail at ML-KEM decapsulation or AES-GCM auth
-        assert!(result.is_err());
-    }
 }
 
 // Originally: hybrid_encrypt_true_coverage.rs
@@ -783,10 +507,6 @@ mod true_hybrid {
         clippy::arithmetic_side_effects,
         clippy::cast_precision_loss
     )]
-    // Legacy `encrypt`/`decrypt` are deprecated; the tests below intentionally exercise
-    // them to preserve coverage of the legacy ML-KEM-only code path.
-    #![allow(deprecated)]
-
     use latticearc::hybrid::encrypt_hybrid::{
         HybridCiphertext, HybridEncryptionContext, decrypt_hybrid, encrypt_hybrid,
     };
@@ -918,103 +638,6 @@ mod true_hybrid {
             vec![0u8; 5], // wrong length, expect 16
         );
         let result = decrypt_hybrid(&hybrid_sk, &bad_ct, None);
-        assert!(result.is_err());
-    }
-
-    // ============================================================
-    // Legacy decrypt() error paths (ML-KEM only)
-    // ============================================================
-
-    #[test]
-    fn test_legacy_decrypt_bad_sk_length_fails() {
-        use latticearc::hybrid::encrypt_hybrid::decrypt;
-
-        let bad_ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 16],
-            vec![0u8; 12],
-            vec![0u8; 16],
-        );
-        let bad_sk = vec![0u8; 100]; // wrong length, expect 2400
-        let result = decrypt(&bad_sk, &bad_ct, None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_legacy_decrypt_bad_kem_ct_length_fails() {
-        use latticearc::hybrid::encrypt_hybrid::decrypt;
-
-        let bad_ct = HybridCiphertext::new(
-            vec![0u8; 100], // wrong length, expect 1088
-            vec![],
-            vec![0u8; 16],
-            vec![0u8; 12],
-            vec![0u8; 16],
-        );
-        let sk = vec![0u8; 2400];
-        let result = decrypt(&sk, &bad_ct, None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_legacy_decrypt_bad_nonce_length_fails() {
-        use latticearc::hybrid::encrypt_hybrid::decrypt;
-
-        let bad_ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 16],
-            vec![0u8; 5], // wrong length, expect 12
-            vec![0u8; 16],
-        );
-        let sk = vec![0u8; 2400];
-        let result = decrypt(&sk, &bad_ct, None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_legacy_decrypt_bad_tag_length_fails() {
-        use latticearc::hybrid::encrypt_hybrid::decrypt;
-
-        let bad_ct = HybridCiphertext::new(
-            vec![0u8; 1088],
-            vec![],
-            vec![0u8; 16],
-            vec![0u8; 12],
-            vec![0u8; 5], // wrong length, expect 16
-        );
-        let sk = vec![0u8; 2400];
-        let result = decrypt(&sk, &bad_ct, None);
-        assert!(result.is_err());
-    }
-
-    // ============================================================
-    // Legacy encrypt() with valid pk (ML-KEM only path)
-    // ============================================================
-
-    #[test]
-    fn test_legacy_encrypt_success_succeeds() {
-        use latticearc::hybrid::encrypt_hybrid::encrypt;
-        use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-
-        let (ml_kem_pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
-
-        let plaintext = b"Legacy ML-KEM-only encrypt test";
-        let ct = encrypt(ml_kem_pk.as_bytes(), plaintext, None);
-        assert!(ct.is_ok(), "Legacy encrypt should succeed with valid ML-KEM pk");
-        let ct = ct.unwrap();
-        assert_eq!(ct.kem_ciphertext().len(), 1088);
-        assert_eq!(ct.nonce().len(), 12);
-        assert_eq!(ct.tag().len(), 16);
-    }
-
-    #[test]
-    fn test_legacy_encrypt_bad_pk_length_fails() {
-        use latticearc::hybrid::encrypt_hybrid::encrypt;
-
-        let bad_pk = vec![0u8; 100]; // wrong length, expect 1184
-        let result = encrypt(&bad_pk, b"test", None);
         assert!(result.is_err());
     }
 }

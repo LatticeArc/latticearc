@@ -7,7 +7,6 @@
 use crate::types::{
     PerformancePreference, SecurityLevel, UseCase,
     error::{Result, TypeError},
-    traits::HardwareType,
 };
 
 /// Core cryptographic configuration settings.
@@ -326,130 +325,14 @@ pub enum ProofComplexity {
     High,
 }
 
-/// Configuration for hardware acceleration.
-///
-/// Controls which hardware accelerators are used and under what conditions
-/// software fallback is permitted.
-///
-/// **Note:** This is a configuration model only. `CoreConfig.hardware_acceleration`
-/// controls software-friendly algorithm selection (ChaCha20-Poly1305 vs AES-GCM).
-#[deprecated(
-    since = "0.5.0",
-    note = "No active consumer. Use CoreConfig.hardware_acceleration instead."
-)]
-#[derive(Debug, Clone)]
-pub struct HardwareConfig {
-    /// Whether hardware acceleration is enabled.
-    ///
-    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
-    pub acceleration_enabled: bool,
-    /// Whether software fallback is permitted when hardware is unavailable.
-    ///
-    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
-    pub fallback_enabled: bool,
-    /// Minimum data size in bytes to trigger hardware acceleration.
-    ///
-    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
-    pub threshold_bytes: usize,
-    /// List of preferred hardware accelerators in priority order.
-    ///
-    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
-    pub preferred_accelerators: Vec<HardwareType>,
-    /// Force CPU-only mode, bypassing all other accelerators.
-    ///
-    /// Consumer: None — deprecated, use CoreConfig.hardware_acceleration instead.
-    pub force_cpu: bool,
-}
-
-#[allow(deprecated)]
-impl Default for HardwareConfig {
-    fn default() -> Self {
-        Self {
-            acceleration_enabled: true,
-            fallback_enabled: true,
-            threshold_bytes: 4096,
-            preferred_accelerators: Vec::new(),
-            force_cpu: false,
-        }
-    }
-}
-
-#[allow(deprecated)]
-impl HardwareConfig {
-    /// Creates a new hardware configuration with default settings.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Enables or disables hardware acceleration.
-    #[must_use]
-    pub fn with_acceleration(mut self, enabled: bool) -> Self {
-        self.acceleration_enabled = enabled;
-        self
-    }
-
-    /// Enables or disables software fallback.
-    #[must_use]
-    pub fn with_fallback(mut self, enabled: bool) -> Self {
-        self.fallback_enabled = enabled;
-        self
-    }
-
-    /// Sets the minimum data size threshold for hardware acceleration.
-    #[must_use]
-    pub fn with_threshold(mut self, threshold: usize) -> Self {
-        self.threshold_bytes = threshold;
-        self
-    }
-
-    /// Adds a preferred accelerator to the priority list.
-    #[must_use]
-    pub fn with_preferred_accelerator(mut self, accelerator: HardwareType) -> Self {
-        self.preferred_accelerators.push(accelerator);
-        self
-    }
-
-    /// Forces CPU-only mode, bypassing all accelerators.
-    #[must_use]
-    pub fn with_force_cpu(mut self, force: bool) -> Self {
-        self.force_cpu = force;
-        self
-    }
-
-    /// Validates the hardware configuration settings.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Hardware threshold bytes is set to zero
-    /// - Force CPU mode is enabled while acceleration is also enabled
-    pub fn validate(&self) -> Result<()> {
-        if self.threshold_bytes == 0 {
-            return Err(TypeError::ConfigurationError(
-                "Hardware threshold cannot be zero".to_string(),
-            ));
-        }
-
-        if self.force_cpu && self.acceleration_enabled {
-            return Err(TypeError::ConfigurationError(
-                "Force CPU conflicts with acceleration enabled".to_string(),
-            ));
-        }
-
-        Ok(())
-    }
-}
-
 /// Configuration tailored for a specific use case.
 ///
-/// Combines encryption, signature, zero-trust, and hardware configurations
+/// Combines encryption, signature, and zero-trust configurations
 /// with settings optimized for the given use case.
 ///
 /// **Note:** `UseCaseConfig` is not yet wired to the unified `encrypt()`/`sign_with_key()` API.
 /// For use-case-based algorithm selection, use `CryptoConfig::new().use_case(UseCase::...)`.
 /// `UseCaseConfig` remains available for advanced per-component configuration.
-#[allow(deprecated)] // UseCaseConfig still carries HardwareConfig; remove when UseCaseConfig is refactored
 #[derive(Debug, Clone)]
 pub struct UseCaseConfig {
     /// The use case this configuration is optimized for.
@@ -468,13 +351,8 @@ pub struct UseCaseConfig {
     ///
     /// Consumer: None — reserved for unified API integration
     pub zero_trust: ZeroTrustConfig,
-    /// Hardware configuration for this use case.
-    ///
-    /// Consumer: None — reserved for unified API integration
-    pub hardware: HardwareConfig,
 }
 
-#[allow(deprecated)] // UseCaseConfig still carries HardwareConfig; remove when UseCaseConfig is refactored
 impl UseCaseConfig {
     /// Creates a new configuration optimized for the specified use case.
     #[must_use]
@@ -535,7 +413,6 @@ impl UseCaseConfig {
             encryption: base_config.clone(),
             signature: base_config.clone(),
             zero_trust: ZeroTrustConfig { base: base_config, ..Default::default() },
-            hardware: HardwareConfig::default(),
         }
     }
 
@@ -547,12 +424,10 @@ impl UseCaseConfig {
     /// - Encryption `CoreConfig` validation fails
     /// - Signature `CoreConfig` validation fails
     /// - Zero-trust configuration validation fails
-    /// - Hardware configuration validation fails
     pub fn validate(&self) -> Result<()> {
         self.encryption.validate()?;
         self.signature.validate()?;
         self.zero_trust.validate()?;
-        self.hardware.validate()?;
         Ok(())
     }
 }
@@ -742,15 +617,6 @@ mod tests {
         assert_eq!(config.challenge_timeout_ms, 5000);
         assert_eq!(config.proof_complexity, ProofComplexity::Medium);
         assert!(config.continuous_verification);
-    }
-
-    #[test]
-    fn test_hardware_config_default_fields_are_correct() {
-        let config = HardwareConfig::default();
-        assert!(config.acceleration_enabled);
-        assert!(config.fallback_enabled);
-        assert_eq!(config.threshold_bytes, 4096);
-        assert!(!config.force_cpu);
     }
 
     #[test]

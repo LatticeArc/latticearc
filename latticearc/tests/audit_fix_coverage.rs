@@ -5,6 +5,9 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::indexing_slicing)]
+// L4 tests intentionally exercise the deprecated `SerializableEncryptedData`
+// type (kept until EncryptedOutput migration completes) to verify its 10 MiB
+// serialization cap behaves correctly.
 #![allow(deprecated)]
 
 // ============================================================================
@@ -103,20 +106,9 @@ mod h2_ikm_zeroization {
 
 mod h3_encryption_key_zeroization {
     use latticearc::hybrid::encrypt_hybrid::{
-        HybridEncryptionContext, decrypt, decrypt_hybrid, encrypt, encrypt_hybrid,
+        HybridEncryptionContext, decrypt_hybrid, encrypt_hybrid,
     };
     use latticearc::hybrid::kem_hybrid::generate_keypair;
-    use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-
-    #[test]
-    fn h3_encrypt_decrypt_roundtrip_ml_kem_only() {
-        let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
-
-        let plaintext = b"test message for H3 encryption key zeroization";
-        let ct = encrypt(pk.as_bytes(), plaintext, None).unwrap();
-        let recovered = decrypt(sk.as_bytes(), &ct, None).unwrap();
-        assert_eq!(recovered.as_slice(), plaintext.as_slice());
-    }
 
     #[test]
     fn h3_encrypt_decrypt_roundtrip_hybrid() {
@@ -127,17 +119,6 @@ mod h3_encryption_key_zeroization {
         let ct = encrypt_hybrid(&pk, plaintext, Some(&ctx)).unwrap();
         let recovered = decrypt_hybrid(&sk, &ct, Some(&ctx)).unwrap();
         assert_eq!(recovered.as_slice(), plaintext.as_slice());
-    }
-
-    #[test]
-    fn h3_different_contexts_different_ciphertexts() {
-        let (pk, _sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).unwrap();
-
-        let plaintext = b"same plaintext";
-        let ct1 = encrypt(pk.as_bytes(), plaintext, None).unwrap();
-        let ct2 = encrypt(pk.as_bytes(), plaintext, None).unwrap();
-        // Different nonces => different ciphertexts
-        assert_ne!(ct1.symmetric_ciphertext(), ct2.symmetric_ciphertext());
     }
 }
 

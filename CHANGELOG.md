@@ -14,6 +14,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped `tokio` 1.50.0 → 1.51.1 (patch).
 - Bumped `rayon` 1.11 → 1.12 (minor).
 
+### Removed (breaking, finishing the v0.7.0 deprecation cleanup)
+
+- **Removed `latticearc::hybrid::encrypt_hybrid::{encrypt, decrypt}`** —
+  legacy ML-KEM-768-only path deprecated since 0.6.1. Replaced by
+  `encrypt_hybrid` / `decrypt_hybrid` (true ML-KEM + X25519 hybrid, supports
+  ML-KEM-512/768/1024 via `HybridKemPublicKey`/`HybridKemSecretKey`). The
+  `From<tokio::task::JoinError>` impl removed earlier in this release means
+  there were no external callers of the deprecated path.
+- **Removed `latticearc::primitives::kem::ml_kem::MlKem::generate_keypair_with_seed`** —
+  accepted a `seed` argument that the aws-lc-rs FIPS DRBG ignored entirely
+  (key generation was non-deterministic regardless). The misleading API was
+  retained behind a "for API symmetry" docstring; removed because honest
+  callers should use `MlKem::generate_keypair(level)`. The companion
+  `encapsulate_with_seed` retains the same shape and is unchanged in this
+  release pending a separate decision.
+- **Removed `latticearc::types::config::HardwareConfig`** — struct deprecated
+  since 0.5.0 with no active consumer. The `hardware: HardwareConfig` field
+  on `UseCaseConfig` is also removed; `UseCaseConfig::validate()` no longer
+  recurses into a hardware sub-config. Use `CoreConfig::with_hardware_acceleration(bool)`
+  for software/hardware AEAD selection. Re-exports from
+  `latticearc::types::*` and `latticearc::unified_api::*` removed.
+- **Removed two legacy fuzz targets** (`fuzz_hybrid_encrypt`, `fuzz_hybrid_decrypt`)
+  that exclusively fuzzed the deleted `encrypt`/`decrypt` paths;
+  `hybrid_encrypt_fuzz.rs` already fuzzes the modern unified API. Also
+  removed the `generate_keypair_with_seed` block from `fuzz_ml_kem_keygen.rs`.
+
 ### Removed (breaking)
 
 - **Removed `latticearc::tls` module entirely.** The module was a thin wrapper

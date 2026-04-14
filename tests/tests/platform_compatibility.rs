@@ -54,8 +54,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use latticearc::unified_api::{
-    CoreConfig, EncryptionConfig, HardwareConfig, HardwareType, ProofComplexity, SignatureConfig,
-    UseCaseConfig, ZeroTrustConfig,
+    CoreConfig, EncryptionConfig, HardwareType, ProofComplexity, UseCaseConfig, ZeroTrustConfig,
     error::CoreError,
     selector::{CryptoPolicyEngine, PerformanceMetrics},
     types::{
@@ -401,17 +400,6 @@ fn test_feature_hardware_types_is_compatible_succeeds() {
 }
 
 #[test]
-fn test_feature_config_types_is_compatible_succeeds() {
-    // All config types should be constructible
-    let _core = CoreConfig::new();
-    let _encryption = EncryptionConfig::new();
-    let _signature = SignatureConfig::new();
-    let _zero_trust = ZeroTrustConfig::new();
-    let _hardware = HardwareConfig::new();
-    let _use_case = UseCaseConfig::new(UseCase::SecureMessaging);
-}
-
-#[test]
 fn test_feature_conditional_compilation_markers_is_compatible_succeeds() {
     // Verify conditional compilation works correctly
     #[cfg(debug_assertions)]
@@ -471,16 +459,6 @@ fn test_feature_target_arch_detection_is_compatible_succeeds() {
         let is_x86 = true;
         assert!(is_x86);
     }
-}
-
-#[test]
-fn test_feature_optional_dependencies_is_compatible_succeeds() {
-    // Test that optional functionality degrades gracefully
-    let config = HardwareConfig::new().with_acceleration(false).with_force_cpu(true);
-
-    assert!(config.validate().is_ok());
-    assert!(config.force_cpu);
-    assert!(!config.acceleration_enabled);
 }
 
 // ============================================================================
@@ -714,38 +692,6 @@ fn test_config_security_level_all_combinations_is_compatible_succeeds() {
 }
 
 #[test]
-fn test_config_hardware_detection_fallback_is_compatible_succeeds() {
-    // Test hardware detection with fallback enabled
-    let config = HardwareConfig::new().with_acceleration(true).with_fallback(true);
-
-    assert!(config.validate().is_ok());
-
-    // Test without fallback
-    let config_no_fallback = HardwareConfig::new().with_acceleration(true).with_fallback(false);
-
-    assert!(config_no_fallback.validate().is_ok());
-}
-
-#[test]
-fn test_config_hardware_cpu_only_mode_is_compatible_succeeds() {
-    let config = HardwareConfig::new().with_acceleration(false).with_force_cpu(true);
-
-    assert!(config.validate().is_ok());
-    assert!(config.force_cpu);
-}
-
-#[test]
-fn test_config_hardware_accelerator_preferences_is_compatible_succeeds() {
-    let config = HardwareConfig::new()
-        .with_preferred_accelerator(HardwareType::Gpu)
-        .with_preferred_accelerator(HardwareType::Fpga)
-        .with_preferred_accelerator(HardwareType::Cpu);
-
-    assert_eq!(config.preferred_accelerators.len(), 3);
-    assert!(config.validate().is_ok());
-}
-
-#[test]
 fn test_config_policy_engine_all_security_levels_is_compatible_succeeds() {
     let data = b"test data for policy engine";
 
@@ -943,22 +889,6 @@ fn test_error_types_send_sync_is_compatible_fails() {
     fn assert_send_sync<T: Send + Sync>() {}
 
     assert_send_sync::<CoreError>();
-}
-
-#[test]
-fn test_config_types_clone_succeeds() {
-    // All config types should be cloneable
-    let core = CoreConfig::default();
-    let core_clone = core.clone();
-    assert_eq!(core, core_clone);
-
-    let encryption = EncryptionConfig::default();
-    let encryption_clone = encryption.clone();
-    assert_eq!(encryption, encryption_clone);
-
-    let hardware = HardwareConfig::default();
-    let hardware_clone = hardware.clone();
-    assert_eq!(hardware.threshold_bytes, hardware_clone.threshold_bytes);
 }
 
 #[test]

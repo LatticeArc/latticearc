@@ -203,10 +203,8 @@ pub mod zero_trust;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-#[allow(deprecated)]
 pub use crate::types::config::{
-    CoreConfig, EncryptionConfig, HardwareConfig, ProofComplexity, SignatureConfig, UseCaseConfig,
-    ZeroTrustConfig,
+    CoreConfig, EncryptionConfig, ProofComplexity, SignatureConfig, UseCaseConfig, ZeroTrustConfig,
 };
 pub use audit::{
     AuditConfig, AuditEvent, AuditEventBuilder, AuditEventType, AuditOutcome, AuditStorage,

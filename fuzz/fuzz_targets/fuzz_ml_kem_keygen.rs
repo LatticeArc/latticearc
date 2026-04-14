@@ -77,29 +77,4 @@ fuzz_target!(|data: &[u8]| {
             assert_eq!(pk.as_bytes().len(), test_level.public_key_size());
         }
     }
-
-    // Test 4: Verify deterministic generation with seed (if supported)
-    if data.len() >= 32 {
-        let seed: [u8; 32] = data[..32].try_into().unwrap_or([0u8; 32]);
-
-        // Generate with seed
-        let result1 = MlKem::generate_keypair_with_seed(&seed, level);
-        let result2 = MlKem::generate_keypair_with_seed(&seed, level);
-
-        // Both should succeed or fail consistently
-        match (&result1, &result2) {
-            (Ok((pk1, _)), Ok((pk2, _))) => {
-                // Note: aws-lc-rs uses internal DRBG, so keys may differ
-                // This test verifies no crash occurs
-                let _ = pk1.as_bytes();
-                let _ = pk2.as_bytes();
-            }
-            (Err(_), Err(_)) => {
-                // Both failed - consistent behavior
-            }
-            _ => {
-                // Mixed results - also acceptable given RNG variation
-            }
-        }
-    }
 });
