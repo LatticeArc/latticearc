@@ -93,15 +93,6 @@ tracing-appender = { workspace = true }
 parking_lot = { workspace = true }
 
 # =============================================================================
-# TLS
-# =============================================================================
-rustls = { workspace = true }
-rustls-pki-types = { workspace = true }
-rustls-native-certs = { workspace = true }
-tokio = { workspace = true }
-tokio-rustls = { workspace = true }
-
-# =============================================================================
 # ZKP
 # =============================================================================
 elliptic-curve = { version = "0.13", features = ["sec1"] }
@@ -114,7 +105,6 @@ proptest = { workspace = true }
 criterion = { workspace = true }
 hex-literal = { workspace = true }
 tempfile = { workspace = true }
-rcgen = { workspace = true }
 hkdf = "0.12.4"
 
 [lib]
@@ -149,9 +139,6 @@ name = "unified_api"
 name = "true_hybrid_encryption"
 
 [[example]]
-name = "tls_policy"
-
-[[example]]
 name = "crypto_timing"
 
 [[example]]
@@ -160,22 +147,9 @@ name = "comprehensive_benchmark"
 [[example]]
 name = "test_ml_kem"
 
-[[example]]
-name = "tls13_hybrid_client"
-
-[[example]]
-name = "tls13_custom_hybrid"
-
-[[example]]
-name = "test_rustls_compat"
-
 # =============================================================================
 # Benchmarks
 # =============================================================================
-
-[[bench]]
-name = "tls_performance"
-harness = false
 
 [[bench]]
 name = "benchmarks"

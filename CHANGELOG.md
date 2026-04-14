@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (breaking)
+
+- **Removed `latticearc::tls` module entirely.** The module was a thin wrapper
+  over `rustls::crypto::aws_lc_rs::default_provider()` that delivered no novel
+  cryptographic functionality — rustls 0.23.37+ already provides native
+  `X25519MLKEM768` key exchange. No proprietary product depended on this
+  module, and the module itself contained validated bugs (miswired
+  `CustomHybrid` variant, hardcoded availability checks) whose fixes
+  repeatedly landed without changing the core observation that the wrapper
+  added nothing rustls doesn't already do. Consumers who want PQ TLS should
+  use `rustls` with `aws-lc-rs` directly. The complete list of removed items:
+    - Public types: `TlsConfig`, `TlsConstraints`, `TlsContext`, `TlsMode`,
+      `TlsUseCase`, `TlsPolicyEngine`, `KexInfo`, `PqKexMode`, `Tls13Config`,
+      `TlsError`, `SecureSharedSecret`, `SessionPersistenceConfig`,
+      `ClientVerificationMode`, `RetryPolicy`, and all related helpers.
+    - Public functions: `tls_connect`, `tls_accept`, `perform_hybrid_keygen`,
+      `perform_hybrid_encapsulate`, `perform_hybrid_decapsulate`,
+      `is_pq_available`, `is_custom_hybrid_available`, `get_kex_provider`,
+      `get_kex_info`, `pq_enabled`, and the entire `formal_verification`
+      submodule.
+    - Examples: `tls_policy`, `tls13_hybrid_client`, `tls13_custom_hybrid`,
+      `test_rustls_compat`.
+    - Benchmark: `tls_performance`.
+    - Dependencies dropped: `rustls`, `rustls-pki-types`,
+      `rustls-native-certs`, `tokio`, `tokio-rustls`, `rcgen` (dev).
+- **Removed the `From<tokio::task::JoinError> for LatticeArcError` impl.**
+  Nothing in the crate is async anymore, so the conversion had no callers.
+  The `LatticeArcError::AsyncError(String)` variant itself is kept for API
+  stability — it still accepts plain strings.
+
+### Changed
+
+- Positioning updated: LatticeArc is a post-quantum *primitives and
+  composition* library, not a TLS stack. The crate-level docstring and
+  README were aligned with this framing.
+
 ---
 
 ## [0.6.2] - 2026-04-11

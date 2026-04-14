@@ -416,37 +416,6 @@ mod m7_x25519_zero_key_rejection {
 }
 
 // ============================================================================
-// M8: TLS cipher suite config fails loudly instead of warn
-// ============================================================================
-
-mod m8_tls_cipher_suite_rejection {
-    use latticearc::tls::tls13::{Tls13Config, create_client_config};
-
-    #[test]
-    fn m8_custom_cipher_suites_rejected() {
-        let suites = vec![rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_256_GCM_SHA384];
-        let config = Tls13Config::hybrid().with_cipher_suites(suites);
-        let result = create_client_config(&config);
-        assert!(result.is_err(), "Custom cipher suites must be rejected");
-    }
-
-    #[test]
-    fn m8_empty_cipher_suites_allowed() {
-        let config = Tls13Config::hybrid().with_cipher_suites(vec![]);
-        let result = create_client_config(&config);
-        // Empty suites = use defaults, should succeed
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn m8_no_cipher_suites_allowed() {
-        let config = Tls13Config::hybrid();
-        let result = create_client_config(&config);
-        assert!(result.is_ok());
-    }
-}
-
-// ============================================================================
 // M9: EC keypair Drop impl for zeroization
 // ============================================================================
 
@@ -566,57 +535,6 @@ mod m10_dlog_equality_debug_redaction {
         // Commitments a and b should still be visible
         assert!(debug_output.contains("a:"), "Debug output should show 'a' field");
         assert!(debug_output.contains("b:"), "Debug output should show 'b' field");
-    }
-}
-
-// ============================================================================
-// L1: OsRng for jitter (functional test — jitter values are bounded)
-// ============================================================================
-
-mod l1_osrng_jitter {
-    use latticearc::tls::recovery::RetryPolicy;
-    use std::time::Duration;
-
-    #[test]
-    fn l1_retry_delay_with_jitter_bounded() {
-        let policy = RetryPolicy::new(5, Duration::from_millis(100), Duration::from_secs(10));
-
-        // Run multiple times to exercise the OsRng jitter path
-        for attempt in 0..5 {
-            let delay = policy.backoff_for_attempt(attempt);
-            // Delay should be bounded by max_backoff
-            assert!(
-                delay <= Duration::from_secs(10),
-                "Delay {:?} should not exceed max backoff",
-                delay
-            );
-        }
-    }
-
-    #[test]
-    fn l1_retry_delay_without_jitter_deterministic() {
-        let policy = RetryPolicy {
-            jitter: false,
-            ..RetryPolicy::new(3, Duration::from_millis(100), Duration::from_secs(10))
-        };
-
-        let d1 = policy.backoff_for_attempt(1);
-        let d2 = policy.backoff_for_attempt(1);
-        assert_eq!(d1, d2, "Without jitter, delay should be deterministic");
-    }
-
-    #[test]
-    fn l1_jitter_produces_variation() {
-        let policy = RetryPolicy::new(5, Duration::from_millis(100), Duration::from_secs(10));
-
-        // With jitter enabled (default), multiple calls should produce some variation
-        let mut delays = Vec::new();
-        for _ in 0..20 {
-            delays.push(policy.backoff_for_attempt(2));
-        }
-        // Not all delays should be identical (jitter from OsRng adds randomness)
-        let all_same = delays.windows(2).all(|w| w[0] == w[1]);
-        assert!(!all_same, "Jitter should produce varying delays across 20 attempts");
     }
 }
 

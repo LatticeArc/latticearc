@@ -39,7 +39,6 @@ flowchart TB
     end
 
     subgraph "Outside Boundary"
-        TLS["latticearc::tls"]
         ZKP["latticearc::zkp"]
         PERF["latticearc::perf"]
     end
@@ -52,7 +51,7 @@ flowchart TB
     classDef outside fill:#6b7280,stroke:#374151,color:#fff
 
     class PRIM,API,PRE,HYB inside
-    class TLS,ZKP,PERF outside
+    class ZKP,PERF outside
 ```
 
 The FIPS cryptographic boundary is defined by the `fips` feature flag in `latticearc/Cargo.toml`. When `fips` is enabled:
@@ -73,7 +72,6 @@ The FIPS cryptographic boundary is defined by the `fips` feature flag in `lattic
 | `latticearc::unified_api` | Yes | Unified API layer |
 | `latticearc::prelude` | Yes | Error types, common utilities |
 | `latticearc::hybrid` | Partial | Hybrid KEM (ML-KEM + X25519 gated) |
-| `latticearc::tls` | No | TLS integration (outside boundary) |
 | `latticearc::zkp` | No | ZKP (non-FIPS) |
 | `latticearc::perf` | No | Benchmarking (non-cryptographic) |
 | `latticearc-tests` | Yes | FIPS validation and self-tests (dev-only) |

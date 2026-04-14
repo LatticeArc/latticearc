@@ -6,8 +6,9 @@
 //! LatticeArc - Post-Quantum Cryptography Library
 //!
 //! Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default,
-//! all 4 NIST standards (FIPS 203–206), post-quantum TLS, and FIPS 140-3 backend
-//! — one crate, zero unsafe.
+//! all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate,
+//! zero unsafe. For PQ TLS, use rustls 0.23.37+ with `aws-lc-rs` directly;
+//! this crate does not wrap rustls.
 //!
 //! > **IMPORTANT — FIPS terminology:** this crate distinguishes *algorithm
 //! > conformance* (implementing the NIST specs FIPS 203/204/205/206) from
@@ -283,9 +284,6 @@ pub mod hybrid;
 /// Unified cryptographic API with Zero-Trust security.
 pub mod unified_api;
 
-/// TLS 1.3 with native post-quantum key exchange (rustls 0.23.37+, no extra dependencies).
-pub mod tls;
-
 /// Zero-knowledge proof primitives (Schnorr, Sigma protocols, Pedersen commitments).
 /// Non-FIPS: uses non-approved EC operations.
 #[cfg(not(feature = "fips"))]
@@ -505,15 +503,6 @@ pub use unified_api::serialization::{
 // ============================================================================
 
 pub use unified_api::key_format::{KeyAlgorithm, KeyData, KeyType, PortableKey};
-
-// ============================================================================
-// TLS Utilities
-// ============================================================================
-
-pub use tls::{
-    TlsConfig, TlsConstraints, TlsContext, TlsMode, TlsPolicyEngine, TlsUseCase, tls_accept,
-    tls_connect,
-};
 
 // ============================================================================
 // Zeroize re-export

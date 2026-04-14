@@ -336,7 +336,7 @@ flowchart TB
 | **AWS-LC** | We **use** their FIPS-validated backend | We add hybrid sigs, high-level Rust API, multi-backend integration |
 | **OpenSSL** | Complementary — different ecosystems | Ed25519 hybrids (5x faster), Rust memory safety, builder-pattern API |
 | **liboqs** | Research partner — explicitly for prototyping | We focus on production readiness with FIPS path |
-| **rustls** | Integration partner | Our `latticearc::tls` wraps rustls; we add standalone encrypt/sign/ZKP |
+| **rustls** | Upstream TLS stack — use directly for PQ TLS | We ship PQ primitives, hybrid combiners, signatures, ZKP; rustls already ships native PQ key exchange |
 | **Bouncy Castle** | Parallel effort in Java/C# | Different language ecosystems entirely |
 
 ---

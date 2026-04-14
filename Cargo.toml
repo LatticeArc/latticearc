@@ -9,12 +9,12 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.6.2"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.93"
 authors = ["LatticeArc Dev Team <Dev@LatticeArc.com>"]
 license = "Apache-2.0"
-description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), post-quantum TLS, and FIPS 140-3 backend — one crate, zero unsafe."
+description = "Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default, all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate, zero unsafe."
 readme = "README.md"
 homepage = "https://latticearc.com"
 documentation = "https://docs.rs/latticearc/latest/latticearc/"
@@ -304,21 +304,12 @@ fips204 = { version = "0.4.6" }  # ML-DSA (FIPS 204) - keep until aws-lc-rs expo
 fips205 = { version = "0.4.1" }  # SLH-DSA (FIPS 205) - not yet in aws-lc-rs
 fn-dsa = { version = "0.3.0" }   # FN-DSA (FIPS 206) - unique implementation
 
-# TLS and networking
-# TLS ecosystem
-rustls = { version = "0.23.37", features = ["tls12", "std", "logging"] }
-rustls-pki-types = { version = "1.14" }
-# rustls-pemfile removed - using rustls-pki-types PemObject trait instead (constant-time decoding)
-rustls-native-certs = { version = "0.8.3" }
-tokio-rustls = { version = "0.26.4" }
-
 # Development and testing
 proptest = { version = "1.11" }
 criterion = { version = "0.8.2", features = ["html_reports"] }
 rayon = { version = "1.11" }
 test-case = { version = "3.0" }
 tempfile = { version = "3.27" }
-rcgen = { version = "0.13.2" }
 # Tracing and observability
 tracing-subscriber = { version = "0.3.23" }
 tracing-appender = { version = "0.2" }

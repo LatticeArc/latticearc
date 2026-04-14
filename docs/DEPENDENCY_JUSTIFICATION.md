@@ -151,7 +151,7 @@ flowchart TB
   - Constant-time software implementation
 - **License**: Apache-2.0 OR MIT
 - **Security Audit**: RustCrypto audited
-- **Usage**: `latticearc::primitives` (AEAD), `latticearc::tls`
+- **Usage**: `latticearc::primitives` (AEAD)
 
 #### 9. aes (v0.8.4)
 - **Purpose**: Low-level AES block cipher
@@ -229,7 +229,7 @@ flowchart TB
   - Critical for TLS 1.3
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: RustCrypto
-- **Usage**: `latticearc::primitives` (KDF), `latticearc::hybrid`, `latticearc::tls`
+- **Usage**: `latticearc::primitives` (KDF), `latticearc::hybrid`
 
 ---
 

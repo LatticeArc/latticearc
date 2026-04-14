@@ -298,39 +298,13 @@ let config = CryptoConfig::new()
 | `.crypto_mode(CryptoMode)` | Select hybrid or PQ-only mode (default: Hybrid). PqOnly required for CNSA 2.0. |
 | `.session(&VerifiedSession)` | Enable Zero Trust verification |
 
-## TlsConfig
+## TLS
 
-TLS configuration follows the same builder pattern.
-
-```rust
-use latticearc::tls::{TlsConfig, TlsUseCase};
-
-// Default: Hybrid mode (X25519 + ML-KEM)
-let config = TlsConfig::new();
-
-// By use case
-let config = TlsConfig::new()
-    .use_case(TlsUseCase::WebServer);
-
-// With options
-let config = TlsConfig::new()
-    .use_case(TlsUseCase::FinancialServices)
-    .with_fallback(true)
-    .with_client_auth(true);
-```
-
-| Use Case | Mode | Key Exchange |
-|----------|------|--------------|
-| `WebServer` | Hybrid | X25519 + ML-KEM-768 |
-| `InternalService` | Hybrid | X25519 + ML-KEM-768 |
-| `ApiGateway` | Hybrid | X25519 + ML-KEM-768 |
-| `FinancialServices` | Hybrid | X25519 + ML-KEM-768 |
-| `Healthcare` | Hybrid | X25519 + ML-KEM-768 |
-| `DatabaseConnection` | Hybrid | X25519 + ML-KEM-768 |
-| `Government` | PQ-only | ML-KEM-1024 |
-| `IoT` | Classic | X25519 |
-| `LegacyIntegration` | Classic | X25519 |
-| `RealTimeStreaming` | Classic | X25519 |
+LatticeArc does not wrap rustls. For post-quantum TLS, use `rustls` 0.23.37+
+with `aws-lc-rs` directly — it ships `X25519MLKEM768` in its default key
+exchange groups. LatticeArc's scope is *primitives and composition* (ML-KEM,
+ML-DSA, SLH-DSA, FN-DSA, hybrid combiners, hash, KDF, AEAD). See README for
+positioning.
 
 ## Algorithm Selection
 

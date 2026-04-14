@@ -399,16 +399,6 @@ Hybrid cryptography combining PQ + classical:
 | HybridEncrypt | ML-KEM + AES-GCM |
 | pq_only | ML-KEM + HKDF + AES-256-GCM (no X25519). PQ-only encryption for CNSA 2.0. |
 
-### `latticearc::tls`
-
-Post-quantum TLS 1.3 with rustls (0.23.37+ native PQ support):
-
-- Native PQ key exchange via aws-lc-rs: X25519MLKEM768, SECP256R1MLKEM768, MLKEM768, MLKEM1024
-- PQ preference ordering — PQ groups sorted before classical in Hybrid/Pq modes
-- Three modes: Classic (X25519), Hybrid (X25519MLKEM768 + X25519 fallback), PQ-only (MLKEM768/1024)
-- Session resumption
-- Connection monitoring
-
 ### `latticearc::prelude`
 
 Common types and error handling:

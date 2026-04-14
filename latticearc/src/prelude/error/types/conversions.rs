@@ -70,12 +70,6 @@ impl From<std::array::TryFromSliceError> for LatticeArcError {
     }
 }
 
-impl From<tokio::task::JoinError> for LatticeArcError {
-    fn from(err: tokio::task::JoinError) -> Self {
-        LatticeArcError::AsyncError(format!("Join error: {err}"))
-    }
-}
-
 impl From<std::alloc::LayoutError> for LatticeArcError {
     fn from(_err: std::alloc::LayoutError) -> Self {
         LatticeArcError::InvalidInput("Invalid memory layout".to_string())
