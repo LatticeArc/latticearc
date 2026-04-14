@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["HandshakeState"],"fn":["create_client_config","create_server_config","get_cipher_suites","get_secure_cipher_suites","validate_cipher_suites","verify_config"],"struct":["HandshakeStats","Tls13Config"]};
