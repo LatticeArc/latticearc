@@ -33,12 +33,12 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@8002e0e61dfa209f5a4071401b4662c95b4e2ead # main
+      uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616 # main
       with:
         tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
-      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |
           ~/.cargo/registry
@@ -61,7 +61,7 @@ jobs:
         fail_ci_if_error: false
 
     - name: Upload coverage reports
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: coverage-reports
         path: |
@@ -81,12 +81,12 @@ jobs:
         components: llvm-tools-preview
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@8002e0e61dfa209f5a4071401b4662c95b4e2ead # main
+      uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616 # main
       with:
         tool: cargo-llvm-cov
 
     - name: Cache Cargo registry
-      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |
           ~/.cargo/registry
