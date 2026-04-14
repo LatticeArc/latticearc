@@ -116,7 +116,7 @@ National Security Systems. Our defaults align with CNSA 2.0 requirements.
 | CNSA 2.0 Requirement | Deadline | Our Compliance |
 |---------------------|----------|----------------|
 | Software/firmware signing: use CNSA 2.0 algorithms | 2025 (passed) | ML-DSA-65/87 and SLH-DSA available for code signing. `latticearc-docsign` and `latticearc-firmware` products use these by default. |
-| Web browsers/servers and cloud: quantum-resistant TLS | 2025 | `tls::pq_key_exchange` provides X25519MLKEM768 hybrid key exchange via rustls 0.23.37+. |
+| Web browsers/servers and cloud: quantum-resistant TLS | 2025 | Out of scope — use rustls 0.23.37+ with `aws-lc-rs` for X25519MLKEM768 directly. LatticeArc does not ship a TLS stack. |
 | Traditional networking: quantum-resistant VPN/IPsec | 2026 | Hybrid encryption schemes (ML-KEM + X25519 + HKDF + AES-256-GCM) ready for integration. |
 | All symmetric encryption: AES-256 minimum | Immediate | `EncryptionScheme` defaults to AES-256-GCM. No AES-128 is available in the unified API. (AES-128 exists in `primitives` for legacy compatibility but is not routed by the policy engine.) |
 | CNSA 2.0 approved KEM | FIPS 203 | ML-KEM-768 (Category 3) is the default. ML-KEM-1024 (Category 5) available for `SecurityLevel::Maximum`. |
@@ -147,7 +147,7 @@ National Security Systems. Our defaults align with CNSA 2.0 requirements.
 |-----------|-------|----------------|
 | **Bindel et al., PQCrypto 2019** | "Hybrid Key Encapsulation Mechanisms and Authenticated Key Exchange" | Our hybrid KEM uses the HKDF dual-PRF combiner pattern: `HKDF(ML-KEM_ss ‖ ECDH_ss)`. Theorem 3.1 proves this is secure if either component remains pseudorandom. |
 | **IETF draft-ietf-lamps-pq-composite-kem** | Composite KEM for hybrid key exchange | Our `HybridKemPublicKey` concatenates ML-KEM and X25519 public keys following the composite encoding. |
-| **IETF draft-ietf-tls-hybrid-design** | Hybrid Key Exchange in TLS 1.3 | `tls::pq_key_exchange` uses rustls-native X25519MLKEM768 hybrid per this draft. |
+| **IETF draft-ietf-tls-hybrid-design** | Hybrid Key Exchange in TLS 1.3 | Out of scope for this crate — consumers use rustls-native `X25519MLKEM768` directly. Informs our hybrid combiner choice for data-at-rest, not TLS. |
 | **NIST SP 800-227 (draft)** | Recommendations for Key Encapsulation Mechanisms | ML-KEM parameter selection follows SP 800-227 guidance for security categories 1/3/5. |
 
 ---
@@ -579,7 +579,7 @@ Every `unified_api/` module should have an API usage diagram.
 
 ### What
 All cryptographic computation routes through `latticearc::primitives`. Upper layers
-(`hybrid`, `unified_api`, `tls`, `zkp`) import from `primitives` — never from external crates.
+(`hybrid`, `unified_api`, `zkp`) import from `primitives` — never from external crates.
 
 ### Why This Is The Right Pattern
 A crypto library has one job: guarantee that every operation uses correct, hardened
@@ -600,13 +600,11 @@ crates automatically get the fix.
 | `primitives/` | Self | YES (wraps them) | YES | YES |
 | `hybrid/` | YES | NO | YES (ct_eq only) | NO |
 | `unified_api/` | YES | NO | YES (ct_eq only) | NO |
-| `tls/` | YES | rustls provider config only | YES | NO |
 | `zkp/` | YES | k256 EC math only (no wrapper exists) | YES | NO |
 | `types/` | NO | NO | YES | NO |
 | Enterprise crates | YES (via `latticearc` dep) | NO | YES | NO |
 
 **Documented exceptions** (each must have a code comment explaining why):
-- `tls/` references `rustls::crypto::aws_lc_rs::default_provider()` — TLS provider selection, not direct crypto
 - `zkp/` uses `k256` for secp256k1 group arithmetic — no primitives wrapper for EC scalar math
 - `prelude/error/` imports `aws_lc_rs::error` types for `From` impls
 
@@ -1120,7 +1118,6 @@ end-to-end through the actual module boundaries.
 - Hybrid encryption: test the full `ML-KEM encaps → HKDF → AES-GCM encrypt` chain
 - Hybrid signatures: test the full `ML-DSA sign + Ed25519 sign → verify both` chain
 - Unified API: test `encrypt(data, config) → decrypt(ct, key)` via the public API
-- TLS: test `create_client_config + create_server_config → handshake` (where possible)
 - Zero-trust: test `establish_session → authenticate → encrypt with session → verify`
 
 **Where:** `tests/tests/*_integration.rs`, `tests/tests/*_roundtrip*.rs`
@@ -1171,16 +1168,7 @@ repeat with SLH-DSA for long-term archival signature
 ```
 Tests: cross-algorithm verification, signature format portability.
 
-### Scenario 3: TLS Handshake with PQ Key Exchange
-```
-Create server config with X25519MLKEM768 →
-create client config with same →
-perform handshake → exchange application data →
-verify forward secrecy (same handshake, different keys)
-```
-Tests: TLS integration, PQ key exchange, cipher suite negotiation.
-
-### Scenario 4: Key Rotation Under Load
+### Scenario 3: Key Rotation Under Load
 ```
 Generate keypair v1 → encrypt 100 messages →
 generate keypair v2 (rotation) →
@@ -1190,7 +1178,7 @@ destroy v1 → verify v1 decryption now fails
 ```
 Tests: key lifecycle, rotation correctness, destruction verification.
 
-### Scenario 5: Multi-Algorithm Compatibility
+### Scenario 4: Multi-Algorithm Compatibility
 ```
 Encrypt same plaintext with every EncryptionScheme variant →
 serialize each EncryptedOutput →
@@ -1199,7 +1187,7 @@ verify each uses different ciphertext size (scheme distinction)
 ```
 Tests: algorithm selection, scheme completeness, no cross-scheme confusion.
 
-### Scenario 6: Compliance Audit Trail
+### Scenario 5: Compliance Audit Trail
 ```
 Establish zero-trust session → perform 10 crypto operations →
 query audit log → verify all 10 operations logged →
@@ -1208,7 +1196,7 @@ verify no secret material appears in audit records
 ```
 Tests: audit completeness, secret exclusion from logs.
 
-### Scenario 7: Error Recovery
+### Scenario 6: Error Recovery
 ```
 Encrypt with valid key → corrupt ciphertext →
 attempt decrypt → verify clean error (no panic, no garbage) →

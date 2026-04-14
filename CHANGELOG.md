@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped `tokio` 1.50.0 → 1.51.1 (patch).
+- Bumped `rayon` 1.11 → 1.12 (minor).
+
 ### Removed (breaking)
 
 - **Removed `latticearc::tls` module entirely.** The module was a thin wrapper
@@ -38,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing in the crate is async anymore, so the conversion had no callers.
   The `LatticeArcError::AsyncError(String)` variant itself is kept for API
   stability — it still accepts plain strings.
+- **Removed `LatticeArcError::TlsError(String)` error variant.** Produced
+  only by the deleted TLS module; no remaining callers.
+- Scrubbed stale references to the removed module from
+  `docs/DESIGN_PATTERNS.md` (CNSA 2.0 compliance table, IETF TLS-draft
+  reference row, layer rules table, end-to-end scenario list),
+  `docs/DEPENDENCY_JUSTIFICATION.md` (module inventory),
+  `latticearc/tests/primitives_interoperability_comprehensive.rs` docstring,
+  and `tests/tests/unified_api_comprehensive.rs` stale handshake-test note.
 
 ### Changed
 

@@ -356,7 +356,7 @@ The workspace contains 3 crates (consolidated from 11 in v0.1.0):
 
 #### latticearc (v0.4.1) — Single publishable crate
 - **Purpose**: All cryptographic functionality in one crate
-- **Modules**: `types`, `prelude`, `primitives`, `hybrid`, `unified_api`, `tls`, `zkp`, `perf`
+- **Modules**: `types`, `prelude`, `primitives`, `hybrid`, `unified_api`, `zkp`, `perf`
 - **License**: Apache-2.0
 - **Published to**: crates.io as `latticearc`
 

@@ -57,7 +57,6 @@
 //! 3. **Cross-Module Compatibility** (10+ tests)
 //!    - arc-primitives to arc-core API consistency
 //!    - arc-hybrid uses arc-primitives correctly
-//!    - arc-tls integrates with arc-primitives
 //!    - Re-exports work correctly
 //!
 //! 4. **External Standard Compliance** (10+ tests)

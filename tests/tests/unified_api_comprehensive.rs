@@ -154,8 +154,6 @@ fn test_ml_kem_key_persistence_succeeds() {
     assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes(), "round-trip through serialization must match");
 }
 
-// TLS handshake integration tests are in arc-tls/tests/tls_handshake_roundtrip.rs.
-
 // ============================================================================
 // Unified encrypt/decrypt — All 24 UseCases
 // ============================================================================

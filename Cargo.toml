@@ -240,7 +240,7 @@ overflow-checks = true  # Enable even in debug for crypto safety
 
   [workspace.dependencies]
 # Core async runtime - latest stable version for security and performance
-tokio = { version = "1.50.0", features = ["full"] }
+tokio = { version = "1.51.1", features = ["full"] }
 # Serialization - latest stable with derive features
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149" }
@@ -307,7 +307,7 @@ fn-dsa = { version = "0.3.0" }   # FN-DSA (FIPS 206) - unique implementation
 # Development and testing
 proptest = { version = "1.11" }
 criterion = { version = "0.8.2", features = ["html_reports"] }
-rayon = { version = "1.11" }
+rayon = { version = "1.12" }
 test-case = { version = "3.0" }
 tempfile = { version = "3.27" }
 # Tracing and observability

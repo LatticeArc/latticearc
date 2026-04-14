@@ -156,9 +156,6 @@ pub enum LatticeArcError {
     /// Network operation failed
     #[error("Network error: {0}")]
     NetworkError(String),
-    /// TLS operation failed
-    #[error("TLS error: {0}")]
-    TlsError(String),
     /// Key derivation error
     #[error("Key derivation error: {0}")]
     KeyDerivationError(String),
@@ -375,7 +372,6 @@ mod tests {
             (LatticeArcError::CloudKmsError("x".to_string()), "Cloud KMS error: x"),
             (LatticeArcError::DatabaseError("x".to_string()), "Database error: x"),
             (LatticeArcError::NetworkError("x".to_string()), "Network error: x"),
-            (LatticeArcError::TlsError("x".to_string()), "TLS error: x"),
             (LatticeArcError::KeyDerivationError("x".to_string()), "Key derivation error: x"),
             (LatticeArcError::VerificationFailed("x".to_string()), "Formal verification failed: x"),
             (LatticeArcError::FuzzingError("x".to_string()), "Fuzzing error: x"),
