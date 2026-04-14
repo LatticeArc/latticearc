@@ -2152,6 +2152,7 @@ fn parse_legacy_algorithm(s: &str) -> Result<KeyAlgorithm> {
 )]
 mod tests {
     use super::*;
+    use subtle::ConstantTimeEq;
 
     // ------------------------------------------------------------------
     // Passphrase-encrypted key roundtrip
@@ -3251,7 +3252,8 @@ mod tests {
         let receiver_sk_portable = PortableKey::from_json(&sk_json).unwrap();
         let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_shared_secret = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
-        let secrets_match = receiver_shared_secret.as_slice() == sender_shared_secret.as_slice();
+        let secrets_match: bool =
+            receiver_shared_secret.as_slice().ct_eq(sender_shared_secret.as_slice()).into();
         let uc_preserved = receiver_sk_portable.use_case() == Some(UseCase::FileStorage);
 
         assert!(secrets_match, "Shared secrets must match across processes");
@@ -3306,7 +3308,7 @@ mod tests {
         let receiver_sk_portable = PortableKey::from_cbor(&sk_cbor).unwrap();
         let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_ss = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
-        let secrets_match = receiver_ss.as_slice() == sender_ss.as_slice();
+        let secrets_match: bool = receiver_ss.as_slice().ct_eq(sender_ss.as_slice()).into();
 
         assert!(secrets_match);
         assert!(pk_cbor_len < pk_json_len);

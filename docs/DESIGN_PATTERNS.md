@@ -906,6 +906,36 @@ slower CI runners.
 `#[ignore]` is never the first solution. When a test fails: ask why → fix the root
 cause → only ignore if truly environment-dependent (with a comment explaining why).
 
+## Pattern 19: Test File Layering Policy
+
+The workspace has three test locations. Each has a clear purpose. Pick the
+right one when adding tests; do not invent a fourth.
+
+| Location | Purpose | Imports |
+|----------|---------|---------|
+| `latticearc/src/**/*.rs` inline `#[cfg(test)] mod tests` | Unit tests for a single function/struct that need access to private API. Co-located with the code under test. | `use super::*` |
+| `latticearc/tests/*.rs` | Integration tests of `latticearc::primitives::*` (low-level layer). Public API only, no private items. | `use latticearc::primitives::...` |
+| `tests/tests/*.rs` (workspace member `latticearc-tests`) | Integration tests of `latticearc::unified_api`, `latticearc::hybrid`, FIPS / CAVP validation, cross-module behavior. | `use latticearc::...` (top-level re-exports) |
+
+**Rules:**
+
+- Property tests (`proptest!`) live in `tests/tests/proptest_*.rs`,
+  regardless of layer being tested. Keep the `proptest_` prefix consistent.
+- KAT (Known Answer Test) vectors for FIPS algorithms live in
+  `tests/tests/fips_kat_{kem,sig,aead,hash_kdf}.rs`, grouped by primitive
+  family. Never split per-algorithm into separate files.
+- Do not name files `*_coverage.rs`, `*_extended_tests.rs`, or
+  `*_boost_tests.rs`. These naming patterns signal coverage-metric
+  manipulation rather than functional grouping. If a test file gets too
+  large, split by sub-domain (e.g., `fips_kat_sig.rs` →
+  `fips_kat_sig_ml_dsa.rs` + `fips_kat_sig_slh_dsa.rs`), not by an
+  arbitrary file count.
+- Do not duplicate a test across the two integration locations. If a
+  property needs both primitive-level and convenience-level coverage,
+  write each test once at its appropriate layer.
+- The `_tests.rs` suffix is implicit (the file is in `tests/`). Drop it
+  for new files: prefer `negative_aead.rs` over `negative_tests_aead.rs`.
+
 ---
 
 # Software Engineering Benchmarks
