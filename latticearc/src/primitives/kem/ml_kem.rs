@@ -168,10 +168,16 @@ pub enum MlKemSecurityLevel {
 
 impl ConstantTimeEq for MlKemSecurityLevel {
     fn ct_eq(&self, other: &Self) -> Choice {
-        // Use discriminant-based constant-time comparison for enums
-        let self_disc = *self as u8;
-        let other_disc = *other as u8;
-        self_disc.ct_eq(&other_disc)
+        // `MlKemSecurityLevel` is not `#[repr(u8)]`, so `*self as u8`
+        // would rely on compiler-chosen discriminant ordering and could
+        // silently misbehave if a variant is added or reordered. Use
+        // `PartialEq` (total equality over the variants) and lift the
+        // bool into `Choice` so this composes with other `ct_eq` legs.
+        //
+        // The security level itself is a public parameter — not secret —
+        // so a variable-time bool compare is security-irrelevant; the
+        // `Choice` wrapping exists purely for composability.
+        Choice::from(u8::from(self == other))
     }
 }
 

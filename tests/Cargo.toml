@@ -88,6 +88,10 @@ stats_alloc = "0.1"
 pqcrypto-mldsa = "0.1"
 pqcrypto-sphincsplus = "0.7"
 pqcrypto-traits = "0.3"
+# DudeCT statistical constant-time harness. Powers the
+# `examples/dudect_ct.rs` binary. Pulls its own rand 0.10 transitively
+# (workspace uses rand 0.8); dev-only, no effect on published deps.
+dudect-bencher = "0.7"
 
 [lib]
 path = "src/lib.rs"

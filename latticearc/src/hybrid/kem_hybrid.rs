@@ -557,12 +557,12 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
         ecdh_ephemeral.agree(&pk.ecdh_pk).map_err(|e| HybridKemError::EcdhError(e.to_string()))?;
 
     // Derive hybrid shared secret using HPKE-style KDF
-    let shared_secret = derive_hybrid_shared_secret(
-        ml_kem_ss.as_bytes(),
-        &*ecdh_shared_secret,
-        pk.ecdh_pk.as_slice(),
-        &ecdh_ephemeral_public,
-    )
+    let shared_secret = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: ml_kem_ss.as_bytes(),
+        ecdh_ss: &*ecdh_shared_secret,
+        static_pk: pk.ecdh_pk.as_slice(),
+        ephemeral_pk: &ecdh_ephemeral_public,
+    })
     .map_err(|e| HybridKemError::KdfError(e.to_string()))?;
 
     // `shared_secret` is already `Zeroizing<Vec<u8>>` — pass directly.
@@ -613,19 +613,45 @@ pub fn decapsulate(
 
     // Use actual public key bytes for context binding (not a hash of random bytes)
     let static_public = sk.ecdh_public_key_bytes();
-    derive_hybrid_shared_secret(
-        ml_kem_ss.as_bytes(),
-        &*ecdh_shared_secret,
-        &static_public,
-        ct.ecdh_pk.as_slice(),
-    )
+    derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: ml_kem_ss.as_bytes(),
+        ecdh_ss: &*ecdh_shared_secret,
+        static_pk: &static_public,
+        ephemeral_pk: ct.ecdh_pk.as_slice(),
+    })
     .map_err(|e| HybridKemError::KdfError(e.to_string()))
 }
 
-/// Derive hybrid shared secret using HPKE-style KDF
+/// Named-field inputs to [`derive_hybrid_shared_secret`].
+///
+/// All four fields are `&[u8]` today (ML-KEM and ECDH shared secrets are
+/// both 32 bytes; public keys are fixed 32 bytes for the supported
+/// levels). Calling a 4×`&[u8]` positional function is easy to get wrong:
+/// accidentally swapping the ML-KEM and ECDH secrets would still compile
+/// but silently derive the wrong secret and break interop. This struct
+/// forces callers to name each input at the callsite, so a swap becomes
+/// a compile error on the field name.
+#[derive(Debug)]
+pub struct HybridSharedSecretInputs<'a> {
+    /// ML-KEM decapsulated shared secret (32 bytes). First leg of the IKM.
+    pub ml_kem_ss: &'a [u8],
+    /// ECDH (X25519) agreed shared secret (32 bytes). Second leg of the IKM.
+    pub ecdh_ss: &'a [u8],
+    /// Static recipient public key. Binds the derivation to the intended
+    /// peer. Included in the HKDF `info` field with a length prefix.
+    pub static_pk: &'a [u8],
+    /// Ephemeral sender public key. Binds the derivation to this specific
+    /// session. Included in the HKDF `info` field with a length prefix.
+    pub ephemeral_pk: &'a [u8],
+}
+
+/// Derive hybrid shared secret using HPKE-style KDF.
 ///
 /// Combines ML-KEM and ECDH secrets using HKDF following HPKE (RFC 9180)
-/// specification with proper domain separation and context binding.
+/// specification with proper domain separation and context binding. See
+/// [`HybridSharedSecretInputs`] for parameter meaning — callers construct
+/// that struct with named fields so the ML-KEM/ECDH legs cannot be
+/// silently swapped at the callsite.
 ///
 /// # Errors
 ///
@@ -634,11 +660,9 @@ pub fn decapsulate(
 /// - The ECDH shared secret is not exactly 32 bytes.
 /// - HKDF expansion fails.
 pub fn derive_hybrid_shared_secret(
-    ml_kem_ss: &[u8],
-    ecdh_ss: &[u8],
-    static_pk: &[u8],
-    ephemeral_pk: &[u8],
+    inputs: HybridSharedSecretInputs<'_>,
 ) -> Result<Zeroizing<Vec<u8>>, HybridKemError> {
+    let HybridSharedSecretInputs { ml_kem_ss, ecdh_ss, static_pk, ephemeral_pk } = inputs;
     if ml_kem_ss.len() != 32 {
         return Err(HybridKemError::InvalidKeyMaterial(
             "ML-KEM shared secret must be 32 bytes".to_string(),
@@ -779,28 +803,46 @@ mod tests {
         let static_pk = vec![3u8; 32];
         let ephemeral_pk = vec![4u8; 32];
 
-        let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk);
+        let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        });
         assert!(result.is_ok(), "HKDF derivation should succeed");
 
         let secret = result.unwrap();
         assert_eq!(secret.len(), 64, "Derived secret should be 64 bytes");
 
         // Test deterministic derivation
-        let result2 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk);
+        let result2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        });
         assert!(result2.is_ok());
         assert_eq!(secret, result2.unwrap(), "HKDF should be deterministic");
 
         // Test different inputs produce different outputs
         let different_ml_kem_ss = vec![5u8; 32];
-        let result3 =
-            derive_hybrid_shared_secret(&different_ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk);
+        let result3 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &different_ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        });
         assert!(result3.is_ok());
         assert_ne!(secret, result3.unwrap(), "Different inputs should produce different outputs");
 
         // Test invalid input lengths
         let invalid_ml_kem_ss = vec![1u8; 31];
-        let result4 =
-            derive_hybrid_shared_secret(&invalid_ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk);
+        let result4 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &invalid_ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        });
         assert!(result4.is_err(), "Invalid ML-KEM secret length should fail");
     }
 
@@ -934,7 +976,12 @@ mod tests {
         let static_pk = vec![3u8; 32];
         let ephemeral_pk = vec![4u8; 32];
 
-        let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk);
+        let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        });
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, HybridKemError::InvalidKeyMaterial(_)));
@@ -948,7 +995,12 @@ mod tests {
         let static_pk = vec![3u8; 32];
         let ephemeral_pk = vec![4u8; 32];
 
-        let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk);
+        let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        });
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, HybridKemError::InvalidKeyMaterial(_)));
@@ -1113,10 +1165,20 @@ mod tests {
         let static_pk2 = vec![4u8; 32];
         let ephemeral_pk = vec![5u8; 32];
 
-        let secret1 =
-            derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk1, &ephemeral_pk).unwrap();
-        let secret2 =
-            derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk2, &ephemeral_pk).unwrap();
+        let secret1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk1,
+            ephemeral_pk: &ephemeral_pk,
+        })
+        .unwrap();
+        let secret2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk2,
+            ephemeral_pk: &ephemeral_pk,
+        })
+        .unwrap();
 
         assert_ne!(secret1, secret2, "Different static PKs should produce different secrets");
     }
@@ -1129,8 +1191,20 @@ mod tests {
         let eph1 = vec![4u8; 32];
         let eph2 = vec![5u8; 32];
 
-        let secret1 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &eph1).unwrap();
-        let secret2 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &eph2).unwrap();
+        let secret1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &eph1,
+        })
+        .unwrap();
+        let secret2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &eph2,
+        })
+        .unwrap();
 
         assert_ne!(secret1, secret2, "Different ephemeral PKs should produce different secrets");
     }
@@ -1265,14 +1339,24 @@ mod tests {
 
     #[test]
     fn test_derive_hybrid_shared_secret_invalid_ml_kem_length_returns_error() {
-        let result = derive_hybrid_shared_secret(&[0u8; 16], &[0u8; 32], &[0u8; 32], &[0u8; 32]);
+        let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &[0u8; 16],
+            ecdh_ss: &[0u8; 32],
+            static_pk: &[0u8; 32],
+            ephemeral_pk: &[0u8; 32],
+        });
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ML-KEM"));
     }
 
     #[test]
     fn test_derive_hybrid_shared_secret_invalid_ecdh_length_returns_error() {
-        let result = derive_hybrid_shared_secret(&[0u8; 32], &[0u8; 16], &[0u8; 32], &[0u8; 32]);
+        let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &[0u8; 32],
+            ecdh_ss: &[0u8; 16],
+            static_pk: &[0u8; 32],
+            ephemeral_pk: &[0u8; 32],
+        });
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ECDH"));
     }
@@ -1284,10 +1368,20 @@ mod tests {
         let static_pk = [0xCC; 32];
         let ephemeral_pk = [0xDD; 32];
 
-        let s1 =
-            derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk).unwrap();
-        let s2 =
-            derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk).unwrap();
+        let s1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        })
+        .unwrap();
+        let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &ephemeral_pk,
+        })
+        .unwrap();
         assert_eq!(s1, s2, "Same inputs must produce same output");
         assert_eq!(s1.len(), 64);
     }
@@ -1300,8 +1394,20 @@ mod tests {
         let eph1 = [0xDD; 32];
         let eph2 = [0xEE; 32];
 
-        let s1 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &eph1).unwrap();
-        let s2 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &eph2).unwrap();
+        let s1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &eph1,
+        })
+        .unwrap();
+        let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+            ml_kem_ss: &ml_kem_ss,
+            ecdh_ss: &ecdh_ss,
+            static_pk: &static_pk,
+            ephemeral_pk: &eph2,
+        })
+        .unwrap();
         assert_ne!(s1, s2, "Different ephemeral PKs must produce different secrets");
     }
 

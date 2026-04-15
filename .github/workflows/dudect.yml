@@ -1,0 +1,137 @@
+# DudeCT Constant-Time Validation
+#
+# Runs the DudeCT statistical constant-time harness
+# (`tests/examples/dudect_ct.rs`) and fails the job if any benchmark
+# produces `|max t| > DUDECT_T_THRESHOLD`. DudeCT measures runtime for
+# two input classes (e.g., valid vs. tampered HMAC tags), runs Welch's
+# t-test, and reports the largest t-statistic observed. Values above ~5
+# are strong evidence that execution time depends on secret data —
+# i.e., a timing side-channel.
+#
+# This workflow is *not* PR-blocking. Shared CI runners have enough
+# jitter that even a correctly constant-time implementation can produce
+# spurious t-statistics above 5 on a bad run. Threshold is set to 10 to
+# absorb that noise, and the job runs weekly + on-demand rather than on
+# every push.
+#
+# Companion: `.github/workflows/constant-time.yml` (Criterion-based
+# timing benchmarks). That one is qualitative; this one is quantitative.
+
+name: DudeCT Constant-Time Gate
+
+on:
+  schedule:
+    # Weekly, Mondays 06:00 UTC — offset from constant-time.yml (Sun 05:00)
+    # so the two side-channel workflows don't share a runner slot.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: "Max allowed |t| statistic (default 10.0 — paper's 5.0 is too tight for shared CI)"
+        required: false
+        default: "10.0"
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Default threshold when run on schedule (no workflow_dispatch input).
+  DUDECT_T_THRESHOLD: "10.0"
+
+jobs:
+  dudect:
+    name: DudeCT Harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+      - name: Cache Cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-dudect-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build dudect harness (release)
+        run: cargo build --release --example dudect_ct -p latticearc-tests
+
+      - name: Run dudect harness
+        run: |
+          # Run the harness and capture output. Don't use `tee` — we need
+          # the raw stdout for the parser; a structured summary goes to
+          # the step summary separately.
+          ./target/release/examples/dudect_ct 2>&1 | tee dudect-output.txt
+
+      - name: Enforce t-statistic threshold
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          THRESHOLD="${{ github.event.inputs.threshold || env.DUDECT_T_THRESHOLD }}"
+          echo "Using |t| threshold: $THRESHOLD"
+
+          # Extract every `max t = <signed float>` line.  Strip the sign so
+          # we compare magnitudes.
+          # Sample line format:
+          #   bench foo ... : n == +0.062M, max t = -1.62738, max tau = ...
+          if ! grep -q "max t =" dudect-output.txt; then
+            echo "::error::No 'max t =' lines in dudect output — harness did not run"
+            cat dudect-output.txt
+            exit 1
+          fi
+
+          fail=0
+          # Parse each line containing `max t =`.
+          while IFS= read -r line; do
+            # Extract bench name (between "bench " and " ... :")
+            name="$(echo "$line" | sed -nE 's/^bench ([^ ]+).*$/\1/p')"
+            # Extract the t-value; strip leading +/-
+            t_raw="$(echo "$line" | sed -nE 's/.*max t = ([+-][0-9.]+).*/\1/p')"
+            t_abs="$(echo "$t_raw" | sed 's/^[+-]//')"
+
+            # Use awk for float comparison (bash can't do it natively).
+            over="$(awk -v t="$t_abs" -v th="$THRESHOLD" 'BEGIN { print (t > th) ? 1 : 0 }')"
+            if [ "$over" = "1" ]; then
+              echo "::error::bench $name: |max t| = $t_abs exceeds threshold $THRESHOLD"
+              fail=1
+            else
+              echo "OK  bench $name: |max t| = $t_abs (threshold $THRESHOLD)"
+            fi
+          done < <(grep "max t =" dudect-output.txt)
+
+          {
+            echo "## DudeCT Constant-Time Gate"
+            echo ""
+            echo "Threshold: \`|t| < $THRESHOLD\`"
+            echo ""
+            echo '```'
+            grep "max t =" dudect-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$fail" = "1" ]; then
+            echo "::error::DudeCT gate failed — see per-bench errors above"
+            exit 1
+          fi
+
+      - name: Upload raw harness output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dudect-output
+          path: dudect-output.txt
+          retention-days: 30

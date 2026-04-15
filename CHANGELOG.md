@@ -84,7 +84,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the PR-blocking Kani manifest (total PR subset now 18 proofs; full
   suite 30).
 
-### Added (Phase 2b: adversarial DoS fuzzing)
+### Changed (Phase 2b: audit-finding follow-ups, breaking)
+
+- **`MlKemSecurityLevel::ct_eq` no longer casts through `*self as u8`**
+  (`latticearc/src/primitives/kem/ml_kem.rs`). The enum is not
+  `#[repr(u8)]`, so the cast relied on compiler-chosen discriminant
+  ordering — same latent bug the recent `HybridKemSecretKey::ct_eq` impl
+  (commit `bfeb9b0e`) explicitly rejected. Now uses
+  `Choice::from(u8::from(self == other))`. Today's 3-variant enum values
+  happen to fit u8, so this is a correctness improvement with no
+  behavioral change; it hardens the impl against a future variant
+  addition or reorder.
+
+- **`derive_hybrid_shared_secret` takes `HybridSharedSecretInputs<'_>`
+  instead of 4 positional `&[u8]` args** (`latticearc/src/hybrid/kem_hybrid.rs`).
+  The old signature accepted ML-KEM and ECDH shared secrets as adjacent
+  `&[u8]` arguments of the same length — a silent swap would still
+  compile but derive a different secret and break interop. The named-
+  field struct forces callsites to label each input; a swap is now a
+  compile error. New public type `HybridSharedSecretInputs` re-exported
+  from `latticearc::hybrid`. Breaking change for callers of
+  `derive_hybrid_shared_secret`; all internal callsites and tests
+  (~27 callsites across 3 files) migrated.
+
+  Before:
+  ```rust
+  derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &eph_pk)?
+  ```
+  After:
+  ```rust
+  derive_hybrid_shared_secret(HybridSharedSecretInputs {
+      ml_kem_ss: &ml_kem_ss,
+      ecdh_ss: &ecdh_ss,
+      static_pk: &static_pk,
+      ephemeral_pk: &eph_pk,
+  })?
+  ```
+
+### Added (Phase 2b: adversarial DoS fuzzing + statistical timing gate)
+
+- **DudeCT statistical constant-time gate** (`tests/examples/dudect_ct.rs`
+  + `.github/workflows/dudect.yml`). Implements the DudeCT method from
+  Reparaz et al. (IACR ePrint 2016/1123): runs each operation under two
+  input classes and applies Welch's t-test to the measured runtimes. A
+  `|max t| > threshold` result is strong statistical evidence the op's
+  runtime depends on secret data. Two benches shipped: `verify_hmac_sha256`
+  (valid vs. tampered tag) and `HybridKemSecretKey::ct_eq` (equal vs.
+  independently-generated keys). Workflow runs weekly + on-demand, not
+  PR-blocking (shared-runner jitter is substantial), with a default
+  `|t| < 10` threshold — loose vs. the paper's 5.0 to absorb CI noise,
+  tight enough to catch any real first-byte-short-circuit regression.
+  Complements the existing qualitative Criterion gate in
+  `constant-time.yml`. `dudect-bencher = "0.7"` added as dev-dep to
+  `latticearc-tests`; pulls a second major version of rand transitively
+  but only in dev builds. Local smoke run on an M-series laptop:
+  `bench_verify_hmac_sha256 max t = -1.63`,
+  `bench_hybrid_secret_key_ct_eq max t = +1.15`.
 
 - **Allocation-bounded DoS fuzz target** `fuzz/fuzz_targets/fuzz_dos_alloc_bounded.rs`.
   Dispatches on the first byte of fuzz input to one of four public entrypoints

@@ -8,8 +8,8 @@
 //! Coverage tests for kem_hybrid.rs error paths and edge cases.
 
 use latticearc::hybrid::kem_hybrid::{
-    HybridKemError, HybridKemPublicKey, decapsulate, derive_hybrid_shared_secret, encapsulate,
-    generate_keypair,
+    HybridKemError, HybridKemPublicKey, HybridSharedSecretInputs, decapsulate,
+    derive_hybrid_shared_secret, encapsulate, generate_keypair,
 };
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 
@@ -21,7 +21,12 @@ use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 fn test_derive_rejects_wrong_mlkem_ss_length_fails() {
     let ml_kem_ss = vec![0u8; 16]; // Should be 32
     let ecdh_ss = vec![0u8; 32];
-    let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &[0u8; 32], &[0u8; 32]);
+    let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &[0u8; 32],
+        ephemeral_pk: &[0u8; 32],
+    });
     assert!(result.is_err());
     match result.unwrap_err() {
         HybridKemError::InvalidKeyMaterial(msg) => {
@@ -36,7 +41,12 @@ fn test_derive_rejects_wrong_mlkem_ss_length_fails() {
 fn test_derive_rejects_wrong_ecdh_ss_length_fails() {
     let ml_kem_ss = vec![0u8; 32];
     let ecdh_ss = vec![0u8; 16]; // Should be 32
-    let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &[0u8; 32], &[0u8; 32]);
+    let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &[0u8; 32],
+        ephemeral_pk: &[0u8; 32],
+    });
     assert!(result.is_err());
     match result.unwrap_err() {
         HybridKemError::InvalidKeyMaterial(msg) => {
@@ -49,13 +59,23 @@ fn test_derive_rejects_wrong_ecdh_ss_length_fails() {
 
 #[test]
 fn test_derive_rejects_empty_mlkem_ss_fails() {
-    let result = derive_hybrid_shared_secret(&[], &[0u8; 32], &[0u8; 32], &[0u8; 32]);
+    let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &[],
+        ecdh_ss: &[0u8; 32],
+        static_pk: &[0u8; 32],
+        ephemeral_pk: &[0u8; 32],
+    });
     assert!(result.is_err());
 }
 
 #[test]
 fn test_derive_rejects_empty_ecdh_ss_fails() {
-    let result = derive_hybrid_shared_secret(&[0u8; 32], &[], &[0u8; 32], &[0u8; 32]);
+    let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &[0u8; 32],
+        ecdh_ss: &[],
+        static_pk: &[0u8; 32],
+        ephemeral_pk: &[0u8; 32],
+    });
     assert!(result.is_err());
 }
 
@@ -65,7 +85,12 @@ fn test_derive_accepts_valid_inputs_succeeds() {
     let ecdh_ss = vec![0xBBu8; 32];
     let static_pk = vec![0xCCu8; 32];
     let ephemeral_pk = vec![0xDDu8; 32];
-    let result = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk);
+    let result = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &static_pk,
+        ephemeral_pk: &ephemeral_pk,
+    });
     assert!(result.is_ok());
     let secret = result.unwrap();
     assert_eq!(secret.len(), 64);
@@ -77,8 +102,20 @@ fn test_derive_deterministic_is_deterministic() {
     let ecdh_ss = vec![2u8; 32];
     let static_pk = vec![3u8; 32];
     let ephemeral_pk = vec![4u8; 32];
-    let s1 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk).unwrap();
-    let s2 = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &static_pk, &ephemeral_pk).unwrap();
+    let s1 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &static_pk,
+        ephemeral_pk: &ephemeral_pk,
+    })
+    .unwrap();
+    let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &static_pk,
+        ephemeral_pk: &ephemeral_pk,
+    })
+    .unwrap();
     assert_eq!(s1, s2);
 }
 
@@ -88,8 +125,20 @@ fn test_derive_different_inputs_different_outputs_succeeds() {
     let ml_kem_ss_b = vec![2u8; 32];
     let ecdh_ss = vec![0u8; 32];
     let pk = vec![0u8; 32];
-    let s_a = derive_hybrid_shared_secret(&ml_kem_ss_a, &ecdh_ss, &pk, &pk).unwrap();
-    let s_b = derive_hybrid_shared_secret(&ml_kem_ss_b, &ecdh_ss, &pk, &pk).unwrap();
+    let s_a = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss_a,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &pk,
+        ephemeral_pk: &pk,
+    })
+    .unwrap();
+    let s_b = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss_b,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &pk,
+        ephemeral_pk: &pk,
+    })
+    .unwrap();
     assert_ne!(s_a, s_b);
 }
 
@@ -100,8 +149,20 @@ fn test_derive_context_binding_succeeds() {
     let pk_a = vec![7u8; 32];
     let pk_b = vec![8u8; 32];
     // Different static PKs should yield different secrets (context binding)
-    let s_a = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &pk_a, &pk_a).unwrap();
-    let s_b = derive_hybrid_shared_secret(&ml_kem_ss, &ecdh_ss, &pk_b, &pk_b).unwrap();
+    let s_a = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &pk_a,
+        ephemeral_pk: &pk_a,
+    })
+    .unwrap();
+    let s_b = derive_hybrid_shared_secret(HybridSharedSecretInputs {
+        ml_kem_ss: &ml_kem_ss,
+        ecdh_ss: &ecdh_ss,
+        static_pk: &pk_b,
+        ephemeral_pk: &pk_b,
+    })
+    .unwrap();
     assert_ne!(s_a, s_b);
 }
 

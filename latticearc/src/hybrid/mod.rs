@@ -80,8 +80,9 @@ pub use encrypt_hybrid::{
     derive_encryption_key, encrypt_hybrid,
 };
 pub use kem_hybrid::{
-    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey, decapsulate,
-    derive_hybrid_shared_secret, encapsulate, generate_keypair as kem_generate_keypair,
+    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
+    HybridSharedSecretInputs, decapsulate, derive_hybrid_shared_secret, encapsulate,
+    generate_keypair as kem_generate_keypair,
 };
 pub use pq_only::{
     PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
