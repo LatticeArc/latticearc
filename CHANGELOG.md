@@ -84,6 +84,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the PR-blocking Kani manifest (total PR subset now 18 proofs; full
   suite 30).
 
+### Added (Phase 2b: adversarial DoS fuzzing)
+
+- **Allocation-bounded DoS fuzz target** `fuzz/fuzz_targets/fuzz_dos_alloc_bounded.rs`.
+  Dispatches on the first byte of fuzz input to one of four public entrypoints
+  (AEAD-256-GCM decrypt, ML-KEM decapsulation at all three security levels,
+  `deserialize_encrypted_output`, `deserialize_keypair`) and wraps each call
+  in a `stats_alloc::Region` measurement. Any single call that allocates more
+  than 1 MiB panics the fuzzer. Complements `tests/tests/allocation_budgets.rs`
+  (which gates *happy-path* allocation growth) by checking that *adversarial*
+  inputs — crafted JSON, malformed ciphertexts, attacker-chosen length fields —
+  cannot force unbounded allocation through a public API. Added to the
+  `.github/workflows/fuzzing.yml` matrix. `stats_alloc = "0.1"` added to
+  `fuzz/Cargo.toml` dependencies; no effect on the published `latticearc`
+  or `latticearc-cli` crates.
+
 ### Changed (Phase 2a)
 
 - Added dev-dependencies `pqcrypto-mldsa = "0.1"`, `pqcrypto-sphincsplus = "0.7"`,

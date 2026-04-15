@@ -78,6 +78,9 @@ default = []
 libfuzzer-sys = "0.4"
 subtle = "2.6"
 rand = { version = "0.8.5", features = ["std_rng"] }
+# Instrumented allocator wrapper for `fuzz_dos_alloc_bounded`. Wraps
+# `System`; does not change allocation behavior for other targets.
+stats_alloc = "0.1"
 
 [dependencies.latticearc]
 path = "../latticearc"
@@ -332,6 +335,17 @@ bench = false
 [[bin]]
 name = "fuzz_encrypted_data_deser"
 path = "fuzz_targets/fuzz_encrypted_data_deser.rs"
+test = false
+doc = false
+bench = false
+
+# ============================================================================
+# DoS Fuzzing (allocation-bounded adversarial inputs)
+# ============================================================================
+
+[[bin]]
+name = "fuzz_dos_alloc_bounded"
+path = "fuzz_targets/fuzz_dos_alloc_bounded.rs"
 test = false
 doc = false
 bench = false
