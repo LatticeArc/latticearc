@@ -156,6 +156,9 @@ jobs:
         DOC_DURATION=$((END_TIME - START_TIME))
         echo "doc_duration_seconds $DOC_DURATION" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-quality/instance/${{ github.run_id }}/operation/doc || true
 
+    - name: Resource-limits coverage gate
+      run: bash scripts/ci/resource_limits_coverage.sh
+
   # === Multi-Platform Builds ===
   build:
     name: Build (${{ matrix.os }})

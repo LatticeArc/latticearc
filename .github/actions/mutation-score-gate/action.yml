@@ -1,0 +1,61 @@
+name: 'Mutation Score Gate'
+description: >
+  Parse cargo-mutants outcomes.json, compute the caught-mutant percentage,
+  publish a summary, and fail if the score is below the floor.
+
+inputs:
+  artifact_dir:
+    description: 'Directory containing outcomes.json (e.g. mutants-primitives)'
+    required: true
+  module_label:
+    description: 'Label for the summary heading (e.g. latticearc::primitives)'
+    required: true
+  floor:
+    description: 'Minimum mutation score percentage required to pass'
+    required: false
+    default: '80'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Enforce mutation score floor
+      shell: bash
+      run: |
+        ARTIFACT_DIR="${{ inputs.artifact_dir }}"
+        LABEL="${{ inputs.module_label }}"
+        FLOOR="${{ inputs.floor }}"
+
+        if [ ! -f "$ARTIFACT_DIR/outcomes.json" ]; then
+          echo "❌ $ARTIFACT_DIR/outcomes.json missing — mutation run failed" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
+        CAUGHT=$(jq '[.outcomes[] | select(.outcome == "Caught")] | length' "$ARTIFACT_DIR/outcomes.json")
+        MISSED=$(jq '[.outcomes[] | select(.outcome == "Missed")] | length' "$ARTIFACT_DIR/outcomes.json")
+        TIMEOUT=$(jq '[.outcomes[] | select(.outcome == "Timeout")] | length' "$ARTIFACT_DIR/outcomes.json")
+        UNVIABLE=$(jq '[.outcomes[] | select(.outcome == "Unviable")] | length' "$ARTIFACT_DIR/outcomes.json")
+        TOTAL=$((CAUGHT + MISSED + TIMEOUT))
+        {
+          echo "## Mutation Testing: ${LABEL}"
+          echo ""
+          echo "| Metric | Count |"
+          echo "|--------|-------|"
+          echo "| Caught | $CAUGHT |"
+          echo "| Missed | $MISSED |"
+          echo "| Timeout | $TIMEOUT |"
+          echo "| Unviable (not counted) | $UNVIABLE |"
+        } >> "$GITHUB_STEP_SUMMARY"
+        if [ "$TOTAL" -eq 0 ]; then
+          echo "⚠️ No viable mutants produced." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
+        echo "| **Score** | **${SCORE}%** |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Floor | ${FLOOR}% |" >> "$GITHUB_STEP_SUMMARY"
+        PASS=$(echo "$SCORE >= $FLOOR" | bc -l)
+        if [ "$PASS" != "1" ]; then
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "❌ Mutation score ${SCORE}% is below floor ${FLOOR}%." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "✅ Score ≥ floor." >> "$GITHUB_STEP_SUMMARY"

@@ -78,6 +78,9 @@ tempfile = { workspace = true }
 tokio-test = "0.4.4"
 wycheproof = "0.6"
 criterion = { workspace = true }
+# Allocation-budget test harness. Exposes `Region::new` for per-call byte deltas.
+# Used by tests/tests/allocation_budgets.rs to enforce per-API alloc ceilings.
+stats_alloc = "0.1"
 
 [lib]
 path = "src/lib.rs"

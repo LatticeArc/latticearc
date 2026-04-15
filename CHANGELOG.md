@@ -9,10 +9,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Phase 1 differentiation: timing/logic/DoS gates)
+
+- **Kani proofs are now PR-blocking** (fast subset of 15 proofs, ≤15 min).
+  Full 27-proof suite continues to run on schedule (nightly/weekly) with a
+  120-min timeout. Workflow: `.github/workflows/kani.yml`. This flips the
+  guarantee from "proofs run somewhere eventually" to "proofs must pass to
+  merge". Memory of prior "codegen-only" status is stale — proofs have been
+  executing for some time; the change is only in gating.
+- **Mutation testing is now PR-blocking** on changed crypto files via
+  `cargo mutants --in-diff`, with an 80% score floor. Removed
+  `continue-on-error: true` from all three per-module jobs (`primitives`,
+  `unified_api`, `hybrid`); the same floor now applies to the scheduled
+  weekly full runs. Workflow: `.github/workflows/mutation.yml`.
+- **Allocation-budget tests** (`tests/tests/allocation_budgets.rs`) — seven
+  crypto operations (ML-KEM-768 encap/decap, AES-256-GCM encrypt/decrypt on
+  1 KiB, hybrid KEM encap, HKDF-Expand 32 B, HMAC-SHA256 over 1 KiB) assert
+  per-call allocation ceilings using `stats_alloc`. Intentional regression
+  gate against accidental hot-path allocation growth.
+- **Property-based rejection invariants** (`tests/tests/proptest_invariants.rs`)
+  — any single-bit flip in AES-GCM tag / ciphertext / AAD makes decrypt fail;
+  any flip in an ML-DSA-44 signature makes verify return `Ok(false)` or parse
+  error; any flip in an ML-KEM-768 ciphertext yields a shared secret distinct
+  from the legitimate one (FIPS 203 implicit rejection). These are forgeability
+  contracts for the corresponding standards, enforced as proptests rather than
+  hand-written unit vectors.
+- **Resource-limits coverage gate** (`scripts/ci/resource_limits_coverage.sh`)
+  added as a step of the `quality` job in `ci.yml`. Scans every `pub fn` in
+  `hybrid/`, `primitives/{kem,sig,aead,mac,kdf}/`, and `unified_api/convenience/`
+  that takes `&[u8]` and fails CI if the function neither calls a
+  `validate_{encryption,decryption,signature,key_derivation}_*` function in
+  its file nor is explicitly listed in `docs/RESOURCE_LIMITS_COVERAGE.md`.
+  New public crypto functions that forget a size cap are now a build break.
+- **New docs**: `docs/RESOURCE_LIMITS_COVERAGE.md` (per-function size-cap audit)
+  and `docs/ITERATION_BOUNDS.md` (per-loop iteration-bound audit; documents
+  existing PBKDF2 `1000 ≤ iter ≤ 10_000_000` cap and known HMAC/CMAC gaps
+  scheduled for v0.7.1).
+- **Reusable action** `.github/actions/mutation-score-gate/action.yml` —
+  factors the jq/bc score-floor logic shared by the PR and scheduled mutation
+  jobs. Single source of truth for the score-floor policy.
+- **Declarative Kani PR manifest** `.github/kani-pr-harnesses.txt` — the 15
+  PR-subset proof names live in a checked-in file instead of being hardcoded
+  in `kani.yml`. CI verifies every manifest entry corresponds to an actual
+  `fn` in `latticearc/src` before running Kani, so a rename fails fast rather
+  than silently reducing proof coverage.
+
 ### Changed
 
 - Bumped `tokio` 1.50.0 → 1.51.1 (patch).
 - Bumped `rayon` 1.11 → 1.12 (minor).
+- Added dev-dependency on `stats_alloc = "0.1.10"` in `latticearc-tests` for
+  allocation-budget tests. No effect on `latticearc` or `latticearc-cli`
+  runtime dependencies.
 
 ### Removed (breaking, finishing the v0.7.0 deprecation cleanup, third pass)
 

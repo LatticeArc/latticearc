@@ -1,15 +1,24 @@
 # Kani - Bounded Model Checking
 # Proves absence of panics, overflow, and out-of-bounds access in pure Rust code.
 #
-# latticearc types module contains 12 proofs covering:
+# latticearc contains 27 proofs covering:
 #   - Key lifecycle state machine (SP 800-57 compliance)
 #   - Crypto policy engine exhaustiveness (all enum variants handled)
 #   - Trust level ordering invariants
-#   - Security level defaults
+#   - Security level / compliance mode / performance preference defaults
+#   - Core config validation (default / production / development)
+#   - Domain constant distinctness (NIST SP 800-108)
+#   - Verification status biconditional
 
 name: Kani Model Checking
 
 on:
+  pull_request:
+    paths:
+      - 'latticearc/src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/kani.yml'
   schedule:
     - cron: '0 3 * * *'  # Nightly at 3 AM UTC (low traffic)
     - cron: '0 5 * * 0'  # Weekly Sunday at 5 AM UTC (full suite)
@@ -25,27 +34,126 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Tier 1: Pure Rust proofs that MUST pass — badge reflects this job
-  kani-verified:
-    name: Verified Proofs (latticearc)
+  # PR-blocking fast subset — runs on every pull request, must complete in ≤10 min.
+  # Covers the cheap enum-exhaustiveness + type default proofs; state-machine and
+  # biconditional proofs run only in the nightly/weekly full suite below.
+  kani-pr-subset:
+    name: Kani PR Subset (fast)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Kani
-        run: |
-          cargo install --locked kani-verifier
-          kani setup
-
+      # Cache MUST precede Install so restored ~/.cargo/bin/kani* skips rebuild.
       - name: Cache Kani
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            ~/.cargo/bin/kani
+            ~/.cargo/bin/cargo-kani
+            ~/.cargo/bin/kani-compiler
+            ~/.cargo/bin/kani-driver
+            ~/.kani
+          key: ${{ runner.os }}-kani-pr-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-kani-pr-
+
+      - name: Install Kani
+        run: |
+          if ! command -v kani >/dev/null 2>&1; then
+            cargo install --locked kani-verifier
+          fi
+          kani setup
+
+      - name: Run fast Kani subset
+        shell: bash
+        run: |
+          set -o pipefail
+          # Harness list is managed declaratively in .github/kani-pr-harnesses.txt.
+          # Each non-blank, non-comment line is passed as a separate `--harness`.
+          # Verify every listed harness actually exists in the source tree before
+          # running Kani, so a rename causes a fast, explicit error rather than a
+          # silent "0 proofs ran" pass.
+          MANIFEST=".github/kani-pr-harnesses.txt"
+          HARNESSES=$(grep -vE '^\s*(#|$)' "$MANIFEST")
+          MISSING=""
+          while IFS= read -r name; do
+            # `fn NAME(` — the open-paren prevents a name like `foo_bar` from
+            # matching `fn foo_bar_extended` as a false positive.
+            if ! grep -rqE "^[[:space:]]*fn[[:space:]]+${name}[[:space:]]*\(" latticearc/src; then
+              MISSING="${MISSING}${name} "
+            fi
+          done <<< "$HARNESSES"
+          if [ -n "$MISSING" ]; then
+            echo "❌ Kani manifest names not found in source: $MISSING" >&2
+            exit 1
+          fi
+          # Build the `--harness` args.
+          HARNESS_ARGS=""
+          while IFS= read -r name; do
+            HARNESS_ARGS="$HARNESS_ARGS --harness $name"
+          done <<< "$HARNESSES"
+          # shellcheck disable=SC2086
+          cargo kani -p latticearc $HARNESS_ARGS 2>&1 | tee kani-pr-output.txt
+
+      - name: Upload PR subset results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: kani-pr-subset-results
+          path: kani-pr-output.txt
+          retention-days: 14
+
+      - name: PR Subset Summary
+        if: always()
+        run: |
+          echo "## Kani PR Subset (15 fast proofs)" >> $GITHUB_STEP_SUMMARY
+          if grep -q "VERIFICATION:- SUCCESSFUL" kani-pr-output.txt 2>/dev/null; then
+            COUNT=$(grep -c "VERIFICATION:- SUCCESSFUL" kani-pr-output.txt || echo 0)
+            echo "✅ $COUNT proofs verified" >> $GITHUB_STEP_SUMMARY
+          elif grep -q "VERIFICATION:- FAILED" kani-pr-output.txt 2>/dev/null; then
+            echo "❌ Failures detected — see artifact" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "⚠️ No verification status in output" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  # Tier 1: Pure Rust proofs that MUST pass — badge reflects this job
+  kani-verified:
+    name: Verified Proofs (latticearc)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Cache MUST precede Install so restored ~/.cargo/bin/kani* skips rebuild.
+      - name: Cache Kani
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/kani
+            ~/.cargo/bin/cargo-kani
+            ~/.cargo/bin/kani-compiler
+            ~/.cargo/bin/kani-driver
             ~/.kani
           key: ${{ runner.os }}-kani-verified-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-kani-verified-
+
+      - name: Install Kani
+        run: |
+          if ! command -v kani >/dev/null 2>&1; then
+            cargo install --locked kani-verifier
+          fi
+          kani setup
 
       - name: Run verified Kani proofs (latticearc)
         run: |
@@ -64,7 +172,7 @@ jobs:
       - name: Verified Proofs Summary
         if: always()
         run: |
-          echo "## Kani Proofs (latticearc) — 12 proofs" >> $GITHUB_STEP_SUMMARY
+          echo "## Kani Proofs (latticearc) — 27 proofs (full suite)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ ! -f kani-output.txt ]; then
             echo "⚠️ No Kani output file — step may have been skipped" >> $GITHUB_STEP_SUMMARY
@@ -105,7 +213,7 @@ jobs:
     name: Kani Summary
     runs-on: ubuntu-latest
     needs: [kani-verified]
-    if: always()
+    if: always() && github.event_name != 'pull_request'
     steps:
       - name: Generate summary
         run: |
@@ -117,7 +225,7 @@ jobs:
           echo "- Out-of-bounds array access" >> $GITHUB_STEP_SUMMARY
           echo "- Invalid memory access" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## latticearc (12 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
+          echo "## latticearc (27 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Category | Proofs | What they verify |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------|------------------|" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,26 @@
+# Kani proofs run on every pull request (fast subset, ≤15 min).
+# One harness name per line. Blank lines and lines starting with `#` are ignored.
+# The nightly/weekly full suite runs `cargo kani -p latticearc` without `--harness`,
+# so proofs not listed here are still checked — just less often.
+#
+# Selection criteria for the PR subset:
+#   - Enum-exhaustiveness proofs (policy engine, scheme selection).
+#   - Type default/invariant proofs (SecurityLevel, ComplianceMode, PerformancePreference).
+#   - Trust-level ordering / partial invariants.
+# State-machine and biconditional proofs are heavier; they run in the nightly full suite.
+
+security_level_default_is_high
+compliance_mode_default_is_unrestricted
+performance_preference_default_is_balanced
+compliance_mode_requires_fips_exhaustive
+compliance_mode_allows_hybrid_exhaustive
+cnsa_requires_fips
+cnsa_disallows_hybrid
+trust_level_ordering_total
+trust_level_untrusted_is_minimum
+trust_level_is_trusted_iff_at_least_partial
+force_scheme_covers_all_variants
+select_pq_encryption_covers_all_levels
+select_pq_signature_covers_all_levels
+select_encryption_covers_all_levels
+select_signature_covers_all_levels

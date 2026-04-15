@@ -1,13 +1,29 @@
 # Mutation Testing
-# Validates test suite effectiveness by injecting bugs and checking if tests catch them
-# Each job targets a specific module within the consolidated latticearc crate
+# Validates test suite effectiveness by injecting bugs and checking if tests catch them.
+#
+# Gating strategy:
+#   - On pull_request: `mutate-pr-diff` runs cargo-mutants against only the changed
+#     crypto files (`--in-diff`), with a hard 80% score floor. A missed mutant in
+#     changed code now blocks the PR.
+#   - On schedule (weekly Sunday) and workflow_dispatch: full per-module runs with
+#     the same 80% floor. These are the coverage gates for unchanged code.
+#
+# Historical note: prior to this workflow, mutation was workflow_dispatch-only and
+# every step carried `continue-on-error: true`, which made the score a suggestion
+# rather than a gate. v0.7.0 landed the flip.
 
 name: Mutation Testing
 
 on:
-  # Schedule will be enabled once the library is stable and usage increases.
-  # schedule:
-  #   - cron: '0 6 * * 0'  # Weekly on Sunday at 6 AM UTC
+  pull_request:
+    paths:
+      - 'latticearc/src/primitives/**'
+      - 'latticearc/src/unified_api/**'
+      - 'latticearc/src/hybrid/**'
+      - 'tests/**'
+      - '.github/workflows/mutation.yml'
+  schedule:
+    - cron: '0 6 * * 0'  # Weekly on Sunday at 6 AM UTC
   workflow_dispatch:
     inputs:
       packages:
@@ -29,13 +45,110 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Score floor: percentage of mutants caught required to pass.
+  MUTATION_SCORE_FLOOR: '80'
 
 jobs:
-  # Mutation testing for primitives module (KEM, signatures, AEAD, hash, KDF)
+  # PR gate: run only on changed crypto files via `--in-diff`.
+  # Must stay fast — github-hosted runners, ≤30min budget.
+  mutate-pr-diff:
+    name: Mutation (PR diff)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository (full history for --in-diff)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-mutation-pr-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-mutants (prebuilt)
+        uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616 # main
+        with:
+          tool: cargo-mutants
+
+      - name: Compute diff against base
+        id: diff
+        shell: bash
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          # Materialize the raw diff to a file. cargo-mutants' --in-diff expects
+          # a path; process substitution is not portable across shells/runners.
+          git diff "$BASE_SHA" HEAD > pr-changes.diff
+          # Report which crypto files the PR actually touched.
+          git diff --name-only "$BASE_SHA" HEAD -- \
+            'latticearc/src/primitives/**' \
+            'latticearc/src/unified_api/**' \
+            'latticearc/src/hybrid/**' > changed-crypto-files.txt || true
+          if [ -s changed-crypto-files.txt ]; then
+            echo "### Crypto files changed in this PR" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat changed-crypto-files.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No crypto-module files changed in this PR." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Run cargo-mutants on PR diff
+        id: run
+        shell: bash
+        run: |
+          if [ ! -s changed-crypto-files.txt ]; then
+            echo "No crypto files changed — skipping mutation run." | tee -a $GITHUB_STEP_SUMMARY
+            echo "skipped=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          set -o pipefail
+          cargo mutants -p latticearc \
+            --in-diff pr-changes.diff \
+            --timeout 300 \
+            --jobs 2 \
+            --output mutants-pr \
+            2>&1 | tee mutation-pr.log
+
+      - name: Enforce score floor (PR diff)
+        if: steps.run.outputs.skipped != 'true'
+        uses: ./.github/actions/mutation-score-gate
+        with:
+          artifact_dir: mutants-pr
+          module_label: 'Mutation (PR diff)'
+          floor: ${{ env.MUTATION_SCORE_FLOOR }}
+
+      - name: Upload PR mutation artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: mutation-pr
+          path: |
+            mutants-pr/
+            mutation-pr.log
+            changed-crypto-files.txt
+            pr-changes.diff
+          retention-days: 14
+          # Warn (don't fail) if the artifacts are absent — happens legitimately
+          # when no crypto files changed and the `skipped=true` short-circuit
+          # fired before any file was produced.
+          if-no-files-found: warn
+
+  # Scheduled / manual full runs — per-module, enforce the same floor.
   mutate-primitives:
     name: Mutate primitives module
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -52,43 +165,27 @@ jobs:
             target
           key: ${{ runner.os }}-mutation-primitives-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install cargo-mutants
-        run: cargo install cargo-mutants
+      - name: Install cargo-mutants (prebuilt)
+        uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616 # main
+        with:
+          tool: cargo-mutants
 
       - name: Run mutation testing on primitives module
         run: |
+          set -o pipefail
           cargo mutants -p latticearc \
             --file "latticearc/src/primitives/**/*.rs" \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-primitives \
             2>&1 | tee mutation-primitives.log
-        continue-on-error: true
 
-      - name: Generate mutation report
-        if: always()
-        run: |
-          echo "## Mutation Testing: latticearc::primitives" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ -f "mutants-primitives/outcomes.json" ]; then
-            CAUGHT=$(jq '[.outcomes[] | select(.outcome == "Caught")] | length' mutants-primitives/outcomes.json 2>/dev/null || echo "0")
-            MISSED=$(jq '[.outcomes[] | select(.outcome == "Missed")] | length' mutants-primitives/outcomes.json 2>/dev/null || echo "0")
-            TIMEOUT=$(jq '[.outcomes[] | select(.outcome == "Timeout")] | length' mutants-primitives/outcomes.json 2>/dev/null || echo "0")
-            TOTAL=$((CAUGHT + MISSED + TIMEOUT))
-
-            if [ "$TOTAL" -gt 0 ]; then
-              SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
-              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
-              echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-              echo "| Mutants Caught | $CAUGHT |" >> $GITHUB_STEP_SUMMARY
-              echo "| Mutants Missed | $MISSED |" >> $GITHUB_STEP_SUMMARY
-              echo "| Timeouts | $TIMEOUT |" >> $GITHUB_STEP_SUMMARY
-              echo "| **Mutation Score** | **${SCORE}%** |" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "No mutation results available" >> $GITHUB_STEP_SUMMARY
-          fi
+      - name: Enforce score floor (primitives)
+        uses: ./.github/actions/mutation-score-gate
+        with:
+          artifact_dir: mutants-primitives
+          module_label: 'latticearc::primitives'
+          floor: ${{ env.MUTATION_SCORE_FLOOR }}
 
       - name: Upload mutation results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -100,11 +197,11 @@ jobs:
             mutation-primitives.log
           retention-days: 30
 
-  # Mutation testing for unified_api module (CryptoConfig, encrypt/decrypt, signatures)
   mutate-unified-api:
     name: Mutate unified_api module
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -121,43 +218,27 @@ jobs:
             target
           key: ${{ runner.os }}-mutation-unified-api-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install cargo-mutants
-        run: cargo install cargo-mutants
+      - name: Install cargo-mutants (prebuilt)
+        uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616 # main
+        with:
+          tool: cargo-mutants
 
       - name: Run mutation testing on unified_api module
         run: |
+          set -o pipefail
           cargo mutants -p latticearc \
             --file "latticearc/src/unified_api/**/*.rs" \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-unified-api \
             2>&1 | tee mutation-unified-api.log
-        continue-on-error: true
 
-      - name: Generate mutation report
-        if: always()
-        run: |
-          echo "## Mutation Testing: latticearc::unified_api" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ -f "mutants-unified-api/outcomes.json" ]; then
-            CAUGHT=$(jq '[.outcomes[] | select(.outcome == "Caught")] | length' mutants-unified-api/outcomes.json 2>/dev/null || echo "0")
-            MISSED=$(jq '[.outcomes[] | select(.outcome == "Missed")] | length' mutants-unified-api/outcomes.json 2>/dev/null || echo "0")
-            TIMEOUT=$(jq '[.outcomes[] | select(.outcome == "Timeout")] | length' mutants-unified-api/outcomes.json 2>/dev/null || echo "0")
-            TOTAL=$((CAUGHT + MISSED + TIMEOUT))
-
-            if [ "$TOTAL" -gt 0 ]; then
-              SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
-              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
-              echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-              echo "| Mutants Caught | $CAUGHT |" >> $GITHUB_STEP_SUMMARY
-              echo "| Mutants Missed | $MISSED |" >> $GITHUB_STEP_SUMMARY
-              echo "| Timeouts | $TIMEOUT |" >> $GITHUB_STEP_SUMMARY
-              echo "| **Mutation Score** | **${SCORE}%** |" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "No mutation results available" >> $GITHUB_STEP_SUMMARY
-          fi
+      - name: Enforce score floor (unified_api)
+        uses: ./.github/actions/mutation-score-gate
+        with:
+          artifact_dir: mutants-unified-api
+          module_label: 'latticearc::unified_api'
+          floor: ${{ env.MUTATION_SCORE_FLOOR }}
 
       - name: Upload mutation results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -169,11 +250,11 @@ jobs:
             mutation-unified-api.log
           retention-days: 30
 
-  # Mutation testing for hybrid module (hybrid encryption + signatures)
   mutate-hybrid:
     name: Mutate hybrid module
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -190,43 +271,27 @@ jobs:
             target
           key: ${{ runner.os }}-mutation-hybrid-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install cargo-mutants
-        run: cargo install cargo-mutants
+      - name: Install cargo-mutants (prebuilt)
+        uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616 # main
+        with:
+          tool: cargo-mutants
 
       - name: Run mutation testing on hybrid module
         run: |
+          set -o pipefail
           cargo mutants -p latticearc \
             --file "latticearc/src/hybrid/**/*.rs" \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-hybrid \
             2>&1 | tee mutation-hybrid.log
-        continue-on-error: true
 
-      - name: Generate mutation report
-        if: always()
-        run: |
-          echo "## Mutation Testing: latticearc::hybrid" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ -f "mutants-hybrid/outcomes.json" ]; then
-            CAUGHT=$(jq '[.outcomes[] | select(.outcome == "Caught")] | length' mutants-hybrid/outcomes.json 2>/dev/null || echo "0")
-            MISSED=$(jq '[.outcomes[] | select(.outcome == "Missed")] | length' mutants-hybrid/outcomes.json 2>/dev/null || echo "0")
-            TIMEOUT=$(jq '[.outcomes[] | select(.outcome == "Timeout")] | length' mutants-hybrid/outcomes.json 2>/dev/null || echo "0")
-            TOTAL=$((CAUGHT + MISSED + TIMEOUT))
-
-            if [ "$TOTAL" -gt 0 ]; then
-              SCORE=$(echo "scale=1; $CAUGHT * 100 / $TOTAL" | bc)
-              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
-              echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-              echo "| Mutants Caught | $CAUGHT |" >> $GITHUB_STEP_SUMMARY
-              echo "| Mutants Missed | $MISSED |" >> $GITHUB_STEP_SUMMARY
-              echo "| Timeouts | $TIMEOUT |" >> $GITHUB_STEP_SUMMARY
-              echo "| **Mutation Score** | **${SCORE}%** |" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "No mutation results available" >> $GITHUB_STEP_SUMMARY
-          fi
+      - name: Enforce score floor (hybrid)
+        uses: ./.github/actions/mutation-score-gate
+        with:
+          artifact_dir: mutants-hybrid
+          module_label: 'latticearc::hybrid'
+          floor: ${{ env.MUTATION_SCORE_FLOOR }}
 
       - name: Upload mutation results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -238,33 +303,20 @@ jobs:
             mutation-hybrid.log
           retention-days: 30
 
-  # Summary job
   mutation-summary:
     name: Mutation Summary
     runs-on: ubuntu-latest
     needs: [mutate-primitives, mutate-unified-api, mutate-hybrid]
-    if: always()
+    if: always() && github.event_name != 'pull_request'
     steps:
       - name: Generate summary
         run: |
           echo "# Mutation Testing Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Mutation testing validates test suite effectiveness by:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Introducing small bugs (mutants) into the code" >> $GITHUB_STEP_SUMMARY
-          echo "2. Running tests to see if they catch the bugs" >> $GITHUB_STEP_SUMMARY
-          echo "3. Computing a mutation score (% of mutants caught)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Results by Module" >> $GITHUB_STEP_SUMMARY
+          echo "Score floor: ${MUTATION_SCORE_FLOOR}% (enforced per module)." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| latticearc::primitives | ${{ needs.mutate-primitives.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| latticearc::unified_api | ${{ needs.mutate-unified-api.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| latticearc::hybrid | ${{ needs.mutate-hybrid.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Target" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Goal**: >70% mutation score for critical crypto code" >> $GITHUB_STEP_SUMMARY
-          echo "- **Interpretation**: Higher scores mean better test coverage" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Missed mutants indicate areas where tests could be improved." >> $GITHUB_STEP_SUMMARY
