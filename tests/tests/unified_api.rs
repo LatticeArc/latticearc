@@ -5,7 +5,6 @@
 
 // Originally: unified_api_comprehensive.rs
 mod comprehensive {
-    #![allow(deprecated)]
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
@@ -42,10 +41,11 @@ mod comprehensive {
         let key = [0x42u8; 32];
         let data = b"test data for unified API";
 
-        // Even with Quantum security level and GovernmentClassified use case,
+        // Even with Maximum+PqOnly security level and GovernmentClassified use case,
         // the unified API correctly uses AES-256-GCM (symmetric key path).
         let config = CryptoConfig::new()
-            .security_level(SecurityLevel::Quantum)
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(latticearc::CryptoMode::PqOnly)
             .use_case(UseCase::GovernmentClassified);
         // Override auto-FIPS when feature not available (test verifies AES-GCM selection, not FIPS)
         let config =
@@ -107,19 +107,20 @@ mod comprehensive {
         assert!(valid, "Signature from hybrid keygen should verify");
     }
 
-    /// Quantum-level signing selects PQ-only ML-DSA-87 (no Ed25519 hybrid).
+    /// Maximum + PqOnly signing selects PQ-only ML-DSA-87 (no Ed25519 hybrid).
     ///
     /// Uses the `fips204` crate for ML-DSA. This crate is not FIPS-validated
     /// (unlike aws-lc-rs). Excluded to flag as a known migration point.
     #[test]
     #[ignore = "ML-DSA uses fips204 crate which is not FIPS-validated"]
-    fn test_sign_verify_quantum_level_pq_only_succeeds() {
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-        let (pk, sk, scheme) = generate_signing_keypair(config).expect("keygen");
+    fn test_sign_verify_pq_only_maximum_level_succeeds() {
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(latticearc::CryptoMode::PqOnly);
+        let (pk, sk, scheme) = generate_signing_keypair(config.clone()).expect("keygen");
         assert_eq!(scheme, "pq-ml-dsa-87");
 
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-        let signed = sign_with_key(b"quantum test", &sk, &pk, config).expect("sign");
+        let signed = sign_with_key(b"pq-only test", &sk, &pk, config).expect("sign");
         let valid = verify(&signed, CryptoConfig::new()).expect("verify");
         assert!(valid, "PQ-only ML-DSA-87 signature should verify");
     }
@@ -252,16 +253,11 @@ mod comprehensive {
     // ============================================================================
 
     #[test]
-    fn test_symmetric_encrypt_decrypt_across_all_4_security_levels_roundtrip() {
+    fn test_symmetric_encrypt_decrypt_across_all_security_levels_roundtrip() {
         let key = [0x55u8; 32];
         let plaintext = b"Unified API roundtrip for every SecurityLevel";
 
-        let levels = [
-            SecurityLevel::Standard,
-            SecurityLevel::High,
-            SecurityLevel::Maximum,
-            SecurityLevel::Quantum,
-        ];
+        let levels = [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
 
         for level in &levels {
             let config = CryptoConfig::new().security_level(*level);
@@ -860,30 +856,34 @@ mod coverage {
     }
 
     // ============================================================
-    // PQ-only (Quantum) security level
+    // PQ-only (Maximum + PqOnly) security level
     // ============================================================
 
     #[test]
-    fn test_sign_verify_quantum_security_succeeds() {
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+    fn test_sign_verify_pq_only_maximum_succeeds() {
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(latticearc::CryptoMode::PqOnly);
         let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
         assert!(
             scheme.contains("ml-dsa") || scheme.contains("pq-ml-dsa"),
-            "Quantum should use pure ML-DSA, got: {}",
+            "PQ-only Maximum should use pure ML-DSA, got: {}",
             scheme
         );
 
-        let message = b"Quantum security sign test";
+        let message = b"PQ-only Maximum security sign test";
         let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
         let valid = verify(&signed, config).unwrap();
-        assert!(valid, "Quantum scheme {} should verify", scheme);
+        assert!(valid, "PQ-only scheme {} should verify", scheme);
     }
 
     #[test]
-    fn test_encrypt_security_level_quantum_succeeds() {
+    fn test_encrypt_security_level_pq_only_maximum_succeeds() {
         let key = vec![0x42u8; 32];
-        let data = b"Quantum security level encryption";
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+        let data = b"PQ-only Maximum security level encryption";
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(latticearc::CryptoMode::PqOnly);
 
         let encrypted = encrypt(
             data.as_ref(),
@@ -1074,14 +1074,14 @@ mod coverage {
 
     #[test]
     fn test_verify_pq_ml_dsa_44_scheme_succeeds() {
-        // Generate Quantum-level keys (pure ML-DSA, not hybrid)
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Standard)
+            .crypto_mode(latticearc::CryptoMode::PqOnly);
         let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
         let message = b"PQ-only ML-DSA-44 verification test";
         let mut signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
 
-        // Manually change scheme to pq-ml-dsa variant to hit that branch in verify
         if signed.scheme.contains("ml-dsa-44") || signed.scheme.contains("pq-ml-dsa-44") {
             signed.scheme = "pq-ml-dsa-44".to_string();
             let result = verify(&signed, config);
@@ -1094,7 +1094,9 @@ mod coverage {
 
     #[test]
     fn test_verify_pq_ml_dsa_65_scheme_succeeds() {
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::High)
+            .crypto_mode(latticearc::CryptoMode::PqOnly);
         let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();
 
         let message = b"PQ-only ML-DSA-65 verification test";
@@ -1112,15 +1114,14 @@ mod coverage {
 
     #[test]
     fn test_verify_pq_ml_dsa_87_scheme_succeeds() {
-        // Note: In 0.6.0, SecurityLevel::Quantum resolves to Maximum, which selects
-        // hybrid-ml-dsa-87-ed25519 for signing. CryptoMode only affects encryption
-        // routing, not signing. This test verifies the resolved hybrid scheme works.
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(latticearc::CryptoMode::PqOnly);
         let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
         assert!(
             scheme.contains("ml-dsa-87"),
-            "Quantum (→Maximum) should select ml-dsa-87 variant, got: {scheme}"
+            "Maximum+PqOnly should select ml-dsa-87 variant, got: {scheme}"
         );
 
         let message = b"ML-DSA-87 verification test";
@@ -1130,21 +1131,19 @@ mod coverage {
     }
 
     // ============================================================
-    // Sign with ml-dsa-87 variant via Quantum SecurityLevel
+    // Sign with ml-dsa-87 variant via Maximum + PqOnly
     // ============================================================
 
     #[test]
     fn test_sign_with_key_pq_ml_dsa_scheme_succeeds() {
-        // Note: In 0.6.0, Quantum resolves to Maximum, which selects ml-dsa-87.
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+        let config = CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(latticearc::CryptoMode::PqOnly);
         let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
-        assert!(
-            scheme.contains("ml-dsa-87"),
-            "Quantum (→Maximum) should use ML-DSA-87, got: {scheme}"
-        );
+        assert!(scheme.contains("ml-dsa-87"), "Maximum+PqOnly should use ML-DSA-87, got: {scheme}");
 
-        let message = b"Quantum security level signing";
+        let message = b"PQ-only Maximum security level signing";
         let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
         let valid = verify(&signed, config).unwrap();
         assert!(valid, "Scheme {scheme} should verify correctly");

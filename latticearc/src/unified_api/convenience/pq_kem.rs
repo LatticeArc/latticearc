@@ -33,12 +33,11 @@ use crate::primitives::resource_limits::validate_encryption_size;
 ///
 /// This enables consistency validation between the explicit algorithm parameter
 /// and the config's security level.
-#[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
 fn expected_ml_kem_level(security_level: SecurityLevel) -> MlKemSecurityLevel {
     match security_level {
         SecurityLevel::Standard => MlKemSecurityLevel::MlKem512,
         SecurityLevel::High => MlKemSecurityLevel::MlKem768,
-        SecurityLevel::Maximum | SecurityLevel::Quantum => MlKemSecurityLevel::MlKem1024,
+        SecurityLevel::Maximum => MlKemSecurityLevel::MlKem1024,
     }
 }
 

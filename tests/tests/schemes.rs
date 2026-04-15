@@ -201,10 +201,7 @@ mod contract {
     // ============================================================================
 
     #[test]
-    fn test_all_4_security_levels_select_correct_scheme_succeeds() {
-        // Note: In 0.6.0, SecurityLevel::Quantum auto-resolves to (Maximum, PqOnly),
-        // which routes to PqMlKem1024Aes256Gcm — tested separately in PQ-only tests.
-        // This test covers the 3 hybrid security levels.
+    fn test_all_security_levels_select_correct_scheme_succeeds() {
         let data = b"Contract test: SecurityLevel -> Scheme selection";
 
         let cases: Vec<(SecurityLevel, EncryptionScheme)> = vec![

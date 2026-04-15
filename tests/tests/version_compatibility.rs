@@ -1,34 +1,8 @@
-//! Comprehensive version compatibility and serialization stability tests for arc-core.
+//! Version compatibility and serialization stability tests.
 //!
-//! This test suite validates that cryptographic data formats remain stable across versions,
-//! ensuring backward and forward compatibility for serialized keys, signatures, and ciphertexts.
-//!
-//! ## Test Categories
-//!
-//! 1. **Serialization Format Stability** (15+ tests)
-//!    - Key serialization/deserialization roundtrips
-//!    - Signature format stability
-//!    - Ciphertext format consistency
-//!    - Wire format compatibility
-//!
-//! 2. **Cross-Version Compatibility** (10+ tests)
-//!    - Key material interoperability
-//!    - Signature verification across formats
-//!    - Encrypted data decryption after updates
-//!
-//! 3. **Migration Tests** (10+ tests)
-//!    - Key format upgrade paths
-//!    - Graceful handling of legacy formats
-//!    - Version detection in serialized data
-//!
-//! 4. **Semantic Versioning Tests** (10+ tests)
-//!    - Patch version API stability
-//!    - Minor version feature additions
-//!    - Major version boundary detection
-//!
-//! ## Coverage Target
-//!
-//! Target: 45+ comprehensive tests for version compatibility validation.
+//! Validates that cryptographic data formats remain stable across versions for
+//! signed data and key pairs (signature format, key serialization roundtrips,
+//! API surface stability for `EncryptedData`).
 
 #![deny(unsafe_code)]
 #![allow(
@@ -56,42 +30,21 @@
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications,
-    deprecated
+    unused_qualifications
 )]
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_ENGINE};
 use latticearc::unified_api::error::{CoreError, Result};
 use latticearc::unified_api::serialization::{
-    SerializableEncryptedData, SerializableEncryptedMetadata, SerializableKeyPair,
-    SerializableSignedData, SerializableSignedMetadata, deserialize_encrypted_data,
-    deserialize_keypair, deserialize_signed_data, serialize_encrypted_data, serialize_keypair,
-    serialize_signed_data,
+    deserialize_keypair, deserialize_signed_data, serialize_keypair, serialize_signed_data,
 };
 use latticearc::unified_api::types::{
-    EncryptedData, EncryptedMetadata, KeyPair, PrivateKey, SignedData, SignedMetadata,
+    EncryptedData, KeyPair, PrivateKey, SignedData, SignedMetadata,
 };
 
 // ============================================================================
 // Test Helper Functions
 // ============================================================================
-
-/// Creates test encrypted data with specified scheme and timestamp.
-fn create_encrypted_data(
-    data: Vec<u8>,
-    nonce: Vec<u8>,
-    tag: Option<Vec<u8>>,
-    key_id: Option<String>,
-    scheme: &str,
-    timestamp: u64,
-) -> EncryptedData {
-    EncryptedData {
-        data,
-        metadata: EncryptedMetadata { nonce, tag, key_id },
-        scheme: scheme.to_string(),
-        timestamp,
-    }
-}
 
 /// Creates test signed data with specified algorithm and scheme.
 fn create_signed_data(
@@ -208,62 +161,6 @@ fn test_serialized_signature_format_stability_is_compatible_has_correct_size() -
 }
 
 #[test]
-fn test_serialized_ciphertext_format_consistency_is_compatible_has_correct_size() -> Result<()> {
-    // Ciphertext format must remain consistent for decryption
-    let ciphertext = vec![0xAB; 256];
-    let nonce = vec![0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44];
-    let tag = vec![0xFF; 16];
-
-    let encrypted = create_encrypted_data(
-        ciphertext.clone(),
-        nonce.clone(),
-        Some(tag.clone()),
-        Some("key-001".to_string()),
-        "AES-256-GCM",
-        1706745600,
-    );
-
-    let json = serialize_encrypted_data(&encrypted)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(deserialized.data, ciphertext, "Ciphertext must match exactly");
-    assert_eq!(deserialized.metadata.nonce, nonce, "Nonce must match");
-    assert_eq!(deserialized.metadata.tag, Some(tag), "Tag must match");
-    assert_eq!(deserialized.scheme, "AES-256-GCM");
-    Ok(())
-}
-
-#[test]
-fn test_wire_format_json_field_order_independence_is_compatible_has_correct_size() -> Result<()> {
-    // JSON field order should not affect deserialization
-    let json_ordered = r#"{
-        "data": "AQID",
-        "metadata": {"nonce": "AQIDBA==", "tag": null, "key_id": null},
-        "scheme": "AES-256-GCM",
-        "timestamp": 1706745600
-    }"#;
-
-    let json_reordered = r#"{
-        "timestamp": 1706745600,
-        "scheme": "AES-256-GCM",
-        "data": "AQID",
-        "metadata": {"key_id": null, "tag": null, "nonce": "AQIDBA=="}
-    }"#;
-
-    let result1 = deserialize_encrypted_data(json_ordered)?;
-    let result2 = deserialize_encrypted_data(json_reordered)?;
-
-    assert_eq!(result1.data, result2.data, "Field order should not affect data");
-    assert_eq!(
-        result1.metadata.nonce, result2.metadata.nonce,
-        "Field order should not affect nonce"
-    );
-    assert_eq!(result1.scheme, result2.scheme, "Field order should not affect scheme");
-    assert_eq!(result1.timestamp, result2.timestamp, "Field order should not affect timestamp");
-    Ok(())
-}
-
-#[test]
 fn test_base64_encoding_stability_is_compatible_succeeds() -> Result<()> {
     // Base64 encoding must be deterministic
     let data = vec![0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0];
@@ -273,20 +170,6 @@ fn test_base64_encoding_stability_is_compatible_succeeds() -> Result<()> {
     let json = serialize_keypair(&keypair)?;
 
     assert!(json.contains(&expected_base64), "Base64 encoding must produce consistent output");
-    Ok(())
-}
-
-#[test]
-fn test_timestamp_precision_preserved_is_compatible_succeeds() -> Result<()> {
-    // Timestamps must preserve full u64 precision
-    let timestamps = [0u64, 1, 1_000_000, u64::MAX / 2, u64::MAX - 1, u64::MAX];
-
-    for &ts in &timestamps {
-        let encrypted = create_encrypted_data(vec![0x01], vec![0; 12], None, None, "TEST", ts);
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deserialized = deserialize_encrypted_data(&json)?;
-        assert_eq!(deserialized.timestamp, ts, "Timestamp {} must be preserved", ts);
-    }
     Ok(())
 }
 
@@ -388,82 +271,6 @@ fn test_hybrid_scheme_format_stability_is_compatible_has_correct_size() -> Resul
     Ok(())
 }
 
-#[test]
-fn test_optional_fields_serialization_stability_is_compatible_succeeds() -> Result<()> {
-    // Test with and without optional fields
-    let encrypted_with_all = create_encrypted_data(
-        vec![0x01],
-        vec![0; 12],
-        Some(vec![0xFF; 16]),
-        Some("key-id-123".to_string()),
-        "AES-256-GCM",
-        1706745600,
-    );
-
-    let encrypted_minimal =
-        create_encrypted_data(vec![0x01], vec![0; 12], None, None, "AES-256-GCM", 1706745600);
-
-    let json_full = serialize_encrypted_data(&encrypted_with_all)?;
-    let json_minimal = serialize_encrypted_data(&encrypted_minimal)?;
-
-    let deser_full = deserialize_encrypted_data(&json_full)?;
-    let deser_minimal = deserialize_encrypted_data(&json_minimal)?;
-
-    assert!(deser_full.metadata.tag.is_some(), "Tag should be preserved");
-    assert!(deser_full.metadata.key_id.is_some(), "Key ID should be preserved");
-    assert!(deser_minimal.metadata.tag.is_none(), "Missing tag should remain None");
-    assert!(deser_minimal.metadata.key_id.is_none(), "Missing key_id should remain None");
-    Ok(())
-}
-
-#[test]
-fn test_utf8_scheme_names_stability_is_compatible_succeeds() -> Result<()> {
-    // Scheme names with special characters must be preserved
-    let schemes =
-        ["AES-256-GCM", "ChaCha20-Poly1305", "ML-KEM-768+AES-256-GCM", "hybrid-ml-dsa-65-ed25519"];
-
-    for scheme in &schemes {
-        let encrypted =
-            create_encrypted_data(vec![0x01], vec![0; 12], None, None, scheme, 1706745600);
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deser = deserialize_encrypted_data(&json)?;
-        assert_eq!(&deser.scheme, *scheme, "Scheme name '{}' must be preserved", scheme);
-    }
-    Ok(())
-}
-
-#[test]
-fn test_empty_data_serialization_stability_is_compatible_succeeds() -> Result<()> {
-    // Empty data must serialize correctly
-    let encrypted = create_encrypted_data(vec![], vec![0; 12], None, None, "TEST", 0);
-    let json = serialize_encrypted_data(&encrypted)?;
-    let deser = deserialize_encrypted_data(&json)?;
-
-    assert!(deser.data.is_empty(), "Empty data must remain empty after roundtrip");
-    Ok(())
-}
-
-#[test]
-fn test_binary_edge_values_in_data_is_compatible_succeeds() -> Result<()> {
-    // Test all edge byte values: 0x00, 0x7F, 0x80, 0xFF
-    let edge_bytes = vec![0x00, 0x7F, 0x80, 0xFF, 0x01, 0xFE];
-    let encrypted = create_encrypted_data(
-        edge_bytes.clone(),
-        vec![0; 12],
-        Some(edge_bytes.clone()),
-        None,
-        "TEST",
-        0,
-    );
-
-    let json = serialize_encrypted_data(&encrypted)?;
-    let deser = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(deser.data, edge_bytes, "Edge byte values must be preserved");
-    assert_eq!(deser.metadata.tag, Some(edge_bytes), "Edge bytes in tag must be preserved");
-    Ok(())
-}
-
 // ============================================================================
 // SECTION 2: Cross-Version Compatibility (10+ tests)
 // ============================================================================
@@ -509,29 +316,6 @@ fn test_legacy_signature_format_verification_is_compatible_has_correct_size() ->
 }
 
 #[test]
-fn test_encrypted_data_from_older_version_is_compatible_succeeds() -> Result<()> {
-    // Simulate encrypted data from an older version
-    let old_encrypted_json = r#"{
-        "data": "cXVpY2sgYnJvd24gZm94",
-        "metadata": {
-            "nonce": "MTIzNDU2Nzg5MDEy",
-            "tag": "dGFnMTIzNDU2Nzg5MDEyMzQ1Ng==",
-            "key_id": "old-key-001"
-        },
-        "scheme": "AES-256-GCM",
-        "timestamp": 1500000000
-    }"#;
-
-    let encrypted = deserialize_encrypted_data(old_encrypted_json)?;
-
-    // Verify compatibility
-    assert_eq!(encrypted.data, b"quick brown fox");
-    assert_eq!(encrypted.scheme, "AES-256-GCM");
-    assert_eq!(encrypted.metadata.key_id, Some("old-key-001".to_string()));
-    Ok(())
-}
-
-#[test]
 fn test_ml_kem_512_key_upgrade_path_is_compatible_succeeds() -> Result<()> {
     // ML-KEM-512 keys should work in system supporting higher levels
     let ml_kem_512_pk = vec![0x42u8; 800]; // ML-KEM-512 public key size
@@ -572,81 +356,6 @@ fn test_cross_version_signature_verification_metadata_is_compatible_succeeds() -
 
     assert_eq!(deser1.data, deser2.data, "Data must be stable across re-serialization");
     assert_eq!(deser1.metadata.signature, deser2.metadata.signature, "Signature must be stable");
-    Ok(())
-}
-
-#[test]
-fn test_unknown_scheme_graceful_handling_succeeds() -> Result<()> {
-    // Unknown schemes should deserialize but be identifiable
-    let future_scheme_json = r#"{
-        "data": "ZnV0dXJlX2RhdGE=",
-        "metadata": {
-            "nonce": "AAAAAAAAAAAAAAAA",
-            "tag": null,
-            "key_id": null
-        },
-        "scheme": "FUTURE-SCHEME-2030",
-        "timestamp": 2000000000
-    }"#;
-
-    let encrypted = deserialize_encrypted_data(future_scheme_json)?;
-
-    // Unknown scheme should be preserved for potential future handling
-    assert_eq!(encrypted.scheme, "FUTURE-SCHEME-2030");
-    assert_eq!(encrypted.data, b"future_data");
-    Ok(())
-}
-
-#[test]
-fn test_mixed_version_key_ids_is_compatible_succeeds() -> Result<()> {
-    // Key IDs may have different formats across versions
-    let key_id_formats = [
-        "simple-key-001",
-        "uuid:550e8400-e29b-41d4-a716-446655440000",
-        "urn:key:latticearc:ml-kem-768:12345",
-        "path/to/key.pem",
-    ];
-
-    for key_id in &key_id_formats {
-        let encrypted = create_encrypted_data(
-            vec![0x01],
-            vec![0; 12],
-            None,
-            Some(key_id.to_string()),
-            "AES-256-GCM",
-            1706745600,
-        );
-
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deser = deserialize_encrypted_data(&json)?;
-
-        assert_eq!(
-            deser.metadata.key_id,
-            Some(key_id.to_string()),
-            "Key ID format '{}' must be preserved",
-            key_id
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn test_timestamp_epoch_compatibility_is_compatible_succeeds() -> Result<()> {
-    // Different epoch interpretations should work
-    let timestamps_and_meanings = [
-        (0u64, "Unix epoch"),
-        (1706745600, "2024-02-01 00:00:00 UTC"),
-        (4102444800, "Year 2100"),
-        (u64::MAX, "Maximum u64"),
-    ];
-
-    for (ts, desc) in &timestamps_and_meanings {
-        let encrypted = create_encrypted_data(vec![0x01], vec![0; 12], None, None, "TEST", *ts);
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deser = deserialize_encrypted_data(&json)?;
-
-        assert_eq!(deser.timestamp, *ts, "Timestamp for '{}' must be preserved", desc);
-    }
     Ok(())
 }
 
@@ -727,31 +436,6 @@ fn test_versioned_data_detection_succeeds() -> Result<()> {
 }
 
 #[test]
-fn test_graceful_extra_field_handling_is_compatible_succeeds() -> Result<()> {
-    // Future versions may add fields; current version should ignore them
-    let json_with_extra_fields = r#"{
-        "data": "dGVzdA==",
-        "metadata": {
-            "nonce": "AAAAAAAAAAAAAAAA",
-            "tag": null,
-            "key_id": null,
-            "future_field": "ignored",
-            "another_field": 12345
-        },
-        "scheme": "AES-256-GCM",
-        "timestamp": 1706745600,
-        "extra_root": {"nested": "value"}
-    }"#;
-
-    let encrypted = deserialize_encrypted_data(json_with_extra_fields)?;
-
-    // Core fields should be correctly parsed
-    assert_eq!(encrypted.data, b"test");
-    assert_eq!(encrypted.scheme, "AES-256-GCM");
-    Ok(())
-}
-
-#[test]
 fn test_key_format_migration_from_raw_to_structured_succeeds() -> Result<()> {
     // Migration from raw bytes to structured format
     let raw_key_data = vec![0x42u8; 32];
@@ -804,62 +488,6 @@ fn test_signature_format_migration_succeeds() -> Result<()> {
 }
 
 #[test]
-fn test_encrypted_data_nonce_size_variations_is_compatible_has_correct_size() -> Result<()> {
-    // Different algorithms may have different nonce sizes
-    let nonce_sizes = [
-        (12, "AES-256-GCM"),        // Standard 96-bit nonce
-        (24, "XChaCha20-Poly1305"), // Extended nonce
-        (16, "AES-256-CBC"),        // 128-bit IV
-    ];
-
-    for (size, scheme) in &nonce_sizes {
-        let encrypted =
-            create_encrypted_data(vec![0x01], vec![0x42; *size], None, None, scheme, 1706745600);
-
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deser = deserialize_encrypted_data(&json)?;
-
-        assert_eq!(
-            deser.metadata.nonce.len(),
-            *size,
-            "{} nonce size {} must be preserved",
-            scheme,
-            size
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn test_tag_size_migration_is_compatible_has_correct_size() -> Result<()> {
-    // Different tag sizes for different AEAD modes
-    let tag_sizes = [
-        (16, "AES-256-GCM"),        // 128-bit tag
-        (16, "ChaCha20-Poly1305"),  // 128-bit tag
-        (12, "AES-256-GCM-SIV-96"), // Hypothetical 96-bit tag
-    ];
-
-    for (size, scheme) in &tag_sizes {
-        let encrypted = create_encrypted_data(
-            vec![0x01],
-            vec![0; 12],
-            Some(vec![0xFF; *size]),
-            None,
-            scheme,
-            1706745600,
-        );
-
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deser = deserialize_encrypted_data(&json)?;
-
-        if let Some(tag) = &deser.metadata.tag {
-            assert_eq!(tag.len(), *size, "{} tag size {} must be preserved", scheme, size);
-        }
-    }
-    Ok(())
-}
-
-#[test]
 fn test_algorithm_deprecation_awareness_is_compatible_succeeds() -> Result<()> {
     // Deprecated algorithms should still deserialize for migration
     let deprecated_algorithms = [("RSA-2048", "RSA"), ("ECDSA-P256", "ECDSA"), ("DSA-1024", "DSA")];
@@ -881,65 +509,6 @@ fn test_algorithm_deprecation_awareness_is_compatible_succeeds() -> Result<()> {
             deser.metadata.signature_algorithm, *alg,
             "Deprecated algorithm '{}' must be preserved for migration",
             alg
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn test_key_id_format_migration_is_compatible_has_correct_size() -> Result<()> {
-    // Key ID formats may evolve
-    let key_id_evolutions = [
-        ("v1:key-001", "V1 simple format"),
-        ("v2:urn:key:12345", "V2 URN format"),
-        ("v3:did:key:z6MkhaXgBZ", "V3 DID format"),
-    ];
-
-    for (key_id, description) in &key_id_evolutions {
-        let encrypted = create_encrypted_data(
-            vec![0x01],
-            vec![0; 12],
-            None,
-            Some(key_id.to_string()),
-            "AES-256-GCM",
-            1706745600,
-        );
-
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deser = deserialize_encrypted_data(&json)?;
-
-        assert_eq!(
-            deser.metadata.key_id,
-            Some(key_id.to_string()),
-            "{} format must be preserved",
-            description
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn test_round_trip_preserves_unknown_schemes_succeeds() -> Result<()> {
-    // Unknown schemes from future versions should be preserved
-    let unknown_schemes = ["NTRU-HRSS-701", "BIKE-L1", "SIKE-p434", "SPHINCS+-128s"];
-
-    for scheme in &unknown_schemes {
-        let encrypted = create_encrypted_data(
-            vec![0x01, 0x02, 0x03],
-            vec![0; 12],
-            Some(vec![0xFF; 16]),
-            None,
-            scheme,
-            1706745600,
-        );
-
-        let json = serialize_encrypted_data(&encrypted)?;
-        let deser = deserialize_encrypted_data(&json)?;
-
-        assert_eq!(
-            &deser.scheme, *scheme,
-            "Unknown scheme '{}' must be preserved for future migration",
-            scheme
         );
     }
     Ok(())
@@ -1015,7 +584,6 @@ fn test_security_level_enum_values_stable_is_compatible_succeeds() {
     let _standard = SecurityLevel::Standard;
     let _high = SecurityLevel::High;
     let _maximum = SecurityLevel::Maximum;
-    let _quantum = SecurityLevel::Quantum;
 
     // Default should be defined
     let default = SecurityLevel::default();
@@ -1032,48 +600,6 @@ fn test_crypto_config_builder_api_stable_is_compatible_succeeds() {
     let _config_with_use_case = CryptoConfig::new().use_case(UseCase::FileStorage);
 
     // This test passes if it compiles
-}
-
-#[test]
-fn test_serializable_types_public_is_compatible_succeeds() {
-    // Serializable wrapper types should be publicly available
-    let _: SerializableEncryptedData;
-    let _: SerializableEncryptedMetadata;
-    let _: SerializableSignedData;
-    let _: SerializableSignedMetadata;
-    let _: SerializableKeyPair;
-
-    // This test passes if it compiles
-}
-
-#[test]
-fn test_serialize_functions_signatures_stable_is_compatible_succeeds() -> Result<()> {
-    // Function signatures should be stable
-    let keypair = create_keypair(vec![1, 2, 3], vec![4, 5, 6]);
-    let _: Result<String> = serialize_keypair(&keypair);
-
-    let encrypted = create_encrypted_data(vec![1], vec![0; 12], None, None, "TEST", 0);
-    let _: Result<String> = serialize_encrypted_data(&encrypted);
-
-    let signed = create_signed_data(vec![1], vec![0; 64], vec![0; 32], "Ed25519", "Ed25519", 0);
-    let _: Result<String> = serialize_signed_data(&signed);
-
-    Ok(())
-}
-
-#[test]
-fn test_deserialize_functions_signatures_stable_is_compatible_succeeds() -> Result<()> {
-    // Deserialize function signatures should be stable
-    let json = r#"{"public_key": "AQID", "private_key": "BAUG"}"#;
-    let _: Result<KeyPair> = deserialize_keypair(json);
-
-    let encrypted_json = r#"{"data": "AQ==", "metadata": {"nonce": "AAAAAAAAAAAAAAAA", "tag": null, "key_id": null}, "scheme": "TEST", "timestamp": 0}"#;
-    let _: Result<EncryptedData> = deserialize_encrypted_data(encrypted_json);
-
-    let signed_json = r#"{"data": "AQ==", "metadata": {"signature": "AA==", "signature_algorithm": "Ed25519", "public_key": "AA==", "key_id": null}, "scheme": "Ed25519", "timestamp": 0}"#;
-    let _: Result<SignedData> = deserialize_signed_data(signed_json);
-
-    Ok(())
 }
 
 #[test]
@@ -1105,28 +631,6 @@ fn test_private_key_zeroize_behavior_succeeds() {
 // ============================================================================
 
 #[test]
-fn test_multiple_roundtrips_preserve_data_succeeds() -> Result<()> {
-    // Multiple serialize/deserialize cycles should preserve data
-    let original = create_encrypted_data(
-        vec![0xAB; 100],
-        vec![0xCD; 12],
-        Some(vec![0xEF; 16]),
-        Some("test-key".to_string()),
-        "AES-256-GCM",
-        1706745600,
-    );
-
-    let mut current = original.clone();
-    for i in 0..10 {
-        let json = serialize_encrypted_data(&current)?;
-        current = deserialize_encrypted_data(&json)?;
-
-        assert_eq!(current.data, original.data, "Data corruption after {} roundtrips", i + 1);
-    }
-    Ok(())
-}
-
-#[test]
 fn test_concurrent_serialization_safety_succeeds() -> Result<()> {
     // Serialization should be safe for concurrent use
     use std::thread;
@@ -1147,27 +651,6 @@ fn test_concurrent_serialization_safety_succeeds() -> Result<()> {
     for handle in handles {
         handle.join().ok();
     }
-    Ok(())
-}
-
-#[test]
-fn test_large_payload_serialization_succeeds() -> Result<()> {
-    // Large payloads should serialize correctly
-    let large_data = vec![0xAB; 1_000_000]; // 1MB
-    let encrypted = create_encrypted_data(
-        large_data.clone(),
-        vec![0; 12],
-        Some(vec![0xFF; 16]),
-        None,
-        "AES-256-GCM",
-        1706745600,
-    );
-
-    let json = serialize_encrypted_data(&encrypted)?;
-    let deser = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(deser.data.len(), 1_000_000, "Large payload size must be preserved");
-    assert_eq!(deser.data, large_data, "Large payload content must match");
     Ok(())
 }
 

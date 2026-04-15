@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 #![deny(unsafe_code)]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -96,10 +95,10 @@ fn test_scheme_selector_select_signature_scheme_maximum_succeeds() {
 }
 
 #[test]
-fn test_scheme_selector_select_signature_scheme_quantum_succeeds() {
+fn test_scheme_selector_select_signature_scheme_maximum_no_usecase_memory_succeeds() {
     let engine = CryptoPolicyEngine::new();
     let ctx = CryptoContext {
-        security_level: SecurityLevel::Quantum,
+        security_level: SecurityLevel::Maximum,
         performance_preference: PerformancePreference::Memory,
         use_case: None,
         hardware_acceleration: false,
@@ -201,12 +200,7 @@ fn test_select_encryption_scheme_with_healthcare_use_case_succeeds() {
 
 #[test]
 fn test_select_signature_scheme_various_levels_succeeds() {
-    let levels = [
-        SecurityLevel::Standard,
-        SecurityLevel::High,
-        SecurityLevel::Maximum,
-        SecurityLevel::Quantum,
-    ];
+    let levels = [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
     for level in &levels {
         let config = CoreConfig {
             security_level: *level,

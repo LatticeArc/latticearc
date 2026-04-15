@@ -162,18 +162,9 @@ impl<'a> CryptoConfig<'a> {
     ///
     /// Use this when your use case doesn't fit predefined options.
     /// This overrides any previously set use case.
-    ///
-    /// If `SecurityLevel::Quantum` (deprecated) is passed, it is resolved
-    /// to `SecurityLevel::Maximum` with `CryptoMode::PqOnly`.
     #[must_use]
-    #[allow(deprecated)]
     pub fn security_level(mut self, level: SecurityLevel) -> Self {
-        let (resolved_level, resolved_mode) = level.resolve();
-        self.selection = AlgorithmSelection::SecurityLevel(resolved_level);
-        // Only auto-set PqOnly if the deprecated Quantum variant triggered it
-        if resolved_mode == CryptoMode::PqOnly {
-            self.crypto_mode = CryptoMode::PqOnly;
-        }
+        self.selection = AlgorithmSelection::SecurityLevel(level);
         self
     }
 
@@ -559,17 +550,6 @@ mod tests {
             let err_msg = format!("{}", result.unwrap_err());
             assert!(err_msg.contains("fips"));
         }
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn test_security_level_quantum_auto_sets_pq_only() {
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-        assert_eq!(config.get_crypto_mode(), CryptoMode::PqOnly);
-        assert_eq!(
-            *config.get_selection(),
-            AlgorithmSelection::SecurityLevel(SecurityLevel::Maximum)
-        );
     }
 
     #[cfg(not(feature = "fips"))]

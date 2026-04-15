@@ -284,10 +284,6 @@ flowchart LR
 | 4 | SHA-384 collision | `SecurityLevel::High` |
 | 5 | AES-256 key recovery | `SecurityLevel::Maximum` (use `CryptoMode::PqOnly` for PQ-only mode) |
 
-> **Note (v0.6.0):** `SecurityLevel::Quantum` is deprecated and was previously an alias for
-> `SecurityLevel::Maximum` in PQ-only mode. Use `SecurityLevel::Maximum` with `CryptoMode::PqOnly`
-> instead. `SecurityLevel::Quantum` will be removed in a future release.
-
 ### Recommendations
 
 | Use Case | Recommended Level | Algorithms |

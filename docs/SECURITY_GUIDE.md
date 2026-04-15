@@ -338,10 +338,6 @@ flowchart LR
 | `Maximum` | ML-KEM-1024, ML-DSA-87 | Hybrid | 5 | Financial, regulated |
 | `Maximum` + `CryptoMode::PqOnly` | ML-KEM-1024, ML-DSA-87 | PQ-only | 5 | Government (CNSA 2.0) |
 
-> **Note (v0.6.0):** `SecurityLevel::Quantum` is deprecated. Use `SecurityLevel::Maximum` with
-> `CryptoMode::PqOnly` to get PQ-only mode. `SecurityLevel::Quantum` will be removed in a future
-> release.
-
 ### Recommendations
 
 | Use Case | Recommended | Why |

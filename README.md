@@ -320,7 +320,6 @@ let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk), CryptoConfig::new()
 | `Standard` | 1 | ML-KEM-512 + X25519 + AES-256-GCM | ML-KEM-512 + AES-256-GCM | ML-DSA-44 + Ed25519 |
 
 > `SecurityLevel` selects the NIST level. `CryptoMode` selects hybrid vs PQ-only (default: `Hybrid`).
-> `SecurityLevel::Quantum` is deprecated since 0.6.0 — use `SecurityLevel::Maximum` + `CryptoMode::PqOnly`.
 
 ### Compliance Modes
 

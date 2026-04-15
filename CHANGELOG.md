@@ -14,6 +14,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped `tokio` 1.50.0 → 1.51.1 (patch).
 - Bumped `rayon` 1.11 → 1.12 (minor).
 
+### Removed (breaking, finishing the v0.7.0 deprecation cleanup, third pass)
+
+- **Removed `SecurityLevel::Quantum`** — deprecated since 0.6.0 with the note
+  "Use SecurityLevel::Maximum with CryptoMode::PqOnly instead". The variant
+  conflated two orthogonal axes (security level and crypto mode); callers should
+  pair `SecurityLevel::Maximum` with `.crypto_mode(CryptoMode::PqOnly)` for
+  identical behavior. `SecurityLevel::resolve()` (which mapped the deprecated
+  variant to the canonical pair) is also removed. The `CryptoConfig::security_level`
+  setter no longer auto-promotes crypto mode; `CryptoMode` is now entirely
+  explicit. The CLI `quantum` string alias is removed from `--security-level`.
+  `select_signature_scheme` now honors `CryptoMode::PqOnly`, so
+  `Maximum + PqOnly` routes signing to `pq-ml-dsa-87` (previously only
+  `SecurityLevel::Quantum` reached that branch).
+
+### Removed (breaking, finishing the v0.7.0 deprecation cleanup, second pass)
+
+- **Removed `latticearc::unified_api::serialization::SerializableEncryptedData`**
+  and its companion `SerializableEncryptedMetadata`. Deprecated since 0.4.0
+  with the note "Use EncryptedOutput instead". The legacy JSON wire format
+  could not represent hybrid PQ encryption (no fields for ML-KEM ciphertext
+  or X25519 ephemeral key), making it structurally unsuitable for this
+  crate's PQ-by-default design. The only remaining callers were tests
+  exercising the deprecated path.
+- **Removed the public functions
+  `latticearc::serialize_encrypted_data` and
+  `latticearc::deserialize_encrypted_data`** (and their re-exports from
+  `latticearc::unified_api::serialization`). Use
+  `serialize_encrypted_output` / `deserialize_encrypted_output` (operating
+  on `EncryptedOutput`) instead. `From<EncryptedOutput> for EncryptedData`
+  and `TryFrom<EncryptedData> for EncryptedOutput` are available for
+  callers that need to convert between the two payload types.
+- **Migrated the 10 MiB defense-in-depth size cap** that previously lived
+  inside `TryFrom<SerializableEncryptedData> for EncryptedData` to the
+  modern `TryFrom<SerializableEncryptedOutput> for EncryptedOutput` so the
+  protection survives the removal. Audit L4 tests were rewritten to
+  exercise the modern path.
+- The `fuzz_encrypted_data_deser` fuzz target was simplified to fuzz only
+  the modern `deserialize_encrypted_output` path; the legacy
+  `deserialize_encrypted_data` arm is gone with the function.
+
 ### Removed (breaking, finishing the v0.7.0 deprecation cleanup)
 
 - **Removed `latticearc::hybrid::encrypt_hybrid::{encrypt, decrypt}`** —

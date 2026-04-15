@@ -313,12 +313,7 @@ fn test_default_features_available_is_compatible_succeeds() {
 #[test]
 fn test_all_security_levels_available_is_compatible_succeeds() {
     // All security levels should be available regardless of features
-    let levels = vec![
-        SecurityLevel::Standard,
-        SecurityLevel::High,
-        SecurityLevel::Maximum,
-        SecurityLevel::Quantum,
-    ];
+    let levels = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
 
     for level in levels {
         // Standard level fails with strict_validation=true (default),
@@ -678,12 +673,7 @@ fn test_config_crypto_config_security_level_override_is_compatible_succeeds() {
 
 #[test]
 fn test_config_security_level_all_combinations_is_compatible_succeeds() {
-    let levels = vec![
-        SecurityLevel::Standard,
-        SecurityLevel::High,
-        SecurityLevel::Maximum,
-        SecurityLevel::Quantum,
-    ];
+    let levels = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
 
     for level in levels {
         let config = CryptoConfig::new().security_level(level.clone());
@@ -695,12 +685,7 @@ fn test_config_security_level_all_combinations_is_compatible_succeeds() {
 fn test_config_policy_engine_all_security_levels_is_compatible_succeeds() {
     let data = b"test data for policy engine";
 
-    for level in [
-        SecurityLevel::Standard,
-        SecurityLevel::High,
-        SecurityLevel::Maximum,
-        SecurityLevel::Quantum,
-    ] {
+    for level in [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum] {
         let config =
             CoreConfig::new().with_security_level(level.clone()).with_hardware_acceleration(true);
 
@@ -708,14 +693,7 @@ fn test_config_policy_engine_all_security_levels_is_compatible_succeeds() {
         assert!(scheme.is_ok(), "Security level {:?} should produce valid scheme", level);
 
         let scheme_str = scheme.expect("scheme");
-        match level {
-            SecurityLevel::Quantum => {
-                assert!(scheme_str.contains("pq-"), "Quantum should use PQ-only scheme");
-            }
-            _ => {
-                assert!(scheme_str.contains("hybrid"), "Non-quantum should use hybrid scheme");
-            }
-        }
+        assert!(scheme_str.contains("hybrid"), "Level {:?} should use hybrid scheme", level);
     }
 }
 

@@ -152,7 +152,6 @@ latticearc-cli keygen --algorithm <ALGORITHM> [--output <DIR>] [--label <TEXT>]
 | `standard` | NIST Level 1 (128-bit equivalent) |
 | `high` | NIST Level 3 (192-bit, **default**) |
 | `maximum` | NIST Level 5 (256-bit) |
-| `quantum` | *Deprecated* — use `maximum` + `--mode pq-only` instead |
 
 **Expert algorithms** (12 available):
 
@@ -447,7 +446,7 @@ the secret key file's metadata, so you only need one file to decrypt.
 |-------|-------------|
 | `version` | Format version (currently `1`) |
 | `use_case` | Use case that selected the algorithm (e.g., `file-storage`, `legal-documents`) |
-| `security_level` | Alternative to use_case: `standard`, `high`, `maximum`, `quantum` |
+| `security_level` | Alternative to use_case: `standard`, `high`, `maximum` |
 | `algorithm` | Auto-derived algorithm (e.g., `hybrid-ml-kem-768-x25519`) |
 | `key_type` | `public`, `secret`, or `symmetric` |
 | `key_data` | Single (`raw`) or composite (`pq` + `classical`) base64-encoded key bytes |

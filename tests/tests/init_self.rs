@@ -139,14 +139,6 @@ fn test_init_with_standard_security_config_succeeds() {
     assert!(result.is_ok());
 }
 
-#[test]
-fn test_init_with_quantum_security_config_succeeds() {
-    let config =
-        CoreConfig::default().with_security_level(latticearc::unified_api::SecurityLevel::Quantum);
-    let result = latticearc::unified_api::init_with_config(&config);
-    assert!(result.is_ok());
-}
-
 // ==========================================================================
 // Re-export verification (ensures lib.rs pub use statements are exercised)
 // ==========================================================================
@@ -165,7 +157,6 @@ fn test_security_level_reexport_succeeds() {
     let _standard = latticearc::unified_api::SecurityLevel::Standard;
     let _high = latticearc::unified_api::SecurityLevel::High;
     let _maximum = latticearc::unified_api::SecurityLevel::Maximum;
-    let _quantum = latticearc::unified_api::SecurityLevel::Quantum;
 }
 
 #[test]

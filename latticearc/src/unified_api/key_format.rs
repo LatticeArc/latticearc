@@ -713,14 +713,12 @@ fn resolve_use_case_algorithm(use_case: crate::types::types::UseCase) -> KeyAlgo
 
 /// Resolve a `SecurityLevel` to a `KeyAlgorithm` for encryption keys.
 #[must_use]
-#[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
 fn resolve_security_level_algorithm(level: crate::types::types::SecurityLevel) -> KeyAlgorithm {
     use crate::types::types::SecurityLevel;
     match level {
         SecurityLevel::Standard => KeyAlgorithm::HybridMlKem512X25519,
         SecurityLevel::High => KeyAlgorithm::HybridMlKem768X25519,
         SecurityLevel::Maximum => KeyAlgorithm::HybridMlKem1024X25519,
-        SecurityLevel::Quantum => KeyAlgorithm::MlKem1024,
     }
 }
 
@@ -3144,19 +3142,6 @@ mod tests {
     }
 
     #[test]
-    fn test_for_security_level_quantum_is_correct() {
-        use crate::types::types::SecurityLevel;
-        let key = PortableKey::for_security_level(
-            SecurityLevel::Quantum,
-            KeyType::Public,
-            KeyData::from_raw(&vec![0xEE; 1568]),
-        );
-        assert_eq!(key.security_level(), Some(SecurityLevel::Quantum));
-        // Quantum → PQ-only MlKem1024 (no hybrid)
-        assert_eq!(key.algorithm(), KeyAlgorithm::MlKem1024);
-    }
-
-    #[test]
     fn test_for_use_case_with_level_security_takes_precedence_succeeds() {
         use crate::types::types::{SecurityLevel, UseCase};
         // UseCase::IoTDevice would resolve to MlKem512
@@ -3695,7 +3680,6 @@ mod tests {
             (SecurityLevel::Standard, KeyAlgorithm::HybridMlKem512X25519),
             (SecurityLevel::High, KeyAlgorithm::HybridMlKem768X25519),
             (SecurityLevel::Maximum, KeyAlgorithm::HybridMlKem1024X25519),
-            (SecurityLevel::Quantum, KeyAlgorithm::MlKem1024),
         ];
         for (level, expected) in &levels {
             let key = PortableKey::for_security_level(

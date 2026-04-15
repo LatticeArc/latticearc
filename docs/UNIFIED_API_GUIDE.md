@@ -364,14 +364,13 @@ All 24 use cases with their algorithm mappings (all hybrid PQ + classical by def
 | `High` (default) | ML-KEM-768 + AES-256-GCM | ML-DSA-65 + Ed25519 | 3 |
 | `Maximum` | ML-KEM-1024 + AES-256-GCM | ML-DSA-87 + Ed25519 | 5 |
 
-> **Note:** `CryptoMode` (Hybrid / PqOnly) is orthogonal to `SecurityLevel` — use `.crypto_mode(CryptoMode::PqOnly)` to strip classical algorithms from any level. `SecurityLevel::Quantum` is deprecated since 0.6.0 — use `SecurityLevel::Maximum` with `CryptoMode::PqOnly`.
+> **Note:** `CryptoMode` (Hybrid / PqOnly) is orthogonal to `SecurityLevel` — use `.crypto_mode(CryptoMode::PqOnly)` to strip classical algorithms from any level.
 
 ### Security Level Details
 
 - **Standard**: NIST Level 1 (128-bit equivalent). Hybrid mode using ML-KEM-512 + X25519, ML-DSA-44 + Ed25519. Suitable for resource-constrained devices and general use.
 - **High**: NIST Level 3 (192-bit equivalent). Hybrid mode using ML-KEM-768 + X25519, ML-DSA-65 + Ed25519. Recommended for most production applications. **(Default)**
 - **Maximum**: NIST Level 5 (256-bit equivalent). Hybrid mode using ML-KEM-1024 + X25519, ML-DSA-87 + Ed25519. For high-value assets and long-term security. Pair with `CryptoMode::PqOnly` for CNSA 2.0 compliance and government use cases.
-- **Quantum** *(deprecated since 0.6.0)*: Previously a shorthand for NIST Level 5 PQ-only mode. Use `SecurityLevel::Maximum` combined with `.crypto_mode(CryptoMode::PqOnly)` instead. `CryptoMode` is now an independent axis, allowing any security level to run in PQ-only mode.
 
 ### Utility: Reverse Level Mapping
 

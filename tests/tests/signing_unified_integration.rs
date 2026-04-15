@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 #![allow(
     clippy::panic,
     clippy::unwrap_used,
@@ -252,19 +251,19 @@ fn test_large_message_sign_verify_succeeds() {
 }
 
 // ============================================================================
-// SLH-DSA roundtrip (if Quantum level selects it)
+// PQ-only Maximum roundtrip
 // ============================================================================
 
 #[test]
-fn test_slh_dsa_128s_roundtrip() {
-    // Use Quantum security level which selects PQ-only
-    let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
+fn test_pq_only_maximum_roundtrip() {
+    let config = CryptoConfig::new()
+        .security_level(SecurityLevel::Maximum)
+        .crypto_mode(latticearc::CryptoMode::PqOnly);
     let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
 
-    // Quantum level should pick a PQ-only scheme
-    let message = b"SLH-DSA test message";
+    let message = b"PQ-only Maximum test message";
     let signed = sign_with_key(message, &sk, &pk, config).unwrap();
 
     let valid = verify(&signed, CryptoConfig::new()).unwrap();
-    assert!(valid, "SLH-DSA/ML-DSA roundtrip should verify, scheme: {}", scheme);
+    assert!(valid, "PQ-only Maximum roundtrip should verify, scheme: {}", scheme);
 }

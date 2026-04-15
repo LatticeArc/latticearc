@@ -1,7 +1,4 @@
-//! Comprehensive serialization integration tests for arc-core
-//!
-//! Tests all serialization paths: EncryptedData, SignedData, KeyPair
-//! Target: 0% -> 95% coverage
+//! Integration tests for SignedData and KeyPair JSON serialization roundtrips.
 
 #![allow(
     clippy::panic,
@@ -28,49 +25,19 @@
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications,
-    deprecated
+    unused_qualifications
 )]
 
 use latticearc::unified_api::error::{CoreError, Result};
 use latticearc::unified_api::serialization::{
-    SerializableEncryptedData, SerializableEncryptedMetadata, SerializableKeyPair,
-    SerializableSignedData, SerializableSignedMetadata, deserialize_encrypted_data,
-    deserialize_keypair, deserialize_signed_data, serialize_encrypted_data, serialize_keypair,
-    serialize_signed_data,
+    SerializableKeyPair, SerializableSignedData, SerializableSignedMetadata, deserialize_keypair,
+    deserialize_signed_data, serialize_keypair, serialize_signed_data,
 };
-use latticearc::unified_api::types::{
-    EncryptedData, EncryptedMetadata, KeyPair, PrivateKey, SignedData, SignedMetadata,
-};
+use latticearc::unified_api::types::{KeyPair, PrivateKey, SignedData, SignedMetadata};
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-fn create_test_encrypted_data() -> EncryptedData {
-    EncryptedData {
-        data: vec![0x01, 0x02, 0x03, 0x04, 0x05],
-        metadata: EncryptedMetadata {
-            nonce: vec![0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66],
-            tag: Some(vec![
-                0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0, 0xC0, 0xD0, 0xE0,
-                0xF0, 0x00,
-            ]),
-            key_id: Some("test-key-id".to_string()),
-        },
-        scheme: "AES-256-GCM".to_string(),
-        timestamp: 1706745600,
-    }
-}
-
-fn create_test_encrypted_data_no_tag() -> EncryptedData {
-    EncryptedData {
-        data: vec![0x01, 0x02, 0x03],
-        metadata: EncryptedMetadata { nonce: vec![0xAA; 12], tag: None, key_id: None },
-        scheme: "ChaCha20-Poly1305".to_string(),
-        timestamp: 1706745601,
-    }
-}
 
 fn create_test_signed_data() -> SignedData {
     SignedData {
@@ -102,134 +69,6 @@ fn create_test_signed_data_no_key_id() -> SignedData {
 
 fn create_test_keypair() -> KeyPair {
     KeyPair::new(latticearc::PublicKey::new(vec![0x01; 32]), PrivateKey::new(vec![0x10; 32]))
-}
-
-// ============================================================================
-// EncryptedData Serialization Tests
-// ============================================================================
-
-#[test]
-fn test_serialize_encrypted_data_roundtrip() -> Result<()> {
-    let original = create_test_encrypted_data();
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.data, deserialized.data);
-    assert_eq!(original.metadata.nonce, deserialized.metadata.nonce);
-    assert_eq!(original.metadata.tag, deserialized.metadata.tag);
-    assert_eq!(original.metadata.key_id, deserialized.metadata.key_id);
-    assert_eq!(original.scheme, deserialized.scheme);
-    assert_eq!(original.timestamp, deserialized.timestamp);
-    Ok(())
-}
-
-#[test]
-fn test_serialize_encrypted_data_no_tag_roundtrip() -> Result<()> {
-    let original = create_test_encrypted_data_no_tag();
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.data, deserialized.data);
-    assert_eq!(original.metadata.nonce, deserialized.metadata.nonce);
-    assert!(deserialized.metadata.tag.is_none());
-    assert!(deserialized.metadata.key_id.is_none());
-    Ok(())
-}
-
-#[test]
-fn test_serialize_encrypted_data_empty_data_roundtrip() -> Result<()> {
-    let original = EncryptedData {
-        data: vec![],
-        metadata: EncryptedMetadata { nonce: vec![0; 12], tag: None, key_id: None },
-        scheme: "TEST".to_string(),
-        timestamp: 0,
-    };
-
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert!(deserialized.data.is_empty());
-    Ok(())
-}
-
-#[test]
-fn test_serialize_encrypted_data_large_data_roundtrip() -> Result<()> {
-    let original = EncryptedData {
-        data: vec![0xAB; 10_000], // 10KB
-        metadata: EncryptedMetadata {
-            nonce: vec![0xFF; 12],
-            tag: Some(vec![0x00; 16]),
-            key_id: Some("large-key".to_string()),
-        },
-        scheme: "AES-256-GCM".to_string(),
-        timestamp: u64::MAX,
-    };
-
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.data.len(), deserialized.data.len());
-    assert_eq!(original.data, deserialized.data);
-    Ok(())
-}
-
-#[test]
-fn test_serialize_encrypted_data_binary_values_roundtrip_succeeds() -> Result<()> {
-    let original = EncryptedData {
-        data: vec![0x00, 0x7F, 0x80, 0xFF],
-        metadata: EncryptedMetadata {
-            nonce: vec![0x00, 0x7F, 0x80, 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
-            tag: Some(vec![0xFF; 16]),
-            key_id: Some("binary-test".to_string()),
-        },
-        scheme: "BINARY".to_string(),
-        timestamp: 12345,
-    };
-
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.data, deserialized.data);
-    assert_eq!(original.metadata.nonce, deserialized.metadata.nonce);
-    Ok(())
-}
-
-#[test]
-fn test_deserialize_encrypted_data_invalid_json_returns_error() {
-    let result = deserialize_encrypted_data("not valid json");
-    assert!(result.is_err());
-    match result.unwrap_err() {
-        CoreError::SerializationError(_) => {}
-        other => panic!("Expected SerializationError, got: {:?}", other),
-    }
-}
-
-#[test]
-fn test_deserialize_encrypted_data_invalid_base64_data_returns_error() {
-    let invalid_json = r#"{"data":"!!!invalid base64!!!","metadata":{"nonce":"AA==","tag":null,"key_id":null},"scheme":"TEST","timestamp":0}"#;
-    let result = deserialize_encrypted_data(invalid_json);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_deserialize_encrypted_data_invalid_base64_nonce_returns_error() {
-    let invalid_json = r#"{"data":"AQID","metadata":{"nonce":"!!!invalid!!!","tag":null,"key_id":null},"scheme":"TEST","timestamp":0}"#;
-    let result = deserialize_encrypted_data(invalid_json);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_deserialize_encrypted_data_invalid_base64_tag_returns_error() {
-    let invalid_json = r#"{"data":"AQID","metadata":{"nonce":"AAAAAAAAAAAAAAAAAAA=","tag":"!!!invalid!!!","key_id":null},"scheme":"TEST","timestamp":0}"#;
-    let result = deserialize_encrypted_data(invalid_json);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_deserialize_encrypted_data_missing_field_returns_error() {
-    let incomplete_json = r#"{"data":"AQID"}"#;
-    let result = deserialize_encrypted_data(incomplete_json);
-    assert!(result.is_err());
 }
 
 // ============================================================================
@@ -410,37 +249,6 @@ fn test_deserialize_keypair_invalid_base64_private_key_returns_error() {
 // ============================================================================
 
 #[test]
-fn test_encrypted_data_to_serializable_conversion_succeeds() {
-    let original = create_test_encrypted_data();
-    let serializable = SerializableEncryptedData::from(&original);
-
-    // Verify Base64 encoding occurred
-    assert!(!serializable.data.is_empty());
-    assert!(!serializable.metadata.nonce.is_empty());
-    assert!(serializable.metadata.tag.is_some());
-    assert_eq!(serializable.scheme, original.scheme);
-    assert_eq!(serializable.timestamp, original.timestamp);
-}
-
-#[test]
-fn test_serializable_to_encrypted_data_conversion_succeeds() -> Result<()> {
-    let serializable = SerializableEncryptedData {
-        data: "AQIDBA==".to_string(), // [1, 2, 3, 4]
-        metadata: SerializableEncryptedMetadata {
-            nonce: "AQIDBAUG".to_string(),
-            tag: Some("AQIDBA==".to_string()),
-            key_id: Some("test".to_string()),
-        },
-        scheme: "TEST".to_string(),
-        timestamp: 123,
-    };
-
-    let encrypted: EncryptedData = serializable.try_into()?;
-    assert_eq!(encrypted.data, vec![1, 2, 3, 4]);
-    Ok(())
-}
-
-#[test]
 fn test_signed_data_to_serializable_conversion_succeeds() {
     let original = create_test_signed_data();
     let serializable = SerializableSignedData::from(&original);
@@ -494,28 +302,6 @@ fn test_serializable_to_keypair_conversion_succeeds() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_encrypted_data_json_structure_has_correct_format() -> Result<()> {
-    let original = create_test_encrypted_data();
-    let json = serialize_encrypted_data(&original)?;
-
-    // Parse as generic JSON to validate structure
-    let parsed: serde_json::Value =
-        serde_json::from_str(&json).map_err(|e| CoreError::SerializationError(e.to_string()))?;
-
-    assert!(parsed.get("data").is_some());
-    assert!(parsed.get("metadata").is_some());
-    assert!(parsed.get("scheme").is_some());
-    assert!(parsed.get("timestamp").is_some());
-
-    let metadata = parsed.get("metadata").expect("metadata");
-    assert!(metadata.get("nonce").is_some());
-    assert!(metadata.get("tag").is_some());
-    assert!(metadata.get("key_id").is_some());
-
-    Ok(())
-}
-
-#[test]
 fn test_signed_data_json_structure_has_correct_format() -> Result<()> {
     let original = create_test_signed_data();
     let json = serialize_signed_data(&original)?;
@@ -554,97 +340,9 @@ fn test_keypair_json_structure_has_correct_format() -> Result<()> {
 // Edge Case Tests
 // ============================================================================
 
-#[test]
-fn test_serialize_special_characters_in_key_id_roundtrip_succeeds() -> Result<()> {
-    let original = EncryptedData {
-        data: vec![1, 2, 3],
-        metadata: EncryptedMetadata {
-            nonce: vec![0; 12],
-            tag: None,
-            key_id: Some("key-with-special-chars-!@#$%^&*()".to_string()),
-        },
-        scheme: "TEST".to_string(),
-        timestamp: 0,
-    };
-
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.metadata.key_id, deserialized.metadata.key_id);
-    Ok(())
-}
-
-#[test]
-fn test_serialize_unicode_in_scheme_roundtrip_succeeds() -> Result<()> {
-    let original = EncryptedData {
-        data: vec![1, 2, 3],
-        metadata: EncryptedMetadata { nonce: vec![0; 12], tag: None, key_id: None },
-        scheme: "AES-256-GCM-日本語".to_string(),
-        timestamp: 0,
-    };
-
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.scheme, deserialized.scheme);
-    Ok(())
-}
-
-#[test]
-fn test_serialize_max_timestamp_roundtrip_succeeds() -> Result<()> {
-    let original = EncryptedData {
-        data: vec![1],
-        metadata: EncryptedMetadata { nonce: vec![0; 12], tag: None, key_id: None },
-        scheme: "TEST".to_string(),
-        timestamp: u64::MAX,
-    };
-
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.timestamp, deserialized.timestamp);
-    Ok(())
-}
-
-#[test]
-fn test_serialize_zero_timestamp_roundtrip_succeeds() -> Result<()> {
-    let original = EncryptedData {
-        data: vec![1],
-        metadata: EncryptedMetadata { nonce: vec![0; 12], tag: None, key_id: None },
-        scheme: "TEST".to_string(),
-        timestamp: 0,
-    };
-
-    let json = serialize_encrypted_data(&original)?;
-    let deserialized = deserialize_encrypted_data(&json)?;
-
-    assert_eq!(original.timestamp, deserialized.timestamp);
-    Ok(())
-}
-
 // ============================================================================
 // Multiple Roundtrip Tests
 // ============================================================================
-
-#[test]
-fn test_multiple_encrypt_roundtrips_roundtrip() -> Result<()> {
-    let original = create_test_encrypted_data();
-
-    // First roundtrip
-    let json1 = serialize_encrypted_data(&original)?;
-    let data1 = deserialize_encrypted_data(&json1)?;
-
-    // Second roundtrip
-    let json2 = serialize_encrypted_data(&data1)?;
-    let data2 = deserialize_encrypted_data(&json2)?;
-
-    // Third roundtrip
-    let json3 = serialize_encrypted_data(&data2)?;
-    let data3 = deserialize_encrypted_data(&json3)?;
-
-    assert_eq!(original.data, data3.data);
-    Ok(())
-}
 
 #[test]
 fn test_multiple_signed_roundtrips_roundtrip() -> Result<()> {

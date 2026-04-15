@@ -392,7 +392,6 @@ fn test_security_level_variants_are_stable() {
     let _standard = SecurityLevel::Standard;
     let _high = SecurityLevel::High;
     let _maximum = SecurityLevel::Maximum;
-    let _quantum = SecurityLevel::Quantum;
 
     // Default should be High
     assert_eq!(SecurityLevel::default(), SecurityLevel::High);

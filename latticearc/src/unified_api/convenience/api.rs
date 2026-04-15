@@ -206,14 +206,23 @@ fn select_encryption_scheme_typed(options: &CryptoConfig) -> Result<EncryptionSc
 /// `hybrid-ml-kem-512-aes-256-gcm`), which would be a fatal type error in a
 /// signature dispatcher.
 fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
+    let pq_only = options.get_crypto_mode() == crate::types::types::CryptoMode::PqOnly;
     match options.get_selection() {
         AlgorithmSelection::UseCase(use_case) => {
             let uc_config = crate::types::config::UseCaseConfig::new(*use_case);
-            Ok(CryptoPolicyEngine::select_signature_scheme(&uc_config.signature)?)
+            if pq_only {
+                Ok(CryptoPolicyEngine::select_pq_signature_scheme(&uc_config.signature)?)
+            } else {
+                Ok(CryptoPolicyEngine::select_signature_scheme(&uc_config.signature)?)
+            }
         }
         AlgorithmSelection::SecurityLevel(level) => {
             let config = CoreConfig::default().with_security_level(*level);
-            Ok(CryptoPolicyEngine::select_signature_scheme(&config)?)
+            if pq_only {
+                Ok(CryptoPolicyEngine::select_pq_signature_scheme(&config)?)
+            } else {
+                Ok(CryptoPolicyEngine::select_signature_scheme(&config)?)
+            }
         }
         AlgorithmSelection::ForcedScheme(scheme) => Ok(CryptoPolicyEngine::force_scheme(scheme)),
     }
@@ -2367,40 +2376,6 @@ mod tests {
         }
     }
 
-    // === SecurityLevel::Quantum flow (PQ-only signatures) ===
-
-    #[test]
-    fn test_sign_verify_quantum_security_level_succeeds() {
-        std::thread::Builder::new()
-            .name("quantum_sig".to_string())
-            .stack_size(32 * 1024 * 1024)
-            .spawn(|| {
-                let message = b"Quantum-only signature test";
-                // SecurityLevel::Quantum is deprecated — it now resolves to
-                // (Maximum, PqOnly). For signing, Maximum maps to the highest
-                // hybrid signature scheme (ml-dsa-87).
-                let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-
-                let (pk, sk, scheme) = generate_signing_keypair(config.clone()).unwrap();
-                assert!(
-                    scheme.contains("ml-dsa-87"),
-                    "Quantum (→Maximum) level should select ML-DSA-87: {}",
-                    scheme
-                );
-                assert!(!pk.is_empty());
-                assert!(!sk.is_empty());
-
-                let signed = sign_with_key(message, &sk, &pk, config.clone()).unwrap();
-                assert_eq!(signed.scheme, scheme);
-
-                let valid = verify(&signed, config).unwrap();
-                assert!(valid, "Signature should verify");
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
     // === Encrypt/decrypt with different security levels ===
 
     #[test]
@@ -2560,10 +2535,11 @@ mod tests {
         let signed = sign_message(message, config_default)?;
 
         // If the scheme is "ed25519", CNSA 2.0 should reject it
-        // CNSA 2.0 requires CryptoMode::PqOnly — Quantum auto-resolves to (Maximum, PqOnly)
+        // CNSA 2.0 requires CryptoMode::PqOnly.
         if signed.scheme == "ed25519" {
             let cnsa_config = CryptoConfig::new()
-                .security_level(SecurityLevel::Quantum)
+                .security_level(SecurityLevel::Maximum)
+                .crypto_mode(crate::types::types::CryptoMode::PqOnly)
                 .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
             let result = verify(&signed, cnsa_config);
             assert!(result.is_err(), "CNSA 2.0 should reject ed25519 verification");
@@ -2590,7 +2566,8 @@ mod tests {
         };
 
         let cnsa_config = CryptoConfig::new()
-            .security_level(SecurityLevel::Quantum)
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(crate::types::types::CryptoMode::PqOnly)
             .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
         let result = verify(&signed, cnsa_config);
         assert!(result.is_err(), "CNSA 2.0 must reject ed25519 signatures");
@@ -2634,9 +2611,10 @@ mod tests {
         assert_eq!(encrypted.scheme(), &EncryptionScheme::Aes256Gcm);
 
         // Decrypt with CNSA 2.0 should reject (aes-256-gcm is classical-only)
-        // CNSA 2.0 requires CryptoMode::PqOnly — Quantum auto-resolves to (Maximum, PqOnly)
+        // CNSA 2.0 requires CryptoMode::PqOnly.
         let cnsa_config = CryptoConfig::new()
-            .security_level(SecurityLevel::Quantum)
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(crate::types::types::CryptoMode::PqOnly)
             .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
         let result = decrypt(&encrypted, DecryptKey::Symmetric(&key), cnsa_config);
         assert!(result.is_err(), "CNSA 2.0 should reject standalone AES-256-GCM");
@@ -2698,10 +2676,11 @@ mod tests {
         let signed = sign_message(message, config)?;
 
         // Hybrid schemes are allowed under CNSA 2.0 (transitional per NIST SP 800-227)
-        // Note: CNSA 2.0 config requires CryptoMode::PqOnly — Quantum resolves to (Maximum, PqOnly)
+        // Note: CNSA 2.0 config requires CryptoMode::PqOnly.
         if signed.scheme.contains("hybrid") {
             let cnsa_config = CryptoConfig::new()
-                .security_level(SecurityLevel::Quantum)
+                .security_level(SecurityLevel::Maximum)
+                .crypto_mode(crate::types::types::CryptoMode::PqOnly)
                 .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
             let is_valid = verify(&signed, cnsa_config)?;
             assert!(is_valid);
@@ -2774,22 +2753,6 @@ mod tests {
             CryptoConfig::new().crypto_mode(CryptoMode::PqOnly).security_level(SecurityLevel::High);
         let result = encrypt(b"test", EncryptKey::Hybrid(&pk), config);
         assert!(result.is_err(), "Hybrid key + PQ-only scheme must fail");
-    }
-
-    #[test]
-    fn test_deprecated_quantum_pq_only_backward_compat_succeeds() {
-        // SecurityLevel::Quantum auto-sets PqOnly mode — verify it still works
-        use crate::hybrid::pq_only::generate_pq_keypair_with_level;
-        use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
-        let (pk, sk) = generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem1024).unwrap();
-        let data = b"Backward compat: Quantum -> Maximum+PqOnly";
-        let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-        assert_eq!(config.get_crypto_mode(), CryptoMode::PqOnly);
-
-        let encrypted = encrypt(data, EncryptKey::PqOnly(&pk), config.clone()).unwrap();
-        assert!(encrypted.scheme().requires_pq_key());
-        let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).unwrap();
-        assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
     #[test]

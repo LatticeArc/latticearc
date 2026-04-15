@@ -221,7 +221,6 @@ fn test_security_level_standard_is_accessible() {
     let level = SecurityLevel::Standard;
     assert_ne!(level, SecurityLevel::High);
     assert_ne!(level, SecurityLevel::Maximum);
-    assert_ne!(level, SecurityLevel::Quantum);
 }
 
 #[test]
@@ -229,7 +228,6 @@ fn test_security_level_high_is_accessible() {
     let level = SecurityLevel::High;
     assert_ne!(level, SecurityLevel::Standard);
     assert_ne!(level, SecurityLevel::Maximum);
-    assert_ne!(level, SecurityLevel::Quantum);
 }
 
 #[test]
@@ -237,15 +235,6 @@ fn test_security_level_maximum_is_accessible() {
     let level = SecurityLevel::Maximum;
     assert_ne!(level, SecurityLevel::Standard);
     assert_ne!(level, SecurityLevel::High);
-    assert_ne!(level, SecurityLevel::Quantum);
-}
-
-#[test]
-fn test_security_level_quantum_is_accessible() {
-    let level = SecurityLevel::Quantum;
-    assert_ne!(level, SecurityLevel::Standard);
-    assert_ne!(level, SecurityLevel::High);
-    assert_ne!(level, SecurityLevel::Maximum);
 }
 
 #[test]
@@ -561,20 +550,6 @@ fn test_crypto_config_use_case_setter_updates_correctly_succeeds() {
 
 #[test]
 fn test_crypto_config_security_level_setter_updates_correctly_succeeds() {
-    // SecurityLevel::Quantum is deprecated in 0.6.0 and resolves to
-    // (Maximum, CryptoMode::PqOnly). Verify both axes are set correctly.
-    let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-    match config.get_selection() {
-        AlgorithmSelection::SecurityLevel(sl) => assert_eq!(*sl, SecurityLevel::Maximum),
-        _ => panic!("Expected SecurityLevel variant"),
-    }
-    assert_eq!(
-        config.get_crypto_mode(),
-        latticearc::CryptoMode::PqOnly,
-        "Quantum must auto-set PqOnly mode"
-    );
-
-    // Non-deprecated levels pass through unchanged.
     let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
     match config.get_selection() {
         AlgorithmSelection::SecurityLevel(sl) => assert_eq!(*sl, SecurityLevel::Maximum),

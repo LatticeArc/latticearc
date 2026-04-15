@@ -85,9 +85,6 @@
 //! To convert a hybrid scheme to its PQ-only equivalent at the same NIST level:
 //! [`EncryptionScheme::to_pq_equivalent()`].
 //!
-//! > **`SecurityLevel::Quantum`** is deprecated since 0.6.0. Use
-//! > `SecurityLevel::Maximum` with `CryptoMode::PqOnly` instead.
-//!
 //! ## Digital Signatures
 //!
 //! ```rust,no_run
@@ -493,9 +490,8 @@ pub use unified_api::{
 
 #[doc(hidden)]
 pub use unified_api::serialization::{
-    deserialize_encrypted_data, deserialize_encrypted_output, deserialize_keypair,
-    deserialize_signed_data, serialize_encrypted_data, serialize_encrypted_output,
-    serialize_keypair, serialize_signed_data,
+    deserialize_encrypted_output, deserialize_keypair, deserialize_signed_data,
+    serialize_encrypted_output, serialize_keypair, serialize_signed_data,
 };
 
 // ============================================================================

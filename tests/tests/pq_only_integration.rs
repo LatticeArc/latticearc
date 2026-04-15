@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 //! PQ-Only Integration Tests — CryptoMode::PqOnly through the unified API.
 //!
@@ -6,7 +5,6 @@
 //! of the `latticearc` crate, covering:
 //! - Roundtrip encrypt→decrypt at all 3 ML-KEM levels
 //! - Cross-mode rejection (PQ key + hybrid scheme and vice versa)
-//! - SecurityLevel::Quantum backward compatibility
 //! - EncryptionScheme::parse_str roundtrip for PQ variants
 //! - Serialization preserves PQ scheme
 //! - CNSA 2.0 + PqOnly validation
@@ -78,23 +76,6 @@ fn test_hybrid_key_pq_mode_rejected_external() {
         CryptoConfig::new().crypto_mode(CryptoMode::PqOnly).security_level(SecurityLevel::High);
     let result = encrypt(b"test", EncryptKey::Hybrid(&pk), config);
     assert!(result.is_err(), "Hybrid key + PQ-only mode must fail");
-}
-
-// ============================================================================
-// SecurityLevel::Quantum backward compatibility
-// ============================================================================
-
-#[test]
-fn test_deprecated_quantum_encrypt_decrypt_roundtrip_external() {
-    let (pk, sk) = generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem1024).unwrap();
-    let data = b"Quantum backward compat external";
-    let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-    assert_eq!(config.get_crypto_mode(), CryptoMode::PqOnly);
-
-    let encrypted = encrypt(data, EncryptKey::PqOnly(&pk), config.clone()).unwrap();
-    assert!(encrypted.scheme().requires_pq_key());
-    let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config).unwrap();
-    assert_eq!(decrypted.as_slice(), data.as_slice());
 }
 
 // ============================================================================

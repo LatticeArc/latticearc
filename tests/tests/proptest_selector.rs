@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 //! Property-based tests for `CryptoPolicyEngine` (scheme selector).
 //!
 //! Tests determinism, security monotonicity, and coverage of all
@@ -24,7 +22,6 @@ fn arb_security_level() -> impl Strategy<Value = SecurityLevel> {
         Just(SecurityLevel::Standard),
         Just(SecurityLevel::High),
         Just(SecurityLevel::Maximum),
-        Just(SecurityLevel::Quantum),
     ]
 }
 

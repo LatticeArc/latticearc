@@ -1,7 +1,6 @@
-#![allow(deprecated)]
 //! Unified API Example — encrypt/decrypt with CryptoConfig
 //!
-//! Demonstrates ALL 24 use cases and ALL 4 security levels with the primary
+//! Demonstrates ALL 24 use cases and ALL security levels with the primary
 //! `encrypt()` / `decrypt()` entry points. This is the comprehensive happy-path
 //! test for the unified API.
 //!
@@ -84,15 +83,14 @@ fn main() {
     println!("\n  All {} use cases passed!\n", passed);
 
     // ====================================================================
-    // Section 2: All 4 SecurityLevels — encrypt/decrypt roundtrip
+    // Section 2: All SecurityLevels — encrypt/decrypt roundtrip
     // ====================================================================
-    println!("--- All 4 SecurityLevels: encrypt/decrypt roundtrip ---\n");
+    println!("--- All SecurityLevels: encrypt/decrypt roundtrip ---\n");
 
     let levels: &[(&str, SecurityLevel)] = &[
         ("Standard", SecurityLevel::Standard),
         ("High", SecurityLevel::High),
         ("Maximum", SecurityLevel::Maximum),
-        ("Quantum", SecurityLevel::Quantum),
     ];
 
     for (name, level) in levels {
@@ -113,7 +111,7 @@ fn main() {
             enc.ciphertext().len()
         );
     }
-    println!("\n  All 4 security levels passed!\n");
+    println!("\n  All security levels passed!\n");
 
     // ====================================================================
     // Section 3: Default config (SecurityLevel::High)
@@ -143,7 +141,7 @@ fn main() {
     let spot_checks: &[(&str, UseCase, SecurityLevel)] = &[
         ("IoT+Standard", UseCase::IoTDevice, SecurityLevel::Standard),
         ("FileStorage+Maximum", UseCase::FileStorage, SecurityLevel::Maximum),
-        ("Government+Quantum", UseCase::GovernmentClassified, SecurityLevel::Quantum),
+        ("Government+Maximum", UseCase::GovernmentClassified, SecurityLevel::Maximum),
         ("Healthcare+High", UseCase::HealthcareRecords, SecurityLevel::High),
     ];
 

@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 //! Practical Use-Case Round-Trip Tests — Process-Isolated
 //!
 //! Every UseCase enum variant, every SecurityLevel, and both SecurityMode variants
@@ -14,26 +12,13 @@
 //! - The file path (simulating disk/network transfer)
 //! - The symmetric key (simulating pre-shared or exchanged key)
 //!
-//! The reader does NOT receive:
-//! - The original CryptoConfig / UseCase / SecurityLevel
-//! - Any in-memory EncryptedData struct
-//! - Any variable from the writer's scope
-//!
-//! This proves the serialized format is self-describing — the reader reconstructs
-//! everything it needs from the file alone.
-//!
-//! Additionally, real-world scenario tests simulate practical workflows:
-//! - File encryption at rest (writer app → reader app)
-//! - Database field encryption (backend writes → different service reads)
-//! - Signed transactions (signer → independent verifier)
-//! - IoT firmware signing (manufacturer → device)
-//! - Multi-party document signing (N signers → verifier)
-//! - Encrypted audit logs (writer service → forensic reader)
-//! - Key rotation with mixed-version ciphertexts
+//! The reader does NOT receive the original CryptoConfig / UseCase / SecurityLevel,
+//! or any variable from the writer's scope. This proves the serialized format is
+//! self-describing — the reader reconstructs everything it needs from the file alone.
 //!
 //! Run with:
 //! ```bash
-//! cargo test --package latticearc-tests --test practical_usecase_roundtrip_tests --all-features --release
+//! cargo test --package latticearc-tests --test practical_usecase_roundtrip --all-features --release
 //! ```
 
 #![deny(unsafe_code)]
@@ -43,7 +28,6 @@
 #![allow(clippy::unreachable)]
 #![allow(clippy::indexing_slicing)]
 #![allow(missing_docs)]
-use std::convert::TryInto;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -55,11 +39,10 @@ use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 use latticearc::{
     ComplianceMode, CryptoConfig, CryptoScheme, DecryptKey, EncryptKey, EncryptedOutput,
     EncryptionScheme, HybridComponents, SecurityLevel, SecurityMode, UseCase, VerifiedSession,
-    decrypt, decrypt_aes_gcm, decrypt_aes_gcm_with_aad, derive_key, deserialize_encrypted_data,
-    deserialize_encrypted_output, deserialize_signed_data, encrypt, encrypt_aes_gcm,
-    encrypt_aes_gcm_with_aad, fips_available, generate_hybrid_keypair,
-    generate_hybrid_keypair_with_level, generate_keypair, generate_signing_keypair, hash_data,
-    hmac, hmac_check, serialize_encrypted_data, serialize_encrypted_output, serialize_signed_data,
+    decrypt, decrypt_aes_gcm, decrypt_aes_gcm_with_aad, deserialize_encrypted_output,
+    deserialize_signed_data, encrypt, encrypt_aes_gcm, encrypt_aes_gcm_with_aad, fips_available,
+    generate_hybrid_keypair, generate_hybrid_keypair_with_level, generate_keypair,
+    generate_signing_keypair, hash_data, serialize_encrypted_output, serialize_signed_data,
     sign_with_key, verify,
 };
 
@@ -76,15 +59,10 @@ fn writer_encrypt_to_file(plaintext: &[u8], key: &[u8; 32], config: CryptoConfig
         config.force_scheme(CryptoScheme::Symmetric),
     )
     .expect("writer: encrypt failed");
-    let encrypted_data: latticearc::EncryptedData = encrypted.into();
-    let json = serialize_encrypted_data(&encrypted_data).expect("writer: serialize failed");
-    // Write to a temp file that persists after this function returns.
-    // The caller is responsible for cleanup via std::fs::remove_file.
+    let json = serialize_encrypted_output(&encrypted).expect("writer: serialize failed");
     let path = std::env::temp_dir().join(format!("latticearc-test-{}", uuid::Uuid::new_v4()));
     std::fs::write(&path, json.as_bytes()).expect("writer: failed to write file");
     path
-    // All encrypt state (encrypted, json, EncryptedData) is dropped here.
-    // Only the file on disk and the path survive.
 }
 
 /// READER PROCESS: Reads a file and decrypts using ONLY the key.
@@ -92,10 +70,7 @@ fn writer_encrypt_to_file(plaintext: &[u8], key: &[u8; 32], config: CryptoConfig
 /// Proves the serialized format is self-describing.
 fn reader_decrypt_from_file(file_path: &Path, key: &[u8; 32]) -> Vec<u8> {
     let json = std::fs::read_to_string(file_path).expect("reader: failed to read file");
-    let deserialized = deserialize_encrypted_data(&json).expect("reader: deserialize failed");
-    // Note: CryptoConfig::new() = default config. Reader doesn't know writer's config.
-    // decrypt() reads algorithm from deserialized.scheme, NOT from config.
-    let output: EncryptedOutput = deserialized.try_into().expect("scheme should be valid");
+    let output = deserialize_encrypted_output(&json).expect("reader: deserialize failed");
     decrypt(&output, DecryptKey::Symmetric(key), CryptoConfig::new())
         .expect("reader: decrypt failed")
         .to_vec()
@@ -425,13 +400,15 @@ fn security_level_maximum_roundtrip() {
 }
 
 #[test]
-fn security_level_quantum_roundtrip() {
+fn security_level_maximum_pq_only_roundtrip() {
     let key = [0x24u8; 32];
-    let msg = b"Quantum security (PQ-only, CNSA 2.0 eligible)";
+    let msg = b"Maximum+PqOnly security (CNSA 2.0 eligible)";
     process_isolated_roundtrip(
         msg,
         &key,
-        CryptoConfig::new().security_level(SecurityLevel::Quantum),
+        CryptoConfig::new()
+            .security_level(SecurityLevel::Maximum)
+            .crypto_mode(latticearc::CryptoMode::PqOnly),
     );
 }
 
@@ -475,33 +452,6 @@ fn security_mode_verified_roundtrip() {
 }
 
 #[test]
-fn security_mode_verified_unified_api_roundtrip() {
-    let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())
-        .expect("session establishment failed");
-
-    let key = [0x32u8; 32];
-    let msg = b"Unified API with verified session through file";
-
-    let config = CryptoConfig::new().session(&session).use_case(UseCase::SecureMessaging);
-    let encrypted =
-        encrypt(msg, EncryptKey::Symmetric(&key), config.force_scheme(CryptoScheme::Symmetric))
-            .expect("encrypt failed");
-
-    let encrypted_data: latticearc::EncryptedData = encrypted.into();
-    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
-    let file = write_to_tempfile(&json);
-    let json_from_file = read_from_file(file.path());
-    let deserialized = deserialize_encrypted_data(&json_from_file).expect("deserialize failed");
-
-    // Decrypt with same session
-    let config = CryptoConfig::new().session(&session);
-    let output: EncryptedOutput = deserialized.try_into().expect("scheme should be valid");
-    let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), config).expect("decrypt failed");
-    assert_eq!(decrypted.as_slice(), msg);
-}
-
-#[test]
 fn security_mode_verified_hybrid_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
     let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())
@@ -525,119 +475,7 @@ fn security_mode_verified_hybrid_roundtrip() {
 
 /// Scenario: Encrypt a file at rest, store it, retrieve and decrypt later.
 /// Writer (backup process) and reader (restore process) are fully isolated.
-#[test]
-fn scenario_file_encryption_at_rest_succeeds() {
-    let key = [0x40u8; 32];
-    let file_content = b"This is a sensitive document.\nPage 1 of 50.\nConfidential.";
-
-    // === WRITER PROCESS (backup agent) ===
-    // Knows: plaintext, key, use case
-    let enc_path = writer_encrypt_to_file(
-        file_content,
-        &key,
-        CryptoConfig::new().use_case(UseCase::FileStorage),
-    );
-    // Writer's encrypt state is dropped. Only file on disk remains.
-
-    // === READER PROCESS (restore agent) ===
-    // Knows: file path, key. Does NOT know use case or config.
-    let stored_json = read_from_file(&enc_path);
-    let loaded = deserialize_encrypted_data(&stored_json).expect("reader: load failed");
-
-    // Reader can inspect metadata without the key (Kerckhoffs' principle)
-    assert_eq!(loaded.scheme, "aes-256-gcm");
-    assert!(loaded.timestamp > 0);
-
-    let output: EncryptedOutput = loaded.try_into().expect("scheme should be valid");
-    let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new())
-        .expect("reader: decrypt failed");
-    assert_eq!(decrypted.as_slice(), file_content);
-    let _ = std::fs::remove_file(&enc_path);
-}
-
 /// Scenario: Database column encryption (multiple fields, same key)
-#[test]
-fn scenario_database_column_encryption_succeeds() {
-    let key = [0x41u8; 32];
-
-    #[derive(Serialize, Deserialize)]
-    struct EncryptedRow {
-        id: u64,
-        name_encrypted: String, // serialized EncryptedData
-        ssn_encrypted: String,
-        email_encrypted: String,
-    }
-
-    let rows: Vec<(&str, &str, &str)> = vec![
-        ("Alice Johnson", "123-45-6789", "alice@example.com"),
-        ("Bob Smith", "987-65-4321", "bob@example.com"),
-        ("Carol White", "555-12-3456", "carol@example.com"),
-    ];
-
-    let config = CryptoConfig::new().use_case(UseCase::DatabaseEncryption);
-
-    let mut encrypted_rows = Vec::new();
-    for (i, (name, ssn, email)) in rows.iter().enumerate() {
-        let name_enc: latticearc::EncryptedData = encrypt(
-            name.as_bytes(),
-            EncryptKey::Symmetric(&key),
-            config.clone().force_scheme(CryptoScheme::Symmetric),
-        )
-        .expect("encrypt name")
-        .into();
-        let ssn_enc: latticearc::EncryptedData = encrypt(
-            ssn.as_bytes(),
-            EncryptKey::Symmetric(&key),
-            config.clone().force_scheme(CryptoScheme::Symmetric),
-        )
-        .expect("encrypt ssn")
-        .into();
-        let email_enc: latticearc::EncryptedData = encrypt(
-            email.as_bytes(),
-            EncryptKey::Symmetric(&key),
-            config.clone().force_scheme(CryptoScheme::Symmetric),
-        )
-        .expect("encrypt email")
-        .into();
-
-        encrypted_rows.push(EncryptedRow {
-            id: u64::try_from(i).unwrap(),
-            name_encrypted: serialize_encrypted_data(&name_enc).expect("serialize"),
-            ssn_encrypted: serialize_encrypted_data(&ssn_enc).expect("serialize"),
-            email_encrypted: serialize_encrypted_data(&email_enc).expect("serialize"),
-        });
-    }
-
-    // Persist "database" to file
-    let db_json = serde_json::to_string_pretty(&encrypted_rows).expect("serialize db");
-    let db_file = write_to_tempfile(&db_json);
-
-    // Query: load and decrypt a specific row's specific field
-    let loaded_json = read_from_file(db_file.path());
-    let loaded_rows: Vec<EncryptedRow> = serde_json::from_str(&loaded_json).expect("parse db");
-
-    // Decrypt Bob's SSN (row index 1)
-    let bob = &loaded_rows[1];
-    let ssn_output: EncryptedOutput = deserialize_encrypted_data(&bob.ssn_encrypted)
-        .expect("deserialize ssn")
-        .try_into()
-        .expect("scheme should be valid");
-    let ssn_plain = decrypt(&ssn_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
-        .expect("decrypt ssn");
-    assert_eq!(String::from_utf8(ssn_plain.to_vec()).unwrap(), "987-65-4321");
-
-    // Decrypt all names
-    for (i, row) in loaded_rows.iter().enumerate() {
-        let name_output: EncryptedOutput = deserialize_encrypted_data(&row.name_encrypted)
-            .expect("deserialize")
-            .try_into()
-            .expect("scheme should be valid");
-        let name_plain = decrypt(&name_output, DecryptKey::Symmetric(&key), CryptoConfig::new())
-            .expect("decrypt");
-        assert_eq!(String::from_utf8(name_plain.to_vec()).unwrap(), rows[i].0);
-    }
-}
-
 /// Scenario: Sign a financial transaction document and persist
 #[test]
 fn scenario_signed_transaction_succeeds() {
@@ -675,72 +513,6 @@ fn scenario_signed_transaction_succeeds() {
 }
 
 /// Scenario: IoT device sends encrypted sensor readings
-#[test]
-fn scenario_iot_sensor_data_succeeds() {
-    let device_key = [0x43u8; 32];
-
-    #[derive(Serialize, Deserialize, Debug, PartialEq)]
-    struct SensorReading {
-        device_id: String,
-        timestamp: u64,
-        temperature: f64,
-        humidity: f64,
-        battery_pct: u8,
-    }
-
-    let readings = vec![
-        SensorReading {
-            device_id: "IoT-SENSOR-042".to_string(),
-            timestamp: 1708400000,
-            temperature: 22.5,
-            humidity: 45.2,
-            battery_pct: 87,
-        },
-        SensorReading {
-            device_id: "IoT-SENSOR-042".to_string(),
-            timestamp: 1708400060,
-            temperature: 22.6,
-            humidity: 45.0,
-            battery_pct: 87,
-        },
-    ];
-
-    // Device encrypts each reading
-    let config = CryptoConfig::new().use_case(UseCase::IoTDevice);
-    let mut encrypted_readings = Vec::new();
-    for reading in &readings {
-        let json = serde_json::to_string(reading).unwrap();
-        let encrypted_output = encrypt(
-            json.as_bytes(),
-            EncryptKey::Symmetric(&device_key),
-            config.clone().force_scheme(CryptoScheme::Symmetric),
-        )
-        .expect("iot encrypt failed");
-        let encrypted_data: latticearc::EncryptedData = encrypted_output.into();
-        let enc_json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
-        encrypted_readings.push(enc_json);
-    }
-
-    // Transmit (write to file simulating network transfer)
-    let payload = serde_json::to_string(&encrypted_readings).unwrap();
-    let file = write_to_tempfile(&payload);
-
-    // Server receives and decrypts
-    let received = read_from_file(file.path());
-    let enc_jsons: Vec<String> = serde_json::from_str(&received).unwrap();
-
-    for (i, enc_json) in enc_jsons.iter().enumerate() {
-        let output: EncryptedOutput = deserialize_encrypted_data(enc_json)
-            .expect("deserialize")
-            .try_into()
-            .expect("scheme should be valid");
-        let decrypted = decrypt(&output, DecryptKey::Symmetric(&device_key), CryptoConfig::new())
-            .expect("decrypt");
-        let reading: SensorReading = serde_json::from_slice(&decrypted).expect("parse reading");
-        assert_eq!(reading, readings[i]);
-    }
-}
-
 /// Scenario: Firmware update with signed binary.
 /// Manufacturer (signer) and device (verifier) are completely independent processes.
 /// Device only has: the signed firmware file + manufacturer's public key.
@@ -1125,180 +897,8 @@ fn e2e_sign_then_encrypt_full_channel_succeeds() {
 }
 
 /// Scenario: Encrypted audit log (append-only pattern)
-#[test]
-fn scenario_encrypted_audit_log_succeeds() {
-    let log_key = [0x45u8; 32];
-    let config = CryptoConfig::new().use_case(UseCase::AuditLog);
-
-    let log_entries = vec![
-        "2026-02-20T10:00:00Z [INFO] user=admin login from 192.168.1.1",
-        "2026-02-20T10:05:00Z [WARN] user=admin accessed /api/secrets",
-        "2026-02-20T10:10:00Z [INFO] user=admin exported 42 records",
-        "2026-02-20T10:15:00Z [ALERT] user=admin attempted privilege escalation",
-    ];
-
-    // Encrypt and append each entry
-    let mut encrypted_log: Vec<String> = Vec::new();
-    for entry in &log_entries {
-        let encrypted_output = encrypt(
-            entry.as_bytes(),
-            EncryptKey::Symmetric(&log_key),
-            config.clone().force_scheme(CryptoScheme::Symmetric),
-        )
-        .expect("encrypt log entry");
-        let encrypted_data: latticearc::EncryptedData = encrypted_output.into();
-        let json = serialize_encrypted_data(&encrypted_data).expect("serialize");
-        encrypted_log.push(json);
-    }
-
-    // Persist log
-    let log_json = serde_json::to_string_pretty(&encrypted_log).unwrap();
-    let log_file = write_to_tempfile(&log_json);
-
-    // Forensic analysis: load and decrypt all entries
-    let loaded = read_from_file(log_file.path());
-    let stored_entries: Vec<String> = serde_json::from_str(&loaded).unwrap();
-
-    for (i, enc_json) in stored_entries.iter().enumerate() {
-        let output: EncryptedOutput = deserialize_encrypted_data(enc_json)
-            .expect("deserialize")
-            .try_into()
-            .expect("scheme should be valid");
-        let decrypted = decrypt(&output, DecryptKey::Symmetric(&log_key), CryptoConfig::new())
-            .expect("decrypt");
-        assert_eq!(String::from_utf8(decrypted.to_vec()).unwrap(), log_entries[i]);
-    }
-}
-
 /// Scenario: Config/secrets vault (encrypted key-value store)
-#[test]
-fn scenario_config_secrets_vault_succeeds() {
-    let vault_key = [0x46u8; 32];
-    let config = CryptoConfig::new().use_case(UseCase::ConfigSecrets);
-
-    #[derive(Serialize, Deserialize)]
-    struct SecretVault {
-        entries: Vec<VaultEntry>,
-    }
-
-    #[derive(Serialize, Deserialize)]
-    struct VaultEntry {
-        name: String,
-        encrypted_value: String,
-    }
-
-    let secrets = vec![
-        ("DATABASE_URL", "postgres://user:pass@db.internal:5432/prod"),
-        ("API_KEY", "test_api_key_not_real_abc123xyz"),
-        ("JWT_SECRET", "super-secret-jwt-signing-key-2026"),
-        ("STRIPE_WEBHOOK_SECRET", "whsec_test_secret_key_value"),
-    ];
-
-    let mut vault = SecretVault { entries: Vec::new() };
-    for (name, value) in &secrets {
-        let encrypted_output = encrypt(
-            value.as_bytes(),
-            EncryptKey::Symmetric(&vault_key),
-            config.clone().force_scheme(CryptoScheme::Symmetric),
-        )
-        .expect("encrypt secret");
-        let encrypted_data: latticearc::EncryptedData = encrypted_output.into();
-        let enc_json = serialize_encrypted_data(&encrypted_data).expect("serialize");
-        vault.entries.push(VaultEntry { name: name.to_string(), encrypted_value: enc_json });
-    }
-
-    // Persist vault to file
-    let vault_json = serde_json::to_string_pretty(&vault).unwrap();
-    let vault_file = write_to_tempfile(&vault_json);
-
-    // Application startup: load and decrypt specific secret
-    let loaded = read_from_file(vault_file.path());
-    let loaded_vault: SecretVault = serde_json::from_str(&loaded).unwrap();
-
-    let api_key_entry = loaded_vault
-        .entries
-        .iter()
-        .find(|e| e.name == "API_KEY")
-        .expect("API_KEY not found in vault");
-
-    let output: EncryptedOutput = deserialize_encrypted_data(&api_key_entry.encrypted_value)
-        .expect("deserialize")
-        .try_into()
-        .expect("scheme should be valid");
-    let decrypted =
-        decrypt(&output, DecryptKey::Symmetric(&vault_key), CryptoConfig::new()).expect("decrypt");
-
-    assert_eq!(String::from_utf8(decrypted.to_vec()).unwrap(), "test_api_key_not_real_abc123xyz");
-}
-
 /// Scenario: Key rotation — old ciphertexts remain decryptable with old key
-#[test]
-fn scenario_key_rotation_succeeds() {
-    let old_key = [0x47u8; 32];
-    let new_key = [0x48u8; 32];
-
-    // Encrypt data with old key
-    let msg1 = b"Encrypted with old key before rotation";
-    let enc1_output = encrypt(
-        msg1,
-        EncryptKey::Symmetric(&old_key),
-        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
-    )
-    .expect("encrypt v1");
-    let enc1_data: latticearc::EncryptedData = enc1_output.into();
-    let json1 = serialize_encrypted_data(&enc1_data).expect("serialize");
-
-    // Key rotation happens: new data encrypted with new key
-    let msg2 = b"Encrypted with new key after rotation";
-    let enc2_output = encrypt(
-        msg2,
-        EncryptKey::Symmetric(&new_key),
-        CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
-    )
-    .expect("encrypt v2");
-    let enc2_data: latticearc::EncryptedData = enc2_output.into();
-    let json2 = serialize_encrypted_data(&enc2_data).expect("serialize");
-
-    // Store both (simulating a database with mixed-version ciphertexts)
-    #[derive(Serialize, Deserialize)]
-    struct VersionedCiphertext {
-        key_version: u32,
-        encrypted_json: String,
-    }
-
-    let store = vec![
-        VersionedCiphertext { key_version: 1, encrypted_json: json1 },
-        VersionedCiphertext { key_version: 2, encrypted_json: json2 },
-    ];
-
-    let store_json = serde_json::to_string_pretty(&store).unwrap();
-    let file = write_to_tempfile(&store_json);
-
-    // Application reads and selects correct key based on version
-    let loaded = read_from_file(file.path());
-    let loaded_store: Vec<VersionedCiphertext> = serde_json::from_str(&loaded).unwrap();
-
-    for item in &loaded_store {
-        let output: EncryptedOutput = deserialize_encrypted_data(&item.encrypted_json)
-            .expect("deserialize")
-            .try_into()
-            .expect("scheme should be valid");
-        let key = match item.key_version {
-            1 => &old_key,
-            2 => &new_key,
-            _ => panic!("Unknown key version"),
-        };
-        let decrypted =
-            decrypt(&output, DecryptKey::Symmetric(key), CryptoConfig::new()).expect("decrypt");
-
-        if item.key_version == 1 {
-            assert_eq!(decrypted.as_slice(), msg1);
-        } else {
-            assert_eq!(decrypted.as_slice(), msg2);
-        }
-    }
-}
-
 /// Scenario: Multi-party document signing (multiple signatures on same document)
 #[test]
 fn scenario_multi_party_signing_succeeds() {
@@ -1354,148 +954,6 @@ fn scenario_multi_party_signing_succeeds() {
     }
 }
 
-/// Scenario: Encrypted backup with integrity verification
-#[test]
-fn scenario_encrypted_backup_with_hmac_succeeds() {
-    let encryption_key = [0x49u8; 32];
-    let hmac_key = [0x4Au8; 32];
-
-    let backup_data = b"Database dump: 1000 rows of customer data...";
-
-    // Encrypt the backup
-    let config = CryptoConfig::new().use_case(UseCase::BackupArchive);
-    let encrypted_output = encrypt(
-        backup_data,
-        EncryptKey::Symmetric(&encryption_key),
-        config.force_scheme(CryptoScheme::Symmetric),
-    )
-    .expect("encrypt backup");
-    let encrypted_data: latticearc::EncryptedData = encrypted_output.into();
-    let enc_json = serialize_encrypted_data(&encrypted_data).expect("serialize");
-
-    // Compute HMAC over the serialized encrypted data (integrity check)
-    let mac = hmac(enc_json.as_bytes(), &hmac_key, SecurityMode::Unverified).expect("hmac failed");
-
-    // Store encrypted data + HMAC
-    #[derive(Serialize, Deserialize)]
-    struct IntegrityBackup {
-        encrypted_data: String,
-        hmac: String, // hex-encoded HMAC
-    }
-
-    let backup = IntegrityBackup { encrypted_data: enc_json, hmac: hex::encode(&mac) };
-
-    let json = serde_json::to_string_pretty(&backup).unwrap();
-    let file = write_to_tempfile(&json);
-
-    // Restore: verify integrity then decrypt
-    let loaded = read_from_file(file.path());
-    let loaded_backup: IntegrityBackup = serde_json::from_str(&loaded).unwrap();
-
-    // Step 1: Verify HMAC
-    let expected_mac = hex::decode(&loaded_backup.hmac).unwrap();
-    let integrity_ok = hmac_check(
-        loaded_backup.encrypted_data.as_bytes(),
-        &hmac_key,
-        &expected_mac,
-        SecurityMode::Unverified,
-    )
-    .expect("hmac_check failed");
-    assert!(integrity_ok, "Backup integrity check should pass");
-
-    // Step 2: Decrypt
-    let output: EncryptedOutput = deserialize_encrypted_data(&loaded_backup.encrypted_data)
-        .expect("deserialize")
-        .try_into()
-        .expect("scheme should be valid");
-    let decrypted = decrypt(&output, DecryptKey::Symmetric(&encryption_key), CryptoConfig::new())
-        .expect("decrypt backup");
-    assert_eq!(decrypted.as_slice(), backup_data);
-}
-
-/// Scenario: Session token encrypted with derived key
-#[test]
-fn scenario_session_token_with_derived_key_succeeds() {
-    let master_key = [0x4Bu8; 32];
-    let salt = b"session-key-derivation-salt-2026";
-
-    // Derive a session-specific key from master key
-    let derived =
-        derive_key(&master_key, salt, 32, SecurityMode::Unverified).expect("key derivation failed");
-    let session_key: [u8; 32] = derived.as_slice().try_into().expect("key size mismatch");
-
-    let token_data = br#"{"user_id": 42, "role": "admin", "expires": 1708500000}"#;
-
-    let config = CryptoConfig::new().use_case(UseCase::SessionToken);
-    let encrypted_output = encrypt(
-        token_data,
-        EncryptKey::Symmetric(&session_key),
-        config.force_scheme(CryptoScheme::Symmetric),
-    )
-    .expect("encrypt token");
-    let encrypted_data: latticearc::EncryptedData = encrypted_output.into();
-    let json = serialize_encrypted_data(&encrypted_data).expect("serialize");
-    let file = write_to_tempfile(&json);
-
-    // Server validates token later using same derived key
-    let loaded = read_from_file(file.path());
-    let restored: EncryptedOutput = deserialize_encrypted_data(&loaded)
-        .expect("deserialize")
-        .try_into()
-        .expect("scheme should be valid");
-
-    // Re-derive key from master
-    let re_derived = derive_key(&master_key, salt, 32, SecurityMode::Unverified)
-        .expect("key re-derivation failed");
-    let re_key: [u8; 32] = re_derived.as_slice().try_into().unwrap();
-
-    let decrypted = decrypt(&restored, DecryptKey::Symmetric(&re_key), CryptoConfig::new())
-        .expect("decrypt token");
-    let token_str = String::from_utf8(decrypted.to_vec()).unwrap();
-    let token: serde_json::Value = serde_json::from_str(&token_str).unwrap();
-
-    assert_eq!(token["user_id"], 42);
-    assert_eq!(token["role"], "admin");
-}
-
-/// Scenario: Cloud storage with metadata for key management
-#[test]
-fn scenario_cloud_storage_with_key_metadata_succeeds() {
-    let key = [0x4Cu8; 32];
-    let config = CryptoConfig::new().use_case(UseCase::CloudStorage);
-
-    let object_content = b"Cloud object: quarterly_report_2026_Q1.xlsx (binary)";
-
-    let encrypted_output = encrypt(
-        object_content,
-        EncryptKey::Symmetric(&key),
-        config.force_scheme(CryptoScheme::Symmetric),
-    )
-    .expect("encrypt")
-    // Tag with key management metadata
-    .with_key_id(Some("arn:aws:kms:us-east-1:123456789:key/mrk-abc123".to_string()));
-
-    let encrypted_data: latticearc::EncryptedData = encrypted_output.into();
-    let json = serialize_encrypted_data(&encrypted_data).expect("serialize");
-    let file = write_to_tempfile(&json);
-
-    // Key management system reads metadata to fetch correct key
-    let loaded_json = read_from_file(file.path());
-    let raw: serde_json::Value = serde_json::from_str(&loaded_json).unwrap();
-
-    let key_arn = raw["metadata"]["key_id"].as_str().unwrap();
-    assert!(key_arn.starts_with("arn:aws:kms:"));
-
-    // Decrypt after key lookup
-    let output: EncryptedOutput = deserialize_encrypted_data(&loaded_json)
-        .expect("deserialize")
-        .try_into()
-        .expect("scheme should be valid");
-    let decrypted =
-        decrypt(&output, DecryptKey::Symmetric(&key), CryptoConfig::new()).expect("decrypt");
-    assert_eq!(decrypted.as_slice(), object_content);
-}
-
 // ============================================================================
 // SECTION 5: VerifiedSession × UseCase × SecurityLevel
 //
@@ -1517,15 +975,13 @@ fn verified_session_usecase_roundtrip(use_case: UseCase) {
         .force_scheme(CryptoScheme::Symmetric);
     let encrypted =
         encrypt(msg.as_bytes(), EncryptKey::Symmetric(&key), config).expect("encrypt failed");
-    let encrypted_data: latticearc::EncryptedData = encrypted.into();
-    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
+    let json = serialize_encrypted_output(&encrypted).expect("serialize failed");
     let path = std::env::temp_dir().join(format!("latticearc-vs-uc-{}", uuid::Uuid::new_v4()));
     std::fs::write(&path, json.as_bytes()).expect("write failed");
 
     // Reader: only has file + key + session
     let json_read = std::fs::read_to_string(&path).expect("read failed");
-    let deserialized = deserialize_encrypted_data(&json_read).expect("deserialize failed");
-    let output: EncryptedOutput = deserialized.try_into().expect("scheme should be valid");
+    let output = deserialize_encrypted_output(&json_read).expect("deserialize failed");
     let config = CryptoConfig::new().session(&session);
     let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), config).expect("decrypt failed");
     assert_eq!(decrypted.as_slice(), msg.as_bytes(), "VerifiedSession + {use_case:?} mismatch");
@@ -1546,14 +1002,12 @@ fn verified_session_security_level_roundtrip(level: SecurityLevel) {
         .force_scheme(CryptoScheme::Symmetric);
     let encrypted =
         encrypt(msg.as_bytes(), EncryptKey::Symmetric(&key), config).expect("encrypt failed");
-    let encrypted_data: latticearc::EncryptedData = encrypted.into();
-    let json = serialize_encrypted_data(&encrypted_data).expect("serialize failed");
+    let json = serialize_encrypted_output(&encrypted).expect("serialize failed");
     let path = std::env::temp_dir().join(format!("latticearc-vs-sl-{}", uuid::Uuid::new_v4()));
     std::fs::write(&path, json.as_bytes()).expect("write failed");
 
     let json_read = std::fs::read_to_string(&path).expect("read failed");
-    let deserialized = deserialize_encrypted_data(&json_read).expect("deserialize failed");
-    let output: EncryptedOutput = deserialized.try_into().expect("scheme should be valid");
+    let output = deserialize_encrypted_output(&json_read).expect("deserialize failed");
     let config = CryptoConfig::new().session(&session);
     let decrypted = decrypt(&output, DecryptKey::Symmetric(&key), config).expect("decrypt failed");
     assert_eq!(
@@ -1602,11 +1056,6 @@ fn verified_session_security_level_high_roundtrip() {
 #[test]
 fn verified_session_security_level_maximum_roundtrip() {
     verified_session_security_level_roundtrip(SecurityLevel::Maximum);
-}
-
-#[test]
-fn verified_session_security_level_quantum_roundtrip() {
-    verified_session_security_level_roundtrip(SecurityLevel::Quantum);
 }
 
 // ============================================================================
@@ -1684,38 +1133,15 @@ fn compliance_mode_default_roundtrip() {
 }
 
 #[test]
-fn compliance_mode_fips140_3_roundtrip() {
-    let key = [0x71u8; 32];
-    let msg = b"ComplianceMode::Fips140_3 - FIPS-gated";
-    let config = CryptoConfig::new()
-        .compliance(ComplianceMode::Fips140_3)
-        .force_scheme(CryptoScheme::Symmetric);
-    let result = encrypt(msg, EncryptKey::Symmetric(&key), config);
-    if fips_available() {
-        let encrypted = result.expect("FIPS encrypt should succeed when FIPS available");
-        let encrypted_data: latticearc::EncryptedData = encrypted.into();
-        let json = serialize_encrypted_data(&encrypted_data).expect("serialize");
-        let path = std::env::temp_dir().join(format!("latticearc-fips-{}", uuid::Uuid::new_v4()));
-        std::fs::write(&path, json.as_bytes()).expect("write");
-        let decrypted = reader_decrypt_from_file(&path, &key);
-        assert_eq!(decrypted.as_slice(), msg);
-        let _ = std::fs::remove_file(&path);
-    } else {
-        assert!(result.is_err(), "FIPS compliance should fail without FIPS feature");
-    }
-}
-
-#[test]
 fn compliance_mode_cnsa2_0_roundtrip() {
     // CNSA 2.0 (since 0.6.0) requires CryptoMode::PqOnly.
-    // SecurityLevel::Quantum resolves to (Maximum, PqOnly) automatically,
-    // but the key type must be PqOnly (not hybrid).
     let msg = b"ComplianceMode::Cnsa2_0 - PQ-only";
     let (pk, sk) =
         latticearc::generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem1024).expect("keygen");
     let config = CryptoConfig::new()
         .compliance(ComplianceMode::Cnsa2_0)
-        .security_level(SecurityLevel::Quantum);
+        .security_level(SecurityLevel::Maximum)
+        .crypto_mode(latticearc::CryptoMode::PqOnly);
     let encrypted =
         encrypt(msg, EncryptKey::PqOnly(&pk), config).expect("CNSA 2.0 + PQ-only should succeed");
 
@@ -1727,7 +1153,8 @@ fn compliance_mode_cnsa2_0_roundtrip() {
     let deserialized = deserialize_encrypted_output(&json_read).expect("deserialize");
     let config = CryptoConfig::new()
         .compliance(ComplianceMode::Cnsa2_0)
-        .security_level(SecurityLevel::Quantum);
+        .security_level(SecurityLevel::Maximum)
+        .crypto_mode(latticearc::CryptoMode::PqOnly);
     let decrypted = decrypt(&deserialized, DecryptKey::PqOnly(&sk), config).expect("decrypt");
     assert_eq!(decrypted.as_slice(), msg);
     let _ = std::fs::remove_file(&path);
@@ -1739,7 +1166,8 @@ fn compliance_mode_cnsa2_0_rejects_standalone_aes() {
     let key = [0x73u8; 32];
     let config = CryptoConfig::new()
         .compliance(ComplianceMode::Cnsa2_0)
-        .security_level(SecurityLevel::Quantum)
+        .security_level(SecurityLevel::Maximum)
+        .crypto_mode(latticearc::CryptoMode::PqOnly)
         .force_scheme(CryptoScheme::Symmetric);
     let result = encrypt(b"should be rejected", EncryptKey::Symmetric(&key), config);
     assert!(result.is_err(), "CNSA 2.0 must reject standalone AES-256-GCM");
@@ -1865,90 +1293,6 @@ fn scheme_verified_security_level_standard_succeeds() {
 /// Scenario 4 (full): Key rotation under load.
 /// Encrypt 100 messages with key v1 → rotate → encrypt 100 with v2 →
 /// decrypt all 200 (100 with v1, 100 with v2) → destroy v1 → v1 decrypt fails.
-#[test]
-fn scenario_key_rotation_under_load_200_messages_succeeds() {
-    let key_v1 = [0x71u8; 32];
-    let key_v2 = [0x72u8; 32];
-
-    #[derive(Serialize, Deserialize)]
-    struct VersionedCiphertext {
-        key_version: u32,
-        encrypted_json: String,
-    }
-
-    let mut store: Vec<VersionedCiphertext> = Vec::new();
-
-    let mut encrypt_batch = |key: &[u8; 32], version: u32, prefix: &str| {
-        for i in 0..100u32 {
-            let msg = format!("{prefix}-{i:03}");
-            let encrypted = encrypt(
-                msg.as_bytes(),
-                EncryptKey::Symmetric(key),
-                CryptoConfig::new().force_scheme(CryptoScheme::Symmetric),
-            )
-            .expect("encrypt");
-            let data: latticearc::EncryptedData = encrypted.into();
-            let json = serialize_encrypted_data(&data).expect("serialize");
-            store.push(VersionedCiphertext { key_version: version, encrypted_json: json });
-        }
-    };
-
-    encrypt_batch(&key_v1, 1, "v1-message");
-    encrypt_batch(&key_v2, 2, "v2-message");
-
-    assert_eq!(store.len(), 200);
-
-    // Persist to file
-    let store_json = serde_json::to_string(&store).unwrap();
-    let mut file = NamedTempFile::new().unwrap();
-    file.write_all(store_json.as_bytes()).unwrap();
-    let temp_path = file.into_temp_path(); // keep alive until end of test
-
-    // Load and decrypt all 200
-    let loaded: Vec<VersionedCiphertext> =
-        serde_json::from_str(&std::fs::read_to_string(&*temp_path).unwrap()).unwrap();
-    assert_eq!(loaded.len(), 200);
-
-    for (i, item) in loaded.iter().enumerate() {
-        let output: EncryptedOutput = deserialize_encrypted_data(&item.encrypted_json)
-            .expect("deserialize")
-            .try_into()
-            .expect("valid scheme");
-        let key = match item.key_version {
-            1 => &key_v1,
-            2 => &key_v2,
-            _ => panic!("unknown version"),
-        };
-        let decrypted =
-            decrypt(&output, DecryptKey::Symmetric(key), CryptoConfig::new()).expect("decrypt");
-        let expected = if item.key_version == 1 {
-            format!("v1-message-{:03}", i)
-        } else {
-            format!("v2-message-{:03}", i - 100)
-        };
-        assert_eq!(std::str::from_utf8(&decrypted).unwrap(), expected, "Message {i} mismatch");
-    }
-
-    // Simulate key destruction: in production, key_v1 would be zeroized via
-    // Zeroizing<[u8; 32]>. Here we prove that any key other than the original
-    // fails decryption — the AEAD auth tag rejects wrong keys.
-    let destroyed_key = [0u8; 32];
-    let first_v1 = &loaded[0];
-    let output: EncryptedOutput =
-        deserialize_encrypted_data(&first_v1.encrypted_json).unwrap().try_into().unwrap();
-    let result = decrypt(&output, DecryptKey::Symmetric(&destroyed_key), CryptoConfig::new());
-    assert!(result.is_err(), "Destroyed key v1 must not decrypt v1 ciphertext");
-
-    // Key v2 still works
-    let last_v2 = &loaded[199];
-    let output: EncryptedOutput =
-        deserialize_encrypted_data(&last_v2.encrypted_json).unwrap().try_into().unwrap();
-    let decrypted =
-        decrypt(&output, DecryptKey::Symmetric(&key_v2), CryptoConfig::new()).expect("v2 works");
-    assert_eq!(std::str::from_utf8(&decrypted).unwrap(), "v2-message-099");
-    drop(temp_path); // cleanup
-}
-
 /// Scenario 5: Multi-algorithm compatibility.
 /// Encrypt the same plaintext with every EncryptionScheme variant →
 /// serialize each → decrypt each → verify all match original.

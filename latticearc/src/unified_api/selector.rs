@@ -129,12 +129,11 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     #[must_use = "scheme selection should be used for algorithm configuration"]
-    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_pq_encryption_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
             SecurityLevel::Standard => Ok(PQ_ENCRYPTION_512.to_string()),
             SecurityLevel::High => Ok(PQ_ENCRYPTION_768.to_string()),
-            SecurityLevel::Maximum | SecurityLevel::Quantum => Ok(PQ_ENCRYPTION_1024.to_string()),
+            SecurityLevel::Maximum => Ok(PQ_ENCRYPTION_1024.to_string()),
         }
     }
 
@@ -145,12 +144,11 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     #[must_use = "scheme selection should be used for algorithm configuration"]
-    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_pq_signature_scheme(config: &CoreConfig) -> Result<String> {
         match config.security_level {
             SecurityLevel::Standard => Ok(PQ_SIGNATURE_44.to_string()),
             SecurityLevel::High => Ok(PQ_SIGNATURE_65.to_string()),
-            SecurityLevel::Maximum | SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),
+            SecurityLevel::Maximum => Ok(PQ_SIGNATURE_87.to_string()),
         }
     }
 
@@ -218,10 +216,8 @@ impl CryptoPolicyEngine {
     }
 
     /// Select scheme based only on security level (no data analysis).
-    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     fn select_for_security_level(config: &CoreConfig) -> String {
         match &config.security_level {
-            SecurityLevel::Quantum => PQ_ENCRYPTION_1024.to_string(),
             SecurityLevel::Maximum => HYBRID_ENCRYPTION_1024.to_string(),
             SecurityLevel::High => HYBRID_ENCRYPTION_768.to_string(),
             SecurityLevel::Standard => HYBRID_ENCRYPTION_512.to_string(),
@@ -235,10 +231,8 @@ impl CryptoPolicyEngine {
     /// This function currently does not return errors, but returns `Result`
     /// for future compatibility with validation logic.
     #[must_use = "scheme selection should be used for algorithm configuration"]
-    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_signature_scheme(config: &CoreConfig) -> Result<String> {
         match &config.security_level {
-            SecurityLevel::Quantum => Ok(PQ_SIGNATURE_87.to_string()),
             SecurityLevel::Maximum => Ok(HYBRID_SIGNATURE_87.to_string()),
             SecurityLevel::High => Ok(HYBRID_SIGNATURE_65.to_string()),
             SecurityLevel::Standard => Ok(HYBRID_SIGNATURE_44.to_string()),
@@ -345,7 +339,6 @@ impl CryptoPolicyEngine {
     /// Always returns a hybrid scheme (`CryptoMode::Hybrid`). For PQ-only
     /// scheme selection, use [`select_encryption_scheme_typed_with_mode`] instead.
     #[must_use]
-    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_encryption_scheme_typed(config: &CoreConfig) -> EncryptionScheme {
         Self::select_encryption_scheme_typed_with_mode(
             config,
@@ -357,7 +350,6 @@ impl CryptoPolicyEngine {
     ///
     /// This is the primary typed scheme selector that respects the crypto mode.
     #[must_use]
-    #[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
     pub fn select_encryption_scheme_typed_with_mode(
         config: &CoreConfig,
         mode: crate::types::types::CryptoMode,
@@ -366,16 +358,12 @@ impl CryptoPolicyEngine {
 
         match mode {
             CryptoMode::PqOnly => match &config.security_level {
-                SecurityLevel::Quantum | SecurityLevel::Maximum => {
-                    EncryptionScheme::PqMlKem1024Aes256Gcm
-                }
+                SecurityLevel::Maximum => EncryptionScheme::PqMlKem1024Aes256Gcm,
                 SecurityLevel::High => EncryptionScheme::PqMlKem768Aes256Gcm,
                 SecurityLevel::Standard => EncryptionScheme::PqMlKem512Aes256Gcm,
             },
             CryptoMode::Hybrid => match &config.security_level {
-                SecurityLevel::Quantum | SecurityLevel::Maximum => {
-                    EncryptionScheme::HybridMlKem1024Aes256Gcm
-                }
+                SecurityLevel::Maximum => EncryptionScheme::HybridMlKem1024Aes256Gcm,
                 SecurityLevel::High => EncryptionScheme::HybridMlKem768Aes256Gcm,
                 SecurityLevel::Standard => EncryptionScheme::HybridMlKem512Aes256Gcm,
             },
@@ -663,7 +651,6 @@ use crate::primitives::kem::ml_kem::MlKemSecurityLevel;
 /// (`SecurityLevel → MlKemSecurityLevel`) lives in
 /// [`expected_ml_kem_level`](crate::unified_api::convenience::pq_kem).
 #[must_use]
-#[allow(deprecated)] // SecurityLevel::Quantum backward compat (0.6.0 deprecation)
 pub fn ml_kem_level_to_security_level(level: MlKemSecurityLevel) -> SecurityLevel {
     match level {
         MlKemSecurityLevel::MlKem512 => SecurityLevel::Standard,

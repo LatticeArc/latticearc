@@ -518,12 +518,7 @@ fn test_symmetric_roundtrip_all_security_levels_succeeds() {
             let data = b"Roundtrip test for all security levels";
             let key = vec![0xBBu8; 32];
 
-            let levels = [
-                SecurityLevel::Standard,
-                SecurityLevel::High,
-                SecurityLevel::Maximum,
-                SecurityLevel::Quantum,
-            ];
+            let levels = [SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
 
             for level in &levels {
                 let config = CryptoConfig::new()
@@ -818,7 +813,6 @@ fn test_security_level_variants_returns_expected_succeeds() {
     let standard = SecurityLevel::Standard;
     let high = SecurityLevel::High;
     let maximum = SecurityLevel::Maximum;
-    let quantum = SecurityLevel::Quantum;
 
     // Default is High
     assert_eq!(SecurityLevel::default(), SecurityLevel::High);
@@ -827,12 +821,10 @@ fn test_security_level_variants_returns_expected_succeeds() {
     assert_eq!(standard.clone(), SecurityLevel::Standard);
     assert_eq!(high.clone(), SecurityLevel::High);
     assert_eq!(maximum.clone(), SecurityLevel::Maximum);
-    assert_eq!(quantum.clone(), SecurityLevel::Quantum);
 
     // All variants are distinct
     assert_ne!(standard, high);
     assert_ne!(high, maximum);
-    assert_ne!(maximum, quantum);
 }
 
 #[test]
@@ -1208,25 +1200,6 @@ fn test_aes_gcm_with_config_verified_session_succeeds() {
 // ============================================================================
 // Phase 4: api.rs - generate_signing_keypair with specific schemes
 // ============================================================================
-
-#[test]
-fn test_generate_signing_keypair_quantum_level_succeeds() {
-    std::thread::Builder::new()
-        .name("keygen_quantum".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(|| {
-            let config = CryptoConfig::new().security_level(SecurityLevel::Quantum);
-            let result = generate_signing_keypair(config);
-            assert!(result.is_ok(), "Quantum level keypair generation should succeed");
-            let (pk, sk, scheme) = result.unwrap();
-            assert!(!pk.is_empty());
-            assert!(!sk.is_empty());
-            assert!(!scheme.is_empty());
-        })
-        .unwrap()
-        .join()
-        .unwrap();
-}
 
 #[test]
 fn test_generate_signing_keypair_all_use_cases_succeeds() {

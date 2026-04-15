@@ -32,12 +32,10 @@ const USE_CASES: &[(&str, UseCase)] = &[
     ("audit-log", UseCase::AuditLog),
 ];
 
-#[allow(deprecated)]
 const SECURITY_LEVELS: &[(&str, SecurityLevel)] = &[
     ("standard", SecurityLevel::Standard),
     ("high", SecurityLevel::High),
     ("maximum", SecurityLevel::Maximum),
-    ("quantum", SecurityLevel::Quantum), // deprecated; maps to Maximum + PqOnly
 ];
 
 const COMPLIANCE_MODES: &[(&str, ComplianceMode)] = &[

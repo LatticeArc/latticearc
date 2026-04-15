@@ -429,31 +429,6 @@ pub enum SecurityLevel {
     /// Uses ML-KEM-1024 (+ X25519 in hybrid mode), ML-DSA-87 (+ Ed25519 in hybrid mode).
     /// For high-value assets and long-term security.
     Maximum,
-    /// Deprecated: use `SecurityLevel::Maximum` with `CryptoMode::PqOnly` instead.
-    ///
-    /// This variant conflated two orthogonal axes (security level and crypto mode).
-    /// It is equivalent to `(SecurityLevel::Maximum, CryptoMode::PqOnly)`.
-    #[deprecated(
-        since = "0.6.0",
-        note = "Use SecurityLevel::Maximum with CryptoMode::PqOnly instead"
-    )]
-    Quantum,
-}
-
-impl SecurityLevel {
-    /// Resolve a potentially-deprecated `SecurityLevel` into its canonical
-    /// `(SecurityLevel, CryptoMode)` pair.
-    ///
-    /// `SecurityLevel::Quantum` resolves to `(Maximum, PqOnly)`.
-    /// All other variants resolve to `(self, Hybrid)`.
-    #[must_use]
-    #[allow(deprecated)]
-    pub fn resolve(self) -> (Self, CryptoMode) {
-        match self {
-            Self::Quantum => (Self::Maximum, CryptoMode::PqOnly),
-            other => (other, CryptoMode::Hybrid),
-        }
-    }
 }
 
 /// Compliance mode for cryptographic operations.
@@ -1029,12 +1004,7 @@ mod tests {
 
     #[test]
     fn test_security_level_variants_produce_correct_bit_security_succeeds() {
-        let variants = vec![
-            SecurityLevel::Standard,
-            SecurityLevel::High,
-            SecurityLevel::Maximum,
-            SecurityLevel::Quantum,
-        ];
+        let variants = vec![SecurityLevel::Standard, SecurityLevel::High, SecurityLevel::Maximum];
         for v in &variants {
             assert_eq!(*v, v.clone());
         }
@@ -1043,38 +1013,8 @@ mod tests {
 
     #[test]
     fn test_security_level_debug_produces_nonempty_string_succeeds() {
-        let debug = format!("{:?}", SecurityLevel::Quantum);
-        assert!(debug.contains("Quantum"));
-    }
-
-    // --- SecurityLevel::resolve() tests ---
-
-    #[test]
-    fn test_security_level_resolve_quantum_returns_maximum_pq_only() {
-        let (level, mode) = SecurityLevel::Quantum.resolve();
-        assert_eq!(level, SecurityLevel::Maximum);
-        assert_eq!(mode, CryptoMode::PqOnly);
-    }
-
-    #[test]
-    fn test_security_level_resolve_standard_returns_hybrid() {
-        let (level, mode) = SecurityLevel::Standard.resolve();
-        assert_eq!(level, SecurityLevel::Standard);
-        assert_eq!(mode, CryptoMode::Hybrid);
-    }
-
-    #[test]
-    fn test_security_level_resolve_high_returns_hybrid() {
-        let (level, mode) = SecurityLevel::High.resolve();
-        assert_eq!(level, SecurityLevel::High);
-        assert_eq!(mode, CryptoMode::Hybrid);
-    }
-
-    #[test]
-    fn test_security_level_resolve_maximum_returns_hybrid() {
-        let (level, mode) = SecurityLevel::Maximum.resolve();
-        assert_eq!(level, SecurityLevel::Maximum);
-        assert_eq!(mode, CryptoMode::Hybrid);
+        let debug = format!("{:?}", SecurityLevel::Maximum);
+        assert!(debug.contains("Maximum"));
     }
 
     // --- CryptoMode tests ---

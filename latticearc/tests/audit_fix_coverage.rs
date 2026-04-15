@@ -5,10 +5,6 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::indexing_slicing)]
-// L4 tests intentionally exercise the deprecated `SerializableEncryptedData`
-// type (kept until EncryptedOutput migration completes) to verify its 10 MiB
-// serialization cap behaves correctly.
-#![allow(deprecated)]
 
 // ============================================================================
 // H1: HkdfResult.key field is private, accessed only via key() accessor
@@ -525,30 +521,32 @@ mod m10_dlog_equality_debug_redaction {
 
 mod l4_serialization_size_limit {
     use base64::Engine as _;
-    use latticearc::unified_api::EncryptedData;
-    use latticearc::unified_api::serialization::SerializableEncryptedData;
-    use latticearc::unified_api::serialization::SerializableEncryptedMetadata;
+    use latticearc::unified_api::crypto_types::EncryptedOutput;
+    use latticearc::unified_api::serialization::SerializableEncryptedOutput;
 
     fn b64(data: &[u8]) -> String {
         base64::engine::general_purpose::STANDARD.encode(data)
     }
 
+    fn make_payload(ciphertext: String) -> SerializableEncryptedOutput {
+        SerializableEncryptedOutput {
+            version: 2,
+            scheme: "aes-256-gcm".to_string(),
+            ciphertext,
+            nonce: b64(&[0u8; 12]),
+            tag: b64(&[0u8; 16]),
+            hybrid_data: None,
+            timestamp: 0,
+            key_id: None,
+        }
+    }
+
     #[test]
     fn l4_oversized_data_rejected() {
-        // Create serializable data exceeding 10 MiB
-        let oversized = SerializableEncryptedData {
-            data: "A".repeat(11 * 1024 * 1024), // 11 MiB of 'A'
-            metadata: SerializableEncryptedMetadata {
-                nonce: b64(&[0u8; 12]),
-                tag: None,
-                key_id: None,
-            },
-            scheme: "test".to_string(),
-            timestamp: 0,
-        };
-
-        let result: Result<EncryptedData, _> = oversized.try_into();
-        assert!(result.is_err(), "Oversized data should be rejected");
+        // Ciphertext exceeding the 10 MiB defense-in-depth cap must fail.
+        let oversized = make_payload("A".repeat(11 * 1024 * 1024));
+        let result: Result<EncryptedOutput, _> = oversized.try_into();
+        assert!(result.is_err(), "Oversized payload should be rejected");
         let err = format!("{:?}", result.unwrap_err());
         assert!(
             err.contains("exceeds maximum") || err.contains("size"),
@@ -558,20 +556,9 @@ mod l4_serialization_size_limit {
 
     #[test]
     fn l4_exactly_at_limit_accepted() {
-        // 10 MiB is the exact limit — should be accepted
-        let at_limit = SerializableEncryptedData {
-            data: "A".repeat(10 * 1024 * 1024),
-            metadata: SerializableEncryptedMetadata {
-                nonce: b64(&[0u8; 12]),
-                tag: None,
-                key_id: None,
-            },
-            scheme: "test".to_string(),
-            timestamp: 0,
-        };
-
-        let result: Result<EncryptedData, _> = at_limit.try_into();
-        // Should pass the size check (may fail Base64 decode, but not size)
+        // Exactly 10 MiB passes the size check (may fail later validation).
+        let at_limit = make_payload("A".repeat(10 * 1024 * 1024));
+        let result: Result<EncryptedOutput, _> = at_limit.try_into();
         if let Err(e) = &result {
             let err = format!("{e:?}");
             assert!(
@@ -583,36 +570,15 @@ mod l4_serialization_size_limit {
 
     #[test]
     fn l4_normal_size_data_accepted() {
-        let normal = SerializableEncryptedData {
-            data: b64(&[0x42; 1024]),
-            metadata: SerializableEncryptedMetadata {
-                nonce: b64(&[0u8; 12]),
-                tag: None,
-                key_id: None,
-            },
-            scheme: "test".to_string(),
-            timestamp: 0,
-        };
-
-        let result: Result<EncryptedData, _> = normal.try_into();
-        assert!(result.is_ok(), "Normal-sized data should be accepted");
+        let normal = make_payload(b64(&[0x42; 1024]));
+        let result: Result<EncryptedOutput, _> = normal.try_into();
+        assert!(result.is_ok(), "Normal-sized data should be accepted: {result:?}");
     }
 
     #[test]
     fn l4_just_over_limit_rejected() {
-        // 10 MiB + 1 byte should be rejected
-        let over_limit = SerializableEncryptedData {
-            data: "A".repeat(10 * 1024 * 1024 + 1),
-            metadata: SerializableEncryptedMetadata {
-                nonce: b64(&[0u8; 12]),
-                tag: None,
-                key_id: None,
-            },
-            scheme: "test".to_string(),
-            timestamp: 0,
-        };
-
-        let result: Result<EncryptedData, _> = over_limit.try_into();
+        let over_limit = make_payload("A".repeat(10 * 1024 * 1024 + 1));
+        let result: Result<EncryptedOutput, _> = over_limit.try_into();
         assert!(result.is_err(), "Over-limit data should be rejected");
     }
 }
