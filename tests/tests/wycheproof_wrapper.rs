@@ -28,6 +28,7 @@
 )]
 
 use latticearc::primitives::aead::{AES_GCM_256_KEY_LEN, NONCE_LEN, TAG_LEN};
+use latticearc_tests::validation::wycheproof::WycheproofResults;
 use wycheproof::TestResult;
 
 /// Budget for flaky / implementation-defined test cases. If the wrapper
@@ -35,55 +36,6 @@ use wycheproof::TestResult;
 /// `Acceptable` edge cases are implementation-defined. Fail if more
 /// than 1% of ran (non-skipped) tests fail.
 const MAX_FAILURE_RATE: f64 = 0.01;
-
-struct Summary {
-    total: usize,
-    passed: usize,
-    failed: usize,
-    skipped: usize,
-    failures: Vec<String>,
-}
-
-impl Summary {
-    fn new() -> Self {
-        Self { total: 0, passed: 0, failed: 0, skipped: 0, failures: Vec::new() }
-    }
-    fn pass(&mut self) {
-        self.total += 1;
-        self.passed += 1;
-    }
-    fn skip(&mut self) {
-        self.total += 1;
-        self.skipped += 1;
-    }
-    fn fail(&mut self, msg: String) {
-        self.total += 1;
-        self.failed += 1;
-        self.failures.push(msg);
-    }
-    fn ran(&self) -> usize {
-        self.passed + self.failed
-    }
-    fn check_rate(&self, label: &str) {
-        println!(
-            "{label}: {}/{} passed ({} skipped, {} failed)",
-            self.passed, self.total, self.skipped, self.failed
-        );
-        if self.ran() == 0 {
-            return;
-        }
-        let rate = self.failed as f64 / self.ran() as f64;
-        assert!(
-            rate < MAX_FAILURE_RATE,
-            "{label}: {}/{} failed ({:.2}%) — budget {:.2}%. First failures: {:?}",
-            self.failed,
-            self.ran(),
-            rate * 100.0,
-            MAX_FAILURE_RATE * 100.0,
-            self.failures.iter().take(5).collect::<Vec<_>>(),
-        );
-    }
-}
 
 // =============================================================================
 // AES-256-GCM via our wrapper
@@ -99,7 +51,7 @@ fn aes_256_gcm_via_wrapper_matches_wycheproof() {
         return;
     };
 
-    let mut s = Summary::new();
+    let mut s = WycheproofResults::new();
     for group in ts.test_groups {
         for tc in group.tests {
             // AesGcm256 wraps AES-256-GCM with the standard 12-byte nonce and
@@ -108,7 +60,7 @@ fn aes_256_gcm_via_wrapper_matches_wycheproof() {
                 || tc.nonce.len() != NONCE_LEN
                 || tc.tag.len() != TAG_LEN
             {
-                s.skip();
+                s.add_skip();
                 continue;
             }
 
@@ -118,7 +70,7 @@ fn aes_256_gcm_via_wrapper_matches_wycheproof() {
             let tag: [u8; TAG_LEN] = tc.tag[..].try_into().unwrap();
 
             let Ok(cipher) = AesGcm256::new(&key) else {
-                s.skip();
+                s.add_skip();
                 continue;
             };
             let aad = if tc.aad.is_empty() { None } else { Some(&tc.aad[..]) };
@@ -126,19 +78,25 @@ fn aes_256_gcm_via_wrapper_matches_wycheproof() {
 
             match tc.result {
                 TestResult::Valid => match result {
-                    Ok(pt) if pt.as_slice() == &tc.pt[..] => s.pass(),
-                    Ok(_) => s.fail(format!("tc {} Valid: decrypted mismatch", tc.tc_id)),
-                    Err(e) => s.fail(format!("tc {} Valid: decrypt failed: {e:?}", tc.tc_id)),
+                    Ok(pt) if pt.as_slice() == &tc.pt[..] => s.add_pass(),
+                    Ok(_) => {
+                        s.add_failure(format!("tc {} Valid: decrypted mismatch", tc.tc_id));
+                    }
+                    Err(e) => {
+                        s.add_failure(format!("tc {} Valid: decrypt failed: {e:?}", tc.tc_id));
+                    }
                 },
                 TestResult::Invalid => match result {
-                    Err(_) => s.pass(),
-                    Ok(_) => s.fail(format!("tc {} Invalid: decrypt succeeded", tc.tc_id)),
+                    Err(_) => s.add_pass(),
+                    Ok(_) => {
+                        s.add_failure(format!("tc {} Invalid: decrypt succeeded", tc.tc_id));
+                    }
                 },
-                TestResult::Acceptable => s.pass(),
+                TestResult::Acceptable => s.add_pass(),
             }
         }
     }
-    s.check_rate("AES-256-GCM wrapper");
+    s.check_rate("AES-256-GCM wrapper", MAX_FAILURE_RATE);
 }
 
 // =============================================================================
@@ -158,21 +116,21 @@ fn chacha20_poly1305_via_wrapper_matches_wycheproof() {
 
     // ChaCha20-Poly1305 uses the same 32-byte key, 12-byte nonce, 16-byte tag
     // shape as AES-256-GCM. Reuse the AEAD constants for both suites.
-    let mut s = Summary::new();
+    let mut s = WycheproofResults::new();
     for group in ts.test_groups {
         for tc in group.tests {
             if tc.key.len() != AES_GCM_256_KEY_LEN
                 || tc.nonce.len() != NONCE_LEN
                 || tc.tag.len() != TAG_LEN
             {
-                s.skip();
+                s.add_skip();
                 continue;
             }
             let nonce: [u8; NONCE_LEN] = tc.nonce[..].try_into().unwrap();
             let tag: [u8; TAG_LEN] = tc.tag[..].try_into().unwrap();
 
             let Ok(cipher) = ChaCha20Poly1305Cipher::new(&tc.key[..]) else {
-                s.skip();
+                s.add_skip();
                 continue;
             };
             let aad = if tc.aad.is_empty() { None } else { Some(&tc.aad[..]) };
@@ -180,19 +138,25 @@ fn chacha20_poly1305_via_wrapper_matches_wycheproof() {
 
             match tc.result {
                 TestResult::Valid => match result {
-                    Ok(pt) if pt.as_slice() == &tc.pt[..] => s.pass(),
-                    Ok(_) => s.fail(format!("tc {} Valid: decrypted mismatch", tc.tc_id)),
-                    Err(e) => s.fail(format!("tc {} Valid: decrypt failed: {e:?}", tc.tc_id)),
+                    Ok(pt) if pt.as_slice() == &tc.pt[..] => s.add_pass(),
+                    Ok(_) => {
+                        s.add_failure(format!("tc {} Valid: decrypted mismatch", tc.tc_id));
+                    }
+                    Err(e) => {
+                        s.add_failure(format!("tc {} Valid: decrypt failed: {e:?}", tc.tc_id));
+                    }
                 },
                 TestResult::Invalid => match result {
-                    Err(_) => s.pass(),
-                    Ok(_) => s.fail(format!("tc {} Invalid: decrypt succeeded", tc.tc_id)),
+                    Err(_) => s.add_pass(),
+                    Ok(_) => {
+                        s.add_failure(format!("tc {} Invalid: decrypt succeeded", tc.tc_id));
+                    }
                 },
-                TestResult::Acceptable => s.pass(),
+                TestResult::Acceptable => s.add_pass(),
             }
         }
     }
-    s.check_rate("ChaCha20-Poly1305 wrapper");
+    s.check_rate("ChaCha20-Poly1305 wrapper", MAX_FAILURE_RATE);
 }
 
 // =============================================================================
@@ -209,18 +173,18 @@ fn hmac_sha256_via_wrapper_matches_wycheproof() {
         return;
     };
 
-    let mut s = Summary::new();
+    let mut s = WycheproofResults::new();
     for group in ts.test_groups {
         for tc in group.tests {
             // Our wrapper produces a fixed-size 32-byte tag. Wycheproof
             // includes truncated-tag vectors; skip those — truncation is
             // not a wrapper concern.
             if tc.tag.len() != 32 {
-                s.skip();
+                s.add_skip();
                 continue;
             }
             let Ok(computed) = hmac_sha256(&tc.key[..], &tc.msg[..]) else {
-                s.skip();
+                s.add_skip();
                 continue;
             };
             let matches_expected = computed.as_slice() == &tc.tag[..];
@@ -229,9 +193,9 @@ fn hmac_sha256_via_wrapper_matches_wycheproof() {
             match tc.result {
                 TestResult::Valid => {
                     if matches_expected && verify_ok {
-                        s.pass();
+                        s.add_pass();
                     } else {
-                        s.fail(format!(
+                        s.add_failure(format!(
                             "tc {} Valid: computed_match={matches_expected} verify_ok={verify_ok}",
                             tc.tc_id
                         ));
@@ -239,16 +203,16 @@ fn hmac_sha256_via_wrapper_matches_wycheproof() {
                 }
                 TestResult::Invalid => {
                     if !verify_ok {
-                        s.pass();
+                        s.add_pass();
                     } else {
-                        s.fail(format!("tc {} Invalid: verify returned true", tc.tc_id));
+                        s.add_failure(format!("tc {} Invalid: verify returned true", tc.tc_id));
                     }
                 }
-                TestResult::Acceptable => s.pass(),
+                TestResult::Acceptable => s.add_pass(),
             }
         }
     }
-    s.check_rate("HMAC-SHA256 wrapper");
+    s.check_rate("HMAC-SHA256 wrapper", MAX_FAILURE_RATE);
 }
 
 // =============================================================================
@@ -265,7 +229,7 @@ fn hkdf_sha256_via_wrapper_matches_wycheproof() {
         return;
     };
 
-    let mut s = Summary::new();
+    let mut s = WycheproofResults::new();
     for group in ts.test_groups {
         for tc in group.tests {
             let size = tc.size;
@@ -273,7 +237,7 @@ fn hkdf_sha256_via_wrapper_matches_wycheproof() {
             let info = if tc.info.is_empty() { None } else { Some(&tc.info[..]) };
 
             let Ok(prk) = hkdf_extract(salt, &tc.ikm[..]) else {
-                s.skip();
+                s.add_skip();
                 continue;
             };
             // Our wrapper may refuse oversized outputs while Wycheproof lists
@@ -282,9 +246,9 @@ fn hkdf_sha256_via_wrapper_matches_wycheproof() {
                 Ok(o) => o,
                 Err(_) => {
                     if matches!(tc.result, TestResult::Invalid) {
-                        s.pass();
+                        s.add_pass();
                     } else {
-                        s.skip();
+                        s.add_skip();
                     }
                     continue;
                 }
@@ -295,21 +259,21 @@ fn hkdf_sha256_via_wrapper_matches_wycheproof() {
             match tc.result {
                 TestResult::Valid => {
                     if matches {
-                        s.pass();
+                        s.add_pass();
                     } else {
-                        s.fail(format!("tc {} Valid: OKM mismatch", tc.tc_id));
+                        s.add_failure(format!("tc {} Valid: OKM mismatch", tc.tc_id));
                     }
                 }
                 TestResult::Invalid => {
                     if !matches {
-                        s.pass();
+                        s.add_pass();
                     } else {
-                        s.fail(format!("tc {} Invalid: OKM matched", tc.tc_id));
+                        s.add_failure(format!("tc {} Invalid: OKM matched", tc.tc_id));
                     }
                 }
-                TestResult::Acceptable => s.pass(),
+                TestResult::Acceptable => s.add_pass(),
             }
         }
     }
-    s.check_rate("HKDF-SHA256 wrapper");
+    s.check_rate("HKDF-SHA256 wrapper", MAX_FAILURE_RATE);
 }

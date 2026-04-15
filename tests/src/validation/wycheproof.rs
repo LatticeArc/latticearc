@@ -98,6 +98,48 @@ impl WycheproofResults {
         self.total += 1;
         self.skipped += 1;
     }
+
+    /// Returns the number of non-skipped tests (passed + failed). Timeouts and
+    /// `Acceptable` test cases are counted as passes by convention.
+    #[must_use]
+    pub fn ran(&self) -> usize {
+        self.passed.saturating_add(self.failed)
+    }
+
+    /// Panics if the failure rate (failures / ran) exceeds `budget`. Does
+    /// nothing when zero tests ran (empty suite, e.g. vectors unavailable).
+    /// `label` prefixes the panic message and the `println!` summary.
+    ///
+    /// `budget` is a ratio in `[0.0, 1.0]` — a budget of 0.01 means "at most
+    /// 1% of ran tests may fail". Callers enforce stricter budgets for
+    /// wrapper-level correctness, looser ones for suites where the failures
+    /// represent documented implementation-defined edge cases.
+    ///
+    /// # Panics
+    ///
+    /// Panics (via `assert!`) when the failure rate exceeds `budget`. This is
+    /// intentional — callers use `check_rate` as a test assertion, not a query.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn check_rate(&self, label: &str, budget: f64) {
+        println!(
+            "{label}: {}/{} passed ({} skipped, {} failed)",
+            self.passed, self.total, self.skipped, self.failed
+        );
+        let ran = self.ran();
+        if ran == 0 {
+            return;
+        }
+        let rate = self.failed as f64 / ran as f64;
+        assert!(
+            rate <= budget,
+            "{label}: {}/{} failed ({:.2}%) — budget {:.2}%. First failures: {:?}",
+            self.failed,
+            ran,
+            rate * 100.0,
+            budget * 100.0,
+            self.failures.iter().take(5).collect::<Vec<_>>(),
+        );
+    }
 }
 
 #[cfg(test)]

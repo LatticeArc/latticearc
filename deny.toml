@@ -28,6 +28,11 @@ ignore = [
     # not use custom loggers that call rand::rng(), so the trigger conditions are
     # not met. rand 0.9 upgrade is a separate breaking-API task.
     "RUSTSEC-2026-0097",
+    # paste 1.0.15 flagged as unmaintained (not a CVE). Pulled in transitively
+    # by pqcrypto-mldsa dev-dep used in cross-impl validation tests only; does
+    # not affect the published latticearc runtime. Revisit when pqcrypto-mldsa
+    # drops the dep upstream.
+    "RUSTSEC-2024-0436",
 ]
 
 [bans]
