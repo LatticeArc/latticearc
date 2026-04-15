@@ -92,13 +92,14 @@ pqcrypto-traits = "0.3"
 # `examples/dudect_ct.rs` binary. Pulls its own rand 0.10 transitively
 # (workspace uses rand 0.8); dev-only, no effect on published deps.
 dudect-bencher = "0.7"
-# Valgrind client-request interface. Powers `examples/ctgrind_ct.rs`,
-# which marks secret bytes as `Undefined` and relies on valgrind's
-# memcheck to fail on any branch or indexing that touches them —
-# complementing dudect's statistical CT check with an instruction-level
-# one. Compiles without valgrind installed; requests panic at runtime
-# if the example is executed outside valgrind, so the harness is only
-# exercised from the dedicated workflow.
+
+# Linux-only dev-deps. `crabgrind 0.2` ships a build.rs that compiles a
+# small C stub referencing `<valgrind/valgrind.h>`, which does not exist
+# on Windows/macOS. The ctgrind harness only runs on the Linux-only
+# `ctgrind.yml` workflow anyway, so gating the dep on `cfg(target_os =
+# "linux")` is the right scope. `tests/examples/ctgrind_ct.rs` has a
+# matching `#[cfg(target_os = "linux")]` guard on its harness module.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
 crabgrind = "0.2"
 
 [lib]

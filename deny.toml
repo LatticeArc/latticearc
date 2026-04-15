@@ -33,6 +33,20 @@ ignore = [
     # not affect the published latticearc runtime. Revisit when pqcrypto-mldsa
     # drops the dep upstream.
     "RUSTSEC-2024-0436",
+    # ansi_term 0.12.1 unmaintained. Pulled in transitively by clap 2.x via
+    # dudect-bencher 0.7 (dev-dep powering examples/dudect_ct.rs). No runtime
+    # impact on published crates. Revisit when dudect-bencher migrates to
+    # clap 4 or we switch to a different CT-bencher harness.
+    "RUSTSEC-2021-0139",
+    # atty 0.2.14 unmaintained. Same provenance as ansi_term above
+    # (clap 2 → dudect-bencher, dev-only).
+    "RUSTSEC-2024-0375",
+    # atty 0.2.14 Windows unaligned-pointer unsoundness. Triggers only
+    # under custom global allocators on Windows. Our dudect-bencher
+    # example is invoked only via `dudect.yml` on ubuntu-latest, never
+    # on Windows, and uses the default System allocator regardless.
+    # Same provenance (clap 2 → dudect-bencher, dev-only).
+    "RUSTSEC-2021-0145",
 ]
 
 [bans]
@@ -56,9 +70,12 @@ allow = []
 
 # Explicitly denied crates
 # Note: libc is present as a transitive dependency (via aws-lc-sys) — acceptable
-# and cannot be denied. nix is banned per project policy (use rustix instead).
+# and cannot be denied. nix is banned per project policy (use rustix instead)
+# *in our own code*; the `wrappers` exception below allows it only when
+# reached via `ctrlc`, which is a transitive dev-dep of `dudect-bencher`
+# (powers `examples/dudect_ct.rs`, no runtime impact on published crates).
 deny = [
-    { crate = "nix" },
+    { crate = "nix", wrappers = ["ctrlc"] },
 ]
 
 # Skip specific crates
