@@ -218,9 +218,18 @@ impl HybridKemPublicKey {
 /// decapsulation key bytes are equal, and (c) their X25519 seed bytes are
 /// equal — each compared in constant time via `subtle`.
 ///
-/// Cost: two `Zeroizing<Vec<u8>>` allocations per compare (ML-KEM key
-/// bytes on both sides). Acceptable outside tight loops; for hot-path
-/// deduplication, prefer comparing key IDs instead.
+/// **Intentionally no [`PartialEq`] / [`Eq`] impl.** Comparison is
+/// CT-only via `ct_eq`; attempting `==` on a `HybridKemSecretKey` is a
+/// compile error, not a silent non-CT check.
+///
+/// **Secret-material surfacing.** During a `ct_eq` call both sides'
+/// serialized ML-KEM and X25519 seed bytes briefly reside on the caller's
+/// stack (wrapped in `Zeroizing`, cleared on drop). The comparison does
+/// not leave residues beyond the call.
+///
+/// Cost: two `Zeroizing<Vec<u8>>` heap allocations (ML-KEM side) plus two
+/// stack `[u8; 32]` copies (ECDH side) per compare. Acceptable outside
+/// tight loops; for hot-path deduplication, prefer comparing key IDs.
 ///
 /// # Example
 ///
@@ -369,6 +378,10 @@ impl ConstantTimeEq for HybridKemSecretKey {
         // the enum's variants.
         let level_match = Choice::from(u8::from(self.security_level() == other.security_level()));
 
+        // `a.len() == b.len()` is a non-CT branch. It only fires when
+        // security levels differ, and in that case `level_match` is already
+        // 0 — the wall-clock divergence leaks only the security level,
+        // which is not secret material.
         let ml_match = match (self.ml_kem_sk_bytes(), other.ml_kem_sk_bytes()) {
             (Ok(a), Ok(b)) if a.len() == b.len() => a.ct_eq(&b),
             _ => Choice::from(0u8),
@@ -978,6 +991,8 @@ mod tests {
             bool::from(sk.ct_eq(&sk_copy)),
             "a hybrid secret key must ct_eq a byte-for-byte reconstruction of itself",
         );
+        // Symmetry on the equal case.
+        assert!(bool::from(sk_copy.ct_eq(&sk)), "ct_eq must be symmetric on equal keys");
     }
 
     #[test]
@@ -987,6 +1002,13 @@ mod tests {
         assert!(
             !bool::from(sk_a.ct_eq(&sk_b)),
             "two independently generated secret keys must not ct_eq",
+        );
+        // Symmetry: ct_eq is commutative. Locked in here because the
+        // existing impl is XOR-based and could regress if rewritten.
+        assert_eq!(
+            bool::from(sk_a.ct_eq(&sk_b)),
+            bool::from(sk_b.ct_eq(&sk_a)),
+            "ct_eq must be symmetric",
         );
     }
 
@@ -1007,7 +1029,7 @@ mod tests {
         // Guarantees the ml_match leg is load-bearing — a regression that
         // drops ml_match would still pass level_match and ec_match and
         // incorrectly report equality.
-        let (pk_a, sk_a) = generate_keypair().unwrap();
+        let (_pk_a, sk_a) = generate_keypair().unwrap();
         let (pk_b, sk_b) = generate_keypair().unwrap();
         let ec_a = sk_a.ecdh_seed_bytes().unwrap();
 
@@ -1026,7 +1048,6 @@ mod tests {
             !bool::from(sk_a.ct_eq(&sk_b_with_a_ec)),
             "secret keys with differing ML-KEM halves must not ct_eq",
         );
-        let _ = pk_a; // unused in this test; keep variable for parity
     }
 
     #[test]
