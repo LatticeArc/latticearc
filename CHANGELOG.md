@@ -84,6 +84,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the PR-blocking Kani manifest (total PR subset now 18 proofs; full
   suite 30).
 
+### Added (Phase 2d: instruction-level CT gate + OSS-Fuzz scaffold)
+
+- **ctgrind Valgrind-based constant-time harness**
+  (`tests/examples/ctgrind_ct.rs` + `.github/workflows/ctgrind.yml`).
+  Same technique used by BoringSSL/libsodium/aws-lc: mark secret bytes
+  as `Undefined` via Valgrind memcheck client requests, then invoke
+  the CT operation. Valgrind fails if any branch or index uses those
+  bytes — flagging non-constant-time behavior at the instruction
+  level. Scope: pure-Rust paths (`subtle::ConstantTimeEq` directly,
+  and `HybridKemSecretKey::ct_eq` composition) where the invariant is
+  well-defined. Workflow runs weekly (Tuesdays 06:00 UTC, offset from
+  the Sunday Criterion gate and the Monday dudect gate); not
+  PR-blocking. `crabgrind = "0.2"` added as dev-dep in
+  `latticearc-tests`. Complements dudect (statistical timing) by
+  catching a different failure mode: a branch that depends on a secret
+  even when timing looks uniform on a given machine.
+
+- **OSS-Fuzz integration scaffold** (`fuzz/oss-fuzz/`). Vendored
+  `project.yaml`, `Dockerfile`, `build.sh`, and `README.md` ready to
+  copy into `google/oss-fuzz/projects/latticearc/` as an upstream PR.
+  Sanitizers enabled on day one: `address`, `undefined`. Memory
+  sanitizer deliberately held back pending `aws/aws-lc-rs#1077` (same
+  upstream item gating `sanitizers.yml` MSan). Once OSS-Fuzz accepts
+  the PR, their infrastructure continuously fuzzes every `[[bin]]` in
+  `fuzz/Cargo.toml` with findings reported by email. Puts our
+  continuous-fuzzing story on the same footing as OpenSSL/BoringSSL.
+
 ### Added (Phase 2c: cross-impl ML-KEM stress + weekly fuzz schedule)
 
 - **Cross-impl ML-KEM stress tests** (`tests/tests/cross_impl_ml_kem.rs`):

@@ -1,0 +1,115 @@
+# ctgrind Constant-Time Validation (Valgrind memcheck)
+#
+# Runs the ctgrind harness (`tests/examples/ctgrind_ct.rs`) under Valgrind's
+# memcheck. The harness marks secret-byte inputs as `Undefined` via client
+# requests (crabgrind); memcheck then fails if any branch or indexing
+# depends on those bytes — catching non-constant-time behavior at the
+# instruction level.
+#
+# Complements two existing CT gates:
+#
+#   - `constant-time.yml` — Criterion-based wall-clock benchmarks.
+#     Qualitative; detects egregious divergence.
+#   - `dudect.yml` — DudeCT statistical t-test across input classes.
+#     Quantitative but statistical; flags leaks via timing variance.
+#
+# This workflow catches a different failure mode than either: a branch
+# that depends on a secret even if timing looks uniform on a given
+# machine. It is the same technique used by BoringSSL's ctgrind and by
+# libsodium/aws-lc internal CT harnesses.
+#
+# Scope: pure-Rust CT paths only. Valgrind cannot cleanly reason about
+# aws-lc-rs assembly; the harness deliberately targets `subtle`-based
+# comparisons and our own hybrid ct_eq composition, where the invariant
+# is well-defined.
+#
+# Cadence: weekly (Tuesdays 06:00 UTC, offset from constant-time.yml on
+# Sundays and dudect.yml on Mondays) + workflow_dispatch. Not PR-blocking:
+# the harness is slow under Valgrind (~30-60s for 4 checks) and a single
+# CI hiccup shouldn't block a PR.
+
+name: ctgrind Constant-Time Gate
+
+on:
+  schedule:
+    - cron: '0 6 * * 2'  # Tuesdays 06:00 UTC
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  ctgrind:
+    name: ctgrind Harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+      - name: Install valgrind + dev headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends valgrind
+
+      - name: Cache Cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-ctgrind-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build ctgrind harness (release)
+        run: cargo build --release --example ctgrind_ct -p latticearc-tests
+
+      - name: Run ctgrind harness under valgrind memcheck
+        run: |
+          # --error-exitcode=1  : any memcheck error (incl. branch-on-uninit) fails CI
+          # --track-origins=yes : show where uninit bytes came from (helps debug)
+          # --errors-for-leak-kinds=none : leaks are a separate check; not CT
+          valgrind \
+            --tool=memcheck \
+            --error-exitcode=1 \
+            --track-origins=yes \
+            --errors-for-leak-kinds=none \
+            --leak-check=no \
+            ./target/release/examples/ctgrind_ct \
+            2>&1 | tee ctgrind-output.txt
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "## ctgrind Constant-Time Gate"
+            echo ""
+            echo "Runs \`tests/examples/ctgrind_ct.rs\` under Valgrind memcheck."
+            echo "Secret bytes are marked \`Undefined\`; any branch or indexing"
+            echo "that uses them is reported as a memcheck error."
+            echo ""
+            echo '### Valgrind output'
+            echo '```'
+            cat ctgrind-output.txt || echo "(no output)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw valgrind output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ctgrind-output
+          path: ctgrind-output.txt
+          retention-days: 30

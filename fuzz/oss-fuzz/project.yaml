@@ -1,0 +1,20 @@
+homepage: "https://github.com/LatticeArc/latticearc"
+language: rust
+primary_contact: "security@latticearc.com"
+auto_ccs:
+  - "dev@latticearc.com"
+main_repo: "https://github.com/LatticeArc/latticearc"
+vendor_ccs:
+  - "security@latticearc.com"
+file_github_issue: true
+sanitizers:
+  - address
+  - undefined
+fuzzing_engines:
+  - libfuzzer
+architectures:
+  - x86_64
+# Memory sanitizer is intentionally omitted until aws-lc-rs ships MSan
+# feature-flag support (tracking: https://github.com/aws/aws-lc-rs/pull/1077).
+# When that lands, add `- memory` above and flip `sanitizers.yml`
+# `continue-on-error: false`.
