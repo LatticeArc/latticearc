@@ -9,8 +9,9 @@
 #
 # All ~2000 tests run under all 4 sanitizers. No tests are skipped.
 #
-# MSan cannot instrument C FFI code (aws-lc-rs), so modules that call into
-# aws-lc-rs are excluded from MSan only (they run under ASAN/TSAN/LSAN).
+# MSan sees through the aws-lc-rs FFI boundary thanks to the
+# `AWS_LC_SYS_SANITIZER=msan` build-time switch added in aws-lc-rs 1.16.3
+# (upstream issue #1077, resolved 2026-04-15). See the msan job below.
 
 name: Sanitizers
 
@@ -119,23 +120,20 @@ jobs:
 
   # MemorySanitizer - Detects uninitialized memory reads
   #
-  # Note: MSan cannot instrument C FFI code. aws-lc-rs (used for AES-GCM,
-  # ML-KEM, ECDH, HKDF) is a C library that MSan sees as a black box. Memory
-  # allocated/initialized inside aws-lc-rs appears "uninitialized" to MSan.
-  # We run MSan on latticearc only (not --workspace) because latticearc-tests
-  # is almost entirely integration tests calling aws-lc-rs. Within latticearc,
-  # we exclude modules that call aws-lc-rs FFI. Pure-Rust modules
-  # (hash, signatures, zkp, keys::roundtrip) still run under MSan.
+  # aws-lc-rs 1.16.3 (release 2026-04-15, resolving upstream issue #1077)
+  # added `AWS_LC_SYS_SANITIZER=msan` build-time support: when set, the
+  # aws-lc C sources compile with `-fsanitize=memory`, so MSan can follow
+  # allocations through the FFI boundary instead of treating aws-lc's
+  # internal buffers as a black box. That removes the reason we previously
+  # had to skip every aws-lc-rs-touching module (aead / kem / kdf /
+  # hybrid / tls / unified_api / self_test) under MSan.
   #
-  # Non-blocking: this job runs `continue-on-error: true`. aws-lc static state
-  # is initialized lazily on crate load (before any skipped test can opt out)
-  # and destroyed in `__run_exit_handlers` at process exit, so the teardown
-  # path routinely surfaces `out_len.i.i.i`-style warnings in uninstrumentable
-  # C code regardless of which tests run. Making this job blocking would gate
-  # merges on an upstream issue we cannot fix in this repo. ASan/TSan/LSan
-  # remain blocking and provide C-FFI coverage MSan cannot.
-  # Tracking: #36 (upstream: aws/aws-lc-rs#1077 — msan feature flag). Flip
-  # `continue-on-error` to `false` once the upstream feature ships.
+  # Staged migration: this change (a) picks up aws-lc-rs 1.16.3, (b) sets
+  # the env var, (c) drops the skip list, and (d) expands coverage from
+  # `-p latticearc --lib` to the full workspace. It intentionally keeps
+  # `continue-on-error: true` for one scheduled run so we can confirm a
+  # clean pass on CI hardware before flipping the gate blocking.
+  # Follow-up: flip `continue-on-error: false` after the first clean run.
   msan:
     name: MemorySanitizer
     runs-on: ubuntu-latest
@@ -161,24 +159,13 @@ jobs:
       - name: Run tests with MemorySanitizer
         run: |
           RUSTFLAGS="-Z sanitizer=memory -Zsanitizer-memory-track-origins -C opt-level=1 -C debug-assertions=yes" \
-          cargo +nightly test -p latticearc --all-features \
+          cargo +nightly test --workspace --all-features \
             -Z build-std --target x86_64-unknown-linux-gnu \
-            --lib -- --test-threads=1 \
-            --skip primitives::aead::aes_gcm \
-            --skip primitives::kem::ecdh \
-            --skip primitives::kem::ml_kem \
-            --skip primitives::kdf::hkdf \
-            --skip primitives::keys::tests::test_keypair_secret_data_nonzero \
-            --skip primitives::keys::tests::test_keypair_generate_and_accessors \
-            --skip primitives::keys::tests::test_keypair_public_key_serialization \
-            --skip primitives::keys::tests::test_keypair_debug \
-            --skip primitives::keys::tests::test_secret_key_serialization \
-            --skip primitives::pct::tests::test_pct_ml_kem \
-            --skip hybrid:: \
-            --skip tls:: \
-            --skip unified_api:: \
-            --skip primitives::self_test::
+            --lib -- --test-threads=1
         env:
+          # Compile aws-lc-rs's C sources with `-fsanitize=memory` so MSan
+          # can see into the FFI boundary. Requires aws-lc-rs >= 1.16.3.
+          AWS_LC_SYS_SANITIZER: msan
           MSAN_OPTIONS: poison_in_dtor=1
         timeout-minutes: 90
 
@@ -191,8 +178,7 @@ jobs:
           echo "- Use of uninitialized memory" >> $GITHUB_STEP_SUMMARY
           echo "- Origin tracking for uninitialized values" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Scope: latticearc crate only (latticearc-tests excluded — nearly all tests call aws-lc-rs FFI)" >> $GITHUB_STEP_SUMMARY
-          echo "Excluded within latticearc: aead, kem, kdf, hybrid, tls, unified_api, self_test — C FFI not instrumentable by MSan" >> $GITHUB_STEP_SUMMARY
+          echo "Scope: full workspace (aws-lc-rs 1.16.3 compiles its C sources with -fsanitize=memory via AWS_LC_SYS_SANITIZER=msan, so MSan can follow through the FFI boundary)." >> $GITHUB_STEP_SUMMARY
 
   # LeakSanitizer - Detects memory leaks (standalone)
   lsan:
@@ -255,7 +241,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Notes" >> $GITHUB_STEP_SUMMARY
           echo "- All sanitizers use \`-C opt-level=1\` to keep hash-based crypto fast while preserving instrumentation" >> $GITHUB_STEP_SUMMARY
-          echo "- **MSan only**: aws-lc-rs FFI consumers excluded (C code not instrumentable by MSan)" >> $GITHUB_STEP_SUMMARY
-          echo "- **MSan non-blocking**: aws-lc static state initialized/destroyed in uninstrumentable C code surfaces at teardown regardless of skipped tests. ASan/TSan/LSan remain blocking. Flip to blocking once aws/aws-lc-rs#1077 ships." >> $GITHUB_STEP_SUMMARY
+          echo "- **MSan**: aws-lc-rs 1.16.3 compiles its C sources under MSan via \`AWS_LC_SYS_SANITIZER=msan\` (upstream issue #1077, resolved 2026-04-15). Full workspace coverage, no FFI skip list." >> $GITHUB_STEP_SUMMARY
+          echo "- **MSan non-blocking (staged)**: one clean run on main required before flipping \`continue-on-error: false\`. ASan/TSan/LSan are already blocking." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All tests run. No tests skipped (except MSan FFI exclusions)." >> $GITHUB_STEP_SUMMARY
+          echo "All tests run. No tests skipped." >> $GITHUB_STEP_SUMMARY

@@ -10,6 +10,14 @@
 
 cd "$SRC/latticearc/fuzz"
 
+# When OSS-Fuzz asks for MemorySanitizer, tell aws-lc-sys to compile its
+# C sources with `-fsanitize=memory` so MSan can follow through the FFI
+# boundary. Required by aws-lc-rs >= 1.16.3; silently ignored for other
+# sanitizers. See aws/aws-lc-rs#1077 / PR #1100.
+if [ "${SANITIZER:-}" = "memory" ]; then
+    export AWS_LC_SYS_SANITIZER=msan
+fi
+
 # `cargo fuzz build` compiles every declared bin target. `-O` enables
 # release optimizations; the libFuzzer engine still gets its sanitizer
 # instrumentation via RUSTFLAGS set by the OSS-Fuzz base image.

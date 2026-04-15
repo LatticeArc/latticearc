@@ -84,6 +84,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the PR-blocking Kani manifest (total PR subset now 18 proofs; full
   suite 30).
 
+### Changed (Phase 2e: MSan unblocked via aws-lc-rs 1.16.3)
+
+- **Bumped `aws-lc-rs` 1.16.2 → 1.16.3** in the workspace `Cargo.toml`.
+  Release 2026-04-15 resolves `aws/aws-lc-rs#1077` (filed by us in an
+  earlier phase) and adds `AWS_LC_SYS_SANITIZER={asan,msan,tsan}` env-var
+  support: when set, aws-lc-sys compiles its C sources with the matching
+  `-fsanitize=*` flag, letting the Rust-side sanitizer follow allocations
+  through the FFI boundary.
+
+- **MSan workflow (`sanitizers.yml`) rewired** to take advantage:
+    * `AWS_LC_SYS_SANITIZER: msan` env var set on the msan job.
+    * Removed the entire `--skip` list (aead/kem/kdf/hybrid/tls/unified_api
+      /self_test/pct/keys). Those modules now run under MSan because the
+      aws-lc-rs C buffers they touch are themselves instrumented.
+    * Scope expanded from `-p latticearc --lib` to `--workspace --lib`,
+      so the MSan job now matches ASan/TSan/LSan coverage.
+    * `continue-on-error: true` retained for one clean scheduled run on
+      main — to be flipped to `false` in a follow-up once we confirm
+      clean passage on CI hardware. (ASan/TSan/LSan already blocking.)
+
+- **OSS-Fuzz scaffold updated** to enable MSan from intake:
+    * `project.yaml` sanitizer list now `address`/`memory`/`undefined`.
+    * `build.sh` exports `AWS_LC_SYS_SANITIZER=msan` when OSS-Fuzz sets
+      `$SANITIZER=memory`.
+    * Dropped the "MSan pending #1077" open-items note in `README.md`.
+
 ### Added (Phase 2d: instruction-level CT gate + OSS-Fuzz scaffold)
 
 - **ctgrind Valgrind-based constant-time harness**

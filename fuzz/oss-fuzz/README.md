@@ -51,11 +51,6 @@ Each step should complete cleanly before filing the upstream PR.
 
 ## Open items
 
-- **Memory sanitizer** intentionally omitted from `project.yaml`. aws-lc-rs
-  does not yet expose an MSan-safe feature flag (tracked upstream as
-  `aws/aws-lc-rs#1077`). Add `- memory` to the `sanitizers:` list
-  when that PR ships, and flip `.github/workflows/sanitizers.yml`
-  from `continue-on-error: true` to `false` at the same time.
 - **Seed corpora**: `build.sh` does not currently zip and install
   `<target>_seed_corpus.zip`. Targets that could benefit (e.g.,
   JSON deserialization, signature parsing) should accumulate corpora
