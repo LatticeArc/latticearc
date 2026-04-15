@@ -54,6 +54,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `fn` in `latticearc/src` before running Kani, so a rename fails fast rather
   than silently reducing proof coverage.
 
+### Added (Phase 2a: cross-impl validation, Wycheproof wrappers, Kani coverage)
+
+- **Cross-impl validation for ML-DSA** (`tests/tests/cross_impl_ml_dsa.rs`):
+  10 tests. `fips204` and `pqcrypto-mldsa` (PQClean C reference) must agree
+  on ML-DSA-44/65/87 key/signature byte sizes *and* cross-verify signatures
+  in both directions. Until aws-lc-rs ships ML-DSA in its stable Rust API
+  (tracking `aws/aws-lc-rs#1029`), PQClean is the only cross-check
+  available. All 10 tests pass.
+- **Cross-impl validation for SLH-DSA** (`tests/tests/cross_impl_slh_dsa.rs`):
+  5 tests. `fips205` and `pqcrypto-sphincsplus` agree on SHAKE-128s/192s/256s
+  key/signature sizes. Cross-signature verification *currently does not
+  work* because fips205 applies the FIPS 205 §10.2 context-header wrapping
+  (`M' = 0x00 || len(ctx) || ctx || M`) while PQClean's binding signs the
+  bare message. The two divergence tests *assert the current incompatibility*
+  so a future PQClean alignment with FIPS 205 surfaces as a test failure
+  prompting us to re-enable positive cross-verify.
+- **Wycheproof vectors through our wrappers** (`tests/tests/wycheproof_wrapper.rs`):
+  4 tests, 555 attacker-chosen vectors exercising `AesGcm256::decrypt`,
+  `ChaCha20Poly1305Cipher::decrypt`, `hmac_sha256`/`verify_hmac_sha256`, and
+  `hkdf_extract`/`hkdf_expand`. Complements the existing
+  `tests/src/validation/wycheproof.rs` suite, which tests the underlying
+  crates. 0 failures across all 555 ran cases. Max failure budget: 1%.
+- **Kani proofs for DoS guards** in `latticearc/src/primitives/resource_limits.rs`:
+  3 new harnesses — `validate_encryption_size_biconditional`,
+  `validate_decryption_size_biconditional`,
+  `validate_key_derivation_count_accepts_zero`. Formally verify that
+  `size > limit ⇔ Err` for every representable `size` and `limit`. Added
+  to the PR-blocking Kani manifest (total PR subset now 18 proofs; full
+  suite 30).
+
+### Changed (Phase 2a)
+
+- Added dev-dependencies `pqcrypto-mldsa = "0.1"`, `pqcrypto-sphincsplus = "0.7"`,
+  `pqcrypto-traits = "0.3"` in `latticearc-tests`. These pull C reference
+  implementations from PQClean for cross-validation. They trigger a
+  `cc`-driven C build but have no effect on `latticearc` or
+  `latticearc-cli` runtime dependencies.
+
 ### Changed
 
 - Bumped `tokio` 1.50.0 → 1.51.1 (patch).

@@ -1,7 +1,7 @@
 # Kani - Bounded Model Checking
 # Proves absence of panics, overflow, and out-of-bounds access in pure Rust code.
 #
-# latticearc contains 27 proofs covering:
+# latticearc contains 30 proofs covering:
 #   - Key lifecycle state machine (SP 800-57 compliance)
 #   - Crypto policy engine exhaustiveness (all enum variants handled)
 #   - Trust level ordering invariants
@@ -9,6 +9,7 @@
 #   - Core config validation (default / production / development)
 #   - Domain constant distinctness (NIST SP 800-108)
 #   - Verification status biconditional
+#   - Resource-limits DoS biconditionals (validate_* error branch correctness)
 
 name: Kani Model Checking
 
@@ -172,7 +173,7 @@ jobs:
       - name: Verified Proofs Summary
         if: always()
         run: |
-          echo "## Kani Proofs (latticearc) — 27 proofs (full suite)" >> $GITHUB_STEP_SUMMARY
+          echo "## Kani Proofs (latticearc) — 30 proofs (full suite)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ ! -f kani-output.txt ]; then
             echo "⚠️ No Kani output file — step may have been skipped" >> $GITHUB_STEP_SUMMARY
@@ -225,7 +226,7 @@ jobs:
           echo "- Out-of-bounds array access" >> $GITHUB_STEP_SUMMARY
           echo "- Invalid memory access" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## latticearc (27 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
+          echo "## latticearc (30 proofs, pure Rust)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Category | Proofs | What they verify |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------|------------------|" >> $GITHUB_STEP_SUMMARY
@@ -233,6 +234,7 @@ jobs:
           echo "| Policy Engine | 3 | Scheme selection covers all enum variants |" >> $GITHUB_STEP_SUMMARY
           echo "| Zero Trust | 3 | TrustLevel ordering invariants |" >> $GITHUB_STEP_SUMMARY
           echo "| Types | 1 | SecurityLevel default is High |" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource Limits | 3 | DoS biconditionals: size > limit ⇔ Err |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Status | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY

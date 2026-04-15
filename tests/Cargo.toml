@@ -81,6 +81,13 @@ criterion = { workspace = true }
 # Allocation-budget test harness. Exposes `Region::new` for per-call byte deltas.
 # Used by tests/tests/allocation_budgets.rs to enforce per-API alloc ceilings.
 stats_alloc = "0.1"
+# Independent ML-DSA / SLH-DSA implementations for cross-validation against our
+# fips204 / fips205. PQClean C reference bindings. Used by
+# tests/tests/cross_impl_ml_dsa.rs and cross_impl_slh_dsa.rs. Dev-only — no
+# effect on published crate deps.
+pqcrypto-mldsa = "0.1"
+pqcrypto-sphincsplus = "0.7"
+pqcrypto-traits = "0.3"
 
 [lib]
 path = "src/lib.rs"

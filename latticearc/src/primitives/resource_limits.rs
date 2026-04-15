@@ -239,6 +239,72 @@ pub fn validate_decryption_size(size: usize) -> Result<()> {
     get_global_resource_limits().validate_decryption_size(size)
 }
 
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    // These proofs work on `ResourceLimitsManager::with_limits(...)` rather
+    // than the global manager so Kani can fully model the underlying state.
+    // The biconditional check (size > limit ⇔ Err) is the DoS property we
+    // care about: no caller-supplied size can bypass the cap without hitting
+    // the error branch.
+
+    /// Proves `validate_encryption_size` errors exactly when input exceeds the
+    /// configured limit. Closes the DoS path: no `size > limit` slips through.
+    #[kani::proof]
+    #[kani::unwind(3)]
+    fn validate_encryption_size_biconditional() {
+        let size: usize = kani::any();
+        let limit: usize = kani::any();
+        kani::assume(limit > 0);
+
+        let limits =
+            ResourceLimits { max_encryption_size_bytes: limit, ..ResourceLimits::default() };
+        let manager = ResourceLimitsManager::with_limits(limits);
+        let result = manager.validate_encryption_size(size);
+
+        if size > limit {
+            kani::assert(result.is_err(), "validate_encryption_size must err when size > limit");
+        } else {
+            kani::assert(result.is_ok(), "validate_encryption_size must Ok when size ≤ limit");
+        }
+    }
+
+    /// Same property for decryption — decryption-side caps must also fire.
+    #[kani::proof]
+    #[kani::unwind(3)]
+    fn validate_decryption_size_biconditional() {
+        let size: usize = kani::any();
+        let limit: usize = kani::any();
+        kani::assume(limit > 0);
+
+        let limits =
+            ResourceLimits { max_decryption_size_bytes: limit, ..ResourceLimits::default() };
+        let manager = ResourceLimitsManager::with_limits(limits);
+        let result = manager.validate_decryption_size(size);
+
+        if size > limit {
+            kani::assert(result.is_err(), "decryption size > limit must Err");
+        } else {
+            kani::assert(result.is_ok(), "decryption size ≤ limit must Ok");
+        }
+    }
+
+    /// Proves `validate_key_derivation_count(0)` always succeeds — the
+    /// identity case (no-op callers) must not trip a DoS guard regardless
+    /// of how the limit is configured.
+    #[kani::proof]
+    fn validate_key_derivation_count_accepts_zero() {
+        let limit: usize = kani::any();
+        kani::assume(limit > 0);
+        let limits =
+            ResourceLimits { max_key_derivations_per_call: limit, ..ResourceLimits::default() };
+        let manager = ResourceLimitsManager::with_limits(limits);
+        let result = manager.validate_key_derivation_count(0);
+        kani::assert(result.is_ok(), "count=0 must not trip the KDF limit (any limit > 0)");
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
