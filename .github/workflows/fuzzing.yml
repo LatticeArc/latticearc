@@ -1,13 +1,18 @@
 name: Fuzzing
 
 on:
-  # Triggers will be enabled once the library is stable and usage increases.
-  # push:
-  #   branches: [ main, develop ]
-  # pull_request:
-  #   branches: [ main, develop ]
-  # schedule:
-  #   - cron: '0 5 * * *'
+  # Weekly scheduled fuzzing run. The `fuzz` matrix runs all 33 targets
+  # in parallel; each target runs for 5 min wall-clock, so a full run is
+  # ~5-10 min end-to-end. The `extended-fuzz` job (priority targets,
+  # longer durations) fires only on the `schedule` trigger — not on
+  # workflow_dispatch — via its `if: github.event_name == 'schedule'`
+  # guard below.
+  #
+  # Not on push/PR: fuzzing is expensive and most of its value is in
+  # continuous long-running campaigns, not per-commit checks. Kani,
+  # clippy, and the unit-test suite handle per-PR correctness.
+  schedule:
+    - cron: '0 5 * * 0'  # Sundays 05:00 UTC (offset from other side-channel workflows)
   workflow_dispatch:
 
 permissions: read-all

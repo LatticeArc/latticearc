@@ -84,6 +84,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the PR-blocking Kani manifest (total PR subset now 18 proofs; full
   suite 30).
 
+### Added (Phase 2c: cross-impl ML-KEM stress + weekly fuzz schedule)
+
+- **Cross-impl ML-KEM stress tests** (`tests/tests/cross_impl_ml_kem.rs`):
+  6 tests × 100 iterations = 600 cross-library round-trips per run.
+  Completes the cross-impl matrix (ML-DSA + SLH-DSA landed in Phase 2a,
+  this adds ML-KEM). Covers all three parameter sets (512/768/1024)
+  in both directions: fips203-keygen/encaps → aws-lc-rs-decaps and
+  aws-lc-rs-keygen/encaps → fips203-decaps. Shared secrets must agree
+  byte-for-byte; any divergence is a library bug on one side and
+  breaks interop. Complements the 4 deterministic ML-KEM-768
+  cross-library tests already in `tests/tests/fips_cross_validation.rs`.
+
+- **Weekly scheduled fuzzing** (`.github/workflows/fuzzing.yml`).
+  Enabled `schedule: 0 5 * * 0` (Sundays 05:00 UTC). All 34 fuzz
+  targets run in matrix parallel for 5 min each on schedule; the
+  extended-fuzz job (priority targets, longer duration) activates
+  automatically via its existing `if: github.event_name == 'schedule'`
+  guard. Not on push/PR — Kani + clippy + unit-test suite cover
+  per-commit correctness; fuzzing's value is long-running campaigns.
+
 ### Changed (Phase 2b: audit-finding follow-ups, breaking)
 
 - **`MlKemSecurityLevel::ct_eq` no longer casts through `*self as u8`**
