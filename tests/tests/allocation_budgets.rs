@@ -165,9 +165,10 @@ fn hkdf_sha256_expand_32bytes_stays_under_budget() {
     let prk = [0u8; 32];
     let info = b"latticearc allocation test";
 
-    // HKDF-Expand for 32 B output: 1 HMAC round. Observed <2 KiB.
-    // 8 KiB budget.
-    assert_alloc_budget("hkdf_sha256_expand_32b", 8 * 1024, 50, || {
+    // HKDF-Expand for 32 B output: 1 HMAC round. Observed ~10 KiB on
+    // macOS CI after aws-lc-rs 1.16.3 (runtime key-length validation
+    // added extra internal buffers). 20 KiB budget = ~2× headroom.
+    assert_alloc_budget("hkdf_sha256_expand_32b", 20 * 1024, 50, || {
         let _okm = hkdf_expand(&prk, Some(info), 32).expect("hkdf");
     });
 }
