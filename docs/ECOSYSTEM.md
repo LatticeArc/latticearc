@@ -1,7 +1,7 @@
 # Post-Quantum Cryptography Ecosystem Map
 
-> **Last verified:** 2026-04-11
-> **Versions checked:** OpenSSL 3.5.0, aws-lc-rs 1.16.2, pqcrypto 0.18.1, ml-kem 0.2.3,
+> **Last verified:** 2026-04-16
+> **Versions checked:** OpenSSL 3.5.0, aws-lc-rs 1.16.3, pqcrypto 0.18.1, ml-kem 0.2.3,
 > ml-dsa 0.0.4, slh-dsa 0.1.0, liboqs 0.14.0 / liboqs-rust 0.11.0, Go 1.24,
 > pyca/cryptography 46.x, wolfSSL 5.7+, age 1.3.0, GnuPG 2.5, Sequoia PGP (pre-release),
 > oqs-provider 0.10.0
@@ -65,7 +65,7 @@ into applications.
 | **FIPS 140-3 backend** | Opt-in via `--features fips` ^3^ | Yes (CMVP validated) | -- | -- | -- |
 | **Architecture** | Pure Rust + aws-lc-rs for FIPS | C (aws-lc) FFI | C (PQClean) FFI | Pure Rust | C (liboqs) FFI |
 
-^1^ ML-DSA in aws-lc-rs was added in v1.13.0 behind the `unstable` feature flag. Still unstable as of v1.16.2 (April 2026); stabilization timeline not publicly committed.
+^1^ ML-DSA in aws-lc-rs was added in v1.13.0 behind the `unstable` feature flag. Still unstable as of v1.16.3 (April 2026); stabilization timeline not publicly committed.
 ^2^ RustCrypto's `x-wing` crate implements the X-Wing hybrid KEM (ML-KEM-768 + X25519). It is a KEM-only composition, not a full encrypt/decrypt pipeline.
 ^2a^ `pqcrypto-sphincsplus` and liboqs ship pre-standardization SPHINCS+ variants (SHA2/SHAKE × 128s/f, 192s/f, 256s/f). These predate the final FIPS 205 SLH-DSA spec and are not byte-identical to FIPS 205.
 ^2b^ `pqcrypto-falcon` and liboqs ship pre-standardization Falcon-512/1024. The FIPS 206 FN-DSA standard is still in draft; finalized bytes may differ.

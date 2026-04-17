@@ -6,26 +6,6 @@ LatticeArc CLI lets you generate keys, encrypt files, sign documents, verify
 signatures, hash data, and derive keys — all using the latest NIST-standardized
 post-quantum algorithms. No cryptography expertise required.
 
-## What is Post-Quantum Cryptography?
-
-Today's encryption (RSA, ECC) will be broken by quantum computers. NIST has
-published new standards — ML-KEM, ML-DSA, SLH-DSA — designed to resist both
-classical and quantum attacks. LatticeArc implements these standards so you can
-protect your data today against tomorrow's threats.
-
-### Why This Matters for Data at Rest
-
-AES-256 itself already resists quantum attacks (Grover's algorithm only halves
-effective key strength, leaving ~128 bits post-quantum). What breaks under a
-quantum computer is the **RSA/ECDH layer that protects the AES keys** —
-key wrapping in KMS, key exchange to encrypted databases, RSA-encrypted backup
-keys, signed software updates, and authenticated file transfers.
-
-This CLI uses hybrid ML-KEM + X25519 + HKDF + AES-GCM to encrypt files, and
-hybrid ML-DSA + Ed25519 to sign them. Both the PQ and classical components must
-be broken for an attacker to win — so you're protected whether the threat is
-quantum-capable or simply a flaw found in the young PQ algorithms.
-
 ## Installation
 
 ### From Prebuilt Binaries (Recommended)
@@ -71,13 +51,13 @@ latticearc-cli keygen --use-case legal-documents --output ./keys
 
 # Sign (provide both keys for the unified API — embeds PK in signature)
 latticearc-cli sign --input contract.pdf \
-  --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
-  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
+  --key keys/hybrid-ml-dsa-87-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-87-ed25519.pub.json
 
 # Verify (algorithm auto-detected from signature file)
 latticearc-cli verify --input contract.pdf \
   --signature contract.pdf.sig.json \
-  --key keys/hybrid-ml-dsa-65-ed25519.pub.json
+  --key keys/hybrid-ml-dsa-87-ed25519.pub.json
 ```
 
 ### 2. Encrypt Healthcare Records
@@ -210,8 +190,8 @@ The `verify` command auto-detects the format.
 ```bash
 # Sign with use-case config (recommended)
 latticearc-cli sign --input contract.pdf \
-  --key keys/hybrid-ml-dsa-65-ed25519.sec.json \
-  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json \
+  --key keys/hybrid-ml-dsa-87-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-87-ed25519.pub.json \
   --use-case legal-documents
 ```
 
@@ -393,73 +373,9 @@ latticearc-cli info
 
 ## Key File Format
 
-Keys are stored using the **LatticeArc Portable Key (LPK)** format — the library's standard
-key serialization. Keys are identified by **use case** or **security level** (matching how
-the library API works), with the algorithm auto-derived. The CLI writes keys as JSON
-(human-readable, `.json` extension) and reads both JSON and CBOR interchangeably, so
-CBOR-encoded keys produced by the library API or other LPK tooling load without conversion.
+Keys use the **LatticeArc Portable Key (LPK)** format — JSON (human-readable) and CBOR (compact binary), identified by use case or security level. Secret keys are created with **0600 permissions** (owner-only) and zeroized from memory when no longer needed.
 
-See [`docs/KEY_FORMAT.md`](../docs/KEY_FORMAT.md) for the full specification.
-
-### How Keys Work
-
-```
-SYMMETRIC (AES-256):         HYBRID (ML-KEM + X25519):
-
-  ┌──────────┐                 ┌──────────┐  ┌──────────┐
-  │ .key.json│                 │ .pub.json│  │ .sec.json│
-  │          │                 │          │  │          │
-  │ AES key  │                 │ ML-KEM PK│  │ ML-KEM SK│
-  │ (32 B)   │                 │ (1184 B) │  │ (2400 B) │
-  └──────────┘                 │ X25519 PK│  │ X25519   │
-       │                       │ (32 B)   │  │ seed(32B)│
-       ▼                       └──────────┘  │ ML-KEM PK│ ◀ in metadata
-  encrypt + decrypt              │            │ (1184 B) │
-  (same key)                     ▼            └──────────┘
-                              encrypt              │
-                              (public key)         ▼
-                                                decrypt
-                                              (secret key only)
-```
-
-**Hybrid secret keys are self-contained** — the ML-KEM public key is stored in
-the secret key file's metadata, so you only need one file to decrypt.
-
-```json
-{
-  "version": 1,
-  "use_case": "legal-documents",
-  "algorithm": "hybrid-ml-dsa-65-ed25519",
-  "key_type": "public",
-  "key_data": {
-    "pq": "Base64-ML-DSA-public-key...",
-    "classical": "Base64-Ed25519-public-key..."
-  },
-  "created": "2026-03-19T10:30:00.000Z",
-  "metadata": {
-    "label": "Production signing key"
-  }
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `version` | Format version (currently `1`) |
-| `use_case` | Use case that selected the algorithm (e.g., `file-storage`, `legal-documents`) |
-| `security_level` | Alternative to use_case: `standard`, `high`, `maximum` |
-| `algorithm` | Auto-derived algorithm (e.g., `hybrid-ml-kem-768-x25519`) |
-| `key_type` | `public`, `secret`, or `symmetric` |
-| `key_data` | Single (`raw`) or composite (`pq` + `classical`) base64-encoded key bytes |
-| `created` | ISO 8601 timestamp of key generation |
-| `metadata` | Optional map — `label`, enterprise extensions, etc. |
-
-> The CLI reads both the current LPK format and legacy v1 key files for
-> backward compatibility.
-
-**Security features:**
-- Secret and symmetric key files are created with **0600 permissions** (owner-only) on Unix
-- Key material is **zeroized from memory** when no longer needed
-- Secret key `Debug` output **redacts** the key material (shows `[REDACTED]`)
+See [`docs/KEY_FORMAT.md`](../docs/KEY_FORMAT.md) for the full specification, schema, and examples.
 
 ## Real-World Workflows
 
@@ -516,16 +432,16 @@ For legal documents that need to remain valid for decades:
 latticearc-cli keygen --use-case legal-documents --output ./notary \
   --label "Notary 2026"
 
-# Sign with both ML-DSA-65 AND Ed25519 (unified API)
+# Sign with both ML-DSA-87 AND Ed25519 (unified API)
 latticearc-cli sign --input deed-of-trust.pdf \
-  --key notary/hybrid-ml-dsa-65-ed25519.sec.json \
-  --public-key notary/hybrid-ml-dsa-65-ed25519.pub.json
+  --key notary/hybrid-ml-dsa-87-ed25519.sec.json \
+  --public-key notary/hybrid-ml-dsa-87-ed25519.pub.json
 
 # Verify — algorithm auto-detected from signature file
 latticearc-cli verify \
   --input deed-of-trust.pdf \
   --signature deed-of-trust.pdf.sig.json \
-  --key notary/hybrid-ml-dsa-65-ed25519.pub.json
+  --key notary/hybrid-ml-dsa-87-ed25519.pub.json
 ```
 
 ## Algorithm Reference
@@ -533,7 +449,7 @@ latticearc-cli verify \
 ### Key & Signature Sizes
 
 Every value below is verified against the official NIST standard and
-enforced by our test suite (83 tests, all passing).
+enforced by our test suite (91 tests, all passing).
 
 **Digital Signatures (FIPS 204 — ML-DSA):**
 

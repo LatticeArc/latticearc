@@ -21,26 +21,24 @@ Opt-in FIPS routing (`--features fips`) sends AES-GCM, ML-KEM, HKDF, and SHA-2 t
 | Manual secret zeroization, constant-time comparisons | Automatic via `Zeroize` + `subtle` |
 | Read CNSA 2.0 to know when hybrid vs PQ-only | `CryptoMode::Hybrid` / `CryptoMode::PqOnly` |
 
-## When to Use LatticeArc
+## When to Use / When Not To
 
-Most PQ *rollout activity* today is TLS hybrid key exchange — that's where harvest-now-decrypt-later attacks hit first. But the larger migration is just beginning: **key wrapping and signatures for data at rest.** AES-256 already resists quantum attacks (Grover leaves ~128 bits); what's not quantum-safe is the RSA/ECDH that protects the AES keys inside every KMS, encrypted database, secret manager, and signed document. LatticeArc targets that layer — the quantum-vulnerable crypto sitting under most "encryption at rest" claims.
+**Use LatticeArc when you want:**
 
-**Use it when you want:**
+- Hybrid PQ+classical encrypt/decrypt without wiring ML-KEM + X25519 + HKDF + AES-GCM yourself
+- Use-case-driven algorithm selection (22 workloads, 3 compliance modes)
+- A CLI backed by the same library code
+- Opt-in FIPS routing with no code changes
 
-- **Hybrid composition without the wiring.** age 1.3 and Sequoia PGP ship hybrid PQ encryption for *file* and *OpenPGP* formats. For a library-level, format-agnostic hybrid encrypt/decrypt pipeline (ML-KEM + X25519 + HKDF + AES-GCM) you can point at arbitrary data, wiring it up yourself is still DIY in most crypto libraries. LatticeArc ships it as the default mode.
-- **Use-case-driven selection.** `UseCase::HealthcareRecords` auto-selects algorithm, security level, and compliance mode. 22 workload types, three compliance modes. No other library or CLI offers this.
-- **A CLI from the same trust boundary.** Ops teams get keygen, encrypt, sign, verify, and hash without writing Rust. Non-Rust teams can evaluate PQC through the CLI before committing to the SDK.
-- **Opt-in FIPS routing.** `--features fips` routes AES-GCM, ML-KEM, HKDF, and SHA-2 through CMVP-validated aws-lc-rs — no code changes.
+**Reach for something else when you need:**
 
-**Reach for something else when:**
+- A single low-level primitive — use `aws-lc-rs`, `fips204`, `fips205`, or `fn-dsa` directly
+- End-to-end CMVP-certified module — no CMVP backend exists for PQ signatures yet
+- Cross-language bindings — `liboqs` covers C, Python, Go, Java
+- `no_std` / embedded — `wolfCrypt` leads for embedded PQ
+- A TLS stack — use `rustls`, OpenSSL 3.5, or wolfSSL
 
-- **You need a single primitive.** `aws-lc-rs`, `fips204`, `fips205`, `fn-dsa` are smaller dependencies. LatticeArc's value is the composition.
-- **You need a CMVP-certified module end-to-end.** No CMVP-validated backend exists for PQ signatures today. See [What's Included](#whats-included).
-- **You need cross-language bindings.** LatticeArc is Rust-only. liboqs provides C, Python, Go, Java, and Rust.
-- **You target `no_std` or embedded.** LatticeArc is `std`-only. wolfCrypt leads for embedded PQ.
-- **You need a TLS stack.** Use rustls, OpenSSL 3.5, or wolfSSL.
-
-> For a detailed comparison with other PQC libraries, CLIs, and managed services across languages, see the [Ecosystem Map](../docs/ECOSYSTEM.md).
+> Detailed comparison: [Ecosystem Map](../docs/ECOSYSTEM.md)
 
 ## Quick Start
 
@@ -49,51 +47,26 @@ Most PQ *rollout activity* today is TLS hybrid key exchange — that's where har
 latticearc = "0.6"
 ```
 
-### Hybrid Encryption (Recommended)
+**Hybrid encryption** (default — PQ + classical):
 
 ```rust
 use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey};
 
-// ML-KEM-768 + X25519 + HKDF-SHA256 + AES-256-GCM — selected automatically
 let (pk, sk) = latticearc::generate_hybrid_keypair()?;
 let encrypted = encrypt(b"patient records", EncryptKey::Hybrid(&pk), CryptoConfig::new())?;
 let decrypted = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
+// ML-KEM-768 + X25519 + HKDF-SHA256 + AES-256-GCM — selected automatically
 ```
 
-### PQ-Only Encryption (CNSA 2.0)
-
-```rust
-use latticearc::{encrypt, decrypt, CryptoConfig, CryptoMode, EncryptKey, DecryptKey};
-
-// ML-KEM-768 + HKDF-SHA256 + AES-256-GCM — no classical component
-let (pk, sk) = latticearc::generate_pq_keypair()
-    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-let config = CryptoConfig::new().crypto_mode(CryptoMode::PqOnly);
-let encrypted = encrypt(b"classified", EncryptKey::PqOnly(&pk), config.clone())?;
-let decrypted = decrypt(&encrypted, DecryptKey::PqOnly(&sk), config)?;
-```
-
-### Digital Signatures
+**Digital signatures** (ML-DSA-65 + Ed25519 hybrid):
 
 ```rust
 use latticearc::{generate_signing_keypair, sign_with_key, verify, CryptoConfig};
 
-// ML-DSA-65 + Ed25519 hybrid signature
 let config = CryptoConfig::new();
 let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
 let signed = sign_with_key(b"contract.pdf", &sk, &pk, config.clone())?;
 assert!(verify(&signed, config)?);
-```
-
-### Use Case Selection
-
-```rust
-use latticearc::{encrypt, CryptoConfig, UseCase, EncryptKey};
-
-// Library selects ML-KEM-1024 + X25519 for government classified data
-let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
-let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk),
-    CryptoConfig::new().use_case(UseCase::GovernmentClassified))?;
 ```
 
 ## Configuration
@@ -151,7 +124,9 @@ validated module:
 | **Classical Signatures** | Ed25519 | ed25519-dalek — audited |
 | **Classical Key Exchange** | X25519 | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
 | **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
+| **Symmetric Encryption** | ChaCha20-Poly1305 | chacha20poly1305 crate — non-FIPS |
 | **Hash** | SHA-2 (256/384/512) | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
+| **Hash** | SHA-3, BLAKE2 | sha3 / blake2 crates — non-FIPS |
 | **KDF** | HKDF-SHA256 | aws-lc-rs — routed through FIPS 140-3 validated module with `--features fips` |
 | **Hybrid Encryption** | ML-KEM + X25519 + HKDF + AES-GCM | Composite |
 | **PQ-Only Encryption** | ML-KEM + HKDF + AES-GCM | Composite |
@@ -193,15 +168,15 @@ See [`docs/KEY_FORMAT.md`](../docs/KEY_FORMAT.md) for the full specification.
 
 ## Security
 
-- Zero `unsafe` code
-- Constant-time comparisons via `subtle`
+- `#![forbid(unsafe_code)]` at workspace level
+- Constant-time comparisons via `subtle` — validated by 3-way gate (DudeCT + ctgrind + Criterion)
 - Automatic secret zeroization via `Zeroize`
-- CAVP test vector validation
-- 27 Kani formal verification proofs
+- 30 Kani formal verification proofs (18 PR-blocking) + SAW-verified C primitives via aws-lc-rs
+- Cross-impl differential testing against independent reference crates (ML-KEM, ML-DSA, SLH-DSA)
+- 31 fuzz targets + mutation testing at 80% PR-blocking floor
 - Opaque AEAD error messages (SP 800-38D)
 
-For the per-algorithm validation status (what's CMVP-validated, what's only
-NIST-conformant), see [What's Included](#whats-included) above.
+Per-algorithm validation status: see [What's Included](#whats-included).
 
 ### Limitations
 
