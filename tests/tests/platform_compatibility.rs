@@ -44,8 +44,7 @@
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
     clippy::absurd_extreme_comparisons,
-    unused_qualifications,
-    deprecated
+    unused_qualifications
 )]
 
 use std::mem;

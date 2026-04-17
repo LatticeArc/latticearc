@@ -125,18 +125,6 @@ mod comprehensive {
         assert!(valid, "PQ-only ML-DSA-87 signature should verify");
     }
 
-    /// FN-DSA secret key inner bytes are not zeroized on drop.
-    ///
-    /// The `fn-dsa` crate does not implement `Zeroize` for its internal key type.
-    /// Our wrapper zeroizes `Vec<u8>` bytes but the inner representation may persist.
-    #[test]
-    #[ignore = "FN-DSA inner key not zeroized — fn-dsa crate does not implement Zeroize"]
-    fn test_fn_dsa_secret_key_zeroization_fails() {
-        // fn-dsa crate's internal key type does not implement Zeroize.
-        // Mitigated by process isolation and mlock in production deployments.
-        panic!("FN-DSA inner key zeroization not possible with current crate");
-    }
-
     /// ML-KEM secret key persistence: serialize, deserialize, and decapsulate.
     #[test]
     fn test_ml_kem_key_persistence_succeeds() {
@@ -515,8 +503,6 @@ mod comprehensive {
 
 // Originally: unified_api_coverage.rs
 mod coverage {
-    #![allow(deprecated)]
-
     //! Coverage tests for the unified encrypt/decrypt/sign_with_key/verify API
     //! in arc-core/src/convenience/api.rs. Exercises different CryptoConfig
     //! selections (UseCase, SecurityLevel) to hit uncovered scheme branches.

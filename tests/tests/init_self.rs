@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 #![allow(
     clippy::panic,
     clippy::unwrap_used,

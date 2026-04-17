@@ -3,8 +3,6 @@
 
 // Originally: scheme_contract_tests.rs
 mod contract {
-    #![allow(deprecated)]
-
     //! Scheme Contract Tests — Standards-Grade UseCase × Scheme × Key Level Matrix
     //!
     //! These tests verify the **contract** between UseCase/SecurityLevel selection and the

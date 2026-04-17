@@ -2145,8 +2145,7 @@ fn parse_legacy_algorithm(s: &str) -> Result<KeyAlgorithm> {
     clippy::print_stdout,
     clippy::cast_precision_loss,
     clippy::useless_vec,
-    clippy::panic,
-    deprecated
+    clippy::panic
 )]
 mod tests {
     use super::*;

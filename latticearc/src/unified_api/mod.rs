@@ -525,7 +525,6 @@ fn run_power_up_self_tests() -> Result<()> {
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications,
-    deprecated
+    unused_qualifications
 )]
 mod tests;

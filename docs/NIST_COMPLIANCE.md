@@ -268,12 +268,12 @@ flowchart LR
     L1["Level 1-2\nAES-128"] --> STD[Standard]
     L3["Level 3-4\nAES-192"] --> HIGH["High (default)"]
     L5["Level 5\nAES-256"] --> MAX[Maximum]
-    L5 --> QTM["Quantum\n(deprecated)"]
+    MAX --> PQO["Maximum + PqOnly\nPQ-only, Level 5"]
 
     classDef nist fill:#3498db,stroke:#333,color:#fff
     classDef arc fill:#27ae60,stroke:#333,color:#fff
     class L1,L3,L5 nist
-    class STD,HIGH,MAX,QTM arc
+    class STD,HIGH,MAX,PQO arc
 ```
 
 | NIST Level | Classical Equivalent | LatticeArc Mapping |

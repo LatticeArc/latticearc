@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (audit-accepted marker refresh)
+
+- **FN-DSA `SigningKey` now zeroizes inner key material.** `fn-dsa` v0.3.0
+  derives `Zeroize` + `ZeroizeOnDrop` on `SigningKeyStandard`, so the prior
+  `AUDIT-ACCEPTED: H4` marker ("inner cannot be zeroized — upstream
+  limitation") no longer applies. The `Drop` and `Zeroize` impls on our
+  wrapper now wipe both the serialized `bytes` buffer and `inner`. The
+  misleading doc block claiming FIPS 140-3 §10.3.5 could not be met for
+  the inner state has been removed. Behavioural change: best-effort
+  zeroization → full zeroization.
+- **X25519 static keypair docs corrected.** The "in-memory only" limitation
+  note on `X25519StaticKeyPair` was outdated: aws-lc-rs 1.16+ supports
+  X25519 raw-bytes import (`from_private_key`) and export
+  (`AsBigEndian<Curve25519SeedBin>`). DER encoding is still unsupported
+  upstream. The copy-paste "ephemeral (consumed on use)" phrase in the
+  ConstantTimeEq note — inaccurate for the static variant — has been
+  replaced with accurate guidance on how to do a constant-time compare
+  when needed.
+
 ### Added (Phase 1 differentiation: timing/logic/DoS gates)
 
 - **Kani proofs are now PR-blocking** (fast subset of 15 proofs, ≤15 min).

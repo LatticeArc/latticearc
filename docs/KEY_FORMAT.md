@@ -241,7 +241,7 @@ CBOR is the recommended format for:
 |-------|------|----------|-------------|
 | `version` | `u32` | Yes | Format version. Currently `1`. |
 | `use_case` | `UseCase` | At least one of `use_case` or `security_level` | Use case that determined algorithm selection. |
-| `security_level` | `SecurityLevel` | At least one of `use_case` or `security_level` | NIST security level (`standard`, `high`, `maximum`). `quantum` is deprecated since 0.6.0 — use `maximum` with `CryptoMode::PqOnly`. Takes precedence if both present. |
+| `security_level` | `SecurityLevel` | At least one of `use_case` or `security_level` | NIST security level (`standard`, `high`, `maximum`). For PQ-only, use `maximum` with `CryptoMode::PqOnly` (the `quantum` variant was removed in 0.7.0). Takes precedence if both present. |
 | `algorithm` | `KeyAlgorithm` | Yes (auto-derived) | Resolved algorithm. Auto-populated from `use_case`/`security_level`. Stored for version-stability. |
 | `key_type` | `KeyType` | Yes | `"public"`, `"secret"`, or `"symmetric"`. |
 | `key_data` | `KeyData` | Yes | Key material — single (`raw`) or composite (`pq` + `classical`). |
@@ -262,7 +262,10 @@ CBOR is the recommended format for:
 | `standard` | `hybrid-ml-kem-512-x25519` | Level 1 (128-bit) |
 | `high` | `hybrid-ml-kem-768-x25519` | Level 3 (192-bit) |
 | `maximum` | `hybrid-ml-kem-1024-x25519` | Level 5 (256-bit) |
-| `quantum` (deprecated) | `ml-kem-1024` | Level 5 (PQ-only) — use `maximum` + `CryptoMode::PqOnly` |
+
+> The `quantum` variant was removed in 0.7.0. For PQ-only Level 5, use
+> `SecurityLevel::Maximum` with `CryptoMode::PqOnly`, which resolves to
+> `ml-kem-1024`.
 
 > **PQ-only keys (0.6.0+):** When `CryptoMode::PqOnly` is used, the resolved algorithm
 > is `ml-kem-512`, `ml-kem-768`, or `ml-kem-1024` (no X25519 component). The key format

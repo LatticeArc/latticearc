@@ -39,8 +39,7 @@
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications,
-    deprecated
+    unused_qualifications
 )]
 
 use latticearc::unified_api::{

@@ -340,31 +340,16 @@ impl VerifyingKey {
 /// # }
 /// ```
 ///
-/// # Security Note - Zeroization Limitations
+/// # Zeroization
 ///
-/// The underlying `fn-dsa` crate does not implement `Zeroize` on its key types.
-/// This wrapper stores a copy of the serialized key bytes which ARE zeroized on drop.
-/// However, the inner key structure (`FnDsaSigningKeyStandard`) may retain key material
-/// in memory until overwritten by the operating system or subsequent allocations.
-///
-/// **Best-effort zeroization approach:**
-/// - The `bytes` field containing the serialized secret key is automatically zeroized
-///   when this struct is dropped via the `Drop` and `Zeroize` implementations.
-/// - The `inner` field from the external `fn-dsa` crate cannot be directly zeroized
-///   as it doesn't implement `Zeroize`.
-///
-/// **FIPS 140-3 Impact:** Section 10.3.5 requires zeroization of all Sensitive
-/// Security Parameters (SSPs). The inner `fn-dsa` signing key cannot be zeroized
-/// because the `fn-dsa` crate does not implement `Zeroize`.
-///
-/// **For maximum security**, consider using ML-DSA (`crate::primitives::sig::mldsa`)
-/// which has full zeroization support for all key material.
-// AUDIT-ACCEPTED: H4 — Inner FnDsaSigningKeyStandard cannot be zeroized (upstream limitation).
+/// Both the serialized `bytes` field and the inner `FnDsaSigningKeyStandard`
+/// are zeroized on drop. The `fn-dsa` crate (v0.3.0+) derives `Zeroize` and
+/// `ZeroizeOnDrop` on `SigningKeyStandard`, so inner key material is wiped
+/// when this struct drops or when `zeroize()` is called explicitly.
 pub struct SigningKey {
     /// Security level for this key
     security_level: FnDsaSecurityLevel,
-    /// Internal signing key from fn-dsa crate
-    /// Note: Cannot be zeroized as FnDsaSigningKeyStandard doesn't implement Zeroize
+    /// Internal signing key from fn-dsa crate (zeroized on drop)
     inner: FnDsaSigningKeyStandard,
     /// Serialized key bytes for secure storage (zeroized on drop)
     bytes: Vec<u8>,
@@ -373,23 +358,16 @@ pub struct SigningKey {
 }
 
 impl Drop for SigningKey {
-    /// # Security Note
-    ///
-    /// Only the serialized `bytes` field is zeroized. The `inner` field
-    /// (`FnDsaSigningKeyStandard` from the `fn-dsa` crate) does not
-    /// implement `Zeroize`, so its key material may persist in memory
-    /// after drop. This is an upstream limitation of the `fn-dsa` crate.
     fn drop(&mut self) {
-        for byte in &mut self.bytes {
-            byte.zeroize();
-        }
+        self.zeroize();
     }
 }
 
 impl Zeroize for SigningKey {
     fn zeroize(&mut self) {
-        // Zero each byte in-place to preserve the length
-        // This allows verification that zeroization occurred
+        self.inner.zeroize();
+        // Zero each byte in-place to preserve Vec length (Vec::zeroize truncates).
+        // Tests assert length is preserved after explicit zeroize().
         for byte in &mut self.bytes {
             byte.zeroize();
         }
@@ -537,7 +515,7 @@ impl SigningKey {
 /// - The signing key component must be kept secret
 /// - The verifying key component can be freely distributed
 /// - Both keys are encoded according to draft FIPS 206
-/// - Signing key material is zeroized on drop (see [`SigningKey`] for limitations)
+/// - Signing key material is zeroized on drop (both serialized bytes and inner state)
 pub struct KeyPair {
     /// Secret signing key component
     signing_key: SigningKey,
@@ -944,10 +922,9 @@ mod tests {
     ///
     /// # Security Note
     ///
-    /// This test verifies our best-effort zeroization approach for FN-DSA keys.
-    /// The `bytes` field containing the serialized key material is zeroized,
-    /// but the `inner` field from the external `fn-dsa` crate cannot be zeroized
-    /// as it doesn't implement the `Zeroize` trait.
+    /// This test verifies zeroization of the serialized `bytes` field. The inner
+    /// `FnDsaSigningKeyStandard` is also zeroized (fn-dsa v0.3.0+ derives Zeroize),
+    /// but its internal state is not exposed for direct byte-level verification.
     #[test]
     fn test_fndsa_signing_key_zeroization_clears_bytes_succeeds() {
         std::thread::Builder::new()

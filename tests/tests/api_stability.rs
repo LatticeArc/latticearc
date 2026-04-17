@@ -20,11 +20,6 @@
 //!    - Test function parameter types haven't changed
 //!    - Verify return types are stable
 //!    - Check for breaking generic constraints
-//!
-//! 4. Deprecation Handling Tests (10+ tests):
-//!    - Test deprecated functions still work
-//!    - Verify deprecation warnings are present
-//!    - Check migration paths exist
 
 #![deny(unsafe_code)]
 #![allow(
@@ -52,8 +47,7 @@
     clippy::get_first,
     clippy::float_cmp,
     clippy::needless_borrows_for_generic_args,
-    unused_qualifications,
-    deprecated
+    unused_qualifications
 )]
 use std::error::Error;
 use std::mem::size_of_val;

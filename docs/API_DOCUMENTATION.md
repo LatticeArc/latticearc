@@ -382,10 +382,11 @@ pub enum SecurityLevel {
     Standard, // NIST Level 1 (128-bit equivalent), hybrid mode
     High,     // NIST Level 3 (192-bit equivalent), hybrid mode (default)
     Maximum,  // NIST Level 5 (256-bit equivalent), hybrid mode
-    #[deprecated(since = "0.6.0")]
-    Quantum,  // Deprecated: use (Maximum, CryptoMode::PqOnly) instead
 }
 ```
+
+The `Quantum` variant was deprecated in 0.6.0 and removed in 0.7.0. For
+PQ-only Level 5, use `SecurityLevel::Maximum` with `CryptoMode::PqOnly`.
 
 ### CryptoMode
 

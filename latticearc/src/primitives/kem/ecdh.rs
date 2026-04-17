@@ -462,16 +462,19 @@ impl std::fmt::Debug for X25519KeyPair {
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
-/// aws-lc-rs type does not expose key bytes for byte-level comparison.
-/// This type is ephemeral (consumed on use) and not compared in any
-/// production code path.
+/// `ConstantTimeEq` is not implemented because this type is not compared in
+/// any production code path. If byte-level comparison is required, extract
+/// the seed via aws-lc-rs `AsBigEndian<Curve25519SeedBin>` and compare those
+/// bytes in constant time — materializing secret bytes on every compare is
+/// avoided by default.
 ///
 /// # Limitations
 ///
-/// aws-lc-rs does not support X25519 key import from raw bytes or DER.
-/// Keys are **in-memory only** — they can be generated but not serialized
-/// to disk. ML-KEM keys remain fully serializable.
+/// aws-lc-rs 1.16+ supports X25519 raw-bytes import via `from_private_key`
+/// and export via `AsBigEndian<Curve25519SeedBin>`. DER encoding of X25519
+/// private keys is still unsupported upstream. This wrapper currently exposes
+/// only the generate/agree path; add serialization helpers if persistence
+/// is needed.
 ///
 /// # Example
 ///

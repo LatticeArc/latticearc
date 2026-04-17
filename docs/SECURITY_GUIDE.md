@@ -325,7 +325,7 @@ use latticearc::primitives::aead::AeadCipher;
 flowchart LR
     S["Standard\n128-bit"] --> H["High (default)\n192-bit"]
     H --> M["Maximum\n256-bit"]
-    M --> Q["Maximum + PqOnly\n(Quantum deprecated)"]
+    M --> Q["Maximum + PqOnly\n(PQ-only, Level 5)"]
 
     classDef level fill:#3498db,stroke:#333,color:#fff
     class S,H,M,Q level
