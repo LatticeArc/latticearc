@@ -266,6 +266,11 @@ pub fn derive_encryption_key(
     info.extend_from_slice(&context.aad);
 
     // HKDF-SHA256 via primitives wrapper (backed by aws-lc-rs HMAC).
+    // Zero-length salt (`None`) matches HPKE (RFC 9180 §5.1). RFC 5869 §2.2
+    // permits zero salt when IKM is already uniformly random; `shared_secret`
+    // here is a KEM/DH output (32 B ML-KEM or 64 B ML-KEM || ECDH), so
+    // Extract's salt is not doing entropy extraction. Domain separation and
+    // AAD/context binding live in `info` instead.
     let hkdf_result = hkdf(shared_secret, None, Some(&info), 32)
         .map_err(|e| HybridEncryptionError::KdfError(format!("HKDF failed: {e}")))?;
 

@@ -711,7 +711,11 @@ pub fn derive_hybrid_shared_secret(
     info.extend_from_slice(&ephemeral_pk_len.to_be_bytes());
     info.extend_from_slice(ephemeral_pk);
 
-    // Use HKDF-SHA256 with domain separation (via aws-lc-rs)
+    // HKDF-SHA256 with zero-length salt (`None`), matching HPKE (RFC 9180 §5.1).
+    // RFC 5869 §2.2 permits zero salt when IKM is already uniformly random;
+    // here IKM is ML-KEM_ss || ECDH_ss — two independent 256-bit secrets from
+    // honest-party KEM/DH outputs, so Extract's salt is not doing entropy
+    // extraction. Domain separation + key binding live in `info` instead.
     let hkdf_result = hkdf(&ikm, None, Some(&info), 64)
         .map_err(|e| HybridKemError::KdfError(format!("HKDF failed: {}", e)))?;
 
