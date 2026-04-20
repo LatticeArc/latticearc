@@ -130,6 +130,82 @@ pub fn verify_hmac_sha256(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     bool::from(key_valid & tag_len_valid & mac_matches)
 }
 
+/// HMAC-SHA256 verifier that caches the `aws-lc-rs` key context.
+///
+/// Use when verifying many tags under the same key (e.g., session MAC
+/// validation, token verification in a loop). The one-shot
+/// [`verify_hmac_sha256`] allocates a fresh `hmac::Key` on every call;
+/// `HmacSha256Verifier` allocates once at construction and reuses the
+/// key context for every `.verify()` call.
+///
+/// Beyond the ergonomic win, the cached-key path also removes aws-lc-rs
+/// FFI allocator churn from the verify hot path — important for the
+/// dudect constant-time gate, whose per-sample resolution is otherwise
+/// swamped by allocator-state variance.
+///
+/// # Example
+///
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use latticearc::primitives::mac::hmac::{hmac_sha256, HmacSha256Verifier};
+///
+/// let key = b"my secret key";
+/// let verifier = HmacSha256Verifier::new(key)?;
+///
+/// let tag = hmac_sha256(key, b"message 1")?;
+/// assert!(verifier.verify(b"message 1", &tag));
+/// assert!(!verifier.verify(b"message 2", &tag));
+/// # Ok(())
+/// # }
+/// ```
+pub struct HmacSha256Verifier {
+    key: hmac::Key,
+}
+
+impl HmacSha256Verifier {
+    /// Construct a verifier bound to `key`.
+    ///
+    /// # Errors
+    /// Returns an error if `key` is empty. aws-lc-rs handles padding/hashing
+    /// for keys longer than the block size.
+    pub fn new(key: &[u8]) -> Result<Self> {
+        if key.is_empty() {
+            return Err(LatticeArcError::InvalidInput("HMAC key cannot be empty".to_string()));
+        }
+        Ok(Self { key: hmac::Key::new(HMAC_SHA256, key) })
+    }
+
+    /// Verify `tag` against `HMAC-SHA256(key, data)` in constant time.
+    ///
+    /// Returns `false` (never errors) on length mismatch or MAC mismatch.
+    /// No FFI allocation on the hot path — the key context was bound at
+    /// construction.
+    #[must_use]
+    pub fn verify(&self, data: &[u8], tag: &[u8]) -> bool {
+        use subtle::{Choice, ConstantTimeEq};
+
+        let tag_len_valid = tag.len().ct_eq(&32);
+
+        let computed = hmac::sign(&self.key, data);
+        let computed_bytes = computed.as_ref();
+        // HMAC-SHA256 output is always 32 bytes by construction; the length
+        // check above guards `tag` so both sides feed subtle equal-length slices
+        // on the accept path and zero-length subtle on the reject path.
+        let mac_matches = match computed_bytes.get(..32) {
+            Some(slice) => slice.ct_eq(tag),
+            None => Choice::from(0u8),
+        };
+
+        bool::from(tag_len_valid & mac_matches)
+    }
+}
+
+impl std::fmt::Debug for HmacSha256Verifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HmacSha256Verifier").field("key", &"[REDACTED]").finish()
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Tests use unwrap for simplicity
 mod tests {

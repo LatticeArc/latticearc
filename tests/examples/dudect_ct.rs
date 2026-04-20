@@ -29,29 +29,36 @@
 use dudect_bencher::{BenchRng, Class, CtRunner, ctbench_main};
 
 use latticearc::hybrid::kem_hybrid::{HybridKemSecretKey, generate_keypair};
-use latticearc::primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
+use latticearc::primitives::mac::hmac::{HmacSha256Verifier, hmac_sha256};
 use subtle::ConstantTimeEq;
 
 const SAMPLES: usize = 100_000;
 
 // -----------------------------------------------------------------------------
-// Bench 1: `verify_hmac_sha256` timing under valid vs. tampered tags.
+// Bench 1: `HmacSha256Verifier::verify` timing under valid vs. tampered tags.
 //
-// Left:  (key, message, valid_tag)
-// Right: (key, message, valid_tag with one byte flipped)
+// Left:  verifier.verify(message, valid_tag)
+// Right: verifier.verify(message, valid_tag with one byte flipped)
+//
+// Uses `HmacSha256Verifier` (key bound once at construction) rather than
+// the one-shot `verify_hmac_sha256(key, data, tag)` so the measured region
+// doesn't include an aws-lc-rs `hmac::Key::new` FFI allocation on every
+// iteration. That allocator churn would otherwise drift the per-sample
+// baseline and produce |t| noise unrelated to the constant-time tag
+// compare this bench is meant to verify.
 //
 // A naive byte-by-byte tag compare would return at the first differing
-// byte, producing a massive t-statistic. Our implementation calls
-// `aws-lc-rs`'s `hmac::verify`, which uses constant-time comparison.
+// byte, producing a massive t-statistic. The implementation delegates to
+// `subtle::ConstantTimeEq`, which is content-independent.
 // -----------------------------------------------------------------------------
 fn bench_verify_hmac_sha256(runner: &mut CtRunner, _rng: &mut BenchRng) {
-    // Prepare inputs outside the measured region so allocation cost doesn't
-    // contaminate the timing samples.
     let key = [0x42u8; 32];
     let message = b"latticearc dudect probe message".to_vec();
     let valid_tag = hmac_sha256(&key, &message).expect("hmac");
     let mut tampered_tag = valid_tag;
     tampered_tag[0] ^= 0xFF;
+
+    let verifier = HmacSha256Verifier::new(&key).expect("verifier");
 
     let mut inputs: Vec<([u8; 32], Class)> = Vec::with_capacity(SAMPLES);
     for i in 0..SAMPLES {
@@ -64,7 +71,7 @@ fn bench_verify_hmac_sha256(runner: &mut CtRunner, _rng: &mut BenchRng) {
 
     for (tag, class) in inputs {
         runner.run_one(class, || {
-            let _ = verify_hmac_sha256(&key, &message, &tag);
+            let _ = verifier.verify(&message, &tag);
         });
     }
 }
