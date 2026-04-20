@@ -34,7 +34,7 @@ on:
       timeout:
         description: 'Timeout per mutant (seconds)'
         required: false
-        default: '300'
+        default: '600'
         type: string
 
 permissions: read-all
@@ -112,10 +112,10 @@ jobs:
             exit 0
           fi
           set -o pipefail
-          cargo mutants -p latticearc \
+          cargo mutants -p latticearc --all-features \
             --in-diff pr-changes.diff \
             --profile release \
-            --timeout 300 \
+            --timeout 600 \
             --jobs 2 \
             --output mutants-pr \
             2>&1 | tee mutation-pr.log
@@ -174,10 +174,10 @@ jobs:
       - name: Run mutation testing on primitives module
         run: |
           set -o pipefail
-          cargo mutants -p latticearc \
+          cargo mutants -p latticearc --all-features \
             --file "latticearc/src/primitives/**/*.rs" \
             --profile release \
-            --timeout ${{ inputs.timeout || '300' }} \
+            --timeout ${{ inputs.timeout || '600' }} \
             --jobs 2 \
             --output mutants-primitives \
             2>&1 | tee mutation-primitives.log
@@ -228,10 +228,10 @@ jobs:
       - name: Run mutation testing on unified_api module
         run: |
           set -o pipefail
-          cargo mutants -p latticearc \
+          cargo mutants -p latticearc --all-features \
             --file "latticearc/src/unified_api/**/*.rs" \
             --profile release \
-            --timeout ${{ inputs.timeout || '300' }} \
+            --timeout ${{ inputs.timeout || '600' }} \
             --jobs 2 \
             --output mutants-unified-api \
             2>&1 | tee mutation-unified-api.log
@@ -282,10 +282,10 @@ jobs:
       - name: Run mutation testing on hybrid module
         run: |
           set -o pipefail
-          cargo mutants -p latticearc \
+          cargo mutants -p latticearc --all-features \
             --file "latticearc/src/hybrid/**/*.rs" \
             --profile release \
-            --timeout ${{ inputs.timeout || '300' }} \
+            --timeout ${{ inputs.timeout || '600' }} \
             --jobs 2 \
             --output mutants-hybrid \
             2>&1 | tee mutation-hybrid.log
