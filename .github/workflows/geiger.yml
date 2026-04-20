@@ -41,7 +41,7 @@ jobs:
           key: ${{ runner.os }}-geiger-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-geiger
-        run: cargo install cargo-geiger
+        run: cargo install cargo-geiger --locked
 
       - name: Run cargo-geiger (full report)
         run: |
