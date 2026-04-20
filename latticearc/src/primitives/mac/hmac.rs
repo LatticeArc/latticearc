@@ -332,6 +332,93 @@ mod tests {
         assert!(!verify_hmac_sha256(key, data, &short_tag));
     }
 
+    // ========================================================================
+    // HmacSha256Verifier coverage — mirrors the verify_hmac_sha256 tests
+    // above so the cached-key API path has equivalent assurance.
+    // ========================================================================
+
+    #[test]
+    fn test_verifier_new_empty_key_returns_error() {
+        assert!(HmacSha256Verifier::new(&[]).is_err());
+    }
+
+    #[test]
+    fn test_verifier_valid_tag_returns_true_succeeds() {
+        let key = b"secret_key";
+        let data = b"message";
+        let tag = hmac_sha256(key, data).unwrap();
+        let verifier = HmacSha256Verifier::new(key).unwrap();
+        assert!(verifier.verify(data, &tag));
+    }
+
+    #[test]
+    fn test_verifier_tampered_tag_returns_false_fails() {
+        let key = b"secret_key";
+        let data = b"message";
+        let mut tag = hmac_sha256(key, data).unwrap();
+        tag[0] ^= 0xFF;
+        let verifier = HmacSha256Verifier::new(key).unwrap();
+        assert!(!verifier.verify(data, &tag));
+    }
+
+    #[test]
+    fn test_verifier_wrong_data_returns_false_fails() {
+        let key = b"secret_key";
+        let tag = hmac_sha256(key, b"original message").unwrap();
+        let verifier = HmacSha256Verifier::new(key).unwrap();
+        assert!(!verifier.verify(b"different message", &tag));
+    }
+
+    #[test]
+    fn test_verifier_wrong_tag_length_returns_false_fails() {
+        let key = b"secret_key";
+        let verifier = HmacSha256Verifier::new(key).unwrap();
+        assert!(!verifier.verify(b"message", &[0u8; 16]));
+        assert!(!verifier.verify(b"message", &[0u8; 31]));
+        assert!(!verifier.verify(b"message", &[0u8; 33]));
+        assert!(!verifier.verify(b"message", &[0u8; 64]));
+    }
+
+    #[test]
+    fn test_verifier_agrees_with_one_shot_verify_on_rfc4231_case1() {
+        // RFC 4231 Test Case 1 — sanity: cached-key path and one-shot path
+        // must produce identical verdicts on a known-answer test vector.
+        let key = hex!("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
+        let data = b"Hi There";
+        let expected = hex!("b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
+
+        let verifier = HmacSha256Verifier::new(&key).unwrap();
+        assert_eq!(verify_hmac_sha256(&key, data, &expected), verifier.verify(data, &expected));
+        assert!(verifier.verify(data, &expected));
+    }
+
+    #[test]
+    fn test_verifier_reusable_across_many_calls_succeeds() {
+        // The whole point of the cached-key API: construct once, verify
+        // many. This test asserts the Verifier stays valid and produces
+        // correct verdicts across many calls without needing reconstruction.
+        let key = b"long-lived-session-key";
+        let verifier = HmacSha256Verifier::new(key).unwrap();
+        for i in 0..256u32 {
+            let data = i.to_le_bytes();
+            let tag = hmac_sha256(key, &data).unwrap();
+            assert!(verifier.verify(&data, &tag), "iter {i}: valid tag rejected");
+            let mut bad_tag = tag;
+            let flip_idx = (i as usize) % 32;
+            *bad_tag.get_mut(flip_idx).unwrap() ^= 0x01;
+            assert!(!verifier.verify(&data, &bad_tag), "iter {i}: tampered tag accepted");
+        }
+    }
+
+    #[test]
+    fn test_verifier_debug_redacts_key() {
+        let verifier = HmacSha256Verifier::new(b"secret").unwrap();
+        let dbg = format!("{:?}", verifier);
+        assert!(dbg.contains("HmacSha256Verifier"));
+        assert!(dbg.contains("REDACTED"));
+        assert!(!dbg.contains("secret"));
+    }
+
     // FIPS 198-1 Test Vectors for HMAC-SHA-256
     // From: https://csrc.nist.gov/Projects/Cryptographic-Standards-and-Guidelines/example-values
 

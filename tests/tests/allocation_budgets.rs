@@ -190,3 +190,36 @@ fn hmac_sha256_1kib_stays_under_budget() {
         let _tag = hmac_sha256(&key, &data).expect("hmac");
     });
 }
+
+// =============================================================================
+// HmacSha256Verifier::verify — cached-key hot-path invariant
+// =============================================================================
+//
+// The whole point of `HmacSha256Verifier` (vs. one-shot `verify_hmac_sha256`)
+// is that the key context is allocated at `::new` and `.verify()` does zero
+// FFI alloc per call. That's the property callers in verification loops
+// depend on, and it's also what stabilizes the dudect CT gate on this path.
+// This budget asserts the hot-path contract directly: verify() must stay
+// under a tight allocation ceiling independent of the verifier's own
+// construction cost.
+#[test]
+fn hmac_sha256_verifier_verify_hot_path_stays_under_budget() {
+    use latticearc::primitives::mac::hmac::{HmacSha256Verifier, hmac_sha256};
+
+    let key = [0u8; 32];
+    let data = vec![0xA5u8; 1024];
+    let tag = hmac_sha256(&key, &data).expect("hmac");
+
+    // Construct verifier outside the measured region — its construction
+    // allocates once; we're asserting the per-call verify budget.
+    let verifier = HmacSha256Verifier::new(&key).expect("verifier");
+
+    // verify() computes HMAC against the cached key and does a CT compare.
+    // The aws-lc-rs Tag return path plus a small transient or two is all
+    // we expect. 4 KiB budget with at most 10 allocations — far tighter
+    // than the one-shot path (16 KiB / 100 allocations) because the key
+    // context is already built.
+    assert_alloc_budget("hmac_sha256_verifier_verify", 4 * 1024, 10, || {
+        let _ = verifier.verify(&data, &tag);
+    });
+}
