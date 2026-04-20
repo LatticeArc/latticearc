@@ -66,6 +66,11 @@ jobs:
       tests: ${{ steps.filter.outputs.tests }}
       docs: ${{ steps.filter.outputs.docs }}
       ci: ${{ steps.filter.outputs.ci }}
+      # Union of anything that affects runtime or test behaviour. True if the
+      # PR actually changes code or dependencies; false for YAML-only
+      # Dependabot github-actions bumps. Used to skip heavy build/test jobs
+      # on PRs that can't affect their outcome.
+      code: ${{ steps.filter.outputs.code }}
       is_nightly: ${{ github.event.schedule == '0 2 * * *' }}
       is_weekly: ${{ github.event.schedule == '0 4 * * 0' }}
     steps:
@@ -88,6 +93,14 @@ jobs:
             - '**/*.md'
           ci:
             - '.github/workflows/**'
+            - 'Cargo.toml'
+            - 'Cargo.lock'
+          code:
+            - 'latticearc/**'
+            - 'latticearc-cli/**'
+            - '**/tests/**'
+            - 'tests/**'
+            - 'fuzz/**'
             - 'Cargo.toml'
             - 'Cargo.lock'
 
@@ -163,7 +176,10 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: quality
+    needs: [changes, quality]
+    # Skip on PRs that only touch CI YAML (Dependabot github-actions bumps etc.)
+    # — the rebuild can't produce different results. Always run on push/schedule.
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     defaults:
       run:
         shell: bash
@@ -267,7 +283,8 @@ jobs:
   test:
     name: Tests (${{ matrix.profile }})
     runs-on: ubuntu-latest
-    needs: [quality, build]
+    needs: [changes, quality, build]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -344,6 +361,7 @@ jobs:
     name: Regression Tests
     runs-on: ubuntu-latest
     needs: [changes, quality]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -381,7 +399,7 @@ jobs:
     name: Concurrency Tests
     runs-on: ubuntu-latest
     needs: [changes, quality, build]
-    if: github.event_name == 'pull_request' || github.event_name == 'push' || needs.changes.outputs.crypto == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -413,7 +431,7 @@ jobs:
     name: API Stability Tests
     runs-on: ubuntu-latest
     needs: [changes, quality, build]
-    if: github.event_name == 'pull_request' || needs.changes.outputs.crypto == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -448,11 +466,7 @@ jobs:
     name: CLI Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [changes, quality, build]
-    if: >-
-      github.event_name == 'pull_request' ||
-      needs.changes.outputs.cli == 'true' ||
-      needs.changes.outputs.crypto == 'true' ||
-      needs.changes.outputs.ci == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -857,7 +871,8 @@ jobs:
   kat-integrity:
     name: KAT Vector Integrity
     runs-on: ubuntu-latest
-    needs: quality
+    needs: [changes, quality]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
