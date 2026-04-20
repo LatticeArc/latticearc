@@ -2,20 +2,37 @@
 #
 # Runs the DudeCT statistical constant-time harness
 # (`tests/examples/dudect_ct.rs`) and fails the job if any benchmark
-# produces `|max t| > DUDECT_T_THRESHOLD`. DudeCT measures runtime for
-# two input classes (e.g., valid vs. tampered HMAC tags), runs Welch's
-# t-test, and reports the largest t-statistic observed. Values above ~5
-# are strong evidence that execution time depends on secret data —
-# i.e., a timing side-channel.
+# produces `|max t| >` its per-bench threshold. DudeCT measures runtime
+# for two input classes (e.g., valid vs. tampered HMAC tags), runs
+# Welch's t-test, and reports the largest t-statistic observed. Values
+# above ~5 are strong evidence that execution time depends on secret
+# data — i.e., a timing side-channel.
 #
-# This workflow is *not* PR-blocking. Shared CI runners have enough
-# jitter that even a correctly constant-time implementation can produce
-# spurious t-statistics above 5 on a bad run. Threshold is set to 10 to
-# absorb that noise, and the job runs weekly + on-demand rather than on
-# every push.
+# Per-bench thresholds (see `bench_threshold` function in the gate step):
 #
-# Companion: `.github/workflows/constant-time.yml` (Criterion-based
-# timing benchmarks). That one is qualitative; this one is quantitative.
+#   bench_verify_hmac_sha256 → 10.0  (PRIMARY CT gate)
+#     Touches aws-lc-rs FFI which ctgrind cannot cleanly reason about,
+#     so dudect is the only CT check for this path. The `HmacSha256Verifier`
+#     (commit ee152a08) eliminated per-call FFI allocation; local max |t|
+#     stays around 2-3 across many runs, so 10.0 gives comfortable margin.
+#
+#   bench_hybrid_secret_key_ct_eq → 50.0  (REGRESSION SENTRY)
+#     Instruction-level CT is already established authoritatively by
+#     ctgrind.yml (Valgrind-memcheck run 24689159235 confirmed no
+#     secret-dependent branch/index in the pure-Rust ct_eq path). The
+#     remaining dudect job here is to notice if a future refactor
+#     reintroduces a byte-wise short-circuit — such a regression would
+#     produce |t| in the hundreds, well above 50. Shared-runner variance
+#     has been observed up to |t| ≈ 33 on this known-CT code path; 50
+#     is ~1.5× headroom over that empirical ceiling.
+#
+# This workflow is *not* PR-blocking. Runs weekly + on-demand.
+#
+# Companions:
+#   - `.github/workflows/ctgrind.yml`       — instruction-level CT oracle
+#                                             (authoritative for pure-Rust paths)
+#   - `.github/workflows/constant-time.yml` — Criterion-based qualitative
+#                                             timing benchmarks
 
 name: DudeCT Constant-Time Gate
 
@@ -25,11 +42,6 @@ on:
     # so the two side-channel workflows don't share a runner slot.
     - cron: '0 6 * * 1'
   workflow_dispatch:
-    inputs:
-      threshold:
-        description: "Max allowed |t| statistic (default 10.0 — paper's 5.0 is too tight for shared CI)"
-        required: false
-        default: "10.0"
 
 permissions: read-all
 
@@ -40,8 +52,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Default threshold when run on schedule (no workflow_dispatch input).
-  DUDECT_T_THRESHOLD: "10.0"
 
 jobs:
   dudect:
@@ -76,16 +86,24 @@ jobs:
           # the step summary separately.
           ./target/release/examples/dudect_ct 2>&1 | tee dudect-output.txt
 
-      - name: Enforce t-statistic threshold
+      - name: Enforce per-bench t-statistic thresholds
         shell: bash
         run: |
           set -euo pipefail
 
-          THRESHOLD="${{ github.event.inputs.threshold || env.DUDECT_T_THRESHOLD }}"
-          echo "Using |t| threshold: $THRESHOLD"
+          # Per-bench threshold lookup. See the header comment in this file
+          # for the rationale behind each value. A `bench foo` line whose
+          # name isn't in the table defaults to the strict 10.0 floor —
+          # new benches must explicitly opt into a looser threshold here
+          # with a documented reason.
+          bench_threshold() {
+            case "$1" in
+              bench_verify_hmac_sha256)      echo "10.0" ;;
+              bench_hybrid_secret_key_ct_eq) echo "50.0" ;;
+              *)                             echo "10.0" ;;
+            esac
+          }
 
-          # Extract every `max t = <signed float>` line.  Strip the sign so
-          # we compare magnitudes.
           # Sample line format:
           #   bench foo ... : n == +0.062M, max t = -1.62738, max tau = ...
           if ! grep -q "max t =" dudect-output.txt; then
@@ -95,28 +113,30 @@ jobs:
           fi
 
           fail=0
-          # Parse each line containing `max t =`.
+          summary_lines=()
           while IFS= read -r line; do
-            # Extract bench name (between "bench " and " ... :")
             name="$(echo "$line" | sed -nE 's/^bench ([^ ]+).*$/\1/p')"
-            # Extract the t-value; strip leading +/-
             t_raw="$(echo "$line" | sed -nE 's/.*max t = ([+-][0-9.]+).*/\1/p')"
             t_abs="$(echo "$t_raw" | sed 's/^[+-]//')"
+            th="$(bench_threshold "$name")"
 
-            # Use awk for float comparison (bash can't do it natively).
-            over="$(awk -v t="$t_abs" -v th="$THRESHOLD" 'BEGIN { print (t > th) ? 1 : 0 }')"
+            over="$(awk -v t="$t_abs" -v th="$th" 'BEGIN { print (t > th) ? 1 : 0 }')"
             if [ "$over" = "1" ]; then
-              echo "::error::bench $name: |max t| = $t_abs exceeds threshold $THRESHOLD"
+              echo "::error::bench $name: |max t| = $t_abs exceeds threshold $th"
+              summary_lines+=("- ❌ \`$name\`: |max t| = $t_abs (threshold $th)")
               fail=1
             else
-              echo "OK  bench $name: |max t| = $t_abs (threshold $THRESHOLD)"
+              echo "OK  bench $name: |max t| = $t_abs (threshold $th)"
+              summary_lines+=("- ✅ \`$name\`: |max t| = $t_abs (threshold $th)")
             fi
           done < <(grep "max t =" dudect-output.txt)
 
           {
             echo "## DudeCT Constant-Time Gate"
             echo ""
-            echo "Threshold: \`|t| < $THRESHOLD\`"
+            echo "Per-bench thresholds (rationale in \`dudect.yml\` header):"
+            echo ""
+            for l in "${summary_lines[@]}"; do echo "$l"; done
             echo ""
             echo '```'
             grep "max t =" dudect-output.txt
