@@ -490,11 +490,12 @@ mod tests {
     use k256::{
         FieldBytes, ProjectivePoint, Scalar, SecretKey, elliptic_curve::group::GroupEncoding,
     };
+    use rand::rngs::OsRng;
 
     #[test]
     fn test_dlog_equality_proof_succeeds() {
         // Generate secret
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
@@ -519,7 +520,7 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_wrong_context_fails_verification_fails() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
@@ -542,11 +543,11 @@ mod tests {
     #[test]
     fn test_dlog_equality_wrong_secret_fails_verification_fails() {
         // Prove with one secret, verify with a statement that uses a different discrete log
-        let x_key = SecretKey::random(&mut rand::thread_rng());
+        let x_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = x_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
-        let y_key = SecretKey::random(&mut rand::thread_rng());
+        let y_key = SecretKey::random(&mut OsRng);
         let y: [u8; 32] = y_key.to_bytes().into();
         let y_scalar = Scalar::from_repr(*FieldBytes::from_slice(&y)).unwrap();
 
@@ -572,7 +573,7 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_tampered_challenge_fails_verification_fails() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
@@ -596,7 +597,7 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_tampered_response_fails_verification_fails() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
@@ -642,7 +643,7 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_proof_fields_are_populated_succeeds() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
@@ -702,7 +703,7 @@ mod tests {
     #[test]
     fn test_dlog_equality_different_generators_succeeds() {
         // Use a different multiplier for H
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
@@ -879,7 +880,7 @@ mod tests {
 
     #[test]
     fn test_dlog_equality_empty_context_succeeds() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut OsRng);
         let x: [u8; 32] = secret_key.to_bytes().into();
         let x_scalar = Scalar::from_repr(*FieldBytes::from_slice(&x)).unwrap();
 
