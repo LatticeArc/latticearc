@@ -114,6 +114,7 @@ jobs:
           set -o pipefail
           cargo mutants -p latticearc \
             --in-diff pr-changes.diff \
+            --profile release \
             --timeout 300 \
             --jobs 2 \
             --output mutants-pr \
@@ -175,6 +176,7 @@ jobs:
           set -o pipefail
           cargo mutants -p latticearc \
             --file "latticearc/src/primitives/**/*.rs" \
+            --profile release \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-primitives \
@@ -228,6 +230,7 @@ jobs:
           set -o pipefail
           cargo mutants -p latticearc \
             --file "latticearc/src/unified_api/**/*.rs" \
+            --profile release \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-unified-api \
@@ -281,6 +284,7 @@ jobs:
           set -o pipefail
           cargo mutants -p latticearc \
             --file "latticearc/src/hybrid/**/*.rs" \
+            --profile release \
             --timeout ${{ inputs.timeout || '300' }} \
             --jobs 2 \
             --output mutants-hybrid \
