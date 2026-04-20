@@ -31,12 +31,14 @@
 //! | Security guarantee | Secure if EITHER is secure | Secure if ML-KEM is secure |
 //! | CNSA 2.0 compliant | No (contains classical) | Yes |
 
+use crate::log_crypto_operation_error;
 use crate::primitives::aead::aes_gcm::AesGcm256;
 use crate::primitives::aead::{AeadCipher, TAG_LEN};
 use crate::primitives::kdf::hkdf::hkdf;
 use crate::primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
 };
+use crate::unified_api::logging::op;
 use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::Zeroizing;
@@ -295,26 +297,34 @@ pub fn encrypt_pq_only(
     pk: &PqOnlyPublicKey,
     plaintext: &[u8],
 ) -> Result<PqOnlyCiphertext, PqOnlyError> {
-    // 1. ML-KEM encapsulate
-    let (shared_secret, kem_ct) = MlKem::encapsulate(pk.ml_kem_pk())
-        .map_err(|e| PqOnlyError::KemError(format!("ML-KEM encapsulation failed: {e}")))?;
+    // Encrypt-side opacity (defense-in-depth per Pattern 6).
+    let (shared_secret, kem_ct) = MlKem::encapsulate(pk.ml_kem_pk()).map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "ML-KEM encapsulation failed");
+        PqOnlyError::KemError("encapsulation failed".to_string())
+    })?;
 
-    // 2. HKDF key derivation with PQ-only domain separation
+    // HKDF info uses PQ-only domain separation to prevent cross-mode confusion
+    // with hybrid encryption.
     let hkdf_result = hkdf(
         shared_secret.as_bytes(),
         None,
         Some(crate::types::domains::PQ_ONLY_ENCRYPTION_INFO),
         32,
     )
-    .map_err(|e| PqOnlyError::KdfError(format!("HKDF failed: {e}")))?;
+    .map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "HKDF failed");
+        PqOnlyError::KdfError("KDF failed".to_string())
+    })?;
 
-    // 3. AES-256-GCM encrypt
-    let cipher = AesGcm256::new(hkdf_result.key())
-        .map_err(|e| PqOnlyError::EncryptionError(format!("AES-GCM init failed: {e}")))?;
+    let cipher = AesGcm256::new(hkdf_result.key()).map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "AES-256 init failed");
+        PqOnlyError::EncryptionError("encryption failed".to_string())
+    })?;
     let nonce = AesGcm256::generate_nonce();
-    let (ciphertext, tag) = cipher
-        .encrypt(&nonce, plaintext, None)
-        .map_err(|e| PqOnlyError::EncryptionError(format!("AES-GCM encrypt failed: {e}")))?;
+    let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, None).map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "AES-GCM seal failed");
+        PqOnlyError::EncryptionError("encryption failed".to_string())
+    })?;
 
     Ok(PqOnlyCiphertext {
         ml_kem_ciphertext: kem_ct.into_bytes(),
@@ -349,27 +359,41 @@ pub fn decrypt_pq_only(
     nonce: &[u8; 12],
     tag: &[u8; TAG_LEN],
 ) -> Result<Zeroizing<Vec<u8>>, PqOnlyError> {
-    // 1. ML-KEM decapsulate
-    let ct = MlKemCiphertext::new(sk.security_level(), kem_ciphertext.to_vec())
-        .map_err(|e| PqOnlyError::KemError(format!("Invalid ML-KEM ciphertext: {e}")))?;
-    let shared_secret = MlKem::decapsulate(sk.ml_kem_sk(), &ct)
-        .map_err(|e| PqOnlyError::KemError(format!("ML-KEM decapsulation failed: {e}")))?;
+    // All adversary-reachable failure paths collapse to one opaque RETURNED
+    // error. Adversary controls `kem_ciphertext`, `symmetric_ciphertext`,
+    // `nonce`, and `tag`; distinguishing "parse fail" vs "crypto fail" vs
+    // "AEAD tag fail" would be a per-stage oracle. Internal tracing logs
+    // keep the specific reason so operators can debug via correlation IDs.
+    let opaque = || PqOnlyError::DecryptionError("decryption failed".to_string());
 
-    // 2. HKDF key derivation (must match encrypt path)
+    let ct = MlKemCiphertext::new(sk.security_level(), kem_ciphertext.to_vec()).map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "invalid ML-KEM ciphertext");
+        opaque()
+    })?;
+    let shared_secret = MlKem::decapsulate(sk.ml_kem_sk(), &ct).map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "ML-KEM decapsulation failed");
+        opaque()
+    })?;
+
+    // HKDF params must match encrypt_pq_only (salt=None, same info label).
     let hkdf_result = hkdf(
         shared_secret.as_bytes(),
         None,
         Some(crate::types::domains::PQ_ONLY_ENCRYPTION_INFO),
         32,
     )
-    .map_err(|e| PqOnlyError::KdfError(format!("HKDF failed: {e}")))?;
+    .map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "HKDF failed");
+        opaque()
+    })?;
 
-    // 3. AES-256-GCM decrypt
-    let cipher = AesGcm256::new(hkdf_result.key())
-        .map_err(|e| PqOnlyError::DecryptionError(format!("AES-GCM init failed: {e}")))?;
+    let cipher = AesGcm256::new(hkdf_result.key()).map_err(|_e| {
+        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AES-256 init failed");
+        opaque()
+    })?;
     cipher.decrypt(nonce, symmetric_ciphertext, tag, None).map_err(|_aead_err| {
-        // SECURITY: Opaque error per SP 800-38D §5.2.2
-        PqOnlyError::DecryptionError("decryption failed".to_string())
+        log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AEAD authentication failed");
+        opaque()
     })
 }
 

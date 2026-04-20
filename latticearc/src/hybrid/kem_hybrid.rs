@@ -113,10 +113,12 @@ use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::{ZeroizeOnDrop, Zeroizing};
 
+use crate::log_crypto_operation_error;
 use crate::primitives::kdf::hkdf::hkdf;
 use crate::primitives::kem::ecdh::{X25519_KEY_SIZE, X25519KeyPair, X25519StaticKeyPair};
 use crate::primitives::kem::ml_kem::MlKemDecapsulationKeyPair;
 use crate::primitives::kem::{MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecurityLevel};
+use crate::unified_api::logging::op;
 
 /// Error types for hybrid KEM operations.
 ///
@@ -631,7 +633,6 @@ pub fn decapsulate(
 /// but silently derive the wrong secret and break interop. This struct
 /// forces callers to name each input at the callsite, so a swap becomes
 /// a compile error on the field name.
-#[derive(Debug)]
 pub struct HybridSharedSecretInputs<'a> {
     /// ML-KEM decapsulated shared secret (32 bytes). First leg of the IKM.
     pub ml_kem_ss: &'a [u8],
@@ -643,6 +644,20 @@ pub struct HybridSharedSecretInputs<'a> {
     /// Ephemeral sender public key. Binds the derivation to this specific
     /// session. Included in the HKDF `info` field with a length prefix.
     pub ephemeral_pk: &'a [u8],
+}
+
+// Manual Debug: never derive Debug on types holding secret byte slices.
+// `ml_kem_ss` and `ecdh_ss` are live shared secrets; logging their hex
+// via derived Debug would leak them through any tracing/dbg! path.
+impl std::fmt::Debug for HybridSharedSecretInputs<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HybridSharedSecretInputs")
+            .field("ml_kem_ss", &"[REDACTED; 32]")
+            .field("ecdh_ss", &"[REDACTED; 32]")
+            .field("static_pk_len", &self.static_pk.len())
+            .field("ephemeral_pk_len", &self.ephemeral_pk.len())
+            .finish()
+    }
 }
 
 /// Derive hybrid shared secret using HPKE-style KDF.
@@ -716,8 +731,10 @@ pub fn derive_hybrid_shared_secret(
     // here IKM is ML-KEM_ss || ECDH_ss — two independent 256-bit secrets from
     // honest-party KEM/DH outputs, so Extract's salt is not doing entropy
     // extraction. Domain separation + key binding live in `info` instead.
-    let hkdf_result = hkdf(&ikm, None, Some(&info), 64)
-        .map_err(|e| HybridKemError::KdfError(format!("HKDF failed: {}", e)))?;
+    let hkdf_result = hkdf(&ikm, None, Some(&info), 64).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_DERIVE, "HKDF failed");
+        HybridKemError::KdfError("KDF failed".to_string())
+    })?;
 
     // SECURITY: wrap the derived hybrid shared secret in `Zeroizing` — otherwise
     // `.to_vec()` on `hkdf_result.key()` copies the secret OUT of its internal

@@ -587,15 +587,17 @@ fn test_memory_pressure_allocation_cycles_succeeds() {
     }
 }
 
-/// Test signing with large messages (100KB)
+/// Test signing with large messages (50 KiB — below the 64 KiB signature
+/// resource cap enforced by the primitive sign path).
 #[test]
 fn test_sign_large_message_succeeds() {
     let (pk, sk) =
         ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let context: &[u8] = &[];
 
-    // 100KB message
-    let large_message = vec![0x42u8; 100 * 1024];
+    // 50 KiB message — large enough to exercise multi-block handling, below
+    // the default max_signature_size_bytes (64 KiB) resource cap.
+    let large_message = vec![0x42u8; 50 * 1024];
 
     let signature = ml_dsa::sign(&sk, &large_message, context).expect("signing should succeed");
     let is_valid = ml_dsa::verify(&pk, &large_message, &signature, context)

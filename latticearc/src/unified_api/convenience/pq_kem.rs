@@ -19,8 +19,10 @@
 use tracing::warn;
 use zeroize::Zeroizing;
 
+use crate::log_crypto_operation_error;
 use crate::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 use crate::types::types::SecurityLevel;
+use crate::unified_api::logging::op;
 
 use super::aes_gcm::encrypt_aes_gcm_internal;
 use crate::unified_api::CoreConfig;
@@ -70,19 +72,19 @@ fn encrypt_pq_ml_kem_internal(
     );
 
     validate_encryption_size(data.len()).map_err(|e| {
-        crate::log_crypto_operation_error!("encrypt_pq_ml_kem", "resource limit exceeded");
+        log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "resource limit exceeded");
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     let pk =
         crate::primitives::kem::ml_kem::MlKemPublicKey::new(security_level, ml_kem_pk.to_vec())
             .map_err(|e| {
-                crate::log_crypto_operation_error!("encrypt_pq_ml_kem", e);
+                log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, e);
                 CoreError::InvalidInput("Invalid ML-KEM public key format".to_string())
             })?;
 
     let (shared_secret, ciphertext) = MlKem::encapsulate(&pk).map_err(|e| {
-        crate::log_crypto_operation_error!("encrypt_pq_ml_kem", "encapsulation failed");
+        log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "encapsulation failed");
         CoreError::EncryptionFailed(format!("ML-KEM encapsulation failed: {}", e))
     })?;
 
@@ -96,7 +98,7 @@ fn encrypt_pq_ml_kem_internal(
         32,
     )
     .map_err(|e| {
-        crate::log_crypto_operation_error!("encrypt_pq_ml_kem", "HKDF failed");
+        log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "HKDF failed");
         CoreError::EncryptionFailed(format!("Key derivation failed: {e}"))
     })?;
     let encrypted_data = encrypt_aes_gcm_internal(data, hkdf_result.key())?;
@@ -139,32 +141,34 @@ fn decrypt_pq_ml_kem_internal(
         data_len = encrypted_data.len()
     );
 
+    // All adversary-reachable failure paths collapse to one opaque error.
+    // Attacker controls `encrypted_data` (both KEM ciphertext prefix and AEAD
+    // tail); distinguishing "too short" vs "bad KEM ct" vs "decap failed" vs
+    // "AEAD tag failed" is a per-stage oracle. Matches HPKE RFC 9180 §5.2
+    // and the same pattern used in pq_only::decrypt_pq_only.
+    let opaque = || CoreError::DecryptionFailed("decryption failed".to_string());
+
     let ct_size = security_level.ciphertext_size();
     if encrypted_data.len() < ct_size {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "encrypted data too short");
-        return Err(CoreError::DecryptionFailed(format!(
-            "Encrypted data ({} bytes) shorter than ML-KEM {:?} ciphertext size ({} bytes)",
-            encrypted_data.len(),
-            security_level,
-            ct_size,
-        )));
+        log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "encrypted data too short");
+        return Err(opaque());
     }
 
     let (ct_bytes, aes_encrypted) = encrypted_data.split_at(ct_size);
 
-    let sk = MlKemSecretKey::new(security_level, ml_kem_sk.to_vec()).map_err(|e| {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "invalid secret key");
-        CoreError::DecryptionFailed(format!("Invalid ML-KEM decapsulation key: {}", e))
+    let sk = MlKemSecretKey::new(security_level, ml_kem_sk.to_vec()).map_err(|_e| {
+        log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "invalid secret key");
+        opaque()
     })?;
 
-    let ct = MlKemCiphertext::new(security_level, ct_bytes.to_vec()).map_err(|e| {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "invalid ciphertext");
-        CoreError::DecryptionFailed(format!("Invalid ML-KEM ciphertext: {}", e))
+    let ct = MlKemCiphertext::new(security_level, ct_bytes.to_vec()).map_err(|_e| {
+        log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "invalid ciphertext");
+        opaque()
     })?;
 
-    let shared_secret = MlKem::decapsulate(&sk, &ct).map_err(|e| {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "decapsulation failed");
-        CoreError::DecryptionFailed(format!("ML-KEM decapsulation failed: {}", e))
+    let shared_secret = MlKem::decapsulate(&sk, &ct).map_err(|_e| {
+        log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "decapsulation failed");
+        opaque()
     })?;
 
     // Derive AES-256 key from ML-KEM shared secret via HKDF (must match encrypt path).
@@ -174,9 +178,9 @@ fn decrypt_pq_ml_kem_internal(
         Some(crate::types::domains::PQ_KEM_AEAD_KEY_INFO),
         32,
     )
-    .map_err(|e| {
-        crate::log_crypto_operation_error!("decrypt_pq_ml_kem", "HKDF failed");
-        CoreError::DecryptionFailed(format!("Key derivation failed: {e}"))
+    .map_err(|_e| {
+        log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "HKDF failed");
+        opaque()
     })?;
     let plaintext = decrypt_aes_gcm_internal(aes_encrypted, hkdf_result.key())?;
 

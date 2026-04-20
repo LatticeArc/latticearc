@@ -121,12 +121,14 @@ use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
+use crate::log_crypto_operation_error;
 use crate::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature as Ed25519SignatureOps};
 use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 use crate::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
     generate_keypair as ml_dsa_generate_keypair, sign as ml_dsa_sign, verify as ml_dsa_verify,
 };
+use crate::unified_api::logging::op;
 
 /// Error types for hybrid signature operations.
 ///
@@ -392,19 +394,30 @@ pub fn sign(
 
     // Sign with ML-DSA
     let ml_dsa_sk_bytes = sk.ml_dsa_sk_bytes();
+    // Sign-side opacity (defense-in-depth per Pattern 6). SK is caller-side
+    // state; failures here indicate a programmer / storage bug, but keep the
+    // public error uniform to avoid exposing upstream detail.
     let ml_dsa_sk_struct =
-        MlDsaSecretKey::new(MlDsaParameterSet::MlDsa65, (*ml_dsa_sk_bytes).clone())
-            .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
+        MlDsaSecretKey::new(MlDsaParameterSet::MlDsa65, (*ml_dsa_sk_bytes).clone()).map_err(
+            |_e| {
+                log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA SK init failed");
+                HybridSignatureError::MlDsaError("signing failed".to_string())
+            },
+        )?;
     let ml_dsa_sig = ml_dsa_sign(&ml_dsa_sk_struct, message, &[])
-        .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?
+        .map_err(|_e| {
+            log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA sign failed");
+            HybridSignatureError::MlDsaError("signing failed".to_string())
+        })?
         .as_bytes()
         .to_vec();
 
     // Sign with Ed25519 via the primitives wrapper.
     let ed25519_sk_zeroizing = sk.ed25519_sk_bytes();
     let ed25519_keypair = Ed25519KeyPair::from_secret_key(ed25519_sk_zeroizing.as_slice())
-        .map_err(|e| {
-            HybridSignatureError::Ed25519Error(format!("Invalid Ed25519 secret key: {e}"))
+        .map_err(|_e| {
+            log_crypto_operation_error!(op::HYBRID_SIGN, "Ed25519 SK init failed");
+            HybridSignatureError::Ed25519Error("signing failed".to_string())
         })?;
     // Ed25519 signing is infallible for valid key pairs
     let ed25519_signature = ed25519_keypair.sign(message);
@@ -428,7 +441,10 @@ pub fn verify(
     message: &[u8],
     sig: &HybridSignature,
 ) -> Result<bool, HybridSignatureError> {
-    // Validate key and signature lengths
+    // Caller-side length pre-checks (before AND-combine). These distinguish
+    // programmer mistakes (wrong-size buffer) from adversary oracle attempts:
+    // a caller passing the wrong length deserves a clear error, and the length
+    // itself is public protocol information.
     if pk.ed25519_pk.len() != 32 {
         return Err(HybridSignatureError::InvalidKeyMaterial(
             "Ed25519 public key must be 32 bytes".to_string(),
@@ -439,6 +455,18 @@ pub fn verify(
             "Ed25519 signature must be 64 bytes".to_string(),
         ));
     }
+    if pk.ml_dsa_pk.len() != MlDsaParameterSet::MlDsa65.public_key_size() {
+        return Err(HybridSignatureError::InvalidKeyMaterial(format!(
+            "ML-DSA-65 public key must be {} bytes",
+            MlDsaParameterSet::MlDsa65.public_key_size()
+        )));
+    }
+    if sig.ml_dsa_sig.len() != MlDsaParameterSet::MlDsa65.signature_size() {
+        return Err(HybridSignatureError::InvalidKeyMaterial(format!(
+            "ML-DSA-65 signature must be {} bytes",
+            MlDsaParameterSet::MlDsa65.signature_size()
+        )));
+    }
 
     // SECURITY: Verify BOTH components unconditionally with bitwise AND combination.
     // This preserves AND-security: a partial break of one component must not leak which
@@ -448,20 +476,26 @@ pub fn verify(
     // 1. No early return on a single component failure.
     // 2. No `&&` (short-circuit) — use `&` (bitwise) so both calls always execute.
     // 3. A SINGLE opaque error string regardless of which component failed.
+    // 4. Structural parse failures collapse to bit=0 (same as verify-fail),
+    //    matching FIPS 204 §5.3 Verify-returns-bool shape and the Ed25519
+    //    sibling below. This removes the early-exit timing / variant oracle
+    //    that would otherwise distinguish "malformed ML-DSA" from "Ed25519
+    //    failed".
 
-    // Construct ML-DSA public key and signature structs. These are structural
-    // validations (lengths/format), not crypto verification — a failure here IS
-    // distinguishable from a verification failure by design, because it indicates
-    // malformed input, not a signature forgery attempt.
-    let ml_dsa_pk_struct = MlDsaPublicKey::new(MlDsaParameterSet::MlDsa65, pk.ml_dsa_pk.clone())
-        .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
-    let ml_dsa_sig_struct = MlDsaSignature::new(MlDsaParameterSet::MlDsa65, sig.ml_dsa_sig.clone())
-        .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
-
-    // Verify ML-DSA — collapse all outcomes (verify-false, error, success) into a single bit.
-    let ml_dsa_valid: u8 = match ml_dsa_verify(&ml_dsa_pk_struct, message, &ml_dsa_sig_struct, &[])
-    {
-        Ok(true) => 1u8,
+    // Verify ML-DSA — parse + verify fold into one bit (0 = fail, 1 = ok).
+    // Runs unconditionally; no `?` early-returns. `from_bytes` internally does
+    // a `to_vec()` (identical allocation cost to the prior `.clone()` form);
+    // choice is stylistic — accepts `&[u8]` at the call site.
+    let ml_dsa_valid: u8 = match (
+        MlDsaPublicKey::from_bytes(&pk.ml_dsa_pk, MlDsaParameterSet::MlDsa65),
+        MlDsaSignature::from_bytes(&sig.ml_dsa_sig, MlDsaParameterSet::MlDsa65),
+    ) {
+        (Ok(ml_dsa_pk_struct), Ok(ml_dsa_sig_struct)) => {
+            match ml_dsa_verify(&ml_dsa_pk_struct, message, &ml_dsa_sig_struct, &[]) {
+                Ok(true) => 1u8,
+                _ => 0u8,
+            }
+        }
         _ => 0u8,
     };
 
@@ -967,7 +1001,10 @@ mod tests {
     fn test_sign_large_message_succeeds() {
         let (pk, sk) = generate_keypair().unwrap();
 
-        let large_message = vec![0xABu8; 100_000];
+        // 50 KiB: large enough to exercise multi-block message handling,
+        // below the default max_signature_size_bytes (64 KiB) resource cap
+        // enforced by the primitive sign path.
+        let large_message = vec![0xABu8; 50 * 1024];
         let sig = sign(&sk, &large_message).unwrap();
         let valid = verify(&pk, &large_message, &sig).unwrap();
         assert!(valid, "Large message signature should verify");

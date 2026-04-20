@@ -287,10 +287,13 @@ pub fn generate_fn_dsa_keypair_with_level(
     };
     crate::log_key_generated!("fn-dsa-keypair", level_name, KeyType::KeyPair, KeyPurpose::Signing);
 
-    Ok((
-        PublicKey::new(keypair.verifying_key().to_bytes()),
-        PrivateKey::new((*keypair.signing_key().to_bytes()).clone()),
-    ))
+    // mem::take the signing-key bytes out of the Zeroizing wrapper so the
+    // final PrivateKey owns them without a transient unzeroized clone on
+    // the heap (matches the Ed25519 path above).
+    let pk_bytes = keypair.verifying_key().to_bytes(); // public, already Vec<u8>
+    let mut sk_zeroizing = keypair.signing_key().to_bytes();
+    let sk_bytes = std::mem::take(&mut *sk_zeroizing);
+    Ok((PublicKey::new(pk_bytes), PrivateKey::new(sk_bytes)))
 }
 
 /// Generate an FN-DSA keypair with configuration

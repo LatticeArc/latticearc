@@ -470,11 +470,17 @@ impl SigningKey {
         rng: &mut R,
         message: &[u8],
     ) -> Result<Signature> {
+        // DoS bound: primitive callers bypass unified_api's resource limits.
+        crate::primitives::resource_limits::validate_signature_size(message.len())
+            .map_err(|_e| LatticeArcError::MessageTooLong)?;
+
         let logn = match self.security_level {
             FnDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
             FnDsaSecurityLevel::Level1024 => FN_DSA_LOGN_1024,
         };
-        let mut sig_bytes = vec![0u8; signature_size(logn)];
+        // sig_bytes is an intermediate signing buffer; FN-DSA signatures
+        // expose lattice nonce information, so wipe on drop.
+        let mut sig_bytes = Zeroizing::new(vec![0u8; signature_size(logn)]);
         self.inner.sign(rng, &DOMAIN_NONE, &HASH_ID_RAW, message, &mut sig_bytes);
         Signature::from_bytes(&sig_bytes)
     }

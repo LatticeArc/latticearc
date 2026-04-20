@@ -91,6 +91,9 @@ use thiserror::Error;
 use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
+use crate::log_crypto_operation_error;
+use crate::unified_api::logging::op;
+
 use crate::primitives::resource_limits::{validate_decryption_size, validate_encryption_size};
 
 /// Status of SIMD acceleration
@@ -731,10 +734,13 @@ impl MlKemDecapsulationKeyPair {
             )));
         }
 
+        // Opaque error: adversary controls ciphertext, so "decap rejected" and
+        // upstream detail must not be distinguishable. aws-lc-rs Unspecified is
+        // opaque today; don't rely on that invariant across upstream versions.
         let shared_secret = self
             .decaps_key
             .decapsulate(ciphertext.as_bytes().into())
-            .map_err(|e| MlKemError::DecapsulationError(format!("Decapsulation failed: {}", e)))?;
+            .map_err(|_e| MlKemError::DecapsulationError("decapsulation failed".to_string()))?;
 
         let ss_bytes = shared_secret.as_ref();
         MlKemSharedSecret::from_slice(ss_bytes)
@@ -928,10 +934,12 @@ impl MlKem {
             MlKemError::EncapsulationError("Invalid public key format".to_string())
         })?;
 
-        // Encapsulate to get ciphertext and shared secret
-        let (ciphertext, shared_secret) = encaps_key
-            .encapsulate()
-            .map_err(|e| MlKemError::EncapsulationError(format!("Encapsulation failed: {}", e)))?;
+        // Encapsulate to get ciphertext and shared secret. Encrypt-side
+        // opacity (defense-in-depth per Pattern 6).
+        let (ciphertext, shared_secret) = encaps_key.encapsulate().map_err(|_e| {
+            log_crypto_operation_error!(op::ML_KEM_ENCAP, "aws-lc-rs encapsulate failed");
+            MlKemError::EncapsulationError("encapsulation failed".to_string())
+        })?;
 
         // Convert shared secret to our format
         let ss_bytes = shared_secret.as_ref();
@@ -1005,14 +1013,18 @@ impl MlKem {
             )));
         }
 
-        // Reconstruct DecapsulationKey from serialized bytes (available since aws-lc-rs v1.16.0)
+        // Reconstruct DecapsulationKey from serialized bytes (available since aws-lc-rs v1.16.0).
+        // Both the key-reconstruction error and the decap error use the same
+        // opaque string so an adversary supplying `ciphertext` cannot tell
+        // which stage rejected. Key-reconstruction failure is only triggered
+        // by a malformed *caller-side* secret key (not adversary-reachable),
+        // but we still unify the error for consistency and defense in depth.
         let algorithm = secret_key.security_level().as_aws_algorithm();
-        let decaps_key = DecapsulationKey::new(algorithm, secret_key.as_bytes()).map_err(|e| {
-            MlKemError::DecapsulationError(format!("Failed to reconstruct DecapsulationKey: {}", e))
-        })?;
+        let decaps_key = DecapsulationKey::new(algorithm, secret_key.as_bytes())
+            .map_err(|_e| MlKemError::DecapsulationError("decapsulation failed".to_string()))?;
         let shared_secret = decaps_key
             .decapsulate(ciphertext.as_bytes().into())
-            .map_err(|e| MlKemError::DecapsulationError(format!("Decapsulation failed: {}", e)))?;
+            .map_err(|_e| MlKemError::DecapsulationError("decapsulation failed".to_string()))?;
         let ss_bytes = shared_secret.as_ref();
         MlKemSharedSecret::from_slice(ss_bytes)
     }

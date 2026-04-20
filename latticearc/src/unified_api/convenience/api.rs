@@ -55,6 +55,10 @@ use super::pq_sig::{
 };
 #[cfg(not(feature = "fips"))]
 use crate::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
+use crate::unified_api::logging::op;
+use crate::{
+    log_crypto_operation_complete, log_crypto_operation_error, log_crypto_operation_start,
+};
 
 use crate::hybrid::encrypt_hybrid::{HybridCiphertext, decrypt_hybrid, encrypt_hybrid};
 use crate::hybrid::pq_only;
@@ -249,35 +253,45 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 /// ChaCha20-Poly1305 decrypt (expects: nonce || ciphertext || tag)
 #[cfg(not(feature = "fips"))]
 fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
+    // All adversary-reachable parse/auth failures collapse to one opaque
+    // returned error (HPKE RFC 9180 §5.2 / SP 800-38D §5.2.2). Internal
+    // `tracing` logs keep the specific reason so operators can debug via
+    // correlation IDs. See DESIGN_PATTERNS.md Pattern 6.
+    let opaque = || CoreError::DecryptionFailed("decryption failed".to_string());
+
     if encrypted.len() < 28 {
-        return Err(CoreError::DecryptionFailed(
-            "Encrypted data too short for ChaCha20-Poly1305 (need nonce + tag)".to_string(),
-        ));
+        log_crypto_operation_error!(op::CHACHA20_DECRYPT, "input too short");
+        return Err(opaque());
     }
-    let nonce_slice = encrypted
-        .get(..12)
-        .ok_or_else(|| CoreError::DecryptionFailed("Failed to extract nonce".to_string()))?;
+    let nonce_slice = encrypted.get(..12).ok_or_else(|| {
+        log_crypto_operation_error!(op::CHACHA20_DECRYPT, "nonce slice extraction failed");
+        opaque()
+    })?;
     let mut nonce = [0u8; 12];
     nonce.copy_from_slice(nonce_slice);
 
-    let ciphertext_and_tag = encrypted
-        .get(12..)
-        .ok_or_else(|| CoreError::DecryptionFailed("Failed to extract ciphertext".to_string()))?;
+    let ciphertext_and_tag = encrypted.get(12..).ok_or_else(|| {
+        log_crypto_operation_error!(op::CHACHA20_DECRYPT, "ct+tag slice extraction failed");
+        opaque()
+    })?;
     let tag_start = ciphertext_and_tag.len().saturating_sub(16);
-    let ciphertext = ciphertext_and_tag
-        .get(..tag_start)
-        .ok_or_else(|| CoreError::DecryptionFailed("Failed to split ciphertext/tag".to_string()))?;
-    let tag_slice = ciphertext_and_tag
-        .get(tag_start..)
-        .ok_or_else(|| CoreError::DecryptionFailed("Failed to extract tag".to_string()))?;
+    let ciphertext = ciphertext_and_tag.get(..tag_start).ok_or_else(|| {
+        log_crypto_operation_error!(op::CHACHA20_DECRYPT, "ciphertext slice extraction failed");
+        opaque()
+    })?;
+    let tag_slice = ciphertext_and_tag.get(tag_start..).ok_or_else(|| {
+        log_crypto_operation_error!(op::CHACHA20_DECRYPT, "tag slice extraction failed");
+        opaque()
+    })?;
     let mut tag = [0u8; 16];
     tag.copy_from_slice(tag_slice);
 
+    // Key init is caller-side; distinguishable in the returned error.
     let cipher = ChaCha20Poly1305Cipher::new(key)
         .map_err(|_e| CoreError::InvalidKeyLength { expected: 32, actual: key.len() })?;
     cipher.decrypt(&nonce, ciphertext, &tag, None).map_err(|_aead_err| {
-        // SECURITY: Opaque error per SP 800-38D §5.2.2
-        CoreError::DecryptionFailed("decryption failed".to_string())
+        log_crypto_operation_error!(op::CHACHA20_DECRYPT, "AEAD authentication failed");
+        opaque()
     })
 }
 
@@ -334,7 +348,7 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
 
     validate_encryption_size(data.len()).map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
-    crate::log_crypto_operation_start!("encrypt", scheme = %scheme, data_size = data.len());
+    log_crypto_operation_start!(op::ENCRYPT, scheme = %scheme, data_size = data.len());
 
     let output = match (&key, &scheme) {
         // Symmetric AES-256-GCM
@@ -405,7 +419,7 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
         }
     };
 
-    crate::log_crypto_operation_complete!("encrypt", result_size = output.ciphertext().len(), scheme = %output.scheme());
+    log_crypto_operation_complete!(op::ENCRYPT, result_size = output.ciphertext().len(), scheme = %output.scheme());
 
     Ok(output)
 }
@@ -477,10 +491,14 @@ pub fn decrypt(
     CryptoPolicyEngine::validate_decrypt_key_matches_scheme(&key, encrypted.scheme())
         .map_err(|e| CoreError::ConfigurationError(e.to_string()))?;
 
-    crate::log_crypto_operation_start!("decrypt", scheme = %encrypted.scheme(), data_size = encrypted.ciphertext().len());
+    log_crypto_operation_start!(op::DECRYPT, scheme = %encrypted.scheme(), data_size = encrypted.ciphertext().len());
 
-    validate_decryption_size(encrypted.ciphertext().len())
-        .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
+    // Opaque: don't leak configured resource-limit values (requested/limit
+    // bytes) via e.to_string(). Matches the encrypt-path pre-flight in
+    // primitives/aead/aes_gcm.rs:74.
+    validate_decryption_size(encrypted.ciphertext().len()).map_err(|_e| {
+        CoreError::ResourceExceeded("ciphertext exceeds resource limit".to_string())
+    })?;
 
     let result: Result<Zeroizing<Vec<u8>>> = match (&key, encrypted.scheme()) {
         // Symmetric AES-256-GCM
@@ -522,9 +540,10 @@ pub fn decrypt(
 
             // `decrypt_hybrid` returns `Zeroizing<Vec<u8>>` — propagate directly,
             // do NOT `.to_vec()` which would strip the zeroizing wrapper.
-            decrypt_hybrid(sk, &ct, None).map_err(|e| {
-                CoreError::DecryptionFailed(format!("Hybrid decryption failed: {}", e))
-            })
+            // Error collapsed to opaque: underlying HybridEncryptionError is
+            // already opaque per encrypt_hybrid.rs; don't re-wrap with detail.
+            decrypt_hybrid(sk, &ct, None)
+                .map_err(|_e| CoreError::DecryptionFailed("decryption failed".to_string()))
         }
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
         (DecryptKey::PqOnly(sk), scheme) if scheme.requires_pq_key() => {
@@ -543,7 +562,7 @@ pub fn decrypt(
                 &nonce,
                 &tag,
             )
-            .map_err(|e| CoreError::DecryptionFailed(format!("PQ-only decryption failed: {}", e)))
+            .map_err(|_e| CoreError::DecryptionFailed("decryption failed".to_string()))
         }
         // Unreachable due to validate_decrypt_key_matches_scheme above
         _ => {
@@ -556,11 +575,11 @@ pub fn decrypt(
 
     match result {
         Ok(plaintext) => {
-            crate::log_crypto_operation_complete!("decrypt", result_size = plaintext.len(), scheme = %encrypted.scheme());
+            log_crypto_operation_complete!(op::DECRYPT, result_size = plaintext.len(), scheme = %encrypted.scheme());
             Ok(plaintext)
         }
         Err(e) => {
-            crate::log_crypto_operation_error!("decrypt", e, scheme = %encrypted.scheme());
+            log_crypto_operation_error!(op::DECRYPT, e, scheme = %encrypted.scheme());
             Err(e)
         }
     }
@@ -666,7 +685,7 @@ pub fn sign_with_key(
     validate_signature_size(message.len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
 
-    crate::log_crypto_operation_start!("sign_with_key", scheme = %scheme, message_size = message.len());
+    log_crypto_operation_start!(op::SIGN_WITH_KEY, scheme = %scheme, message_size = message.len());
 
     // Uses string-based dispatch. The SignatureScheme enum exists in
     // types::crypto but is not yet wired into this path for compile-time exhaustiveness.
@@ -723,7 +742,7 @@ pub fn sign_with_key(
 
     let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
 
-    crate::log_crypto_operation_complete!("sign_with_key", signature_size = signature.len(), scheme = %scheme);
+    log_crypto_operation_complete!(op::SIGN_WITH_KEY, signature_size = signature.len(), scheme = %scheme);
 
     Ok(SignedData {
         data: message.to_vec(),
@@ -786,7 +805,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     config.validate()?;
     config.validate_scheme_compliance(&signed.scheme)?;
 
-    crate::log_crypto_operation_start!("verify", scheme = %signed.scheme, message_size = signed.data.len());
+    log_crypto_operation_start!(op::VERIFY, scheme = %signed.scheme, message_size = signed.data.len());
 
     validate_signature_size(signed.data.len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
@@ -988,10 +1007,10 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
 
     match &result {
         Ok(valid) => {
-            crate::log_crypto_operation_complete!("verify", valid = *valid, scheme = %signed.scheme);
+            log_crypto_operation_complete!(op::VERIFY, valid = *valid, scheme = %signed.scheme);
         }
         Err(e) => {
-            crate::log_crypto_operation_error!("verify", e, scheme = %signed.scheme);
+            log_crypto_operation_error!(op::VERIFY, e, scheme = %signed.scheme);
         }
     }
     result

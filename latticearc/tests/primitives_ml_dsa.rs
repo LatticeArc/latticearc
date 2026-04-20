@@ -959,7 +959,8 @@ fn test_empty_message_signing_succeeds() {
 fn test_large_message_signing_succeeds() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).expect("Keygen should succeed");
 
-    let mut large_message = vec![0u8; 100_000];
+    // 50 KiB — below the default max_signature_size_bytes (64 KiB) resource cap.
+    let mut large_message = vec![0u8; 50 * 1024];
     rand::rngs::OsRng.fill_bytes(&mut large_message);
     let context: &[u8] = &[];
 

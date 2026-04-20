@@ -17,11 +17,13 @@ use tracing::debug;
 
 use subtle::ConstantTimeEq;
 
+use crate::log_crypto_operation_error;
 use crate::primitives::hash::sha3::sha3_256 as hash_sha3_256;
 use crate::primitives::mac::hmac::hmac_sha256;
 use crate::primitives::resource_limits::validate_key_derivation_count;
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
+use crate::unified_api::logging::op;
 use crate::unified_api::zero_trust::SecurityMode;
 
 // ============================================================================
@@ -73,25 +75,25 @@ fn derive_key_with_info_internal(
     );
 
     validate_key_derivation_count(1).map_err(|e| {
-        crate::log_crypto_operation_error!("key_derivation_info", e);
+        log_crypto_operation_error!(op::KEY_DERIVATION_INFO, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     if salt.is_empty() {
         let err = CoreError::InvalidInput("Salt cannot be empty".to_string());
-        crate::log_crypto_operation_error!("key_derivation_info", err);
+        log_crypto_operation_error!(op::KEY_DERIVATION_INFO, err);
         return Err(err);
     }
 
     if length == 0 {
         let err = CoreError::InvalidInput("Length cannot be zero".to_string());
-        crate::log_crypto_operation_error!("key_derivation_info", err);
+        log_crypto_operation_error!(op::KEY_DERIVATION_INFO, err);
         return Err(err);
     }
 
     if info.is_empty() {
         let err = CoreError::InvalidInput("Info string cannot be empty".to_string());
-        crate::log_crypto_operation_error!("key_derivation_info", err);
+        log_crypto_operation_error!(op::KEY_DERIVATION_INFO, err);
         return Err(err);
     }
 
@@ -112,7 +114,7 @@ fn derive_key_with_info_internal(
             );
         }
         Err(e) => {
-            crate::log_crypto_operation_error!("key_derivation_info", e);
+            log_crypto_operation_error!(op::KEY_DERIVATION_INFO, e);
         }
     }
 
@@ -128,19 +130,19 @@ fn derive_key_internal(password: &[u8], salt: &[u8], length: usize) -> Result<Ve
     );
 
     validate_key_derivation_count(1).map_err(|e| {
-        crate::log_crypto_operation_error!("key_derivation", e);
+        log_crypto_operation_error!(op::KEY_DERIVATION, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     if salt.is_empty() {
         let err = CoreError::InvalidInput("Salt cannot be empty".to_string());
-        crate::log_crypto_operation_error!("key_derivation", err);
+        log_crypto_operation_error!(op::KEY_DERIVATION, err);
         return Err(err);
     }
 
     if length == 0 {
         let err = CoreError::InvalidInput("Length cannot be zero".to_string());
-        crate::log_crypto_operation_error!("key_derivation", err);
+        log_crypto_operation_error!(op::KEY_DERIVATION, err);
         return Err(err);
     }
 
@@ -156,7 +158,7 @@ fn derive_key_internal(password: &[u8], salt: &[u8], length: usize) -> Result<Ve
             debug!(algorithm = "HKDF-SHA256", output_len = length, "Key derivation completed");
         }
         Err(e) => {
-            crate::log_crypto_operation_error!("key_derivation", e);
+            log_crypto_operation_error!(op::KEY_DERIVATION, e);
         }
     }
 
@@ -165,18 +167,18 @@ fn derive_key_internal(password: &[u8], salt: &[u8], length: usize) -> Result<Ve
 
 /// Internal implementation of HMAC.
 fn hmac_internal(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-    crate::log_crypto_operation_start!("hmac", algorithm = "HMAC-SHA256", data_len = data.len());
+    crate::log_crypto_operation_start!(op::HMAC, algorithm = "HMAC-SHA256", data_len = data.len());
 
     if key.is_empty() {
         let err = CoreError::InvalidInput("HMAC key must not be empty".to_string());
-        crate::log_crypto_operation_error!("hmac", err);
+        log_crypto_operation_error!(op::HMAC, err);
         return Err(err);
     }
 
     // Delegate to primitives::mac::hmac (backed by aws-lc-rs HMAC-SHA256).
     let tag = hmac_sha256(key, data).map_err(|e| {
         let err = CoreError::InvalidInput(format!("HMAC computation failed: {e}"));
-        crate::log_crypto_operation_error!("hmac", err);
+        log_crypto_operation_error!(op::HMAC, err);
         err
     })?;
     let result = tag.to_vec();
@@ -200,13 +202,13 @@ fn hmac_verify_internal(key: &[u8], data: &[u8], tag: &[u8]) -> Result<bool> {
 
     if key.is_empty() {
         let err = CoreError::InvalidInput("HMAC key must not be empty".to_string());
-        crate::log_crypto_operation_error!("hmac_verify", err);
+        log_crypto_operation_error!(op::HMAC_VERIFY, err);
         return Err(err);
     }
 
     if tag.len() != 32 {
         let err = CoreError::InvalidInput(format!("HMAC tag must be 32 bytes, got {}", tag.len()));
-        crate::log_crypto_operation_error!("hmac_verify", err);
+        log_crypto_operation_error!(op::HMAC_VERIFY, err);
         return Err(err);
     }
 
@@ -219,7 +221,11 @@ fn hmac_verify_internal(key: &[u8], data: &[u8], tag: &[u8]) -> Result<bool> {
 
     let valid: bool = tag_bytes.ct_eq(&expected_bytes).into();
 
-    crate::log_crypto_operation_complete!("hmac_verify", algorithm = "HMAC-SHA256", valid = valid);
+    crate::log_crypto_operation_complete!(
+        op::HMAC_VERIFY,
+        algorithm = "HMAC-SHA256",
+        valid = valid
+    );
     debug!(algorithm = "HMAC-SHA256", valid = valid, "HMAC verification completed");
 
     Ok(valid)

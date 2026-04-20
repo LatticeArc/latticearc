@@ -34,6 +34,7 @@ use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
+use crate::unified_api::logging::op;
 use crate::unified_api::zero_trust::SecurityMode;
 
 // ============================================================================
@@ -42,11 +43,11 @@ use crate::unified_api::zero_trust::SecurityMode;
 
 /// Internal implementation of Ed25519 signing.
 pub(crate) fn sign_ed25519_internal(data: &[u8], ed25519_sk: &[u8]) -> Result<Vec<u8>> {
-    log_crypto_operation_start!("ed25519_sign", algorithm = "Ed25519", data_len = data.len());
+    log_crypto_operation_start!(op::ED25519_SIGN, algorithm = "Ed25519", data_len = data.len());
 
     if ed25519_sk.len() < 32 {
         let err = CoreError::InvalidKeyLength { expected: 32, actual: ed25519_sk.len() };
-        log_crypto_operation_error!("ed25519_sign", err);
+        log_crypto_operation_error!(op::ED25519_SIGN, err);
         return Err(err);
     }
 
@@ -55,13 +56,13 @@ pub(crate) fn sign_ed25519_internal(data: &[u8], ed25519_sk: &[u8]) -> Result<Ve
     // inputs were accepted (the leading 32 bytes become the seed).
     let signing_key_bytes = ed25519_sk.get(..32).ok_or_else(|| {
         let err = CoreError::InvalidInput("Private key must be at least 32 bytes".to_string());
-        log_crypto_operation_error!("ed25519_sign", err);
+        log_crypto_operation_error!(op::ED25519_SIGN, err);
         err
     })?;
 
     let keypair = Ed25519KeyPair::from_secret_key(signing_key_bytes).map_err(|e| {
         let err = CoreError::InvalidInput(format!("Invalid Ed25519 secret key: {e}"));
-        log_crypto_operation_error!("ed25519_sign", err);
+        log_crypto_operation_error!(op::ED25519_SIGN, err);
         err
     })?;
 
@@ -85,19 +86,19 @@ pub(crate) fn verify_ed25519_internal(
     signature_bytes: &[u8],
     ed25519_pk: &[u8],
 ) -> Result<bool> {
-    log_crypto_operation_start!("ed25519_verify", algorithm = "Ed25519", data_len = data.len());
+    log_crypto_operation_start!(op::ED25519_VERIFY, algorithm = "Ed25519", data_len = data.len());
 
     if signature_bytes.len() < 64 {
         let err = CoreError::InvalidInput(format!(
             "Signature must be at least 64 bytes, got {}",
             signature_bytes.len()
         ));
-        log_crypto_operation_error!("ed25519_verify", err);
+        log_crypto_operation_error!(op::ED25519_VERIFY, err);
         return Err(err);
     }
     if ed25519_pk.len() < 32 {
         let err = CoreError::InvalidKeyLength { expected: 32, actual: ed25519_pk.len() };
-        log_crypto_operation_error!("ed25519_verify", err);
+        log_crypto_operation_error!(op::ED25519_VERIFY, err);
         return Err(err);
     }
 
@@ -106,20 +107,20 @@ pub(crate) fn verify_ed25519_internal(
     // truncating to the canonical prefix.
     let sig_prefix = signature_bytes.get(..64).ok_or_else(|| {
         let err = CoreError::InvalidInput("Signature must be at least 64 bytes".to_string());
-        log_crypto_operation_error!("ed25519_verify", err);
+        log_crypto_operation_error!(op::ED25519_VERIFY, err);
         err
     })?;
 
     let pk_prefix = ed25519_pk.get(..32).ok_or_else(|| {
         let err = CoreError::InvalidInput("Public key must be at least 32 bytes".to_string());
-        log_crypto_operation_error!("ed25519_verify", err);
+        log_crypto_operation_error!(op::ED25519_VERIFY, err);
         err
     })?;
 
     // Parse the signature via the primitives layer.
     let signature = Ed25519SignatureOps::signature_from_bytes(sig_prefix).map_err(|e| {
         let err = CoreError::InvalidInput(format!("Invalid Ed25519 signature bytes: {e}"));
-        log_crypto_operation_error!("ed25519_verify", err);
+        log_crypto_operation_error!(op::ED25519_VERIFY, err);
         err
     })?;
 
@@ -130,7 +131,7 @@ pub(crate) fn verify_ed25519_internal(
             // the previous behavior by returning InvalidInput rather than
             // VerificationFailed.
             let err = CoreError::InvalidInput(format!("Invalid public key: {msg}"));
-            log_crypto_operation_error!("ed25519_verify", err);
+            log_crypto_operation_error!(op::ED25519_VERIFY, err);
             return Err(err);
         }
         Err(e) => {
@@ -141,11 +142,15 @@ pub(crate) fn verify_ed25519_internal(
 
     match &result {
         Ok(valid) => {
-            log_crypto_operation_complete!("ed25519_verify", algorithm = "Ed25519", valid = valid);
+            log_crypto_operation_complete!(
+                op::ED25519_VERIFY,
+                algorithm = "Ed25519",
+                valid = valid
+            );
             debug!(algorithm = "Ed25519", valid = valid, "Ed25519 verification completed");
         }
         Err(e) => {
-            log_crypto_operation_error!("ed25519_verify", e);
+            log_crypto_operation_error!(op::ED25519_VERIFY, e);
         }
     }
 

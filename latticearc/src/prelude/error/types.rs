@@ -44,6 +44,14 @@ pub enum LatticeArcError {
     /// Digital signature operation failed
     #[error("Signing error: {0}")]
     SigningError(String),
+
+    /// Message length exceeds the configured signature resource limit.
+    ///
+    /// Matches the shape used by `MlDsaError::MessageTooLong` and
+    /// `SlhDsaError::MessageTooLong` — unit variant, no payload (the length
+    /// is already known to the sender; carrying it would add no info).
+    #[error("Message exceeds signature resource limit")]
+    MessageTooLong,
     /// Authentication failed
     #[error("Authentication error: {0}")]
     AuthenticationError(String),

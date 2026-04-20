@@ -34,6 +34,91 @@ use tracing::info;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 
+/// Stable operation-name tags for `log_crypto_operation_error!`.
+///
+/// Operators filter crypto observability logs by this tag (e.g. grepping
+/// logs by `operation="hybrid_decrypt"`). Defining these as `const` — rather
+/// than bare string literals at each call site — prevents typos from
+/// silently losing a stage's logs.
+///
+/// When adding a new crypto entry point, add its tag here and use the const
+/// at all `log_crypto_operation_error!` call sites within that function.
+pub mod op {
+    // AEAD
+    /// Tag for `aes_gcm::decrypt_aes_gcm_with_aad_internal` observability events.
+    pub const AES_GCM_DECRYPT_AAD: &str = "aes_gcm_decrypt_aad";
+    /// Tag for `aes_gcm::encrypt_aes_gcm_with_aad_internal` observability events.
+    pub const AES_GCM_ENCRYPT_AAD: &str = "aes_gcm_encrypt_aad";
+    /// Tag for `api::decrypt_chacha20_internal` observability events.
+    pub const CHACHA20_DECRYPT: &str = "chacha20_decrypt";
+
+    // KEM
+    /// Tag for `primitives::kem::ml_kem::encapsulate` observability events.
+    pub const ML_KEM_ENCAP: &str = "ml_kem_encap";
+    /// Tag for `hybrid::kem_hybrid::derive_hybrid_shared_secret` observability events.
+    pub const HYBRID_KEM_DERIVE: &str = "hybrid_kem_derive";
+
+    // Hybrid encryption (KEM + AEAD)
+    /// Tag for `hybrid::encrypt_hybrid::encrypt_hybrid` observability events.
+    pub const HYBRID_ENCRYPT: &str = "hybrid_encrypt";
+    /// Tag for `hybrid::encrypt_hybrid::decrypt_hybrid` observability events.
+    pub const HYBRID_DECRYPT: &str = "hybrid_decrypt";
+    /// Tag for `hybrid::encrypt_hybrid::derive_encryption_key` observability events.
+    pub const HYBRID_DERIVE_KEY: &str = "hybrid_derive_key";
+
+    // PQ-only encryption
+    /// Tag for `hybrid::pq_only::encrypt_pq_only` observability events.
+    pub const PQ_ONLY_ENCRYPT: &str = "pq_only_encrypt";
+    /// Tag for `hybrid::pq_only::decrypt_pq_only` observability events.
+    pub const PQ_ONLY_DECRYPT: &str = "pq_only_decrypt";
+    /// Tag for `pq_kem::encrypt_pq_ml_kem_internal` observability events.
+    pub const ENCRYPT_PQ_ML_KEM: &str = "encrypt_pq_ml_kem";
+    /// Tag for `pq_kem::decrypt_pq_ml_kem_internal` observability events.
+    pub const DECRYPT_PQ_ML_KEM: &str = "decrypt_pq_ml_kem";
+
+    // Signatures
+    /// Tag for `hybrid::sig_hybrid::sign` observability events.
+    pub const HYBRID_SIGN: &str = "hybrid_sign";
+    /// Tag for `primitives::sig::ml_dsa::sign` observability events.
+    pub const ML_DSA_SIGN: &str = "ml_dsa_sign";
+    /// Tag for `primitives::sig::ml_dsa::verify` observability events.
+    pub const ML_DSA_VERIFY: &str = "ml_dsa_verify";
+    /// Tag for `primitives::sig::slh_dsa` signing observability events.
+    pub const SLH_DSA_SIGN: &str = "slh_dsa_sign";
+    /// Tag for `primitives::sig::slh_dsa` verification observability events.
+    pub const SLH_DSA_VERIFY: &str = "slh_dsa_verify";
+    /// Tag for `primitives::sig::fndsa` signing observability events.
+    pub const FN_DSA_SIGN: &str = "fn_dsa_sign";
+    /// Tag for `primitives::sig::fndsa` verification observability events.
+    pub const FN_DSA_VERIFY: &str = "fn_dsa_verify";
+    /// Tag for Ed25519 signing observability events.
+    pub const ED25519_SIGN: &str = "ed25519_sign";
+    /// Tag for Ed25519 verification observability events.
+    pub const ED25519_VERIFY: &str = "ed25519_verify";
+
+    // MAC
+    /// Tag for HMAC computation observability events.
+    pub const HMAC: &str = "hmac";
+    /// Tag for HMAC verification observability events.
+    pub const HMAC_VERIFY: &str = "hmac_verify";
+
+    // KDF
+    /// Tag for generic key-derivation observability events.
+    pub const KEY_DERIVATION: &str = "key_derivation";
+    /// Tag for key-derivation events where `info` binding is the key concern.
+    pub const KEY_DERIVATION_INFO: &str = "key_derivation_info";
+
+    // Unified API
+    /// Tag for the unified `encrypt` entry point observability events.
+    pub const ENCRYPT: &str = "encrypt";
+    /// Tag for the unified `decrypt` entry point observability events.
+    pub const DECRYPT: &str = "decrypt";
+    /// Tag for the unified `sign_with_key` entry point observability events.
+    pub const SIGN_WITH_KEY: &str = "sign_with_key";
+    /// Tag for the unified `verify` entry point observability events.
+    pub const VERIFY: &str = "verify";
+}
+
 // ============================================================================
 // Key Lifecycle Event Types for Audit Logging
 // ============================================================================
@@ -1313,45 +1398,49 @@ macro_rules! log_key_imported {
 ///
 /// ```rust,no_run
 /// use latticearc::log_crypto_operation;
-/// use latticearc::unified_api::logging::{set_correlation_id, CorrelationGuard};
+/// use latticearc::unified_api::logging::{op, set_correlation_id, CorrelationGuard};
 ///
 /// // Set a correlation ID
 /// let _guard = CorrelationGuard::new();
 ///
 /// // Log includes correlation_id automatically
-/// log_crypto_operation!("encrypt", algorithm = "AES-256-GCM", data_size = 1024);
+/// log_crypto_operation!(op::ENCRYPT, algorithm = "AES-256-GCM", data_size = 1024);
 /// ```
 #[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_operation {
     ($op:expr, $($field:tt)*) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::debug!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-                $($field)*
-            );
-        } else {
-            tracing::debug!(
-                target: "crypto::operation",
-                operation = $op,
-                $($field)*
-            );
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::DEBUG) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                    $($field)*
+                );
+            } else {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    operation = $op,
+                    $($field)*
+                );
+            }
         }
     };
     ($op:expr) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::debug!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-            );
-        } else {
-            tracing::debug!(
-                target: "crypto::operation",
-                operation = $op,
-            );
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::DEBUG) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                );
+            } else {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    operation = $op,
+                );
+            }
         }
     };
 }
@@ -1363,37 +1452,41 @@ macro_rules! log_crypto_operation {
 #[macro_export]
 macro_rules! log_crypto_operation_start {
     ($op:expr, $($field:tt)*) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::trace!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-                phase = "start",
-                $($field)*
-            );
-        } else {
-            tracing::trace!(
-                target: "crypto::operation",
-                operation = $op,
-                phase = "start",
-                $($field)*
-            );
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::TRACE) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                    phase = "start",
+                    $($field)*
+                );
+            } else {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    operation = $op,
+                    phase = "start",
+                    $($field)*
+                );
+            }
         }
     };
     ($op:expr) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::trace!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-                phase = "start",
-            );
-        } else {
-            tracing::trace!(
-                target: "crypto::operation",
-                operation = $op,
-                phase = "start",
-            );
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::TRACE) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                    phase = "start",
+                );
+            } else {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    operation = $op,
+                    phase = "start",
+                );
+            }
         }
     };
 }
@@ -1405,83 +1498,107 @@ macro_rules! log_crypto_operation_start {
 #[macro_export]
 macro_rules! log_crypto_operation_complete {
     ($op:expr, $($field:tt)*) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::trace!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-                phase = "complete",
-                $($field)*
-            );
-        } else {
-            tracing::trace!(
-                target: "crypto::operation",
-                operation = $op,
-                phase = "complete",
-                $($field)*
-            );
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::TRACE) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                    phase = "complete",
+                    $($field)*
+                );
+            } else {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    operation = $op,
+                    phase = "complete",
+                    $($field)*
+                );
+            }
         }
     };
     ($op:expr) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::trace!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-                phase = "complete",
-            );
-        } else {
-            tracing::trace!(
-                target: "crypto::operation",
-                operation = $op,
-                phase = "complete",
-            );
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::TRACE) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                    phase = "complete",
+                );
+            } else {
+                tracing::trace!(
+                    target: "crypto::operation",
+                    operation = $op,
+                    phase = "complete",
+                );
+            }
         }
     };
 }
 
 /// Log a cryptographic operation error with correlation ID.
 ///
-/// Logs at ERROR level and includes the correlation ID for tracing.
+/// Logs at DEBUG level with structured fields (operation, error, phase,
+/// correlation_id when present).
+///
+/// Level rationale: adversary-reachable crypto failures (bad ciphertext,
+/// bad signature, bad wire format) are NORMAL under attack. Emitting at
+/// `error!` would let an attacker DoS the log aggregator by sending
+/// garbage. Operators enable `RUST_LOG=crypto::operation=debug` on demand
+/// when investigating a specific correlation ID.
+///
+/// This mirrors the **rustls** convention (`debug!`/`trace!` on
+/// decrypt-failure paths). aws-lc-rs achieves the same intent — opaque
+/// external, detailed internal — through the aws-lc C library's
+/// `ERR_put_error` thread-local queue; we use `tracing` because that's
+/// the Rust-native equivalent mechanism. See `docs/DESIGN_PATTERNS.md`
+/// Pattern 6.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! log_crypto_operation_error {
     ($op:expr, $error:expr, $($field:tt)*) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::error!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-                error = %$error,
-                phase = "error",
-                $($field)*
-            );
-        } else {
-            tracing::error!(
-                target: "crypto::operation",
-                operation = $op,
-                error = %$error,
-                phase = "error",
-                $($field)*
-            );
+        // Fast path: skip TLS read + correlation-id clone when subscribers
+        // don't care. `tracing::enabled!` is a single atomic load.
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::DEBUG) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                    error = %$error,
+                    phase = "error",
+                    $($field)*
+                );
+            } else {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    operation = $op,
+                    error = %$error,
+                    phase = "error",
+                    $($field)*
+                );
+            }
         }
     };
     ($op:expr, $error:expr) => {
-        if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
-            tracing::error!(
-                target: "crypto::operation",
-                correlation_id = %corr_id,
-                operation = $op,
-                error = %$error,
-                phase = "error",
-            );
-        } else {
-            tracing::error!(
-                target: "crypto::operation",
-                operation = $op,
-                error = %$error,
-                phase = "error",
-            );
+        if tracing::enabled!(target: "crypto::operation", tracing::Level::DEBUG) {
+            if let Some(corr_id) = $crate::unified_api::logging::current_correlation_id() {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    correlation_id = %corr_id,
+                    operation = $op,
+                    error = %$error,
+                    phase = "error",
+                );
+            } else {
+                tracing::debug!(
+                    target: "crypto::operation",
+                    operation = $op,
+                    error = %$error,
+                    phase = "error",
+                );
+            }
         }
     };
 }

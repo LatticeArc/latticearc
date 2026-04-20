@@ -226,6 +226,14 @@ impl fmt::Display for EncryptionScheme {
 /// These fields are only present when `EncryptedOutput.scheme` is a hybrid variant.
 /// They contain the KEM ciphertext and ephemeral ECDH public key needed for
 /// the recipient to derive the same shared secret.
+///
+/// # Security: non-CT `PartialEq`
+///
+/// The derived `PartialEq` uses `Vec::eq` (non-constant-time) on the byte
+/// fields. This type carries already-produced ciphertext (KEM ct, ephemeral
+/// PK) — not a decryption-time MAC check — so equality here is not a
+/// classical MAC oracle. Still: **do not introduce `==` on this type in any
+/// auth / freshness / replay check**; keep comparisons in test code only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HybridComponents {
     /// ML-KEM ciphertext (1088 bytes for ML-KEM-768).
@@ -273,6 +281,15 @@ impl HybridComponents {
 /// - `scheme.requires_symmetric_key()` → `hybrid_data.is_none()`
 /// - `nonce` is always 12 bytes (AES-GCM and ChaCha20-Poly1305 both use 96-bit nonces)
 /// - `tag` is always 16 bytes (both AEAD algorithms produce 128-bit tags)
+///
+/// # Security: non-CT `PartialEq`
+///
+/// Derived `PartialEq` compares the `tag` field via `Vec::eq` (non-CT). The
+/// tag is already-produced authentication data, not a MAC being checked
+/// against an expected value (that check lives inside aws-lc-rs / the
+/// chacha20poly1305 crate). So equality here is not a MAC oracle today —
+/// but **do not introduce `==` on this type in any auth / freshness /
+/// replay check**; keep comparisons in test code only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncryptedOutput {
     /// The encryption scheme used (determines decryption path).

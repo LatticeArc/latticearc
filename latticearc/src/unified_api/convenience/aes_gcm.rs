@@ -45,6 +45,7 @@ use crate::primitives::aead::{AeadCipher, TAG_LEN};
 
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
+use crate::unified_api::logging::op;
 use crate::unified_api::zero_trust::SecurityMode;
 
 // ============================================================================
@@ -78,14 +79,14 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
 
     if key.len() != 32 {
         let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
-        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        log_crypto_operation_error!(op::AES_GCM_ENCRYPT_AAD, err);
         return Err(err);
     }
 
     // Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop)
     let cipher = AesGcm256::new(key).map_err(|e| {
         let err = CoreError::EncryptionFailed(format!("Failed to create AES key: {e}"));
-        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        log_crypto_operation_error!(op::AES_GCM_ENCRYPT_AAD, err);
         err
     })?;
 
@@ -94,7 +95,7 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
 
     let (ciphertext, tag) = cipher.encrypt(&nonce, data, aad_opt).map_err(|e| {
         let err = CoreError::EncryptionFailed(e.to_string());
-        log_crypto_operation_error!("aes_gcm_encrypt_aad", err);
+        log_crypto_operation_error!(op::AES_GCM_ENCRYPT_AAD, err);
         err
     })?;
 
@@ -136,53 +137,69 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
         aad_len = aad.len()
     );
 
+    // Adversary-reachable parse failures (short input, bad nonce/ct/tag
+    // extraction) and the AEAD authentication failure all collapse to one
+    // opaque error on the RETURNED value. Matches HPKE RFC 9180 §5.2 (single
+    // `OpenError`), aws-lc-rs `Unspecified` convention, and TLS 1.3
+    // `bad_record_mac` treatment. Internal `tracing` logs keep a specific
+    // reason string so operators can still debug failures via correlation
+    // IDs. See DESIGN_PATTERNS.md Pattern 6 for the canonical form.
+    //
+    // Caller-side errors (wrong key length) stay distinguishable in the
+    // returned error type since those reflect programmer mistakes, not
+    // adversary input.
+    let opaque = || CoreError::DecryptionFailed("decryption failed".to_string());
+
     // Minimum: 12 (nonce) + 16 (tag) = 28 bytes
     if encrypted_data.len() < 12 + TAG_LEN {
-        let err =
-            CoreError::InvalidInput("Data too short for AES-GCM (need nonce + tag)".to_string());
-        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
-        return Err(err);
+        log_crypto_operation_error!(
+            "aes_gcm_decrypt_aad",
+            "data too short for AES-GCM (need nonce + tag)"
+        );
+        return Err(opaque());
     }
 
     if key.len() != 32 {
         let err = CoreError::InvalidKeyLength { expected: 32, actual: key.len() };
-        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+        log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, err);
         return Err(err);
     }
 
-    // Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop)
-    let cipher = AesGcm256::new(key).map_err(|e| {
-        let err = CoreError::DecryptionFailed(format!("Failed to create AES key: {e}"));
-        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
+    // Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop).
+    // AES key init is caller-side; distinguishable in the returned error too.
+    let cipher = AesGcm256::new(key).map_err(|_e| {
+        let err = CoreError::DecryptionFailed("AES key init failed".to_string());
+        log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, err);
         err
     })?;
 
-    // Parse wire format: nonce(12) || ciphertext || tag(16)
+    // Parse wire format: nonce(12) || ciphertext || tag(16).
+    // All parse-failure branches return `opaque()`, but log the specific reason.
     let (nonce_slice, ct_and_tag) = encrypted_data.split_at(12);
-    let nonce: [u8; 12] = nonce_slice.try_into().map_err(|e| {
-        let err = CoreError::InvalidNonce(format!("Nonce must be 12 bytes: {e}"));
-        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
-        err
+    let nonce: [u8; 12] = nonce_slice.try_into().map_err(|_e| {
+        log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, "nonce slice length != 12");
+        opaque()
     })?;
 
     let ct_len = ct_and_tag.len().saturating_sub(TAG_LEN);
-    let ciphertext = ct_and_tag
-        .get(..ct_len)
-        .ok_or_else(|| CoreError::DecryptionFailed("Invalid ciphertext length".to_string()))?;
-    let tag_slice = ct_and_tag
-        .get(ct_len..)
-        .ok_or_else(|| CoreError::DecryptionFailed("Invalid tag offset".to_string()))?;
-    let tag: [u8; TAG_LEN] = tag_slice
-        .try_into()
-        .map_err(|_e| CoreError::DecryptionFailed("Tag must be 16 bytes".to_string()))?;
+    let ciphertext = ct_and_tag.get(..ct_len).ok_or_else(|| {
+        log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, "ciphertext slice extraction failed");
+        opaque()
+    })?;
+    let tag_slice = ct_and_tag.get(ct_len..).ok_or_else(|| {
+        log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, "tag slice extraction failed");
+        opaque()
+    })?;
+    let tag: [u8; TAG_LEN] = tag_slice.try_into().map_err(|_e| {
+        log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, "tag slice length != 16");
+        opaque()
+    })?;
 
     let aad_opt = if aad.is_empty() { None } else { Some(aad) };
 
     let result = cipher.decrypt(&nonce, ciphertext, &tag, aad_opt).map_err(|_aead_err| {
-        // SECURITY: Opaque error per SP 800-38D §5.2.2
-        let err = CoreError::DecryptionFailed("decryption failed".to_string());
-        log_crypto_operation_error!("aes_gcm_decrypt_aad", err);
-        err
+        log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, "AEAD authentication failed");
+        opaque()
     })?;
 
     log_crypto_operation_complete!(
@@ -748,11 +765,15 @@ mod tests {
 
         let result = decrypt_aes_gcm_unverified(&too_short, &key);
         assert!(result.is_err(), "Decryption with too-short ciphertext should fail");
+        // Adversary-reachable parse failure collapses to the same opaque
+        // DecryptionFailed error as AEAD auth failure (HPKE RFC 9180 §5.2).
+        // Operators can distinguish via tracing::debug! output, not via the
+        // returned error variant.
         match result.unwrap_err() {
-            CoreError::InvalidInput(msg) => {
-                assert!(msg.contains("too short"), "Error should mention data is too short");
+            CoreError::DecryptionFailed(msg) => {
+                assert_eq!(msg, "decryption failed", "Error should be opaque");
             }
-            other => panic!("Expected InvalidInput error, got: {:?}", other),
+            other => panic!("Expected opaque DecryptionFailed, got: {:?}", other),
         }
     }
 

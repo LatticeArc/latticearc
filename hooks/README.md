@@ -29,11 +29,33 @@ git config core.hooksPath .githooks
 Runs **before every `git commit`**. Enforces all heavy checks:
 
 1. **Auto-format** (`cargo fmt --all`) - Formats and re-stages changed files
-2. **Compilation** (`cargo check --all-features`) - Must compile
-3. **Clippy lints** (`cargo clippy -D warnings`) - No warnings allowed
-4. **Full test suite** (`cargo test --release`) - All tests must pass
+2. **Compilation matrix** (`cargo check --all-features`, all feature combos, workspace + fuzz) - Must compile
+3. **Clippy lints** (`cargo clippy -D warnings`, workspace + fuzz) - No warnings allowed
+4. **Dead-code suppression scan**
+5. **Full workspace tests** (`cargo test --workspace --all-features --release`) - All tests must pass
+6. **CI-target verification**
+7. **CLI rebuild + smoke test** (default features)
 
-**Timing**: ~2-3 minutes (tests run in release mode for crypto performance)
+**Timing**: ~15-25 minutes on a cold cache, ~8-12 on a warm cache. The "2-3 min" figure from an older version of this doc was optimistic — a full workspace compile in release mode alone is 5-6 min before any tests run. Plan your iteration cycle accordingly.
+
+### Critical: pre-flight the test suite BEFORE attempting commit
+
+**Do not** rely on the hook to find your failures — each failed commit costs ~15+ minutes.
+Run this exact command locally first:
+
+```bash
+RUST_MIN_STACK=16777216 cargo test --workspace --all-features --release 2>&1 > /tmp/test.log
+grep -E "^test .* FAILED$|test result: FAILED" /tmp/test.log
+```
+
+If that grep returns anything, fix it before `git commit`. `cargo test -p latticearc --lib` is
+**not** sufficient — it skips the integration suites in `tests/`, `latticearc/tests/`, and
+`latticearc-cli/tests/` that the hook does run.
+
+**Piping commit output** (e.g. `git commit -m "..." 2>&1 | tail -N`) **swallows failures** —
+the specific `test foo::bar ... FAILED` line gets pushed out of the tail window and the pipe
+exit code is `tail`'s `0`, not cargo's `1`. Redirect to a file instead if you need to capture
+output.
 
 ### pre-push
 

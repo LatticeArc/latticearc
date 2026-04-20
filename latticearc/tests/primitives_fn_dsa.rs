@@ -492,8 +492,9 @@ fn test_fndsa_large_message_succeeds() {
         let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
-        // 1 MB message
-        let large_message = vec![0xABu8; 1024 * 1024];
+        // 50 KiB: below the default max_signature_size_bytes (64 KiB)
+        // resource cap enforced by the primitive sign path.
+        let large_message = vec![0xABu8; 50 * 1024];
         let signature = keypair
             .sign_with_rng(&mut rng, &large_message)
             .expect("Signing large message should succeed");

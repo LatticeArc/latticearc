@@ -82,11 +82,14 @@ fn test_aes_gcm_decrypt_empty_ciphertext_fails() {
     let result = decrypt_aes_gcm_unverified(&[], &key);
     assert!(result.is_err(), "Should fail with empty ciphertext");
 
+    // Adversary-reachable parse failure collapses to the same opaque error
+    // as AEAD auth failure (Pattern 6 / HPKE RFC 9180 §5.2). Operators can
+    // distinguish via tracing::debug! output, not via the error variant.
     match result {
-        Err(CoreError::InvalidInput(_)) => {
-            // Expected: "Data too short"
+        Err(CoreError::DecryptionFailed(ref msg)) if msg == "decryption failed" => {
+            // Expected: opaque error
         }
-        _ => panic!("Expected InvalidInput error, got {:?}", result),
+        _ => panic!("Expected opaque DecryptionFailed, got {:?}", result),
     }
 }
 
@@ -280,11 +283,13 @@ fn test_aes_gcm_decrypt_truncated_ciphertext_fails() {
     let result = decrypt_aes_gcm_unverified(truncated, &key);
     assert!(result.is_err(), "Should fail with truncated ciphertext");
 
+    // Adversary-reachable parse failure collapses to the same opaque error
+    // as AEAD auth failure (Pattern 6 / HPKE RFC 9180 §5.2).
     match result {
-        Err(CoreError::InvalidInput(_)) => {
-            // Expected: "Data too short"
+        Err(CoreError::DecryptionFailed(ref msg)) if msg == "decryption failed" => {
+            // Expected: opaque error
         }
-        _ => panic!("Expected InvalidInput error, got {:?}", result),
+        _ => panic!("Expected opaque DecryptionFailed, got {:?}", result),
     }
 }
 

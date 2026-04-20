@@ -725,21 +725,179 @@ impl ConstantTimeEq for SigningKey {
 
 ---
 
-## Pattern 6: AEAD Error Opacity
+## Pattern 6: Error Opacity on Adversary-Reachable Paths
 
 ### What
-Decrypt failure messages must be identical regardless of whether the failure was size
-validation, MAC check, or padding. Pre-crypto input validation (size checks) MAY use
-distinct messages.
+**On any path where an adversary supplies input** (decrypt, decap, verify, deserialize
+from wire, etc.):
+
+1. **Returned error values** are opaque — identical across all failure modes (parse fail,
+   MAC fail, decap fail, HKDF fail, etc.). The caller / remote client / potential
+   adversary sees only a single `"decryption failed"`-style message and a single error
+   variant.
+2. **Internal `tracing::debug!` / `log_crypto_operation_error!` calls** preserve the
+   specific reason. Operators debug via structured log output correlated by request ID.
+
+On paths that are NOT adversary-reachable (caller-side programmer mistakes, operational
+I/O errors, internal state transitions), distinguishable errors are fine and often
+desirable — they help legitimate callers diagnose their own bugs.
 
 ### Why This Is The Right Pattern
-Vaudenay 2002 demonstrated that distinguishing "MAC failed" from "padding failed" enables
-a padding oracle attack that recovers plaintext. NIST SP 800-38D §5.2.2 requires that
-AEAD decryption returns only "FAIL" with no additional information.
+- **Vaudenay 2002** demonstrated that distinguishing "MAC failed" from "padding failed"
+  enables a padding oracle that recovers plaintext byte-by-byte.
+- **NIST SP 800-38D §5.2.2** requires AEAD decryption to return only "FAIL" with no
+  additional information.
+- **HPKE RFC 9180 §5.2** — `ContextR.Open` returns a single `OpenError` for all failure
+  modes (parse, decap, AEAD).
+- **TLS 1.3 RFC 8446 §5.2** — all AEAD record protection failures collapse to
+  `bad_record_mac`.
+- **aws-lc-rs** — uses a single `Unspecified` error type across its entire surface,
+  citing in its own docs: *"providing more details about a failure might provide a
+  dangerous side channel"*.
 
-We allow pre-crypto size checks to use distinct messages because the input size is public
-information (visible on the wire). The security boundary is: once any secret-dependent
-computation starts, all errors must be opaque.
+### Industry reference — how everyone does the split
+
+| Library | External return | Internal observability |
+|---|---|---|
+| aws-lc-rs / BoringSSL / OpenSSL | `Unspecified` / return 0 | `ERR_put_error` queue accessible via `ERR_get_error` |
+| rustls | `Error::InvalidMessage` (generic) | `tracing::debug!` with full context |
+| Signal / WireGuard | Failed messages silently dropped | Diagnostic counters / internal logs |
+
+Our equivalent: opaque `CoreError::DecryptionFailed("decryption failed")` returned to
+the caller; the `log_crypto_operation_error!` macro (which expands to `tracing::debug!`
+at `target: "crypto::operation"`) with the specific reason written to the structured
+log, indexed by correlation ID. Always go through the macro — it owns the log level,
+target, and field schema centrally.
+
+### The Canonical Pattern (Rust) — exactly one form for every adversary-reachable site
+
+There is **one** Rust pattern for this library. Do not invent variants.
+
+1. **Returned error**: fixed opaque string in a single error variant. Use a local
+   `let opaque = || ErrorType::Variant("decryption failed".to_string());` closure when
+   the same error is returned from 2+ branches in the same function. Zero captures,
+   zero cost on the happy path.
+2. **Internal log**: always via the `log_crypto_operation_error!` macro from
+   `latticearc::unified_api::logging`. **Do not** call `tracing::debug!` /
+   `tracing::error!` directly with `target: "crypto::operation"` — the macro
+   already handles level, target, structured fields (`operation`, `error`,
+   `phase`, `correlation_id`).
+3. **Level**: the macro emits at `DEBUG` (not `error!`). Rationale: adversary-reachable
+   decrypt failures are *normal* under attack. Logging them at `error!` lets an attacker
+   DoS the log aggregator by flooding garbage. Operators enable
+   `RUST_LOG=crypto::operation=debug` on demand and correlate by ID. Matches rustls /
+   OpenSSL ERR-queue behavior.
+4. **One specific reason string per branch**: name the STAGE that rejected, not the
+   upstream error object. The upstream error (`aws-lc-rs::Unspecified`, etc.) goes to
+   `_` because relying on upstream Display staying opaque across versions is fragile.
+
+```rust
+// ✅ Correct — exactly this shape, every site.
+//
+// Use `op::X` constants from `latticearc::unified_api::logging::op` for the
+// operation tag (NOT a bare `&str` literal). Operators filter/correlate logs
+// by this tag, so a typo silently loses that stage's observability. The const
+// tag stays stable across stages within one function.
+use crate::log_crypto_operation_error;
+use crate::unified_api::logging::op;
+
+let opaque = || CoreError::DecryptionFailed("decryption failed".to_string());
+
+let ct = MlKemCiphertext::new(level, bytes).map_err(|_e| {
+    log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "invalid ML-KEM ciphertext");
+    opaque()
+})?;
+let ss = MlKem::decapsulate(&sk, &ct).map_err(|_e| {
+    log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "ML-KEM decapsulation failed");
+    opaque()
+})?;
+let pt = cipher.decrypt(&nonce, &ct, &tag, aad).map_err(|_aead_err| {
+    log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AEAD authentication failed");
+    opaque()
+})?;
+```
+
+**Anti-patterns — never do any of these:**
+
+```rust
+// ❌ Wrong 1: upstream error Display leaks through format!
+.map_err(|e| PqOnlyError::KemError(format!("Invalid ML-KEM ciphertext: {e}")))?
+//                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ stage-specific + includes upstream e
+
+// ❌ Wrong 2: raw tracing::debug! with the target string instead of the macro
+.map_err(|_e| {
+    tracing::debug!(target: "crypto::operation", "decrypt: invalid ciphertext");
+    //              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ should be log_crypto_operation_error!
+    opaque()
+})?
+
+// ❌ Wrong 3: tracing::error! or log_crypto_operation_error! that emits at error level
+tracing::error!(target: "crypto::operation", "decrypt failed");
+// Production log spam under attack probing; operators can't distinguish real incidents
+// from attacker noise. Use the debug-level macro instead.
+
+// ❌ Wrong 4: distinguishable returned strings per stage
+.map_err(|_| PqOnlyError::KemError("KEM failed".to_string()))?
+.map_err(|_| PqOnlyError::AeadError("AEAD failed".to_string()))?
+// Attacker distinguishes stages via variant name / Display. Use a single variant
+// with the same string for every adversary-reachable branch.
+```
+
+### When It Applies
+
+**MUST be opaque (adversary-reachable):**
+- AEAD decrypt / `open` — every stage from size check through tag verification
+- KEM decapsulate — from ciphertext parse through shared-secret derivation
+- Signature verify — from PK / signature parse through the final verify
+- Deserialization of ciphertext / signature / attacker-controlled key from wire
+- Any HKDF / key-derivation step in a decrypt/decap pipeline
+- Any resource-limit check on adversary-supplied input sizes
+
+**SHOULD be opaque (encrypt-side defense-in-depth):**
+- AEAD encrypt / seal — even though adversary doesn't usually craft inputs, don't rely
+  on that assumption. Upstream errors (e.g. aws-lc-rs `Unspecified`) are opaque today
+  but future versions may not be.
+- KEM encapsulate, sign — same reasoning
+
+**MAY stay distinguishable (not adversary-reachable):**
+- Wrong key length from caller (programmer mistake; legitimate user wants to know)
+- Local I/O failures (audit log write, file open) — filesystem errors are not
+  adversary-controlled
+- Internal state transitions (session expired, challenge generation failure)
+- Config validation (wrong algorithm enum value from the application, not the wire)
+
+### How to Enforce
+
+1. **Grep check — no upstream-error leaks in crypto paths:**
+   ```sh
+   rg 'format!\([^)]*\{e\}[^)]*"\|e\.to_string\(\) *\)' \
+      src/primitives/{aead,kem,sig,mac,kdf} \
+      src/hybrid \
+      src/unified_api/convenience \
+      --glob '!**/tests/**'
+   ```
+   Every hit must be either (a) on a non-adversary-reachable path with a comment
+   documenting why, or (b) converted to the canonical pattern above.
+
+2. **Grep check — no raw `tracing::debug!` on `crypto::operation`:**
+   ```sh
+   rg 'tracing::(debug|info|warn|error)!\(target: "crypto::operation"' src/
+   ```
+   Every hit must use `log_crypto_operation_error!` instead. If the macro does not fit,
+   update the macro, not the call site.
+
+3. **Review checklist** — when reviewing any PR that touches an error path in
+   `primitives/{aead,kem,sig,mac,kdf}`, `hybrid/`, or `unified_api/convenience/`, ask:
+   *"Is the caller of this error adversary-controlled? If yes, does the returned error
+   distinguish stages?"*
+
+4. **Manual Debug impl on Error enums** — never derive `Debug` on an error variant that
+   wraps `String` produced from a library error, if the error is returned from an
+   adversary-reachable path. Derive is fine only if the variant itself is already opaque.
+
+5. **Tests** — regression tests that feed different failure modes and assert the
+   returned error is byte-identical. Example: `test_encrypt_with_passphrase_corrupted_
+   ciphertext_matches_wrong_passphrase_error` in `key_format.rs`.
 
 ---
 

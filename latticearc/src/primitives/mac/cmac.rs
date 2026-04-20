@@ -140,7 +140,7 @@ fn generate_subkeys(key: &[u8]) -> Result<CmacSubkeys, CmacError> {
     let l_block = match key.len() {
         16 => {
             let cipher = Aes128::new_from_slice(key)
-                .map_err(|e| CmacError::ComputationError(e.to_string()))?;
+                .map_err(|_e| CmacError::ComputationError("AES key init failed".to_string()))?;
             let mut block = [0u8; 16];
             cipher.encrypt_block((&mut block).into());
             block
@@ -148,14 +148,14 @@ fn generate_subkeys(key: &[u8]) -> Result<CmacSubkeys, CmacError> {
         24 => {
             // AES-192 requires 24-byte keys
             let cipher = Aes192::new_from_slice(key)
-                .map_err(|e| CmacError::ComputationError(e.to_string()))?;
+                .map_err(|_e| CmacError::ComputationError("AES key init failed".to_string()))?;
             let mut block = [0u8; 16];
             cipher.encrypt_block((&mut block).into());
             block
         }
         32 => {
             let cipher = Aes256::new_from_slice(key)
-                .map_err(|e| CmacError::ComputationError(e.to_string()))?;
+                .map_err(|_e| CmacError::ComputationError("AES key init failed".to_string()))?;
             let mut block = [0u8; 16];
             cipher.encrypt_block((&mut block).into());
             block
@@ -215,16 +215,19 @@ fn compute_cmac_internal(key: &[u8], data: &[u8]) -> Result<[u8; 16], CmacError>
     // Generate subkeys K1 and K2
     let subkeys = generate_subkeys(key)?;
 
-    // Initialize cipher for CBC-MAC
+    // Initialize cipher for CBC-MAC.
     let cipher = match key.len() {
         16 => CipherType::Aes128(
-            Aes128::new_from_slice(key).map_err(|e| CmacError::ComputationError(e.to_string()))?,
+            Aes128::new_from_slice(key)
+                .map_err(|_e| CmacError::ComputationError("AES key init failed".to_string()))?,
         ),
         24 => CipherType::Aes192(
-            Aes192::new_from_slice(key).map_err(|e| CmacError::ComputationError(e.to_string()))?,
+            Aes192::new_from_slice(key)
+                .map_err(|_e| CmacError::ComputationError("AES key init failed".to_string()))?,
         ),
         32 => CipherType::Aes256(
-            Aes256::new_from_slice(key).map_err(|e| CmacError::ComputationError(e.to_string()))?,
+            Aes256::new_from_slice(key)
+                .map_err(|_e| CmacError::ComputationError("AES key init failed".to_string()))?,
         ),
         _ => return Err(CmacError::InvalidKeyLength { actual: key.len() }),
     };

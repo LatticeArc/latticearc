@@ -46,9 +46,11 @@
 //! ```
 
 use crate::hybrid::kem_hybrid::{self, EncapsulatedKey, HybridKemPublicKey, HybridKemSecretKey};
+use crate::log_crypto_operation_error;
 use crate::primitives::aead::aes_gcm::AesGcm256;
 use crate::primitives::aead::{AeadCipher, NONCE_LEN, TAG_LEN};
 use crate::primitives::kdf::hkdf::hkdf;
+use crate::unified_api::logging::op;
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -271,8 +273,10 @@ pub fn derive_encryption_key(
     // here is a KEM/DH output (32 B ML-KEM or 64 B ML-KEM || ECDH), so
     // Extract's salt is not doing entropy extraction. Domain separation and
     // AAD/context binding live in `info` instead.
-    let hkdf_result = hkdf(shared_secret, None, Some(&info), 32)
-        .map_err(|e| HybridEncryptionError::KdfError(format!("HKDF failed: {e}")))?;
+    let hkdf_result = hkdf(shared_secret, None, Some(&info), 32).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_DERIVE_KEY, "HKDF failed");
+        HybridEncryptionError::KdfError("KDF failed".to_string())
+    })?;
 
     let mut key = Zeroizing::new([0u8; 32]);
     key.copy_from_slice(hkdf_result.key());
@@ -306,9 +310,16 @@ pub fn encrypt_hybrid(
     let default_ctx = HybridEncryptionContext::default();
     let ctx = context.unwrap_or(&default_ctx);
 
+    // Encrypt-side opacity (defense-in-depth per Pattern 6). Opaque returned
+    // error; tracing::debug! keeps the specific reason for operator debugging.
+    let opaque_kem = || HybridEncryptionError::KemError("encapsulation failed".to_string());
+    let opaque_enc = || HybridEncryptionError::EncryptionError("encryption failed".to_string());
+
     // Hybrid KEM encapsulation (ML-KEM-768 + X25519 ECDH + HKDF)
-    let encapsulated = kem_hybrid::encapsulate(hybrid_pk)
-        .map_err(|e| HybridEncryptionError::KemError(format!("{e}")))?;
+    let encapsulated = kem_hybrid::encapsulate(hybrid_pk).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_ENCRYPT, "KEM encapsulation failed");
+        opaque_kem()
+    })?;
 
     // Derive AES-256 encryption key from 64-byte hybrid shared secret
     let encryption_key = derive_encryption_key(encapsulated.shared_secret(), ctx)?;
@@ -317,12 +328,14 @@ pub fn encrypt_hybrid(
     let nonce_bytes = AesGcm256::generate_nonce();
 
     // AES-256-GCM via primitives wrapper.
-    let cipher = AesGcm256::new(&*encryption_key).map_err(|e| {
-        HybridEncryptionError::EncryptionError(format!("Failed to create AES key: {e}"))
+    let cipher = AesGcm256::new(&*encryption_key).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_ENCRYPT, "AES-256 init failed");
+        opaque_enc()
     })?;
     let (ciphertext, tag) =
-        cipher.encrypt(&nonce_bytes, plaintext, Some(&ctx.aad)).map_err(|e| {
-            HybridEncryptionError::EncryptionError(format!("AES-GCM encryption failed: {e}"))
+        cipher.encrypt(&nonce_bytes, plaintext, Some(&ctx.aad)).map_err(|_e| {
+            log_crypto_operation_error!(op::HYBRID_ENCRYPT, "AES-GCM seal failed");
+            opaque_enc()
         })?;
 
     Ok(HybridCiphertext::new(
@@ -384,32 +397,46 @@ pub fn decrypt_hybrid(
         Zeroizing::new(vec![]), // placeholder — decapsulate recovers this
     );
 
+    // All adversary-reachable failure paths below collapse to one opaque
+    // RETURNED error. Attacker controls ciphertext (nonce/tag slices, KEM ct);
+    // distinguishing "KEM rejected" vs "nonce length wrong" vs "AEAD tag fail"
+    // is a per-stage oracle. Per SP 800-38D §5.2.2 and HPKE RFC 9180 §5.2.
+    // Internal tracing logs keep the specific reason string so operators can
+    // debug via correlation IDs. See DESIGN_PATTERNS.md Pattern 6.
+    let opaque = || HybridEncryptionError::DecryptionError("decryption failed".to_string());
+
     // Hybrid KEM decapsulation (ML-KEM + X25519 ECDH + HKDF)
-    let shared_secret = kem_hybrid::decapsulate(hybrid_sk, &encapsulated)
-        .map_err(|e| HybridEncryptionError::DecryptionError(format!("{e}")))?;
+    let shared_secret = kem_hybrid::decapsulate(hybrid_sk, &encapsulated).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "KEM decapsulation failed");
+        opaque()
+    })?;
 
     // Derive AES-256 encryption key from 64-byte hybrid shared secret
-    let encryption_key = derive_encryption_key(&shared_secret, ctx)?;
-
-    let nonce_bytes: [u8; NONCE_LEN] = ciphertext.nonce().try_into().map_err(|e| {
-        HybridEncryptionError::DecryptionError(format!("Invalid nonce length: {e}"))
+    let encryption_key = derive_encryption_key(&shared_secret, ctx).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "HKDF key derivation failed");
+        opaque()
     })?;
-    let tag_bytes: [u8; TAG_LEN] = ciphertext
-        .tag()
-        .try_into()
-        .map_err(|e| HybridEncryptionError::DecryptionError(format!("Invalid tag length: {e}")))?;
+
+    let nonce_bytes: [u8; NONCE_LEN] = ciphertext.nonce().try_into().map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "nonce length != 12");
+        opaque()
+    })?;
+    let tag_bytes: [u8; TAG_LEN] = ciphertext.tag().try_into().map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "tag length != 16");
+        opaque()
+    })?;
 
     // AES-256-GCM via primitives wrapper.
-    let cipher = AesGcm256::new(&*encryption_key).map_err(|e| {
-        HybridEncryptionError::DecryptionError(format!("Failed to create AES key: {e}"))
+    let cipher = AesGcm256::new(&*encryption_key).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "AES-256 init failed");
+        opaque()
     })?;
     // `cipher.decrypt` already returns `Zeroizing<Vec<u8>>` — propagate directly.
     let plaintext = cipher
         .decrypt(&nonce_bytes, ciphertext.symmetric_ciphertext(), &tag_bytes, Some(&ctx.aad))
         .map_err(|_aead_err| {
-            // SECURITY: Opaque error per SP 800-38D §5.2.2 — do not propagate
-            // the underlying error to prevent padding/MAC oracle attacks.
-            HybridEncryptionError::DecryptionError("hybrid decryption failed".to_string())
+            log_crypto_operation_error!(op::HYBRID_DECRYPT, "AEAD authentication failed");
+            opaque()
         })?;
 
     Ok(plaintext)

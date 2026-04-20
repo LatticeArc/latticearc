@@ -77,6 +77,14 @@ pub enum SlhDsaError {
     /// Context string too long (max 255 bytes)
     #[error("Context string too long (max 255 bytes)")]
     ContextTooLong,
+
+    /// Message length exceeds the configured resource limit.
+    ///
+    /// SLH-DSA signing cost scales with message length; this guard prevents
+    /// unbounded-message DoS when callers bypass the unified-api resource
+    /// checks.
+    #[error("Message exceeds signature resource limit")]
+    MessageTooLong,
 }
 
 // ============================================================================
@@ -598,6 +606,11 @@ impl SigningKey {
     /// Returns `SlhDsaError::RngError` if random number generation fails
     #[instrument(level = "debug", skip(self, message, context), fields(security_level = ?self.security_level, message_len = message.len(), has_context = context.is_some()))]
     pub fn sign(&self, message: &[u8], context: Option<&[u8]>) -> Result<Vec<u8>, SlhDsaError> {
+        // DoS bound: SLH-DSA signing cost scales with message length.
+        // Primitive callers bypass unified_api's resource limits.
+        crate::primitives::resource_limits::validate_signature_size(message.len())
+            .map_err(|_e| SlhDsaError::MessageTooLong)?;
+
         let ctx = context.unwrap_or(b"");
 
         // Validate context length

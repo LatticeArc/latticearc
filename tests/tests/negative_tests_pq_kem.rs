@@ -300,14 +300,15 @@ fn test_ml_kem_decrypt_ciphertext_too_short_fails() {
     );
     assert!(result.is_err(), "Should fail when ciphertext is too short");
 
+    // Adversary-reachable parse failure (ciphertext too short) collapses to
+    // the same opaque DecryptionFailed as AEAD auth failure (Pattern 6 /
+    // HPKE RFC 9180 §5.2). Operators distinguish via tracing::debug!, not
+    // via the error variant or message detail.
     match result {
-        Err(CoreError::DecryptionFailed(msg)) if msg.contains("shorter than") => {
-            // Expected error
+        Err(CoreError::DecryptionFailed(ref msg)) if msg == "decryption failed" => {
+            // Expected: opaque error
         }
-        Err(CoreError::InvalidInput(_)) => {
-            // Also valid
-        }
-        _ => panic!("Expected DecryptionFailed or InvalidInput error, got {:?}", result),
+        _ => panic!("Expected opaque DecryptionFailed, got {:?}", result),
     }
 }
 

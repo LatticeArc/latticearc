@@ -33,6 +33,7 @@ use crate::primitives::sig::{
 use crate::types::types::SecurityLevel;
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
+use crate::unified_api::logging::op;
 use crate::unified_api::zero_trust::SecurityMode;
 
 use crate::primitives::resource_limits::validate_signature_size;
@@ -89,25 +90,25 @@ fn sign_pq_ml_dsa_internal(
     ml_dsa_sk: &[u8],
     parameter_set: MlDsaParameterSet,
 ) -> Result<Vec<u8>> {
-    log_crypto_operation_start!("ml_dsa_sign", algorithm = ?parameter_set, message_len = message.len());
+    log_crypto_operation_start!(op::ML_DSA_SIGN, algorithm = ?parameter_set, message_len = message.len());
 
     validate_signature_size(message.len()).map_err(|e| {
-        log_crypto_operation_error!("ml_dsa_sign", e);
+        log_crypto_operation_error!(op::ML_DSA_SIGN, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     let sk = MlDsaSecretKey::new(parameter_set, ml_dsa_sk.to_vec()).map_err(|e| {
-        log_crypto_operation_error!("ml_dsa_sign", e);
+        log_crypto_operation_error!(op::ML_DSA_SIGN, e);
         CoreError::InvalidInput("Invalid ML-DSA private key format".to_string())
     })?;
 
     let signature = crate::primitives::sig::ml_dsa::sign(&sk, message, &[]).map_err(|e| {
-        log_crypto_operation_error!("ml_dsa_sign", e);
+        log_crypto_operation_error!(op::ML_DSA_SIGN, e);
         CoreError::SignatureFailed(format!("ML-DSA signing failed: {}", e))
     })?;
 
     let sig_bytes = signature.as_bytes().to_vec();
-    log_crypto_operation_complete!("ml_dsa_sign", algorithm = ?parameter_set, signature_len = sig_bytes.len());
+    log_crypto_operation_complete!(op::ML_DSA_SIGN, algorithm = ?parameter_set, signature_len = sig_bytes.len());
     debug!(algorithm = ?parameter_set, "Created ML-DSA signature");
 
     Ok(sig_bytes)
@@ -120,20 +121,20 @@ fn verify_pq_ml_dsa_internal(
     ml_dsa_pk: &[u8],
     parameter_set: MlDsaParameterSet,
 ) -> Result<bool> {
-    log_crypto_operation_start!("ml_dsa_verify", algorithm = ?parameter_set, message_len = message.len());
+    log_crypto_operation_start!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, message_len = message.len());
 
     validate_signature_size(message.len()).map_err(|e| {
-        log_crypto_operation_error!("ml_dsa_verify", e);
+        log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     let pk = MlDsaPublicKey::new(parameter_set, ml_dsa_pk.to_vec()).map_err(|e| {
-        log_crypto_operation_error!("ml_dsa_verify", e);
+        log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
         CoreError::InvalidInput("Invalid ML-DSA public key format".to_string())
     })?;
 
     let sig = MlDsaSignature::new(parameter_set, signature.to_vec()).map_err(|e| {
-        log_crypto_operation_error!("ml_dsa_verify", e);
+        log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
         CoreError::InvalidInput(format!("Invalid ML-DSA signature: {}", e))
     })?;
 
@@ -145,11 +146,11 @@ fn verify_pq_ml_dsa_internal(
 
     match &result {
         Ok(valid) => {
-            log_crypto_operation_complete!("ml_dsa_verify", algorithm = ?parameter_set, valid = *valid);
+            log_crypto_operation_complete!(op::ML_DSA_VERIFY, algorithm = ?parameter_set, valid = *valid);
             debug!(algorithm = ?parameter_set, valid = *valid, "ML-DSA verification completed");
         }
         Err(e) => {
-            log_crypto_operation_error!("ml_dsa_verify", e);
+            log_crypto_operation_error!(op::ML_DSA_VERIFY, e);
         }
     }
 
@@ -166,24 +167,24 @@ fn sign_pq_slh_dsa_internal(
     slh_dsa_sk: &[u8],
     security_level: SlhDsaSecurityLevel,
 ) -> Result<Vec<u8>> {
-    log_crypto_operation_start!("slh_dsa_sign", algorithm = ?security_level, message_len = message.len());
+    log_crypto_operation_start!(op::SLH_DSA_SIGN, algorithm = ?security_level, message_len = message.len());
 
     validate_signature_size(message.len()).map_err(|e| {
-        log_crypto_operation_error!("slh_dsa_sign", e);
+        log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     let sk = SlhDsaSigningKey::from_bytes(slh_dsa_sk, security_level).map_err(|e| {
-        log_crypto_operation_error!("slh_dsa_sign", e);
+        log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
         CoreError::InvalidInput("Invalid SLH-DSA private key format".to_string())
     })?;
 
     let signature = sk.sign(message, Some(b"context")).map_err(|e| {
-        log_crypto_operation_error!("slh_dsa_sign", e);
+        log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
         CoreError::SignatureFailed(format!("SLH-DSA signing failed: {}", e))
     })?;
 
-    log_crypto_operation_complete!("slh_dsa_sign", algorithm = ?security_level, signature_len = signature.len());
+    log_crypto_operation_complete!(op::SLH_DSA_SIGN, algorithm = ?security_level, signature_len = signature.len());
     debug!(algorithm = ?security_level, "Created SLH-DSA signature");
 
     Ok(signature)
@@ -196,15 +197,15 @@ fn verify_pq_slh_dsa_internal(
     slh_dsa_pk: &[u8],
     security_level: SlhDsaSecurityLevel,
 ) -> Result<bool> {
-    log_crypto_operation_start!("slh_dsa_verify", algorithm = ?security_level, message_len = message.len());
+    log_crypto_operation_start!(op::SLH_DSA_VERIFY, algorithm = ?security_level, message_len = message.len());
 
     validate_signature_size(message.len()).map_err(|e| {
-        log_crypto_operation_error!("slh_dsa_verify", e);
+        log_crypto_operation_error!(op::SLH_DSA_VERIFY, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     let pk = SlhDsaVerifyingKey::from_bytes(slh_dsa_pk, security_level).map_err(|e| {
-        log_crypto_operation_error!("slh_dsa_verify", e);
+        log_crypto_operation_error!(op::SLH_DSA_VERIFY, e);
         CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
@@ -216,11 +217,11 @@ fn verify_pq_slh_dsa_internal(
 
     match &result {
         Ok(valid) => {
-            log_crypto_operation_complete!("slh_dsa_verify", algorithm = ?security_level, valid = *valid);
+            log_crypto_operation_complete!(op::SLH_DSA_VERIFY, algorithm = ?security_level, valid = *valid);
             debug!(algorithm = ?security_level, valid = *valid, "SLH-DSA verification completed");
         }
         Err(e) => {
-            log_crypto_operation_error!("slh_dsa_verify", e);
+            log_crypto_operation_error!(op::SLH_DSA_VERIFY, e);
         }
     }
 
@@ -238,30 +239,30 @@ fn sign_pq_fn_dsa_internal(
     security_level: FnDsaSecurityLevel,
 ) -> Result<Vec<u8>> {
     log_crypto_operation_start!(
-        "fn_dsa_sign",
+        op::FN_DSA_SIGN,
         algorithm = "FN-DSA",
         security_level = ?security_level,
         message_len = message.len()
     );
 
     validate_signature_size(message.len()).map_err(|e| {
-        log_crypto_operation_error!("fn_dsa_sign", e);
+        log_crypto_operation_error!(op::FN_DSA_SIGN, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     let mut sk = FnDsaSigningKey::from_bytes(fn_dsa_sk, security_level).map_err(|e| {
-        log_crypto_operation_error!("fn_dsa_sign", e);
+        log_crypto_operation_error!(op::FN_DSA_SIGN, e);
         CoreError::InvalidInput("Invalid FN-DSA private key format".to_string())
     })?;
 
     let signature = sk.sign(message).map_err(|e| {
-        log_crypto_operation_error!("fn_dsa_sign", e);
+        log_crypto_operation_error!(op::FN_DSA_SIGN, e);
         CoreError::SignatureFailed(format!("FN-DSA signing failed: {}", e))
     })?;
 
     let sig_bytes = signature.to_bytes();
     log_crypto_operation_complete!(
-        "fn_dsa_sign",
+        op::FN_DSA_SIGN,
         algorithm = "FN-DSA",
         signature_len = sig_bytes.len()
     );
@@ -278,24 +279,24 @@ fn verify_pq_fn_dsa_internal(
     security_level: FnDsaSecurityLevel,
 ) -> Result<bool> {
     log_crypto_operation_start!(
-        "fn_dsa_verify",
+        op::FN_DSA_VERIFY,
         algorithm = "FN-DSA",
         security_level = ?security_level,
         message_len = message.len()
     );
 
     validate_signature_size(message.len()).map_err(|e| {
-        log_crypto_operation_error!("fn_dsa_verify", e);
+        log_crypto_operation_error!(op::FN_DSA_VERIFY, e);
         CoreError::ResourceExceeded(e.to_string())
     })?;
 
     let pk = FnDsaVerifyingKey::from_bytes(fn_dsa_pk, security_level).map_err(|e| {
-        log_crypto_operation_error!("fn_dsa_verify", e);
+        log_crypto_operation_error!(op::FN_DSA_VERIFY, e);
         CoreError::InvalidInput("Invalid FN-DSA public key format".to_string())
     })?;
 
     let sig = FnDsaSignature::from_bytes(signature).map_err(|e| {
-        log_crypto_operation_error!("fn_dsa_verify", e);
+        log_crypto_operation_error!(op::FN_DSA_VERIFY, e);
         CoreError::InvalidInput(format!("Invalid FN-DSA signature: {}", e))
     })?;
 
@@ -307,11 +308,11 @@ fn verify_pq_fn_dsa_internal(
 
     match &result {
         Ok(valid) => {
-            log_crypto_operation_complete!("fn_dsa_verify", algorithm = "FN-DSA", valid = *valid);
+            log_crypto_operation_complete!(op::FN_DSA_VERIFY, algorithm = "FN-DSA", valid = *valid);
             debug!(algorithm = "FN-DSA", valid = *valid, "FN-DSA verification completed");
         }
         Err(e) => {
-            log_crypto_operation_error!("fn_dsa_verify", e);
+            log_crypto_operation_error!(op::FN_DSA_VERIFY, e);
         }
     }
 

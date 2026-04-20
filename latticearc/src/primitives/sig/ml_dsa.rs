@@ -155,6 +155,13 @@ pub enum MlDsaError {
     #[error("Invalid parameter set: {0}")]
     InvalidParameterSet(String),
 
+    /// Message length exceeds the configured resource limit.
+    ///
+    /// Shape matches `SlhDsaError::MessageTooLong` and the FN-DSA sibling;
+    /// unit variant, no payload (the length is already known to the sender).
+    #[error("Message exceeds signature resource limit")]
+    MessageTooLong,
+
     /// Cryptographic operation failed
     #[error("Cryptographic operation failed: {0}")]
     CryptoError(String),
@@ -498,6 +505,11 @@ pub fn sign(
     message: &[u8],
     context: &[u8],
 ) -> Result<MlDsaSignature, MlDsaError> {
+    // DoS bound: primitive callers bypass unified_api's resource limits.
+    // Guard the signing hot path against unbounded messages.
+    crate::primitives::resource_limits::validate_signature_size(message.len())
+        .map_err(|_e| MlDsaError::MessageTooLong)?;
+
     let parameter_set = secret_key.parameter_set();
 
     let signature = match parameter_set {
@@ -587,12 +599,8 @@ pub fn verify(
             let pk_bytes: [u8; 1312] = public_key.as_bytes().try_into().map_err(|_e| {
                 MlDsaError::InvalidKeyLength { expected: 1312, actual: public_key.as_bytes().len() }
             })?;
-            let pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes).map_err(|e| {
-                MlDsaError::VerificationError(format!(
-                    "Failed to deserialize ML-DSA-44 public key: {}",
-                    e
-                ))
-            })?;
+            let pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes)
+                .map_err(|_e| MlDsaError::VerificationError("verification failed".to_string()))?;
             let sig_bytes: [u8; 2420] = signature.as_bytes().try_into().map_err(|_e| {
                 MlDsaError::InvalidSignatureLength {
                     expected: 2420,
@@ -605,12 +613,8 @@ pub fn verify(
             let pk_bytes: [u8; 1952] = public_key.as_bytes().try_into().map_err(|_e| {
                 MlDsaError::InvalidKeyLength { expected: 1952, actual: public_key.as_bytes().len() }
             })?;
-            let pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes).map_err(|e| {
-                MlDsaError::VerificationError(format!(
-                    "Failed to deserialize ML-DSA-65 public key: {}",
-                    e
-                ))
-            })?;
+            let pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes)
+                .map_err(|_e| MlDsaError::VerificationError("verification failed".to_string()))?;
             let sig_bytes: [u8; 3309] = signature.as_bytes().try_into().map_err(|_e| {
                 MlDsaError::InvalidSignatureLength {
                     expected: 3309,
@@ -623,12 +627,8 @@ pub fn verify(
             let pk_bytes: [u8; 2592] = public_key.as_bytes().try_into().map_err(|_e| {
                 MlDsaError::InvalidKeyLength { expected: 2592, actual: public_key.as_bytes().len() }
             })?;
-            let pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes).map_err(|e| {
-                MlDsaError::VerificationError(format!(
-                    "Failed to deserialize ML-DSA-87 public key: {}",
-                    e
-                ))
-            })?;
+            let pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes)
+                .map_err(|_e| MlDsaError::VerificationError("verification failed".to_string()))?;
             let sig_bytes: [u8; 4627] = signature.as_bytes().try_into().map_err(|_e| {
                 MlDsaError::InvalidSignatureLength {
                     expected: 4627,

@@ -68,9 +68,10 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
+        // Opaque: don't leak configured resource-limit values via e.to_string().
         validate_encryption_size(plaintext.len()).map_err(
-            |e: crate::primitives::resource_limits::ResourceError| {
-                AeadError::EncryptionFailed(e.to_string())
+            |_e: crate::primitives::resource_limits::ResourceError| {
+                AeadError::EncryptionFailed("plaintext exceeds resource limits".to_string())
             },
         )?;
 
@@ -78,13 +79,15 @@ impl AeadCipher for ChaCha20Poly1305Cipher {
             .map_err(|_e| AeadError::InvalidKeyLength)?;
         let chacha_nonce = (*nonce).into();
 
+        // Opaque error: symmetric to decrypt path. Don't rely on upstream
+        // Display invariants to remain secret-free across versions.
         let ciphertext_with_tag = match aad {
             Some(aad) => cipher
                 .encrypt(&chacha_nonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
-                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
             None => cipher
                 .encrypt(&chacha_nonce, plaintext)
-                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
         };
 
         // Split ciphertext and tag
@@ -265,10 +268,10 @@ impl XChaCha20Poly1305Cipher {
         let ciphertext_with_tag = match aad {
             Some(aad) => cipher
                 .encrypt(&xnonce, chacha20poly1305::aead::Payload { msg: plaintext, aad })
-                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
             None => cipher
                 .encrypt(&xnonce, plaintext)
-                .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?,
+                .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?,
         };
 
         if ciphertext_with_tag.len() < TAG_LEN {
@@ -730,7 +733,7 @@ mod tests {
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
         if let Err(AeadError::EncryptionFailed(msg)) = result {
-            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+            assert!(msg.contains("resource limit"), "Error should mention resource limit: {}", msg);
         } else {
             panic!("Expected EncryptionFailed error");
         }
@@ -750,7 +753,7 @@ mod tests {
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
         if let Err(AeadError::DecryptionFailed(msg)) = result {
-            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+            assert!(msg.contains("resource limit"), "Error should mention resource limit: {}", msg);
         } else {
             panic!("Expected DecryptionFailed error");
         }

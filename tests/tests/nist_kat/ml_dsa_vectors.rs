@@ -299,13 +299,16 @@ fn test_mldsa_empty_message_signs_and_verifies_succeeds() {
     assert!(is_valid, "Empty message signature should verify");
 }
 
-/// Test large message can be signed
+/// Test large message can be signed (50 KiB — below the 64 KiB signature
+/// resource cap enforced by the primitive sign path).
 #[test]
 fn test_mldsa_large_message_signs_and_verifies_succeeds() {
     let (pk, sk) =
         generate_keypair(MlDsaParameterSet::MlDsa65).expect("key generation should succeed");
 
-    let message = vec![0x42u8; 1_000_000]; // 1MB message
+    // 50 KiB message — large enough to exercise multi-block handling, below
+    // the default max_signature_size_bytes (64 KiB) resource cap.
+    let message = vec![0x42u8; 50 * 1024];
     let signature = sign(&sk, &message, &[]).expect("signing large message should succeed");
     let is_valid = verify(&pk, &message, &signature, &[]).expect("verification should succeed");
 

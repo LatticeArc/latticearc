@@ -18,7 +18,7 @@
 use crate::prelude::error::{LatticeArcError, Result};
 use aws_lc_rs::hmac::{self, HMAC_SHA256, HMAC_SHA512};
 use subtle::ConstantTimeEq;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// PBKDF2 pseudorandom function types
 #[non_exhaustive]
@@ -30,8 +30,12 @@ pub enum PrfType {
     HmacSha512,
 }
 
-/// PBKDF2 parameters structure
-#[derive(Debug, Clone)]
+/// PBKDF2 parameters structure.
+///
+/// Salt is public protocol data, but scrubbing it on drop matches the rest of
+/// the library's zeroization hygiene and prevents stale-copy buildup when the
+/// struct is cloned around a request pipeline.
+#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
 pub struct Pbkdf2Params {
     /// Salt value (minimum 16 bytes recommended)
     /// Consumer: pbkdf2()
@@ -44,6 +48,7 @@ pub struct Pbkdf2Params {
     pub key_length: usize,
     /// PRF to use
     /// Consumer: pbkdf2()
+    #[zeroize(skip)] // PrfType is a Copy enum with no secret content
     pub prf: PrfType,
 }
 

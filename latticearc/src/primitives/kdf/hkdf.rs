@@ -85,9 +85,12 @@ impl HkdfResult {
 /// # }
 /// ```
 ///
-/// If salt is `None`, a string of 32 zero bytes is used (per RFC 5869 Section 2.2).
-/// This is acceptable for scenarios where the IKM already has sufficient entropy and
-/// is never reused, but random salts provide defense-in-depth.
+/// If salt is `None`, a string of 32 zero bytes is used (per RFC 5869 §2.2).
+/// Zero salt is sound when the IKM is already uniformly random — for
+/// example, the output of a KEM (ML-KEM, X25519 ECDH). HPKE (RFC 9180 §5.1)
+/// relies on this. Zero salt is NOT appropriate for IKM with low, biased,
+/// or structured entropy (passwords, short tokens, user input); such
+/// callers MUST pass a random salt.
 ///
 /// # Arguments
 /// * `salt` - Optional salt value. **Strongly recommended** to provide a random 32-byte salt.
@@ -143,7 +146,7 @@ pub fn hkdf_extract(salt: Option<&[u8]>, ikm: &[u8]) -> Result<Zeroizing<[u8; 32
 /// This function expands a pseudorandom key to output keying material of the
 /// desired length, optionally incorporating context information via the info parameter.
 ///
-/// Per RFC 5869 Section 2.3:
+/// Per RFC 5869 §2.3:
 /// ```text
 /// N = ceil(L/HashLen)
 /// T = T(1) | T(2) | T(3) | ... | T(N)

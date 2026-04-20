@@ -69,9 +69,13 @@ macro_rules! impl_aes_gcm {
                 plaintext: &[u8],
                 aad: Option<&[u8]>,
             ) -> Result<(Vec<u8>, Tag), AeadError> {
+                // Opaque: don't leak configured resource-limit values
+                // (requested/limit bytes) via e.to_string().
                 validate_encryption_size(plaintext.len()).map_err(
-                    |e: crate::primitives::resource_limits::ResourceError| {
-                        AeadError::EncryptionFailed(e.to_string())
+                    |_e: crate::primitives::resource_limits::ResourceError| {
+                        AeadError::EncryptionFailed(
+                            "plaintext exceeds resource limits".to_string(),
+                        )
                     },
                 )?;
 
@@ -87,8 +91,11 @@ macro_rules! impl_aes_gcm {
                 let mut in_out = Vec::with_capacity(plaintext.len().saturating_add(TAG_LEN));
                 in_out.extend_from_slice(plaintext);
 
+                // Opaque error: symmetric to decrypt path. aws-lc-rs's
+                // Unspecified Display is already generic, but we don't want
+                // to rely on that invariant across upstream versions.
                 key.seal_in_place_append_tag(aws_nonce, aad, &mut in_out)
-                    .map_err(|e| AeadError::EncryptionFailed(e.to_string()))?;
+                    .map_err(|_e| AeadError::EncryptionFailed("AEAD seal failed".to_string()))?;
 
                 if in_out.len() < TAG_LEN {
                     return Err(AeadError::EncryptionFailed("ciphertext too short".to_string()));
@@ -573,7 +580,9 @@ mod tests {
         assert!(result.is_err(), "Should fail with resource limit exceeded");
 
         if let Err(AeadError::EncryptionFailed(msg)) = result {
-            assert!(msg.contains("limit exceeded"), "Error should mention limit: {}", msg);
+            // Error message is deliberately opaque (doesn't echo requested/limit
+            // bytes) — just verify the resource-limit phrasing is present.
+            assert!(msg.contains("resource limit"), "Error should mention resource limit: {}", msg);
         } else {
             panic!("Expected EncryptionFailed error");
         }

@@ -82,9 +82,11 @@ jobs:
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # nightly
+      with:
+        toolchain: nightly
 
     - name: Install cargo-fuzz
-      run: cargo install cargo-fuzz
+      run: cargo install cargo-fuzz --locked
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -142,9 +144,11 @@ jobs:
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # nightly
+      with:
+        toolchain: nightly
 
     - name: Install cargo-fuzz
-      run: cargo install cargo-fuzz
+      run: cargo install cargo-fuzz --locked
 
     - name: Cache Cargo registry
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -179,10 +183,11 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # nightly
       with:
+        toolchain: nightly
         components: llvm-tools-preview
 
     - name: Install cargo-fuzz
-      run: cargo install cargo-fuzz
+      run: cargo install cargo-fuzz --locked
 
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616 # main
