@@ -190,6 +190,30 @@ Audit reports will be published in the `docs/audits/` directory when available.
 - Swap may contain sensitive data (use encrypted swap)
 - Core dumps may contain sensitive data (disable in production)
 
+### ZKP Proof Clone Acceptance
+
+The ZKP proof types `SchnorrProof`, `SigmaProof`, and `DlogEqualityProof` derive `Clone`. This is a deliberate, documented acceptance — tracked in issue [#50](https://github.com/latticearc/latticearc/issues/50).
+
+**Rationale**
+
+- **Proofs are not long-term secrets.** A proof is ephemeral per proof session. Its whole purpose is to be serialized and transmitted to a verifier; `Clone` is required because the `serde` derive and user call sites need it (e.g., passing a proof to a channel, retrying a network send).
+- **Fiat-Shamir binding prevents replay.** The challenge is derived by hashing the commitment + context, so a proof cannot be reused outside its intended transcript.
+- **Response scalars are not reusable keying material.** A Schnorr response is `s = k + c·x` where `k` is freshly sampled per session; it does not reveal the long-term witness `x` without the commitment point `R = k·G`, and together they constitute the proof itself (already transmitted).
+
+**Required guarantees (tested)**
+
+Under this acceptance, we commit to — and test — two invariants:
+
+1. `Zeroize::zeroize()` wipes every field of the proof type.
+2. `Clone` produces a proof with independent storage (no shared `Rc`/`Arc`/`Cow` aliasing) — zeroizing the clone must not touch the original.
+
+Together with the `zeroize::ZeroizeOnDrop` derive macro's contract (which generates a `Drop` impl that calls `zeroize()`), these invariants imply that both the original and each clone have their memory wiped when they leave scope. Regression tests live in `latticearc/src/zkp/schnorr.rs` and `latticearc/src/zkp/sigma.rs` (`test_*_proof_clone_has_independent_storage`, `test_*_proof_zeroize_wipes_all_fields`).
+
+**Out of scope**
+
+- **Post-drop memory observation is not tested directly.** That would require `unsafe` raw-pointer reads of `MaybeUninit<T>`, which our `#![deny(unsafe_code)]` policy forbids. We rely instead on the `zeroize` crate's `ZeroizeOnDrop` derive — the de-facto standard in the Rust cryptography ecosystem (used by `rustls`, `RustCrypto`, `aws-lc-rs`, `dalek-cryptography`).
+- **User-provided `Rc<SchnorrProof>`-style wrappers.** If downstream code wraps a proof in a reference-counted container and leaks the last strong reference, the proof's `Drop` never runs. That is a downstream responsibility, not an invariant of this library.
+
 ## Vulnerability Disclosure Policy
 
 We follow coordinated disclosure:

@@ -90,6 +90,19 @@ fn xor_block(a: &mut [u8; 16], b: &[u8; 16]) {
     }
 }
 
+/// Constant-time conditional XOR: `block ^= rb` iff `condition == 1`.
+///
+/// `condition` MUST be 0 or 1 (the caller guarantees this via
+/// `left_shift_block`, which returns the shifted-out MSB bit).
+#[inline(always)]
+fn ct_xor_block_if(block: &mut [u8; 16], rb: &[u8; 16], condition: u8) {
+    use subtle::{Choice, ConditionallySelectable};
+    let c = Choice::from(condition);
+    for (b, r) in block.iter_mut().zip(rb.iter()) {
+        *b ^= u8::conditional_select(&0u8, r, c);
+    }
+}
+
 /// Left shift a 128-bit block by 1 bit (constant-time)
 ///
 /// Returns the MSB that was shifted out (0 or 1)
@@ -172,21 +185,12 @@ fn generate_subkeys(key: &[u8]) -> Result<CmacSubkeys, CmacError> {
     // Step 2: Derive K1
     let (k1_shifted, k1_msb) = left_shift_block(&l_block);
     let mut k1 = k1_shifted;
-
-    // AUDIT-ACCEPTED: L3 — MSB branch is standard NIST SP 800-38B algorithm.
-    // Not a timing concern: operates on non-secret subkey derivation material.
-    if k1_msb == 1 {
-        xor_block(&mut k1, &RB);
-    }
+    ct_xor_block_if(&mut k1, &RB, k1_msb);
 
     // Step 3: Derive K2
     let (k2_shifted, k2_msb) = left_shift_block(&k1);
     let mut k2 = k2_shifted;
-
-    // If MSB(K1) was 1, XOR with RB
-    if k2_msb == 1 {
-        xor_block(&mut k2, &RB);
-    }
+    ct_xor_block_if(&mut k2, &RB, k2_msb);
 
     Ok(CmacSubkeys { k1, k2 })
 }

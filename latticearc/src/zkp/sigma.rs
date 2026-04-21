@@ -22,8 +22,10 @@ use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A sigma protocol proof (non-interactive via Fiat-Shamir)
-// AUDIT-ACCEPTED: Clone is required because proofs are transmitted to verifiers.
-// Proof material is not long-term secret — it is ephemeral per proof session.
+///
+/// AUDIT-TRACKED(#50): `Clone` is retained on this proof type. The threat-model
+/// acceptance (ephemeral proof material, Fiat-Shamir replay prevention) is
+/// documented in SECURITY.md ("ZKP Proof Clone Acceptance"). See #50.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SigmaProof {
@@ -265,8 +267,10 @@ impl<P: SigmaProtocol> FiatShamir<P> {
 
 /// Proof that two discrete logs are equal
 /// Given (G, H, P, Q), prove knowledge of x such that P = x*G and Q = x*H
-// AUDIT-ACCEPTED: Clone is required because proofs are transmitted to verifiers.
-// Proof material is not long-term secret — it is ephemeral per proof session.
+///
+/// AUDIT-TRACKED(#50): `Clone` is retained on this proof type. The threat-model
+/// acceptance (ephemeral proof material, Fiat-Shamir replay prevention) is
+/// documented in SECURITY.md ("ZKP Proof Clone Acceptance"). See #50.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct DlogEqualityProof {
     /// First commitment A = k*G
@@ -898,5 +902,62 @@ mod tests {
 
         let proof = DlogEqualityProof::prove(&statement, &x, b"").unwrap();
         assert!(proof.verify(&statement, b"").unwrap());
+    }
+
+    // --- Clone + Zeroize acceptance tests (#50) ---
+    //
+    // Document that `Clone` on proof types is acceptable under the project
+    // threat model: each clone has independent storage, and `ZeroizeOnDrop`
+    // zeros each instance at end-of-scope. See SECURITY.md
+    // ("ZKP Proof Clone Acceptance") for the full rationale.
+
+    #[test]
+    fn test_sigma_proof_clone_has_independent_storage() {
+        let proof = SigmaProof::new(vec![0xAA; 48], [0xBB; 32], vec![0xCC; 48]);
+        let mut cloned = proof.clone();
+        Zeroize::zeroize(&mut cloned);
+        assert_eq!(proof.commitment(), &[0xAA; 48]);
+        assert_eq!(proof.challenge(), &[0xBB; 32]);
+        assert_eq!(proof.response(), &[0xCC; 48]);
+        // Clone zeroized. `Zeroize for Vec<u8>` wipes bytes then truncates
+        // to len 0, so the observable post-condition for Vecs is empty length.
+        // The fixed-size `challenge` is zeroized in-place.
+        assert!(cloned.commitment().is_empty());
+        assert_eq!(cloned.challenge(), &[0u8; 32]);
+        assert!(cloned.response().is_empty());
+    }
+
+    #[test]
+    fn test_sigma_proof_zeroize_wipes_all_fields() {
+        let mut proof = SigmaProof::new(vec![0xAA; 48], [0xBB; 32], vec![0xCC; 48]);
+        Zeroize::zeroize(&mut proof);
+        assert!(proof.commitment().is_empty());
+        assert_eq!(proof.challenge(), &[0u8; 32]);
+        assert!(proof.response().is_empty());
+    }
+
+    #[test]
+    fn test_dlog_equality_proof_clone_has_independent_storage() {
+        let proof = DlogEqualityProof::new([0xAA; 33], [0xBB; 33], [0xCC; 32], [0xDD; 32]);
+        let mut cloned = proof.clone();
+        Zeroize::zeroize(&mut cloned);
+        assert_eq!(*proof.a(), [0xAA; 33]);
+        assert_eq!(*proof.b(), [0xBB; 33]);
+        assert_eq!(*proof.challenge(), [0xCC; 32]);
+        assert_eq!(*proof.response(), [0xDD; 32]);
+        assert_eq!(*cloned.a(), [0u8; 33]);
+        assert_eq!(*cloned.b(), [0u8; 33]);
+        assert_eq!(*cloned.challenge(), [0u8; 32]);
+        assert_eq!(*cloned.response(), [0u8; 32]);
+    }
+
+    #[test]
+    fn test_dlog_equality_proof_zeroize_wipes_all_fields() {
+        let mut proof = DlogEqualityProof::new([0xAA; 33], [0xBB; 33], [0xCC; 32], [0xDD; 32]);
+        Zeroize::zeroize(&mut proof);
+        assert_eq!(*proof.a(), [0u8; 33]);
+        assert_eq!(*proof.b(), [0u8; 33]);
+        assert_eq!(*proof.challenge(), [0u8; 32]);
+        assert_eq!(*proof.response(), [0u8; 32]);
     }
 }

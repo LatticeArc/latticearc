@@ -83,8 +83,10 @@ fn fiat_shamir_challenge(
 /// are shared with verifiers, the raw bytes are redacted in `Debug` output to
 /// prevent accidental logging of proof material that could be correlated with
 /// the prover's secret.
-// AUDIT-ACCEPTED: Clone is required because proofs must be transmitted to verifiers.
-// Proof material is not long-term secret — it is ephemeral per proof session.
+///
+/// AUDIT-TRACKED(#50): `Clone` is retained on this proof type. The threat-model
+/// acceptance (ephemeral proof material, Fiat-Shamir replay prevention) is
+/// documented in SECURITY.md ("ZKP Proof Clone Acceptance"). See #50.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "zkp-serde", serde(crate = "serde"))]
@@ -347,5 +349,33 @@ mod tests {
         let proof = prover1.prove(b"test").unwrap();
         let verifier = SchnorrVerifier::new(pk2);
         assert!(verifier.verify(&proof, b"test").unwrap());
+    }
+
+    // --- Clone + Zeroize acceptance tests (#50) ---
+    //
+    // These tests document that `Clone` on `SchnorrProof` is acceptable under
+    // the project threat model: each clone has independent storage, and
+    // `ZeroizeOnDrop` zeros each instance at end-of-scope. See SECURITY.md
+    // ("ZKP Proof Clone Acceptance") for the full rationale.
+
+    #[test]
+    fn test_schnorr_proof_clone_has_independent_storage() {
+        let proof = SchnorrProof::new([0xAA; 33], [0xBB; 32]);
+        let mut cloned = proof.clone();
+        Zeroize::zeroize(&mut cloned);
+        // Original unchanged:
+        assert_eq!(*proof.commitment(), [0xAA; 33]);
+        assert_eq!(*proof.response(), [0xBB; 32]);
+        // Clone zeroed:
+        assert_eq!(*cloned.commitment(), [0u8; 33]);
+        assert_eq!(*cloned.response(), [0u8; 32]);
+    }
+
+    #[test]
+    fn test_schnorr_proof_zeroize_wipes_all_fields() {
+        let mut proof = SchnorrProof::new([0xAA; 33], [0xBB; 32]);
+        Zeroize::zeroize(&mut proof);
+        assert_eq!(*proof.commitment(), [0u8; 33]);
+        assert_eq!(*proof.response(), [0u8; 32]);
     }
 }

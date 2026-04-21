@@ -566,11 +566,17 @@ impl KeyData {
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because key material is stored
-/// as Base64-encoded strings inside the `KeyData` enum, not as raw bytes amenable
-/// to byte-level constant-time comparison. This type is a serialization container
-/// (not a runtime key), and is not compared in any production code path. Use the
-/// concrete key types extracted via `to_hybrid_*` for cryptographic operations.
+/// `PortableKey` implements [`subtle::ConstantTimeEq`]. Metadata fields
+/// (`version`, `algorithm`, `key_type`, `use_case`, `security_level`, `created`,
+/// `metadata`) are compared with non-CT equality because they are serialized
+/// in plaintext on the wire — their equality is not a secret. The `key_data`
+/// field (containing actual key material, including encrypted envelopes) is
+/// compared in constant time via the canonical `subtle::ConstantTimeEq` pattern.
+///
+/// Cross-variant comparisons (`Single` vs `Composite`, etc.) always return
+/// `Choice(0)`. `PortableKey` deliberately does not derive [`PartialEq`] — use
+/// `ct_eq` explicitly when comparing key material, and prefer the concrete key
+/// types extracted via `to_hybrid_*` for cryptographic operations.
 ///
 /// # Example
 ///
@@ -659,19 +665,78 @@ impl std::fmt::Debug for PortableKey {
 
 impl subtle::ConstantTimeEq for PortableKey {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        // Constant-time comparison of key data to prevent timing side-channels
-        // when comparing secret or symmetric keys. Encrypted variants are not
-        // compared by content — their ciphertexts are not directly meaningful
-        // (different nonces → different ciphertexts for the same plaintext).
-        match (&self.key_data, &other.key_data) {
-            (KeyData::Single { raw: a }, KeyData::Single { raw: b }) => {
-                a.as_bytes().ct_eq(b.as_bytes())
-            }
+        // Metadata fields are serialized in plaintext on the wire (version,
+        // algorithm identifiers, timestamps, extension map). Their equality
+        // is not a secret, so a non-CT short-circuit here is intentional —
+        // it avoids needlessly comparing key material when metadata already
+        // differs.
+        if self.version != other.version
+            || self.algorithm != other.algorithm
+            || self.key_type != other.key_type
+            || self.use_case != other.use_case
+            || self.security_level != other.security_level
+            || self.created != other.created
+            || self.metadata != other.metadata
+        {
+            return subtle::Choice::from(0);
+        }
+
+        // Key material: the CT-sensitive field.
+        self.key_data.ct_eq(&other.key_data)
+    }
+}
+
+impl subtle::ConstantTimeEq for KeyData {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        use subtle::Choice;
+
+        match (self, other) {
+            (Self::Single { raw: a }, Self::Single { raw: b }) => a.as_bytes().ct_eq(b.as_bytes()),
             (
-                KeyData::Composite { pq: a_pq, classical: a_cl },
-                KeyData::Composite { pq: b_pq, classical: b_cl },
+                Self::Composite { pq: a_pq, classical: a_cl },
+                Self::Composite { pq: b_pq, classical: b_cl },
             ) => a_pq.as_bytes().ct_eq(b_pq.as_bytes()) & a_cl.as_bytes().ct_eq(b_cl.as_bytes()),
-            _ => subtle::Choice::from(0),
+            (
+                Self::Encrypted {
+                    enc: a_enc,
+                    kdf: a_kdf,
+                    kdf_iterations: a_iter,
+                    kdf_salt: a_salt,
+                    aead: a_aead,
+                    nonce: a_nonce,
+                    ciphertext: a_ct,
+                },
+                Self::Encrypted {
+                    enc: b_enc,
+                    kdf: b_kdf,
+                    kdf_iterations: b_iter,
+                    kdf_salt: b_salt,
+                    aead: b_aead,
+                    nonce: b_nonce,
+                    ciphertext: b_ct,
+                },
+            ) => {
+                // All envelope fields are stored in plaintext, so none are
+                // strictly secret. We short-circuit on the algorithm-identifier
+                // fields (fast path) and fall through to a CT compare on the
+                // variable-length byte fields for a uniform pattern with the
+                // other arms.
+                if a_enc != b_enc || a_kdf != b_kdf || a_iter != b_iter || a_aead != b_aead {
+                    return Choice::from(0);
+                }
+                a_salt.as_bytes().ct_eq(b_salt.as_bytes())
+                    & a_nonce.as_bytes().ct_eq(b_nonce.as_bytes())
+                    & a_ct.as_bytes().ct_eq(b_ct.as_bytes())
+            }
+            // Variant mismatches, enumerated explicitly (no `_` wildcard) so
+            // that adding a new `KeyData` variant fails to compile here —
+            // forcing the author to decide how it compares against every
+            // existing variant rather than silently defaulting to not-equal.
+            (Self::Single { .. }, Self::Composite { .. } | Self::Encrypted { .. })
+            | (Self::Composite { .. }, Self::Single { .. } | Self::Encrypted { .. })
+            | (Self::Encrypted { .. }, Self::Single { .. } | Self::Composite { .. }) => {
+                Choice::from(0)
+            }
         }
     }
 }
@@ -3688,5 +3753,122 @@ mod tests {
             );
             assert_eq!(key.algorithm(), *expected, "Level {:?}", level);
         }
+    }
+
+    // --- ConstantTimeEq regression tests (#49) ---
+
+    fn ct_fixture_ts() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z").unwrap().with_timezone(&Utc)
+    }
+
+    fn ct_fixture_key(
+        algorithm: KeyAlgorithm,
+        key_type: KeyType,
+        raw: u8,
+        ts: DateTime<Utc>,
+    ) -> PortableKey {
+        PortableKey::with_created(algorithm, key_type, KeyData::from_raw(&[raw; 32]), ts)
+    }
+
+    fn ct_fixture_encrypted(ciphertext_byte: u8) -> KeyData {
+        KeyData::Encrypted {
+            enc: ENCRYPTED_ENVELOPE_VERSION,
+            kdf: PBKDF2_KDF_ID.to_string(),
+            kdf_iterations: PBKDF2_DEFAULT_ITERATIONS,
+            kdf_salt: BASE64_ENGINE.encode([0x11; PBKDF2_SALT_LEN]),
+            aead: AES_GCM_AEAD_ID.to_string(),
+            nonce: BASE64_ENGINE.encode([0x22; AES_GCM_NONCE_LEN]),
+            ciphertext: BASE64_ENGINE.encode([ciphertext_byte; 64]),
+        }
+    }
+
+    #[test]
+    fn test_portable_key_ct_eq_identical_keys_returns_equal() {
+        let ts = ct_fixture_ts();
+        let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
+        let b = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
+        assert!(bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_portable_key_ct_eq_different_key_data_returns_not_equal() {
+        let ts = ct_fixture_ts();
+        let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
+        let b = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xCD, ts);
+        assert!(!bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_portable_key_ct_eq_different_algorithm_returns_not_equal() {
+        let ts = ct_fixture_ts();
+        let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
+        let b = ct_fixture_key(KeyAlgorithm::MlKem512, KeyType::Public, 0xAB, ts);
+        assert!(!bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_portable_key_ct_eq_different_key_type_returns_not_equal() {
+        let ts = ct_fixture_ts();
+        let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
+        let b = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Secret, 0xAB, ts);
+        assert!(!bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_portable_key_ct_eq_different_created_returns_not_equal() {
+        let ts_a = ct_fixture_ts();
+        let ts_b =
+            DateTime::parse_from_rfc3339("2026-02-01T00:00:00Z").unwrap().with_timezone(&Utc);
+        let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts_a);
+        let b = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts_b);
+        assert!(!bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_portable_key_ct_eq_different_metadata_returns_not_equal() {
+        let ts = ct_fixture_ts();
+        let a = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
+        let mut b = ct_fixture_key(KeyAlgorithm::Ed25519, KeyType::Public, 0xAB, ts);
+        b.set_metadata("tenant".to_string(), serde_json::json!("acme"));
+        assert!(!bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_key_data_ct_eq_variant_mismatch_returns_not_equal() {
+        let single = KeyData::from_raw(&[0xAB; 32]);
+        let composite = KeyData::Composite {
+            pq: BASE64_ENGINE.encode([0xAB; 32]),
+            classical: BASE64_ENGINE.encode([0xAB; 32]),
+        };
+        assert!(!bool::from(single.ct_eq(&composite)));
+    }
+
+    #[test]
+    fn test_key_data_ct_eq_encrypted_identical_returns_equal() {
+        let a = ct_fixture_encrypted(0xEE);
+        let b = ct_fixture_encrypted(0xEE);
+        assert!(bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_key_data_ct_eq_encrypted_different_ciphertext_returns_not_equal() {
+        let a = ct_fixture_encrypted(0xEE);
+        let b = ct_fixture_encrypted(0xFF);
+        assert!(!bool::from(a.ct_eq(&b)));
+    }
+
+    #[test]
+    fn test_key_data_ct_eq_encrypted_different_envelope_params_returns_not_equal() {
+        let a = ct_fixture_encrypted(0xEE);
+        let b = KeyData::Encrypted {
+            enc: ENCRYPTED_ENVELOPE_VERSION,
+            kdf: PBKDF2_KDF_ID.to_string(),
+            kdf_iterations: PBKDF2_DEFAULT_ITERATIONS + 100_000,
+            kdf_salt: BASE64_ENGINE.encode([0x11; PBKDF2_SALT_LEN]),
+            aead: AES_GCM_AEAD_ID.to_string(),
+            nonce: BASE64_ENGINE.encode([0x22; AES_GCM_NONCE_LEN]),
+            ciphertext: BASE64_ENGINE.encode([0xEE; 64]),
+        };
+        assert!(!bool::from(a.ct_eq(&b)));
     }
 }

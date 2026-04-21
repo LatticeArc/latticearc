@@ -49,11 +49,12 @@ pub struct SerializableSignedMetadata {
 ///
 /// # Zeroization
 ///
-/// AUDIT-ACCEPTED: `Clone` is retained because tests clone this type. When
+/// AUDIT-TRACKED(#51): `Clone` is retained because tests clone this type. When
 /// cloned, both the original and the clone call `Drop::drop` (which zeroizes
-/// `private_key`) independently on deallocation. This means cloning doubles
-/// the number of copies of the key material in memory — callers should keep
-/// lifetimes short and avoid cloning where possible.
+/// `private_key`) independently on deallocation. This means cloning transiently
+/// doubles the number of copies of the key material in memory — callers should
+/// keep lifetimes short and avoid cloning where possible. Remediation options
+/// (gate `Clone` behind `#[cfg(test)]`, or drop it entirely) are tracked in #51.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SerializableKeyPair {
     /// Base64-encoded public key.

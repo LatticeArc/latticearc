@@ -542,7 +542,7 @@ counter += 1;
 
 // PATTERN: Security-critical comments use these prefixes:
 // SECURITY: <explanation of security-critical decision>
-// AUDIT-ACCEPTED: <explanation of known limitation accepted during audit>
+// AUDIT-TRACKED(#NN): <known limitation, linked to an OPEN tracking issue>
 // Wire <field>: <explains which config field is being consumed here>
 
 // PATTERN: TODO/FIXME are forbidden in production (workspace denies todo!())
@@ -695,19 +695,26 @@ guidelines — they are requirements for FIPS 140-3 validation.
 | 1 | **Zeroize on drop** | `#[derive(ZeroizeOnDrop)]` or manual `impl Drop` calling `zeroize()` | SP 800-57 §8.3.1 |
 | 2 | **Redacted Debug** | Manual `impl Debug` printing `[REDACTED]`. Never `#[derive(Debug)]`. | Prevents log leakage |
 | 3 | **Constant-time eq** | `impl subtle::ConstantTimeEq` using `&` not `&&` | SP 800-175B §4.1 |
-| 4 | **No Clone** | Do not implement `Clone`. If required (serde), add `AUDIT-ACCEPTED` comment. | Prevents uncontrolled copies |
+| 4 | **No Clone** | Do not implement `Clone`. If required (serde), add `AUDIT-TRACKED(#NN)` comment linking an open issue. | Prevents uncontrolled copies |
 | 5 | **Private fields** | No `pub` on secret fields. Expose via `&[u8]` getters. Owned returns use `Zeroizing<Vec<u8>>`. | Prevents external mutation |
 
-### The AUDIT-ACCEPTED Convention
+### The AUDIT-TRACKED Convention
 When an upstream type (e.g., aws-lc-rs `DecapsulationKey`) does not support Rust-level
-`Zeroize`, document the delegation:
+`Zeroize`, document the delegation **and open a GitHub tracking issue**. The marker
+always references the issue number so auditors can see what's still pending:
 ```rust
 /// # Zeroization
 ///
-/// AUDIT-ACCEPTED: Zeroization delegated to aws-lc-rs (BoringSSL zeros on free).
+/// AUDIT-TRACKED(#48): Zeroization delegated to aws-lc-rs (BoringSSL zeros on free).
 /// Rust-level ZeroizeOnDrop cannot be derived because DecapsulationKey does not
-/// implement Zeroize.
+/// implement Zeroize. Re-evaluate once aws-lc-rs exposes Zeroize; see #48.
 ```
+
+**Rule:** `AUDIT-TRACKED(#NN)` requires an **open** issue. If the referenced issue is
+closed, the marker must either be removed (the limitation was resolved) or updated to
+point at a new open issue. We deliberately do not use "AUDIT-ACCEPTED" — "accepted"
+implies closure and creates a false sense of audit completeness. Tracked limitations
+stay visible until genuinely resolved.
 
 ### Constant-Time Equality — The Canonical Pattern
 From `slh_dsa.rs` (the reference implementation):
@@ -1477,10 +1484,10 @@ When fixing a bug:
 4. Never import the external crate in the upper layer
 
 ### Adding a new secret type:
-1. `#[derive(Zeroize, ZeroizeOnDrop)]` (or AUDIT-ACCEPTED for upstream types)
+1. `#[derive(Zeroize, ZeroizeOnDrop)]` (or `AUDIT-TRACKED(#NN)` with open issue for upstream types)
 2. Manual `impl Debug` with `[REDACTED]`
 3. `impl ConstantTimeEq` using `&` combinators
-4. No `Clone` (or AUDIT-ACCEPTED)
+4. No `Clone` (or `AUDIT-TRACKED(#NN)` with open issue)
 5. Private fields + `&[u8]` getters + `Zeroizing<Vec<u8>>` owned returns
 
 ### Adding a new config field:
@@ -1691,7 +1698,8 @@ The ultimate test of an exemplary implementation: **can a security auditor unfam
 with the project verify any claim in under 5 minutes?**
 
 - "All secret types are zeroized on drop" → auditor greps for secret types, checks
-  each for `ZeroizeOnDrop` or `AUDIT-ACCEPTED`. Clear, mechanical, complete.
+  each for `ZeroizeOnDrop` or `AUDIT-TRACKED(#NN)` pointing at an open issue. Any
+  marker referencing a closed issue is a lint failure.
 - "HKDF labels are unique" → auditor reads `types/domains.rs`, sees all constants,
   reads the Kani proof. Formally verified, one file.
 - "No OsRng bypass in upper layers" → auditor greps for `OsRng` outside `primitives/`,

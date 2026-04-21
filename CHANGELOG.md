@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (audit marker convention)
+
+- **`AUDIT-ACCEPTED` → `AUDIT-TRACKED(#NN)`**: renamed 17 in-code markers across
+  `primitives/kem/ecdh.rs`, `primitives/kem/ml_kem.rs`, `primitives/mac/cmac.rs`,
+  `unified_api/serialization.rs`, `unified_api/key_format.rs`, `zkp/schnorr.rs`,
+  and `zkp/sigma.rs` to reference open GitHub tracking issues (#48–#52). The
+  word "accepted" implied audit closure and created a false sense of complete-
+  ness; tracked limitations now stay visible — and referenced to an open issue
+  — until genuinely resolved. Convention is documented in
+  `docs/DESIGN_PATTERNS.md`.
+
+### Fixed
+
+- **CMAC subkey derivation is constant-time** (closes #52). Replaced the two
+  `if msb == 1 { xor_block(...) }` branches in
+  `primitives/mac/cmac.rs::generate_subkeys` with a constant-time
+  `ct_xor_block_if` helper built on `subtle::ConditionallySelectable`. K1 and
+  K2 derivations are now uniformly timed regardless of the CMAC key. NIST SP
+  800-38B KAT vectors for AES-128/192/256 continue to pass.
+- **`PortableKey::ConstantTimeEq` now compares all fields** (closes #49,
+  `PortableKey` portion). The prior impl had two correctness bugs:
+  (1) it ignored `PortableKey` metadata, so two keys with identical `key_data`
+      but different `algorithm`, `key_type`, `use_case`, `security_level`,
+      `created`, or extension metadata compared as equal;
+  (2) the `Encrypted` variant fell through the wildcard arm, so two identical
+      encrypted envelopes compared not-equal (false negative).
+  New impl compares metadata non-CT (it is plaintext on the wire) and
+  delegates the key material to a new `impl ConstantTimeEq for KeyData`. The
+  `KeyData` match is now exhaustive — adding a new variant triggers a compile
+  error rather than a silent fall-through. Eight regression tests added,
+  including coverage for each metadata field, the Encrypted variant, and
+  variant-mismatch paths.
+
+### Added
+
+- **Compile-time `PartialEq` barrier on aws-lc-rs-wrapped secret types**
+  (closes #49, aws-lc-rs portion; defensive alternative to an upstream fix).
+  New integration test
+  `latticearc/tests/no_partial_eq_on_secret_types.rs` uses
+  `static_assertions::assert_not_impl_any!` to reject any future `PartialEq` or
+  `Eq` impl on `X25519KeyPair`, `EcdhP256KeyPair`, `EcdhP384KeyPair`,
+  `EcdhP521KeyPair`, and `MlKemDecapsulationKeyPair`. Removes the "no
+  compile-time barrier prevents a future `==` comparison" risk without waiting
+  on aws-lc-rs to expose raw key bytes. `static_assertions = "1.1"` added as
+  dev-dep; zero runtime cost.
+- **ZKP proof Clone + Zeroize invariant tests** (closes #50 via Path A —
+  documented threat model). Six new tests across `zkp/schnorr.rs` and
+  `zkp/sigma.rs` verify that (a) `Zeroize::zeroize()` wipes every field and
+  (b) `Clone` gives independent storage (zeroizing a clone does not affect
+  the original). Combined with `zeroize::ZeroizeOnDrop`'s derive contract,
+  these invariants imply both the original and every clone are wiped at
+  end-of-scope. A new SECURITY.md section "ZKP Proof Clone Acceptance" under
+  "Known Limitations" documents the rationale and the tested invariants.
+
 ## [0.7.1] — 2026-04-19
 
 ### Changed (audit-accepted marker refresh)

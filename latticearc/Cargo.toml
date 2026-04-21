@@ -106,6 +106,9 @@ criterion = { workspace = true }
 hex-literal = { workspace = true }
 tempfile = { workspace = true }
 hkdf = "0.12.4"
+# Compile-time assertions — enforce that secret-holding types do not gain
+# `PartialEq` or similar derives that would defeat our CT-comparison discipline.
+static_assertions = "1.1"
 
 [lib]
 path = "src/lib.rs"

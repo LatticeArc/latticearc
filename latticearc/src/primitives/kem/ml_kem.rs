@@ -632,17 +632,18 @@ impl Default for MlKemConfig {
 ///
 /// # Zeroization
 ///
-/// AUDIT-ACCEPTED: Zeroization of the inner `DecapsulationKey` is delegated
+/// AUDIT-TRACKED(#48): Zeroization of the inner `DecapsulationKey` is delegated
 /// to aws-lc-rs (BoringSSL), which zeros key material on free. Rust-level
 /// `ZeroizeOnDrop` cannot be derived because `DecapsulationKey` does not
-/// implement `Zeroize`.
+/// implement `Zeroize`. Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-ACCEPTED: ConstantTimeEq not implemented because the inner
+/// AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
 /// aws-lc-rs type does not expose key bytes for byte-level comparison.
 /// This type is ephemeral (consumed on use) and not compared in any
-/// production code path.
+/// production code path today — no compile-time barrier prevents a future
+/// comparison from being added via `PartialEq`. See #49.
 pub struct MlKemDecapsulationKeyPair {
     /// The public key (serializable).
     public_key: MlKemPublicKey,
