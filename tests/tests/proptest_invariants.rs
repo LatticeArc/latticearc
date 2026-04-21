@@ -139,7 +139,7 @@ mod ml_kem {
 mod ml_dsa {
     use super::*;
     use latticearc::primitives::sig::ml_dsa::{
-        MlDsaParameterSet, MlDsaSignature, generate_keypair, sign, verify,
+        MlDsaParameterSet, MlDsaSignature, generate_keypair,
     };
 
     proptest! {
@@ -155,7 +155,7 @@ mod ml_dsa {
             flip_bit in 0u8..8,
         ) {
             let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
-            let sig = sign(&sk, &message, b"").unwrap();
+            let sig = sk.sign(&message, b"").unwrap();
             let mut sig_bytes = sig.as_bytes().to_vec();
             prop_assume!(flip_index < sig_bytes.len());
             sig_bytes[flip_index] ^= 1 << flip_bit;
@@ -163,7 +163,7 @@ mod ml_dsa {
                 MlDsaSignature::new(MlDsaParameterSet::MlDsa44, sig_bytes).unwrap();
             // Bit-flipped signature must not verify; function either returns
             // Ok(false) or Err — both acceptable per FIPS 204 unforgeability.
-            if let Ok(v) = verify(&pk, &message, &corrupted_sig, b"") {
+            if let Ok(v) = pk.verify(&message, &corrupted_sig, b"") {
                 prop_assert!(!v, "bit-flipped signature verified as valid");
             }
         }
@@ -175,11 +175,11 @@ mod ml_dsa {
             flip_bit in 0u8..8,
         ) {
             let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
-            let sig = sign(&sk, &message, b"").unwrap();
+            let sig = sk.sign(&message, b"").unwrap();
             let mut corrupted_msg = message;
             prop_assume!(flip_index < corrupted_msg.len());
             corrupted_msg[flip_index] ^= 1 << flip_bit;
-            let valid = verify(&pk, &corrupted_msg, &sig, b"")
+            let valid = pk.verify(&corrupted_msg, &sig, b"")
                 .expect("verify of well-formed sig against corrupted message must succeed");
             prop_assert!(!valid, "signature verified against a tampered message");
         }

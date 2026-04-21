@@ -19,7 +19,7 @@
 
 #[cfg(test)]
 mod tests {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     #[test]
     fn regression_issue_002_empty_message_sign_verify() {
@@ -29,11 +29,10 @@ mod tests {
         let empty_message: &[u8] = &[];
 
         // Sign empty message
-        let signature =
-            sign(&sk, empty_message, &[]).expect("signing empty message should succeed");
+        let signature = sk.sign(empty_message, &[]).expect("signing empty message should succeed");
 
         // Verify signature on empty message
-        let result = verify(&pk, empty_message, &signature, &[]);
+        let result = pk.verify(empty_message, &signature, &[]);
         assert!(result.is_ok(), "Verification of empty message signature should succeed");
     }
 
@@ -48,9 +47,9 @@ mod tests {
             let (pk, sk) = generate_keypair(level).expect("keypair generation should succeed");
 
             let signature =
-                sign(&sk, empty_message, &[]).expect("signing empty message should succeed");
+                sk.sign(empty_message, &[]).expect("signing empty message should succeed");
 
-            let result = verify(&pk, empty_message, &signature, &[]);
+            let result = pk.verify(empty_message, &signature, &[]);
             assert!(result.is_ok(), "Verification should succeed for {:?}", level);
         }
     }
@@ -63,8 +62,8 @@ mod tests {
         let empty_message: &[u8] = &[];
         let nonempty_message: &[u8] = b"hello";
 
-        let sig_empty = sign(&sk, empty_message, &[]).expect("sign empty");
-        let sig_nonempty = sign(&sk, nonempty_message, &[]).expect("sign nonempty");
+        let sig_empty = sk.sign(empty_message, &[]).expect("sign empty");
+        let sig_nonempty = sk.sign(nonempty_message, &[]).expect("sign nonempty");
 
         // Signatures should be different
         assert_ne!(
@@ -74,7 +73,7 @@ mod tests {
         );
 
         // Cross-verification should fail
-        let cross_verify = verify(&pk, nonempty_message, &sig_empty, &[]);
+        let cross_verify = pk.verify(nonempty_message, &sig_empty, &[]);
         assert!(
             cross_verify.is_err() || cross_verify.as_ref().is_ok_and(|&v| !v),
             "Empty message signature should not verify for non-empty message"

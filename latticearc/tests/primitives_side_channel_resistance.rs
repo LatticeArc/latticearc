@@ -42,7 +42,7 @@ use zeroize::Zeroize;
 
 use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel, MlKemSharedSecret};
-use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
 // ============================================================================
 // Timing Measurement Utilities
@@ -311,7 +311,7 @@ fn test_ml_dsa_sign_verify_smoke_roundtrip() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen failed");
     let message = b"Side-channel resistance smoke test";
 
-    let sig = sign(&sk, message, &[]).expect("sign failed");
-    let ok = verify(&pk, message, &sig, &[]).expect("verify failed");
+    let sig = sk.sign(message, &[]).expect("sign failed");
+    let ok = pk.verify(message, &sig, &[]).expect("verify failed");
     assert!(ok, "ML-DSA-44 signature must verify");
 }

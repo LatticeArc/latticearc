@@ -45,17 +45,14 @@ pub struct SerializableSignedMetadata {
     pub key_id: Option<String>,
 }
 
-/// Serializable form of a key pair
+/// Serializable form of a key pair.
 ///
-/// # Zeroization
-///
-/// AUDIT-TRACKED(#51): `Clone` is retained because tests clone this type. When
-/// cloned, both the original and the clone call `Drop::drop` (which zeroizes
-/// `private_key`) independently on deallocation. This means cloning transiently
-/// doubles the number of copies of the key material in memory — callers should
-/// keep lifetimes short and avoid cloning where possible. Remediation options
-/// (gate `Clone` behind `#[cfg(test)]`, or drop it entirely) are tracked in #51.
-#[derive(Clone, Serialize, Deserialize)]
+/// `SerializableKeyPair` deliberately does NOT implement `Clone`. Duplicating
+/// a serialized keypair would transiently double the number of base64-encoded
+/// private-key copies in memory. When two independent instances are genuinely
+/// needed (e.g., for serialization roundtrip tests), construct them separately
+/// from the same source key via [`SerializableKeyPair::from`].
+#[derive(Serialize, Deserialize)]
 pub struct SerializableKeyPair {
     /// Base64-encoded public key.
     public_key: String,
@@ -703,12 +700,22 @@ mod tests {
     }
 
     #[test]
-    fn test_serializable_keypair_clone_debug_work_correctly_succeeds() {
+    fn test_serializable_keypair_debug_succeeds() {
         let original = make_keypair();
         let ser = SerializableKeyPair::from(&original);
-        let cloned = ser.clone();
-        assert_eq!(cloned.public_key, ser.public_key);
         let debug = format!("{:?}", ser);
         assert!(debug.contains("SerializableKeyPair"));
+    }
+
+    #[test]
+    fn test_serializable_keypair_two_instances_from_same_source_are_equal() {
+        // Replacement for the removed clone test: two independently-constructed
+        // instances from the same source key serialize to the same bytes for
+        // both public and private components.
+        let original = make_keypair();
+        let ser_a = SerializableKeyPair::from(&original);
+        let ser_b = SerializableKeyPair::from(&original);
+        assert_eq!(ser_a.public_key, ser_b.public_key);
+        assert_eq!(ser_a.private_key, ser_b.private_key);
     }
 }

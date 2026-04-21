@@ -706,7 +706,7 @@ pub fn kat_ml_kem_768() -> Result<()> {
 ///
 /// Returns error if key generation, signing, or verification fails.
 pub fn kat_ml_dsa() -> Result<()> {
-    use crate::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use crate::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     // Fixed test message for KAT
     const TEST_MESSAGE: &[u8] = b"FIPS 140-3 ML-DSA Known Answer Test";
@@ -731,7 +731,7 @@ pub fn kat_ml_dsa() -> Result<()> {
     }
 
     // Sign the test message
-    let signature = sign(&secret_key, TEST_MESSAGE, CONTEXT).map_err(|e| {
+    let signature = secret_key.sign(TEST_MESSAGE, CONTEXT).map_err(|e| {
         LatticeArcError::ValidationError { message: format!("ML-DSA KAT: signing failed: {}", e) }
     })?;
 
@@ -747,7 +747,7 @@ pub fn kat_ml_dsa() -> Result<()> {
     }
 
     // Verify the signature
-    let is_valid = verify(&public_key, TEST_MESSAGE, &signature, CONTEXT).map_err(|e| {
+    let is_valid = public_key.verify(TEST_MESSAGE, &signature, CONTEXT).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("ML-DSA KAT: verification failed: {}", e),
         }
@@ -761,7 +761,7 @@ pub fn kat_ml_dsa() -> Result<()> {
 
     // Verify that a modified message fails verification
     const WRONG_MESSAGE: &[u8] = b"FIPS 140-3 ML-DSA Wrong Message";
-    let is_valid_wrong = verify(&public_key, WRONG_MESSAGE, &signature, CONTEXT).map_err(|e| {
+    let is_valid_wrong = public_key.verify(WRONG_MESSAGE, &signature, CONTEXT).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("ML-DSA KAT: verification check failed: {}", e),
         }
@@ -830,7 +830,7 @@ pub fn kat_slh_dsa() -> Result<()> {
     }
 
     // Sign the test message (None = no context string)
-    let signature = signing_key.sign(TEST_MESSAGE, None).map_err(|e| {
+    let signature = signing_key.sign(TEST_MESSAGE, &[]).map_err(|e| {
         LatticeArcError::ValidationError { message: format!("SLH-DSA KAT: signing failed: {}", e) }
     })?;
 
@@ -847,7 +847,7 @@ pub fn kat_slh_dsa() -> Result<()> {
     }
 
     // Verify the signature
-    let is_valid = verifying_key.verify(TEST_MESSAGE, &signature, None).map_err(|e| {
+    let is_valid = verifying_key.verify(TEST_MESSAGE, &signature, &[]).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("SLH-DSA KAT: verification failed: {}", e),
         }
@@ -861,7 +861,7 @@ pub fn kat_slh_dsa() -> Result<()> {
 
     // Verify that a modified message fails verification
     const WRONG_MESSAGE: &[u8] = b"FIPS 140-3 SLH-DSA Wrong Message";
-    let is_valid_wrong = verifying_key.verify(WRONG_MESSAGE, &signature, None).map_err(|e| {
+    let is_valid_wrong = verifying_key.verify(WRONG_MESSAGE, &signature, &[]).map_err(|e| {
         LatticeArcError::ValidationError {
             message: format!("SLH-DSA KAT: verification check failed: {}", e),
         }

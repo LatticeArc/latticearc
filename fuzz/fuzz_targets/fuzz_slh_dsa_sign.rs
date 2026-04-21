@@ -32,7 +32,7 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Test 1: Sign the fuzzed message (no context)
-    match sk.sign(message, None) {
+    match sk.sign(message, &[]) {
         Ok(signature) => {
             // Verify signature has correct size
             assert_eq!(
@@ -43,7 +43,7 @@ fuzz_target!(|data: &[u8]| {
             );
 
             // Verify signature is valid
-            match pk.verify(message, &signature, None) {
+            match pk.verify(message, &signature, &[]) {
                 Ok(is_valid) => {
                     assert!(is_valid, "Valid signature must verify");
                 }
@@ -62,10 +62,10 @@ fuzz_target!(|data: &[u8]| {
     let context: Vec<u8> = data.iter().cycle().take(context_len).copied().collect();
 
     if context.len() <= 255 {
-        match sk.sign(message, Some(&context)) {
+        match sk.sign(message, &context) {
             Ok(signature) => {
                 // Verify with same context
-                match pk.verify(message, &signature, Some(&context)) {
+                match pk.verify(message, &signature, &context) {
                     Ok(is_valid) => {
                         assert!(is_valid, "Signature with context must verify");
                     }
@@ -73,7 +73,7 @@ fuzz_target!(|data: &[u8]| {
                 }
 
                 // Verify with no context should fail
-                match pk.verify(message, &signature, None) {
+                match pk.verify(message, &signature, &[]) {
                     Ok(is_valid) => {
                         if !context.is_empty() {
                             assert!(!is_valid, "Signature must fail without context");
@@ -88,11 +88,11 @@ fuzz_target!(|data: &[u8]| {
 
     // Test 3: Context too long (>255 bytes) should fail
     let long_context = vec![0xABu8; 256];
-    let result = sk.sign(message, Some(&long_context));
+    let result = sk.sign(message, &long_context);
     assert!(result.is_err(), "Context >255 bytes should fail");
 
     // Test 4: Verify with corrupted signature
-    if let Ok(sig) = sk.sign(message, None) {
+    if let Ok(sig) = sk.sign(message, &[]) {
         // Make a mutable copy of the signature
         let mut corrupted_sig = sig.clone();
         // Calculate the length first to avoid borrow issues
@@ -103,7 +103,7 @@ fuzz_target!(|data: &[u8]| {
             corrupted_sig[idx] ^= b;
         }
 
-        match pk.verify(message, &corrupted_sig, None) {
+        match pk.verify(message, &corrupted_sig, &[]) {
             Ok(is_valid) => {
                 assert!(!is_valid, "Corrupted signature must fail verification");
             }
@@ -114,9 +114,9 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 5: Verify with wrong message
-    if let Ok(sig) = sk.sign(message, None) {
+    if let Ok(sig) = sk.sign(message, &[]) {
         let wrong_message = b"completely different message content";
-        match pk.verify(wrong_message, &sig, None) {
+        match pk.verify(wrong_message, &sig, &[]) {
             Ok(is_valid) => {
                 assert!(!is_valid, "Signature must fail with wrong message");
             }
@@ -125,8 +125,8 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 6: Empty message signing
-    if let Ok(sig) = sk.sign(&[], None) {
-        match pk.verify(&[], &sig, None) {
+    if let Ok(sig) = sk.sign(&[], &[]) {
+        match pk.verify(&[], &sig, &[]) {
             Ok(is_valid) => {
                 assert!(is_valid, "Empty message signature must verify");
             }
@@ -139,9 +139,9 @@ fuzz_target!(|data: &[u8]| {
         let pk_bytes = &data[..level.public_key_size()];
         match VerifyingKey::new(level, pk_bytes) {
             Ok(fuzzed_pk) => {
-                if let Ok(sig) = sk.sign(message, None) {
+                if let Ok(sig) = sk.sign(message, &[]) {
                     // Verify with fuzzed key - should fail
-                    let _ = fuzzed_pk.verify(message, &sig, None);
+                    let _ = fuzzed_pk.verify(message, &sig, &[]);
                 }
             }
             Err(_) => {
@@ -151,10 +151,10 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 8: Test invalid signature length
-    if let Ok(sig) = sk.sign(message, None) {
+    if let Ok(sig) = sk.sign(message, &[]) {
         // Truncate signature
         let truncated = &sig[..sig.len().saturating_sub(10)];
-        match pk.verify(message, truncated, None) {
+        match pk.verify(message, truncated, &[]) {
             Ok(_) => {}
             Err(_) => {
                 // Error expected for wrong size

@@ -89,7 +89,7 @@ fn test_slhdsa_128s_signature_size_matches_fips205_has_correct_size() {
         .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-128s";
-    let signature = sk.sign(message, None).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
 
     assert_eq!(
         signature.len(),
@@ -105,7 +105,7 @@ fn test_slhdsa_192s_signature_size_matches_fips205_has_correct_size() {
         .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-192s";
-    let signature = sk.sign(message, None).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
 
     assert_eq!(
         signature.len(),
@@ -121,7 +121,7 @@ fn test_slhdsa_256s_signature_size_matches_fips205_has_correct_size() {
         .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-256s";
-    let signature = sk.sign(message, None).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
 
     assert_eq!(
         signature.len(),
@@ -138,8 +138,8 @@ fn test_slhdsa_128s_roundtrip_succeeds() {
         .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-128s roundtrip";
-    let signature = sk.sign(message, None).expect("signing should succeed");
-    let is_valid = pk.verify(message, &signature, None).expect("verification should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
+    let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
 
     assert!(is_valid, "SLH-DSA-SHAKE-128s signature should verify");
 }
@@ -150,8 +150,8 @@ fn test_slhdsa_192s_roundtrip_succeeds() {
         .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-192s roundtrip";
-    let signature = sk.sign(message, None).expect("signing should succeed");
-    let is_valid = pk.verify(message, &signature, None).expect("verification should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
+    let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
 
     assert!(is_valid, "SLH-DSA-SHAKE-192s signature should verify");
 }
@@ -162,8 +162,8 @@ fn test_slhdsa_256s_roundtrip_succeeds() {
         .expect("key generation should succeed");
 
     let message = b"Test message for SLH-DSA-SHAKE-256s roundtrip";
-    let signature = sk.sign(message, None).expect("signing should succeed");
-    let is_valid = pk.verify(message, &signature, None).expect("verification should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
+    let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
 
     assert!(is_valid, "SLH-DSA-SHAKE-256s signature should verify");
 }
@@ -176,8 +176,8 @@ fn test_slhdsa_wrong_message_fails_verification_fails() {
 
     let message = b"Original message";
     let wrong_message = b"Wrong message";
-    let signature = sk.sign(message, None).expect("signing should succeed");
-    let is_valid = pk.verify(wrong_message, &signature, None).expect("verification should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
+    let is_valid = pk.verify(wrong_message, &signature, &[]).expect("verification should succeed");
 
     assert!(!is_valid, "Verification should fail with wrong message");
 }
@@ -189,14 +189,14 @@ fn test_slhdsa_corrupted_signature_fails_verification_fails() {
         .expect("key generation should succeed");
 
     let message = b"Test message";
-    let mut signature = sk.sign(message, None).expect("signing should succeed");
+    let mut signature = sk.sign(message, &[]).expect("signing should succeed");
 
     // Corrupt the signature
     if !signature.is_empty() {
         signature[0] ^= 0xFF;
     }
 
-    let is_valid = pk.verify(message, &signature, None).expect("verification should succeed");
+    let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
 
     assert!(!is_valid, "Verification should fail with corrupted signature");
 }
@@ -210,8 +210,8 @@ fn test_slhdsa_wrong_public_key_fails_verification_fails() {
         .expect("key generation 2 should succeed");
 
     let message = b"Test message";
-    let signature = sk1.sign(message, None).expect("signing should succeed");
-    let is_valid = pk2.verify(message, &signature, None).expect("verification should succeed");
+    let signature = sk1.sign(message, &[]).expect("signing should succeed");
+    let is_valid = pk2.verify(message, &signature, &[]).expect("verification should succeed");
 
     assert!(!is_valid, "Verification should fail with wrong public key");
 }
@@ -238,8 +238,8 @@ fn test_slhdsa_empty_message_roundtrip_succeeds() {
         .expect("key generation should succeed");
 
     let message = b"";
-    let signature = sk.sign(message, None).expect("signing empty message should succeed");
-    let is_valid = pk.verify(message, &signature, None).expect("verification should succeed");
+    let signature = sk.sign(message, &[]).expect("signing empty message should succeed");
+    let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
 
     assert!(is_valid, "Empty message signature should verify");
 }
@@ -251,7 +251,7 @@ fn test_slhdsa_with_context_roundtrip_succeeds() {
         .expect("key generation should succeed");
 
     let message = b"Test message with context";
-    let context = Some(b"application-context".as_slice());
+    let context = b"application-context";
     let signature = sk.sign(message, context).expect("signing with context should succeed");
     let is_valid = pk.verify(message, &signature, context).expect("verification should succeed");
 
@@ -265,8 +265,8 @@ fn test_slhdsa_context_mismatch_fails_verification_fails() {
         .expect("key generation should succeed");
 
     let message = b"Test message";
-    let context1 = Some(b"context1".as_slice());
-    let context2 = Some(b"context2".as_slice());
+    let context1 = b"context1".as_slice();
+    let context2 = b"context2".as_slice();
     let signature = sk.sign(message, context1).expect("signing should succeed");
     let is_valid = pk.verify(message, &signature, context2).expect("verification should succeed");
 
@@ -284,12 +284,12 @@ fn test_slhdsa_multiple_signatures_all_verify_succeeds() {
     let message = b"Test message for multiple signatures";
 
     // Generate multiple signatures of the same message
-    let sig1 = sk.sign(message, None).expect("signing 1 should succeed");
-    let sig2 = sk.sign(message, None).expect("signing 2 should succeed");
+    let sig1 = sk.sign(message, &[]).expect("signing 1 should succeed");
+    let sig2 = sk.sign(message, &[]).expect("signing 2 should succeed");
 
     // Both signatures should verify correctly
-    let is_valid1 = pk.verify(message, &sig1, None).expect("verification 1 should succeed");
-    let is_valid2 = pk.verify(message, &sig2, None).expect("verification 2 should succeed");
+    let is_valid1 = pk.verify(message, &sig1, &[]).expect("verification 1 should succeed");
+    let is_valid2 = pk.verify(message, &sig2, &[]).expect("verification 2 should succeed");
 
     assert!(is_valid1, "First signature should verify");
     assert!(is_valid2, "Second signature should verify");

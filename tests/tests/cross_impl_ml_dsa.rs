@@ -41,8 +41,7 @@ fn ml_dsa_44_pqcrypto_sign_fips204_verify() {
         .expect("pqcrypto public key must round-trip into fips204");
     let sig_fips = MlDsaSignature::new(MlDsaParameterSet::MlDsa44, sig_pqc.as_bytes().to_vec())
         .expect("pqcrypto signature must round-trip into fips204");
-    let ok =
-        ml_dsa::verify(&pk_fips, message, &sig_fips, b"").expect("fips204 verify must complete");
+    let ok = pk_fips.verify(message, &sig_fips, b"").expect("fips204 verify must complete");
     assert!(ok, "fips204 must accept pqcrypto's signature");
 }
 
@@ -53,7 +52,7 @@ fn ml_dsa_44_fips204_sign_pqcrypto_verify() {
         ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).expect("fips204 keygen must succeed");
     let message = b"cross-impl: fips204 signs, pqcrypto verifies";
 
-    let sig_fips = ml_dsa::sign(&sk_fips, message, b"").expect("fips204 sign must succeed");
+    let sig_fips = sk_fips.sign(message, b"").expect("fips204 sign must succeed");
 
     let pk_pqc = mldsa44::PublicKey::from_bytes(pk_fips.as_bytes())
         .expect("fips204 public key must round-trip into pqcrypto");
@@ -68,7 +67,7 @@ fn ml_dsa_44_tampered_message_rejected_cross_impl() {
     use pqcrypto_mldsa::mldsa44;
     let (_pk_fips, sk_fips) = ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let message = b"original";
-    let sig_fips = ml_dsa::sign(&sk_fips, message, b"").unwrap();
+    let sig_fips = sk_fips.sign(message, b"").unwrap();
 
     // Reconstruct just the PQClean-side objects.
     let (pk_pqc, _sk_pqc) = mldsa44::keypair(); // wrong keypair — signature was made under sk_fips
@@ -105,7 +104,7 @@ fn ml_dsa_65_pqcrypto_sign_fips204_verify() {
         MlDsaPublicKey::new(MlDsaParameterSet::MlDsa65, pk_pqc.as_bytes().to_vec()).unwrap();
     let sig_fips =
         MlDsaSignature::new(MlDsaParameterSet::MlDsa65, sig_pqc.as_bytes().to_vec()).unwrap();
-    let ok = ml_dsa::verify(&pk_fips, message, &sig_fips, b"").unwrap();
+    let ok = pk_fips.verify(message, &sig_fips, b"").unwrap();
     assert!(ok, "fips204 must accept pqcrypto ML-DSA-65 signature");
 }
 
@@ -115,7 +114,7 @@ fn ml_dsa_65_fips204_sign_pqcrypto_verify() {
     let (pk_fips, sk_fips) = ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let message = b"cross-impl ML-DSA-65: fips204 signs, pqcrypto verifies";
 
-    let sig_fips = ml_dsa::sign(&sk_fips, message, b"").unwrap();
+    let sig_fips = sk_fips.sign(message, b"").unwrap();
 
     let pk_pqc = mldsa65::PublicKey::from_bytes(pk_fips.as_bytes()).unwrap();
     let sig_pqc = mldsa65::DetachedSignature::from_bytes(sig_fips.as_bytes()).unwrap();
@@ -148,7 +147,7 @@ fn ml_dsa_87_pqcrypto_sign_fips204_verify() {
         MlDsaPublicKey::new(MlDsaParameterSet::MlDsa87, pk_pqc.as_bytes().to_vec()).unwrap();
     let sig_fips =
         MlDsaSignature::new(MlDsaParameterSet::MlDsa87, sig_pqc.as_bytes().to_vec()).unwrap();
-    let ok = ml_dsa::verify(&pk_fips, message, &sig_fips, b"").unwrap();
+    let ok = pk_fips.verify(message, &sig_fips, b"").unwrap();
     assert!(ok, "fips204 must accept pqcrypto ML-DSA-87 signature");
 }
 
@@ -158,7 +157,7 @@ fn ml_dsa_87_fips204_sign_pqcrypto_verify() {
     let (pk_fips, sk_fips) = ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
     let message = b"cross-impl ML-DSA-87: fips204 signs, pqcrypto verifies";
 
-    let sig_fips = ml_dsa::sign(&sk_fips, message, b"").unwrap();
+    let sig_fips = sk_fips.sign(message, b"").unwrap();
 
     let pk_pqc = mldsa87::PublicKey::from_bytes(pk_fips.as_bytes()).unwrap();
     let sig_pqc = mldsa87::DetachedSignature::from_bytes(sig_fips.as_bytes()).unwrap();

@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (breaking, pre-1.0 API cleanup)
+
+- **ZKP proof types removed `Clone` derive** (closes #50). `SchnorrProof`,
+  `SigmaProof`, and `DlogEqualityProof` no longer implement `Clone`. Each
+  proof type now exposes `clone_for_transmission() -> Self` so every
+  duplication is a deliberate, grep-able audit checkpoint. Supersedes the
+  earlier Path A (documented acceptance of the `Clone` derive) with Path B
+  (no `Clone`, explicit method). SECURITY.md section renamed "ZKP Proof
+  Duplication" and updated accordingly.
+- **`SerializableKeyPair` removed `Clone` derive** (closes #51). Production
+  code never cloned this type; only three `#[test]` sites did. Those tests
+  were rewritten to construct two independent instances from the same
+  source key. Downstream consumers who previously cloned a serialized
+  keypair will see a compile error and should either construct two
+  instances from the same source or promote the resulting `KeyPair` to
+  runtime-key types.
+- **ML-DSA `sign`/`verify` are now methods, not free functions** (API shape
+  aligned with SLH-DSA and FN-DSA). Call sites change from
+  `ml_dsa::sign(&sk, msg, ctx)` to `sk.sign(msg, ctx)`, and from
+  `ml_dsa::verify(&pk, msg, sig, ctx)` to `pk.verify(msg, sig, ctx)`. All
+  46+ internal call sites migrated. The free functions are no longer
+  exported.
+- **FN-DSA now uses per-module `FnDsaError`** (matches ML-DSA's
+  `MlDsaError` and SLH-DSA's `SlhDsaError`). Previously FN-DSA returned
+  the crate-wide `LatticeArcError`. A `From<FnDsaError> for LatticeArcError`
+  impl is provided so callers that propagate into crate-level error types
+  continue to work via `?`.
+- **FN-DSA `VerifyingKey::verify` doc comment corrected.** The prior doc
+  promised an `Err` path ("Returns an error if the fn_dsa feature is not
+  enabled") that did not exist in the code — the function was infallible
+  in practice. Updated to accurately describe that the `Result` wrapper is
+  retained for return-type parity with ML-DSA/SLH-DSA and to keep future
+  error paths non-breaking.
+
+### Removed (audit markers)
+
+- **All `AUDIT-TRACKED` markers removed from source.** Six `#48` and five
+  `#49` markers on aws-lc-rs-wrapped secret types (ECDH keypairs, ML-KEM
+  `DecapsulationKey`) are replaced with concise inline docs pointing at
+  a new SECURITY.md section ("aws-lc-rs-Wrapped Secret Types"). Neither
+  remaining concern is actionable downstream: zeroization is already
+  handled by aws-lc-rs/BoringSSL at free time, and the absence of
+  `ConstantTimeEq` is guarded by a compile-time `PartialEq` barrier
+  (`latticearc/tests/no_partial_eq_on_secret_types.rs`). Issues #48 and
+  #49 close on merge. The `AUDIT-TRACKED(#NN)` convention remains
+  documented in `docs/DESIGN_PATTERNS.md` for future use, but the tree
+  now carries zero markers — the "locked" state for 1.0 prep.
+
 ### Changed (audit marker convention)
 
 - **`AUDIT-ACCEPTED` → `AUDIT-TRACKED(#NN)`**: renamed 17 in-code markers across
@@ -54,12 +102,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compile-time barrier prevents a future `==` comparison" risk without waiting
   on aws-lc-rs to expose raw key bytes. `static_assertions = "1.1"` added as
   dev-dep; zero runtime cost.
-- **ZKP proof Clone + Zeroize invariant tests** (closes #50 via Path A —
-  documented threat model). Six new tests across `zkp/schnorr.rs` and
-  `zkp/sigma.rs` verify that (a) `Zeroize::zeroize()` wipes every field and
-  (b) `Clone` gives independent storage (zeroizing a clone does not affect
-  the original). Combined with `zeroize::ZeroizeOnDrop`'s derive contract,
-  these invariants imply both the original and every clone are wiped at
+- **ZKP proof Zeroize + `clone_for_transmission` invariant tests** (#50).
+  Six tests across `zkp/schnorr.rs` and `zkp/sigma.rs` verify that (a)
+  `Zeroize::zeroize()` wipes every field and (b) `clone_for_transmission`
+  gives independent storage. Combined with `zeroize::ZeroizeOnDrop`'s
+  derive contract, these invariants imply both the original and every
+  transmitted clone are wiped at
   end-of-scope. A new SECURITY.md section "ZKP Proof Clone Acceptance" under
   "Known Limitations" documents the rationale and the tested invariants.
 

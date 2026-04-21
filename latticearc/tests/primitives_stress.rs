@@ -165,9 +165,9 @@ fn test_high_volume_mldsa_44_sign_verify_roundtrip() {
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
         let message = format!("Message number {} for stress testing", i);
-        let sig_result = ml_dsa::sign(&sk, message.as_bytes(), context);
+        let sig_result = sk.sign(message.as_bytes(), context);
         if let Ok(sig) = sig_result {
-            let verify_result = ml_dsa::verify(&pk, message.as_bytes(), &sig, context);
+            let verify_result = pk.verify(message.as_bytes(), &sig, context);
             if let Ok(valid) = verify_result {
                 if valid {
                     success_count += 1;
@@ -193,9 +193,9 @@ fn test_high_volume_mldsa_65_sign_verify_roundtrip() {
 
     for i in 0..HIGH_VOLUME_ITERATIONS {
         let message = format!("Message {} for ML-DSA-65 stress", i);
-        let sig_result = ml_dsa::sign(&sk, message.as_bytes(), context);
+        let sig_result = sk.sign(message.as_bytes(), context);
         if let Ok(sig) = sig_result {
-            let verify_result = ml_dsa::verify(&pk, message.as_bytes(), &sig, context);
+            let verify_result = pk.verify(message.as_bytes(), &sig, context);
             if let Ok(valid) = verify_result {
                 if valid {
                     success_count += 1;
@@ -599,9 +599,9 @@ fn test_sign_large_message_succeeds() {
     // the default max_signature_size_bytes (64 KiB) resource cap.
     let large_message = vec![0x42u8; 50 * 1024];
 
-    let signature = ml_dsa::sign(&sk, &large_message, context).expect("signing should succeed");
-    let is_valid = ml_dsa::verify(&pk, &large_message, &signature, context)
-        .expect("verification should succeed");
+    let signature = sk.sign(&large_message, context).expect("signing should succeed");
+    let is_valid =
+        pk.verify(&large_message, &signature, context).expect("verification should succeed");
 
     assert!(is_valid, "Large message signature should be valid");
 }
@@ -751,8 +751,8 @@ fn test_consistent_signing_performance_succeeds() {
 
     for _ in 0..500 {
         let start = Instant::now();
-        let sig = ml_dsa::sign(&sk, message, context).expect("signing should succeed");
-        let _ = ml_dsa::verify(&pk, message, &sig, context).expect("verification should succeed");
+        let sig = sk.sign(message, context).expect("signing should succeed");
+        let _ = pk.verify(message, &sig, context).expect("verification should succeed");
         timings.push(start.elapsed());
     }
 
@@ -973,9 +973,9 @@ fn test_empty_message_signing_under_load_succeeds() {
     let mut success_count = 0;
 
     for _ in 0..HIGH_VOLUME_ITERATIONS {
-        let sig_result = ml_dsa::sign(&sk, empty_message, context);
+        let sig_result = sk.sign(empty_message, context);
         if let Ok(sig) = sig_result {
-            let verify_result = ml_dsa::verify(&pk, empty_message, &sig, context);
+            let verify_result = pk.verify(empty_message, &sig, context);
             if let Ok(valid) = verify_result {
                 if valid {
                     success_count += 1;
@@ -1162,9 +1162,11 @@ fn test_varying_message_sizes_signing_has_correct_size() {
 
     for &size in &sizes {
         let message = vec![0x42u8; size];
-        let signature = ml_dsa::sign(&sk, &message, context)
+        let signature = sk
+            .sign(&message, context)
             .expect(&format!("signing {} byte message should succeed", size));
-        let is_valid = ml_dsa::verify(&pk, &message, &signature, context)
+        let is_valid = pk
+            .verify(&message, &signature, context)
             .expect(&format!("verification of {} byte message should succeed", size));
 
         assert!(is_valid, "Signature should be valid for {} byte message", size);
@@ -1182,9 +1184,9 @@ fn test_context_variations_under_load_succeeds() {
     for i in 0..500 {
         // Use different context each time
         let context = format!("context-{}", i);
-        let sig_result = ml_dsa::sign(&sk, message, context.as_bytes());
+        let sig_result = sk.sign(message, context.as_bytes());
         if let Ok(sig) = sig_result {
-            let verify_result = ml_dsa::verify(&pk, message, &sig, context.as_bytes());
+            let verify_result = pk.verify(message, &sig, context.as_bytes());
             if let Ok(valid) = verify_result {
                 if valid {
                     success_count += 1;
@@ -1230,8 +1232,8 @@ fn test_mixed_algorithm_stress_succeeds() {
 
         // ML-DSA
         let msg = format!("Message {}", i);
-        if let Ok(sig) = ml_dsa::sign(&dsa_sk, msg.as_bytes(), &[]) {
-            if let Ok(valid) = ml_dsa::verify(&dsa_pk, msg.as_bytes(), &sig, &[]) {
+        if let Ok(sig) = dsa_sk.sign(msg.as_bytes(), &[]) {
+            if let Ok(valid) = dsa_pk.verify(msg.as_bytes(), &sig, &[]) {
                 if valid {
                     ml_dsa_count += 1;
                 }
@@ -1334,8 +1336,8 @@ fn test_stress_comprehensive_summary_succeeds() {
     // 2. ML-DSA operations
     let (pk_dsa, sk_dsa) =
         ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65).expect("ML-DSA keygen should succeed");
-    let sig = ml_dsa::sign(&sk_dsa, b"test", &[]).expect("ML-DSA sign should succeed");
-    let valid = ml_dsa::verify(&pk_dsa, b"test", &sig, &[]).expect("ML-DSA verify should succeed");
+    let sig = sk_dsa.sign(b"test", &[]).expect("ML-DSA sign should succeed");
+    let valid = pk_dsa.verify(b"test", &sig, &[]).expect("ML-DSA verify should succeed");
     assert!(valid);
 
     // 3. AES-GCM operations

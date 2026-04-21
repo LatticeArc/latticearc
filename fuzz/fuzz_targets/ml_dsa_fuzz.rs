@@ -6,7 +6,7 @@
 //! Tests that ML-DSA signature verification doesn't crash or panic
 //! with arbitrary signature and message data.
 
-use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
@@ -22,21 +22,21 @@ fuzz_target!(|data: &[u8]| {
     // Generate a valid keypair (MlDsa44 for speed)
     if let Ok((pk, sk)) = generate_keypair(MlDsaParameterSet::MlDsa44) {
         // Create a valid signature for the message
-        if let Ok(valid_sig) = sign(&sk, message, context) {
+        if let Ok(valid_sig) = sk.sign(message, context) {
             // Test 1: Valid signature should verify
-            let result = verify(&pk, message, &valid_sig, context);
+            let result = pk.verify(message, &valid_sig, context);
             // Valid signature must verify successfully
             assert!(matches!(result, Ok(true)), "Valid signature must verify");
 
             // Test 2: Wrong message should fail verification
             let wrong_msg = b"different message content here";
-            let result = verify(&pk, wrong_msg, &valid_sig, context);
+            let result = pk.verify(wrong_msg, &valid_sig, context);
             // Wrong message must fail verification
             assert!(matches!(result, Ok(false)), "Wrong message must fail verification");
 
             // Test 3: Wrong context should fail verification
             let wrong_context = b"wrong context";
-            let result = verify(&pk, message, &valid_sig, wrong_context);
+            let result = pk.verify(message, &valid_sig, wrong_context);
             // Wrong context must fail verification
             assert!(matches!(result, Ok(false)), "Wrong context must fail verification");
         }

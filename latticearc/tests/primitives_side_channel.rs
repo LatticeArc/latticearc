@@ -66,7 +66,7 @@ use latticearc::primitives::kem::ml_kem::{
     MlKem, MlKemCiphertext, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel, MlKemSharedSecret,
 };
 use latticearc::primitives::sig::ml_dsa::{
-    MlDsaParameterSet, MlDsaSecretKey, MlDsaSignature, generate_keypair, sign, verify,
+    MlDsaParameterSet, MlDsaSecretKey, MlDsaSignature, generate_keypair,
 };
 
 // ============================================================================
@@ -480,7 +480,7 @@ fn test_mldsa_signature_timing_consistency_succeeds() {
 
         let timing = measure_operation(
             || {
-                let _ = sign(&sk, message, context);
+                let _ = sk.sign(message, context);
             },
             ITERATIONS,
             WARMUP,
@@ -623,8 +623,8 @@ fn test_mldsa_secret_key_bit_pattern_independence_succeeds() {
         let (pk, sk) = generate_keypair(param).expect("keypair generation should succeed");
 
         // Sign different messages
-        let sig1 = sign(&sk, message1, context).expect("signing should succeed");
-        let sig2 = sign(&sk, message2, context).expect("signing should succeed");
+        let sig1 = sk.sign(message1, context).expect("signing should succeed");
+        let sig2 = sk.sign(message2, context).expect("signing should succeed");
 
         // Signatures should be different
         assert_ne!(
@@ -634,8 +634,8 @@ fn test_mldsa_secret_key_bit_pattern_independence_succeeds() {
         );
 
         // Both should verify correctly
-        assert!(verify(&pk, message1, &sig1, context).expect("verification should succeed"));
-        assert!(verify(&pk, message2, &sig2, context).expect("verification should succeed"));
+        assert!(pk.verify(message1, &sig1, context).expect("verification should succeed"));
+        assert!(pk.verify(message2, &sig2, context).expect("verification should succeed"));
     }
 }
 
@@ -1148,7 +1148,7 @@ fn test_mldsa_verification_failure_timing_fails() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("signing should succeed");
+    let signature = sk.sign(message, context).expect("signing should succeed");
 
     // Create corrupted signatures
     let mut first_bytes = signature.as_bytes().to_vec();
@@ -1171,7 +1171,7 @@ fn test_mldsa_verification_failure_timing_fails() {
     // Measure verification failure times
     let timing_first = measure_operation(
         || {
-            let _ = verify(&pk, message, &sig_corrupted_first, context);
+            let _ = pk.verify(message, &sig_corrupted_first, context);
         },
         ITERATIONS,
         WARMUP,
@@ -1179,7 +1179,7 @@ fn test_mldsa_verification_failure_timing_fails() {
 
     let timing_middle = measure_operation(
         || {
-            let _ = verify(&pk, message, &sig_corrupted_middle, context);
+            let _ = pk.verify(message, &sig_corrupted_middle, context);
         },
         ITERATIONS,
         WARMUP,
@@ -1187,7 +1187,7 @@ fn test_mldsa_verification_failure_timing_fails() {
 
     let timing_last = measure_operation(
         || {
-            let _ = verify(&pk, message, &sig_corrupted_last, context);
+            let _ = pk.verify(message, &sig_corrupted_last, context);
         },
         ITERATIONS,
         WARMUP,
@@ -1474,17 +1474,17 @@ fn test_comprehensive_timing_bounds_succeeds() {
 
         let sign_timing = measure_operation(
             || {
-                let _ = sign(&sk, message, &[]);
+                let _ = sk.sign(message, &[]);
             },
             ITERATIONS / 4,
             WARMUP / 2,
         );
 
-        let signature = sign(&sk, message, &[]).expect("signing should succeed");
+        let signature = sk.sign(message, &[]).expect("signing should succeed");
 
         let verify_timing = measure_operation(
             || {
-                let _ = verify(&pk, message, &signature, &[]);
+                let _ = pk.verify(message, &signature, &[]);
             },
             ITERATIONS / 4,
             WARMUP / 2,

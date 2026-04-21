@@ -26,7 +26,7 @@
 //! - FN-DSA-512: ~128-bit security (Level I)
 //! - FN-DSA-1024: ~256-bit security (Level V)
 
-use crate::prelude::error::{LatticeArcError, Result};
+use crate::prelude::error::LatticeArcError;
 use rand_core::RngCore;
 use subtle::ConstantTimeEq;
 use tracing::instrument;
@@ -37,6 +37,57 @@ use fn_dsa::{
     KeyPairGeneratorStandard, SigningKey as _, VerifyingKey as _, sign_key_size, signature_size,
     vrfy_key_size,
 };
+
+/// Errors returned by FN-DSA operations. Mirrors the per-module error pattern
+/// used by [`crate::primitives::sig::ml_dsa::MlDsaError`] and
+/// [`crate::primitives::sig::slh_dsa::SlhDsaError`].
+#[non_exhaustive]
+#[derive(Debug, thiserror::Error)]
+pub enum FnDsaError {
+    /// Key generation failed.
+    #[error("Key generation failed: {0}")]
+    KeyGenerationError(String),
+
+    /// Key bytes have the wrong length for the declared security level.
+    #[error("Invalid key length: expected {expected}, got {actual}")]
+    InvalidKeyLength {
+        /// Expected key size in bytes for the security level.
+        expected: usize,
+        /// Actual key size in bytes provided by the caller.
+        actual: usize,
+    },
+
+    /// Key bytes are the correct length but failed to decode.
+    #[error("Invalid key: {0}")]
+    InvalidKey(String),
+
+    /// Signature bytes are invalid (wrong length, malformed, or rejected by
+    /// the upstream decoder).
+    #[error("Invalid signature: {0}")]
+    InvalidSignature(String),
+
+    /// Message length exceeds the configured resource limit. Unit variant —
+    /// length is known to the sender.
+    #[error("Message exceeds signature resource limit")]
+    MessageTooLong,
+}
+
+impl From<FnDsaError> for LatticeArcError {
+    fn from(err: FnDsaError) -> Self {
+        match err {
+            FnDsaError::KeyGenerationError(msg) => Self::KeyGenerationError(msg),
+            FnDsaError::InvalidKeyLength { expected, actual } => Self::InvalidKey(format!(
+                "Invalid FN-DSA key length: expected {expected}, got {actual}",
+            )),
+            FnDsaError::InvalidKey(msg) => Self::InvalidKey(msg),
+            FnDsaError::InvalidSignature(msg) => Self::InvalidSignature(msg),
+            FnDsaError::MessageTooLong => Self::MessageTooLong,
+        }
+    }
+}
+
+/// Module-local Result alias for FN-DSA operations.
+type Result<T> = std::result::Result<T, FnDsaError>;
 
 /// FN-DSA security level
 ///
@@ -169,7 +220,7 @@ impl Signature {
     /// Returns an error if the signature bytes are empty.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.is_empty() {
-            return Err(LatticeArcError::InvalidSignature(
+            return Err(FnDsaError::InvalidSignature(
                 "Signature bytes cannot be empty".to_string(),
             ));
         }
@@ -208,7 +259,7 @@ impl AsRef<[u8]> for Signature {
 }
 
 impl TryFrom<Vec<u8>> for Signature {
-    type Error = LatticeArcError;
+    type Error = FnDsaError;
     fn try_from(bytes: Vec<u8>) -> std::result::Result<Self, Self::Error> {
         Self::from_bytes(&bytes)
     }
@@ -273,12 +324,14 @@ impl VerifyingKey {
     /// Returns an error if the key length is incorrect or decoding fails.
     pub fn from_bytes(bytes: &[u8], security_level: FnDsaSecurityLevel) -> Result<Self> {
         if bytes.len() != security_level.verifying_key_size() {
-            return Err(LatticeArcError::InvalidKey("Invalid verifying key length".to_string()));
+            return Err(FnDsaError::InvalidKeyLength {
+                expected: security_level.verifying_key_size(),
+                actual: bytes.len(),
+            });
         }
 
-        let inner = FnDsaVerifyingKeyStandard::decode(bytes).ok_or_else(|| {
-            LatticeArcError::InvalidKey("Failed to decode verifying key".to_string())
-        })?;
+        let inner = FnDsaVerifyingKeyStandard::decode(bytes)
+            .ok_or_else(|| FnDsaError::InvalidKey("Failed to decode verifying key".to_string()))?;
         Ok(Self { security_level, inner, bytes: bytes.to_vec() })
     }
 
@@ -294,16 +347,21 @@ impl VerifyingKey {
         self.bytes.clone()
     }
 
-    /// Verify a signature
+    /// Verify a signature.
+    ///
+    /// Returns `Ok(true)` if the signature is valid, `Ok(false)` otherwise.
     ///
     /// # Errors
-    /// Returns an error if the fn_dsa feature is not enabled.
+    ///
+    /// Currently infallible — the inner `fn-dsa` crate treats malformed
+    /// signatures as `Ok(false)` rather than surfacing parse errors. The
+    /// `Result` wrapper is retained for return-type parity with ML-DSA and
+    /// SLH-DSA, and to keep future error paths (length pre-checks, HSM
+    /// backends) a non-breaking addition.
     #[instrument(level = "debug", skip(self, message, signature), fields(security_level = ?self.security_level, message_len = message.len(), signature_len = signature.len()))]
     pub fn verify(&self, message: &[u8], signature: &Signature) -> Result<bool> {
-        {
-            let valid = self.inner.verify(signature.as_ref(), &DOMAIN_NONE, &HASH_ID_RAW, message);
-            Ok(valid)
-        }
+        let valid = self.inner.verify(signature.as_ref(), &DOMAIN_NONE, &HASH_ID_RAW, message);
+        Ok(valid)
     }
 }
 
@@ -399,15 +457,13 @@ impl SigningKey {
     /// Returns an error if the key length is incorrect or decoding fails.
     pub fn from_bytes(bytes: &[u8], security_level: FnDsaSecurityLevel) -> Result<Self> {
         if bytes.len() != security_level.signing_key_size() {
-            return Err(LatticeArcError::InvalidKey(format!(
-                "Invalid FN-DSA signing key length: expected {}, got {}",
-                security_level.signing_key_size(),
-                bytes.len()
-            )));
+            return Err(FnDsaError::InvalidKeyLength {
+                expected: security_level.signing_key_size(),
+                actual: bytes.len(),
+            });
         }
-        let inner = FnDsaSigningKeyStandard::decode(bytes).ok_or_else(|| {
-            LatticeArcError::InvalidKey("Failed to decode signing key".to_string())
-        })?;
+        let inner = FnDsaSigningKeyStandard::decode(bytes)
+            .ok_or_else(|| FnDsaError::InvalidKey("Failed to decode signing key".to_string()))?;
 
         // Extract verifying key from signing key
         let mut vrfy_key_bytes = vec![0u8; security_level.verifying_key_size()];
@@ -472,7 +528,7 @@ impl SigningKey {
     ) -> Result<Signature> {
         // DoS bound: primitive callers bypass unified_api's resource limits.
         crate::primitives::resource_limits::validate_signature_size(message.len())
-            .map_err(|_e| LatticeArcError::MessageTooLong)?;
+            .map_err(|_e| FnDsaError::MessageTooLong)?;
 
         let logn = match self.security_level {
             FnDsaSecurityLevel::Level512 => FN_DSA_LOGN_512,
@@ -619,7 +675,7 @@ impl KeyPair {
         // FIPS 140-3 Pairwise Consistency Test (PCT)
         // Sign and verify a test message to ensure the keypair is consistent
         crate::primitives::pct::pct_fn_dsa_keypair(&mut keypair)
-            .map_err(|e| LatticeArcError::KeyGenerationError(format!("PCT failed: {}", e)))?;
+            .map_err(|e| FnDsaError::KeyGenerationError(format!("PCT failed: {}", e)))?;
 
         Ok(keypair)
     }

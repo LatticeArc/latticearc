@@ -174,7 +174,7 @@ let config = CoreConfig::default();
 let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::SecureMessaging, &config)?;
 
 // Select encryption scheme
-let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, None)?;
+let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, &[])?;
 ```
 
 #### Reverse Level Mapping
@@ -289,8 +289,8 @@ let verified = verify(&pk, b"Important message", &signature, b"")?;
 use latticearc::primitives::sig::slh_dsa::*;
 
 let (signing_key, verifying_key) = SigningKey::generate(SecurityLevel::Sha2128s)?;
-let signature = signing_key.sign(message, None)?;
-let verified = verifying_key.verify(message, &signature, None)?;
+let signature = signing_key.sign(message, &[])?;
+let verified = verifying_key.verify(message, &signature, &[])?;
 ```
 
 ### AES-GCM (AEAD Encryption)

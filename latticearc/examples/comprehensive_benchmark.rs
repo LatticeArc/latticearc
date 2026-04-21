@@ -36,7 +36,7 @@ use latticearc::primitives::hash::{sha3_256, sha256, sha512};
 use latticearc::primitives::kdf::hkdf::hkdf;
 use latticearc::primitives::kem::ecdh::{X25519KeyPair, X25519StaticKeyPair};
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
 /// Benchmark result for a single operation
 struct BenchResult {
@@ -432,14 +432,14 @@ fn main() {
 
     let (vk44, sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let r = benchmark("Sign", 100, || {
-        let _ = sign(&sk44, msg, &[]);
+        let _ = sk44.sign(msg, &[]);
     });
     print_result(&r);
     all_results.push(r);
 
-    let sig44 = sign(&sk44, msg, &[]).unwrap();
+    let sig44 = sk44.sign(msg, &[]).unwrap();
     let r = benchmark("Verify", 1000, || {
-        let _ = verify(&vk44, msg, &sig44, &[]);
+        let _ = vk44.verify(msg, &sig44, &[]);
     });
     print_result(&r);
     all_results.push(r);
@@ -454,14 +454,14 @@ fn main() {
 
     let (vk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let r = benchmark("Sign", 100, || {
-        let _ = sign(&sk65, msg, &[]);
+        let _ = sk65.sign(msg, &[]);
     });
     print_result(&r);
     all_results.push(r);
 
-    let sig65 = sign(&sk65, msg, &[]).unwrap();
+    let sig65 = sk65.sign(msg, &[]).unwrap();
     let r = benchmark("Verify", 1000, || {
-        let _ = verify(&vk65, msg, &sig65, &[]);
+        let _ = vk65.verify(msg, &sig65, &[]);
     });
     print_result(&r);
     all_results.push(r);
@@ -476,14 +476,14 @@ fn main() {
 
     let (vk87, sk87) = generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
     let r = benchmark("Sign", 100, || {
-        let _ = sign(&sk87, msg, &[]);
+        let _ = sk87.sign(msg, &[]);
     });
     print_result(&r);
     all_results.push(r);
 
-    let sig87 = sign(&sk87, msg, &[]).unwrap();
+    let sig87 = sk87.sign(msg, &[]).unwrap();
     let r = benchmark("Verify", 1000, || {
-        let _ = verify(&vk87, msg, &sig87, &[]);
+        let _ = vk87.verify(msg, &sig87, &[]);
     });
     print_result(&r);
     all_results.push(r);

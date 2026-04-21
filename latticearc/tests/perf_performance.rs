@@ -155,13 +155,13 @@ fn test_mldsa_87_keygen_timing_bound_succeeds() {
 /// Test 8: ML-DSA signing completes within reasonable time
 #[test]
 fn test_mldsa_sign_timing_bound_succeeds() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
     let message = b"Test message for signing performance";
 
     timed_operation("ML-DSA signing", MAX_SINGLE_OP_TIME, || {
-        let result = sign(&sk, message, &[]);
+        let result = sk.sign(message, &[]);
         assert!(result.is_ok(), "ML-DSA signing should succeed");
     });
 }
@@ -169,14 +169,14 @@ fn test_mldsa_sign_timing_bound_succeeds() {
 /// Test 9: ML-DSA verification completes within reasonable time
 #[test]
 fn test_mldsa_verify_timing_bound_succeeds() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
     let message = b"Test message for verification performance";
-    let signature = sign(&sk, message, &[]).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
 
     timed_operation("ML-DSA verification", MAX_SINGLE_OP_TIME, || {
-        let result = verify(&pk, message, &signature, &[]);
+        let result = pk.verify(message, &signature, &[]);
         assert!(result.is_ok(), "ML-DSA verification should succeed");
         assert!(result.unwrap(), "Signature should be valid");
     });
@@ -381,7 +381,7 @@ fn test_mlkem_keygen_rate_succeeds() {
 /// Test 20: ML-DSA signing rate is reasonable
 #[test]
 fn test_mldsa_sign_rate_succeeds() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"Test message for signing rate measurement";
@@ -389,7 +389,7 @@ fn test_mldsa_sign_rate_succeeds() {
 
     let start = Instant::now();
     for _ in 0..iterations {
-        let _result = sign(&sk, message, &[]).unwrap();
+        let _result = sk.sign(message, &[]).unwrap();
     }
     let elapsed = start.elapsed();
 
@@ -402,16 +402,16 @@ fn test_mldsa_sign_rate_succeeds() {
 /// Test 21: ML-DSA verification rate is reasonable
 #[test]
 fn test_mldsa_verify_rate_succeeds() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"Test message for verification rate measurement";
-    let signature = sign(&sk, message, &[]).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
     let iterations = 100;
 
     let start = Instant::now();
     for _ in 0..iterations {
-        let _result = verify(&pk, message, &signature, &[]).unwrap();
+        let _result = pk.verify(message, &signature, &[]).unwrap();
     }
     let elapsed = start.elapsed();
 
@@ -498,7 +498,7 @@ fn test_hkdf_derivation_rate_succeeds() {
 /// Test 25: Batch signature processing completes within bounds
 #[test]
 fn test_batch_signature_processing_succeeds() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
 
@@ -508,7 +508,7 @@ fn test_batch_signature_processing_succeeds() {
 
     timed_operation("Batch signature processing", MAX_BULK_OP_TIME, || {
         for message in &messages {
-            let _result = sign(&sk, message, &[]).unwrap();
+            let _result = sk.sign(message, &[]).unwrap();
         }
     });
 }
@@ -623,23 +623,23 @@ fn test_mldsa_key_sizes_has_correct_size() {
 /// Test 32: ML-DSA signature sizes match FIPS 204 specification
 #[test]
 fn test_mldsa_signature_sizes_has_correct_size() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let message = b"Test message for signature size check";
 
     // ML-DSA-44
     let (_pk44, sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
-    let sig44 = sign(&sk44, message, &[]).unwrap();
+    let sig44 = sk44.sign(message, &[]).unwrap();
     assert_eq!(sig44.len(), 2420, "ML-DSA-44 signature should be 2420 bytes");
 
     // ML-DSA-65
     let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
-    let sig65 = sign(&sk65, message, &[]).unwrap();
+    let sig65 = sk65.sign(message, &[]).unwrap();
     assert_eq!(sig65.len(), 3309, "ML-DSA-65 signature should be 3309 bytes");
 
     // ML-DSA-87
     let (_pk87, sk87) = generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
-    let sig87 = sign(&sk87, message, &[]).unwrap();
+    let sig87 = sk87.sign(message, &[]).unwrap();
     assert_eq!(sig87.len(), 4627, "ML-DSA-87 signature should be 4627 bytes");
 }
 
@@ -1063,7 +1063,7 @@ fn test_mlkem_shared_secret_size_has_correct_size() {
 /// Test 49: Concurrent signature operations scale reasonably
 #[test]
 fn test_concurrent_signature_operations_succeeds() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let thread_count = 4;
     let operations_per_thread = 20;
@@ -1089,7 +1089,7 @@ fn test_concurrent_signature_operations_succeeds() {
 
             for i in 0..operations_per_thread {
                 let message = format!("Thread {} message {}", thread_id, i);
-                if sign(&sk, message.as_bytes(), &[]).is_ok() {
+                if sk.sign(message.as_bytes(), &[]).is_ok() {
                     success_count_clone.fetch_add(1, Ordering::SeqCst);
                 }
             }

@@ -35,7 +35,7 @@ use latticearc::primitives::sig::fndsa::{
     FnDsaSecurityLevel, KeyPair as FnDsaKeyPair, VerifyingKey as FnDsaVerifyingKey,
 };
 use latticearc::primitives::sig::ml_dsa::{
-    MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, generate_keypair, sign, verify,
+    MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, generate_keypair,
 };
 use latticearc::primitives::sig::slh_dsa::{
     SigningKey as SlhSigningKey, SlhDsaSecurityLevel, VerifyingKey as SlhVerifyingKey,
@@ -90,8 +90,8 @@ proptest! {
         key_idx in 0usize..POOL_SIZE,
     ) {
         let (pk, sk) = &ml_dsa_65_pool()[key_idx];
-        let sig = sign(sk, &message, &[]).unwrap();
-        let valid = verify(pk, &message, &sig, &[]).unwrap();
+        let sig = sk.sign(&message, &[]).unwrap();
+        let valid = pk.verify(&message, &sig, &[]).unwrap();
         prop_assert!(valid, "ML-DSA-65 roundtrip must always verify");
     }
 
@@ -104,8 +104,8 @@ proptest! {
     ) {
         prop_assume!(msg1 != msg2);
         let (pk, sk) = &ml_dsa_65_pool()[key_idx];
-        let sig = sign(sk, &msg1, &[]).unwrap();
-        if let Ok(valid) = verify(pk, &msg2, &sig, &[]) {
+        let sig = sk.sign(&msg1, &[]).unwrap();
+        if let Ok(valid) = pk.verify(&msg2, &sig, &[]) {
             prop_assert!(!valid, "Wrong message must not verify for ML-DSA-65");
         }
         // A verification error is also acceptable
@@ -122,8 +122,8 @@ proptest! {
         let pool = ml_dsa_65_pool();
         let sk1 = &pool[key1_idx].1;
         let pk2 = &pool[key2_idx].0;
-        let sig = sign(sk1, &message, &[]).unwrap();
-        if let Ok(valid) = verify(pk2, &message, &sig, &[]) {
+        let sig = sk1.sign(&message, &[]).unwrap();
+        if let Ok(valid) = pk2.verify(&message, &sig, &[]) {
             prop_assert!(!valid, "Wrong public key must not verify ML-DSA-65 signature");
         }
     }
@@ -139,8 +139,8 @@ proptest! {
         key_idx in 0usize..POOL_SIZE,
     ) {
         let (sk, vk) = &slh_dsa_shake128s_pool()[key_idx];
-        let sig = sk.sign(&message, None).unwrap();
-        let valid = vk.verify(&message, &sig, None).unwrap();
+        let sig = sk.sign(&message, &[]).unwrap();
+        let valid = vk.verify(&message, &sig, &[]).unwrap();
         prop_assert!(valid, "SLH-DSA-Shake128s roundtrip must always verify");
     }
 
@@ -153,8 +153,8 @@ proptest! {
     ) {
         prop_assume!(msg1 != msg2);
         let (sk, vk) = &slh_dsa_shake128s_pool()[key_idx];
-        let sig = sk.sign(&msg1, None).unwrap();
-        if let Ok(valid) = vk.verify(&msg2, &sig, None) {
+        let sig = sk.sign(&msg1, &[]).unwrap();
+        if let Ok(valid) = vk.verify(&msg2, &sig, &[]) {
             prop_assert!(!valid, "Wrong message must not verify for SLH-DSA-Shake128s");
         }
     }
@@ -170,8 +170,8 @@ proptest! {
         let pool = slh_dsa_shake128s_pool();
         let sk1 = &pool[key1_idx].0;
         let vk2 = &pool[key2_idx].1;
-        let sig = sk1.sign(&message, None).unwrap();
-        if let Ok(valid) = vk2.verify(&message, &sig, None) {
+        let sig = sk1.sign(&message, &[]).unwrap();
+        if let Ok(valid) = vk2.verify(&message, &sig, &[]) {
             prop_assert!(!valid, "Wrong public key must not verify SLH-DSA-Shake128s signature");
         }
     }

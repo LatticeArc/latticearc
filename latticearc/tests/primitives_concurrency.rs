@@ -311,11 +311,9 @@ mod comprehensive {
                         let message = format!("Thread {} Message {}", thread_id, i);
                         let context: &[u8] = &[];
 
-                        if let Ok(sig) = ml_dsa::sign(&sk, message.as_bytes(), context) {
+                        if let Ok(sig) = sk.sign(message.as_bytes(), context) {
                             // Verify signature
-                            if let Ok(valid) =
-                                ml_dsa::verify(&pk, message.as_bytes(), &sig, context)
-                            {
+                            if let Ok(valid) = pk.verify(message.as_bytes(), &sig, context) {
                                 if valid {
                                     success_count.fetch_add(1, Ordering::SeqCst);
                                     let mut sigs =
@@ -354,7 +352,7 @@ mod comprehensive {
 
         let message = b"Test message for parallel verification";
         let context: &[u8] = &[];
-        let signature = ml_dsa::sign(&sk, message, context).expect("signing should succeed");
+        let signature = sk.sign(message, context).expect("signing should succeed");
 
         let pk = Arc::new(pk);
         let signature = Arc::new(signature);
@@ -367,7 +365,7 @@ mod comprehensive {
                 let success_count = Arc::clone(&success_count);
                 thread::spawn(move || {
                     for _ in 0..STANDARD_ITERATIONS * 2 {
-                        if let Ok(valid) = ml_dsa::verify(&pk, message, &signature, context) {
+                        if let Ok(valid) = pk.verify(message, &signature, context) {
                             if valid {
                                 success_count.fetch_add(1, Ordering::SeqCst);
                             }
@@ -904,7 +902,7 @@ mod comprehensive {
 
         let signatures: Vec<_> = messages
             .iter()
-            .map(|msg| ml_dsa::sign(&sk, msg.as_bytes(), context).expect("sign should succeed"))
+            .map(|msg| sk.sign(msg.as_bytes(), context).expect("sign should succeed"))
             .collect();
 
         let pk = Arc::new(pk);
@@ -921,7 +919,7 @@ mod comprehensive {
                 thread::spawn(move || {
                     for _ in 0..STANDARD_ITERATIONS {
                         for (msg, sig) in messages.iter().zip(signatures.iter()) {
-                            if let Ok(valid) = ml_dsa::verify(&pk, msg.as_bytes(), sig, context) {
+                            if let Ok(valid) = pk.verify(msg.as_bytes(), sig, context) {
                                 if valid {
                                     success_count.fetch_add(1, Ordering::SeqCst);
                                 }
@@ -1332,9 +1330,10 @@ mod comprehensive {
 
                         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             let message = format!("Thread {} message", thread_id);
-                            let sig = ml_dsa::sign(&sk, message.as_bytes(), context)
-                                .expect("sign should succeed");
-                            let valid = ml_dsa::verify(&pk, message.as_bytes(), &sig, context)
+                            let sig =
+                                sk.sign(message.as_bytes(), context).expect("sign should succeed");
+                            let valid = pk
+                                .verify(message.as_bytes(), &sig, context)
                                 .expect("verify should succeed");
                             assert!(valid, "Signature should be valid");
                         })) {
@@ -1491,8 +1490,8 @@ mod comprehensive {
                     let context: &[u8] = &[];
 
                     for _ in 0..STANDARD_ITERATIONS {
-                        if let Ok(sig) = ml_dsa::sign(&sk, empty_message, context) {
-                            if let Ok(valid) = ml_dsa::verify(&pk, empty_message, &sig, context) {
+                        if let Ok(sig) = sk.sign(empty_message, context) {
+                            if let Ok(valid) = pk.verify(empty_message, &sig, context) {
                                 if valid {
                                     success_count.fetch_add(1, Ordering::SeqCst);
                                 }
@@ -1536,8 +1535,8 @@ mod comprehensive {
                     let context: &[u8] = &[];
 
                     for _ in 0..3 {
-                        if let Ok(sig) = ml_dsa::sign(&sk, &large_message, context) {
-                            if let Ok(valid) = ml_dsa::verify(&pk, &large_message, &sig, context) {
+                        if let Ok(sig) = sk.sign(&large_message, context) {
+                            if let Ok(valid) = pk.verify(&large_message, &sig, context) {
                                 if valid {
                                     success_count.fetch_add(1, Ordering::SeqCst);
                                 }
@@ -1712,10 +1711,8 @@ mod comprehensive {
                         // Use different contexts per iteration
                         let context = format!("context-{}-{}", thread_id, i);
 
-                        if let Ok(sig) = ml_dsa::sign(&sk, message, context.as_bytes()) {
-                            if let Ok(valid) =
-                                ml_dsa::verify(&pk, message, &sig, context.as_bytes())
-                            {
+                        if let Ok(sig) = sk.sign(message, context.as_bytes()) {
+                            if let Ok(valid) = pk.verify(message, &sig, context.as_bytes()) {
                                 if valid {
                                     success_count.fetch_add(1, Ordering::SeqCst);
                                 }
@@ -1836,9 +1833,8 @@ mod comprehensive {
         // 2. ML-DSA concurrent operations
         let (pk_dsa, sk_dsa) = ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65)
             .expect("ML-DSA keygen should succeed");
-        let sig = ml_dsa::sign(&sk_dsa, b"test", &[]).expect("ML-DSA sign should succeed");
-        let valid =
-            ml_dsa::verify(&pk_dsa, b"test", &sig, &[]).expect("ML-DSA verify should succeed");
+        let sig = sk_dsa.sign(b"test", &[]).expect("ML-DSA sign should succeed");
+        let valid = pk_dsa.verify(b"test", &sig, &[]).expect("ML-DSA verify should succeed");
         assert!(valid);
 
         // 3. AES-GCM concurrent operations

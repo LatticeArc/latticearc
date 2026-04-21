@@ -190,29 +190,72 @@ Audit reports will be published in the `docs/audits/` directory when available.
 - Swap may contain sensitive data (use encrypted swap)
 - Core dumps may contain sensitive data (disable in production)
 
-### ZKP Proof Clone Acceptance
+### aws-lc-rs-Wrapped Secret Types
 
-The ZKP proof types `SchnorrProof`, `SigmaProof`, and `DlogEqualityProof` derive `Clone`. This is a deliberate, documented acceptance — tracked in issue [#50](https://github.com/latticearc/latticearc/issues/50).
+The ECDH key types (`X25519KeyPair`, `X25519StaticKeyPair`, `EcdhP256KeyPair`,
+`EcdhP384KeyPair`, `EcdhP521KeyPair`) and `MlKemDecapsulationKeyPair` wrap
+private-key types from [aws-lc-rs](https://github.com/aws/aws-lc-rs) whose
+upstream Rust bindings do not expose raw key bytes. This affects two
+Rust-level guarantees:
+
+1. **Zeroization.** The upstream types do not implement `zeroize::Zeroize`,
+   so our wrappers cannot `#[derive(ZeroizeOnDrop)]`. At runtime,
+   zeroization is performed by aws-lc-rs's `Drop` impl, which invokes
+   BoringSSL's memory management — BoringSSL zeroes private-key memory
+   before freeing it. The delegation is load-bearing, stable, and
+   documented upstream.
+2. **Constant-time equality.** Because raw key bytes are not accessible,
+   our wrappers cannot implement `subtle::ConstantTimeEq`. They also do
+   not implement `PartialEq`/`Eq`; a compile-time barrier
+   (`latticearc/tests/no_partial_eq_on_secret_types.rs`) rejects any
+   future `#[derive(PartialEq)]` on these types. Secret comparisons must
+   go through `ct_eq` on concrete byte-level key types, not these
+   wrappers.
+
+These properties are not tracked as open issues because there is no
+actionable downstream fix: runtime behavior is already correct via
+aws-lc-rs/BoringSSL, and the API shape prevents misuse.
+
+### ZKP Proof Duplication
+
+The ZKP proof types `SchnorrProof`, `SigmaProof`, and `DlogEqualityProof`
+**do not implement `Clone`.** Every duplication of proof material must go
+through an explicit `clone_for_transmission()` method on each proof type.
 
 **Rationale**
 
-- **Proofs are not long-term secrets.** A proof is ephemeral per proof session. Its whole purpose is to be serialized and transmitted to a verifier; `Clone` is required because the `serde` derive and user call sites need it (e.g., passing a proof to a channel, retrying a network send).
-- **Fiat-Shamir binding prevents replay.** The challenge is derived by hashing the commitment + context, so a proof cannot be reused outside its intended transcript.
-- **Response scalars are not reusable keying material.** A Schnorr response is `s = k + c·x` where `k` is freshly sampled per session; it does not reveal the long-term witness `x` without the commitment point `R = k·G`, and together they constitute the proof itself (already transmitted).
+- Proofs contain prover-derived material. A derived `Clone` is implicit —
+  any code path that clones a proof silently extends the material's
+  in-memory lifetime past the author's intent.
+- `clone_for_transmission()` makes every copy a deliberate, grep-able audit
+  checkpoint. Reviewers can grep for `clone_for_transmission` to see every
+  point where a proof is duplicated.
+- Fiat-Shamir binding prevents replay of a transmitted proof outside its
+  intended transcript, but does not excuse memory-hygiene for the prover's
+  in-memory copy.
 
-**Required guarantees (tested)**
-
-Under this acceptance, we commit to — and test — two invariants:
+**Tested invariants** (`latticearc/src/zkp/{schnorr,sigma}.rs`):
 
 1. `Zeroize::zeroize()` wipes every field of the proof type.
-2. `Clone` produces a proof with independent storage (no shared `Rc`/`Arc`/`Cow` aliasing) — zeroizing the clone must not touch the original.
+2. `clone_for_transmission()` produces an independently-stored copy —
+   zeroizing the clone must not touch the original.
 
-Together with the `zeroize::ZeroizeOnDrop` derive macro's contract (which generates a `Drop` impl that calls `zeroize()`), these invariants imply that both the original and each clone have their memory wiped when they leave scope. Regression tests live in `latticearc/src/zkp/schnorr.rs` and `latticearc/src/zkp/sigma.rs` (`test_*_proof_clone_has_independent_storage`, `test_*_proof_zeroize_wipes_all_fields`).
+Combined with the `zeroize::ZeroizeOnDrop` derive macro's contract (which
+generates a `Drop` impl that calls `zeroize()`), these imply both the
+original and each `clone_for_transmission()` result have their memory wiped
+at end-of-scope.
 
 **Out of scope**
 
-- **Post-drop memory observation is not tested directly.** That would require `unsafe` raw-pointer reads of `MaybeUninit<T>`, which our `#![deny(unsafe_code)]` policy forbids. We rely instead on the `zeroize` crate's `ZeroizeOnDrop` derive — the de-facto standard in the Rust cryptography ecosystem (used by `rustls`, `RustCrypto`, `aws-lc-rs`, `dalek-cryptography`).
-- **User-provided `Rc<SchnorrProof>`-style wrappers.** If downstream code wraps a proof in a reference-counted container and leaks the last strong reference, the proof's `Drop` never runs. That is a downstream responsibility, not an invariant of this library.
+- Post-drop memory observation is not tested directly. That would require
+  `unsafe` raw-pointer reads of `MaybeUninit<T>`, which our
+  `#![deny(unsafe_code)]` policy forbids. We rely instead on the `zeroize`
+  crate's `ZeroizeOnDrop` derive — the de-facto standard in Rust
+  cryptography (rustls, RustCrypto, aws-lc-rs, dalek-cryptography).
+- User-provided `Rc<SchnorrProof>`-style wrappers. If downstream code wraps
+  a proof in a reference-counted container and leaks the last strong
+  reference, the proof's `Drop` never runs. That is a downstream
+  responsibility.
 
 ## Vulnerability Disclosure Policy
 

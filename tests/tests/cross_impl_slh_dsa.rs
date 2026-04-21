@@ -81,7 +81,7 @@ fn slh_dsa_shake_128s_pqcrypto_sign_fips205_rejects_due_to_ctx_header() {
     // the signature — if it starts accepting, the divergence has closed and
     // this test should be replaced with a full cross-verify assertion.
     let verified = pk_fips
-        .verify(message, sig_pqc.as_bytes(), Some(b""))
+        .verify(message, sig_pqc.as_bytes(), b"")
         .expect("fips205 verify must complete without error");
     assert!(
         !verified,
@@ -96,7 +96,7 @@ fn slh_dsa_shake_128s_fips205_sign_pqcrypto_rejects_due_to_ctx_header() {
     let (sk_fips, pk_fips) =
         SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("fips205 keygen");
     let message = b"cross-impl SLH-DSA-SHAKE-128s: fips205 signs, pqcrypto verifies";
-    let sig_fips = sk_fips.sign(message, Some(b"")).expect("fips205 sign");
+    let sig_fips = sk_fips.sign(message, b"").expect("fips205 sign");
 
     let pk_pqc = pqc::PublicKey::from_bytes(pk_fips.as_bytes()).unwrap();
     let sig_pqc = pqc::DetachedSignature::from_bytes(&sig_fips).unwrap();

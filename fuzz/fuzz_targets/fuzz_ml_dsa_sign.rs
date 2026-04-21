@@ -6,7 +6,7 @@
 //! Tests that ML-DSA signing handles arbitrary message data
 //! without crashing and produces valid signatures.
 
-use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
@@ -31,7 +31,7 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Test 1: Sign the fuzzed message (no context)
-    match sign(&sk, message, &[]) {
+    match sk.sign(message, &[]) {
         Ok(signature) => {
             // Verify signature has correct size
             assert_eq!(
@@ -42,7 +42,7 @@ fuzz_target!(|data: &[u8]| {
             );
 
             // Verify signature is valid
-            match verify(&pk, message, &signature, &[]) {
+            match pk.verify(message, &signature, &[]) {
                 Ok(is_valid) => {
                     assert!(is_valid, "Valid signature must verify");
                 }
@@ -61,10 +61,10 @@ fuzz_target!(|data: &[u8]| {
     let context: Vec<u8> = data.iter().cycle().take(context_len).copied().collect();
 
     if context.len() <= 255 {
-        match sign(&sk, message, &context) {
+        match sk.sign(message, &context) {
             Ok(signature) => {
                 // Verify with same context
-                match verify(&pk, message, &signature, &context) {
+                match pk.verify(message, &signature, &context) {
                     Ok(is_valid) => {
                         assert!(is_valid, "Signature with context must verify");
                     }
@@ -74,7 +74,7 @@ fuzz_target!(|data: &[u8]| {
                 // Verify with different context should fail
                 let wrong_context = vec![0xFFu8; context_len.saturating_add(1) % 256];
                 if wrong_context != context {
-                    match verify(&pk, message, &signature, &wrong_context) {
+                    match pk.verify(message, &signature, &wrong_context) {
                         Ok(is_valid) => {
                             assert!(!is_valid, "Signature must fail with wrong context");
                         }
@@ -87,8 +87,8 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 3: Empty message signing
-    if let Ok(sig) = sign(&sk, &[], &[]) {
-        match verify(&pk, &[], &sig, &[]) {
+    if let Ok(sig) = sk.sign(&[], &[]) {
+        match pk.verify(&[], &sig, &[]) {
             Ok(is_valid) => {
                 assert!(is_valid, "Empty message signature must verify");
             }
@@ -98,8 +98,8 @@ fuzz_target!(|data: &[u8]| {
 
     // Test 4: Large message signing (if enough fuzz data)
     if data.len() >= 1000 {
-        if let Ok(sig) = sign(&sk, data, &[]) {
-            match verify(&pk, data, &sig, &[]) {
+        if let Ok(sig) = sk.sign(data, &[]) {
+            match pk.verify(data, &sig, &[]) {
                 Ok(is_valid) => {
                     assert!(is_valid, "Large message signature must verify");
                 }

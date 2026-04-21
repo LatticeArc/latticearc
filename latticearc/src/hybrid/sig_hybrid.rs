@@ -126,7 +126,7 @@ use crate::primitives::ec::ed25519::{Ed25519KeyPair, Ed25519Signature as Ed25519
 use crate::primitives::ec::traits::{EcKeyPair, EcSignature};
 use crate::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
-    generate_keypair as ml_dsa_generate_keypair, sign as ml_dsa_sign, verify as ml_dsa_verify,
+    generate_keypair as ml_dsa_generate_keypair,
 };
 use crate::unified_api::logging::op;
 
@@ -404,7 +404,8 @@ pub fn sign(
                 HybridSignatureError::MlDsaError("signing failed".to_string())
             },
         )?;
-    let ml_dsa_sig = ml_dsa_sign(&ml_dsa_sk_struct, message, &[])
+    let ml_dsa_sig = ml_dsa_sk_struct
+        .sign(message, &[])
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA sign failed");
             HybridSignatureError::MlDsaError("signing failed".to_string())
@@ -491,7 +492,7 @@ pub fn verify(
         MlDsaSignature::from_bytes(&sig.ml_dsa_sig, MlDsaParameterSet::MlDsa65),
     ) {
         (Ok(ml_dsa_pk_struct), Ok(ml_dsa_sig_struct)) => {
-            match ml_dsa_verify(&ml_dsa_pk_struct, message, &ml_dsa_sig_struct, &[]) {
+            match ml_dsa_pk_struct.verify(message, &ml_dsa_sig_struct, &[]) {
                 Ok(true) => 1u8,
                 _ => 0u8,
             }

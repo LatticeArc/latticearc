@@ -23,10 +23,13 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A sigma protocol proof (non-interactive via Fiat-Shamir)
 ///
-/// AUDIT-TRACKED(#50): `Clone` is retained on this proof type. The threat-model
-/// acceptance (ephemeral proof material, Fiat-Shamir replay prevention) is
-/// documented in SECURITY.md ("ZKP Proof Clone Acceptance"). See #50.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+/// # Cloning
+///
+/// `SigmaProof` deliberately does NOT implement `Clone`. When duplication is
+/// genuinely needed for transmission to a verifier, use
+/// [`SigmaProof::clone_for_transmission`] — each call is a deliberate,
+/// grep-able audit checkpoint.
+#[derive(Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SigmaProof {
     /// Commitment (first message)
@@ -42,6 +45,16 @@ impl SigmaProof {
     #[must_use]
     pub fn new(commitment: Vec<u8>, challenge: [u8; 32], response: Vec<u8>) -> Self {
         Self { commitment, challenge, response }
+    }
+
+    /// Make an independent copy of this proof for transmission to a verifier.
+    #[must_use]
+    pub fn clone_for_transmission(&self) -> Self {
+        Self {
+            commitment: self.commitment.clone(),
+            challenge: self.challenge,
+            response: self.response.clone(),
+        }
     }
 
     /// Return a reference to the commitment bytes (first message).
@@ -268,10 +281,13 @@ impl<P: SigmaProtocol> FiatShamir<P> {
 /// Proof that two discrete logs are equal
 /// Given (G, H, P, Q), prove knowledge of x such that P = x*G and Q = x*H
 ///
-/// AUDIT-TRACKED(#50): `Clone` is retained on this proof type. The threat-model
-/// acceptance (ephemeral proof material, Fiat-Shamir replay prevention) is
-/// documented in SECURITY.md ("ZKP Proof Clone Acceptance"). See #50.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+/// # Cloning
+///
+/// `DlogEqualityProof` deliberately does NOT implement `Clone`. When duplication
+/// is genuinely needed for transmission to a verifier, use
+/// [`DlogEqualityProof::clone_for_transmission`] — each call is a deliberate,
+/// grep-able audit checkpoint.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct DlogEqualityProof {
     /// First commitment A = k*G
     /// Consumer: verify(), a()
@@ -295,6 +311,12 @@ impl DlogEqualityProof {
     #[must_use]
     pub fn new(a: [u8; 33], b: [u8; 33], challenge: [u8; 32], response: [u8; 32]) -> Self {
         Self { a, b, challenge, response }
+    }
+
+    /// Make an independent copy of this proof for transmission to a verifier.
+    #[must_use]
+    pub fn clone_for_transmission(&self) -> Self {
+        Self { a: self.a, b: self.b, challenge: self.challenge, response: self.response }
     }
 
     /// Return the first commitment bytes A = k*G (compressed, 33 bytes).
@@ -671,8 +693,7 @@ mod tests {
         assert_eq!(proof.challenge.len(), 32);
         assert_eq!(proof.response.len(), 32);
 
-        // Clone and debug
-        let proof2 = proof.clone();
+        let proof2 = proof.clone_for_transmission();
         assert_eq!(proof.challenge, proof2.challenge);
         let debug = format!("{:?}", proof);
         assert!(debug.contains("DlogEqualityProof"));
@@ -695,7 +716,7 @@ mod tests {
     #[test]
     fn test_sigma_proof_fields_are_populated_succeeds() {
         let proof = SigmaProof::new(vec![1, 2, 3], [0u8; 32], vec![4, 5, 6]);
-        let proof2 = proof.clone();
+        let proof2 = proof.clone_for_transmission();
         assert_eq!(proof.commitment(), proof2.commitment());
         assert_eq!(proof.challenge(), proof2.challenge());
         assert_eq!(proof.response(), proof2.response());
@@ -912,16 +933,16 @@ mod tests {
     // ("ZKP Proof Clone Acceptance") for the full rationale.
 
     #[test]
-    fn test_sigma_proof_clone_has_independent_storage() {
+    fn test_sigma_proof_clone_for_transmission_independent_storage() {
         let proof = SigmaProof::new(vec![0xAA; 48], [0xBB; 32], vec![0xCC; 48]);
-        let mut cloned = proof.clone();
+        let mut cloned = proof.clone_for_transmission();
         Zeroize::zeroize(&mut cloned);
         assert_eq!(proof.commitment(), &[0xAA; 48]);
         assert_eq!(proof.challenge(), &[0xBB; 32]);
         assert_eq!(proof.response(), &[0xCC; 48]);
-        // Clone zeroized. `Zeroize for Vec<u8>` wipes bytes then truncates
-        // to len 0, so the observable post-condition for Vecs is empty length.
-        // The fixed-size `challenge` is zeroized in-place.
+        // `Zeroize for Vec<u8>` wipes bytes then truncates to len 0, so the
+        // observable post-condition for Vecs is empty length. The fixed-size
+        // `challenge` is zeroized in-place.
         assert!(cloned.commitment().is_empty());
         assert_eq!(cloned.challenge(), &[0u8; 32]);
         assert!(cloned.response().is_empty());
@@ -937,9 +958,9 @@ mod tests {
     }
 
     #[test]
-    fn test_dlog_equality_proof_clone_has_independent_storage() {
+    fn test_dlog_equality_proof_clone_for_transmission_independent_storage() {
         let proof = DlogEqualityProof::new([0xAA; 33], [0xBB; 33], [0xCC; 32], [0xDD; 32]);
-        let mut cloned = proof.clone();
+        let mut cloned = proof.clone_for_transmission();
         Zeroize::zeroize(&mut cloned);
         assert_eq!(*proof.a(), [0xAA; 33]);
         assert_eq!(*proof.b(), [0xBB; 33]);

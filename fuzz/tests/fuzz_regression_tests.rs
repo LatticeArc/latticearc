@@ -31,8 +31,7 @@ use latticearc::primitives::kem::ml_kem::{
 };
 use latticearc::primitives::mac::hmac::{hmac_sha256, verify_hmac_sha256};
 use latticearc::primitives::sig::ml_dsa::{
-    MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate, sign as ml_dsa_sign,
-    verify as ml_dsa_verify,
+    MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate,
 };
 use latticearc::primitives::sig::slh_dsa::{
     SigningKey, SlhDsaSecurityLevel as SlhDsaLevel, VerifyingKey,
@@ -150,7 +149,7 @@ mod ml_dsa_regression {
     fn test_ml_dsa_corrupted_signature_bytes_fails() {
         let (pk, sk) = ml_dsa_generate(MlDsaParameterSet::MlDsa44).unwrap();
         let message = b"Test message for corruption detection";
-        let sig = ml_dsa_sign(&sk, message, &[]).unwrap();
+        let sig = sk.sign(message, &[]).unwrap();
 
         // Corruption patterns that should all fail verification
         let corruption_offsets = [0, 100, 500, 1000, sig.len() - 1];
@@ -158,7 +157,7 @@ mod ml_dsa_regression {
         for offset in corruption_offsets {
             if offset < sig.len() {
                 let corrupted = flip_byte(&sig, offset);
-                let result = ml_dsa_verify(&pk, message, &corrupted, &[]).unwrap();
+                let result = pk.verify(message, &corrupted, &[]).unwrap();
                 assert!(!result, "Corrupted signature at offset {} must fail", offset);
             }
         }
@@ -172,8 +171,8 @@ mod ml_dsa_regression {
 
         // Max context (255 bytes) should work
         let max_context = vec![0xAB; 255];
-        let sig = ml_dsa_sign(&sk, message, &max_context).unwrap();
-        assert!(ml_dsa_verify(&pk, message, &sig, &max_context).unwrap());
+        let sig = sk.sign(message, &max_context).unwrap();
+        assert!(pk.verify(message, &sig, &max_context).unwrap());
     }
 
     /// Regression: Empty message signing
@@ -183,8 +182,8 @@ mod ml_dsa_regression {
             [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
         {
             let (pk, sk) = ml_dsa_generate(param).unwrap();
-            let sig = ml_dsa_sign(&sk, &[], &[]).unwrap();
-            assert!(ml_dsa_verify(&pk, &[], &sig, &[]).unwrap());
+            let sig = sk.sign(&[], &[]).unwrap();
+            assert!(pk.verify(&[], &sig, &[]).unwrap());
         }
     }
 
@@ -195,10 +194,10 @@ mod ml_dsa_regression {
         let (pk65, _sk65) = ml_dsa_generate(MlDsaParameterSet::MlDsa65).unwrap();
         let message = b"Cross-parameter test";
 
-        let sig44 = ml_dsa_sign(&sk44, message, &[]).unwrap();
+        let sig44 = sk44.sign(message, &[]).unwrap();
 
         // Verification with wrong parameter set public key
-        let result = ml_dsa_verify(&pk65, message, &sig44, &[]);
+        let result = pk65.verify(message, &sig44, &[]);
         // Should either error or return false
         match result {
             Ok(valid) => assert!(!valid),
@@ -221,17 +220,17 @@ mod slh_dsa_regression {
         let message = b"Context test message";
 
         // Empty context
-        let sig_empty = sk.sign(message, None).unwrap();
-        assert!(pk.verify(message, &sig_empty, None).unwrap());
+        let sig_empty = sk.sign(message, &[]).unwrap();
+        assert!(pk.verify(message, &sig_empty, &[]).unwrap());
 
         // Non-empty context
         let ctx = b"test context";
-        let sig_ctx = sk.sign(message, Some(ctx)).unwrap();
-        assert!(pk.verify(message, &sig_ctx, Some(ctx)).unwrap());
+        let sig_ctx = sk.sign(message, ctx).unwrap();
+        assert!(pk.verify(message, &sig_ctx, ctx).unwrap());
 
         // Cross-verification must fail
-        assert!(!pk.verify(message, &sig_empty, Some(ctx)).unwrap());
-        assert!(!pk.verify(message, &sig_ctx, None).unwrap());
+        assert!(!pk.verify(message, &sig_empty, ctx).unwrap());
+        assert!(!pk.verify(message, &sig_ctx, &[]).unwrap());
     }
 
     /// Regression: Context too long (>255 bytes)
@@ -241,7 +240,7 @@ mod slh_dsa_regression {
         let message = b"Long context test";
         let long_ctx = vec![0xCD; 256];
 
-        let result = sk.sign(message, Some(&long_ctx));
+        let result = sk.sign(message, &long_ctx);
         assert!(result.is_err(), "Context >255 bytes should fail");
     }
 
@@ -256,8 +255,8 @@ mod slh_dsa_regression {
 
         // Sign and verify with restored key
         let message = b"Key serialization test";
-        let sig = sk.sign(message, None).unwrap();
-        assert!(pk_restored.verify(message, &sig, None).unwrap());
+        let sig = sk.sign(message, &[]).unwrap();
+        assert!(pk_restored.verify(message, &sig, &[]).unwrap());
     }
 }
 

@@ -42,8 +42,7 @@
 //! - Cross-parameter set incompatibility
 
 use latticearc::primitives::sig::ml_dsa::{
-    MlDsaError, MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature,
-    generate_keypair, sign, verify,
+    MlDsaError, MlDsaParameterSet, MlDsaPublicKey, MlDsaSecretKey, MlDsaSignature, generate_keypair,
 };
 use rand::RngCore;
 use subtle::ConstantTimeEq;
@@ -72,13 +71,13 @@ fn test_mldsa44_sign_produces_valid_signature_succeeds() {
     let message = b"Test message for MlDsa44 signing";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("MlDsa44 signing should succeed");
+    let signature = sk.sign(message, context).expect("MlDsa44 signing should succeed");
 
     assert_eq!(signature.parameter_set(), MlDsaParameterSet::MlDsa44);
     assert_eq!(signature.len(), MlDsaParameterSet::MlDsa44.signature_size());
     assert!(!signature.is_empty());
 
-    let is_valid = verify(&pk, message, &signature, context).expect("Verification should succeed");
+    let is_valid = pk.verify(message, &signature, context).expect("Verification should succeed");
     assert!(is_valid, "MlDsa44 signature should verify correctly");
 }
 
@@ -90,10 +89,10 @@ fn test_mldsa44_verify_rejects_wrong_message_fails() {
     let wrong_message = b"Wrong message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     let is_valid =
-        verify(&pk, wrong_message, &signature, context).expect("Verification should not error");
+        pk.verify(wrong_message, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "MlDsa44 signature should NOT verify with wrong message");
 }
 
@@ -106,10 +105,9 @@ fn test_mldsa44_verify_rejects_wrong_key_fails() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk1, message, context).expect("Signing should succeed");
+    let signature = sk1.sign(message, context).expect("Signing should succeed");
 
-    let is_valid =
-        verify(&pk2, message, &signature, context).expect("Verification should not error");
+    let is_valid = pk2.verify(message, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "MlDsa44 signature should NOT verify with wrong public key");
 }
 
@@ -137,13 +135,13 @@ fn test_mldsa65_sign_produces_valid_signature_succeeds() {
     let message = b"Test message for MlDsa65 signing";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("MlDsa65 signing should succeed");
+    let signature = sk.sign(message, context).expect("MlDsa65 signing should succeed");
 
     assert_eq!(signature.parameter_set(), MlDsaParameterSet::MlDsa65);
     assert_eq!(signature.len(), MlDsaParameterSet::MlDsa65.signature_size());
     assert!(!signature.is_empty());
 
-    let is_valid = verify(&pk, message, &signature, context).expect("Verification should succeed");
+    let is_valid = pk.verify(message, &signature, context).expect("Verification should succeed");
     assert!(is_valid, "MlDsa65 signature should verify correctly");
 }
 
@@ -155,10 +153,10 @@ fn test_mldsa65_verify_rejects_wrong_message_fails() {
     let wrong_message = b"Wrong message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     let is_valid =
-        verify(&pk, wrong_message, &signature, context).expect("Verification should not error");
+        pk.verify(wrong_message, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "MlDsa65 signature should NOT verify with wrong message");
 }
 
@@ -171,10 +169,9 @@ fn test_mldsa65_verify_rejects_wrong_key_fails() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk1, message, context).expect("Signing should succeed");
+    let signature = sk1.sign(message, context).expect("Signing should succeed");
 
-    let is_valid =
-        verify(&pk2, message, &signature, context).expect("Verification should not error");
+    let is_valid = pk2.verify(message, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "MlDsa65 signature should NOT verify with wrong public key");
 }
 
@@ -202,13 +199,13 @@ fn test_mldsa87_sign_produces_valid_signature_succeeds() {
     let message = b"Test message for MlDsa87 signing";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("MlDsa87 signing should succeed");
+    let signature = sk.sign(message, context).expect("MlDsa87 signing should succeed");
 
     assert_eq!(signature.parameter_set(), MlDsaParameterSet::MlDsa87);
     assert_eq!(signature.len(), MlDsaParameterSet::MlDsa87.signature_size());
     assert!(!signature.is_empty());
 
-    let is_valid = verify(&pk, message, &signature, context).expect("Verification should succeed");
+    let is_valid = pk.verify(message, &signature, context).expect("Verification should succeed");
     assert!(is_valid, "MlDsa87 signature should verify correctly");
 }
 
@@ -220,10 +217,10 @@ fn test_mldsa87_verify_rejects_wrong_message_fails() {
     let wrong_message = b"Wrong message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     let is_valid =
-        verify(&pk, wrong_message, &signature, context).expect("Verification should not error");
+        pk.verify(wrong_message, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "MlDsa87 signature should NOT verify with wrong message");
 }
 
@@ -236,10 +233,9 @@ fn test_mldsa87_verify_rejects_wrong_key_fails() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk1, message, context).expect("Signing should succeed");
+    let signature = sk1.sign(message, context).expect("Signing should succeed");
 
-    let is_valid =
-        verify(&pk2, message, &signature, context).expect("Verification should not error");
+    let is_valid = pk2.verify(message, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "MlDsa87 signature should NOT verify with wrong public key");
 }
 
@@ -254,21 +250,21 @@ fn test_mldsa44_multiple_signatures_all_verify_succeeds() {
     let context: &[u8] = &[];
 
     // Generate multiple signatures for the same message
-    let sig1 = sign(&sk, message, context).expect("First signing should succeed");
-    let sig2 = sign(&sk, message, context).expect("Second signing should succeed");
-    let sig3 = sign(&sk, message, context).expect("Third signing should succeed");
+    let sig1 = sk.sign(message, context).expect("First signing should succeed");
+    let sig2 = sk.sign(message, context).expect("Second signing should succeed");
+    let sig3 = sk.sign(message, context).expect("Third signing should succeed");
 
     // All signatures should verify correctly
     assert!(
-        verify(&pk, message, &sig1, context).expect("Verification should succeed"),
+        pk.verify(message, &sig1, context).expect("Verification should succeed"),
         "First signature should verify"
     );
     assert!(
-        verify(&pk, message, &sig2, context).expect("Verification should succeed"),
+        pk.verify(message, &sig2, context).expect("Verification should succeed"),
         "Second signature should verify"
     );
     assert!(
-        verify(&pk, message, &sig3, context).expect("Verification should succeed"),
+        pk.verify(message, &sig3, context).expect("Verification should succeed"),
         "Third signature should verify"
     );
 
@@ -282,11 +278,11 @@ fn test_mldsa65_multiple_signatures_all_verify_succeeds() {
     let message = b"Deterministic signing test message";
     let context: &[u8] = &[];
 
-    let sig1 = sign(&sk, message, context).expect("First signing should succeed");
-    let sig2 = sign(&sk, message, context).expect("Second signing should succeed");
+    let sig1 = sk.sign(message, context).expect("First signing should succeed");
+    let sig2 = sk.sign(message, context).expect("Second signing should succeed");
 
-    assert!(verify(&pk, message, &sig1, context).expect("Verification should succeed"));
-    assert!(verify(&pk, message, &sig2, context).expect("Verification should succeed"));
+    assert!(pk.verify(message, &sig1, context).expect("Verification should succeed"));
+    assert!(pk.verify(message, &sig2, context).expect("Verification should succeed"));
 }
 
 #[test]
@@ -295,11 +291,11 @@ fn test_mldsa87_multiple_signatures_all_verify_succeeds() {
     let message = b"Deterministic signing test message";
     let context: &[u8] = &[];
 
-    let sig1 = sign(&sk, message, context).expect("First signing should succeed");
-    let sig2 = sign(&sk, message, context).expect("Second signing should succeed");
+    let sig1 = sk.sign(message, context).expect("First signing should succeed");
+    let sig2 = sk.sign(message, context).expect("Second signing should succeed");
 
-    assert!(verify(&pk, message, &sig1, context).expect("Verification should succeed"));
-    assert!(verify(&pk, message, &sig2, context).expect("Verification should succeed"));
+    assert!(pk.verify(message, &sig1, context).expect("Verification should succeed"));
+    assert!(pk.verify(message, &sig2, context).expect("Verification should succeed"));
 }
 
 #[test]
@@ -308,8 +304,8 @@ fn test_randomized_signing_produces_different_signatures_succeeds() {
     let message = b"Test message for randomness";
     let context: &[u8] = &[];
 
-    let sig1 = sign(&sk, message, context).expect("First signing should succeed");
-    let sig2 = sign(&sk, message, context).expect("Second signing should succeed");
+    let sig1 = sk.sign(message, context).expect("First signing should succeed");
+    let sig2 = sk.sign(message, context).expect("Second signing should succeed");
 
     // ML-DSA uses randomized signing, signatures should differ
     // (This is not strictly guaranteed but highly probable)
@@ -330,26 +326,26 @@ fn test_context_string_domain_separation_succeeds() {
     let context1 = b"application-v1";
     let context2 = b"application-v2";
 
-    let sig_ctx1 = sign(&sk, message, context1).expect("Signing with context1 should succeed");
-    let sig_ctx2 = sign(&sk, message, context2).expect("Signing with context2 should succeed");
+    let sig_ctx1 = sk.sign(message, context1).expect("Signing with context1 should succeed");
+    let sig_ctx2 = sk.sign(message, context2).expect("Signing with context2 should succeed");
 
     // Verify with correct context
     assert!(
-        verify(&pk, message, &sig_ctx1, context1).expect("Verification should succeed"),
+        pk.verify(message, &sig_ctx1, context1).expect("Verification should succeed"),
         "Signature should verify with same context"
     );
     assert!(
-        verify(&pk, message, &sig_ctx2, context2).expect("Verification should succeed"),
+        pk.verify(message, &sig_ctx2, context2).expect("Verification should succeed"),
         "Signature should verify with same context"
     );
 
     // Cross-context verification should fail
     assert!(
-        !verify(&pk, message, &sig_ctx1, context2).expect("Verification should not error"),
+        !pk.verify(message, &sig_ctx1, context2).expect("Verification should not error"),
         "Signature with context1 should NOT verify with context2"
     );
     assert!(
-        !verify(&pk, message, &sig_ctx2, context1).expect("Verification should not error"),
+        !pk.verify(message, &sig_ctx2, context1).expect("Verification should not error"),
         "Signature with context2 should NOT verify with context1"
     );
 }
@@ -362,21 +358,21 @@ fn test_empty_vs_nonempty_context_succeeds() {
     let empty_context: &[u8] = &[];
     let nonempty_context = b"some-context";
 
-    let sig_empty = sign(&sk, message, empty_context).expect("Signing should succeed");
-    let sig_nonempty = sign(&sk, message, nonempty_context).expect("Signing should succeed");
+    let sig_empty = sk.sign(message, empty_context).expect("Signing should succeed");
+    let sig_nonempty = sk.sign(message, nonempty_context).expect("Signing should succeed");
 
     // Verify with correct contexts
-    assert!(verify(&pk, message, &sig_empty, empty_context).expect("Verification should succeed"));
+    assert!(pk.verify(message, &sig_empty, empty_context).expect("Verification should succeed"));
     assert!(
-        verify(&pk, message, &sig_nonempty, nonempty_context).expect("Verification should succeed")
+        pk.verify(message, &sig_nonempty, nonempty_context).expect("Verification should succeed")
     );
 
     // Cross-context verification should fail
     assert!(
-        !verify(&pk, message, &sig_empty, nonempty_context).expect("Verification should not error")
+        !pk.verify(message, &sig_empty, nonempty_context).expect("Verification should not error")
     );
     assert!(
-        !verify(&pk, message, &sig_nonempty, empty_context).expect("Verification should not error")
+        !pk.verify(message, &sig_nonempty, empty_context).expect("Verification should not error")
     );
 }
 
@@ -389,9 +385,9 @@ fn test_maximum_length_context_string_has_correct_size() {
     let max_context = vec![0xABu8; 255];
 
     let signature =
-        sign(&sk, message, &max_context).expect("Signing with max context should succeed");
+        sk.sign(message, &max_context).expect("Signing with max context should succeed");
     let is_valid =
-        verify(&pk, message, &signature, &max_context).expect("Verification should succeed");
+        pk.verify(message, &signature, &max_context).expect("Verification should succeed");
     assert!(is_valid, "Max-length context should work");
 }
 
@@ -403,11 +399,11 @@ fn test_context_single_byte_difference_succeeds() {
     let context1 = b"context-A";
     let context2 = b"context-B";
 
-    let signature = sign(&sk, message, context1).expect("Signing should succeed");
+    let signature = sk.sign(message, context1).expect("Signing should succeed");
 
-    assert!(verify(&pk, message, &signature, context1).expect("Verification should succeed"));
+    assert!(pk.verify(message, &signature, context1).expect("Verification should succeed"));
     assert!(
-        !verify(&pk, message, &signature, context2).expect("Verification should not error"),
+        !pk.verify(message, &signature, context2).expect("Verification should not error"),
         "Single byte difference in context should fail verification"
     );
 }
@@ -420,11 +416,11 @@ fn test_context_length_matters_has_correct_size() {
     let short_context = b"ctx";
     let long_context = b"ctx\x00"; // Same prefix but different length
 
-    let signature = sign(&sk, message, short_context).expect("Signing should succeed");
+    let signature = sk.sign(message, short_context).expect("Signing should succeed");
 
-    assert!(verify(&pk, message, &signature, short_context).expect("Verification should succeed"));
+    assert!(pk.verify(message, &signature, short_context).expect("Verification should succeed"));
     assert!(
-        !verify(&pk, message, &signature, long_context).expect("Verification should not error"),
+        !pk.verify(message, &signature, long_context).expect("Verification should not error"),
         "Different length context should fail verification"
     );
 }
@@ -439,14 +435,14 @@ fn test_single_bit_message_modification_succeeds() {
     let message = b"Original message content";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     // Modify a single bit
     let mut modified_message = message.to_vec();
     modified_message[0] ^= 0x01;
 
     let is_valid =
-        verify(&pk, &modified_message, &signature, context).expect("Verification should not error");
+        pk.verify(&modified_message, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "Single bit modification should fail verification");
 }
 
@@ -456,13 +452,13 @@ fn test_message_truncation_fails() {
     let message = b"This is a longer message for truncation test";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     // Truncate message
     let truncated = &message[..message.len() - 5];
 
     let is_valid =
-        verify(&pk, truncated, &signature, context).expect("Verification should not error");
+        pk.verify(truncated, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "Truncated message should fail verification");
 }
 
@@ -472,14 +468,14 @@ fn test_message_extension_fails() {
     let message = b"Original message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     // Extend message
     let mut extended = message.to_vec();
     extended.extend_from_slice(b" extra content");
 
     let is_valid =
-        verify(&pk, &extended, &signature, context).expect("Verification should not error");
+        pk.verify(&extended, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "Extended message should fail verification");
 }
 
@@ -490,10 +486,10 @@ fn test_completely_different_message_fails() {
     let different = b"Pack my box with five dozen liquor jugs";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, original, context).expect("Signing should succeed");
+    let signature = sk.sign(original, context).expect("Signing should succeed");
 
     let is_valid =
-        verify(&pk, different, &signature, context).expect("Verification should not error");
+        pk.verify(different, &signature, context).expect("Verification should not error");
     assert!(!is_valid, "Completely different message should fail verification");
 }
 
@@ -507,13 +503,12 @@ fn test_corrupted_signature_first_byte_fails() {
     let message = b"Test message for corruption";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
     let mut bytes = signature.as_bytes().to_vec();
     bytes[0] ^= 0xFF;
     let corrupted = MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), bytes);
 
-    let is_valid =
-        verify(&pk, message, &corrupted, context).expect("Verification should not error");
+    let is_valid = pk.verify(message, &corrupted, context).expect("Verification should not error");
     assert!(!is_valid, "Corrupted first byte should fail verification");
 }
 
@@ -523,14 +518,13 @@ fn test_corrupted_signature_middle_byte_fails() {
     let message = b"Test message for corruption";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
     let mut bytes = signature.as_bytes().to_vec();
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xFF;
     let corrupted = MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), bytes);
 
-    let is_valid =
-        verify(&pk, message, &corrupted, context).expect("Verification should not error");
+    let is_valid = pk.verify(message, &corrupted, context).expect("Verification should not error");
     assert!(!is_valid, "Corrupted middle byte should fail verification");
 }
 
@@ -540,14 +534,13 @@ fn test_corrupted_signature_last_byte_fails() {
     let message = b"Test message for corruption";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
     let mut bytes = signature.as_bytes().to_vec();
     let last = bytes.len() - 1;
     bytes[last] ^= 0xFF;
     let corrupted = MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), bytes);
 
-    let is_valid =
-        verify(&pk, message, &corrupted, context).expect("Verification should not error");
+    let is_valid = pk.verify(message, &corrupted, context).expect("Verification should not error");
     assert!(!is_valid, "Corrupted last byte should fail verification");
 }
 
@@ -557,7 +550,7 @@ fn test_corrupted_signature_multiple_bytes_fails() {
     let message = b"Test message for multiple corruption";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
     let mut bytes = signature.as_bytes().to_vec();
     let len = bytes.len();
     bytes[0] ^= 0xFF;
@@ -566,8 +559,7 @@ fn test_corrupted_signature_multiple_bytes_fails() {
     bytes[len - 1] ^= 0xFF;
     let corrupted = MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), bytes);
 
-    let is_valid =
-        verify(&pk, message, &corrupted, context).expect("Verification should not error");
+    let is_valid = pk.verify(message, &corrupted, context).expect("Verification should not error");
     assert!(!is_valid, "Multiple corrupted bytes should fail verification");
 }
 
@@ -577,7 +569,7 @@ fn test_all_zeros_signature_fails() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     // Create all-zeros signature with same length
     let zero_sig = MlDsaSignature::from_bytes_unchecked(
@@ -585,7 +577,7 @@ fn test_all_zeros_signature_fails() {
         vec![0u8; signature.len()],
     );
 
-    let is_valid = verify(&pk, message, &zero_sig, context).expect("Verification should not error");
+    let is_valid = pk.verify(message, &zero_sig, context).expect("Verification should not error");
     assert!(!is_valid, "All-zeros signature should fail verification");
 }
 
@@ -595,7 +587,7 @@ fn test_all_ones_signature_fails() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     // Create all-ones signature with same length
     let ones_sig = MlDsaSignature::from_bytes_unchecked(
@@ -603,7 +595,7 @@ fn test_all_ones_signature_fails() {
         vec![0xFFu8; signature.len()],
     );
 
-    let is_valid = verify(&pk, message, &ones_sig, context).expect("Verification should not error");
+    let is_valid = pk.verify(message, &ones_sig, context).expect("Verification should not error");
     assert!(!is_valid, "All-ones signature should fail verification");
 }
 
@@ -613,13 +605,13 @@ fn test_truncated_signature_errors_fails() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
     let mut truncated_bytes = signature.as_bytes().to_vec();
     truncated_bytes.truncate(truncated_bytes.len() - 10);
     let truncated =
         MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), truncated_bytes);
 
-    let result = verify(&pk, message, &truncated, context);
+    let result = pk.verify(message, &truncated, context);
     assert!(result.is_err(), "Truncated signature should cause an error");
 }
 
@@ -635,8 +627,7 @@ fn test_random_bytes_signature_fails() {
 
     let random_sig = MlDsaSignature::from_bytes_unchecked(MlDsaParameterSet::MlDsa87, random_data);
 
-    let is_valid =
-        verify(&pk, message, &random_sig, context).expect("Verification should not error");
+    let is_valid = pk.verify(message, &random_sig, context).expect("Verification should not error");
     assert!(!is_valid, "Random bytes signature should fail verification");
 }
 
@@ -650,7 +641,7 @@ fn test_signature_not_malleable_by_bit_flip_succeeds() {
     let message = b"Malleability test message";
     let context: &[u8] = &[];
 
-    let original_sig = sign(&sk, message, context).expect("Signing should succeed");
+    let original_sig = sk.sign(message, context).expect("Signing should succeed");
 
     // Try flipping each bit and verify none produce valid signatures
     let mut any_malleable = false;
@@ -662,7 +653,7 @@ fn test_signature_not_malleable_by_bit_flip_succeeds() {
             let modified_sig =
                 MlDsaSignature::from_bytes_unchecked(original_sig.parameter_set(), bytes);
 
-            if let Ok(is_valid) = verify(&pk, message, &modified_sig, context) {
+            if let Ok(is_valid) = pk.verify(message, &modified_sig, context) {
                 if is_valid {
                     any_malleable = true;
                     break;
@@ -692,16 +683,16 @@ fn test_cross_parameter_set_incompatibility_succeeds() {
     let message = b"Cross-parameter test";
     let context: &[u8] = &[];
 
-    let sig44 = sign(&sk44, message, context).expect("Signing should succeed");
+    let sig44 = sk44.sign(message, context).expect("Signing should succeed");
 
     // MlDsa44 signature should not verify with MlDsa65 or MlDsa87 keys
-    let result65 = verify(&pk65, message, &sig44, context);
+    let result65 = pk65.verify(message, &sig44, context);
     match result65 {
         Ok(is_valid) => assert!(!is_valid, "MlDsa44 sig should not verify with MlDsa65 key"),
         Err(_) => {} // Error is also acceptable
     }
 
-    let result87 = verify(&pk87, message, &sig44, context);
+    let result87 = pk87.verify(message, &sig44, context);
     match result87 {
         Ok(is_valid) => assert!(!is_valid, "MlDsa44 sig should not verify with MlDsa87 key"),
         Err(_) => {} // Error is also acceptable
@@ -716,10 +707,10 @@ fn test_signature_reuse_across_messages_fails() {
     let message1 = b"First message";
     let message2 = b"Second message";
 
-    let sig1 = sign(&sk, message1, context).expect("Signing should succeed");
+    let sig1 = sk.sign(message1, context).expect("Signing should succeed");
 
     // Signature for message1 should not verify for message2
-    let is_valid = verify(&pk, message2, &sig1, context).expect("Verification should not error");
+    let is_valid = pk.verify(message2, &sig1, context).expect("Verification should not error");
     assert!(!is_valid, "Signature should not be reusable across different messages");
 }
 
@@ -789,11 +780,11 @@ fn test_restored_key_can_sign_and_verify_roundtrip() {
         .expect("Secret key restoration should succeed");
 
     // Sign with restored secret key
-    let signature = sign(&restored_sk, message, context).expect("Signing should succeed");
+    let signature = restored_sk.sign(message, context).expect("Signing should succeed");
 
     // Verify with restored public key
     let is_valid =
-        verify(&restored_pk, message, &signature, context).expect("Verification should succeed");
+        restored_pk.verify(message, &signature, context).expect("Verification should succeed");
     assert!(is_valid, "Restored keys should work correctly");
 }
 
@@ -803,7 +794,7 @@ fn test_signature_serialization_roundtrip() {
     let message = b"Test message";
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing should succeed");
+    let signature = sk.sign(message, context).expect("Signing should succeed");
 
     let sig_bytes = signature.as_bytes().to_vec();
     let restored_sig = MlDsaSignature::new(MlDsaParameterSet::MlDsa87, sig_bytes)
@@ -928,7 +919,7 @@ fn test_generated_signature_sizes_match_spec_has_correct_size() {
         let message = b"Test message";
         let context: &[u8] = &[];
 
-        let signature = sign(&sk, message, context).expect("Signing should succeed");
+        let signature = sk.sign(message, context).expect("Signing should succeed");
 
         assert_eq!(
             signature.len(),
@@ -949,8 +940,8 @@ fn test_empty_message_signing_succeeds() {
     let message: &[u8] = &[];
     let context: &[u8] = &[];
 
-    let signature = sign(&sk, message, context).expect("Signing empty message should succeed");
-    let is_valid = verify(&pk, message, &signature, context).expect("Verification should succeed");
+    let signature = sk.sign(message, context).expect("Signing empty message should succeed");
+    let is_valid = pk.verify(message, &signature, context).expect("Verification should succeed");
 
     assert!(is_valid, "Empty message should sign and verify correctly");
 }
@@ -964,10 +955,9 @@ fn test_large_message_signing_succeeds() {
     rand::rngs::OsRng.fill_bytes(&mut large_message);
     let context: &[u8] = &[];
 
-    let signature =
-        sign(&sk, &large_message, context).expect("Signing large message should succeed");
+    let signature = sk.sign(&large_message, context).expect("Signing large message should succeed");
     let is_valid =
-        verify(&pk, &large_message, &signature, context).expect("Verification should succeed");
+        pk.verify(&large_message, &signature, context).expect("Verification should succeed");
 
     assert!(is_valid, "Large message should sign and verify correctly");
 }
@@ -1034,9 +1024,9 @@ fn test_all_parameter_sets_comprehensive_succeeds() {
 
         // Test basic signing and verification
         let signature =
-            sign(&sk, message, context).expect(&format!("{:?} signing should succeed", param));
+            sk.sign(message, context).expect(&format!("{:?} signing should succeed", param));
         assert!(
-            verify(&pk, message, &signature, context).expect("Verification should succeed"),
+            pk.verify(message, &signature, context).expect("Verification should succeed"),
             "{:?} signature should verify",
             param
         );
@@ -1044,7 +1034,7 @@ fn test_all_parameter_sets_comprehensive_succeeds() {
         // Test wrong message fails
         let wrong_msg = b"wrong message";
         assert!(
-            !verify(&pk, wrong_msg, &signature, context).expect("Verification should not error"),
+            !pk.verify(wrong_msg, &signature, context).expect("Verification should not error"),
             "{:?} should reject wrong message",
             param
         );
@@ -1052,7 +1042,7 @@ fn test_all_parameter_sets_comprehensive_succeeds() {
         // Test wrong context fails
         let wrong_ctx = b"wrong-context";
         assert!(
-            !verify(&pk, message, &signature, wrong_ctx).expect("Verification should not error"),
+            !pk.verify(message, &signature, wrong_ctx).expect("Verification should not error"),
             "{:?} should reject wrong context",
             param
         );
@@ -1063,7 +1053,7 @@ fn test_all_parameter_sets_comprehensive_succeeds() {
         let corrupted_sig =
             MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), corrupted_bytes);
         assert!(
-            !verify(&pk, message, &corrupted_sig, context).expect("Verification should not error"),
+            !pk.verify(message, &corrupted_sig, context).expect("Verification should not error"),
             "{:?} should reject corrupted signature",
             param
         );
@@ -1133,7 +1123,7 @@ fn test_sign_corrupted_sk_44_fails() {
     let corrupted_sk = MlDsaSecretKey::new(MlDsaParameterSet::MlDsa44, corrupted_sk_bytes)
         .expect("SecretKey construction accepts any bytes of correct length");
 
-    let result = sign(&corrupted_sk, b"test message", &[]);
+    let result = corrupted_sk.sign(b"test message", &[]);
     // Corrupted key may fail at try_from_bytes or produce an invalid signature
     // Either outcome is acceptable
     match result {
@@ -1158,7 +1148,7 @@ fn test_sign_corrupted_sk_65_fails() {
     let corrupted_sk = MlDsaSecretKey::new(MlDsaParameterSet::MlDsa65, corrupted_sk_bytes)
         .expect("SecretKey construction accepts any bytes of correct length");
 
-    let result = sign(&corrupted_sk, b"test message", &[]);
+    let result = corrupted_sk.sign(b"test message", &[]);
     match result {
         Ok(_) => {}  // Sign may succeed; corrupted key doesn't always cause error
         Err(_) => {} // Expected
@@ -1176,7 +1166,7 @@ fn test_sign_corrupted_sk_87_fails() {
     let corrupted_sk = MlDsaSecretKey::new(MlDsaParameterSet::MlDsa87, corrupted_sk_bytes)
         .expect("SecretKey construction accepts any bytes of correct length");
 
-    let result = sign(&corrupted_sk, b"test message", &[]);
+    let result = corrupted_sk.sign(b"test message", &[]);
     match result {
         Ok(_) => {}
         Err(_) => {}
@@ -1192,7 +1182,7 @@ fn test_verify_corrupted_pk_44_fails() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"test message for corrupted pk";
     let context: &[u8] = &[];
-    let signature = sign(&sk, message, context).expect("signing should succeed");
+    let signature = sk.sign(message, context).expect("signing should succeed");
 
     // Corrupt the pk
     let mut corrupted_pk_bytes = pk.as_bytes().to_vec();
@@ -1202,7 +1192,7 @@ fn test_verify_corrupted_pk_44_fails() {
     let corrupted_pk = MlDsaPublicKey::new(MlDsaParameterSet::MlDsa44, corrupted_pk_bytes)
         .expect("PublicKey construction accepts any bytes of correct length");
 
-    let result = verify(&corrupted_pk, message, &signature, context);
+    let result = corrupted_pk.verify(message, &signature, context);
     match result {
         Ok(valid) => assert!(!valid, "Corrupted pk should not verify"),
         Err(_) => {} // Error from try_from_bytes is also acceptable
@@ -1214,7 +1204,7 @@ fn test_verify_corrupted_pk_65_fails() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).expect("keygen should succeed");
     let message = b"test message for corrupted pk";
     let context: &[u8] = &[];
-    let signature = sign(&sk, message, context).expect("signing should succeed");
+    let signature = sk.sign(message, context).expect("signing should succeed");
 
     let mut corrupted_pk_bytes = pk.as_bytes().to_vec();
     for i in (0..corrupted_pk_bytes.len()).step_by(10) {
@@ -1223,7 +1213,7 @@ fn test_verify_corrupted_pk_65_fails() {
     let corrupted_pk = MlDsaPublicKey::new(MlDsaParameterSet::MlDsa65, corrupted_pk_bytes)
         .expect("PublicKey construction accepts any bytes of correct length");
 
-    let result = verify(&corrupted_pk, message, &signature, context);
+    let result = corrupted_pk.verify(message, &signature, context);
     match result {
         Ok(valid) => assert!(!valid, "Corrupted pk should not verify"),
         Err(_) => {}
@@ -1235,7 +1225,7 @@ fn test_verify_corrupted_pk_87_fails() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa87).expect("keygen should succeed");
     let message = b"test message for corrupted pk";
     let context: &[u8] = &[];
-    let signature = sign(&sk, message, context).expect("signing should succeed");
+    let signature = sk.sign(message, context).expect("signing should succeed");
 
     let mut corrupted_pk_bytes = pk.as_bytes().to_vec();
     for i in (0..corrupted_pk_bytes.len()).step_by(10) {
@@ -1244,7 +1234,7 @@ fn test_verify_corrupted_pk_87_fails() {
     let corrupted_pk = MlDsaPublicKey::new(MlDsaParameterSet::MlDsa87, corrupted_pk_bytes)
         .expect("PublicKey construction accepts any bytes of correct length");
 
-    let result = verify(&corrupted_pk, message, &signature, context);
+    let result = corrupted_pk.verify(message, &signature, context);
     match result {
         Ok(valid) => assert!(!valid, "Corrupted pk should not verify"),
         Err(_) => {}

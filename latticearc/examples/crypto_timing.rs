@@ -16,7 +16,7 @@ use latticearc::primitives::aead::aes_gcm::AesGcm256;
 use latticearc::primitives::hash::sha256;
 use latticearc::primitives::kdf::hkdf;
 use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
 fn main() {
     println!("=== LatticeArc Crypto Timing Benchmarks ===\n");
@@ -78,23 +78,23 @@ fn main() {
 
     let start = Instant::now();
     for _ in 0..sign_iterations {
-        let _ = sign(&dsa_sk, msg, &[]);
+        let _ = dsa_sk.sign(msg, &[]);
     }
     let sign_time = start.elapsed() / sign_iterations;
     println!("Sign:         {:?}", sign_time);
 
     // Verify
-    let sig = sign(&dsa_sk, msg, &[]).unwrap();
+    let sig = dsa_sk.sign(msg, &[]).unwrap();
     let verify_iterations = 1000;
     let start = Instant::now();
     for _ in 0..verify_iterations {
-        let _ = verify(&vk, msg, &sig, &[]);
+        let _ = vk.verify(msg, &sig, &[]);
     }
     let verify_time = start.elapsed() / verify_iterations;
     println!("Verify:       {:?}", verify_time);
 
     // Verify correctness
-    let result = verify(&vk, msg, &sig, &[]);
+    let result = vk.verify(msg, &sig, &[]);
     assert!(result.is_ok());
     println!("(Verified: signature valid)\n");
 

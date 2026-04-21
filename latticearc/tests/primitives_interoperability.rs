@@ -75,7 +75,6 @@ use latticearc::primitives::kem::ml_kem::{
 };
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSignature, generate_keypair as ml_dsa_generate_keypair,
-    sign as ml_dsa_sign, verify as ml_dsa_verify,
 };
 use latticearc::primitives::sig::slh_dsa::{SigningKey, SlhDsaSecurityLevel};
 use subtle::ConstantTimeEq;
@@ -160,7 +159,7 @@ fn test_ml_dsa_fips204_key_sizes_has_correct_size() {
     for (param, pk_size, sk_size, sig_size) in specs {
         let (pk, sk) = ml_dsa_generate_keypair(param).expect("keygen should succeed");
         let message = b"Test message for FIPS 204 compliance";
-        let signature = ml_dsa_sign(&sk, message, &[]).expect("signing should succeed");
+        let signature = sk.sign(message, &[]).expect("signing should succeed");
 
         assert_eq!(
             pk.as_bytes().len(),
@@ -191,14 +190,13 @@ fn test_ml_dsa_signature_format_compatibility_has_correct_size() {
     {
         let (pk, sk) = ml_dsa_generate_keypair(param).expect("keygen should succeed");
         let message = b"Test message for signature format";
-        let signature = ml_dsa_sign(&sk, message, &[]).expect("signing should succeed");
+        let signature = sk.sign(message, &[]).expect("signing should succeed");
 
         // Signature should not be trivial
         assert!(!signature.as_bytes().iter().all(|&b| b == 0), "Signature should not be all zeros");
 
         // Verify signature is valid
-        let is_valid =
-            ml_dsa_verify(&pk, message, &signature, &[]).expect("verification should succeed");
+        let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
         assert!(is_valid, "Signature should be valid for {}", param.name());
     }
 }
@@ -220,7 +218,7 @@ fn test_slh_dsa_fips205_key_sizes_has_correct_size() {
         assert_eq!(sk.as_bytes().len(), sk_size, "FIPS 205 {:?} secret key size mismatch", level);
 
         let message = b"Test message for SLH-DSA";
-        let signature = sk.sign(message, None).expect("signing should succeed");
+        let signature = sk.sign(message, &[]).expect("signing should succeed");
         assert_eq!(signature.len(), sig_size, "FIPS 205 {:?} signature size mismatch", level);
     }
 }
@@ -235,13 +233,13 @@ fn test_slh_dsa_signature_format_compatibility_has_correct_size() {
     ] {
         let (sk, pk) = SigningKey::generate(level).expect("keygen should succeed");
         let message = b"Test message for signature format";
-        let signature = sk.sign(message, None).expect("signing should succeed");
+        let signature = sk.sign(message, &[]).expect("signing should succeed");
 
         // Signature should not be trivial
         assert!(!signature.iter().all(|&b| b == 0), "Signature should not be all zeros");
 
         // Verify signature is valid
-        let is_valid = pk.verify(message, &signature, None).expect("verification should succeed");
+        let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
         assert!(is_valid, "Signature should be valid for {:?}", level);
     }
 }
@@ -407,7 +405,7 @@ fn test_ml_dsa_signature_format_nist_structure_has_correct_size() {
     {
         let (pk, sk) = ml_dsa_generate_keypair(param).expect("keygen should succeed");
         let message = b"NIST format test message";
-        let signature = ml_dsa_sign(&sk, message, &[]).expect("signing should succeed");
+        let signature = sk.sign(message, &[]).expect("signing should succeed");
 
         // Signature should be raw bytes (no ASN.1 encoding)
         let sig_bytes = signature.as_bytes();
@@ -418,8 +416,7 @@ fn test_ml_dsa_signature_format_nist_structure_has_correct_size() {
         );
 
         // Signature should be directly usable
-        let is_valid =
-            ml_dsa_verify(&pk, message, &signature, &[]).expect("verification should succeed");
+        let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
         assert!(is_valid, "Raw format signature should verify");
     }
 }
@@ -585,11 +582,10 @@ fn test_arc_primitives_ml_dsa_interface_compatibility_succeeds() {
     let context: &[u8] = &[];
 
     // Sign produces signature
-    let signature = ml_dsa_sign(&sk, message, context).expect("signing should succeed");
+    let signature = sk.sign(message, context).expect("signing should succeed");
 
     // Verify returns bool
-    let is_valid =
-        ml_dsa_verify(&pk, message, &signature, context).expect("verification should succeed");
+    let is_valid = pk.verify(message, &signature, context).expect("verification should succeed");
     assert!(is_valid);
 
     // Types have expected accessors
@@ -605,10 +601,10 @@ fn test_arc_primitives_slh_dsa_interface_compatibility_succeeds() {
     let message = b"Test message for SLH-DSA interface";
 
     // Sign with optional context
-    let signature = sk.sign(message, None).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
 
     // Verify returns Result<bool>
-    let is_valid = pk.verify(message, &signature, None).expect("verification should succeed");
+    let is_valid = pk.verify(message, &signature, &[]).expect("verification should succeed");
     assert!(is_valid);
 
     // Types have expected accessors
@@ -1045,18 +1041,17 @@ fn test_all_signatures_reject_modified_messages_fails() {
         ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen should succeed");
     let message = b"Original message";
     let wrong_message = b"Modified message";
-    let signature = ml_dsa_sign(&sk, message, &[]).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
 
-    let is_valid =
-        ml_dsa_verify(&pk, wrong_message, &signature, &[]).expect("verification should succeed");
+    let is_valid = pk.verify(wrong_message, &signature, &[]).expect("verification should succeed");
     assert!(!is_valid, "ML-DSA should reject modified message");
 
     // SLH-DSA
     let (sk, pk) =
         SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen should succeed");
-    let signature = sk.sign(message, None).expect("signing should succeed");
+    let signature = sk.sign(message, &[]).expect("signing should succeed");
 
-    let is_valid = pk.verify(wrong_message, &signature, None).expect("verification should succeed");
+    let is_valid = pk.verify(wrong_message, &signature, &[]).expect("verification should succeed");
     assert!(!is_valid, "SLH-DSA should reject modified message");
 
     // Ed25519
@@ -1077,10 +1072,9 @@ fn test_all_signatures_reject_wrong_public_key_fails() {
         ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen 1 should succeed");
     let (pk2, _sk2) =
         ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keygen 2 should succeed");
-    let signature = ml_dsa_sign(&sk1, message, &[]).expect("signing should succeed");
+    let signature = sk1.sign(message, &[]).expect("signing should succeed");
 
-    let is_valid =
-        ml_dsa_verify(&pk2, message, &signature, &[]).expect("verification should succeed");
+    let is_valid = pk2.verify(message, &signature, &[]).expect("verification should succeed");
     assert!(!is_valid, "ML-DSA should reject wrong public key");
 
     // SLH-DSA
@@ -1088,9 +1082,9 @@ fn test_all_signatures_reject_wrong_public_key_fails() {
         SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen 1 should succeed");
     let (_sk2, pk2) =
         SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("keygen 2 should succeed");
-    let signature = sk1.sign(message, None).expect("signing should succeed");
+    let signature = sk1.sign(message, &[]).expect("signing should succeed");
 
-    let is_valid = pk2.verify(message, &signature, None).expect("verification should succeed");
+    let is_valid = pk2.verify(message, &signature, &[]).expect("verification should succeed");
     assert!(!is_valid, "SLH-DSA should reject wrong public key");
 
     // Ed25519

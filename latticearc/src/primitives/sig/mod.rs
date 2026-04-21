@@ -108,17 +108,17 @@
 //! ### ML-DSA Signing and Verification
 //!
 //! ```no_run
-//! use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+//! use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 //!
 //! // Generate keypair
 //! let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65)?;
 //!
-//! // Sign a message
+//! // Sign a message (empty context = no domain separation)
 //! let message = b"Hello, post-quantum world!";
-//! let signature = sign(&sk, message, &[])?;
+//! let signature = sk.sign(message, &[])?;
 //!
 //! // Verify signature
-//! let is_valid = verify(&pk, message, &signature, &[])?;
+//! let is_valid = pk.verify(message, &signature, &[])?;
 //! assert!(is_valid);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -133,8 +133,8 @@
 //! let message = b"Important document";
 //! let context = b"my-application-v1"; // Domain separation
 //!
-//! let signature = sk.sign(message, Some(context))?;
-//! let is_valid = pk.verify(message, &signature, Some(context))?;
+//! let signature = sk.sign(message, context)?;
+//! let is_valid = pk.verify(message, &signature, context)?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!

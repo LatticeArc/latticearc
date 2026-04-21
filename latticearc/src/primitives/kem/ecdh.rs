@@ -356,19 +356,19 @@ impl subtle::ConstantTimeEq for X25519SecretKey {
 ///
 /// # Zeroization
 ///
-/// AUDIT-TRACKED(#48): The inner `EphemeralPrivateKey` is managed by aws-lc-rs.
-/// Zeroization of the private key material on drop is delegated to the aws-lc-rs
-/// (BoringSSL) allocator, which zeros memory on free. Rust-level `ZeroizeOnDrop`
-/// cannot be derived because `EphemeralPrivateKey` does not implement `Zeroize`.
-/// Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
+/// The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization of
+/// the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
-/// aws-lc-rs type does not expose key bytes for byte-level comparison.
-/// This type is ephemeral (consumed on use) and not compared in any
-/// production code path today — no compile-time barrier prevents a future
-/// comparison from being added via `PartialEq`. See #49.
+/// `ConstantTimeEq` is not implemented because the inner aws-lc-rs type
+/// does not expose raw key bytes. `PartialEq` is also not implemented,
+/// and a compile-time barrier in
+/// `latticearc/tests/no_partial_eq_on_secret_types.rs` prevents one from
+/// being added without removing the explicit assertion. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 pub struct X25519KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: [u8; X25519_KEY_SIZE],
@@ -456,10 +456,9 @@ impl std::fmt::Debug for X25519KeyPair {
 ///
 /// # Zeroization
 ///
-/// AUDIT-TRACKED(#48): Zeroization of the inner `PrivateKey` is delegated
-/// to aws-lc-rs (BoringSSL), which zeros key material on free. Rust-level
-/// `ZeroizeOnDrop` cannot be derived because `PrivateKey` does not
-/// implement `Zeroize`. Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
+/// Zeroization of the inner `PrivateKey` is delegated to aws-lc-rs
+/// (BoringSSL), which zeros key material on free. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 ///
 /// # Constant-Time Comparison
 ///
@@ -723,19 +722,19 @@ impl EcdhP256PublicKey {
 ///
 /// # Zeroization
 ///
-/// AUDIT-TRACKED(#48): The inner `EphemeralPrivateKey` is managed by aws-lc-rs.
-/// Zeroization of the private key material on drop is delegated to the aws-lc-rs
-/// (BoringSSL) allocator, which zeros memory on free. Rust-level `ZeroizeOnDrop`
-/// cannot be derived because `EphemeralPrivateKey` does not implement `Zeroize`.
-/// Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
+/// The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization of
+/// the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
-/// aws-lc-rs type does not expose key bytes for byte-level comparison.
-/// This type is ephemeral (consumed on use) and not compared in any
-/// production code path today — no compile-time barrier prevents a future
-/// comparison from being added via `PartialEq`. See #49.
+/// `ConstantTimeEq` is not implemented because the inner aws-lc-rs type
+/// does not expose raw key bytes. `PartialEq` is also not implemented,
+/// and a compile-time barrier in
+/// `latticearc/tests/no_partial_eq_on_secret_types.rs` prevents one from
+/// being added without removing the explicit assertion. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 pub struct EcdhP256KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: Vec<u8>,
@@ -871,19 +870,19 @@ impl EcdhP384PublicKey {
 ///
 /// # Zeroization
 ///
-/// AUDIT-TRACKED(#48): The inner `EphemeralPrivateKey` is managed by aws-lc-rs.
-/// Zeroization of the private key material on drop is delegated to the aws-lc-rs
-/// (BoringSSL) allocator, which zeros memory on free. Rust-level `ZeroizeOnDrop`
-/// cannot be derived because `EphemeralPrivateKey` does not implement `Zeroize`.
-/// Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
+/// The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization of
+/// the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
-/// aws-lc-rs type does not expose key bytes for byte-level comparison.
-/// This type is ephemeral (consumed on use) and not compared in any
-/// production code path today — no compile-time barrier prevents a future
-/// comparison from being added via `PartialEq`. See #49.
+/// `ConstantTimeEq` is not implemented because the inner aws-lc-rs type
+/// does not expose raw key bytes. `PartialEq` is also not implemented,
+/// and a compile-time barrier in
+/// `latticearc/tests/no_partial_eq_on_secret_types.rs` prevents one from
+/// being added without removing the explicit assertion. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 pub struct EcdhP384KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: Vec<u8>,
@@ -1019,19 +1018,19 @@ impl EcdhP521PublicKey {
 ///
 /// # Zeroization
 ///
-/// AUDIT-TRACKED(#48): The inner `EphemeralPrivateKey` is managed by aws-lc-rs.
-/// Zeroization of the private key material on drop is delegated to the aws-lc-rs
-/// (BoringSSL) allocator, which zeros memory on free. Rust-level `ZeroizeOnDrop`
-/// cannot be derived because `EphemeralPrivateKey` does not implement `Zeroize`.
-/// Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
+/// The inner `EphemeralPrivateKey` is managed by aws-lc-rs. Zeroization of
+/// the private key material on drop is delegated to the aws-lc-rs
+/// (BoringSSL) allocator, which zeros memory on free. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
-/// aws-lc-rs type does not expose key bytes for byte-level comparison.
-/// This type is ephemeral (consumed on use) and not compared in any
-/// production code path today — no compile-time barrier prevents a future
-/// comparison from being added via `PartialEq`. See #49.
+/// `ConstantTimeEq` is not implemented because the inner aws-lc-rs type
+/// does not expose raw key bytes. `PartialEq` is also not implemented,
+/// and a compile-time barrier in
+/// `latticearc/tests/no_partial_eq_on_secret_types.rs` prevents one from
+/// being added without removing the explicit assertion. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 pub struct EcdhP521KeyPair {
     private: EphemeralPrivateKey,
     public_bytes: Vec<u8>,

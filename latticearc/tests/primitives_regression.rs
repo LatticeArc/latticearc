@@ -281,7 +281,7 @@ fn regression_ml_kem_public_key_roundtrip() {
 /// Guards against: Empty context string handling issues
 #[test]
 fn regression_ml_dsa_empty_context() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa44) {
         Ok(r) => r,
@@ -291,12 +291,12 @@ fn regression_ml_dsa_empty_context() {
     let message = b"test message";
     let empty_context: &[u8] = &[];
 
-    let signature = match sign(&sk, message, empty_context) {
+    let signature = match sk.sign(message, empty_context) {
         Ok(s) => s,
         Err(_) => return,
     };
 
-    let is_valid = match verify(&pk, message, &signature, empty_context) {
+    let is_valid = match pk.verify(message, &signature, empty_context) {
         Ok(v) => v,
         Err(_) => return,
     };
@@ -382,7 +382,7 @@ fn regression_aead_key_generation_unique() {
 /// Guards against: Signature verification bypass
 #[test]
 fn regression_signature_rejects_modified_message() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa44) {
         Ok(r) => r,
@@ -390,13 +390,13 @@ fn regression_signature_rejects_modified_message() {
     };
 
     let message = b"original message";
-    let signature = match sign(&sk, message, &[]) {
+    let signature = match sk.sign(message, &[]) {
         Ok(s) => s,
         Err(_) => return,
     };
 
     // Original should verify
-    let valid = match verify(&pk, message, &signature, &[]) {
+    let valid = match pk.verify(message, &signature, &[]) {
         Ok(v) => v,
         Err(_) => return,
     };
@@ -404,7 +404,7 @@ fn regression_signature_rejects_modified_message() {
 
     // Modified message should fail
     let modified = b"modified message";
-    let invalid = match verify(&pk, modified, &signature, &[]) {
+    let invalid = match pk.verify(modified, &signature, &[]) {
         Ok(v) => v,
         Err(_) => return,
     };
@@ -530,7 +530,7 @@ fn regression_hash_nonzero_output() {
 /// Guards against: Keypair mismatch during generation
 #[test]
 fn regression_ml_dsa_keypair_consistency() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     for param in
         [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
@@ -541,12 +541,12 @@ fn regression_ml_dsa_keypair_consistency() {
         };
 
         let message = b"test message for keypair consistency";
-        let signature = match sign(&sk, message, &[]) {
+        let signature = match sk.sign(message, &[]) {
             Ok(s) => s,
             Err(_) => continue,
         };
 
-        let is_valid = match verify(&pk, message, &signature, &[]) {
+        let is_valid = match pk.verify(message, &signature, &[]) {
             Ok(v) => v,
             Err(_) => continue,
         };
@@ -814,7 +814,7 @@ fn roundtrip_chacha20_poly1305() {
 /// Guards against: Signature implementation asymmetry
 #[test]
 fn roundtrip_ml_dsa_sign_verify() {
-    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
     let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa65) {
         Ok(r) => r,
@@ -824,12 +824,12 @@ fn roundtrip_ml_dsa_sign_verify() {
     let message = b"round-trip test for ML-DSA signatures";
     let context = b"test context";
 
-    let signature = match sign(&sk, message, context) {
+    let signature = match sk.sign(message, context) {
         Ok(s) => s,
         Err(_) => return,
     };
 
-    let is_valid = match verify(&pk, message, &signature, context) {
+    let is_valid = match pk.verify(message, &signature, context) {
         Ok(v) => v,
         Err(_) => return,
     };
@@ -984,7 +984,7 @@ fn error_ml_kem_wrong_key_size() {
 #[test]
 fn error_ml_dsa_truncated_signature() {
     use latticearc::primitives::sig::ml_dsa::{
-        MlDsaParameterSet, MlDsaSignature, generate_keypair, sign, verify,
+        MlDsaParameterSet, MlDsaSignature, generate_keypair,
     };
 
     let (pk, sk) = match generate_keypair(MlDsaParameterSet::MlDsa44) {
@@ -993,7 +993,7 @@ fn error_ml_dsa_truncated_signature() {
     };
 
     let message = b"test message";
-    let signature = match sign(&sk, message, &[]) {
+    let signature = match sk.sign(message, &[]) {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -1004,7 +1004,7 @@ fn error_ml_dsa_truncated_signature() {
     let truncated_sig =
         MlDsaSignature::from_bytes_unchecked(signature.parameter_set(), truncated_bytes);
 
-    let result = verify(&pk, message, &truncated_sig, &[]);
+    let result = pk.verify(message, &truncated_sig, &[]);
     assert!(result.is_err(), "Truncated signature should return error");
 }
 
@@ -1103,9 +1103,7 @@ fn error_hash_size_limit() {
 /// Guards against: Error swallowing
 #[test]
 fn error_propagation_ml_dsa() {
-    use latticearc::primitives::sig::ml_dsa::{
-        MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature, verify,
-    };
+    use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature};
 
     // Create an invalid public key
     let invalid_pk_data = vec![0u8; 1312]; // Correct size but invalid content
@@ -1123,7 +1121,7 @@ fn error_propagation_ml_dsa() {
 
     let message = b"test";
     // This should either return an error or return false, but not panic
-    let result = verify(&pk, message, &sig, &[]);
+    let result = pk.verify(message, &sig, &[]);
     // We don't assert on specific behavior, just that it doesn't panic
     let _ = result;
 }

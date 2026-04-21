@@ -84,10 +84,14 @@ fn fiat_shamir_challenge(
 /// prevent accidental logging of proof material that could be correlated with
 /// the prover's secret.
 ///
-/// AUDIT-TRACKED(#50): `Clone` is retained on this proof type. The threat-model
-/// acceptance (ephemeral proof material, Fiat-Shamir replay prevention) is
-/// documented in SECURITY.md ("ZKP Proof Clone Acceptance"). See #50.
-#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+/// # Cloning
+///
+/// `SchnorrProof` deliberately does NOT implement `Clone`. Proofs contain
+/// prover-derived material, and every copy extends that material's in-memory
+/// lifetime. Use [`SchnorrProof::clone_for_transmission`] when duplication
+/// is genuinely needed — each call is a deliberate, grep-able audit
+/// checkpoint.
+#[derive(Zeroize, ZeroizeOnDrop)]
 #[cfg_attr(feature = "zkp-serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "zkp-serde", serde(crate = "serde"))]
 pub struct SchnorrProof {
@@ -124,6 +128,12 @@ impl SchnorrProof {
     #[must_use]
     pub fn new(commitment: [u8; 33], response: [u8; 32]) -> Self {
         Self { commitment, response }
+    }
+
+    /// Make an independent copy of this proof for transmission to a verifier.
+    #[must_use]
+    pub fn clone_for_transmission(&self) -> Self {
+        Self { commitment: self.commitment, response: self.response }
     }
 
     /// Return the commitment point bytes (compressed, 33 bytes).
@@ -351,22 +361,13 @@ mod tests {
         assert!(verifier.verify(&proof, b"test").unwrap());
     }
 
-    // --- Clone + Zeroize acceptance tests (#50) ---
-    //
-    // These tests document that `Clone` on `SchnorrProof` is acceptable under
-    // the project threat model: each clone has independent storage, and
-    // `ZeroizeOnDrop` zeros each instance at end-of-scope. See SECURITY.md
-    // ("ZKP Proof Clone Acceptance") for the full rationale.
-
     #[test]
-    fn test_schnorr_proof_clone_has_independent_storage() {
+    fn test_schnorr_proof_clone_for_transmission_independent_storage() {
         let proof = SchnorrProof::new([0xAA; 33], [0xBB; 32]);
-        let mut cloned = proof.clone();
+        let mut cloned = proof.clone_for_transmission();
         Zeroize::zeroize(&mut cloned);
-        // Original unchanged:
         assert_eq!(*proof.commitment(), [0xAA; 33]);
         assert_eq!(*proof.response(), [0xBB; 32]);
-        // Clone zeroed:
         assert_eq!(*cloned.commitment(), [0u8; 33]);
         assert_eq!(*cloned.response(), [0u8; 32]);
     }

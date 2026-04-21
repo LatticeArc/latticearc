@@ -90,7 +90,6 @@ use latticearc::primitives::kem::ml_kem::{
 use latticearc::primitives::security::{SecureBytes, secure_compare};
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSecretKey, generate_keypair as mldsa_generate_keypair,
-    sign as mldsa_sign, verify as mldsa_verify,
 };
 
 // =============================================================================
@@ -747,15 +746,15 @@ fn test_mldsa_signature_operations_succeeds() {
     let context: &[u8] = b"test context";
 
     // Sign
-    let signature = mldsa_sign(&sk, message, context).expect("signing");
+    let signature = sk.sign(message, context).expect("signing");
 
     // Verify
-    let is_valid = mldsa_verify(&pk, message, &signature, context).expect("verification");
+    let is_valid = pk.verify(message, &signature, context).expect("verification");
     assert!(is_valid, "valid signature should verify");
 
     // Wrong message should not verify
     let wrong_message = b"Wrong message";
-    let is_invalid = mldsa_verify(&pk, wrong_message, &signature, context).expect("verification");
+    let is_invalid = pk.verify(wrong_message, &signature, context).expect("verification");
     assert!(!is_invalid, "invalid signature should not verify");
 }
 
@@ -770,8 +769,8 @@ fn test_mldsa_all_parameter_sets_succeeds() {
     {
         let (pk, sk) = mldsa_generate_keypair(param).expect("keypair generation");
 
-        let signature = mldsa_sign(&sk, message, context).expect("signing");
-        let is_valid = mldsa_verify(&pk, message, &signature, context).expect("verification");
+        let signature = sk.sign(message, context).expect("signing");
+        let is_valid = pk.verify(message, &signature, context).expect("verification");
 
         assert!(is_valid, "{:?} signature should verify", param);
     }

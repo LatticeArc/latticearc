@@ -102,7 +102,7 @@ fn sign_pq_ml_dsa_internal(
         CoreError::InvalidInput("Invalid ML-DSA private key format".to_string())
     })?;
 
-    let signature = crate::primitives::sig::ml_dsa::sign(&sk, message, &[]).map_err(|e| {
+    let signature = sk.sign(message, &[]).map_err(|e| {
         log_crypto_operation_error!(op::ML_DSA_SIGN, e);
         CoreError::SignatureFailed(format!("ML-DSA signing failed: {}", e))
     })?;
@@ -138,7 +138,7 @@ fn verify_pq_ml_dsa_internal(
         CoreError::InvalidInput(format!("Invalid ML-DSA signature: {}", e))
     })?;
 
-    let result = match crate::primitives::sig::ml_dsa::verify(&pk, message, &sig, &[]) {
+    let result = match pk.verify(message, &sig, &[]) {
         Ok(true) => Ok(true),
         Ok(false) => Err(CoreError::VerificationFailed),
         Err(e) => Err(CoreError::InvalidInput(format!("ML-DSA verification error: {}", e))),
@@ -179,7 +179,7 @@ fn sign_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA private key format".to_string())
     })?;
 
-    let signature = sk.sign(message, Some(b"context")).map_err(|e| {
+    let signature = sk.sign(message, b"context").map_err(|e| {
         log_crypto_operation_error!(op::SLH_DSA_SIGN, e);
         CoreError::SignatureFailed(format!("SLH-DSA signing failed: {}", e))
     })?;
@@ -209,7 +209,7 @@ fn verify_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
-    let result = match pk.verify(message, signature, Some(b"context")) {
+    let result = match pk.verify(message, signature, b"context") {
         Ok(true) => Ok(true),
         Ok(false) => Err(CoreError::VerificationFailed),
         Err(e) => Err(CoreError::InvalidInput(format!("SLH-DSA verification error: {}", e))),

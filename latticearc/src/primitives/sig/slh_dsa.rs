@@ -28,10 +28,10 @@
 //!
 //! // Sign a message (None = no context string)
 //! let message = b"Hello, SLH-DSA!";
-//! let signature = signing_key.sign(message, None)?;
+//! let signature = signing_key.sign(message, &[])?;
 //!
 //! // Verify the signature (None = no context string)
-//! let is_valid = verifying_key.verify(message, &signature, None)?;
+//! let is_valid = verifying_key.verify(message, &signature, &[])?;
 //! assert!(is_valid);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -247,18 +247,22 @@ impl VerifyingKey {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(true)` if the signature is valid, `Ok(false)` otherwise
+    /// Returns `Ok(true)` if the signature is valid, `Ok(false)` otherwise.
+    ///
+    /// `context` is the FIPS 205 context string; pass `&[]` for domain-neutral
+    /// verification. Matches the signature-API shape of ML-DSA and FN-DSA.
     ///
     /// # Errors
-    /// Returns an error if the context is too long (>255 bytes) or the key/signature is malformed.
-    #[instrument(level = "debug", skip(self, message, signature, context), fields(security_level = ?self.security_level, message_len = message.len(), signature_len = signature.len()))]
+    /// Returns an error if the context is too long (>255 bytes) or the
+    /// key/signature is malformed.
+    #[instrument(level = "debug", skip(self, message, signature, context), fields(security_level = ?self.security_level, message_len = message.len(), signature_len = signature.len(), context_len = context.len()))]
     pub fn verify(
         &self,
         message: &[u8],
         signature: &[u8],
-        context: Option<&[u8]>,
+        context: &[u8],
     ) -> Result<bool, SlhDsaError> {
-        let ctx = context.unwrap_or(b"");
+        let ctx = context;
 
         // Validate context length
         if ctx.len() > 255 {
@@ -601,17 +605,22 @@ impl SigningKey {
     ///
     /// Returns the signature as a byte vector
     ///
+    /// `context` is the FIPS 205 context string; pass `&[]` for domain-neutral
+    /// signatures. Matches the signature-API shape of ML-DSA and FN-DSA.
+    ///
     /// # Errors
     ///
-    /// Returns `SlhDsaError::RngError` if random number generation fails
-    #[instrument(level = "debug", skip(self, message, context), fields(security_level = ?self.security_level, message_len = message.len(), has_context = context.is_some()))]
-    pub fn sign(&self, message: &[u8], context: Option<&[u8]>) -> Result<Vec<u8>, SlhDsaError> {
+    /// Returns `SlhDsaError::RngError` if random number generation fails, or
+    /// `SlhDsaError::ContextTooLong` if `context` exceeds 255 bytes, or
+    /// `SlhDsaError::MessageTooLong` if the message exceeds the resource limit.
+    #[instrument(level = "debug", skip(self, message, context), fields(security_level = ?self.security_level, message_len = message.len(), context_len = context.len()))]
+    pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<Vec<u8>, SlhDsaError> {
         // DoS bound: SLH-DSA signing cost scales with message length.
         // Primitive callers bypass unified_api's resource limits.
         crate::primitives::resource_limits::validate_signature_size(message.len())
             .map_err(|_e| SlhDsaError::MessageTooLong)?;
 
-        let ctx = context.unwrap_or(b"");
+        let ctx = context;
 
         // Validate context length
         if ctx.len() > 255 {
@@ -665,7 +674,7 @@ impl SigningKey {
     pub fn sign_with_key(
         &self,
         message: &[u8],
-        context: Option<&[u8]>,
+        context: &[u8],
     ) -> Result<(Vec<u8>, &VerifyingKey), SlhDsaError> {
         let signature = self.sign(message, context)?;
         Ok((signature, &self.verifying_key))
@@ -745,7 +754,7 @@ mod tests {
         ] {
             let (sk, pk) = SigningKey::generate(level).expect("Key generation failed");
             let message = b"Test message for SLH-DSA";
-            let signature = sk.sign(message, None).expect("Signing failed");
+            let signature = sk.sign(message, &[]).expect("Signing failed");
 
             assert_eq!(
                 signature.len(),
@@ -754,7 +763,7 @@ mod tests {
                 level
             );
 
-            let is_valid = pk.verify(message, &signature, None).expect("Verification failed");
+            let is_valid = pk.verify(message, &signature, &[]).expect("Verification failed");
             assert!(is_valid, "Signature verification failed for {:?}", level);
         }
     }
@@ -765,12 +774,12 @@ mod tests {
         let (sk, pk) =
             SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
         let message = b"Test message";
-        let mut signature = sk.sign(message, None).expect("Signing failed");
+        let mut signature = sk.sign(message, &[]).expect("Signing failed");
 
         // Corrupt the signature
         signature[0] ^= 0xFF;
 
-        let is_valid = pk.verify(message, &signature, None).expect("Verification failed");
+        let is_valid = pk.verify(message, &signature, &[]).expect("Verification failed");
         assert!(!is_valid, "Verification should fail for corrupted signature");
     }
 
@@ -781,9 +790,9 @@ mod tests {
             SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
         let message = b"Test message";
         let wrong_message = b"Wrong message";
-        let signature = sk.sign(message, None).expect("Signing failed");
+        let signature = sk.sign(message, &[]).expect("Signing failed");
 
-        let is_valid = pk.verify(wrong_message, &signature, None).expect("Verification failed");
+        let is_valid = pk.verify(wrong_message, &signature, &[]).expect("Verification failed");
         assert!(!is_valid, "Verification should fail for wrong message");
     }
 
@@ -812,9 +821,9 @@ mod tests {
 
             // Verify that restored key works
             let message = b"Test message";
-            let signature = sk_restored.sign(message, None).expect("Signing failed");
+            let signature = sk_restored.sign(message, &[]).expect("Signing failed");
             let is_valid =
-                pk_restored.verify(message, &signature, None).expect("Verification failed");
+                pk_restored.verify(message, &signature, &[]).expect("Verification failed");
             assert!(is_valid, "Signature verification failed after deserialization");
         }
     }
@@ -840,15 +849,15 @@ mod tests {
         let context = b"Test context";
 
         // Sign with context
-        let signature = sk.sign(message, Some(context)).expect("Signing with context failed");
+        let signature = sk.sign(message, context).expect("Signing with context failed");
 
         // Verify with context
-        let is_valid = pk.verify(message, &signature, Some(context)).expect("Verification failed");
+        let is_valid = pk.verify(message, &signature, context).expect("Verification failed");
         assert!(is_valid, "Signature verification failed with context");
 
         // Verify with wrong context should fail
         let is_valid =
-            pk.verify(message, &signature, Some(b"Wrong context")).expect("Verification failed");
+            pk.verify(message, &signature, b"Wrong context").expect("Verification failed");
         assert!(!is_valid, "Verification should fail with wrong context");
     }
 
@@ -860,7 +869,7 @@ mod tests {
         let message = b"Test message";
         let long_context = vec![0u8; 256]; // 256 bytes, max is 255
 
-        let result = sk.sign(message, Some(&long_context));
+        let result = sk.sign(message, &long_context);
         assert!(matches!(result, Err(SlhDsaError::ContextTooLong)));
     }
 
@@ -871,8 +880,8 @@ mod tests {
             SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
         let message = b"";
 
-        let signature = sk.sign(message, None).expect("Signing empty message failed");
-        let is_valid = pk.verify(message, &signature, None).expect("Verification failed");
+        let signature = sk.sign(message, &[]).expect("Signing empty message failed");
+        let is_valid = pk.verify(message, &signature, &[]).expect("Verification failed");
         assert!(is_valid, "Signature verification failed for empty message");
     }
 
@@ -883,8 +892,8 @@ mod tests {
             SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
         let message = vec![0u8; 65536]; // 64 KB message
 
-        let signature = sk.sign(&message, None).expect("Signing large message failed");
-        let is_valid = pk.verify(&message, &signature, None).expect("Verification failed");
+        let signature = sk.sign(&message, &[]).expect("Signing large message failed");
+        let is_valid = pk.verify(&message, &signature, &[]).expect("Verification failed");
         assert!(is_valid, "Signature verification failed for large message");
     }
 
@@ -896,8 +905,8 @@ mod tests {
 
         for i in 0..10 {
             let message = format!("Test message {}", i).as_bytes().to_vec();
-            let signature = sk.sign(&message, None).expect("Signing failed");
-            let is_valid = pk.verify(&message, &signature, None).expect("Verification failed");
+            let signature = sk.sign(&message, &[]).expect("Signing failed");
+            let is_valid = pk.verify(&message, &signature, &[]).expect("Verification failed");
             assert!(is_valid, "Signature verification failed for message {}", i);
         }
     }
@@ -977,14 +986,14 @@ mod tests {
             .expect("Key generation should succeed");
         let message = b"Test message";
 
-        let signature_before = sk.sign(message, None).expect("Signing should succeed");
+        let signature_before = sk.sign(message, &[]).expect("Signing should succeed");
         let is_valid_before =
-            pk.verify(message, &signature_before, None).expect("Verification should succeed");
+            pk.verify(message, &signature_before, &[]).expect("Verification should succeed");
         assert!(is_valid_before, "Signature should be valid before zeroization");
 
         sk.zeroize();
 
-        let result = sk.sign(message, None);
+        let result = sk.sign(message, &[]);
         assert!(result.is_err(), "Signing should fail after zeroization");
     }
 
@@ -994,16 +1003,16 @@ mod tests {
         let (sk, pk) =
             SigningKey::generate(SlhDsaSecurityLevel::Shake128s).expect("Key generation failed");
         let message = b"Test message";
-        let signature = sk.sign(message, None).expect("Signing failed");
+        let signature = sk.sign(message, &[]).expect("Signing failed");
 
         // Valid signature should return Ok(true)
-        let result = pk.verify(message, &signature, None);
+        let result = pk.verify(message, &signature, &[]);
         assert!(matches!(result, Ok(true)));
 
         // Invalid signature should return Ok(false), not Err
         let mut invalid_sig = signature.clone();
         invalid_sig[0] ^= 0xFF;
-        let result = pk.verify(message, &invalid_sig, None);
+        let result = pk.verify(message, &invalid_sig, &[]);
         assert!(matches!(result, Ok(false)));
     }
 }

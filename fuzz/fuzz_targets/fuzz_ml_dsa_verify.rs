@@ -7,7 +7,7 @@
 //! without crashing and correctly rejects invalid signatures.
 
 use latticearc::primitives::sig::ml_dsa::{
-    MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature, generate_keypair, sign, verify,
+    MlDsaParameterSet, MlDsaPublicKey, MlDsaSignature, generate_keypair,
 };
 use libfuzzer_sys::fuzz_target;
 
@@ -33,8 +33,8 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Test 1: Verify valid signature
-    if let Ok(valid_sig) = sign(&sk, message, &[]) {
-        match verify(&pk, message, &valid_sig, &[]) {
+    if let Ok(valid_sig) = sk.sign(message, &[]) {
+        match pk.verify(message, &valid_sig, &[]) {
             Ok(is_valid) => {
                 assert!(is_valid, "Valid signature must verify");
             }
@@ -43,7 +43,7 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 2: Verify with corrupted signature
-    if let Ok(sig) = sign(&sk, message, &[]) {
+    if let Ok(sig) = sk.sign(message, &[]) {
         // Clone the signature data for corruption
         let mut corrupted_data = sig.as_bytes().to_vec();
         let len = corrupted_data.len();
@@ -57,7 +57,7 @@ fuzz_target!(|data: &[u8]| {
         // Create corrupted signature
         if let Ok(corrupted_sig) = MlDsaSignature::new(param, corrupted_data) {
             // Corrupted signature should fail verification
-            match verify(&pk, message, &corrupted_sig, &[]) {
+            match pk.verify(message, &corrupted_sig, &[]) {
                 Ok(is_valid) => {
                     assert!(!is_valid, "Corrupted signature must fail verification");
                 }
@@ -69,9 +69,9 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 3: Verify with wrong message
-    if let Ok(sig) = sign(&sk, message, &[]) {
+    if let Ok(sig) = sk.sign(message, &[]) {
         let wrong_message = b"completely different message content";
-        match verify(&pk, wrong_message, &sig, &[]) {
+        match pk.verify(wrong_message, &sig, &[]) {
             Ok(is_valid) => {
                 assert!(!is_valid, "Signature must fail with wrong message");
             }
@@ -85,9 +85,9 @@ fuzz_target!(|data: &[u8]| {
         match MlDsaPublicKey::new(param, pk_bytes.to_vec()) {
             Ok(fuzzed_pk) => {
                 // Create a valid signature for the message
-                if let Ok(sig) = sign(&sk, message, &[]) {
+                if let Ok(sig) = sk.sign(message, &[]) {
                     // Verify with fuzzed public key - should fail
-                    let _ = verify(&fuzzed_pk, message, &sig, &[]);
+                    let _ = fuzzed_pk.verify(message, &sig, &[]);
                     // No assertion - may crash, error, or return false
                 }
             }
@@ -103,7 +103,7 @@ fuzz_target!(|data: &[u8]| {
         match MlDsaSignature::new(param, sig_bytes.to_vec()) {
             Ok(fuzzed_sig) => {
                 // Verify fuzzed signature - should fail
-                match verify(&pk, message, &fuzzed_sig, &[]) {
+                match pk.verify(message, &fuzzed_sig, &[]) {
                     Ok(is_valid) => {
                         // Fuzzed signature should almost certainly be invalid
                         // (astronomically unlikely to be valid)
@@ -121,7 +121,7 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Test 6: Verify with truncated signature
-    if let Ok(sig) = sign(&sk, message, &[]) {
+    if let Ok(sig) = sk.sign(message, &[]) {
         let truncated_len = sig.len().saturating_sub(10);
         if truncated_len > 0 {
             let truncated_data = sig.as_bytes()[..truncated_len].to_vec();
@@ -139,9 +139,9 @@ fuzz_target!(|data: &[u8]| {
     };
 
     if let Ok((other_pk, _other_sk)) = generate_keypair(other_param) {
-        if let Ok(sig) = sign(&sk, message, &[]) {
+        if let Ok(sig) = sk.sign(message, &[]) {
             // Verify signature from MlDsa44 with MlDsa65 key - should fail
-            match verify(&other_pk, message, &sig, &[]) {
+            match other_pk.verify(message, &sig, &[]) {
                 Ok(is_valid) => {
                     assert!(!is_valid, "Cross-parameter verification must fail");
                 }

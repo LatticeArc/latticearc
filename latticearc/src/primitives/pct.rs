@@ -149,19 +149,19 @@ pub fn pct_ml_dsa(
     public_key: &crate::primitives::sig::ml_dsa::MlDsaPublicKey,
     secret_key: &crate::primitives::sig::ml_dsa::MlDsaSecretKey,
 ) -> PctResult<()> {
-    use crate::primitives::sig::ml_dsa::{sign, verify};
-
     // Verify parameter sets match
     if public_key.parameter_set() != secret_key.parameter_set() {
         return Err(PctError::ParameterMismatch);
     }
 
     // Sign the test message
-    let signature = sign(secret_key, PCT_TEST_MESSAGE, PCT_EMPTY_CONTEXT)
+    let signature = secret_key
+        .sign(PCT_TEST_MESSAGE, PCT_EMPTY_CONTEXT)
         .map_err(|e| PctError::SigningFailed(e.to_string()))?;
 
     // Verify the signature
-    let is_valid = verify(public_key, PCT_TEST_MESSAGE, &signature, PCT_EMPTY_CONTEXT)
+    let is_valid = public_key
+        .verify(PCT_TEST_MESSAGE, &signature, PCT_EMPTY_CONTEXT)
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
     pct_finalize(is_valid)
@@ -265,12 +265,12 @@ pub fn pct_slh_dsa(
 
     // Sign the test message (no context for PCT)
     let signature = signing_key
-        .sign(PCT_TEST_MESSAGE, None)
+        .sign(PCT_TEST_MESSAGE, &[])
         .map_err(|e| PctError::SigningFailed(e.to_string()))?;
 
     // Verify the signature
     let is_valid = verifying_key
-        .verify(PCT_TEST_MESSAGE, &signature, None)
+        .verify(PCT_TEST_MESSAGE, &signature, &[])
         .map_err(|e| PctError::VerificationFailed(e.to_string()))?;
 
     pct_finalize(is_valid)

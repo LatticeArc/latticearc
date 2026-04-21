@@ -632,18 +632,18 @@ impl Default for MlKemConfig {
 ///
 /// # Zeroization
 ///
-/// AUDIT-TRACKED(#48): Zeroization of the inner `DecapsulationKey` is delegated
-/// to aws-lc-rs (BoringSSL), which zeros key material on free. Rust-level
-/// `ZeroizeOnDrop` cannot be derived because `DecapsulationKey` does not
-/// implement `Zeroize`. Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
+/// Zeroization of the inner `DecapsulationKey` is delegated to aws-lc-rs
+/// (BoringSSL), which zeros key material on free. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 ///
 /// # Constant-Time Comparison
 ///
-/// AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
-/// aws-lc-rs type does not expose key bytes for byte-level comparison.
-/// This type is ephemeral (consumed on use) and not compared in any
-/// production code path today — no compile-time barrier prevents a future
-/// comparison from being added via `PartialEq`. See #49.
+/// `ConstantTimeEq` is not implemented because the inner aws-lc-rs type
+/// does not expose raw key bytes. `PartialEq` is also not implemented,
+/// and a compile-time barrier in
+/// `latticearc/tests/no_partial_eq_on_secret_types.rs` prevents one from
+/// being added without removing the explicit assertion. See SECURITY.md
+/// ("aws-lc-rs-Wrapped Secret Types").
 pub struct MlKemDecapsulationKeyPair {
     /// The public key (serializable).
     public_key: MlKemPublicKey,

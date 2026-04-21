@@ -744,10 +744,10 @@ fn test_arc_primitives_slh_dsa_integration_succeeds() {
         .expect("Key generation should succeed");
 
     let message = b"Integration test message";
-    let signature = signing_key.sign(message, None).expect("Signing should succeed");
+    let signature = signing_key.sign(message, &[]).expect("Signing should succeed");
 
     let is_valid =
-        verifying_key.verify(message, &signature, None).expect("Verification should succeed");
+        verifying_key.verify(message, &signature, &[]).expect("Verification should succeed");
 
     assert!(is_valid, "Signature verification should succeed");
 }
@@ -765,10 +765,10 @@ fn test_arc_primitives_all_security_levels_succeeds() {
             SigningKey::generate(level).expect("Key generation should succeed");
 
         let message = format!("Test for {:?}", level);
-        let signature = signing_key.sign(message.as_bytes(), None).expect("Signing should succeed");
+        let signature = signing_key.sign(message.as_bytes(), &[]).expect("Signing should succeed");
 
         let is_valid = verifying_key
-            .verify(message.as_bytes(), &signature, None)
+            .verify(message.as_bytes(), &signature, &[])
             .expect("Verification should succeed");
 
         assert!(is_valid, "Verification should succeed for {:?}", level);

@@ -4,7 +4,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 
-use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+use latticearc::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 
 const TEST_MESSAGE: &[u8] = b"Test message for ML-DSA coverage";
 const TEST_CONTEXT: &[u8] = b"";
@@ -12,27 +12,27 @@ const TEST_CONTEXT: &[u8] = b"";
 #[test]
 fn test_ml_dsa_44_sign_verify_roundtrip() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
-    let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
+    let sig = sk.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
     assert_eq!(sig.parameter_set(), MlDsaParameterSet::MlDsa44);
-    let valid = verify(&pk, TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
+    let valid = pk.verify(TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
     assert!(valid);
 }
 
 #[test]
 fn test_ml_dsa_65_sign_verify_roundtrip() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
-    let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
+    let sig = sk.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
     assert_eq!(sig.parameter_set(), MlDsaParameterSet::MlDsa65);
-    let valid = verify(&pk, TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
+    let valid = pk.verify(TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
     assert!(valid);
 }
 
 #[test]
 fn test_ml_dsa_87_sign_verify_roundtrip() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa87).unwrap();
-    let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
+    let sig = sk.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
     assert_eq!(sig.parameter_set(), MlDsaParameterSet::MlDsa87);
-    let valid = verify(&pk, TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
+    let valid = pk.verify(TEST_MESSAGE, &sig, TEST_CONTEXT).unwrap();
     assert!(valid);
 }
 
@@ -42,8 +42,8 @@ fn test_ml_dsa_wrong_message_fails_all_params_fails() {
         [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
     {
         let (pk, sk) = generate_keypair(param).unwrap();
-        let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
-        let valid = verify(&pk, b"Wrong message", &sig, TEST_CONTEXT).unwrap();
+        let sig = sk.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
+        let valid = pk.verify(b"Wrong message", &sig, TEST_CONTEXT).unwrap();
         assert!(!valid, "Wrong message should fail for {:?}", param);
     }
 }
@@ -52,10 +52,10 @@ fn test_ml_dsa_wrong_message_fails_all_params_fails() {
 fn test_ml_dsa_parameter_set_mismatch_fails() {
     let (pk44, _sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
-    let sig65 = sign(&sk65, TEST_MESSAGE, TEST_CONTEXT).unwrap();
+    let sig65 = sk65.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
 
     // Verify with mismatched parameter sets should return Ok(false)
-    let result = verify(&pk44, TEST_MESSAGE, &sig65, TEST_CONTEXT).unwrap();
+    let result = pk44.verify(TEST_MESSAGE, &sig65, TEST_CONTEXT).unwrap();
     assert!(!result, "Mismatched parameter sets should return false");
 }
 
@@ -68,7 +68,7 @@ fn test_ml_dsa_key_sizes_has_correct_size() {
         assert_eq!(pk.len(), param.public_key_size());
         assert_eq!(sk.len(), param.secret_key_size());
 
-        let sig = sign(&sk, TEST_MESSAGE, TEST_CONTEXT).unwrap();
+        let sig = sk.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
         assert_eq!(sig.len(), param.signature_size());
     }
 }
@@ -102,13 +102,13 @@ fn test_ml_dsa_empty_and_large_messages_succeeds() {
         let (pk, sk) = generate_keypair(param).unwrap();
 
         // Empty message
-        let sig = sign(&sk, b"", TEST_CONTEXT).unwrap();
-        assert!(verify(&pk, b"", &sig, TEST_CONTEXT).unwrap());
+        let sig = sk.sign(b"", TEST_CONTEXT).unwrap();
+        assert!(pk.verify(b"", &sig, TEST_CONTEXT).unwrap());
 
         // Large message
         let large = vec![0xABu8; 10000];
-        let sig = sign(&sk, &large, TEST_CONTEXT).unwrap();
-        assert!(verify(&pk, &large, &sig, TEST_CONTEXT).unwrap());
+        let sig = sk.sign(&large, TEST_CONTEXT).unwrap();
+        assert!(pk.verify(&large, &sig, TEST_CONTEXT).unwrap());
     }
 }
 
@@ -116,11 +116,11 @@ fn test_ml_dsa_empty_and_large_messages_succeeds() {
 fn test_ml_dsa_with_context_succeeds() {
     let (pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let context = b"custom-context-string";
-    let sig = sign(&sk, TEST_MESSAGE, context).unwrap();
-    assert!(verify(&pk, TEST_MESSAGE, &sig, context).unwrap());
+    let sig = sk.sign(TEST_MESSAGE, context).unwrap();
+    assert!(pk.verify(TEST_MESSAGE, &sig, context).unwrap());
 
     // Wrong context should fail
     let wrong_context = b"wrong-context";
-    let valid = verify(&pk, TEST_MESSAGE, &sig, wrong_context).unwrap();
+    let valid = pk.verify(TEST_MESSAGE, &sig, wrong_context).unwrap();
     assert!(!valid, "Wrong context should fail verification");
 }
