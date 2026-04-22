@@ -149,19 +149,19 @@
 <a href=#149 id=149 data-nosnippet>149</a>    public_key: <span class="kw-2">&amp;</span><span class="kw">crate</span>::primitives::sig::ml_dsa::MlDsaPublicKey,
 <a href=#150 id=150 data-nosnippet>150</a>    secret_key: <span class="kw-2">&amp;</span><span class="kw">crate</span>::primitives::sig::ml_dsa::MlDsaSecretKey,
 <a href=#151 id=151 data-nosnippet>151</a>) -&gt; PctResult&lt;()&gt; {
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">use </span><span class="kw">crate</span>::primitives::sig::ml_dsa::{sign, verify};
-<a href=#153 id=153 data-nosnippet>153</a>
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="comment">// Verify parameter sets match
-<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">if </span>public_key.parameter_set() != secret_key.parameter_set() {
-<a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(PctError::ParameterMismatch);
-<a href=#157 id=157 data-nosnippet>157</a>    }
-<a href=#158 id=158 data-nosnippet>158</a>
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="comment">// Sign the test message
-<a href=#160 id=160 data-nosnippet>160</a>    </span><span class="kw">let </span>signature = sign(secret_key, PCT_TEST_MESSAGE, PCT_EMPTY_CONTEXT)
-<a href=#161 id=161 data-nosnippet>161</a>        .map_err(|e| PctError::SigningFailed(e.to_string()))<span class="question-mark">?</span>;
-<a href=#162 id=162 data-nosnippet>162</a>
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="comment">// Verify the signature
-<a href=#164 id=164 data-nosnippet>164</a>    </span><span class="kw">let </span>is_valid = verify(public_key, PCT_TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, PCT_EMPTY_CONTEXT)
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="comment">// Verify parameter sets match
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">if </span>public_key.parameter_set() != secret_key.parameter_set() {
+<a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(PctError::ParameterMismatch);
+<a href=#155 id=155 data-nosnippet>155</a>    }
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a>    <span class="comment">// Sign the test message
+<a href=#158 id=158 data-nosnippet>158</a>    </span><span class="kw">let </span>signature = secret_key
+<a href=#159 id=159 data-nosnippet>159</a>        .sign(PCT_TEST_MESSAGE, PCT_EMPTY_CONTEXT)
+<a href=#160 id=160 data-nosnippet>160</a>        .map_err(|e| PctError::SigningFailed(e.to_string()))<span class="question-mark">?</span>;
+<a href=#161 id=161 data-nosnippet>161</a>
+<a href=#162 id=162 data-nosnippet>162</a>    <span class="comment">// Verify the signature
+<a href=#163 id=163 data-nosnippet>163</a>    </span><span class="kw">let </span>is_valid = public_key
+<a href=#164 id=164 data-nosnippet>164</a>        .verify(PCT_TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, PCT_EMPTY_CONTEXT)
 <a href=#165 id=165 data-nosnippet>165</a>        .map_err(|e| PctError::VerificationFailed(e.to_string()))<span class="question-mark">?</span>;
 <a href=#166 id=166 data-nosnippet>166</a>
 <a href=#167 id=167 data-nosnippet>167</a>    pct_finalize(is_valid)
@@ -265,12 +265,12 @@
 <a href=#265 id=265 data-nosnippet>265</a>
 <a href=#266 id=266 data-nosnippet>266</a>    <span class="comment">// Sign the test message (no context for PCT)
 <a href=#267 id=267 data-nosnippet>267</a>    </span><span class="kw">let </span>signature = signing_key
-<a href=#268 id=268 data-nosnippet>268</a>        .sign(PCT_TEST_MESSAGE, <span class="prelude-val">None</span>)
+<a href=#268 id=268 data-nosnippet>268</a>        .sign(PCT_TEST_MESSAGE, <span class="kw-2">&amp;</span>[])
 <a href=#269 id=269 data-nosnippet>269</a>        .map_err(|e| PctError::SigningFailed(e.to_string()))<span class="question-mark">?</span>;
 <a href=#270 id=270 data-nosnippet>270</a>
 <a href=#271 id=271 data-nosnippet>271</a>    <span class="comment">// Verify the signature
 <a href=#272 id=272 data-nosnippet>272</a>    </span><span class="kw">let </span>is_valid = verifying_key
-<a href=#273 id=273 data-nosnippet>273</a>        .verify(PCT_TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, <span class="prelude-val">None</span>)
+<a href=#273 id=273 data-nosnippet>273</a>        .verify(PCT_TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, <span class="kw-2">&amp;</span>[])
 <a href=#274 id=274 data-nosnippet>274</a>        .map_err(|e| PctError::VerificationFailed(e.to_string()))<span class="question-mark">?</span>;
 <a href=#275 id=275 data-nosnippet>275</a>
 <a href=#276 id=276 data-nosnippet>276</a>    pct_finalize(is_valid)

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["FnDsaSecurityLevel"],"struct":["KeyPair","Signature","SigningKey","VerifyingKey"]};
+window.SIDEBAR_ITEMS = {"enum":["FnDsaError","FnDsaSecurityLevel"],"struct":["KeyPair","Signature","SigningKey","VerifyingKey"]};

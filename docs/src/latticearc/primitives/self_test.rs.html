@@ -706,7 +706,7 @@
 <a href=#706 id=706 data-nosnippet>706</a>///
 <a href=#707 id=707 data-nosnippet>707</a>/// Returns error if key generation, signing, or verification fails.
 <a href=#708 id=708 data-nosnippet>708</a></span><span class="kw">pub fn </span>kat_ml_dsa() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#709 id=709 data-nosnippet>709</a>    <span class="kw">use </span><span class="kw">crate</span>::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair, sign, verify};
+<a href=#709 id=709 data-nosnippet>709</a>    <span class="kw">use </span><span class="kw">crate</span>::primitives::sig::ml_dsa::{MlDsaParameterSet, generate_keypair};
 <a href=#710 id=710 data-nosnippet>710</a>
 <a href=#711 id=711 data-nosnippet>711</a>    <span class="comment">// Fixed test message for KAT
 <a href=#712 id=712 data-nosnippet>712</a>    </span><span class="kw">const </span>TEST_MESSAGE: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"FIPS 140-3 ML-DSA Known Answer Test"</span>;
@@ -731,7 +731,7 @@
 <a href=#731 id=731 data-nosnippet>731</a>    }
 <a href=#732 id=732 data-nosnippet>732</a>
 <a href=#733 id=733 data-nosnippet>733</a>    <span class="comment">// Sign the test message
-<a href=#734 id=734 data-nosnippet>734</a>    </span><span class="kw">let </span>signature = sign(<span class="kw-2">&amp;</span>secret_key, TEST_MESSAGE, CONTEXT).map_err(|e| {
+<a href=#734 id=734 data-nosnippet>734</a>    </span><span class="kw">let </span>signature = secret_key.sign(TEST_MESSAGE, CONTEXT).map_err(|e| {
 <a href=#735 id=735 data-nosnippet>735</a>        LatticeArcError::ValidationError { message: <span class="macro">format!</span>(<span class="string">"ML-DSA KAT: signing failed: {}"</span>, e) }
 <a href=#736 id=736 data-nosnippet>736</a>    })<span class="question-mark">?</span>;
 <a href=#737 id=737 data-nosnippet>737</a>
@@ -747,7 +747,7 @@
 <a href=#747 id=747 data-nosnippet>747</a>    }
 <a href=#748 id=748 data-nosnippet>748</a>
 <a href=#749 id=749 data-nosnippet>749</a>    <span class="comment">// Verify the signature
-<a href=#750 id=750 data-nosnippet>750</a>    </span><span class="kw">let </span>is_valid = verify(<span class="kw-2">&amp;</span>public_key, TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, CONTEXT).map_err(|e| {
+<a href=#750 id=750 data-nosnippet>750</a>    </span><span class="kw">let </span>is_valid = public_key.verify(TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, CONTEXT).map_err(|e| {
 <a href=#751 id=751 data-nosnippet>751</a>        LatticeArcError::ValidationError {
 <a href=#752 id=752 data-nosnippet>752</a>            message: <span class="macro">format!</span>(<span class="string">"ML-DSA KAT: verification failed: {}"</span>, e),
 <a href=#753 id=753 data-nosnippet>753</a>        }
@@ -761,7 +761,7 @@
 <a href=#761 id=761 data-nosnippet>761</a>
 <a href=#762 id=762 data-nosnippet>762</a>    <span class="comment">// Verify that a modified message fails verification
 <a href=#763 id=763 data-nosnippet>763</a>    </span><span class="kw">const </span>WRONG_MESSAGE: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"FIPS 140-3 ML-DSA Wrong Message"</span>;
-<a href=#764 id=764 data-nosnippet>764</a>    <span class="kw">let </span>is_valid_wrong = verify(<span class="kw-2">&amp;</span>public_key, WRONG_MESSAGE, <span class="kw-2">&amp;</span>signature, CONTEXT).map_err(|e| {
+<a href=#764 id=764 data-nosnippet>764</a>    <span class="kw">let </span>is_valid_wrong = public_key.verify(WRONG_MESSAGE, <span class="kw-2">&amp;</span>signature, CONTEXT).map_err(|e| {
 <a href=#765 id=765 data-nosnippet>765</a>        LatticeArcError::ValidationError {
 <a href=#766 id=766 data-nosnippet>766</a>            message: <span class="macro">format!</span>(<span class="string">"ML-DSA KAT: verification check failed: {}"</span>, e),
 <a href=#767 id=767 data-nosnippet>767</a>        }
@@ -830,7 +830,7 @@
 <a href=#830 id=830 data-nosnippet>830</a>    }
 <a href=#831 id=831 data-nosnippet>831</a>
 <a href=#832 id=832 data-nosnippet>832</a>    <span class="comment">// Sign the test message (None = no context string)
-<a href=#833 id=833 data-nosnippet>833</a>    </span><span class="kw">let </span>signature = signing_key.sign(TEST_MESSAGE, <span class="prelude-val">None</span>).map_err(|e| {
+<a href=#833 id=833 data-nosnippet>833</a>    </span><span class="kw">let </span>signature = signing_key.sign(TEST_MESSAGE, <span class="kw-2">&amp;</span>[]).map_err(|e| {
 <a href=#834 id=834 data-nosnippet>834</a>        LatticeArcError::ValidationError { message: <span class="macro">format!</span>(<span class="string">"SLH-DSA KAT: signing failed: {}"</span>, e) }
 <a href=#835 id=835 data-nosnippet>835</a>    })<span class="question-mark">?</span>;
 <a href=#836 id=836 data-nosnippet>836</a>
@@ -847,7 +847,7 @@
 <a href=#847 id=847 data-nosnippet>847</a>    }
 <a href=#848 id=848 data-nosnippet>848</a>
 <a href=#849 id=849 data-nosnippet>849</a>    <span class="comment">// Verify the signature
-<a href=#850 id=850 data-nosnippet>850</a>    </span><span class="kw">let </span>is_valid = verifying_key.verify(TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, <span class="prelude-val">None</span>).map_err(|e| {
+<a href=#850 id=850 data-nosnippet>850</a>    </span><span class="kw">let </span>is_valid = verifying_key.verify(TEST_MESSAGE, <span class="kw-2">&amp;</span>signature, <span class="kw-2">&amp;</span>[]).map_err(|e| {
 <a href=#851 id=851 data-nosnippet>851</a>        LatticeArcError::ValidationError {
 <a href=#852 id=852 data-nosnippet>852</a>            message: <span class="macro">format!</span>(<span class="string">"SLH-DSA KAT: verification failed: {}"</span>, e),
 <a href=#853 id=853 data-nosnippet>853</a>        }
@@ -861,7 +861,7 @@
 <a href=#861 id=861 data-nosnippet>861</a>
 <a href=#862 id=862 data-nosnippet>862</a>    <span class="comment">// Verify that a modified message fails verification
 <a href=#863 id=863 data-nosnippet>863</a>    </span><span class="kw">const </span>WRONG_MESSAGE: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"FIPS 140-3 SLH-DSA Wrong Message"</span>;
-<a href=#864 id=864 data-nosnippet>864</a>    <span class="kw">let </span>is_valid_wrong = verifying_key.verify(WRONG_MESSAGE, <span class="kw-2">&amp;</span>signature, <span class="prelude-val">None</span>).map_err(|e| {
+<a href=#864 id=864 data-nosnippet>864</a>    <span class="kw">let </span>is_valid_wrong = verifying_key.verify(WRONG_MESSAGE, <span class="kw-2">&amp;</span>signature, <span class="kw-2">&amp;</span>[]).map_err(|e| {
 <a href=#865 id=865 data-nosnippet>865</a>        LatticeArcError::ValidationError {
 <a href=#866 id=866 data-nosnippet>866</a>            message: <span class="macro">format!</span>(<span class="string">"SLH-DSA KAT: verification check failed: {}"</span>, e),
 <a href=#867 id=867 data-nosnippet>867</a>        }

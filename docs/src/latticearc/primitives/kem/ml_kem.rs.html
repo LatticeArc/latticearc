@@ -632,18 +632,18 @@
 <a href=#632 id=632 data-nosnippet>632</a>///
 <a href=#633 id=633 data-nosnippet>633</a>/// # Zeroization
 <a href=#634 id=634 data-nosnippet>634</a>///
-<a href=#635 id=635 data-nosnippet>635</a>/// AUDIT-TRACKED(#48): Zeroization of the inner `DecapsulationKey` is delegated
-<a href=#636 id=636 data-nosnippet>636</a>/// to aws-lc-rs (BoringSSL), which zeros key material on free. Rust-level
-<a href=#637 id=637 data-nosnippet>637</a>/// `ZeroizeOnDrop` cannot be derived because `DecapsulationKey` does not
-<a href=#638 id=638 data-nosnippet>638</a>/// implement `Zeroize`. Re-evaluate once aws-lc-rs exposes `Zeroize`; see #48.
-<a href=#639 id=639 data-nosnippet>639</a>///
-<a href=#640 id=640 data-nosnippet>640</a>/// # Constant-Time Comparison
-<a href=#641 id=641 data-nosnippet>641</a>///
-<a href=#642 id=642 data-nosnippet>642</a>/// AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
-<a href=#643 id=643 data-nosnippet>643</a>/// aws-lc-rs type does not expose key bytes for byte-level comparison.
-<a href=#644 id=644 data-nosnippet>644</a>/// This type is ephemeral (consumed on use) and not compared in any
-<a href=#645 id=645 data-nosnippet>645</a>/// production code path today — no compile-time barrier prevents a future
-<a href=#646 id=646 data-nosnippet>646</a>/// comparison from being added via `PartialEq`. See #49.
+<a href=#635 id=635 data-nosnippet>635</a>/// Zeroization of the inner `DecapsulationKey` is delegated to aws-lc-rs
+<a href=#636 id=636 data-nosnippet>636</a>/// (BoringSSL), which zeros key material on free. See SECURITY.md
+<a href=#637 id=637 data-nosnippet>637</a>/// ("aws-lc-rs-Wrapped Secret Types").
+<a href=#638 id=638 data-nosnippet>638</a>///
+<a href=#639 id=639 data-nosnippet>639</a>/// # Constant-Time Comparison
+<a href=#640 id=640 data-nosnippet>640</a>///
+<a href=#641 id=641 data-nosnippet>641</a>/// `ConstantTimeEq` is not implemented because the inner aws-lc-rs type
+<a href=#642 id=642 data-nosnippet>642</a>/// does not expose raw key bytes. `PartialEq` is also not implemented,
+<a href=#643 id=643 data-nosnippet>643</a>/// and a compile-time barrier in
+<a href=#644 id=644 data-nosnippet>644</a>/// `latticearc/tests/no_partial_eq_on_secret_types.rs` prevents one from
+<a href=#645 id=645 data-nosnippet>645</a>/// being added without removing the explicit assertion. See SECURITY.md
+<a href=#646 id=646 data-nosnippet>646</a>/// ("aws-lc-rs-Wrapped Secret Types").
 <a href=#647 id=647 data-nosnippet>647</a></span><span class="kw">pub struct </span>MlKemDecapsulationKeyPair {
 <a href=#648 id=648 data-nosnippet>648</a>    <span class="doccomment">/// The public key (serializable).
 <a href=#649 id=649 data-nosnippet>649</a>    </span>public_key: MlKemPublicKey,

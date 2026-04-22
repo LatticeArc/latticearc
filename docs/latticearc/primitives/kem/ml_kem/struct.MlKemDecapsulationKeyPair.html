@@ -5,16 +5,16 @@ avoiding the serialization/deserialization round-trip. Both this type and
 <p>Use this type when the keypair stays in memory for the session lifetime.
 Use <a href="struct.MlKemSecretKey.html" title="struct latticearc::primitives::kem::ml_kem::MlKemSecretKey"><code>MlKemSecretKey</code></a> when keys need to be serialized for persistence.</p>
 <h2 id="zeroization"><a class="doc-anchor" href="#zeroization">§</a>Zeroization</h2>
-<p>AUDIT-TRACKED(#48): Zeroization of the inner <code>DecapsulationKey</code> is delegated
-to aws-lc-rs (BoringSSL), which zeros key material on free. Rust-level
-<code>ZeroizeOnDrop</code> cannot be derived because <code>DecapsulationKey</code> does not
-implement <code>Zeroize</code>. Re-evaluate once aws-lc-rs exposes <code>Zeroize</code>; see #48.</p>
+<p>Zeroization of the inner <code>DecapsulationKey</code> is delegated to aws-lc-rs
+(BoringSSL), which zeros key material on free. See SECURITY.md
+(“aws-lc-rs-Wrapped Secret Types”).</p>
 <h2 id="constant-time-comparison"><a class="doc-anchor" href="#constant-time-comparison">§</a>Constant-Time Comparison</h2>
-<p>AUDIT-TRACKED(#49): ConstantTimeEq not implemented because the inner
-aws-lc-rs type does not expose key bytes for byte-level comparison.
-This type is ephemeral (consumed on use) and not compared in any
-production code path today — no compile-time barrier prevents a future
-comparison from being added via <code>PartialEq</code>. See #49.</p>
+<p><code>ConstantTimeEq</code> is not implemented because the inner aws-lc-rs type
+does not expose raw key bytes. <code>PartialEq</code> is also not implemented,
+and a compile-time barrier in
+<code>latticearc/tests/no_partial_eq_on_secret_types.rs</code> prevents one from
+being added without removing the explicit assertion. See SECURITY.md
+(“aws-lc-rs-Wrapped Secret Types”).</p>
 </div></details><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-MlKemDecapsulationKeyPair" class="impl"><a class="src rightside" href="../../../../src/latticearc/primitives/kem/ml_kem.rs.html#656-749">Source</a><a href="#impl-MlKemDecapsulationKeyPair" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.MlKemDecapsulationKeyPair.html" title="struct latticearc::primitives::kem::ml_kem::MlKemDecapsulationKeyPair">MlKemDecapsulationKeyPair</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.public_key" class="method"><a class="src rightside" href="../../../../src/latticearc/primitives/kem/ml_kem.rs.html#659-661">Source</a><h4 class="code-header">pub fn <a href="#method.public_key" class="fn">public_key</a>(&amp;self) -&gt; &amp;<a class="struct" href="struct.MlKemPublicKey.html" title="struct latticearc::primitives::kem::ml_kem::MlKemPublicKey">MlKemPublicKey</a></h4></section></summary><div class="docblock"><p>Get the public key.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.public_key_bytes" class="method"><a class="src rightside" href="../../../../src/latticearc/primitives/kem/ml_kem.rs.html#665-667">Source</a><h4 class="code-header">pub fn <a href="#method.public_key_bytes" class="fn">public_key_bytes</a>(&amp;self) -&gt; &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.93.1/std/primitive.u8.html">u8</a>] <a href="#" class="tooltip" data-notable-ty="&amp;[u8]">ⓘ</a></h4></section></summary><div class="docblock"><p>Get the public key bytes for transmission.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.security_level" class="method"><a class="src rightside" href="../../../../src/latticearc/primitives/kem/ml_kem.rs.html#671-673">Source</a><h4 class="code-header">pub fn <a href="#method.security_level" class="fn">security_level</a>(&amp;self) -&gt; <a class="enum" href="enum.MlKemSecurityLevel.html" title="enum latticearc::primitives::kem::ml_kem::MlKemSecurityLevel">MlKemSecurityLevel</a></h4></section></summary><div class="docblock"><p>Get the security level.</p>
