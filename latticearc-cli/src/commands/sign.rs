@@ -35,7 +35,7 @@ pub(crate) enum SignAlgorithm {
 /// Arguments for the `sign` subcommand.
 #[derive(Args)]
 pub(crate) struct SignArgs {
-    /// Signing algorithm (expert override, deprecated — prefer --use-case).
+    /// Signing algorithm (expert override; prefer --use-case for automatic selection).
     #[arg(short, long, value_enum)]
     pub algorithm: Option<SignAlgorithm>,
     /// Use case for automatic algorithm selection (recommended).
