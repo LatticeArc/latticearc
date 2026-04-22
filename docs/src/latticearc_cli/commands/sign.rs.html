@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a><span class="doccomment">/// Arguments for the `sign` subcommand.
 <a href=#36 id=36 data-nosnippet>36</a></span><span class="attr">#[derive(Args)]
 <a href=#37 id=37 data-nosnippet>37</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>SignArgs {
-<a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// Signing algorithm (expert override, deprecated — prefer --use-case).
+<a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// Signing algorithm (expert override; prefer --use-case for automatic selection).
 <a href=#39 id=39 data-nosnippet>39</a>    </span><span class="attr">#[arg(short, long, value_enum)]
 <a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">pub </span>algorithm: <span class="prelude-ty">Option</span>&lt;SignAlgorithm&gt;,
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="doccomment">/// Use case for automatic algorithm selection (recommended).
