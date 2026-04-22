@@ -188,13 +188,66 @@ impl MlDsaPublicKey {
     /// # Errors
     /// Returns an error if the key or signature bytes fail to parse at the
     /// upstream `ml-dsa` crate (e.g. wrong length for the parameter set).
+    #[instrument(level = "debug", skip(self, message, signature, context), fields(parameter_set = ?self.parameter_set(), message_len = message.len(), signature_len = signature.as_bytes().len()))]
     pub fn verify(
         &self,
         message: &[u8],
         signature: &MlDsaSignature,
         context: &[u8],
     ) -> Result<bool, MlDsaError> {
-        verify_impl(self, message, signature, context)
+        if self.parameter_set() != signature.parameter_set() {
+            return Ok(false);
+        }
+
+        let is_valid = match self.parameter_set() {
+            MlDsaParameterSet::MlDsa44 => {
+                let pk_bytes: [u8; 1312] = self.as_bytes().try_into().map_err(|_e| {
+                    MlDsaError::InvalidKeyLength { expected: 1312, actual: self.as_bytes().len() }
+                })?;
+                let pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
+                    MlDsaError::VerificationError("verification failed".to_string())
+                })?;
+                let sig_bytes: [u8; 2420] = signature.as_bytes().try_into().map_err(|_e| {
+                    MlDsaError::InvalidSignatureLength {
+                        expected: 2420,
+                        actual: signature.as_bytes().len(),
+                    }
+                })?;
+                pk.verify(message, &sig_bytes, context)
+            }
+            MlDsaParameterSet::MlDsa65 => {
+                let pk_bytes: [u8; 1952] = self.as_bytes().try_into().map_err(|_e| {
+                    MlDsaError::InvalidKeyLength { expected: 1952, actual: self.as_bytes().len() }
+                })?;
+                let pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
+                    MlDsaError::VerificationError("verification failed".to_string())
+                })?;
+                let sig_bytes: [u8; 3309] = signature.as_bytes().try_into().map_err(|_e| {
+                    MlDsaError::InvalidSignatureLength {
+                        expected: 3309,
+                        actual: signature.as_bytes().len(),
+                    }
+                })?;
+                pk.verify(message, &sig_bytes, context)
+            }
+            MlDsaParameterSet::MlDsa87 => {
+                let pk_bytes: [u8; 2592] = self.as_bytes().try_into().map_err(|_e| {
+                    MlDsaError::InvalidKeyLength { expected: 2592, actual: self.as_bytes().len() }
+                })?;
+                let pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes).map_err(|_e| {
+                    MlDsaError::VerificationError("verification failed".to_string())
+                })?;
+                let sig_bytes: [u8; 4627] = signature.as_bytes().try_into().map_err(|_e| {
+                    MlDsaError::InvalidSignatureLength {
+                        expected: 4627,
+                        actual: signature.as_bytes().len(),
+                    }
+                })?;
+                pk.verify(message, &sig_bytes, context)
+            }
+        };
+
+        Ok(is_valid)
     }
 
     /// Creates a new ML-DSA public key from raw bytes
@@ -295,8 +348,80 @@ impl MlDsaSecretKey {
     /// # Errors
     /// Returns an error if signing fails, the key fails to parse at the
     /// upstream `ml-dsa` crate, or the message exceeds the resource limit.
+    #[instrument(level = "debug", skip(self, message, context), fields(parameter_set = ?self.parameter_set(), message_len = message.len(), context_len = context.len()))]
     pub fn sign(&self, message: &[u8], context: &[u8]) -> Result<MlDsaSignature, MlDsaError> {
-        sign_impl(self, message, context)
+        // DoS bound: primitive callers bypass unified_api's resource limits.
+        // Guard the signing hot path against unbounded messages.
+        crate::primitives::resource_limits::validate_signature_size(message.len())
+            .map_err(|_e| MlDsaError::MessageTooLong)?;
+
+        let parameter_set = self.parameter_set();
+
+        let signature = match parameter_set {
+            MlDsaParameterSet::MlDsa44 => {
+                // Stack-allocated secret key bytes wrapped in Zeroizing for guaranteed wipe.
+                let mut sk_bytes: Zeroizing<[u8; 2560]> = Zeroizing::new([0u8; 2560]);
+                if self.as_bytes().len() != 2560 {
+                    return Err(MlDsaError::InvalidKeyLength {
+                        expected: 2560,
+                        actual: self.len(),
+                    });
+                }
+                sk_bytes.copy_from_slice(self.as_bytes());
+                let sk = ml_dsa_44::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
+                    MlDsaError::SigningError(format!(
+                        "Failed to deserialize ML-DSA-44 secret key: {}",
+                        e
+                    ))
+                })?;
+                let sig = sk.try_sign(message, context).map_err(|e| {
+                    MlDsaError::SigningError(format!("ML-DSA-44 signing failed: {}", e))
+                })?;
+                MlDsaSignature::new(parameter_set, sig.to_vec())?
+            }
+            MlDsaParameterSet::MlDsa65 => {
+                let mut sk_bytes: Zeroizing<[u8; 4032]> = Zeroizing::new([0u8; 4032]);
+                if self.as_bytes().len() != 4032 {
+                    return Err(MlDsaError::InvalidKeyLength {
+                        expected: 4032,
+                        actual: self.len(),
+                    });
+                }
+                sk_bytes.copy_from_slice(self.as_bytes());
+                let sk = ml_dsa_65::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
+                    MlDsaError::SigningError(format!(
+                        "Failed to deserialize ML-DSA-65 secret key: {}",
+                        e
+                    ))
+                })?;
+                let sig = sk.try_sign(message, context).map_err(|e| {
+                    MlDsaError::SigningError(format!("ML-DSA-65 signing failed: {}", e))
+                })?;
+                MlDsaSignature::new(parameter_set, sig.to_vec())?
+            }
+            MlDsaParameterSet::MlDsa87 => {
+                let mut sk_bytes: Zeroizing<[u8; 4896]> = Zeroizing::new([0u8; 4896]);
+                if self.as_bytes().len() != 4896 {
+                    return Err(MlDsaError::InvalidKeyLength {
+                        expected: 4896,
+                        actual: self.len(),
+                    });
+                }
+                sk_bytes.copy_from_slice(self.as_bytes());
+                let sk = ml_dsa_87::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
+                    MlDsaError::SigningError(format!(
+                        "Failed to deserialize ML-DSA-87 secret key: {}",
+                        e
+                    ))
+                })?;
+                let sig = sk.try_sign(message, context).map_err(|e| {
+                    MlDsaError::SigningError(format!("ML-DSA-87 signing failed: {}", e))
+                })?;
+                MlDsaSignature::new(parameter_set, sig.to_vec())?
+            }
+        };
+
+        Ok(signature)
     }
 
     /// Creates a new ML-DSA secret key from raw bytes
@@ -524,155 +649,6 @@ pub fn generate_keypair(
         .map_err(|e| MlDsaError::KeyGenerationError(format!("PCT failed: {}", e)))?;
 
     Ok((pk, sk))
-}
-
-/// Sign a message using ML-DSA (module-private implementation — prefer the
-/// [`MlDsaSecretKey::sign`] method on secret keys).
-///
-/// # Errors
-/// Returns an error if signing fails, the key is invalid, or the ml_dsa feature is not enabled.
-#[instrument(level = "debug", skip(secret_key, message, context), fields(parameter_set = ?secret_key.parameter_set(), message_len = message.len(), context_len = context.len()))]
-fn sign_impl(
-    secret_key: &MlDsaSecretKey,
-    message: &[u8],
-    context: &[u8],
-) -> Result<MlDsaSignature, MlDsaError> {
-    // DoS bound: primitive callers bypass unified_api's resource limits.
-    // Guard the signing hot path against unbounded messages.
-    crate::primitives::resource_limits::validate_signature_size(message.len())
-        .map_err(|_e| MlDsaError::MessageTooLong)?;
-
-    let parameter_set = secret_key.parameter_set();
-
-    let signature = match parameter_set {
-        MlDsaParameterSet::MlDsa44 => {
-            // Stack-allocated secret key bytes wrapped in Zeroizing for guaranteed wipe.
-            let mut sk_bytes: Zeroizing<[u8; 2560]> = Zeroizing::new([0u8; 2560]);
-            if secret_key.as_bytes().len() != 2560 {
-                return Err(MlDsaError::InvalidKeyLength {
-                    expected: 2560,
-                    actual: secret_key.len(),
-                });
-            }
-            sk_bytes.copy_from_slice(secret_key.as_bytes());
-            let sk = ml_dsa_44::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
-                MlDsaError::SigningError(format!(
-                    "Failed to deserialize ML-DSA-44 secret key: {}",
-                    e
-                ))
-            })?;
-            let sig = sk.try_sign(message, context).map_err(|e| {
-                MlDsaError::SigningError(format!("ML-DSA-44 signing failed: {}", e))
-            })?;
-            MlDsaSignature::new(parameter_set, sig.to_vec())?
-        }
-        MlDsaParameterSet::MlDsa65 => {
-            let mut sk_bytes: Zeroizing<[u8; 4032]> = Zeroizing::new([0u8; 4032]);
-            if secret_key.as_bytes().len() != 4032 {
-                return Err(MlDsaError::InvalidKeyLength {
-                    expected: 4032,
-                    actual: secret_key.len(),
-                });
-            }
-            sk_bytes.copy_from_slice(secret_key.as_bytes());
-            let sk = ml_dsa_65::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
-                MlDsaError::SigningError(format!(
-                    "Failed to deserialize ML-DSA-65 secret key: {}",
-                    e
-                ))
-            })?;
-            let sig = sk.try_sign(message, context).map_err(|e| {
-                MlDsaError::SigningError(format!("ML-DSA-65 signing failed: {}", e))
-            })?;
-            MlDsaSignature::new(parameter_set, sig.to_vec())?
-        }
-        MlDsaParameterSet::MlDsa87 => {
-            let mut sk_bytes: Zeroizing<[u8; 4896]> = Zeroizing::new([0u8; 4896]);
-            if secret_key.as_bytes().len() != 4896 {
-                return Err(MlDsaError::InvalidKeyLength {
-                    expected: 4896,
-                    actual: secret_key.len(),
-                });
-            }
-            sk_bytes.copy_from_slice(secret_key.as_bytes());
-            let sk = ml_dsa_87::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
-                MlDsaError::SigningError(format!(
-                    "Failed to deserialize ML-DSA-87 secret key: {}",
-                    e
-                ))
-            })?;
-            let sig = sk.try_sign(message, context).map_err(|e| {
-                MlDsaError::SigningError(format!("ML-DSA-87 signing failed: {}", e))
-            })?;
-            MlDsaSignature::new(parameter_set, sig.to_vec())?
-        }
-    };
-
-    Ok(signature)
-}
-
-/// Verify a signature using ML-DSA (module-private implementation — prefer
-/// the [`MlDsaPublicKey::verify`] method on public keys).
-///
-/// # Errors
-/// Returns an error if verification fails due to invalid key or signature format.
-#[instrument(level = "debug", skip(public_key, message, signature, context), fields(parameter_set = ?public_key.parameter_set(), message_len = message.len(), signature_len = signature.as_bytes().len()))]
-fn verify_impl(
-    public_key: &MlDsaPublicKey,
-    message: &[u8],
-    signature: &MlDsaSignature,
-    context: &[u8],
-) -> Result<bool, MlDsaError> {
-    if public_key.parameter_set() != signature.parameter_set() {
-        return Ok(false);
-    }
-
-    let is_valid = match public_key.parameter_set() {
-        MlDsaParameterSet::MlDsa44 => {
-            let pk_bytes: [u8; 1312] = public_key.as_bytes().try_into().map_err(|_e| {
-                MlDsaError::InvalidKeyLength { expected: 1312, actual: public_key.as_bytes().len() }
-            })?;
-            let pk = ml_dsa_44::PublicKey::try_from_bytes(pk_bytes)
-                .map_err(|_e| MlDsaError::VerificationError("verification failed".to_string()))?;
-            let sig_bytes: [u8; 2420] = signature.as_bytes().try_into().map_err(|_e| {
-                MlDsaError::InvalidSignatureLength {
-                    expected: 2420,
-                    actual: signature.as_bytes().len(),
-                }
-            })?;
-            pk.verify(message, &sig_bytes, context)
-        }
-        MlDsaParameterSet::MlDsa65 => {
-            let pk_bytes: [u8; 1952] = public_key.as_bytes().try_into().map_err(|_e| {
-                MlDsaError::InvalidKeyLength { expected: 1952, actual: public_key.as_bytes().len() }
-            })?;
-            let pk = ml_dsa_65::PublicKey::try_from_bytes(pk_bytes)
-                .map_err(|_e| MlDsaError::VerificationError("verification failed".to_string()))?;
-            let sig_bytes: [u8; 3309] = signature.as_bytes().try_into().map_err(|_e| {
-                MlDsaError::InvalidSignatureLength {
-                    expected: 3309,
-                    actual: signature.as_bytes().len(),
-                }
-            })?;
-            pk.verify(message, &sig_bytes, context)
-        }
-        MlDsaParameterSet::MlDsa87 => {
-            let pk_bytes: [u8; 2592] = public_key.as_bytes().try_into().map_err(|_e| {
-                MlDsaError::InvalidKeyLength { expected: 2592, actual: public_key.as_bytes().len() }
-            })?;
-            let pk = ml_dsa_87::PublicKey::try_from_bytes(pk_bytes)
-                .map_err(|_e| MlDsaError::VerificationError("verification failed".to_string()))?;
-            let sig_bytes: [u8; 4627] = signature.as_bytes().try_into().map_err(|_e| {
-                MlDsaError::InvalidSignatureLength {
-                    expected: 4627,
-                    actual: signature.as_bytes().len(),
-                }
-            })?;
-            pk.verify(message, &sig_bytes, context)
-        }
-    };
-
-    Ok(is_valid)
 }
 
 #[cfg(test)]
