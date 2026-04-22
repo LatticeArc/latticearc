@@ -19,7 +19,7 @@ flowchart TB
     end
 
     subgraph "Level 3 — Primitives API"
-        L3["MlKem::encapsulate()\nml_dsa::sign()\nAesGcm256::encrypt()"]
+        L3["MlKem::encapsulate()\nMlDsaSecretKey::sign()\nAesGcm256::encrypt()"]
     end
 
     subgraph "Audited Backends"
