@@ -240,11 +240,38 @@ pub(crate) fn infer_signature_security_level(
         KeyAlgorithm::HybridMlDsa44Ed25519 => Some(SecurityLevel::Standard),
         KeyAlgorithm::HybridMlDsa65Ed25519 => Some(SecurityLevel::High),
         KeyAlgorithm::HybridMlDsa87Ed25519 => Some(SecurityLevel::Maximum),
-        // PQ-only ML-DSA — same SecurityLevel mapping, but the caller must
-        // also force PQ-only mode via CryptoConfig if that path is desired.
+        // PQ-only ML-DSA — security level is the same, but the caller MUST
+        // also force PQ-only mode (see `infer_crypto_mode`). Otherwise the
+        // default `CryptoMode::Hybrid` will resolve to a hybrid scheme and
+        // reject the pure-PQ key as a length mismatch.
         KeyAlgorithm::MlDsa44 => Some(SecurityLevel::Standard),
         KeyAlgorithm::MlDsa65 => Some(SecurityLevel::High),
         KeyAlgorithm::MlDsa87 => Some(SecurityLevel::Maximum),
+        _ => None,
+    }
+}
+
+/// Infer the `CryptoMode` from a key file's algorithm.
+///
+/// Pure-PQ algorithms (ML-DSA-44/65/87) require `CryptoMode::PqOnly`;
+/// hybrid algorithms (hybrid-ml-dsa-*-ed25519) require `CryptoMode::Hybrid`.
+/// Returning the correct mode here prevents the library from trying to parse
+/// a pure-PQ key as a hybrid key (or vice versa) and failing with a length
+/// mismatch.
+///
+/// Returns `None` for non-signing algorithms — callers fall back to the
+/// library default (hybrid).
+pub(crate) fn infer_crypto_mode(
+    algorithm: latticearc::unified_api::key_format::KeyAlgorithm,
+) -> Option<latticearc::CryptoMode> {
+    use latticearc::unified_api::key_format::KeyAlgorithm;
+    match algorithm {
+        KeyAlgorithm::HybridMlDsa44Ed25519
+        | KeyAlgorithm::HybridMlDsa65Ed25519
+        | KeyAlgorithm::HybridMlDsa87Ed25519 => Some(latticearc::CryptoMode::Hybrid),
+        KeyAlgorithm::MlDsa44 | KeyAlgorithm::MlDsa65 | KeyAlgorithm::MlDsa87 => {
+            Some(latticearc::CryptoMode::PqOnly)
+        }
         _ => None,
     }
 }
@@ -262,12 +289,20 @@ pub(crate) fn build_signing_config<'a>(
     compliance: &Option<ComplianceMode>,
     key_algorithm: latticearc::unified_api::key_format::KeyAlgorithm,
 ) -> latticearc::CryptoConfig<'a> {
+    let user_chose_scheme = use_case.is_some() || security_level.is_some();
+
     let effective_level = security_level.or_else(|| {
-        if use_case.is_some() {
-            None // caller supplied a use case; don't override with inferred level
-        } else {
-            infer_signature_security_level(key_algorithm)
-        }
+        if use_case.is_some() { None } else { infer_signature_security_level(key_algorithm) }
     });
-    build_config(use_case, effective_level, compliance)
+
+    let mut config = build_config(use_case, effective_level, compliance);
+
+    // Only infer mode when the user didn't pick a scheme explicitly — if they
+    // did, respect their choice (they may want to coerce a key through a
+    // different scheme for testing / migration).
+    if !user_chose_scheme && let Some(mode) = infer_crypto_mode(key_algorithm) {
+        config = config.crypto_mode(mode);
+    }
+
+    config
 }

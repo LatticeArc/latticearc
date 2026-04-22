@@ -114,6 +114,24 @@ fn encrypt_with_config(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs)
                 .map_err(|e| anyhow::anyhow!("Serialization failed: {e}"))
         }
         KeyType::Public => {
+            // Auto-route based on the key's algorithm: pure-PQ ML-KEM keys
+            // must go through the PqOnly path; hybrid keys stay on Hybrid.
+            // Without this split, `encrypt --use-case X --key pure_pq.pub.json`
+            // would try to parse a pure-PQ key as hybrid and fail with a
+            // length mismatch — the same bug class as the signing-path bug
+            // fixed alongside this change.
+            use latticearc::unified_api::key_format::KeyAlgorithm;
+            let alg = key_file.portable_key().algorithm();
+            let is_pq_only = matches!(
+                alg,
+                KeyAlgorithm::MlKem512 | KeyAlgorithm::MlKem768 | KeyAlgorithm::MlKem1024
+            );
+            if is_pq_only {
+                // Delegate to the dedicated PQ-only path so CryptoMode and
+                // key-parsing are consistent with the algorithm.
+                return encrypt_pq_only_mode(plaintext, key_file, args);
+            }
+
             let pk_bytes = key_file.key_bytes()?;
             let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes)?;
             let encrypted =

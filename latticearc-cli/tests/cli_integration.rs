@@ -4444,6 +4444,152 @@ fn test_cli_keygen_use_case_file_storage_roundtrip_succeeds() {
     use_case_keygen_sign_verify_roundtrip("file-storage", "hybrid-ml-dsa-87-ed25519");
 }
 
+// ============================================================================
+// Regression: pure-PQ keygen → `sign --public-key` must work (no hybrid coercion)
+// ============================================================================
+//
+// Before `build_signing_config` was taught to infer `CryptoMode`, this combination
+// failed with "Hybrid secret key length mismatch: expected 4064, got 4032":
+//
+//   - `keygen --algorithm ml-dsa65` produces a pure-PQ ML-DSA-65 keypair.
+//   - `sign --public-key` routes to `sign_unified`, which calls the unified API.
+//   - `build_signing_config` inferred SecurityLevel::High from the key's
+//     algorithm but left `CryptoMode` at its default (Hybrid).
+//   - The selector resolved (High, Hybrid) to `hybrid-ml-dsa-65-ed25519`
+//     and tried to parse the 4032-byte pure-PQ secret key as a 4064-byte
+//     hybrid secret key.
+//
+// The fix adds `infer_crypto_mode` so pure-PQ keys produce `CryptoMode::PqOnly`.
+// This test locks in the end-to-end round-trip through the CLI so the same
+// API-half-aligned bug can't recur.
+
+fn pure_pq_keygen_sign_verify_roundtrip(algorithm: &str, expected_scheme: &str) {
+    let dir = temp_dir();
+    run_ok(&["keygen", "--algorithm", algorithm, "--output", dir.path().to_str().unwrap()]);
+
+    let sk_path = dir.path().join(format!("{expected_scheme}.sec.json"));
+    let pk_path = dir.path().join(format!("{expected_scheme}.pub.json"));
+    assert!(sk_path.exists(), "secret key not written for {algorithm}: {}", sk_path.display());
+    assert!(pk_path.exists(), "public key not written for {algorithm}: {}", pk_path.display());
+
+    let msg_path = dir.path().join("message.txt");
+    std::fs::write(&msg_path, format!("pure-pq regression fixture for {algorithm}")).unwrap();
+
+    let sig_path = dir.path().join("message.sig");
+    run_ok(&[
+        "sign",
+        "--key",
+        sk_path.to_str().unwrap(),
+        "--public-key",
+        pk_path.to_str().unwrap(),
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--output",
+        sig_path.to_str().unwrap(),
+    ]);
+
+    let verify_out = run_ok(&[
+        "verify",
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--signature",
+        sig_path.to_str().unwrap(),
+    ]);
+    assert!(
+        verify_out.contains("VALID") && verify_out.contains(expected_scheme),
+        "verify output for pure-PQ {algorithm} did not confirm valid signature under \
+         expected scheme {expected_scheme}. Got: {verify_out}"
+    );
+}
+
+#[test]
+fn test_pure_pq_ml_dsa_44_keygen_sign_verify_roundtrip_via_public_key_flag() {
+    pure_pq_keygen_sign_verify_roundtrip("ml-dsa44", "ml-dsa-44");
+}
+
+#[test]
+fn test_pure_pq_ml_dsa_65_keygen_sign_verify_roundtrip_via_public_key_flag() {
+    pure_pq_keygen_sign_verify_roundtrip("ml-dsa65", "ml-dsa-65");
+}
+
+#[test]
+fn test_pure_pq_ml_dsa_87_keygen_sign_verify_roundtrip_via_public_key_flag() {
+    pure_pq_keygen_sign_verify_roundtrip("ml-dsa87", "ml-dsa-87");
+}
+
+// ============================================================================
+// Regression: pure-PQ ML-KEM keygen → `encrypt --use-case ...` must auto-route
+// ============================================================================
+//
+// Sibling bug to the sign-path issue: `encrypt_with_config` (the `--use-case`
+// path) unconditionally parsed a public key as hybrid. If the user supplied
+// a pure-PQ ML-KEM public key, it failed with a hybrid length mismatch.
+// The fix auto-detects pure-PQ ML-KEM algorithms and delegates to
+// `encrypt_pq_only_mode`, which sets `CryptoMode::PqOnly` and uses
+// `EncryptKey::PqOnly`.
+
+fn pure_pq_kem_encrypt_decrypt_roundtrip(algorithm: &str, expected_scheme: &str) {
+    let dir = temp_dir();
+    run_ok(&["keygen", "--algorithm", algorithm, "--output", dir.path().to_str().unwrap()]);
+
+    let sk_path = dir.path().join(format!("{expected_scheme}.sec.json"));
+    let pk_path = dir.path().join(format!("{expected_scheme}.pub.json"));
+    assert!(sk_path.exists(), "secret key not written for {algorithm}: {}", sk_path.display());
+    assert!(pk_path.exists(), "public key not written for {algorithm}: {}", pk_path.display());
+
+    let msg_path = dir.path().join("plaintext.bin");
+    let plaintext = format!("pure-pq regression fixture for {algorithm}");
+    std::fs::write(&msg_path, &plaintext).unwrap();
+
+    let ct_path = dir.path().join("ciphertext.json");
+    // --use-case routes through encrypt_with_config; with a pure-PQ key this
+    // used to hit the hybrid-parse bug. The fix auto-routes to PqOnly.
+    run_ok(&[
+        "encrypt",
+        "--use-case",
+        "file-storage",
+        "--key",
+        pk_path.to_str().unwrap(),
+        "--input",
+        msg_path.to_str().unwrap(),
+        "--output",
+        ct_path.to_str().unwrap(),
+    ]);
+
+    let pt_path = dir.path().join("decrypted.bin");
+    run_ok(&[
+        "decrypt",
+        "--key",
+        sk_path.to_str().unwrap(),
+        "--input",
+        ct_path.to_str().unwrap(),
+        "--output",
+        pt_path.to_str().unwrap(),
+    ]);
+
+    let decrypted = std::fs::read(&pt_path).unwrap();
+    assert_eq!(
+        decrypted,
+        plaintext.as_bytes(),
+        "decrypted plaintext did not match original for pure-PQ {algorithm}"
+    );
+}
+
+#[test]
+fn test_pure_pq_ml_kem_512_encrypt_decrypt_via_use_case_flag() {
+    pure_pq_kem_encrypt_decrypt_roundtrip("ml-kem512", "ml-kem-512");
+}
+
+#[test]
+fn test_pure_pq_ml_kem_768_encrypt_decrypt_via_use_case_flag() {
+    pure_pq_kem_encrypt_decrypt_roundtrip("ml-kem768", "ml-kem-768");
+}
+
+#[test]
+fn test_pure_pq_ml_kem_1024_encrypt_decrypt_via_use_case_flag() {
+    pure_pq_kem_encrypt_decrypt_roundtrip("ml-kem1024", "ml-kem-1024");
+}
+
 #[test]
 fn test_cli_reads_cbor_encoded_symmetric_key() {
     // The CLI `keygen` command writes JSON, but `read_from` must accept

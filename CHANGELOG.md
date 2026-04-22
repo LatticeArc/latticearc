@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (CLI — pure-PQ key handling in unified paths)
+
+- **`sign --public-key` with a pure-PQ ML-DSA key now works** (previously
+  failed with *"Hybrid secret key length mismatch: expected 4064, got
+  4032"*). Root cause: `build_signing_config` inferred `SecurityLevel`
+  from the key's algorithm but left `CryptoMode` at its default (`Hybrid`),
+  so the selector resolved to a hybrid scheme and rejected the pure-PQ
+  key. Added `infer_crypto_mode(KeyAlgorithm) -> Option<CryptoMode>`
+  alongside `infer_signature_security_level`; pure-PQ variants now set
+  `CryptoMode::PqOnly` automatically. Precedence unchanged — explicit
+  `--use-case` / `--security-level` still wins over inference.
+- **`encrypt --use-case ...` with a pure-PQ ML-KEM key now works**
+  (mirror-image of the sign bug). `encrypt_with_config` unconditionally
+  parsed public keys as hybrid in the use-case path. It now detects
+  pure-PQ ML-KEM algorithms (`ml-kem-512/768/1024`) and delegates to
+  `encrypt_pq_only_mode`, which sets `CryptoMode::PqOnly` and uses
+  `EncryptKey::PqOnly`. Hybrid keys continue to use the hybrid path.
+- **Regression tests**: six new end-to-end tests in
+  `cli_integration.rs` cover keygen → sign → verify (ML-DSA-44/65/87)
+  and keygen → encrypt → decrypt (ML-KEM-512/768/1024) via the
+  unified `--public-key` / `--use-case` flags. Existing tests only
+  exercised hybrid schemes (every `UseCase` maps to a hybrid variant
+  in the policy engine), so the pure-PQ × unified-API intersection was
+  unreached.
+
 ### Changed (breaking, pre-1.0 API cleanup)
 
 - **ZKP proof types removed `Clone` derive** (closes #50). `SchnorrProof`,
