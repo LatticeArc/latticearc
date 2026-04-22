@@ -190,6 +190,66 @@ Audit reports will be published in the `docs/audits/` directory when available.
 - Swap may contain sensitive data (use encrypted swap)
 - Core dumps may contain sensitive data (disable in production)
 
+### Hybrid Mode — Composition Security Claims
+
+LatticeArc's hybrid schemes combine a post-quantum algorithm with a classical
+algorithm so the composition is secure as long as *either* component remains
+secure. This section documents the formal security claims for each hybrid
+construction. The implementation lives in `crate::hybrid`; the analytical
+details and the runtime "proof" helpers are in
+[`latticearc::hybrid::compose`](./latticearc/src/hybrid/compose.rs).
+
+#### Hybrid KEM
+
+- **Construction**: ML-KEM (FIPS 203) + X25519 ECDH, combined via a
+  HKDF-SHA256 dual-PRF combiner (concatenate both shared secrets as IKM →
+  `HKDF-Extract` with a per-session salt → domain-separated `HKDF-Expand`).
+  Implementation: `crate::hybrid::kem_hybrid::derive_hybrid_shared_secret`.
+- **Claim**: **IND-CCA2** under the *or* of the two component assumptions —
+  Module-LWE (ML-KEM) and Computational Diffie-Hellman on Curve25519
+  (X25519), combined through the HKDF/HMAC PRF assumption.
+- **Reduction reference**: Bindel et al., *Hybrid Key Encapsulation
+  Mechanisms and Authenticated Key Exchange* (PQCrypto 2019), analysing
+  the dual-PRF combiner.
+- **What this guarantees**: if an attacker breaks ML-KEM, X25519 still
+  protects the session; conversely if Shor-style attacks break X25519, ML-KEM
+  still protects the session. An attacker must break *both* to compromise
+  the derived shared secret.
+- **Out of scope**: attacks on the underlying HKDF/HMAC PRF (treated as a
+  standard model assumption), classical attacks on SHA-256, and
+  side-channel attacks on the constant-time implementations (mitigated
+  separately — see "Constant-Time Guarantees" below).
+
+#### Hybrid Signatures
+
+- **Construction**: ML-DSA-65 (FIPS 204) + Ed25519 (RFC 8032) in
+  **AND-composition** — both signatures over the same message must verify
+  for the hybrid signature to be accepted.
+- **Claim**: **EUF-CMA** (Existential Unforgeability under Chosen Message
+  Attacks) under the *stronger* of the two component assumptions — breaking
+  the hybrid requires forging *both* component signatures.
+- **What this guarantees**: if ML-DSA is ever broken, Ed25519 still provides
+  unforgeability; conversely if Ed25519 is broken post-quantum, ML-DSA
+  still provides unforgeability. An attacker cannot forge a hybrid
+  signature unless they can forge *both* component signatures on the same
+  message.
+- **Signature size trade-off**: hybrid signatures carry both component
+  signatures (~3.3 KB ML-DSA-65 + 64 bytes Ed25519), larger than either
+  alone. Out-of-scope for security; consumers choose hybrid when the
+  defence-in-depth matters more than bandwidth.
+
+#### What "security claim" means in this document
+
+These are **documented analytical claims**, not runtime proofs. The library
+does not execute cryptographic reductions at runtime. The `compose` module's
+`verify_hybrid_kem_security` / `verify_hybrid_signature_security` functions
+return a structured `CompositionProof` object that enumerates the claim text
+— they are a machine-readable record of the claims, useful for compliance
+artefacts and audit trails, not a dynamic verification.
+
+For runtime behaviour that *is* verified, see "Verification (Three Layers)"
+above (SAW for primitives, proptest for API, Kani for type invariants).
+
 ### aws-lc-rs-Wrapped Secret Types
 
 The ECDH key types (`X25519KeyPair`, `X25519StaticKeyPair`, `EcdhP256KeyPair`,
