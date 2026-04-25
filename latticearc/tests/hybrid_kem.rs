@@ -12,6 +12,7 @@ use latticearc::hybrid::kem_hybrid::{
     derive_hybrid_shared_secret, encapsulate, generate_keypair,
 };
 use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
+use subtle::ConstantTimeEq;
 
 // ============================================================================
 // derive_hybrid_shared_secret error paths
@@ -116,7 +117,7 @@ fn test_derive_deterministic_is_deterministic() {
         ephemeral_pk: &ephemeral_pk,
     })
     .unwrap();
-    assert_eq!(s1, s2);
+    assert!(bool::from(s1.ct_eq(&s2)));
 }
 
 #[test]
@@ -139,7 +140,7 @@ fn test_derive_different_inputs_different_outputs_succeeds() {
         ephemeral_pk: &pk,
     })
     .unwrap();
-    assert_ne!(s_a, s_b);
+    assert!(!bool::from(s_a.ct_eq(&s_b)));
 }
 
 #[test]
@@ -163,7 +164,7 @@ fn test_derive_context_binding_succeeds() {
         ephemeral_pk: &pk_b,
     })
     .unwrap();
-    assert_ne!(s_a, s_b);
+    assert!(!bool::from(s_a.ct_eq(&s_b)));
 }
 
 // ============================================================================
@@ -205,7 +206,7 @@ fn test_decapsulate_rejects_wrong_ecdh_pk_length_fails() {
     let enc = latticearc::hybrid::kem_hybrid::EncapsulatedKey::new(
         vec![0u8; 1088],
         vec![0u8; 16], // Should be 32
-        zeroize::Zeroizing::new(vec![]),
+        latticearc::SecretBytes::zero(),
     );
     let result = decapsulate(&sk, &enc);
     assert!(result.is_err());
@@ -318,7 +319,7 @@ fn test_encapsulated_key_debug_succeeds() {
 fn test_encapsulated_key_shared_secret_length_has_correct_size() {
     let (pk, _sk) = generate_keypair().unwrap();
     let enc = encapsulate(&pk).unwrap();
-    assert_eq!(enc.shared_secret().len(), 64, "Hybrid shared secret should be 64 bytes");
+    assert_eq!(enc.expose_secret().len(), 64, "Hybrid shared secret should be 64 bytes");
     assert_eq!(enc.ml_kem_ct().len(), 1088, "ML-KEM ciphertext should be 1088 bytes");
     assert_eq!(enc.ecdh_pk().len(), 32, "Ephemeral ECDH PK should be 32 bytes");
 }

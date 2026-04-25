@@ -74,7 +74,7 @@ fn test_mlkem_512_key_generation_succeeds() {
     assert_eq!(pk.as_bytes().len(), 800, "MlKem512 public key should be 800 bytes");
 
     // Verify secret key size (1632 bytes for MlKem512)
-    assert_eq!(sk.as_bytes().len(), 1632, "MlKem512 secret key should be 1632 bytes");
+    assert_eq!(sk.expose_secret().len(), 1632, "MlKem512 secret key should be 1632 bytes");
 
     // Verify security level accessor
     assert_eq!(pk.security_level(), MlKemSecurityLevel::MlKem512);
@@ -94,7 +94,7 @@ fn test_mlkem_768_key_generation_succeeds() {
     assert_eq!(pk.as_bytes().len(), 1184, "MlKem768 public key should be 1184 bytes");
 
     // Verify secret key size (2400 bytes for MlKem768)
-    assert_eq!(sk.as_bytes().len(), 2400, "MlKem768 secret key should be 2400 bytes");
+    assert_eq!(sk.expose_secret().len(), 2400, "MlKem768 secret key should be 2400 bytes");
 
     // Verify security level accessor
     assert_eq!(pk.security_level(), MlKemSecurityLevel::MlKem768);
@@ -114,7 +114,7 @@ fn test_mlkem_1024_key_generation_succeeds() {
     assert_eq!(pk.as_bytes().len(), 1568, "MlKem1024 public key should be 1568 bytes");
 
     // Verify secret key size (3168 bytes for MlKem1024)
-    assert_eq!(sk.as_bytes().len(), 3168, "MlKem1024 secret key should be 3168 bytes");
+    assert_eq!(sk.expose_secret().len(), 3168, "MlKem1024 secret key should be 3168 bytes");
 
     // Verify security level accessor
     assert_eq!(pk.security_level(), MlKemSecurityLevel::MlKem1024);
@@ -166,7 +166,7 @@ fn test_key_generation_with_config_succeeds() {
 
     let (pk, sk) = result.unwrap();
     assert_eq!(pk.as_bytes().len(), 1184);
-    assert_eq!(sk.as_bytes().len(), 2400);
+    assert_eq!(sk.expose_secret().len(), 2400);
 }
 
 // ============================================================================
@@ -188,7 +188,7 @@ fn test_mlkem_512_encapsulation_succeeds() {
     assert_eq!(ct.as_bytes().len(), 768, "MlKem512 ciphertext should be 768 bytes");
 
     // Verify shared secret size (32 bytes)
-    assert_eq!(ss.as_bytes().len(), 32, "Shared secret should be 32 bytes");
+    assert_eq!(ss.expose_secret().len(), 32, "Shared secret should be 32 bytes");
 }
 
 /// Test MlKem768 encapsulation
@@ -206,7 +206,7 @@ fn test_mlkem_768_encapsulation_succeeds() {
     assert_eq!(ct.as_bytes().len(), 1088, "MlKem768 ciphertext should be 1088 bytes");
 
     // Verify shared secret size (32 bytes)
-    assert_eq!(ss.as_bytes().len(), 32, "Shared secret should be 32 bytes");
+    assert_eq!(ss.expose_secret().len(), 32, "Shared secret should be 32 bytes");
 }
 
 /// Test MlKem1024 encapsulation
@@ -224,7 +224,7 @@ fn test_mlkem_1024_encapsulation_succeeds() {
     assert_eq!(ct.as_bytes().len(), 1568, "MlKem1024 ciphertext should be 1568 bytes");
 
     // Verify shared secret size (32 bytes)
-    assert_eq!(ss.as_bytes().len(), 32, "Shared secret should be 32 bytes");
+    assert_eq!(ss.expose_secret().len(), 32, "Shared secret should be 32 bytes");
 }
 
 /// Test encapsulation produces non-trivial shared secrets
@@ -238,7 +238,7 @@ fn test_encapsulation_produces_nontrivial_secrets_succeeds() {
 
         // Shared secret should not be all zeros
         assert!(
-            !ss.as_bytes().iter().all(|&b| b == 0),
+            !ss.expose_secret().iter().all(|&b| b == 0),
             "Shared secret for {} should not be all zeros",
             level.name()
         );
@@ -273,8 +273,8 @@ fn test_encapsulation_randomness_ind_cca2_succeeds() {
 
         // Shared secrets must also differ
         assert_ne!(
-            ss1.as_bytes(),
-            ss2.as_bytes(),
+            ss1.expose_secret(),
+            ss2.expose_secret(),
             "Shared secrets for {} should differ across encapsulations",
             level.name()
         );
@@ -298,8 +298,8 @@ fn test_decapsulation_roundtrip_all_levels_roundtrip() {
             .unwrap_or_else(|e| panic!("Decapsulation for {} should succeed: {}", level.name(), e));
 
         assert_eq!(
-            ss_enc.as_bytes(),
-            ss_dec.as_bytes(),
+            ss_enc.expose_secret(),
+            ss_dec.expose_secret(),
             "Shared secrets for {} must match",
             level.name()
         );
@@ -345,15 +345,14 @@ fn test_shared_secret_constant_time_equality_succeeds() {
     let ss2 = MlKemSharedSecret::new([0x42u8; 32]);
     let ss3 = MlKemSharedSecret::new([0x43u8; 32]);
 
-    // Equal secrets
-    assert_eq!(ss1, ss2, "Identical shared secrets should be equal");
+    // Equal secrets — compared via `ct_eq` (invariants I-5/I-6: secret types
+    // intentionally do not implement `PartialEq`).
     assert!(
         bool::from(ss1.ct_eq(&ss2)),
         "Constant-time comparison should return true for equal secrets"
     );
 
     // Different secrets
-    assert_ne!(ss1, ss3, "Different shared secrets should not be equal");
     assert!(
         !bool::from(ss1.ct_eq(&ss3)),
         "Constant-time comparison should return false for different secrets"
@@ -367,7 +366,7 @@ fn test_shared_secret_from_slice_succeeds() {
     let valid_bytes = [0xAAu8; 32];
     let result = MlKemSharedSecret::from_slice(&valid_bytes);
     assert!(result.is_ok(), "from_slice with 32 bytes should succeed");
-    assert_eq!(result.unwrap().as_bytes(), &valid_bytes);
+    assert_eq!(result.unwrap().expose_secret(), &valid_bytes);
 
     // Invalid lengths
     for invalid_len in [0, 16, 31, 33, 64, 128] {
@@ -385,7 +384,7 @@ fn test_shared_secret_as_array_succeeds() {
 
     let array = ss.as_array();
     assert_eq!(*array, bytes, "as_array should return the original bytes");
-    assert_eq!(ss.as_bytes(), &bytes, "as_bytes should return a slice of the bytes");
+    assert_eq!(ss.expose_secret(), &bytes, "as_bytes should return a slice of the bytes");
 }
 
 // ============================================================================
@@ -441,7 +440,7 @@ fn test_restored_public_key_encapsulation_succeeds() {
         );
 
         let (ss, ct) = result.unwrap();
-        assert_eq!(ss.as_bytes().len(), 32);
+        assert_eq!(ss.expose_secret().len(), 32);
         assert_eq!(ct.as_bytes().len(), level.ciphertext_size());
     }
 }
@@ -593,8 +592,8 @@ fn test_decapsulate_all_zeros_ciphertext_succeeds() {
         let ss_zero = MlKem::decapsulate(&sk, &zero_ct)
             .expect("decapsulation should succeed (implicit rejection)");
         assert_ne!(
-            ss_real.as_bytes(),
-            ss_zero.as_bytes(),
+            ss_real.expose_secret(),
+            ss_zero.expose_secret(),
             "All-zeros ciphertext must produce different shared secret for {}",
             level.name()
         );
@@ -616,8 +615,8 @@ fn test_decapsulate_all_ones_ciphertext_succeeds() {
         let ss_ones = MlKem::decapsulate(&sk, &ones_ct)
             .expect("decapsulation should succeed (implicit rejection)");
         assert_ne!(
-            ss_real.as_bytes(),
-            ss_ones.as_bytes(),
+            ss_real.expose_secret(),
+            ss_ones.expose_secret(),
             "All-ones ciphertext must produce different shared secret for {}",
             level.name()
         );
@@ -642,8 +641,8 @@ fn test_decapsulate_random_garbage_ciphertext_succeeds() {
         let ss_garbage = MlKem::decapsulate(&sk, &garbage_ct)
             .expect("decapsulation should succeed (implicit rejection)");
         assert_ne!(
-            ss_real.as_bytes(),
-            ss_garbage.as_bytes(),
+            ss_real.expose_secret(),
+            ss_garbage.expose_secret(),
             "Garbage ciphertext must produce different shared secret for {}",
             level.name()
         );
@@ -693,8 +692,8 @@ fn test_decapsulate_wrong_secret_key_fails() {
             .expect("decapsulation should succeed (implicit rejection)");
 
         assert_ne!(
-            ss_enc.as_bytes(),
-            ss_wrong.as_bytes(),
+            ss_enc.expose_secret(),
+            ss_wrong.expose_secret(),
             "Wrong secret key must produce different shared secret for {}",
             level.name()
         );
@@ -802,13 +801,11 @@ fn test_secret_key_constant_time_eq_succeeds() {
     let sk3 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, vec![0x43u8; 1632])
         .expect("secret key construction should succeed");
 
-    // Equal keys
+    // Equal keys — compared via `ct_eq` (invariants I-5/I-6).
     assert!(bool::from(sk1.ct_eq(&sk2)));
-    assert_eq!(sk1, sk2);
 
     // Different keys
     assert!(!bool::from(sk1.ct_eq(&sk3)));
-    assert_ne!(sk1, sk3);
 }
 
 // ============================================================================
@@ -822,7 +819,7 @@ fn test_shared_secret_zeroization_succeeds() {
 
     // Verify initial state
     assert!(
-        ss.as_bytes().iter().any(|&b| b != 0),
+        ss.expose_secret().iter().any(|&b| b != 0),
         "Shared secret should contain non-zero data initially"
     );
 
@@ -831,7 +828,7 @@ fn test_shared_secret_zeroization_succeeds() {
 
     // Verify all bytes are zero
     assert!(
-        ss.as_bytes().iter().all(|&b| b == 0),
+        ss.expose_secret().iter().all(|&b| b == 0),
         "Shared secret should be all zeros after zeroization"
     );
 }
@@ -844,7 +841,7 @@ fn test_secret_key_zeroization_succeeds() {
 
     // Verify initial state
     assert!(
-        sk.as_bytes().iter().any(|&b| b != 0),
+        sk.expose_secret().iter().any(|&b| b != 0),
         "Secret key should contain non-zero data initially"
     );
 
@@ -853,7 +850,7 @@ fn test_secret_key_zeroization_succeeds() {
 
     // Verify all bytes are zero
     assert!(
-        sk.as_bytes().iter().all(|&b| b == 0),
+        sk.expose_secret().iter().all(|&b| b == 0),
         "Secret key should be all zeros after zeroization"
     );
 }
@@ -870,7 +867,7 @@ fn test_zeroization_all_security_levels_succeeds() {
         sk.zeroize();
 
         assert!(
-            sk.as_bytes().iter().all(|&b| b == 0),
+            sk.expose_secret().iter().all(|&b| b == 0),
             "Secret key for {} should be zeroed",
             level.name()
         );
@@ -896,9 +893,14 @@ fn test_fips_203_key_sizes_has_correct_size() {
         let (ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         assert_eq!(pk.as_bytes().len(), pk_size, "{} public key size mismatch", level.name());
-        assert_eq!(sk.as_bytes().len(), sk_size, "{} secret key size mismatch", level.name());
+        assert_eq!(sk.expose_secret().len(), sk_size, "{} secret key size mismatch", level.name());
         assert_eq!(ct.as_bytes().len(), ct_size, "{} ciphertext size mismatch", level.name());
-        assert_eq!(ss.as_bytes().len(), ss_size, "{} shared secret size mismatch", level.name());
+        assert_eq!(
+            ss.expose_secret().len(),
+            ss_size,
+            "{} shared secret size mismatch",
+            level.name()
+        );
     }
 }
 
@@ -1026,7 +1028,7 @@ fn test_multiple_consecutive_operations_succeeds() {
         let (ss, ct) =
             MlKem::encapsulate(&pk).expect(&format!("encapsulation {} should succeed", i));
 
-        assert_eq!(ss.as_bytes().len(), 32);
+        assert_eq!(ss.expose_secret().len(), 32);
         assert_eq!(ct.as_bytes().len(), level.ciphertext_size());
     }
 }
@@ -1069,7 +1071,7 @@ fn test_secret_key_into_bytes_succeeds() {
     let sk = MlKemSecretKey::new(MlKemSecurityLevel::MlKem768, vec![0xABu8; 2400])
         .expect("construction should succeed");
 
-    let original_bytes = sk.as_bytes().to_vec();
+    let original_bytes = sk.expose_secret().to_vec();
     let consumed_bytes = sk.into_bytes();
 
     // into_bytes() now returns Zeroizing<Vec<u8>> for automatic zeroization
@@ -1119,8 +1121,8 @@ fn test_decapsulation_keypair_roundtrip() {
 
         // Shared secrets must match
         assert_eq!(
-            ss_encap.as_bytes(),
-            ss_decap.as_bytes(),
+            ss_encap.expose_secret(),
+            ss_decap.expose_secret(),
             "Encap and decap shared secrets should match for {}",
             level.name()
         );

@@ -70,7 +70,7 @@ fn generate_hybrid_signing_keypair_for(
     let (pq_pk, pq_sk) = generate_ml_dsa_keypair(params)?;
     let (ed_pk, ed_sk) = generate_keypair()?;
     let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
-    let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+    let combined_sk = [pq_sk.expose_secret(), ed_sk.expose_secret()].concat();
     Ok((crate::types::PublicKey::new(combined_pk), crate::types::PrivateKey::new(combined_sk)))
 }
 
@@ -653,7 +653,7 @@ pub fn generate_signing_keypair(
         }
     };
 
-    Ok((public_key.into_bytes(), Zeroizing::new(secret_key.as_ref().to_vec()), scheme))
+    Ok((public_key.into_bytes(), Zeroizing::new(secret_key.expose_secret().to_vec()), scheme))
 }
 
 /// Sign a message using caller-provided keys (unified API).
@@ -1474,7 +1474,7 @@ mod tests {
                 let message = b"SLH-DSA-128s test message";
                 let signature = sign_pq_slh_dsa_unverified(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     SlhDsaSecurityLevel::Shake128s,
                 )
                 .unwrap();
@@ -1512,7 +1512,7 @@ mod tests {
                 let message = b"SLH-DSA-192s test message";
                 let signature = sign_pq_slh_dsa_unverified(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     SlhDsaSecurityLevel::Shake192s,
                 )
                 .unwrap();
@@ -1550,7 +1550,7 @@ mod tests {
                 let message = b"SLH-DSA-256s test message";
                 let signature = sign_pq_slh_dsa_unverified(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     SlhDsaSecurityLevel::Shake256s,
                 )
                 .unwrap();
@@ -1588,9 +1588,12 @@ mod tests {
 
                 let (pk, sk) = generate_fn_dsa_keypair().unwrap();
                 let message = b"FN-DSA test message";
-                let signature =
-                    sign_pq_fn_dsa_unverified(message, sk.as_ref(), FnDsaSecurityLevel::Level512)
-                        .unwrap();
+                let signature = sign_pq_fn_dsa_unverified(
+                    message,
+                    sk.expose_secret(),
+                    FnDsaSecurityLevel::Level512,
+                )
+                .unwrap();
 
                 let signed_data = SignedData {
                     data: message.to_vec(),
@@ -1628,7 +1631,7 @@ mod tests {
                 let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
                 let (ed_pk, ed_sk) = generate_keypair().unwrap();
                 let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
-                let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+                let combined_sk = [pq_sk.expose_secret(), ed_sk.expose_secret()].concat();
 
                 let message = b"Hybrid ML-DSA-44 + Ed25519 test";
                 let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
@@ -1660,7 +1663,7 @@ mod tests {
                 let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87).unwrap();
                 let (ed_pk, ed_sk) = generate_keypair().unwrap();
                 let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
-                let combined_sk = [pq_sk.as_ref(), ed_sk.as_ref()].concat();
+                let combined_sk = [pq_sk.expose_secret(), ed_sk.expose_secret()].concat();
 
                 let message = b"Hybrid ML-DSA-87 + Ed25519 test";
                 let config = CryptoConfig::new().security_level(SecurityLevel::Maximum);
@@ -2128,7 +2131,7 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())
                         .unwrap();
 
                 let config =
@@ -2154,7 +2157,7 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())
                         .unwrap();
 
                 let config = CryptoConfig::new().session(&session);
@@ -2179,7 +2182,7 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())
                         .unwrap();
                 let expired = session.expired_clone();
 
@@ -2215,7 +2218,7 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())
                         .unwrap();
                 let expired = session.expired_clone();
 
@@ -2242,7 +2245,7 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())
                         .unwrap();
 
                 // Generate a valid keypair first
@@ -2279,7 +2282,7 @@ mod tests {
                 let (auth_pk, auth_sk) =
                     crate::unified_api::convenience::keygen::generate_keypair().unwrap();
                 let session =
-                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+                    crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())
                         .unwrap();
                 let expired = session.expired_clone();
 

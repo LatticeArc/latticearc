@@ -34,29 +34,29 @@ fn test_ml_kem_succeeds(security_level: MlKemSecurityLevel) {
     let (pk, sk) = MlKem::generate_keypair(security_level).expect("Key generation failed");
 
     println!("   - Public key size: {} bytes", pk.as_bytes().len());
-    println!("   - Secret key size: {} bytes", sk.as_bytes().len());
+    println!("   - Secret key size: {} bytes", sk.expose_secret().len());
 
     // Verify key sizes match specification
     assert_eq!(pk.as_bytes().len(), security_level.public_key_size());
-    assert_eq!(sk.as_bytes().len(), security_level.secret_key_size());
+    assert_eq!(sk.expose_secret().len(), security_level.secret_key_size());
 
     // Encapsulation
     println!("   - Encapsulating shared secret...");
     let (ss1, ct) = MlKem::encapsulate(&pk).expect("Encapsulation failed");
 
     println!("   - Ciphertext size: {} bytes", ct.as_bytes().len());
-    println!("   - Shared secret size: {} bytes", ss1.as_bytes().len());
+    println!("   - Shared secret size: {} bytes", ss1.expose_secret().len());
 
     // Verify ciphertext and shared secret sizes
     assert_eq!(ct.as_bytes().len(), security_level.ciphertext_size());
-    assert_eq!(ss1.as_bytes().len(), 32);
+    assert_eq!(ss1.expose_secret().len(), 32);
 
     // Decapsulation
     println!("   - Decapsulating shared secret...");
     let ss2 = MlKem::decapsulate(&sk, &ct).expect("Decapsulation failed");
 
     // Verify shared secrets match
-    assert_eq!(ss1.as_bytes(), ss2.as_bytes());
+    assert_eq!(ss1.expose_secret(), ss2.expose_secret());
 
     println!(
         "   - ML-KEM-{}: All operations successful!",

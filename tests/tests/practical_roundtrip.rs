@@ -296,7 +296,7 @@ fn roundtrip_keypair_persist_and_use_for_signing_succeeds() {
     let config = CryptoConfig::new().security_level(SecurityLevel::High);
     let signed = sign_with_key(
         message,
-        restored_keypair.private_key().as_slice(),
+        restored_keypair.private_key().expose_secret(),
         restored_keypair.public_key().as_slice(),
         config,
     )
@@ -333,7 +333,7 @@ fn roundtrip_keypair_persist_and_use_for_encryption_succeeds() {
 
     let decrypted = decrypt(
         &encrypted,
-        DecryptKey::Symmetric(restored.private_key().as_slice()),
+        DecryptKey::Symmetric(restored.private_key().expose_secret()),
         CryptoConfig::new(),
     )
     .expect("decrypt failed");
@@ -422,7 +422,7 @@ fn roundtrip_portable_key_persist_and_encrypt_succeeds() {
 
     let hybrid_pk = pk_portable.to_hybrid_public_key().expect("extract PK");
     let encapsulated = kem_hybrid::encapsulate(&hybrid_pk).expect("encapsulate");
-    let sender_ss = encapsulated.shared_secret().to_vec();
+    let sender_ss = encapsulated.expose_secret().to_vec();
 
     // === Process A: Load SK + PK from files, decapsulate ===
     let sk_json = read_from_tempfile(&sk_file);
@@ -431,7 +431,7 @@ fn roundtrip_portable_key_persist_and_encrypt_succeeds() {
     let hybrid_sk = sk_portable.to_hybrid_secret_key().expect("reconstruct SK");
     let receiver_ss = kem_hybrid::decapsulate(&hybrid_sk, &encapsulated).expect("decapsulate");
 
-    let match_ok = receiver_ss.as_slice() == sender_ss.as_slice();
+    let match_ok = receiver_ss.expose_secret() == sender_ss.as_slice();
     assert!(match_ok, "Shared secrets must match via PortableKey persistence");
 
     println!(

@@ -879,7 +879,8 @@ mod tests {
         let key = generate_test_key();
         let plaintext = b"Verified session roundtrip test";
         let (auth_pk, auth_sk) = crate::unified_api::generate_keypair()?;
-        let session = crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session =
+            crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let ct = encrypt_aes_gcm(plaintext, &key, SecurityMode::Verified(&session))?;
         let pt = decrypt_aes_gcm(&ct, &key, SecurityMode::Verified(&session))?;
@@ -893,7 +894,8 @@ mod tests {
         let plaintext = b"Config + verified session test";
         let config = CoreConfig::default();
         let (auth_pk, auth_sk) = crate::unified_api::generate_keypair()?;
-        let session = crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session =
+            crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let ct = encrypt_aes_gcm_with_config(
             plaintext,
@@ -1006,7 +1008,8 @@ mod tests {
         let plaintext = b"Verified AAD test";
         let aad = b"session-bound-context";
         let (auth_pk, auth_sk) = crate::unified_api::generate_keypair()?;
-        let session = crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session =
+            crate::VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let ct = encrypt_aes_gcm_with_aad(plaintext, &key, aad, SecurityMode::Verified(&session))?;
         let pt = decrypt_aes_gcm_with_aad(&ct, &key, aad, SecurityMode::Verified(&session))?;

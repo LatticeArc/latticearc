@@ -10,7 +10,7 @@
 //!
 //! ## What's Here
 //!
-//! - **types**: `ZeroizedBytes`, `SecurityLevel`, `UseCase`, `CryptoScheme`, etc.
+//! - **types**: `SecurityLevel`, `UseCase`, `CryptoScheme`, etc.
 //! - **traits**: `ZeroTrustAuthenticable`, `ProofOfPossession`, `ContinuousVerifiable`,
 //!   `SchemeSelector`, `VerificationStatus`, `DataCharacteristics`, `PatternType`.
 //! - **config**: `CoreConfig`, `EncryptionConfig`, `SignatureConfig`, etc.
@@ -34,6 +34,9 @@ pub mod domains;
 pub mod error;
 /// Key lifecycle management per NIST SP 800-57.
 pub mod key_lifecycle;
+/// Primitive secret-byte containers (`SecretBytes<N>`, `SecretVec`). See
+/// `docs/SECRET_TYPE_INVARIANTS.md` for the normative spec.
+pub mod secrets;
 /// Core traits for cryptographic operations.
 pub mod traits;
 /// Fundamental cryptographic types.
@@ -51,6 +54,7 @@ pub use key_lifecycle::{
     CustodianRole, KeyCustodian, KeyLifecycleRecord, KeyLifecycleState, KeyStateMachine,
     StateTransition,
 };
+pub use secrets::{SecretBytes, SecretVec};
 pub use traits::{
     ContinuousVerifiable, DataCharacteristics, HardwareCapabilities, HardwareInfo, HardwareType,
     PatternType, ProofOfPossession, SchemeSelector, VerificationStatus, ZeroTrustAuthenticable,
@@ -58,7 +62,6 @@ pub use traits::{
 pub use types::{
     AlgorithmSelection, ComplianceMode, CryptoContext, CryptoPayload, CryptoScheme, EncryptedData,
     EncryptedMetadata, HashOutput, KeyPair, PerformancePreference, PrivateKey, PublicKey,
-    SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
-    fips_available,
+    SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, fips_available,
 };
 pub use zero_trust::TrustLevel;

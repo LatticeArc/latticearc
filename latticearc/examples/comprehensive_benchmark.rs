@@ -142,7 +142,7 @@ fn main() {
 
         // Step 3: Combine secrets with HKDF (ML-KEM SS || ECDH SS)
         let mut combined_ikm = Vec::with_capacity(64);
-        combined_ikm.extend_from_slice(ml_kem_ss.as_bytes());
+        combined_ikm.extend_from_slice(ml_kem_ss.expose_secret());
         combined_ikm.extend_from_slice(&*ecdh_ss);
         let hkdf_result = hkdf(&combined_ikm, None, Some(b"hybrid"), 32).unwrap();
         let hybrid_key: [u8; 32] = hkdf_result.key().try_into().unwrap();
@@ -244,7 +244,7 @@ fn main() {
         let (ml_kem_ss, _ml_kem_ct) = MlKem::encapsulate(&ml_kem_pk).unwrap();
 
         // Step 2: Derive encryption key with HKDF
-        let hkdf_result = hkdf(ml_kem_ss.as_bytes(), None, Some(b"pq-only"), 32).unwrap();
+        let hkdf_result = hkdf(ml_kem_ss.expose_secret(), None, Some(b"pq-only"), 32).unwrap();
         let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
 
         // Step 3: AES-256-GCM encryption

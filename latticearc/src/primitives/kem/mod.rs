@@ -41,10 +41,9 @@
 //!
 //! ```no_run
 //! use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
-//! use rand::rngs::OsRng;
+//! use subtle::ConstantTimeEq;
 //!
 //! // Generate keypair
-//! let mut rng = OsRng;
 //! let (pk, sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)?;
 //!
 //! // Encapsulate shared secret
@@ -52,7 +51,9 @@
 //!
 //! // Decapsulate shared secret
 //! let recovered_secret = MlKem::decapsulate(&sk, &ciphertext)?;
-//! assert_eq!(shared_secret, recovered_secret);
+//!
+//! // Shared secrets must match — compared via `ct_eq` (invariant I-5).
+//! assert!(bool::from(shared_secret.expose_secret().ct_eq(recovered_secret.expose_secret())));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!

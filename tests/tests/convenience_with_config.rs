@@ -77,7 +77,8 @@ fn test_ed25519_sign_verify_with_config_roundtrip() {
     let config = CoreConfig::default();
 
     let sig =
-        sign_ed25519_with_config(message, sk.as_ref(), &config, SecurityMode::Unverified).unwrap();
+        sign_ed25519_with_config(message, sk.expose_secret(), &config, SecurityMode::Unverified)
+            .unwrap();
     let valid =
         verify_ed25519_with_config(message, &sig, pk.as_slice(), &config, SecurityMode::Unverified)
             .unwrap();
@@ -90,7 +91,7 @@ fn test_ed25519_sign_verify_with_config_unverified_roundtrip() {
     let message = b"Ed25519 with_config_unverified test";
     let config = CoreConfig::default();
 
-    let sig = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config).unwrap();
+    let sig = sign_ed25519_with_config_unverified(message, sk.expose_secret(), &config).unwrap();
     let valid =
         verify_ed25519_with_config_unverified(message, &sig, pk.as_slice(), &config).unwrap();
     assert!(valid);
@@ -225,7 +226,7 @@ fn test_ml_kem_encrypt_with_config_succeeds() {
     // Decrypt roundtrip with serialized SK (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
     let decrypted = decrypt_pq_ml_kem_with_config(
         &encrypted,
-        sk.as_ref(),
+        sk.expose_secret(),
         MlKemSecurityLevel::MlKem768,
         &config,
         SecurityMode::Unverified,
@@ -252,7 +253,7 @@ fn test_ml_kem_encrypt_with_config_unverified_succeeds() {
     // Decrypt roundtrip (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
     let decrypted = decrypt_pq_ml_kem_with_config_unverified(
         &encrypted,
-        sk.as_ref(),
+        sk.expose_secret(),
         MlKemSecurityLevel::MlKem768,
         &config,
     )

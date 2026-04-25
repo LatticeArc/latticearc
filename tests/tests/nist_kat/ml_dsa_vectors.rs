@@ -39,7 +39,7 @@ fn test_mldsa_44_key_sizes_match_spec_has_correct_size() {
         ML_DSA_44_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         ML_DSA_44_SK_SIZE,
         "ML-DSA-44 secret key should be {} bytes",
         ML_DSA_44_SK_SIZE
@@ -58,7 +58,7 @@ fn test_mldsa_65_key_sizes_match_spec_has_correct_size() {
         ML_DSA_65_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         ML_DSA_65_SK_SIZE,
         "ML-DSA-65 secret key should be {} bytes",
         ML_DSA_65_SK_SIZE
@@ -77,7 +77,7 @@ fn test_mldsa_87_key_sizes_match_spec_has_correct_size() {
         ML_DSA_87_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         ML_DSA_87_SK_SIZE,
         "ML-DSA-87 secret key should be {} bytes",
         ML_DSA_87_SK_SIZE

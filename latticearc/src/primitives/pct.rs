@@ -212,7 +212,7 @@ pub fn pct_ml_kem(
         .map_err(|e| PctError::VerificationFailed(format!("ML-KEM decapsulation failed: {}", e)))?;
 
     // Constant-time comparison
-    let is_valid = bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes()));
+    let is_valid = bool::from(ss_encap.expose_secret().ct_eq(ss_decap.expose_secret()));
     pct_finalize(is_valid)
 }
 

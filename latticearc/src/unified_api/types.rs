@@ -10,6 +10,7 @@
 #![deny(clippy::panic)]
 
 // Re-export all pure-Rust types from types module
+pub use crate::types::secrets::{SecretBytes, SecretVec};
 pub use crate::types::types::*;
 // Re-export type-safe encryption types (EncryptKey, DecryptKey, EncryptionScheme, etc.)
 pub use crate::unified_api::crypto_types::{
@@ -75,7 +76,7 @@ fn default_compliance_for_use_case(use_case: UseCase) -> ComplianceMode {
 ///
 /// // With Zero Trust session
 /// # let (ed_pk, ed_sk) = generate_keypair()?;
-/// let session = VerifiedSession::establish(ed_pk.as_slice(), ed_sk.as_ref())?;
+/// let session = VerifiedSession::establish(ed_pk.as_slice(), ed_sk.expose_secret())?;
 /// encrypt(data, EncryptKey::Hybrid(&pk),
 ///     CryptoConfig::new().session(&session))?;
 ///
@@ -380,13 +381,6 @@ mod tests {
     use super::*;
 
     // Tests for types that moved to types module
-
-    #[test]
-    fn test_zeroized_bytes_new_stores_data_succeeds() {
-        let data = vec![1u8, 2, 3, 4, 5];
-        let zb = ZeroizedBytes::new(data.clone());
-        assert_eq!(zb.as_slice(), &data);
-    }
 
     #[test]
     fn test_security_level_default_is_standard_succeeds() {

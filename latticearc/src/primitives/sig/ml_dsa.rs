@@ -361,13 +361,13 @@ impl MlDsaSecretKey {
             MlDsaParameterSet::MlDsa44 => {
                 // Stack-allocated secret key bytes wrapped in Zeroizing for guaranteed wipe.
                 let mut sk_bytes: Zeroizing<[u8; 2560]> = Zeroizing::new([0u8; 2560]);
-                if self.as_bytes().len() != 2560 {
+                if self.expose_secret().len() != 2560 {
                     return Err(MlDsaError::InvalidKeyLength {
                         expected: 2560,
                         actual: self.len(),
                     });
                 }
-                sk_bytes.copy_from_slice(self.as_bytes());
+                sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_44::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
                     MlDsaError::SigningError(format!(
                         "Failed to deserialize ML-DSA-44 secret key: {}",
@@ -381,13 +381,13 @@ impl MlDsaSecretKey {
             }
             MlDsaParameterSet::MlDsa65 => {
                 let mut sk_bytes: Zeroizing<[u8; 4032]> = Zeroizing::new([0u8; 4032]);
-                if self.as_bytes().len() != 4032 {
+                if self.expose_secret().len() != 4032 {
                     return Err(MlDsaError::InvalidKeyLength {
                         expected: 4032,
                         actual: self.len(),
                     });
                 }
-                sk_bytes.copy_from_slice(self.as_bytes());
+                sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_65::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
                     MlDsaError::SigningError(format!(
                         "Failed to deserialize ML-DSA-65 secret key: {}",
@@ -401,13 +401,13 @@ impl MlDsaSecretKey {
             }
             MlDsaParameterSet::MlDsa87 => {
                 let mut sk_bytes: Zeroizing<[u8; 4896]> = Zeroizing::new([0u8; 4896]);
-                if self.as_bytes().len() != 4896 {
+                if self.expose_secret().len() != 4896 {
                     return Err(MlDsaError::InvalidKeyLength {
                         expected: 4896,
                         actual: self.len(),
                     });
                 }
-                sk_bytes.copy_from_slice(self.as_bytes());
+                sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = ml_dsa_87::PrivateKey::try_from_bytes(*sk_bytes).map_err(|e| {
                     MlDsaError::SigningError(format!(
                         "Failed to deserialize ML-DSA-87 secret key: {}",
@@ -473,13 +473,14 @@ impl MlDsaSecretKey {
         self.data.is_empty()
     }
 
-    /// Returns a reference to the secret key bytes
+    /// Expose the secret key bytes.
     ///
-    /// # Security Warning
-    /// Handle the returned bytes with care. Do not copy or store them
-    /// without proper zeroization.
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`). Handle the returned slice with
+    /// care: do not copy it into a non-zeroizing container, and hold it only
+    /// as long as necessary.
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.data
     }
 
@@ -505,13 +506,9 @@ impl ConstantTimeEq for MlDsaSecretKey {
     }
 }
 
-impl PartialEq for MlDsaSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl Eq for MlDsaSecretKey {}
+// `PartialEq`/`Eq` are intentionally NOT implemented on `MlDsaSecretKey`.
+// See invariants I-5/I-6 in `docs/SECRET_TYPE_INVARIANTS.md`. Use
+// `ConstantTimeEq::ct_eq` for comparisons.
 
 /// ML-DSA signature (FIPS 204 format)
 #[derive(Debug, Clone)]
@@ -712,7 +709,7 @@ mod tests {
         let (_pk, mut sk) =
             generate_keypair(MlDsaParameterSet::MlDsa44).expect("Key generation should succeed");
 
-        let sk_bytes_before = sk.as_bytes().to_vec();
+        let sk_bytes_before = sk.expose_secret().to_vec();
         assert!(
             !sk_bytes_before.iter().all(|&b| b == 0),
             "Secret key should contain non-zero data"
@@ -720,7 +717,7 @@ mod tests {
 
         sk.zeroize();
 
-        let sk_bytes_after = sk.as_bytes();
+        let sk_bytes_after = sk.expose_secret();
         assert!(sk_bytes_after.iter().all(|&b| b == 0), "Secret key should be zeroized");
     }
 
@@ -1047,10 +1044,9 @@ mod tests {
         let (_, sk2) =
             generate_keypair(MlDsaParameterSet::MlDsa44).expect("Key generation should succeed");
 
-        // Same key equals itself (using PartialEq which delegates to ct_eq)
-        assert_eq!(sk1, sk1);
-        // Different keys should not be equal
-        assert_ne!(sk1, sk2);
+        // Secret-key equality goes through `ct_eq` (invariants I-5/I-6).
+        assert!(bool::from(sk1.ct_eq(&sk1)));
+        assert!(!bool::from(sk1.ct_eq(&sk2)));
     }
 
     // ========================================================================
@@ -1113,7 +1109,7 @@ mod tests {
         assert_eq!(sk.parameter_set(), MlDsaParameterSet::MlDsa44);
         assert_eq!(sk.len(), 2560);
         assert!(!sk.is_empty());
-        assert_eq!(sk.as_bytes().len(), 2560);
+        assert_eq!(sk.expose_secret().len(), 2560);
     }
 
     #[test]

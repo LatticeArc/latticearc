@@ -273,27 +273,27 @@ impl HybridSigSecretKey {
         Zeroizing::new((*self.ed25519_sk).clone())
     }
 
-    /// Returns a borrowed view of the ML-DSA **secret** key bytes.
+    /// Expose the ML-DSA secret key bytes.
     ///
-    /// # Security
-    /// This exposes secret key material. Prefer [`ml_dsa_sk_bytes`](Self::ml_dsa_sk_bytes)
-    /// when you need an owned, zeroizing copy. The returned slice borrows the
-    /// internal zeroizing buffer and remains valid only for the lifetime of
-    /// this `HybridSigSecretKey`.
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`). For multi-secret composites like
+    /// `HybridSigSecretKey`, each secret component gets its own `expose_*_secret()`
+    /// method so every secret access is still grep-able. Prefer
+    /// [`ml_dsa_sk_bytes`](Self::ml_dsa_sk_bytes) when you need an owned,
+    /// zeroizing copy.
     #[must_use]
-    pub fn ml_dsa_sk(&self) -> &[u8] {
+    pub fn expose_ml_dsa_secret(&self) -> &[u8] {
         &self.ml_dsa_sk
     }
 
-    /// Returns a borrowed view of the Ed25519 **secret** key bytes.
+    /// Expose the Ed25519 secret key bytes.
     ///
-    /// # Security
-    /// This exposes secret key material. Prefer [`ed25519_sk_bytes`](Self::ed25519_sk_bytes)
-    /// when you need an owned, zeroizing copy. The returned slice borrows the
-    /// internal zeroizing buffer and remains valid only for the lifetime of
-    /// this `HybridSigSecretKey`.
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`). Prefer
+    /// [`ed25519_sk_bytes`](Self::ed25519_sk_bytes) when you need an owned,
+    /// zeroizing copy.
     #[must_use]
-    pub fn ed25519_sk(&self) -> &[u8] {
+    pub fn expose_ed25519_secret(&self) -> &[u8] {
         &self.ed25519_sk
     }
 }
@@ -364,7 +364,7 @@ pub fn generate_keypair() -> Result<(HybridSigPublicKey, HybridSigSecretKey), Hy
     let pk = HybridSigPublicKey { ml_dsa_pk: ml_dsa_pk.as_bytes().to_vec(), ed25519_pk };
 
     let sk = HybridSigSecretKey {
-        ml_dsa_sk: Zeroizing::new(ml_dsa_sk.as_bytes().to_vec()),
+        ml_dsa_sk: Zeroizing::new(ml_dsa_sk.expose_secret().to_vec()),
         ed25519_sk: ed25519_sk_zeroizing,
     };
 

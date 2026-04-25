@@ -27,7 +27,7 @@ fuzz_target!(|data: &[u8]| {
         match MlKem::encapsulate(&pk) {
             Ok((ss, ct)) => {
                 // Verify shared secret is 32 bytes
-                assert_eq!(ss.as_bytes().len(), 32, "Shared secret must be 32 bytes");
+                assert_eq!(ss.expose_secret().len(), 32, "Shared secret must be 32 bytes");
                 // Verify ciphertext has correct length
                 assert_eq!(ct.as_bytes().len(), level.ciphertext_size());
             }

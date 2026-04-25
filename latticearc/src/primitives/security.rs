@@ -9,140 +9,11 @@
 //! across all crates in the workspace.
 
 use crate::prelude::error::Result;
-use std::ops::{Deref, DerefMut};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use crate::types::SecretVec;
 
-/// Secure memory wrapper that automatically zeroizes on drop
-///
-/// This type provides secure memory handling for sensitive data like
-/// cryptographic keys and shared secrets. Memory is automatically
-/// zeroized when the value goes out of scope.
-#[derive(Zeroize, ZeroizeOnDrop)]
-pub struct SecureBytes {
-    inner: Vec<u8>,
-}
-
-impl SecureBytes {
-    /// Create a new `SecureBytes` from a byte slice
-    #[must_use]
-    pub fn new(data: Vec<u8>) -> Self {
-        Self { inner: data }
-    }
-
-    /// Create a new `SecureBytes` from a byte slice reference
-    #[must_use]
-    pub fn from(data: &[u8]) -> Self {
-        Self { inner: data.to_vec() }
-    }
-
-    /// Create a new `SecureBytes` filled with zeros
-    #[must_use]
-    pub fn zeros(len: usize) -> Self {
-        Self { inner: vec![0u8; len] }
-    }
-
-    /// Get the length of the data
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    /// Check if the data is empty
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
-    /// Get the capacity of the underlying vector
-    #[must_use]
-    pub fn capacity(&self) -> usize {
-        self.inner.capacity()
-    }
-
-    /// Extend the data with a slice
-    pub fn extend_from_slice(&mut self, other: &[u8]) {
-        self.inner.extend_from_slice(other);
-    }
-
-    /// Get a reference to the underlying bytes
-    #[must_use]
-    pub fn as_slice(&self) -> &[u8] {
-        &self.inner
-    }
-
-    /// Get a mutable reference to the underlying bytes
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.inner
-    }
-
-    /// Convert to `Vec<u8>`, consuming self
-    ///
-    /// # Security Note
-    /// This method transfers ownership of the data without zeroizing it.
-    /// The caller is responsible for ensuring the returned Vec is properly zeroized
-    /// when no longer needed, using the secure_zeroize function.
-    #[must_use]
-    pub fn into_vec(mut self) -> Vec<u8> {
-        // Extract the inner data without preventing zeroization
-        // The ZeroizeOnDrop trait will still run on self, but inner will be moved out
-
-        // self will be dropped here, but inner is already moved out
-        std::mem::take(&mut self.inner)
-    }
-
-    /// Resize the buffer, zeroizing any new bytes
-    pub fn resize(&mut self, new_len: usize) {
-        self.inner.resize(new_len, 0);
-    }
-}
-
-impl Deref for SecureBytes {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl DerefMut for SecureBytes {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
-impl AsRef<[u8]> for SecureBytes {
-    fn as_ref(&self) -> &[u8] {
-        &self.inner
-    }
-}
-
-impl std::fmt::Debug for SecureBytes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SecureBytes([REDACTED; {} bytes])", self.len())
-    }
-}
-
-impl subtle::ConstantTimeEq for SecureBytes {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let len_equal = self.inner.len().ct_eq(&other.inner.len());
-        len_equal & self.inner.ct_eq(&other.inner)
-    }
-}
-
-impl PartialEq for SecureBytes {
-    fn eq(&self, other: &Self) -> bool {
-        use subtle::ConstantTimeEq;
-        self.ct_eq(other).into()
-    }
-}
-
-impl Eq for SecureBytes {}
-
-impl From<Vec<u8>> for SecureBytes {
-    fn from(data: Vec<u8>) -> Self {
-        SecureBytes::new(data)
-    }
-}
+// `SecureBytes` has been removed. All variable-length heap-backed secret
+// storage now uses [`SecretVec`] (see `docs/SECRET_TYPE_INVARIANTS.md`).
+// `MemoryPool` below is the sole former consumer; it holds `SecretVec` values.
 
 /// Constant-time comparison function
 ///
@@ -185,9 +56,13 @@ pub fn get_memory_pool() -> &'static MemoryPool {
     POOL.get_or_init(MemoryPool::new)
 }
 
-/// Memory pool for secure allocations
+/// Memory pool for secure allocations.
+///
+/// Each pooled allocation is a [`SecretVec`] (zeroized on drop per invariant
+/// I-3). When a buffer is deallocated it returns to the pool; when the pool
+/// overflows or the allocator is dropped, the buffers are wiped automatically.
 pub struct MemoryPool {
-    pool: Mutex<std::collections::HashMap<usize, Vec<SecureBytes>>>,
+    pool: Mutex<std::collections::HashMap<usize, Vec<SecretVec>>>,
 }
 
 impl MemoryPool {
@@ -201,7 +76,7 @@ impl MemoryPool {
     ///
     /// # Errors
     /// Returns an error if the memory pool lock is poisoned or if secure memory allocation fails.
-    pub fn allocate(&self, size: usize) -> Result<SecureBytes> {
+    pub fn allocate(&self, size: usize) -> Result<SecretVec> {
         let mut pool = self.pool.lock().map_err(|_e| {
             crate::prelude::error::LatticeArcError::MemoryError(
                 "Memory pool lock poisoned".to_string(),
@@ -220,7 +95,7 @@ impl MemoryPool {
     }
 
     /// Deallocate secure memory by returning to pool
-    pub fn deallocate(&self, memory: SecureBytes) {
+    pub fn deallocate(&self, memory: SecretVec) {
         let size = memory.len();
         if let Ok(mut pool) = self.pool.lock() {
             // Limit pool size to prevent unbounded growth (NIST SP 800-90A compliance)
@@ -235,7 +110,7 @@ impl MemoryPool {
     }
 
     /// Allocate secure memory
-    fn allocate_secure(size: usize) -> Result<SecureBytes> {
+    fn allocate_secure(size: usize) -> Result<SecretVec> {
         // Input validation: size must be reasonable for secure memory allocation
         if size == 0 {
             return Err(crate::prelude::error::LatticeArcError::MemoryError(
@@ -252,8 +127,9 @@ impl MemoryPool {
             )));
         }
 
-        // Simple secure memory allocation
-        Ok(SecureBytes { inner: vec![0u8; size] })
+        // Simple secure memory allocation — zeroed buffer wrapped in SecretVec
+        // (zeroizes on drop, sealed `expose_secret` accessor per I-8).
+        Ok(SecretVec::zero(size))
     }
 }
 
@@ -504,142 +380,6 @@ mod tests {
         }
     }
 
-    // === SecureBytes tests ===
-
-    #[test]
-    fn test_secure_bytes_new_succeeds() {
-        let data = vec![1, 2, 3, 4, 5];
-        let sb = SecureBytes::new(data.clone());
-        assert_eq!(sb.as_slice(), &data[..]);
-    }
-
-    #[test]
-    fn test_secure_bytes_from_slice_succeeds() {
-        let data = [10, 20, 30];
-        let sb = SecureBytes::from(&data);
-        assert_eq!(sb.as_slice(), &data);
-    }
-
-    #[test]
-    fn test_secure_bytes_zeros_clears_bytes_succeeds() {
-        let sb = SecureBytes::zeros(16);
-        assert_eq!(sb.len(), 16);
-        assert!(sb.as_slice().iter().all(|&b| b == 0));
-    }
-
-    #[test]
-    fn test_secure_bytes_len_and_is_empty_succeeds() {
-        let sb = SecureBytes::new(vec![1, 2, 3]);
-        assert_eq!(sb.len(), 3);
-        assert!(!sb.is_empty());
-
-        let empty = SecureBytes::new(vec![]);
-        assert_eq!(empty.len(), 0);
-        assert!(empty.is_empty());
-    }
-
-    #[test]
-    fn test_secure_bytes_capacity_succeeds() {
-        let sb = SecureBytes::new(Vec::with_capacity(64));
-        assert!(sb.capacity() >= 64);
-    }
-
-    #[test]
-    fn test_secure_bytes_extend_from_slice_succeeds() {
-        let mut sb = SecureBytes::new(vec![1, 2]);
-        sb.extend_from_slice(&[3, 4, 5]);
-        assert_eq!(sb.as_slice(), &[1, 2, 3, 4, 5]);
-    }
-
-    #[test]
-    fn test_secure_bytes_as_mut_slice_succeeds() {
-        let mut sb = SecureBytes::new(vec![0, 0, 0]);
-        let s = sb.as_mut_slice();
-        s[0] = 1;
-        s[1] = 2;
-        s[2] = 3;
-        assert_eq!(sb.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn test_secure_bytes_into_vec_succeeds() {
-        let sb = SecureBytes::new(vec![10, 20, 30]);
-        let v = sb.into_vec();
-        assert_eq!(v, vec![10, 20, 30]);
-    }
-
-    #[test]
-    fn test_secure_bytes_resize_succeeds() {
-        let mut sb = SecureBytes::new(vec![1, 2, 3]);
-        sb.resize(5);
-        assert_eq!(sb.len(), 5);
-        assert_eq!(sb.as_slice(), &[1, 2, 3, 0, 0]);
-
-        sb.resize(2);
-        assert_eq!(sb.len(), 2);
-        assert_eq!(sb.as_slice(), &[1, 2]);
-    }
-
-    #[test]
-    fn test_secure_bytes_deref_succeeds() {
-        let sb = SecureBytes::new(vec![1, 2, 3]);
-        let slice: &[u8] = &sb;
-        assert_eq!(slice, &[1, 2, 3]);
-    }
-
-    #[test]
-    fn test_secure_bytes_deref_mut_succeeds() {
-        let mut sb = SecureBytes::new(vec![0, 0]);
-        let slice: &mut [u8] = &mut sb;
-        slice[0] = 42;
-        assert_eq!(sb.as_slice()[0], 42);
-    }
-
-    #[test]
-    fn test_secure_bytes_as_ref_succeeds() {
-        let sb = SecureBytes::new(vec![5, 6, 7]);
-        let r: &[u8] = sb.as_ref();
-        assert_eq!(r, &[5, 6, 7]);
-    }
-
-    #[test]
-    fn test_secure_bytes_debug_redacted_is_secure_succeeds() {
-        let sb = SecureBytes::new(vec![0xDE, 0xAD]);
-        let debug = format!("{:?}", sb);
-        assert!(debug.contains("REDACTED"));
-        assert!(debug.contains("2 bytes"));
-        assert!(!debug.contains("DE"));
-    }
-
-    #[test]
-    fn test_secure_bytes_partial_eq_equal_is_secure_succeeds() {
-        let a = SecureBytes::new(vec![1, 2, 3]);
-        let b = SecureBytes::new(vec![1, 2, 3]);
-        assert_eq!(a, b);
-    }
-
-    #[test]
-    fn test_secure_bytes_partial_eq_different_is_secure_succeeds() {
-        let a = SecureBytes::new(vec![1, 2, 3]);
-        let b = SecureBytes::new(vec![1, 2, 4]);
-        assert_ne!(a, b);
-    }
-
-    #[test]
-    fn test_secure_bytes_partial_eq_different_lengths_is_secure_has_correct_size() {
-        let a = SecureBytes::new(vec![1, 2]);
-        let b = SecureBytes::new(vec![1, 2, 3]);
-        assert_ne!(a, b);
-    }
-
-    #[test]
-    fn test_secure_bytes_from_vec_succeeds() {
-        let sb: SecureBytes = vec![9, 8, 7].into();
-        assert_eq!(sb.as_slice(), &[9, 8, 7]);
-    }
-
-    // Clone intentionally removed from SecureBytes to prevent copies of secret data
-
     // === secure_zeroize tests ===
 
     #[test]
@@ -665,7 +405,7 @@ mod tests {
         let pool = MemoryPool::new();
         let mem = pool.allocate(64).unwrap();
         assert_eq!(mem.len(), 64);
-        assert!(mem.as_slice().iter().all(|&b| b == 0));
+        assert!(mem.expose_secret().iter().all(|&b| b == 0));
 
         // Return to pool
         pool.deallocate(mem);
@@ -801,14 +541,17 @@ mod tests {
     #[test]
     fn test_memory_pool_deallocate_and_reuse_succeeds() {
         let pool = MemoryPool::new();
-        // Allocate, modify, deallocate
-        let mut mem = pool.allocate(16).unwrap();
-        mem.as_mut_slice()[0] = 0xFF;
+        // Allocate then deallocate
+        let mem = pool.allocate(16).unwrap();
         pool.deallocate(mem);
 
         // Re-allocate same size should reuse from pool
         let mem2 = pool.allocate(16).unwrap();
         assert_eq!(mem2.len(), 16);
+        // Reused buffer is always zeroed on return to the pool (ZeroizeOnDrop
+        // would fire here if the pool didn't hold it — and when it re-emerges
+        // from the pool it's still the same zeroed SecretVec).
+        assert!(mem2.expose_secret().iter().all(|&b| b == 0));
     }
 
     #[test]
@@ -862,30 +605,6 @@ mod tests {
         // Exactly over the max limit
         let result = pool.allocate(1024 * 1024 + 1);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_secure_bytes_empty_operations_succeeds() {
-        let mut sb = SecureBytes::zeros(0);
-        assert!(sb.is_empty());
-        assert_eq!(sb.len(), 0);
-
-        sb.extend_from_slice(&[1, 2, 3]);
-        assert_eq!(sb.len(), 3);
-        assert_eq!(sb.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn test_secure_bytes_resize_larger_then_smaller_succeeds() {
-        let mut sb = SecureBytes::new(vec![1, 2, 3, 4, 5]);
-        sb.resize(10);
-        assert_eq!(sb.len(), 10);
-        assert_eq!(&sb.as_slice()[..5], &[1, 2, 3, 4, 5]);
-        assert_eq!(&sb.as_slice()[5..], &[0, 0, 0, 0, 0]);
-
-        sb.resize(3);
-        assert_eq!(sb.len(), 3);
-        assert_eq!(sb.as_slice(), &[1, 2, 3]);
     }
 
     #[test]

@@ -144,7 +144,7 @@ use subtle::ConstantTimeEq;
 /// let (pk, sk) = generate_keypair()?;
 ///
 /// // With Zero Trust verification (recommended)
-/// let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
+/// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 /// # let data = b"secret";
 /// # let key = [0u8; 32];
 /// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
@@ -183,7 +183,7 @@ impl<'a> SecurityMode<'a> {
     /// # use latticearc::unified_api::{SecurityMode, VerifiedSession, generate_keypair};
     /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
     /// # let (pk, sk) = generate_keypair()?;
-    /// # let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
+    /// # let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
     /// let mode = SecurityMode::Verified(&session);
     /// assert!(mode.is_verified());
     ///
@@ -270,7 +270,7 @@ impl Default for SecurityMode<'_> {
 /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
 /// # let (public_key, private_key) = generate_keypair()?;
 /// // Establish a verified session (performs challenge-response)
-/// let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+/// let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 ///
 /// // Use the session for cryptographic operations
 /// # let data = b"secret";
@@ -326,7 +326,7 @@ impl VerifiedSession {
     /// # use latticearc::unified_api::{VerifiedSession, generate_keypair};
     /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
     /// # let (public_key, private_key) = generate_keypair()?;
-    /// let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+    /// let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
     /// assert!(session.is_valid());
     /// # Ok(())
     /// # }
@@ -667,7 +667,7 @@ impl ProofOfPossession for ZeroTrustAuth {
 
         let signature = crate::unified_api::convenience::ed25519::sign_ed25519_internal(
             message.as_bytes(),
-            self.private_key.as_slice(),
+            self.private_key.expose_secret(),
         )?;
 
         Ok(ProofOfPossessionData { public_key: self.public_key.clone(), signature, timestamp })
@@ -1036,7 +1036,7 @@ impl ZeroTrustAuth {
         // The signature proves knowledge of private key without revealing it
         let signature = crate::unified_api::convenience::ed25519::sign_ed25519_internal(
             &message_to_sign,
-            self.private_key.as_slice(),
+            self.private_key.expose_secret(),
         )?;
 
         // Return signature with timestamp for Medium/High complexity
@@ -1350,7 +1350,8 @@ mod tests {
     #[test]
     fn test_verified_session_establish_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         assert!(session.is_valid());
         // After self-authentication during establish, trust level is upgraded
@@ -1361,7 +1362,8 @@ mod tests {
     #[test]
     fn test_verified_session_session_id_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let session_id = session.session_id();
         assert_eq!(session_id.len(), 32);
@@ -1371,7 +1373,8 @@ mod tests {
     #[test]
     fn test_verified_session_public_key_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let pk = session.public_key();
         assert!(!pk.is_empty());
@@ -1381,7 +1384,8 @@ mod tests {
     #[test]
     fn test_verified_session_timestamps_are_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let authenticated_at = session.authenticated_at();
         let expires_at = session.expires_at();
@@ -1393,7 +1397,8 @@ mod tests {
     #[test]
     fn test_verified_session_verify_valid_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         session.verify_valid()?;
         Ok(())
@@ -1402,7 +1407,8 @@ mod tests {
     #[test]
     fn test_security_mode_verified_with_session_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let mode = SecurityMode::Verified(&session);
         assert!(mode.is_verified());
@@ -1413,7 +1419,8 @@ mod tests {
     #[test]
     fn test_security_mode_verified_validate_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let mode = SecurityMode::Verified(&session);
         mode.validate()?;
@@ -1423,7 +1430,8 @@ mod tests {
     #[test]
     fn test_security_mode_verified_session_is_accessible() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let mode = SecurityMode::Verified(&session);
         assert!(mode.session().is_some());
@@ -1566,7 +1574,8 @@ mod tests {
         // Test creating multiple sessions
         for _ in 0..3 {
             let (public_key, private_key) = generate_keypair()?;
-            let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+            let session =
+                VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
             assert!(session.is_valid());
         }
         Ok(())
@@ -1610,8 +1619,10 @@ mod tests {
         let (public_key, private_key) = generate_keypair()?;
 
         // Create multiple sessions with same keys
-        let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
-        let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session1 =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
+        let session2 =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         // Sessions should have different IDs
         assert!(session1.is_valid());
@@ -1678,7 +1689,8 @@ mod tests {
     #[test]
     fn test_security_mode_from_verified_session_succeeds() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let mode: SecurityMode = SecurityMode::from(&session);
         assert!(mode.is_verified());
@@ -1916,7 +1928,8 @@ mod tests {
     #[test]
     fn test_verified_session_debug_has_correct_format() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         // VerifiedSession does not implement Clone (sessions are non-cloneable by design).
         // Verify Debug output instead.
@@ -1932,7 +1945,8 @@ mod tests {
         assert!(debug.contains("Unverified"));
 
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
         let verified_mode = SecurityMode::Verified(&session);
         let debug2 = format!("{:?}", verified_mode);
         assert!(debug2.contains("Verified"));
@@ -1963,7 +1977,8 @@ mod tests {
     #[test]
     fn test_verified_session_expired_verify_valid_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         // Manually create an expired session by setting expires_at in the past
         let expired_session = VerifiedSession {
@@ -1987,7 +2002,8 @@ mod tests {
     #[test]
     fn test_security_mode_validate_expired_session_fails() -> Result<()> {
         let (public_key, private_key) = generate_keypair()?;
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 
         let expired_session = VerifiedSession {
             session_id: *session.session_id(),

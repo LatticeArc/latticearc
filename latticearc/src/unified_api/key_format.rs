@@ -1184,7 +1184,10 @@ impl PortableKey {
             security_level: None,
             algorithm,
             key_type: KeyType::Secret,
-            key_data: KeyData::from_composite(sk.ml_dsa_sk(), sk.ed25519_sk()),
+            key_data: KeyData::from_composite(
+                sk.expose_ml_dsa_secret(),
+                sk.expose_ed25519_secret(),
+            ),
             created: Utc::now(),
             metadata: BTreeMap::new(),
         };
@@ -1399,7 +1402,7 @@ impl PortableKey {
             crate::primitives::kem::MlKemSecurityLevel::MlKem768 => KeyAlgorithm::MlKem768,
             crate::primitives::kem::MlKemSecurityLevel::MlKem1024 => KeyAlgorithm::MlKem1024,
         };
-        Self::from_keypair(use_case, algorithm, pk.as_bytes(), sk.as_bytes())
+        Self::from_keypair(use_case, algorithm, pk.as_bytes(), sk.expose_secret())
     }
 
     /// Extract ML-KEM public (encapsulation) key.
@@ -3295,14 +3298,14 @@ mod tests {
         let sender_pk = PortableKey::from_json(&pk_json).unwrap();
         let sender_hybrid_pk = sender_pk.to_hybrid_public_key().unwrap();
         let encapsulated = kem_hybrid::encapsulate(&sender_hybrid_pk).unwrap();
-        let sender_shared_secret = encapsulated.shared_secret().to_vec();
+        let sender_shared_secret = encapsulated.expose_secret().to_vec();
 
         // === PROCESS A: Receiver decrypts using SK from JSON ===
         let receiver_sk_portable = PortableKey::from_json(&sk_json).unwrap();
         let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_shared_secret = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
         let secrets_match: bool =
-            receiver_shared_secret.as_slice().ct_eq(sender_shared_secret.as_slice()).into();
+            receiver_shared_secret.expose_secret().ct_eq(sender_shared_secret.as_slice()).into();
         let uc_preserved = receiver_sk_portable.use_case() == Some(UseCase::FileStorage);
 
         assert!(secrets_match, "Shared secrets must match across processes");
@@ -3351,13 +3354,13 @@ mod tests {
         let sender_pk = PortableKey::from_cbor(&pk_cbor).unwrap();
         let sender_hybrid_pk = sender_pk.to_hybrid_public_key().unwrap();
         let encapsulated = kem_hybrid::encapsulate(&sender_hybrid_pk).unwrap();
-        let sender_ss = encapsulated.shared_secret().to_vec();
+        let sender_ss = encapsulated.expose_secret().to_vec();
 
         // === PROCESS A: Reconstructs SK from CBOR, decapsulates ===
         let receiver_sk_portable = PortableKey::from_cbor(&sk_cbor).unwrap();
         let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_ss = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
-        let secrets_match: bool = receiver_ss.as_slice().ct_eq(sender_ss.as_slice()).into();
+        let secrets_match: bool = receiver_ss.expose_secret().ct_eq(sender_ss.as_slice()).into();
 
         assert!(secrets_match);
         assert!(pk_cbor_len < pk_json_len);
@@ -3457,13 +3460,13 @@ mod tests {
         let sender_pk =
             PortableKey::read_from_file(&pk_json_path).unwrap().to_hybrid_public_key().unwrap();
         let encapsulated = kem_hybrid::encapsulate(&sender_pk).unwrap();
-        let sender_ss = encapsulated.shared_secret().to_vec();
+        let sender_ss = encapsulated.expose_secret().to_vec();
 
         // === PROCESS A: Load SK from JSON file, decapsulate ===
         let receiver_sk_portable = PortableKey::read_from_file(&sk_json_path).unwrap();
         let receiver_sk = receiver_sk_portable.to_hybrid_secret_key().unwrap();
         let receiver_ss = kem_hybrid::decapsulate(&receiver_sk, &encapsulated).unwrap();
-        let json_match = receiver_ss.as_slice() == sender_ss.as_slice();
+        let json_match = receiver_ss.expose_secret() == sender_ss.as_slice();
 
         // Also verify CBOR PK file works
         let cbor_pk = PortableKey::read_cbor_from_file(&pk_cbor_path)
@@ -3472,7 +3475,7 @@ mod tests {
             .unwrap();
         let enc2 = kem_hybrid::encapsulate(&cbor_pk).unwrap();
         let dec2 = kem_hybrid::decapsulate(&receiver_sk, &enc2).unwrap();
-        let cbor_match = dec2.as_slice() == enc2.shared_secret();
+        let cbor_match = dec2.expose_secret() == enc2.expose_secret();
 
         let json_size = std::fs::metadata(&pk_json_path).unwrap().len();
         let cbor_size = std::fs::metadata(&pk_cbor_path).unwrap().len();
@@ -3526,12 +3529,12 @@ mod tests {
         // Encapsulate with JSON-restored PK, decapsulate with JSON-restored SK
         let enc1 = kem_hybrid::encapsulate(&pk_from_json).unwrap();
         let dec1 = kem_hybrid::decapsulate(&sk_restored, &enc1).unwrap();
-        let json_kem_ok = dec1.as_slice() == enc1.shared_secret();
+        let json_kem_ok = dec1.expose_secret() == enc1.expose_secret();
 
         // Encapsulate with CBOR-restored PK, decapsulate with same SK
         let enc2 = kem_hybrid::encapsulate(&pk_from_cbor).unwrap();
         let dec2 = kem_hybrid::decapsulate(&sk_restored, &enc2).unwrap();
-        let cbor_kem_ok = dec2.as_slice() == enc2.shared_secret();
+        let cbor_kem_ok = dec2.expose_secret() == enc2.expose_secret();
 
         assert!(keys_match);
         assert!(json_kem_ok);
@@ -3594,7 +3597,7 @@ mod tests {
         let json_sk = PortableKey::from_json(&sk_json).unwrap().to_hybrid_secret_key().unwrap();
         let enc = kem_hybrid::encapsulate(&json_pk).unwrap();
         let dec = kem_hybrid::decapsulate(&json_sk, &enc).unwrap();
-        let kem_ok = dec.as_slice() == enc.shared_secret();
+        let kem_ok = dec.expose_secret() == enc.expose_secret();
 
         // CBOR: metadata preserved
         let from_cbor = PortableKey::from_cbor(&pk_cbor).unwrap();

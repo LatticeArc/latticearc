@@ -7,67 +7,8 @@ use std::fmt;
 
 use chrono::{DateTime, Utc};
 use subtle::{Choice, ConstantTimeEq};
-use zeroize::Zeroize;
 
-/// A secure byte container that zeroizes its contents on drop.
-///
-/// # Security Note
-/// Clone is intentionally NOT implemented to prevent creating
-/// copies of sensitive data that might not be properly zeroized.
-/// If you need to share the data, use `as_slice()` to get a reference.
-pub struct ZeroizedBytes {
-    data: Vec<u8>,
-}
-
-impl ZeroizedBytes {
-    /// Creates a new `ZeroizedBytes` from raw byte data.
-    #[must_use]
-    pub fn new(data: Vec<u8>) -> Self {
-        Self { data }
-    }
-
-    /// Returns the data as a byte slice.
-    #[must_use]
-    pub fn as_slice(&self) -> &[u8] {
-        &self.data
-    }
-
-    /// Returns the length of the data in bytes.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Returns `true` if the data is empty.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-}
-
-impl Drop for ZeroizedBytes {
-    fn drop(&mut self) {
-        self.data.zeroize();
-    }
-}
-
-impl fmt::Debug for ZeroizedBytes {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ZeroizedBytes").field("data", &"[REDACTED]").finish()
-    }
-}
-
-impl AsRef<[u8]> for ZeroizedBytes {
-    fn as_ref(&self) -> &[u8] {
-        &self.data
-    }
-}
-
-impl ConstantTimeEq for ZeroizedBytes {
-    fn ct_eq(&self, other: &Self) -> Choice {
-        self.data.ct_eq(&other.data)
-    }
-}
+use crate::types::secrets::SecretVec;
 
 /// A public key (asymmetric). Distinct newtype for type safety.
 ///
@@ -124,23 +65,27 @@ impl From<Vec<u8>> for PublicKey {
 
 /// A private (asymmetric) key with automatic zeroization on drop.
 ///
-/// Newtype wrapper around `ZeroizedBytes` for type safety: this type is
+/// Newtype wrapper around [`SecretVec`] for type safety: this type is
 /// distinct from `SymmetricKey`, so they cannot be accidentally confused
 /// in function signatures. All behavior (zeroization, constant-time compare,
-/// redacted Debug) is inherited from `ZeroizedBytes`.
-pub struct PrivateKey(ZeroizedBytes);
+/// redacted Debug, optional `secret-mlock` protection) is inherited from
+/// `SecretVec`.
+pub struct PrivateKey(SecretVec);
 
 impl PrivateKey {
     /// Creates a new `PrivateKey` from raw byte data.
     #[must_use]
     pub fn new(data: Vec<u8>) -> Self {
-        Self(ZeroizedBytes::new(data))
+        Self(SecretVec::new(data))
     }
 
-    /// Returns the key data as a byte slice.
+    /// Expose the inner key bytes.
+    ///
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn as_slice(&self) -> &[u8] {
-        self.0.as_slice()
+    pub fn expose_secret(&self) -> &[u8] {
+        self.0.expose_secret()
     }
 
     /// Returns the length of the key in bytes.
@@ -162,11 +107,8 @@ impl fmt::Debug for PrivateKey {
     }
 }
 
-impl AsRef<[u8]> for PrivateKey {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
+// `AsRef<[u8]>` is intentionally NOT implemented on `PrivateKey`.
+// See invariant I-8 in `docs/SECRET_TYPE_INVARIANTS.md`.
 
 impl ConstantTimeEq for PrivateKey {
     fn ct_eq(&self, other: &Self) -> Choice {
@@ -176,22 +118,25 @@ impl ConstantTimeEq for PrivateKey {
 
 /// A symmetric key with automatic zeroization on drop.
 ///
-/// Newtype wrapper around `ZeroizedBytes` for type safety: this type is
+/// Newtype wrapper around [`SecretVec`] for type safety: this type is
 /// distinct from `PrivateKey`, so they cannot be accidentally confused
 /// in function signatures.
-pub struct SymmetricKey(ZeroizedBytes);
+pub struct SymmetricKey(SecretVec);
 
 impl SymmetricKey {
     /// Creates a new `SymmetricKey` from raw byte data.
     #[must_use]
     pub fn new(data: Vec<u8>) -> Self {
-        Self(ZeroizedBytes::new(data))
+        Self(SecretVec::new(data))
     }
 
-    /// Returns the key data as a byte slice.
+    /// Expose the inner key bytes.
+    ///
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn as_slice(&self) -> &[u8] {
-        self.0.as_slice()
+    pub fn expose_secret(&self) -> &[u8] {
+        self.0.expose_secret()
     }
 
     /// Returns the length of the key in bytes.
@@ -213,11 +158,8 @@ impl fmt::Debug for SymmetricKey {
     }
 }
 
-impl AsRef<[u8]> for SymmetricKey {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
+// `AsRef<[u8]>` is intentionally NOT implemented on `SymmetricKey`.
+// See invariant I-8 in `docs/SECRET_TYPE_INVARIANTS.md`.
 
 impl ConstantTimeEq for SymmetricKey {
     fn ct_eq(&self, other: &Self) -> Choice {
@@ -328,8 +270,9 @@ pub struct KeyPair {
 
 impl Drop for KeyPair {
     fn drop(&mut self) {
-        // PrivateKey's inner ZeroizedBytes handles byte zeroization.
-        // Explicit drop ensures the struct boundary is covered.
+        // `PrivateKey` drops its inner `SecretVec`, which zeroizes on drop.
+        // The explicit `Drop` impl here makes the struct's drop order an
+        // intentional boundary rather than compiler-elected.
     }
 }
 
@@ -876,44 +819,6 @@ mod kani_proofs {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-
-    // --- ZeroizedBytes tests ---
-
-    #[test]
-    fn test_zeroized_bytes_new_stores_data_succeeds() {
-        let data = vec![1u8, 2, 3, 4, 5];
-        let zb = ZeroizedBytes::new(data.clone());
-        assert_eq!(zb.as_slice(), &data);
-    }
-
-    #[test]
-    fn test_zeroized_bytes_len_returns_correct_length_has_correct_size() {
-        let zb = ZeroizedBytes::new(vec![0u8; 32]);
-        assert_eq!(zb.len(), 32);
-        assert!(!zb.is_empty());
-    }
-
-    #[test]
-    fn test_zeroized_bytes_empty_has_zero_length_has_correct_size() {
-        let zb = ZeroizedBytes::new(vec![]);
-        assert_eq!(zb.len(), 0);
-        assert!(zb.is_empty());
-    }
-
-    #[test]
-    fn test_zeroized_bytes_as_ref_returns_slice_succeeds() {
-        let data = vec![10u8, 20, 30];
-        let zb = ZeroizedBytes::new(data.clone());
-        let slice: &[u8] = zb.as_ref();
-        assert_eq!(slice, &data);
-    }
-
-    #[test]
-    fn test_zeroized_bytes_debug_redacts_content_succeeds() {
-        let zb = ZeroizedBytes::new(vec![1, 2, 3]);
-        let debug = format!("{:?}", zb);
-        assert!(debug.contains("ZeroizedBytes"));
-    }
 
     // --- EncryptedMetadata tests ---
 

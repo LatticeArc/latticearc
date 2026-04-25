@@ -438,7 +438,7 @@ fn security_mode_unverified_roundtrip() {
 #[test]
 fn security_mode_verified_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())
         .expect("session establishment failed");
 
     let key = [0x31u8; 32];
@@ -454,7 +454,7 @@ fn security_mode_verified_roundtrip() {
 #[test]
 fn security_mode_verified_hybrid_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())
         .expect("session establishment failed");
 
     let (hybrid_pk, hybrid_sk) = generate_hybrid_keypair().expect("hybrid keygen failed");
@@ -965,7 +965,8 @@ fn scenario_multi_party_signing_succeeds() {
 /// write to file, read back, decrypt with session — process-isolated.
 fn verified_session_usecase_roundtrip(use_case: UseCase) {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
+    let session =
+        VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session failed");
     let key = [0x50u8; 32];
     let msg = format!("VerifiedSession + UseCase::{use_case:?}");
 
@@ -992,7 +993,8 @@ fn verified_session_usecase_roundtrip(use_case: UseCase) {
 /// write to file, read back, decrypt with session — process-isolated.
 fn verified_session_security_level_roundtrip(level: SecurityLevel) {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
+    let session =
+        VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session failed");
     let key = [0x51u8; 32];
     let msg = format!("VerifiedSession + SecurityLevel::{level:?}");
 
@@ -1068,7 +1070,8 @@ fn verified_session_security_level_maximum_roundtrip() {
 #[test]
 fn aad_with_verified_session_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
+    let session =
+        VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session failed");
 
     let key = [0x60u8; 32];
     let msg = b"AAD-bound payload under Verified session";
@@ -1085,7 +1088,8 @@ fn aad_with_verified_session_roundtrip() {
 #[test]
 fn aad_with_verified_session_wrong_aad_rejected() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
+    let session =
+        VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session failed");
 
     let key = [0x61u8; 32];
     let msg = b"AAD mismatch test";
@@ -1103,7 +1107,8 @@ fn aad_with_verified_session_wrong_aad_rejected() {
 #[test]
 fn aad_with_verified_session_empty_aad_roundtrip() {
     let (pk, sk) = generate_keypair().expect("keygen failed");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session failed");
+    let session =
+        VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session failed");
 
     let key = [0x62u8; 32];
     let msg = b"Empty AAD is a valid bound context";
@@ -1394,8 +1399,8 @@ fn scenario_multi_algorithm_encrypt_same_plaintext_all_schemes_succeeds() {
 fn scenario_audit_trail_10_ops_no_secrets_in_debug_succeeds() {
     // Establish zero-trust session
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session =
-        VerifiedSession::establish(pk.as_slice(), sk.as_ref()).expect("session establishment");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())
+        .expect("session establishment");
 
     let key = [0x66u8; 32];
 

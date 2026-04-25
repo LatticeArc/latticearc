@@ -61,7 +61,7 @@ mod tests {
         let (ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // Verify as_bytes() exists and returns &[u8]
-        let _bytes: &[u8] = ss.as_bytes();
+        let _bytes: &[u8] = ss.expose_secret();
     }
 
     // ========================================================================

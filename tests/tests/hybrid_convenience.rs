@@ -73,7 +73,8 @@ mod encrypt {
     #[test]
     fn test_hybrid_encrypt_with_verified_session_succeeds() {
         let (auth_pk, auth_sk) = generate_keypair().unwrap();
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
+        let session =
+            VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret()).unwrap();
         let (pk, sk) = generate_hybrid_keypair().unwrap();
         let message = b"Test message with verified session";
 
@@ -88,7 +89,8 @@ mod encrypt {
     #[test]
     fn test_hybrid_session_reuse_multiple_operations_succeeds() {
         let (auth_pk, auth_sk) = generate_keypair().unwrap();
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
+        let session =
+            VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret()).unwrap();
         let (pk, sk) = generate_hybrid_keypair().unwrap();
 
         for i in 0..10 {
@@ -110,7 +112,8 @@ mod encrypt {
     #[test]
     fn test_hybrid_verified_session_validity_check_succeeds() {
         let (auth_pk, auth_sk) = generate_keypair().unwrap();
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
+        let session =
+            VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret()).unwrap();
 
         assert!(session.is_valid(), "Fresh session should be valid");
         session.verify_valid().unwrap();
@@ -124,7 +127,8 @@ mod encrypt {
     #[test]
     fn test_security_mode_verified_validates_session_succeeds() {
         let (auth_pk, auth_sk) = generate_keypair().unwrap();
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
+        let session =
+            VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret()).unwrap();
         let mode = SecurityMode::Verified(&session);
 
         mode.validate().unwrap();
@@ -679,7 +683,7 @@ mod sig {
     #[test]
     fn test_roundtrip_verified_session_roundtrip() -> Result<()> {
         let (auth_pk, auth_sk) = latticearc::unified_api::convenience::generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Verified(&session))?;
         let message = b"Verified session roundtrip";
@@ -693,7 +697,7 @@ mod sig {
     #[test]
     fn test_verified_session_multiple_operations_succeeds() -> Result<()> {
         let (auth_pk, auth_sk) = latticearc::unified_api::convenience::generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
         let mode = SecurityMode::Verified(&session);
 
         let (pk, sk) = generate_hybrid_signing_keypair(mode)?;

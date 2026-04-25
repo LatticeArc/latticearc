@@ -1331,7 +1331,7 @@ fn test_stress_comprehensive_summary_succeeds() {
     let (pk_kem, _sk_kem) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
         .expect("ML-KEM keygen should succeed");
     let (ss, _ct) = MlKem::encapsulate(&pk_kem).expect("ML-KEM encapsulate should succeed");
-    assert_eq!(ss.as_bytes().len(), 32);
+    assert_eq!(ss.expose_secret().len(), 32);
 
     // 2. ML-DSA operations
     let (pk_dsa, sk_dsa) =

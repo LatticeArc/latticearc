@@ -320,9 +320,9 @@ fn test_mldsa_secret_key_constant_time_comparison_succeeds() {
         generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation should succeed");
 
     // Create copies for comparison
-    let sk1_copy = MlDsaSecretKey::new(sk1.parameter_set(), sk1.as_bytes().to_vec())
+    let sk1_copy = MlDsaSecretKey::new(sk1.parameter_set(), sk1.expose_secret().to_vec())
         .expect("secret key creation should succeed");
-    let sk2_copy = MlDsaSecretKey::new(sk2.parameter_set(), sk2.as_bytes().to_vec())
+    let sk2_copy = MlDsaSecretKey::new(sk2.parameter_set(), sk2.expose_secret().to_vec())
         .expect("secret key creation should succeed");
 
     // Measure same key comparison
@@ -600,8 +600,8 @@ fn test_mlkem_secret_key_memory_pattern_independence_succeeds() {
 
         // Shared secrets should be different (different keys)
         assert_ne!(
-            ss1.as_bytes(),
-            ss2.as_bytes(),
+            ss1.expose_secret(),
+            ss2.expose_secret(),
             "Different keys should produce different shared secrets"
         );
 
@@ -785,7 +785,7 @@ fn test_mlkem_shared_secret_zeroization_succeeds() {
 
     // Verify initial state
     assert!(
-        ss.as_bytes().iter().any(|&b| b != 0),
+        ss.expose_secret().iter().any(|&b| b != 0),
         "Shared secret should contain non-zero data initially"
     );
 
@@ -794,7 +794,7 @@ fn test_mlkem_shared_secret_zeroization_succeeds() {
 
     // Verify all bytes are zero
     assert!(
-        ss.as_bytes().iter().all(|&b| b == 0),
+        ss.expose_secret().iter().all(|&b| b == 0),
         "Shared secret should be all zeros after zeroization"
     );
 }
@@ -807,7 +807,7 @@ fn test_mlkem_secret_key_zeroization_succeeds() {
 
     // Verify initial state
     assert!(
-        sk.as_bytes().iter().any(|&b| b != 0),
+        sk.expose_secret().iter().any(|&b| b != 0),
         "Secret key should contain non-zero data initially"
     );
 
@@ -816,7 +816,7 @@ fn test_mlkem_secret_key_zeroization_succeeds() {
 
     // Verify all bytes are zero
     assert!(
-        sk.as_bytes().iter().all(|&b| b == 0),
+        sk.expose_secret().iter().all(|&b| b == 0),
         "Secret key should be all zeros after zeroization"
     );
 }
@@ -829,7 +829,7 @@ fn test_mldsa_secret_key_zeroization_succeeds() {
 
     // Verify initial state
     assert!(
-        sk.as_bytes().iter().any(|&b| b != 0),
+        sk.expose_secret().iter().any(|&b| b != 0),
         "ML-DSA secret key should contain non-zero data initially"
     );
 
@@ -838,7 +838,7 @@ fn test_mldsa_secret_key_zeroization_succeeds() {
 
     // Verify all bytes are zero
     assert!(
-        sk.as_bytes().iter().all(|&b| b == 0),
+        sk.expose_secret().iter().all(|&b| b == 0),
         "ML-DSA secret key should be all zeros after zeroization"
     );
 }
@@ -855,7 +855,7 @@ fn test_mlkem_zeroization_all_levels_succeeds() {
         sk.zeroize();
 
         assert!(
-            sk.as_bytes().iter().all(|&b| b == 0),
+            sk.expose_secret().iter().all(|&b| b == 0),
             "Secret key for {} should be zeroed",
             level.name()
         );
@@ -873,7 +873,7 @@ fn test_mldsa_zeroization_all_parameter_sets_succeeds() {
         sk.zeroize();
 
         assert!(
-            sk.as_bytes().iter().all(|&b| b == 0),
+            sk.expose_secret().iter().all(|&b| b == 0),
             "Secret key for {:?} should be zeroed",
             param
         );
@@ -907,13 +907,13 @@ fn test_intermediate_computation_cleanup_succeeds() {
     let (mut ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
     // Verify shared secret is non-zero
-    assert!(ss.as_bytes().iter().any(|&b| b != 0), "Shared secret should be non-zero");
+    assert!(ss.expose_secret().iter().any(|&b| b != 0), "Shared secret should be non-zero");
 
     // Zeroize shared secret
     ss.zeroize();
 
     // Verify shared secret is zeroed
-    assert!(ss.as_bytes().iter().all(|&b| b == 0), "Shared secret should be zeroed");
+    assert!(ss.expose_secret().iter().all(|&b| b == 0), "Shared secret should be zeroed");
 }
 
 /// Test stack cleanup after crypto operations
@@ -927,7 +927,7 @@ fn test_stack_cleanup_after_operations_succeeds() {
         let (mut ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // Use the shared secret
-        let _ = ss.as_bytes().len();
+        let _ = ss.expose_secret().len();
 
         // Explicitly zeroize before going out of scope
         ss.zeroize();
@@ -949,7 +949,10 @@ fn test_multiple_zeroization_calls_succeeds() {
     }
 
     // Should still be all zeros
-    assert!(ss.as_bytes().iter().all(|&b| b == 0), "Multiple zeroizations should keep data zeroed");
+    assert!(
+        ss.expose_secret().iter().all(|&b| b == 0),
+        "Multiple zeroizations should keep data zeroed"
+    );
 }
 
 // ============================================================================

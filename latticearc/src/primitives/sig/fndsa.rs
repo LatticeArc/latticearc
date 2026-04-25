@@ -473,13 +473,14 @@ impl SigningKey {
         Ok(Self { security_level, inner, bytes: bytes.to_vec(), verifying_key })
     }
 
-    /// Borrow the raw signing key bytes.
+    /// Expose the signing key bytes.
     ///
-    /// The returned slice aliases internal key material that will be zeroized
-    /// on drop of `self`; do not persist or copy it without using a
-    /// zeroizing container.
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`). The returned slice aliases
+    /// internal key material that will be zeroized on drop of `self`; do not
+    /// persist or copy it without using a zeroizing container.
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.bytes
     }
 

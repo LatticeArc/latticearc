@@ -68,7 +68,7 @@ use std::time::Duration as StdDuration;
 fn test_session_establishment_basic_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     assert!(session.is_valid(), "Newly established session should be valid");
@@ -78,7 +78,7 @@ fn test_session_establishment_basic_succeeds() {
 fn test_session_establishment_trust_level_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     assert_eq!(
@@ -92,7 +92,7 @@ fn test_session_establishment_trust_level_succeeds() {
 fn test_session_establishment_session_id_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     assert_eq!(session.session_id().len(), 32, "Session ID should be 32 bytes");
@@ -102,7 +102,7 @@ fn test_session_establishment_session_id_succeeds() {
 fn test_session_establishment_public_key_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     assert_eq!(session.public_key(), &public_key, "Session should store the correct public key");
@@ -112,7 +112,7 @@ fn test_session_establishment_public_key_succeeds() {
 fn test_session_establishment_timestamps_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     let now = Utc::now();
@@ -129,7 +129,7 @@ fn test_session_establishment_timestamps_succeeds() {
 fn test_session_establishment_verify_valid_is_authenticated_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     assert!(session.verify_valid().is_ok(), "Valid session should pass verification");
@@ -139,9 +139,9 @@ fn test_session_establishment_verify_valid_is_authenticated_succeeds() {
 fn test_session_establishment_unique_ids_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session 1 establishment should succeed");
-    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session 2 establishment should succeed");
 
     assert_ne!(
@@ -159,7 +159,7 @@ fn test_session_establishment_unique_ids_succeeds() {
 fn test_session_expiration_time_set_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     let now = Utc::now();
@@ -177,7 +177,7 @@ fn test_session_expiration_time_set_succeeds() {
 fn test_session_expiration_is_valid_check_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     // Fresh session should be valid
@@ -188,7 +188,7 @@ fn test_session_expiration_is_valid_check_succeeds() {
 fn test_session_expiration_expires_after_authenticated_fails() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session establishment should succeed");
 
     assert!(
@@ -278,11 +278,11 @@ fn test_challenge_verify_age_expired_fails() {
 fn test_session_refresh_by_reestablishment_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session 1 should succeed");
 
     // Simulate refresh by creating new session
-    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session 2 should succeed");
 
     // New session should be valid
@@ -486,11 +486,11 @@ fn test_zero_knowledge_proof_format_validation_succeeds() {
 fn test_multiple_sessions_same_keypair_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session1 = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session 1 should succeed");
-    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session2 = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session 2 should succeed");
-    let session3 = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session3 = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session 3 should succeed");
 
     // All sessions should be valid
@@ -509,8 +509,10 @@ fn test_multiple_sessions_different_keypairs_succeeds() {
     let (pk1, sk1) = generate_keypair().expect("keypair 1");
     let (pk2, sk2) = generate_keypair().expect("keypair 2");
 
-    let session1 = VerifiedSession::establish(pk1.as_slice(), sk1.as_slice()).expect("session 1");
-    let session2 = VerifiedSession::establish(pk2.as_slice(), sk2.as_slice()).expect("session 2");
+    let session1 =
+        VerifiedSession::establish(pk1.as_slice(), sk1.expose_secret()).expect("session 1");
+    let session2 =
+        VerifiedSession::establish(pk2.as_slice(), sk2.expose_secret()).expect("session 2");
 
     assert_ne!(session1.session_id(), session2.session_id());
     assert_ne!(session1.public_key(), session2.public_key());
@@ -520,7 +522,7 @@ fn test_multiple_sessions_different_keypairs_succeeds() {
 fn test_session_reuse_for_multiple_operations_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session should succeed");
 
     for i in 0..20 {
@@ -534,8 +536,9 @@ fn test_session_reuse_for_multiple_operations_succeeds() {
 fn test_rapid_session_creation_succeeds() {
     for i in 0..20 {
         let (public_key, private_key) = generate_keypair().expect("keypair generation");
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
-            .unwrap_or_else(|_| panic!("Session {} should succeed", i));
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
+                .unwrap_or_else(|_| panic!("Session {} should succeed", i));
         assert!(session.is_valid(), "Session {} should be valid", i);
     }
 }
@@ -753,7 +756,7 @@ fn test_trust_level_progression_succeeds() {
 fn test_security_mode_verified_is_verified_is_authenticated_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session should succeed");
 
     let mode = SecurityMode::Verified(&session);
@@ -774,7 +777,7 @@ fn test_security_mode_unverified_is_unverified_fails() {
 fn test_security_mode_verified_session_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session should succeed");
 
     let mode = SecurityMode::Verified(&session);
@@ -792,7 +795,7 @@ fn test_security_mode_unverified_session_fails() {
 fn test_security_mode_verified_validate_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session should succeed");
 
     let mode = SecurityMode::Verified(&session);
@@ -819,7 +822,7 @@ fn test_security_mode_default_passes_validation() {
 fn test_security_mode_from_session_succeeds() {
     let (public_key, private_key) = generate_keypair().expect("keypair generation");
 
-    let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
+    let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
         .expect("session should succeed");
 
     let mode: SecurityMode = (&session).into();
@@ -1001,8 +1004,9 @@ fn test_config_validation_disabled_continuous_zero_interval_ok_succeeds() {
 fn test_stress_session_creation_succeeds() {
     for i in 0..30 {
         let (public_key, private_key) = generate_keypair().expect("keypair generation");
-        let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice())
-            .unwrap_or_else(|_| panic!("Session {} should succeed", i));
+        let session =
+            VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
+                .unwrap_or_else(|_| panic!("Session {} should succeed", i));
         assert!(session.is_valid(), "Session {} should be valid", i);
     }
 }

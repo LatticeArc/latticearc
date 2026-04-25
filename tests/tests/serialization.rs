@@ -175,7 +175,7 @@ fn test_serialize_keypair_roundtrip() -> Result<()> {
     let deserialized = deserialize_keypair(&json)?;
 
     assert_eq!(original.public_key(), deserialized.public_key());
-    assert_eq!(original.private_key().as_slice(), deserialized.private_key().as_slice());
+    assert_eq!(original.private_key().expose_secret(), deserialized.private_key().expose_secret());
     Ok(())
 }
 
@@ -203,8 +203,8 @@ fn test_serialize_keypair_large_keys_roundtrip() -> Result<()> {
 
     assert_eq!(original.public_key().len(), deserialized.public_key().len());
     assert_eq!(
-        original.private_key().as_slice().len(),
-        deserialized.private_key().as_slice().len()
+        original.private_key().expose_secret().len(),
+        deserialized.private_key().expose_secret().len()
     );
     Ok(())
 }
@@ -220,7 +220,7 @@ fn test_serialize_keypair_binary_keys_roundtrip_succeeds() -> Result<()> {
     let deserialized = deserialize_keypair(&json)?;
 
     assert_eq!(original.public_key(), deserialized.public_key());
-    assert_eq!(original.private_key().as_slice(), deserialized.private_key().as_slice());
+    assert_eq!(original.private_key().expose_secret(), deserialized.private_key().expose_secret());
     Ok(())
 }
 
@@ -293,7 +293,7 @@ fn test_serializable_to_keypair_conversion_succeeds() -> Result<()> {
 
     let keypair: KeyPair = serializable.try_into()?;
     assert_eq!(keypair.public_key().as_slice(), &[1, 2, 3, 4]);
-    assert_eq!(keypair.private_key().as_slice(), &[5, 6, 7, 8]);
+    assert_eq!(keypair.private_key().expose_secret(), &[5, 6, 7, 8]);
     Ok(())
 }
 

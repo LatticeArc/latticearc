@@ -162,7 +162,7 @@
 //! let (pk, sk) = generate_keypair()?;
 //!
 //! // Step 2: Establish a verified session (performs challenge-response)
-//! let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
+//! let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 //!
 //! // Step 3: Hybrid encryption with session verification
 //! let (enc_pk, enc_sk) = latticearc::generate_hybrid_keypair()?;
@@ -216,7 +216,7 @@
 //! use latticearc::{encrypt, CryptoConfig, VerifiedSession, generate_keypair, CoreError, EncryptKey};
 //!
 //! let (pk, sk) = generate_keypair()?;
-//! let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
+//! let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 //!
 //! // Check session properties
 //! assert!(session.is_valid());  // Not expired
@@ -228,7 +228,7 @@
 //!
 //! // Refresh if expired
 //! if !session.is_valid() {
-//!     let new_session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
+//!     let new_session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 //! }
 //! # Ok(())
 //! # }
@@ -343,6 +343,8 @@ pub use unified_api::{
     PublicKey,
     Result,
     SchemeSelector,
+    SecretBytes,
+    SecretVec,
     SecurityLevel,
     // Zero Trust types
     SecurityMode,
@@ -359,7 +361,6 @@ pub use unified_api::{
     ZeroTrustAuth,
     ZeroTrustAuthenticable,
     ZeroTrustSession,
-    ZeroizedBytes,
     // Compile-time feature detection
     fips_available,
     // Initialization

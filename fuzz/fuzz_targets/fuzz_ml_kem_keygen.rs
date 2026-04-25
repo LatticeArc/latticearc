@@ -32,7 +32,7 @@ fuzz_target!(|data: &[u8]| {
                 level
             );
             assert_eq!(
-                sk.as_bytes().len(),
+                sk.expose_secret().len(),
                 level.secret_key_size(),
                 "Secret key size mismatch for {:?}",
                 level
@@ -46,7 +46,7 @@ fuzz_target!(|data: &[u8]| {
             // Test encapsulation with generated key
             if let Ok((ss, ct)) = MlKem::encapsulate(&pk) {
                 // Verify shared secret is 32 bytes
-                assert_eq!(ss.as_bytes().len(), 32);
+                assert_eq!(ss.expose_secret().len(), 32);
                 // Verify ciphertext size
                 assert_eq!(ct.as_bytes().len(), level.ciphertext_size());
             }

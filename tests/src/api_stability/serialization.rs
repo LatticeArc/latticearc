@@ -63,7 +63,7 @@ mod tests {
                 MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
             assert_eq!(
-                sk.as_bytes().len(),
+                sk.expose_secret().len(),
                 expected_size,
                 "Secret key size for {:?} must match FIPS 203 specification",
                 level
@@ -106,8 +106,13 @@ mod tests {
             let (ss, ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
             let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
-            assert_eq!(ss.as_bytes().len(), 32, "Shared secret must be 32 bytes for {:?}", level);
-            assert_eq!(ss_dec.as_bytes().len(), 32);
+            assert_eq!(
+                ss.expose_secret().len(),
+                32,
+                "Shared secret must be 32 bytes for {:?}",
+                level
+            );
+            assert_eq!(ss_dec.expose_secret().len(), 32);
         }
     }
 
@@ -148,13 +153,13 @@ mod tests {
             let (_pk, sk) =
                 MlKem::generate_keypair(level).expect("keypair generation should succeed");
 
-            let bytes = sk.as_bytes().to_vec();
+            let bytes = sk.expose_secret().to_vec();
             let restored =
                 MlKemSecretKey::new(level, bytes.clone()).expect("restoration should succeed");
 
             assert_eq!(
-                sk.as_bytes(),
-                restored.as_bytes(),
+                sk.expose_secret(),
+                restored.expose_secret(),
                 "Secret key should survive serialization round-trip for {:?}",
                 level
             );

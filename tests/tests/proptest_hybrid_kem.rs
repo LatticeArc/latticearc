@@ -25,8 +25,8 @@ proptest! {
 
         // Shared secrets must match
         prop_assert_eq!(
-            encapsulated.shared_secret(),
-            decapsulated.as_slice(),
+            encapsulated.expose_secret(),
+            decapsulated.expose_secret(),
             "Roundtrip shared secrets must match"
         );
         // Shared secret must be 64 bytes (32 ML-KEM + 32 X25519 via HKDF)
@@ -45,8 +45,8 @@ proptest! {
         // Different keypairs should produce different shared secrets
         // (with overwhelming probability)
         prop_assert_ne!(
-            enc1.shared_secret(),
-            enc2.shared_secret(),
+            enc1.expose_secret(),
+            enc2.expose_secret(),
             "Different keypairs should produce different shared secrets"
         );
     }
@@ -61,8 +61,8 @@ proptest! {
         // Decapsulating with wrong SK may error or produce a different secret
         if let Ok(wrong_secret) = decapsulate(&sk2, &enc) {
             prop_assert_ne!(
-                enc.shared_secret(),
-                wrong_secret.as_slice(),
+                enc.expose_secret(),
+                wrong_secret.expose_secret(),
                 "Wrong SK must not recover the correct shared secret"
             );
         }
@@ -86,8 +86,8 @@ proptest! {
         // Both must still roundtrip correctly
         let dec1 = decapsulate(&sk, &enc1).unwrap();
         let dec2 = decapsulate(&sk, &enc2).unwrap();
-        prop_assert_eq!(dec1.as_slice(), enc1.shared_secret());
-        prop_assert_eq!(dec2.as_slice(), enc2.shared_secret());
+        prop_assert_eq!(dec1.expose_secret(), enc1.expose_secret());
+        prop_assert_eq!(dec2.expose_secret(), enc2.expose_secret());
     }
 
     /// Key sizes match FIPS 203 / X25519 specifications.
@@ -106,6 +106,6 @@ proptest! {
         // Ephemeral X25519 public key: 32 bytes
         prop_assert_eq!(enc.ecdh_pk().len(), 32);
         // Shared secret: 64 bytes
-        prop_assert_eq!(enc.shared_secret().len(), 64);
+        prop_assert_eq!(enc.expose_secret().len(), 64);
     }
 }

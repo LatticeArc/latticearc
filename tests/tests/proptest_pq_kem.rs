@@ -30,11 +30,11 @@ proptest! {
         let ss_dec = keypair.decapsulate(&ct).unwrap();
 
         prop_assert_eq!(
-            ss_enc.as_bytes(),
-            ss_dec.as_bytes(),
+            ss_enc.expose_secret(),
+            ss_dec.expose_secret(),
             "ML-KEM-768 roundtrip shared secrets must match"
         );
-        prop_assert_eq!(ss_enc.as_bytes().len(), 32, "Shared secret must be 32 bytes");
+        prop_assert_eq!(ss_enc.expose_secret().len(), 32, "Shared secret must be 32 bytes");
     }
 
     /// ML-KEM-512 roundtrip.
@@ -49,8 +49,8 @@ proptest! {
         let (ss_enc, ct) = MlKem::encapsulate(&pk).unwrap();
         let ss_dec = keypair.decapsulate(&ct).unwrap();
 
-        prop_assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
-        prop_assert_eq!(ss_enc.as_bytes().len(), 32);
+        prop_assert_eq!(ss_enc.expose_secret(), ss_dec.expose_secret());
+        prop_assert_eq!(ss_enc.expose_secret().len(), 32);
     }
 
     /// ML-KEM-1024 roundtrip.
@@ -65,8 +65,8 @@ proptest! {
         let (ss_enc, ct) = MlKem::encapsulate(&pk).unwrap();
         let ss_dec = keypair.decapsulate(&ct).unwrap();
 
-        prop_assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
-        prop_assert_eq!(ss_enc.as_bytes().len(), 32);
+        prop_assert_eq!(ss_enc.expose_secret(), ss_dec.expose_secret());
+        prop_assert_eq!(ss_enc.expose_secret().len(), 32);
     }
 
     /// ML-KEM-768 key sizes match FIPS 203 spec.
@@ -135,7 +135,7 @@ proptest! {
         let (ss2, _ct2) = MlKem::encapsulate(&pk).unwrap();
 
         prop_assert_ne!(
-            ss1.as_bytes(), ss2.as_bytes(),
+            ss1.expose_secret(), ss2.expose_secret(),
             "Different encapsulations must produce different shared secrets"
         );
     }

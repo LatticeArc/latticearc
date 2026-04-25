@@ -82,7 +82,7 @@ mod h2_ikm_zeroization {
         let encapsulated = encapsulate(&pk).unwrap();
         let shared_secret = decapsulate(&sk, &encapsulated).unwrap();
         // Shared secrets must match
-        assert_eq!(shared_secret.as_slice(), encapsulated.shared_secret());
+        assert_eq!(shared_secret.expose_secret(), encapsulated.expose_secret());
         assert_eq!(shared_secret.len(), 64);
     }
 
@@ -92,7 +92,7 @@ mod h2_ikm_zeroization {
         let (pk2, _sk2) = generate_keypair().unwrap();
         let enc1 = encapsulate(&pk1).unwrap();
         let enc2 = encapsulate(&pk2).unwrap();
-        assert_ne!(enc1.shared_secret(), enc2.shared_secret());
+        assert_ne!(enc1.expose_secret(), enc2.expose_secret());
     }
 }
 
@@ -304,7 +304,7 @@ mod m4_secret_key_to_bytes_zeroizing {
         assert_eq!(sk_bytes.len(), level.secret_key_size());
 
         let sk2 = SigningKey::from_bytes(&sk_bytes, level).unwrap();
-        assert_eq!(sk.as_bytes(), sk2.as_bytes());
+        assert_eq!(sk.expose_secret(), sk2.expose_secret());
     }
 }
 

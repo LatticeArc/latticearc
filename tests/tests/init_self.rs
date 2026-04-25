@@ -209,7 +209,7 @@ fn test_generate_keypair_reexport_succeeds() {
     assert!(result.is_ok());
     let (pk, sk) = result.unwrap();
     assert!(!pk.is_empty());
-    assert!(!sk.as_ref().is_empty());
+    assert!(!sk.expose_secret().is_empty());
 }
 
 #[test]

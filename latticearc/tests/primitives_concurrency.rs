@@ -199,7 +199,7 @@ mod comprehensive {
                         cts.push(ct.into_bytes());
                         let mut secrets =
                             shared_secrets.lock().expect("mutex should not be poisoned");
-                        secrets.push(ss.as_bytes().to_vec());
+                        secrets.push(ss.expose_secret().to_vec());
                     }
                 })
             })
@@ -1649,7 +1649,7 @@ mod comprehensive {
         let (ss, ct) = MlKem::encapsulate(&pk).expect("encapsulate should succeed");
 
         assert_eq!(pk.as_bytes().len(), 800);
-        assert_eq!(ss.as_bytes().len(), 32);
+        assert_eq!(ss.expose_secret().len(), 32);
         assert_eq!(ct.as_bytes().len(), 768);
     }
 
@@ -1828,7 +1828,7 @@ mod comprehensive {
         let (pk_kem, _sk_kem) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
             .expect("ML-KEM keygen should succeed");
         let (ss, _ct) = MlKem::encapsulate(&pk_kem).expect("ML-KEM encapsulate should succeed");
-        assert_eq!(ss.as_bytes().len(), 32);
+        assert_eq!(ss.expose_secret().len(), 32);
 
         // 2. ML-DSA concurrent operations
         let (pk_dsa, sk_dsa) = ml_dsa::generate_keypair(MlDsaParameterSet::MlDsa65)
@@ -2003,7 +2003,7 @@ mod basic {
                         MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
                     // Verify shared secrets match
-                    if ss_enc.as_bytes() == ss_dec.as_bytes() {
+                    if ss_enc.expose_secret() == ss_dec.expose_secret() {
                         success_count.fetch_add(1, Ordering::SeqCst);
                     }
                 })
@@ -2080,7 +2080,7 @@ mod basic {
                     let (ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
                     let mut secrets = shared_secrets.lock().expect("mutex should not be poisoned");
-                    secrets.push(ss.as_bytes().to_vec());
+                    secrets.push(ss.expose_secret().to_vec());
                 })
             })
             .collect();
@@ -2126,7 +2126,7 @@ mod basic {
                             Ok((pk, sk)) => match MlKem::encapsulate(&pk) {
                                 Ok((ss_enc, ct)) => match MlKem::decapsulate(&sk, &ct) {
                                     Ok(ss_dec) => {
-                                        if ss_enc.as_bytes() == ss_dec.as_bytes() {
+                                        if ss_enc.expose_secret() == ss_dec.expose_secret() {
                                             operation_count.fetch_add(1, Ordering::SeqCst);
                                         } else {
                                             error_count.fetch_add(1, Ordering::SeqCst);
@@ -2240,7 +2240,7 @@ mod basic {
                                 MlKem::encapsulate(&pk).expect("encap should succeed");
                             let ss_dec =
                                 MlKem::decapsulate(&sk, &ct).expect("decap should succeed");
-                            assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
+                            assert_eq!(ss_enc.expose_secret(), ss_dec.expose_secret());
                         })) {
                             Ok(()) => {}
                             Err(_) => {

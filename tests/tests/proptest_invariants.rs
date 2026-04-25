@@ -124,8 +124,8 @@ mod ml_kem {
             let rejected_ss = MlKem::decapsulate(&sk, &corrupted_ct)
                 .expect("implicit rejection must not error");
             prop_assert_ne!(
-                rejected_ss.as_bytes(),
-                legitimate_ss.as_bytes(),
+                rejected_ss.expose_secret(),
+                legitimate_ss.expose_secret(),
                 "implicit-rejection secret equalled legitimate secret after bit-flip"
             );
         }

@@ -235,7 +235,7 @@ fn test_keypair_roundtrip_basic_roundtrip() {
 
     // Verify equality
     assert_eq!(deserialized.public_key(), keypair.public_key());
-    assert_eq!(deserialized.private_key().as_slice(), keypair.private_key().as_slice());
+    assert_eq!(deserialized.private_key().expose_secret(), keypair.private_key().expose_secret());
 }
 
 #[test]
@@ -246,7 +246,7 @@ fn test_keypair_small_keys_roundtrip_succeeds() {
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
     assert_eq!(deserialized.public_key().as_slice(), b"pk");
-    assert_eq!(deserialized.private_key().as_slice(), b"sk");
+    assert_eq!(deserialized.private_key().expose_secret(), b"sk");
 }
 
 #[test]
@@ -259,7 +259,7 @@ fn test_keypair_large_keys_roundtrip_succeeds() {
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
     assert_eq!(deserialized.public_key().as_slice(), large_pk.as_slice());
-    assert_eq!(deserialized.private_key().as_slice(), large_sk.as_slice());
+    assert_eq!(deserialized.private_key().expose_secret(), large_sk.as_slice());
 }
 
 #[test]
@@ -392,7 +392,7 @@ fn test_keypair_from_serializable_succeeds() {
     let keypair: KeyPair = serializable.try_into().expect("conversion should succeed");
 
     assert_eq!(keypair.public_key().as_slice(), b"public");
-    assert_eq!(keypair.private_key().as_slice(), b"private");
+    assert_eq!(keypair.private_key().expose_secret(), b"private");
 }
 
 // ============================================================================
@@ -456,7 +456,7 @@ fn test_keypair_all_zero_keys_roundtrip_succeeds() {
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
     assert_eq!(deserialized.public_key().as_slice(), zero_pk.as_slice());
-    assert_eq!(deserialized.private_key().as_slice(), zero_sk.as_slice());
+    assert_eq!(deserialized.private_key().expose_secret(), zero_sk.as_slice());
 }
 
 #[test]
@@ -469,7 +469,7 @@ fn test_keypair_all_ff_keys_roundtrip_succeeds() {
     let deserialized = deserialize_keypair(&json).expect("deserialization should succeed");
 
     assert_eq!(deserialized.public_key().as_slice(), ff_pk.as_slice());
-    assert_eq!(deserialized.private_key().as_slice(), ff_sk.as_slice());
+    assert_eq!(deserialized.private_key().expose_secret(), ff_sk.as_slice());
 }
 
 // ============================================================================

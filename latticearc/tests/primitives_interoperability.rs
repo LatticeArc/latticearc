@@ -105,7 +105,7 @@ fn test_ml_kem_fips203_key_sizes_has_correct_size() {
             level.name()
         );
         assert_eq!(
-            sk.as_bytes().len(),
+            sk.expose_secret().len(),
             sk_size,
             "FIPS 203 {} secret key size mismatch",
             level.name()
@@ -117,7 +117,7 @@ fn test_ml_kem_fips203_key_sizes_has_correct_size() {
             level.name()
         );
         assert_eq!(
-            ss.as_bytes().len(),
+            ss.expose_secret().len(),
             ss_size,
             "FIPS 203 {} shared secret size mismatch",
             level.name()
@@ -139,8 +139,8 @@ fn test_ml_kem_ciphertext_format_compatibility_has_correct_size() {
         assert!(!ct.as_bytes().iter().all(|&b| b == 0xFF), "Ciphertext should not be all ones");
 
         // Shared secret should be uniformly distributed (basic entropy check)
-        let zeros = ss.as_bytes().iter().filter(|&&b| b == 0).count();
-        let ones = ss.as_bytes().iter().filter(|&&b| b == 0xFF).count();
+        let zeros = ss.expose_secret().iter().filter(|&&b| b == 0).count();
+        let ones = ss.expose_secret().iter().filter(|&&b| b == 0xFF).count();
         assert!(zeros < 16, "Shared secret appears non-random (too many zeros)");
         assert!(ones < 16, "Shared secret appears non-random (too many ones)");
     }
@@ -168,7 +168,7 @@ fn test_ml_dsa_fips204_key_sizes_has_correct_size() {
             param.name()
         );
         assert_eq!(
-            sk.as_bytes().len(),
+            sk.expose_secret().len(),
             sk_size,
             "FIPS 204 {} secret key size mismatch",
             param.name()
@@ -215,7 +215,12 @@ fn test_slh_dsa_fips205_key_sizes_has_correct_size() {
         let (sk, pk) = SigningKey::generate(level).expect("keygen should succeed");
 
         assert_eq!(pk.as_bytes().len(), pk_size, "FIPS 205 {:?} public key size mismatch", level);
-        assert_eq!(sk.as_bytes().len(), sk_size, "FIPS 205 {:?} secret key size mismatch", level);
+        assert_eq!(
+            sk.expose_secret().len(),
+            sk_size,
+            "FIPS 205 {:?} secret key size mismatch",
+            level
+        );
 
         let message = b"Test message for SLH-DSA";
         let signature = sk.sign(message, &[]).expect("signing should succeed");
@@ -521,13 +526,16 @@ fn test_zeroization_completeness_succeeds() {
     let mut ss = MlKemSharedSecret::new([0xAAu8; 32]);
 
     // Verify initial state has data
-    assert!(ss.as_bytes().iter().any(|&b| b != 0), "Initial state should have non-zero data");
+    assert!(ss.expose_secret().iter().any(|&b| b != 0), "Initial state should have non-zero data");
 
     // Zeroize
     ss.zeroize();
 
     // All bytes should be zero
-    assert!(ss.as_bytes().iter().all(|&b| b == 0), "All bytes should be zero after zeroization");
+    assert!(
+        ss.expose_secret().iter().all(|&b| b == 0),
+        "All bytes should be zero after zeroization"
+    );
 }
 
 /// Test signature bytes can be round-tripped through byte representation
@@ -565,7 +573,7 @@ fn test_arc_primitives_ml_kem_interface_compatibility_succeeds() {
 
     // Types should be usable with standard methods
     assert!(pk.as_bytes().len() > 0);
-    assert!(ss.as_bytes().len() == 32);
+    assert!(ss.expose_secret().len() == 32);
     assert!(ct.as_bytes().len() > 0);
 
     // Security level should be queryable
@@ -609,7 +617,7 @@ fn test_arc_primitives_slh_dsa_interface_compatibility_succeeds() {
 
     // Types have expected accessors
     assert!(pk.as_bytes().len() > 0);
-    assert!(sk.as_bytes().len() > 0);
+    assert!(sk.expose_secret().len() > 0);
 }
 
 /// Test arc-primitives Ed25519 matches expected interface for arc-core
@@ -1025,7 +1033,7 @@ fn test_ml_kem_encapsulation_with_restored_key_produces_valid_ciphertext_succeed
         let (ss, ct) = MlKem::encapsulate(&restored_pk).expect("encaps should succeed");
 
         // Verify output sizes match spec
-        assert_eq!(ss.as_bytes().len(), 32);
+        assert_eq!(ss.expose_secret().len(), 32);
         assert_eq!(ct.as_bytes().len(), level.ciphertext_size());
 
         // Verify ciphertext is not trivial
@@ -1123,7 +1131,7 @@ fn test_all_key_types_can_be_zeroized_succeeds() {
     // ML-KEM shared secret
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
     ss.zeroize();
-    assert!(ss.as_bytes().iter().all(|&b| b == 0));
+    assert!(ss.expose_secret().iter().all(|&b| b == 0));
 
     // ChaCha20 key
     let mut key = ChaCha20Poly1305Cipher::generate_key();

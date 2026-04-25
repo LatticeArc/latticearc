@@ -490,9 +490,13 @@ fn proof_sig_ml_dsa_44_verified() {
     let message = b"ML-DSA-44 proof evidence";
     let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("ML-DSA-44 keygen");
 
-    let signature =
-        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MlDsa44, SecurityMode::Unverified)
-            .expect("ML-DSA-44 sign");
+    let signature = sign_pq_ml_dsa(
+        message,
+        sk.expose_secret(),
+        MlDsaParameterSet::MlDsa44,
+        SecurityMode::Unverified,
+    )
+    .expect("ML-DSA-44 sign");
 
     let valid = verify_pq_ml_dsa(
         message,
@@ -520,9 +524,13 @@ fn proof_sig_ml_dsa_65_verified() {
     let message = b"ML-DSA-65 proof evidence";
     let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65).expect("ML-DSA-65 keygen");
 
-    let signature =
-        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MlDsa65, SecurityMode::Unverified)
-            .expect("ML-DSA-65 sign");
+    let signature = sign_pq_ml_dsa(
+        message,
+        sk.expose_secret(),
+        MlDsaParameterSet::MlDsa65,
+        SecurityMode::Unverified,
+    )
+    .expect("ML-DSA-65 sign");
 
     let valid = verify_pq_ml_dsa(
         message,
@@ -550,9 +558,13 @@ fn proof_sig_ml_dsa_87_verified() {
     let message = b"ML-DSA-87 proof evidence";
     let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87).expect("ML-DSA-87 keygen");
 
-    let signature =
-        sign_pq_ml_dsa(message, sk.as_ref(), MlDsaParameterSet::MlDsa87, SecurityMode::Unverified)
-            .expect("ML-DSA-87 sign");
+    let signature = sign_pq_ml_dsa(
+        message,
+        sk.expose_secret(),
+        MlDsaParameterSet::MlDsa87,
+        SecurityMode::Unverified,
+    )
+    .expect("ML-DSA-87 sign");
 
     let valid = verify_pq_ml_dsa(
         message,
@@ -613,7 +625,7 @@ fn proof_sig_slh_dsa_shake_128s_verified() {
 
     let signature = sign_pq_slh_dsa(
         message,
-        sk.as_ref(),
+        sk.expose_secret(),
         SlhDsaSecurityLevel::Shake128s,
         SecurityMode::Unverified,
     )
@@ -647,7 +659,7 @@ fn proof_sig_fn_dsa_512_verified() {
 
     let signature = sign_pq_fn_dsa(
         message,
-        sk.as_ref(),
+        sk.expose_secret(),
         FnDsaSecurityLevel::Level512,
         SecurityMode::Unverified,
     )

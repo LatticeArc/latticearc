@@ -92,7 +92,7 @@ fn encrypt_pq_ml_kem_internal(
     // Using the raw shared secret directly would be safe for a single AES-GCM
     // encryption, but HKDF binding prevents cross-protocol key reuse.
     let hkdf_result = crate::primitives::kdf::hkdf::hkdf(
-        shared_secret.as_bytes(),
+        shared_secret.expose_secret(),
         None,
         Some(crate::types::domains::PQ_KEM_AEAD_KEY_INFO),
         32,
@@ -173,7 +173,7 @@ fn decrypt_pq_ml_kem_internal(
 
     // Derive AES-256 key from ML-KEM shared secret via HKDF (must match encrypt path).
     let hkdf_result = crate::primitives::kdf::hkdf::hkdf(
-        shared_secret.as_bytes(),
+        shared_secret.expose_secret(),
         None,
         Some(crate::types::domains::PQ_KEM_AEAD_KEY_INFO),
         32,
@@ -502,9 +502,12 @@ mod tests {
             encrypt_pq_ml_kem_unverified(plaintext, pk.as_slice(), MlKemSecurityLevel::MlKem768)
                 .expect("encryption should succeed");
 
-        let decrypted =
-            decrypt_pq_ml_kem_unverified(&encrypted, sk.as_ref(), MlKemSecurityLevel::MlKem768)
-                .expect("decryption should succeed");
+        let decrypted = decrypt_pq_ml_kem_unverified(
+            &encrypted,
+            sk.expose_secret(),
+            MlKemSecurityLevel::MlKem768,
+        )
+        .expect("decryption should succeed");
 
         assert_eq!(
             decrypted.as_slice(),
@@ -558,7 +561,7 @@ mod tests {
 
         // Create verified session
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let encrypted = encrypt_pq_ml_kem(
             data,
@@ -592,7 +595,7 @@ mod tests {
         let config = CoreConfig::default();
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let encrypted = encrypt_pq_ml_kem_with_config(
             data,
@@ -649,7 +652,7 @@ mod tests {
             let encrypted = encrypt_pq_ml_kem_unverified(data, pk.as_slice(), level)
                 .expect("encryption should succeed");
 
-            let decrypted = decrypt_pq_ml_kem_unverified(&encrypted, sk.as_ref(), level)
+            let decrypted = decrypt_pq_ml_kem_unverified(&encrypted, sk.expose_secret(), level)
                 .expect("decryption should succeed");
 
             assert_eq!(
@@ -690,7 +693,7 @@ mod tests {
 
         let decrypted = decrypt_pq_ml_kem_with_config_unverified(
             &encrypted,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlKemSecurityLevel::MlKem768,
             &config,
         )
@@ -704,7 +707,7 @@ mod tests {
         let config = CoreConfig::default();
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let encrypted = encrypt_pq_ml_kem_with_config(
             plaintext,
@@ -716,7 +719,7 @@ mod tests {
 
         let decrypted = decrypt_pq_ml_kem_with_config(
             &encrypted,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlKemSecurityLevel::MlKem768,
             &config,
             SecurityMode::Verified(&session),
@@ -730,7 +733,7 @@ mod tests {
         let plaintext = b"Verified roundtrip";
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let encrypted = encrypt_pq_ml_kem(
             plaintext,
@@ -741,7 +744,7 @@ mod tests {
 
         let decrypted = decrypt_pq_ml_kem(
             &encrypted,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlKemSecurityLevel::MlKem768,
             SecurityMode::Verified(&session),
         )?;

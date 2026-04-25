@@ -107,7 +107,7 @@ use latticearc::unified_api::{
     types::{
         AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, DecryptKey, EncryptKey,
         EncryptedMetadata, EncryptedOutput, HashOutput, KeyPair, PerformancePreference, PrivateKey,
-        PublicKey, SecurityLevel, SignedMetadata, UseCase, ZeroizedBytes,
+        PublicKey, SecretVec, SecurityLevel, SignedMetadata, UseCase,
     },
     verify_ed25519_unverified,
     // Zero trust
@@ -304,7 +304,7 @@ fn test_ed25519_functions_accessible_are_stable() {
     let message = b"message to sign";
 
     // sign_ed25519_unverified for API stability
-    let signature = sign_ed25519_unverified(message, private_key.as_slice());
+    let signature = sign_ed25519_unverified(message, private_key.expose_secret());
     assert!(signature.is_ok(), "sign_ed25519_unverified() should succeed");
 
     let sig = signature.expect("signing should succeed");
@@ -367,7 +367,7 @@ fn test_zero_trust_types_accessible_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
 
     // VerifiedSession can be established
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice());
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret());
     assert!(session.is_ok());
 
     // ZeroTrustAuth can be created
@@ -630,7 +630,7 @@ fn test_crypto_config_field_accessibility_is_stable() {
 
     // Builder pattern should work
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session");
     let config = CryptoConfig::new()
         .session(&session)
         .use_case(UseCase::FileStorage)
@@ -753,7 +753,7 @@ fn test_generate_keypair_returns_expected_types_correctly_succeeds() {
 
     let (pk, sk) = result.expect("keygen");
     assert!(!pk.is_empty());
-    assert!(!sk.as_slice().is_empty());
+    assert!(!sk.expose_secret().is_empty());
 }
 
 /// Test 3.4: hash_data function returns expected type
@@ -769,7 +769,8 @@ fn test_hash_data_returns_expected_type_correctly_succeeds() {
 #[test]
 fn test_verified_session_establish_works_correctly_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let result: Result<VerifiedSession> = VerifiedSession::establish(pk.as_slice(), sk.as_slice());
+    let result: Result<VerifiedSession> =
+        VerifiedSession::establish(pk.as_slice(), sk.expose_secret());
     assert!(result.is_ok());
 }
 
@@ -777,7 +778,7 @@ fn test_verified_session_establish_works_correctly_succeeds() {
 #[test]
 fn test_verified_session_method_return_types_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session");
 
     // Method return types should be stable
     let _: bool = session.is_valid();
@@ -793,7 +794,7 @@ fn test_verified_session_method_return_types_are_stable() {
 #[test]
 fn test_security_mode_method_return_types_are_stable() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session");
 
     let verified = SecurityMode::Verified(&session);
     let unverified = SecurityMode::Unverified;
@@ -973,7 +974,7 @@ fn test_legacy_ed25519_signing_works_correctly_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
     let message = b"test message";
 
-    let signature = sign_ed25519_unverified(message, sk.as_slice()).expect("sign");
+    let signature = sign_ed25519_unverified(message, sk.expose_secret()).expect("sign");
     let verified = verify_ed25519_unverified(message, &signature, pk.as_slice()).expect("verify");
     assert!(verified);
 }
@@ -1012,7 +1013,7 @@ fn test_migration_to_verified_mode_succeeds() {
     let encrypted_legacy = encrypt_aes_gcm_unverified(data, &key).expect("encrypt");
 
     // Step 2: New code establishes a session
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session");
 
     // Step 3: New code can still use symmetric encryption but with verified session context
     // The CryptoConfig.session() validates the session is active, but the actual
@@ -1114,19 +1115,19 @@ fn test_large_data_handling_is_stable() {
 // Section 5: Additional Compatibility Tests
 // =============================================================================
 
-/// Test 5.1: ZeroizedBytes provides secure memory handling
+/// Test 5.1: `SecretVec` provides secure memory handling.
+///
+/// Replaces the 0.7.x `test_zeroized_bytes_api_is_stable` test; `ZeroizedBytes`
+/// was consolidated into `SecretVec` in 0.8.0. `SecretVec` does not implement
+/// `AsRef<[u8]>` (invariant I-8) — byte access is via `expose_secret()` only.
 #[test]
-fn test_zeroized_bytes_api_is_stable() {
+fn test_secret_vec_api_is_stable() {
     let data = vec![1, 2, 3, 4, 5];
-    let zeroized = ZeroizedBytes::new(data);
+    let sv = SecretVec::new(data);
 
-    // Methods should be accessible
-    let _slice: &[u8] = zeroized.as_slice();
-    let _len: usize = zeroized.len();
-    let _empty: bool = zeroized.is_empty();
-
-    // AsRef trait
-    let _ref: &[u8] = zeroized.as_ref();
+    let _slice: &[u8] = sv.expose_secret();
+    let _len: usize = sv.len();
+    let _empty: bool = sv.is_empty();
 }
 
 /// Test 5.2: KeyPair provides secure key storage
@@ -1265,7 +1266,7 @@ fn test_audit_event_construction_is_stable() {
 #[test]
 fn test_security_mode_from_verified_session_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).expect("session");
+    let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).expect("session");
 
     // From trait should work
     let mode: SecurityMode = (&session).into();

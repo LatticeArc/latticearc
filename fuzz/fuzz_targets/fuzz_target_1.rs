@@ -42,5 +42,5 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Shared secrets must match
-    assert_eq!(ss1.as_bytes(), ss2.as_bytes());
+    assert_eq!(ss1.expose_secret(), ss2.expose_secret());
 });

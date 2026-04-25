@@ -334,7 +334,7 @@ mod tests {
         let (auth_pk, auth_sk) = crate::unified_api::convenience::keygen::generate_keypair()?;
         let session = crate::unified_api::zero_trust::VerifiedSession::establish(
             auth_pk.as_slice(),
-            auth_sk.as_ref(),
+            auth_sk.expose_secret(),
         )?;
 
         let (pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Verified(&session))?;

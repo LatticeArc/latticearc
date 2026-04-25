@@ -175,7 +175,7 @@ pub(crate) fn verify_ed25519_internal(
 /// # let private_key = [0u8; 32];
 ///
 /// let (pk, sk) = generate_keypair()?;
-/// let session = VerifiedSession::establish(pk.as_ref(), sk.as_ref())?;
+/// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 ///
 /// // With Zero Trust verification (recommended)
 /// let signature = sign_ed25519(b"message", &private_key, SecurityMode::Verified(&session))?;
@@ -380,7 +380,7 @@ mod tests {
         let message = b"Test message for Ed25519";
         let (pk, sk) = generate_keypair()?;
 
-        let signature = sign_ed25519_unverified(message, sk.as_ref())?;
+        let signature = sign_ed25519_unverified(message, sk.expose_secret())?;
         assert!(!signature.is_empty());
         assert_eq!(signature.len(), 64, "Ed25519 signature should be 64 bytes");
 
@@ -394,8 +394,8 @@ mod tests {
         let message = b"Same message";
         let (_, sk) = generate_keypair()?;
 
-        let sig1 = sign_ed25519_unverified(message, sk.as_ref())?;
-        let sig2 = sign_ed25519_unverified(message, sk.as_ref())?;
+        let sig1 = sign_ed25519_unverified(message, sk.expose_secret())?;
+        let sig2 = sign_ed25519_unverified(message, sk.expose_secret())?;
 
         assert_eq!(sig1, sig2, "Ed25519 signatures should be deterministic");
         Ok(())
@@ -408,7 +408,7 @@ mod tests {
         let (pk, sk) = generate_keypair().expect("keygen should succeed");
 
         let signature =
-            sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+            sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
         let result = verify_ed25519_unverified(wrong_message, &signature, pk.as_slice());
         assert!(result.is_err(), "Verification should fail for wrong message");
     }
@@ -430,7 +430,7 @@ mod tests {
         let (wrong_pk, _) = generate_keypair().expect("keygen should succeed");
 
         let signature =
-            sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+            sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
         let result = verify_ed25519_unverified(message, &signature, wrong_pk.as_slice());
         assert!(result.is_err(), "Verification should fail with wrong public key");
     }
@@ -442,7 +442,7 @@ mod tests {
         let (pk, sk) = generate_keypair()?;
         let config = CoreConfig::default();
 
-        let signature = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config)?;
+        let signature = sign_ed25519_with_config_unverified(message, sk.expose_secret(), &config)?;
         let is_valid =
             verify_ed25519_with_config_unverified(message, &signature, pk.as_slice(), &config)?;
         assert!(is_valid);
@@ -456,9 +456,10 @@ mod tests {
         let (pk, sk) = generate_keypair()?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
-        let signature = sign_ed25519(message, sk.as_ref(), SecurityMode::Verified(&session))?;
+        let signature =
+            sign_ed25519(message, sk.expose_secret(), SecurityMode::Verified(&session))?;
         let is_valid =
             verify_ed25519(message, &signature, pk.as_slice(), SecurityMode::Verified(&session))?;
         assert!(is_valid);
@@ -470,7 +471,7 @@ mod tests {
         let message = b"Test unverified mode";
         let (pk, sk) = generate_keypair()?;
 
-        let signature = sign_ed25519(message, sk.as_ref(), SecurityMode::Unverified)?;
+        let signature = sign_ed25519(message, sk.expose_secret(), SecurityMode::Unverified)?;
         let is_valid =
             verify_ed25519(message, &signature, pk.as_slice(), SecurityMode::Unverified)?;
         assert!(is_valid);
@@ -484,11 +485,11 @@ mod tests {
         let config = CoreConfig::default();
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_ed25519_with_config(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             &config,
             SecurityMode::Verified(&session),
         )?;
@@ -509,8 +510,12 @@ mod tests {
         let (pk, sk) = generate_keypair()?;
         let config = CoreConfig::default();
 
-        let signature =
-            sign_ed25519_with_config(message, sk.as_ref(), &config, SecurityMode::Unverified)?;
+        let signature = sign_ed25519_with_config(
+            message,
+            sk.expose_secret(),
+            &config,
+            SecurityMode::Unverified,
+        )?;
         let is_valid = verify_ed25519_with_config(
             message,
             &signature,
@@ -528,7 +533,7 @@ mod tests {
         let message = b"";
         let (pk, sk) = generate_keypair()?;
 
-        let signature = sign_ed25519_unverified(message, sk.as_ref())?;
+        let signature = sign_ed25519_unverified(message, sk.expose_secret())?;
         let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
         assert!(is_valid);
         Ok(())
@@ -539,7 +544,7 @@ mod tests {
         let message = vec![0xAB; 100000];
         let (pk, sk) = generate_keypair()?;
 
-        let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+        let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
         let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
         assert!(is_valid);
         Ok(())
@@ -551,8 +556,8 @@ mod tests {
         let short_msg = b"short";
         let long_msg = vec![0xFF; 10000];
 
-        let sig1 = sign_ed25519_unverified(short_msg, sk.as_ref())?;
-        let sig2 = sign_ed25519_unverified(&long_msg, sk.as_ref())?;
+        let sig1 = sign_ed25519_unverified(short_msg, sk.expose_secret())?;
+        let sig2 = sign_ed25519_unverified(&long_msg, sk.expose_secret())?;
 
         assert_eq!(sig1.len(), 64, "Signature length should be constant");
         assert_eq!(sig2.len(), 64, "Signature length should be constant");
@@ -565,8 +570,8 @@ mod tests {
         let msg1 = b"First message";
         let msg2 = b"Second message";
 
-        let sig1 = sign_ed25519_unverified(msg1, sk.as_ref())?;
-        let sig2 = sign_ed25519_unverified(msg2, sk.as_ref())?;
+        let sig1 = sign_ed25519_unverified(msg1, sk.expose_secret())?;
+        let sig2 = sign_ed25519_unverified(msg2, sk.expose_secret())?;
 
         assert_ne!(sig1, sig2, "Different messages should produce different signatures");
         Ok(())
@@ -578,8 +583,8 @@ mod tests {
         let (_, sk1) = generate_keypair()?;
         let (_, sk2) = generate_keypair()?;
 
-        let sig1 = sign_ed25519_unverified(message, sk1.as_ref())?;
-        let sig2 = sign_ed25519_unverified(message, sk2.as_ref())?;
+        let sig1 = sign_ed25519_unverified(message, sk1.expose_secret())?;
+        let sig2 = sign_ed25519_unverified(message, sk2.expose_secret())?;
 
         assert_ne!(sig1, sig2, "Different keys should produce different signatures");
         Ok(())
@@ -603,7 +608,7 @@ mod tests {
         let invalid_pk = vec![0u8; 16]; // Wrong length
 
         let signature =
-            sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+            sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
         let result = verify_ed25519_unverified(message, &signature, &invalid_pk);
         assert!(result.is_err(), "Should reject public key with wrong length");
     }
@@ -639,7 +644,7 @@ mod tests {
     fn test_ed25519_verify_empty_public_key_returns_error() {
         let message = b"Test message";
         let (_, sk) = generate_keypair().expect("keygen should succeed");
-        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+        let signature = sign_ed25519_unverified(message, sk.expose_secret()).unwrap();
 
         let result = verify_ed25519_unverified(message, &signature, &[]);
         assert!(result.is_err(), "Empty public key should fail");
@@ -649,7 +654,7 @@ mod tests {
     fn test_ed25519_verify_invalid_public_key_format_returns_error() {
         let message = b"Test message";
         let (_, sk) = generate_keypair().expect("keygen should succeed");
-        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+        let signature = sign_ed25519_unverified(message, sk.expose_secret()).unwrap();
 
         // 32 bytes but not a valid Ed25519 point
         let bad_pk = vec![0xFF; 32];
@@ -663,8 +668,12 @@ mod tests {
         let (_, sk) = generate_keypair().expect("keygen should succeed");
         let config = CoreConfig::default();
 
-        let result =
-            sign_ed25519_with_config(message, sk.as_ref(), &config, SecurityMode::Unverified);
+        let result = sign_ed25519_with_config(
+            message,
+            sk.expose_secret(),
+            &config,
+            SecurityMode::Unverified,
+        );
         assert!(result.is_ok(), "Signing with valid config should succeed");
     }
 
@@ -674,7 +683,7 @@ mod tests {
         let (pk, sk) = generate_keypair().expect("keygen should succeed");
         let config = CoreConfig::default();
 
-        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+        let signature = sign_ed25519_unverified(message, sk.expose_secret()).unwrap();
         let result = verify_ed25519_with_config(
             message,
             &signature,
@@ -692,7 +701,7 @@ mod tests {
         let (_, sk) = generate_keypair().expect("keygen should succeed");
         let config = CoreConfig::default();
 
-        let result = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config);
+        let result = sign_ed25519_with_config_unverified(message, sk.expose_secret(), &config);
         assert!(result.is_ok());
     }
 
@@ -702,7 +711,7 @@ mod tests {
         let (pk, sk) = generate_keypair().expect("keygen should succeed");
         let config = CoreConfig::default();
 
-        let signature = sign_ed25519_unverified(message, sk.as_ref()).unwrap();
+        let signature = sign_ed25519_unverified(message, sk.expose_secret()).unwrap();
         let result =
             verify_ed25519_with_config_unverified(message, &signature, pk.as_slice(), &config);
         assert!(result.is_ok());

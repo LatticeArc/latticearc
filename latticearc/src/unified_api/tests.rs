@@ -152,7 +152,8 @@ fn test_verified_session_establishment_succeeds() {
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
             let (public_key, private_key) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_slice());
+            let session =
+                VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret());
             assert!(session.is_ok(), "Session establishment failed: {:?}", session.err());
 
             let session = session.unwrap();
@@ -173,7 +174,8 @@ fn test_session_verified_encryption_succeeds() {
             // Establish session
             let (public_key, private_key) = generate_keypair().unwrap();
             let session =
-                VerifiedSession::establish(public_key.as_slice(), private_key.as_slice()).unwrap();
+                VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())
+                    .unwrap();
 
             // Verify session is valid
             assert!(session.is_valid(), "Session should be valid");
@@ -770,31 +772,8 @@ fn test_self_tests_passed_is_bool_returns_expected_succeeds() {
 }
 
 // ============================================================================
-// Phase 4: types.rs coverage (ZeroizedBytes, KeyPair, enums, CryptoConfig)
+// Phase 4: types.rs coverage (KeyPair, enums, CryptoConfig)
 // ============================================================================
-
-#[test]
-fn test_zeroized_bytes_basic_succeeds() {
-    let data = vec![1u8, 2, 3, 4, 5];
-    let zb = ZeroizedBytes::new(data.clone());
-    assert_eq!(zb.as_slice(), &[1, 2, 3, 4, 5]);
-    assert_eq!(zb.len(), 5);
-    assert!(!zb.is_empty());
-    // AsRef trait
-    let slice: &[u8] = zb.as_ref();
-    assert_eq!(slice, &[1, 2, 3, 4, 5]);
-    // Debug trait
-    let debug = format!("{:?}", zb);
-    assert!(debug.contains("ZeroizedBytes"));
-}
-
-#[test]
-fn test_zeroized_bytes_empty_succeeds() {
-    let zb = ZeroizedBytes::new(vec![]);
-    assert!(zb.is_empty());
-    assert_eq!(zb.len(), 0);
-    assert_eq!(zb.as_slice(), &[] as &[u8]);
-}
 
 #[test]
 fn test_keypair_accessors_returns_expected_succeeds() {
@@ -802,10 +781,10 @@ fn test_keypair_accessors_returns_expected_succeeds() {
     let sk = crate::types::PrivateKey::new(vec![40, 50, 60]);
     let kp = KeyPair::new(pk.clone(), sk);
     assert_eq!(kp.public_key(), &pk);
-    assert_eq!(kp.private_key().as_slice(), &[40, 50, 60]);
+    assert_eq!(kp.private_key().expose_secret(), &[40, 50, 60]);
     // Getter access
     assert_eq!(kp.public_key(), &pk);
-    assert_eq!(kp.private_key().as_slice(), &[40, 50, 60]);
+    assert_eq!(kp.private_key().expose_secret(), &[40, 50, 60]);
 }
 
 #[test]
@@ -1150,7 +1129,7 @@ fn test_aes_gcm_with_verified_session_succeeds() {
             use crate::unified_api::zero_trust::SecurityMode;
 
             let (pk, sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).unwrap();
+            let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).unwrap();
 
             let key = vec![0x42u8; 32];
             let data = b"Verified AES-GCM test";
@@ -1174,7 +1153,7 @@ fn test_aes_gcm_with_config_verified_session_succeeds() {
             use crate::unified_api::zero_trust::SecurityMode;
 
             let (pk, sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(pk.as_slice(), sk.as_slice()).unwrap();
+            let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret()).unwrap();
             let config = crate::unified_api::CoreConfig::default();
 
             let key = vec![0x42u8; 32];
@@ -1521,7 +1500,8 @@ fn test_unified_encrypt_decrypt_with_verified_session_succeeds() {
             let key = vec![0x42u8; 32];
 
             let (auth_pk, auth_sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
+            let session =
+                VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret()).unwrap();
 
             let config =
                 CryptoConfig::new().session(&session).force_scheme(CryptoScheme::Symmetric);
@@ -1543,7 +1523,8 @@ fn test_unified_sign_verify_with_verified_session_succeeds() {
             let message = b"Verified session signing test";
 
             let (auth_pk, auth_sk) = generate_keypair().unwrap();
-            let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref()).unwrap();
+            let session =
+                VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret()).unwrap();
 
             let config = CryptoConfig::new().session(&session);
             let (pk, sk, _scheme) = generate_signing_keypair(config.clone()).unwrap();

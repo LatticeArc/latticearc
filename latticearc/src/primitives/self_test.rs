@@ -665,7 +665,7 @@ pub fn kat_ml_kem_768() -> Result<()> {
     })?;
 
     // Verify shared secrets match (constant-time comparison)
-    if !bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes())) {
+    if !bool::from(ss_encap.expose_secret().ct_eq(ss_decap.expose_secret())) {
         return Err(LatticeArcError::ValidationError {
             message: "ML-KEM-768 KAT: encapsulated and decapsulated shared secrets do not match"
                 .to_string(),
@@ -673,7 +673,7 @@ pub fn kat_ml_kem_768() -> Result<()> {
     }
 
     // Verify shared secret is not all zeros
-    let all_zeros = ss_encap.as_bytes().iter().all(|&b| b == 0);
+    let all_zeros = ss_encap.expose_secret().iter().all(|&b| b == 0);
     if all_zeros {
         return Err(LatticeArcError::ValidationError {
             message: "ML-KEM-768 KAT: shared secret is all zeros".to_string(),
@@ -819,12 +819,12 @@ pub fn kat_slh_dsa() -> Result<()> {
     }
 
     let expected_sk_size = SlhDsaSecurityLevel::Shake128s.secret_key_size();
-    if signing_key.as_bytes().len() != expected_sk_size {
+    if signing_key.expose_secret().len() != expected_sk_size {
         return Err(LatticeArcError::ValidationError {
             message: format!(
                 "SLH-DSA KAT: secret key size mismatch: expected {}, got {}",
                 expected_sk_size,
-                signing_key.as_bytes().len()
+                signing_key.expose_secret().len()
             ),
         });
     }

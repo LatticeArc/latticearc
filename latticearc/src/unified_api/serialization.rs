@@ -153,7 +153,7 @@ impl From<&KeyPair> for SerializableKeyPair {
     fn from(keypair: &KeyPair) -> Self {
         Self {
             public_key: BASE64_ENGINE.encode(keypair.public_key().as_slice()),
-            private_key: BASE64_ENGINE.encode(keypair.private_key().as_slice()),
+            private_key: BASE64_ENGINE.encode(keypair.private_key().expose_secret()),
         }
     }
 }
@@ -490,7 +490,10 @@ mod tests {
         let deserialized = deserialize_keypair(&json).unwrap();
 
         assert_eq!(original.public_key(), deserialized.public_key());
-        assert_eq!(original.private_key().as_slice(), deserialized.private_key().as_slice());
+        assert_eq!(
+            original.private_key().expose_secret(),
+            deserialized.private_key().expose_secret()
+        );
     }
 
     #[test]

@@ -83,8 +83,11 @@ fn test_ml_kem_decrypt_empty_ciphertext_fails() {
     let (_public_key, private_key) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768).expect("keypair generation");
 
-    let result =
-        decrypt_pq_ml_kem_unverified(&[], private_key.as_ref(), MlKemSecurityLevel::MlKem768);
+    let result = decrypt_pq_ml_kem_unverified(
+        &[],
+        private_key.expose_secret(),
+        MlKemSecurityLevel::MlKem768,
+    );
     assert!(result.is_err(), "Should fail with empty ciphertext");
 
     match result {
@@ -152,7 +155,7 @@ fn test_ml_kem_decrypt_truncated_private_key_fails() {
             .expect("encryption should succeed");
 
     // Truncate the private key
-    let truncated_key = private_key.as_slice().get(..100).unwrap_or(&[]);
+    let truncated_key = private_key.expose_secret().get(..100).unwrap_or(&[]);
 
     let result =
         decrypt_pq_ml_kem_unverified(&encrypted, truncated_key, MlKemSecurityLevel::MlKem768);
@@ -220,7 +223,7 @@ fn test_ml_kem_decrypt_wrong_security_level_fails() {
     // Try to decrypt with wrong security level
     let result = decrypt_pq_ml_kem_unverified(
         &encrypted,
-        private_key_512.as_ref(),
+        private_key_512.expose_secret(),
         MlKemSecurityLevel::MlKem512,
     );
     assert!(result.is_err(), "Should fail with mismatched security level");
@@ -249,7 +252,7 @@ fn test_ml_kem_decrypt_corrupted_ciphertext_fails() {
 
     let result = decrypt_pq_ml_kem_unverified(
         &encrypted,
-        private_key.as_ref(),
+        private_key.expose_secret(),
         MlKemSecurityLevel::MlKem768,
     );
     assert!(result.is_err(), "Should fail with corrupted ciphertext");
@@ -270,8 +273,11 @@ fn test_ml_kem_decrypt_truncated_ciphertext_fails() {
     // Truncate the ciphertext (less than minimum size)
     let truncated = &encrypted[..500];
 
-    let result =
-        decrypt_pq_ml_kem_unverified(truncated, private_key.as_ref(), MlKemSecurityLevel::MlKem768);
+    let result = decrypt_pq_ml_kem_unverified(
+        truncated,
+        private_key.expose_secret(),
+        MlKemSecurityLevel::MlKem768,
+    );
     assert!(result.is_err(), "Should fail with truncated ciphertext");
 
     match result {
@@ -295,7 +301,7 @@ fn test_ml_kem_decrypt_ciphertext_too_short_fails() {
 
     let result = decrypt_pq_ml_kem_unverified(
         &short_ciphertext,
-        private_key.as_ref(),
+        private_key.expose_secret(),
         MlKemSecurityLevel::MlKem768,
     );
     assert!(result.is_err(), "Should fail when ciphertext is too short");
@@ -333,7 +339,7 @@ fn test_ml_kem_cross_key_decrypt_fails() {
     // Try to decrypt with different private key
     let result = decrypt_pq_ml_kem_unverified(
         &encrypted,
-        private_key_2.as_ref(),
+        private_key_2.expose_secret(),
         MlKemSecurityLevel::MlKem768,
     );
     assert!(result.is_err(), "Should fail when decrypting with wrong private key");
@@ -391,7 +397,7 @@ fn test_ml_kem_decrypt_random_data_fails() {
 
     let result = decrypt_pq_ml_kem_unverified(
         &random_data,
-        private_key.as_ref(),
+        private_key.expose_secret(),
         MlKemSecurityLevel::MlKem768,
     );
     assert!(result.is_err(), "Should fail with random data");

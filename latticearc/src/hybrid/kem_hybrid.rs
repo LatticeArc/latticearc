@@ -101,8 +101,12 @@
 //! // Decapsulate to recover the shared secret
 //! let shared_secret = decapsulate(&sk, &encapsulated)?;
 //!
-//! // Both parties now have the same 64-byte shared secret
-//! assert_eq!(shared_secret.as_slice(), encapsulated.shared_secret());
+//! // Both parties now have the same 64-byte shared secret.
+//! // Secret comparison uses `ct_eq` per invariant I-5.
+//! use subtle::ConstantTimeEq;
+//! let lhs: &[u8] = shared_secret.expose_secret();
+//! let rhs: &[u8] = encapsulated.expose_secret();
+//! assert!(bool::from(lhs.ct_eq(rhs)));
 //! # Ok(())
 //! # }
 //! ```
@@ -415,37 +419,49 @@ impl ConstantTimeEq for HybridKemSecretKey {
     }
 }
 
-/// Hybrid encapsulation result containing shared secret
+/// Size in bytes of a combined hybrid shared secret (HKDF-SHA256 output,
+/// concatenation-free derivation; see [`derive_hybrid_shared_secret`]).
+pub const HYBRID_SHARED_SECRET_LEN: usize = 64;
+
+/// Hybrid encapsulation result containing the shared secret.
 ///
 /// # Security Guarantees
 ///
-/// The `shared_secret` field is wrapped in `Zeroizing<Vec<u8>>` to ensure
-/// automatic memory zeroization when the `EncapsulatedKey` is dropped. This
-/// prevents the shared secret from remaining in memory after use, which is critical
-/// for key encapsulation/decapsulation protocols.
+/// The `shared_secret` field is a [`SecretBytes<64>`][crate::types::SecretBytes]
+/// — stack-allocated and zeroized on drop via the `ZeroizeOnDrop` derive, using
+/// volatile writes that the compiler cannot optimize away. Stack allocation
+/// (invariant I-2) avoids both heap-allocator size fingerprinting and the
+/// `Vec` reallocation path that could free an unzeroized buffer.
 ///
-/// # Zeroization Implementation
-///
-/// The `ZeroizeOnDrop` derive automatically calls `Zeroize::zeroize()`
-/// on the `shared_secret` field when dropped, using volatile operations
-/// that prevent compiler optimization and ensure constant-time execution.
+/// Access goes through [`Self::expose_secret`] (invariant I-8); `PartialEq`/
+/// `Eq` are not implemented (invariants I-5/I-6) — use [`ConstantTimeEq`] for
+/// equality checks.
 #[derive(ZeroizeOnDrop)]
 pub struct EncapsulatedKey {
     /// ML-KEM ciphertext bytes (size depends on security level).
     ml_kem_ct: Vec<u8>,
     /// Ephemeral X25519 public key bytes (32 bytes) for ECDH.
     ecdh_pk: Vec<u8>,
-    /// Combined shared secret (64 bytes), automatically zeroized on drop.
-    shared_secret: Zeroizing<Vec<u8>>,
+    /// Combined shared secret (64 bytes, stack-allocated, zeroized on drop).
+    ///
+    /// Per Secret Type Invariant I-2, fixed-size secrets use
+    /// [`SecretBytes<N>`] rather than `Zeroizing<Vec<u8>>`: no heap allocator
+    /// metadata leaks the secret size, and there is no realloc path that
+    /// could free an unzeroized buffer.
+    shared_secret: crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>,
 }
 
 impl EncapsulatedKey {
     /// Construct an `EncapsulatedKey` from its components.
     ///
-    /// The `shared_secret` is wrapped in [`Zeroizing`] and will be wiped
-    /// from memory when the `EncapsulatedKey` is dropped.
+    /// The `shared_secret` is a stack-allocated [`SecretBytes<64>`] that is
+    /// wiped from memory when the `EncapsulatedKey` is dropped.
     #[must_use]
-    pub fn new(ml_kem_ct: Vec<u8>, ecdh_pk: Vec<u8>, shared_secret: Zeroizing<Vec<u8>>) -> Self {
+    pub fn new(
+        ml_kem_ct: Vec<u8>,
+        ecdh_pk: Vec<u8>,
+        shared_secret: crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>,
+    ) -> Self {
         Self { ml_kem_ct, ecdh_pk, shared_secret }
     }
 
@@ -461,13 +477,15 @@ impl EncapsulatedKey {
         &self.ecdh_pk
     }
 
-    /// Returns the combined shared secret bytes.
+    /// Expose the combined shared secret bytes (64 bytes).
     ///
-    /// The returned slice borrows the zeroizing inner buffer; the buffer is
-    /// wiped automatically when the [`EncapsulatedKey`] is dropped.
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`). The returned array borrows the
+    /// stack-backed `SecretBytes<64>` inside the [`EncapsulatedKey`]; the
+    /// buffer is wiped automatically when the outer struct is dropped.
     #[must_use]
-    pub fn shared_secret(&self) -> &[u8] {
-        &self.shared_secret
+    pub fn expose_secret(&self) -> &[u8; HYBRID_SHARED_SECRET_LEN] {
+        self.shared_secret.expose_secret()
     }
 }
 
@@ -483,7 +501,15 @@ impl std::fmt::Debug for EncapsulatedKey {
 
 impl ConstantTimeEq for EncapsulatedKey {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        self.shared_secret.as_slice().ct_eq(other.shared_secret.as_slice())
+        // Compare all three fields. `shared_secret` must be constant-time
+        // (invariants I-5/I-6). `ml_kem_ct` and `ecdh_pk` are public wire
+        // material — their contents are not secret, but we still use `ct_eq`
+        // so a caller's `a.ct_eq(&b)` reports "same encapsulation result"
+        // rather than "same shared secret only", which would be a surprising
+        // semantic given the outer type's name.
+        self.ml_kem_ct.ct_eq(&other.ml_kem_ct)
+            & self.ecdh_pk.ct_eq(&other.ecdh_pk)
+            & self.shared_secret.ct_eq(&other.shared_secret)
     }
 }
 
@@ -561,7 +587,7 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
     let ml_kem_ct = ml_kem_ct_struct.into_bytes();
 
     // Validate ML-KEM shared secret
-    if ml_kem_ss.as_bytes().len() != 32 {
+    if ml_kem_ss.expose_secret().len() != 32 {
         return Err(HybridKemError::MlKemError(
             "ML-KEM encapsulation returned invalid shared secret length".to_string(),
         ));
@@ -578,7 +604,7 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
 
     // Derive hybrid shared secret using HPKE-style KDF
     let shared_secret = derive_hybrid_shared_secret(HybridSharedSecretInputs {
-        ml_kem_ss: ml_kem_ss.as_bytes(),
+        ml_kem_ss: ml_kem_ss.expose_secret(),
         ecdh_ss: &*ecdh_shared_secret,
         static_pk: pk.ecdh_pk.as_slice(),
         ephemeral_pk: &ecdh_ephemeral_public,
@@ -606,7 +632,7 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
 pub fn decapsulate(
     sk: &HybridKemSecretKey,
     ct: &EncapsulatedKey,
-) -> Result<Zeroizing<Vec<u8>>, HybridKemError> {
+) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
     // Validate ephemeral ECDH public key length
     if ct.ecdh_pk.len() != X25519_KEY_SIZE {
         return Err(HybridKemError::InvalidKeyMaterial(format!(
@@ -622,7 +648,7 @@ pub fn decapsulate(
     let ml_kem_ss = sk.ml_kem_decapsulate(&ml_kem_ct_struct)?;
 
     // Validate ML-KEM shared secret
-    if ml_kem_ss.as_bytes().len() != 32 {
+    if ml_kem_ss.expose_secret().len() != 32 {
         return Err(HybridKemError::MlKemError(
             "ML-KEM decapsulation returned invalid shared secret length".to_string(),
         ));
@@ -634,7 +660,7 @@ pub fn decapsulate(
     // Use actual public key bytes for context binding (not a hash of random bytes)
     let static_public = sk.ecdh_public_key_bytes();
     derive_hybrid_shared_secret(HybridSharedSecretInputs {
-        ml_kem_ss: ml_kem_ss.as_bytes(),
+        ml_kem_ss: ml_kem_ss.expose_secret(),
         ecdh_ss: &*ecdh_shared_secret,
         static_pk: &static_public,
         ephemeral_pk: ct.ecdh_pk.as_slice(),
@@ -694,7 +720,7 @@ impl std::fmt::Debug for HybridSharedSecretInputs<'_> {
 /// - HKDF expansion fails.
 pub fn derive_hybrid_shared_secret(
     inputs: HybridSharedSecretInputs<'_>,
-) -> Result<Zeroizing<Vec<u8>>, HybridKemError> {
+) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
     let HybridSharedSecretInputs { ml_kem_ss, ecdh_ss, static_pk, ephemeral_pk } = inputs;
     if ml_kem_ss.len() != 32 {
         return Err(HybridKemError::InvalidKeyMaterial(
@@ -707,11 +733,17 @@ pub fn derive_hybrid_shared_secret(
         ));
     }
 
-    // Create input keying material following HPKE KDF approach
-    // Concatenate secrets for KDF input (zeroized on drop)
-    let mut ikm = Zeroizing::new(Vec::with_capacity(64));
-    ikm.extend_from_slice(ml_kem_ss);
-    ikm.extend_from_slice(ecdh_ss);
+    // Input keying material: concatenation of the two 32-byte shared secrets.
+    // Stack-allocated fixed-size buffer (invariant I-2); dropped (and
+    // zeroized) when the function returns. Bounds are statically correct —
+    // both inputs are 32 bytes (verified above) and 32 + 32 == 64.
+    #[allow(clippy::indexing_slicing)]
+    let ikm = {
+        let mut ikm_raw = [0u8; 64];
+        ikm_raw[..32].copy_from_slice(ml_kem_ss);
+        ikm_raw[32..].copy_from_slice(ecdh_ss);
+        crate::types::SecretBytes::<64>::new(ikm_raw)
+    };
 
     // Context info for domain separation and public-key binding, using
     // length-prefixed encoding to prevent canonicalization collisions
@@ -749,15 +781,21 @@ pub fn derive_hybrid_shared_secret(
     // here IKM is ML-KEM_ss || ECDH_ss — two independent 256-bit secrets from
     // honest-party KEM/DH outputs, so Extract's salt is not doing entropy
     // extraction. Domain separation + key binding live in `info` instead.
-    let hkdf_result = hkdf(&ikm, None, Some(&info), 64).map_err(|_e| {
-        log_crypto_operation_error!(op::HYBRID_KEM_DERIVE, "HKDF failed");
-        HybridKemError::KdfError("KDF failed".to_string())
-    })?;
+    let hkdf_result = hkdf(ikm.expose_secret(), None, Some(&info), HYBRID_SHARED_SECRET_LEN)
+        .map_err(|_e| {
+            log_crypto_operation_error!(op::HYBRID_KEM_DERIVE, "HKDF failed");
+            HybridKemError::KdfError("KDF failed".to_string())
+        })?;
 
-    // SECURITY: wrap the derived hybrid shared secret in `Zeroizing` — otherwise
-    // `.to_vec()` on `hkdf_result.key()` copies the secret OUT of its internal
-    // `Zeroizing<Vec<u8>>` into an unprotected `Vec`.
-    Ok(Zeroizing::new(hkdf_result.key().to_vec()))
+    // HKDF returns a slice of exactly the requested length
+    // (HYBRID_SHARED_SECRET_LEN, passed above). The `try_into` can only fail
+    // if the underlying `hkdf` contract is violated; we surface that as a KDF
+    // error rather than panic, keeping this function total.
+    let key_array: [u8; HYBRID_SHARED_SECRET_LEN] = hkdf_result.key().try_into().map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_DERIVE, "HKDF output length mismatch");
+        HybridKemError::KdfError("KDF output length mismatch".to_string())
+    })?;
+    Ok(crate::types::SecretBytes::new(key_array))
 }
 
 #[cfg(test)]
@@ -817,20 +855,24 @@ mod tests {
         let dec_secret = decapsulate(&sk, &enc_key).unwrap();
 
         assert_eq!(dec_secret.len(), 64, "Decapsulated secret should be 64 bytes");
-        assert_eq!(dec_secret.as_slice(), enc_key.shared_secret.as_slice(), "Secrets should match");
+        assert_eq!(
+            dec_secret.expose_secret(),
+            enc_key.shared_secret.expose_secret(),
+            "Secrets should match"
+        );
 
         // Test that different encapsulations produce different secrets
         let enc_key2 = encapsulate(&pk).unwrap();
         let dec_secret2 = decapsulate(&sk, &enc_key2).unwrap();
         assert_eq!(
-            dec_secret2.as_slice(),
-            enc_key2.shared_secret.as_slice(),
+            dec_secret2.expose_secret(),
+            enc_key2.shared_secret.expose_secret(),
             "Second roundtrip must also match"
         );
 
         assert_ne!(
-            enc_key.shared_secret.as_slice(),
-            enc_key2.shared_secret.as_slice(),
+            enc_key.shared_secret.expose_secret(),
+            enc_key2.shared_secret.expose_secret(),
             "Different encapsulations should produce different secrets"
         );
     }
@@ -861,7 +903,7 @@ mod tests {
             ephemeral_pk: &ephemeral_pk,
         });
         assert!(result2.is_ok());
-        assert_eq!(secret, result2.unwrap(), "HKDF should be deterministic");
+        assert!(bool::from(secret.ct_eq(&result2.unwrap())), "HKDF should be deterministic");
 
         // Test different inputs produce different outputs
         let different_ml_kem_ss = vec![5u8; 32];
@@ -872,7 +914,10 @@ mod tests {
             ephemeral_pk: &ephemeral_pk,
         });
         assert!(result3.is_ok());
-        assert_ne!(secret, result3.unwrap(), "Different inputs should produce different outputs");
+        assert!(
+            !bool::from(secret.ct_eq(&result3.unwrap())),
+            "Different inputs should produce different outputs"
+        );
 
         // Test invalid input lengths
         let invalid_ml_kem_ss = vec![1u8; 31];
@@ -908,13 +953,13 @@ mod tests {
 
         let mut encaps_result = encapsulate(&pk).expect("Should encapsulate");
 
-        let ss_before = encaps_result.shared_secret.as_slice().to_vec();
+        let ss_before = encaps_result.shared_secret.expose_secret().to_vec();
         assert!(!ss_before.iter().all(|&b| b == 0), "Shared secret should contain non-zero data");
 
         encaps_result.shared_secret.zeroize();
 
         assert!(
-            encaps_result.shared_secret.as_slice().iter().all(|&b| b == 0),
+            encaps_result.shared_secret.expose_secret().iter().all(|&b| b == 0),
             "Shared secret should be zeroized"
         );
     }
@@ -973,7 +1018,7 @@ mod tests {
         for _ in 0..3 {
             let enc = encapsulate(&pk).unwrap();
             let dec = decapsulate(&sk, &enc).unwrap();
-            assert_eq!(dec.as_slice(), enc.shared_secret.as_slice());
+            assert_eq!(dec.expose_secret(), enc.shared_secret.expose_secret());
         }
     }
 
@@ -997,7 +1042,7 @@ mod tests {
         let mut bad_enc = EncapsulatedKey {
             ml_kem_ct: enc.ml_kem_ct.clone(),
             ecdh_pk: vec![0u8; 16], // Wrong length
-            shared_secret: Zeroizing::new(vec![]),
+            shared_secret: crate::types::SecretBytes::zero(),
         };
 
         let result = decapsulate(&sk, &bad_enc);
@@ -1219,7 +1264,10 @@ mod tests {
         })
         .unwrap();
 
-        assert_ne!(secret1, secret2, "Different static PKs should produce different secrets");
+        assert!(
+            !bool::from(secret1.ct_eq(&secret2)),
+            "Different static PKs should produce different secrets"
+        );
     }
 
     #[test]
@@ -1245,7 +1293,10 @@ mod tests {
         })
         .unwrap();
 
-        assert_ne!(secret1, secret2, "Different ephemeral PKs should produce different secrets");
+        assert!(
+            !bool::from(secret1.ct_eq(&secret2)),
+            "Different ephemeral PKs should produce different secrets"
+        );
     }
 
     #[test]
@@ -1296,8 +1347,8 @@ mod tests {
         let enc2 = encapsulate(&pk).unwrap();
         let secret2 = decapsulate(&sk, &enc2).unwrap();
         assert_eq!(
-            secret2.as_slice(),
-            enc2.shared_secret.as_slice(),
+            secret2.expose_secret(),
+            enc2.shared_secret.expose_secret(),
             "Decapsulation must still work after export"
         );
     }
@@ -1350,7 +1401,7 @@ mod tests {
         let ct = EncapsulatedKey {
             ml_kem_ct: vec![0u8; 1088],
             ecdh_pk: vec![0u8; 16], // Wrong length (should be 32)
-            shared_secret: Zeroizing::new(vec![0u8; 64]),
+            shared_secret: crate::types::SecretBytes::zero(),
         };
 
         let result = decapsulate(&sk, &ct);
@@ -1367,7 +1418,7 @@ mod tests {
         let ct = EncapsulatedKey {
             ml_kem_ct: vec![0u8; 100], // Wrong length (should be 1088)
             ecdh_pk: vec![0u8; 32],
-            shared_secret: Zeroizing::new(vec![0u8; 64]),
+            shared_secret: crate::types::SecretBytes::zero(),
         };
 
         let result = decapsulate(&sk, &ct);
@@ -1421,7 +1472,7 @@ mod tests {
             ephemeral_pk: &ephemeral_pk,
         })
         .unwrap();
-        assert_eq!(s1, s2, "Same inputs must produce same output");
+        assert!(bool::from(s1.ct_eq(&s2)), "Same inputs must produce same output");
         assert_eq!(s1.len(), 64);
     }
 
@@ -1447,7 +1498,10 @@ mod tests {
             ephemeral_pk: &eph2,
         })
         .unwrap();
-        assert_ne!(s1, s2, "Different ephemeral PKs must produce different secrets");
+        assert!(
+            !bool::from(s1.ct_eq(&s2)),
+            "Different ephemeral PKs must produce different secrets"
+        );
     }
 
     #[test]

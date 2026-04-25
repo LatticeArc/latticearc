@@ -58,7 +58,7 @@ use latticearc::unified_api::{
     selector::{CryptoPolicyEngine, PerformanceMetrics},
     types::{
         AlgorithmSelection, CryptoConfig, CryptoContext, CryptoScheme, EncryptedMetadata, KeyPair,
-        PerformancePreference, SecurityLevel, UseCase, ZeroizedBytes,
+        PerformancePreference, SecretVec, SecurityLevel, UseCase,
     },
 };
 
@@ -113,11 +113,11 @@ fn test_endianness_crypto_key_consistency_is_compatible_succeeds() {
         0x1e, 0x1f,
     ];
 
-    let zeroized = ZeroizedBytes::new(key_bytes.to_vec());
+    let sv = SecretVec::new(key_bytes.to_vec());
 
     // Verify the bytes are stored correctly regardless of platform endianness
-    assert_eq!(zeroized.as_slice(), &key_bytes);
-    assert_eq!(zeroized.len(), 32);
+    assert_eq!(sv.expose_secret(), &key_bytes);
+    assert_eq!(sv.len(), 32);
 }
 
 #[test]
@@ -781,16 +781,16 @@ fn test_config_performance_metrics_adaptive_is_compatible_succeeds() {
 // ============================================================================
 
 #[test]
-fn test_zeroized_bytes_drop_succeeds() {
-    // ZeroizedBytes should properly clean up on drop
+fn test_secret_vec_drop_succeeds() {
+    // `SecretVec` (the 0.8 replacement for 0.7's `ZeroizedBytes`) zeroizes on drop.
     let sensitive_data = vec![0xABu8; 64];
-    let zeroized = ZeroizedBytes::new(sensitive_data.clone());
+    let sv = SecretVec::new(sensitive_data.clone());
 
-    assert_eq!(zeroized.len(), 64);
-    assert!(!zeroized.is_empty());
+    assert_eq!(sv.len(), 64);
+    assert!(!sv.is_empty());
 
     // Data should be accessible before drop
-    assert_eq!(zeroized.as_slice().first(), Some(&0xAB));
+    assert_eq!(sv.expose_secret().first(), Some(&0xAB));
 }
 
 #[test]

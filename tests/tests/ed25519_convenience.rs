@@ -195,10 +195,10 @@ fn test_ed25519_sign_verify_with_verified_session_succeeds() -> Result<()> {
 
     // Create a verified session
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Sign with verified mode
-    let signature = sign_ed25519(message, sk.as_ref(), SecurityMode::Verified(&session))?;
+    let signature = sign_ed25519(message, sk.expose_secret(), SecurityMode::Verified(&session))?;
     assert_eq!(signature.len(), 64, "Ed25519 signature should be 64 bytes");
 
     // Verify with verified mode
@@ -217,11 +217,15 @@ fn test_ed25519_with_config_and_verified_session_succeeds() -> Result<()> {
 
     // Create a verified session
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Sign with config and verified mode
-    let signature =
-        sign_ed25519_with_config(message, sk.as_ref(), &config, SecurityMode::Verified(&session))?;
+    let signature = sign_ed25519_with_config(
+        message,
+        sk.expose_secret(),
+        &config,
+        SecurityMode::Verified(&session),
+    )?;
 
     // Verify with config and verified mode
     let is_valid = verify_ed25519_with_config(
@@ -239,7 +243,7 @@ fn test_ed25519_with_config_and_verified_session_succeeds() -> Result<()> {
 #[test]
 fn test_ed25519_session_reuse_multiple_operations_succeeds() -> Result<()> {
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Perform multiple operations with the same session
     for i in 0..5 {
@@ -247,7 +251,7 @@ fn test_ed25519_session_reuse_multiple_operations_succeeds() -> Result<()> {
         let (pk, sk) = generate_keypair()?;
 
         let signature =
-            sign_ed25519(message.as_bytes(), sk.as_ref(), SecurityMode::Verified(&session))?;
+            sign_ed25519(message.as_bytes(), sk.expose_secret(), SecurityMode::Verified(&session))?;
 
         let is_valid = verify_ed25519(
             message.as_bytes(),
@@ -264,7 +268,7 @@ fn test_ed25519_session_reuse_multiple_operations_succeeds() -> Result<()> {
 #[test]
 fn test_ed25519_verified_session_is_valid() -> Result<()> {
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Session should be valid immediately after creation
     assert!(session.is_valid(), "Freshly created session should be valid");
@@ -273,7 +277,7 @@ fn test_ed25519_verified_session_is_valid() -> Result<()> {
     let message = b"Test validity";
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519(message, sk.as_ref(), SecurityMode::Verified(&session))?;
+    let signature = sign_ed25519(message, sk.expose_secret(), SecurityMode::Verified(&session))?;
     let is_valid =
         verify_ed25519(message, &signature, pk.as_slice(), SecurityMode::Verified(&session))?;
     assert!(is_valid);
@@ -290,7 +294,7 @@ fn test_ed25519_sign_verify_unverified_mode_succeeds() -> Result<()> {
     let message = b"Test with unverified mode";
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519(message, sk.as_ref(), SecurityMode::Unverified)?;
+    let signature = sign_ed25519(message, sk.expose_secret(), SecurityMode::Unverified)?;
     let is_valid = verify_ed25519(message, &signature, pk.as_slice(), SecurityMode::Unverified)?;
     assert!(is_valid);
 
@@ -303,7 +307,7 @@ fn test_ed25519_unverified_convenience_functions_succeeds() -> Result<()> {
     let (pk, sk) = generate_keypair()?;
 
     // Use the _unverified variants directly
-    let signature = sign_ed25519_unverified(message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
     assert!(is_valid);
 
@@ -316,7 +320,7 @@ fn test_ed25519_with_config_unverified_succeeds() -> Result<()> {
     let config = CoreConfig::default();
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config)?;
+    let signature = sign_ed25519_with_config_unverified(message, sk.expose_secret(), &config)?;
     let is_valid =
         verify_ed25519_with_config_unverified(message, &signature, pk.as_slice(), &config)?;
     assert!(is_valid);
@@ -333,7 +337,7 @@ fn test_ed25519_1mb_message_succeeds() -> Result<()> {
     let message = vec![0xABu8; 1_048_576]; // 1 MB
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     assert_eq!(signature.len(), 64, "Signature should be 64 bytes regardless of message size");
 
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
@@ -347,7 +351,7 @@ fn test_ed25519_2mb_message_succeeds() -> Result<()> {
     let message = vec![0xCDu8; 2_097_152]; // 2 MB
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "2MB message signature should verify");
 
@@ -359,7 +363,7 @@ fn test_ed25519_5mb_message_succeeds() -> Result<()> {
     let message = vec![0xEFu8; 5_242_880]; // 5 MB
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "5MB message signature should verify");
 
@@ -372,9 +376,9 @@ fn test_ed25519_large_message_with_verified_session_succeeds() -> Result<()> {
     let (pk, sk) = generate_keypair()?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
-    let signature = sign_ed25519(&message, sk.as_ref(), SecurityMode::Verified(&session))?;
+    let signature = sign_ed25519(&message, sk.expose_secret(), SecurityMode::Verified(&session))?;
     let is_valid =
         verify_ed25519(&message, &signature, pk.as_slice(), SecurityMode::Verified(&session))?;
     assert!(is_valid, "Large message with verified session should verify");
@@ -391,7 +395,7 @@ fn test_ed25519_unicode_japanese_succeeds() -> Result<()> {
     let message = "こんにちは世界"; // "Hello World" in Japanese
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message.as_bytes(), sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message.as_bytes(), sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message.as_bytes(), &signature, pk.as_slice())?;
     assert!(is_valid, "Japanese Unicode message should verify");
 
@@ -403,7 +407,7 @@ fn test_ed25519_unicode_arabic_succeeds() -> Result<()> {
     let message = "مرحبا بالعالم"; // "Hello World" in Arabic
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message.as_bytes(), sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message.as_bytes(), sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message.as_bytes(), &signature, pk.as_slice())?;
     assert!(is_valid, "Arabic Unicode message should verify");
 
@@ -415,7 +419,7 @@ fn test_ed25519_unicode_chinese_succeeds() -> Result<()> {
     let message = "你好世界"; // "Hello World" in Chinese
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message.as_bytes(), sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message.as_bytes(), sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message.as_bytes(), &signature, pk.as_slice())?;
     assert!(is_valid, "Chinese Unicode message should verify");
 
@@ -427,7 +431,7 @@ fn test_ed25519_unicode_emoji_succeeds() -> Result<()> {
     let message = "Hello 🌍🚀💻🔐 World!";
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message.as_bytes(), sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message.as_bytes(), sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message.as_bytes(), &signature, pk.as_slice())?;
     assert!(is_valid, "Emoji message should verify");
 
@@ -439,7 +443,7 @@ fn test_ed25519_unicode_mixed_scripts_succeeds() -> Result<()> {
     let message = "Hello こんにちは مرحبا 你好 🌍";
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message.as_bytes(), sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message.as_bytes(), sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message.as_bytes(), &signature, pk.as_slice())?;
     assert!(is_valid, "Mixed script Unicode message should verify");
 
@@ -451,7 +455,7 @@ fn test_ed25519_unicode_cyrillic_succeeds() -> Result<()> {
     let message = "Привет мир"; // "Hello World" in Russian
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message.as_bytes(), sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message.as_bytes(), sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message.as_bytes(), &signature, pk.as_slice())?;
     assert!(is_valid, "Cyrillic Unicode message should verify");
 
@@ -463,7 +467,7 @@ fn test_ed25519_unicode_hebrew_succeeds() -> Result<()> {
     let message = "שלום עולם"; // "Hello World" in Hebrew
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message.as_bytes(), sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message.as_bytes(), sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message.as_bytes(), &signature, pk.as_slice())?;
     assert!(is_valid, "Hebrew Unicode message should verify");
 
@@ -479,7 +483,7 @@ fn test_ed25519_binary_all_zeros_succeeds() -> Result<()> {
     let message = vec![0x00u8; 256];
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "All zeros message should verify");
 
@@ -491,7 +495,7 @@ fn test_ed25519_binary_all_ones_succeeds() -> Result<()> {
     let message = vec![0xFFu8; 256];
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "All 0xFF message should verify");
 
@@ -504,7 +508,7 @@ fn test_ed25519_binary_boundary_0x7f_succeeds() -> Result<()> {
     let message = vec![0x7Fu8; 256];
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "0x7F boundary message should verify");
 
@@ -517,7 +521,7 @@ fn test_ed25519_binary_boundary_0x80_succeeds() -> Result<()> {
     let message = vec![0x80u8; 256];
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "0x80 boundary message should verify");
 
@@ -530,7 +534,7 @@ fn test_ed25519_binary_full_byte_range_succeeds() -> Result<()> {
     let message: Vec<u8> = (0..=255).collect();
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "Full byte range message should verify");
 
@@ -543,7 +547,7 @@ fn test_ed25519_binary_alternating_pattern_succeeds() -> Result<()> {
     let message: Vec<u8> = (0..256).map(|i| if i % 2 == 0 { 0x00 } else { 0xFF }).collect();
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "Alternating pattern message should verify");
 
@@ -555,7 +559,7 @@ fn test_ed25519_single_null_byte_succeeds() -> Result<()> {
     let message = [0x00u8];
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
     assert!(is_valid, "Single null byte should verify");
 
@@ -572,7 +576,8 @@ fn test_ed25519_cross_keypair_verification_fails() {
     let (_pk1, sk1) = generate_keypair().expect("keypair 1");
     let (pk2, _sk2) = generate_keypair().expect("keypair 2");
 
-    let signature = sign_ed25519_unverified(message, sk1.as_ref()).expect("signing should succeed");
+    let signature =
+        sign_ed25519_unverified(message, sk1.expose_secret()).expect("signing should succeed");
 
     let result = verify_ed25519_unverified(message, &signature, pk2.as_slice());
     assert!(result.is_err(), "Signature from one key should not verify with different public key");
@@ -585,12 +590,14 @@ fn test_ed25519_swapped_keys_verification_fails() {
     let (pk2, sk2) = generate_keypair().expect("keypair 2");
 
     // Sign with sk1, try to verify with pk2
-    let sig1 = sign_ed25519_unverified(message, sk1.as_ref()).expect("signing should succeed");
+    let sig1 =
+        sign_ed25519_unverified(message, sk1.expose_secret()).expect("signing should succeed");
     let result1 = verify_ed25519_unverified(message, &sig1, pk2.as_slice());
     assert!(result1.is_err(), "sk1 signature should not verify with pk2");
 
     // Sign with sk2, try to verify with pk1
-    let sig2 = sign_ed25519_unverified(message, sk2.as_ref()).expect("signing should succeed");
+    let sig2 =
+        sign_ed25519_unverified(message, sk2.expose_secret()).expect("signing should succeed");
     let result2 = verify_ed25519_unverified(message, &sig2, pk1.as_slice());
     assert!(result2.is_err(), "sk2 signature should not verify with pk1");
 }
@@ -605,7 +612,7 @@ fn test_ed25519_many_cross_keypair_verification_fails() {
     // For each keypair, sign and verify against all others
     for (i, (pk_i, sk_i)) in keypairs.iter().enumerate() {
         let signature =
-            sign_ed25519_unverified(message, sk_i.as_ref()).expect("signing should succeed");
+            sign_ed25519_unverified(message, sk_i.expose_secret()).expect("signing should succeed");
 
         // Should verify with matching public key
         let valid = verify_ed25519_unverified(message, &signature, pk_i.as_slice())
@@ -637,7 +644,7 @@ fn test_ed25519_signature_first_byte_tampered_fails() {
     let (pk, sk) = generate_keypair().expect("keypair");
 
     let mut signature =
-        sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+        sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     // Tamper with first byte
     signature[0] ^= 0xFF;
@@ -652,7 +659,7 @@ fn test_ed25519_signature_last_byte_tampered_fails() {
     let (pk, sk) = generate_keypair().expect("keypair");
 
     let mut signature =
-        sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+        sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     // Tamper with last byte
     let last_idx = signature.len() - 1;
@@ -668,7 +675,7 @@ fn test_ed25519_signature_middle_byte_tampered_fails() {
     let (pk, sk) = generate_keypair().expect("keypair");
 
     let mut signature =
-        sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+        sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     // Tamper with middle byte
     signature[32] ^= 0x01;
@@ -683,7 +690,7 @@ fn test_ed25519_signature_single_bit_flip_fails() {
     let (pk, sk) = generate_keypair().expect("keypair");
 
     let mut signature =
-        sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+        sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     // Flip just one bit
     signature[16] ^= 0x01;
@@ -698,7 +705,7 @@ fn test_ed25519_every_byte_tampered_fails() {
     let (pk, sk) = generate_keypair().expect("keypair");
 
     let original_signature =
-        sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+        sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     // Tamper each byte individually and verify it fails
     for i in 0..64 {
@@ -719,9 +726,9 @@ fn test_ed25519_signatures_are_deterministic() -> Result<()> {
     let message = b"Same message for deterministic test";
     let (_, sk) = generate_keypair()?;
 
-    let sig1 = sign_ed25519_unverified(message, sk.as_ref())?;
-    let sig2 = sign_ed25519_unverified(message, sk.as_ref())?;
-    let sig3 = sign_ed25519_unverified(message, sk.as_ref())?;
+    let sig1 = sign_ed25519_unverified(message, sk.expose_secret())?;
+    let sig2 = sign_ed25519_unverified(message, sk.expose_secret())?;
+    let sig3 = sign_ed25519_unverified(message, sk.expose_secret())?;
 
     assert_eq!(sig1, sig2, "Ed25519 signatures should be deterministic");
     assert_eq!(sig2, sig3, "Ed25519 signatures should be deterministic");
@@ -733,9 +740,9 @@ fn test_ed25519_signatures_are_deterministic() -> Result<()> {
 fn test_ed25519_different_messages_produce_different_signatures_succeeds() -> Result<()> {
     let (_, sk) = generate_keypair()?;
 
-    let sig1 = sign_ed25519_unverified(b"Message A", sk.as_ref())?;
-    let sig2 = sign_ed25519_unverified(b"Message B", sk.as_ref())?;
-    let sig3 = sign_ed25519_unverified(b"Message C", sk.as_ref())?;
+    let sig1 = sign_ed25519_unverified(b"Message A", sk.expose_secret())?;
+    let sig2 = sign_ed25519_unverified(b"Message B", sk.expose_secret())?;
+    let sig3 = sign_ed25519_unverified(b"Message C", sk.expose_secret())?;
 
     assert_ne!(sig1, sig2, "Different messages should produce different signatures");
     assert_ne!(sig2, sig3, "Different messages should produce different signatures");
@@ -751,9 +758,9 @@ fn test_ed25519_different_keys_produce_different_signatures_succeeds() -> Result
     let (_, sk2) = generate_keypair()?;
     let (_, sk3) = generate_keypair()?;
 
-    let sig1 = sign_ed25519_unverified(message, sk1.as_ref())?;
-    let sig2 = sign_ed25519_unverified(message, sk2.as_ref())?;
-    let sig3 = sign_ed25519_unverified(message, sk3.as_ref())?;
+    let sig1 = sign_ed25519_unverified(message, sk1.expose_secret())?;
+    let sig2 = sign_ed25519_unverified(message, sk2.expose_secret())?;
+    let sig3 = sign_ed25519_unverified(message, sk3.expose_secret())?;
 
     assert_ne!(sig1, sig2, "Different keys should produce different signatures");
     assert_ne!(sig2, sig3, "Different keys should produce different signatures");
@@ -781,7 +788,8 @@ fn test_ed25519_invalid_public_key_too_short_returns_error() {
     let (_, sk) = generate_keypair().expect("keypair");
     let short_pk = vec![0u8; 16]; // Only 16 bytes, need 32
 
-    let signature = sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+    let signature =
+        sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     let result = verify_ed25519_unverified(message, &signature, &short_pk);
     assert!(result.is_err(), "Short public key should fail");
@@ -824,7 +832,8 @@ fn test_ed25519_invalid_public_key_not_on_curve_returns_error() {
     // Create an invalid public key (all zeros is not a valid curve point)
     let invalid_pk = vec![0u8; 32];
 
-    let signature = sign_ed25519_unverified(message, sk.as_ref()).expect("signing should succeed");
+    let signature =
+        sign_ed25519_unverified(message, sk.expose_secret()).expect("signing should succeed");
 
     let result = verify_ed25519_unverified(message, &signature, &invalid_pk);
     assert!(result.is_err(), "Invalid curve point should fail");
@@ -839,7 +848,7 @@ fn test_ed25519_empty_message_succeeds() -> Result<()> {
     let message = b"";
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message, sk.expose_secret())?;
     assert_eq!(signature.len(), 64);
 
     let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
@@ -853,7 +862,7 @@ fn test_ed25519_single_byte_message_succeeds() -> Result<()> {
     let message = b"X";
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_unverified(message, sk.as_ref())?;
+    let signature = sign_ed25519_unverified(message, sk.expose_secret())?;
     let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
     assert!(is_valid, "Single byte message should verify");
 
@@ -868,7 +877,7 @@ fn test_ed25519_power_of_two_sizes_succeeds() -> Result<()> {
         let size = 1 << exp; // 1, 2, 4, 8, ..., 65536
         let message = vec![0x42u8; size];
 
-        let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+        let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
         let is_valid = verify_ed25519_unverified(&message, &signature, pk.as_slice())?;
         assert!(is_valid, "Message of size {} should verify", size);
     }
@@ -882,7 +891,8 @@ fn test_ed25519_message_with_wrong_message_fails() {
     let tampered = b"Tampered message";
     let (pk, sk) = generate_keypair().expect("keypair");
 
-    let signature = sign_ed25519_unverified(original, sk.as_ref()).expect("signing should succeed");
+    let signature =
+        sign_ed25519_unverified(original, sk.expose_secret()).expect("signing should succeed");
 
     let result = verify_ed25519_unverified(tampered, &signature, pk.as_slice());
     assert!(result.is_err(), "Wrong message should fail verification");
@@ -898,7 +908,7 @@ fn test_ed25519_with_development_config_succeeds() -> Result<()> {
     let config = CoreConfig::for_development();
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config)?;
+    let signature = sign_ed25519_with_config_unverified(message, sk.expose_secret(), &config)?;
     let is_valid =
         verify_ed25519_with_config_unverified(message, &signature, pk.as_slice(), &config)?;
     assert!(is_valid);
@@ -912,7 +922,7 @@ fn test_ed25519_with_production_config_succeeds() -> Result<()> {
     let config = CoreConfig::for_production();
     let (pk, sk) = generate_keypair()?;
 
-    let signature = sign_ed25519_with_config_unverified(message, sk.as_ref(), &config)?;
+    let signature = sign_ed25519_with_config_unverified(message, sk.expose_secret(), &config)?;
     let is_valid =
         verify_ed25519_with_config_unverified(message, &signature, pk.as_slice(), &config)?;
     assert!(is_valid);
@@ -933,7 +943,7 @@ fn test_ed25519_signature_has_constant_length_has_correct_size() -> Result<()> {
 
     for size in sizes {
         let message = vec![0x42u8; size];
-        let signature = sign_ed25519_unverified(&message, sk.as_ref())?;
+        let signature = sign_ed25519_unverified(&message, sk.expose_secret())?;
         assert_eq!(
             signature.len(),
             64,
@@ -962,9 +972,9 @@ fn test_ed25519_keypairs_are_unique() -> Result<()> {
     assert_ne!(pk1, pk3);
 
     // Private keys should be unique
-    assert_ne!(sk1.as_ref(), sk2.as_ref());
-    assert_ne!(sk2.as_ref(), sk3.as_ref());
-    assert_ne!(sk1.as_ref(), sk3.as_ref());
+    assert_ne!(sk1.expose_secret(), sk2.expose_secret());
+    assert_ne!(sk2.expose_secret(), sk3.expose_secret());
+    assert_ne!(sk1.expose_secret(), sk3.expose_secret());
 
     Ok(())
 }
@@ -978,7 +988,7 @@ fn test_ed25519_key_has_correct_size() -> Result<()> {
     let (pk, sk) = generate_keypair()?;
 
     assert_eq!(pk.len(), 32, "Ed25519 public key should be 32 bytes");
-    assert_eq!(sk.as_ref().len(), 32, "Ed25519 private key should be 32 bytes");
+    assert_eq!(sk.expose_secret().len(), 32, "Ed25519 private key should be 32 bytes");
 
     Ok(())
 }
@@ -998,7 +1008,7 @@ fn test_ed25519_private_key_is_not_zero_succeeds() -> Result<()> {
     let (_, sk) = generate_keypair()?;
 
     // Private key should not be all zeros
-    assert!(!sk.as_ref().iter().all(|&b| b == 0), "Private key should not be all zeros");
+    assert!(!sk.expose_secret().iter().all(|&b| b == 0), "Private key should not be all zeros");
 
     Ok(())
 }

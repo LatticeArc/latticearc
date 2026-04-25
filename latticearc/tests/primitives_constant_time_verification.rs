@@ -87,10 +87,11 @@ use latticearc::primitives::kem::ml_kem::{
 // cleanup — it duplicated `hybrid::kem_hybrid::HybridKemPublicKey`/
 // `HybridKemSecretKey`. The two tests that exercised its Debug redaction were
 // removed together with the module.
-use latticearc::primitives::security::{SecureBytes, secure_compare};
+use latticearc::primitives::security::secure_compare;
 use latticearc::primitives::sig::ml_dsa::{
     MlDsaParameterSet, MlDsaSecretKey, generate_keypair as mldsa_generate_keypair,
 };
+use latticearc::types::SecretVec;
 
 // =============================================================================
 // SECTION 1: subtle crate ConstantTimeEq Usage Tests
@@ -110,10 +111,6 @@ fn test_shared_secret_uses_constant_time_comparison_succeeds() {
     // Choice converts to bool, but comparison itself is constant-time
     assert!(bool::from(choice_eq), "Equal secrets should compare equal");
     assert!(!bool::from(choice_ne), "Different secrets should compare unequal");
-
-    // Verify PartialEq uses constant-time comparison
-    assert_eq!(ss1, ss2, "PartialEq should use ct_eq internally");
-    assert_ne!(ss1, ss3, "PartialEq should detect inequality");
 }
 
 /// Test MlKemSecretKey uses ConstantTimeEq for comparisons
@@ -132,10 +129,6 @@ fn test_mlkem_secret_key_constant_time_comparison_succeeds() {
 
     assert!(bool::from(choice_eq));
     assert!(!bool::from(choice_ne));
-
-    // PartialEq/Eq should use constant-time comparison
-    assert_eq!(sk1, sk2);
-    assert_ne!(sk1, sk3);
 }
 
 /// Test MlKemSecurityLevel uses ConstantTimeEq
@@ -164,7 +157,7 @@ fn test_mldsa_secret_key_constant_time_comparison_succeeds() {
         mldsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     // Create a copy of sk1 for equal comparison
-    let sk1_copy = MlDsaSecretKey::new(sk1.parameter_set(), sk1.as_bytes().to_vec())
+    let sk1_copy = MlDsaSecretKey::new(sk1.parameter_set(), sk1.expose_secret().to_vec())
         .expect("secret key creation");
 
     // ct_eq returns Choice type
@@ -175,16 +168,18 @@ fn test_mldsa_secret_key_constant_time_comparison_succeeds() {
     assert!(!bool::from(choice_ne));
 }
 
-/// Test SecureBytes uses ConstantTimeEq for PartialEq
+/// Test SecretVec uses ConstantTimeEq for comparison.
+///
+/// `SecretVec` does not implement `PartialEq` (invariants I-5/I-6); all
+/// equality goes through `subtle::ConstantTimeEq`.
 #[test]
-fn test_secure_bytes_constant_time_comparison_succeeds() {
-    let sb1 = SecureBytes::new(vec![0x42u8; 64]);
-    let sb2 = SecureBytes::new(vec![0x42u8; 64]);
-    let sb3 = SecureBytes::new(vec![0x43u8; 64]);
+fn test_secret_vec_constant_time_comparison_succeeds() {
+    let sv1 = SecretVec::new(vec![0x42u8; 64]);
+    let sv2 = SecretVec::new(vec![0x42u8; 64]);
+    let sv3 = SecretVec::new(vec![0x43u8; 64]);
 
-    // PartialEq implementation uses ct_eq internally
-    assert_eq!(sb1, sb2);
-    assert_ne!(sb1, sb3);
+    assert!(bool::from(sv1.ct_eq(&sv2)));
+    assert!(!bool::from(sv1.ct_eq(&sv3)));
 }
 
 /// Test secure_compare uses subtle::ConstantTimeEq
@@ -340,7 +335,7 @@ fn test_mlkem_encapsulation_is_randomized_succeeds() {
 
     // Different encapsulations should produce different results
     assert_ne!(ct1.as_bytes(), ct2.as_bytes());
-    assert_ne!(ss1.as_bytes(), ss2.as_bytes());
+    assert_ne!(ss1.expose_secret(), ss2.expose_secret());
 }
 
 // =============================================================================
@@ -353,13 +348,13 @@ fn test_mlkem_shared_secret_implements_zeroize_is_covered() {
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
 
     // Verify non-zero before zeroization
-    assert!(ss.as_bytes().iter().any(|&b| b != 0));
+    assert!(ss.expose_secret().iter().any(|&b| b != 0));
 
     // Zeroize
     ss.zeroize();
 
     // Verify all zeros after zeroization
-    assert!(ss.as_bytes().iter().all(|&b| b == 0));
+    assert!(ss.expose_secret().iter().all(|&b| b == 0));
 }
 
 /// Test ML-KEM secret key implements Zeroize trait
@@ -369,13 +364,13 @@ fn test_mlkem_secret_key_implements_zeroize_is_covered() {
         .expect("secret key creation");
 
     // Verify non-zero before
-    assert!(sk.as_bytes().iter().any(|&b| b != 0));
+    assert!(sk.expose_secret().iter().any(|&b| b != 0));
 
     // Zeroize
     sk.zeroize();
 
     // Verify all zeros after
-    assert!(sk.as_bytes().iter().all(|&b| b == 0));
+    assert!(sk.expose_secret().iter().all(|&b| b == 0));
 }
 
 /// Test ML-DSA secret key implements Zeroize trait
@@ -385,13 +380,13 @@ fn test_mldsa_secret_key_implements_zeroize_is_covered() {
         mldsa_generate_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     // Verify non-zero before
-    assert!(sk.as_bytes().iter().any(|&b| b != 0));
+    assert!(sk.expose_secret().iter().any(|&b| b != 0));
 
     // Zeroize
     sk.zeroize();
 
     // Verify all zeros after
-    assert!(sk.as_bytes().iter().all(|&b| b == 0));
+    assert!(sk.expose_secret().iter().all(|&b| b == 0));
 }
 
 /// Test X25519 secret key implements Zeroize trait
@@ -410,19 +405,21 @@ fn test_x25519_secret_key_implements_zeroize_is_covered() {
     assert!(sk.as_bytes().iter().all(|&b| b == 0));
 }
 
-/// Test SecureBytes implements Zeroize and ZeroizeOnDrop
+/// Test SecretVec implements Zeroize and ZeroizeOnDrop
 #[test]
-fn test_secure_bytes_zeroization_succeeds() {
-    let mut sb = SecureBytes::new(vec![0xFFu8; 100]);
+fn test_secret_vec_zeroization_succeeds() {
+    let mut sv = SecretVec::new(vec![0xFFu8; 100]);
 
     // Verify non-zero before
-    assert!(sb.as_slice().iter().any(|&b| b != 0));
+    assert!(sv.expose_secret().iter().any(|&b| b != 0));
 
     // Zeroize
-    sb.zeroize();
+    sv.zeroize();
 
-    // Verify all zeros after
-    assert!(sb.as_slice().iter().all(|&b| b == 0));
+    // After zeroize, every byte still in view is zero.
+    for &byte in sv.expose_secret() {
+        assert_eq!(byte, 0);
+    }
 }
 
 /// Test zeroization works for all ML-KEM security levels
@@ -437,7 +434,7 @@ fn test_mlkem_zeroization_all_security_levels_succeeds() {
         sk.zeroize();
 
         assert!(
-            sk.as_bytes().iter().all(|&b| b == 0),
+            sk.expose_secret().iter().all(|&b| b == 0),
             "{} secret key should be zeroed",
             level.name()
         );
@@ -454,7 +451,11 @@ fn test_mldsa_zeroization_all_parameter_sets_succeeds() {
 
         sk.zeroize();
 
-        assert!(sk.as_bytes().iter().all(|&b| b == 0), "{:?} secret key should be zeroed", param);
+        assert!(
+            sk.expose_secret().iter().all(|&b| b == 0),
+            "{:?} secret key should be zeroed",
+            param
+        );
     }
 }
 
@@ -469,7 +470,7 @@ fn test_multiple_zeroization_calls_safe_succeeds() {
     }
 
     // Should still be all zeros
-    assert!(ss.as_bytes().iter().all(|&b| b == 0));
+    assert!(ss.expose_secret().iter().all(|&b| b == 0));
 }
 
 /// Test intermediate value cleanup
@@ -481,13 +482,13 @@ fn test_intermediate_value_cleanup_succeeds() {
     let (mut ss, _ct) = MlKem::encapsulate(&pk).expect("encapsulation");
 
     // Verify shared secret is non-zero
-    assert!(ss.as_bytes().iter().any(|&b| b != 0));
+    assert!(ss.expose_secret().iter().any(|&b| b != 0));
 
     // Zeroize
     ss.zeroize();
 
     // Verify zeroed
-    assert!(ss.as_bytes().iter().all(|&b| b == 0));
+    assert!(ss.expose_secret().iter().all(|&b| b == 0));
 }
 
 // =============================================================================
@@ -573,16 +574,16 @@ fn test_x25519_keypair_debug_redacts_private_succeeds() {
     );
 }
 
-/// Verify SecureBytes Debug shows [REDACTED]
+/// Verify SecretVec Debug shows [REDACTED]
 #[test]
-fn test_secure_bytes_debug_redacts_succeeds() {
-    let sb = SecureBytes::new(vec![0xFFu8; 100]);
+fn test_secret_vec_debug_redacts_succeeds() {
+    let sv = SecretVec::new(vec![0xFFu8; 100]);
 
-    let debug_output = format!("{:?}", sb);
+    let debug_output = format!("{:?}", sv);
 
     // Debug should contain REDACTED and length info
     assert!(
-        debug_output.contains("REDACTED") || debug_output.contains("SecureBytes"),
+        debug_output.contains("REDACTED") || debug_output.contains("SecretVec"),
         "Debug should indicate secure storage: {}",
         debug_output
     );
@@ -610,26 +611,6 @@ fn test_mlkem_shared_secret_no_clone_succeeds() {
     let ss = MlKemSharedSecret::new([0x42u8; 32]);
     let ss2 = MlKemSharedSecret::new([0x42u8; 32]);
     assert!(bool::from(ss.ct_eq(&ss2)));
-}
-
-/// Test PartialEq uses constant-time comparison for ML-KEM types
-#[test]
-fn test_mlkem_partialeq_uses_constant_time_succeeds() {
-    let sk1 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, vec![0x42u8; 1632])
-        .expect("secret key creation");
-    let sk2 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, vec![0x42u8; 1632])
-        .expect("secret key creation");
-    let sk3 = MlKemSecretKey::new(MlKemSecurityLevel::MlKem512, vec![0x43u8; 1632])
-        .expect("secret key creation");
-
-    // PartialEq should use ct_eq internally
-    assert!(sk1 == sk2);
-    assert!(sk1 != sk3);
-
-    // Eq trait is also implemented
-    let sk1_ref: &MlKemSecretKey = &sk1;
-    let sk2_ref: &MlKemSecretKey = &sk2;
-    assert!(sk1_ref == sk2_ref);
 }
 
 // =============================================================================

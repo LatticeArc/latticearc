@@ -9,6 +9,156 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-04-24
+
+**Headline**: normative Secret Type Invariants ratified and structurally
+enforced across the crate. Every type holding secret material now conforms to
+a single invariant set (`docs/SECRET_TYPE_INVARIANTS.md`): sealed single
+accessor `expose_secret()`, no `PartialEq`/`Eq`/`Clone`/`AsRef<[u8]>`/`Deref`,
+stack-allocated fixed-size backing where the length is compile-time known,
+compile-time barrier test covering 32 secret types, optional OS-level memory
+locking via the `secret-mlock` feature. This is a pre-1.0 breaking release;
+see the migration section below.
+
+### Added
+
+- **`docs/SECRET_TYPE_INVARIANTS.md`** — new normative spec. Ten invariants
+  (I-1 through I-10) governing every `pub` type in the crate that holds
+  secret material. Enforced by the compile-time barrier at
+  `tests/no_partial_eq_on_secret_types.rs`, by the `expose_secret()` naming
+  convention (grep-able audit checkpoint), and by CI clippy rules. Applies
+  equally to downstream proprietary consumers.
+- **`latticearc::SecretBytes<const N: usize>`** — new primitive.
+  Stack-allocated fixed-size secret-byte container, `#[derive(Zeroize,
+  ZeroizeOnDrop)]`, manual redacted `Debug`, `ConstantTimeEq`, no `Clone`
+  (use `clone_for_transmission()`), single sealed accessor
+  `expose_secret() -> &[u8; N]`. Preferred over `Zeroizing<Vec<u8>>` whenever
+  the length is statically known (invariant I-2): no heap allocator size
+  fingerprint, no realloc path that could free an unzeroized buffer.
+- **`latticearc::SecretVec`** — new primitive. Heap-allocated variable-length
+  equivalent. Same invariants as `SecretBytes<N>`. Constructors call
+  `shrink_to_fit()` so `zeroize()` covers the full allocation, not just
+  `..len`.
+- **`latticearc::hybrid::kem_hybrid::HYBRID_SHARED_SECRET_LEN: usize = 64`**
+  — new public constant, the size of the combined hybrid shared secret
+  (HKDF-SHA256 output; see `derive_hybrid_shared_secret`).
+- **New optional feature `secret-mlock`** (invariant I-10; default off).
+  Under this feature, `SecretVec` calls `region::lock(2)` on its backing
+  buffer at construction time (Linux/macOS `mlock`, Windows `VirtualLock`)
+  so the bytes cannot be swapped to disk or captured in a core dump. Fail-
+  open on lock failure (e.g. `RLIMIT_MEMLOCK` exceeded): the `SecretVec` is
+  still returned with zeroization guarantees intact but without OS-level
+  leakage protection. `SecretBytes<N>` is deliberately not covered (stack
+  addresses do not survive Rust moves; per-instance page-locking is
+  impractical). Adds transitive deps `region`, `mach2` (macOS), `bitflags`
+  under the feature only.
+
+### Changed (breaking — secret-type migration)
+
+- **Sealed accessor `expose_secret()` replaces `as_bytes()`/`as_slice()` on
+  every secret-bearing type** (invariant I-8). `as_bytes()` / `as_slice()`
+  remain on public-data types (`PublicKey`, `MlKemPublicKey`,
+  `MlKemCiphertext`, `MlDsaPublicKey`, `MlDsaSignature`, SLH-DSA
+  `VerifyingKey`, FN-DSA `VerifyingKey`/`Signature`, `X25519StaticKeyPair`,
+  `EcdhP256KeyPair`, `EcdhP384KeyPair`, `EcdhP521KeyPair`, `HashOutput`) —
+  the naming distinction between public and secret byte access is now
+  structural. Rename sweep covers `PrivateKey`, `SymmetricKey`,
+  `MlKemSecretKey`, `MlKemSharedSecret`, `MlDsaSecretKey`, SLH-DSA
+  `SigningKey`, FN-DSA `SigningKey`, and the new `SecretBytes`/`SecretVec`
+  primitives.
+
+  Migration: `sk.as_bytes()` → `sk.expose_secret()` (277 call sites in the
+  crate were migrated this way, driven by compiler errors).
+
+- **Multi-secret composite types use `expose_<component>_secret()`**:
+  - `HybridSigSecretKey::ml_dsa_sk()` → `expose_ml_dsa_secret()`
+  - `HybridSigSecretKey::ed25519_sk()` → `expose_ed25519_secret()`
+  - `EncapsulatedKey::shared_secret()` → `expose_secret()` (single secret
+    on the type, despite containing public ciphertext + public ephemeral
+    key fields alongside).
+  - `PqOnlySecretKey::ml_kem_sk_bytes()` → `expose_secret()`.
+
+- **`EncapsulatedKey::shared_secret` field type**: `Zeroizing<Vec<u8>>` →
+  `SecretBytes<64>` (stack-allocated, invariant I-2). `EncapsulatedKey::new`
+  third parameter type changes accordingly; `expose_secret()` now returns
+  `&[u8; 64]` rather than `&[u8]`. Eliminates one heap allocation per
+  hybrid-KEM decapsulation and removes a realloc-leak bug class.
+
+- **`derive_hybrid_shared_secret` return type**: `Result<Zeroizing<Vec<u8>>,
+  HybridKemError>` → `Result<SecretBytes<HYBRID_SHARED_SECRET_LEN>,
+  HybridKemError>`. The intermediate IKM assembly also migrated from
+  `Zeroizing<Vec<u8>>` + two `extend_from_slice` to a stack `[u8; 64]`
+  filled via explicit `copy_from_slice` into proven-in-range sub-slices.
+
+- **`kem_hybrid::decapsulate` return type**: same migration as above.
+
+- **No `PartialEq` / `Eq` on any secret type** (invariants I-5 / I-6).
+  Removed four pre-existing latent `impl PartialEq` violations
+  (`MlKemSecretKey`, `MlKemSharedSecret`, `MlDsaSecretKey`, SLH-DSA
+  `SigningKey`) — each delegated to `ConstantTimeEq::ct_eq` internally, but
+  their existence enabled callers to use `==` on secret types (leaking
+  timing via short-circuit composition with `&&` / `||`). The compile-time
+  barrier at `tests/no_partial_eq_on_secret_types.rs` now covers 32 types
+  and will reject any future `#[derive(PartialEq)]` on a secret type as a
+  build error.
+
+  Migration: `assert_eq!(sk1, sk2)` → `assert!(bool::from(sk1.ct_eq(&sk2)))`.
+  12 in-module and integration test call sites were migrated this way.
+
+- **No `AsRef<[u8]>` / `Deref<Target = [u8]>` / `DerefMut` on secret types**
+  (invariant I-8). `PrivateKey`, `SymmetricKey`, and the new `SecretBytes` /
+  `SecretVec` do not implement these traits. Implicit coercions via `&key`
+  or `&*key` that previously worked no longer compile.
+
+  Migration: `some_fn(&private_key)` → `some_fn(private_key.expose_secret())`.
+
+- **`PrivateKey` and `SymmetricKey` now wrap `SecretVec`** internally (was
+  `ZeroizedBytes`). Behavioural contract unchanged from the caller's
+  perspective aside from the accessor rename; under the `secret-mlock`
+  feature both types now inherit OS-level memory locking.
+
+### Deprecated
+
+(none this release)
+
+### Removed (breaking)
+
+- **`latticearc::ZeroizedBytes`** — deleted. Was a heap-backed variable-
+  length secret-byte container that duplicated `SecretVec`'s invariant set.
+  All uses in the crate were consolidated; `PrivateKey(ZeroizedBytes)` and
+  `SymmetricKey(ZeroizedBytes)` now wrap `SecretVec` instead.
+
+  Migration: `ZeroizedBytes::new(v)` → `SecretVec::new(v)`;
+  `zb.as_slice()` → `sv.expose_secret()`.
+
+- **`latticearc::primitives::security::SecureBytes`** — deleted. Was a
+  heap-backed secret-byte container that implemented `Deref<Target = [u8]>`
+  /  `DerefMut` / `AsRef<[u8]>` / `PartialEq` / `Eq` — every trait listed in
+  invariants I-5, I-6, and I-8 as forbidden on a secret type. Also retained
+  `extend_from_slice` / `resize` methods whose realloc path could free
+  unzeroized memory (invariant I-2 violation).
+
+  Migration: `SecureBytes::new(v)` → `SecretVec::new(v)`;
+  `SecureBytes::zeros(n)` → `SecretVec::zero(n)`; `sb.as_slice()` /
+  `&*sb` / `sb.as_ref()` → `sv.expose_secret()`. Callers that relied on
+  `extend_from_slice` or `resize` must build the final `Vec<u8>` outside
+  the wrapper and then pass it to `SecretVec::new` — the new type has no
+  in-place growth API, by design.
+
+- **`impl PartialEq for MlKemSecretKey`** and **`impl Eq for MlKemSecretKey`**
+  — removed (see Changed section above).
+- **`impl PartialEq for MlKemSharedSecret`** and **`impl Eq`** — removed.
+- **`impl PartialEq for MlDsaSecretKey`** and **`impl Eq`** — removed.
+- **`impl PartialEq for SLH-DSA SigningKey`** and **`impl Eq`** — removed.
+- **`impl Deref for SecureBytes`**, **`impl DerefMut`**, **`impl AsRef<[u8]>`**,
+  **`impl PartialEq`**, **`impl Eq`** — removed with the type.
+- **`impl AsRef<[u8]> for PrivateKey`**, **`impl AsRef<[u8]> for SymmetricKey`**,
+  **`impl AsRef<[u8]> for ZeroizedBytes`** — the latter with the type,
+  the former two deliberately.
+- **`MemoryPool::allocate` and `::deallocate` signatures** changed from
+  `SecureBytes` to `SecretVec`. The pool's internal storage is now
+  `HashMap<usize, Vec<SecretVec>>`.
+
 ### Fixed (CLI — pure-PQ key handling in unified paths)
 
 - **`sign --public-key` with a pure-PQ ML-DSA key now works** (previously

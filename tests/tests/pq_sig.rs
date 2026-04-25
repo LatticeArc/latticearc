@@ -80,7 +80,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa_with_config_unverified(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             &config,
         )?;
@@ -107,7 +107,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa_with_config_unverified(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             &config,
         )?;
@@ -132,7 +132,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa_with_config_unverified(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa87,
             &config,
         )?;
@@ -159,8 +159,12 @@ mod convenience {
         for param in &params {
             let (pk, sk) = generate_ml_dsa_keypair(*param)?;
 
-            let signature =
-                sign_pq_ml_dsa_with_config_unverified(message, sk.as_ref(), *param, &config)?;
+            let signature = sign_pq_ml_dsa_with_config_unverified(
+                message,
+                sk.expose_secret(),
+                *param,
+                &config,
+            )?;
 
             let is_valid = verify_pq_ml_dsa_with_config_unverified(
                 message,
@@ -186,11 +190,11 @@ mod convenience {
         let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44)?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             SecurityMode::Verified(&session),
         )?;
@@ -213,11 +217,11 @@ mod convenience {
         let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Verified(&session),
         )?;
@@ -240,11 +244,11 @@ mod convenience {
         let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87)?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa87,
             SecurityMode::Verified(&session),
         )?;
@@ -267,11 +271,11 @@ mod convenience {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Verified(&session),
         )?;
@@ -294,11 +298,11 @@ mod convenience {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s)?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake192s,
             SecurityMode::Verified(&session),
         )?;
@@ -321,11 +325,11 @@ mod convenience {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake256s,
             SecurityMode::Verified(&session),
         )?;
@@ -348,11 +352,11 @@ mod convenience {
         let (pk, sk) = generate_fn_dsa_keypair()?;
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_fn_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             FnDsaSecurityLevel::Level512,
             SecurityMode::Verified(&session),
         )?;
@@ -376,11 +380,11 @@ mod convenience {
         let config = CoreConfig::default();
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_ml_dsa_with_config(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             &config,
             SecurityMode::Verified(&session),
@@ -406,11 +410,11 @@ mod convenience {
         let config = CoreConfig::default();
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_slh_dsa_with_config(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             &config,
             SecurityMode::Verified(&session),
@@ -436,11 +440,11 @@ mod convenience {
         let config = CoreConfig::default();
 
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let signature = sign_pq_fn_dsa_with_config(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             FnDsaSecurityLevel::Level512,
             &config,
             SecurityMode::Verified(&session),
@@ -473,7 +477,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk1.as_ref(),
+            sk1.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             SecurityMode::Unverified,
         )
@@ -504,7 +508,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk1.as_ref(),
+            sk1.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )
@@ -531,7 +535,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk1.as_ref(),
+            sk1.expose_secret(),
             MlDsaParameterSet::MlDsa87,
             SecurityMode::Unverified,
         )
@@ -558,7 +562,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk1.as_ref(),
+            sk1.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )
@@ -583,7 +587,7 @@ mod convenience {
 
         let signature = sign_pq_fn_dsa(
             message,
-            sk1.as_ref(),
+            sk1.expose_secret(),
             FnDsaSecurityLevel::Level512,
             SecurityMode::Unverified,
         )
@@ -612,7 +616,7 @@ mod convenience {
 
         let mut signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )
@@ -644,7 +648,7 @@ mod convenience {
 
         let mut signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             SecurityMode::Unverified,
         )
@@ -673,7 +677,7 @@ mod convenience {
 
         let mut signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa87,
             SecurityMode::Unverified,
         )
@@ -703,7 +707,7 @@ mod convenience {
 
         let mut signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )
@@ -733,7 +737,7 @@ mod convenience {
 
         let mut signature = sign_pq_fn_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             FnDsaSecurityLevel::Level512,
             SecurityMode::Unverified,
         )
@@ -787,7 +791,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )
@@ -829,7 +833,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )
@@ -893,7 +897,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )?;
@@ -919,7 +923,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake192s,
             SecurityMode::Unverified,
         )?;
@@ -943,7 +947,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake256s,
             SecurityMode::Unverified,
         )?;
@@ -973,8 +977,12 @@ mod convenience {
         for level in &levels {
             let (pk, sk) = generate_slh_dsa_keypair(*level)?;
 
-            let signature =
-                sign_pq_slh_dsa_with_config_unverified(message, sk.as_ref(), *level, &config)?;
+            let signature = sign_pq_slh_dsa_with_config_unverified(
+                message,
+                sk.expose_secret(),
+                *level,
+                &config,
+            )?;
 
             let is_valid = verify_pq_slh_dsa_with_config_unverified(
                 message,
@@ -1001,7 +1009,7 @@ mod convenience {
 
         let signature = sign_pq_fn_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             FnDsaSecurityLevel::Level512,
             SecurityMode::Unverified,
         )?;
@@ -1028,7 +1036,7 @@ mod convenience {
 
         let signature = sign_pq_fn_dsa_with_config_unverified(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             FnDsaSecurityLevel::Level512,
             &config,
         )?;
@@ -1052,7 +1060,7 @@ mod convenience {
 
         let signature = sign_pq_fn_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             FnDsaSecurityLevel::Level512,
             SecurityMode::Unverified,
         )?;
@@ -1083,7 +1091,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message_bytes,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )?;
@@ -1109,7 +1117,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message_bytes,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             SecurityMode::Unverified,
         )?;
@@ -1135,7 +1143,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message_bytes,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa87,
             SecurityMode::Unverified,
         )?;
@@ -1161,7 +1169,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message_bytes,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )?;
@@ -1187,7 +1195,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             message_bytes,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )?;
@@ -1224,7 +1232,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )?;
@@ -1249,7 +1257,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             SecurityMode::Unverified,
         )?;
@@ -1274,7 +1282,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa87,
             SecurityMode::Unverified,
         )?;
@@ -1299,7 +1307,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake192s,
             SecurityMode::Unverified,
         )?;
@@ -1324,7 +1332,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake256s,
             SecurityMode::Unverified,
         )?;
@@ -1353,7 +1361,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )?;
@@ -1378,7 +1386,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )?;
@@ -1403,7 +1411,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             SecurityMode::Unverified,
         )?;
@@ -1428,7 +1436,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )?;
@@ -1453,7 +1461,7 @@ mod convenience {
 
         let signature = sign_pq_slh_dsa(
             &message,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )?;
@@ -1488,7 +1496,7 @@ mod convenience {
         for message in &messages {
             let signature = sign_pq_ml_dsa(
                 message,
-                sk.as_ref(),
+                sk.expose_secret(),
                 MlDsaParameterSet::MlDsa65,
                 SecurityMode::Unverified,
             )?;
@@ -1515,7 +1523,7 @@ mod convenience {
         for message in &messages {
             let signature = sign_pq_slh_dsa(
                 message,
-                sk.as_ref(),
+                sk.expose_secret(),
                 SlhDsaSecurityLevel::Shake128s,
                 SecurityMode::Unverified,
             )?;
@@ -1548,7 +1556,7 @@ mod convenience {
 
         let signature_a = sign_pq_ml_dsa(
             message_a,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )
@@ -1576,7 +1584,7 @@ mod convenience {
 
         let signature_a = sign_pq_slh_dsa(
             message_a,
-            sk.as_ref(),
+            sk.expose_secret(),
             SlhDsaSecurityLevel::Shake128s,
             SecurityMode::Unverified,
         )
@@ -1606,7 +1614,7 @@ mod convenience {
         // Try to sign with MlDsa44 key using MlDsa65 parameters
         let result = sign_pq_ml_dsa(
             message,
-            sk_44.as_ref(),
+            sk_44.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         );
@@ -1624,7 +1632,7 @@ mod convenience {
 
         let signature = sign_pq_ml_dsa(
             message,
-            sk_65.as_ref(),
+            sk_65.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             SecurityMode::Unverified,
         )
@@ -1651,7 +1659,7 @@ mod convenience {
         // Try to sign with 128s key using 192s parameters
         let result = sign_pq_slh_dsa(
             message,
-            sk_128s.as_ref(),
+            sk_128s.expose_secret(),
             SlhDsaSecurityLevel::Shake192s,
             SecurityMode::Unverified,
         );
@@ -1894,7 +1902,7 @@ mod with_config {
 
         let sig = sign_pq_ml_dsa_with_config_unverified(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             &config,
         )
@@ -1918,7 +1926,7 @@ mod with_config {
 
         let sig = sign_pq_ml_dsa_with_config_unverified(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa65,
             &config,
         )
@@ -1942,7 +1950,7 @@ mod with_config {
 
         let sig = sign_pq_ml_dsa_with_config_unverified(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa87,
             &config,
         )
@@ -1969,7 +1977,7 @@ mod with_config {
 
         let sig = sign_pq_ml_dsa(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             SecurityMode::Unverified,
         )
@@ -1993,7 +2001,7 @@ mod with_config {
 
         let sig = sign_pq_ml_dsa_with_config(
             message,
-            sk.as_ref(),
+            sk.expose_secret(),
             MlDsaParameterSet::MlDsa44,
             &config,
             SecurityMode::Unverified,
@@ -2026,7 +2034,7 @@ mod with_config {
 
                 let sig = sign_pq_slh_dsa(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     SlhDsaSecurityLevel::Shake128s,
                     SecurityMode::Unverified,
                 )
@@ -2058,7 +2066,7 @@ mod with_config {
 
                 let sig = sign_pq_slh_dsa_with_config_unverified(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     SlhDsaSecurityLevel::Shake128s,
                     &config,
                 )
@@ -2090,7 +2098,7 @@ mod with_config {
 
                 let sig = sign_pq_slh_dsa_with_config(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     SlhDsaSecurityLevel::Shake128s,
                     &config,
                     SecurityMode::Unverified,
@@ -2127,7 +2135,7 @@ mod with_config {
 
                 let sig = sign_pq_fn_dsa(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     FnDsaSecurityLevel::Level512,
                     SecurityMode::Unverified,
                 )
@@ -2159,7 +2167,7 @@ mod with_config {
 
                 let sig = sign_pq_fn_dsa_with_config_unverified(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     FnDsaSecurityLevel::Level512,
                     &config,
                 )
@@ -2191,7 +2199,7 @@ mod with_config {
 
                 let sig = sign_pq_fn_dsa_with_config(
                     message,
-                    sk.as_ref(),
+                    sk.expose_secret(),
                     FnDsaSecurityLevel::Level512,
                     &config,
                     SecurityMode::Unverified,

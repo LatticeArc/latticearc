@@ -100,7 +100,7 @@ mod ml_kem_regression {
                 .unwrap_or_else(|e| panic!("keygen failed for {level:?}: {e}"));
             let (ss, ct) = MlKem::encapsulate(&pk)
                 .unwrap_or_else(|e| panic!("encapsulate failed for {level:?}: {e}"));
-            assert_eq!(ss.as_bytes().len(), 32, "shared secret must be 32 bytes");
+            assert_eq!(ss.expose_secret().len(), 32, "shared secret must be 32 bytes");
             assert_eq!(
                 ct.as_bytes().len(),
                 level.ciphertext_size(),

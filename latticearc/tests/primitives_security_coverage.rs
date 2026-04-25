@@ -8,138 +8,15 @@
 
 //! Coverage tests for security.rs
 //!
-//! Targets uncovered paths in SecureBytes, MemoryPool, RngHandle,
-//! and convenience RNG functions.
+//! Targets MemoryPool, RngHandle, and convenience RNG functions.
+//! (The former `SecureBytes` type has been removed; variable-length heap
+//! secret storage now lives in `types::SecretVec` and is tested there.)
 
 use latticearc::primitives::security::{
-    MemoryPool, RngHandle, SecureBytes, generate_secure_random_bytes, generate_secure_random_u32,
+    MemoryPool, RngHandle, generate_secure_random_bytes, generate_secure_random_u32,
     generate_secure_random_u64, get_global_secure_rng, get_memory_pool,
     initialize_global_secure_rng, secure_compare, secure_zeroize,
 };
-
-// ============================================================================
-// SecureBytes tests
-// ============================================================================
-
-#[test]
-fn test_secure_bytes_new_and_accessors_succeeds() {
-    let data = vec![1u8, 2, 3, 4, 5];
-    let sb = SecureBytes::new(data.clone());
-    assert_eq!(sb.len(), 5);
-    assert!(!sb.is_empty());
-    assert_eq!(sb.as_slice(), &data[..]);
-    assert!(sb.capacity() >= 5);
-}
-
-#[test]
-fn test_secure_bytes_from_slice_succeeds() {
-    let data = [10u8, 20, 30];
-    let sb = SecureBytes::from(&data);
-    assert_eq!(sb.len(), 3);
-    assert_eq!(sb.as_slice(), &data);
-}
-
-#[test]
-fn test_secure_bytes_zeros_succeeds() {
-    let sb = SecureBytes::zeros(16);
-    assert_eq!(sb.len(), 16);
-    assert!(sb.as_slice().iter().all(|&b| b == 0));
-}
-
-#[test]
-fn test_secure_bytes_empty_succeeds() {
-    let sb = SecureBytes::new(vec![]);
-    assert!(sb.is_empty());
-    assert_eq!(sb.len(), 0);
-}
-
-#[test]
-fn test_secure_bytes_extend_succeeds() {
-    let mut sb = SecureBytes::new(vec![1, 2]);
-    sb.extend_from_slice(&[3, 4, 5]);
-    assert_eq!(sb.len(), 5);
-    assert_eq!(sb.as_slice(), &[1, 2, 3, 4, 5]);
-}
-
-#[test]
-fn test_secure_bytes_as_mut_slice_succeeds() {
-    let mut sb = SecureBytes::new(vec![0u8; 4]);
-    let slice = sb.as_mut_slice();
-    slice[0] = 0xFF;
-    assert_eq!(sb.as_slice()[0], 0xFF);
-}
-
-#[test]
-fn test_secure_bytes_into_vec_succeeds() {
-    let sb = SecureBytes::new(vec![10, 20, 30]);
-    let v = sb.into_vec();
-    assert_eq!(v, vec![10, 20, 30]);
-}
-
-#[test]
-fn test_secure_bytes_resize_succeeds() {
-    let mut sb = SecureBytes::new(vec![1, 2, 3]);
-    sb.resize(5);
-    assert_eq!(sb.len(), 5);
-    assert_eq!(&sb.as_slice()[..3], &[1, 2, 3]);
-    assert_eq!(&sb.as_slice()[3..], &[0, 0]); // New bytes zeroed
-
-    sb.resize(2);
-    assert_eq!(sb.len(), 2);
-}
-
-#[test]
-fn test_secure_bytes_deref_succeeds() {
-    let sb = SecureBytes::new(vec![1, 2, 3]);
-    let slice: &[u8] = &sb;
-    assert_eq!(slice, &[1, 2, 3]);
-}
-
-#[test]
-fn test_secure_bytes_deref_mut_succeeds() {
-    let mut sb = SecureBytes::new(vec![0u8; 3]);
-    let slice: &mut [u8] = &mut sb;
-    slice[1] = 42;
-    assert_eq!(sb.as_slice()[1], 42);
-}
-
-#[test]
-fn test_secure_bytes_as_ref_succeeds() {
-    let sb = SecureBytes::new(vec![5, 6, 7]);
-    let r: &[u8] = sb.as_ref();
-    assert_eq!(r, &[5, 6, 7]);
-}
-
-#[test]
-fn test_secure_bytes_debug_redacted_succeeds() {
-    let sb = SecureBytes::new(vec![0xDE, 0xAD]);
-    let debug = format!("{:?}", sb);
-    assert!(debug.contains("REDACTED"));
-    assert!(debug.contains("2 bytes"));
-    // Should NOT contain actual data
-    assert!(!debug.contains("DE"));
-}
-
-#[test]
-fn test_secure_bytes_constant_time_eq_succeeds() {
-    let a = SecureBytes::new(vec![1, 2, 3]);
-    let b = SecureBytes::new(vec![1, 2, 3]);
-    let c = SecureBytes::new(vec![1, 2, 4]);
-    let d = SecureBytes::new(vec![1, 2]);
-
-    assert_eq!(a, b);
-    assert_ne!(a, c);
-    assert_ne!(a, d); // Different lengths
-}
-
-// Clone intentionally removed from SecureBytes to prevent copies of secret data
-
-#[test]
-fn test_secure_bytes_from_vec_succeeds() {
-    let v = vec![1u8, 2, 3];
-    let sb: SecureBytes = v.into();
-    assert_eq!(sb.len(), 3);
-}
 
 // ============================================================================
 // secure_compare tests
@@ -191,7 +68,7 @@ fn test_memory_pool_new_succeeds() {
     let pool = MemoryPool::new();
     let mem = pool.allocate(64).unwrap();
     assert_eq!(mem.len(), 64);
-    assert!(mem.as_slice().iter().all(|&b| b == 0));
+    assert!(mem.expose_secret().iter().all(|&b| b == 0));
 }
 
 #[test]

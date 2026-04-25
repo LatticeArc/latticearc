@@ -71,7 +71,7 @@ fn test_ml_dsa_44_sign_verify_roundtrip() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     let is_valid = verify_pq_ml_dsa_unverified(
@@ -92,7 +92,7 @@ fn test_ml_dsa_65_sign_verify_roundtrip() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa65)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa65)
             .expect("signing should succeed");
 
     let is_valid = verify_pq_ml_dsa_unverified(
@@ -113,7 +113,7 @@ fn test_ml_dsa_87_sign_verify_roundtrip() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa87)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa87)
             .expect("signing should succeed");
 
     let is_valid = verify_pq_ml_dsa_unverified(
@@ -135,7 +135,7 @@ fn test_ml_dsa_with_security_mode_succeeds() {
 
     let signature = sign_pq_ml_dsa(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         MlDsaParameterSet::MlDsa44,
         SecurityMode::Unverified,
     )
@@ -162,7 +162,7 @@ fn test_ml_dsa_with_config_succeeds() {
 
     let signature = sign_pq_ml_dsa_with_config_unverified(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         MlDsaParameterSet::MlDsa44,
         &config,
     )
@@ -189,7 +189,7 @@ fn test_ml_dsa_with_config_and_security_mode_succeeds() {
 
     let signature = sign_pq_ml_dsa_with_config(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         MlDsaParameterSet::MlDsa65,
         &config,
         SecurityMode::Unverified,
@@ -220,7 +220,7 @@ fn test_ml_dsa_modified_signature_fails() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let mut signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     // Tamper with signature
@@ -246,7 +246,7 @@ fn test_ml_dsa_wrong_message_fails() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     let result = verify_pq_ml_dsa_unverified(
@@ -266,10 +266,10 @@ fn test_ml_dsa_signature_not_deterministic_produces_distinct_signatures_is_deter
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let sig1 =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
     let sig2 =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     // ML-DSA uses randomness, so signatures should differ
@@ -287,7 +287,7 @@ fn test_ml_dsa_invalid_public_key_length_returns_error() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     let invalid_pk = vec![0u8; 10]; // Too short
@@ -306,7 +306,7 @@ fn test_ml_dsa_wrong_public_key_fails() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     let result = verify_pq_ml_dsa_unverified(
@@ -326,7 +326,7 @@ fn test_ml_dsa_corrupted_public_key_returns_error() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     // Corrupt public key
@@ -352,7 +352,7 @@ fn test_ml_dsa_44_signature_fails_with_65_params_fails() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     // Try to verify with wrong parameter set
@@ -373,7 +373,7 @@ fn test_ml_dsa_65_signature_fails_with_87_params_fails() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa65)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa65)
             .expect("signing should succeed");
 
     // Try to verify with wrong parameter set
@@ -398,7 +398,7 @@ fn test_ml_dsa_empty_message_signs_and_verifies_succeeds() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing empty message should succeed");
 
     let is_valid = verify_pq_ml_dsa_unverified(
@@ -419,7 +419,7 @@ fn test_ml_dsa_small_message_signs_and_verifies_succeeds() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     let is_valid = verify_pq_ml_dsa_unverified(
@@ -439,9 +439,12 @@ fn test_ml_dsa_large_message_signs_and_verifies_succeeds() {
     let (public_key, private_key) =
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
-    let signature =
-        sign_pq_ml_dsa_unverified(&message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
-            .expect("signing large message should succeed");
+    let signature = sign_pq_ml_dsa_unverified(
+        &message,
+        private_key.expose_secret(),
+        MlDsaParameterSet::MlDsa44,
+    )
+    .expect("signing large message should succeed");
 
     let is_valid = verify_pq_ml_dsa_unverified(
         &message,
@@ -462,7 +465,7 @@ fn test_ml_dsa_unicode_message_signs_and_verifies_succeeds() {
 
     let signature = sign_pq_ml_dsa_unverified(
         message.as_bytes(),
-        private_key.as_slice(),
+        private_key.expose_secret(),
         MlDsaParameterSet::MlDsa44,
     )
     .expect("signing should succeed");
@@ -484,9 +487,12 @@ fn test_ml_dsa_binary_message_signs_and_verifies_succeeds() {
     let (public_key, private_key) =
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
-    let signature =
-        sign_pq_ml_dsa_unverified(&message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
-            .expect("signing should succeed");
+    let signature = sign_pq_ml_dsa_unverified(
+        &message,
+        private_key.expose_secret(),
+        MlDsaParameterSet::MlDsa44,
+    )
+    .expect("signing should succeed");
 
     let is_valid = verify_pq_ml_dsa_unverified(
         &message,
@@ -509,9 +515,12 @@ fn test_slh_dsa_128f_sign_verify_roundtrip() {
     let (public_key, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing should succeed");
 
     let is_valid = verify_pq_slh_dsa_unverified(
         message,
@@ -530,9 +539,12 @@ fn test_slh_dsa_128s_sign_verify_roundtrip() {
     let (public_key, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing should succeed");
 
     let is_valid = verify_pq_slh_dsa_unverified(
         message,
@@ -551,9 +563,12 @@ fn test_slh_dsa_192f_sign_verify_roundtrip() {
     let (public_key, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake192s)
-            .expect("signing should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake192s,
+    )
+    .expect("signing should succeed");
 
     let is_valid = verify_pq_slh_dsa_unverified(
         message,
@@ -574,7 +589,7 @@ fn test_slh_dsa_with_security_mode_succeeds() {
 
     let signature = sign_pq_slh_dsa(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         SlhDsaSecurityLevel::Shake128s,
         SecurityMode::Unverified,
     )
@@ -601,7 +616,7 @@ fn test_slh_dsa_with_config_succeeds() {
 
     let signature = sign_pq_slh_dsa_with_config_unverified(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         SlhDsaSecurityLevel::Shake128s,
         &config,
     )
@@ -628,7 +643,7 @@ fn test_slh_dsa_with_config_and_security_mode_succeeds() {
 
     let signature = sign_pq_slh_dsa_with_config(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         SlhDsaSecurityLevel::Shake128s,
         &config,
         SecurityMode::Unverified,
@@ -658,9 +673,12 @@ fn test_slh_dsa_modified_signature_fails() {
     let (public_key, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let mut signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing should succeed");
+    let mut signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing should succeed");
 
     // Tamper with signature
     if !signature.is_empty() {
@@ -684,9 +702,12 @@ fn test_slh_dsa_wrong_message_fails() {
     let (public_key, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing should succeed");
 
     let result = verify_pq_slh_dsa_unverified(
         wrong_message,
@@ -708,9 +729,12 @@ fn test_slh_dsa_invalid_public_key_length_returns_error() {
     let (_, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing should succeed");
 
     let invalid_pk = vec![0u8; 10]; // Too short
     let result = verify_pq_slh_dsa_unverified(
@@ -731,9 +755,12 @@ fn test_slh_dsa_wrong_public_key_fails() {
     let (wrong_pk, _) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing should succeed");
 
     let result = verify_pq_slh_dsa_unverified(
         message,
@@ -755,9 +782,12 @@ fn test_slh_dsa_128f_signature_fails_with_128s_fails() {
     let (public_key, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing should succeed");
 
     // Try to verify with wrong security level (Shake192s instead of Shake128s)
     let result = verify_pq_slh_dsa_unverified(
@@ -780,9 +810,12 @@ fn test_slh_dsa_empty_message_signs_and_verifies_succeeds() {
     let (public_key, private_key) =
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("keypair generation");
 
-    let signature =
-        sign_pq_slh_dsa_unverified(message, private_key.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("signing empty message should succeed");
+    let signature = sign_pq_slh_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("signing empty message should succeed");
 
     let is_valid = verify_pq_slh_dsa_unverified(
         message,
@@ -803,7 +836,7 @@ fn test_slh_dsa_large_message_signs_and_verifies_succeeds() {
 
     let signature = sign_pq_slh_dsa_unverified(
         &message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         SlhDsaSecurityLevel::Shake128s,
     )
     .expect("signing large message should succeed");
@@ -833,9 +866,12 @@ fn test_fn_dsa_sign_verify_roundtrip() {
     let message = b"Test message for FN-DSA";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let signature =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing should succeed");
+    let signature = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing should succeed");
 
     let is_valid = verify_pq_fn_dsa_unverified(
         message,
@@ -855,7 +891,7 @@ fn test_fn_dsa_with_security_mode_succeeds() {
 
     let signature = sign_pq_fn_dsa(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         FnDsaSecurityLevel::Level512,
         SecurityMode::Unverified,
     )
@@ -881,7 +917,7 @@ fn test_fn_dsa_with_config_succeeds() {
 
     let signature = sign_pq_fn_dsa_with_config_unverified(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         FnDsaSecurityLevel::Level512,
         &config,
     )
@@ -907,7 +943,7 @@ fn test_fn_dsa_with_config_and_security_mode_succeeds() {
 
     let signature = sign_pq_fn_dsa_with_config(
         message,
-        private_key.as_slice(),
+        private_key.expose_secret(),
         FnDsaSecurityLevel::Level512,
         &config,
         SecurityMode::Unverified,
@@ -936,9 +972,12 @@ fn test_fn_dsa_modified_signature_fails() {
     let message = b"Original message";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let mut signature =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing should succeed");
+    let mut signature = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing should succeed");
 
     // Tamper with signature
     if !signature.is_empty() {
@@ -961,9 +1000,12 @@ fn test_fn_dsa_wrong_message_fails() {
     let wrong_message = b"Different message";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let signature =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing should succeed");
+    let signature = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing should succeed");
 
     let result = verify_pq_fn_dsa_unverified(
         wrong_message,
@@ -980,12 +1022,18 @@ fn test_fn_dsa_signature_not_deterministic_produces_distinct_signatures_is_deter
     let message = b"Same message";
     let (_, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let sig1 =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing should succeed");
-    let sig2 =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing should succeed");
+    let sig1 = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing should succeed");
+    let sig2 = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing should succeed");
 
     // FN-DSA uses randomness, so signatures should differ
     assert_ne!(sig1, sig2, "FN-DSA signatures should be non-deterministic");
@@ -1000,9 +1048,12 @@ fn test_fn_dsa_invalid_public_key_length_returns_error() {
     let message = b"Test message";
     let (_, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let signature =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing should succeed");
+    let signature = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing should succeed");
 
     let invalid_pk = vec![0u8; 10]; // Too short
     let result =
@@ -1017,9 +1068,12 @@ fn test_fn_dsa_wrong_public_key_fails() {
     let (_, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
     let (wrong_pk, _) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let signature =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing should succeed");
+    let signature = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing should succeed");
 
     let result = verify_pq_fn_dsa_unverified(
         message,
@@ -1040,9 +1094,12 @@ fn test_fn_dsa_empty_message_signs_and_verifies_succeeds() {
     let message = b"";
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let signature =
-        sign_pq_fn_dsa_unverified(message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing empty message should succeed");
+    let signature = sign_pq_fn_dsa_unverified(
+        message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing empty message should succeed");
 
     let is_valid = verify_pq_fn_dsa_unverified(
         message,
@@ -1060,9 +1117,12 @@ fn test_fn_dsa_large_message_signs_and_verifies_succeeds() {
     let message = vec![0x42u8; 60_000]; // 60KB (within 64KB signature limit)
     let (public_key, private_key) = generate_fn_dsa_keypair().expect("keypair generation");
 
-    let signature =
-        sign_pq_fn_dsa_unverified(&message, private_key.as_slice(), FnDsaSecurityLevel::Level512)
-            .expect("signing large message should succeed");
+    let signature = sign_pq_fn_dsa_unverified(
+        &message,
+        private_key.expose_secret(),
+        FnDsaSecurityLevel::Level512,
+    )
+    .expect("signing large message should succeed");
 
     let is_valid = verify_pq_fn_dsa_unverified(
         &message,
@@ -1088,7 +1148,7 @@ fn test_ml_dsa_signature_with_slh_dsa_key_fails() {
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("SLH-DSA keypair");
 
     let ml_dsa_sig =
-        sign_pq_ml_dsa_unverified(message, ml_dsa_sk.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, ml_dsa_sk.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("ML-DSA signing should succeed");
 
     // This should fail because we're mixing schemes
@@ -1109,9 +1169,12 @@ fn test_slh_dsa_signature_with_fn_dsa_key_fails() {
         generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).expect("SLH-DSA keypair");
     let (fn_dsa_pk, _) = generate_fn_dsa_keypair().expect("FN-DSA keypair");
 
-    let slh_dsa_sig =
-        sign_pq_slh_dsa_unverified(message, slh_dsa_sk.as_slice(), SlhDsaSecurityLevel::Shake128s)
-            .expect("SLH-DSA signing should succeed");
+    let slh_dsa_sig = sign_pq_slh_dsa_unverified(
+        message,
+        slh_dsa_sk.expose_secret(),
+        SlhDsaSecurityLevel::Shake128s,
+    )
+    .expect("SLH-DSA signing should succeed");
 
     // This should fail because we're mixing schemes
     let result = verify_pq_fn_dsa_unverified(
@@ -1132,7 +1195,7 @@ fn test_fn_dsa_signature_with_ml_dsa_key_fails() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("ML-DSA keypair");
 
     let fn_dsa_sig =
-        sign_pq_fn_dsa_unverified(message, fn_dsa_sk.as_slice(), FnDsaSecurityLevel::Level512)
+        sign_pq_fn_dsa_unverified(message, fn_dsa_sk.expose_secret(), FnDsaSecurityLevel::Level512)
             .expect("FN-DSA signing should succeed");
 
     // This should fail because we're mixing schemes
@@ -1241,7 +1304,7 @@ fn test_ml_dsa_key_serialization_roundtrip() {
 
     // Keys are already serialized as bytes, test they work after clone
     let pk_bytes = public_key.as_slice().to_vec();
-    let sk_bytes = private_key.as_slice().to_vec();
+    let sk_bytes = private_key.expose_secret().to_vec();
 
     let message = b"Test serialization";
     let signature = sign_pq_ml_dsa_unverified(message, &sk_bytes, MlDsaParameterSet::MlDsa44)
@@ -1261,7 +1324,7 @@ fn test_slh_dsa_key_serialization_roundtrip() {
 
     // Keys are already serialized as bytes, test they work after clone
     let pk_bytes = public_key.as_slice().to_vec();
-    let sk_bytes = private_key.as_slice().to_vec();
+    let sk_bytes = private_key.expose_secret().to_vec();
 
     let message = b"Test serialization";
     let signature = sign_pq_slh_dsa_unverified(message, &sk_bytes, SlhDsaSecurityLevel::Shake128s)
@@ -1284,7 +1347,7 @@ fn test_fn_dsa_key_serialization_roundtrip() {
 
     // Keys are already serialized as bytes, test they work after clone
     let pk_bytes = public_key.as_slice().to_vec();
-    let sk_bytes = private_key.as_slice().to_vec();
+    let sk_bytes = private_key.expose_secret().to_vec();
 
     let message = b"Test serialization";
     let signature = sign_pq_fn_dsa_unverified(message, &sk_bytes, FnDsaSecurityLevel::Level512)
@@ -1304,7 +1367,7 @@ fn test_ml_dsa_signature_serialization_roundtrip() {
         generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).expect("keypair generation");
 
     let signature =
-        sign_pq_ml_dsa_unverified(message, private_key.as_slice(), MlDsaParameterSet::MlDsa44)
+        sign_pq_ml_dsa_unverified(message, private_key.expose_secret(), MlDsaParameterSet::MlDsa44)
             .expect("signing should succeed");
 
     // Simulate serialization/deserialization

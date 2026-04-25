@@ -874,7 +874,7 @@ fn kem_encapsulation_validity() {
         };
 
         // Verify sizes match specification
-        assert_eq!(ss.as_bytes().len(), 32, "Shared secret should be 32 bytes");
+        assert_eq!(ss.expose_secret().len(), 32, "Shared secret should be 32 bytes");
         assert_eq!(
             ct.as_bytes().len(),
             level.ciphertext_size(),
@@ -883,7 +883,7 @@ fn kem_encapsulation_validity() {
         );
 
         // Verify non-trivial output
-        assert!(ss.as_bytes().iter().any(|&b| b != 0), "Shared secret should be non-trivial");
+        assert!(ss.expose_secret().iter().any(|&b| b != 0), "Shared secret should be non-trivial");
         assert!(ct.as_bytes().iter().any(|&b| b != 0), "Ciphertext should be non-trivial");
     }
 }
@@ -1276,14 +1276,14 @@ fn zeroization_ml_dsa_secret_key() {
     };
 
     // Verify key contains non-zero data
-    let has_nonzero = sk.as_bytes().iter().any(|&b| b != 0);
+    let has_nonzero = sk.expose_secret().iter().any(|&b| b != 0);
     assert!(has_nonzero, "Secret key should contain non-zero data");
 
     // Zeroize
     sk.zeroize();
 
     // Verify all zeros
-    let all_zero = sk.as_bytes().iter().all(|&b| b == 0);
+    let all_zero = sk.expose_secret().iter().all(|&b| b == 0);
     assert!(all_zero, "Secret key should be all zeros after zeroization");
 }
 
@@ -1297,13 +1297,13 @@ fn zeroization_ml_kem_shared_secret() {
     let mut ss = MlKemSharedSecret::new([0xABu8; 32]);
 
     // Verify non-zero
-    assert!(ss.as_bytes().iter().any(|&b| b != 0), "Shared secret should be non-zero");
+    assert!(ss.expose_secret().iter().any(|&b| b != 0), "Shared secret should be non-zero");
 
     // Zeroize
     ss.zeroize();
 
     // Verify zeros
-    assert!(ss.as_bytes().iter().all(|&b| b == 0), "Shared secret should be zeroized");
+    assert!(ss.expose_secret().iter().all(|&b| b == 0), "Shared secret should be zeroized");
 }
 
 /// Zeroization: HKDF result can be zeroized

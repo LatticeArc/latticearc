@@ -37,8 +37,8 @@ mod roundtrip {
         let dec_secret = decapsulate(&sk, &enc_key).expect("decap should succeed");
 
         assert_eq!(
-            dec_secret.as_slice(),
-            enc_key.shared_secret(),
+            dec_secret.expose_secret(),
+            enc_key.expose_secret(),
             "Encapsulated and decapsulated secrets must match"
         );
         assert_eq!(dec_secret.len(), 64, "Hybrid shared secret should be 64 bytes");
@@ -55,8 +55,8 @@ mod roundtrip {
                 .unwrap_or_else(|e| panic!("decap {} failed: {:?}", i, e));
 
             assert_eq!(
-                dec_secret.as_slice(),
-                enc_key.shared_secret(),
+                dec_secret.expose_secret(),
+                enc_key.expose_secret(),
                 "Roundtrip {} secret mismatch",
                 i
             );
@@ -72,8 +72,8 @@ mod roundtrip {
         let enc_b = encapsulate(&pk_b).unwrap();
 
         assert_ne!(
-            enc_a.shared_secret(),
-            enc_b.shared_secret(),
+            enc_a.expose_secret(),
+            enc_b.expose_secret(),
             "Different keypairs should produce different shared secrets"
         );
     }
@@ -90,8 +90,8 @@ mod roundtrip {
         // (ML-KEM implicit rejection returns a valid but wrong secret)
         let dec_secret_b = decapsulate(&sk_b, &enc_key).unwrap();
         assert_ne!(
-            dec_secret_b.as_slice(),
-            enc_key.shared_secret(),
+            dec_secret_b.expose_secret(),
+            enc_key.expose_secret(),
             "Cross-key decapsulation should yield a different shared secret"
         );
     }
@@ -329,7 +329,7 @@ mod roundtrip {
 
         // Step 3: Encapsulate to derive shared secret
         let enc_key = encapsulate(&kem_pk).unwrap();
-        let shared_secret = enc_key.shared_secret().to_vec();
+        let shared_secret = enc_key.expose_secret().to_vec();
 
         // Step 4: Encrypt a message using the hybrid encryption API
         let plaintext = b"Complete hybrid workflow test: KEM + Encrypt + Sign + Verify + Decrypt";
@@ -348,7 +348,11 @@ mod roundtrip {
 
         // Step 7: Decapsulate shared secret
         let dec_secret = decapsulate(&kem_sk, &enc_key).unwrap();
-        assert_eq!(dec_secret.as_slice(), shared_secret.as_slice(), "Shared secrets should match");
+        assert_eq!(
+            dec_secret.expose_secret(),
+            shared_secret.as_slice(),
+            "Shared secrets should match"
+        );
 
         // Step 8: Decrypt the message
         let decrypted = decrypt_hybrid(&kem_sk, &ct, Some(&context)).unwrap();
@@ -439,7 +443,7 @@ mod zeroization {
         let enc_result = kem::encapsulate(&pk);
         if let Ok(enc_key) = enc_result {
             // Get the shared secret and verify it can be zeroized
-            let mut secret = enc_key.shared_secret().to_vec();
+            let mut secret = enc_key.expose_secret().to_vec();
             secret.zeroize();
             // assert!(!secret.is_empty(), "Zeroized secret should not be empty");
             assert!(secret.iter().all(|&x| x == 0), "Zeroization failed - not all bytes are zero");

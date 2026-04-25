@@ -187,7 +187,7 @@ pub fn generate_ml_dsa_keypair(
     let algorithm = format!("{:?}", parameter_set);
     crate::log_key_generated!("ml-dsa-keypair", algorithm, KeyType::KeyPair, KeyPurpose::Signing);
 
-    Ok((PublicKey::new(pk.as_bytes().to_vec()), PrivateKey::new(sk.as_bytes().to_vec())))
+    Ok((PublicKey::new(pk.as_bytes().to_vec()), PrivateKey::new(sk.expose_secret().to_vec())))
 }
 
 /// Generate an ML-DSA keypair with configuration
@@ -224,7 +224,7 @@ pub fn generate_slh_dsa_keypair(
     let algorithm = format!("{:?}", security_level);
     crate::log_key_generated!("slh-dsa-keypair", algorithm, KeyType::KeyPair, KeyPurpose::Signing);
 
-    Ok((PublicKey::new(pk.as_bytes().to_vec()), PrivateKey::new(sk.as_bytes().to_vec())))
+    Ok((PublicKey::new(pk.as_bytes().to_vec()), PrivateKey::new(sk.expose_secret().to_vec())))
 }
 
 /// Generate an SLH-DSA keypair with configuration
@@ -357,7 +357,7 @@ mod tests {
     fn test_ed25519_keypair_format_has_correct_sizes_has_correct_size() -> Result<()> {
         let (pk, sk) = generate_keypair()?;
         assert_eq!(pk.len(), 32, "Ed25519 public key must be exactly 32 bytes");
-        assert_eq!(sk.as_ref().len(), 32, "Ed25519 secret key must be exactly 32 bytes");
+        assert_eq!(sk.expose_secret().len(), 32, "Ed25519 secret key must be exactly 32 bytes");
         Ok(())
     }
 
@@ -367,7 +367,7 @@ mod tests {
         let message = b"Test message to verify key functionality";
 
         // Keys should actually work for signing and verification
-        let signature = sign_ed25519_unverified(message, sk.as_ref())?;
+        let signature = sign_ed25519_unverified(message, sk.expose_secret())?;
         let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
         assert!(is_valid, "Generated keypair should produce valid signatures");
         Ok(())
@@ -383,9 +383,9 @@ mod tests {
         assert_ne!(pk1, pk2, "Public keys must be unique");
         assert_ne!(pk1, pk3, "Public keys must be unique");
         assert_ne!(pk2, pk3, "Public keys must be unique");
-        assert_ne!(sk1.as_ref(), sk2.as_ref(), "Secret keys must be unique");
-        assert_ne!(sk1.as_ref(), sk3.as_ref(), "Secret keys must be unique");
-        assert_ne!(sk2.as_ref(), sk3.as_ref(), "Secret keys must be unique");
+        assert_ne!(sk1.expose_secret(), sk2.expose_secret(), "Secret keys must be unique");
+        assert_ne!(sk1.expose_secret(), sk3.expose_secret(), "Secret keys must be unique");
+        assert_ne!(sk2.expose_secret(), sk3.expose_secret(), "Secret keys must be unique");
         Ok(())
     }
 
@@ -396,11 +396,11 @@ mod tests {
 
         // Validate format
         assert_eq!(pk.len(), 32);
-        assert_eq!(sk.as_ref().len(), 32);
+        assert_eq!(sk.expose_secret().len(), 32);
 
         // Validate functionality
         let message = b"Config test";
-        let signature = sign_ed25519_unverified(message, sk.as_ref())?;
+        let signature = sign_ed25519_unverified(message, sk.expose_secret())?;
         let is_valid = verify_ed25519_unverified(message, &signature, pk.as_slice())?;
         assert!(is_valid);
         Ok(())
@@ -412,7 +412,7 @@ mod tests {
         let (pk2, _sk2) = generate_keypair()?;
         let message = b"Cross validation test";
 
-        let signature = sign_ed25519_unverified(message, sk1.as_ref())?;
+        let signature = sign_ed25519_unverified(message, sk1.expose_secret())?;
         let result = verify_ed25519_unverified(message, &signature, pk2.as_slice());
         assert!(
             result.is_err(),
@@ -429,7 +429,7 @@ mod tests {
 
         // Validate keys are generated with expected properties
         assert!(!pk.is_empty(), "Public key should not be empty");
-        assert!(!sk.as_ref().is_empty(), "Secret key should not be empty");
+        assert!(!sk.expose_secret().is_empty(), "Secret key should not be empty");
 
         // Public key can be used for encryption
         let plaintext = b"Test data for ML-KEM-512";
@@ -443,7 +443,7 @@ mod tests {
     fn test_ml_kem_768_keypair_generation_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
 
         let plaintext = b"Test data";
         let ciphertext =
@@ -456,7 +456,7 @@ mod tests {
     fn test_ml_kem_1024_keypair_generation_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)?;
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
 
         let plaintext = b"Test data";
         let ciphertext =
@@ -474,7 +474,7 @@ mod tests {
         assert_ne!(pk1, pk2, "ML-KEM public keys must be unique");
 
         // Secret keys must also be unique
-        assert_ne!(sk1.as_ref(), sk2.as_ref(), "ML-KEM secret keys must be unique");
+        assert_ne!(sk1.expose_secret(), sk2.expose_secret(), "ML-KEM secret keys must be unique");
         Ok(())
     }
 
@@ -484,7 +484,7 @@ mod tests {
         let (pk, sk) = generate_ml_kem_keypair_with_config(MlKemSecurityLevel::MlKem768, &config)?;
 
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
 
         // Validate public key works for encryption
         let plaintext = b"Config test";
@@ -501,7 +501,7 @@ mod tests {
         let message = b"Test ML-DSA-44 signature";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa44)?;
+            sign_pq_ml_dsa_unverified(message, sk.expose_secret(), MlDsaParameterSet::MlDsa44)?;
         let is_valid = verify_pq_ml_dsa_unverified(
             message,
             &signature,
@@ -518,7 +518,7 @@ mod tests {
         let message = b"Test ML-DSA-65 signature";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa65)?;
+            sign_pq_ml_dsa_unverified(message, sk.expose_secret(), MlDsaParameterSet::MlDsa65)?;
         let is_valid = verify_pq_ml_dsa_unverified(
             message,
             &signature,
@@ -535,7 +535,7 @@ mod tests {
         let message = b"Test ML-DSA-87 signature";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa87)?;
+            sign_pq_ml_dsa_unverified(message, sk.expose_secret(), MlDsaParameterSet::MlDsa87)?;
         let is_valid = verify_pq_ml_dsa_unverified(
             message,
             &signature,
@@ -552,7 +552,7 @@ mod tests {
         let (pk2, sk2) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65)?;
 
         assert_ne!(pk1, pk2, "ML-DSA public keys must be unique");
-        assert_ne!(sk1.as_ref(), sk2.as_ref(), "ML-DSA secret keys must be unique");
+        assert_ne!(sk1.expose_secret(), sk2.expose_secret(), "ML-DSA secret keys must be unique");
         Ok(())
     }
 
@@ -563,7 +563,7 @@ mod tests {
         let message = b"Config test";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk.as_ref(), MlDsaParameterSet::MlDsa65)?;
+            sign_pq_ml_dsa_unverified(message, sk.expose_secret(), MlDsaParameterSet::MlDsa65)?;
         let is_valid = verify_pq_ml_dsa_unverified(
             message,
             &signature,
@@ -581,7 +581,7 @@ mod tests {
         let message = b"Cross validation";
 
         let signature =
-            sign_pq_ml_dsa_unverified(message, sk1.as_ref(), MlDsaParameterSet::MlDsa65)?;
+            sign_pq_ml_dsa_unverified(message, sk1.expose_secret(), MlDsaParameterSet::MlDsa65)?;
         let result = verify_pq_ml_dsa_unverified(
             message,
             &signature,
@@ -598,8 +598,11 @@ mod tests {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
         let message = b"Test SLH-DSA-128s";
 
-        let signature =
-            sign_pq_slh_dsa_unverified(message, sk.as_ref(), SlhDsaSecurityLevel::Shake128s)?;
+        let signature = sign_pq_slh_dsa_unverified(
+            message,
+            sk.expose_secret(),
+            SlhDsaSecurityLevel::Shake128s,
+        )?;
         let is_valid = verify_pq_slh_dsa_unverified(
             message,
             &signature,
@@ -616,7 +619,7 @@ mod tests {
         let (pk2, sk2) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s)?;
 
         assert_ne!(pk1, pk2, "SLH-DSA public keys must be unique");
-        assert_ne!(sk1.as_ref(), sk2.as_ref(), "SLH-DSA secret keys must be unique");
+        assert_ne!(sk1.expose_secret(), sk2.expose_secret(), "SLH-DSA secret keys must be unique");
         Ok(())
     }
 
@@ -627,8 +630,11 @@ mod tests {
             generate_slh_dsa_keypair_with_config(SlhDsaSecurityLevel::Shake128s, &config)?;
         let message = b"Config test";
 
-        let signature =
-            sign_pq_slh_dsa_unverified(message, sk.as_ref(), SlhDsaSecurityLevel::Shake128s)?;
+        let signature = sign_pq_slh_dsa_unverified(
+            message,
+            sk.expose_secret(),
+            SlhDsaSecurityLevel::Shake128s,
+        )?;
         let is_valid = verify_pq_slh_dsa_unverified(
             message,
             &signature,
@@ -650,7 +656,7 @@ mod tests {
         let message = b"Test FN-DSA";
 
         let signature =
-            sign_pq_fn_dsa_unverified(message, sk.as_ref(), FnDsaSecurityLevel::Level512)?;
+            sign_pq_fn_dsa_unverified(message, sk.expose_secret(), FnDsaSecurityLevel::Level512)?;
         let is_valid = verify_pq_fn_dsa_unverified(
             message,
             &signature,
@@ -672,7 +678,7 @@ mod tests {
         let message = b"Config test";
 
         let signature =
-            sign_pq_fn_dsa_unverified(message, sk.as_ref(), FnDsaSecurityLevel::Level512)?;
+            sign_pq_fn_dsa_unverified(message, sk.expose_secret(), FnDsaSecurityLevel::Level512)?;
         let is_valid = verify_pq_fn_dsa_unverified(
             message,
             &signature,
@@ -706,11 +712,11 @@ mod tests {
         // Verify our keygen goes through the full validation path
         let (pk, sk) = generate_keypair()?;
         assert_eq!(pk.len(), 32, "Ed25519 public key should be 32 bytes");
-        assert_eq!(sk.as_ref().len(), 32, "Ed25519 secret key should be 32 bytes");
+        assert_eq!(sk.expose_secret().len(), 32, "Ed25519 secret key should be 32 bytes");
 
         // Verify keys are not zero (validation check)
         assert!(!pk.as_slice().iter().all(|&b| b == 0), "Public key should not be all zeros");
-        assert!(!sk.as_ref().iter().all(|&b| b == 0), "Secret key should not be all zeros");
+        assert!(!sk.expose_secret().iter().all(|&b| b == 0), "Secret key should not be all zeros");
         Ok(())
     }
 
@@ -719,7 +725,7 @@ mod tests {
         let config = CoreConfig::default();
         let (pk, sk) = generate_keypair_with_config(&config)?;
         assert_eq!(pk.len(), 32);
-        assert_eq!(sk.as_ref().len(), 32);
+        assert_eq!(sk.expose_secret().len(), 32);
         Ok(())
     }
 
@@ -730,7 +736,7 @@ mod tests {
         let config = CoreConfig::default();
         let (pk, sk) = generate_ml_kem_keypair_with_config(MlKemSecurityLevel::MlKem768, &config)?;
         assert!(!pk.is_empty(), "ML-KEM-768 public key should not be empty");
-        assert!(!sk.as_ref().is_empty(), "ML-KEM-768 secret key should not be empty");
+        assert!(!sk.expose_secret().is_empty(), "ML-KEM-768 secret key should not be empty");
         Ok(())
     }
 
@@ -740,7 +746,7 @@ mod tests {
     fn test_ml_dsa_keypair_44_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44)?;
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
         Ok(())
     }
 
@@ -748,7 +754,7 @@ mod tests {
     fn test_ml_dsa_keypair_87_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa87)?;
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
         Ok(())
     }
 
@@ -757,7 +763,7 @@ mod tests {
         let config = CoreConfig::default();
         let (pk, sk) = generate_ml_dsa_keypair_with_config(MlDsaParameterSet::MlDsa44, &config)?;
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
         Ok(())
     }
 
@@ -767,7 +773,7 @@ mod tests {
     fn test_slh_dsa_keypair_192s_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s)?;
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
         Ok(())
     }
 
@@ -775,7 +781,7 @@ mod tests {
     fn test_slh_dsa_keypair_256s_produces_non_empty_keys_fails() -> Result<()> {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
         assert!(!pk.is_empty());
-        assert!(!sk.as_ref().is_empty());
+        assert!(!sk.expose_secret().is_empty());
         Ok(())
     }
 }

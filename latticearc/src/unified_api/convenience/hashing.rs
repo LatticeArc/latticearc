@@ -743,7 +743,7 @@ mod tests {
         let password = b"secure_password";
         let salt = b"secure_salt";
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let key = derive_key(password, salt, 32, SecurityMode::Verified(&session))?;
         assert_eq!(key.len(), 32);
@@ -840,7 +840,7 @@ mod tests {
         let key = b"secret_key";
         let data = b"authenticated message";
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let tag = hmac(data, key, SecurityMode::Verified(&session))?;
         let is_valid = hmac_check(data, key, &tag, SecurityMode::Verified(&session))?;
@@ -864,7 +864,7 @@ mod tests {
         let data = b"data";
         let config = CoreConfig::default();
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let tag = hmac_with_config(data, key, &config, SecurityMode::Verified(&session))?;
         let is_valid =
@@ -927,7 +927,7 @@ mod tests {
         let salt = b"salt";
         let config = CoreConfig::default();
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let key =
             derive_key_with_config(password, salt, 32, &config, SecurityMode::Verified(&session))?;
@@ -1019,7 +1019,7 @@ mod tests {
         let salt = b"salt";
         let info = b"verified-context";
         let (auth_pk, auth_sk) = generate_keypair()?;
-        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+        let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
         let key = derive_key_with_info(password, salt, 32, info, SecurityMode::Verified(&session))?;
         assert_eq!(key.len(), 32);

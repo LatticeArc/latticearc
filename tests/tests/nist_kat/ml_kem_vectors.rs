@@ -39,7 +39,7 @@ fn test_mlkem_512_key_sizes_match_fips203_has_correct_size() {
         ML_KEM_512_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         ML_KEM_512_SK_SIZE,
         "ML-KEM-512 secret key should be {} bytes",
         ML_KEM_512_SK_SIZE
@@ -58,7 +58,7 @@ fn test_mlkem_768_key_sizes_match_fips203_has_correct_size() {
         ML_KEM_768_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         ML_KEM_768_SK_SIZE,
         "ML-KEM-768 secret key should be {} bytes",
         ML_KEM_768_SK_SIZE
@@ -77,7 +77,7 @@ fn test_mlkem_1024_key_sizes_match_fips203_has_correct_size() {
         ML_KEM_1024_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         ML_KEM_1024_SK_SIZE,
         "ML-KEM-1024 secret key should be {} bytes",
         ML_KEM_1024_SK_SIZE
@@ -99,7 +99,7 @@ fn test_mlkem_512_encapsulation_sizes_match_fips203_has_correct_size() {
         ML_KEM_512_CT_SIZE
     );
     assert_eq!(
-        ss.as_bytes().len(),
+        ss.expose_secret().len(),
         ML_KEM_512_SS_SIZE,
         "ML-KEM-512 shared secret should be {} bytes",
         ML_KEM_512_SS_SIZE
@@ -120,7 +120,7 @@ fn test_mlkem_768_encapsulation_sizes_match_fips203_has_correct_size() {
         ML_KEM_768_CT_SIZE
     );
     assert_eq!(
-        ss.as_bytes().len(),
+        ss.expose_secret().len(),
         ML_KEM_768_SS_SIZE,
         "ML-KEM-768 shared secret should be {} bytes",
         ML_KEM_768_SS_SIZE
@@ -141,7 +141,7 @@ fn test_mlkem_1024_encapsulation_sizes_match_fips203_has_correct_size() {
         ML_KEM_1024_CT_SIZE
     );
     assert_eq!(
-        ss.as_bytes().len(),
+        ss.expose_secret().len(),
         ML_KEM_1024_SS_SIZE,
         "ML-KEM-1024 shared secret should be {} bytes",
         ML_KEM_1024_SS_SIZE
@@ -159,7 +159,7 @@ fn test_mlkem_512_roundtrip_succeeds() {
     let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
     assert!(
-        constant_time_eq(ss_enc.as_bytes(), ss_dec.as_bytes()),
+        constant_time_eq(ss_enc.expose_secret(), ss_dec.expose_secret()),
         "ML-KEM-512 shared secrets must match"
     );
 }
@@ -173,7 +173,7 @@ fn test_mlkem_768_roundtrip_succeeds() {
     let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
     assert!(
-        constant_time_eq(ss_enc.as_bytes(), ss_dec.as_bytes()),
+        constant_time_eq(ss_enc.expose_secret(), ss_dec.expose_secret()),
         "ML-KEM-768 shared secrets must match"
     );
 }
@@ -187,7 +187,7 @@ fn test_mlkem_1024_roundtrip_succeeds() {
     let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
     assert!(
-        constant_time_eq(ss_enc.as_bytes(), ss_dec.as_bytes()),
+        constant_time_eq(ss_enc.expose_secret(), ss_dec.expose_secret()),
         "ML-KEM-1024 shared secrets must match"
     );
 }
@@ -218,8 +218,8 @@ fn test_mlkem_different_shared_secrets_are_unique() {
     let (ss2, _ct2) = MlKem::encapsulate(&pk).expect("encapsulation 2 should succeed");
 
     assert_ne!(
-        ss1.as_bytes(),
-        ss2.as_bytes(),
+        ss1.expose_secret(),
+        ss2.expose_secret(),
         "Different encapsulations should produce different shared secrets"
     );
 }
@@ -253,7 +253,7 @@ fn test_mlkem_wrong_secret_key_produces_wrong_shared_secret_fails() {
     let ss_dec = MlKem::decapsulate(&sk2, &ct).expect("decapsulation should succeed");
 
     assert!(
-        !constant_time_eq(ss_enc.as_bytes(), ss_dec.as_bytes()),
+        !constant_time_eq(ss_enc.expose_secret(), ss_dec.expose_secret()),
         "Decapsulation with wrong key should produce different shared secret (implicit rejection)"
     );
 }

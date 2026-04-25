@@ -30,7 +30,7 @@ mod tests {
                     let (ss_enc, ct) = MlKem::encapsulate(&pk).expect("encap should succeed");
                     let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decap should succeed");
 
-                    if ss_enc.as_bytes() == ss_dec.as_bytes() {
+                    if ss_enc.expose_secret() == ss_dec.expose_secret() {
                         success.fetch_add(1, Ordering::SeqCst);
                     }
                 })
@@ -103,7 +103,7 @@ mod tests {
                                 .expect("keygen");
                             let (ss_enc, ct) = MlKem::encapsulate(&pk).expect("encap");
                             let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decap");
-                            assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
+                            assert_eq!(ss_enc.expose_secret(), ss_dec.expose_secret());
                         }
                     });
 
@@ -136,7 +136,7 @@ mod tests {
                         MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).expect("keygen");
                     let (ss, _ct) = MlKem::encapsulate(&pk).expect("encap");
 
-                    shared_secrets.lock().expect("mutex").push(ss.as_bytes().to_vec());
+                    shared_secrets.lock().expect("mutex").push(ss.expose_secret().to_vec());
                 })
             })
             .collect();
@@ -198,7 +198,7 @@ mod tests {
                     results
                         .lock()
                         .expect("mutex")
-                        .push((ss.as_bytes().to_vec(), ct.as_bytes().to_vec()));
+                        .push((ss.expose_secret().to_vec(), ct.as_bytes().to_vec()));
                 })
             })
             .collect();
@@ -346,7 +346,7 @@ mod tests {
                     let (pk, _sk) = MlKem::generate_keypair(level).expect("keygen should succeed");
                     let (ss, _ct) = MlKem::encapsulate(&pk).expect("encap should succeed");
 
-                    if !ss.as_bytes().is_empty() {
+                    if !ss.expose_secret().is_empty() {
                         success.fetch_add(1, Ordering::SeqCst);
                     }
                 })

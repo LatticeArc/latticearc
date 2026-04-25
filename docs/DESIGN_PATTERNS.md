@@ -173,6 +173,14 @@ to make entire classes of cryptographic bugs structurally impossible.
 
 ## Rust-Specific Anti-Patterns We Prevent
 
+The six anti-patterns in this section are teaching examples. The normative
+rules governing every type that holds secret material live in
+[`SECRET_TYPE_INVARIANTS.md`](SECRET_TYPE_INVARIANTS.md) — ten invariants
+(I-1 through I-10) enforced by the compile-time barrier at
+`latticearc/tests/no_partial_eq_on_secret_types.rs`, by universal adoption of
+the sealed `expose_secret()` accessor, and by CI clippy/audit rules. When the
+examples below and the spec disagree, the spec wins.
+
 ### Anti-Pattern 1: Derived Debug on Secrets
 ```rust
 // WRONG — Rust's #[derive(Debug)] prints all fields including secrets
@@ -195,12 +203,23 @@ impl Debug for Key {
 struct PrivateKey { bytes: Vec<u8> }
 let copy = key.clone(); // Two copies of the same key in memory
 
-// RIGHT — Move semantics, no Clone. Borrowing via &[u8] getter for read access.
+// RIGHT — No Clone. Borrow via the sealed `expose_secret()` accessor; for
+// deliberate duplication, expose an explicit, grep-able method.
 struct PrivateKey { bytes: Zeroizing<Vec<u8>> }
 impl PrivateKey {
-    pub fn as_bytes(&self) -> &[u8] { &self.bytes }  // Borrow, not copy
+    pub fn expose_secret(&self) -> &[u8] { &self.bytes }   // Sealed borrow, not copy
+    pub fn clone_for_transmission(&self) -> Self { /* ... */ } // Audit-able copy
 }
 ```
+
+The accessor is named `expose_secret()` — never `as_bytes()` or `as_slice()` — so
+that every site touching secret bytes is grep-able as a distinct audit point.
+Public bytes (e.g., `PublicKey`, signatures, ciphertexts) keep `as_bytes()`/
+`as_slice()`; the naming distinction is structural. See
+[`docs/SECRET_TYPE_INVARIANTS.md`](SECRET_TYPE_INVARIANTS.md) — the canonical,
+normative spec for every type holding secret material — for the full rule set
+(invariants I-1 through I-10), including why `AsRef<[u8]>`/`Deref` are also
+forbidden on secret types.
 
 ### Anti-Pattern 3: Short-Circuit Comparison
 ```rust

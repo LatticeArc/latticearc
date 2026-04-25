@@ -756,7 +756,7 @@ fn test_mldsa87_public_key_serialization_roundtrip() {
 fn test_secret_key_serialization_roundtrip() {
     let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).expect("Keygen should succeed");
 
-    let sk_bytes = sk.as_bytes().to_vec();
+    let sk_bytes = sk.expose_secret().to_vec();
     let restored_sk = MlDsaSecretKey::new(MlDsaParameterSet::MlDsa44, sk_bytes)
         .expect("Secret key restoration should succeed");
 
@@ -772,7 +772,7 @@ fn test_restored_key_can_sign_and_verify_roundtrip() {
 
     // Serialize and restore keys
     let pk_bytes = pk.as_bytes().to_vec();
-    let sk_bytes = sk.as_bytes().to_vec();
+    let sk_bytes = sk.expose_secret().to_vec();
 
     let restored_pk = MlDsaPublicKey::new(MlDsaParameterSet::MlDsa65, pk_bytes)
         .expect("Public key restoration should succeed");
@@ -981,7 +981,7 @@ fn test_secret_key_zeroization_succeeds() {
         generate_keypair(MlDsaParameterSet::MlDsa87).expect("Keygen should succeed");
 
     // Verify key has non-zero data before zeroization
-    let sk_bytes_before = sk.as_bytes().to_vec();
+    let sk_bytes_before = sk.expose_secret().to_vec();
     assert!(
         !sk_bytes_before.iter().all(|&b| b == 0),
         "Secret key should contain non-zero data before zeroization"
@@ -991,7 +991,7 @@ fn test_secret_key_zeroization_succeeds() {
     use zeroize::Zeroize;
     sk.zeroize();
 
-    let sk_bytes_after = sk.as_bytes();
+    let sk_bytes_after = sk.expose_secret();
     assert!(
         sk_bytes_after.iter().all(|&b| b == 0),
         "Secret key should be all zeros after zeroization"
@@ -1115,7 +1115,7 @@ fn test_parameter_set_clone_succeeds() {
 fn test_sign_corrupted_sk_44_fails() {
     let (_pk, sk) =
         generate_keypair(MlDsaParameterSet::MlDsa44).expect("MlDsa44 keygen should succeed");
-    let mut corrupted_sk_bytes = sk.as_bytes().to_vec();
+    let mut corrupted_sk_bytes = sk.expose_secret().to_vec();
     // Corrupt every 10th byte to ensure key deserialization fails
     for i in (0..corrupted_sk_bytes.len()).step_by(10) {
         corrupted_sk_bytes[i] ^= 0xFF;
@@ -1141,7 +1141,7 @@ fn test_sign_corrupted_sk_44_fails() {
 fn test_sign_corrupted_sk_65_fails() {
     let (_pk, sk) =
         generate_keypair(MlDsaParameterSet::MlDsa65).expect("MlDsa65 keygen should succeed");
-    let mut corrupted_sk_bytes = sk.as_bytes().to_vec();
+    let mut corrupted_sk_bytes = sk.expose_secret().to_vec();
     for i in (0..corrupted_sk_bytes.len()).step_by(10) {
         corrupted_sk_bytes[i] ^= 0xFF;
     }
@@ -1159,7 +1159,7 @@ fn test_sign_corrupted_sk_65_fails() {
 fn test_sign_corrupted_sk_87_fails() {
     let (_pk, sk) =
         generate_keypair(MlDsaParameterSet::MlDsa87).expect("MlDsa87 keygen should succeed");
-    let mut corrupted_sk_bytes = sk.as_bytes().to_vec();
+    let mut corrupted_sk_bytes = sk.expose_secret().to_vec();
     for i in (0..corrupted_sk_bytes.len()).step_by(10) {
         corrupted_sk_bytes[i] ^= 0xFF;
     }

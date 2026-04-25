@@ -72,7 +72,7 @@ fn test_encrypt_pq_ml_kem_verified_valid_session_768_succeeds() -> Result<()> {
 
     // Create verified session
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Encrypt with verified mode
     let encrypted = encrypt_pq_ml_kem(
@@ -93,7 +93,7 @@ fn test_encrypt_pq_ml_kem_verified_valid_session_512_succeeds() -> Result<()> {
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     let encrypted = encrypt_pq_ml_kem(
         data,
@@ -112,7 +112,7 @@ fn test_encrypt_pq_ml_kem_verified_valid_session_1024_succeeds() -> Result<()> {
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem1024)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     let encrypted = encrypt_pq_ml_kem(
         data,
@@ -131,7 +131,7 @@ fn test_encrypt_pq_ml_kem_verified_session_trust_level_is_maintained_succeeds() 
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Verify trust level before operation
     assert!(
@@ -161,7 +161,7 @@ fn test_encrypt_pq_ml_kem_with_config_verified_session_succeeds() -> Result<()> 
     let config = CoreConfig::default();
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     let encrypted = encrypt_pq_ml_kem_with_config(
         data,
@@ -180,7 +180,7 @@ fn test_encrypt_pq_ml_kem_multiple_operations_same_session_succeeds() -> Result<
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Perform multiple operations with the same session
     for i in 0..5 {
@@ -215,7 +215,7 @@ fn test_encrypt_pq_ml_kem_verified_session_validation_called_succeeds() -> Resul
     let (pk, _sk) = generate_ml_kem_keypair(MlKemSecurityLevel::MlKem768)?;
 
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     // Verify session validity check
     session.verify_valid()?;
@@ -235,7 +235,7 @@ fn test_encrypt_pq_ml_kem_verified_session_validation_called_succeeds() -> Resul
 #[test]
 fn test_security_mode_validate_with_valid_session_succeeds() -> Result<()> {
     let (auth_pk, auth_sk) = generate_keypair()?;
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())?;
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())?;
 
     let mode = SecurityMode::Verified(&session);
 
@@ -258,13 +258,13 @@ fn test_decrypt_pq_ml_kem_verified_roundtrip() {
         .expect("encryption should succeed");
 
     let (auth_pk, auth_sk) = generate_keypair().expect("auth keypair generation");
-    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.as_ref())
+    let session = VerifiedSession::establish(auth_pk.as_slice(), auth_sk.expose_secret())
         .expect("session establishment");
 
     // Decrypt with verified mode (aws-lc-rs v1.16.0 supports DecapsulationKey serialization)
     let decrypted = decrypt_pq_ml_kem(
         &encrypted,
-        sk.as_ref(),
+        sk.expose_secret(),
         MlKemSecurityLevel::MlKem768,
         SecurityMode::Verified(&session),
     )
@@ -460,8 +460,11 @@ fn test_decrypt_ml_kem_mismatched_security_levels_fails() {
     let (_pk_512, sk_512) =
         generate_ml_kem_keypair(MlKemSecurityLevel::MlKem512).expect("keypair generation");
 
-    let result =
-        decrypt_pq_ml_kem_unverified(&encrypted, sk_512.as_ref(), MlKemSecurityLevel::MlKem512);
+    let result = decrypt_pq_ml_kem_unverified(
+        &encrypted,
+        sk_512.expose_secret(),
+        MlKemSecurityLevel::MlKem512,
+    );
 
     assert!(result.is_err(), "Should fail when decrypting with mismatched security level");
 }

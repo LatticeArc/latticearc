@@ -125,7 +125,7 @@ fn test_serialized_key_roundtrip_preserves_exact_bytes_succeeds() -> Result<()> 
         "Public key bytes must be preserved exactly"
     );
     assert_eq!(
-        deserialized.private_key().as_slice(),
+        deserialized.private_key().expose_secret(),
         original_sk.as_slice(),
         "Private key bytes must be preserved exactly"
     );
@@ -287,7 +287,7 @@ fn test_v1_format_key_material_remains_usable_is_compatible_has_correct_size() -
 
     // Keys should be usable in current version
     assert_eq!(keypair.public_key().as_slice(), &[1, 2, 3, 4, 5, 6]);
-    assert_eq!(keypair.private_key().as_slice(), &[16, 17, 18, 19, 20, 21]);
+    assert_eq!(keypair.private_key().expose_secret(), &[16, 17, 18, 19, 20, 21]);
     Ok(())
 }
 
@@ -328,7 +328,7 @@ fn test_ml_kem_512_key_upgrade_path_is_compatible_succeeds() -> Result<()> {
     // Key material should be preserved for potential upgrade workflows
     assert_eq!(deserialized.public_key().len(), 800, "ML-KEM-512 public key preserved");
     assert_eq!(
-        deserialized.private_key().as_slice().len(),
+        deserialized.private_key().expose_secret().len(),
         1632,
         "ML-KEM-512 private key preserved"
     );
@@ -622,7 +622,7 @@ fn test_result_type_alias_works_is_compatible_succeeds() -> Result<()> {
 fn test_private_key_zeroize_behavior_succeeds() {
     // PrivateKey should zeroize on drop (compile-time check for trait)
     let pk = PrivateKey::new(vec![0x42; 32]);
-    assert_eq!(pk.as_slice().len(), 32);
+    assert_eq!(pk.expose_secret().len(), 32);
     // Drop happens automatically at end of scope
 }
 

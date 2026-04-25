@@ -64,7 +64,7 @@ fn generate_test_key_pattern(pattern: u8) -> Vec<u8> {
 /// Create a verified session for testing
 fn create_verified_session() -> Result<VerifiedSession> {
     let (pk, sk) = generate_keypair()?;
-    VerifiedSession::establish(pk.as_slice(), sk.as_ref())
+    VerifiedSession::establish(pk.as_slice(), sk.expose_secret())
 }
 
 // ============================================================================

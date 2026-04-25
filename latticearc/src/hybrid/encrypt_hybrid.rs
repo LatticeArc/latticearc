@@ -322,7 +322,7 @@ pub fn encrypt_hybrid(
     })?;
 
     // Derive AES-256 encryption key from 64-byte hybrid shared secret
-    let encryption_key = derive_encryption_key(encapsulated.shared_secret(), ctx)?;
+    let encryption_key = derive_encryption_key(encapsulated.expose_secret(), ctx)?;
 
     // Generate random nonce for AES-GCM via the primitives layer.
     let nonce_bytes = AesGcm256::generate_nonce();
@@ -390,11 +390,14 @@ pub fn decrypt_hybrid(
         return Err(HybridEncryptionError::InvalidInput("Tag must be 16 bytes".to_string()));
     }
 
-    // Reconstruct EncapsulatedKey for kem_hybrid::decapsulate
+    // Reconstruct EncapsulatedKey for kem_hybrid::decapsulate. The
+    // shared_secret field is a placeholder here — `decapsulate` recovers
+    // the real shared secret from `sk` and the `ml_kem_ct`/`ecdh_pk`
+    // components. Use a zeroed SecretBytes<64> of the correct shape.
     let encapsulated = EncapsulatedKey::new(
         ciphertext.kem_ciphertext().to_vec(),
         ciphertext.ecdh_ephemeral_pk().to_vec(),
-        Zeroizing::new(vec![]), // placeholder — decapsulate recovers this
+        crate::types::SecretBytes::zero(),
     );
 
     // All adversary-reachable failure paths below collapse to one opaque
@@ -412,10 +415,11 @@ pub fn decrypt_hybrid(
     })?;
 
     // Derive AES-256 encryption key from 64-byte hybrid shared secret
-    let encryption_key = derive_encryption_key(&shared_secret, ctx).map_err(|_e| {
-        log_crypto_operation_error!(op::HYBRID_DECRYPT, "HKDF key derivation failed");
-        opaque()
-    })?;
+    let encryption_key =
+        derive_encryption_key(shared_secret.expose_secret(), ctx).map_err(|_e| {
+            log_crypto_operation_error!(op::HYBRID_DECRYPT, "HKDF key derivation failed");
+            opaque()
+        })?;
 
     let nonce_bytes: [u8; NONCE_LEN] = ciphertext.nonce().try_into().map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_DECRYPT, "nonce length != 12");

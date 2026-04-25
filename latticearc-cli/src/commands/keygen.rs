@@ -299,7 +299,7 @@ fn generate_ml_kem(
         &sk_path,
         alg,
         KeyType::Secret,
-        sk.as_ref(),
+        sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
@@ -342,7 +342,7 @@ fn generate_ml_dsa(
         &sk_path,
         alg,
         KeyType::Secret,
-        sk.as_ref(),
+        sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
@@ -376,7 +376,7 @@ fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
         &sk_path,
         KeyAlgorithm::SlhDsaShake128s,
         KeyType::Secret,
-        sk.as_ref(),
+        sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
@@ -409,7 +409,7 @@ fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
         &sk_path,
         KeyAlgorithm::FnDsa512,
         KeyType::Secret,
-        sk.as_ref(),
+        sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
@@ -442,7 +442,7 @@ fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
         &sk_path,
         KeyAlgorithm::Ed25519,
         KeyType::Secret,
-        sk.as_ref(),
+        sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
@@ -512,8 +512,8 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
         &sk_path,
         KeyAlgorithm::HybridMlDsa65Ed25519,
         KeyType::Secret,
-        sk.ml_dsa_sk(),
-        sk.ed25519_sk(),
+        sk.expose_ml_dsa_secret(),
+        sk.expose_ed25519_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;

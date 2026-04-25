@@ -31,6 +31,15 @@ zkp-serde = ["dep:serde_with"]
 formal-verification = []
 kani = []
 saw = []
+# OS-level memory locking for `SecretVec` (Secret Type Invariant I-10):
+# prevents heap-backed secret buffers from being swapped to disk or appearing
+# in core dumps. Uses `mlock(2)` on Linux/macOS and `VirtualLock` on Windows
+# via the `region` crate. Default-off because `RLIMIT_MEMLOCK` can cause
+# constructor-time lock failures on some deployments; when the feature is
+# enabled and locking fails, `SecretVec` falls back to an unlocked buffer (the
+# bytes are still zeroized on drop). `SecretBytes<N>` is always stack-allocated
+# and is deliberately NOT covered by this feature — see the `SecretBytes` doc.
+secret-mlock = ["dep:region"]
 
 [dependencies]
 # =============================================================================
@@ -98,6 +107,11 @@ parking_lot = { workspace = true }
 elliptic-curve = { version = "0.13", features = ["sec1"] }
 # Optional: ZKP serialization
 serde_with = { version = "3.17", optional = true }
+
+# Optional: OS-level memory locking (mlock / VirtualLock) for `SecretVec`.
+# Enabled only when the `secret-mlock` feature is selected. See the feature
+# flag comment in the `[features]` section for rationale.
+region = { version = "3.0", optional = true }
 
 
 [dev-dependencies]

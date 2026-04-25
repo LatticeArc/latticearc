@@ -27,7 +27,7 @@ fuzz_target!(|data: &[u8]| {
             // Decapsulate to recover shared secret
             if let Ok(ss2) = MlKem::decapsulate(&sk, &ct) {
                 // Shared secrets must match
-                assert_eq!(ss1.as_bytes(), ss2.as_bytes());
+                assert_eq!(ss1.expose_secret(), ss2.expose_secret());
             }
         }
     }

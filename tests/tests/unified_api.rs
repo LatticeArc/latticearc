@@ -81,7 +81,7 @@ mod comprehensive {
             MlKem::generate_keypair(MlKemSecurityLevel::MlKem768).expect("keygen should succeed");
         let (ss_enc, ct) = MlKem::encapsulate(&pk).expect("encapsulate should succeed");
         let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulate should succeed");
-        assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes(), "shared secrets must match");
+        assert_eq!(ss_enc.expose_secret(), ss_dec.expose_secret(), "shared secrets must match");
     }
 
     /// Hybrid signing keygen uses Ed25519 `generate_keypair()` from
@@ -137,7 +137,7 @@ mod comprehensive {
 
         // Serialize both keys
         let pk_bytes = pk.as_bytes().to_vec();
-        let sk_bytes = sk.as_bytes().to_vec();
+        let sk_bytes = sk.expose_secret().to_vec();
 
         // Restore from bytes
         let pk2 = MlKemPublicKey::from_bytes(&pk_bytes, MlKemSecurityLevel::MlKem768)
@@ -149,8 +149,8 @@ mod comprehensive {
         let (ss_enc, ct) = MlKem::encapsulate(&pk2).expect("encapsulate should succeed");
         let ss_dec = MlKem::decapsulate(&sk2, &ct).expect("decapsulate should succeed");
         assert_eq!(
-            ss_enc.as_bytes(),
-            ss_dec.as_bytes(),
+            ss_enc.expose_secret(),
+            ss_dec.expose_secret(),
             "round-trip through serialization must match"
         );
     }

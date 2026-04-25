@@ -545,7 +545,8 @@ mod direct {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).unwrap();
         let msg = b"SLH-DSA-128s direct verify test";
         let sig =
-            sign_pq_slh_dsa_unverified(msg, sk.as_ref(), SlhDsaSecurityLevel::Shake128s).unwrap();
+            sign_pq_slh_dsa_unverified(msg, sk.expose_secret(), SlhDsaSecurityLevel::Shake128s)
+                .unwrap();
 
         let signed = SignedData {
             data: msg.to_vec(),
@@ -569,7 +570,8 @@ mod direct {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake192s).unwrap();
         let msg = b"SLH-DSA-192s direct verify test";
         let sig =
-            sign_pq_slh_dsa_unverified(msg, sk.as_ref(), SlhDsaSecurityLevel::Shake192s).unwrap();
+            sign_pq_slh_dsa_unverified(msg, sk.expose_secret(), SlhDsaSecurityLevel::Shake192s)
+                .unwrap();
 
         let signed = SignedData {
             data: msg.to_vec(),
@@ -593,7 +595,8 @@ mod direct {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s).unwrap();
         let msg = b"SLH-DSA-256s direct verify test";
         let sig =
-            sign_pq_slh_dsa_unverified(msg, sk.as_ref(), SlhDsaSecurityLevel::Shake256s).unwrap();
+            sign_pq_slh_dsa_unverified(msg, sk.expose_secret(), SlhDsaSecurityLevel::Shake256s)
+                .unwrap();
 
         let signed = SignedData {
             data: msg.to_vec(),
@@ -620,8 +623,8 @@ mod direct {
     fn test_verify_fn_dsa_direct_succeeds() {
         let (pk, sk) = generate_fn_dsa_keypair().unwrap();
         let msg = b"FN-DSA direct verify test";
-        let sig =
-            sign_pq_fn_dsa_unverified(msg, sk.as_ref(), FnDsaSecurityLevel::Level512).unwrap();
+        let sig = sign_pq_fn_dsa_unverified(msg, sk.expose_secret(), FnDsaSecurityLevel::Level512)
+            .unwrap();
 
         let signed = SignedData {
             data: msg.to_vec(),
@@ -648,7 +651,8 @@ mod direct {
     fn test_verify_pure_ml_dsa_44_direct_succeeds() {
         let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
         let msg = b"Pure ML-DSA-44 verify test";
-        let sig = sign_pq_ml_dsa_unverified(msg, sk.as_ref(), MlDsaParameterSet::MlDsa44).unwrap();
+        let sig =
+            sign_pq_ml_dsa_unverified(msg, sk.expose_secret(), MlDsaParameterSet::MlDsa44).unwrap();
 
         let signed = SignedData {
             data: msg.to_vec(),
@@ -671,7 +675,8 @@ mod direct {
     fn test_verify_pure_ml_dsa_65_direct_succeeds() {
         let (pk, sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa65).unwrap();
         let msg = b"Pure ML-DSA-65 verify test";
-        let sig = sign_pq_ml_dsa_unverified(msg, sk.as_ref(), MlDsaParameterSet::MlDsa65).unwrap();
+        let sig =
+            sign_pq_ml_dsa_unverified(msg, sk.expose_secret(), MlDsaParameterSet::MlDsa65).unwrap();
 
         let signed = SignedData {
             data: msg.to_vec(),
@@ -698,7 +703,7 @@ mod direct {
     fn test_verify_ed25519_scheme_is_supported() {
         let (pk, sk) = generate_keypair().unwrap();
         let msg = b"Ed25519 verify test";
-        let sig = sign_ed25519_unverified(msg, sk.as_ref()).unwrap();
+        let sig = sign_ed25519_unverified(msg, sk.expose_secret()).unwrap();
 
         let signed = SignedData {
             data: msg.to_vec(),
@@ -809,7 +814,8 @@ mod direct {
         let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake128s).unwrap();
         let msg = b"SLH-DSA tampered sig test";
         let mut sig =
-            sign_pq_slh_dsa_unverified(msg, sk.as_ref(), SlhDsaSecurityLevel::Shake128s).unwrap();
+            sign_pq_slh_dsa_unverified(msg, sk.expose_secret(), SlhDsaSecurityLevel::Shake128s)
+                .unwrap();
 
         // Tamper with signature
         if let Some(byte) = sig.first_mut() {

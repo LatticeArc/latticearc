@@ -549,7 +549,7 @@ fn test_mlkem_512_key_sizes_has_correct_size() {
 
     // FIPS 203 specifies these sizes
     assert_eq!(pk.as_bytes().len(), 800, "ML-KEM-512 public key should be 800 bytes");
-    assert_eq!(sk.as_bytes().len(), 1632, "ML-KEM-512 secret key should be 1632 bytes");
+    assert_eq!(sk.expose_secret().len(), 1632, "ML-KEM-512 secret key should be 1632 bytes");
 }
 
 /// Test 28: ML-KEM-768 key sizes match FIPS 203 specification
@@ -562,7 +562,7 @@ fn test_mlkem_768_key_sizes_has_correct_size() {
 
     // FIPS 203 specifies these sizes
     assert_eq!(pk.as_bytes().len(), 1184, "ML-KEM-768 public key should be 1184 bytes");
-    assert_eq!(sk.as_bytes().len(), 2400, "ML-KEM-768 secret key should be 2400 bytes");
+    assert_eq!(sk.expose_secret().len(), 2400, "ML-KEM-768 secret key should be 2400 bytes");
 }
 
 /// Test 29: ML-KEM-1024 key sizes match FIPS 203 specification
@@ -575,7 +575,7 @@ fn test_mlkem_1024_key_sizes_has_correct_size() {
 
     // FIPS 203 specifies these sizes
     assert_eq!(pk.as_bytes().len(), 1568, "ML-KEM-1024 public key should be 1568 bytes");
-    assert_eq!(sk.as_bytes().len(), 3168, "ML-KEM-1024 secret key should be 3168 bytes");
+    assert_eq!(sk.expose_secret().len(), 3168, "ML-KEM-1024 secret key should be 3168 bytes");
 }
 
 /// Test 30: ML-KEM ciphertext sizes match specification
@@ -1052,7 +1052,7 @@ fn test_mlkem_shared_secret_size_has_correct_size() {
         let (shared_secret, _ct) = MlKem::encapsulate(&pk).unwrap();
 
         assert_eq!(
-            shared_secret.as_bytes().len(),
+            shared_secret.expose_secret().len(),
             32,
             "{:?} shared secret should be 32 bytes",
             level
@@ -1071,7 +1071,7 @@ fn test_concurrent_signature_operations_succeeds() {
 
     // Generate keypair once (shared across threads - but each thread signs)
     let (_pk, sk) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
-    let sk_bytes = sk.as_bytes().to_vec();
+    let sk_bytes = sk.expose_secret().to_vec();
 
     let start = Instant::now();
     let mut handles = vec![];

@@ -26,7 +26,7 @@
 //! let (public_key, private_key) = generate_keypair()?;
 //!
 //! // Establish a Zero Trust verified session (recommended)
-//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 //!
 //! // Symmetric encryption with session verification
 //! let key = [0u8; 32];
@@ -64,7 +64,7 @@
 //! let (public_key, private_key) = generate_keypair()?;
 //!
 //! // Step 2: Establish a verified session (performs challenge-response)
-//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 //!
 //! // Step 3: Use the session for cryptographic operations
 //! let key = [0u8; 32];
@@ -120,7 +120,7 @@
 //!
 //! # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
 //! let (pk, sk) = generate_keypair()?;
-//! let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
+//! let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 //!
 //! // Session is valid for 30 minutes by default
 //! assert!(session.is_valid());
@@ -250,8 +250,8 @@ pub use types::{
     AlgorithmSelection, ComplianceMode, CryptoConfig, CryptoContext, CryptoMode, CryptoPayload,
     CryptoScheme, DecryptKey, EncryptKey, EncryptedData, EncryptedMetadata, EncryptedOutput,
     EncryptionScheme, HashOutput, HybridComponents, KeyPair, PerformancePreference, PrivateKey,
-    PublicKey, SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
-    fips_available,
+    PublicKey, SecretBytes, SecretVec, SecurityLevel, SignedData, SignedMetadata, SymmetricKey,
+    UseCase, fips_available,
 };
 pub use zero_trust::{
     Challenge, ContinuousSession, ProofOfPossessionData, SecurityMode, TrustLevel, VerifiedSession,

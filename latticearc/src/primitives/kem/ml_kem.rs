@@ -82,7 +82,8 @@
 //!
 //! // Decapsulate using secret key
 //! let ss_dec = MlKem::decapsulate(&sk, &ciphertext).unwrap();
-//! assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
+//! use subtle::ConstantTimeEq;
+//! assert!(bool::from(ss_enc.expose_secret().ct_eq(ss_dec.expose_secret())));
 //! ```
 
 use aws_lc_rs::kem::{Algorithm as KemAlgorithm, DecapsulationKey, EncapsulationKey};
@@ -434,9 +435,12 @@ impl MlKemSecretKey {
         self.security_level
     }
 
-    /// Returns a reference to the raw secret key bytes
+    /// Expose the secret key bytes.
+    ///
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.data
     }
 
@@ -467,13 +471,11 @@ impl ConstantTimeEq for MlKemSecretKey {
     }
 }
 
-impl PartialEq for MlKemSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl Eq for MlKemSecretKey {}
+// `PartialEq`/`Eq` are intentionally NOT implemented on `MlKemSecretKey`.
+// See `docs/SECRET_TYPE_INVARIANTS.md` invariants I-5 and I-6: secret-key
+// equality must go through `ConstantTimeEq::ct_eq` so that the returned
+// `subtle::Choice` cannot be composed with short-circuiting operators.
+// Enforced by `latticearc/tests/no_partial_eq_on_secret_types.rs`.
 
 impl Zeroize for MlKemSecretKey {
     fn zeroize(&mut self) {
@@ -580,9 +582,12 @@ impl MlKemSharedSecret {
         Ok(Self { data: bytes })
     }
 
-    /// Returns a reference to the shared secret bytes
+    /// Expose the shared secret bytes.
+    ///
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.data
     }
 
@@ -599,13 +604,9 @@ impl ConstantTimeEq for MlKemSharedSecret {
     }
 }
 
-impl PartialEq for MlKemSharedSecret {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl Eq for MlKemSharedSecret {}
+// `PartialEq`/`Eq` are intentionally NOT implemented on `MlKemSharedSecret`.
+// See invariants I-5/I-6 in `docs/SECRET_TYPE_INVARIANTS.md`. Use
+// `ConstantTimeEq::ct_eq` for comparisons.
 
 /// ML-KEM configuration
 #[derive(Debug, Clone, Copy)]
@@ -1021,7 +1022,7 @@ impl MlKem {
         // by a malformed *caller-side* secret key (not adversary-reachable),
         // but we still unify the error for consistency and defense in depth.
         let algorithm = secret_key.security_level().as_aws_algorithm();
-        let decaps_key = DecapsulationKey::new(algorithm, secret_key.as_bytes())
+        let decaps_key = DecapsulationKey::new(algorithm, secret_key.expose_secret())
             .map_err(|_e| MlKemError::DecapsulationError("decapsulation failed".to_string()))?;
         let shared_secret = decaps_key
             .decapsulate(ciphertext.as_bytes().into())
@@ -1065,10 +1066,7 @@ mod tests {
         let ss2 = MlKemSharedSecret::new([1u8; 32]);
         let ss3 = MlKemSharedSecret::new([2u8; 32]);
 
-        assert_eq!(ss1, ss2);
-        assert_ne!(ss1, ss3);
-
-        // Test using constant-time comparison directly
+        // Secret comparison uses `ct_eq` (invariants I-5/I-6).
         assert!(bool::from(ss1.ct_eq(&ss2)));
         assert!(!bool::from(ss1.ct_eq(&ss3)));
     }
@@ -1079,9 +1077,9 @@ mod tests {
 
         // Verify keys were generated correctly
         assert!(!pk.as_bytes().iter().all(|&b| b == 0));
-        assert!(!sk.as_bytes().iter().all(|&b| b == 0));
+        assert!(!sk.expose_secret().iter().all(|&b| b == 0));
         assert_eq!(pk.as_bytes().len(), MlKemSecurityLevel::MlKem768.public_key_size());
-        assert_eq!(sk.as_bytes().len(), MlKemSecurityLevel::MlKem768.secret_key_size());
+        assert_eq!(sk.expose_secret().len(), MlKemSecurityLevel::MlKem768.secret_key_size());
         Ok(())
     }
 
@@ -1097,7 +1095,7 @@ mod tests {
             let (pk, sk) = MlKem::generate_keypair(sl)?;
             let (ss_enc, ct) = MlKem::encapsulate(&pk)?;
             let ss_dec = MlKem::decapsulate(&sk, &ct)?;
-            assert_eq!(ss_enc, ss_dec);
+            assert!(bool::from(ss_enc.ct_eq(&ss_dec)));
         }
         Ok(())
     }
@@ -1106,7 +1104,7 @@ mod tests {
     fn test_shared_secret_from_slice_roundtrip() -> Result<(), MlKemError> {
         let valid_bytes = vec![1u8; 32];
         let ss = MlKemSharedSecret::from_slice(&valid_bytes)?;
-        assert_eq!(ss.as_bytes(), &valid_bytes[..]);
+        assert_eq!(ss.expose_secret(), &valid_bytes[..]);
 
         let invalid_bytes = vec![1u8; 31];
         let result = MlKemSharedSecret::from_slice(&invalid_bytes);
@@ -1119,7 +1117,7 @@ mod tests {
         let (_pk, mut sk) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
             .expect("Key generation should succeed");
 
-        let sk_bytes_before = sk.as_bytes().to_vec();
+        let sk_bytes_before = sk.expose_secret().to_vec();
         assert!(
             !sk_bytes_before.iter().all(|&b| b == 0),
             "Secret key should contain non-zero data"
@@ -1127,7 +1125,7 @@ mod tests {
 
         sk.zeroize();
 
-        let sk_bytes_after = sk.as_bytes();
+        let sk_bytes_after = sk.expose_secret();
         assert!(sk_bytes_after.iter().all(|&b| b == 0), "Secret key should be zeroized");
     }
 
@@ -1139,7 +1137,7 @@ mod tests {
         let (mut shared_secret, _ct) =
             MlKem::encapsulate(&pk).expect("Encapsulation should succeed");
 
-        let ss_bytes_before = shared_secret.as_bytes().to_vec();
+        let ss_bytes_before = shared_secret.expose_secret().to_vec();
         assert!(
             !ss_bytes_before.iter().all(|&b| b == 0),
             "Shared secret should contain non-zero data"
@@ -1147,7 +1145,7 @@ mod tests {
 
         shared_secret.zeroize();
 
-        let ss_bytes_after = shared_secret.as_bytes();
+        let ss_bytes_after = shared_secret.expose_secret();
         assert!(ss_bytes_after.iter().all(|&b| b == 0), "Shared secret should be zeroized");
     }
 
@@ -1199,7 +1197,7 @@ mod tests {
             let (_pk, mut sk) =
                 MlKem::generate_keypair(*level).expect("Key generation should succeed");
 
-            let sk_bytes_before = sk.as_bytes().to_vec();
+            let sk_bytes_before = sk.expose_secret().to_vec();
             assert!(
                 !sk_bytes_before.iter().all(|&b| b == 0),
                 "Secret key for {:?} should contain non-zero data",
@@ -1208,7 +1206,7 @@ mod tests {
 
             sk.zeroize();
 
-            let sk_bytes_after = sk.as_bytes();
+            let sk_bytes_after = sk.expose_secret();
             assert!(
                 sk_bytes_after.iter().all(|&b| b == 0),
                 "Secret key for {:?} should be zeroized",
@@ -1239,7 +1237,7 @@ mod tests {
 
             // Verify restored key can be used for encapsulation
             let (shared_secret, ciphertext) = MlKem::encapsulate(&restored_pk)?;
-            assert_eq!(shared_secret.as_bytes().len(), 32);
+            assert_eq!(shared_secret.expose_secret().len(), 32);
             assert_eq!(ciphertext.as_bytes().len(), level.ciphertext_size());
         }
         Ok(())
@@ -1267,7 +1265,7 @@ mod tests {
 
         // Decapsulation should succeed and produce matching shared secret
         let ss_dec = MlKem::decapsulate(&sk, &ct)?;
-        assert_eq!(ss_enc, ss_dec);
+        assert!(bool::from(ss_enc.ct_eq(&ss_dec)));
         Ok(())
     }
 
@@ -1297,7 +1295,10 @@ mod tests {
         // ML-KEM uses implicit rejection (FIPS 203 §7.3): corrupted ciphertext
         // produces a different shared secret rather than an error
         let ss_dec = MlKem::decapsulate(&sk, &ct)?;
-        assert_ne!(ss_enc, ss_dec, "Corrupted ciphertext must yield different shared secret");
+        assert!(
+            !bool::from(ss_enc.ct_eq(&ss_dec)),
+            "Corrupted ciphertext must yield different shared secret"
+        );
         Ok(())
     }
 
@@ -1417,8 +1418,8 @@ mod tests {
 
         // Shared secrets should also differ
         assert_ne!(
-            ss1.as_bytes(),
-            ss2.as_bytes(),
+            ss1.expose_secret(),
+            ss2.expose_secret(),
             "Different encapsulations should produce different shared secrets"
         );
 
@@ -1472,8 +1473,8 @@ mod tests {
 
             // Shared secrets must match
             assert_eq!(
-                ss_enc.as_bytes(),
-                ss_dec.as_bytes(),
+                ss_enc.expose_secret(),
+                ss_dec.expose_secret(),
                 "Encapsulate/decapsulate roundtrip must produce matching shared secrets for {}",
                 level.name()
             );
@@ -1563,8 +1564,6 @@ mod tests {
         let sk2 = MlKemSecretKey::new(level, vec![0xAA; level.secret_key_size()])?;
         let sk3 = MlKemSecretKey::new(level, vec![0xBB; level.secret_key_size()])?;
 
-        assert_eq!(sk1, sk2);
-        assert_ne!(sk1, sk3);
         assert!(bool::from(sk1.ct_eq(&sk2)));
         assert!(!bool::from(sk1.ct_eq(&sk3)));
         Ok(())

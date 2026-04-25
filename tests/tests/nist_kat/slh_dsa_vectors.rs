@@ -37,7 +37,7 @@ fn test_slhdsa_128s_key_sizes_match_fips205_has_correct_size() {
         SLH_DSA_128S_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         SLH_DSA_128S_SK_SIZE,
         "SLH-DSA-SHAKE-128s secret key should be {} bytes",
         SLH_DSA_128S_SK_SIZE
@@ -56,7 +56,7 @@ fn test_slhdsa_192s_key_sizes_match_fips205_has_correct_size() {
         SLH_DSA_192S_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         SLH_DSA_192S_SK_SIZE,
         "SLH-DSA-SHAKE-192s secret key should be {} bytes",
         SLH_DSA_192S_SK_SIZE
@@ -75,7 +75,7 @@ fn test_slhdsa_256s_key_sizes_match_fips205_has_correct_size() {
         SLH_DSA_256S_PK_SIZE
     );
     assert_eq!(
-        sk.as_bytes().len(),
+        sk.expose_secret().len(),
         SLH_DSA_256S_SK_SIZE,
         "SLH-DSA-SHAKE-256s secret key should be {} bytes",
         SLH_DSA_256S_SK_SIZE

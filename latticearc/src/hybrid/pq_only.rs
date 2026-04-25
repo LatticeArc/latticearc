@@ -173,10 +173,13 @@ impl PqOnlySecretKey {
         self.security_level
     }
 
-    /// Returns the raw ML-KEM secret key bytes.
+    /// Expose the ML-KEM secret key bytes.
+    ///
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn ml_kem_sk_bytes(&self) -> &[u8] {
-        self.ml_kem_sk.as_bytes()
+    pub fn expose_secret(&self) -> &[u8] {
+        self.ml_kem_sk.expose_secret()
     }
 
     /// Returns a reference to the inner ML-KEM secret key.
@@ -306,7 +309,7 @@ pub fn encrypt_pq_only(
     // HKDF info uses PQ-only domain separation to prevent cross-mode confusion
     // with hybrid encryption.
     let hkdf_result = hkdf(
-        shared_secret.as_bytes(),
+        shared_secret.expose_secret(),
         None,
         Some(crate::types::domains::PQ_ONLY_ENCRYPTION_INFO),
         32,
@@ -377,7 +380,7 @@ pub fn decrypt_pq_only(
 
     // HKDF params must match encrypt_pq_only (salt=None, same info label).
     let hkdf_result = hkdf(
-        shared_secret.as_bytes(),
+        shared_secret.expose_secret(),
         None,
         Some(crate::types::domains::PQ_ONLY_ENCRYPTION_INFO),
         32,

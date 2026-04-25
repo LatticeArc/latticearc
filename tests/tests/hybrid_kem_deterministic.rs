@@ -20,6 +20,7 @@
 use hkdf::Hkdf;
 use latticearc::hybrid::{HybridSharedSecretInputs, derive_hybrid_shared_secret};
 use sha2::Sha256;
+use subtle::ConstantTimeEq;
 
 /// Fixed test vectors for deterministic verification.
 const ML_KEM_SS: [u8; 32] = [
@@ -94,7 +95,7 @@ fn test_hybrid_kdf_matches_independent_hkdf_succeeds() {
     let expected = independent_hkdf(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK);
 
     assert_eq!(
-        actual.as_slice(),
+        actual.expose_secret(),
         expected.as_slice(),
         "derive_hybrid_shared_secret must match independent HKDF computation"
     );
@@ -136,7 +137,7 @@ fn test_domain_separator_affects_output_produces_different_secret_succeeds() {
     hk.expand(&[], &mut without_domain).expect("HKDF expand should succeed");
 
     assert_ne!(
-        with_domain.as_slice(),
+        with_domain.expose_secret(),
         without_domain.as_slice(),
         "Domain separator must affect the output"
     );
@@ -165,8 +166,8 @@ fn test_ikm_ordering_ml_kem_first_produces_different_output_when_swapped_succeed
     .unwrap();
 
     assert_ne!(
-        correct_order.as_slice(),
-        reversed_order.as_slice(),
+        correct_order.expose_secret(),
+        reversed_order.expose_secret(),
         "Swapping ML-KEM and ECDH shared secrets must produce different output"
     );
 }
@@ -201,7 +202,11 @@ fn test_ikm_ordering_matches_spec_succeeds() {
     let mut expected = vec![0u8; 64];
     hk.expand(&info, &mut expected).unwrap();
 
-    assert_eq!(actual.as_slice(), expected.as_slice(), "IKM ordering must be ml_kem_ss || ecdh_ss");
+    assert_eq!(
+        actual.expose_secret(),
+        expected.as_slice(),
+        "IKM ordering must be ml_kem_ss || ecdh_ss"
+    );
 
     // Verify reversed IKM does NOT match
     let mut ikm_reversed = Vec::with_capacity(64);
@@ -212,7 +217,11 @@ fn test_ikm_ordering_matches_spec_succeeds() {
     let mut reversed = vec![0u8; 64];
     hk_rev.expand(&info, &mut reversed).unwrap();
 
-    assert_ne!(actual.as_slice(), reversed.as_slice(), "Reversed IKM must not match correct order");
+    assert_ne!(
+        actual.expose_secret(),
+        reversed.as_slice(),
+        "Reversed IKM must not match correct order"
+    );
 }
 
 /// Verify static_pk is bound into the derivation (context binding).
@@ -237,8 +246,8 @@ fn test_static_pk_binding_produces_different_output_for_different_keys_succeeds(
     })
     .unwrap();
 
-    assert_ne!(
-        result1, result2,
+    assert!(
+        !bool::from(result1.ct_eq(&result2)),
         "Different static public keys must produce different shared secrets"
     );
 }
@@ -265,8 +274,8 @@ fn test_ephemeral_pk_binding_produces_different_output_for_different_keys_succee
     })
     .unwrap();
 
-    assert_ne!(
-        result1, result2,
+    assert!(
+        !bool::from(result1.ct_eq(&result2)),
         "Different ephemeral public keys must produce different shared secrets"
     );
 }
@@ -290,7 +299,11 @@ fn test_roundtrip_determinism_roundtrip() {
             ephemeral_pk: &EPHEMERAL_PK,
         })
         .unwrap();
-        assert_eq!(reference, result, "Output must be deterministic (mismatch at iteration {})", i);
+        assert!(
+            bool::from(reference.ct_eq(&result)),
+            "Output must be deterministic (mismatch at iteration {})",
+            i
+        );
     }
 }
 
@@ -348,7 +361,7 @@ fn test_output_is_nontrivial_succeeds() {
         ephemeral_pk: &EPHEMERAL_PK,
     })
     .unwrap();
-    assert!(!result.iter().all(|&b| b == 0), "Shared secret must not be all zeros");
+    assert!(!result.expose_secret().iter().all(|&b| b == 0), "Shared secret must not be all zeros");
 }
 
 /// Full hybrid KEM roundtrip: generate keys, encapsulate, decapsulate,
@@ -366,8 +379,8 @@ fn test_full_roundtrip_shared_secret_agreement_roundtrip() {
         let decapsulated_ss = decapsulate(&sk, &encapsulated).unwrap();
 
         assert_eq!(
-            encapsulated.shared_secret(),
-            decapsulated_ss.as_slice(),
+            encapsulated.expose_secret(),
+            decapsulated_ss.expose_secret(),
             "Encapsulated and decapsulated shared secrets must match"
         );
     }

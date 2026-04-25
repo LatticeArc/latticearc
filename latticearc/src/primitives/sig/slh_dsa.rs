@@ -343,13 +343,9 @@ impl ConstantTimeEq for SigningKey {
     }
 }
 
-impl PartialEq for SigningKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl Eq for SigningKey {}
+// `PartialEq`/`Eq` are intentionally NOT implemented on SLH-DSA `SigningKey`.
+// See invariants I-5/I-6 in `docs/SECRET_TYPE_INVARIANTS.md`. Use
+// `ConstantTimeEq::ct_eq` for comparisons.
 
 impl SigningKey {
     /// Generates a new signing key with the specified security level
@@ -560,9 +556,12 @@ impl SigningKey {
         self.security_level
     }
 
-    /// Returns the signing key as bytes
+    /// Expose the signing key bytes.
+    ///
+    /// Sealed accessor per Secret Type Invariant I-8
+    /// (`docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.bytes[..self.len]
     }
 
@@ -571,7 +570,7 @@ impl SigningKey {
     /// Returns `Zeroizing<Vec<u8>>` to ensure the secret key bytes are zeroized on drop.
     #[must_use]
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
-        Zeroizing::new(self.as_bytes().to_vec())
+        Zeroizing::new(self.expose_secret().to_vec())
     }
 
     /// Deserializes a signing key from bytes
@@ -629,36 +628,36 @@ impl SigningKey {
 
         match self.security_level {
             SlhDsaSecurityLevel::Shake128s => {
-                if self.as_bytes().len() != shake_128s::SK_LEN {
+                if self.expose_secret().len() != shake_128s::SK_LEN {
                     return Err(SlhDsaError::InvalidSecretKey);
                 }
                 let mut sk_bytes: Zeroizing<[u8; shake_128s::SK_LEN]> =
                     Zeroizing::new([0u8; shake_128s::SK_LEN]);
-                sk_bytes.copy_from_slice(self.as_bytes());
+                sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = shake_128s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let sig = sk.try_sign(message, ctx, true).map_err(|_e| SlhDsaError::RngError)?;
                 Ok(sig.as_ref().to_vec())
             }
             SlhDsaSecurityLevel::Shake192s => {
-                if self.as_bytes().len() != shake_192s::SK_LEN {
+                if self.expose_secret().len() != shake_192s::SK_LEN {
                     return Err(SlhDsaError::InvalidSecretKey);
                 }
                 let mut sk_bytes: Zeroizing<[u8; shake_192s::SK_LEN]> =
                     Zeroizing::new([0u8; shake_192s::SK_LEN]);
-                sk_bytes.copy_from_slice(self.as_bytes());
+                sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = shake_192s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let sig = sk.try_sign(message, ctx, true).map_err(|_e| SlhDsaError::RngError)?;
                 Ok(sig.as_ref().to_vec())
             }
             SlhDsaSecurityLevel::Shake256s => {
-                if self.as_bytes().len() != shake_256s::SK_LEN {
+                if self.expose_secret().len() != shake_256s::SK_LEN {
                     return Err(SlhDsaError::InvalidSecretKey);
                 }
                 let mut sk_bytes: Zeroizing<[u8; shake_256s::SK_LEN]> =
                     Zeroizing::new([0u8; shake_256s::SK_LEN]);
-                sk_bytes.copy_from_slice(self.as_bytes());
+                sk_bytes.copy_from_slice(self.expose_secret());
                 let sk = shake_256s::PrivateKey::try_from_bytes(&sk_bytes)
                     .map_err(|_e| SlhDsaError::InvalidSecretKey)?;
                 let sig = sk.try_sign(message, ctx, true).map_err(|_e| SlhDsaError::RngError)?;
@@ -736,7 +735,7 @@ mod tests {
                 level
             );
             assert_eq!(
-                sk.as_bytes().len(),
+                sk.expose_secret().len(),
                 level.secret_key_size(),
                 "Secret key size mismatch for {:?}",
                 level
@@ -817,7 +816,7 @@ mod tests {
             let sk_restored = SigningKey::from_bytes(&sk_bytes, level)
                 .expect("Secret key deserialization failed");
             assert_eq!(sk.security_level(), sk_restored.security_level());
-            assert_eq!(sk.as_bytes(), sk_restored.as_bytes());
+            assert_eq!(sk.expose_secret(), sk_restored.expose_secret());
 
             // Verify that restored key works
             let message = b"Test message";
@@ -938,7 +937,7 @@ mod tests {
         let (mut sk, _pk) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)
             .expect("Key generation should succeed");
 
-        let sk_bytes_before = sk.as_bytes().to_vec();
+        let sk_bytes_before = sk.expose_secret().to_vec();
         assert!(
             !sk_bytes_before.iter().all(|&b| b == 0),
             "Secret key should contain non-zero data"
@@ -946,7 +945,7 @@ mod tests {
 
         sk.zeroize();
 
-        let sk_bytes_after = sk.as_bytes();
+        let sk_bytes_after = sk.expose_secret();
         assert!(sk_bytes_after.iter().all(|&b| b == 0), "Secret key should be zeroized");
     }
 
@@ -962,7 +961,7 @@ mod tests {
             let (mut sk, _pk) =
                 SigningKey::generate(*level).expect("Key generation should succeed");
 
-            let sk_bytes_before = sk.as_bytes().to_vec();
+            let sk_bytes_before = sk.expose_secret().to_vec();
             assert!(
                 !sk_bytes_before.iter().all(|&b| b == 0),
                 "Secret key for {:?} should contain non-zero data",
@@ -971,7 +970,7 @@ mod tests {
 
             sk.zeroize();
 
-            let sk_bytes_after = sk.as_bytes();
+            let sk_bytes_after = sk.expose_secret();
             assert!(
                 sk_bytes_after.iter().all(|&b| b == 0),
                 "Secret key for {:?} should be zeroized",

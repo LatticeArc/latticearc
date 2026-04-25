@@ -312,8 +312,8 @@ fn test_ml_kem_decapsulate_with_junk_ciphertext_succeeds() {
     let junk_ss = MlKem::decapsulate(&sk, &junk_ct)
         .expect("decapsulation succeeds even with junk (implicit rejection)");
     assert_ne!(
-        real_ss.as_bytes(),
-        junk_ss.as_bytes(),
+        real_ss.expose_secret(),
+        junk_ss.expose_secret(),
         "Junk ciphertext must produce a different shared secret"
     );
 }
@@ -336,8 +336,8 @@ fn test_ml_kem_decapsulate_with_all_zeros_ciphertext_succeeds() {
     let zero_ss = MlKem::decapsulate(&sk, &zero_ct)
         .expect("decapsulation succeeds even with zeros (implicit rejection)");
     assert_ne!(
-        real_ss.as_bytes(),
-        zero_ss.as_bytes(),
+        real_ss.expose_secret(),
+        zero_ss.expose_secret(),
         "All-zeros ciphertext must produce a different shared secret"
     );
 }
@@ -360,8 +360,8 @@ fn test_ml_kem_decapsulate_with_all_ones_ciphertext_succeeds() {
     let ones_ss = MlKem::decapsulate(&sk, &ones_ct)
         .expect("decapsulation succeeds even with ones (implicit rejection)");
     assert_ne!(
-        real_ss.as_bytes(),
-        ones_ss.as_bytes(),
+        real_ss.expose_secret(),
+        ones_ss.expose_secret(),
         "All-ones ciphertext must produce a different shared secret"
     );
 }
@@ -455,7 +455,7 @@ fn test_ml_kem_shared_secret_length_encapsulation_only_has_correct_size() {
         let (ss_enc, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         // All ML-KEM variants produce 32-byte shared secrets
-        assert_eq!(ss_enc.as_bytes().len(), 32, "Shared secret should be 32 bytes");
+        assert_eq!(ss_enc.expose_secret().len(), 32, "Shared secret should be 32 bytes");
     }
 }
 
@@ -470,9 +470,9 @@ fn test_ml_kem_shared_secret_length_full_roundtrip() {
         let ss_dec = MlKem::decapsulate(&sk, &ct).expect("decapsulation should succeed");
 
         // All ML-KEM variants produce 32-byte shared secrets
-        assert_eq!(ss_enc.as_bytes().len(), 32, "Shared secret should be 32 bytes");
-        assert_eq!(ss_dec.as_bytes().len(), 32, "Shared secret should be 32 bytes");
-        assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes(), "Shared secrets should match");
+        assert_eq!(ss_enc.expose_secret().len(), 32, "Shared secret should be 32 bytes");
+        assert_eq!(ss_dec.expose_secret().len(), 32, "Shared secret should be 32 bytes");
+        assert_eq!(ss_enc.expose_secret(), ss_dec.expose_secret(), "Shared secrets should match");
     }
 }
 
