@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["config","domains","error","key_lifecycle","traits","types","zero_trust"]};
+window.SIDEBAR_ITEMS = {"mod":["config","domains","error","key_lifecycle","secrets","traits","types","zero_trust"]};

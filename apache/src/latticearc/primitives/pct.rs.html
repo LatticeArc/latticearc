@@ -212,7 +212,7 @@
 <a href=#212 id=212 data-nosnippet>212</a>        .map_err(|e| PctError::VerificationFailed(<span class="macro">format!</span>(<span class="string">"ML-KEM decapsulation failed: {}"</span>, e)))<span class="question-mark">?</span>;
 <a href=#213 id=213 data-nosnippet>213</a>
 <a href=#214 id=214 data-nosnippet>214</a>    <span class="comment">// Constant-time comparison
-<a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">let </span>is_valid = bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes()));
+<a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">let </span>is_valid = bool::from(ss_encap.expose_secret().ct_eq(ss_decap.expose_secret()));
 <a href=#216 id=216 data-nosnippet>216</a>    pct_finalize(is_valid)
 <a href=#217 id=217 data-nosnippet>217</a>}
 <a href=#218 id=218 data-nosnippet>218</a>

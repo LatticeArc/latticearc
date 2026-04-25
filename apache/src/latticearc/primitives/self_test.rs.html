@@ -665,7 +665,7 @@
 <a href=#665 id=665 data-nosnippet>665</a>    })<span class="question-mark">?</span>;
 <a href=#666 id=666 data-nosnippet>666</a>
 <a href=#667 id=667 data-nosnippet>667</a>    <span class="comment">// Verify shared secrets match (constant-time comparison)
-<a href=#668 id=668 data-nosnippet>668</a>    </span><span class="kw">if </span>!bool::from(ss_encap.as_bytes().ct_eq(ss_decap.as_bytes())) {
+<a href=#668 id=668 data-nosnippet>668</a>    </span><span class="kw">if </span>!bool::from(ss_encap.expose_secret().ct_eq(ss_decap.expose_secret())) {
 <a href=#669 id=669 data-nosnippet>669</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
 <a href=#670 id=670 data-nosnippet>670</a>            message: <span class="string">"ML-KEM-768 KAT: encapsulated and decapsulated shared secrets do not match"
 <a href=#671 id=671 data-nosnippet>671</a>                </span>.to_string(),
@@ -673,7 +673,7 @@
 <a href=#673 id=673 data-nosnippet>673</a>    }
 <a href=#674 id=674 data-nosnippet>674</a>
 <a href=#675 id=675 data-nosnippet>675</a>    <span class="comment">// Verify shared secret is not all zeros
-<a href=#676 id=676 data-nosnippet>676</a>    </span><span class="kw">let </span>all_zeros = ss_encap.as_bytes().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>);
+<a href=#676 id=676 data-nosnippet>676</a>    </span><span class="kw">let </span>all_zeros = ss_encap.expose_secret().iter().all(|<span class="kw-2">&amp;</span>b| b == <span class="number">0</span>);
 <a href=#677 id=677 data-nosnippet>677</a>    <span class="kw">if </span>all_zeros {
 <a href=#678 id=678 data-nosnippet>678</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
 <a href=#679 id=679 data-nosnippet>679</a>            message: <span class="string">"ML-KEM-768 KAT: shared secret is all zeros"</span>.to_string(),
@@ -819,12 +819,12 @@
 <a href=#819 id=819 data-nosnippet>819</a>    }
 <a href=#820 id=820 data-nosnippet>820</a>
 <a href=#821 id=821 data-nosnippet>821</a>    <span class="kw">let </span>expected_sk_size = SlhDsaSecurityLevel::Shake128s.secret_key_size();
-<a href=#822 id=822 data-nosnippet>822</a>    <span class="kw">if </span>signing_key.as_bytes().len() != expected_sk_size {
+<a href=#822 id=822 data-nosnippet>822</a>    <span class="kw">if </span>signing_key.expose_secret().len() != expected_sk_size {
 <a href=#823 id=823 data-nosnippet>823</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(LatticeArcError::ValidationError {
 <a href=#824 id=824 data-nosnippet>824</a>            message: <span class="macro">format!</span>(
 <a href=#825 id=825 data-nosnippet>825</a>                <span class="string">"SLH-DSA KAT: secret key size mismatch: expected {}, got {}"</span>,
 <a href=#826 id=826 data-nosnippet>826</a>                expected_sk_size,
-<a href=#827 id=827 data-nosnippet>827</a>                signing_key.as_bytes().len()
+<a href=#827 id=827 data-nosnippet>827</a>                signing_key.expose_secret().len()
 <a href=#828 id=828 data-nosnippet>828</a>            ),
 <a href=#829 id=829 data-nosnippet>829</a>        });
 <a href=#830 id=830 data-nosnippet>830</a>    }

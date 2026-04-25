@@ -299,7 +299,7 @@
 <a href=#299 id=299 data-nosnippet>299</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#300 id=300 data-nosnippet>300</a>        alg,
 <a href=#301 id=301 data-nosnippet>301</a>        KeyType::Secret,
-<a href=#302 id=302 data-nosnippet>302</a>        sk.as_ref(),
+<a href=#302 id=302 data-nosnippet>302</a>        sk.expose_secret(),
 <a href=#303 id=303 data-nosnippet>303</a>        args.label.clone(),
 <a href=#304 id=304 data-nosnippet>304</a>        passphrase.as_ref().map(|p| p.as_bytes()),
 <a href=#305 id=305 data-nosnippet>305</a>    )<span class="question-mark">?</span>;
@@ -342,7 +342,7 @@
 <a href=#342 id=342 data-nosnippet>342</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#343 id=343 data-nosnippet>343</a>        alg,
 <a href=#344 id=344 data-nosnippet>344</a>        KeyType::Secret,
-<a href=#345 id=345 data-nosnippet>345</a>        sk.as_ref(),
+<a href=#345 id=345 data-nosnippet>345</a>        sk.expose_secret(),
 <a href=#346 id=346 data-nosnippet>346</a>        args.label.clone(),
 <a href=#347 id=347 data-nosnippet>347</a>        passphrase.as_ref().map(|p| p.as_bytes()),
 <a href=#348 id=348 data-nosnippet>348</a>    )<span class="question-mark">?</span>;
@@ -376,7 +376,7 @@
 <a href=#376 id=376 data-nosnippet>376</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#377 id=377 data-nosnippet>377</a>        KeyAlgorithm::SlhDsaShake128s,
 <a href=#378 id=378 data-nosnippet>378</a>        KeyType::Secret,
-<a href=#379 id=379 data-nosnippet>379</a>        sk.as_ref(),
+<a href=#379 id=379 data-nosnippet>379</a>        sk.expose_secret(),
 <a href=#380 id=380 data-nosnippet>380</a>        args.label.clone(),
 <a href=#381 id=381 data-nosnippet>381</a>        passphrase.as_ref().map(|p| p.as_bytes()),
 <a href=#382 id=382 data-nosnippet>382</a>    )<span class="question-mark">?</span>;
@@ -409,7 +409,7 @@
 <a href=#409 id=409 data-nosnippet>409</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#410 id=410 data-nosnippet>410</a>        KeyAlgorithm::FnDsa512,
 <a href=#411 id=411 data-nosnippet>411</a>        KeyType::Secret,
-<a href=#412 id=412 data-nosnippet>412</a>        sk.as_ref(),
+<a href=#412 id=412 data-nosnippet>412</a>        sk.expose_secret(),
 <a href=#413 id=413 data-nosnippet>413</a>        args.label.clone(),
 <a href=#414 id=414 data-nosnippet>414</a>        passphrase.as_ref().map(|p| p.as_bytes()),
 <a href=#415 id=415 data-nosnippet>415</a>    )<span class="question-mark">?</span>;
@@ -442,7 +442,7 @@
 <a href=#442 id=442 data-nosnippet>442</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#443 id=443 data-nosnippet>443</a>        KeyAlgorithm::Ed25519,
 <a href=#444 id=444 data-nosnippet>444</a>        KeyType::Secret,
-<a href=#445 id=445 data-nosnippet>445</a>        sk.as_ref(),
+<a href=#445 id=445 data-nosnippet>445</a>        sk.expose_secret(),
 <a href=#446 id=446 data-nosnippet>446</a>        args.label.clone(),
 <a href=#447 id=447 data-nosnippet>447</a>        passphrase.as_ref().map(|p| p.as_bytes()),
 <a href=#448 id=448 data-nosnippet>448</a>    )<span class="question-mark">?</span>;
@@ -512,8 +512,8 @@
 <a href=#512 id=512 data-nosnippet>512</a>        <span class="kw-2">&amp;</span>sk_path,
 <a href=#513 id=513 data-nosnippet>513</a>        KeyAlgorithm::HybridMlDsa65Ed25519,
 <a href=#514 id=514 data-nosnippet>514</a>        KeyType::Secret,
-<a href=#515 id=515 data-nosnippet>515</a>        sk.ml_dsa_sk(),
-<a href=#516 id=516 data-nosnippet>516</a>        sk.ed25519_sk(),
+<a href=#515 id=515 data-nosnippet>515</a>        sk.expose_ml_dsa_secret(),
+<a href=#516 id=516 data-nosnippet>516</a>        sk.expose_ed25519_secret(),
 <a href=#517 id=517 data-nosnippet>517</a>        args.label.clone(),
 <a href=#518 id=518 data-nosnippet>518</a>        passphrase.as_ref().map(|p| p.as_bytes()),
 <a href=#519 id=519 data-nosnippet>519</a>    )<span class="question-mark">?</span>;

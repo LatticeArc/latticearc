@@ -334,7 +334,7 @@
 <a href=#334 id=334 data-nosnippet>334</a>        <span class="kw">let </span>(auth_pk, auth_sk) = <span class="kw">crate</span>::unified_api::convenience::keygen::generate_keypair()<span class="question-mark">?</span>;
 <a href=#335 id=335 data-nosnippet>335</a>        <span class="kw">let </span>session = <span class="kw">crate</span>::unified_api::zero_trust::VerifiedSession::establish(
 <a href=#336 id=336 data-nosnippet>336</a>            auth_pk.as_slice(),
-<a href=#337 id=337 data-nosnippet>337</a>            auth_sk.as_ref(),
+<a href=#337 id=337 data-nosnippet>337</a>            auth_sk.expose_secret(),
 <a href=#338 id=338 data-nosnippet>338</a>        )<span class="question-mark">?</span>;
 <a href=#339 id=339 data-nosnippet>339</a>
 <a href=#340 id=340 data-nosnippet>340</a>        <span class="kw">let </span>(pk, sk) = generate_hybrid_signing_keypair(SecurityMode::Verified(<span class="kw-2">&amp;</span>session))<span class="question-mark">?</span>;

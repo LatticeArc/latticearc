@@ -30,7 +30,7 @@
 <a href=#30 id=30 data-nosnippet>30</a>                    <span class="kw">let </span>(ss_enc, ct) = MlKem::encapsulate(<span class="kw-2">&amp;</span>pk).expect(<span class="string">"encap should succeed"</span>);
 <a href=#31 id=31 data-nosnippet>31</a>                    <span class="kw">let </span>ss_dec = MlKem::decapsulate(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>ct).expect(<span class="string">"decap should succeed"</span>);
 <a href=#32 id=32 data-nosnippet>32</a>
-<a href=#33 id=33 data-nosnippet>33</a>                    <span class="kw">if </span>ss_enc.as_bytes() == ss_dec.as_bytes() {
+<a href=#33 id=33 data-nosnippet>33</a>                    <span class="kw">if </span>ss_enc.expose_secret() == ss_dec.expose_secret() {
 <a href=#34 id=34 data-nosnippet>34</a>                        success.fetch_add(<span class="number">1</span>, Ordering::SeqCst);
 <a href=#35 id=35 data-nosnippet>35</a>                    }
 <a href=#36 id=36 data-nosnippet>36</a>                })
@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a>                                .expect(<span class="string">"keygen"</span>);
 <a href=#104 id=104 data-nosnippet>104</a>                            <span class="kw">let </span>(ss_enc, ct) = MlKem::encapsulate(<span class="kw-2">&amp;</span>pk).expect(<span class="string">"encap"</span>);
 <a href=#105 id=105 data-nosnippet>105</a>                            <span class="kw">let </span>ss_dec = MlKem::decapsulate(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>ct).expect(<span class="string">"decap"</span>);
-<a href=#106 id=106 data-nosnippet>106</a>                            <span class="macro">assert_eq!</span>(ss_enc.as_bytes(), ss_dec.as_bytes());
+<a href=#106 id=106 data-nosnippet>106</a>                            <span class="macro">assert_eq!</span>(ss_enc.expose_secret(), ss_dec.expose_secret());
 <a href=#107 id=107 data-nosnippet>107</a>                        }
 <a href=#108 id=108 data-nosnippet>108</a>                    });
 <a href=#109 id=109 data-nosnippet>109</a>
@@ -136,7 +136,7 @@
 <a href=#136 id=136 data-nosnippet>136</a>                        MlKem::generate_keypair(MlKemSecurityLevel::MlKem512).expect(<span class="string">"keygen"</span>);
 <a href=#137 id=137 data-nosnippet>137</a>                    <span class="kw">let </span>(ss, _ct) = MlKem::encapsulate(<span class="kw-2">&amp;</span>pk).expect(<span class="string">"encap"</span>);
 <a href=#138 id=138 data-nosnippet>138</a>
-<a href=#139 id=139 data-nosnippet>139</a>                    shared_secrets.lock().expect(<span class="string">"mutex"</span>).push(ss.as_bytes().to_vec());
+<a href=#139 id=139 data-nosnippet>139</a>                    shared_secrets.lock().expect(<span class="string">"mutex"</span>).push(ss.expose_secret().to_vec());
 <a href=#140 id=140 data-nosnippet>140</a>                })
 <a href=#141 id=141 data-nosnippet>141</a>            })
 <a href=#142 id=142 data-nosnippet>142</a>            .collect();
@@ -198,7 +198,7 @@
 <a href=#198 id=198 data-nosnippet>198</a>                    results
 <a href=#199 id=199 data-nosnippet>199</a>                        .lock()
 <a href=#200 id=200 data-nosnippet>200</a>                        .expect(<span class="string">"mutex"</span>)
-<a href=#201 id=201 data-nosnippet>201</a>                        .push((ss.as_bytes().to_vec(), ct.as_bytes().to_vec()));
+<a href=#201 id=201 data-nosnippet>201</a>                        .push((ss.expose_secret().to_vec(), ct.as_bytes().to_vec()));
 <a href=#202 id=202 data-nosnippet>202</a>                })
 <a href=#203 id=203 data-nosnippet>203</a>            })
 <a href=#204 id=204 data-nosnippet>204</a>            .collect();
@@ -346,7 +346,7 @@
 <a href=#346 id=346 data-nosnippet>346</a>                    <span class="kw">let </span>(pk, _sk) = MlKem::generate_keypair(level).expect(<span class="string">"keygen should succeed"</span>);
 <a href=#347 id=347 data-nosnippet>347</a>                    <span class="kw">let </span>(ss, _ct) = MlKem::encapsulate(<span class="kw-2">&amp;</span>pk).expect(<span class="string">"encap should succeed"</span>);
 <a href=#348 id=348 data-nosnippet>348</a>
-<a href=#349 id=349 data-nosnippet>349</a>                    <span class="kw">if </span>!ss.as_bytes().is_empty() {
+<a href=#349 id=349 data-nosnippet>349</a>                    <span class="kw">if </span>!ss.expose_secret().is_empty() {
 <a href=#350 id=350 data-nosnippet>350</a>                        success.fetch_add(<span class="number">1</span>, Ordering::SeqCst);
 <a href=#351 id=351 data-nosnippet>351</a>                    }
 <a href=#352 id=352 data-nosnippet>352</a>                })
