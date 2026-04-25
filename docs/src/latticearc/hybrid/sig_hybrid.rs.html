@@ -273,27 +273,27 @@
 <a href=#273 id=273 data-nosnippet>273</a>        Zeroizing::new((<span class="kw-2">*</span><span class="self">self</span>.ed25519_sk).clone())
 <a href=#274 id=274 data-nosnippet>274</a>    }
 <a href=#275 id=275 data-nosnippet>275</a>
-<a href=#276 id=276 data-nosnippet>276</a>    <span class="doccomment">/// Returns a borrowed view of the ML-DSA **secret** key bytes.
+<a href=#276 id=276 data-nosnippet>276</a>    <span class="doccomment">/// Expose the ML-DSA secret key bytes.
 <a href=#277 id=277 data-nosnippet>277</a>    ///
-<a href=#278 id=278 data-nosnippet>278</a>    /// # Security
-<a href=#279 id=279 data-nosnippet>279</a>    /// This exposes secret key material. Prefer [`ml_dsa_sk_bytes`](Self::ml_dsa_sk_bytes)
-<a href=#280 id=280 data-nosnippet>280</a>    /// when you need an owned, zeroizing copy. The returned slice borrows the
-<a href=#281 id=281 data-nosnippet>281</a>    /// internal zeroizing buffer and remains valid only for the lifetime of
-<a href=#282 id=282 data-nosnippet>282</a>    /// this `HybridSigSecretKey`.
-<a href=#283 id=283 data-nosnippet>283</a>    </span><span class="attr">#[must_use]
-<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="kw">pub fn </span>ml_dsa_sk(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.ml_dsa_sk
-<a href=#286 id=286 data-nosnippet>286</a>    }
-<a href=#287 id=287 data-nosnippet>287</a>
-<a href=#288 id=288 data-nosnippet>288</a>    <span class="doccomment">/// Returns a borrowed view of the Ed25519 **secret** key bytes.
-<a href=#289 id=289 data-nosnippet>289</a>    ///
-<a href=#290 id=290 data-nosnippet>290</a>    /// # Security
-<a href=#291 id=291 data-nosnippet>291</a>    /// This exposes secret key material. Prefer [`ed25519_sk_bytes`](Self::ed25519_sk_bytes)
-<a href=#292 id=292 data-nosnippet>292</a>    /// when you need an owned, zeroizing copy. The returned slice borrows the
-<a href=#293 id=293 data-nosnippet>293</a>    /// internal zeroizing buffer and remains valid only for the lifetime of
-<a href=#294 id=294 data-nosnippet>294</a>    /// this `HybridSigSecretKey`.
+<a href=#278 id=278 data-nosnippet>278</a>    /// Sealed accessor per Secret Type Invariant I-8
+<a href=#279 id=279 data-nosnippet>279</a>    /// (`docs/SECRET_TYPE_INVARIANTS.md`). For multi-secret composites like
+<a href=#280 id=280 data-nosnippet>280</a>    /// `HybridSigSecretKey`, each secret component gets its own `expose_*_secret()`
+<a href=#281 id=281 data-nosnippet>281</a>    /// method so every secret access is still grep-able. Prefer
+<a href=#282 id=282 data-nosnippet>282</a>    /// [`ml_dsa_sk_bytes`](Self::ml_dsa_sk_bytes) when you need an owned,
+<a href=#283 id=283 data-nosnippet>283</a>    /// zeroizing copy.
+<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="attr">#[must_use]
+<a href=#285 id=285 data-nosnippet>285</a>    </span><span class="kw">pub fn </span>expose_ml_dsa_secret(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.ml_dsa_sk
+<a href=#287 id=287 data-nosnippet>287</a>    }
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a>    <span class="doccomment">/// Expose the Ed25519 secret key bytes.
+<a href=#290 id=290 data-nosnippet>290</a>    ///
+<a href=#291 id=291 data-nosnippet>291</a>    /// Sealed accessor per Secret Type Invariant I-8
+<a href=#292 id=292 data-nosnippet>292</a>    /// (`docs/SECRET_TYPE_INVARIANTS.md`). Prefer
+<a href=#293 id=293 data-nosnippet>293</a>    /// [`ed25519_sk_bytes`](Self::ed25519_sk_bytes) when you need an owned,
+<a href=#294 id=294 data-nosnippet>294</a>    /// zeroizing copy.
 <a href=#295 id=295 data-nosnippet>295</a>    </span><span class="attr">#[must_use]
-<a href=#296 id=296 data-nosnippet>296</a>    </span><span class="kw">pub fn </span>ed25519_sk(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+<a href=#296 id=296 data-nosnippet>296</a>    </span><span class="kw">pub fn </span>expose_ed25519_secret(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
 <a href=#297 id=297 data-nosnippet>297</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.ed25519_sk
 <a href=#298 id=298 data-nosnippet>298</a>    }
 <a href=#299 id=299 data-nosnippet>299</a>}
@@ -364,7 +364,7 @@
 <a href=#364 id=364 data-nosnippet>364</a>    <span class="kw">let </span>pk = HybridSigPublicKey { ml_dsa_pk: ml_dsa_pk.as_bytes().to_vec(), ed25519_pk };
 <a href=#365 id=365 data-nosnippet>365</a>
 <a href=#366 id=366 data-nosnippet>366</a>    <span class="kw">let </span>sk = HybridSigSecretKey {
-<a href=#367 id=367 data-nosnippet>367</a>        ml_dsa_sk: Zeroizing::new(ml_dsa_sk.as_bytes().to_vec()),
+<a href=#367 id=367 data-nosnippet>367</a>        ml_dsa_sk: Zeroizing::new(ml_dsa_sk.expose_secret().to_vec()),
 <a href=#368 id=368 data-nosnippet>368</a>        ed25519_sk: ed25519_sk_zeroizing,
 <a href=#369 id=369 data-nosnippet>369</a>    };
 <a href=#370 id=370 data-nosnippet>370</a>

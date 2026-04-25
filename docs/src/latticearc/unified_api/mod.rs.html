@@ -26,7 +26,7 @@
 <a href=#26 id=26 data-nosnippet>26</a>//! let (public_key, private_key) = generate_keypair()?;
 <a href=#27 id=27 data-nosnippet>27</a>//!
 <a href=#28 id=28 data-nosnippet>28</a>//! // Establish a Zero Trust verified session (recommended)
-<a href=#29 id=29 data-nosnippet>29</a>//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+<a href=#29 id=29 data-nosnippet>29</a>//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 <a href=#30 id=30 data-nosnippet>30</a>//!
 <a href=#31 id=31 data-nosnippet>31</a>//! // Symmetric encryption with session verification
 <a href=#32 id=32 data-nosnippet>32</a>//! let key = [0u8; 32];
@@ -64,7 +64,7 @@
 <a href=#64 id=64 data-nosnippet>64</a>//! let (public_key, private_key) = generate_keypair()?;
 <a href=#65 id=65 data-nosnippet>65</a>//!
 <a href=#66 id=66 data-nosnippet>66</a>//! // Step 2: Establish a verified session (performs challenge-response)
-<a href=#67 id=67 data-nosnippet>67</a>//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.as_ref())?;
+<a href=#67 id=67 data-nosnippet>67</a>//! let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 <a href=#68 id=68 data-nosnippet>68</a>//!
 <a href=#69 id=69 data-nosnippet>69</a>//! // Step 3: Use the session for cryptographic operations
 <a href=#70 id=70 data-nosnippet>70</a>//! let key = [0u8; 32];
@@ -120,7 +120,7 @@
 <a href=#120 id=120 data-nosnippet>120</a>//!
 <a href=#121 id=121 data-nosnippet>121</a>//! # fn main() -&gt; Result&lt;(), latticearc::unified_api::error::CoreError&gt; {
 <a href=#122 id=122 data-nosnippet>122</a>//! let (pk, sk) = generate_keypair()?;
-<a href=#123 id=123 data-nosnippet>123</a>//! let session = VerifiedSession::establish(pk.as_slice(), sk.as_ref())?;
+<a href=#123 id=123 data-nosnippet>123</a>//! let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 <a href=#124 id=124 data-nosnippet>124</a>//!
 <a href=#125 id=125 data-nosnippet>125</a>//! // Session is valid for 30 minutes by default
 <a href=#126 id=126 data-nosnippet>126</a>//! assert!(session.is_valid());
@@ -250,8 +250,8 @@
 <a href=#250 id=250 data-nosnippet>250</a>    AlgorithmSelection, ComplianceMode, CryptoConfig, CryptoContext, CryptoMode, CryptoPayload,
 <a href=#251 id=251 data-nosnippet>251</a>    CryptoScheme, DecryptKey, EncryptKey, EncryptedData, EncryptedMetadata, EncryptedOutput,
 <a href=#252 id=252 data-nosnippet>252</a>    EncryptionScheme, HashOutput, HybridComponents, KeyPair, PerformancePreference, PrivateKey,
-<a href=#253 id=253 data-nosnippet>253</a>    PublicKey, SecurityLevel, SignedData, SignedMetadata, SymmetricKey, UseCase, ZeroizedBytes,
-<a href=#254 id=254 data-nosnippet>254</a>    fips_available,
+<a href=#253 id=253 data-nosnippet>253</a>    PublicKey, SecretBytes, SecretVec, SecurityLevel, SignedData, SignedMetadata, SymmetricKey,
+<a href=#254 id=254 data-nosnippet>254</a>    UseCase, fips_available,
 <a href=#255 id=255 data-nosnippet>255</a>};
 <a href=#256 id=256 data-nosnippet>256</a><span class="kw">pub use </span>zero_trust::{
 <a href=#257 id=257 data-nosnippet>257</a>    Challenge, ContinuousSession, ProofOfPossessionData, SecurityMode, TrustLevel, VerifiedSession,
