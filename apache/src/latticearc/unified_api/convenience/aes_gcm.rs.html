@@ -62,7 +62,7 @@
 <a href=#62 id=62 data-nosnippet>62</a><span class="doccomment">/// Internal implementation of AES-GCM encryption with Additional Authenticated Data (AAD).
 <a href=#63 id=63 data-nosnippet>63</a>///
 <a href=#64 id=64 data-nosnippet>64</a>/// Delegates to `primitives::aead::AesGcm256` so all callers benefit from the
-<a href=#65 id=65 data-nosnippet>65</a>/// same hardening (zero-key warning, `ZeroizeOnDrop`).
+<a href=#65 id=65 data-nosnippet>65</a>/// same hardening (`AeadError::WeakKey` rejection, `ZeroizeOnDrop`).
 <a href=#66 id=66 data-nosnippet>66</a>///
 <a href=#67 id=67 data-nosnippet>67</a>/// Wire format: `nonce(12) || ciphertext || tag(16)`.
 <a href=#68 id=68 data-nosnippet>68</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encrypt_aes_gcm_with_aad_internal(
@@ -83,7 +83,7 @@
 <a href=#83 id=83 data-nosnippet>83</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(err);
 <a href=#84 id=84 data-nosnippet>84</a>    }
 <a href=#85 id=85 data-nosnippet>85</a>
-<a href=#86 id=86 data-nosnippet>86</a>    <span class="comment">// Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop)
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="comment">// Delegate to the primitives AesGcm256 (includes AeadError::WeakKey rejection, ZeroizeOnDrop)
 <a href=#87 id=87 data-nosnippet>87</a>    </span><span class="kw">let </span>cipher = AesGcm256::new(key).map_err(|e| {
 <a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>err = CoreError::EncryptionFailed(<span class="macro">format!</span>(<span class="string">"Failed to create AES key: {e}"</span>));
 <a href=#89 id=89 data-nosnippet>89</a>        <span class="macro">log_crypto_operation_error!</span>(op::AES_GCM_ENCRYPT_AAD, err);
@@ -124,7 +124,7 @@
 <a href=#124 id=124 data-nosnippet>124</a><span class="doccomment">/// Internal implementation of AES-GCM decryption with Additional Authenticated Data (AAD).
 <a href=#125 id=125 data-nosnippet>125</a>///
 <a href=#126 id=126 data-nosnippet>126</a>/// Delegates to `primitives::aead::AesGcm256` so all callers benefit from the
-<a href=#127 id=127 data-nosnippet>127</a>/// same hardening (zero-key warning, `ZeroizeOnDrop`).
+<a href=#127 id=127 data-nosnippet>127</a>/// same hardening (`AeadError::WeakKey` rejection, `ZeroizeOnDrop`).
 <a href=#128 id=128 data-nosnippet>128</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>decrypt_aes_gcm_with_aad_internal(
 <a href=#129 id=129 data-nosnippet>129</a>    encrypted_data: <span class="kw-2">&amp;</span>[u8],
 <a href=#130 id=130 data-nosnippet>130</a>    key: <span class="kw-2">&amp;</span>[u8],
@@ -165,7 +165,7 @@
 <a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(err);
 <a href=#166 id=166 data-nosnippet>166</a>    }
 <a href=#167 id=167 data-nosnippet>167</a>
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="comment">// Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop).
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="comment">// Delegate to the primitives AesGcm256 (includes AeadError::WeakKey rejection, ZeroizeOnDrop).
 <a href=#169 id=169 data-nosnippet>169</a>    // AES key init is caller-side; distinguishable in the returned error too.
 <a href=#170 id=170 data-nosnippet>170</a>    </span><span class="kw">let </span>cipher = AesGcm256::new(key).map_err(|_e| {
 <a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>err = CoreError::DecryptionFailed(<span class="string">"AES key init failed"</span>.to_string());
