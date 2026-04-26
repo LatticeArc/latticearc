@@ -460,8 +460,8 @@ fn run_power_up_self_tests() -> Result<()> {
 
     // Test 2: AES-GCM encryption/decryption via the primitives wrapper.
     // Going through AesGcm256 ensures the self-test exercises the same path
-    // that production crypto code uses (ZeroizeOnDrop, zero-key warning, etc.),
-    // not a bare aws-lc-rs call that could diverge over time.
+    // that production crypto code uses (ZeroizeOnDrop, AeadError::WeakKey
+    // rejection, etc.), not a bare aws-lc-rs call that could diverge over time.
     use crate::primitives::aead::AeadCipher;
     use crate::primitives::aead::aes_gcm::AesGcm256;
 
@@ -528,3 +528,6 @@ fn run_power_up_self_tests() -> Result<()> {
     unused_qualifications
 )]
 mod tests;
+
+#[cfg(test)]
+pub(crate) mod test_helpers;

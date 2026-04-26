@@ -470,7 +470,7 @@ let is_valid = verify(&signed, config)?;
 ```rust
 use latticearc::{encrypt, decrypt, CryptoConfig, EncryptKey, DecryptKey, CryptoScheme};
 
-let key = [0u8; 32];
+let key = [0x42u8; 32];
 let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)?;
 let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;

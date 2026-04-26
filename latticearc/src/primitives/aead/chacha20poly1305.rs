@@ -43,11 +43,10 @@ pub struct ChaCha20Poly1305Cipher {
 impl AeadCipher for ChaCha20Poly1305Cipher {
     const KEY_LEN: usize = CHACHA20_POLY1305_KEY_LEN;
 
-    fn new(key: &[u8]) -> Result<Self, AeadError> {
+    fn new_internal(key: &[u8]) -> Result<Self, AeadError> {
         if key.len() != Self::KEY_LEN {
             return Err(AeadError::InvalidKeyLength);
         }
-        super::warn_if_all_zero_key(key, "ChaCha20-Poly1305");
         let mut key_bytes = [0u8; CHACHA20_POLY1305_KEY_LEN];
         key_bytes.copy_from_slice(key);
         Ok(ChaCha20Poly1305Cipher { key_bytes })
@@ -217,12 +216,39 @@ impl XChaCha20Poly1305Cipher {
     /// Create a new XChaCha20-Poly1305 cipher from key bytes.
     ///
     /// # Errors
-    /// Returns `AeadError::InvalidKeyLength` if `key` is not exactly 32 bytes.
+    /// - `AeadError::InvalidKeyLength` if `key` is not exactly 32 bytes.
+    /// - `AeadError::WeakKey` if `key` is the all-zero pattern. To bypass
+    ///   for known-test-vector reproduction, enable the `kat-test-vectors`
+    ///   Cargo feature and call [`Self::new_allow_weak_key`] instead.
     pub fn new(key: &[u8]) -> Result<Self, AeadError> {
         if key.len() != CHACHA20_POLY1305_KEY_LEN {
             return Err(AeadError::InvalidKeyLength);
         }
-        super::warn_if_all_zero_key(key, "XChaCha20-Poly1305");
+        if super::is_all_zero_key(key) {
+            return Err(AeadError::WeakKey);
+        }
+        Self::new_internal(key)
+    }
+
+    /// Construct bypassing the [`AeadError::WeakKey`] guard. Reserved for
+    /// known-test-vector reproduction (e.g. all-zero key/IV cases); production
+    /// code must use [`Self::new`]. Gated behind the `kat-test-vectors` Cargo
+    /// feature.
+    ///
+    /// # Errors
+    /// - `AeadError::InvalidKeyLength` if `key` is not exactly 32 bytes.
+    #[cfg(any(test, feature = "kat-test-vectors"))]
+    pub fn new_allow_weak_key(key: &[u8]) -> Result<Self, AeadError> {
+        Self::new_internal(key)
+    }
+
+    /// Internal raw constructor — length check + buffer copy, no weak-key
+    /// guard. `new` and `new_allow_weak_key` both delegate here.
+    #[doc(hidden)]
+    fn new_internal(key: &[u8]) -> Result<Self, AeadError> {
+        if key.len() != CHACHA20_POLY1305_KEY_LEN {
+            return Err(AeadError::InvalidKeyLength);
+        }
         let mut key_bytes = [0u8; CHACHA20_POLY1305_KEY_LEN];
         key_bytes.copy_from_slice(key);
         Ok(XChaCha20Poly1305Cipher { key_bytes })

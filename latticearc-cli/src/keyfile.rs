@@ -281,6 +281,20 @@ pub(crate) fn read_new_passphrase() -> Result<zeroize::Zeroizing<String>> {
 /// Resolve a passphrase from the `LATTICEARC_PASSPHRASE` env var (for
 /// scripting / CI) or fall through to `tty_fallback()` — typically a prompt.
 ///
+/// # Security trade-off — env var is convenient but leaky
+///
+/// Environment variables are visible to other processes running as the same
+/// user via `/proc/<pid>/environ` (Linux), are inherited by child processes
+/// across `fork()`/`exec()`, and can be captured in core dumps. For
+/// interactive use, prefer the TTY prompt (do not export the variable).
+/// `LATTICEARC_PASSPHRASE` is intended for CI / non-interactive automation
+/// only — see `SECURITY.md` for the full threat model.
+///
+/// When the variable is read on a process whose stdin is a TTY, a warning is
+/// emitted to `stderr`: that combination usually means an interactive user
+/// has accidentally inherited the env from a prior shell session and is now
+/// using a less-secure code path than intended.
+///
 /// Note: passphrases must NEVER be passed as command-line arguments — they
 /// would be visible in `ps`, shell history, and crash dumps.
 fn resolve_passphrase(
@@ -289,6 +303,20 @@ fn resolve_passphrase(
     if let Ok(pp) = std::env::var("LATTICEARC_PASSPHRASE") {
         if pp.is_empty() {
             bail!("LATTICEARC_PASSPHRASE is set but empty");
+        }
+        // SECURITY: when an interactive TTY is attached, the user almost
+        // certainly intended the prompt path; using the env var on top of an
+        // interactive session leaks the passphrase to anyone who can read
+        // `/proc/<pid>/environ` (same-user processes, root, etc.). Warn but
+        // honour the explicit env-var request — automated callers may
+        // legitimately invoke us with a TTY for log capture.
+        if std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+            eprintln!(
+                "warning: LATTICEARC_PASSPHRASE is set on an interactive TTY session. \
+                 Env-var passphrases are visible to other processes via \
+                 /proc/<pid>/environ. Unset the variable and use the prompt \
+                 unless you are running in non-interactive automation."
+            );
         }
         return Ok(zeroize::Zeroizing::new(pp));
     }

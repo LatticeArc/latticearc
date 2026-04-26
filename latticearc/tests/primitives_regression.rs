@@ -76,7 +76,7 @@ use std::time::{Duration, Instant};
 fn regression_aead_empty_plaintext_no_panic() {
     use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm256};
 
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = match AesGcm256::new(&key) {
         Ok(c) => c,
         Err(e) => {
@@ -132,7 +132,7 @@ fn regression_aead_single_byte_plaintext() {
 fn regression_chacha_empty_aad_vs_none() {
     use latticearc::primitives::aead::{AeadCipher, chacha20poly1305::ChaCha20Poly1305Cipher};
 
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = match ChaCha20Poly1305Cipher::new(&key) {
         Ok(c) => c,
         Err(_) => return,
@@ -417,7 +417,7 @@ fn regression_signature_rejects_modified_message() {
 fn regression_aead_detects_corrupted_tag() {
     use latticearc::primitives::aead::{AeadCipher, AeadError, aes_gcm::AesGcm256};
 
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = match AesGcm256::new(&key) {
         Ok(c) => c,
         Err(_) => return,
@@ -453,7 +453,7 @@ fn regression_aead_detects_corrupted_ciphertext() {
         AeadCipher, AeadError, chacha20poly1305::ChaCha20Poly1305Cipher,
     };
 
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = match ChaCha20Poly1305Cipher::new(&key) {
         Ok(c) => c,
         Err(_) => return,

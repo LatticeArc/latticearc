@@ -46,11 +46,10 @@ macro_rules! impl_aes_gcm {
             const KEY_LEN: usize = $key_len;
 
             #[instrument(level = "debug", skip(key), fields(key_len = key.len()))]
-            fn new(key: &[u8]) -> Result<Self, AeadError> {
+            fn new_internal(key: &[u8]) -> Result<Self, AeadError> {
                 if key.len() != Self::KEY_LEN {
                     return Err(AeadError::InvalidKeyLength);
                 }
-                crate::primitives::aead::warn_if_all_zero_key(key, $label);
                 let mut key_bytes = [0u8; $key_len];
                 key_bytes.copy_from_slice(key);
                 Ok($name { key_bytes })

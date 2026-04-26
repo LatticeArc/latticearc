@@ -16,21 +16,32 @@ use crate::unified_api::crypto_types::{DecryptKey, EncryptKey, EncryptionScheme}
 // PERFORMANCE OPTIMIZATION THRESHOLDS
 // =============================================================================
 
-/// Threshold (in bytes) below which classical-only encryption may be used for
-/// performance optimization when explicitly configured with low security + speed.
+/// Threshold (in bytes) below which the hybrid scheme may downgrade from
+/// ML-KEM-768 to ML-KEM-512 as a runtime performance optimisation, when the
+/// caller has expressed a `Speed` or `Memory` preference and the data is
+/// high-entropy / small.
 ///
-/// **Rationale**: ML-KEM ciphertext overhead is ~1000-1500 bytes depending on
-/// security level. For messages under this threshold, the hybrid overhead is
-/// significant relative to message size.
+/// **What actually happens at runtime** (see `select_for_data_pattern`):
 ///
-/// **Security Note**: Classical fallback ONLY occurs when ALL of:
-/// 1. `SecurityLevel::Standard` (user accepts NIST Level 1, 128-bit security)
-/// 2. Performance preference is `Speed` (user prioritizes performance)
-/// 3. Data size is below this threshold
+/// | `security_level` | `performance_preference` | data conditions       | result          |
+/// |------------------|--------------------------|-----------------------|-----------------|
+/// | `Standard`       | any                      | any                   | ML-KEM-512 (default for Standard — no override needed) |
+/// | `High`           | `Speed`                  | random pattern        | downgrade to ML-KEM-512 |
+/// | `High`           | `Memory`                 | data size < threshold | downgrade to ML-KEM-512 |
+/// | `High`           | otherwise                | otherwise             | ML-KEM-768 (default for High) |
+/// | `Maximum`        | any                      | any                   | ML-KEM-1024 — never downgraded |
 ///
-/// If quantum safety is required for all messages regardless of size, use
-/// `SecurityLevel::High` or `SecurityLevel::Maximum`.
-pub const CLASSICAL_FALLBACK_SIZE_THRESHOLD: usize = 4096;
+/// **Rationale**: ML-KEM ciphertext overhead is ~1000–1500 bytes depending on
+/// security level. For high-entropy or memory-constrained workloads at
+/// `SecurityLevel::High`, dropping from 768 to 512 saves ~300 bytes per
+/// ciphertext while keeping post-quantum security at NIST Level 1. The
+/// override never weakens `SecurityLevel::Maximum`, and `Standard` already
+/// uses 512 by default so there is no further downgrade to apply.
+///
+/// **Note**: this threshold governs only the in-band downgrade. It does NOT
+/// disable post-quantum protection — a hybrid (PQ + classical) scheme is
+/// still selected; only the ML-KEM parameter set may be reduced.
+pub const ML_KEM_DOWNGRADE_SIZE_THRESHOLD: usize = 4096;
 
 /// Main cryptographic policy engine.
 ///
@@ -202,7 +213,7 @@ impl CryptoPolicyEngine {
                 }
                 // Memory-constrained with small data: downgrade if not at maximum
                 (PerformancePreference::Memory, _)
-                    if data.len() < CLASSICAL_FALLBACK_SIZE_THRESHOLD =>
+                    if data.len() < ML_KEM_DOWNGRADE_SIZE_THRESHOLD =>
                 {
                     if matches!(config.security_level, SecurityLevel::High) {
                         return Ok(HYBRID_ENCRYPTION_512.to_string());

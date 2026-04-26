@@ -192,7 +192,7 @@ When encrypting data that must be bound to a specific context (protocol headers,
 ```rust
 use latticearc::*;
 
-let key = [0u8; 32];
+let key = [0x42u8; 32];
 let header = b"version:1;sender:alice";
 
 // AAD is authenticated but NOT encrypted — tampering causes decryption failure
@@ -230,7 +230,7 @@ flowchart LR
 use latticearc::*;
 
 // Symmetric encryption with AES-256-GCM
-let key = [0u8; 32];
+let key = [0x42u8; 32];
 let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)?;
 

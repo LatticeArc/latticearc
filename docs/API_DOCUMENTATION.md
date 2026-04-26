@@ -1,6 +1,6 @@
 # LatticeArc API Documentation
 
-**Version**: 0.6.0 | **License**: Apache 2.0
+**Version**: 0.8.0 | **License**: Apache 2.0
 
 ---
 
@@ -64,7 +64,7 @@ int encrypted_len = RSA_public_encrypt(data_len, data, encrypted,
 
 ```rust
 // After (LatticeArc — 2 lines, quantum-safe)
-let key = [0u8; 32];
+let key = [0x42u8; 32];
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
 ```
@@ -97,7 +97,7 @@ byte[] encrypted = cipher.doFinal(plaintext);
 
 ```rust
 // After (LatticeArc)
-let key = [0u8; 32];
+let key = [0x42u8; 32];
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
 ```
@@ -113,7 +113,7 @@ use latticearc::{encrypt, decrypt, CryptoConfig, CryptoScheme, UseCase, Security
                  EncryptKey, DecryptKey};
 
 // Simple symmetric encryption
-let key = [0u8; 32];
+let key = [0x42u8; 32];
 let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)?;
 
@@ -306,6 +306,29 @@ let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad))?;
 let decrypted = cipher.decrypt(&nonce, &ciphertext, &tag, Some(aad))?;
 ```
 
+#### Weak-key rejection (`AeadError::WeakKey`)
+
+Since v0.8.0, `AeadCipher::new` rejects the all-zero key pattern with
+`AeadError::WeakKey` as fail-closed defence in depth — an all-zero key is
+overwhelmingly the signature of uninitialised memory or an unset configuration
+field rather than a deliberate operational choice. Tests needing a
+deterministic key should pick any non-zero pattern (e.g. `[0x42u8; 32]`).
+
+For NIST KAT reproduction (Test Cases 1 and 2 of McGrew & Viega's AES-GCM
+specification use the all-zero key), enable the `kat-test-vectors` Cargo
+feature and call `AeadCipher::new_allow_weak_key`. Production builds must
+not enable this feature.
+
+```rust
+// Production: rejects all-zero key
+let result = AesGcm256::new(&[0u8; 32]);
+assert!(matches!(result, Err(AeadError::WeakKey)));
+
+// KAT reproduction (requires `--features kat-test-vectors` in Cargo.toml)
+#[cfg(feature = "kat-test-vectors")]
+let cipher = AesGcm256::new_allow_weak_key(&[0u8; 32])?;
+```
+
 ### AES-GCM with AAD
 
 For binding context metadata (headers, session IDs) to ciphertext:
@@ -313,7 +336,8 @@ For binding context metadata (headers, session IDs) to ciphertext:
 ```rust
 use latticearc::{encrypt_aes_gcm_with_aad, decrypt_aes_gcm_with_aad, SecurityMode};
 
-let key = [0u8; 32];
+let key = [0x42u8; 32];  // any non-zero deterministic pattern; the all-zero
+                         // key is rejected as `WeakKey` — see note above
 let aad = b"session-id:abc123;timestamp:1700000000";
 let encrypted = encrypt_aes_gcm_with_aad(b"payload", &key, aad, SecurityMode::Unverified)?;
 let decrypted = decrypt_aes_gcm_with_aad(&encrypted, &key, aad, SecurityMode::Unverified)?;

@@ -100,7 +100,7 @@ fn main() {
 
     // AES-256-GCM Benchmarks
     println!("--- AES-256-GCM (1KB payload) ---");
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = AesGcm256::new(&key).unwrap();
     let nonce = AesGcm256::generate_nonce();
     let plaintext = vec![0u8; 1024];

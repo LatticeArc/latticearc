@@ -52,7 +52,7 @@ use latticearc::unified_api::{
 
 #[test]
 fn test_aes_gcm_encrypt_empty_data_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // Encrypting empty data should succeed (valid use case)
     let result = encrypt_aes_gcm_unverified(&[], &key);
@@ -77,7 +77,7 @@ fn test_aes_gcm_encrypt_empty_key_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_empty_ciphertext_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     let result = decrypt_aes_gcm_unverified(&[], &key);
     assert!(result.is_err(), "Should fail with empty ciphertext");
@@ -95,7 +95,7 @@ fn test_aes_gcm_decrypt_empty_ciphertext_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_empty_key_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"Test data";
 
     let encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encryption should succeed");
@@ -204,7 +204,7 @@ fn test_aes_gcm_encrypt_oversized_key_rejected_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_corrupted_ciphertext_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"Secret message";
 
     let mut encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encryption should succeed");
@@ -227,7 +227,7 @@ fn test_aes_gcm_decrypt_corrupted_ciphertext_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_corrupted_nonce_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"Secret message";
 
     let mut encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encryption should succeed");
@@ -248,7 +248,7 @@ fn test_aes_gcm_decrypt_corrupted_nonce_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_corrupted_tag_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"Secret message";
 
     let mut encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encryption should succeed");
@@ -272,7 +272,7 @@ fn test_aes_gcm_decrypt_corrupted_tag_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_truncated_ciphertext_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"Secret message";
 
     let encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encryption should succeed");
@@ -295,7 +295,7 @@ fn test_aes_gcm_decrypt_truncated_ciphertext_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_ciphertext_too_short_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // Create data that's exactly 12 bytes (nonce only, no ciphertext or tag)
     let short_data = vec![0u8; 12];
@@ -326,7 +326,7 @@ fn test_aes_gcm_decrypt_ciphertext_too_short_fails() {
 
 #[test]
 fn test_aes_gcm_cross_key_decrypt_fails() {
-    let key1 = [0x00u8; 32];
+    let key1 = [0x42u8; 32];
     let key2 = [0xFFu8; 32];
     let data = b"Secret message";
 
@@ -370,7 +370,7 @@ fn test_aes_gcm_decrypt_with_slightly_different_key_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_random_data_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // Create random-looking data
     let random_data = vec![0x42u8; 100];
@@ -388,7 +388,7 @@ fn test_aes_gcm_decrypt_random_data_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_all_zeros_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // All zeros ciphertext
     let zeros = vec![0u8; 100];
@@ -406,7 +406,7 @@ fn test_aes_gcm_decrypt_all_zeros_fails() {
 
 #[test]
 fn test_aes_gcm_decrypt_all_ones_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // All ones ciphertext
     let ones = vec![0xFFu8; 100];
@@ -428,7 +428,7 @@ fn test_aes_gcm_decrypt_all_ones_fails() {
 
 #[test]
 fn test_aes_gcm_encrypt_single_byte_roundtrip_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = [0x42u8];
 
     let encrypted = encrypt_aes_gcm_unverified(&data, &key).expect("encryption should succeed");
@@ -440,7 +440,7 @@ fn test_aes_gcm_encrypt_single_byte_roundtrip_succeeds() {
 
 #[test]
 fn test_aes_gcm_encrypt_large_data_roundtrip_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = vec![0xAAu8; 1024 * 1024]; // 1MB
 
     let encrypted = encrypt_aes_gcm_unverified(&data, &key).expect("encryption should succeed");
@@ -452,7 +452,7 @@ fn test_aes_gcm_encrypt_large_data_roundtrip_succeeds() {
 
 #[test]
 fn test_aes_gcm_roundtrip_various_sizes_roundtrip() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // Test various data sizes
     for size in [0, 1, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256] {
@@ -477,7 +477,7 @@ fn test_aes_gcm_roundtrip_various_sizes_roundtrip() {
 
 #[test]
 fn test_aes_gcm_same_data_produces_unique_ciphertexts_are_unique() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"Same data encrypted twice";
 
     let encrypted1 = encrypt_aes_gcm_unverified(data, &key).expect("encryption should succeed");
@@ -509,7 +509,7 @@ fn test_aes_gcm_same_data_produces_unique_ciphertexts_are_unique() {
 
 #[test]
 fn test_aes_gcm_encrypt_decrypt_special_characters_roundtrip_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"\x00\x01\x02\xFF\xFE\xFD"; // Special bytes
 
     let encrypted = encrypt_aes_gcm_unverified(data, &key).expect("encryption should succeed");
@@ -525,7 +525,7 @@ fn test_aes_gcm_encrypt_decrypt_special_characters_roundtrip_succeeds() {
 
 #[test]
 fn test_aes_gcm_decrypt_minimum_valid_length_roundtrip_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // Minimum valid ciphertext: 12 bytes nonce + 16 bytes tag = 28 bytes
     // (for empty plaintext)

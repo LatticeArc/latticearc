@@ -107,7 +107,7 @@ fn main() {
     println!("  This is what you actually pay when encrypting data in practice.");
 
     let plaintext_1kb = vec![0xABu8; 1024];
-    let aead_key = [0u8; 32];
+    let aead_key = [0x42u8; 32];
     let cipher = AesGcm256::new(&aead_key).unwrap();
     let nonce = AesGcm256::generate_nonce();
 
@@ -499,7 +499,7 @@ fn main() {
 
     // AES-128-GCM
     println!("\n  --- AES-128-GCM ---");
-    let key128 = [0u8; 16];
+    let key128 = [0x42u8; 16];
     let cipher128 = AesGcm128::new(&key128).unwrap();
     let nonce128 = AesGcm128::generate_nonce();
 
@@ -524,7 +524,7 @@ fn main() {
 
     // AES-256-GCM
     println!("\n  --- AES-256-GCM ---");
-    let key256 = [0u8; 32];
+    let key256 = [0x42u8; 32];
     let cipher256 = AesGcm256::new(&key256).unwrap();
     let nonce256 = AesGcm256::generate_nonce();
 
@@ -551,7 +551,7 @@ fn main() {
     #[cfg(not(feature = "fips"))]
     {
         println!("\n  --- ChaCha20-Poly1305 ---");
-        let chacha_key = [0u8; 32];
+        let chacha_key = [0x42u8; 32];
         let chacha = ChaCha20Poly1305Cipher::new(&chacha_key).unwrap();
         let chacha_nonce = ChaCha20Poly1305Cipher::generate_nonce();
 

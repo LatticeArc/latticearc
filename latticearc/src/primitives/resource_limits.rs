@@ -1,24 +1,48 @@
 //! Resource limits for cryptographic operations.
 //!
-//! Provides configurable limits on encryption size, signature size, decryption size,
-//! and key derivation count to prevent denial-of-service via oversized inputs.
+//! Provides configurable limits on encryption size, signature size, decryption
+//! size, and key-derivation count to prevent denial-of-service via oversized
+//! inputs. The limits are enforced by `aead::aes_gcm`, `aead::chacha20poly1305`,
+//! `hybrid::encrypt_hybrid`, and the signature primitives before any
+//! cryptographic work is performed.
+//!
+//! # Default limits
+//!
+//! | Field | Default | Rationale |
+//! |---|---|---|
+//! | `max_key_derivations_per_call` | `1000` | Bounds CPU per HKDF/PBKDF2 batch |
+//! | `max_encryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | One-shot AEAD path; stream beyond this size |
+//! | `max_signature_size_bytes` | `64 KiB` (`64 * 1024`) | Pre-hash signature input cap |
+//! | `max_decryption_size_bytes` | `100 MiB` (`100 * 1024 * 1024`) | Symmetric to encryption cap |
+//!
+//! Override at runtime via [`ResourceLimitsManager::with_limits`] /
+//! [`ResourceLimitsManager::update_limits`]. The `100 MiB` AEAD cap is a
+//! conservative one-shot ceiling — applications that need to seal larger
+//! payloads should chunk into framed records or raise the limit explicitly.
 
 use std::sync::{Arc, LazyLock, RwLock};
 
 /// Configurable resource limits for cryptographic operations.
+///
+/// See the [module documentation](self) for the default values and the
+/// modules that enforce them.
 #[derive(Debug, Clone)]
 pub struct ResourceLimits {
-    /// Maximum number of key derivations per single call.
+    /// Maximum number of key derivations per single call. Default: `1000`.
     pub max_key_derivations_per_call: usize,
-    /// Maximum encryption input size in bytes.
+    /// Maximum encryption input size in bytes. Default: `100 * 1024 * 1024`
+    /// (100 MiB).
     pub max_encryption_size_bytes: usize,
-    /// Maximum signature input size in bytes.
+    /// Maximum signature input size in bytes. Default: `64 * 1024` (64 KiB).
     pub max_signature_size_bytes: usize,
-    /// Maximum decryption input size in bytes.
+    /// Maximum decryption input size in bytes. Default: `100 * 1024 * 1024`
+    /// (100 MiB).
     pub max_decryption_size_bytes: usize,
 }
 
 impl Default for ResourceLimits {
+    /// Returns the default limits documented on each field of
+    /// [`ResourceLimits`] and at the [module level](self).
     fn default() -> Self {
         Self {
             max_key_derivations_per_call: 1000,
@@ -376,5 +400,59 @@ mod tests {
         let msg = format!("{}", err);
         assert!(msg.contains("2000"));
         assert!(msg.contains("1000"));
+    }
+
+    /// Forced-poison test: confirms that when the inner `RwLock` is poisoned
+    /// (a thread panicked while holding the lock), every public method on
+    /// `ResourceLimitsManager` returns `ResourceError::LockPoisoned` rather
+    /// than panicking, propagating the wrong error, or returning incorrect
+    /// data.
+    #[test]
+    fn test_resource_limits_manager_returns_lock_poisoned_after_panic() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+        use std::sync::Arc;
+        use std::thread;
+
+        let manager = Arc::new(ResourceLimitsManager::new());
+
+        // The lock is poisoned during stack unwinding: when the panic begins,
+        // `_guard` drops while `std::thread::panicking()` is still true, which
+        // sets the poison flag. `catch_unwind` only absorbs the panic *after*
+        // that drop, so `join()` returns `Ok(())` instead of propagating —
+        // keeping the test's failure mode focused on the assertions below.
+        let manager_clone = Arc::clone(&manager);
+        let join = thread::spawn(move || {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                let _guard = manager_clone.limits.write().expect("acquire write lock");
+                panic!("intentional panic to poison the lock");
+            }));
+        });
+        join.join().expect("poisoning thread joined");
+
+        // Every public method that touches the lock must surface LockPoisoned.
+        match manager.get_limits() {
+            Err(ResourceError::LockPoisoned) => {}
+            other => panic!("get_limits() expected LockPoisoned, got {other:?}"),
+        }
+        match manager.update_limits(ResourceLimits::default()) {
+            Err(ResourceError::LockPoisoned) => {}
+            other => panic!("update_limits() expected LockPoisoned, got {other:?}"),
+        }
+        match manager.validate_key_derivation_count(1) {
+            Err(ResourceError::LockPoisoned) => {}
+            other => panic!("validate_key_derivation_count expected LockPoisoned, got {other:?}"),
+        }
+        match manager.validate_encryption_size(1) {
+            Err(ResourceError::LockPoisoned) => {}
+            other => panic!("validate_encryption_size expected LockPoisoned, got {other:?}"),
+        }
+        match manager.validate_signature_size(1) {
+            Err(ResourceError::LockPoisoned) => {}
+            other => panic!("validate_signature_size expected LockPoisoned, got {other:?}"),
+        }
+        match manager.validate_decryption_size(1) {
+            Err(ResourceError::LockPoisoned) => {}
+            other => panic!("validate_decryption_size expected LockPoisoned, got {other:?}"),
+        }
     }
 }

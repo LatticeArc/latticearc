@@ -157,16 +157,42 @@ impl SlhDsaSecurityLevel {
 
 /// SLH-DSA verifying key (public key)
 ///
-/// This is a wrapper around the audited fips205 crate's public key.
+/// Wrapper around the audited fips205 crate's public key.
+///
+/// # Memory layout — intentional over-allocation
+///
+/// `bytes` is statically sized to `shake_256s::PK_LEN` (the maximum across
+/// all three security variants), leaving up to `shake_256s::PK_LEN -
+/// shake_128s::PK_LEN = 32` bytes unused for `Shake128s` keys (16 bytes for
+/// `Shake192s`). The trailing bytes are zero-initialized and ignored — `len`
+/// records the active prefix.
+///
+/// This trade-off was chosen deliberately:
+/// - **Stack-allocated** ([`u8`; N]) per invariant I-2 (see
+///   `docs/SECRET_TYPE_INVARIANTS.md`); no heap allocation per key.
+/// - **Non-generic** — a single concrete type that works across all three
+///   security levels without propagating `<L: SlhDsaSecurityLevel>` generics
+///   through every consumer.
+/// - **Public material** — the unused tail bytes carry no information about
+///   the actual public key (they are pre-zero), so the over-allocation has
+///   no security cost.
+///
+/// Alternative designs were considered and rejected: a `Box<[u8; N]>` per
+/// variant trades the stack waste for one heap allocation per key plus
+/// indirection; a `Vec<u8>` adds heap + capacity tracking; an enum with one
+/// variant per security level still uses `max(variant sizes)` of stack
+/// (Rust's enum sizing) so it does not actually save bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifyingKey {
     /// The security level used
     security_level: SlhDsaSecurityLevel,
 
-    /// The underlying public key bytes
-    bytes: [u8; shake_256s::PK_LEN], // Max size for all variants
+    /// The underlying public key bytes. Sized to fit the largest variant
+    /// (Shake256s = 64 bytes); the trailing `PK_LEN - len` bytes are always
+    /// zero. See type-level "Memory layout" docs for rationale.
+    bytes: [u8; shake_256s::PK_LEN],
 
-    /// The actual length of the public key
+    /// The actual length of the public key (per `security_level`).
     len: usize,
 }
 
@@ -321,10 +347,13 @@ pub struct SigningKey {
     /// The security level used
     security_level: SlhDsaSecurityLevel,
 
-    /// The underlying secret key bytes (zeroized on drop)
-    bytes: [u8; shake_256s::SK_LEN], // Max size for all variants
+    /// The underlying secret key bytes (zeroized on drop). Sized to the
+    /// largest variant (Shake256s = 128 bytes); trailing `SK_LEN - len`
+    /// bytes are always zero. See [`VerifyingKey`]'s "Memory layout" docs
+    /// for the rationale (same trade-off applies here).
+    bytes: [u8; shake_256s::SK_LEN],
 
-    /// The actual length of the secret key
+    /// The actual length of the secret key (per `security_level`).
     len: usize,
 
     /// The verifying key (public key)

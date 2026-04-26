@@ -41,6 +41,15 @@ saw = []
 # and is deliberately NOT covered by this feature — see the `SecretBytes` doc.
 secret-mlock = ["dep:region"]
 
+# Exposes `AeadCipher::new_allow_weak_key` (and the equivalent inherent
+# constructor on `XChaCha20Poly1305Cipher`) — a constructor that bypasses the
+# `AeadError::WeakKey` check fired by `AeadCipher::new` on the all-zero key
+# pattern. NIST AES-GCM Test Cases 1 and 2 (McGrew & Viega, 2004) and other
+# canonical KAT vectors use the all-zero key, so reproducing them requires this
+# escape hatch. Default-off so production builds cannot accidentally construct
+# a weak-key cipher; KAT-running test suites must opt in explicitly.
+kat-test-vectors = []
+
 [dependencies]
 # =============================================================================
 # Core utilities

@@ -190,7 +190,7 @@ fn test_encryption_scheme_constants_accessible_are_stable() {
 /// For symmetric encryption with 32-byte keys, use encrypt_aes_gcm_unverified.
 #[test]
 fn test_unified_api_functions_accessible_are_stable() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"test data";
 
     // For symmetric key encryption, use the AES-GCM unverified functions
@@ -249,7 +249,7 @@ fn test_hashing_functions_accessible_are_stable() {
 #[test]
 fn test_hmac_functions_accessible_are_stable() {
     let data = b"test data";
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
 
     // Unverified variant for testing API stability
     let mac = hmac_unverified(data, &key);
@@ -274,7 +274,7 @@ fn test_key_derivation_functions_accessible_are_stable() {
 /// Test 1.10: AES-GCM functions are accessible
 #[test]
 fn test_aes_gcm_functions_accessible_are_stable() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"plaintext";
 
     // encrypt_aes_gcm_unverified takes (data, key) - nonce is generated internally
@@ -703,7 +703,7 @@ fn test_signed_metadata_field_accessibility_is_stable() {
 /// Use encrypt_aes_gcm_unverified() for symmetric encryption with 32-byte keys.
 #[test]
 fn test_encrypt_function_works_correctly_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"test data";
 
     // Test symmetric encryption works with correct return type
@@ -725,7 +725,7 @@ fn test_encrypt_function_works_correctly_succeeds() {
 /// Use decrypt_aes_gcm_unverified() for symmetric decryption with 32-byte keys.
 #[test]
 fn test_decrypt_function_works_correctly_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"test data";
 
     // Test symmetric encryption/decryption roundtrip
@@ -939,7 +939,7 @@ fn test_result_type_alias_works_correctly_succeeds() {
 /// Test 4.1: Unverified AES-GCM functions work as migration path
 #[test]
 fn test_unverified_aes_gcm_works_correctly_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"test data";
 
     // These unverified functions provide migration path for legacy code
@@ -982,7 +982,7 @@ fn test_legacy_ed25519_signing_works_correctly_succeeds() {
 /// Test 4.4: Legacy HMAC functions work
 #[test]
 fn test_legacy_hmac_functions_work_correctly_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"test data";
 
     let mac = hmac_unverified(data, &key).expect("hmac");
@@ -1006,7 +1006,7 @@ fn test_legacy_key_derivation_works_correctly_succeeds() {
 #[test]
 fn test_migration_to_verified_mode_succeeds() {
     let (pk, sk) = generate_keypair().expect("keygen");
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"sensitive data";
 
     // Step 1: Legacy code uses unverified mode (symmetric encryption)
@@ -1035,7 +1035,7 @@ fn test_migration_to_verified_mode_succeeds() {
 /// For symmetric encryption backward compatibility, use the _unverified functions.
 #[test]
 fn test_default_config_backward_compatible_is_stable() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"test data";
 
     // Default config should work without session
@@ -1081,7 +1081,7 @@ fn test_production_config_compatible_is_stable() {
 /// Note: Uses symmetric AES-GCM for empty data handling test.
 #[test]
 fn test_empty_data_handling_is_stable() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = b"";
 
     // Empty data should be handled gracefully with symmetric encryption
@@ -1098,7 +1098,7 @@ fn test_empty_data_handling_is_stable() {
 /// Note: Uses symmetric AES-GCM for large data handling test.
 #[test]
 fn test_large_data_handling_is_stable() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let data = vec![0u8; 1024 * 1024]; // 1MB
 
     // Large data encryption with symmetric AES-GCM

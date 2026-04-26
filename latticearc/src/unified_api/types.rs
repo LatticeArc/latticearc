@@ -515,6 +515,11 @@ mod tests {
         assert_eq!(*config.get_compliance(), ComplianceMode::Default);
     }
 
+    // CNSA 2.0 implies the `fips` feature (`compliance.requires_fips()` returns
+    // true, so validate() short-circuits on the FIPS-availability check before
+    // ever reaching the CNSA + non-PqOnly branch). The PqOnly enforcement is
+    // therefore only observable in `fips`-enabled builds.
+    #[cfg(feature = "fips")]
     #[test]
     fn test_cnsa_requires_pq_only_mode_is_correct() {
         // CNSA 2.0 with Hybrid mode should fail validation

@@ -77,7 +77,7 @@ fn test_aes128_gcm_nist_vector_1_matches_expected() {
     let mut nonce_arr = [0u8; 12];
     nonce_arr.copy_from_slice(&nonce);
 
-    let cipher = AesGcm128::new(&key_arr).expect("cipher creation");
+    let cipher = AesGcm128::new_allow_weak_key(&key_arr).expect("cipher creation");
 
     let aad_opt = if aad.is_empty() { None } else { Some(aad.as_slice()) };
     let (ct, tag) = cipher.encrypt(&nonce_arr, &plaintext, aad_opt).expect("encryption");
@@ -106,7 +106,7 @@ fn test_aes128_gcm_nist_vector_2_matches_expected() {
     let mut nonce_arr = [0u8; 12];
     nonce_arr.copy_from_slice(&nonce);
 
-    let cipher = AesGcm128::new(&key_arr).expect("cipher creation");
+    let cipher = AesGcm128::new_allow_weak_key(&key_arr).expect("cipher creation");
 
     let aad_opt = if aad.is_empty() { None } else { Some(aad.as_slice()) };
     let (ct, tag) = cipher.encrypt(&nonce_arr, &plaintext, aad_opt).expect("encryption");
@@ -172,7 +172,7 @@ fn test_aes256_gcm_nist_vector_1_matches_expected() {
     let mut nonce_arr = [0u8; 12];
     nonce_arr.copy_from_slice(&nonce);
 
-    let cipher = AesGcm256::new(&key_arr).expect("cipher creation");
+    let cipher = AesGcm256::new_allow_weak_key(&key_arr).expect("cipher creation");
 
     let aad_opt = if aad.is_empty() { None } else { Some(aad.as_slice()) };
     let (ct, tag) = cipher.encrypt(&nonce_arr, &plaintext, aad_opt).expect("encryption");
@@ -201,7 +201,7 @@ fn test_aes256_gcm_nist_vector_2_matches_expected() {
     let mut nonce_arr = [0u8; 12];
     nonce_arr.copy_from_slice(&nonce);
 
-    let cipher = AesGcm256::new(&key_arr).expect("cipher creation");
+    let cipher = AesGcm256::new_allow_weak_key(&key_arr).expect("cipher creation");
 
     let aad_opt = if aad.is_empty() { None } else { Some(aad.as_slice()) };
     let (ct, tag) = cipher.encrypt(&nonce_arr, &plaintext, aad_opt).expect("encryption");

@@ -231,14 +231,102 @@ pub struct SecretVec {
     //   1. `ZeroizeOnDrop`'s generated `Drop` runs first, calling `.zeroize()`
     //      on `bytes` while the region is still mlocked.
     //   2. Fields drop in declaration order: `_lock` first (unlocks the
-    //      region), then `bytes` (returns the zeroed buffer to the allocator).
-    // `#[zeroize(skip)]` is required because `LockGuard` does not implement
-    // `Zeroize` and there's nothing secret inside it — it only holds a handle
-    // to an OS lock.
+    //      region via `MlockGuard`'s panic-tolerant Drop), then `bytes`
+    //      (returns the zeroed buffer to the allocator).
+    // `#[zeroize(skip)]` is required because the lock holder does not
+    // implement `Zeroize` and there's nothing secret inside it — it only
+    // holds a handle to an OS lock.
     #[cfg(feature = "secret-mlock")]
     #[zeroize(skip)]
-    _lock: Option<region::LockGuard>,
+    _lock: Option<MlockGuard>,
     bytes: Vec<u8>,
+}
+
+/// Panic-tolerant wrapper around [`region::LockGuard`].
+///
+/// # Why this wrapper exists
+///
+/// `region::LockGuard::drop` calls `munlock`/`VirtualUnlock` and panics on any
+/// error. That is too strict on Windows: `VirtualUnlock` returns
+/// `ERROR_NOT_LOCKED` (158) when the OS has already released the lock — most
+/// commonly because the working set was trimmed under memory pressure. Per
+/// Microsoft's documentation `VirtualLock` is *best-effort*: pages can be
+/// implicitly unlocked when the working set is trimmed, and a subsequent
+/// `VirtualUnlock` returning `ERROR_NOT_LOCKED` is documented behaviour, not
+/// a logic error. Panicking on it is wrong, and panicking inside `Drop` is
+/// itself a soundness hazard — secret containers can drop while unwinding
+/// from another panic, and a Drop-time double-panic aborts the process.
+///
+/// # Behaviour
+///
+/// - **Unix:** drop the guard normally. `munlock` does not have the working-
+///   set-trim quirk and reliably succeeds for any region we successfully
+///   locked, so the wrapper is functionally identical to a bare
+///   `Option<region::LockGuard>`.
+/// - **Windows:** [`mem::forget`] the guard. We do not call `VirtualUnlock`.
+///   The OS reclaims the lock-accounting state when the underlying memory is
+///   freed (typically when the heap allocator decommits the page) or when
+///   the process exits.
+///
+/// # Functional impact of the Windows path
+///
+/// 1. **Lock attempt unchanged:** we still call `region::lock` →
+///    `VirtualLock` at construction. The OS-level page-residency intent is
+///    the same as before this fix. The wrapper only affects unlock.
+/// 2. **Not an unbounded leak:** after we `mem::forget`, the backing `Vec`
+///    drops next and returns its memory to the global allocator. The
+///    allocator either reuses the page (the lock state on that page becomes
+///    moot — no one holds a reference) or eventually decommits it via
+///    `VirtualFree(MEM_DECOMMIT)`, which clears the lock accounting per
+///    Microsoft's documentation. Steady-state stale-locked-pages is bounded
+///    by the heap's resident working set, *not* by total `SecretVec`
+///    allocations over time.
+/// 3. **Working-set quota:** Windows' per-process locked-page limit defaults
+///    to roughly the working-set max (typically GB-scale). A future
+///    `VirtualLock` exceeding the quota would surface as
+///    `region::lock(..).is_err()`, which `try_lock` already handles
+///    gracefully — the `SecretVec` falls through to plain `Vec` semantics
+///    with no panic.
+/// 4. **Security guarantee unchanged:** `VirtualLock` is documented as
+///    best-effort; a working-set trim could already swap the page to disk
+///    *before* our drop. Whether we explicitly unlock at drop or not has
+///    no effect on whether the secret was resident while it mattered. The
+///    bytes are zeroized by `ZeroizeOnDrop` regardless.
+///
+/// # Known limitation
+///
+/// Long-running Windows processes with extremely high `SecretVec` churn that
+/// happen to keep the freed pages resident in the heap (rather than
+/// decommitting them) could see slightly inflated process-level "locked
+/// pages" counters in monitoring tools. This is metadata only — no
+/// security-relevant property is affected. If this ever becomes
+/// operationally observable, the fix is to swap this `mem::forget` for a
+/// direct `VirtualUnlock` FFI call that swallows `ERROR_NOT_LOCKED`. That
+/// path is currently blocked by the workspace-wide
+/// `unsafe_code = "forbid"` lint and is therefore deliberately deferred.
+///
+/// # Upstream
+///
+/// If `region` ever changes its `Drop` to tolerate `ERROR_NOT_LOCKED` on
+/// Windows, this wrapper can be deleted and the field reverted to
+/// `Option<region::LockGuard>`.
+#[cfg(feature = "secret-mlock")]
+struct MlockGuard(Option<region::LockGuard>);
+
+#[cfg(feature = "secret-mlock")]
+impl Drop for MlockGuard {
+    fn drop(&mut self) {
+        let Some(guard) = self.0.take() else { return };
+        // Windows: forget the guard so we never call `VirtualUnlock` (which
+        // panics on `ERROR_NOT_LOCKED` after working-set trim — see type docs).
+        // Unix: explicit `drop` consumes the binding (silences the unused-
+        // variable lint when the cfg-windows arm is compiled out) and runs
+        // `region::LockGuard::drop`, which reliably calls `munlock`.
+        #[cfg(windows)]
+        core::mem::forget(guard);
+        #[cfg(not(windows))]
+        drop(guard);
+    }
 }
 
 impl SecretVec {
@@ -279,15 +367,20 @@ impl SecretVec {
 
     /// Attempt to lock the backing buffer into RAM. Returns `None` on empty
     /// buffers (locking a dangling pointer is UB) or on `mlock` failure
-    /// (e.g. `RLIMIT_MEMLOCK` exceeded). Failures are swallowed: the bytes
-    /// are still zeroized on drop, we simply lose OS-level leakage protection.
+    /// (e.g. `RLIMIT_MEMLOCK` exceeded, or Windows working-set quota
+    /// exceeded). Failures are swallowed: the bytes are still zeroized on
+    /// drop, we simply lose OS-level leakage protection.
+    ///
+    /// The successful lock is returned wrapped in [`MlockGuard`] so its Drop
+    /// is panic-tolerant — see the type-level docs there for the Windows
+    /// `VirtualUnlock` rationale.
     #[cfg(feature = "secret-mlock")]
     #[inline]
-    fn try_lock(bytes: &[u8]) -> Option<region::LockGuard> {
+    fn try_lock(bytes: &[u8]) -> Option<MlockGuard> {
         if bytes.is_empty() {
             return None;
         }
-        region::lock(bytes.as_ptr(), bytes.len()).ok()
+        region::lock(bytes.as_ptr(), bytes.len()).ok().map(|g| MlockGuard(Some(g)))
     }
 
     /// Length in bytes.

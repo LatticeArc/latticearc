@@ -312,41 +312,51 @@ mod m4_secret_key_to_bytes_zeroizing {
 // M5: All-zero key warning (not rejection) in AEAD constructors
 // ============================================================================
 
-mod m5_all_zero_key_warning {
-    use latticearc::primitives::aead::{AeadCipher, aes_gcm::AesGcm128, aes_gcm::AesGcm256};
+mod m5_all_zero_key_rejection {
+    use latticearc::primitives::aead::{
+        AeadCipher, AeadError, aes_gcm::AesGcm128, aes_gcm::AesGcm256,
+    };
 
-    #[test]
-    fn m5_aes_gcm_128_zero_key_allowed_with_warning() {
-        // NIST test vectors use all-zero keys, so they must be accepted
-        let key = [0u8; 16];
-        let cipher = AesGcm128::new(&key);
-        assert!(cipher.is_ok(), "All-zero key should be accepted (with warning)");
+    // All-zero AEAD keys are rejected at construction time with
+    // `AeadError::WeakKey` as fail-closed defence against uninitialised-memory
+    // bugs. Tests needing a deterministic key for non-key-related coverage
+    // (ciphertext corruption, AAD mismatch, etc.) should pick any non-zero
+    // pattern such as `[0x42u8; KEY_LEN]`. KAT vectors that genuinely exercise
+    // the all-zero key (McGrew & Viega Test Cases 1 and 2) must enable the
+    // `kat-test-vectors` Cargo feature and construct via
+    // `AeadCipher::new_allow_weak_key`.
+
+    fn assert_weak_key<T: std::fmt::Debug>(result: Result<T, AeadError>) {
+        assert!(
+            matches!(result, Err(AeadError::WeakKey)),
+            "expected AeadError::WeakKey, got {result:?}",
+        );
     }
 
     #[test]
-    fn m5_aes_gcm_256_zero_key_allowed_with_warning() {
-        let key = [0u8; 32];
-        let cipher = AesGcm256::new(&key);
-        assert!(cipher.is_ok(), "All-zero key should be accepted (with warning)");
+    fn m5_aes_gcm_128_rejects_all_zero_key() {
+        assert_weak_key(AesGcm128::new(&[0u8; 16]));
+    }
+
+    #[test]
+    fn m5_aes_gcm_256_rejects_all_zero_key() {
+        assert_weak_key(AesGcm256::new(&[0u8; 32]));
     }
 
     #[cfg(not(feature = "fips"))]
     #[test]
-    fn m5_chacha20_zero_key_allowed_with_warning() {
+    fn m5_chacha20_rejects_all_zero_key() {
         use latticearc::primitives::aead::chacha20poly1305::ChaCha20Poly1305Cipher;
-        let key = [0u8; 32];
-        let cipher = ChaCha20Poly1305Cipher::new(&key);
-        assert!(cipher.is_ok(), "All-zero key should be accepted (with warning)");
+        assert_weak_key(ChaCha20Poly1305Cipher::new(&[0u8; 32]));
     }
 
     #[test]
-    fn m5_zero_key_roundtrip_works() {
-        // All-zero key still encrypts/decrypts correctly (NIST test case 1)
-        let key = [0u8; 32];
-        let cipher = AesGcm256::new(&key).unwrap();
+    fn m5_non_zero_deterministic_key_still_roundtrips() {
+        let key = [0x42u8; 32];
+        let cipher = AesGcm256::new(&key).expect("non-zero deterministic key must construct");
         let nonce = AesGcm256::generate_nonce();
-        let (ct, tag) = cipher.encrypt(&nonce, b"hello", None).unwrap();
-        let pt = cipher.decrypt(&nonce, &ct, &tag, None).unwrap();
+        let (ct, tag) = cipher.encrypt(&nonce, b"hello", None).expect("encrypt");
+        let pt = cipher.decrypt(&nonce, &ct, &tag, None).expect("decrypt");
         assert_eq!(pt.as_slice(), b"hello");
     }
 }

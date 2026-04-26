@@ -802,15 +802,19 @@ fn test_aes_gcm_sequential_operations_succeed_succeeds() -> Result<()> {
 // ============================================================================
 
 #[test]
-fn test_aes_gcm_all_zero_key_roundtrip_succeeds() -> Result<()> {
+fn test_aes_gcm_all_zero_key_rejected_at_construction() {
     let key = vec![0x00; 32];
     let plaintext = b"Testing with all-zero key";
 
-    let ciphertext = encrypt_aes_gcm_unverified(plaintext, &key)?;
-    let decrypted = decrypt_aes_gcm_unverified(&ciphertext, &key)?;
-
-    assert_eq!(decrypted.as_slice(), plaintext.as_slice());
-    Ok(())
+    let result = encrypt_aes_gcm_unverified(plaintext, &key);
+    assert!(result.is_err(), "all-zero AEAD key must be rejected at construction");
+    match result.unwrap_err() {
+        CoreError::EncryptionFailed(_) => {
+            // Expected — `AesGcm256::new` returns `AeadError::WeakKey`,
+            // which the convenience wrapper maps to `EncryptionFailed`.
+        }
+        other => panic!("Expected EncryptionFailed (WeakKey path), got {:?}", other),
+    }
 }
 
 #[test]
@@ -829,8 +833,10 @@ fn test_aes_gcm_all_ones_key_roundtrip_succeeds() -> Result<()> {
 fn test_aes_gcm_different_key_patterns_roundtrip_succeeds() -> Result<()> {
     let plaintext = b"Test with different key patterns";
 
+    // The all-zero pattern is intentionally absent — `AesGcm256::new` rejects
+    // it as `AeadError::WeakKey` (covered by
+    // `test_aes_gcm_all_zero_key_rejected_at_construction`).
     let patterns: Vec<Vec<u8>> = vec![
-        vec![0x00; 32],
         vec![0xFF; 32],
         (0..32).collect(),
         (0..32).rev().collect(),

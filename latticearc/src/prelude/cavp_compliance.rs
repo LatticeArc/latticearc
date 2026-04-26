@@ -927,7 +927,7 @@ mod tests {
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "verify".to_string(),
             private_key: vec![],
-            public_key: verifying_key.to_vec(),
+            public_key: verifying_key,
             message: message.to_vec(),
             signature: TestSig::signature_bytes(&signature),
             expected_result: true,
@@ -960,7 +960,7 @@ mod tests {
             algorithm: "ECDSA-secp256k1".to_string(),
             operation: "verify".to_string(),
             private_key: vec![],
-            public_key: verifying_key.to_vec(),
+            public_key: verifying_key,
             message: b"wrong message".to_vec(),
             signature: TestSig::signature_bytes(&signature),
             expected_result: false, // We expect verification to fail

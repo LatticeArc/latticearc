@@ -149,6 +149,14 @@ impl EcSignature for Ed25519Signature {
 
         let mut sig_bytes = [0u8; 64];
         sig_bytes.copy_from_slice(bytes);
+        // `ed25519 v2.x`: `Signature::from_bytes(&[u8; 64]) -> Self` is
+        // infallible (RFC 8032 defines no parse-time validity rule for the
+        // 64-byte signature representation; validity is checked only at
+        // verify time). The length check above is the only failure path; the
+        // `Ok(...)` wrapper here exists for trait-shape parity with other
+        // signature schemes (ML-DSA, SLH-DSA, FN-DSA) whose `from_bytes`
+        // can fail at parse time. Removing the wrapper breaks the trait's
+        // `Result` return type — leave it.
         Ok(Signature::from_bytes(&sig_bytes))
     }
 }

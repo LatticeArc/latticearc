@@ -768,10 +768,12 @@ mod tests {
             witness: &Self::Witness,
         ) -> Result<(Self::Commitment, Vec<u8>)> {
             // Deterministic commitment: hash of witness
-            let mut buf = Vec::with_capacity(b"mock-commit".len() + witness.len());
+            let mut buf = Vec::new();
             buf.extend_from_slice(b"mock-commit");
             buf.extend_from_slice(witness);
-            let commitment = sha256(&buf).unwrap().to_vec();
+            let commitment = sha256(&buf)
+                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?
+                .to_vec();
             // State = copy of witness for respond()
             Ok((commitment, witness.clone()))
         }
@@ -783,13 +785,13 @@ mod tests {
             challenge: &[u8; 32],
         ) -> Result<Self::Response> {
             // Response: hash(commitment_state || challenge)
-            let mut buf = Vec::with_capacity(
-                b"mock-response".len() + commitment_state.len() + challenge.len(),
-            );
+            let mut buf = Vec::new();
             buf.extend_from_slice(b"mock-response");
             buf.extend_from_slice(&commitment_state);
             buf.extend_from_slice(challenge);
-            Ok(sha256(&buf).unwrap().to_vec())
+            let digest = sha256(&buf)
+                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
+            Ok(digest.to_vec())
         }
 
         fn verify(

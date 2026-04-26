@@ -62,7 +62,7 @@ pub(crate) fn encrypt_aes_gcm_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8
 /// Internal implementation of AES-GCM encryption with Additional Authenticated Data (AAD).
 ///
 /// Delegates to `primitives::aead::AesGcm256` so all callers benefit from the
-/// same hardening (zero-key warning, `ZeroizeOnDrop`).
+/// same hardening (`AeadError::WeakKey` rejection, `ZeroizeOnDrop`).
 ///
 /// Wire format: `nonce(12) || ciphertext || tag(16)`.
 pub(crate) fn encrypt_aes_gcm_with_aad_internal(
@@ -83,7 +83,7 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    // Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop)
+    // Delegate to the primitives AesGcm256 (includes AeadError::WeakKey rejection, ZeroizeOnDrop)
     let cipher = AesGcm256::new(key).map_err(|e| {
         let err = CoreError::EncryptionFailed(format!("Failed to create AES key: {e}"));
         log_crypto_operation_error!(op::AES_GCM_ENCRYPT_AAD, err);
@@ -124,7 +124,7 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
 /// Internal implementation of AES-GCM decryption with Additional Authenticated Data (AAD).
 ///
 /// Delegates to `primitives::aead::AesGcm256` so all callers benefit from the
-/// same hardening (zero-key warning, `ZeroizeOnDrop`).
+/// same hardening (`AeadError::WeakKey` rejection, `ZeroizeOnDrop`).
 pub(crate) fn decrypt_aes_gcm_with_aad_internal(
     encrypted_data: &[u8],
     key: &[u8],
@@ -165,7 +165,7 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    // Delegate to the primitives AesGcm256 (includes zero-key warning, ZeroizeOnDrop).
+    // Delegate to the primitives AesGcm256 (includes AeadError::WeakKey rejection, ZeroizeOnDrop).
     // AES key init is caller-side; distinguishable in the returned error too.
     let cipher = AesGcm256::new(key).map_err(|_e| {
         let err = CoreError::DecryptionFailed("AES key init failed".to_string());

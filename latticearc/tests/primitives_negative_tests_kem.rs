@@ -369,22 +369,74 @@ fn test_ml_kem_decapsulate_with_all_ones_ciphertext_succeeds() {
 // ============================================================================
 // Mismatched Security Levels
 // ============================================================================
+//
+// `MlKem::decapsulate` enforces a security-level mismatch check between the
+// secret key and ciphertext. The check is symmetric — both directions of every
+// (level_a, level_b) pair where a != b must reject. Six pairs total; each is
+// kept as an explicit named test (not parameterised) so individual failures
+// point at the exact mismatch direction.
+
+/// Helper: generate a CT under one level, attempt decap under another, assert error.
+fn assert_cross_level_decapsulate_rejects(
+    ct_level: MlKemSecurityLevel,
+    sk_level: MlKemSecurityLevel,
+) {
+    let (pk_ct, _sk_ct) = MlKem::generate_keypair(ct_level).expect("ct keypair gen");
+    let (_ss, ct) = MlKem::encapsulate(&pk_ct).expect("encapsulation");
+    let (_pk_sk, sk_sk) = MlKem::generate_keypair(sk_level).expect("sk keypair gen");
+    let result = MlKem::decapsulate(&sk_sk, &ct);
+    assert!(
+        result.is_err(),
+        "decapsulate({sk_level:?} sk, {ct_level:?} ct) must reject as security-level mismatch"
+    );
+}
 
 #[test]
 fn test_ml_kem_decapsulate_512_ciphertext_with_768_key_succeeds() {
-    // Generate MlKem512 keypair and ciphertext
-    let (pk_512, _sk_512) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem512)
-        .expect("keypair generation should succeed");
-    let (_ss_512, ct_512) = MlKem::encapsulate(&pk_512).expect("encapsulation should succeed");
+    assert_cross_level_decapsulate_rejects(
+        MlKemSecurityLevel::MlKem512,
+        MlKemSecurityLevel::MlKem768,
+    );
+}
 
-    // Generate MlKem768 keypair
-    let (_pk_768, sk_768) = MlKem::generate_keypair(MlKemSecurityLevel::MlKem768)
-        .expect("keypair generation should succeed");
+#[test]
+fn test_ml_kem_decapsulate_512_ciphertext_with_1024_key_rejects() {
+    assert_cross_level_decapsulate_rejects(
+        MlKemSecurityLevel::MlKem512,
+        MlKemSecurityLevel::MlKem1024,
+    );
+}
 
-    // Try to decapsulate MlKem512 ciphertext with MlKem768 key
-    // This should fail due to size mismatch or decapsulation error
-    let result = MlKem::decapsulate(&sk_768, &ct_512);
-    assert!(result.is_err(), "Should fail with mismatched security levels");
+#[test]
+fn test_ml_kem_decapsulate_768_ciphertext_with_512_key_rejects() {
+    assert_cross_level_decapsulate_rejects(
+        MlKemSecurityLevel::MlKem768,
+        MlKemSecurityLevel::MlKem512,
+    );
+}
+
+#[test]
+fn test_ml_kem_decapsulate_768_ciphertext_with_1024_key_rejects() {
+    assert_cross_level_decapsulate_rejects(
+        MlKemSecurityLevel::MlKem768,
+        MlKemSecurityLevel::MlKem1024,
+    );
+}
+
+#[test]
+fn test_ml_kem_decapsulate_1024_ciphertext_with_512_key_rejects() {
+    assert_cross_level_decapsulate_rejects(
+        MlKemSecurityLevel::MlKem1024,
+        MlKemSecurityLevel::MlKem512,
+    );
+}
+
+#[test]
+fn test_ml_kem_decapsulate_1024_ciphertext_with_768_key_rejects() {
+    assert_cross_level_decapsulate_rejects(
+        MlKemSecurityLevel::MlKem1024,
+        MlKemSecurityLevel::MlKem768,
+    );
 }
 
 // ============================================================================

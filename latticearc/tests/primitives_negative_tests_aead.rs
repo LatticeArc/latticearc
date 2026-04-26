@@ -109,7 +109,7 @@ fn test_aes_gcm_128_17_byte_key_succeeds() {
 
 #[test]
 fn test_aes_gcm_128_decrypt_corrupted_tag_fails() {
-    let key = [0u8; 16];
+    let key = [0x42u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm128::generate_nonce();
@@ -133,7 +133,7 @@ fn test_aes_gcm_128_decrypt_corrupted_tag_fails() {
 
 #[test]
 fn test_aes_gcm_128_decrypt_corrupted_ciphertext_fails() {
-    let key = [0u8; 16];
+    let key = [0x42u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm128::generate_nonce();
@@ -159,7 +159,7 @@ fn test_aes_gcm_128_decrypt_corrupted_ciphertext_fails() {
 
 #[test]
 fn test_aes_gcm_128_decrypt_wrong_nonce_fails() {
-    let key = [0u8; 16];
+    let key = [0x42u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
     let nonce1 = AesGcm128::generate_nonce();
@@ -182,7 +182,7 @@ fn test_aes_gcm_128_decrypt_wrong_nonce_fails() {
 
 #[test]
 fn test_aes_gcm_128_decrypt_empty_ciphertext_corrupted_tag_fails() {
-    let key = [0u8; 16];
+    let key = [0x42u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm128::generate_nonce();
@@ -266,7 +266,7 @@ fn test_aes_gcm_256_33_byte_key_succeeds() {
 
 #[test]
 fn test_aes_gcm_256_decrypt_corrupted_tag_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm256::generate_nonce();
@@ -290,7 +290,7 @@ fn test_aes_gcm_256_decrypt_corrupted_tag_fails() {
 
 #[test]
 fn test_aes_gcm_256_decrypt_all_zeros_tag_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm256::generate_nonce();
@@ -374,7 +374,7 @@ fn test_chacha20_poly1305_33_byte_key_succeeds() {
 
 #[test]
 fn test_chacha20_poly1305_decrypt_corrupted_tag_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -398,7 +398,7 @@ fn test_chacha20_poly1305_decrypt_corrupted_tag_fails() {
 
 #[test]
 fn test_chacha20_poly1305_decrypt_corrupted_ciphertext_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -424,7 +424,7 @@ fn test_chacha20_poly1305_decrypt_corrupted_ciphertext_fails() {
 
 #[test]
 fn test_chacha20_poly1305_decrypt_wrong_key_fails() {
-    let key1 = [0x00u8; 32];
+    let key1 = [0x42u8; 32];
     let key2 = [0xFFu8; 32];
 
     let cipher1 = ChaCha20Poly1305Cipher::new(&key1).expect("cipher creation should succeed");
@@ -453,7 +453,7 @@ fn test_chacha20_poly1305_decrypt_wrong_key_fails() {
 
 #[test]
 fn test_aes_128_encrypt_chacha_decrypt_succeeds() {
-    let key = [0u8; 32]; // Both use 32-byte keys (use first 16 for AES-128)
+    let key = [0x42u8; 32]; // Both use 32-byte keys (use first 16 for AES-128)
     let aes_key = &key[..16];
 
     let aes_cipher = AesGcm128::new(aes_key).expect("AES cipher creation should succeed");
@@ -483,7 +483,7 @@ fn test_aes_128_encrypt_chacha_decrypt_succeeds() {
 
 #[test]
 fn test_aes_gcm_256_decrypt_wrong_aad_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm256::generate_nonce();
@@ -507,7 +507,7 @@ fn test_aes_gcm_256_decrypt_wrong_aad_fails() {
 
 #[test]
 fn test_chacha20_poly1305_decrypt_missing_aad_fails() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
@@ -530,7 +530,7 @@ fn test_chacha20_poly1305_decrypt_missing_aad_fails() {
 
 #[test]
 fn test_aes_gcm_128_decrypt_unexpected_aad_succeeds() {
-    let key = [0u8; 16];
+    let key = [0x42u8; 16];
     let cipher = AesGcm128::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm128::generate_nonce();
@@ -558,7 +558,7 @@ fn test_aes_gcm_128_decrypt_unexpected_aad_succeeds() {
 
 #[test]
 fn test_aes_gcm_256_encrypt_empty_plaintext_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = AesGcm256::new(&key).expect("cipher creation should succeed");
 
     let nonce = AesGcm256::generate_nonce();
@@ -580,7 +580,7 @@ fn test_aes_gcm_256_encrypt_empty_plaintext_succeeds() {
 
 #[test]
 fn test_chacha20_poly1305_encrypt_single_byte_succeeds() {
-    let key = [0u8; 32];
+    let key = [0x42u8; 32];
     let cipher = ChaCha20Poly1305Cipher::new(&key).expect("cipher creation should succeed");
 
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();

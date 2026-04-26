@@ -298,6 +298,14 @@ brew install cmake go    # macOS
 cargo build --features fips
 ```
 
+### Cargo features
+
+| Feature | Default | What it enables |
+|---|:---:|---|
+| `fips` | off | Routes AES-GCM, ML-KEM, HKDF, and SHA-2 through the CMVP-validated `aws-lc-rs` build. Required for `ComplianceMode::Fips140_3` and `Cnsa2_0`. |
+| `secret-mlock` | off | Locks heap-backed `SecretVec` buffers into RAM via `mlock(2)` / `VirtualLock`, preventing them from appearing in swap or core dumps. |
+| `kat-test-vectors` | off | Exposes `AeadCipher::new_allow_weak_key`, an opt-in constructor that bypasses the `AeadError::WeakKey` rejection of all-zero keys. **Test-only** — needed to reproduce NIST AES-GCM Test Cases 1 and 2 (McGrew & Viega) which use the all-zero key. Production builds must leave this off so an uninitialised-memory key fails closed. |
+
 | Error | Fix |
 |-------|-----|
 | `CMake not found` | Install CMake (FIPS only) |

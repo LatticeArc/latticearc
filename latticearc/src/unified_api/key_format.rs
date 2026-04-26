@@ -1650,6 +1650,26 @@ impl PortableKey {
                 "PBKDF2 iteration count {kdf_iterations} below minimum {PBKDF2_MIN_ITERATIONS}",
             )));
         }
+        // Warn when a loaded key uses fewer iterations than the current
+        // OWASP-recommended default. The minimum (100k) is retained as a
+        // hard floor for backwards compatibility with keys generated under
+        // OWASP 2018 guidance; the default (600k) is OWASP 2023 for
+        // HMAC-SHA256. Callers should re-protect keys below the default.
+        // Deduped per process — repeatedly loading the same legacy key on a
+        // hot path would otherwise flood the log subscriber with identical
+        // events.
+        if kdf_iterations < PBKDF2_DEFAULT_ITERATIONS {
+            static LOW_ITER_WARNED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+            LOW_ITER_WARNED.get_or_init(|| {
+                tracing::warn!(
+                    kdf_iterations,
+                    recommended = PBKDF2_DEFAULT_ITERATIONS,
+                    "PBKDF2 iteration count is below the current OWASP recommendation; \
+                     re-protect this key (decrypt + re-encrypt with passphrase) at the \
+                     next opportunity."
+                );
+            });
+        }
         let salt = BASE64_ENGINE
             .decode(kdf_salt)
             .map_err(|e| CoreError::SerializationError(format!("Invalid KDF salt base64: {e}")))?;

@@ -1047,6 +1047,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
 mod tests {
     use super::*;
     use crate::types::types::CryptoScheme;
+    use crate::unified_api::test_helpers::non_fips_config;
     use crate::{CryptoConfig, CryptoMode, SecurityLevel, UseCase};
 
     /// Helper: generate keypair + sign + return signed data
@@ -1170,7 +1171,9 @@ mod tests {
     #[test]
     fn test_sign_with_financial_transactions_use_case_succeeds() -> Result<()> {
         let message = b"Financial transaction data";
-        let config = CryptoConfig::new().use_case(UseCase::FinancialTransactions);
+        // FIPS-mode behaviour for this use case is covered by the dedicated
+        // `test_fips_*` tests below.
+        let config = non_fips_config(UseCase::FinancialTransactions);
 
         let signed = sign_message(message, config)?;
 
@@ -2571,6 +2574,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "fips")]
     #[test]
     fn test_cnsa_verify_rejects_standalone_ed25519_signature_fails() -> Result<()> {
         // Manually construct a SignedData with ed25519 scheme
@@ -2597,6 +2601,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "fips")]
     #[test]
     fn test_fips_decrypt_allows_aes_gcm_succeeds() -> Result<()> {
         // Encrypt with symmetric force (produces AES-256-GCM)
@@ -2618,6 +2623,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "fips")]
     #[test]
     fn test_cnsa_decrypt_rejects_aes_gcm_fails() -> Result<()> {
         // Encrypt with symmetric force (produces AES-256-GCM)
@@ -2674,6 +2680,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "fips")]
     #[test]
     fn test_fips_verify_allows_pq_signatures_succeeds() -> Result<()> {
         // Sign with PQ algorithm (ML-DSA-65)
@@ -2689,6 +2696,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "fips")]
     #[test]
     fn test_cnsa_verify_allows_hybrid_signatures_succeeds() -> Result<()> {
         // Sign with hybrid (default High security → hybrid-ml-dsa-65-ed25519)

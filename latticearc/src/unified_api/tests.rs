@@ -1,6 +1,7 @@
 // Tests are allowed to use unwrap/expect for simplicity
 // (Allow attributes are on the `mod tests;` declaration in lib.rs)
 
+use crate::unified_api::test_helpers::non_fips_config;
 use crate::unified_api::*;
 
 /// Compile-time exhaustiveness guard for
@@ -487,8 +488,7 @@ fn test_symmetric_roundtrip_all_use_cases_succeeds() {
             ];
 
             for uc in &use_cases {
-                let config =
-                    CryptoConfig::new().use_case(uc.clone()).force_scheme(CryptoScheme::Symmetric);
+                let config = non_fips_config(uc.clone()).force_scheme(CryptoScheme::Symmetric);
                 let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)
                     .unwrap_or_else(|e| panic!("encrypt failed for {:?}: {}", uc, e));
 
@@ -1235,8 +1235,8 @@ fn test_generate_signing_keypair_all_use_cases_succeeds() {
             assert_eq!(all_use_cases.len(), 22, "Every UseCase variant must be tested");
             let message = b"regression test for use-case-driven signing";
             for uc in all_use_cases {
-                let config = CryptoConfig::new().use_case(uc);
-                let (pk, sk, scheme) = generate_signing_keypair(config)
+                let config = non_fips_config(uc);
+                let (pk, sk, scheme) = generate_signing_keypair(config.clone())
                     .unwrap_or_else(|e| panic!("Keypair generation failed for {:?}: {e}", uc));
                 // The scheme MUST be one of the known signing schemes.
                 let is_signing_scheme = matches!(
@@ -1260,10 +1260,9 @@ fn test_generate_signing_keypair_all_use_cases_succeeds() {
                 // Functional assertion: the keypair must actually sign and verify.
                 // A regression that produces non-empty-but-wrong-size keys
                 // would not be caught by length checks alone.
-                let signed =
-                    crate::sign_with_key(message, &sk, &pk, CryptoConfig::new().use_case(uc))
-                        .unwrap_or_else(|e| panic!("sign_with_key failed for {:?}: {e}", uc));
-                let valid = crate::verify(&signed, CryptoConfig::new().use_case(uc))
+                let signed = crate::sign_with_key(message, &sk, &pk, config.clone())
+                    .unwrap_or_else(|e| panic!("sign_with_key failed for {:?}: {e}", uc));
+                let valid = crate::verify(&signed, config)
                     .unwrap_or_else(|e| panic!("verify failed for {:?}: {e}", uc));
                 assert!(valid, "signature did not verify for {:?}", uc);
             }
@@ -1566,8 +1565,7 @@ fn test_encrypt_decrypt_with_use_case_financial_succeeds() {
         .spawn(|| {
             let data = b"Financial transactions test";
             let key = vec![0x42u8; 32];
-            let config = CryptoConfig::new()
-                .use_case(UseCase::FinancialTransactions)
+            let config = non_fips_config(UseCase::FinancialTransactions)
                 .force_scheme(CryptoScheme::Symmetric);
 
             let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config.clone()).unwrap();

@@ -333,7 +333,12 @@ impl HybridSignature {
     }
 }
 
-/// Generate hybrid keypair
+/// Generate hybrid keypair at the default ML-DSA parameter set (`MlDsa65`,
+/// NIST Level 3 / 192-bit security).
+///
+/// For other parameter sets (NIST Level 1 / `MlDsa44`, or NIST Level 5 /
+/// `MlDsa87` — the latter required for CNSA 2.0), use
+/// [`generate_keypair_with_parameter_set`].
 ///
 /// # Errors
 ///
@@ -346,8 +351,31 @@ impl HybridSignature {
 #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
 pub fn generate_keypair() -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError>
 {
-    // Generate ML-DSA keypair
-    let (ml_dsa_pk, ml_dsa_sk) = ml_dsa_generate_keypair(MlDsaParameterSet::MlDsa65)
+    generate_keypair_with_parameter_set(MlDsaParameterSet::MlDsa65)
+}
+
+/// Generate a hybrid keypair at a specified ML-DSA parameter set.
+///
+/// `parameter_set` selects the ML-DSA strength of the post-quantum half of
+/// the hybrid keypair. The Ed25519 half is unchanged across parameter sets
+/// (Ed25519 has a single fixed strength).
+///
+/// | `parameter_set` | NIST level | Use case |
+/// |-----------------|------------|----------|
+/// | `MlDsa44`       | 1 (~128-bit) | size-constrained, lowest security tier |
+/// | `MlDsa65`       | 3 (~192-bit) | default, balanced |
+/// | `MlDsa87`       | 5 (~256-bit) | CNSA 2.0, highest security |
+///
+/// # Errors
+///
+/// Returns an error if ML-DSA keypair generation fails for the requested
+/// parameter set, or if Ed25519 keypair generation (including its pairwise
+/// consistency test) fails.
+#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+pub fn generate_keypair_with_parameter_set(
+    parameter_set: MlDsaParameterSet,
+) -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError> {
+    let (ml_dsa_pk, ml_dsa_sk) = ml_dsa_generate_keypair(parameter_set)
         .map_err(|e| HybridSignatureError::MlDsaError(e.to_string()))?;
 
     // Generate Ed25519 keypair through the primitives wrapper so all

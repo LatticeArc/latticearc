@@ -9,6 +9,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **AEAD strict-by-default key validation**: `AeadCipher::new` now rejects the
+  all-zero key pattern with the new `AeadError::WeakKey` variant as fail-closed
+  defence in depth (an all-zero AEAD key almost always indicates uninitialised
+  memory or an unset configuration field rather than a deliberate operational
+  choice). The check is implemented via constant-time
+  `aead::is_all_zero_key`, satisfying the project's "secret comparisons must
+  be constant-time" policy from `docs/DESIGN_PATTERNS.md` §2.
+- **`kat-test-vectors` Cargo feature** + `AeadCipher::new_allow_weak_key`:
+  opt-in escape hatch for reproducing NIST AES-GCM Test Cases 1 and 2
+  (McGrew & Viega, 2004) and other canonical KATs that use the all-zero
+  key. Default-off so production builds cannot accidentally construct a
+  weak-key cipher. `latticearc-tests` enables the feature so its KAT
+  vectors compile.
+- **`impl FipsError for AeadError`**: maps every `AeadError` variant to the
+  matching `FipsErrorCode` (notably `WeakKey → WeakKeyDetected`, code
+  `0x0305`). Closes the previously-orphaned `AeadError` taxonomy gap.
+- **Dedicated FIPS 203 §7.3 conformance gate**:
+  `tests/fips_203_section_7_3_decaps_is_total.rs` — 4 named tests prove
+  that `MlKem::decapsulate` is total over correctly-sized ciphertexts
+  (returns implicit-rejection secret rather than `Err`), per the
+  IND-CCA2 reduction.
+- **CI feature-config matrix**: the `test` job in `.github/workflows/ci.yml`
+  now runs in three rows — `--all-features`, `--features fips`,
+  `--no-default-features` — every push. Previously every CI invocation
+  used `--all-features`, so failures specific to the other configs (e.g.
+  the 11 pre-existing `--no-default-features` failures fixed in this
+  release) were silently invisible.
+
+### Changed
+- **`AesGcm128/256` and `ChaCha20Poly1305Cipher` constructors**: existing
+  `new` keeps its signature but now also rejects the all-zero key. Tests
+  needing a deterministic non-key-related fixture should pick any non-zero
+  pattern (e.g. `[0x42u8; KEY_LEN]`); KAT vectors should enable the
+  `kat-test-vectors` feature and call `new_allow_weak_key`. Migration is
+  mechanical and fully covered in the per-call-site fixture sweep already
+  shipped with this release.
+- **`unified_api::selector::CLASSICAL_FALLBACK_SIZE_THRESHOLD` →
+  `ML_KEM_DOWNGRADE_SIZE_THRESHOLD`**: the previous name was a misnomer;
+  the threshold has never gated a fall-back to a classical-only scheme,
+  only the in-band downgrade between ML-KEM parameter sets within the
+  hybrid construction.
+- **`MlockGuard` panic-tolerant wrapper around `region::LockGuard`**
+  (`secret-mlock` feature): on Windows `region::LockGuard::drop` panics
+  when `VirtualUnlock` returns `ERROR_NOT_LOCKED`, which the OS issues
+  whenever the working set was trimmed (documented "best-effort"
+  behaviour for `VirtualLock`). The wrapper `mem::forget`s the guard on
+  Windows so we never call `VirtualUnlock`; on Unix it drops normally
+  (`munlock` is reliable). See the type-level docs at
+  `latticearc/src/types/secrets.rs` for the full functional-impact
+  analysis.
+
+### Fixed
+- **Windows CI test failures** in `e2e_integration` and `unified_api`
+  test targets caused by the `region` crate's strict `Drop` panic on
+  `VirtualUnlock(ERROR_NOT_LOCKED)`. Resolved by the `MlockGuard`
+  wrapper above.
+- **Pre-existing `--no-default-features` test failures** (11 tests in
+  `unified_api`): split between explicit `#[cfg(feature = "fips")]` gates
+  for tests that exercise FIPS/CNSA compliance directly, and explicit
+  `compliance(ComplianceMode::Default)` overrides via the new
+  `unified_api::test_helpers::non_fips_config` helper for tests that use
+  FIPS-defaulted use cases (`FinancialTransactions`, `HealthcareRecords`,
+  `GovernmentClassified`, `PaymentCard`).
+- **PBKDF2 deserialization log spam**: the warning emitted when an
+  encrypted-key envelope's `kdf_iterations` is below the OWASP 2023
+  recommendation (600,000) is now deduplicated per process via
+  `OnceLock`, instead of firing on every `from_json`/`from_cbor` load.
+- **Stale "zero-key warning" doc comments** in
+  `unified_api/convenience/aes_gcm.rs` and `unified_api/mod.rs` updated
+  to reflect the new "AeadError::WeakKey rejection" semantics.
+
 ## [0.8.0] — 2026-04-24
 
 **Headline**: normative Secret Type Invariants ratified and structurally

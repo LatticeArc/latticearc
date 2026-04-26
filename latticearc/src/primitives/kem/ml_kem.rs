@@ -1021,12 +1021,19 @@ impl MlKem {
         // which stage rejected. Key-reconstruction failure is only triggered
         // by a malformed *caller-side* secret key (not adversary-reachable),
         // but we still unify the error for consistency and defense in depth.
+        // The upstream cause is logged at `tracing::debug!` so developers
+        // running a debug subscriber get the detail without it leaking
+        // through the `Result` to attackers in production logs.
         let algorithm = secret_key.security_level().as_aws_algorithm();
-        let decaps_key = DecapsulationKey::new(algorithm, secret_key.expose_secret())
-            .map_err(|_e| MlKemError::DecapsulationError("decapsulation failed".to_string()))?;
-        let shared_secret = decaps_key
-            .decapsulate(ciphertext.as_bytes().into())
-            .map_err(|_e| MlKemError::DecapsulationError("decapsulation failed".to_string()))?;
+        let decaps_key =
+            DecapsulationKey::new(algorithm, secret_key.expose_secret()).map_err(|e| {
+                tracing::debug!(error = ?e, "ML-KEM DecapsulationKey::new rejected secret key");
+                MlKemError::DecapsulationError("decapsulation failed".to_string())
+            })?;
+        let shared_secret = decaps_key.decapsulate(ciphertext.as_bytes().into()).map_err(|e| {
+            tracing::debug!(error = ?e, "ML-KEM decapsulate rejected ciphertext");
+            MlKemError::DecapsulationError("decapsulation failed".to_string())
+        })?;
         let ss_bytes = shared_secret.as_ref();
         MlKemSharedSecret::from_slice(ss_bytes)
     }

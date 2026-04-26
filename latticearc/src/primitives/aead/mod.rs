@@ -9,9 +9,15 @@
 //!
 //! ## AEAD Schemes
 //!
-//! - **AES-GCM-128**: AES-GCM with 128-bit key (NIST SP 800-38D)
-//! - **AES-GCM-256**: AES-GCM with 256-bit key (NIST SP 800-38D)
-//! - **ChaCha20-Poly1305**: Stream cipher with Poly1305 MAC (RFC 8439)
+//! - **AES-GCM-128**: AES-GCM with 128-bit key (NIST SP 800-38D). Available
+//!   in every feature configuration.
+//! - **AES-GCM-256**: AES-GCM with 256-bit key (NIST SP 800-38D). Available
+//!   in every feature configuration.
+//! - **ChaCha20-Poly1305**: Stream cipher with Poly1305 MAC (RFC 8439).
+//!   *Compiled out under the `fips` feature* — ChaCha20-Poly1305 is not in
+//!   NIST SP 800-38D, so the module and its types are unavailable in
+//!   `fips`-enabled builds. Higher-level APIs that select an AEAD
+//!   automatically pick AES-GCM-256 when `fips` is on.
 //!
 //! ## AEAD Security Notes
 //!
@@ -73,13 +79,74 @@ pub trait AeadCipher: sealed::Sealed {
     /// Key length in bytes
     const KEY_LEN: usize;
 
-    /// Create new AEAD cipher from key bytes.
+    /// Create new AEAD cipher from key bytes — the strict, production entry
+    /// point. Length is validated and the all-zero key pattern is rejected as
+    /// fail-closed defence in depth (it is overwhelmingly the signature of
+    /// uninitialised memory or an unset configuration field rather than a
+    /// deliberate operational choice).
+    ///
+    /// For NIST KAT reproduction (Test Cases 1 and 2 of McGrew & Viega's
+    /// AES-GCM specification use the all-zero key) enable the
+    /// `kat-test-vectors` Cargo feature and call [`new_allow_weak_key`]
+    /// instead — that constructor preserves the length check but skips the
+    /// weak-key guard. The feature is opt-in so production builds cannot
+    /// accidentally construct a weak-key cipher.
     ///
     /// # Errors
-    /// Returns an error if the key length does not match the expected size for this cipher.
+    /// - [`AeadError::InvalidKeyLength`] if `key.len() != Self::KEY_LEN`.
+    /// - [`AeadError::WeakKey`] if `key` is the all-zero pattern.
+    ///
+    /// [`new_allow_weak_key`]: AeadCipher::new_allow_weak_key
     fn new(key: &[u8]) -> Result<Self, AeadError>
     where
+        Self: Sized,
+    {
+        if key.len() != Self::KEY_LEN {
+            return Err(AeadError::InvalidKeyLength);
+        }
+        if is_all_zero_key(key) {
+            return Err(AeadError::WeakKey);
+        }
+        Self::new_internal(key)
+    }
+
+    /// Internal raw constructor — validates length, builds the cipher, no
+    /// weak-key check. Implementations supply this and `AeadCipher` derives
+    /// both [`new`] (with weak-key guard) and the optional
+    /// [`new_allow_weak_key`] (KAT-only) from it.
+    ///
+    /// # Errors
+    /// - [`AeadError::InvalidKeyLength`] if `key.len() != Self::KEY_LEN`.
+    ///
+    /// [`new`]: AeadCipher::new
+    /// [`new_allow_weak_key`]: AeadCipher::new_allow_weak_key
+    #[doc(hidden)]
+    fn new_internal(key: &[u8]) -> Result<Self, AeadError>
+    where
         Self: Sized;
+
+    /// Construct a cipher bypassing the [`AeadError::WeakKey`] guard.
+    ///
+    /// Reserved for known-test-vector reproduction (e.g. the all-zero
+    /// key/IV cases in McGrew & Viega's AES-GCM Test Cases 1 and 2).
+    /// **Production code MUST use [`AeadCipher::new`]** so an
+    /// uninitialised-memory key fails closed.
+    ///
+    /// Gated behind the `kat-test-vectors` Cargo feature to keep the bypass
+    /// off the default API surface — only test crates that explicitly opt in
+    /// can call it.
+    ///
+    /// # Errors
+    /// - [`AeadError::InvalidKeyLength`] if `key.len() != Self::KEY_LEN`.
+    ///
+    /// [`AeadCipher::new`]: AeadCipher::new
+    #[cfg(any(test, feature = "kat-test-vectors"))]
+    fn new_allow_weak_key(key: &[u8]) -> Result<Self, AeadError>
+    where
+        Self: Sized,
+    {
+        Self::new_internal(key)
+    }
 
     /// Generate a random nonce from the OS CSPRNG.
     fn generate_nonce() -> Nonce;
@@ -200,6 +267,14 @@ pub enum AeadError {
     #[error("Invalid nonce length")]
     InvalidNonceLength,
 
+    /// Key material is structurally weak and was rejected before any
+    /// cryptographic operation. Currently raised for the all-zero key, which
+    /// usually indicates uninitialised memory or an unset configuration field
+    /// rather than a deliberate choice. The AEAD algorithm itself does not
+    /// fail on this input — the rejection is a fail-closed defence in depth.
+    #[error("Weak key rejected by AEAD constructor (likely uninitialised memory)")]
+    WeakKey,
+
     /// Encryption failed
     #[error("Encryption failed: {0}")]
     EncryptionFailed(String),
@@ -213,15 +288,30 @@ pub enum AeadError {
     Other(String),
 }
 
-/// Defense-in-depth: warn on all-zero keys via tracing.
-/// Not rejected outright since NIST test vectors use all-zero keys.
-pub(crate) fn warn_if_all_zero_key(key: &[u8], cipher_label: &str) {
-    if key.iter().all(|&b| b == 0) {
-        tracing::warn!(
-            "All-zero key detected for {}. This is insecure in production.",
-            cipher_label
-        );
+/// Returns `true` when every byte of `key` is zero. Internal helper used by
+/// AEAD constructors to fail-close on uninitialised-memory key material.
+///
+/// Iterates every byte unconditionally (no early exit) so that the runtime is
+/// independent of the position of the first non-zero byte. The project policy
+/// (`docs/DESIGN_PATTERNS.md` §2) is that any function whose input is secret
+/// key material must be constant-time; even though the immediate caller is a
+/// constructor (not the per-record hot path), an early-exit `iter().all()`
+/// would in principle leak the count of leading zero bytes through wall-clock
+/// timing — keep the contract uniform and avoid the special case.
+#[inline]
+#[must_use]
+pub(crate) fn is_all_zero_key(key: &[u8]) -> bool {
+    // Defensive: every in-crate caller has already validated `key.len() ==
+    // KEY_LEN` (16 or 32) before reaching here, so the empty branch is dead
+    // in practice. The check is retained so a hypothetical future caller
+    // outside the AEAD constructor path cannot get a vacuous "all bytes are
+    // zero" answer for a zero-length slice (`iter().all()` returns `true`
+    // for empty iterators — which would falsely flag an empty key as weak).
+    if key.is_empty() {
+        return false;
     }
+    let acc = key.iter().fold(0u8, |acc, &b| acc | b);
+    acc == 0
 }
 
 /// Constant-time comparison of two authentication tags.

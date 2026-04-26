@@ -317,6 +317,38 @@ at end-of-scope.
   reference, the proof's `Drop` never runs. That is a downstream
   responsibility.
 
+### CLI passphrase via `LATTICEARC_PASSPHRASE` environment variable
+
+The `latticearc` CLI accepts the encrypted-keyfile passphrase via the
+`LATTICEARC_PASSPHRASE` environment variable as a fallback when no TTY is
+available (CI, batch scripts, daemons). This is a deliberate convenience for
+non-interactive automation; it is **not** intended for interactive use.
+
+**The trade-off**: an environment variable is visible to other processes
+running as the same user via `/proc/<pid>/environ` on Linux, can be read by
+`root` on any platform, is inherited across `fork()` / `exec()`, and may be
+captured in core dumps. Anyone who can read the process environment can read
+the passphrase.
+
+**Recommended deployment patterns**:
+
+1. **Interactive sessions** — never set `LATTICEARC_PASSPHRASE`. Let the
+   CLI prompt you on the TTY. The CLI will emit a `stderr` warning if it
+   detects the variable is set on an interactive session, because the
+   combination usually means an exported variable has been inherited from a
+   prior shell session and the user is on a less-secure path than intended.
+2. **CI / automation** — restrict the variable's scope to the single command
+   that needs it, prefer ephemeral secret-injection mechanisms (GitHub
+   Actions secrets, Vault, AWS Secrets Manager) over persistent env files,
+   and unset the variable as soon as the operation completes.
+3. **Containerised deployments** — pass the secret via a tmpfs-mounted file
+   that the operator reads into the variable for the single CLI invocation,
+   rather than via `--env` (which persists in container metadata).
+
+The hard constraint that does not change: passphrases are never accepted as
+command-line arguments — those are visible in `ps`, shell history, audit
+logs, and crash dumps regardless of platform.
+
 ## Vulnerability Disclosure Policy
 
 We follow coordinated disclosure:

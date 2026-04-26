@@ -91,7 +91,7 @@ Choose based on your constraints:
 use latticearc::{encrypt, decrypt, CryptoConfig, CryptoScheme, EncryptKey, DecryptKey};
 
 // Symmetric encryption with AES-256-GCM
-let key = [0u8; 32];
+let key = [0x42u8; 32];
 let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
 let encrypted = encrypt(b"secret data", EncryptKey::Symmetric(&key), config)?;
 let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;

@@ -623,6 +623,20 @@ impl FipsError for crate::primitives::kem::ml_kem::MlKemError {
     }
 }
 
+impl FipsError for crate::primitives::aead::AeadError {
+    fn fips_code(&self) -> FipsErrorCode {
+        use crate::primitives::aead::AeadError;
+        match self {
+            AeadError::InvalidKeyLength => FipsErrorCode::InvalidKeyLength,
+            AeadError::InvalidNonceLength => FipsErrorCode::InvalidNonce,
+            AeadError::WeakKey => FipsErrorCode::WeakKeyDetected,
+            AeadError::EncryptionFailed(_) => FipsErrorCode::EncryptionFailed,
+            AeadError::DecryptionFailed(_) => FipsErrorCode::DecryptionFailed,
+            AeadError::Other(_) => FipsErrorCode::InternalError,
+        }
+    }
+}
+
 // ============================================================================
 // Conversion utilities
 // ============================================================================
