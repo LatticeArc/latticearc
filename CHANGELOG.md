@@ -9,6 +9,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Audit-batch hardening pass (commit `6ef59908d`, 2026-04-27)
+
+#### Breaking
+- **`derive_encryption_key(shared, ctx)` → `derive_encryption_key(shared, ctx,
+  &DerivationBinding{recipient_static_pk, ephemeral_pk, kem_ciphertext})`**.
+  Per RFC 9180 §5.1 (HPKE) the encryption key is now bound to the channel
+  triple via length-prefixed segments in the HKDF `info`. Without the
+  binding, an attacker who recovers any one shared secret can re-key
+  arbitrary ciphertexts. `DerivationBinding::empty()` exists for tests that
+  legitimately have no channel context.
+- **`HybridSigPublicKey::new` / `HybridSigSecretKey::new`** now take a
+  leading `parameter_set: MlDsaParameterSet`. Previously the API silently
+  assumed `MlDsa65`, so `MlDsa44` and `MlDsa87` keys round-tripped through
+  the wrong ML-DSA backend. Key-format conversions infer the parameter set
+  from the PQ-component byte length.
+- **`AeadError::Other` removed**. No production code path constructed it;
+  the variant existed only as a catch-all for ad-hoc test errors. Tests
+  now exercise the real `EncryptionFailed(ResourceLimit)` path via
+  `validate_encryption_size`.
+
+#### Added
+- `HybridEncryptionContext::MAX_AAD_LEN = 64 KiB` upper bound, enforced at
+  both encrypt and decrypt entry points.
+- `latticearc-cli kdf pbkdf2` enforces OWASP 2023 minimum 600 000
+  iterations (`OWASP_PBKDF2_MIN_ITERATIONS`); bypass via
+  `--allow-weak-iterations` (KAT replay only — warns to stderr).
+- `KeyAlgorithm` ↔ `MlKemSecurityLevel` and `KeyAlgorithm` ↔
+  `MlDsaParameterSet` `From` / `TryFrom` impls; eliminates four inline
+  match blocks and the 1312/1952/2592 magic numbers in
+  `from_hybrid_sig_keypair`.
+- 3 missing `#[must_use]` annotations on `HybridSigPublicKey::new`,
+  `HybridSigSecretKey::new`, `HybridSignature::new`.
+
+#### Changed
+- **Pattern 6 (error opacity)** — four primitives no longer leak which
+  sub-component failed validation:
+  - `kem_hybrid::encapsulate` collapses every failure path into the unit
+    variant `HybridKemError::EncapsulationFailed` (matches existing
+    decapsulate symmetry).
+  - `decrypt_hybrid` collapses 4 distinct `InvalidInput` pre-checks
+    (KEM CT length, ECDH PK length, nonce length, tag length) into the
+    opaque `HybridEncryptionError::DecryptionError`.
+  - `sig_hybrid::verify` no longer pre-checks Ed25519 PK / signature
+    lengths separately — both flow through the bit=0 verify path and
+    collapse into `HybridSignatureError::VerificationFailed`.
+  - `verify_hybrid_ml_dsa_ed25519` PK-length pre-check folded into the
+    bit-0 path. Source-side `tracing::debug!` instrumentation preserved
+    at every collapse site so production observability is unaffected.
+- `XChaCha20Poly1305Cipher::{encrypt_x,decrypt_x}` now call
+  `validate_encryption_size` / `validate_decryption_size` before any AEAD
+  work; previously the resource-limit check was skipped on the X-variant
+  code path.
+- `Pbkdf2Params::with_salt` is infallible (returns `Self`) with one
+  canonical validation point at `pbkdf2()`. Salt < 16 bytes
+  (NIST SP 800-132 §5.1) is rejected exactly once, with the invariant
+  documented at the type. Earlier draft used a fallible `try_with_salt`
+  + `with_salt_unchecked` pair, then chained `.unwrap()` at every call
+  site — both rejected by user feedback as design-pattern violations.
+- `RngHandle::ThreadLocal` cfg-gated `not(fips)` so it cannot appear in
+  a FIPS build.
+- proptest cases bumped 32→256 (ml_kem_768) and 16→256 (ml_dsa_44).
+- `aes_gcm.rs` `#[instrument]` macro replaced with a manual tracing
+  guard to avoid implicit string capture of secret arguments.
+- `kem_hybrid::decapsulate` instrumented with `log_crypto_operation_error!`
+  — error string preserved in tracing, outer error stays opaque.
+
+#### Removed
+- `unified_api::logging::session_id_to_hex` (thin `hex::encode` wrapper)
+  — callers inlined.
+- `key_lifecycle::transition_count` field — no production callers
+  (test-only).
+- `AeadError::Other` (see Breaking above).
+
+#### CI
+- Scheduled fuzz workflow `schedule:` cron uncommented (nightly + weekly).
+- Fuzz steps: `|| true` replaced with `continue-on-error: true` so the
+  `if: failure()` upload artifact step actually fires; smoke fuzz crash
+  artifact upload added.
+- `docs` job split into read-only `docs` (every PR/push) and push-only
+  `docs-deploy` (carries `contents: write`); narrows the permission
+  surface that handles untrusted PR contents.
+- `release.yml` `cargo audit` ignores
+  `RUSTSEC-{2024-0436,2021-0139,2024-0375,2021-0145}` to match the
+  workspace audit policy.
+
+#### Internal refactors (Theme F / E / D / B from /simplify)
+- Extracted `current_timestamp() -> u64` helper (eliminated 4 duplicate
+  sites in `unified_api/convenience/api.rs`).
+- Extracted `validate_aes256_key_length(k: &[u8]) -> Result<()>` helper
+  (eliminated 4 duplicate sites — covers AES-256-GCM and
+  ChaCha20-Poly1305 encrypt and decrypt).
+- Extracted `key_lifecycle::compute_age_days(activated)` helper used by
+  both `requires_rotation` and `age_days`.
+- Extracted CLI `keygen.rs print_keypair_report(label, pk_path, sk_path,
+  passphrase_protected)` helper (7 of 8 keypair-result printing sites
+  consolidated).
+- Extracted `pq_sig::map_verify_result` for ML-DSA / SLH-DSA / FN-DSA
+  verify error mapping (3 duplicate sites).
+
 ### Added
 - **AEAD strict-by-default key validation**: `AeadCipher::new` now rejects the
   all-zero key pattern with the new `AeadError::WeakKey` variant as fail-closed
