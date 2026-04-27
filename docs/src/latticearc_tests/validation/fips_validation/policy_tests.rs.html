@@ -65,7 +65,7 @@
 <a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">let </span>encrypt_key = LessSafeKey::new(unbound);
 <a href=#66 id=66 data-nosnippet>66</a>
 <a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce_bytes = [<span class="number">0u8</span>; <span class="number">12</span>];
-<a href=#68 id=68 data-nosnippet>68</a>    rand::rngs::OsRng.fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
+<a href=#68 id=68 data-nosnippet>68</a>    latticearc::primitives::rand::secure_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
 <a href=#69 id=69 data-nosnippet>69</a>    <span class="kw">let </span>nonce = Nonce::assume_unique_for_key(nonce_bytes);
 <a href=#70 id=70 data-nosnippet>70</a>
 <a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">let </span><span class="kw-2">mut </span>ct = test_msg.to_vec();
@@ -257,7 +257,7 @@
 <a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">let </span>encrypt_key = LessSafeKey::new(unbound);
 <a href=#258 id=258 data-nosnippet>258</a>
 <a href=#259 id=259 data-nosnippet>259</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce_bytes = [<span class="number">0u8</span>; <span class="number">12</span>];
-<a href=#260 id=260 data-nosnippet>260</a>    rand::rngs::OsRng.fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
+<a href=#260 id=260 data-nosnippet>260</a>    latticearc::primitives::rand::secure_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
 <a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">let </span>nonce = Nonce::assume_unique_for_key(nonce_bytes);
 <a href=#262 id=262 data-nosnippet>262</a>
 <a href=#263 id=263 data-nosnippet>263</a>    <span class="kw">let </span><span class="kw-2">mut </span>ciphertext = test_data.to_vec();

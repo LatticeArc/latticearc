@@ -15,7 +15,7 @@ structure. It internally calls <code>pct_fn_dsa</code> with the keypair’s comp
 <h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
 <span class="kw">use </span>latticearc::primitives::pct::pct_fn_dsa_keypair;
-<span class="kw">use </span>rand::rngs::OsRng;
+<span class="kw">use </span>rand_core_0_6::OsRng;
 
 <span class="kw">let </span><span class="kw-2">mut </span>rng = OsRng;
 <span class="kw">let </span><span class="kw-2">mut </span>keypair = KeyPair::generate_with_rng(<span class="kw-2">&amp;mut </span>rng, FnDsaSecurityLevel::Level512)<span class="question-mark">?</span>;

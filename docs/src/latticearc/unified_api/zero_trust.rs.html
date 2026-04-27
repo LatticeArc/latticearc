@@ -146,7 +146,7 @@
 <a href=#146 id=146 data-nosnippet>146</a>/// // With Zero Trust verification (recommended)
 <a href=#147 id=147 data-nosnippet>147</a>/// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 <a href=#148 id=148 data-nosnippet>148</a>/// # let data = b"secret";
-<a href=#149 id=149 data-nosnippet>149</a>/// # let key = [0u8; 32];
+<a href=#149 id=149 data-nosnippet>149</a>/// # let key = latticearc::primitives::rand::random_bytes(32);
 <a href=#150 id=150 data-nosnippet>150</a>/// let encrypted = encrypt_aes_gcm(data, &amp;key, SecurityMode::Verified(&amp;session))?;
 <a href=#151 id=151 data-nosnippet>151</a>///
 <a href=#152 id=152 data-nosnippet>152</a>/// // Without verification (opt-out)
@@ -274,7 +274,7 @@
 <a href=#274 id=274 data-nosnippet>274</a>///
 <a href=#275 id=275 data-nosnippet>275</a>/// // Use the session for cryptographic operations
 <a href=#276 id=276 data-nosnippet>276</a>/// # let data = b"secret";
-<a href=#277 id=277 data-nosnippet>277</a>/// # let key = [0u8; 32];
+<a href=#277 id=277 data-nosnippet>277</a>/// # let key = latticearc::primitives::rand::random_bytes(32);
 <a href=#278 id=278 data-nosnippet>278</a>/// let result = encrypt_aes_gcm(data, &amp;key, SecurityMode::Verified(&amp;session))?;
 <a href=#279 id=279 data-nosnippet>279</a>/// # Ok(())
 <a href=#280 id=280 data-nosnippet>280</a>/// # }
