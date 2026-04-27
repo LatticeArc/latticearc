@@ -42,70 +42,76 @@
 <a href=#42 id=42 data-nosnippet>42</a>///
 <a href=#43 id=43 data-nosnippet>43</a>/// Appended to the `(ML-KEM shared secret || ECDH shared secret)` IKM so the
 <a href=#44 id=44 data-nosnippet>44</a>/// resulting 64-byte hybrid secret is bound to this specific construction.
-<a href=#45 id=45 data-nosnippet>45</a>/// Changing this label invalidates every previously derived hybrid secret.
-<a href=#46 id=46 data-nosnippet>46</a></span><span class="kw">pub const </span>HYBRID_KEM_SS_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-Hybrid-KEM-SS"</span>;
-<a href=#47 id=47 data-nosnippet>47</a>
-<a href=#48 id=48 data-nosnippet>48</a><span class="doccomment">/// Domain for convenience API `derive_key` HKDF calls.
-<a href=#49 id=49 data-nosnippet>49</a>///
-<a href=#50 id=50 data-nosnippet>50</a>/// Binds derived keys from the convenience layer to the LatticeArc crate
-<a href=#51 id=51 data-nosnippet>51</a>/// so that the same password/salt pair cannot collide with other callers.
-<a href=#52 id=52 data-nosnippet>52</a></span><span class="kw">pub const </span>DERIVE_KEY_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-DeriveKey-v1"</span>;
+<a href=#45 id=45 data-nosnippet>45</a>///
+<a href=#46 id=46 data-nosnippet>46</a>/// **Versioning:** the `-v1` suffix is mandatory and matches every other
+<a href=#47 id=47 data-nosnippet>47</a>/// domain label in this module. A future v2 hybrid combiner (different
+<a href=#48 id=48 data-nosnippet>48</a>/// component KEMs, different KDF chain, etc.) MUST bump this to `-v2` so
+<a href=#49 id=49 data-nosnippet>49</a>/// the same component keys cannot derive identical hybrid secrets across
+<a href=#50 id=50 data-nosnippet>50</a>/// versions. Changing this label invalidates every previously derived
+<a href=#51 id=51 data-nosnippet>51</a>/// hybrid secret.
+<a href=#52 id=52 data-nosnippet>52</a></span><span class="kw">pub const </span>HYBRID_KEM_SS_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-Hybrid-KEM-SS-v1"</span>;
 <a href=#53 id=53 data-nosnippet>53</a>
-<a href=#54 id=54 data-nosnippet>54</a><span class="doccomment">/// HMAC key used by the FIPS 140-3 module integrity self-test.
+<a href=#54 id=54 data-nosnippet>54</a><span class="doccomment">/// Domain for convenience API `derive_key` HKDF calls.
 <a href=#55 id=55 data-nosnippet>55</a>///
-<a href=#56 id=56 data-nosnippet>56</a>/// This is NOT a secret — it is a public, fixed label that binds the module
-<a href=#57 id=57 data-nosnippet>57</a>/// integrity check to the LatticeArc crate identity per FIPS 140-3 §7.10.2.
-<a href=#58 id=58 data-nosnippet>58</a></span><span class="kw">pub const </span>MODULE_INTEGRITY_HMAC_KEY: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-FIPS-140-3-Module-Integrity-Key-v1"</span>;
+<a href=#56 id=56 data-nosnippet>56</a>/// Binds derived keys from the convenience layer to the LatticeArc crate
+<a href=#57 id=57 data-nosnippet>57</a>/// so that the same password/salt pair cannot collide with other callers.
+<a href=#58 id=58 data-nosnippet>58</a></span><span class="kw">pub const </span>DERIVE_KEY_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-DeriveKey-v1"</span>;
 <a href=#59 id=59 data-nosnippet>59</a>
-<a href=#60 id=60 data-nosnippet>60</a><span class="doccomment">/// Domain for PQ-KEM convenience API HKDF key derivation.
+<a href=#60 id=60 data-nosnippet>60</a><span class="doccomment">/// HMAC key used by the FIPS 140-3 module integrity self-test.
 <a href=#61 id=61 data-nosnippet>61</a>///
-<a href=#62 id=62 data-nosnippet>62</a>/// Used in `encrypt_pq_ml_kem_internal` / `decrypt_pq_ml_kem_internal` to derive
-<a href=#63 id=63 data-nosnippet>63</a>/// AES-256 keys from ML-KEM shared secrets with domain separation.
-<a href=#64 id=64 data-nosnippet>64</a></span><span class="kw">pub const </span>PQ_KEM_AEAD_KEY_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-PqKem-AeadKey-v1"</span>;
+<a href=#62 id=62 data-nosnippet>62</a>/// This is NOT a secret — it is a public, fixed label that binds the module
+<a href=#63 id=63 data-nosnippet>63</a>/// integrity check to the LatticeArc crate identity per FIPS 140-3 §7.10.2.
+<a href=#64 id=64 data-nosnippet>64</a></span><span class="kw">pub const </span>MODULE_INTEGRITY_HMAC_KEY: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-FIPS-140-3-Module-Integrity-Key-v1"</span>;
 <a href=#65 id=65 data-nosnippet>65</a>
-<a href=#66 id=66 data-nosnippet>66</a><span class="doccomment">/// Domain for PQ-only unified API encryption HKDF key derivation.
+<a href=#66 id=66 data-nosnippet>66</a><span class="doccomment">/// Domain for PQ-KEM convenience API HKDF key derivation.
 <a href=#67 id=67 data-nosnippet>67</a>///
-<a href=#68 id=68 data-nosnippet>68</a>/// Used in `encrypt_pq_only` / `decrypt_pq_only` to derive AES-256 keys from
-<a href=#69 id=69 data-nosnippet>69</a>/// ML-KEM shared secrets. Distinct from [`PQ_KEM_AEAD_KEY_INFO`] because
-<a href=#70 id=70 data-nosnippet>70</a>/// the unified API produces structured `EncryptedOutput` (separate nonce/tag/ciphertext
-<a href=#71 id=71 data-nosnippet>71</a>/// fields), while the convenience API produces a concatenated wire format.
-<a href=#72 id=72 data-nosnippet>72</a></span><span class="kw">pub const </span>PQ_ONLY_ENCRYPTION_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-PqOnly-Encryption-v1"</span>;
-<a href=#73 id=73 data-nosnippet>73</a>
-<a href=#74 id=74 data-nosnippet>74</a><span class="comment">// Formal verification with Kani
-<a href=#75 id=75 data-nosnippet>75</a></span><span class="attr">#[cfg(kani)]
-<a href=#76 id=76 data-nosnippet>76</a>#[allow(clippy::indexing_slicing)]
-<a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">mod </span>kani_proofs {
-<a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#68 id=68 data-nosnippet>68</a>/// Used in `encrypt_pq_ml_kem_internal` / `decrypt_pq_ml_kem_internal` to derive
+<a href=#69 id=69 data-nosnippet>69</a>/// AES-256 keys from ML-KEM shared secrets with domain separation.
+<a href=#70 id=70 data-nosnippet>70</a></span><span class="kw">pub const </span>PQ_KEM_AEAD_KEY_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-PqKem-AeadKey-v1"</span>;
+<a href=#71 id=71 data-nosnippet>71</a>
+<a href=#72 id=72 data-nosnippet>72</a><span class="doccomment">/// Domain for PQ-only unified API encryption HKDF key derivation.
+<a href=#73 id=73 data-nosnippet>73</a>///
+<a href=#74 id=74 data-nosnippet>74</a>/// Used in `encrypt_pq_only` / `decrypt_pq_only` to derive AES-256 keys from
+<a href=#75 id=75 data-nosnippet>75</a>/// ML-KEM shared secrets. Distinct from [`PQ_KEM_AEAD_KEY_INFO`] because
+<a href=#76 id=76 data-nosnippet>76</a>/// the unified API produces structured `EncryptedOutput` (separate nonce/tag/ciphertext
+<a href=#77 id=77 data-nosnippet>77</a>/// fields), while the convenience API produces a concatenated wire format.
+<a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">pub const </span>PQ_ONLY_ENCRYPTION_INFO: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"LatticeArc-PqOnly-Encryption-v1"</span>;
 <a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// Proves all 10 HKDF domain constants are pairwise distinct (C(10,2)=45 pairs).
-<a href=#81 id=81 data-nosnippet>81</a>    /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
-<a href=#82 id=82 data-nosnippet>82</a>    </span><span class="attr">#[kani::proof]
-<a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">fn </span>domain_constants_pairwise_distinct() {
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>constants: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[
-<a href=#85 id=85 data-nosnippet>85</a>            HYBRID_KEM,
-<a href=#86 id=86 data-nosnippet>86</a>            CASCADE_OUTER,
-<a href=#87 id=87 data-nosnippet>87</a>            CASCADE_INNER,
-<a href=#88 id=88 data-nosnippet>88</a>            SIGNATURE_BIND,
-<a href=#89 id=89 data-nosnippet>89</a>            HYBRID_ENCRYPTION_INFO,
-<a href=#90 id=90 data-nosnippet>90</a>            HYBRID_KEM_SS_INFO,
-<a href=#91 id=91 data-nosnippet>91</a>            DERIVE_KEY_INFO,
-<a href=#92 id=92 data-nosnippet>92</a>            MODULE_INTEGRITY_HMAC_KEY,
-<a href=#93 id=93 data-nosnippet>93</a>            PQ_KEM_AEAD_KEY_INFO,
-<a href=#94 id=94 data-nosnippet>94</a>            PQ_ONLY_ENCRYPTION_INFO,
-<a href=#95 id=95 data-nosnippet>95</a>        ];
-<a href=#96 id=96 data-nosnippet>96</a>        <span class="kw">let </span>n = constants.len();
-<a href=#97 id=97 data-nosnippet>97</a>        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="kw">while </span>i &lt; n {
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="kw">let </span><span class="kw-2">mut </span>j = i + <span class="number">1</span>;
-<a href=#100 id=100 data-nosnippet>100</a>            <span class="kw">while </span>j &lt; n {
-<a href=#101 id=101 data-nosnippet>101</a>                kani::assert(
-<a href=#102 id=102 data-nosnippet>102</a>                    constants[i] != constants[j],
-<a href=#103 id=103 data-nosnippet>103</a>                    <span class="string">"All HKDF domain constants must be pairwise distinct"</span>,
-<a href=#104 id=104 data-nosnippet>104</a>                );
-<a href=#105 id=105 data-nosnippet>105</a>                j += <span class="number">1</span>;
-<a href=#106 id=106 data-nosnippet>106</a>            }
-<a href=#107 id=107 data-nosnippet>107</a>            i += <span class="number">1</span>;
-<a href=#108 id=108 data-nosnippet>108</a>        }
-<a href=#109 id=109 data-nosnippet>109</a>    }
-<a href=#110 id=110 data-nosnippet>110</a>}
+<a href=#80 id=80 data-nosnippet>80</a><span class="comment">// Formal verification with Kani
+<a href=#81 id=81 data-nosnippet>81</a></span><span class="attr">#[cfg(kani)]
+<a href=#82 id=82 data-nosnippet>82</a>#[allow(clippy::indexing_slicing)]
+<a href=#83 id=83 data-nosnippet>83</a></span><span class="kw">mod </span>kani_proofs {
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Proves all 10 HKDF domain constants are pairwise distinct (C(10,2)=45 pairs).
+<a href=#87 id=87 data-nosnippet>87</a>    /// Security: collision would cause key reuse across protocols (NIST SP 800-108).
+<a href=#88 id=88 data-nosnippet>88</a>    </span><span class="attr">#[kani::proof]
+<a href=#89 id=89 data-nosnippet>89</a>    </span><span class="kw">fn </span>domain_constants_pairwise_distinct() {
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">let </span>constants: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]] = <span class="kw-2">&amp;</span>[
+<a href=#91 id=91 data-nosnippet>91</a>            HYBRID_KEM,
+<a href=#92 id=92 data-nosnippet>92</a>            CASCADE_OUTER,
+<a href=#93 id=93 data-nosnippet>93</a>            CASCADE_INNER,
+<a href=#94 id=94 data-nosnippet>94</a>            SIGNATURE_BIND,
+<a href=#95 id=95 data-nosnippet>95</a>            HYBRID_ENCRYPTION_INFO,
+<a href=#96 id=96 data-nosnippet>96</a>            HYBRID_KEM_SS_INFO,
+<a href=#97 id=97 data-nosnippet>97</a>            DERIVE_KEY_INFO,
+<a href=#98 id=98 data-nosnippet>98</a>            MODULE_INTEGRITY_HMAC_KEY,
+<a href=#99 id=99 data-nosnippet>99</a>            PQ_KEM_AEAD_KEY_INFO,
+<a href=#100 id=100 data-nosnippet>100</a>            PQ_ONLY_ENCRYPTION_INFO,
+<a href=#101 id=101 data-nosnippet>101</a>        ];
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">let </span>n = constants.len();
+<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">while </span>i &lt; n {
+<a href=#105 id=105 data-nosnippet>105</a>            <span class="kw">let </span><span class="kw-2">mut </span>j = i + <span class="number">1</span>;
+<a href=#106 id=106 data-nosnippet>106</a>            <span class="kw">while </span>j &lt; n {
+<a href=#107 id=107 data-nosnippet>107</a>                kani::assert(
+<a href=#108 id=108 data-nosnippet>108</a>                    constants[i] != constants[j],
+<a href=#109 id=109 data-nosnippet>109</a>                    <span class="string">"All HKDF domain constants must be pairwise distinct"</span>,
+<a href=#110 id=110 data-nosnippet>110</a>                );
+<a href=#111 id=111 data-nosnippet>111</a>                j += <span class="number">1</span>;
+<a href=#112 id=112 data-nosnippet>112</a>            }
+<a href=#113 id=113 data-nosnippet>113</a>            i += <span class="number">1</span>;
+<a href=#114 id=114 data-nosnippet>114</a>        }
+<a href=#115 id=115 data-nosnippet>115</a>    }
+<a href=#116 id=116 data-nosnippet>116</a>}
 </code></pre></div></section></main></body></html>

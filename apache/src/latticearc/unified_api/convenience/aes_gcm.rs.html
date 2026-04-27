@@ -18,12 +18,12 @@
 <a href=#18 id=18 data-nosnippet>18</a>//!
 <a href=#19 id=19 data-nosnippet>19</a>//! ```no_run
 <a href=#20 id=20 data-nosnippet>20</a>//! # fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-<a href=#21 id=21 data-nosnippet>21</a>//! use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession};
+<a href=#21 id=21 data-nosnippet>21</a>//! use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 <a href=#22 id=22 data-nosnippet>22</a>//! # let data = b"example data";
-<a href=#23 id=23 data-nosnippet>23</a>//! # let key = [0u8; 32];
-<a href=#24 id=24 data-nosnippet>24</a>//! # let pk = [0u8; 32];
-<a href=#25 id=25 data-nosnippet>25</a>//! # let sk = [0u8; 32];
-<a href=#26 id=26 data-nosnippet>26</a>//! # let session = VerifiedSession::establish(&amp;pk, &amp;sk)?;
+<a href=#23 id=23 data-nosnippet>23</a>//! // Fresh AEAD key — `[0u8; 32]` would fail the weak-key check.
+<a href=#24 id=24 data-nosnippet>24</a>//! let key = latticearc::primitives::rand::random_bytes(32);
+<a href=#25 id=25 data-nosnippet>25</a>//! let (pk, sk) = generate_keypair()?;
+<a href=#26 id=26 data-nosnippet>26</a>//! let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 <a href=#27 id=27 data-nosnippet>27</a>//!
 <a href=#28 id=28 data-nosnippet>28</a>//! // With Zero Trust verification (recommended)
 <a href=#29 id=29 data-nosnippet>29</a>//! let encrypted = encrypt_aes_gcm(data, &amp;key, SecurityMode::Verified(&amp;session))?;
@@ -239,12 +239,12 @@
 <a href=#239 id=239 data-nosnippet>239</a>///
 <a href=#240 id=240 data-nosnippet>240</a>/// ```no_run
 <a href=#241 id=241 data-nosnippet>241</a>/// # fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-<a href=#242 id=242 data-nosnippet>242</a>/// use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession};
+<a href=#242 id=242 data-nosnippet>242</a>/// use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 <a href=#243 id=243 data-nosnippet>243</a>/// # let data = b"example data";
-<a href=#244 id=244 data-nosnippet>244</a>/// # let key = [0u8; 32];
-<a href=#245 id=245 data-nosnippet>245</a>/// # let pk = [0u8; 32];
-<a href=#246 id=246 data-nosnippet>246</a>/// # let sk = [0u8; 32];
-<a href=#247 id=247 data-nosnippet>247</a>/// # let session = VerifiedSession::establish(&amp;pk, &amp;sk)?;
+<a href=#244 id=244 data-nosnippet>244</a>/// // Fresh AEAD key — `[0u8; 32]` would fail the weak-key check.
+<a href=#245 id=245 data-nosnippet>245</a>/// let key = latticearc::primitives::rand::random_bytes(32);
+<a href=#246 id=246 data-nosnippet>246</a>/// let (pk, sk) = generate_keypair()?;
+<a href=#247 id=247 data-nosnippet>247</a>/// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 <a href=#248 id=248 data-nosnippet>248</a>///
 <a href=#249 id=249 data-nosnippet>249</a>/// // With Zero Trust verification (recommended)
 <a href=#250 id=250 data-nosnippet>250</a>/// let encrypted = encrypt_aes_gcm(data, &amp;key, SecurityMode::Verified(&amp;session))?;
@@ -283,12 +283,12 @@
 <a href=#283 id=283 data-nosnippet>283</a>///
 <a href=#284 id=284 data-nosnippet>284</a>/// ```no_run
 <a href=#285 id=285 data-nosnippet>285</a>/// # fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-<a href=#286 id=286 data-nosnippet>286</a>/// use latticearc::unified_api::{decrypt_aes_gcm, SecurityMode, VerifiedSession};
+<a href=#286 id=286 data-nosnippet>286</a>/// use latticearc::unified_api::{decrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 <a href=#287 id=287 data-nosnippet>287</a>/// # let encrypted = vec![0u8; 44]; // nonce (12) + ciphertext (16) + tag (16)
-<a href=#288 id=288 data-nosnippet>288</a>/// # let key = [0u8; 32];
-<a href=#289 id=289 data-nosnippet>289</a>/// # let pk = [0u8; 32];
-<a href=#290 id=290 data-nosnippet>290</a>/// # let sk = [0u8; 32];
-<a href=#291 id=291 data-nosnippet>291</a>/// # let session = VerifiedSession::establish(&amp;pk, &amp;sk)?;
+<a href=#288 id=288 data-nosnippet>288</a>/// // Fresh AEAD key — `[0u8; 32]` would fail the weak-key check.
+<a href=#289 id=289 data-nosnippet>289</a>/// let key = latticearc::primitives::rand::random_bytes(32);
+<a href=#290 id=290 data-nosnippet>290</a>/// let (pk, sk) = generate_keypair()?;
+<a href=#291 id=291 data-nosnippet>291</a>/// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 <a href=#292 id=292 data-nosnippet>292</a>///
 <a href=#293 id=293 data-nosnippet>293</a>/// // With Zero Trust verification (recommended)
 <a href=#294 id=294 data-nosnippet>294</a>/// let decrypted = decrypt_aes_gcm(&amp;encrypted, &amp;key, SecurityMode::Verified(&amp;session))?;

@@ -62,7 +62,7 @@
 <a href=#62 id=62 data-nosnippet>62</a>    <span class="kw">let </span>encrypt_key = LessSafeKey::new(unbound);
 <a href=#63 id=63 data-nosnippet>63</a>
 <a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce_bytes = [<span class="number">0u8</span>; <span class="number">12</span>];
-<a href=#65 id=65 data-nosnippet>65</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
+<a href=#65 id=65 data-nosnippet>65</a>    rand::rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
 <a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span>nonce = Nonce::assume_unique_for_key(nonce_bytes);
 <a href=#67 id=67 data-nosnippet>67</a>
 <a href=#68 id=68 data-nosnippet>68</a>    <span class="comment">// Encrypt
@@ -97,7 +97,7 @@
 <a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">let </span>encrypt_key3 = LessSafeKey::new(unbound3);
 <a href=#98 id=98 data-nosnippet>98</a>
 <a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce_bytes2 = [<span class="number">0u8</span>; <span class="number">12</span>];
-<a href=#100 id=100 data-nosnippet>100</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes2);
+<a href=#100 id=100 data-nosnippet>100</a>    rand::rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes2);
 <a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">let </span>nonce3 = Nonce::assume_unique_for_key(nonce_bytes2);
 <a href=#102 id=102 data-nosnippet>102</a>
 <a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">let </span><span class="kw-2">mut </span>empty_ciphertext = Vec::new();

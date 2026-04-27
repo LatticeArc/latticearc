@@ -628,7 +628,7 @@
 <a href=#628 id=628 data-nosnippet>628</a>        <span class="kw">let </span>tester = NistSp800_22Tester::default();
 <a href=#629 id=629 data-nosnippet>629</a>        <span class="kw">use </span>rand::RngCore;
 <a href=#630 id=630 data-nosnippet>630</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">1000</span>];
-<a href=#631 id=631 data-nosnippet>631</a>        rand::rngs::OsRng.fill_bytes(<span class="kw-2">&amp;mut </span>data);
+<a href=#631 id=631 data-nosnippet>631</a>        latticearc::primitives::rand::secure_rng().fill_bytes(<span class="kw-2">&amp;mut </span>data);
 <a href=#632 id=632 data-nosnippet>632</a>
 <a href=#633 id=633 data-nosnippet>633</a>        <span class="kw">let </span>result = tester.test_bit_sequence_succeeds(<span class="kw-2">&amp;</span>data).unwrap();
 <a href=#634 id=634 data-nosnippet>634</a>        <span class="macro">assert_eq!</span>(result.bits_tested, <span class="number">8000</span>);

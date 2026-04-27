@@ -19,7 +19,7 @@
 <a href=#19 id=19 data-nosnippet>19</a>//! - Edge cases (short keys, long keys, empty messages)
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">use super</span>::{NistKatError, decode_hex};
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>hmac::{Hmac, Mac};
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>hmac::{Hmac, KeyInit, Mac};
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>sha2::{Sha224, Sha256, Sha384, Sha512};
 <a href=#24 id=24 data-nosnippet>24</a>
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">type </span>HmacSha224 = Hmac&lt;Sha224&gt;;

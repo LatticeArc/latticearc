@@ -605,7 +605,7 @@
 <a href=#605 id=605 data-nosnippet>605</a>/// # Errors
 <a href=#606 id=606 data-nosnippet>606</a>/// Returns an error if key generation fails, the ml_dsa feature is not enabled,
 <a href=#607 id=607 data-nosnippet>607</a>/// or the PCT fails (indicating a corrupted keypair).
-<a href=#608 id=608 data-nosnippet>608</a></span><span class="attr">#[must_use = <span class="string">"discarding a generated keypair wastes entropy and leaks key material"</span>]
+<a href=#608 id=608 data-nosnippet>608</a></span><span class="attr">#[must_use = <span class="string">"generated keypair must be stored or used"</span>]
 <a href=#609 id=609 data-nosnippet>609</a>#[instrument(level = <span class="string">"debug"</span>, fields(parameter_set = <span class="question-mark">?</span>parameter_set))]
 <a href=#610 id=610 data-nosnippet>610</a></span><span class="kw">pub fn </span>generate_keypair(
 <a href=#611 id=611 data-nosnippet>611</a>    parameter_set: MlDsaParameterSet,
@@ -759,7 +759,7 @@
 <a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">let </span>(pk, sk) =
 <a href=#760 id=760 data-nosnippet>760</a>            generate_keypair(MlDsaParameterSet::MlDsa44).expect(<span class="string">"Key generation should succeed"</span>);
 <a href=#761 id=761 data-nosnippet>761</a>        <span class="kw">let </span><span class="kw-2">mut </span>message = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">10_000</span>];
-<a href=#762 id=762 data-nosnippet>762</a>        rand::rngs::OsRng.fill_bytes(<span class="kw-2">&amp;mut </span>message);
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">crate</span>::primitives::rand::secure_rng().fill_bytes(<span class="kw-2">&amp;mut </span>message);
 <a href=#763 id=763 data-nosnippet>763</a>
 <a href=#764 id=764 data-nosnippet>764</a>        <span class="kw">let </span>signature = sk.sign(<span class="kw-2">&amp;</span>message, <span class="kw-2">&amp;</span>[]).expect(<span class="string">"Signing should succeed"</span>);
 <a href=#765 id=765 data-nosnippet>765</a>        <span class="kw">let </span>is_valid = pk.verify(<span class="kw-2">&amp;</span>message, <span class="kw-2">&amp;</span>signature, <span class="kw-2">&amp;</span>[]).expect(<span class="string">"Verification should succeed"</span>);

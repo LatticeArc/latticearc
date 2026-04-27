@@ -83,7 +83,7 @@
 <a href=#83 id=83 data-nosnippet>83</a>        .map_err(|_e| LatticeArcError::InvalidInput(<span class="string">"key creation failed"</span>.to_string()))<span class="question-mark">?</span>;
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">let </span>key = LessSafeKey::new(unbound);
 <a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce_bytes = [<span class="number">0u8</span>; <span class="number">12</span>];
-<a href=#86 id=86 data-nosnippet>86</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
+<a href=#86 id=86 data-nosnippet>86</a>    rand::rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
 <a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">let </span>nonce = Nonce::try_assume_unique_for_key(<span class="kw-2">&amp;</span>nonce_bytes)
 <a href=#88 id=88 data-nosnippet>88</a>        .map_err(|_e| LatticeArcError::InvalidInput(<span class="string">"nonce creation failed"</span>.to_string()))<span class="question-mark">?</span>;
 <a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">let </span><span class="kw-2">mut </span>invalid_ct = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">8</span>];
@@ -99,8 +99,8 @@
 <a href=#99 id=99 data-nosnippet>99</a>    </span>test_details.push(<span class="string">"Test 5: Nonce generation uniqueness"</span>.to_string());
 <a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce1 = [<span class="number">0u8</span>; <span class="number">12</span>];
 <a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce2 = [<span class="number">0u8</span>; <span class="number">12</span>];
-<a href=#102 id=102 data-nosnippet>102</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce1);
-<a href=#103 id=103 data-nosnippet>103</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce2);
+<a href=#102 id=102 data-nosnippet>102</a>    rand::rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce1);
+<a href=#103 id=103 data-nosnippet>103</a>    rand::rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce2);
 <a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">if </span><span class="macro">nonce1 !</span>= nonce2 {
 <a href=#105 id=105 data-nosnippet>105</a>        test_details.push(<span class="string">"PASSED"</span>.to_string());
 <a href=#106 id=106 data-nosnippet>106</a>    } <span class="kw">else </span>{
@@ -155,7 +155,7 @@
 <a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">let </span><span class="kw-2">mut </span>keys = Vec::new();
 <a href=#156 id=156 data-nosnippet>156</a>    <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
 <a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">let </span><span class="kw-2">mut </span>key = [<span class="number">0u8</span>; <span class="number">32</span>];
-<a href=#158 id=158 data-nosnippet>158</a>        rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>key);
+<a href=#158 id=158 data-nosnippet>158</a>        rand::rng().fill_bytes(<span class="kw-2">&amp;mut </span>key);
 <a href=#159 id=159 data-nosnippet>159</a>        keys.push(key);
 <a href=#160 id=160 data-nosnippet>160</a>    }
 <a href=#161 id=161 data-nosnippet>161</a>
@@ -170,8 +170,8 @@
 <a href=#170 id=170 data-nosnippet>170</a>    <span class="comment">// Test 2: Key serialization roundtrip
 <a href=#171 id=171 data-nosnippet>171</a>    </span>test_details.push(<span class="string">"Test 2: Key serialization/deserialization"</span>.to_string());
 <a href=#172 id=172 data-nosnippet>172</a>
-<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">let </span><span class="kw-2">mut </span>csprng = rand::rngs::OsRng;
-<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">let </span>signing_key = ed25519_dalek::SigningKey::generate(<span class="kw-2">&amp;mut </span>csprng);
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">let </span><span class="kw-2">mut </span>csprng = rand_core_0_6::OsRng; <span class="comment">// ed25519-dalek 2.x → rand_core 0.6
+<a href=#174 id=174 data-nosnippet>174</a>    </span><span class="kw">let </span>signing_key = ed25519_dalek::SigningKey::generate(<span class="kw-2">&amp;mut </span>csprng);
 <a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">let </span>sk_bytes = signing_key.to_bytes();
 <a href=#176 id=176 data-nosnippet>176</a>
 <a href=#177 id=177 data-nosnippet>177</a>    <span class="kw">let </span>signing_key_restored = ed25519_dalek::SigningKey::from_bytes(<span class="kw-2">&amp;</span>sk_bytes);
@@ -244,7 +244,7 @@
 <a href=#244 id=244 data-nosnippet>244</a>    <span class="kw">let </span>test_data = <span class="string">b"test_encryption_data"</span>;
 <a href=#245 id=245 data-nosnippet>245</a>
 <a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">let </span><span class="kw-2">mut </span>nonce_bytes = [<span class="number">0u8</span>; <span class="number">12</span>];
-<a href=#247 id=247 data-nosnippet>247</a>    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
+<a href=#247 id=247 data-nosnippet>247</a>    rand::rng().fill_bytes(<span class="kw-2">&amp;mut </span>nonce_bytes);
 <a href=#248 id=248 data-nosnippet>248</a>    <span class="kw">let </span>nonce = Nonce::try_assume_unique_for_key(<span class="kw-2">&amp;</span>nonce_bytes)
 <a href=#249 id=249 data-nosnippet>249</a>        .map_err(|_e| LatticeArcError::InvalidInput(<span class="string">"nonce creation failed"</span>.to_string()))<span class="question-mark">?</span>;
 <a href=#250 id=250 data-nosnippet>250</a>
