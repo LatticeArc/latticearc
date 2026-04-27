@@ -632,7 +632,6 @@ impl FipsError for crate::primitives::aead::AeadError {
             AeadError::WeakKey => FipsErrorCode::WeakKeyDetected,
             AeadError::EncryptionFailed(_) => FipsErrorCode::EncryptionFailed,
             AeadError::DecryptionFailed(_) => FipsErrorCode::DecryptionFailed,
-            AeadError::Other(_) => FipsErrorCode::InternalError,
         }
     }
 }

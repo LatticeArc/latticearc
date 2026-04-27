@@ -15,10 +15,15 @@ on:
     branches: [ main, develop, master ]
   pull_request:
     branches: [ main, develop, master ]
-  # Schedule will be enabled once the library is stable and usage increases.
-  # schedule:
-  #   - cron: '0 2 * * *'  # Tier 4: Daily at 2 AM UTC (Nightly)
-  #   - cron: '0 4 * * 0'  # Tier 5: Weekly at 4 AM UTC Sunday
+  # Tier 4 (nightly) and Tier 5 (weekly) scheduled runs. Without these
+  # crons the `is_nightly` / `is_weekly` outputs in the `changes` job —
+  # which gate the heavyweight fuzz / feature-powerset / formal-
+  # verification jobs — never evaluate true outside `workflow_dispatch`,
+  # so those jobs effectively never run. Re-enabling here so the
+  # schedule-driven coverage is real, not aspirational.
+  schedule:
+    - cron: '0 2 * * *'  # Tier 4: Daily at 2 AM UTC (Nightly)
+    - cron: '0 4 * * 0'  # Tier 5: Weekly at 4 AM UTC Sunday
   workflow_dispatch:
     inputs:
       tier:
@@ -624,9 +629,15 @@ jobs:
         key: ${{ runner.os }}-fuzz-weekly-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run fuzz tests (30 min each for weekly)
+      # `continue-on-error: true` rather than `|| true` so the step's
+      # actual exit code is preserved — `if: failure()` on the upload
+      # below will still fire on a crash, while the workflow as a whole
+      # remains green. The earlier `|| true` masked the exit code to 0,
+      # so the upload never ran and crashes left no signal at all.
+      continue-on-error: true
       run: |
         cd fuzz
-        cargo +nightly fuzz run ${{ matrix.fuzz-target }} -- -max_total_time=1800 || true
+        cargo +nightly fuzz run ${{ matrix.fuzz-target }} -- -max_total_time=1800
 
     - name: Upload crash artifacts
       if: failure()
@@ -665,10 +676,22 @@ jobs:
         key: ${{ runner.os }}-fuzz-smoke-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run quick fuzz smoke test (30s each)
+      # See note on the weekly fuzz step above: `continue-on-error`
+      # preserves the exit code so a crash trips `if: failure()`-gated
+      # uploads, while keeping the workflow green for the typical clean
+      # smoke-test outcome.
+      continue-on-error: true
       run: |
         cd fuzz
-        cargo +nightly fuzz run encrypt_fuzz -- -max_total_time=30 || true
-        cargo +nightly fuzz run kem_fuzz -- -max_total_time=30 || true
+        cargo +nightly fuzz run encrypt_fuzz -- -max_total_time=30
+        cargo +nightly fuzz run kem_fuzz -- -max_total_time=30
+
+    - name: Upload crash artifacts (smoke)
+      if: failure()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: fuzz-crash-smoke
+        path: fuzz/artifacts/
 
   # === Performance & Benchmarking ===
   performance:
@@ -724,13 +747,20 @@ jobs:
           echo "performance_test_completed 1" | curl -X POST ${{ env.PROMETHEUS_PUSHGATEWAY }}/metrics/job/ci-performance/instance/${{ github.run_id }}/operation/performance-metrics || true
         fi
 
-  # === Documentation & Release ===
+  # === Documentation Build (no write permissions; runs on every PR/push) ===
   docs:
     name: Documentation
     runs-on: ubuntu-latest
     needs: [test]
+    # Read-only: this job builds the docs and tests the doc examples on
+    # every PR. The deploy step lives in `docs-deploy` below, which is
+    # the only job that needs `contents: write` and only runs on push
+    # to main/master. Splitting the privileged surface to one trigger
+    # narrows the blast radius of any compromised action invoked here
+    # (e.g. a downstream supply-chain incident in `cargo doc` toolchain
+    # cannot use this job's token to write to the repo).
     permissions:
-      contents: write
+      contents: read
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -754,8 +784,30 @@ jobs:
     - name: Build documentation
       run: cargo doc --workspace --all-features --no-deps
 
-    - name: Deploy documentation
+    - name: Upload docs artifact for the deploy job
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: target-doc
+        path: target/doc
+        retention-days: 1
+
+  # === Documentation Deploy (push-to-main only; carries contents: write) ===
+  docs-deploy:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [docs]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Download docs artifact
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      with:
+        name: target-doc
+        path: target/doc
+    - name: Deploy documentation
       uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}

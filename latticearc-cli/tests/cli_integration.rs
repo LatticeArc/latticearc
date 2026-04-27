@@ -723,6 +723,8 @@ fn test_kdf_pbkdf2_derivation_succeeds() {
         "32",
         "--iterations",
         "1000", // low for test speed
+        // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
+        "--allow-weak-iterations",
     ]);
     let hex_key = out.trim();
     assert_eq!(hex_key.len(), 64); // 32 bytes = 64 hex chars
@@ -1244,6 +1246,8 @@ fn test_kdf_deterministic_output_is_deterministic() {
         "32",
         "--iterations",
         "1000",
+        // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
+        "--allow-weak-iterations",
     ];
 
     let out1 = run_ok(args);
@@ -3358,6 +3362,8 @@ fn test_pbkdf2_password_sensitivity_succeeds() {
         "32",
         "--iterations",
         "100000",
+        // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
+        "--allow-weak-iterations",
     ]);
 
     let key_b = run_ok(&[
@@ -3372,6 +3378,7 @@ fn test_pbkdf2_password_sensitivity_succeeds() {
         "32",
         "--iterations",
         "100000",
+        "--allow-weak-iterations",
     ]);
 
     assert_ne!(
@@ -3952,6 +3959,8 @@ fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
         "32",
         "--iterations",
         "100000",
+        // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
+        "--allow-weak-iterations",
     ]);
     let derived_key = derived_hex.trim();
     assert_eq!(derived_key.len(), 64, "Derived key must be 32 bytes (64 hex chars)");
@@ -4012,6 +4021,7 @@ fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
         "32",
         "--iterations",
         "100000",
+        "--allow-weak-iterations",
     ]);
     assert_eq!(
         derived_key,

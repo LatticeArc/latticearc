@@ -312,6 +312,17 @@ impl XChaCha20Poly1305Cipher {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<(Vec<u8>, Tag), AeadError> {
+        // Mirror the AeadCipher trait impl above (line 96): the resource
+        // cap applies whether callers reach the cipher through the trait
+        // or through this 24-byte XNonce inherent shortcut. Skipping the
+        // check here would let attacker-controlled lengths bypass DoS
+        // bounds that the rest of the AEAD surface enforces.
+        validate_encryption_size(plaintext.len()).map_err(
+            |_e: crate::primitives::resource_limits::ResourceError| {
+                AeadError::EncryptionFailed("plaintext exceeds resource limits".to_string())
+            },
+        )?;
+
         let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
             .map_err(|_e| AeadError::InvalidKeyLength)?;
         let xnonce = (*nonce).into();
@@ -354,6 +365,15 @@ impl XChaCha20Poly1305Cipher {
         tag: &Tag,
         aad: Option<&[u8]>,
     ) -> Result<Zeroizing<Vec<u8>>, AeadError> {
+        // Symmetric with `encrypt_x` above and the AeadCipher trait
+        // impl: enforce the per-call resource cap on attacker-supplied
+        // ciphertext length before any AEAD work runs.
+        validate_decryption_size(ciphertext.len()).map_err(
+            |_e: crate::primitives::resource_limits::ResourceError| {
+                AeadError::DecryptionFailed("ciphertext exceeds resource limits".to_string())
+            },
+        )?;
+
         let cipher = chacha20poly1305::XChaCha20Poly1305::new_from_slice(&self.key_bytes)
             .map_err(|_e| AeadError::InvalidKeyLength)?;
         let xnonce = (*nonce).into();

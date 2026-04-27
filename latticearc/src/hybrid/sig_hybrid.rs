@@ -156,11 +156,19 @@ pub enum HybridSignatureError {
 
 /// Hybrid public key combining ML-DSA and Ed25519 public keys.
 ///
-/// This structure contains both public keys needed to verify a hybrid signature.
+/// Carries the [`MlDsaParameterSet`] that the ML-DSA half was generated
+/// at, so [`verify`] can reconstruct the right ML-DSA public-key shape.
+/// Earlier revisions hardcoded `MlDsa65` in `verify`, which silently
+/// rejected keys produced by [`generate_keypair_with_parameter_set`]
+/// when that function was called with `MlDsa44` or `MlDsa87` — see the
+/// `test_hybrid_sig_all_parameter_sets_roundtrip` regression.
+///
 /// Both component signatures must verify for the hybrid signature to be valid.
 #[derive(Debug, Clone)]
 pub struct HybridSigPublicKey {
-    /// ML-DSA-65 public key bytes (1952 bytes).
+    /// ML-DSA parameter set this PK was generated at.
+    parameter_set: MlDsaParameterSet,
+    /// ML-DSA public key bytes (size depends on `parameter_set`).
     ml_dsa_pk: Vec<u8>,
     /// Ed25519 public key bytes (32 bytes).
     ed25519_pk: Vec<u8>,
@@ -170,11 +178,17 @@ impl HybridSigPublicKey {
     /// Construct a `HybridSigPublicKey` from its components.
     ///
     /// No validation is performed here; callers are expected to provide
-    /// correctly-sized key material. The [`verify`] function validates
-    /// sizes before use.
+    /// correctly-sized key material for `parameter_set`. The [`verify`]
+    /// function validates sizes before use.
     #[must_use]
-    pub fn new(ml_dsa_pk: Vec<u8>, ed25519_pk: Vec<u8>) -> Self {
-        Self { ml_dsa_pk, ed25519_pk }
+    pub fn new(parameter_set: MlDsaParameterSet, ml_dsa_pk: Vec<u8>, ed25519_pk: Vec<u8>) -> Self {
+        Self { parameter_set, ml_dsa_pk, ed25519_pk }
+    }
+
+    /// Returns the ML-DSA parameter set this public key was generated at.
+    #[must_use]
+    pub fn parameter_set(&self) -> MlDsaParameterSet {
+        self.parameter_set
     }
 
     /// Returns the ML-DSA public key bytes.
@@ -232,6 +246,11 @@ impl HybridSigPublicKey {
 /// ```
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct HybridSigSecretKey {
+    /// ML-DSA parameter set this SK was generated at. Read by [`sign`]
+    /// to construct the right-sized `MlDsaSecretKey`. `MlDsaParameterSet`
+    /// is `Copy` and contains no secret material, so `#[zeroize(skip)]`.
+    #[zeroize(skip)]
+    parameter_set: MlDsaParameterSet,
     /// ML-DSA secret key bytes (size depends on parameter set), automatically zeroized on drop.
     ml_dsa_sk: Zeroizing<Vec<u8>>,
     /// Ed25519 secret key bytes (32 bytes), automatically zeroized on drop.
@@ -246,7 +265,14 @@ impl std::fmt::Debug for HybridSigSecretKey {
 
 impl ConstantTimeEq for HybridSigSecretKey {
     fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        self.ml_dsa_sk.as_slice().ct_eq(other.ml_dsa_sk.as_slice())
+        // Parameter-set match is a precondition for equality. ML-DSA-44
+        // SK bytes have a different length from ML-DSA-87 SK bytes, so a
+        // length-mismatch slice ct_eq would already return Choice(0) —
+        // but checking the parameter set explicitly fails earlier and
+        // makes the contract loud.
+        let param_eq = subtle::Choice::from(u8::from(self.parameter_set == other.parameter_set));
+        param_eq
+            & self.ml_dsa_sk.as_slice().ct_eq(other.ml_dsa_sk.as_slice())
             & self.ed25519_sk.as_slice().ct_eq(other.ed25519_sk.as_slice())
     }
 }
@@ -254,11 +280,27 @@ impl ConstantTimeEq for HybridSigSecretKey {
 impl HybridSigSecretKey {
     /// Construct a `HybridSigSecretKey` from its raw component bytes.
     ///
-    /// Both components are wrapped in [`Zeroizing`] and will be wiped from
-    /// memory when the returned [`HybridSigSecretKey`] is dropped.
+    /// `parameter_set` MUST match the ML-DSA strength used to generate
+    /// `ml_dsa_sk`; [`sign`] reads it back to construct the right-sized
+    /// `MlDsaSecretKey`. A mismatch surfaces at sign time as the opaque
+    /// `MlDsaError` (no panic, no incorrect signing).
+    ///
+    /// Both component-byte arguments are wrapped in [`Zeroizing`] and
+    /// will be wiped from memory when the returned [`HybridSigSecretKey`]
+    /// is dropped.
     #[must_use]
-    pub fn new(ml_dsa_sk: Zeroizing<Vec<u8>>, ed25519_sk: Zeroizing<Vec<u8>>) -> Self {
-        Self { ml_dsa_sk, ed25519_sk }
+    pub fn new(
+        parameter_set: MlDsaParameterSet,
+        ml_dsa_sk: Zeroizing<Vec<u8>>,
+        ed25519_sk: Zeroizing<Vec<u8>>,
+    ) -> Self {
+        Self { parameter_set, ml_dsa_sk, ed25519_sk }
+    }
+
+    /// Returns the ML-DSA parameter set this secret key was generated at.
+    #[must_use]
+    pub fn parameter_set(&self) -> MlDsaParameterSet {
+        self.parameter_set
     }
 
     /// Returns the ML-DSA secret key bytes wrapped in `Zeroizing`.
@@ -389,9 +431,11 @@ pub fn generate_keypair_with_parameter_set(
     // into the HybridSigSecretKey so the wrapping Zeroizing is preserved.
     let ed25519_sk_zeroizing = ed25519_kp.secret_key_bytes();
 
-    let pk = HybridSigPublicKey { ml_dsa_pk: ml_dsa_pk.as_bytes().to_vec(), ed25519_pk };
+    let pk =
+        HybridSigPublicKey { parameter_set, ml_dsa_pk: ml_dsa_pk.as_bytes().to_vec(), ed25519_pk };
 
     let sk = HybridSigSecretKey {
+        parameter_set,
         ml_dsa_sk: Zeroizing::new(ml_dsa_sk.expose_secret().to_vec()),
         ed25519_sk: ed25519_sk_zeroizing,
     };
@@ -425,13 +469,11 @@ pub fn sign(
     // Sign-side opacity (defense-in-depth per Pattern 6). SK is caller-side
     // state; failures here indicate a programmer / storage bug, but keep the
     // public error uniform to avoid exposing upstream detail.
-    let ml_dsa_sk_struct =
-        MlDsaSecretKey::new(MlDsaParameterSet::MlDsa65, (*ml_dsa_sk_bytes).clone()).map_err(
-            |_e| {
-                log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA SK init failed");
-                HybridSignatureError::MlDsaError("signing failed".to_string())
-            },
-        )?;
+    let ml_dsa_sk_struct = MlDsaSecretKey::new(sk.parameter_set, (*ml_dsa_sk_bytes).clone())
+        .map_err(|_e| {
+            log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA SK init failed");
+            HybridSignatureError::MlDsaError("signing failed".to_string())
+        })?;
     let ml_dsa_sig = ml_dsa_sk_struct
         .sign(message, &[])
         .map_err(|_e| {
@@ -470,33 +512,6 @@ pub fn verify(
     message: &[u8],
     sig: &HybridSignature,
 ) -> Result<bool, HybridSignatureError> {
-    // Caller-side length pre-checks (before AND-combine). These distinguish
-    // programmer mistakes (wrong-size buffer) from adversary oracle attempts:
-    // a caller passing the wrong length deserves a clear error, and the length
-    // itself is public protocol information.
-    if pk.ed25519_pk.len() != 32 {
-        return Err(HybridSignatureError::InvalidKeyMaterial(
-            "Ed25519 public key must be 32 bytes".to_string(),
-        ));
-    }
-    if sig.ed25519_sig.len() != 64 {
-        return Err(HybridSignatureError::InvalidKeyMaterial(
-            "Ed25519 signature must be 64 bytes".to_string(),
-        ));
-    }
-    if pk.ml_dsa_pk.len() != MlDsaParameterSet::MlDsa65.public_key_size() {
-        return Err(HybridSignatureError::InvalidKeyMaterial(format!(
-            "ML-DSA-65 public key must be {} bytes",
-            MlDsaParameterSet::MlDsa65.public_key_size()
-        )));
-    }
-    if sig.ml_dsa_sig.len() != MlDsaParameterSet::MlDsa65.signature_size() {
-        return Err(HybridSignatureError::InvalidKeyMaterial(format!(
-            "ML-DSA-65 signature must be {} bytes",
-            MlDsaParameterSet::MlDsa65.signature_size()
-        )));
-    }
-
     // SECURITY: Verify BOTH components unconditionally with bitwise AND combination.
     // This preserves AND-security: a partial break of one component must not leak which
     // one failed, because distinct error paths (or early exit) turn AND into OR.
@@ -510,14 +525,22 @@ pub fn verify(
     //    sibling below. This removes the early-exit timing / variant oracle
     //    that would otherwise distinguish "malformed ML-DSA" from "Ed25519
     //    failed".
+    //
+    // No length pre-checks are performed here. Earlier revisions had four
+    // distinguishable `InvalidKeyMaterial` returns for the four buffer
+    // lengths; that surface let an adversary varying wire-supplied PK/sig
+    // bytes enumerate which length got rejected. The match arms below
+    // already collapse parse failures (which include length mismatches) to
+    // bit = 0, which is indistinguishable from a verify failure — exactly
+    // what Pattern 6 §"adversary-reachable paths" requires.
 
     // Verify ML-DSA — parse + verify fold into one bit (0 = fail, 1 = ok).
     // Runs unconditionally; no `?` early-returns. `from_bytes` internally does
     // a `to_vec()` (identical allocation cost to the prior `.clone()` form);
     // choice is stylistic — accepts `&[u8]` at the call site.
     let ml_dsa_valid: u8 = match (
-        MlDsaPublicKey::from_bytes(&pk.ml_dsa_pk, MlDsaParameterSet::MlDsa65),
-        MlDsaSignature::from_bytes(&sig.ml_dsa_sig, MlDsaParameterSet::MlDsa65),
+        MlDsaPublicKey::from_bytes(&pk.ml_dsa_pk, pk.parameter_set),
+        MlDsaSignature::from_bytes(&sig.ml_dsa_sig, pk.parameter_set),
     ) {
         (Ok(ml_dsa_pk_struct), Ok(ml_dsa_sig_struct)) => {
             match ml_dsa_pk_struct.verify(message, &ml_dsa_sig_struct, &[]) {
@@ -596,6 +619,7 @@ mod tests {
 
         {
             let sk = HybridSigSecretKey {
+                parameter_set: MlDsaParameterSet::MlDsa65,
                 ml_dsa_sk: Zeroizing::new(test_ml_data),
                 ed25519_sk: Zeroizing::new(test_ed25519_data),
             };
@@ -740,6 +764,7 @@ mod tests {
         );
 
         let mut secret_key_clone = HybridSigSecretKey {
+            parameter_set: secret_key.parameter_set,
             ml_dsa_sk: secret_key.ml_dsa_sk_bytes(),
             ed25519_sk: secret_key.ed25519_sk_bytes(),
         };
@@ -759,11 +784,13 @@ mod tests {
     #[test]
     fn test_hybrid_zeroization_order_is_correct() {
         let mut secret_key1 = HybridSigSecretKey {
+            parameter_set: MlDsaParameterSet::MlDsa44,
             ml_dsa_sk: Zeroizing::new(vec![0x11; 2560]),
             ed25519_sk: Zeroizing::new(vec![0x22; 32]),
         };
 
         let mut secret_key2 = HybridSigSecretKey {
+            parameter_set: MlDsaParameterSet::MlDsa44,
             ml_dsa_sk: Zeroizing::new(vec![0x33; 2560]),
             ed25519_sk: Zeroizing::new(vec![0x44; 32]),
         };
@@ -839,6 +866,7 @@ mod tests {
 
             let handle = thread::spawn(move || {
                 let mut secret_key = HybridSigSecretKey {
+                    parameter_set: MlDsaParameterSet::MlDsa65,
                     ml_dsa_sk: Zeroizing::new((*ml_dsa_clone).clone()),
                     ed25519_sk: Zeroizing::new((*ed25519_clone).clone()),
                 };
@@ -898,6 +926,7 @@ mod tests {
     #[test]
     fn test_hybrid_sign_invalid_ed25519_sk_length_returns_error() {
         let sk = HybridSigSecretKey {
+            parameter_set: MlDsaParameterSet::MlDsa65,
             ml_dsa_sk: Zeroizing::new(vec![0u8; 4032]),
             ed25519_sk: Zeroizing::new(vec![0u8; 16]), // Wrong: should be 32
         };
@@ -910,14 +939,18 @@ mod tests {
     #[test]
     fn test_hybrid_verify_invalid_ed25519_pk_length_returns_error() {
         let pk = HybridSigPublicKey {
+            parameter_set: MlDsaParameterSet::MlDsa65,
             ml_dsa_pk: vec![0u8; 1952],
             ed25519_pk: vec![0u8; 16], // Wrong: should be 32
         };
         let sig = HybridSignature { ml_dsa_sig: vec![0u8; 3309], ed25519_sig: vec![0u8; 64] };
         let result = verify(&pk, b"test", &sig);
+        // Pattern 6 (#52): verify no longer distinguishes length errors
+        // from verify failures; both collapse to VerificationFailed via
+        // the bit=0 path. Assert the surviving variant.
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridSignatureError::InvalidKeyMaterial(_)));
+        assert!(matches!(err, HybridSignatureError::VerificationFailed(_)));
     }
 
     #[test]
@@ -931,7 +964,9 @@ mod tests {
         let result = verify(&pk, b"test", &sig);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridSignatureError::InvalidKeyMaterial(_)));
+        // Pattern 6 (#52): see test above — length mismatches collapse into
+        // the bit=0 verify path, so the surviving variant is VerificationFailed.
+        assert!(matches!(err, HybridSignatureError::VerificationFailed(_)));
     }
 
     #[test]
@@ -1091,12 +1126,35 @@ mod tests {
         let sig = sign(&sk, b"test").unwrap();
 
         let bad_pk = HybridSigPublicKey {
+            parameter_set: MlDsaParameterSet::MlDsa65,
             ml_dsa_pk: vec![0u8; 100], // Wrong length
             ed25519_pk: vec![0u8; 32],
         };
 
         let result = verify(&bad_pk, b"test", &sig);
         assert!(result.is_err());
+    }
+
+    /// Regression test for the parameter-set propagation bug: prior to
+    /// 0.8.0 the hardcoded `MlDsaParameterSet::MlDsa65` in `sign` and
+    /// `verify` silently broke any keypair generated via
+    /// `generate_keypair_with_parameter_set(MlDsa44)` or `(MlDsa87)` —
+    /// the public API advertised three parameter sets but only one
+    /// actually round-tripped. This test pins all three working.
+    #[test]
+    fn test_hybrid_sig_all_parameter_sets_roundtrip() {
+        for param_set in
+            [MlDsaParameterSet::MlDsa44, MlDsaParameterSet::MlDsa65, MlDsaParameterSet::MlDsa87]
+        {
+            let (pk, sk) = generate_keypair_with_parameter_set(param_set)
+                .expect("keypair gen must succeed for every advertised parameter set");
+            assert_eq!(pk.parameter_set(), param_set);
+            assert_eq!(sk.parameter_set(), param_set);
+            let message = b"parameter-set propagation regression";
+            let sig = sign(&sk, message).expect("sign must succeed");
+            let valid = verify(&pk, message, &sig).expect("verify must succeed");
+            assert!(valid, "round-trip must verify for {param_set:?}");
+        }
     }
 
     #[test]

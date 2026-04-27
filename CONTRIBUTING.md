@@ -39,7 +39,16 @@ This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDU
 ```bash
 git clone https://github.com/YOUR_USERNAME/latticearc.git
 cd latticearc
+
+# Required: install the pre-commit / pre-push hooks. This is a one-time
+# config-only step (sets `core.hooksPath = hooks`); see hooks/README.md.
+./hooks/install.sh
 ```
+
+The hooks enforce the same `cargo fmt` / `cargo check` / `cargo clippy` /
+`cargo test --release` matrix that CI runs, plus the supply-chain audit
+(`scripts/audit.sh --quick`). They will block any commit or push that
+fails. Skipping them with `--no-verify` is forbidden by project policy.
 
 ## Development Setup
 

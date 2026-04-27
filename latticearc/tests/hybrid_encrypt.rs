@@ -16,8 +16,8 @@ mod hybrid {
     //! in the hybrid encryption module.
 
     use latticearc::hybrid::encrypt_hybrid::{
-        HybridCiphertext, HybridEncryptionContext, HybridEncryptionError, decrypt_hybrid,
-        derive_encryption_key, encrypt_hybrid,
+        DerivationBinding, HybridCiphertext, HybridEncryptionContext, HybridEncryptionError,
+        decrypt_hybrid, derive_encryption_key, encrypt_hybrid,
     };
     use latticearc::hybrid::kem_hybrid::generate_keypair;
 
@@ -29,7 +29,7 @@ mod hybrid {
     fn test_derive_key_rejects_too_short_secret_fails() {
         let ctx = HybridEncryptionContext::default();
         let short_secret = vec![0u8; 16];
-        let result = derive_encryption_key(&short_secret, &ctx);
+        let result = derive_encryption_key(&short_secret, &ctx, &DerivationBinding::empty());
         assert!(result.is_err());
         match result.unwrap_err() {
             HybridEncryptionError::KdfError(msg) => {
@@ -43,35 +43,35 @@ mod hybrid {
     fn test_derive_key_rejects_31_byte_secret_fails() {
         let ctx = HybridEncryptionContext::default();
         let secret = vec![0u8; 31];
-        assert!(derive_encryption_key(&secret, &ctx).is_err());
+        assert!(derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).is_err());
     }
 
     #[test]
     fn test_derive_key_rejects_33_byte_secret_fails() {
         let ctx = HybridEncryptionContext::default();
         let secret = vec![0u8; 33];
-        assert!(derive_encryption_key(&secret, &ctx).is_err());
+        assert!(derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).is_err());
     }
 
     #[test]
     fn test_derive_key_rejects_65_byte_secret_fails() {
         let ctx = HybridEncryptionContext::default();
         let secret = vec![0u8; 65];
-        assert!(derive_encryption_key(&secret, &ctx).is_err());
+        assert!(derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).is_err());
     }
 
     #[test]
     fn test_derive_key_rejects_empty_secret_fails() {
         let ctx = HybridEncryptionContext::default();
         let secret = vec![];
-        assert!(derive_encryption_key(&secret, &ctx).is_err());
+        assert!(derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).is_err());
     }
 
     #[test]
     fn test_derive_key_accepts_32_byte_secret_succeeds() {
         let ctx = HybridEncryptionContext::default();
         let secret = vec![0xABu8; 32];
-        let result = derive_encryption_key(&secret, &ctx);
+        let result = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty());
         assert!(result.is_ok());
         let key = result.unwrap();
         assert_eq!(key.len(), 32);
@@ -81,7 +81,7 @@ mod hybrid {
     fn test_derive_key_accepts_64_byte_secret_succeeds() {
         let ctx = HybridEncryptionContext::default();
         let secret = vec![0xCDu8; 64];
-        let result = derive_encryption_key(&secret, &ctx);
+        let result = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty());
         assert!(result.is_ok());
         let key = result.unwrap();
         assert_eq!(key.len(), 32);
@@ -91,8 +91,8 @@ mod hybrid {
     fn test_derive_key_deterministic_is_deterministic() {
         let ctx = HybridEncryptionContext::default();
         let secret = vec![42u8; 32];
-        let key1 = derive_encryption_key(&secret, &ctx).unwrap();
-        let key2 = derive_encryption_key(&secret, &ctx).unwrap();
+        let key1 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
+        let key2 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(key1, key2);
     }
 
@@ -101,8 +101,8 @@ mod hybrid {
         let ctx = HybridEncryptionContext::default();
         let secret_a = vec![1u8; 32];
         let secret_b = vec![2u8; 32];
-        let key_a = derive_encryption_key(&secret_a, &ctx).unwrap();
-        let key_b = derive_encryption_key(&secret_b, &ctx).unwrap();
+        let key_a = derive_encryption_key(&secret_a, &ctx, &DerivationBinding::empty()).unwrap();
+        let key_b = derive_encryption_key(&secret_b, &ctx, &DerivationBinding::empty()).unwrap();
         assert_ne!(key_a, key_b);
     }
 
@@ -111,8 +111,8 @@ mod hybrid {
         let ctx_a = HybridEncryptionContext::with_explicit_info(b"context-A", vec![]);
         let ctx_b = HybridEncryptionContext::with_explicit_info(b"context-B", vec![]);
         let secret = vec![99u8; 32];
-        let key_a = derive_encryption_key(&secret, &ctx_a).unwrap();
-        let key_b = derive_encryption_key(&secret, &ctx_b).unwrap();
+        let key_a = derive_encryption_key(&secret, &ctx_a, &DerivationBinding::empty()).unwrap();
+        let key_b = derive_encryption_key(&secret, &ctx_b, &DerivationBinding::empty()).unwrap();
         assert_ne!(key_a, key_b);
     }
 
@@ -122,14 +122,21 @@ mod hybrid {
         let ctx_with_aad =
             HybridEncryptionContext::with_explicit_info(b"test", b"extra-data".to_vec());
         let secret = vec![77u8; 32];
-        let key_no = derive_encryption_key(&secret, &ctx_no_aad).unwrap();
-        let key_with = derive_encryption_key(&secret, &ctx_with_aad).unwrap();
+        let key_no =
+            derive_encryption_key(&secret, &ctx_no_aad, &DerivationBinding::empty()).unwrap();
+        let key_with =
+            derive_encryption_key(&secret, &ctx_with_aad, &DerivationBinding::empty()).unwrap();
         assert_ne!(key_no, key_with);
     }
 
     // ============================================================================
     // decrypt_hybrid() validation error paths
     // ============================================================================
+
+    // Pattern 6 (#51): decrypt_hybrid collapses every component-shape error
+    // into the opaque DecryptionError so attackers cannot tell which field
+    // (KEM CT, ECDH PK, nonce, or tag) was the malformed one. Tests below
+    // therefore assert only the surviving variant — not the message contents.
 
     #[test]
     fn test_decrypt_hybrid_rejects_wrong_kem_ct_size_fails() {
@@ -143,12 +150,7 @@ mod hybrid {
         );
         let result = decrypt_hybrid(&sk, &ct, None);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("1088"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), HybridEncryptionError::DecryptionError(_)));
     }
 
     #[test]
@@ -163,12 +165,7 @@ mod hybrid {
         );
         let result = decrypt_hybrid(&sk, &ct, None);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("32"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), HybridEncryptionError::DecryptionError(_)));
     }
 
     #[test]
@@ -183,12 +180,7 @@ mod hybrid {
         );
         let result = decrypt_hybrid(&sk, &ct, None);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("12"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), HybridEncryptionError::DecryptionError(_)));
     }
 
     #[test]
@@ -203,12 +195,7 @@ mod hybrid {
         );
         let result = decrypt_hybrid(&sk, &ct, None);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            HybridEncryptionError::InvalidInput(msg) => {
-                assert!(msg.contains("16"));
-            }
-            other => panic!("Expected InvalidInput, got {:?}", other),
-        }
+        assert!(matches!(result.unwrap_err(), HybridEncryptionError::DecryptionError(_)));
     }
 
     // ============================================================================
@@ -302,8 +289,10 @@ mod hybrid {
         let ctx_aad_b = HybridEncryptionContext::with_aad(b"aad-b".to_vec());
 
         let secret = vec![0x42u8; 32];
-        let key_a = derive_encryption_key(&secret, &ctx_aad_a).unwrap();
-        let key_b = derive_encryption_key(&secret, &ctx_aad_b).unwrap();
+        let key_a =
+            derive_encryption_key(&secret, &ctx_aad_a, &DerivationBinding::empty()).unwrap();
+        let key_b =
+            derive_encryption_key(&secret, &ctx_aad_b, &DerivationBinding::empty()).unwrap();
 
         assert_ne!(
             key_a.as_slice(),

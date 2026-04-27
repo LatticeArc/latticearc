@@ -297,36 +297,38 @@ impl KeyLifecycleRecord {
         Ok(())
     }
 
+    /// Days elapsed since `activated`, signed (negative for future
+    /// activation due to clock skew). Internal helper backing
+    /// [`Self::requires_rotation`] and [`Self::age_days`] so the
+    /// `Utc::now().signed_duration_since(...).num_days()` chain lives
+    /// in one place.
+    fn days_since_activation(activated: chrono::DateTime<chrono::Utc>) -> i64 {
+        chrono::Utc::now().signed_duration_since(activated).num_days()
+    }
+
     /// Check if key is due for rotation per SP 800-57
     #[must_use]
     pub fn requires_rotation(&self) -> bool {
-        if let Some(activated_at) = self.activated_at {
-            let duration = chrono::Utc::now().signed_duration_since(activated_at);
-            let age_days_i64 = duration.num_days();
-            if age_days_i64 < 0 {
-                // Future activation date — clock skew or misconfiguration
-                tracing::warn!(
-                    "Key has negative age ({age_days_i64} days); activation_at in the future"
-                );
-                return false;
-            }
-            // Ages larger than u32::MAX → always require rotation
-            let age_days = u32::try_from(age_days_i64).unwrap_or(u32::MAX);
-            age_days >= self.rotation_interval_days
-        } else {
-            false
+        let Some(activated_at) = self.activated_at else { return false };
+        let age_days_i64 = Self::days_since_activation(activated_at);
+        if age_days_i64 < 0 {
+            // Future activation date — clock skew or misconfiguration
+            tracing::warn!(
+                "Key has negative age ({age_days_i64} days); activation_at in the future"
+            );
+            return false;
         }
+        // Ages larger than u32::MAX → always require rotation
+        let age_days = u32::try_from(age_days_i64).unwrap_or(u32::MAX);
+        age_days >= self.rotation_interval_days
     }
 
     /// Get key age in days since activation
     #[must_use]
     pub fn age_days(&self) -> Option<u32> {
         self.activated_at.map(|activated| {
-            // Use signed_duration_since for safe duration calculation
-            let duration = chrono::Utc::now().signed_duration_since(activated);
-            let days_i64 = duration.num_days();
-            // Convert safely: negative ages (future activation) treated as 0
-            u32::try_from(days_i64).unwrap_or(0)
+            // Negative ages (future activation) treated as 0.
+            u32::try_from(Self::days_since_activation(activated)).unwrap_or(0)
         })
     }
 
@@ -334,12 +336,6 @@ impl KeyLifecycleRecord {
     #[must_use]
     pub fn is_valid_for_use(&self) -> bool {
         matches!(self.current_state, KeyLifecycleState::Active | KeyLifecycleState::Rotating)
-    }
-
-    /// Get the number of state transitions
-    #[must_use]
-    pub fn transition_count(&self) -> usize {
-        self.state_history.len()
     }
 
     /// Add an approver to the key

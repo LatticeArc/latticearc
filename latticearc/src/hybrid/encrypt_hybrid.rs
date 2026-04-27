@@ -209,6 +209,13 @@ pub struct HybridEncryptionContext {
     /// `info` does not apply. AAD mismatches surface as ordinary
     /// authentication failures (no oracle) and are visible to legitimate
     /// callers by design.
+    ///
+    /// **Length bound:** [`Self::MAX_AAD_LEN`] (64 KiB). The bound is
+    /// enforced at [`encrypt_hybrid`] / [`decrypt_hybrid`] entry, before
+    /// any AEAD or KEM work runs. Real-world AAD payloads (transport
+    /// headers, request IDs, content-type strings) sit well below this
+    /// cap; the limit exists to bound DoS surface, not to constrain
+    /// legitimate callers.
     pub aad: Vec<u8>,
 }
 
@@ -219,6 +226,13 @@ impl Default for HybridEncryptionContext {
 }
 
 impl HybridEncryptionContext {
+    /// Maximum AAD length accepted by [`encrypt_hybrid`] /
+    /// [`decrypt_hybrid`]. 64 KiB is well above any realistic transport-
+    /// header or request-ID payload while keeping the per-call HKDF
+    /// `info` payload small enough that the length-prefixed concatenation
+    /// stays in a single page.
+    pub const MAX_AAD_LEN: usize = 64 * 1024;
+
     /// Construct with the canonical `HYBRID_ENCRYPTION_INFO` domain
     /// separator (recommended) and the supplied AAD.
     #[must_use]
@@ -247,6 +261,49 @@ impl HybridEncryptionContext {
     }
 }
 
+/// Public-key + KEM-ciphertext binding for the AEAD-key KDF.
+///
+/// Pattern 7 / HPKE §5.1 require the recipient public key, the
+/// ephemeral public key, and the KEM ciphertext (`enc`) to be bound
+/// into the *final* key-schedule KDF — not just the upstream KEM
+/// combiner — so that key-substitution and KEM-rebinding attacks
+/// against an as-yet-unknown future weakness in either component KEM
+/// cannot produce the same AEAD key under a different `(recipient,
+/// ephemeral, ct)` triple.
+///
+/// The combiner at [`crate::hybrid::kem_hybrid::derive_hybrid_shared_secret`]
+/// already binds `static_pk` and `ephemeral_pk` into the shared
+/// secret, so today the binding is *transitively* present. Re-binding
+/// here is defense-in-depth: a future regression in the combiner that
+/// silently dropped the PK mix would still be caught at this layer.
+///
+/// Borrowed slice fields (no allocation). Empty slices are accepted —
+/// they just contribute zero-length length-prefixed segments — but
+/// production callers (`encrypt_hybrid` / `decrypt_hybrid`) MUST
+/// populate all three.
+#[derive(Debug, Clone, Copy)]
+pub struct DerivationBinding<'a> {
+    /// Recipient's static (long-term) public key. For the hybrid KEM,
+    /// this is the X25519 component of the recipient's `HybridKemPublicKey`.
+    pub recipient_static_pk: &'a [u8],
+    /// Sender's ephemeral public key produced by `kem_hybrid::encapsulate`.
+    /// For the hybrid KEM this is the X25519 ephemeral PK.
+    pub ephemeral_pk: &'a [u8],
+    /// Raw ML-KEM ciphertext (`enc`) produced by `kem_hybrid::encapsulate`.
+    pub kem_ciphertext: &'a [u8],
+}
+
+impl<'a> DerivationBinding<'a> {
+    /// Empty binding (no PK / `enc` mixing). Reserved for tests that
+    /// exercise `derive_encryption_key` in isolation without a real
+    /// KEM round-trip. Production code must use a fully-populated
+    /// binding constructed by `encrypt_hybrid` / `decrypt_hybrid`.
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self { recipient_static_pk: &[], ephemeral_pk: &[], kem_ciphertext: &[] }
+    }
+}
+
 /// HPKE-style key derivation for hybrid encryption.
 ///
 /// Delegates to the primitives HKDF wrapper (`primitives::kdf::hkdf::hkdf`)
@@ -262,6 +319,10 @@ impl HybridEncryptionContext {
 /// This dual binding ensures AAD provides both key separation and ciphertext
 /// authentication.
 ///
+/// `binding` mixes the recipient public key, the ephemeral public key, and
+/// the raw KEM ciphertext into the same HKDF info — see
+/// [`DerivationBinding`] for the rationale (Pattern 7 / HPKE §5.1).
+///
 /// # Errors
 ///
 /// Returns an error if the shared secret is not exactly 32 or 64 bytes,
@@ -269,6 +330,7 @@ impl HybridEncryptionContext {
 pub fn derive_encryption_key(
     shared_secret: &[u8],
     context: &HybridEncryptionContext,
+    binding: &DerivationBinding<'_>,
 ) -> Result<Zeroizing<[u8; 32]>, HybridEncryptionError> {
     if shared_secret.len() != 32 && shared_secret.len() != 64 {
         return Err(HybridEncryptionError::KdfError(
@@ -277,45 +339,65 @@ pub fn derive_encryption_key(
     }
 
     // Reject inputs that would overflow our length prefixes. u32 covers every
-    // realistic context, and the early check keeps the `as u32` conversions
+    // realistic field, and the early check keeps the `as u32` conversions
     // below non-truncating.
-    if context.info.len() > u32::MAX as usize || context.aad.len() > u32::MAX as usize {
+    let oversize = context.info.len() > u32::MAX as usize
+        || context.aad.len() > u32::MAX as usize
+        || binding.recipient_static_pk.len() > u32::MAX as usize
+        || binding.ephemeral_pk.len() > u32::MAX as usize
+        || binding.kem_ciphertext.len() > u32::MAX as usize;
+    if oversize {
         return Err(HybridEncryptionError::KdfError(
-            "HKDF info or AAD field exceeds 2^32 bytes".to_string(),
+            "HKDF info / aad / binding field exceeds 2^32 bytes".to_string(),
         ));
     }
 
     // Build a length-prefixed HKDF info payload to prevent canonicalization
-    // collisions between the two variable-length fields (info, aad). Naive
-    // concatenation `info || "||" || aad` is ambiguous when the source data
-    // can contain the separator bytes; length-prefixing is the standard fix
-    // (HPKE §5.1, RFC 9180 "LabeledExtract").
+    // collisions between the variable-length fields. Naive concatenation
+    // `f1 || "||" || f2` is ambiguous when source data can contain the
+    // separator bytes; length-prefixing is the standard fix (HPKE §5.1,
+    // RFC 9180 "LabeledExtract").
     //
-    // Wire layout: [info_len: u32 BE][info][aad_len: u32 BE][aad]
-    let info_len = context.info.len();
-    let aad_len = context.aad.len();
-    let total = 4usize.saturating_add(info_len).saturating_add(4).saturating_add(aad_len);
+    // Wire layout (each `len: u32 BE` is followed by `len` bytes):
+    //   [info_len][info]
+    //   [aad_len][aad]
+    //   [recipient_pk_len][recipient_pk]   ── Pattern 7 / HPKE PK binding
+    //   [ephemeral_pk_len][ephemeral_pk]   ── ditto
+    //   [kem_ct_len][kem_ct]               ── ditto
+    //
+    // Order is fixed; reordering is a wire-format break.
+    let segments: [&[u8]; 5] = [
+        &context.info,
+        &context.aad,
+        binding.recipient_static_pk,
+        binding.ephemeral_pk,
+        binding.kem_ciphertext,
+    ];
+    let total: usize = segments
+        .iter()
+        .try_fold(0usize, |acc, s| acc.checked_add(4)?.checked_add(s.len()))
+        .ok_or_else(|| {
+            HybridEncryptionError::KdfError("HKDF info payload size overflow".to_string())
+        })?;
     let mut info = Vec::with_capacity(total);
-    // Safe: bounds-checked above — `try_from` cannot fail after the length
-    // guards, but we use it to silence `cast_possible_truncation` and prove
-    // the non-truncation invariant to the compiler.
-    let info_len_u32 = u32::try_from(info_len).map_err(|_e| {
-        HybridEncryptionError::KdfError("HKDF info field exceeds 2^32 bytes".to_string())
-    })?;
-    let aad_len_u32 = u32::try_from(aad_len).map_err(|_e| {
-        HybridEncryptionError::KdfError("HKDF AAD field exceeds 2^32 bytes".to_string())
-    })?;
-    info.extend_from_slice(&info_len_u32.to_be_bytes());
-    info.extend_from_slice(&context.info);
-    info.extend_from_slice(&aad_len_u32.to_be_bytes());
-    info.extend_from_slice(&context.aad);
+    for segment in segments {
+        // Safe: bounds-checked above — `try_from` cannot fail after the
+        // u32::MAX guards, but we use it to silence
+        // `cast_possible_truncation` and prove the non-truncation
+        // invariant to the compiler.
+        let len_u32 = u32::try_from(segment.len()).map_err(|_e| {
+            HybridEncryptionError::KdfError("HKDF info segment exceeds 2^32 bytes".to_string())
+        })?;
+        info.extend_from_slice(&len_u32.to_be_bytes());
+        info.extend_from_slice(segment);
+    }
 
     // HKDF-SHA256 via primitives wrapper (backed by aws-lc-rs HMAC).
     // Zero-length salt (`None`) matches HPKE (RFC 9180 §5.1). RFC 5869 §2.2
     // permits zero salt when IKM is already uniformly random; `shared_secret`
     // here is a KEM/DH output (32 B ML-KEM or 64 B ML-KEM || ECDH), so
-    // Extract's salt is not doing entropy extraction. Domain separation and
-    // AAD/context binding live in `info` instead.
+    // Extract's salt is not doing entropy extraction. Domain separation,
+    // AAD/context binding, and PK / ciphertext binding all live in `info`.
     let hkdf_result = hkdf(shared_secret, None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_DERIVE_KEY, "HKDF failed");
         HybridEncryptionError::KdfError("KDF failed".to_string())
@@ -353,6 +435,17 @@ pub fn encrypt_hybrid(
     let default_ctx = HybridEncryptionContext::default();
     let ctx = context.unwrap_or(&default_ctx);
 
+    // DoS bound on AAD: rejected up-front before any KEM / KDF / AEAD
+    // work runs, so an oversized AAD cannot consume cryptographic budget.
+    // See `HybridEncryptionContext::MAX_AAD_LEN`.
+    if ctx.aad.len() > HybridEncryptionContext::MAX_AAD_LEN {
+        return Err(HybridEncryptionError::InvalidInput(format!(
+            "AAD length {} exceeds MAX_AAD_LEN={}",
+            ctx.aad.len(),
+            HybridEncryptionContext::MAX_AAD_LEN
+        )));
+    }
+
     // Encrypt-side opacity (defense-in-depth per Pattern 6). Opaque returned
     // error; tracing::debug! keeps the specific reason for operator debugging.
     let opaque_kem = || HybridEncryptionError::KemError("encapsulation failed".to_string());
@@ -364,8 +457,15 @@ pub fn encrypt_hybrid(
         opaque_kem()
     })?;
 
-    // Derive AES-256 encryption key from 64-byte hybrid shared secret
-    let encryption_key = derive_encryption_key(encapsulated.expose_secret(), ctx)?;
+    // Derive AES-256 encryption key from 64-byte hybrid shared secret.
+    // Pattern 7 / HPKE: bind recipient PK + ephemeral PK + KEM ciphertext
+    // into the HKDF info, on top of the upstream combiner's binding.
+    let binding = DerivationBinding {
+        recipient_static_pk: hybrid_pk.ecdh_pk(),
+        ephemeral_pk: encapsulated.ecdh_pk(),
+        kem_ciphertext: encapsulated.ml_kem_ct(),
+    };
+    let encryption_key = derive_encryption_key(encapsulated.expose_secret(), ctx, &binding)?;
 
     // Generate random nonce for AES-GCM via the primitives layer.
     let nonce_bytes = AesGcm256::generate_nonce();
@@ -411,26 +511,44 @@ pub fn decrypt_hybrid(
     let default_ctx = HybridEncryptionContext::default();
     let ctx = context.unwrap_or(&default_ctx);
 
-    // Validate ciphertext structure against the secret key's security level
+    // Pattern 6: every adversary-reachable failure path collapses to the
+    // same opaque returned error. The KEM-ciphertext length check used to
+    // be its own InvalidInput variant naming `expected_ct_size` — that
+    // disclosed the recipient's ML-KEM security level (512 / 768 / 1024)
+    // by error-message inspection. Now folded into the opaque block with
+    // an internal trace under `op::HYBRID_DECRYPT` so operators can
+    // correlate via `correlation_id`. Nonce / tag / ECDH-PK lengths are
+    // also folded for consistency, even though they are public protocol
+    // constants — uniform handling removes the variant-discrimination
+    // oracle entirely.
+    let opaque = || HybridEncryptionError::DecryptionError("decryption failed".to_string());
+
+    // DoS bound on AAD: rejected up-front before any KEM / KDF / AEAD
+    // work runs. Symmetric with the encrypt-side check; folded into the
+    // opaque path so an adversary cannot probe for an AAD-length oracle.
+    if ctx.aad.len() > HybridEncryptionContext::MAX_AAD_LEN {
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "AAD exceeds MAX_AAD_LEN");
+        return Err(opaque());
+    }
+
+    // Validate ciphertext shape — opaque (no `expected_ct_size` leak) +
+    // per-stage internal trace.
     let expected_ct_size = hybrid_sk.security_level().ciphertext_size();
     if ciphertext.kem_ciphertext().len() != expected_ct_size {
-        return Err(HybridEncryptionError::InvalidInput(format!(
-            "{} ciphertext must be {} bytes, got {}",
-            hybrid_sk.security_level().name(),
-            expected_ct_size,
-            ciphertext.kem_ciphertext().len()
-        )));
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "KEM ciphertext length mismatch");
+        return Err(opaque());
     }
     if ciphertext.ecdh_ephemeral_pk().len() != 32 {
-        return Err(HybridEncryptionError::InvalidInput(
-            "X25519 ephemeral public key must be 32 bytes".to_string(),
-        ));
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "ECDH ephemeral PK length invalid");
+        return Err(opaque());
     }
     if ciphertext.nonce().len() != 12 {
-        return Err(HybridEncryptionError::InvalidInput("Nonce must be 12 bytes".to_string()));
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "AES-GCM nonce length invalid");
+        return Err(opaque());
     }
     if ciphertext.tag().len() != 16 {
-        return Err(HybridEncryptionError::InvalidInput("Tag must be 16 bytes".to_string()));
+        log_crypto_operation_error!(op::HYBRID_DECRYPT, "AES-GCM tag length invalid");
+        return Err(opaque());
     }
 
     // Reconstruct EncapsulatedKey for kem_hybrid::decapsulate. The
@@ -443,23 +561,23 @@ pub fn decrypt_hybrid(
         crate::types::SecretBytes::zero(),
     );
 
-    // All adversary-reachable failure paths below collapse to one opaque
-    // RETURNED error. Attacker controls ciphertext (nonce/tag slices, KEM ct);
-    // distinguishing "KEM rejected" vs "nonce length wrong" vs "AEAD tag fail"
-    // is a per-stage oracle. Per SP 800-38D §5.2.2 and HPKE RFC 9180 §5.2.
-    // Internal tracing logs keep the specific reason string so operators can
-    // debug via correlation IDs. See DESIGN_PATTERNS.md Pattern 6.
-    let opaque = || HybridEncryptionError::DecryptionError("decryption failed".to_string());
-
     // Hybrid KEM decapsulation (ML-KEM + X25519 ECDH + HKDF)
     let shared_secret = kem_hybrid::decapsulate(hybrid_sk, &encapsulated).map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_DECRYPT, "KEM decapsulation failed");
         opaque()
     })?;
 
-    // Derive AES-256 encryption key from 64-byte hybrid shared secret
-    let encryption_key =
-        derive_encryption_key(shared_secret.expose_secret(), ctx).map_err(|_e| {
+    // Derive AES-256 encryption key from 64-byte hybrid shared secret.
+    // Pattern 7 / HPKE: bind recipient PK + ephemeral PK + KEM ciphertext
+    // into the HKDF info (must match the encrypt-side binding exactly).
+    let recipient_static_pk = hybrid_sk.ecdh_public_key_bytes();
+    let binding = DerivationBinding {
+        recipient_static_pk: &recipient_static_pk,
+        ephemeral_pk: ciphertext.ecdh_ephemeral_pk(),
+        kem_ciphertext: ciphertext.kem_ciphertext(),
+    };
+    let encryption_key = derive_encryption_key(shared_secret.expose_secret(), ctx, &binding)
+        .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_DECRYPT, "HKDF key derivation failed");
             opaque()
         })?;
@@ -502,24 +620,27 @@ mod tests {
         let context2 =
             HybridEncryptionContext { info: b"Context2".to_vec(), aad: b"AAD2".to_vec() };
 
-        let key1 = derive_encryption_key(&shared_secret, &context1).unwrap();
-        let key2 = derive_encryption_key(&shared_secret, &context2).unwrap();
+        let key1 =
+            derive_encryption_key(&shared_secret, &context1, &DerivationBinding::empty()).unwrap();
+        let key2 =
+            derive_encryption_key(&shared_secret, &context2, &DerivationBinding::empty()).unwrap();
 
         // Different contexts should produce different keys
         assert_ne!(key1, key2, "Different contexts should produce different keys");
 
         // Same context should produce same key (deterministic)
-        let key1_again = derive_encryption_key(&shared_secret, &context1).unwrap();
+        let key1_again =
+            derive_encryption_key(&shared_secret, &context1, &DerivationBinding::empty()).unwrap();
         assert_eq!(key1, key1_again, "Key derivation should be deterministic");
 
         // Test invalid shared secret length
         let invalid_secret = vec![1u8; 31]; // Wrong length
-        let result = derive_encryption_key(&invalid_secret, &context1);
+        let result = derive_encryption_key(&invalid_secret, &context1, &DerivationBinding::empty());
         assert!(result.is_err(), "Should reject invalid shared secret length");
 
         // Test 64-byte hybrid shared secret is accepted
         let hybrid_secret = vec![1u8; 64];
-        let result = derive_encryption_key(&hybrid_secret, &context1);
+        let result = derive_encryption_key(&hybrid_secret, &context1, &DerivationBinding::empty());
         assert!(result.is_ok(), "Should accept 64-byte hybrid shared secret");
     }
 
@@ -674,19 +795,19 @@ mod tests {
         let ctx = HybridEncryptionContext::default();
 
         // Too short (31 bytes)
-        assert!(derive_encryption_key(&[0u8; 31], &ctx).is_err());
+        assert!(derive_encryption_key(&[0u8; 31], &ctx, &DerivationBinding::empty()).is_err());
 
         // Too long (65 bytes)
-        assert!(derive_encryption_key(&[0u8; 65], &ctx).is_err());
+        assert!(derive_encryption_key(&[0u8; 65], &ctx, &DerivationBinding::empty()).is_err());
 
         // 1 byte
-        assert!(derive_encryption_key(&[0u8; 1], &ctx).is_err());
+        assert!(derive_encryption_key(&[0u8; 1], &ctx, &DerivationBinding::empty()).is_err());
 
         // Empty
-        assert!(derive_encryption_key(&[], &ctx).is_err());
+        assert!(derive_encryption_key(&[], &ctx, &DerivationBinding::empty()).is_err());
 
         // 33 bytes (between valid sizes)
-        assert!(derive_encryption_key(&[0u8; 33], &ctx).is_err());
+        assert!(derive_encryption_key(&[0u8; 33], &ctx, &DerivationBinding::empty()).is_err());
     }
 
     #[test]
@@ -695,8 +816,8 @@ mod tests {
         let secret_a = [1u8; 32];
         let secret_b = [2u8; 32];
 
-        let key_a = derive_encryption_key(&secret_a, &ctx).unwrap();
-        let key_b = derive_encryption_key(&secret_b, &ctx).unwrap();
+        let key_a = derive_encryption_key(&secret_a, &ctx, &DerivationBinding::empty()).unwrap();
+        let key_b = derive_encryption_key(&secret_b, &ctx, &DerivationBinding::empty()).unwrap();
 
         assert_ne!(key_a, key_b);
     }
@@ -705,11 +826,11 @@ mod tests {
     fn test_derive_key_64_byte_hybrid_secret_succeeds() {
         let ctx = HybridEncryptionContext::default();
         let secret = [42u8; 64];
-        let key = derive_encryption_key(&secret, &ctx).unwrap();
+        let key = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(key.len(), 32);
 
         // Deterministic
-        let key2 = derive_encryption_key(&secret, &ctx).unwrap();
+        let key2 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(key, key2);
     }
 
@@ -727,7 +848,9 @@ mod tests {
         let result = decrypt_hybrid(&hybrid_sk, &ct, None);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+        // Pattern 6 (#51): decrypt collapses size-shape mismatches into the
+        // opaque DecryptionError to avoid leaking which component was malformed.
+        assert!(matches!(err, HybridEncryptionError::DecryptionError(_)));
     }
 
     #[test]
@@ -744,7 +867,8 @@ mod tests {
         let result = decrypt_hybrid(&hybrid_sk, &ct, None);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridEncryptionError::InvalidInput(_)));
+        // Pattern 6 (#51): see test_decrypt_hybrid_invalid_kem_ct_length_fails note.
+        assert!(matches!(err, HybridEncryptionError::DecryptionError(_)));
     }
 
     #[test]
@@ -848,7 +972,7 @@ mod tests {
     fn test_derive_encryption_key_with_64_byte_secret_succeeds() {
         let secret = [0xAA; 64]; // Hybrid 64-byte shared secret
         let ctx = HybridEncryptionContext::default();
-        let key = derive_encryption_key(&secret, &ctx).unwrap();
+        let key = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(key.len(), 32);
     }
 
@@ -856,7 +980,7 @@ mod tests {
     fn test_derive_encryption_key_invalid_length_fails() {
         let ctx = HybridEncryptionContext::default();
         // 16 bytes is neither 32 nor 64
-        let result = derive_encryption_key(&[0u8; 16], &ctx);
+        let result = derive_encryption_key(&[0u8; 16], &ctx, &DerivationBinding::empty());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("32 bytes"));
     }
@@ -865,8 +989,8 @@ mod tests {
     fn test_derive_encryption_key_is_deterministic() {
         let secret = [0xBB; 32];
         let ctx = HybridEncryptionContext::default();
-        let k1 = derive_encryption_key(&secret, &ctx).unwrap();
-        let k2 = derive_encryption_key(&secret, &ctx).unwrap();
+        let k1 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
+        let k2 = derive_encryption_key(&secret, &ctx, &DerivationBinding::empty()).unwrap();
         assert_eq!(k1, k2, "Same inputs must produce same key");
     }
 
@@ -875,8 +999,8 @@ mod tests {
         let secret = [0xCC; 32];
         let ctx1 = HybridEncryptionContext { info: b"ctx1".to_vec(), aad: vec![] };
         let ctx2 = HybridEncryptionContext { info: b"ctx2".to_vec(), aad: vec![] };
-        let k1 = derive_encryption_key(&secret, &ctx1).unwrap();
-        let k2 = derive_encryption_key(&secret, &ctx2).unwrap();
+        let k1 = derive_encryption_key(&secret, &ctx1, &DerivationBinding::empty()).unwrap();
+        let k2 = derive_encryption_key(&secret, &ctx2, &DerivationBinding::empty()).unwrap();
         assert_ne!(k1, k2, "Different contexts must produce different keys");
     }
 
@@ -888,8 +1012,9 @@ mod tests {
             info: crate::types::domains::HYBRID_ENCRYPTION_INFO.to_vec(),
             aad: b"extra-data".to_vec(),
         };
-        let k1 = derive_encryption_key(&secret, &ctx_no_aad).unwrap();
-        let k2 = derive_encryption_key(&secret, &ctx_with_aad).unwrap();
+        let k1 = derive_encryption_key(&secret, &ctx_no_aad, &DerivationBinding::empty()).unwrap();
+        let k2 =
+            derive_encryption_key(&secret, &ctx_with_aad, &DerivationBinding::empty()).unwrap();
         assert_ne!(k1, k2, "Different AAD must produce different keys");
     }
 

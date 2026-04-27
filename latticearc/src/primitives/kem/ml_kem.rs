@@ -13,7 +13,9 @@
 //! Both public and secret keys support full serialization via aws-lc-rs v1.16.0:
 //!
 //! - **Public keys**: Serialize with [`MlKemPublicKey::to_bytes()`], restore with [`MlKemPublicKey::from_bytes()`]
-//! - **Secret keys**: Serialize with [`MlKemSecretKey::as_bytes()`], restore with [`MlKemSecretKey::new()`]
+//! - **Secret keys**: Serialize with [`MlKemSecretKey::expose_secret()`] (or
+//!   [`MlKemSecretKey::to_bytes()`] for an owned `Zeroizing<Vec<u8>>` copy);
+//!   restore with [`MlKemSecretKey::new()`]
 //! - **Full round-trip**: Generate keypair, serialize both keys, restore and decapsulate
 //!
 

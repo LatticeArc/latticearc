@@ -350,10 +350,14 @@ pub(crate) fn unlock_if_encrypted(key: &mut PortableKey) -> Result<()> {
 
 /// Parse a hybrid signing PK from concatenated raw bytes (pq ++ classical).
 ///
-/// Used by legacy verify path where bytes were already extracted via `key_bytes()`.
+/// Used by legacy verify path where bytes were already extracted via
+/// `key_bytes()` without an accompanying scheme tag. The ML-DSA parameter
+/// set is recovered from the PQ-component length, which is unambiguous
+/// across the three FIPS 204 sets (1312/1952/2592 bytes for 44/65/87).
 pub(crate) fn parse_hybrid_sign_pk_from_bytes(
     bytes: &[u8],
 ) -> Result<latticearc::hybrid::sig_hybrid::HybridSigPublicKey> {
+    use latticearc::primitives::sig::ml_dsa::MlDsaParameterSet;
     let split = bytes
         .len()
         .checked_sub(32)
@@ -361,7 +365,20 @@ pub(crate) fn parse_hybrid_sign_pk_from_bytes(
     if split == 0 {
         bail!("Hybrid signing PK has no PQ component ({} bytes)", bytes.len());
     }
+    let parameter_set = match split {
+        n if n == MlDsaParameterSet::MlDsa44.public_key_size() => MlDsaParameterSet::MlDsa44,
+        n if n == MlDsaParameterSet::MlDsa65.public_key_size() => MlDsaParameterSet::MlDsa65,
+        n if n == MlDsaParameterSet::MlDsa87.public_key_size() => MlDsaParameterSet::MlDsa87,
+        n => bail!(
+            "Hybrid signing PK PQ-component length {n} matches no known ML-DSA \
+             parameter set (44={}, 65={}, 87={})",
+            MlDsaParameterSet::MlDsa44.public_key_size(),
+            MlDsaParameterSet::MlDsa65.public_key_size(),
+            MlDsaParameterSet::MlDsa87.public_key_size(),
+        ),
+    };
     Ok(latticearc::hybrid::sig_hybrid::HybridSigPublicKey::new(
+        parameter_set,
         bytes.get(..split).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
         bytes.get(split..).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
     ))

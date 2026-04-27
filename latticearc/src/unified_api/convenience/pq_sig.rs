@@ -33,6 +33,29 @@ use crate::primitives::sig::{
 use crate::types::types::SecurityLevel;
 use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
+
+/// Map a primitive verify result `Result<bool, E>` to the convenience-API
+/// shape `Result<bool, CoreError>`. Used by all three PQ verify paths
+/// (ML-DSA, SLH-DSA, FN-DSA) to collapse:
+///
+/// ```text
+/// Ok(true)  → Ok(true)
+/// Ok(false) → Err(CoreError::VerificationFailed)
+/// Err(e)    → Err(CoreError::InvalidInput(format!("{alg} verification error: {e}")))
+/// ```
+///
+/// `alg` is interpolated into the InvalidInput message to keep the error
+/// reason traceable to which PQ scheme produced it.
+fn map_verify_result<E: std::fmt::Display>(
+    r: std::result::Result<bool, E>,
+    alg: &str,
+) -> Result<bool> {
+    match r {
+        Ok(true) => Ok(true),
+        Ok(false) => Err(CoreError::VerificationFailed),
+        Err(e) => Err(CoreError::InvalidInput(format!("{alg} verification error: {e}"))),
+    }
+}
 use crate::unified_api::logging::op;
 use crate::unified_api::zero_trust::SecurityMode;
 
@@ -138,11 +161,7 @@ fn verify_pq_ml_dsa_internal(
         CoreError::InvalidInput(format!("Invalid ML-DSA signature: {}", e))
     })?;
 
-    let result = match pk.verify(message, &sig, &[]) {
-        Ok(true) => Ok(true),
-        Ok(false) => Err(CoreError::VerificationFailed),
-        Err(e) => Err(CoreError::InvalidInput(format!("ML-DSA verification error: {}", e))),
-    };
+    let result = map_verify_result(pk.verify(message, &sig, &[]), "ML-DSA");
 
     match &result {
         Ok(valid) => {
@@ -209,11 +228,7 @@ fn verify_pq_slh_dsa_internal(
         CoreError::InvalidInput("Invalid SLH-DSA public key format".to_string())
     })?;
 
-    let result = match pk.verify(message, signature, b"context") {
-        Ok(true) => Ok(true),
-        Ok(false) => Err(CoreError::VerificationFailed),
-        Err(e) => Err(CoreError::InvalidInput(format!("SLH-DSA verification error: {}", e))),
-    };
+    let result = map_verify_result(pk.verify(message, signature, b"context"), "SLH-DSA");
 
     match &result {
         Ok(valid) => {
@@ -300,11 +315,7 @@ fn verify_pq_fn_dsa_internal(
         CoreError::InvalidInput(format!("Invalid FN-DSA signature: {}", e))
     })?;
 
-    let result = match pk.verify(message, &sig) {
-        Ok(true) => Ok(true),
-        Ok(false) => Err(CoreError::VerificationFailed),
-        Err(e) => Err(CoreError::InvalidInput(format!("FN-DSA verification error: {}", e))),
-    };
+    let result = map_verify_result(pk.verify(message, &sig), "FN-DSA");
 
     match &result {
         Ok(valid) => {

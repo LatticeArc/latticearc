@@ -57,6 +57,14 @@ pub mod op {
     pub const ML_KEM_ENCAP: &str = "ml_kem_encap";
     /// Tag for `hybrid::kem_hybrid::derive_hybrid_shared_secret` observability events.
     pub const HYBRID_KEM_DERIVE: &str = "hybrid_kem_derive";
+    /// Tag for `hybrid::kem_hybrid::encapsulate` observability events.
+    pub const HYBRID_KEM_ENCAPSULATE: &str = "hybrid_kem_encapsulate";
+    /// Tag for `hybrid::kem_hybrid::decapsulate` observability events.
+    /// Used for the per-stage internal trace when an opaque
+    /// `DecapsulationFailed` is returned to the caller (Pattern 6:
+    /// opaque return + internal trace so operators can correlate via
+    /// `correlation_id` while the API stays oracle-free).
+    pub const HYBRID_KEM_DECAPSULATE: &str = "hybrid_kem_decapsulate";
 
     // Hybrid encryption (KEM + AEAD)
     /// Tag for `hybrid::encrypt_hybrid::encrypt_hybrid` observability events.
@@ -1850,32 +1858,6 @@ macro_rules! log_zero_trust_continuous_verification {
 // Zero Trust Logging Utility Functions
 // ============================================================================
 
-/// Convert a session ID (byte array) to a hex string for safe logging.
-///
-/// This function converts raw session ID bytes to a hexadecimal string,
-/// which is safe to log and useful for audit trail correlation.
-///
-/// # Arguments
-///
-/// * `session_id` - The raw session ID bytes
-///
-/// # Returns
-///
-/// A hexadecimal string representation of the session ID.
-///
-/// # Example
-///
-/// ```rust
-/// use latticearc::unified_api::logging::session_id_to_hex;
-///
-/// let session_id = [0x12, 0x34, 0xAB, 0xCD];
-/// assert_eq!(session_id_to_hex(&session_id), "1234abcd");
-/// ```
-#[must_use]
-pub fn session_id_to_hex(session_id: &[u8]) -> String {
-    hex::encode(session_id)
-}
-
 /// Initialize tracing with file output for persistent logging.
 ///
 /// # Errors
@@ -2169,17 +2151,9 @@ mod tests {
         assert_eq!(sanitized.get("short"), Some(&"brief".to_string()));
     }
 
-    #[test]
-    fn test_session_id_to_hex_has_correct_format() {
-        let session_id = [0x12, 0x34, 0xAB, 0xCD];
-        assert_eq!(session_id_to_hex(&session_id), "1234abcd");
-
-        let empty: [u8; 0] = [];
-        assert_eq!(session_id_to_hex(&empty), "");
-
-        let all_zeros = [0u8; 16];
-        assert_eq!(session_id_to_hex(&all_zeros), "00000000000000000000000000000000");
-    }
+    // (Test for `session_id_to_hex` removed alongside the wrapper —
+    // `hex::encode` is well-tested in the `hex` crate; we don't gain
+    // anything by re-pinning its behavior here.)
 
     // ========================================================================
     // Correlation ID Tests

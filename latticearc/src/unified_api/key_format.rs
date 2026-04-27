@@ -194,6 +194,65 @@ pub enum KeyAlgorithm {
     HybridMlDsa87Ed25519,
 }
 
+/// Map an ML-KEM security level to the corresponding hybrid-KEM
+/// `KeyAlgorithm` variant. Used by the `from_hybrid_kem_keypair` /
+/// `to_hybrid_*_key` conversion paths so the level→variant table lives
+/// in one place.
+impl From<crate::primitives::kem::MlKemSecurityLevel> for KeyAlgorithm {
+    fn from(level: crate::primitives::kem::MlKemSecurityLevel) -> Self {
+        use crate::primitives::kem::MlKemSecurityLevel;
+        match level {
+            MlKemSecurityLevel::MlKem512 => Self::HybridMlKem512X25519,
+            MlKemSecurityLevel::MlKem768 => Self::HybridMlKem768X25519,
+            MlKemSecurityLevel::MlKem1024 => Self::HybridMlKem1024X25519,
+        }
+    }
+}
+
+/// Recover an ML-KEM security level from a hybrid-KEM `KeyAlgorithm`.
+/// Returns `Err(())` for non-hybrid-KEM variants — callers are expected
+/// to wrap this into a `CoreError::InvalidKey` with their own
+/// "not a hybrid KEM" framing.
+impl TryFrom<KeyAlgorithm> for crate::primitives::kem::MlKemSecurityLevel {
+    type Error = ();
+    fn try_from(alg: KeyAlgorithm) -> std::result::Result<Self, Self::Error> {
+        use crate::primitives::kem::MlKemSecurityLevel;
+        match alg {
+            KeyAlgorithm::HybridMlKem512X25519 => Ok(MlKemSecurityLevel::MlKem512),
+            KeyAlgorithm::HybridMlKem768X25519 => Ok(MlKemSecurityLevel::MlKem768),
+            KeyAlgorithm::HybridMlKem1024X25519 => Ok(MlKemSecurityLevel::MlKem1024),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Map an ML-DSA parameter set to the corresponding hybrid-signature
+/// `KeyAlgorithm` variant. Symmetric with the KEM `From` above.
+impl From<crate::primitives::sig::ml_dsa::MlDsaParameterSet> for KeyAlgorithm {
+    fn from(param: crate::primitives::sig::ml_dsa::MlDsaParameterSet) -> Self {
+        use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
+        match param {
+            MlDsaParameterSet::MlDsa44 => Self::HybridMlDsa44Ed25519,
+            MlDsaParameterSet::MlDsa65 => Self::HybridMlDsa65Ed25519,
+            MlDsaParameterSet::MlDsa87 => Self::HybridMlDsa87Ed25519,
+        }
+    }
+}
+
+/// Recover an ML-DSA parameter set from a hybrid-signature `KeyAlgorithm`.
+impl TryFrom<KeyAlgorithm> for crate::primitives::sig::ml_dsa::MlDsaParameterSet {
+    type Error = ();
+    fn try_from(alg: KeyAlgorithm) -> std::result::Result<Self, Self::Error> {
+        use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
+        match alg {
+            KeyAlgorithm::HybridMlDsa44Ed25519 => Ok(MlDsaParameterSet::MlDsa44),
+            KeyAlgorithm::HybridMlDsa65Ed25519 => Ok(MlDsaParameterSet::MlDsa65),
+            KeyAlgorithm::HybridMlDsa87Ed25519 => Ok(MlDsaParameterSet::MlDsa87),
+            _ => Err(()),
+        }
+    }
+}
+
 impl KeyAlgorithm {
     /// Returns `true` if this is a hybrid algorithm with composite key data.
     #[must_use]
@@ -978,17 +1037,7 @@ impl PortableKey {
         pk: &crate::hybrid::kem_hybrid::HybridKemPublicKey,
         sk: &crate::hybrid::kem_hybrid::HybridKemSecretKey,
     ) -> Result<(Self, Self)> {
-        let algorithm = match pk.security_level() {
-            crate::primitives::kem::MlKemSecurityLevel::MlKem512 => {
-                KeyAlgorithm::HybridMlKem512X25519
-            }
-            crate::primitives::kem::MlKemSecurityLevel::MlKem768 => {
-                KeyAlgorithm::HybridMlKem768X25519
-            }
-            crate::primitives::kem::MlKemSecurityLevel::MlKem1024 => {
-                KeyAlgorithm::HybridMlKem1024X25519
-            }
-        };
+        let algorithm: KeyAlgorithm = pk.security_level().into();
 
         let pub_key = Self {
             version: Self::CURRENT_VERSION,
@@ -1038,22 +1087,13 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the algorithm is not a hybrid KEM or key data is invalid.
     pub fn to_hybrid_public_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemPublicKey> {
-        let level = match self.algorithm {
-            KeyAlgorithm::HybridMlKem512X25519 => {
-                crate::primitives::kem::MlKemSecurityLevel::MlKem512
-            }
-            KeyAlgorithm::HybridMlKem768X25519 => {
-                crate::primitives::kem::MlKemSecurityLevel::MlKem768
-            }
-            KeyAlgorithm::HybridMlKem1024X25519 => {
-                crate::primitives::kem::MlKemSecurityLevel::MlKem1024
-            }
-            other => {
-                return Err(CoreError::InvalidKey(format!(
-                    "Not a hybrid KEM algorithm: {other:?}"
-                )));
-            }
-        };
+        let level =
+            crate::primitives::kem::MlKemSecurityLevel::try_from(self.algorithm).map_err(|()| {
+                CoreError::InvalidKey(format!(
+                    "Not a hybrid KEM algorithm: {alg:?}",
+                    alg = self.algorithm
+                ))
+            })?;
 
         let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
 
@@ -1076,22 +1116,13 @@ impl PortableKey {
     /// (stored at keygen time), making the secret key file fully self-contained.
     /// No separate public key file is needed for decryption.
     pub fn to_hybrid_secret_key(&self) -> Result<crate::hybrid::kem_hybrid::HybridKemSecretKey> {
-        let level = match self.algorithm {
-            KeyAlgorithm::HybridMlKem512X25519 => {
-                crate::primitives::kem::MlKemSecurityLevel::MlKem512
-            }
-            KeyAlgorithm::HybridMlKem768X25519 => {
-                crate::primitives::kem::MlKemSecurityLevel::MlKem768
-            }
-            KeyAlgorithm::HybridMlKem1024X25519 => {
-                crate::primitives::kem::MlKemSecurityLevel::MlKem1024
-            }
-            other => {
-                return Err(CoreError::InvalidKey(format!(
-                    "Not a hybrid KEM algorithm: {other:?}"
-                )));
-            }
-        };
+        let level =
+            crate::primitives::kem::MlKemSecurityLevel::try_from(self.algorithm).map_err(|()| {
+                CoreError::InvalidKey(format!(
+                    "Not a hybrid KEM algorithm: {alg:?}",
+                    alg = self.algorithm
+                ))
+            })?;
 
         if self.key_type != KeyType::Secret {
             return Err(CoreError::InvalidKey(
@@ -1151,24 +1182,24 @@ impl PortableKey {
     /// * `sk` - Hybrid signature secret key (ML-DSA + Ed25519)
     ///
     /// # Errors
-    /// Returns an error if `pk.ml_dsa_pk().len()` does not match any known ML-DSA
-    /// parameter set (1312, 1952, or 2592 bytes).
+    /// Returns an error if `pk.parameter_set()` does not map to a known
+    /// hybrid-signature `KeyAlgorithm` variant. (As of 0.8.0 all three
+    /// ML-DSA parameter sets are mapped, so this is currently
+    /// unreachable; the `Result` shape is retained for forward
+    /// compatibility with future ML-DSA variants.)
     pub fn from_hybrid_sig_keypair(
         use_case: crate::types::types::UseCase,
         pk: &crate::hybrid::sig_hybrid::HybridSigPublicKey,
         sk: &crate::hybrid::sig_hybrid::HybridSigSecretKey,
     ) -> Result<(Self, Self)> {
-        let algorithm = match pk.ml_dsa_pk().len() {
-            1312 => KeyAlgorithm::HybridMlDsa44Ed25519,
-            1952 => KeyAlgorithm::HybridMlDsa65Ed25519,
-            2592 => KeyAlgorithm::HybridMlDsa87Ed25519,
-            n => {
-                return Err(CoreError::InvalidKey(format!(
-                    "Cannot detect ML-DSA parameter set from public key length {n}: \
-                     expected 1312 (ML-DSA-44), 1952 (ML-DSA-65), or 2592 (ML-DSA-87)"
-                )));
-            }
-        };
+        // Read the parameter set off the typed handle introduced in
+        // 0.8.0 — see HybridSigPublicKey::parameter_set. Earlier
+        // revisions sniffed it from the PK byte length (1312/1952/2592);
+        // that worked because the FIPS 204 sets have unique lengths,
+        // but it was inconsistent with the KEM side (which used the
+        // typed level()) and would silently break if any future ML-DSA
+        // variant collided on length.
+        let algorithm: KeyAlgorithm = pk.parameter_set().into();
 
         let pub_key = Self {
             version: Self::CURRENT_VERSION,
@@ -1205,21 +1236,23 @@ impl PortableKey {
     pub fn to_hybrid_sig_public_key(
         &self,
     ) -> Result<crate::hybrid::sig_hybrid::HybridSigPublicKey> {
-        if !matches!(
+        let parameter_set = crate::primitives::sig::ml_dsa::MlDsaParameterSet::try_from(
             self.algorithm,
-            KeyAlgorithm::HybridMlDsa44Ed25519
-                | KeyAlgorithm::HybridMlDsa65Ed25519
-                | KeyAlgorithm::HybridMlDsa87Ed25519
-        ) {
-            return Err(CoreError::InvalidKey(format!(
-                "Not a hybrid signature algorithm: {:?}",
-                self.algorithm
-            )));
-        }
+        )
+        .map_err(|()| {
+            CoreError::InvalidKey(format!(
+                "Not a hybrid signature algorithm: {alg:?}",
+                alg = self.algorithm
+            ))
+        })?;
 
         let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
 
-        Ok(crate::hybrid::sig_hybrid::HybridSigPublicKey::new(pq_bytes, classical_bytes))
+        Ok(crate::hybrid::sig_hybrid::HybridSigPublicKey::new(
+            parameter_set,
+            pq_bytes,
+            classical_bytes,
+        ))
     }
 
     /// Extract a hybrid signature `HybridSecretKey` from a portable key.
@@ -1229,17 +1262,15 @@ impl PortableKey {
     pub fn to_hybrid_sig_secret_key(
         &self,
     ) -> Result<crate::hybrid::sig_hybrid::HybridSigSecretKey> {
-        if !matches!(
+        let parameter_set = crate::primitives::sig::ml_dsa::MlDsaParameterSet::try_from(
             self.algorithm,
-            KeyAlgorithm::HybridMlDsa44Ed25519
-                | KeyAlgorithm::HybridMlDsa65Ed25519
-                | KeyAlgorithm::HybridMlDsa87Ed25519
-        ) {
-            return Err(CoreError::InvalidKey(format!(
-                "Not a hybrid signature algorithm: {:?}",
-                self.algorithm
-            )));
-        }
+        )
+        .map_err(|()| {
+            CoreError::InvalidKey(format!(
+                "Not a hybrid signature algorithm: {alg:?}",
+                alg = self.algorithm
+            ))
+        })?;
 
         if self.key_type != KeyType::Secret {
             return Err(CoreError::InvalidKey(
@@ -1250,6 +1281,7 @@ impl PortableKey {
         let (pq_bytes, classical_bytes) = self.key_data.decode_composite()?;
 
         Ok(crate::hybrid::sig_hybrid::HybridSigSecretKey::new(
+            parameter_set,
             zeroize::Zeroizing::new(pq_bytes),
             zeroize::Zeroizing::new(classical_bytes),
         ))
@@ -1749,7 +1781,10 @@ impl PortableKey {
         // 2. Generate a fresh random salt.
         let salt = crate::primitives::rand::csprng::random_bytes(PBKDF2_SALT_LEN);
 
-        // 3. Derive the AES key via PBKDF2-HMAC-SHA256.
+        // 3. Derive the AES key via PBKDF2-HMAC-SHA256. Salt-length
+        // validation lives at the `pbkdf2(...)` call below; `with_salt`
+        // is intentionally infallible so wire-format parsers can also
+        // round-trip pre-0.8.0 short-salt envelopes for inspection.
         let kdf_params = crate::primitives::kdf::pbkdf2::Pbkdf2Params::with_salt(&salt)
             .iterations(PBKDF2_DEFAULT_ITERATIONS)
             .key_length(AES_256_KEY_LEN);
@@ -1866,6 +1901,14 @@ impl PortableKey {
         tag_array.copy_from_slice(tag_bytes);
 
         // Derive the AES key from the passphrase + salt.
+        // `with_salt` is the right tool here: `salt` was
+        // deserialized from an externally-supplied envelope and may be
+        // a pre-0.8.0 short salt that `with_salt`'s NIST SP 800-132 §5.1
+        // floor would reject. The validating min-length check happens at
+        // the `pbkdf2(...)` call below instead, so the unchecked
+        // construction cannot smuggle a short salt past actual
+        // derivation. This is the documented wire-format-parser use
+        // case for `with_salt`.
         let kdf_params = crate::primitives::kdf::pbkdf2::Pbkdf2Params::with_salt(&salt)
             .iterations(kdf_iterations)
             .key_length(AES_256_KEY_LEN);

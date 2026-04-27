@@ -152,6 +152,17 @@ pub enum HybridKemError {
     /// distinguisher would constitute a padding-oracle leak.
     #[error("Hybrid decapsulation failed")]
     DecapsulationFailed,
+    /// Hybrid encapsulation failed. Single opaque variant per Pattern 6
+    /// "encrypt-side defense in depth" — symmetric to
+    /// [`Self::DecapsulationFailed`]. Encap inputs are caller-controlled
+    /// (the recipient PK), but `e.to_string()` from upstream crates can
+    /// leak version-dependent error wording into application logs;
+    /// collapsing to one variant keeps the surface stable across
+    /// dependency upgrades and removes a class of accidental disclosure.
+    /// Per-stage detail is preserved via internal trace events
+    /// (`log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, ...)`).
+    #[error("Hybrid encapsulation failed")]
+    EncapsulationFailed,
 }
 
 /// Hybrid public key combining ML-KEM and ECDH public keys.
@@ -576,7 +587,15 @@ pub fn generate_keypair_with_level(
 /// - The ECDH public key format is invalid for conversion.
 /// - Key derivation (HKDF) fails.
 pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKemError> {
-    // Validate ECDH public key length
+    // Pattern 6 "encrypt-side defense in depth": symmetric to
+    // `decapsulate`. All upstream-Display leaks (`e.to_string()`) collapse
+    // to one opaque variant for the caller; per-stage detail goes to the
+    // internal trace under `op::HYBRID_KEM_ENCAPSULATE`. The recipient PK
+    // length error stays distinct (`InvalidKeyMaterial`) — the caller
+    // owns the recipient PK at this point and a wrong-length error there
+    // is a programmer mistake, not adversary input.
+    let opaque = || HybridKemError::EncapsulationFailed;
+
     if pk.ecdh_pk.len() != X25519_KEY_SIZE {
         return Err(HybridKemError::InvalidKeyMaterial(format!(
             "ECDH public key must be {} bytes, got {}",
@@ -586,27 +605,38 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
     }
 
     // ML-KEM encapsulation at the public key's security level
-    let ml_kem_pk_struct = MlKemPublicKey::new(pk.security_level, pk.ml_kem_pk.clone())
-        .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
-    let (ml_kem_ss, ml_kem_ct_struct) = MlKem::encapsulate(&ml_kem_pk_struct)
-        .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
+    let ml_kem_pk_struct =
+        MlKemPublicKey::new(pk.security_level, pk.ml_kem_pk.clone()).map_err(|_e| {
+            log_crypto_operation_error!(
+                op::HYBRID_KEM_ENCAPSULATE,
+                "ML-KEM PK construction failed"
+            );
+            opaque()
+        })?;
+    let (ml_kem_ss, ml_kem_ct_struct) = MlKem::encapsulate(&ml_kem_pk_struct).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "ML-KEM encapsulate failed");
+        opaque()
+    })?;
     let ml_kem_ct = ml_kem_ct_struct.into_bytes();
 
     // Validate ML-KEM shared secret
     if ml_kem_ss.expose_secret().len() != 32 {
-        return Err(HybridKemError::MlKemError(
-            "ML-KEM encapsulation returned invalid shared secret length".to_string(),
-        ));
+        log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "ML-KEM SS length invalid");
+        return Err(opaque());
     }
 
     // Generate ephemeral ECDH keypair and perform key agreement
-    let ecdh_ephemeral =
-        X25519KeyPair::generate().map_err(|e| HybridKemError::EcdhError(e.to_string()))?;
+    let ecdh_ephemeral = X25519KeyPair::generate().map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "ECDH keypair generation failed");
+        opaque()
+    })?;
     let ecdh_ephemeral_public = ecdh_ephemeral.public_key_bytes().to_vec();
 
     // Perform ECDH key agreement with peer's public key
-    let ecdh_shared_secret =
-        ecdh_ephemeral.agree(&pk.ecdh_pk).map_err(|e| HybridKemError::EcdhError(e.to_string()))?;
+    let ecdh_shared_secret = ecdh_ephemeral.agree(&pk.ecdh_pk).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "ECDH agree failed");
+        opaque()
+    })?;
 
     // Derive hybrid shared secret using HPKE-style KDF
     let shared_secret = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -615,7 +645,10 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
         static_pk: pk.ecdh_pk.as_slice(),
         ephemeral_pk: &ecdh_ephemeral_public,
     })
-    .map_err(|e| HybridKemError::KdfError(e.to_string()))?;
+    .map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "HKDF combiner failed");
+        opaque()
+    })?;
 
     // `shared_secret` is already `Zeroizing<Vec<u8>>` — pass directly.
     Ok(EncapsulatedKey { ml_kem_ct, ecdh_pk: ecdh_ephemeral_public, shared_secret })
@@ -639,25 +672,42 @@ pub fn decapsulate(
     sk: &HybridKemSecretKey,
     ct: &EncapsulatedKey,
 ) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
-    // Every failure path collapses to the single opaque variant — see
-    // [`HybridKemError::DecapsulationFailed`] for the oracle-prevention
-    // rationale. `|_e|` (rather than `|_|`) names the dropped error so
-    // clippy's `map_err_ignore` lint accepts the intentional loss.
+    // Pattern 6 (opaque return + internal trace): every failure path
+    // collapses to `DecapsulationFailed` for the caller (oracle prevention
+    // — see [`HybridKemError::DecapsulationFailed`]) but emits a per-stage
+    // `log_crypto_operation_error!` with a stable stage tag so operators
+    // can debug via correlation_id without the API surface leaking.
+    // `|_e|` (rather than `|_|`) names the dropped error so clippy's
+    // `map_err_ignore` lint accepts the intentional loss.
     let opaque = || HybridKemError::DecapsulationFailed;
 
     if ct.ecdh_pk.len() != X25519_KEY_SIZE {
+        log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "ECDH PK length invalid");
         return Err(opaque());
     }
 
-    let ml_kem_ct_struct =
-        MlKemCiphertext::new(sk.security_level(), ct.ml_kem_ct.clone()).map_err(|_e| opaque())?;
-    let ml_kem_ss = sk.ml_kem_decapsulate(&ml_kem_ct_struct).map_err(|_e| opaque())?;
+    let ml_kem_ct_struct = MlKemCiphertext::new(sk.security_level(), ct.ml_kem_ct.clone())
+        .map_err(|_e| {
+            log_crypto_operation_error!(
+                op::HYBRID_KEM_DECAPSULATE,
+                "ML-KEM CT construction failed"
+            );
+            opaque()
+        })?;
+    let ml_kem_ss = sk.ml_kem_decapsulate(&ml_kem_ct_struct).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "ML-KEM decapsulation failed");
+        opaque()
+    })?;
 
     if ml_kem_ss.expose_secret().len() != 32 {
+        log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "ML-KEM SS length invalid");
         return Err(opaque());
     }
 
-    let ecdh_shared_secret = sk.ecdh_agree(&ct.ecdh_pk).map_err(|_e| opaque())?;
+    let ecdh_shared_secret = sk.ecdh_agree(&ct.ecdh_pk).map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "ECDH agree failed");
+        opaque()
+    })?;
 
     let static_public = sk.ecdh_public_key_bytes();
     derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -666,7 +716,10 @@ pub fn decapsulate(
         static_pk: &static_public,
         ephemeral_pk: ct.ecdh_pk.as_slice(),
     })
-    .map_err(|_e| opaque())
+    .map_err(|_e| {
+        log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "HKDF combiner failed");
+        opaque()
+    })
 }
 
 /// Named-field inputs to [`derive_hybrid_shared_secret`].
@@ -1391,7 +1444,10 @@ mod tests {
         let result = encapsulate(&pk);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridKemError::MlKemError(_)));
+        // Pattern 6 (#49): encapsulate collapses every failure path into
+        // EncapsulationFailed so the call site cannot tell whether the
+        // ML-KEM PK or the ECDH PK was the malformed component.
+        assert!(matches!(err, HybridKemError::EncapsulationFailed));
     }
 
     // ========================================================================

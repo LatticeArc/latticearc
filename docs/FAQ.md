@@ -18,9 +18,9 @@ Post-quantum algorithms are designed to resist quantum attacks while remaining s
 
 Expert estimates vary widely (2030-2050+). However, "harvest now, decrypt later" attacks mean adversaries can store encrypted data today and decrypt it when quantum computers become available. Sensitive long-term data should use PQC now.
 
-### Is LatticeArc production-ready?
+### Can I deploy LatticeArc in production today?
 
-LatticeArc implements NIST-standardized algorithms (FIPS 203–205, draft 206) and follows security best practices. However:
+LatticeArc implements NIST-standardized algorithms (FIPS 203–205, draft 206) and follows security best practices. Before deploying:
 - It has not yet undergone third-party security audit
 - It is not FIPS 140-3 validated
 - Use hybrid mode for defense-in-depth

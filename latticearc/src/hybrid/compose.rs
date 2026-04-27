@@ -115,6 +115,7 @@ pub struct HybridSecurityProof {
 ///
 /// Returns an error if composition security verification fails, which occurs when
 /// either the ML-KEM or ECDH component security cannot be verified.
+#[must_use = "the returned HybridSecurityProof documents the verified construction; discarding it discards the verification"]
 pub fn verify_hybrid_kem_security() -> Result<HybridSecurityProof, CompositionError> {
     // These are documented security claims about the construction, not runtime proofs.
     // The claims hold by inspection of the code paths in kem_hybrid.rs:
@@ -176,6 +177,7 @@ const _ECDH_IND_CPA_CLAIM: &str = "ECDH IND-CPA security is preserved: \
 ///
 /// Returns an error if composition security verification fails, which occurs when
 /// either the ML-DSA or Ed25519 component security cannot be verified.
+#[must_use = "the returned HybridSecurityProof documents the verified construction; discarding it discards the verification"]
 pub fn verify_hybrid_signature_security() -> Result<HybridSecurityProof, CompositionError> {
     // These are documented security claims about the construction, not runtime proofs.
     // The claims hold by inspection of the code paths in sig_hybrid.rs:

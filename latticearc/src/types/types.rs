@@ -696,7 +696,8 @@ pub struct CryptoContext {
     pub use_case: Option<UseCase>,
     /// Whether hardware acceleration is enabled.
     ///
-    /// Consumer: None — reserved for future hardware-aware selection
+    /// Consumer: None — reserved for a future capability-driven scheme
+    /// selector (see `unified_api::selector` for the intended consumer).
     pub hardware_acceleration: bool,
     /// Timestamp when the context was created.
     ///

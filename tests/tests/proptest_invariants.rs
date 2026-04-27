@@ -99,8 +99,15 @@ mod ml_kem {
     use latticearc::primitives::kem::ml_kem::{MlKem, MlKemSecurityLevel};
 
     proptest! {
+        // Pattern 15 mandates ≥ 256 cases for protocol-critical security
+        // properties. Earlier this was 32 — at 32 a regression that fails
+        // on 1-in-50 inputs has ~50% slip-through; at 256 that drops to
+        // ~0.6%. ML-KEM keygen on release builds is ~0.5 ms / op, so
+        // 256 cases × 1 ciphertext flip per case × ~1.5 ms per round-trip
+        // (keygen + encap + decap) ≈ 0.4 s on warm cache — acceptable
+        // for an every-PR run.
         #![proptest_config(ProptestConfig {
-            cases: 32,  // keygen is expensive; 32 cases × 3 levels = 96 roundtrips
+            cases: 256,
             .. ProptestConfig::default()
         })]
 
@@ -143,8 +150,14 @@ mod ml_dsa {
     };
 
     proptest! {
+        // Pattern 15 mandates ≥ 256 cases for signature-unforgeability
+        // properties. ML-DSA-44 sign+verify is ~3-5 ms / op in release
+        // mode, so 256 cases × 1 sign + 1 verify per case ≈ 1-1.5 s on
+        // warm cache. Worth the cost for a property this load-bearing
+        // (a regression here is the difference between bit-flips being
+        // rejected vs. silently accepted).
         #![proptest_config(ProptestConfig {
-            cases: 16,  // ML-DSA-44 sign/verify is slower than AES
+            cases: 256,
             .. ProptestConfig::default()
         })]
 

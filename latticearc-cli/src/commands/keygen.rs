@@ -20,6 +20,25 @@ use latticearc::unified_api::key_format::{KeyAlgorithm, KeyType};
 
 use crate::keyfile;
 
+/// Print the standard "Generated <name> keypair" report block — the
+/// `Public:` / `Secret:` paths and the optional passphrase note. This
+/// block previously appeared verbatim in 8 keygen functions; centralising
+/// it here keeps the output format consistent and avoids drift when one
+/// site is touched and the others are not.
+fn print_keypair_report(
+    label: &str,
+    pk_path: &std::path::Path,
+    sk_path: &std::path::Path,
+    passphrase_protected: bool,
+) {
+    println!("Generated {label} keypair:");
+    println!("  Public:  {}", pk_path.display());
+    println!("  Secret:  {}", sk_path.display());
+    if passphrase_protected {
+        println!("  (secret key encrypted with passphrase)");
+    }
+}
+
 /// Supported key generation algorithms.
 #[derive(Debug, Clone, ValueEnum)]
 pub(crate) enum Algorithm {
@@ -304,12 +323,7 @@ fn generate_ml_kem(
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
 
-    println!("Generated {alg_name} keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
-    if passphrase.is_some() {
-        println!("  (secret key encrypted with passphrase)");
-    }
+    print_keypair_report(alg_name, &pk_path, &sk_path, passphrase.is_some());
     Ok(())
 }
 
@@ -347,12 +361,7 @@ fn generate_ml_dsa(
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
 
-    println!("Generated {alg_name} signing keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
-    if passphrase.is_some() {
-        println!("  (secret key encrypted with passphrase)");
-    }
+    print_keypair_report(&format!("{alg_name} signing"), &pk_path, &sk_path, passphrase.is_some());
     Ok(())
 }
 
@@ -381,12 +390,7 @@ fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
 
-    println!("Generated SLH-DSA-SHAKE-128s signing keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
-    if passphrase.is_some() {
-        println!("  (secret key encrypted with passphrase)");
-    }
+    print_keypair_report("SLH-DSA-SHAKE-128s signing", &pk_path, &sk_path, passphrase.is_some());
     Ok(())
 }
 
@@ -414,12 +418,7 @@ fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
 
-    println!("Generated FN-DSA-512 signing keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
-    if passphrase.is_some() {
-        println!("  (secret key encrypted with passphrase)");
-    }
+    print_keypair_report("FN-DSA-512 signing", &pk_path, &sk_path, passphrase.is_some());
     Ok(())
 }
 
@@ -447,12 +446,7 @@ fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
 
-    println!("Generated Ed25519 signing keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
-    if passphrase.is_some() {
-        println!("  (secret key encrypted with passphrase)");
-    }
+    print_keypair_report("Ed25519 signing", &pk_path, &sk_path, passphrase.is_some());
     Ok(())
 }
 
@@ -481,12 +475,7 @@ fn generate_hybrid_kem(args: &KeygenArgs) -> Result<()> {
     portable_pk.write_to_file(&pk_path).map_err(|e| anyhow::anyhow!("Write PK: {e}"))?;
     portable_sk.write_to_file(&sk_path).map_err(|e| anyhow::anyhow!("Write SK: {e}"))?;
 
-    println!("Generated Hybrid ML-KEM-768 + X25519 keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
-    if passphrase.is_some() {
-        println!("  (secret key encrypted with passphrase)");
-    }
+    print_keypair_report("Hybrid ML-KEM-768 + X25519", &pk_path, &sk_path, passphrase.is_some());
     Ok(())
 }
 
@@ -518,12 +507,12 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
 
-    println!("Generated Hybrid ML-DSA-65 + Ed25519 signing keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
-    if passphrase.is_some() {
-        println!("  (secret key encrypted with passphrase)");
-    }
+    print_keypair_report(
+        "Hybrid ML-DSA-65 + Ed25519 signing",
+        &pk_path,
+        &sk_path,
+        passphrase.is_some(),
+    );
     Ok(())
 }
 
@@ -612,8 +601,9 @@ fn build_hybrid_sig_portable_keys(
     let (pq_pk, ed_pk) = pk_bytes.split_at(pq_pk_len);
     let (pq_sk, ed_sk) = sk_bytes.split_at(pq_sk_len);
 
-    let hybrid_pk = HybridSigPublicKey::new(pq_pk.to_vec(), ed_pk.to_vec());
+    let hybrid_pk = HybridSigPublicKey::new(params, pq_pk.to_vec(), ed_pk.to_vec());
     let hybrid_sk = HybridSigSecretKey::new(
+        params,
         zeroize::Zeroizing::new(pq_sk.to_vec()),
         zeroize::Zeroizing::new(ed_sk.to_vec()),
     );

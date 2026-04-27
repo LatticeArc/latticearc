@@ -99,7 +99,6 @@ use crate::types::traits::{
 use crate::unified_api::{
     ProofComplexity, ZeroTrustConfig,
     error::{CoreError, Result},
-    logging::session_id_to_hex,
 };
 use crate::{
     log_zero_trust_auth_failure, log_zero_trust_auth_success, log_zero_trust_challenge_generated,
@@ -227,9 +226,9 @@ impl<'a> SecurityMode<'a> {
             Self::Verified(session) => {
                 let result = session.verify_valid();
                 if result.is_ok() {
-                    log_zero_trust_session_verified!(session_id_to_hex(session.session_id()));
+                    log_zero_trust_session_verified!(hex::encode(session.session_id()));
                 } else {
-                    log_zero_trust_session_expired!(session_id_to_hex(session.session_id()));
+                    log_zero_trust_session_expired!(hex::encode(session.session_id()));
                 }
                 result
             }
@@ -387,7 +386,7 @@ impl VerifiedSession {
         let trust_level = TrustLevel::Trusted;
 
         // Log successful session creation
-        let session_id_hex = session_id_to_hex(&session_id);
+        let session_id_hex = hex::encode(session_id);
         log_zero_trust_session_created!(session_id_hex, trust_level, expires_at);
         log_zero_trust_auth_success!(session_id_hex, trust_level);
 
@@ -444,7 +443,7 @@ impl VerifiedSession {
     ///
     /// Returns `CoreError::SessionExpired` if the session has expired.
     pub fn verify_valid(&self) -> Result<()> {
-        let session_id_hex = session_id_to_hex(&self.session_id);
+        let session_id_hex = hex::encode(self.session_id);
         if self.is_valid() {
             log_zero_trust_session_verified!(session_id_hex);
             Ok(())
@@ -951,6 +950,7 @@ impl ContinuousSession {
     ///
     /// This function does not currently return errors, but returns `Result` for
     /// API consistency and future extensibility.
+    #[must_use = "session validity check should not be discarded — act on the boolean"]
     pub fn is_valid(&self) -> Result<bool> {
         let elapsed = Utc::now().signed_duration_since(self.start_time);
 

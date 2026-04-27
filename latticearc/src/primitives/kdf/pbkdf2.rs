@@ -95,50 +95,40 @@ impl Pbkdf2Params {
         Ok(Self { salt, iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 })
     }
 
-    /// Create PBKDF2 parameters with custom salt — **does NOT validate
-    /// salt length.** Prefer [`Self::try_with_salt`] for new code.
+    /// Create PBKDF2 parameters with the given salt and OWASP-2023
+    /// defaults (`iterations = 600_000`, `key_length = 32`,
+    /// `prf = HmacSha256`).
     ///
-    /// This builder exists for wire-format parsers (e.g.
-    /// [`crate::unified_api::key_format`]) and other paths that must
-    /// construct a `Pbkdf2Params` from a possibly-short legacy salt for
-    /// inspection or re-protection. The length floor is enforced at the
-    /// [`pbkdf2`] entry point, so an under-spec salt cannot reach the
-    /// actual derivation step — but a `Pbkdf2Params` returned by this
-    /// constructor can still be passed to other code that consumes the
-    /// struct without going through `pbkdf2()`. **Use this constructor
-    /// only when you have a deserialization-time reason to accept short
-    /// salts.**
+    /// # Salt validation
+    ///
+    /// Salt-length validation against NIST SP 800-132 §5.1 (≥ 16 bytes)
+    /// is enforced at the [`pbkdf2`] call site, **not** here. This is
+    /// deliberate so that wire-format parsers (e.g.
+    /// [`crate::unified_api::key_format`]) can deserialize a
+    /// `Pbkdf2Params` from a possibly-short pre-0.8.0 envelope for
+    /// inspection or re-protection. A `Pbkdf2Params` carrying a short
+    /// salt cannot reach key derivation: `pbkdf2(password, params)`
+    /// returns [`LatticeArcError::InvalidParameter`] before any HMAC
+    /// rounds run, so the only observable behaviour of a short-salt
+    /// `Pbkdf2Params` is a derivation-time error.
+    ///
+    /// For the alternative "validate at construction time" path that
+    /// generates a fresh random salt of a guaranteed-safe length, use
+    /// [`Self::new`].
     ///
     /// # Arguments
-    /// * `salt` - The salt value to use. Must be at least [`MIN_SALT_LEN`]
-    ///   bytes when [`pbkdf2`] is later called with these params.
+    /// * `salt` - The salt value. Must be ≥ [`Self::MIN_SALT_LEN`]
+    ///   (16) bytes when this `Pbkdf2Params` is later passed to
+    ///   [`pbkdf2`]. Wire-format parsers may pass a shorter salt
+    ///   provided the resulting struct is not used for derivation.
     ///
     /// # Security Note
-    /// Ensure the salt is cryptographically random and unique for each password.
-    ///
-    /// [`MIN_SALT_LEN`]: Self::MIN_SALT_LEN
+    /// The salt must be cryptographically random and unique for each
+    /// password. For derivation-bound use, prefer [`Self::new`] which
+    /// generates the salt itself.
     #[must_use]
     pub fn with_salt(salt: &[u8]) -> Self {
         Self { salt: salt.to_vec(), iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 }
-    }
-
-    /// Create PBKDF2 parameters with custom salt, validating the salt
-    /// length against the NIST SP 800-132 §5.1 minimum
-    /// ([`Self::MIN_SALT_LEN`]). Recommended over [`Self::with_salt`].
-    ///
-    /// # Errors
-    /// Returns [`LatticeArcError::InvalidParameter`] if `salt.len() <
-    /// MIN_SALT_LEN`.
-    pub fn try_with_salt(salt: &[u8]) -> Result<Self> {
-        if salt.len() < Self::MIN_SALT_LEN {
-            return Err(LatticeArcError::InvalidParameter(format!(
-                "Salt length {} below NIST SP 800-132 §5.1 minimum of \
-                 {} bytes (128 bits)",
-                salt.len(),
-                Self::MIN_SALT_LEN
-            )));
-        }
-        Ok(Self::with_salt(salt))
     }
 
     /// Set iteration count
@@ -623,22 +613,27 @@ mod tests {
     }
 
     #[test]
-    fn test_pbkdf2_try_with_salt_below_min_fails() {
-        // The validating constructor `try_with_salt` must reject salts
-        // shorter than MIN_SALT_LEN, while `with_salt` (legacy parser path)
-        // still accepts them.
+    fn test_pbkdf2_short_salt_rejected_at_derivation() {
+        // Pin the documented invariant: `with_salt` is infallible, but
+        // a `Pbkdf2Params` carrying a salt below MIN_SALT_LEN cannot
+        // reach key derivation — `pbkdf2()` rejects with
+        // `InvalidParameter` before any HMAC rounds run. This is the
+        // single enforcement point for NIST SP 800-132 §5.1 on the
+        // wire-format-parser path.
         let short = vec![0xAAu8; Pbkdf2Params::MIN_SALT_LEN.saturating_sub(1)];
-        let result = Pbkdf2Params::try_with_salt(&short);
-        assert!(result.is_err(), "try_with_salt must reject short salts");
-        // Sanity-check the legacy escape hatch still constructs (the runtime
-        // pbkdf2() guard still rejects short salts at derivation time).
-        let _legacy = Pbkdf2Params::with_salt(&short);
+        let params = Pbkdf2Params::with_salt(&short).iterations(1000).key_length(32);
+        let result = pbkdf2(b"password", &params);
+        assert!(
+            result.is_err(),
+            "pbkdf2 must reject {short_len}-byte salt",
+            short_len = short.len()
+        );
     }
 
     #[test]
-    fn test_pbkdf2_try_with_salt_at_min_succeeds() {
+    fn test_pbkdf2_with_salt_at_min_succeeds() {
         let salt = vec![0xAAu8; Pbkdf2Params::MIN_SALT_LEN];
-        let params = Pbkdf2Params::try_with_salt(&salt).unwrap();
+        let params = Pbkdf2Params::with_salt(&salt);
         assert_eq!(params.salt.len(), Pbkdf2Params::MIN_SALT_LEN);
     }
 

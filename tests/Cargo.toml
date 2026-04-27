@@ -98,7 +98,9 @@ pqcrypto-sphincsplus = "0.7"
 pqcrypto-traits = "0.3"
 # DudeCT statistical constant-time harness. Powers the
 # `examples/dudect_ct.rs` binary. Pulls its own rand 0.10 transitively
-# (workspace uses rand 0.8); dev-only, no effect on published deps.
+# (workspace is on rand 0.9 since the v0.8.0 dep upgrade); dev-only, no
+# effect on published deps. The version skew is intentional and isolated
+# to the dudect example binary.
 dudect-bencher = "0.7"
 
 # Linux-only dev-deps. `crabgrind 0.2` ships a build.rs that compiles a

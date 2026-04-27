@@ -14,7 +14,6 @@ use latticearc::types::traits::{PatternType, SchemeSelector};
 use latticearc::unified_api::{
     CoreConfig, CryptoContext, CryptoPolicyEngine, PerformancePreference, SecurityLevel, UseCase,
 };
-use latticearc::unified_api::{KeyLifecycleRecord, KeyLifecycleState};
 
 // ============================================================================
 // SchemeSelector trait impl on CryptoPolicyEngine
@@ -212,46 +211,6 @@ fn test_select_signature_scheme_various_levels_succeeds() {
         let result = CryptoPolicyEngine::select_signature_scheme(&config);
         assert!(result.is_ok(), "Failed for level {:?}", level);
     }
-}
-
-// ============================================================================
-// KeyLifecycleRecord::transition_count
-// ============================================================================
-
-#[test]
-fn test_key_lifecycle_transition_count_initial_is_correct() {
-    let record =
-        KeyLifecycleRecord::new("key-001".to_string(), "ML-KEM-768".to_string(), 3, 365, 30);
-    assert_eq!(record.transition_count(), 0);
-}
-
-#[test]
-fn test_key_lifecycle_transition_count_after_transitions_is_correct() {
-    let mut record =
-        KeyLifecycleRecord::new("key-002".to_string(), "ML-KEM-768".to_string(), 3, 365, 30);
-
-    // Perform transitions
-    record
-        .transition(
-            KeyLifecycleState::Active,
-            "admin".to_string(),
-            "Activating key".to_string(),
-            Some("approval-1".to_string()),
-        )
-        .expect("Should succeed");
-
-    assert_eq!(record.transition_count(), 1);
-
-    record
-        .transition(
-            KeyLifecycleState::Rotating,
-            "admin".to_string(),
-            "Rotating key".to_string(),
-            None,
-        )
-        .expect("Should succeed");
-
-    assert_eq!(record.transition_count(), 2);
 }
 
 // ============================================================================

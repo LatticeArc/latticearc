@@ -29,9 +29,21 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Security audit
+        # Mirror the ignore list maintained in `ci.yml`,
+        # `.github/workflows/security.yml`, `deny.toml`, and
+        # `.cargo/audit.toml`. All four advisories below are
+        # transitively-dev-dep-only and documented in deny.toml.
+        # Without these flags the release tag would fail to ship the
+        # moment one of these advisories is published, even though the
+        # equivalent regular CI builds pass — the lists must stay in
+        # sync.
         run: |
           cargo install cargo-audit
-          cargo audit
+          cargo audit --deny warnings \
+            --ignore RUSTSEC-2024-0436 \
+            --ignore RUSTSEC-2021-0139 \
+            --ignore RUSTSEC-2024-0375 \
+            --ignore RUSTSEC-2021-0145
 
   # Publish to crates.io
   publish:

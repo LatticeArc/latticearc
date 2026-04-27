@@ -29,6 +29,36 @@
 //! ```
 
 use chrono::Utc;
+
+/// Validate a 256-bit AEAD key length (32 bytes).
+///
+/// Centralises the `if k.len() != 32 { return Err(InvalidKeyLength { 32, ... }) }`
+/// check that previously appeared at four call sites in this module
+/// (AES-256-GCM and ChaCha20-Poly1305, encrypt + decrypt). Returns
+/// `Ok(())` on the right length and the structured `InvalidKeyLength`
+/// error otherwise.
+#[inline]
+fn validate_aes256_key_length(k: &[u8]) -> Result<()> {
+    if k.len() != 32 {
+        return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
+    }
+    Ok(())
+}
+
+/// Current Unix timestamp clamped to non-negative `u64`.
+///
+/// Centralises the `u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0)`
+/// idiom that previously appeared at four call sites in this module.
+/// `chrono` returns `i64` seconds-since-epoch; the `max(0)` clamps any
+/// pre-1970 system clock to 0, and `unwrap_or(0)` covers the
+/// theoretically-impossible (until year 292277026596 AD) case where the
+/// clamped i64 still doesn't fit in u64. Both fallbacks are conservative
+/// — a wrong-but-bounded timestamp is preferable to a panic in
+/// audit-record construction.
+#[inline]
+fn current_timestamp() -> u64 {
+    u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0)
+}
 use zeroize::Zeroizing;
 
 use crate::primitives::sig::{
@@ -355,18 +385,14 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
     let output = match (&key, &scheme) {
         // Symmetric AES-256-GCM
         (EncryptKey::Symmetric(k), EncryptionScheme::Aes256Gcm) => {
-            if k.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
-            }
+            validate_aes256_key_length(k)?;
             let encrypted = encrypt_aes_gcm_internal(data, k)?;
             symmetric_bytes_to_output(scheme, &encrypted)?
         }
         // Symmetric ChaCha20-Poly1305 (non-FIPS only)
         #[cfg(not(feature = "fips"))]
         (EncryptKey::Symmetric(k), EncryptionScheme::ChaCha20Poly1305) => {
-            if k.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
-            }
+            validate_aes256_key_length(k)?;
             let encrypted = encrypt_chacha20_internal(data, k)?;
             symmetric_bytes_to_output(scheme, &encrypted)?
         }
@@ -381,7 +407,7 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
             let ct = encrypt_hybrid(pk, data, None).map_err(|e| {
                 CoreError::EncryptionFailed(format!("Hybrid encryption failed: {}", e))
             })?;
-            let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
+            let timestamp = current_timestamp();
             EncryptedOutput::new(
                 scheme,
                 ct.symmetric_ciphertext().to_vec(),
@@ -400,7 +426,7 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
             let ct = pq_only::encrypt_pq_only(pk, data).map_err(|e| {
                 CoreError::EncryptionFailed(format!("PQ-only encryption failed: {}", e))
             })?;
-            let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
+            let timestamp = current_timestamp();
             let (kem_ct, sym_ct, nonce, tag) = ct.into_parts();
             EncryptedOutput::new(
                 scheme,
@@ -447,7 +473,7 @@ fn symmetric_bytes_to_output(
         .ok_or_else(|| CoreError::EncryptionFailed("Failed to extract tag".to_string()))?
         .to_vec();
 
-    let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
+    let timestamp = current_timestamp();
 
     Ok(EncryptedOutput::new(scheme, encrypted.to_vec(), nonce, tag, None, timestamp, None))
 }
@@ -506,17 +532,13 @@ pub fn decrypt(
     let result: Result<Zeroizing<Vec<u8>>> = match (&key, encrypted.scheme()) {
         // Symmetric AES-256-GCM
         (DecryptKey::Symmetric(k), EncryptionScheme::Aes256Gcm) => {
-            if k.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
-            }
+            validate_aes256_key_length(k)?;
             decrypt_aes_gcm_internal(encrypted.ciphertext(), k)
         }
         // Symmetric ChaCha20-Poly1305 (non-FIPS only)
         #[cfg(not(feature = "fips"))]
         (DecryptKey::Symmetric(k), EncryptionScheme::ChaCha20Poly1305) => {
-            if k.len() != 32 {
-                return Err(CoreError::InvalidKeyLength { expected: 32, actual: k.len() });
-            }
+            validate_aes256_key_length(k)?;
             decrypt_chacha20_internal(encrypted.ciphertext(), k)
         }
         #[cfg(feature = "fips")]
@@ -743,7 +765,7 @@ pub fn sign_with_key(
         }
     };
 
-    let timestamp = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
+    let timestamp = current_timestamp();
 
     log_crypto_operation_complete!(op::SIGN_WITH_KEY, signature_size = signature.len(), scheme = %scheme);
 
@@ -921,12 +943,12 @@ fn verify_hybrid_ml_dsa_ed25519(
     use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN as ED25519_PK_LEN;
     const ED25519_SIG_LEN: usize = 64;
 
-    // Single opaque error string for every signature-shape rejection.
-    // Pattern 6: distinguishing "too short for ML-DSA" from "too short for
-    // Ed25519 component" from "split-point arithmetic underflow" would let
-    // an adversary probe sig-length boundaries by inspecting which message
-    // came back. Public key length is a separate bucket because the PK is
-    // not adversary-controlled in normal flows (recipient identity).
+    // Pattern 6: every shape-rejection path collapses to the same generic
+    // string. Earlier revisions kept the PK-length error verbose on the
+    // theory that "PK is not adversary-controlled" — but in TOFU and
+    // server-supplied-key flows an attacker can vary PK length to enumerate
+    // which ML-DSA parameter set this verify accepts. Collapsing matches
+    // the rest of this helper and removes that disclosure.
     let sig_err = || CoreError::InvalidInput("Invalid hybrid signature".to_string());
 
     let sig_len = full_sig.len();
@@ -934,20 +956,12 @@ fn verify_hybrid_ml_dsa_ed25519(
         return Err(sig_err());
     }
     let pk_len = full_pk.len();
-    let expected_pk_len = pq_pk_len
-        .checked_add(ED25519_PK_LEN)
-        .ok_or_else(|| CoreError::InvalidInput("Hybrid PK length overflow".to_string()))?;
+    let expected_pk_len = pq_pk_len.checked_add(ED25519_PK_LEN).ok_or_else(sig_err)?;
     if pk_len != expected_pk_len {
-        return Err(CoreError::InvalidInput(format!(
-            "Invalid hybrid public key length: expected {expected_pk_len}, got {pk_len}"
-        )));
+        return Err(sig_err());
     }
-    let pq_pk = full_pk
-        .get(..pq_pk_len)
-        .ok_or_else(|| CoreError::InvalidInput("Invalid hybrid public key format".to_string()))?;
-    let ed_pk = full_pk
-        .get(pq_pk_len..)
-        .ok_or_else(|| CoreError::InvalidInput("Invalid hybrid public key format".to_string()))?;
+    let pq_pk = full_pk.get(..pq_pk_len).ok_or_else(sig_err)?;
+    let ed_pk = full_pk.get(pq_pk_len..).ok_or_else(sig_err)?;
 
     let pq_sig_len = sig_len.checked_sub(ED25519_SIG_LEN).ok_or_else(sig_err)?;
     let pq_sig = full_sig.get(..pq_sig_len).ok_or_else(sig_err)?;

@@ -163,12 +163,23 @@ thread_local! {
     static FALLBACK_RNG: Mutex<ChaCha20Rng> = Mutex::new(ChaCha20Rng::from_os_rng());
 }
 
-/// RNG handle with fallback capability
+/// RNG handle with fallback capability.
+///
+/// Under `feature = "fips"` the `ThreadLocal` variant is **removed at
+/// compile time** because the underlying `ChaCha20Rng` is not on the FIPS
+/// 140-3 approved-function list. This is type-level enforcement of the
+/// same invariant that the runtime guard in
+/// [`Self::secure`] / `fallback_*` helpers enforces — external code
+/// cannot even *construct* `RngHandle::ThreadLocal` in a FIPS build, so
+/// the runtime branch becomes unreachable rather than merely
+/// rejected. The two layers are intentional defense-in-depth.
 #[non_exhaustive]
 pub enum RngHandle<'a> {
     /// Global RNG protected by a mutex
     Global(&'a Mutex<SecureRng>),
-    /// Thread-local RNG (ChaCha20Rng from entropy)
+    /// Thread-local RNG (ChaCha20Rng from entropy). Excluded from FIPS
+    /// builds — see the type-level docs above.
+    #[cfg(not(feature = "fips"))]
     ThreadLocal,
 }
 
@@ -213,6 +224,7 @@ impl<'a> RngHandle<'a> {
                 }
                 Err(_) => fallback_fill_bytes(dest),
             },
+            #[cfg(not(feature = "fips"))]
             RngHandle::ThreadLocal => fallback_fill_bytes(dest),
         }
     }
@@ -229,6 +241,7 @@ impl<'a> RngHandle<'a> {
                 Ok(mut rng) => Ok(rng.next_u64()),
                 Err(_) => fallback_next_u64(),
             },
+            #[cfg(not(feature = "fips"))]
             RngHandle::ThreadLocal => fallback_next_u64(),
         }
     }
@@ -245,6 +258,7 @@ impl<'a> RngHandle<'a> {
                 Ok(mut rng) => Ok(rng.next_u32()),
                 Err(_) => fallback_next_u32(),
             },
+            #[cfg(not(feature = "fips"))]
             RngHandle::ThreadLocal => fallback_next_u32(),
         }
     }
@@ -496,12 +510,13 @@ mod tests {
         let _ = v;
     }
 
-    // The ThreadLocal RngHandle is backed by ChaCha20Rng — a non-FIPS DRBG.
-    // Under `feature = "fips"` the fallback path is rejected (see
-    // `fallback_fill_bytes` / `fallback_next_*` in the parent module), so
-    // these tests assert "succeeds" without fips and "errors with RandomError"
-    // with fips. Splitting per-feature is necessary because the tests pin
-    // opposite outcomes from the same input.
+    // The `RngHandle::ThreadLocal` variant is gated `#[cfg(not(feature =
+    // "fips"))]` at the type level — under `feature = "fips"` it does not
+    // exist and these tests are simply absent. The earlier
+    // `_rejected_under_fips` runtime-guard tests were retired when the
+    // type-level enforcement landed; the type system now makes the
+    // runtime guard's "Err(RandomError)" branch unreachable in FIPS
+    // builds because no caller can construct the variant to hit it.
 
     #[cfg(not(feature = "fips"))]
     #[test]
@@ -512,18 +527,6 @@ mod tests {
         assert!(buf.iter().any(|&b| b != 0));
     }
 
-    #[cfg(feature = "fips")]
-    #[test]
-    fn test_rng_handle_thread_local_fill_rejected_under_fips() {
-        let handle = RngHandle::ThreadLocal;
-        let mut buf = [0u8; 32];
-        let result = handle.fill_bytes(&mut buf);
-        assert!(
-            matches!(result, Err(crate::prelude::error::LatticeArcError::RandomError)),
-            "FIPS mode must reject the non-approved ChaCha20Rng fallback; got {result:?}"
-        );
-    }
-
     #[cfg(not(feature = "fips"))]
     #[test]
     fn test_rng_handle_thread_local_next_u64_succeeds() {
@@ -532,28 +535,12 @@ mod tests {
         let _ = v;
     }
 
-    #[cfg(feature = "fips")]
-    #[test]
-    fn test_rng_handle_thread_local_next_u64_rejected_under_fips() {
-        let handle = RngHandle::ThreadLocal;
-        let result = handle.next_u64();
-        assert!(matches!(result, Err(crate::prelude::error::LatticeArcError::RandomError)));
-    }
-
     #[cfg(not(feature = "fips"))]
     #[test]
     fn test_rng_handle_thread_local_next_u32_succeeds() {
         let handle = RngHandle::ThreadLocal;
         let v = handle.next_u32().unwrap();
         let _ = v;
-    }
-
-    #[cfg(feature = "fips")]
-    #[test]
-    fn test_rng_handle_thread_local_next_u32_rejected_under_fips() {
-        let handle = RngHandle::ThreadLocal;
-        let result = handle.next_u32();
-        assert!(matches!(result, Err(crate::prelude::error::LatticeArcError::RandomError)));
     }
 
     // === Global RNG convenience functions ===
