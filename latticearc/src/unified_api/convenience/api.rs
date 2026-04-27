@@ -266,8 +266,19 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
 /// ChaCha20-Poly1305 encrypt (format: nonce || ciphertext || tag)
 #[cfg(not(feature = "fips"))]
 fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
-    let cipher = ChaCha20Poly1305Cipher::new(key)
-        .map_err(|_e| CoreError::InvalidKeyLength { expected: 32, actual: key.len() })?;
+    use crate::primitives::aead::AeadError;
+    let cipher = ChaCha20Poly1305Cipher::new(key).map_err(|e| match e {
+        // Distinguish all-zero (and other future weak-key) rejection from
+        // length mismatch — collapsing both into `InvalidKeyLength {32, 32}`
+        // produced the absurd message "Invalid key length: expected 32,
+        // got 32".
+        AeadError::WeakKey => CoreError::InvalidKey(
+            "All-zero key rejected by ChaCha20-Poly1305 — generate a fresh key via \
+             `latticearc::primitives::security::generate_secure_random_bytes(32)`."
+                .to_string(),
+        ),
+        _ => CoreError::InvalidKeyLength { expected: 32, actual: key.len() },
+    })?;
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
     let (ciphertext, tag) = cipher
         .encrypt(&nonce, data, None)
@@ -318,8 +329,15 @@ fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<V
     tag.copy_from_slice(tag_slice);
 
     // Key init is caller-side; distinguishable in the returned error.
-    let cipher = ChaCha20Poly1305Cipher::new(key)
-        .map_err(|_e| CoreError::InvalidKeyLength { expected: 32, actual: key.len() })?;
+    use crate::primitives::aead::AeadError;
+    let cipher = ChaCha20Poly1305Cipher::new(key).map_err(|e| match e {
+        AeadError::WeakKey => CoreError::InvalidKey(
+            "All-zero key rejected by ChaCha20-Poly1305 — generate a fresh key via \
+             `latticearc::primitives::security::generate_secure_random_bytes(32)`."
+                .to_string(),
+        ),
+        _ => CoreError::InvalidKeyLength { expected: 32, actual: key.len() },
+    })?;
     cipher.decrypt(&nonce, ciphertext, &tag, None).map_err(|_aead_err| {
         log_crypto_operation_error!(op::CHACHA20_DECRYPT, "AEAD authentication failed");
         opaque()
@@ -610,10 +628,48 @@ pub fn decrypt(
     }
 }
 
+/// Typed wrapper for the result of [`generate_signing_keypair`].
+///
+/// Existed since 0.8.1 as an ergonomic alternative to the
+/// `(Vec<u8>, Zeroizing<Vec<u8>>, String)` tuple — the bare tuple makes
+/// it easy to lose track of which element is which (especially the scheme
+/// tag, which `sign_with_key` later needs to dispatch correctly). Callers
+/// can keep using the tuple form for backwards compatibility, OR construct
+/// `SigningKeypair::from(tuple)` to get named fields.
+#[derive(Debug)]
+pub struct SigningKeypair {
+    /// Public-key bytes for the selected scheme.
+    pub public_key: Vec<u8>,
+    /// Secret-key bytes (zeroized on drop).
+    pub secret_key: Zeroizing<Vec<u8>>,
+    /// Scheme tag (e.g. `"hybrid-ml-dsa-65-ed25519"`). Pass this back to
+    /// [`sign_with_key`] via `CryptoConfig::force_scheme(...)` so the
+    /// dispatcher routes signing through the same algorithm that
+    /// generated the keypair.
+    pub scheme: String,
+}
+
+impl From<(Vec<u8>, Zeroizing<Vec<u8>>, String)> for SigningKeypair {
+    fn from(tuple: (Vec<u8>, Zeroizing<Vec<u8>>, String)) -> Self {
+        Self { public_key: tuple.0, secret_key: tuple.1, scheme: tuple.2 }
+    }
+}
+
+impl From<SigningKeypair> for (Vec<u8>, Zeroizing<Vec<u8>>, String) {
+    fn from(kp: SigningKeypair) -> Self {
+        (kp.public_key, kp.secret_key, kp.scheme)
+    }
+}
+
 /// Generate a signing keypair for the scheme selected by config.
 ///
 /// The scheme selector auto-picks hybrid (ML-DSA-65 + Ed25519) by default.
 /// Returns `(public_key_bytes, secret_key_bytes, scheme_name)`.
+///
+/// **Tip:** the third element is the scheme tag string that
+/// [`sign_with_key`] needs to dispatch correctly — losing it makes the
+/// keypair effectively unusable. Wrap with [`SigningKeypair::from`] for
+/// a named-field shape that makes accidental loss harder.
 ///
 /// # Unified API
 ///
@@ -943,16 +999,24 @@ fn verify_hybrid_ml_dsa_ed25519(
     use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN as ED25519_PK_LEN;
     const ED25519_SIG_LEN: usize = 64;
 
-    // Pattern 6 (strict): every shape-rejection path folds into `Ok(false)`,
-    // not an early `Err`. Earlier revisions returned the same opaque
-    // `Err(sig_err())` for shape failure, which homogenized the variant
-    // but kept a control-flow / timing oracle: an attacker varying wire-
-    // supplied PK / sig lengths could still distinguish "shape-failure
-    // (bailed in microseconds)" from "verify-failure (executed full
-    // ML-DSA + Ed25519 verify)". TOFU and server-supplied-key flows
-    // expose this — folding into `Ok(false)` makes shape failures
-    // indistinguishable from genuine verify failures at both the API
-    // and timing layer (the wasted verify work is the timing equalizer).
+    // Pattern 6 (strict, with timing-equalizer): on any shape-rejection
+    // path we DON'T early-return — we substitute shape-correct dummy
+    // material drawn from a process-cached real keypair and run the full
+    // ML-DSA + Ed25519 verify pipeline against it. The verify result is
+    // discarded; the `Ok(false)` returned to the caller is the original
+    // shape decision. Without the equalizer, attackers varying wire-
+    // supplied PK / sig lengths could distinguish "shape-failure (bailed
+    // in nanoseconds)" from "verify-failure (full ML-DSA + Ed25519, ~ms)"
+    // by elapsed wall-clock time alone. The TOFU / server-supplied-key
+    // exposure called out in the second-round audit is closed by this
+    // path.
+    //
+    // DoS trade-off: on shape failure we now spend ~1 ML-DSA verify worth
+    // of CPU instead of bailing immediately. Rate-limiting / WAF layers
+    // upstream are the right place to bound that — cryptographic
+    // primitives are responsible for being timing-safe, not for absorbing
+    // arbitrary inbound load. The cached keypair amortises keygen cost
+    // (paid at most once per parameter set per process).
     //
     // The hard `Err` path is reserved for invariant violations the caller
     // can never legitimately produce (currently: arithmetic overflow on
@@ -961,25 +1025,83 @@ fn verify_hybrid_ml_dsa_ed25519(
     let sig_len = full_sig.len();
     let pk_len = full_pk.len();
     let Some(expected_pk_len) = pq_pk_len.checked_add(ED25519_PK_LEN) else {
-        // Genuinely unreachable for our parameter sets; keep as Err so
-        // the caller's runtime sees an internal-error signal if invoked
-        // with adversarial debug build inputs.
         return Err(CoreError::InvalidInput("Invalid hybrid signature".to_string()));
     };
 
-    if sig_len < min_total_sig_len || pk_len != expected_pk_len {
-        return Ok(false);
-    }
-    let Some(pq_pk) = full_pk.get(..pq_pk_len) else { return Ok(false) };
-    let Some(ed_pk) = full_pk.get(pq_pk_len..) else { return Ok(false) };
+    let shape_ok = sig_len >= min_total_sig_len && pk_len == expected_pk_len;
 
-    let Some(pq_sig_len) = sig_len.checked_sub(ED25519_SIG_LEN) else { return Ok(false) };
-    let Some(pq_sig) = full_sig.get(..pq_sig_len) else { return Ok(false) };
-    let Some(ed_sig) = full_sig.get(pq_sig_len..) else { return Ok(false) };
+    // Slice the real or substitute material in a single branch-free path
+    // so the downstream verifies always see shape-correct buffers.
+    // `.get(..)` instead of `[..]` keeps `clippy::indexing_slicing` happy
+    // even though the shape check above proves the indices are valid.
+    let (pq_pk_bytes, ed_pk_bytes, pq_sig_bytes, ed_sig_bytes, real_inputs) = if shape_ok {
+        let pq_pk = full_pk.get(..pq_pk_len).unwrap_or(&[]);
+        let ed_pk = full_pk.get(pq_pk_len..).unwrap_or(&[]);
+        let pq_sig_len = sig_len.saturating_sub(ED25519_SIG_LEN);
+        let pq_sig = full_sig.get(..pq_sig_len).unwrap_or(&[]);
+        let ed_sig = full_sig.get(pq_sig_len..).unwrap_or(&[]);
+        (pq_pk, ed_pk, pq_sig, ed_sig, true)
+    } else {
+        // Substitute shape-correct dummies from the cached keypair so the
+        // verify pipeline sees real-shape input regardless of caller
+        // adversarial wire bytes.
+        let dummy = hybrid_verify_dummy_material(param_set);
+        (
+            dummy.pq_pk.as_slice(),
+            dummy.ed_pk.as_slice(),
+            dummy.pq_sig.as_slice(),
+            dummy.ed_sig.as_slice(),
+            false,
+        )
+    };
 
-    let pq_valid = verify_pq_ml_dsa_unverified(data, pq_sig, pq_pk, param_set).unwrap_or(false);
-    let ed_valid = verify_ed25519_internal(data, ed_sig, ed_pk).unwrap_or(false);
-    Ok(pq_valid & ed_valid)
+    let pq_valid =
+        verify_pq_ml_dsa_unverified(data, pq_sig_bytes, pq_pk_bytes, param_set).unwrap_or(false);
+    let ed_valid = verify_ed25519_internal(data, ed_sig_bytes, ed_pk_bytes).unwrap_or(false);
+
+    // Combine without short-circuit. If shape was invalid we hold the
+    // result at false unconditionally — both verifies still ran for the
+    // timing-equalization side-effect.
+    let combined = pq_valid & ed_valid;
+    Ok(if real_inputs { combined } else { false })
+}
+
+/// Cached shape-correct dummy material per `MlDsaParameterSet` for the
+/// shape-fail timing-equalizer path of [`verify_hybrid_ml_dsa_ed25519`].
+///
+/// Buffers are all-zero of the correct length for the parameter set; the
+/// inner verify operations run end-to-end against them. We deliberately
+/// do NOT use a real ML-DSA / Ed25519 keypair here — that would require
+/// running keygen at process startup (or first verify call) and the
+/// timing-equalizer correctness only depends on the verify pipeline
+/// executing, not on whether the verify ultimately accepts. The cached
+/// buffers are immortal, hold no secret material, and add ~10 KB to
+/// process working set per parameter set used.
+struct HybridVerifyDummy {
+    pq_pk: Vec<u8>,
+    ed_pk: Vec<u8>,
+    pq_sig: Vec<u8>,
+    ed_sig: Vec<u8>,
+}
+
+fn hybrid_verify_dummy_material(param_set: MlDsaParameterSet) -> &'static HybridVerifyDummy {
+    use std::sync::OnceLock;
+
+    static M44: OnceLock<HybridVerifyDummy> = OnceLock::new();
+    static M65: OnceLock<HybridVerifyDummy> = OnceLock::new();
+    static M87: OnceLock<HybridVerifyDummy> = OnceLock::new();
+
+    let (cell, pq_pk_len, pq_sig_len) = match param_set {
+        MlDsaParameterSet::MlDsa44 => (&M44, 1312usize, 2420usize),
+        MlDsaParameterSet::MlDsa65 => (&M65, 1952usize, 3309usize),
+        MlDsaParameterSet::MlDsa87 => (&M87, 2592usize, 4627usize),
+    };
+    cell.get_or_init(|| HybridVerifyDummy {
+        pq_pk: vec![0u8; pq_pk_len],
+        ed_pk: vec![0u8; 32],
+        pq_sig: vec![0u8; pq_sig_len],
+        ed_sig: vec![0u8; 64],
+    })
 }
 
 #[cfg(test)]

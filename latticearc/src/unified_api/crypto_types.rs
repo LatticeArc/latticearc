@@ -380,6 +380,62 @@ impl EncryptedOutput {
         self.key_id = key_id;
         self
     }
+
+    /// Serialize this `EncryptedOutput` to a JSON string.
+    ///
+    /// Inherent-method form of [`crate::unified_api::serialization::serialize_encrypted_output`]
+    /// — the most common use case (encrypt → store → load → decrypt) shouldn't
+    /// require hunting down a free function.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::SerializationError` on JSON encoding failure
+    /// (extremely rare — this serializer can't fail for any value of
+    /// `EncryptedOutput`).
+    pub fn to_json(&self) -> crate::unified_api::error::Result<String> {
+        crate::unified_api::serialization::serialize_encrypted_output(self)
+    }
+
+    /// Parse an `EncryptedOutput` previously produced by [`to_json`](Self::to_json).
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::SerializationError` if the input is not valid
+    /// JSON, missing required fields, or contains base64-undecodable bytes.
+    pub fn from_json(s: &str) -> crate::unified_api::error::Result<Self> {
+        crate::unified_api::serialization::deserialize_encrypted_output(s)
+    }
+
+    /// Serialize this `EncryptedOutput` to a self-contained byte string
+    /// suitable for on-disk persistence or network transport.
+    ///
+    /// Internal format is JSON (encoded as UTF-8 bytes) for v0.8.
+    /// `EncryptionScheme` is `#[non_exhaustive]`, which makes a stable
+    /// `serde` derive non-trivial; until that lands, callers who need a
+    /// more compact binary representation should layer their own
+    /// serializer on top of the typed accessors (`scheme()`, `ciphertext()`,
+    /// etc.). Round-trip is guaranteed via [`from_bytes`](Self::from_bytes).
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::SerializationError` on JSON encoding failure
+    /// (extremely rare).
+    pub fn to_bytes(&self) -> crate::unified_api::error::Result<Vec<u8>> {
+        self.to_json().map(String::into_bytes)
+    }
+
+    /// Parse an `EncryptedOutput` previously produced by [`to_bytes`](Self::to_bytes).
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::SerializationError` if the input is not valid
+    /// UTF-8 / JSON or doesn't deserialize into the `EncryptedOutput` shape.
+    pub fn from_bytes(bytes: &[u8]) -> crate::unified_api::error::Result<Self> {
+        let s = std::str::from_utf8(bytes).map_err(|e| {
+            crate::unified_api::error::CoreError::SerializationError(format!("UTF-8 decode: {e}"))
+        })?;
+        Self::from_json(s)
+    }
 }
 
 // ============================================================================

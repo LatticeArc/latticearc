@@ -80,7 +80,7 @@ requirements govern their code.
 | Standard | What It Governs | How We Comply |
 |----------|----------------|---------------|
 | **SP 800-175B Rev.1 §4.1** | "Implementations shall not leak information through timing" | Pattern 5 property 3: all secret comparisons use `subtle::ConstantTimeEq` with bitwise `&` (not short-circuit `&&`). |
-| **SP 800-38D §5.2.2** | "The decryption function shall return FAIL without any additional information" | Pattern 6 (AEAD Error Opacity): all post-crypto decrypt errors use identical opaque message. |
+| **SP 800-38D §5.2.2** | "The decryption function shall return FAIL without any additional information" | Pattern 6 (Cryptographic Error Opacity): all adversary-reachable errors collapse into a single opaque returned variant. Scope: AEAD decrypt, hybrid KEM `encapsulate`+`decapsulate`, hybrid signature `verify`, encrypt-side defence-in-depth (recipient-PK / ephemeral-PK / KEM-CT length checks). Per-stage diagnostics still emit via internal `tracing::debug!` so operators can debug via correlation IDs. See `docs/DESIGN_PATTERNS.md` Pattern 6 for the canonical form. |
 | **SP 800-38D §8.2** | "The nonce shall be unique for each invocation of GCM with a given key" | Pattern 3 (Nonce Encapsulation): nonces generated internally from OS CSPRNG via `generate_nonce()`. Callers cannot supply nonces in high-level APIs. |
 | **SP 800-56C Rev.2 §4** | "Each application of a KDF shall use a distinct set of values" | Pattern 2 (Domain Separation Registry): every HKDF call uses a registered constant from `types::domains`. Kani proof verifies pairwise distinctness. |
 | **SP 800-108 Rev.1 §4** | "The label shall be distinct for each key derivation purpose" | Same as above. Counter-mode KDF labels also centralized. |

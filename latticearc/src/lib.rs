@@ -29,6 +29,20 @@
 //! | Research NIST parameter sets | [`UseCase`] auto-selects |
 //! | Manual secret zeroization | Automatic via `Zeroize` |
 //!
+//! ## Known limitations
+//!
+//! - **No streaming AEAD API.** All `encrypt` / `decrypt` entry points
+//!   operate on whole-message buffers. For very large payloads (multi-GiB
+//!   files, network streams), partition into chunks at the application
+//!   layer and bind chunk-index + total-count into the AEAD additional
+//!   authenticated data so the per-chunk tags compose into a single
+//!   document tag. A native streaming API is on the roadmap; not in 0.8.
+//! - **No async API.** Cryptographic functions are blocking. They run in
+//!   microseconds-to-low-milliseconds and don't interact with I/O, so
+//!   wrapping them in `tokio::task::spawn_blocking` is the recommended
+//!   integration pattern. A native async API is not planned because the
+//!   added complexity is rarely worth the wins given the latency profile.
+//!
 //! ## Algorithm Validation Status
 //!
 //! | Algorithm | Standard | Backend | FIPS Validated |
@@ -345,6 +359,11 @@ pub use unified_api::{
     ProofOfPossession,
     ProofOfPossessionData,
     PublicKey,
+    // ⚠ NOTE: this `Result<T>` is the project alias `Result<T, CoreError>`,
+    // NOT `std::result::Result<T, E>`. A `use latticearc::*;` glob will
+    // SHADOW the std type alias in the importing module. If you need both,
+    // either (a) avoid the glob: `use latticearc::{encrypt, decrypt, ...};`,
+    // or (b) re-import std after: `use std::result::Result as StdResult;`.
     Result,
     SchemeSelector,
     SecretBytes,
@@ -375,6 +394,21 @@ pub use unified_api::{
 // PQ-only key types and key generation
 pub use hybrid::pq_only::{
     PqOnlyPublicKey, PqOnlySecretKey, generate_pq_keypair, generate_pq_keypair_with_level,
+};
+
+// Hybrid types — re-exported from `hybrid::{kem_hybrid, sig_hybrid, encrypt_hybrid}`
+// so consumers can name them via the public crate path
+// (`latticearc::HybridKemPublicKey`) instead of the internal module path
+// (`latticearc::hybrid::kem_hybrid::HybridKemPublicKey`). The `generate_*`
+// constructors are already re-exported below; without these type re-exports
+// callers can't write function signatures or struct fields that hold the
+// returned values without referencing the internal path.
+pub use hybrid::encrypt_hybrid::{DerivationBinding, HybridCiphertext, HybridEncryptionError};
+pub use hybrid::kem_hybrid::{
+    EncapsulatedKey, HybridKemError, HybridKemPublicKey, HybridKemSecretKey,
+};
+pub use hybrid::sig_hybrid::{
+    HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
 };
 
 // ============================================================================

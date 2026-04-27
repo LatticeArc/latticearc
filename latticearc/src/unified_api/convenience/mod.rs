@@ -18,6 +18,23 @@
 //!    applicable (e.g. local-only encryption, internal dispatch layers, KAT
 //!    reproduction) and for direct invocation from tests.
 //!
+//! ### What `_unverified` does NOT mean
+//!
+//! Crucially, `_unverified` refers ONLY to the absence of a `VerifiedSession`
+//! audit chain. It does NOT mean any of:
+//!
+//! - **Skips cryptographic input validation.** Key length, nonce size,
+//!   AEAD tag length, signature shape, etc., are all still validated.
+//! - **Skips constant-time guarantees.** Secret comparisons in `_unverified`
+//!   helpers still go through `subtle::ConstantTimeEq`.
+//! - **Skips weak-key rejection.** `AeadError::WeakKey` still fires on the
+//!   all-zero key whether you call `encrypt_aes_gcm` or
+//!   `encrypt_aes_gcm_unverified`.
+//! - **Skips Pattern 6 error opacity.** Adversary-reachable failures still
+//!   collapse to opaque variants in both forms.
+//!
+//! Treat the suffix as the moral equivalent of "no audit trail attached."
+//!
 //! **Production guidance:** prefer the `SecurityMode::Verified` form. Reach for
 //! `_unverified` only when you have an explicit reason not to involve a
 //! `VerifiedSession` — and make that reason reviewable at the call site.

@@ -1699,6 +1699,13 @@ impl PortableKey {
         // because key load is cold-path; the mutex is never contended on
         // a hot loop.
         if kdf_iterations < PBKDF2_DEFAULT_ITERATIONS {
+            // Capacity cap prevents unbounded memory growth from an adversary
+            // feeding distinct iteration-count keys. 256 distinct values is
+            // far more than any realistic operator fleet (cohorts cluster
+            // around OWASP guidance dates); beyond the cap we silence
+            // further warnings — a single previously-emitted warning is
+            // already enough audit signal that the cohort exists.
+            const MAX_DISTINCT_ITERATION_COUNTS: usize = 256;
             static LOW_ITER_WARNED: std::sync::OnceLock<
                 std::sync::Mutex<std::collections::HashSet<u32>>,
             > = std::sync::OnceLock::new();
@@ -1706,7 +1713,18 @@ impl PortableKey {
             // Lock-poisoning here is non-fatal — emit the warning anyway,
             // since not warning is strictly worse than a duplicate warning.
             let mut seen = table.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            if seen.insert(kdf_iterations) {
+            let should_warn = if seen.contains(&kdf_iterations) {
+                false
+            } else if seen.len() < MAX_DISTINCT_ITERATION_COUNTS {
+                seen.insert(kdf_iterations);
+                true
+            } else {
+                // Capacity reached — drop the new value silently. The
+                // operator already has 256 prior warnings to act on; a
+                // 257th cohort would not change the response.
+                false
+            };
+            if should_warn {
                 tracing::warn!(
                     kdf_iterations,
                     recommended = PBKDF2_DEFAULT_ITERATIONS,

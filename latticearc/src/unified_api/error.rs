@@ -209,6 +209,37 @@ pub enum CoreError {
     /// CNSA 2.0 rejecting classical-only algorithms like Ed25519).
     #[error("Compliance violation: {0}")]
     ComplianceViolation(String),
+
+    /// Internal/infrastructural failure that doesn't fit a more specific
+    /// category. Used as the catch-all destination when mapping
+    /// `LatticeArcError` variants that don't have a `CoreError` peer (e.g.,
+    /// `RandomError`, generic `IoError(String)`).
+    #[error("Internal error: {0}")]
+    Internal(String),
+}
+
+/// Conversion from `LatticeArcError` (the lower-level prelude error type) into `CoreError`.
+///
+/// Lets `?` compose across layers: a function returning `Result<T, CoreError>`
+/// can call into prelude code returning `Result<T, LatticeArcError>` without
+/// the caller falling back to `Box<dyn Error>`. The mapping preserves the
+/// failure category (encryption / serialization / IO / etc.) with a
+/// stringified inner message — fine for diagnostic surface, not intended as
+/// a security boundary (callers must not pattern-match on the message).
+impl From<crate::prelude::LatticeArcError> for CoreError {
+    fn from(err: crate::prelude::LatticeArcError) -> Self {
+        use crate::prelude::LatticeArcError as L;
+        match err {
+            L::EncryptionError(s) => CoreError::EncryptionFailed(s),
+            L::DecryptionError(s) => CoreError::DecryptionFailed(s),
+            L::SerializationError(s) => CoreError::SerializationError(s),
+            L::IoError(s) => CoreError::Internal(format!("I/O: {s}")),
+            L::InvalidInput(s) => CoreError::InvalidInput(s),
+            L::InvalidData(s) => CoreError::InvalidInput(s),
+            L::RandomError => CoreError::Internal("RNG failure".to_string()),
+            other => CoreError::Internal(other.to_string()),
+        }
+    }
 }
 
 /// Conversion from pure-Rust `TypeError` into FFI-aware `CoreError`.
@@ -403,10 +434,26 @@ mod tests {
                 CoreError::ComplianceViolation("FIPS rejects chacha".to_string()),
                 "Compliance violation: FIPS rejects chacha",
             ),
+            (CoreError::Internal("RNG failure".to_string()), "Internal error: RNG failure"),
         ];
 
         for (error, expected_msg) in cases {
             assert_eq!(format!("{error}"), expected_msg);
         }
+    }
+
+    #[test]
+    fn test_core_error_from_lattice_arc_error_random_maps_to_internal_succeeds() {
+        let inner = crate::prelude::LatticeArcError::RandomError;
+        let err: CoreError = inner.into();
+        assert!(matches!(err, CoreError::Internal(_)));
+        assert_eq!(format!("{err}"), "Internal error: RNG failure");
+    }
+
+    #[test]
+    fn test_core_error_from_lattice_arc_error_encryption_maps_to_encryption_failed_succeeds() {
+        let inner = crate::prelude::LatticeArcError::EncryptionError("aead".to_string());
+        let err: CoreError = inner.into();
+        assert!(matches!(err, CoreError::EncryptionFailed(s) if s == "aead"));
     }
 }

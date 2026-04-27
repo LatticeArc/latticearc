@@ -209,6 +209,80 @@ impl HybridKemPublicKey {
     pub fn security_level(&self) -> MlKemSecurityLevel {
         self.security_level
     }
+
+    /// Serialize this `HybridKemPublicKey` to a self-describing byte string.
+    ///
+    /// Wire layout: `[level_tag: u8] [ml_kem_pk_len: u32 BE] [ml_kem_pk] [ecdh_pk_len: u32 BE] [ecdh_pk]`.
+    /// Level tag mapping: `1 = MlKem512`, `2 = MlKem768`, `3 = MlKem1024`.
+    /// `from_bytes` is the round-trip inverse.
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let level_tag: u8 = match self.security_level {
+            MlKemSecurityLevel::MlKem512 => 1,
+            MlKemSecurityLevel::MlKem768 => 2,
+            MlKemSecurityLevel::MlKem1024 => 3,
+        };
+        let mut out = Vec::with_capacity(
+            1usize
+                .saturating_add(4)
+                .saturating_add(self.ml_kem_pk.len())
+                .saturating_add(4)
+                .saturating_add(self.ecdh_pk.len()),
+        );
+        out.push(level_tag);
+        // Lengths are bounded by `MlKemPublicKey::MAX_PK_BYTES` (well under
+        // u32::MAX) so the cast is non-truncating; `as` is fine after the
+        // domain check.
+        let ml_len = u32::try_from(self.ml_kem_pk.len()).unwrap_or(u32::MAX);
+        let ed_len = u32::try_from(self.ecdh_pk.len()).unwrap_or(u32::MAX);
+        out.extend_from_slice(&ml_len.to_be_bytes());
+        out.extend_from_slice(&self.ml_kem_pk);
+        out.extend_from_slice(&ed_len.to_be_bytes());
+        out.extend_from_slice(&self.ecdh_pk);
+        out
+    }
+
+    /// Parse a `HybridKemPublicKey` previously produced by [`to_bytes`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `HybridKemError::InvalidKeyMaterial` on any structural failure
+    /// (truncated buffer, unknown level tag, length-prefix overflow). The
+    /// parser does NOT validate the inner ML-KEM PK bytes — that work
+    /// happens at first use via [`encapsulate`].
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, HybridKemError> {
+        let inv = || {
+            HybridKemError::InvalidKeyMaterial(
+                "malformed HybridKemPublicKey wire format".to_string(),
+            )
+        };
+        let level_tag = *bytes.first().ok_or_else(inv)?;
+        let security_level = match level_tag {
+            1 => MlKemSecurityLevel::MlKem512,
+            2 => MlKemSecurityLevel::MlKem768,
+            3 => MlKemSecurityLevel::MlKem1024,
+            _ => return Err(inv()),
+        };
+        let mut cursor = 1usize;
+        let read_len = |buf: &[u8], at: usize| -> Result<u32, HybridKemError> {
+            let slice = buf.get(at..at.checked_add(4).ok_or_else(inv)?).ok_or_else(inv)?;
+            let arr: [u8; 4] = slice.try_into().map_err(|_e| inv())?;
+            Ok(u32::from_be_bytes(arr))
+        };
+        let ml_len = read_len(bytes, cursor)? as usize;
+        cursor = cursor.checked_add(4).ok_or_else(inv)?;
+        let ml_end = cursor.checked_add(ml_len).ok_or_else(inv)?;
+        let ml_kem_pk = bytes.get(cursor..ml_end).ok_or_else(inv)?.to_vec();
+        cursor = ml_end;
+        let ed_len = read_len(bytes, cursor)? as usize;
+        cursor = cursor.checked_add(4).ok_or_else(inv)?;
+        let ed_end = cursor.checked_add(ed_len).ok_or_else(inv)?;
+        let ecdh_pk = bytes.get(cursor..ed_end).ok_or_else(inv)?.to_vec();
+        if ed_end != bytes.len() {
+            return Err(inv());
+        }
+        Ok(Self { ml_kem_pk, ecdh_pk, security_level })
+    }
 }
 
 /// Hybrid secret key combining ML-KEM and X25519 ECDH.
@@ -576,16 +650,16 @@ pub fn generate_keypair_with_level(
     Ok((pk, sk))
 }
 
-/// Encapsulate using hybrid KEM
+/// Encapsulate using hybrid KEM.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The ECDH public key is not exactly 32 bytes.
-/// - ML-KEM public key construction or encapsulation fails.
-/// - ML-KEM encapsulation returns an invalid shared secret length.
-/// - The ECDH public key format is invalid for conversion.
-/// - Key derivation (HKDF) fails.
+/// Returns `HybridKemError::EncapsulationFailed` (a unit variant) on
+/// any failure. Per Pattern 6 (error opacity), the ECDH PK length
+/// pre-check, ML-KEM PK construction, ML-KEM encapsulation result
+/// length, ECDH PK format conversion, and HKDF derivation all
+/// collapse into the same opaque variant — see internal tracing under
+/// `op::HYBRID_KEM_ENCAPSULATE` for per-stage diagnostics.
 pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKemError> {
     // Pattern 6 "encrypt-side defense in depth": symmetric to
     // `decapsulate`. All upstream-Display leaks (`e.to_string()`) collapse
@@ -662,12 +736,12 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The ephemeral ECDH public key is not exactly 32 bytes.
-/// - ML-KEM secret key or ciphertext construction fails.
-/// - ML-KEM decapsulation fails or returns an invalid shared secret length.
-/// - ECDH key agreement fails.
-/// - Key derivation (HKDF) fails.
+/// Returns `HybridKemError::DecapsulationFailed` on any failure. Per
+/// Pattern 6 (error opacity), the ephemeral ECDH PK length check,
+/// ML-KEM SK/CT construction, ML-KEM decapsulation result length,
+/// ECDH key agreement, and HKDF derivation all collapse into the same
+/// opaque variant — see internal tracing under
+/// `op::HYBRID_KEM_DECAPSULATE` for per-stage diagnostics.
 pub fn decapsulate(
     sk: &HybridKemSecretKey,
     ct: &EncapsulatedKey,

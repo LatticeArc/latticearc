@@ -34,8 +34,12 @@ You can also report via [GitHub Security Advisory](https://github.com/latticearc
 
 | Version | Status | Security Updates Until |
 |---------|--------|------------------------|
-| 0.4.x | Supported | Current |
-| 0.3.x | Supported | Security fixes only |
+| 0.8.x | Supported | Current |
+| 0.7.x | Supported | Security fixes only |
+| 0.6.x | End of life | Superseded by 0.7.0 |
+| 0.5.x | End of life | Superseded by 0.6.0 |
+| 0.4.x | End of life | Superseded by 0.5.0 |
+| 0.3.x | End of life | Superseded by 0.4.0 |
 | 0.2.x | End of life | Superseded by 0.3.0 |
 | 0.1.x | End of life | Superseded by 0.2.0 |
 
@@ -97,6 +101,23 @@ Kani formally verifies that `requires_fips()` and `allows_hybrid()` return corre
 4. **Input validation** - All public APIs validate inputs
 5. **Constant-time** - Using `subtle` crate for timing-safe operations
 6. **Compliance enforcement** - `ComplianceMode` with formal verification
+7. **Weak-key rejection** - `AeadCipher::new` rejects the all-zero key
+   pattern (`AeadError::WeakKey`) via constant-time fold-no-early-exit.
+   An all-zero AEAD key is overwhelmingly the signature of uninitialised
+   memory or an unset configuration field; failing closed at the
+   constructor prevents that state from ever reaching encryption. The
+   `kat-test-vectors` Cargo feature exposes
+   `AeadCipher::new_allow_weak_key` for NIST AES-GCM Test Cases 1 and 2
+   reproduction; off by default so production builds cannot accidentally
+   construct a weak-key cipher.
+8. **FIPS DRBG fallback prevention** - Earlier `RngHandle` could fall
+   back to a `ChaCha20Rng`-seeded path on mutex poison, silently
+   downgrading from the FIPS-approved DRBG. This was a real FIPS
+   140-3 module-policy violation (mod-policy §7.4: "approved security
+   functions only"). Fixed in 0.8.0: `RngHandle::ThreadLocal` is now
+   `cfg`-gated `not(fips)` so it cannot be constructed in a FIPS build,
+   and the mutex-poison path returns an explicit error instead of
+   silently downgrading.
 
 ## Security Testing
 

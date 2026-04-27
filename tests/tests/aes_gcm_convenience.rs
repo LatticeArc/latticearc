@@ -809,11 +809,20 @@ fn test_aes_gcm_all_zero_key_rejected_at_construction() {
     let result = encrypt_aes_gcm_unverified(plaintext, &key);
     assert!(result.is_err(), "all-zero AEAD key must be rejected at construction");
     match result.unwrap_err() {
-        CoreError::EncryptionFailed(_) => {
-            // Expected — `AesGcm256::new` returns `AeadError::WeakKey`,
-            // which the convenience wrapper maps to `EncryptionFailed`.
+        // `AesGcm256::new` returns `AeadError::WeakKey`, which the convenience
+        // wrapper now maps to `CoreError::InvalidKey` with an actionable
+        // remediation hint (audit-batch fix #10).
+        CoreError::InvalidKey(msg) => {
+            assert!(
+                msg.contains("All-zero key rejected"),
+                "WeakKey diagnostic message must surface to the caller, got: {msg}"
+            );
+            assert!(
+                msg.contains("generate_secure_random_bytes"),
+                "WeakKey diagnostic must point at the production remediation"
+            );
         }
-        other => panic!("Expected EncryptionFailed (WeakKey path), got {:?}", other),
+        other => panic!("Expected InvalidKey (WeakKey remediation path), got {other:?}"),
     }
 }
 

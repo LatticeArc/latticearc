@@ -234,7 +234,13 @@ pub enum AeadError {
     /// usually indicates uninitialised memory or an unset configuration field
     /// rather than a deliberate choice. The AEAD algorithm itself does not
     /// fail on this input — the rejection is a fail-closed defence in depth.
-    #[error("Weak key rejected by AEAD constructor (likely uninitialised memory)")]
+    #[error(
+        "Weak key rejected by AEAD constructor (likely uninitialised memory or unset \
+         configuration field). Generate a fresh key via \
+         `latticearc::primitives::security::generate_secure_random_bytes(32)`, or — for KAT \
+         replay only — enable the `kat-test-vectors` Cargo feature and call \
+         `AeadCipher::new_allow_weak_key`."
+    )]
     WeakKey,
 
     /// Encryption failed
@@ -327,11 +333,23 @@ mod tests {
         let err = AeadError::DecryptionFailed("oops".to_string());
         assert_eq!(format!("{}", err), "Decryption failed: oops");
 
-        // `AeadError::WeakKey` Display
+        // `AeadError::WeakKey` Display — message includes both the diagnosis
+        // ("likely uninitialised memory") and a remediation hint pointing
+        // at `generate_secure_random_bytes` and the `kat-test-vectors`
+        // escape hatch.
         let err = AeadError::WeakKey;
-        assert_eq!(
-            format!("{}", err),
-            "Weak key rejected by AEAD constructor (likely uninitialised memory)"
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("Weak key rejected by AEAD constructor"),
+            "WeakKey Display must lead with the diagnosis"
+        );
+        assert!(
+            msg.contains("generate_secure_random_bytes"),
+            "WeakKey Display must point at the production remediation"
+        );
+        assert!(
+            msg.contains("kat-test-vectors"),
+            "WeakKey Display must point at the KAT escape hatch"
         );
     }
 

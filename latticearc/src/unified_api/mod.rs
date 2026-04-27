@@ -17,12 +17,14 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use latticearc::unified_api::{
+//! // All entry points are re-exported at the crate root — prefer the short
+//! // path `latticearc::{...}` over the internal `latticearc::unified_api::{...}`.
+//! use latticearc::{
 //!     encrypt, decrypt, CryptoConfig, VerifiedSession, generate_keypair,
-//!     EncryptKey, DecryptKey,
+//!     EncryptKey, DecryptKey, CoreError,
 //! };
 //!
-//! # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
+//! # fn main() -> Result<(), CoreError> {
 //! // Generate a keypair for session establishment
 //! let (public_key, private_key) = generate_keypair()?;
 //!
@@ -175,12 +177,15 @@
 //! 4. **Refreshed** by establishing a new session when expired
 //!
 //! ```rust,no_run
-//! use latticearc::unified_api::{encrypt, CryptoConfig, VerifiedSession, CoreError, EncryptKey, EncryptedOutput};
+//! use latticearc::{
+//!     encrypt, CryptoConfig, VerifiedSession, CoreError, EncryptKey,
+//!     EncryptedOutput, HybridKemPublicKey,
+//! };
 //!
 //! fn perform_crypto_operation(
 //!     session: &VerifiedSession,
 //!     data: &[u8],
-//!     pk: &latticearc::hybrid::kem_hybrid::HybridKemPublicKey,
+//!     pk: &HybridKemPublicKey,
 //! ) -> Result<EncryptedOutput, CoreError> {
 //!     // Validate session before operation
 //!     session.verify_valid()?;  // Returns Err(SessionExpired) if expired

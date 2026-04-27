@@ -83,9 +83,19 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
         return Err(err);
     }
 
-    // Delegate to the primitives AesGcm256 (includes AeadError::WeakKey rejection, ZeroizeOnDrop)
+    // Delegate to the primitives AesGcm256 (includes AeadError::WeakKey rejection, ZeroizeOnDrop).
+    // Distinguish WeakKey from generic init failure so callers see actionable
+    // remediation rather than a vague "Failed to create AES key: weak key…" string.
+    use crate::primitives::aead::AeadError;
     let cipher = AesGcm256::new(key).map_err(|e| {
-        let err = CoreError::EncryptionFailed(format!("Failed to create AES key: {e}"));
+        let err = match e {
+            AeadError::WeakKey => CoreError::InvalidKey(
+                "All-zero key rejected by AES-256-GCM — generate a fresh key via \
+                 `latticearc::primitives::security::generate_secure_random_bytes(32)`."
+                    .to_string(),
+            ),
+            other => CoreError::EncryptionFailed(format!("Failed to create AES key: {other}")),
+        };
         log_crypto_operation_error!(op::AES_GCM_ENCRYPT_AAD, err);
         err
     })?;
@@ -167,8 +177,18 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
 
     // Delegate to the primitives AesGcm256 (includes AeadError::WeakKey rejection, ZeroizeOnDrop).
     // AES key init is caller-side; distinguishable in the returned error too.
-    let cipher = AesGcm256::new(key).map_err(|_e| {
-        let err = CoreError::DecryptionFailed("AES key init failed".to_string());
+    // Distinguish WeakKey explicitly — the prior `_e` discard threw away
+    // the only actionable signal.
+    use crate::primitives::aead::AeadError;
+    let cipher = AesGcm256::new(key).map_err(|e| {
+        let err = match e {
+            AeadError::WeakKey => CoreError::InvalidKey(
+                "All-zero key rejected by AES-256-GCM — generate a fresh key via \
+                 `latticearc::primitives::security::generate_secure_random_bytes(32)`."
+                    .to_string(),
+            ),
+            _ => CoreError::DecryptionFailed("AES key init failed".to_string()),
+        };
         log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, err);
         err
     })?;

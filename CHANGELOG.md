@@ -9,6 +9,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-3 audit response — 22 fixes (10 HIGH + 9 MEDIUM + 3 LOW, 2026-04-27)
+
+Third external audit pass on top of `66fe78d6a`. Twenty-two findings; all
+fixed. The HIGH set is dominated by documentation-vs-code mismatches and
+ergonomics gaps; the MEDIUM set is API-surface polish; the LOW set is
+documentation hygiene. No new breaking changes.
+
+#### HIGH
+- **Timing equalizer for `verify_hybrid_ml_dsa_ed25519` shape-rejection
+  path (round-2 PARTIAL #2 follow-up).** Earlier "wasted verify work IS
+  the timing equalizer" claim was wrong: the function bailed in
+  nanoseconds with `Ok(false)` on shape failure, leaving the
+  shape-vs-verify timing oracle wide open. Now substitutes shape-correct
+  dummy material from a `OnceLock`-cached buffer per `MlDsaParameterSet`
+  and runs the full ML-DSA + Ed25519 verify pipeline against it. The
+  verify result is discarded; the original shape decision is what
+  surfaces. DoS trade-off (shape failures now spend ~1 verify of CPU)
+  documented in code; rate-limiting belongs at the dispatch layer.
+- **Cap `LOW_ITER_WARNED` HashSet at 256 distinct iteration counts.**
+  Was unbounded; an adversary feeding distinct-count keys could grow it
+  permanently. 256 is more than any realistic operator fleet (cohorts
+  cluster around OWASP guidance dates).
+- **`SECURITY.md` version table refreshed.** Listed `0.4.x | Current`;
+  actual is 0.8.0. Added rows for 0.5/0.6/0.7/0.8 with correct
+  supersession status.
+- **`SECURITY.md` Defense-in-Depth list now mentions WeakKey rejection.**
+  The 0.8.0 `AeadCipher::new` weak-key check was a user-facing security
+  control; absent from the disclosure document.
+- **`SECURITY.md` Defense-in-Depth list now mentions FIPS DRBG fallback
+  prevention.** The 0.8.0 `RngHandle::ThreadLocal` cfg-gate fixed a real
+  FIPS 140-3 module-policy violation; absent from the disclosure
+  document.
+- **`kem_hybrid::encapsulate` and `decapsulate` rustdoc no longer
+  enumerates the 5 sub-failures Pattern 6 specifically hides.** Doc
+  comments listed `ECDH PK length / ML-KEM PK construction / shared-
+  secret length / ECDH conversion / HKDF` as separate `# Errors`
+  bullets, contradicting the runtime collapse to `EncapsulationFailed`
+  / `DecapsulationFailed`. Now: single bullet referencing Pattern 6
+  with a pointer at the internal `op::HYBRID_KEM_*` trace tag.
+- **Hybrid type re-exports at crate root.** `HybridKemPublicKey`,
+  `HybridKemSecretKey`, `HybridSigPublicKey`, `HybridSigSecretKey`,
+  `HybridSignature`, `HybridCiphertext`, `EncapsulatedKey`,
+  `DerivationBinding`, `HybridKemError`, `HybridSignatureError`,
+  `HybridEncryptionError` are now reachable via `latticearc::*`. The
+  `generate_hybrid_keypair` constructor was already at the root, but
+  callers couldn't name its return types in struct fields or function
+  signatures without writing
+  `latticearc::hybrid::kem_hybrid::HybridKemPublicKey`.
+- **`EncryptedOutput::to_json` / `from_json` / `to_bytes` / `from_bytes`
+  inherent methods.** The encrypt → store → load → decrypt pipeline
+  previously required hunting down free functions in
+  `unified_api::serialization`. Inherent methods make this discoverable.
+  Binary form (`to_bytes` / `from_bytes`) is JSON-as-bytes for v0.8 — a
+  proper CBOR/postcard format is blocked on `EncryptionScheme` becoming
+  serde-derivable, currently `#[non_exhaustive]`.
+- **WeakKey error mapping at the convenience layer (ChaCha20 + AES).**
+  ChaCha20 path collapsed every `AeadError` to
+  `InvalidKeyLength { expected: 32, actual: 32 }` — the absurd
+  "expected 32, got 32" message. AES decrypt path silently discarded
+  the `_e`. Both paths now `match` on `AeadError::WeakKey` explicitly
+  and surface a `CoreError::InvalidKey` with a remediation pointing at
+  `generate_secure_random_bytes(32)`.
+
+#### MEDIUM
+- **CHANGELOG `Migration:` lines added** for the `derive_encryption_key`
+  / `DerivationBinding` and `HybridSig*::new` / `MlDsaParameterSet`
+  breaking changes from `6ef59908d`. The existing entries described
+  the change but didn't tell callers how to update their code.
+- **`docs/DESIGN_PATTERNS.md` Pattern 6 scope** widened from "all post-
+  crypto decrypt errors" to the full set: AEAD decrypt, hybrid KEM
+  encapsulate + decapsulate, hybrid signature verify, encrypt-side
+  defence-in-depth (recipient-PK / ephemeral-PK / KEM-CT length checks).
+- **Doc examples updated to use crate-root re-exports** (`use
+  latticearc::{...}`) instead of the long internal path (`use
+  latticearc::unified_api::{...}`). Quick Start and the
+  `perform_crypto_operation` example were the most user-visible.
+- **`prelude` module populated with the user-facing API.** Was test
+  infrastructure + `LatticeArcError` + `Result` only; `use
+  latticearc::prelude::*` now also gives you `encrypt`, `decrypt`,
+  `sign_with_key`, `verify`, `generate_signing_keypair`,
+  `generate_hybrid_keypair`, `CryptoConfig`, `EncryptKey`, `DecryptKey`,
+  `EncryptedOutput`, `SignedData`, `SecurityLevel`, `CoreError`.
+- **`From<LatticeArcError> for CoreError` impl** lets `?` compose
+  across the two error hierarchies. Added `CoreError::Internal(String)`
+  catch-all variant for `LatticeArcError` variants (e.g. `RandomError`,
+  `IoError(String)`) that don't have a more specific peer.
+- **`SigningKeypair` typed wrapper for `generate_signing_keypair`
+  return.** The existing `(Vec<u8>, Zeroizing<Vec<u8>>, String)` tuple
+  is fine but easy to misuse — losing the third element (scheme tag)
+  silently breaks `sign_with_key` dispatch. New struct exposes named
+  `public_key`, `secret_key`, `scheme` fields with `From`/`Into`
+  conversions to/from the tuple.
+- **`HybridKemPublicKey::to_bytes` / `from_bytes`** inherent
+  serializers. Wire format
+  `[level_tag: u8] [ml_kem_pk_len: u32 BE] [...] [ecdh_pk_len: u32 BE]
+  [...]`; level tag mapping `1=MlKem512, 2=MlKem768, 3=MlKem1024`.
+  Prior shape required pulling the components apart manually and
+  remembering the security level out of band.
+- **`_unverified` naming convention spelled out** at the convenience
+  module top. Explicit "what `_unverified` does NOT mean" enumeration
+  (still validates inputs / still constant-time / still rejects weak
+  keys / still Pattern-6-opaque).
+
+#### LOW
+- **`AeadError::WeakKey` Display message** now includes a remediation
+  pointer: `generate_secure_random_bytes(32)` for production,
+  `kat-test-vectors` feature + `new_allow_weak_key` for KAT replay.
+  Operators previously got "likely uninitialised memory" with no
+  next-step.
+- **Streaming and async API limitations documented** in the crate-root
+  rustdoc under a new "Known limitations" section. Streaming AEAD is
+  on the roadmap; native async is intentionally not, with rationale.
+- **`Result` shadowing footgun documented** at the crate-root
+  re-export. `use latticearc::*;` will silently shadow
+  `std::result::Result`; the workaround is to either avoid the glob
+  or `use std::result::Result as StdResult;` after.
+
 ### Audit-batch hardening pass (commit `6ef59908d`, 2026-04-27)
 
 #### Breaking
@@ -19,11 +136,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   binding, an attacker who recovers any one shared secret can re-key
   arbitrary ciphertexts. `DerivationBinding::empty()` exists for tests that
   legitimately have no channel context.
+  Migration: `derive_encryption_key(shared, ctx)` →
+  `derive_encryption_key(shared, ctx, &DerivationBinding { recipient_static_pk: hybrid_pk.ecdh_pk(), ephemeral_pk: encapsulated.ecdh_pk(), kem_ciphertext: encapsulated.ml_kem_ct() })`
+  on encrypt-side, and the same triple drawn from `hybrid_sk.ecdh_public_key_bytes()`
+  + `encapsulated.ecdh_pk()` + `encapsulated.ml_kem_ct()` on decrypt-side. For
+  unit tests with no channel context, pass `&DerivationBinding::empty()`.
 - **`HybridSigPublicKey::new` / `HybridSigSecretKey::new`** now take a
   leading `parameter_set: MlDsaParameterSet`. Previously the API silently
   assumed `MlDsa65`, so `MlDsa44` and `MlDsa87` keys round-tripped through
   the wrong ML-DSA backend. Key-format conversions infer the parameter set
   from the PQ-component byte length.
+  Migration: `HybridSigPublicKey::new(ml_dsa_pk, ed25519_pk)` →
+  `HybridSigPublicKey::new(MlDsaParameterSet::MlDsa65, ml_dsa_pk, ed25519_pk)`.
+  Choose `MlDsa44`, `MlDsa65`, or `MlDsa87` to match the PQ-component byte
+  length (1312 / 1952 / 2592 bytes respectively for public keys; 2560 / 4032
+  / 4896 bytes for secret keys). Same migration for `HybridSigSecretKey::new`.
+  When deserializing from wire, infer the parameter set from the PQ-component
+  length using the byte-length tables in `MlDsaParameterSet` rustdoc.
 - **`AeadError::Other` removed**. No production code path constructed it;
   the variant existed only as a catch-all for ad-hoc test errors. Tests
   now exercise the real `EncryptionFailed(ResourceLimit)` path via
