@@ -770,10 +770,24 @@ section "Dim 10" "Feature Flag Audit"
 FEATURES=$(sed -n '/^\[features\]/,/^\[/p' latticearc/Cargo.toml \
     | grep -E '^\w' | sed 's/ *=.*//' | grep -v '^default$')
 
+# Compiler-cfg marker features: defined in [features] purely so callers can
+# enable them, but used in source via `#[cfg(<name>)]` rather than
+# `#[cfg(feature = "<name>")]` (because the matching CLI driver — kani, saw,
+# rustc verifier — sets the bare cfg, not a Cargo feature). Reporting these
+# as "DEAD" would be a false positive.
+COMPILER_CFG_MARKERS=" kani saw formal-verification "
+
 for feature in $FEATURES; do
-    CFG_COUNT=$(grep -r "feature = \"$feature\"" --include="*.rs" $SRC/ 2>/dev/null | wc -l | tr -d ' ')
+    # `grep -r` exits 1 on no matches; `|| true` keeps the pipeline alive so
+    # `set -euo pipefail` does not silently abort before `fail()` reports.
+    CFG_COUNT=$(grep -r "feature = \"$feature\"" --include="*.rs" $SRC/ 2>/dev/null | wc -l | tr -d ' ' || true)
+    CFG_COUNT="${CFG_COUNT:-0}"
     if [ "$CFG_COUNT" -eq 0 ]; then
-        fail "10.10 Feature '$feature' has 0 cfg gates in source code (DEAD)"
+        if echo "$COMPILER_CFG_MARKERS" | grep -q " $feature "; then
+            pass "10.10 Feature '$feature' is a compiler-cfg marker (used via #[cfg($feature)], no Cargo-feature gate expected)"
+        else
+            fail "10.10 Feature '$feature' has 0 cfg gates in source code (DEAD)"
+        fi
     else
         pass "10.10 Feature '$feature' has $CFG_COUNT cfg gate(s)"
     fi
