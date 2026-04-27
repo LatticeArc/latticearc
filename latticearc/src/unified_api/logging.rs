@@ -30,7 +30,13 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
+// `tracing::info` is only used inside the `init_tracing*` helpers, which
+// are themselves gated behind the `tracing-init` feature. The subscriber
+// wiring (and its tracing-subscriber + tracing-appender deps) is the
+// binary's job — see the feature comment in `latticearc/Cargo.toml`.
+#[cfg(feature = "tracing-init")]
 use tracing::info;
+#[cfg(feature = "tracing-init")]
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 
@@ -961,6 +967,13 @@ pub fn sanitize_metadata(metadata: &HashMap<String, String>) -> HashMap<String, 
 
 /// Initialize tracing with security-conscious defaults.
 ///
+/// **Gated behind the `tracing-init` Cargo feature** (off by default).
+/// Subscriber wiring is the binary's responsibility — calling this from
+/// a library that's also a transitive dependency of another binary will
+/// `panic!()` on the second `subscriber.init()` invocation. The
+/// `latticearc-cli` crate enables `tracing-init` and calls this; library
+/// consumers should set up their own subscriber via the `tracing` ecosystem.
+///
 /// Sets up structured logging with:
 /// - Environment-based filtering (RUST_LOG)
 /// - JSON output for production
@@ -971,6 +984,7 @@ pub fn sanitize_metadata(metadata: &HashMap<String, String>) -> HashMap<String, 
 ///
 /// Returns an error if the tracing subscriber cannot be initialized,
 /// typically due to a subscriber already being set.
+#[cfg(feature = "tracing-init")]
 pub fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("latticearc=info"));
@@ -1862,11 +1876,16 @@ macro_rules! log_zero_trust_continuous_verification {
 
 /// Initialize tracing with file output for persistent logging.
 ///
+/// **Gated behind the `tracing-init` Cargo feature** (off by default).
+/// See [`init_tracing`] for rationale; the same library-vs-binary
+/// boundary applies to the file-output variant.
+///
 /// # Errors
 ///
 /// Returns an error if:
 /// - The tracing subscriber cannot be initialized
 /// - The log file cannot be created or written to
+#[cfg(feature = "tracing-init")]
 pub fn init_tracing_with_file(log_file: &str) -> Result<(), Box<dyn std::error::Error>> {
     use tracing_appender::rolling::{RollingFileAppender, Rotation};
 

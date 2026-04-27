@@ -319,6 +319,27 @@ jobs:
             scope: -p latticearc
             flags: --no-default-features
             coverage: false
+          # Feature-isolation rows: each opt-in non-FIPS feature must
+          # build and test cleanly *standalone* (no `--all-features` umbrella),
+          # otherwise OS-specific failure modes (e.g. `secret-mlock` and
+          # Linux `RLIMIT_MEMLOCK` / Windows working-set quota) hide behind
+          # the always-on combinations.
+          - label: fips-self-test
+            scope: -p latticearc
+            flags: --no-default-features --features fips-self-test
+            coverage: false
+          - label: kat-test-vectors
+            scope: -p latticearc
+            flags: --no-default-features --features kat-test-vectors
+            coverage: false
+          - label: secret-mlock
+            scope: -p latticearc
+            flags: --no-default-features --features secret-mlock
+            coverage: false
+          - label: tracing-init
+            scope: -p latticearc
+            flags: --no-default-features --features tracing-init
+            coverage: false
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

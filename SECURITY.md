@@ -119,6 +119,116 @@ Kani formally verifies that `requires_fips()` and `allows_hybrid()` return corre
    and the mutex-poison path returns an explicit error instead of
    silently downgrading.
 
+## Yank / republish runbook
+
+The first 24 hours after a release are the highest-risk window for a
+crypto crate — a regression discovered in that window is the worst time
+to be improvising. This runbook is the mechanical procedure for the
+maintainer on call.
+
+### When to yank
+
+Yank without ceremony if a published version has any of:
+
+- **Functional crypto regression.** Encryption, decryption, signing, or
+  verification produces output incompatible with prior releases or with
+  the underlying NIST KAT vectors. (Roundtrip-fails-on-self counts.)
+- **FIPS 140-3 compliance regression** under `--features fips`. E.g.,
+  RNG falls back to a non-approved DRBG, self-tests skipped, weak-key
+  check bypassed.
+- **Memory-safety regression.** Use-after-free / double-free / OOB read
+  in any path. (`forbid(unsafe_code)` should make these compile-time
+  failures, but a `cargo audit` advisory on a dep counts.)
+- **Secret-material disclosure.** Any path that lets a `Secret*` type
+  leak into a log line, panic message, `Debug` output, or error
+  variant.
+- **Confused-deputy or downgrade vulnerability** in the unified API
+  (e.g., wrong scheme dispatched, hybrid silently downgraded to
+  classical-only).
+
+Open a placeholder GHSA before yanking so the disclosure timeline
+starts cleanly; details land later.
+
+### Procedure
+
+1. **Yank from crates.io.** From the maintainer machine:
+   ```bash
+   cargo yank --version <X.Y.Z> latticearc
+   ```
+   Yank does NOT delete the crate, so existing `Cargo.lock` files keep
+   working; new fresh resolves stop selecting the bad version. Do this
+   FIRST, before any other step, so the blast radius stops growing
+   while you're investigating.
+
+2. **Pin the upstream advisory.** Open or update `RUSTSEC-YYYY-NNNN`
+   via the `rustsec/advisory-db` PR template. Reference the yanked
+   version range; cite the GHSA opened in step 0 for cross-platform
+   coordination.
+
+3. **Patch on a fix branch.** Branch from the LAST KNOWN GOOD tag (not
+   from main, which may already have unrelated changes). Apply the
+   minimal targeted fix; resist the urge to bundle other improvements.
+
+4. **Re-run the full release validation matrix locally.** Same gates
+   the release.yml pipeline runs:
+   ```bash
+   cargo fmt --all -- --check
+   cargo clippy --workspace --all-targets --all-features -- -D warnings
+   cargo clippy --workspace --all-targets --features fips -- -D warnings
+   cargo test --workspace --all-features --release --no-fail-fast
+   cargo audit --deny warnings
+   cargo deny check all
+   ./scripts/verify-kat-checksums.sh
+   ```
+   All must be green before the republish.
+
+5. **Bump the patch version and republish.** PATCH-only bumps for
+   yanked-version replacements (`X.Y.(Z+1)`) — never reuse the yanked
+   number, never minor-bump unless the fix unavoidably changes a
+   public signature. Tag the fix commit; let `release.yml` publish.
+
+6. **Communicate.** Within 24 h of the original yank, post:
+   - GHSA published with details, affected versions, fix version,
+     remediation steps.
+   - CHANGELOG entry calling out the yank + fix.
+   - `README.md` security banner pointing at the GHSA.
+   - Post to the disclosure list (security@latticearc, plus the OSS
+     mailing lists where the vulnerability is in scope: oss-security if
+     it's a primitive bug, fips-validation@nist if it's a module-policy
+     violation).
+
+### When NOT to yank
+
+Yanking has a real downstream cost — it doesn't delete the crate, but
+it does break tooling that locks to "latest stable" without an explicit
+`Cargo.lock`. Don't yank for:
+
+- Documentation-only mistakes (publish a patch instead)
+- Performance regressions that don't affect correctness
+- Unsoundness in code paths that aren't reachable from the published
+  API surface
+- Policy violations that are warnings, not blocking errors
+  (e.g., `cargo audit` warning on a dep that's been advised but not
+  yanked upstream)
+
+For these, ship a patch release with a `CHANGELOG.md` callout. The
+yank tool is a circuit breaker; pulling it for non-circuit-breaker
+events erodes the signal.
+
+### Audit log
+
+Every yank is logged at `docs/audit/YANKS.md` (gitignored, internal)
+with:
+- Yanked version
+- Discovery date / time
+- Fix version
+- GHSA / RUSTSEC IDs
+- Postmortem link
+
+The public-facing record is the GHSA + the CHANGELOG entry; the
+internal log captures the additional context (who reported, who
+patched, what almost-shipped instead).
+
 ## Security Testing
 
 ### Continuous Security Measures
@@ -204,6 +314,35 @@ Audit reports will be published in the `docs/audits/` directory when available.
 - ✅ Formal verification (SAW) for primitives via aws-lc-rs
 - ✅ Battle-tested libraries (`subtle`) for API layer comparisons
 - ✅ Code review for constant-time patterns (no secret-dependent branches)
+- ⚠️ **Statistical timing tests** (`tests/primitives_side_channel.rs`)
+  measure wall-clock variance across failure paths and assert it stays
+  within a permissive `0.02x..50x` window. This catches order-of-
+  magnitude regressions but is NOT a substitute for instruction-level
+  constant-time verification.
+
+**Hardware-instruction-level verification (gap, planned for 1.0):**
+
+The instruction-level constant-time tools that the Rust crypto ecosystem
+uses (`dudect`, `ctgrind`, `valgrind --tool=massif`) are referenced in
+this codebase but are **not currently part of the PR-blocking CI matrix**.
+A `valgrind` job exists in the workflows but runs only on the nightly
+schedule. Before tagging 1.0 we plan to:
+
+- Promote the `valgrind --tool=massif` constant-time check from nightly
+  to PR-blocking on `unified_api/convenience/api.rs` and the `subtle`
+  call sites in `primitives/aead/`.
+- Add a `dudect`-style statistical test harness that computes Welch's
+  t-statistic on per-operation cycle counts and fails the build at
+  |t| > 4.5 (the standard publish threshold).
+- Wire `cargo +nightly miri` runs against the secret-comparison code
+  paths to flag UB-class compiler optimizations that could break
+  constant-time properties under newer rustc versions.
+
+Until that lands, callers in adversary-reachable contexts (TLS
+handshake, untrusted-network protocols, multi-tenant key vaults) should
+treat constant-time guarantees on this crate's API layer as
+"best-effort within the limits of the `subtle` crate's compiler-
+fence behavior" rather than mathematically proven.
 
 ### Memory
 

@@ -9,6 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-4 audit response — 9 fixes + 2 CI repairs (2026-04-27)
+
+Fourth external audit pass on top of `f351df612`. Two BLOCK_RELEASE
+items, three HIGH, three MEDIUM, one LOW, plus the two CI failures from
+the round-3 commit (`KAT Vector Integrity` checksum drift + macOS
+timing-test ratio over its ceiling).
+
+#### BLOCK_RELEASE
+- **`tracing-subscriber` and `tracing-appender` are now optional**, gated
+  behind a new `tracing-init` Cargo feature (off by default). The
+  library only emits `tracing::*` events through the facade; subscriber
+  wiring is the binary's job. The prior hard dependency would `panic!`
+  the first downstream consumer that called their own
+  `tracing_subscriber::fmt::init()` because both inits raced for the
+  global default. `latticearc-cli` enables `tracing-init`.
+- **`fips` now transitively enables `fips-self-test`.** Independent
+  features previously meant `--features fips` skipped the FIPS 140-3
+  §10.3.1 power-on self-test — a false compliance claim. Set
+  `default-features = false` and enable `aws-lc-rs/fips` directly if
+  you want the validated backend without the self-test wiring.
+
+#### HIGH
+- **`HybridKemPublicKey::to_bytes` wire format gets a `format_version: u8`
+  prefix.** The v1 layout is now
+  `[format_version=1] [level_tag] [ml_kem_pk_len: u32 BE] [...] [ecdh_pk_len: u32 BE] [...]`.
+  Old parsers reject unknown versions cleanly via
+  `HybridKemError::InvalidKeyMaterial`; new parsers can branch on the
+  version when ML-KEM-2048 / composite schemes ship as v2. New const
+  `HybridKemPublicKey::WIRE_FORMAT_VERSION = 1` exposes the current
+  shipped value.
+- **`EncryptedOutput::{to,from}_{json,bytes}` round-trip proptest**
+  (`tests/tests/serialization_integration.rs::encrypted_output_roundtrip`)
+  with 64 cases, covering both AES-GCM and hybrid shapes, plus
+  negative tests for non-UTF-8 / invalid-JSON inputs.
+- **CI feature-isolation matrix expanded** to test `fips-self-test`,
+  `kat-test-vectors`, `secret-mlock`, and `tracing-init` standalone
+  (`--no-default-features --features <name>` per row). Previously these
+  features only ran transitively under `--all-features`.
+
+#### MEDIUM
+- **PQC crates pinned with `=` (exact version)** — `fips204 = "=0.4.6"`,
+  `fips205 = "=0.4.1"`, `fn-dsa = "=0.3.0"`. These crates have shipped
+  breaking API changes within `0.x.y` minor bumps before; a silent
+  `cargo update` could regress signature verification on a downstream
+  consumer's fresh resolve. Bump intentionally and re-run the FIPS
+  validation suite when updating.
+- **`SECURITY.md` yank/republish runbook** added — when to yank, the
+  6-step procedure (yank → advisory → fix branch → revalidate → bump
+  patch → communicate), and the smaller list of when NOT to yank.
+- **`SECURITY.md` constant-time verification gap** documented honestly:
+  the statistical timing tests only catch order-of-magnitude
+  regressions; instruction-level verification (`dudect` / `ctgrind` /
+  `valgrind --tool=massif` PR-blocking) is on the roadmap before 1.0.
+
+#### CI repairs
+- **`KAT Vector Integrity` job: refreshed `CHECKSUMS.sha256`** for the
+  legitimately-modified `hmac_kat.rs` (added `hmac::KeyInit` import) and
+  `ml_dsa_kat.rs` (migrated to `rand_core_0_6` traits for `fips204`
+  0.4.x). Both source-side fixes had landed without rerunning
+  `./scripts/verify-kat-checksums.sh --update`.
+- **`Release Validation (macos-latest)` timing test** widened from
+  `0.05x..20x` to `0.02x..50x`. Shared CI runners (especially macOS
+  under load) can stretch single-iteration measurements 20-30x; the
+  prior ceiling flaked at ratio=28.41. A real timing oracle in AES-GCM
+  tag verification would manifest at 100x+, so the new window
+  preserves leak detection while absorbing scheduler jitter.
+
 ### Round-3 audit response — 22 fixes (10 HIGH + 9 MEDIUM + 3 LOW, 2026-04-27)
 
 Third external audit pass on top of `66fe78d6a`. Twenty-two findings; all

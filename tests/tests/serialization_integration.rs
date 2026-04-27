@@ -511,3 +511,111 @@ fn test_signed_data_zero_timestamp_roundtrip_succeeds() {
 // ============================================================================
 // Pretty Printing and Formatting Tests
 // ============================================================================
+
+// ============================================================================
+// EncryptedOutput round-trip — `to_json` / `from_json` and `to_bytes` /
+// `from_bytes` ergonomic methods (audit-batch round-3 fix #11).
+//
+// The original free-function path (`serialize_encrypted_output` /
+// `deserialize_encrypted_output`) has its own roundtrip coverage in
+// `latticearc/src/unified_api/serialization.rs`. This file pins the
+// inherent-method shape so the convenience contract stays honest.
+// ============================================================================
+
+mod encrypted_output_roundtrip {
+    use latticearc::unified_api::crypto_types::{
+        EncryptedOutput, EncryptionScheme, HybridComponents,
+    };
+    use proptest::prelude::*;
+
+    fn arb_aes_gcm_output() -> impl Strategy<Value = EncryptedOutput> {
+        (
+            proptest::collection::vec(any::<u8>(), 0usize..512),
+            proptest::collection::vec(any::<u8>(), 12usize..=12),
+            proptest::collection::vec(any::<u8>(), 16usize..=16),
+            any::<u64>(),
+            proptest::option::of("[A-Za-z0-9_-]{1,32}"),
+        )
+            .prop_map(|(ct, nonce, tag, ts, key_id)| {
+                EncryptedOutput::new(EncryptionScheme::Aes256Gcm, ct, nonce, tag, None, ts, key_id)
+            })
+    }
+
+    fn arb_hybrid_output() -> impl Strategy<Value = EncryptedOutput> {
+        (
+            proptest::collection::vec(any::<u8>(), 0usize..512),
+            proptest::collection::vec(any::<u8>(), 12usize..=12),
+            proptest::collection::vec(any::<u8>(), 16usize..=16),
+            proptest::collection::vec(any::<u8>(), 1088usize..=1088),
+            proptest::collection::vec(any::<u8>(), 32usize..=32),
+            any::<u64>(),
+            proptest::option::of("[A-Za-z0-9_-]{1,32}"),
+        )
+            .prop_map(|(ct, nonce, tag, ml_kem_ct, ecdh_pk, ts, key_id)| {
+                let hybrid = HybridComponents::new(ml_kem_ct, ecdh_pk);
+                EncryptedOutput::new(
+                    EncryptionScheme::HybridMlKem768Aes256Gcm,
+                    ct,
+                    nonce,
+                    tag,
+                    Some(hybrid),
+                    ts,
+                    key_id,
+                )
+            })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        /// Round-trip via the JSON-string inherent methods preserves equality
+        /// for any well-formed AES-GCM `EncryptedOutput`.
+        #[test]
+        fn aes_gcm_json_roundtrip_preserves_equality(out in arb_aes_gcm_output()) {
+            let s = out.to_json().expect("to_json must succeed");
+            let parsed = EncryptedOutput::from_json(&s).expect("from_json must succeed");
+            prop_assert_eq!(out, parsed);
+        }
+
+        /// Round-trip via the byte-string inherent methods (currently
+        /// JSON-as-bytes per the audit-batch round-3 doc) preserves
+        /// equality for any well-formed AES-GCM `EncryptedOutput`.
+        #[test]
+        fn aes_gcm_bytes_roundtrip_preserves_equality(out in arb_aes_gcm_output()) {
+            let bytes = out.to_bytes().expect("to_bytes must succeed");
+            let parsed = EncryptedOutput::from_bytes(&bytes).expect("from_bytes must succeed");
+            prop_assert_eq!(out, parsed);
+        }
+
+        /// Round-trip via the byte-string methods works for the hybrid
+        /// shape (HybridComponents present) too.
+        #[test]
+        fn hybrid_bytes_roundtrip_preserves_equality(out in arb_hybrid_output()) {
+            let bytes = out.to_bytes().expect("to_bytes must succeed");
+            let parsed = EncryptedOutput::from_bytes(&bytes).expect("from_bytes must succeed");
+            prop_assert_eq!(out, parsed);
+        }
+    }
+
+    #[test]
+    fn from_bytes_rejects_non_utf8_input() {
+        // 0xFF is not valid UTF-8 leading byte
+        let bad = vec![0xFFu8, 0xFE, 0xFD];
+        let err = EncryptedOutput::from_bytes(&bad).unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("UTF-8") || msg.contains("Invalid") || msg.contains("Serialization"),
+            "from_bytes(non-UTF-8) should surface a serialization-class error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn from_json_rejects_invalid_json() {
+        let err = EncryptedOutput::from_json("not json").unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("Invalid") || msg.contains("Serialization") || msg.contains("expected"),
+            "from_json(invalid) should surface a parse error, got: {msg}"
+        );
+    }
+}

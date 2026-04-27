@@ -173,9 +173,11 @@ let encrypted = encrypt(data, EncryptKey::Hybrid(&pk), config)?;
 ```
 
 For full FIPS 140-3 certification:
-1. Build with `--features fips` (FIPS-validated aws-lc-rs backend)
-2. Self-tests run automatically via `fips-self-test` feature
-3. Consider validated hardware modules for the certification boundary
+1. Build with `--features fips` (FIPS-validated aws-lc-rs backend). As of
+   0.8.x this also pulls in `fips-self-test` transitively, so the
+   §10.3.1 power-on self-tests run on module load — no separate flag
+   needed.
+2. Consider validated hardware modules for the certification boundary.
 
 ## Performance
 

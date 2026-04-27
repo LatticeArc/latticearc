@@ -210,11 +210,23 @@ impl HybridKemPublicKey {
         self.security_level
     }
 
+    /// Current `to_bytes` / `from_bytes` wire-format version.
+    ///
+    /// Bumped whenever the on-disk layout changes in a non-backward-
+    /// compatible way (new fields, reordering, changed length-prefix
+    /// width). Old parsers reject buffers carrying a version they don't
+    /// recognize via [`HybridKemError::InvalidKeyMaterial`]; new parsers
+    /// can branch on the version to support multiple historical layouts.
+    pub const WIRE_FORMAT_VERSION: u8 = 1;
+
     /// Serialize this `HybridKemPublicKey` to a self-describing byte string.
     ///
-    /// Wire layout: `[level_tag: u8] [ml_kem_pk_len: u32 BE] [ml_kem_pk] [ecdh_pk_len: u32 BE] [ecdh_pk]`.
-    /// Level tag mapping: `1 = MlKem512`, `2 = MlKem768`, `3 = MlKem1024`.
-    /// `from_bytes` is the round-trip inverse.
+    /// Wire layout (v1):
+    /// `[format_version: u8 = 1] [level_tag: u8] [ml_kem_pk_len: u32 BE] [ml_kem_pk] [ecdh_pk_len: u32 BE] [ecdh_pk]`.
+    /// Level tag mapping: `1 = MlKem512`, `2 = MlKem768`, `3 = MlKem1024`
+    /// (v1 is exhausted at 3 and the format-version prefix exists so a
+    /// future ML-KEM-2048 / composite scheme can ship as v2 without
+    /// breaking v1 parsers). [`from_bytes`] is the round-trip inverse.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         let level_tag: u8 = match self.security_level {
@@ -224,15 +236,16 @@ impl HybridKemPublicKey {
         };
         let mut out = Vec::with_capacity(
             1usize
+                .saturating_add(1)
                 .saturating_add(4)
                 .saturating_add(self.ml_kem_pk.len())
                 .saturating_add(4)
                 .saturating_add(self.ecdh_pk.len()),
         );
+        out.push(Self::WIRE_FORMAT_VERSION);
         out.push(level_tag);
         // Lengths are bounded by `MlKemPublicKey::MAX_PK_BYTES` (well under
-        // u32::MAX) so the cast is non-truncating; `as` is fine after the
-        // domain check.
+        // u32::MAX) so `try_from` always succeeds for any real PK.
         let ml_len = u32::try_from(self.ml_kem_pk.len()).unwrap_or(u32::MAX);
         let ed_len = u32::try_from(self.ecdh_pk.len()).unwrap_or(u32::MAX);
         out.extend_from_slice(&ml_len.to_be_bytes());
@@ -247,34 +260,42 @@ impl HybridKemPublicKey {
     /// # Errors
     ///
     /// Returns `HybridKemError::InvalidKeyMaterial` on any structural failure
-    /// (truncated buffer, unknown level tag, length-prefix overflow). The
-    /// parser does NOT validate the inner ML-KEM PK bytes — that work
-    /// happens at first use via [`encapsulate`].
+    /// (truncated buffer, unknown format version, unknown level tag,
+    /// length-prefix overflow). The parser does NOT validate the inner
+    /// ML-KEM PK bytes — that work happens at first use via [`encapsulate`].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, HybridKemError> {
         let inv = || {
             HybridKemError::InvalidKeyMaterial(
                 "malformed HybridKemPublicKey wire format".to_string(),
             )
         };
-        let level_tag = *bytes.first().ok_or_else(inv)?;
+        let format_version = *bytes.first().ok_or_else(inv)?;
+        if format_version != Self::WIRE_FORMAT_VERSION {
+            return Err(HybridKemError::InvalidKeyMaterial(format!(
+                "unsupported HybridKemPublicKey wire-format version {format_version} \
+                 (this build supports v{})",
+                Self::WIRE_FORMAT_VERSION
+            )));
+        }
+        let level_tag = *bytes.get(1).ok_or_else(inv)?;
         let security_level = match level_tag {
             1 => MlKemSecurityLevel::MlKem512,
             2 => MlKemSecurityLevel::MlKem768,
             3 => MlKemSecurityLevel::MlKem1024,
             _ => return Err(inv()),
         };
-        let mut cursor = 1usize;
+        let mut cursor = 2usize;
         let read_len = |buf: &[u8], at: usize| -> Result<u32, HybridKemError> {
             let slice = buf.get(at..at.checked_add(4).ok_or_else(inv)?).ok_or_else(inv)?;
             let arr: [u8; 4] = slice.try_into().map_err(|_e| inv())?;
             Ok(u32::from_be_bytes(arr))
         };
-        let ml_len = read_len(bytes, cursor)? as usize;
+        let ml_len = usize::try_from(read_len(bytes, cursor)?).map_err(|_e| inv())?;
         cursor = cursor.checked_add(4).ok_or_else(inv)?;
         let ml_end = cursor.checked_add(ml_len).ok_or_else(inv)?;
         let ml_kem_pk = bytes.get(cursor..ml_end).ok_or_else(inv)?.to_vec();
         cursor = ml_end;
-        let ed_len = read_len(bytes, cursor)? as usize;
+        let ed_len = usize::try_from(read_len(bytes, cursor)?).map_err(|_e| inv())?;
         cursor = cursor.checked_add(4).ok_or_else(inv)?;
         let ed_end = cursor.checked_add(ed_len).ok_or_else(inv)?;
         let ecdh_pk = bytes.get(cursor..ed_end).ok_or_else(inv)?.to_vec();

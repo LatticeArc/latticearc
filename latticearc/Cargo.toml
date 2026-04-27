@@ -20,11 +20,30 @@ workspace = true
 
 [features]
 default = []
-# FIPS 140-3 validated backend (requires CMake + Go build tools)
+# FIPS 140-3 validated backend (requires CMake + Go build tools).
 # Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only).
-fips = ["aws-lc-rs/fips"]
-# Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA)
+#
+# Note: this feature TRANSITIVELY enables `fips-self-test`. FIPS 140-3
+# §10.3.1 requires power-on self-tests for an approved cryptographic
+# module, so a `--features fips` build that didn't run self-tests would
+# be a false compliance claim. If you specifically want the validated
+# backend without the self-test wiring (e.g., third-party module that
+# runs its own POST), set `default-features = false` and enable
+# `aws-lc-rs/fips` directly.
+fips = ["aws-lc-rs/fips", "fips-self-test"]
+# Power-up KAT self-tests for FIPS-boundary algorithms (ML-KEM, AES-GCM, SHA-2, ML-DSA, SLH-DSA).
+# Pulled in transitively by `fips`; can be enabled standalone for non-FIPS
+# builds that still want the self-test KAT coverage.
 fips-self-test = []
+# Subscriber/init helpers for the `tracing` facade. Library code only
+# emits `tracing::{trace,debug,info,warn,error}!` events through the
+# `tracing` facade, which is always available; this feature gates the
+# CONSUMER side (`init_tracing` / `init_tracing_with_file` and the
+# `tracing-subscriber` + `tracing-appender` crates that back them).
+# Off by default so downstream binaries that wire their own subscriber
+# (the standard library convention) don't fight ours for the global
+# default. The `latticearc-cli` binary enables this feature.
+tracing-init = ["dep:tracing-subscriber", "dep:tracing-appender"]
 # ZKP serialization support (enables serde_with for ZKP types)
 zkp-serde = ["dep:serde_with"]
 # TLS formal verification features
@@ -106,8 +125,11 @@ getrandom = { workspace = true }
 # Tracing and observability
 # =============================================================================
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-tracing-appender = { workspace = true }
+# Subscriber + appender are CONSUMER-side wiring (binary's responsibility).
+# Gated behind the `tracing-init` feature so the library doesn't force a
+# subscriber on downstream consumers that have their own. See feature doc.
+tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
+tracing-appender = { workspace = true, optional = true }
 
 # =============================================================================
 # Concurrency and utilities

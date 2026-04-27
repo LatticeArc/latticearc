@@ -313,9 +313,16 @@ aws-lc-rs = { version = "1.16.3" }
 # Post-quantum signatures - aws-lc-rs ML-DSA is unstable and requires !fips feature
 # See: https://github.com/aws/aws-lc-rs/issues/964 (FIPS branch lacks ML-DSA)
 # Our PRs merged in v1.16.0: #1029 (DecapsulationKey serialization), #1034 (ML-DSA from_seed)
-fips204 = { version = "0.4.6" }  # ML-DSA (FIPS 204) - keep until aws-lc-rs exposes it
-fips205 = { version = "0.4.1" }  # SLH-DSA (FIPS 205) - not yet in aws-lc-rs
-fn-dsa = { version = "0.3.0" }   # FN-DSA (FIPS 206) - unique implementation
+#
+# PQC crates are pinned with `=` (exact version) rather than the default
+# caret. These crates have shipped breaking API changes within `0.x.y`
+# minor bumps before, and a silent `cargo update` could regress signature
+# verification or keygen behaviour in a downstream consumer's fresh
+# resolve. Bump intentionally and re-run the FIPS validation suite when
+# updating.
+fips204 = { version = "=0.4.6" } # ML-DSA (FIPS 204) — keep until aws-lc-rs exposes it
+fips205 = { version = "=0.4.1" } # SLH-DSA (FIPS 205) — not yet in aws-lc-rs
+fn-dsa = { version = "=0.3.0" }  # FN-DSA (FIPS 206) — unique implementation
 
 # Development and testing
 proptest = { version = "1.11" }

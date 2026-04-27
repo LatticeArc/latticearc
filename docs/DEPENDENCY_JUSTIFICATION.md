@@ -85,7 +85,7 @@ flowchart TB
 - **Security Audit**: Part of AWS-LC FIPS validation
 - **Usage**: Transitive dependency via aws-lc-rs
 
-#### 3. fips204 (v0.4.6)
+#### 3. fips204 (=v0.4.6, exact pin)
 - **Purpose**: ML-DSA (Module-Lattice Digital Signature Algorithm) - FIPS 204
 - **Justification**:
   - Pure Rust implementation of ML-DSA (Dilithium)
@@ -96,6 +96,11 @@ flowchart TB
 - **License**: MIT OR Apache-2.0
 - **Security Audit**: Independent cryptographic review
 - **Usage**: `latticearc::primitives` (signatures), `latticearc::unified_api`
+- **Version pin policy**: Pinned with `=` (exact). The `0.x.y` series
+  has shipped breaking API changes within minor bumps; a silent
+  `cargo update` could regress signature verification for downstream
+  consumers on a fresh resolve. Bump intentionally and re-run the FIPS
+  validation suite when updating.
 
 #### 4. fips205 (v0.4.1)
 - **Purpose**: SLH-DSA (Stateless Hash-based Digital Signature Algorithm) - FIPS 205

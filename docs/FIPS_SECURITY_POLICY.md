@@ -114,7 +114,13 @@ The following algorithms are available in the default (non-FIPS) build but are n
 Enabled via `--features fips` at compile time. In this mode:
 - `fips_available()` returns `true`, enabling `ComplianceMode::Fips140_3` and `Cnsa2_0`
 - aws-lc-rs compiles its FIPS-validated module (requires CMake + Go)
-- Power-up self-tests run before any crypto operation (via `fips-self-test` feature)
+- **Power-up self-tests run before any crypto operation.** As of 0.8.x
+  the `fips` feature transitively enables `fips-self-test`, so the
+  §10.3.1 KAT self-tests are guaranteed to fire whenever `--features
+  fips` is selected. Earlier 0.8 builds left these as independent
+  features, which let `--features fips` produce a non-compliant
+  build that skipped self-tests — those builds should be rebuilt and
+  re-validated.
 - Self-test failure calls `std::process::abort()` — no recovery
 - Module integrity verification via HMAC-SHA256 of binary
 - Pairwise Consistency Tests (PCT) run after every key generation
@@ -122,7 +128,7 @@ Enabled via `--features fips` at compile time. In this mode:
 
 ### Non-FIPS Mode (Default)
 
-Default build without `fips` feature. All algorithms available including non-approved. Self-tests can be optionally enabled via `fips-self-test` feature.
+Default build without `fips` feature. All algorithms available including non-approved. Self-tests can be optionally enabled standalone via `--features fips-self-test` (without the FIPS-validated backend) for KAT-coverage in non-FIPS builds.
 
 ### Runtime Compliance via `ComplianceMode`
 
