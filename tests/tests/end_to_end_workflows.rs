@@ -73,7 +73,7 @@ fn test_aes_gcm_roundtrip() {
 #[test]
 fn test_ed25519_sign_verify_succeeds() {
     // Generate an Ed25519 keypair
-    let signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
+    let signing_key = ed25519_dalek::SigningKey::generate(&mut rand_core_0_6::OsRng);
     let sk_bytes = signing_key.to_bytes();
     let pk_bytes = signing_key.verifying_key().to_bytes();
 

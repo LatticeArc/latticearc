@@ -232,9 +232,9 @@ mod m2_zkp_constant_time {
 
     #[test]
     fn m2_dlog_equality_verify_valid_proof() {
-        let x = Scalar::random(&mut rand::rngs::OsRng);
+        let x = Scalar::random(&mut rand_core_0_6::OsRng);
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand::rngs::OsRng);
+        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
         let p = g * x;
         let q = h * x;
 
@@ -253,10 +253,10 @@ mod m2_zkp_constant_time {
 
     #[test]
     fn m2_dlog_equality_wrong_secret_fails() {
-        let x = Scalar::random(&mut rand::rngs::OsRng);
-        let y = Scalar::random(&mut rand::rngs::OsRng); // wrong secret
+        let x = Scalar::random(&mut rand_core_0_6::OsRng);
+        let y = Scalar::random(&mut rand_core_0_6::OsRng); // wrong secret
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand::rngs::OsRng);
+        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
         let p = g * x;
         let q = h * x;
 
@@ -280,7 +280,7 @@ mod m2_zkp_constant_time {
 
 mod m4_secret_key_to_bytes_zeroizing {
     use latticearc::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair, SigningKey};
-    use rand::rngs::OsRng;
+    use rand_core_0_6::OsRng;
 
     #[test]
     fn m4_fndsa_to_bytes_roundtrip() {
@@ -473,9 +473,9 @@ mod m10_dlog_equality_debug_redaction {
 
     #[test]
     fn m10_debug_output_redacts_response() {
-        let x = Scalar::random(&mut rand::rngs::OsRng);
+        let x = Scalar::random(&mut rand_core_0_6::OsRng);
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand::rngs::OsRng);
+        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
         let p = g * x;
         let q = h * x;
 
@@ -504,9 +504,9 @@ mod m10_dlog_equality_debug_redaction {
 
     #[test]
     fn m10_debug_shows_commitments() {
-        let x = Scalar::random(&mut rand::rngs::OsRng);
+        let x = Scalar::random(&mut rand_core_0_6::OsRng);
         let g = ProjectivePoint::GENERATOR;
-        let h = g * Scalar::random(&mut rand::rngs::OsRng);
+        let h = g * Scalar::random(&mut rand_core_0_6::OsRng);
 
         let statement = DlogEqualityStatement {
             g: g.to_affine().to_bytes().as_slice().try_into().unwrap(),

@@ -87,66 +87,28 @@ pub trait AeadCipher: sealed::Sealed {
     ///
     /// For NIST KAT reproduction (Test Cases 1 and 2 of McGrew & Viega's
     /// AES-GCM specification use the all-zero key) enable the
-    /// `kat-test-vectors` Cargo feature and call [`new_allow_weak_key`]
-    /// instead — that constructor preserves the length check but skips the
-    /// weak-key guard. The feature is opt-in so production builds cannot
-    /// accidentally construct a weak-key cipher.
+    /// `kat-test-vectors` Cargo feature and call the per-cipher inherent
+    /// `new_allow_weak_key` constructor instead — that constructor preserves
+    /// the length check but skips the weak-key guard. The feature is opt-in
+    /// so production builds cannot accidentally construct a weak-key cipher.
+    ///
+    /// # Implementation note
+    ///
+    /// Implementations of this trait MUST themselves perform both the length
+    /// check and the [`is_all_zero_key`] / [`AeadError::WeakKey`] check
+    /// before constructing the cipher. The previous design exposed a
+    /// `new_internal` trait method that bypassed `WeakKey`, but trait methods
+    /// in Rust are callable by anyone with the trait in scope, which made
+    /// the bypass an unintended public-API surface. Each cipher type now
+    /// keeps its raw constructor as a `pub(crate)` inherent fn that no
+    /// downstream caller can reach.
     ///
     /// # Errors
     /// - [`AeadError::InvalidKeyLength`] if `key.len() != Self::KEY_LEN`.
     /// - [`AeadError::WeakKey`] if `key` is the all-zero pattern.
-    ///
-    /// [`new_allow_weak_key`]: AeadCipher::new_allow_weak_key
     fn new(key: &[u8]) -> Result<Self, AeadError>
     where
-        Self: Sized,
-    {
-        if key.len() != Self::KEY_LEN {
-            return Err(AeadError::InvalidKeyLength);
-        }
-        if is_all_zero_key(key) {
-            return Err(AeadError::WeakKey);
-        }
-        Self::new_internal(key)
-    }
-
-    /// Internal raw constructor — validates length, builds the cipher, no
-    /// weak-key check. Implementations supply this and `AeadCipher` derives
-    /// both [`new`] (with weak-key guard) and the optional
-    /// [`new_allow_weak_key`] (KAT-only) from it.
-    ///
-    /// # Errors
-    /// - [`AeadError::InvalidKeyLength`] if `key.len() != Self::KEY_LEN`.
-    ///
-    /// [`new`]: AeadCipher::new
-    /// [`new_allow_weak_key`]: AeadCipher::new_allow_weak_key
-    #[doc(hidden)]
-    fn new_internal(key: &[u8]) -> Result<Self, AeadError>
-    where
         Self: Sized;
-
-    /// Construct a cipher bypassing the [`AeadError::WeakKey`] guard.
-    ///
-    /// Reserved for known-test-vector reproduction (e.g. the all-zero
-    /// key/IV cases in McGrew & Viega's AES-GCM Test Cases 1 and 2).
-    /// **Production code MUST use [`AeadCipher::new`]** so an
-    /// uninitialised-memory key fails closed.
-    ///
-    /// Gated behind the `kat-test-vectors` Cargo feature to keep the bypass
-    /// off the default API surface — only test crates that explicitly opt in
-    /// can call it.
-    ///
-    /// # Errors
-    /// - [`AeadError::InvalidKeyLength`] if `key.len() != Self::KEY_LEN`.
-    ///
-    /// [`AeadCipher::new`]: AeadCipher::new
-    #[cfg(any(test, feature = "kat-test-vectors"))]
-    fn new_allow_weak_key(key: &[u8]) -> Result<Self, AeadError>
-    where
-        Self: Sized,
-    {
-        Self::new_internal(key)
-    }
 
     /// Generate a random nonce from the OS CSPRNG.
     fn generate_nonce() -> Nonce;
@@ -288,30 +250,15 @@ pub enum AeadError {
     Other(String),
 }
 
-/// Returns `true` when every byte of `key` is zero. Internal helper used by
-/// AEAD constructors to fail-close on uninitialised-memory key material.
-///
-/// Iterates every byte unconditionally (no early exit) so that the runtime is
-/// independent of the position of the first non-zero byte. The project policy
-/// (`docs/DESIGN_PATTERNS.md` §2) is that any function whose input is secret
-/// key material must be constant-time; even though the immediate caller is a
-/// constructor (not the per-record hot path), an early-exit `iter().all()`
-/// would in principle leak the count of leading zero bytes through wall-clock
-/// timing — keep the contract uniform and avoid the special case.
+/// Returns `true` when every byte of `key` is zero. Thin re-export of the
+/// shared CT helper at [`crate::primitives::ct::is_all_zero_bytes`] so AEAD
+/// callers can `use crate::primitives::aead::is_all_zero_key` without
+/// reaching across modules — and so a future move/rename only touches one
+/// real implementation.
 #[inline]
 #[must_use]
 pub(crate) fn is_all_zero_key(key: &[u8]) -> bool {
-    // Defensive: every in-crate caller has already validated `key.len() ==
-    // KEY_LEN` (16 or 32) before reaching here, so the empty branch is dead
-    // in practice. The check is retained so a hypothetical future caller
-    // outside the AEAD constructor path cannot get a vacuous "all bytes are
-    // zero" answer for a zero-length slice (`iter().all()` returns `true`
-    // for empty iterators — which would falsely flag an empty key as weak).
-    if key.is_empty() {
-        return false;
-    }
-    let acc = key.iter().fold(0u8, |acc, &b| acc | b);
-    acc == 0
+    crate::primitives::ct::is_all_zero_bytes(key)
 }
 
 /// Constant-time comparison of two authentication tags.

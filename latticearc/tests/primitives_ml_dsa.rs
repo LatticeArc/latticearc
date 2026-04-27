@@ -623,7 +623,7 @@ fn test_random_bytes_signature_fails() {
 
     // Create random signature
     let mut random_data = vec![0u8; MlDsaParameterSet::MlDsa87.signature_size()];
-    rand::rngs::OsRng.fill_bytes(&mut random_data);
+    latticearc::primitives::rand::secure_rng().fill_bytes(&mut random_data);
 
     let random_sig = MlDsaSignature::from_bytes_unchecked(MlDsaParameterSet::MlDsa87, random_data);
 
@@ -952,7 +952,7 @@ fn test_large_message_signing_succeeds() {
 
     // 50 KiB — below the default max_signature_size_bytes (64 KiB) resource cap.
     let mut large_message = vec![0u8; 50 * 1024];
-    rand::rngs::OsRng.fill_bytes(&mut large_message);
+    latticearc::primitives::rand::secure_rng().fill_bytes(&mut large_message);
     let context: &[u8] = &[];
 
     let signature = sk.sign(&large_message, context).expect("Signing large message should succeed");

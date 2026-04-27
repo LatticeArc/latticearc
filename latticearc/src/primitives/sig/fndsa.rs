@@ -27,7 +27,9 @@
 //! - FN-DSA-1024: ~256-bit security (Level V)
 
 use crate::prelude::error::LatticeArcError;
-use rand_core::RngCore;
+// `fn-dsa 0.3` is pinned to `rand_core 0.6`; use the 0.6 traits/types for the
+// keygen and signing entry points. See workspace Cargo.toml `rand_core_0_6`.
+use rand_core_0_6::OsRng;
 use subtle::ConstantTimeEq;
 use tracing::instrument;
 use zeroize::{Zeroize, Zeroizing};
@@ -195,7 +197,7 @@ impl FnDsaSecurityLevel {
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use latticearc::primitives::sig::fndsa::{Signature, KeyPair, FnDsaSecurityLevel};
-/// use rand::rngs::OsRng;
+/// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
 /// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
@@ -285,7 +287,7 @@ impl TryFrom<Vec<u8>> for Signature {
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use latticearc::primitives::sig::fndsa::{VerifyingKey, KeyPair, FnDsaSecurityLevel};
-/// use rand::rngs::OsRng;
+/// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
 /// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
@@ -387,7 +389,7 @@ impl VerifyingKey {
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use latticearc::primitives::sig::fndsa::{SigningKey, KeyPair, FnDsaSecurityLevel};
-/// use rand::rngs::OsRng;
+/// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
 /// let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
@@ -514,7 +516,7 @@ impl SigningKey {
     /// Returns an error if signature encoding fails.
     #[instrument(level = "debug", skip(self, message), fields(security_level = ?self.security_level, message_len = message.len()))]
     pub fn sign(&mut self, message: &[u8]) -> Result<Signature> {
-        self.sign_with_rng(&mut rand::rngs::OsRng {}, message)
+        self.sign_with_rng(&mut OsRng, message)
     }
 
     /// Sign a message using a caller-supplied CSPRNG.
@@ -522,7 +524,7 @@ impl SigningKey {
     /// # Errors
     /// Returns an error if signature encoding fails.
     #[instrument(level = "debug", skip(self, rng, message), fields(security_level = ?self.security_level, message_len = message.len()))]
-    pub fn sign_with_rng<R: RngCore + rand::CryptoRng>(
+    pub fn sign_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng>(
         &mut self,
         rng: &mut R,
         message: &[u8],
@@ -553,7 +555,7 @@ impl SigningKey {
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
-/// use rand::rngs::OsRng;
+/// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
 /// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
@@ -645,7 +647,7 @@ impl KeyPair {
     /// ```
     #[instrument(level = "debug", fields(security_level = ?security_level))]
     pub fn generate(security_level: FnDsaSecurityLevel) -> Result<Self> {
-        Self::generate_with_rng(&mut rand::rngs::OsRng {}, security_level)
+        Self::generate_with_rng(&mut OsRng, security_level)
     }
 
     /// Generate a new FN-DSA keypair using a caller-supplied CSPRNG.
@@ -656,7 +658,7 @@ impl KeyPair {
     /// # Errors
     /// Returns an error if the backend keygen or FIPS 140-3 PCT fails.
     #[instrument(level = "debug", skip(rng), fields(security_level = ?security_level))]
-    pub fn generate_with_rng<R: RngCore + rand::CryptoRng>(
+    pub fn generate_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng>(
         rng: &mut R,
         security_level: FnDsaSecurityLevel,
     ) -> Result<Self> {
@@ -728,7 +730,7 @@ impl KeyPair {
     ///
     /// # Errors
     /// Returns an error if signature encoding fails.
-    pub fn sign_with_rng<R: RngCore + rand::CryptoRng>(
+    pub fn sign_with_rng<R: rand_core_0_6::RngCore + rand_core_0_6::CryptoRng>(
         &mut self,
         rng: &mut R,
         message: &[u8],
@@ -767,7 +769,7 @@ impl KeyPair {
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
-    /// use rand::rngs::OsRng;
+    /// use rand_core_0_6::OsRng;
     ///
     /// let mut rng = OsRng;
     /// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
@@ -803,7 +805,7 @@ pub(crate) type FnDsaVerifyingKeyStandard = fn_dsa::VerifyingKeyStandard;
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
 mod tests {
     use super::*;
-    use rand::rngs::OsRng;
+    use rand_core_0_6::OsRng;
 
     #[test]
     fn test_fndsa_key_generation_512_succeeds() {
@@ -1075,7 +1077,7 @@ mod tests {
 #[allow(clippy::expect_used)] // Tests use expect for simplicity
 mod integration_tests {
     use super::*;
-    use rand::rngs::OsRng;
+    use rand_core_0_6::OsRng;
 
     #[test]
     fn test_fndsa_multiple_messages_same_key_all_verify_succeeds() {

@@ -12,8 +12,9 @@
 //! use latticearc::unified_api::{encrypt, decrypt, CryptoConfig, UseCase};
 //! use latticearc::unified_api::crypto_types::{EncryptKey, DecryptKey};
 //!
-//! // Symmetric encryption with use case
-//! let key = [0u8; 32];
+//! // Symmetric encryption with use case. Generate a fresh AEAD key —
+//! // `[0u8; 32]` is rejected by the AEAD constructor as a weak key.
+//! let key = latticearc::primitives::rand::random_bytes(32);
 //! let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
 //!     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
 //! let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
@@ -313,8 +314,9 @@ fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<V
 /// use latticearc::unified_api::{encrypt, CryptoConfig, UseCase, SecurityLevel};
 /// use latticearc::unified_api::crypto_types::EncryptKey;
 ///
-/// // Symmetric encryption (AES-256-GCM)
-/// let key = [0u8; 32];
+/// // Symmetric encryption (AES-256-GCM). Generate a fresh key — `[0u8; 32]`
+/// // is rejected by the AEAD constructor as a weak key.
+/// let key = latticearc::primitives::rand::random_bytes(32);
 /// let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
 ///     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
 ///
@@ -462,7 +464,8 @@ fn symmetric_bytes_to_output(
 /// use latticearc::unified_api::{encrypt, decrypt, CryptoConfig};
 /// use latticearc::unified_api::crypto_types::{EncryptKey, DecryptKey};
 ///
-/// let key = [0u8; 32];
+/// // Fresh AEAD key — `[0u8; 32]` is rejected as a weak key.
+/// let key = latticearc::primitives::rand::random_bytes(32);
 /// let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
 ///     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
 /// let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;
@@ -800,7 +803,6 @@ pub fn sign_with_key(
 /// - Signature is malformed or invalid
 #[must_use = "verification result must be used or errors will be silently dropped"]
 pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
-    use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN as ED25519_PK_LEN;
     fips_verify_operational()?;
     config.validate()?;
     config.validate_scheme_compliance(&signed.scheme)?;
@@ -853,145 +855,30 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             &signed.metadata.public_key,
             FnDsaSecurityLevel::Level512,
         ),
-        "hybrid-ml-dsa-44-ed25519" => {
-            const ML_DSA_44_PK_LEN: usize = 1312;
-
-            let sig_len = signed.metadata.signature.len();
-            if sig_len < 2420 {
-                return Err(CoreError::InvalidInput("Hybrid signature too short".to_string()));
-            }
-
-            let pk_len = signed.metadata.public_key.len();
-            if pk_len != ML_DSA_44_PK_LEN + ED25519_PK_LEN {
-                return Err(CoreError::InvalidInput(format!(
-                    "Invalid hybrid public key length: expected {}, got {}",
-                    ML_DSA_44_PK_LEN + ED25519_PK_LEN,
-                    pk_len
-                )));
-            }
-            let pq_pk = signed.metadata.public_key.get(..ML_DSA_44_PK_LEN).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
-            })?;
-            let ed_pk = signed.metadata.public_key.get(ML_DSA_44_PK_LEN..).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
-            })?;
-
-            let pq_sig_len = sig_len.checked_sub(64).ok_or_else(|| {
-                CoreError::InvalidInput(
-                    "Hybrid signature too short for Ed25519 component".to_string(),
-                )
-            })?;
-            let pq_sig = signed.metadata.signature.get(..pq_sig_len).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
-            })?;
-            let ed_sig = signed.metadata.signature.get(pq_sig_len..).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
-            })?;
-
-            let pq_valid = verify_pq_ml_dsa_unverified(
-                &signed.data,
-                pq_sig,
-                pq_pk,
-                MlDsaParameterSet::MlDsa44,
-            )?;
-            let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
-            Ok(pq_valid && ed_valid)
-        }
-        "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
-            // ML-DSA-65 public key is 1952 bytes, Ed25519 is 32 bytes
-            const ML_DSA_65_PK_LEN: usize = 1952;
-
-            let sig_len = signed.metadata.signature.len();
-            if sig_len < 3309 {
-                return Err(CoreError::InvalidInput("Hybrid signature too short".to_string()));
-            }
-
-            // Split combined public key: ML-DSA (1952) + Ed25519 (32)
-            let pk_len = signed.metadata.public_key.len();
-            if pk_len != ML_DSA_65_PK_LEN + ED25519_PK_LEN {
-                return Err(CoreError::InvalidInput(format!(
-                    "Invalid hybrid public key length: expected {}, got {}",
-                    ML_DSA_65_PK_LEN + ED25519_PK_LEN,
-                    pk_len
-                )));
-            }
-            let pq_pk = signed.metadata.public_key.get(..ML_DSA_65_PK_LEN).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
-            })?;
-            let ed_pk = signed.metadata.public_key.get(ML_DSA_65_PK_LEN..).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
-            })?;
-
-            // Split combined signature: ML-DSA sig + Ed25519 sig (64 bytes)
-            let pq_sig_len = sig_len.checked_sub(64).ok_or_else(|| {
-                CoreError::InvalidInput(
-                    "Hybrid signature too short for Ed25519 component".to_string(),
-                )
-            })?;
-            let pq_sig = signed.metadata.signature.get(..pq_sig_len).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
-            })?;
-            let ed_sig = signed.metadata.signature.get(pq_sig_len..).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
-            })?;
-
-            let pq_valid = verify_pq_ml_dsa_unverified(
-                &signed.data,
-                pq_sig,
-                pq_pk,
-                MlDsaParameterSet::MlDsa65,
-            )?;
-            let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
-            Ok(pq_valid && ed_valid)
-        }
-        "hybrid-ml-dsa-87-ed25519" => {
-            // ML-DSA-87 public key is 2592 bytes, Ed25519 is 32 bytes
-            const ML_DSA_87_PK_LEN: usize = 2592;
-
-            let sig_len = signed.metadata.signature.len();
-            if sig_len < 4627 {
-                // ML-DSA-87 sig (4595) + Ed25519 sig (64) - some overlap
-                return Err(CoreError::InvalidInput("Hybrid signature too short".to_string()));
-            }
-
-            // Split combined public key: ML-DSA (2592) + Ed25519 (32)
-            let pk_len = signed.metadata.public_key.len();
-            if pk_len != ML_DSA_87_PK_LEN + ED25519_PK_LEN {
-                return Err(CoreError::InvalidInput(format!(
-                    "Invalid hybrid public key length: expected {}, got {}",
-                    ML_DSA_87_PK_LEN + ED25519_PK_LEN,
-                    pk_len
-                )));
-            }
-            let pq_pk = signed.metadata.public_key.get(..ML_DSA_87_PK_LEN).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
-            })?;
-            let ed_pk = signed.metadata.public_key.get(ML_DSA_87_PK_LEN..).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid public key format".to_string())
-            })?;
-
-            // Split combined signature: ML-DSA sig + Ed25519 sig (64 bytes)
-            let pq_sig_len = sig_len.checked_sub(64).ok_or_else(|| {
-                CoreError::InvalidInput(
-                    "Hybrid signature too short for Ed25519 component".to_string(),
-                )
-            })?;
-            let pq_sig = signed.metadata.signature.get(..pq_sig_len).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
-            })?;
-            let ed_sig = signed.metadata.signature.get(pq_sig_len..).ok_or_else(|| {
-                CoreError::InvalidInput("Invalid hybrid signature format".to_string())
-            })?;
-
-            let pq_valid = verify_pq_ml_dsa_unverified(
-                &signed.data,
-                pq_sig,
-                pq_pk,
-                MlDsaParameterSet::MlDsa87,
-            )?;
-            let ed_valid = verify_ed25519_internal(&signed.data, ed_sig, ed_pk)?;
-            Ok(pq_valid && ed_valid)
-        }
+        "hybrid-ml-dsa-44-ed25519" => verify_hybrid_ml_dsa_ed25519(
+            &signed.data,
+            &signed.metadata.signature,
+            &signed.metadata.public_key,
+            1312,
+            2420,
+            MlDsaParameterSet::MlDsa44,
+        ),
+        "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => verify_hybrid_ml_dsa_ed25519(
+            &signed.data,
+            &signed.metadata.signature,
+            &signed.metadata.public_key,
+            1952,
+            3309,
+            MlDsaParameterSet::MlDsa65,
+        ),
+        "hybrid-ml-dsa-87-ed25519" => verify_hybrid_ml_dsa_ed25519(
+            &signed.data,
+            &signed.metadata.signature,
+            &signed.metadata.public_key,
+            2592,
+            4627,
+            MlDsaParameterSet::MlDsa87,
+        ),
         "ed25519" => verify_ed25519_internal(
             &signed.data,
             &signed.metadata.signature,
@@ -1014,6 +901,61 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
         }
     }
     result
+}
+
+/// Hybrid ML-DSA + Ed25519 verification with Pattern 6 timing-oracle safety.
+///
+/// Splits `full_pk` and `full_sig` at the post-quantum boundary, then runs
+/// both component verifies unconditionally and combines them bitwise so a
+/// malformed PQ component cannot timing-leak the fact that Ed25519 was
+/// never invoked. Mirrors the canonical shape in `sig_hybrid::verify`. Per-
+/// component errors collapse to `false`, preserving opacity.
+fn verify_hybrid_ml_dsa_ed25519(
+    data: &[u8],
+    full_sig: &[u8],
+    full_pk: &[u8],
+    pq_pk_len: usize,
+    min_total_sig_len: usize,
+    param_set: MlDsaParameterSet,
+) -> Result<bool> {
+    use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN as ED25519_PK_LEN;
+    const ED25519_SIG_LEN: usize = 64;
+
+    // Single opaque error string for every signature-shape rejection.
+    // Pattern 6: distinguishing "too short for ML-DSA" from "too short for
+    // Ed25519 component" from "split-point arithmetic underflow" would let
+    // an adversary probe sig-length boundaries by inspecting which message
+    // came back. Public key length is a separate bucket because the PK is
+    // not adversary-controlled in normal flows (recipient identity).
+    let sig_err = || CoreError::InvalidInput("Invalid hybrid signature".to_string());
+
+    let sig_len = full_sig.len();
+    if sig_len < min_total_sig_len {
+        return Err(sig_err());
+    }
+    let pk_len = full_pk.len();
+    let expected_pk_len = pq_pk_len
+        .checked_add(ED25519_PK_LEN)
+        .ok_or_else(|| CoreError::InvalidInput("Hybrid PK length overflow".to_string()))?;
+    if pk_len != expected_pk_len {
+        return Err(CoreError::InvalidInput(format!(
+            "Invalid hybrid public key length: expected {expected_pk_len}, got {pk_len}"
+        )));
+    }
+    let pq_pk = full_pk
+        .get(..pq_pk_len)
+        .ok_or_else(|| CoreError::InvalidInput("Invalid hybrid public key format".to_string()))?;
+    let ed_pk = full_pk
+        .get(pq_pk_len..)
+        .ok_or_else(|| CoreError::InvalidInput("Invalid hybrid public key format".to_string()))?;
+
+    let pq_sig_len = sig_len.checked_sub(ED25519_SIG_LEN).ok_or_else(sig_err)?;
+    let pq_sig = full_sig.get(..pq_sig_len).ok_or_else(sig_err)?;
+    let ed_sig = full_sig.get(pq_sig_len..).ok_or_else(sig_err)?;
+
+    let pq_valid = verify_pq_ml_dsa_unverified(data, pq_sig, pq_pk, param_set).unwrap_or(false);
+    let ed_valid = verify_ed25519_internal(data, ed_sig, ed_pk).unwrap_or(false);
+    Ok(pq_valid & ed_valid)
 }
 
 #[cfg(test)]
@@ -1882,6 +1824,96 @@ mod tests {
         };
         let result = verify(&signed, CryptoConfig::new());
         assert!(result.is_err());
+    }
+
+    // === Hybrid forgery tests: confirm bitwise & combine semantics ===
+    //
+    // These tests pin the security property that BOTH components must verify
+    // for the hybrid signature to be accepted. A regression that swapped
+    // `pq_valid & ed_valid` to `pq_valid | ed_valid` (either-suffices) would
+    // pass every other hybrid test in the suite, so the only way to detect
+    // it is to construct a signature where exactly one component is forged
+    // and assert the result is `false`.
+
+    #[test]
+    fn test_hybrid_ml_dsa_44_ed25519_forged_pq_component_fails() {
+        std::thread::Builder::new()
+            .name("hybrid_44_forge_pq".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
+                use crate::unified_api::convenience::keygen::{
+                    generate_keypair, generate_ml_dsa_keypair,
+                };
+
+                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+                let (ed_pk, ed_sk) = generate_keypair().unwrap();
+                let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
+                let combined_sk = [pq_sk.expose_secret(), ed_sk.expose_secret()].concat();
+
+                let message = b"Hybrid forgery test: PQ component flipped";
+                let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+                let mut signed =
+                    sign_with_key(message, &combined_sk, &combined_pk, config).unwrap();
+
+                // Sanity: untampered signature verifies.
+                assert!(verify(&signed, CryptoConfig::new()).unwrap());
+
+                // Flip a byte in the PQ portion (front of the combined sig).
+                // The Ed25519 portion is the last 64 bytes; everything before
+                // is ML-DSA. Index 16 sits firmly in the ML-DSA payload.
+                signed.metadata.signature[16] ^= 0x01;
+
+                let result = verify(&signed, CryptoConfig::new()).unwrap();
+                assert!(
+                    !result,
+                    "Hybrid signature with forged PQ component must NOT verify \
+                     (regression to bitwise OR would pass this case)"
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_hybrid_ml_dsa_44_ed25519_forged_ed25519_component_fails() {
+        std::thread::Builder::new()
+            .name("hybrid_44_forge_ed".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                use crate::primitives::sig::ml_dsa::MlDsaParameterSet;
+                use crate::unified_api::convenience::keygen::{
+                    generate_keypair, generate_ml_dsa_keypair,
+                };
+
+                let (pq_pk, pq_sk) = generate_ml_dsa_keypair(MlDsaParameterSet::MlDsa44).unwrap();
+                let (ed_pk, ed_sk) = generate_keypair().unwrap();
+                let combined_pk = [pq_pk.into_bytes(), ed_pk.into_bytes()].concat();
+                let combined_sk = [pq_sk.expose_secret(), ed_sk.expose_secret()].concat();
+
+                let message = b"Hybrid forgery test: Ed25519 component flipped";
+                let config = CryptoConfig::new().security_level(SecurityLevel::Standard);
+                let mut signed =
+                    sign_with_key(message, &combined_sk, &combined_pk, config).unwrap();
+
+                // Sanity: untampered signature verifies.
+                assert!(verify(&signed, CryptoConfig::new()).unwrap());
+
+                // Flip a byte in the Ed25519 portion (last 64 bytes of sig).
+                let len = signed.metadata.signature.len();
+                signed.metadata.signature[len - 32] ^= 0x01;
+
+                let result = verify(&signed, CryptoConfig::new()).unwrap();
+                assert!(
+                    !result,
+                    "Hybrid signature with forged Ed25519 component must NOT verify \
+                     (regression to bitwise OR would pass this case)"
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     // === sign_with_key error branches for hybrid ===

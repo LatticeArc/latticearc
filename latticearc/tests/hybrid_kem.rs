@@ -210,11 +210,12 @@ fn test_decapsulate_rejects_wrong_ecdh_pk_length_fails() {
     );
     let result = decapsulate(&sk, &enc);
     assert!(result.is_err());
+    // Pattern 6 opacity: every decap-side failure (length, KEM, ECDH, KDF)
+    // collapses to `DecapsulationFailed` so the API cannot be turned into
+    // a length / padding / MAC oracle.
     match result.unwrap_err() {
-        HybridKemError::InvalidKeyMaterial(msg) => {
-            assert!(msg.contains("32") || msg.contains("ECDH"));
-        }
-        other => panic!("Expected InvalidKeyMaterial, got {:?}", other),
+        HybridKemError::DecapsulationFailed => {}
+        other => panic!("Expected DecapsulationFailed, got {:?}", other),
     }
 }
 

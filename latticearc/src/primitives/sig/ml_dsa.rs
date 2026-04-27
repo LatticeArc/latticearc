@@ -605,7 +605,7 @@ impl MlDsaSignature {
 /// # Errors
 /// Returns an error if key generation fails, the ml_dsa feature is not enabled,
 /// or the PCT fails (indicating a corrupted keypair).
-#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+#[must_use = "generated keypair must be stored or used"]
 #[instrument(level = "debug", fields(parameter_set = ?parameter_set))]
 pub fn generate_keypair(
     parameter_set: MlDsaParameterSet,
@@ -759,7 +759,7 @@ mod tests {
         let (pk, sk) =
             generate_keypair(MlDsaParameterSet::MlDsa44).expect("Key generation should succeed");
         let mut message = vec![0u8; 10_000];
-        rand::rngs::OsRng.fill_bytes(&mut message);
+        crate::primitives::rand::secure_rng().fill_bytes(&mut message);
 
         let signature = sk.sign(&message, &[]).expect("Signing should succeed");
         let is_valid = pk.verify(&message, &signature, &[]).expect("Verification should succeed");

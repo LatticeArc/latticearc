@@ -38,6 +38,10 @@ anyhow = { workspace = true }
 # Cryptographic dependencies for testing
 rand = { workspace = true }
 rand_core = { workspace = true }
+# Bridge to `fn-dsa 0.3`, `ed25519-dalek 2.x`, `x25519-dalek 2.x`, `k256`,
+# etc. — these still expose `rand_core 0.6` traits, so test helpers that
+# pass an RNG into them must use the 0.6 OsRng. See workspace Cargo.toml.
+rand_core_0_6 = { workspace = true }
 ed25519-dalek = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true }
@@ -66,7 +70,7 @@ tracing = { workspace = true }
 
 # Validation-specific dependencies
 aes-gcm = "0.10.3"
-hkdf = "0.12.4"
+hkdf = "0.13"
 libm = "0.2.8"
 fips203 = { version = "=0.4.3", registry = "crates-io" }
 fips204 = { workspace = true }

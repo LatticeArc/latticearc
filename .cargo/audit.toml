@@ -1,11 +1,42 @@
 # Security Advisory Configurations
 # See: https://rustsec.org/
+#
+# Keep this file's `ignore` list in sync with `deny.toml [advisories].ignore`
+# so `cargo audit` and `cargo deny check advisories` agree on what is
+# suppressed. Each entry must cite the dependency path, why it does not
+# affect the published crate, and a revisit trigger.
 
 [advisories]
-# List of advisory IDs to ignore
-ignore = []
+# Ignored advisory IDs. Mirror of deny.toml [advisories].ignore.
+ignore = [
+    # paste 1.0.15 — unmaintained (proc-macro). Pulled in by
+    # pqcrypto-mldsa 0.1.2, a dev-dep used only for cross-implementation
+    # validation tests in `tests/tests/cross_impl_ml_dsa.rs`. Proc-macros
+    # run at compile time only and never ship in the binary, so this has
+    # zero runtime impact on the published latticearc crate. Latest
+    # pqcrypto-mldsa (0.1.2) still depends on it; revisit when upstream
+    # drops paste or switches to a maintained alternative.
+    "RUSTSEC-2024-0436",
+    # ansi_term 0.12.1 — unmaintained. Pulled in by clap 2.34.0, which is
+    # a transitive dep of dudect-bencher 0.7 (dev-only DudeCT statistical
+    # constant-time harness powering `examples/dudect_ct.rs`). dudect-bencher
+    # has not migrated to clap 4. Dev-only path; revisit when dudect-bencher
+    # upgrades or we replace the harness.
+    "RUSTSEC-2021-0139",
+    # atty 0.2.14 — unmaintained. Same provenance as ansi_term: clap 2 →
+    # dudect-bencher dev-dep. Dev-only.
+    "RUSTSEC-2024-0375",
+    # atty 0.2.14 — Windows unaligned-pointer unsoundness. Triggers ONLY
+    # under custom global allocators on Windows. The `examples/dudect_ct.rs`
+    # binary that pulls atty in is invoked exclusively from `dudect.yml` on
+    # ubuntu-latest with the default System allocator, so the precondition
+    # is never met. Same dev-only provenance.
+    "RUSTSEC-2021-0145",
+]
 
-# Treat informational advisories as warnings
+# Treat informational advisories as warnings (not errors). Combined with
+# the ignore list above, `cargo audit --deny warnings` returns 0 in a
+# clean tree.
 informational_warnings = ["unmaintained", "unsound"]
 
 [database]

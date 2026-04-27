@@ -895,7 +895,9 @@ pub fn kat_slh_dsa() -> Result<()> {
 /// Returns error if key generation, signing, or verification fails.
 pub fn kat_fn_dsa() -> Result<()> {
     use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
-    use rand::rngs::OsRng;
+    // `fn-dsa 0.3` requires `rand_core 0.6` traits — see workspace
+    // `rand_core_0_6` dep for the bridge rationale.
+    use rand_core_0_6::OsRng;
 
     // Fixed test message for KAT
     const TEST_MESSAGE: &[u8] = b"FIPS 140-3 FN-DSA Known Answer Test";

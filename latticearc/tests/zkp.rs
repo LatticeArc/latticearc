@@ -394,7 +394,7 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_basic_succeeds() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -407,7 +407,7 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_wrong_context_fails() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -420,7 +420,7 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_empty_context_succeeds() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -433,7 +433,7 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_large_context_succeeds() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
         let secret: [u8; 32] = secret_key.to_bytes().into();
         let large_context = vec![0xABu8; 10000];
 
@@ -447,8 +447,8 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_wrong_secret_fails() {
-        let secret1 = SecretKey::random(&mut rand::thread_rng());
-        let secret2 = SecretKey::random(&mut rand::thread_rng());
+        let secret1 = SecretKey::random(&mut rand_core_0_6::OsRng);
+        let secret2 = SecretKey::random(&mut rand_core_0_6::OsRng);
 
         let s1: [u8; 32] = secret1.to_bytes().into();
         let s2: [u8; 32] = secret2.to_bytes().into();
@@ -466,7 +466,7 @@ mod dlog_equality_tests {
 
     #[test]
     fn test_dlog_equality_proof_uniqueness_are_unique() {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let (statement, secret) = create_dlog_statement(&secret);
@@ -649,7 +649,7 @@ mod sigma_protocol_tests {
     };
 
     fn create_valid_statement_and_secret() -> (DlogEqualityStatement, [u8; 32]) {
-        let secret_key = SecretKey::random(&mut rand::thread_rng());
+        let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
         let secret: [u8; 32] = secret_key.to_bytes().into();
 
         let x_scalar: Option<Scalar> = Scalar::from_repr(*FieldBytes::from_slice(&secret)).into();
@@ -676,7 +676,7 @@ mod sigma_protocol_tests {
     fn test_dlog_proof_different_generators_succeeds() {
         // Test with different generator multipliers
         for multiplier in [2u64, 3, 5, 7] {
-            let secret_key = SecretKey::random(&mut rand::thread_rng());
+            let secret_key = SecretKey::random(&mut rand_core_0_6::OsRng);
             let secret: [u8; 32] = secret_key.to_bytes().into();
             let x_scalar: Option<Scalar> =
                 Scalar::from_repr(*FieldBytes::from_slice(&secret)).into();

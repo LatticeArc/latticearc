@@ -2250,7 +2250,7 @@ mod hmac {
     //! 4. Known answer test verification
     //! 5. Edge cases and boundary conditions
 
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use latticearc_tests::validation::nist_kat::hmac_kat::{
         HMAC_VECTORS, run_hmac_sha224_kat, run_hmac_sha256_kat, run_hmac_sha384_kat,
         run_hmac_sha512_kat,

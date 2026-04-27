@@ -389,7 +389,7 @@ impl Fips140_3Validator {
         let start_time = Instant::now();
 
         let test_message = b"Pairwise consistency test message";
-        use hmac::{Hmac, Mac};
+        use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
 
         let mut key = [0u8; 32];
@@ -463,7 +463,7 @@ impl Fips140_3Validator {
         let start_time = Instant::now();
 
         let test_key = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF];
-        use hmac::{Hmac, Mac};
+        use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
 
         let mut mac = Hmac::<Sha256>::new_from_slice(&test_key)?;
@@ -500,16 +500,16 @@ impl Fips140_3Validator {
     fn test_operational_environment_succeeds() -> Result<SelfTestResult> {
         let start_time = Instant::now();
 
-        use hmac::Hmac;
+        use hmac::{Hmac, KeyInit};
 
         let test_vector_1 = vec![0x00; 32];
         let test_vector_2 = vec![0xFF; 32];
 
-        let mut mac1 = <Hmac<sha2::Sha256> as Mac>::new_from_slice(&test_vector_1)?;
+        let mut mac1 = <Hmac<sha2::Sha256> as KeyInit>::new_from_slice(&test_vector_1)?;
         mac1.update(b"environment test");
         let result1 = mac1.finalize().into_bytes();
 
-        let mut mac2 = <Hmac<sha2::Sha256> as Mac>::new_from_slice(&test_vector_2)?;
+        let mut mac2 = <Hmac<sha2::Sha256> as KeyInit>::new_from_slice(&test_vector_2)?;
         mac2.update(b"environment test");
         let result2 = mac2.finalize().into_bytes();
 

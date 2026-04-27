@@ -41,6 +41,7 @@ use crate::primitives::resource_limits::validate_signature_size;
 /// Returns an error if:
 /// - The session has expired (when `mode` is `Verified`)
 /// - Key generation fails
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_hybrid_signing_keypair(
     mode: SecurityMode,
 ) -> Result<(HybridSigPublicKey, HybridSigSecretKey)> {
@@ -106,6 +107,7 @@ pub fn verify_hybrid_signature(
 ///
 /// Returns an error if config validation, session validation, or key generation fails.
 #[inline]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_hybrid_signing_keypair_with_config(
     config: &crate::unified_api::CoreConfig,
     mode: SecurityMode,
@@ -158,6 +160,7 @@ pub fn verify_hybrid_signature_with_config(
 ///
 /// Returns an error if key generation fails.
 #[inline]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_hybrid_signing_keypair_unverified()
 -> Result<(HybridSigPublicKey, HybridSigSecretKey)> {
     generate_hybrid_signing_keypair(SecurityMode::Unverified)

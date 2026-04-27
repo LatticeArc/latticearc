@@ -931,10 +931,11 @@ mod tests {
 
     #[test]
     fn test_data_aware_random_data_speed_selects_smaller_kem_scheme_succeeds() {
-        use rand::{RngCore, rngs::OsRng};
+        use crate::primitives::rand::secure_rng;
+        use rand::RngCore;
         // Need enough bytes for entropy > 7.5 (256 bytes has ~7.0 entropy)
         let mut data = vec![0u8; 8192];
-        OsRng.fill_bytes(&mut data);
+        secure_rng().fill_bytes(&mut data);
         let config = CoreConfig::new()
             .with_performance_preference(PerformancePreference::Speed)
             .with_security_level(SecurityLevel::High);
@@ -1013,10 +1014,11 @@ mod tests {
 
     #[test]
     fn test_performance_preference_influences_encryption_scheme_succeeds() {
-        use rand::{RngCore, rngs::OsRng};
+        use crate::primitives::rand::secure_rng;
+        use rand::RngCore;
         // Use random data so data-aware branch activates
         let mut data = vec![0u8; 8192];
-        OsRng.fill_bytes(&mut data);
+        secure_rng().fill_bytes(&mut data);
 
         let config_a = CoreConfig::new()
             .with_performance_preference(PerformancePreference::Speed)

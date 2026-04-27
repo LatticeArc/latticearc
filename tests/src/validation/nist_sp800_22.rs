@@ -628,7 +628,7 @@ mod tests {
         let tester = NistSp800_22Tester::default();
         use rand::RngCore;
         let mut data = vec![0u8; 1000];
-        rand::rngs::OsRng.fill_bytes(&mut data);
+        latticearc::primitives::rand::secure_rng().fill_bytes(&mut data);
 
         let result = tester.test_bit_sequence_succeeds(&data).unwrap();
         assert_eq!(result.bits_tested, 8000);

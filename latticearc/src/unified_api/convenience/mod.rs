@@ -44,8 +44,9 @@
 //!     CryptoConfig::new().use_case(UseCase::FileStorage))?;
 //! let plaintext = decrypt(&encrypted, DecryptKey::Hybrid(&sk), CryptoConfig::new())?;
 //!
-//! // Symmetric encryption (AES-256-GCM)
-//! let key = [0u8; 32];
+//! // Symmetric encryption (AES-256-GCM). Generate a fresh key — `[0u8; 32]`
+//! // is rejected by the AEAD constructor as a weak key.
+//! let key = latticearc::primitives::rand::random_bytes(32);
 //! let encrypted = encrypt(b"data", EncryptKey::Symmetric(&key),
 //!     CryptoConfig::new().force_scheme(latticearc::CryptoScheme::Symmetric))?;
 //! let plaintext = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;

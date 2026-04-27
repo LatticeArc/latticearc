@@ -450,7 +450,7 @@ mod tests {
             key in prop::collection::vec(any::<u8>(), 16..64),
             message in prop::collection::vec(any::<u8>(), 0..1024)
         ) {
-            use hmac::{Hmac, Mac};
+            use hmac::{Hmac, KeyInit, Mac};
             use sha2::Sha256;
 
             type HmacSha256 = Hmac<Sha256>;
@@ -473,7 +473,7 @@ mod tests {
             key2 in prop::collection::vec(any::<u8>(), 16..64),
             message in prop::collection::vec(any::<u8>(), 16..256)
         ) {
-            use hmac::{Hmac, Mac};
+            use hmac::{Hmac, KeyInit, Mac};
             use sha2::Sha256;
 
             prop_assume!(key1 != key2);
@@ -497,7 +497,7 @@ mod tests {
             key in prop::collection::vec(any::<u8>(), 16..64),
             message in prop::collection::vec(any::<u8>(), 0..1024)
         ) {
-            use hmac::{Hmac, Mac};
+            use hmac::{Hmac, KeyInit, Mac};
             use sha2::Sha256;
 
             type HmacSha256 = Hmac<Sha256>;

@@ -34,7 +34,7 @@
 //! │                         │  ┌─────────────────────────────────────┐ │   │
 //! │                         │  │         HKDF-SHA256 Combine         │ │   │
 //! │                         │  │                                     │ │   │
-//! │                         │  │  info = "LatticeArc-Hybrid-KEM-SS" ‖ len(static_pk) ‖ static_pk ‖ len(ephemeral_pk) ‖ ephemeral_pk │ │   │
+//! │                         │  │  info = "LatticeArc-Hybrid-KEM-SS-v1" ‖ len(static_pk) ‖ static_pk ‖ len(ephemeral_pk) ‖ ephemeral_pk │ │   │
 //! │                         │  │  IKM  = SS₁ ║ SS₂ (64 bytes)        │ │   │
 //! │                         │  │            ↓                        │ │   │
 //! │                         │  │  Hybrid Shared Secret (64 B)        │ │   │
@@ -146,6 +146,12 @@ pub enum HybridKemError {
     /// General cryptographic operation failure.
     #[error("Cryptographic operation failed: {0}")]
     CryptoError(String),
+    /// Hybrid decapsulation failed. Single opaque variant per Pattern 6 — does
+    /// not distinguish wrong-length ECDH PK from ML-KEM rejection from HKDF
+    /// failure, since the input ciphertext is adversary-controlled and any
+    /// distinguisher would constitute a padding-oracle leak.
+    #[error("Hybrid decapsulation failed")]
+    DecapsulationFailed,
 }
 
 /// Hybrid public key combining ML-KEM and ECDH public keys.
@@ -521,7 +527,7 @@ impl ConstantTimeEq for EncapsulatedKey {
 /// # Errors
 ///
 /// Returns an error if ML-KEM or X25519 keypair generation fails.
-#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_keypair() -> Result<(HybridKemPublicKey, HybridKemSecretKey), HybridKemError> {
     generate_keypair_with_level(MlKemSecurityLevel::MlKem768)
 }
@@ -536,7 +542,7 @@ pub fn generate_keypair() -> Result<(HybridKemPublicKey, HybridKemSecretKey), Hy
 ///
 /// # Errors
 /// Returns an error if ML-KEM or X25519 keypair generation fails.
-#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_keypair_with_level(
     level: MlKemSecurityLevel,
 ) -> Result<(HybridKemPublicKey, HybridKemSecretKey), HybridKemError> {
@@ -633,31 +639,26 @@ pub fn decapsulate(
     sk: &HybridKemSecretKey,
     ct: &EncapsulatedKey,
 ) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
-    // Validate ephemeral ECDH public key length
+    // Every failure path collapses to the single opaque variant — see
+    // [`HybridKemError::DecapsulationFailed`] for the oracle-prevention
+    // rationale. `|_e|` (rather than `|_|`) names the dropped error so
+    // clippy's `map_err_ignore` lint accepts the intentional loss.
+    let opaque = || HybridKemError::DecapsulationFailed;
+
     if ct.ecdh_pk.len() != X25519_KEY_SIZE {
-        return Err(HybridKemError::InvalidKeyMaterial(format!(
-            "Ephemeral ECDH public key must be {} bytes, got {}",
-            X25519_KEY_SIZE,
-            ct.ecdh_pk.len()
-        )));
+        return Err(opaque());
     }
 
-    // ML-KEM decapsulation at the secret key's security level
-    let ml_kem_ct_struct = MlKemCiphertext::new(sk.security_level(), ct.ml_kem_ct.clone())
-        .map_err(|e| HybridKemError::MlKemError(e.to_string()))?;
-    let ml_kem_ss = sk.ml_kem_decapsulate(&ml_kem_ct_struct)?;
+    let ml_kem_ct_struct =
+        MlKemCiphertext::new(sk.security_level(), ct.ml_kem_ct.clone()).map_err(|_e| opaque())?;
+    let ml_kem_ss = sk.ml_kem_decapsulate(&ml_kem_ct_struct).map_err(|_e| opaque())?;
 
-    // Validate ML-KEM shared secret
     if ml_kem_ss.expose_secret().len() != 32 {
-        return Err(HybridKemError::MlKemError(
-            "ML-KEM decapsulation returned invalid shared secret length".to_string(),
-        ));
+        return Err(opaque());
     }
 
-    // Real X25519 ECDH: agree(our_static_sk, sender's_ephemeral_pk)
-    let ecdh_shared_secret = sk.ecdh_agree(&ct.ecdh_pk)?;
+    let ecdh_shared_secret = sk.ecdh_agree(&ct.ecdh_pk).map_err(|_e| opaque())?;
 
-    // Use actual public key bytes for context binding (not a hash of random bytes)
     let static_public = sk.ecdh_public_key_bytes();
     derive_hybrid_shared_secret(HybridSharedSecretInputs {
         ml_kem_ss: ml_kem_ss.expose_secret(),
@@ -665,7 +666,7 @@ pub fn decapsulate(
         static_pk: &static_public,
         ephemeral_pk: ct.ecdh_pk.as_slice(),
     })
-    .map_err(|e| HybridKemError::KdfError(e.to_string()))
+    .map_err(|_e| opaque())
 }
 
 /// Named-field inputs to [`derive_hybrid_shared_secret`].
@@ -1048,7 +1049,10 @@ mod tests {
         let result = decapsulate(&sk, &bad_enc);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridKemError::InvalidKeyMaterial(_)));
+        // Pattern 6: decapsulate collapses every distinguishable failure
+        // (length, KEM, ECDH, KDF) into the opaque `DecapsulationFailed`
+        // variant so callers cannot tell padding/MAC failures apart.
+        assert!(matches!(err, HybridKemError::DecapsulationFailed));
         // cleanup
         bad_enc.shared_secret.zeroize();
     }
@@ -1407,8 +1411,11 @@ mod tests {
         let result = decapsulate(&sk, &ct);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridKemError::InvalidKeyMaterial(_)));
-        assert!(err.to_string().contains("32"));
+        // Pattern 6 opacity: every decap failure path collapses to
+        // `DecapsulationFailed`. The specific reason ("ECDH ephemeral PK
+        // wrong length") is intentionally hidden so the API cannot serve
+        // as a length/padding/MAC oracle.
+        assert!(matches!(err, HybridKemError::DecapsulationFailed));
     }
 
     #[test]
@@ -1424,7 +1431,9 @@ mod tests {
         let result = decapsulate(&sk, &ct);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, HybridKemError::MlKemError(_)));
+        // Pattern 6 opacity: ML-KEM ciphertext length errors are also
+        // collapsed to `DecapsulationFailed` to deny any oracle.
+        assert!(matches!(err, HybridKemError::DecapsulationFailed));
     }
 
     #[test]

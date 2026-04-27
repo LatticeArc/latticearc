@@ -83,7 +83,7 @@ pub fn test_api_interfaces_succeeds() -> Result<TestResult, LatticeArcError> {
         .map_err(|_e| LatticeArcError::InvalidInput("key creation failed".to_string()))?;
     let key = LessSafeKey::new(unbound);
     let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    rand::rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::try_assume_unique_for_key(&nonce_bytes)
         .map_err(|_e| LatticeArcError::InvalidInput("nonce creation failed".to_string()))?;
     let mut invalid_ct = vec![0u8; 8];
@@ -99,8 +99,8 @@ pub fn test_api_interfaces_succeeds() -> Result<TestResult, LatticeArcError> {
     test_details.push("Test 5: Nonce generation uniqueness".to_string());
     let mut nonce1 = [0u8; 12];
     let mut nonce2 = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce1);
-    rand::thread_rng().fill_bytes(&mut nonce2);
+    rand::rng().fill_bytes(&mut nonce1);
+    rand::rng().fill_bytes(&mut nonce2);
     if nonce1 != nonce2 {
         test_details.push("PASSED".to_string());
     } else {
@@ -155,7 +155,7 @@ pub fn test_key_management_succeeds() -> Result<TestResult, LatticeArcError> {
     let mut keys = Vec::new();
     for _ in 0..10 {
         let mut key = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut key);
+        rand::rng().fill_bytes(&mut key);
         keys.push(key);
     }
 
@@ -170,7 +170,7 @@ pub fn test_key_management_succeeds() -> Result<TestResult, LatticeArcError> {
     // Test 2: Key serialization roundtrip
     test_details.push("Test 2: Key serialization/deserialization".to_string());
 
-    let mut csprng = rand::rngs::OsRng;
+    let mut csprng = rand_core_0_6::OsRng; // ed25519-dalek 2.x → rand_core 0.6
     let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
     let sk_bytes = signing_key.to_bytes();
 
@@ -244,7 +244,7 @@ pub fn test_key_management_succeeds() -> Result<TestResult, LatticeArcError> {
     let test_data = b"test_encryption_data";
 
     let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    rand::rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::try_assume_unique_for_key(&nonce_bytes)
         .map_err(|_e| LatticeArcError::InvalidInput("nonce creation failed".to_string()))?;
 

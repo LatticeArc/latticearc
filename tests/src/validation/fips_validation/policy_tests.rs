@@ -65,7 +65,7 @@ pub fn test_self_tests_succeeds() -> Result<TestResult, LatticeArcError> {
     let encrypt_key = LessSafeKey::new(unbound);
 
     let mut nonce_bytes = [0u8; 12];
-    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+    latticearc::primitives::rand::secure_rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
     let mut ct = test_msg.to_vec();
@@ -257,7 +257,7 @@ pub fn test_error_handling_fails() -> Result<TestResult, LatticeArcError> {
     let encrypt_key = LessSafeKey::new(unbound);
 
     let mut nonce_bytes = [0u8; 12];
-    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+    latticearc::primitives::rand::secure_rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
     let mut ciphertext = test_data.to_vec();

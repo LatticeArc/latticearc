@@ -157,6 +157,12 @@ fn test_rng_handle_next_u32_succeeds() {
     let _ = val;
 }
 
+// `RngHandle::ThreadLocal` is backed by ChaCha20Rng, which is NOT FIPS-
+// approved. Under `feature = "fips"` the implementation rejects this path
+// with `RandomError`, so the success-path test is gated to non-FIPS builds.
+// Under FIPS we instead assert the rejection.
+
+#[cfg(not(feature = "fips"))]
 #[test]
 fn test_rng_handle_thread_local_succeeds() {
     let rng = RngHandle::ThreadLocal;
@@ -169,6 +175,25 @@ fn test_rng_handle_thread_local_succeeds() {
 
     let val = rng.next_u32().unwrap();
     let _ = val;
+}
+
+#[cfg(feature = "fips")]
+#[test]
+fn test_rng_handle_thread_local_rejected_under_fips() {
+    let rng = RngHandle::ThreadLocal;
+    let mut buf = vec![0u8; 16];
+    assert!(matches!(
+        rng.fill_bytes(&mut buf),
+        Err(latticearc::prelude::error::LatticeArcError::RandomError)
+    ));
+    assert!(matches!(
+        rng.next_u64(),
+        Err(latticearc::prelude::error::LatticeArcError::RandomError)
+    ));
+    assert!(matches!(
+        rng.next_u32(),
+        Err(latticearc::prelude::error::LatticeArcError::RandomError)
+    ));
 }
 
 // ============================================================================

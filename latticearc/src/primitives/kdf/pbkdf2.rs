@@ -53,28 +53,41 @@ pub struct Pbkdf2Params {
 }
 
 impl Pbkdf2Params {
+    /// NIST SP 800-132 §5.1 minimum salt length (128 bits = 16 bytes).
+    ///
+    /// > "A randomly-generated salt SHALL be used. The salt SHALL be a
+    /// > randomly-generated value of at least 128 bits."
+    ///
+    /// Enforced as a hard floor in [`Self::new`] and [`pbkdf2`] — fail-closed
+    /// rather than warn, matching the rest of the v0.8.0 strict-by-default
+    /// posture (AEAD `WeakKey`, X25519 low-order rejection, etc.).
+    pub const MIN_SALT_LEN: usize = 16;
+
     /// Create PBKDF2 parameters with a securely generated random salt.
     ///
     /// This constructor generates a cryptographically secure random salt to ensure
     /// uniqueness and prevent precomputation attacks.
     ///
     /// # Arguments
-    /// * `salt_length` - Length of the salt to generate (recommended: 16+ bytes)
+    /// * `salt_length` - Length of the salt to generate (must be at least
+    ///   [`MIN_SALT_LEN`] = 16 bytes per NIST SP 800-132 §5.1).
     ///
     /// # Security Note
     /// Using a fresh random salt for each key derivation is essential for security.
     /// Never reuse salts across different passwords or applications.
     ///
     /// # Errors
-    /// Returns an error if salt length is zero.
+    /// Returns [`LatticeArcError::InvalidParameter`] if `salt_length < 16`.
+    ///
+    /// [`MIN_SALT_LEN`]: Self::MIN_SALT_LEN
     pub fn new(salt_length: usize) -> Result<Self> {
-        if salt_length == 0 {
-            return Err(LatticeArcError::InvalidParameter(
-                "Salt length must be greater than 0".to_string(),
-            ));
+        if salt_length < Self::MIN_SALT_LEN {
+            return Err(LatticeArcError::InvalidParameter(format!(
+                "Salt length {salt_length} below NIST SP 800-132 §5.1 minimum of \
+                 {} bytes (128 bits)",
+                Self::MIN_SALT_LEN
+            )));
         }
-        // Note: salt_length < 16 bytes is not recommended for security
-        // but we allow it for compatibility with existing systems
 
         let mut salt = vec![0u8; salt_length];
         get_random_bytes(&mut salt);
@@ -82,16 +95,50 @@ impl Pbkdf2Params {
         Ok(Self { salt, iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 })
     }
 
-    /// Create PBKDF2 parameters with custom salt.
+    /// Create PBKDF2 parameters with custom salt — **does NOT validate
+    /// salt length.** Prefer [`Self::try_with_salt`] for new code.
+    ///
+    /// This builder exists for wire-format parsers (e.g.
+    /// [`crate::unified_api::key_format`]) and other paths that must
+    /// construct a `Pbkdf2Params` from a possibly-short legacy salt for
+    /// inspection or re-protection. The length floor is enforced at the
+    /// [`pbkdf2`] entry point, so an under-spec salt cannot reach the
+    /// actual derivation step — but a `Pbkdf2Params` returned by this
+    /// constructor can still be passed to other code that consumes the
+    /// struct without going through `pbkdf2()`. **Use this constructor
+    /// only when you have a deserialization-time reason to accept short
+    /// salts.**
     ///
     /// # Arguments
-    /// * `salt` - The salt value to use (recommended: 16+ bytes)
+    /// * `salt` - The salt value to use. Must be at least [`MIN_SALT_LEN`]
+    ///   bytes when [`pbkdf2`] is later called with these params.
     ///
     /// # Security Note
     /// Ensure the salt is cryptographically random and unique for each password.
+    ///
+    /// [`MIN_SALT_LEN`]: Self::MIN_SALT_LEN
     #[must_use]
     pub fn with_salt(salt: &[u8]) -> Self {
         Self { salt: salt.to_vec(), iterations: 600_000, key_length: 32, prf: PrfType::HmacSha256 }
+    }
+
+    /// Create PBKDF2 parameters with custom salt, validating the salt
+    /// length against the NIST SP 800-132 §5.1 minimum
+    /// ([`Self::MIN_SALT_LEN`]). Recommended over [`Self::with_salt`].
+    ///
+    /// # Errors
+    /// Returns [`LatticeArcError::InvalidParameter`] if `salt.len() <
+    /// MIN_SALT_LEN`.
+    pub fn try_with_salt(salt: &[u8]) -> Result<Self> {
+        if salt.len() < Self::MIN_SALT_LEN {
+            return Err(LatticeArcError::InvalidParameter(format!(
+                "Salt length {} below NIST SP 800-132 §5.1 minimum of \
+                 {} bytes (128 bits)",
+                salt.len(),
+                Self::MIN_SALT_LEN
+            )));
+        }
+        Ok(Self::with_salt(salt))
     }
 
     /// Set iteration count
@@ -197,13 +244,24 @@ impl Pbkdf2Result {
 /// # Errors
 /// Returns an error if parameters are invalid (empty salt, too few iterations, or zero key length).
 pub fn pbkdf2(password: &[u8], params: &Pbkdf2Params) -> Result<Pbkdf2Result> {
-    // Validate parameters per SP 800-132
-    if params.salt.is_empty() {
-        return Err(LatticeArcError::InvalidParameter("Salt must not be empty".to_string()));
+    // Validate parameters per SP 800-132 §5.1: salt MUST be at least 128 bits
+    // (16 bytes). Enforced as a hard floor — fail-closed defence in depth,
+    // matching the rest of the v0.8.0 strict-by-default posture.
+    if params.salt.len() < Pbkdf2Params::MIN_SALT_LEN {
+        return Err(LatticeArcError::InvalidParameter(format!(
+            "Salt length {} below NIST SP 800-132 §5.1 minimum of {} bytes (128 bits)",
+            params.salt.len(),
+            Pbkdf2Params::MIN_SALT_LEN,
+        )));
     }
 
-    // Reject all-zero salt as it's insecure
-    if params.salt.iter().all(|&b| b == 0) {
+    // Reject all-zero salt (defends against uninitialised-memory bugs, same
+    // spirit as `AeadError::WeakKey`). Use the shared CT helper rather than
+    // `iter().all`, which short-circuits on the first non-zero byte and so
+    // leaks salt-prefix structure via timing. PBKDF2 salts can exceed
+    // 32 bytes — go through `primitives::ct` (no MAX cap) rather than the
+    // AEAD-shaped `is_all_zero_key` re-export.
+    if crate::primitives::ct::is_all_zero_bytes(&params.salt) {
         return Err(LatticeArcError::InvalidParameter(
             "Salt must not be all zeros - use a cryptographically random salt".to_string(),
         ));
@@ -464,8 +522,9 @@ mod tests {
         // Should not verify with wrong password
         assert!(!verify_password(b"wrongpass", &derived.key, salt, 1000).unwrap());
 
-        // Should not verify with wrong salt
-        assert!(!verify_password(password, &derived.key, b"wrongsalt123456", 1000).unwrap());
+        // Should not verify with wrong salt (must satisfy NIST SP 800-132
+        // §5.1 minimum of 16 bytes — `verify_password` enforces it).
+        assert!(!verify_password(password, &derived.key, b"wrongsalt1234567", 1000).unwrap());
 
         // Should not verify with wrong iterations
         assert!(!verify_password(password, &derived.key, salt, 2000).unwrap());
@@ -540,6 +599,47 @@ mod tests {
     fn test_pbkdf2_params_new_zero_salt_length_fails() {
         let result = Pbkdf2Params::new(0);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pbkdf2_params_new_below_min_salt_len_fails() {
+        // NIST SP 800-132 §5.1 requires ≥ 128 bits (16 bytes). Anything in
+        // [1, MIN_SALT_LEN) must be rejected by the size constructor.
+        for n in [1usize, 8, 15] {
+            let result = Pbkdf2Params::new(n);
+            assert!(
+                result.is_err(),
+                "salt length {n} below MIN_SALT_LEN={} should fail",
+                Pbkdf2Params::MIN_SALT_LEN
+            );
+        }
+    }
+
+    #[test]
+    fn test_pbkdf2_params_new_at_min_salt_len_succeeds() {
+        // Boundary: exactly MIN_SALT_LEN bytes is the smallest accepted size.
+        let params = Pbkdf2Params::new(Pbkdf2Params::MIN_SALT_LEN).unwrap();
+        assert_eq!(params.salt.len(), Pbkdf2Params::MIN_SALT_LEN);
+    }
+
+    #[test]
+    fn test_pbkdf2_try_with_salt_below_min_fails() {
+        // The validating constructor `try_with_salt` must reject salts
+        // shorter than MIN_SALT_LEN, while `with_salt` (legacy parser path)
+        // still accepts them.
+        let short = vec![0xAAu8; Pbkdf2Params::MIN_SALT_LEN.saturating_sub(1)];
+        let result = Pbkdf2Params::try_with_salt(&short);
+        assert!(result.is_err(), "try_with_salt must reject short salts");
+        // Sanity-check the legacy escape hatch still constructs (the runtime
+        // pbkdf2() guard still rejects short salts at derivation time).
+        let _legacy = Pbkdf2Params::with_salt(&short);
+    }
+
+    #[test]
+    fn test_pbkdf2_try_with_salt_at_min_succeeds() {
+        let salt = vec![0xAAu8; Pbkdf2Params::MIN_SALT_LEN];
+        let params = Pbkdf2Params::try_with_salt(&salt).unwrap();
+        assert_eq!(params.salt.len(), Pbkdf2Params::MIN_SALT_LEN);
     }
 
     #[test]

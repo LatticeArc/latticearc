@@ -102,8 +102,20 @@ impl ConstantTimeEq for SigmaProof {
     }
 }
 
-/// Trait for implementing sigma protocols
-pub trait SigmaProtocol {
+/// Sealed-trait pattern (Pattern 4) for [`SigmaProtocol`].
+///
+/// `SigmaProtocol` defines `commit` / `respond` / `verify` for zero-knowledge
+/// proofs. An external implementor whose `verify` always returned `Ok(true)`
+/// would silently pass-through any proof. Seal to prevent this.
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Trait for implementing sigma protocols.
+///
+/// Sealed (Pattern 4): only types in this crate can implement it. Adding a
+/// new impl in this crate requires also implementing `sealed::Sealed`.
+pub trait SigmaProtocol: sealed::Sealed {
     /// Statement type (what we're proving)
     type Statement;
     /// Witness type (the secret)
@@ -516,7 +528,7 @@ mod tests {
     use k256::{
         FieldBytes, ProjectivePoint, Scalar, SecretKey, elliptic_curve::group::GroupEncoding,
     };
-    use rand::rngs::OsRng;
+    use rand_core_0_6::OsRng;
 
     #[test]
     fn test_dlog_equality_proof_succeeds() {
@@ -755,6 +767,8 @@ mod tests {
 
     /// Minimal sigma protocol mock for testing FiatShamir wrapper
     struct MockSigmaProtocol;
+
+    impl sealed::Sealed for MockSigmaProtocol {}
 
     impl SigmaProtocol for MockSigmaProtocol {
         type Statement = Vec<u8>;

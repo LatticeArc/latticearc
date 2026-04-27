@@ -28,7 +28,7 @@ use crate::unified_api::error::{CoreError, Result};
 /// - The generated keypair fails FIPS 186-5 validation
 /// - The public key is the identity element (all zeros)
 /// - The keypair consistency test signature verification fails
-#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_keypair() -> Result<(PublicKey, PrivateKey)> {
     super::api::fips_verify_operational()?;
     debug!("Generating Ed25519 keypair");
@@ -66,7 +66,7 @@ pub fn generate_keypair() -> Result<(PublicKey, PrivateKey)> {
 /// Returns an error if:
 /// - The configuration validation fails
 /// - The generated keypair fails FIPS 186-5 validation
-#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_keypair_with_config(config: &CoreConfig) -> Result<(PublicKey, PrivateKey)> {
     config.validate()?;
     generate_keypair()
@@ -123,6 +123,7 @@ fn validate_ed25519_keypair(keypair: &Ed25519KeyPair) -> Result<()> {
 /// Returns an error if:
 /// - The ML-KEM key generation operation fails
 /// - The RNG fails to provide sufficient randomness
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_ml_kem_keypair(
     security_level: MlKemSecurityLevel,
 ) -> Result<(PublicKey, PrivateKey)> {
@@ -160,6 +161,7 @@ pub fn generate_ml_kem_keypair(
 /// Returns an error if:
 /// - The configuration validation fails
 /// - The ML-KEM key generation operation fails
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_ml_kem_keypair_with_config(
     security_level: MlKemSecurityLevel,
     config: &CoreConfig,
@@ -173,6 +175,7 @@ pub fn generate_ml_kem_keypair_with_config(
 /// # Errors
 ///
 /// Returns an error if the ML-DSA key generation operation fails for the given parameter set.
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_ml_dsa_keypair(
     parameter_set: MlDsaParameterSet,
 ) -> Result<(PublicKey, PrivateKey)> {
@@ -197,6 +200,7 @@ pub fn generate_ml_dsa_keypair(
 /// Returns an error if:
 /// - The configuration validation fails
 /// - The ML-DSA key generation operation fails
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_ml_dsa_keypair_with_config(
     parameter_set: MlDsaParameterSet,
     config: &CoreConfig,
@@ -210,6 +214,7 @@ pub fn generate_ml_dsa_keypair_with_config(
 /// # Errors
 ///
 /// Returns an error if the SLH-DSA key generation operation fails for the given security level.
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_slh_dsa_keypair(
     security_level: SlhDsaSecurityLevel,
 ) -> Result<(PublicKey, PrivateKey)> {
@@ -234,6 +239,7 @@ pub fn generate_slh_dsa_keypair(
 /// Returns an error if:
 /// - The configuration validation fails
 /// - The SLH-DSA key generation operation fails
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_slh_dsa_keypair_with_config(
     security_level: SlhDsaSecurityLevel,
     config: &CoreConfig,
@@ -251,6 +257,7 @@ pub fn generate_slh_dsa_keypair_with_config(
 /// Returns an error if:
 /// - The FN-DSA key generation operation fails
 /// - The RNG is unavailable or fails to provide sufficient randomness
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_fn_dsa_keypair() -> Result<(PublicKey, PrivateKey)> {
     generate_fn_dsa_keypair_with_level(FnDsaSecurityLevel::Level512)
 }
@@ -269,6 +276,7 @@ pub fn generate_fn_dsa_keypair() -> Result<(PublicKey, PrivateKey)> {
 /// # Stack Usage
 /// FN-DSA Level1024 requires ~32MB stack in debug builds. Use `--release`
 /// or spawn a thread with `stack_size(32 * 1024 * 1024)` if needed.
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_fn_dsa_keypair_with_level(
     level: FnDsaSecurityLevel,
 ) -> Result<(PublicKey, PrivateKey)> {
@@ -303,6 +311,7 @@ pub fn generate_fn_dsa_keypair_with_level(
 /// Returns an error if:
 /// - The configuration validation fails
 /// - The FN-DSA key generation operation fails
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_fn_dsa_keypair_with_config(config: &CoreConfig) -> Result<(PublicKey, PrivateKey)> {
     config.validate()?;
     generate_fn_dsa_keypair()

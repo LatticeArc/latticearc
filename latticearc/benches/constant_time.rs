@@ -66,7 +66,7 @@ fn bench_constant_time_compare(c: &mut Criterion) {
 
 /// Test that HMAC verification time doesn't depend on tag correctness
 fn bench_hmac_verify(c: &mut Criterion) {
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use sha2::Sha256;
 
     type HmacSha256 = Hmac<Sha256>;

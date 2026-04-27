@@ -29,6 +29,7 @@ use crate::unified_api::error::{CoreError, Result};
 /// # Errors
 ///
 /// Returns an error if key generation fails.
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_hybrid_keypair() -> Result<(HybridKemPublicKey, HybridKemSecretKey)> {
     generate_hybrid_keypair_with_level(MlKemSecurityLevel::MlKem768)
 }
@@ -45,6 +46,7 @@ pub fn generate_hybrid_keypair() -> Result<(HybridKemPublicKey, HybridKemSecretK
 /// # Errors
 ///
 /// Returns an error if key generation fails.
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_hybrid_keypair_with_level(
     level: MlKemSecurityLevel,
 ) -> Result<(HybridKemPublicKey, HybridKemSecretKey)> {

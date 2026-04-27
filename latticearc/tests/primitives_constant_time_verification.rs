@@ -395,14 +395,14 @@ fn test_x25519_secret_key_implements_zeroize_is_covered() {
     let mut sk = X25519SecretKey::from_bytes(&[0xEFu8; 32]).expect("secret key creation");
 
     // Verify non-zero before
-    assert!(sk.as_bytes().iter().any(|&b| b != 0));
+    assert!(sk.expose_secret().iter().any(|&b| b != 0));
 
     // Note: X25519SecretKey implements ZeroizeOnDrop
     // Manual zeroize via the Zeroize trait
     sk.zeroize();
 
     // Verify all zeros after
-    assert!(sk.as_bytes().iter().all(|&b| b == 0));
+    assert!(sk.expose_secret().iter().all(|&b| b == 0));
 }
 
 /// Test SecretVec implements Zeroize and ZeroizeOnDrop

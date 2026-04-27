@@ -19,7 +19,7 @@
 //! - Edge cases (short keys, long keys, empty messages)
 
 use super::{NistKatError, decode_hex};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Sha224, Sha256, Sha384, Sha512};
 
 type HmacSha224 = Hmac<Sha224>;

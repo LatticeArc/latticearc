@@ -206,7 +206,7 @@ fn test_kdf_different_salt_produces_different_key_succeeds() {
 
 #[test]
 fn test_ed25519_roundtrip_succeeds() {
-    let signing_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
+    let signing_key = ed25519_dalek::SigningKey::generate(&mut rand_core_0_6::OsRng);
     let sk_bytes = signing_key.to_bytes();
     let pk_bytes = signing_key.verifying_key().to_bytes();
 

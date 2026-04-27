@@ -146,8 +146,8 @@ pub fn continuous_rng_test() -> Result<(), LatticeArcError> {
     let mut sample1 = [0u8; 32];
     let mut sample2 = [0u8; 32];
 
-    rand::rngs::OsRng.fill_bytes(&mut sample1);
-    rand::rngs::OsRng.fill_bytes(&mut sample2);
+    latticearc::primitives::rand::secure_rng().fill_bytes(&mut sample1);
+    latticearc::primitives::rand::secure_rng().fill_bytes(&mut sample2);
 
     if sample1 == sample2 {
         return Err(LatticeArcError::ValidationError {
@@ -502,8 +502,8 @@ mod tests {
         let mut sample1 = [0u8; 32];
         let mut sample2 = [0u8; 32];
 
-        rand::thread_rng().fill_bytes(&mut sample1);
-        rand::thread_rng().fill_bytes(&mut sample2);
+        rand::rng().fill_bytes(&mut sample1);
+        rand::rng().fill_bytes(&mut sample2);
 
         assert_ne!(sample1, sample2, "RNG samples should differ");
     }
@@ -515,8 +515,8 @@ mod tests {
             let mut sample1 = [0u8; 32];
             let mut sample2 = [0u8; 32];
 
-            rand::thread_rng().fill_bytes(&mut sample1);
-            rand::thread_rng().fill_bytes(&mut sample2);
+            rand::rng().fill_bytes(&mut sample1);
+            rand::rng().fill_bytes(&mut sample2);
 
             let mut bits_set: u32 = 0;
             for byte in sample1.iter().chain(sample2.iter()) {

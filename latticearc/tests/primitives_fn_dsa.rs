@@ -57,8 +57,33 @@ use latticearc::primitives::sig::fndsa::{
     FnDsaSecurityLevel, KeyPair, Signature, SigningKey, VerifyingKey,
 };
 use rand::SeedableRng;
-use rand::rngs::OsRng;
 use rand_chacha::ChaCha20Rng;
+use rand_core_0_6::OsRng;
+
+/// Adapter wrapping a `rand 0.9` RNG so it satisfies `rand_core 0.6` traits.
+/// Required because `fn-dsa 0.3` is pinned to `rand_core 0.6` but our
+/// deterministic-keygen test seeds a `ChaCha20Rng` from `rand_chacha 0.9`.
+/// Drop once the dalek 3.x stable line lands and we can drop the
+/// `rand_core_0_6` bridge entirely.
+struct Rand06Adapter<R: rand::RngCore>(R);
+
+impl<R: rand::RngCore> rand_core_0_6::RngCore for Rand06Adapter<R> {
+    fn next_u32(&mut self) -> u32 {
+        self.0.next_u32()
+    }
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill_bytes(dest);
+    }
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core_0_6::Error> {
+        self.0.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+impl<R: rand::RngCore> rand_core_0_6::CryptoRng for Rand06Adapter<R> {}
 
 /// Helper to run FN-DSA tests with sufficient stack size
 /// FN-DSA requires ~32MB stack for safe operation in debug builds
@@ -511,11 +536,11 @@ fn test_fndsa_deterministic_keygen_is_deterministic() {
     run_with_large_stack(|| {
         let seed = [42u8; 32];
 
-        let mut rng1 = ChaCha20Rng::from_seed(seed);
+        let mut rng1 = Rand06Adapter(ChaCha20Rng::from_seed(seed));
         let keypair1 = KeyPair::generate_with_rng(&mut rng1, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 
-        let mut rng2 = ChaCha20Rng::from_seed(seed);
+        let mut rng2 = Rand06Adapter(ChaCha20Rng::from_seed(seed));
         let keypair2 = KeyPair::generate_with_rng(&mut rng2, FnDsaSecurityLevel::Level512)
             .expect("Key generation should succeed");
 

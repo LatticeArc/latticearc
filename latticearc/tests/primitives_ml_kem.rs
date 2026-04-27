@@ -382,7 +382,7 @@ fn test_shared_secret_as_array_succeeds() {
     let bytes = [0x55u8; 32];
     let ss = MlKemSharedSecret::new(bytes);
 
-    let array = ss.as_array();
+    let array = ss.expose_secret_as_array();
     assert_eq!(*array, bytes, "as_array should return the original bytes");
     assert_eq!(ss.expose_secret(), &bytes, "as_bytes should return a slice of the bytes");
 }
@@ -633,7 +633,7 @@ fn test_decapsulate_random_garbage_ciphertext_succeeds() {
         let (ss_real, _ct) = MlKem::encapsulate(&pk).expect("encapsulation should succeed");
 
         let mut garbage = vec![0u8; level.ciphertext_size()];
-        rand::rngs::OsRng.fill_bytes(&mut garbage);
+        latticearc::primitives::rand::secure_rng().fill_bytes(&mut garbage);
 
         let garbage_ct =
             MlKemCiphertext::new(level, garbage).expect("ciphertext construction should succeed");

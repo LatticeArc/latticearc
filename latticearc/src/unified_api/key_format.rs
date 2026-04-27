@@ -80,7 +80,10 @@ const PBKDF2_MIN_ITERATIONS: u32 = 100_000;
 /// PBKDF2 salt length in bytes (SP 800-132 recommends ≥ 16).
 const PBKDF2_SALT_LEN: usize = 16;
 /// PBKDF2 minimum salt length accepted when loading an encrypted key.
-const PBKDF2_MIN_SALT_LEN: usize = 16;
+/// Re-exported from the canonical NIST SP 800-132 §5.1 constant on
+/// [`Pbkdf2Params::MIN_SALT_LEN`](crate::primitives::kdf::pbkdf2::Pbkdf2Params::MIN_SALT_LEN)
+/// so the load-side check and the construction-side check cannot drift.
+const PBKDF2_MIN_SALT_LEN: usize = crate::primitives::kdf::pbkdf2::Pbkdf2Params::MIN_SALT_LEN;
 /// AES-256-GCM nonce length in bytes (NIST SP 800-38D).
 const AES_GCM_NONCE_LEN: usize = 12;
 /// AES-256-GCM tag length in bytes.

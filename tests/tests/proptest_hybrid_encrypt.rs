@@ -95,14 +95,14 @@ proptest! {
 
         let (pk, sk) = generate_keypair().unwrap();
 
-        let ctx1 = HybridEncryptionContext {
-            info: b"LatticeArc-Hybrid-Encryption-v1".to_vec(),
-            aad: aad1,
-        };
-        let ctx2 = HybridEncryptionContext {
-            info: b"LatticeArc-Hybrid-Encryption-v1".to_vec(),
-            aad: aad2,
-        };
+        let ctx1 = HybridEncryptionContext::with_explicit_info(
+            b"LatticeArc-Hybrid-Encryption-v1",
+            aad1,
+        );
+        let ctx2 = HybridEncryptionContext::with_explicit_info(
+            b"LatticeArc-Hybrid-Encryption-v1",
+            aad2,
+        );
 
         let ciphertext = encrypt_hybrid(&pk, &plaintext, Some(&ctx1)).unwrap();
 

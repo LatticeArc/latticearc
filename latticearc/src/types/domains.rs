@@ -42,8 +42,14 @@ pub const HYBRID_ENCRYPTION_INFO: &[u8] = b"LatticeArc-Hybrid-Encryption-v1";
 ///
 /// Appended to the `(ML-KEM shared secret || ECDH shared secret)` IKM so the
 /// resulting 64-byte hybrid secret is bound to this specific construction.
-/// Changing this label invalidates every previously derived hybrid secret.
-pub const HYBRID_KEM_SS_INFO: &[u8] = b"LatticeArc-Hybrid-KEM-SS";
+///
+/// **Versioning:** the `-v1` suffix is mandatory and matches every other
+/// domain label in this module. A future v2 hybrid combiner (different
+/// component KEMs, different KDF chain, etc.) MUST bump this to `-v2` so
+/// the same component keys cannot derive identical hybrid secrets across
+/// versions. Changing this label invalidates every previously derived
+/// hybrid secret.
+pub const HYBRID_KEM_SS_INFO: &[u8] = b"LatticeArc-Hybrid-KEM-SS-v1";
 
 /// Domain for convenience API `derive_key` HKDF calls.
 ///

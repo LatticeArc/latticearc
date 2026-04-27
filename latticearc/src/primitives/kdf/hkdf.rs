@@ -76,10 +76,8 @@ impl HkdfResult {
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # use latticearc::primitives::kdf::hkdf::hkdf_extract;
-/// use rand::RngCore;
 /// # let ikm = b"input key material";
-/// let mut salt = [0u8; 32];
-/// rand::rngs::OsRng.fill_bytes(&mut salt);
+/// let salt = latticearc::primitives::rand::random_bytes(32);
 /// let prk = hkdf_extract(Some(&salt), ikm)?;
 /// # Ok(())
 /// # }

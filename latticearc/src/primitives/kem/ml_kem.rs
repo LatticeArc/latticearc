@@ -446,10 +446,10 @@ impl MlKemSecretKey {
 
     /// Clones the raw secret key bytes into a `Zeroizing<Vec<u8>>`.
     ///
-    /// Prefer [`Self::as_bytes`] when a borrowed view is sufficient, and
-    /// [`Self::into_bytes`] when consuming `self` is acceptable — both avoid
-    /// the extra allocation. `to_bytes` exists for callers that need an owned
-    /// copy without giving up the original key.
+    /// Prefer [`Self::expose_secret`] when a borrowed view is sufficient,
+    /// and [`Self::into_bytes`] when consuming `self` is acceptable — both
+    /// avoid the extra allocation. `to_bytes` exists for callers that need
+    /// an owned copy without giving up the original key.
     #[must_use]
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
         Zeroizing::new(self.data.clone())
@@ -591,9 +591,16 @@ impl MlKemSharedSecret {
         &self.data
     }
 
-    /// Returns a reference to the shared secret as an array
+    /// Returns the shared secret as a fixed-size array reference.
+    ///
+    /// Typed view over the same bytes that [`Self::expose_secret`] returns;
+    /// both are intentional duals (one slice-shaped, one array-shaped) and
+    /// `MlKemSharedSecret` documents both as I-8 accessors in
+    /// `docs/SECRET_TYPE_INVARIANTS.md`. The array form exists because the
+    /// downstream KDF callers consume `&[u8; 32]` and the conversion would
+    /// otherwise live at every callsite.
     #[must_use]
-    pub const fn as_array(&self) -> &[u8; 32] {
+    pub const fn expose_secret_as_array(&self) -> &[u8; 32] {
         &self.data
     }
 }
@@ -789,7 +796,7 @@ impl MlKem {
     /// an external RNG. Deterministic seed-based key generation is not supported
     /// by the current backend; tests requiring deterministic vectors must use
     /// the backend's own KAT interface directly.
-    #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+    #[must_use = "generated keypair must be stored or used"]
     #[instrument(level = "debug", fields(security_level = ?security_level))]
     pub fn generate_keypair(
         security_level: MlKemSecurityLevel,
@@ -807,7 +814,7 @@ impl MlKem {
     ///
     /// # Errors
     /// Returns an error if key generation or serialization fails.
-    #[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+    #[must_use = "generated keypair must be stored or used"]
     #[instrument(level = "debug", fields(security_level = ?config.security_level))]
     pub fn generate_keypair_with_config(
         config: MlKemConfig,
@@ -1605,7 +1612,7 @@ mod tests {
     fn test_shared_secret_as_array_matches_original_succeeds() {
         let data = [0x42u8; 32];
         let ss = MlKemSharedSecret::new(data);
-        let arr = ss.as_array();
+        let arr = ss.expose_secret_as_array();
         assert_eq!(*arr, data);
     }
 

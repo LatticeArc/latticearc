@@ -329,9 +329,16 @@ impl X25519SecretKey {
         Ok(Self { bytes: key_bytes })
     }
 
-    /// Get the secret key as bytes
+    /// Expose the secret key bytes.
+    ///
+    /// Per Secret Type Invariant I-8, this is the only public read accessor
+    /// on `X25519SecretKey` so `rg expose_secret` is an exhaustive audit grep
+    /// of every secret-leak surface. Callers that need a non-array slice can
+    /// call `expose_secret().as_slice()`.
+    ///
+    /// (Renamed from `as_bytes()` in v0.8.0 dep-upgrade pass — breaking.)
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8; X25519_KEY_SIZE] {
+    pub fn expose_secret(&self) -> &[u8; X25519_KEY_SIZE] {
         &self.bytes
     }
 }
@@ -620,10 +627,10 @@ pub fn validate_public_key(public_key: &X25519PublicKey) -> Result<(), EcdhError
 /// # Errors
 /// Returns an error if the secret key size does not match the expected X25519 key size.
 pub fn validate_secret_key(secret_key: &X25519SecretKey) -> Result<(), EcdhError> {
-    if secret_key.as_bytes().len() != X25519_KEY_SIZE {
+    if secret_key.expose_secret().len() != X25519_KEY_SIZE {
         return Err(EcdhError::InvalidKeySize {
             expected: X25519_KEY_SIZE,
-            actual: secret_key.as_bytes().len(),
+            actual: secret_key.expose_secret().len(),
         });
     }
     Ok(())
@@ -1253,7 +1260,7 @@ mod tests {
     fn test_secret_key_from_bytes_succeeds() {
         let bytes = [0x42u8; X25519_KEY_SIZE];
         let sk = X25519SecretKey::from_bytes(&bytes).unwrap();
-        assert_eq!(sk.as_bytes(), &bytes);
+        assert_eq!(sk.expose_secret(), &bytes);
     }
 
     #[test]

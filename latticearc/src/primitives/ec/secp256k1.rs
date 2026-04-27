@@ -11,7 +11,7 @@
 use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};
-use rand::rngs::OsRng;
+use rand_core_0_6::OsRng; // k256 uses rand_core 0.6
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 

@@ -478,7 +478,7 @@ pub enum UseCase {
     // ========================================================================
     // Communication
     // ========================================================================
-    /// Real-time messaging with low latency requirements.
+    /// Interactive messaging with low latency requirements.
     /// Uses ML-KEM-768 for balanced security and performance.
     SecureMessaging,
     /// Email encryption for at-rest and in-transit protection.

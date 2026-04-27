@@ -348,7 +348,7 @@ impl HybridSignature {
 /// # Entropy source
 /// ML-DSA and Ed25519 key generation route through the primitives layer,
 /// which uses `OsRng` internally — callers cannot supply an external RNG.
-#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_keypair() -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError>
 {
     generate_keypair_with_parameter_set(MlDsaParameterSet::MlDsa65)
@@ -371,7 +371,7 @@ pub fn generate_keypair() -> Result<(HybridSigPublicKey, HybridSigSecretKey), Hy
 /// Returns an error if ML-DSA keypair generation fails for the requested
 /// parameter set, or if Ed25519 keypair generation (including its pairwise
 /// consistency test) fails.
-#[must_use = "discarding a generated keypair wastes entropy and leaks key material"]
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_keypair_with_parameter_set(
     parameter_set: MlDsaParameterSet,
 ) -> Result<(HybridSigPublicKey, HybridSigSecretKey), HybridSignatureError> {

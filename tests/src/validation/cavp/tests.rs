@@ -127,7 +127,7 @@ mod cavp_validation_tests {
 
     #[test]
     fn test_hmac_sha256_cavp_vectors_match_expected_tags_matches_expected() {
-        use hmac::{Hmac, Mac};
+        use hmac::{Hmac, KeyInit, Mac};
 
         type HmacSha256 = Hmac<Sha256>;
 
@@ -548,7 +548,7 @@ mod algorithm_compliance_tests {
     /// Verify HMAC-SHA256 produces correct output length
     #[test]
     fn test_hmac_sha256_output_length_is_compliant_has_correct_size() {
-        use hmac::{Hmac, Mac};
+        use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
 
         type HmacSha256 = Hmac<Sha256>;

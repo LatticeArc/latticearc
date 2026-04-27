@@ -64,6 +64,7 @@
 
 // Core cryptographic modules
 pub mod aead;
+pub mod ct;
 pub mod hash;
 pub mod kdf;
 pub mod kem;

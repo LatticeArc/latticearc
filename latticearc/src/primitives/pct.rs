@@ -308,7 +308,7 @@ pub fn pct_slh_dsa(
 /// ```no_run
 /// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
 /// use latticearc::primitives::pct::pct_fn_dsa;
-/// use rand::rngs::OsRng;
+/// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
 /// let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
@@ -319,7 +319,7 @@ pub fn pct_fn_dsa(
     verifying_key: &crate::primitives::sig::fndsa::VerifyingKey,
     signing_key: &mut crate::primitives::sig::fndsa::SigningKey,
 ) -> PctResult<()> {
-    use rand::rngs::OsRng;
+    use rand_core_0_6::OsRng;
 
     // Verify security levels match
     if verifying_key.security_level() != signing_key.security_level() {
@@ -363,7 +363,7 @@ pub fn pct_fn_dsa(
 /// ```no_run
 /// use latticearc::primitives::sig::fndsa::{KeyPair, FnDsaSecurityLevel};
 /// use latticearc::primitives::pct::pct_fn_dsa_keypair;
-/// use rand::rngs::OsRng;
+/// use rand_core_0_6::OsRng;
 ///
 /// let mut rng = OsRng;
 /// let mut keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)?;
@@ -372,7 +372,7 @@ pub fn pct_fn_dsa(
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn pct_fn_dsa_keypair(keypair: &mut crate::primitives::sig::fndsa::KeyPair) -> PctResult<()> {
-    use rand::rngs::OsRng;
+    use rand_core_0_6::OsRng;
 
     // Sign the test message
     let mut rng = OsRng;
@@ -638,7 +638,7 @@ mod tests {
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
-                use rand::rngs::OsRng;
+                use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
                 let mut keypair =
                     KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
@@ -657,7 +657,7 @@ mod tests {
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
-                use rand::rngs::OsRng;
+                use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
                 let mut keypair =
                     KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level1024)
@@ -676,7 +676,7 @@ mod tests {
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
-                use rand::rngs::OsRng;
+                use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
                 let keypair = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
                     .expect("Key generation failed");
@@ -706,7 +706,7 @@ mod tests {
             .stack_size(32 * 1024 * 1024)
             .spawn(|| {
                 use crate::primitives::sig::fndsa::{FnDsaSecurityLevel, KeyPair};
-                use rand::rngs::OsRng;
+                use rand_core_0_6::OsRng;
                 let mut rng = OsRng;
                 let keypair512 = KeyPair::generate_with_rng(&mut rng, FnDsaSecurityLevel::Level512)
                     .expect("Key generation failed");

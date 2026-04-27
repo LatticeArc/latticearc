@@ -193,14 +193,57 @@ impl HybridCiphertext {
 #[derive(Debug, Clone)]
 pub struct HybridEncryptionContext {
     /// Application-specific info string for key derivation domain separation.
-    pub info: Vec<u8>,
+    ///
+    /// Private (Pattern 7): callers must go through [`Self::default`],
+    /// [`Self::with_aad`], or [`Self::with_explicit_info`] so the only way
+    /// to set a non-default `info` is to make a deliberate, grep-able call.
+    /// A `pub` field would let any caller silently collide with another
+    /// protocol's domain-separation label.
+    info: Vec<u8>,
     /// Additional authenticated data (AAD) for AEAD encryption.
+    ///
+    /// Intentionally `pub` (asymmetric with `info`): AAD is per-message
+    /// application data — transport headers, request IDs, version tags —
+    /// that callers MUST set at every call site. It carries no domain-
+    /// separation role, so the grep-able-audit motivation that privatizes
+    /// `info` does not apply. AAD mismatches surface as ordinary
+    /// authentication failures (no oracle) and are visible to legitimate
+    /// callers by design.
     pub aad: Vec<u8>,
 }
 
 impl Default for HybridEncryptionContext {
     fn default() -> Self {
         Self { info: crate::types::domains::HYBRID_ENCRYPTION_INFO.to_vec(), aad: vec![] }
+    }
+}
+
+impl HybridEncryptionContext {
+    /// Construct with the canonical `HYBRID_ENCRYPTION_INFO` domain
+    /// separator (recommended) and the supplied AAD.
+    #[must_use]
+    pub fn with_aad(aad: Vec<u8>) -> Self {
+        Self { info: crate::types::domains::HYBRID_ENCRYPTION_INFO.to_vec(), aad }
+    }
+
+    /// Construct with an explicit `info` domain separator. Reserved for
+    /// callers that have registered their own label in
+    /// [`crate::types::domains`] — passing an arbitrary string here risks
+    /// collision with another protocol and breaks Pattern 7.
+    ///
+    /// The `info` argument is `&'static [u8]` deliberately: it forces
+    /// callers to declare the label as a `pub const &[u8]` somewhere
+    /// (typically `domains.rs`), which is the grep-able audit checkpoint.
+    #[must_use]
+    pub fn with_explicit_info(info: &'static [u8], aad: Vec<u8>) -> Self {
+        Self { info: info.to_vec(), aad }
+    }
+
+    /// Read-only access to the `info` field for tests, debug printing, and
+    /// per-call wire framing.
+    #[must_use]
+    pub fn info(&self) -> &[u8] {
+        &self.info
     }
 }
 

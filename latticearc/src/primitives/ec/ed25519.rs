@@ -11,7 +11,10 @@
 use super::traits::{EcKeyPair, EcSignature, sealed};
 use crate::prelude::error::{LatticeArcError, Result};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
-use rand::rngs::OsRng;
+// `ed25519-dalek 2.x` is pinned to `rand_core 0.6`; pass it the 0.6 OsRng
+// (re-exported here as `OsRng`) so its `RngCore` bound is satisfied. Once
+// the dalek 3.x stable line lands this can switch to plain `rand::rngs::OsRng`.
+use rand_core_0_6::OsRng;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 

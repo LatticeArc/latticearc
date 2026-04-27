@@ -5,10 +5,10 @@
 
 //! LatticeArc - Post-Quantum Cryptography Library
 //!
-//! Production-ready post-quantum cryptography. Hybrid ML-KEM+X25519 by default,
-//! all 4 NIST standards (FIPS 203–206), and FIPS 140-3 backend — one crate,
-//! zero unsafe. For PQ TLS, use rustls 0.23.37+ with `aws-lc-rs` directly;
-//! this crate does not wrap rustls.
+//! Post-quantum cryptography on the aws-lc-rs FIPS 140-3 backend. Hybrid
+//! ML-KEM+X25519 by default, all 4 NIST PQC standards (FIPS 203–206) — one
+//! crate, zero unsafe. For PQ TLS, use rustls 0.23.37+ with `aws-lc-rs`
+//! directly; this crate does not wrap rustls.
 //!
 //! > **IMPORTANT — FIPS terminology:** this crate distinguishes *algorithm
 //! > conformance* (implementing the NIST specs FIPS 203/204/205/206) from
@@ -123,8 +123,12 @@
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{encrypt, decrypt, CryptoConfig, CryptoScheme, EncryptKey, DecryptKey};
+//! use latticearc::primitives::rand::random_bytes;
 //!
-//! let key = [0u8; 32];  // 256-bit key for AES-256-GCM
+//! // Generate a fresh 256-bit key from the OS CSPRNG. Never use a constant
+//! // (e.g. `[0u8; 32]`) — AEAD constructors reject all-zero keys per the
+//! // McGrew/Viega NIST AES-GCM Test Cases 1 and 2 weak-key check.
+//! let key = random_bytes(32);
 //! let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
 //!     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
 //! let decrypted = decrypt(&encrypted, DecryptKey::Symmetric(&key), CryptoConfig::new())?;

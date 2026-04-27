@@ -146,7 +146,7 @@ use subtle::ConstantTimeEq;
 /// // With Zero Trust verification (recommended)
 /// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 /// # let data = b"secret";
-/// # let key = [0u8; 32];
+/// # let key = latticearc::primitives::rand::random_bytes(32);
 /// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
 ///
 /// // Without verification (opt-out)
@@ -274,7 +274,7 @@ impl Default for SecurityMode<'_> {
 ///
 /// // Use the session for cryptographic operations
 /// # let data = b"secret";
-/// # let key = [0u8; 32];
+/// # let key = latticearc::primitives::rand::random_bytes(32);
 /// let result = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
 /// # Ok(())
 /// # }

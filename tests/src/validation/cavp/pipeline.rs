@@ -17,7 +17,7 @@ use crate::validation::cavp::storage::CavpStorage;
 use crate::validation::cavp::types::*;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use rand_core::OsRng;
+use rand_core_0_6::OsRng;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

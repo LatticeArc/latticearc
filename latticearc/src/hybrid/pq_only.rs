@@ -200,6 +200,7 @@ impl PqOnlySecretKey {
 /// # Errors
 ///
 /// Returns an error if key generation fails.
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_pq_keypair() -> Result<(PqOnlyPublicKey, PqOnlySecretKey), PqOnlyError> {
     generate_pq_keypair_with_level(MlKemSecurityLevel::MlKem768)
 }
@@ -216,6 +217,7 @@ pub fn generate_pq_keypair() -> Result<(PqOnlyPublicKey, PqOnlySecretKey), PqOnl
 /// # Errors
 ///
 /// Returns an error if key generation fails.
+#[must_use = "generated keypair must be stored or used"]
 pub fn generate_pq_keypair_with_level(
     level: MlKemSecurityLevel,
 ) -> Result<(PqOnlyPublicKey, PqOnlySecretKey), PqOnlyError> {

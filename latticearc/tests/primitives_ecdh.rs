@@ -564,9 +564,10 @@ fn test_x25519_secret_key_serialization_roundtrip() {
     let bytes = [0x42u8; X25519_KEY_SIZE];
     let sk = X25519SecretKey::from_bytes(&bytes).expect("secret key creation should succeed");
 
-    let restored = X25519SecretKey::from_bytes(sk.as_bytes()).expect("restoration should succeed");
+    let restored =
+        X25519SecretKey::from_bytes(sk.expose_secret()).expect("restoration should succeed");
 
-    assert_eq!(sk.as_bytes(), restored.as_bytes(), "Roundtrip should preserve bytes");
+    assert_eq!(sk.expose_secret(), restored.expose_secret(), "Roundtrip should preserve bytes");
 }
 
 // ============================================================================

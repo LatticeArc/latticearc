@@ -22,9 +22,9 @@
 use crate::primitives::aead::{
     AES_GCM_128_KEY_LEN, AES_GCM_256_KEY_LEN, AeadCipher, AeadError, Nonce, TAG_LEN, Tag,
 };
+use crate::primitives::rand::secure_rng;
 use aws_lc_rs::aead::{AES_128_GCM, AES_256_GCM, Aad, LessSafeKey, Nonce as AwsNonce, UnboundKey};
 use rand::RngCore;
-use rand::rngs::OsRng;
 use tracing::instrument;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -42,12 +42,14 @@ macro_rules! impl_aes_gcm {
             key_bytes: [u8; $key_len],
         }
 
-        impl AeadCipher for $name {
-            const KEY_LEN: usize = $key_len;
-
-            #[instrument(level = "debug", skip(key), fields(key_len = key.len()))]
-            fn new_internal(key: &[u8]) -> Result<Self, AeadError> {
-                if key.len() != Self::KEY_LEN {
+        impl $name {
+            /// Internal raw constructor — length-checked, no weak-key guard.
+            /// `pub(crate)` to keep it off the public API surface (the trait
+            /// version was previously a public bypass; see `AeadCipher::new`
+            /// implementation note).
+            #[inline]
+            pub(crate) fn new_raw(key: &[u8]) -> Result<Self, AeadError> {
+                if key.len() != $key_len {
                     return Err(AeadError::InvalidKeyLength);
                 }
                 let mut key_bytes = [0u8; $key_len];
@@ -55,9 +57,41 @@ macro_rules! impl_aes_gcm {
                 Ok($name { key_bytes })
             }
 
+            /// Construct bypassing the `AeadError::WeakKey` guard.
+            ///
+            /// Reserved for known-test-vector reproduction (e.g. all-zero
+            /// key/IV cases in McGrew & Viega's AES-GCM Test Cases 1 and 2).
+            /// Production code MUST use `Self::new` (the `AeadCipher::new`
+            /// trait method).
+            ///
+            /// Gated behind the `kat-test-vectors` Cargo feature so the
+            /// bypass is only callable from crates that explicitly opt in.
+            ///
+            /// # Errors
+            /// - `AeadError::InvalidKeyLength` if `key.len() != KEY_LEN`.
+            #[cfg(any(test, feature = "kat-test-vectors"))]
+            pub fn new_allow_weak_key(key: &[u8]) -> Result<Self, AeadError> {
+                Self::new_raw(key)
+            }
+        }
+
+        impl AeadCipher for $name {
+            const KEY_LEN: usize = $key_len;
+
+            #[instrument(level = "debug", skip(key), fields(key_len = key.len()))]
+            fn new(key: &[u8]) -> Result<Self, AeadError> {
+                if key.len() != Self::KEY_LEN {
+                    return Err(AeadError::InvalidKeyLength);
+                }
+                if crate::primitives::aead::is_all_zero_key(key) {
+                    return Err(AeadError::WeakKey);
+                }
+                Self::new_raw(key)
+            }
+
             fn generate_nonce() -> Nonce {
                 let mut nonce = [0u8; 12];
-                OsRng.fill_bytes(&mut nonce);
+                secure_rng().fill_bytes(&mut nonce);
                 nonce
             }
 
@@ -192,7 +226,7 @@ macro_rules! impl_aes_gcm {
             #[must_use]
             pub fn generate_key() -> zeroize::Zeroizing<[u8; $key_len]> {
                 let mut key = zeroize::Zeroizing::new([0u8; $key_len]);
-                OsRng.fill_bytes(&mut *key);
+                secure_rng().fill_bytes(&mut *key);
                 key
             }
         }

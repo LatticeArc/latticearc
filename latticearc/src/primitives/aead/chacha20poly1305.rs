@@ -40,16 +40,41 @@ pub struct ChaCha20Poly1305Cipher {
     key_bytes: [u8; CHACHA20_POLY1305_KEY_LEN],
 }
 
-impl AeadCipher for ChaCha20Poly1305Cipher {
-    const KEY_LEN: usize = CHACHA20_POLY1305_KEY_LEN;
-
-    fn new_internal(key: &[u8]) -> Result<Self, AeadError> {
-        if key.len() != Self::KEY_LEN {
+impl ChaCha20Poly1305Cipher {
+    /// Internal raw constructor — length-checked, no weak-key guard.
+    /// `pub(crate)` to keep it off the public API surface.
+    #[inline]
+    pub(crate) fn new_raw(key: &[u8]) -> Result<Self, AeadError> {
+        if key.len() != CHACHA20_POLY1305_KEY_LEN {
             return Err(AeadError::InvalidKeyLength);
         }
         let mut key_bytes = [0u8; CHACHA20_POLY1305_KEY_LEN];
         key_bytes.copy_from_slice(key);
         Ok(ChaCha20Poly1305Cipher { key_bytes })
+    }
+
+    /// Construct bypassing the `AeadError::WeakKey` guard. KAT-only.
+    /// Gated behind the `kat-test-vectors` Cargo feature.
+    ///
+    /// # Errors
+    /// - `AeadError::InvalidKeyLength` if `key` is not 32 bytes.
+    #[cfg(any(test, feature = "kat-test-vectors"))]
+    pub fn new_allow_weak_key(key: &[u8]) -> Result<Self, AeadError> {
+        Self::new_raw(key)
+    }
+}
+
+impl AeadCipher for ChaCha20Poly1305Cipher {
+    const KEY_LEN: usize = CHACHA20_POLY1305_KEY_LEN;
+
+    fn new(key: &[u8]) -> Result<Self, AeadError> {
+        if key.len() != Self::KEY_LEN {
+            return Err(AeadError::InvalidKeyLength);
+        }
+        if super::is_all_zero_key(key) {
+            return Err(AeadError::WeakKey);
+        }
+        Self::new_raw(key)
     }
 
     fn generate_nonce() -> Nonce {
@@ -227,7 +252,7 @@ impl XChaCha20Poly1305Cipher {
         if super::is_all_zero_key(key) {
             return Err(AeadError::WeakKey);
         }
-        Self::new_internal(key)
+        Self::new_raw(key)
     }
 
     /// Construct bypassing the [`AeadError::WeakKey`] guard. Reserved for
@@ -239,13 +264,13 @@ impl XChaCha20Poly1305Cipher {
     /// - `AeadError::InvalidKeyLength` if `key` is not exactly 32 bytes.
     #[cfg(any(test, feature = "kat-test-vectors"))]
     pub fn new_allow_weak_key(key: &[u8]) -> Result<Self, AeadError> {
-        Self::new_internal(key)
+        Self::new_raw(key)
     }
 
     /// Internal raw constructor — length check + buffer copy, no weak-key
-    /// guard. `new` and `new_allow_weak_key` both delegate here.
-    #[doc(hidden)]
-    fn new_internal(key: &[u8]) -> Result<Self, AeadError> {
+    /// guard. `pub(crate)` so the bypass is not callable from outside the
+    /// crate. `new` and `new_allow_weak_key` both delegate here.
+    pub(crate) fn new_raw(key: &[u8]) -> Result<Self, AeadError> {
         if key.len() != CHACHA20_POLY1305_KEY_LEN {
             return Err(AeadError::InvalidKeyLength);
         }
@@ -272,7 +297,7 @@ impl XChaCha20Poly1305Cipher {
     #[must_use]
     pub fn generate_xnonce() -> XNonce {
         let mut nonce = [0u8; XNONCE_LEN];
-        OsRng.fill_bytes(&mut nonce);
+        crate::primitives::rand::secure_rng().fill_bytes(&mut nonce);
         nonce
     }
 
@@ -396,6 +421,31 @@ mod tests {
         } else {
             panic!("Expected InvalidKeyLength error");
         }
+    }
+
+    #[test]
+    fn test_chacha20_poly1305_all_zero_key_rejected_at_construction() {
+        // Mirrors the AesGcm256 weak-key-rejection test. Per RFC 7539 §4 and
+        // the McGrew/Viega weak-key analysis, an all-zero key produces a
+        // deterministic keystream that immediately leaks plaintext under
+        // known-plaintext analysis.
+        let zero_key = [0u8; CHACHA20_POLY1305_KEY_LEN];
+        let result = ChaCha20Poly1305Cipher::new(&zero_key);
+        assert!(
+            matches!(result, Err(AeadError::WeakKey)),
+            "All-zero ChaCha20-Poly1305 key must be rejected; got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_chacha20_poly1305_new_allow_weak_key_bypasses_check() {
+        // The KAT escape hatch must succeed where `new` rejects, otherwise
+        // RFC 7539 test vectors that use an all-zero key cannot be verified.
+        // This test pins the bypass surface so a future tightening of the
+        // weak-key check does not silently break KAT verification.
+        let zero_key = [0u8; CHACHA20_POLY1305_KEY_LEN];
+        let result = ChaCha20Poly1305Cipher::new_allow_weak_key(&zero_key);
+        assert!(result.is_ok(), "new_allow_weak_key must accept the all-zero key");
     }
 
     #[test]

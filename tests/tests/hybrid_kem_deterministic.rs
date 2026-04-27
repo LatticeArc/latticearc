@@ -10,7 +10,7 @@
 //!
 //! What this tests:
 //! 1. HKDF derivation correctness against an independent implementation
-//! 2. Domain separator "LatticeArc-Hybrid-KEM-SS" is included in info
+//! 2. Domain separator "LatticeArc-Hybrid-KEM-SS-v1" is included in info
 //! 3. IKM is ml_kem_ss || ecdh_ss (not reversed)
 //! 4. Roundtrip determinism (same inputs → same output every time)
 
@@ -66,7 +66,7 @@ fn independent_hkdf(
 
     // Info = domain_label || len(static_pk) || static_pk || len(eph_pk) || eph_pk
     let mut info = Vec::new();
-    info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS");
+    info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS-v1");
     let static_pk_len = u32::try_from(static_pk.len()).expect("public key within u32 range");
     info.extend_from_slice(&static_pk_len.to_be_bytes());
     info.extend_from_slice(static_pk);
@@ -190,7 +190,7 @@ fn test_ikm_ordering_matches_spec_succeeds() {
 
     // Info uses HPKE §5.1 / RFC 9180 length-prefix encoding (matches A1 fix).
     let mut info = Vec::new();
-    info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS");
+    info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS-v1");
     let static_pk_len = u32::try_from(STATIC_PK.len()).expect("public key within u32 range");
     info.extend_from_slice(&static_pk_len.to_be_bytes());
     info.extend_from_slice(&STATIC_PK);

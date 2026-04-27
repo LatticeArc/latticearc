@@ -1,6 +1,6 @@
 # LatticeArc Architecture
 
-This document describes the architecture of LatticeArc, a post-quantum cryptography library with intelligent scheme selection and zero-trust authentication framework.
+This document describes the architecture of LatticeArc, a post-quantum cryptography library with policy-driven scheme selection and zero-trust authentication framework.
 
 ## Design Principles
 

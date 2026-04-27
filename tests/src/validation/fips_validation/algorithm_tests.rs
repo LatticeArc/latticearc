@@ -62,7 +62,7 @@ pub fn test_aes_algorithm_succeeds() -> Result<TestResult, LatticeArcError> {
     let encrypt_key = LessSafeKey::new(unbound);
 
     let mut nonce_bytes = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    rand::rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
     // Encrypt
@@ -97,7 +97,7 @@ pub fn test_aes_algorithm_succeeds() -> Result<TestResult, LatticeArcError> {
     let encrypt_key3 = LessSafeKey::new(unbound3);
 
     let mut nonce_bytes2 = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes2);
+    rand::rng().fill_bytes(&mut nonce_bytes2);
     let nonce3 = Nonce::assume_unique_for_key(nonce_bytes2);
 
     let mut empty_ciphertext = Vec::new();

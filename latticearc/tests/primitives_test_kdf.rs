@@ -21,7 +21,7 @@ mod pbkdf2_tests {
         // RFC 6070 Test Vector 1 uses iterations=1, which our security
         // hardening correctly rejects (minimum 1000 per OWASP guidelines)
         let password = b"password";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
         let params = Pbkdf2Params::with_salt(salt).iterations(1).key_length(20);
 
         let result = pbkdf2(password, &params);
@@ -33,7 +33,7 @@ mod pbkdf2_tests {
         // RFC 6070 Test Vector 2 uses iterations=2, which our security
         // hardening correctly rejects (minimum 1000 per OWASP guidelines)
         let password = b"password";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
         let params = Pbkdf2Params::with_salt(salt).iterations(2).key_length(20);
 
         let result = pbkdf2(password, &params);
@@ -54,7 +54,7 @@ mod pbkdf2_tests {
 
     #[test]
     fn test_pbkdf2_different_passwords_succeeds() {
-        let salt = b"common salt";
+        let salt = b"common_salt_16by"; // bumped to 16 bytes for SP 800-132 §5.1
         let params = Pbkdf2Params::with_salt(salt).iterations(5000).key_length(32);
 
         let result1 = pbkdf2(b"password1", &params).unwrap();
@@ -66,8 +66,8 @@ mod pbkdf2_tests {
     #[test]
     fn test_pbkdf2_different_salts_succeeds() {
         let password = b"common password";
-        let params1 = Pbkdf2Params::with_salt(b"salt1").iterations(5000).key_length(32);
-        let params2 = Pbkdf2Params::with_salt(b"salt2").iterations(5000).key_length(32);
+        let params1 = Pbkdf2Params::with_salt(b"test_salt_16by01").iterations(5000).key_length(32);
+        let params2 = Pbkdf2Params::with_salt(b"test_salt_16by02").iterations(5000).key_length(32);
 
         let result1 = pbkdf2(password, &params1).unwrap();
         let result2 = pbkdf2(password, &params2).unwrap();
@@ -78,7 +78,7 @@ mod pbkdf2_tests {
     #[test]
     fn test_pbkdf2_iterations_affect_output_succeeds() {
         let password = b"password";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
         let params1 = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
         let params2 = Pbkdf2Params::with_salt(salt).iterations(2000).key_length(32);
 
@@ -91,7 +91,7 @@ mod pbkdf2_tests {
     #[test]
     fn test_pbkdf2_prf_types_succeeds() {
         let password = b"password";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
 
         let params_sha256 =
             Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32).prf(PrfType::HmacSha256);
@@ -109,11 +109,18 @@ mod pbkdf2_tests {
     #[test]
     fn test_pbkdf2_validation_succeeds() {
         let password = b"pass";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt";
 
-        // Empty salt should fail
-        let params_empty_salt = Pbkdf2Params::with_salt(b"").iterations(1000).key_length(32);
-        assert!(pbkdf2(password, &params_empty_salt).is_err());
+        // Salt below NIST SP 800-132 §5.1 minimum (128 bits / 16 bytes) must
+        // fail. Empty + non-empty-but-short + exactly-15-byte all rejected.
+        for short_salt in [b"".as_ref(), b"short".as_ref(), b"15_bytes_salt!!".as_ref()] {
+            let params = Pbkdf2Params::with_salt(short_salt).iterations(1000).key_length(32);
+            assert!(
+                pbkdf2(password, &params).is_err(),
+                "salt of len {} must be rejected (< 16 bytes)",
+                short_salt.len()
+            );
+        }
 
         // Too few iterations should fail
         let params_low_iter = Pbkdf2Params::with_salt(salt).iterations(999).key_length(32);
@@ -141,7 +148,7 @@ mod pbkdf2_tests {
     #[test]
     fn test_pbkdf2_result_zeroize_succeeds() {
         let password = b"password";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
         let result = pbkdf2(password, &params).unwrap();
@@ -217,7 +224,7 @@ mod hkdf_tests {
 
     #[test]
     fn test_hkdf_different_ikm_succeeds() {
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
         let info = b"info";
 
         let okm1 = hkdf(b"ikm1", Some(salt), Some(info), 32).unwrap();
@@ -240,7 +247,7 @@ mod hkdf_tests {
     #[test]
     fn test_hkdf_different_info_succeeds() {
         let ikm = b"ikm";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
 
         let okm1 = hkdf(ikm, Some(salt), Some(b"info1"), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(b"info2"), 32).unwrap();
@@ -461,7 +468,7 @@ mod integration_tests {
     fn test_kdf_consistency_succeeds() {
         let ikm = b"input key material";
         let password = b"password";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
 
         // All KDFs should be deterministic
         let pbkdf2_result1 =
@@ -484,7 +491,7 @@ mod integration_tests {
     #[test]
     fn test_kdf_output_uniqueness_are_unique() {
         let ikm = b"input key material";
-        let salt = b"salt";
+        let salt = b"valid_16byte_slt"; // bumped to 16 bytes for SP 800-132 §5.1
 
         // Different KDFs with same inputs should produce different outputs
         let pbkdf2_result =

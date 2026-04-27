@@ -96,6 +96,10 @@ ciborium = { workspace = true }
 rand = { workspace = true }
 rand_core = { workspace = true }
 rand_chacha = { workspace = true }
+# `rand_core 0.6` bridge for `fn-dsa` and `ed25519-dalek 2.x` whose latest
+# stable releases pre-date the `rand_core 0.9` API. Aliased so both versions
+# coexist in the same module.
+rand_core_0_6 = { workspace = true }
 getrandom = { workspace = true }
 
 # =============================================================================
@@ -128,7 +132,7 @@ proptest = { workspace = true }
 criterion = { workspace = true }
 hex-literal = { workspace = true }
 tempfile = { workspace = true }
-hkdf = "0.12.4"
+hkdf = "0.13"
 # Compile-time assertions — enforce that secret-holding types do not gain
 # `PartialEq` or similar derives that would defeat our CT-comparison discipline.
 static_assertions = "1.1"

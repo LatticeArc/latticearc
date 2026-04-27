@@ -19,7 +19,9 @@
 //! - Proper padding and block processing
 //! - Constant-time operations to prevent timing attacks
 
-use aes::cipher::{BlockEncrypt, KeyInit};
+// `aes 0.9` renamed `BlockEncrypt → BlockCipherEncrypt` (the trait moved to
+// `cipher 0.5`). The method `encrypt_block` is unchanged.
+use aes::cipher::{BlockCipherEncrypt, KeyInit};
 use aes::{Aes128, Aes192, Aes256};
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};

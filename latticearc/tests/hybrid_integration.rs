@@ -118,10 +118,10 @@ mod roundtrip {
         let (pk, sk) = generate_keypair().unwrap();
 
         let plaintext = b"data with additional authenticated data";
-        let context = HybridEncryptionContext {
-            info: b"custom-domain-separation".to_vec(),
-            aad: b"header-metadata-v2".to_vec(),
-        };
+        let context = HybridEncryptionContext::with_explicit_info(
+            b"custom-domain-separation",
+            b"header-metadata-v2".to_vec(),
+        );
 
         let ct = encrypt_hybrid(&pk, plaintext, Some(&context)).unwrap();
         let decrypted = decrypt_hybrid(&sk, &ct, Some(&context)).unwrap();

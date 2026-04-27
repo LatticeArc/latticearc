@@ -8,7 +8,8 @@
 //!
 //! - **Post-Quantum Cryptography**: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205)
 //! - **Hybrid Schemes**: Combined PQC + classical for defense in depth
-//! - **Hardware Traits**: Type definitions for hardware-aware operations
+//! - **Hardware Traits**: Type definitions for hardware-capability dispatch
+//!   (see [`crate::types::traits::HardwareInfo`])
 //! - **Zero-Trust Authentication**: Challenge-response with continuous verification
 //! - **FIPS 140-3 Compliance**: Power-up self-tests and validated implementations
 //! - **Unified API**: Single API with `SecurityMode` parameter for verified/unverified operations
@@ -28,8 +29,11 @@
 //! // Establish a Zero Trust verified session (recommended)
 //! let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 //!
-//! // Symmetric encryption with session verification
-//! let key = [0u8; 32];
+//! // Symmetric encryption with session verification.
+//! // Generate a fresh 256-bit key from the OS CSPRNG; AEAD constructors
+//! // reject all-zero keys (e.g. `[0u8; 32]`) per the McGrew/Viega NIST
+//! // AES-GCM weak-key check.
+//! let key = latticearc::primitives::rand::random_bytes(32);
 //! let encrypted = encrypt(b"secret", EncryptKey::Symmetric(&key),
 //!     CryptoConfig::new().session(&session)
 //!         .force_scheme(latticearc::CryptoScheme::Symmetric))?;
@@ -66,8 +70,10 @@
 //! // Step 2: Establish a verified session (performs challenge-response)
 //! let session = VerifiedSession::establish(public_key.as_slice(), private_key.expose_secret())?;
 //!
-//! // Step 3: Use the session for cryptographic operations
-//! let key = [0u8; 32];
+//! // Step 3: Use the session for cryptographic operations.
+//! // (`[0u8; 32]` is rejected by the AES-GCM constructor as a weak key —
+//! // generate fresh random bytes instead.)
+//! let key = latticearc::primitives::rand::random_bytes(32);
 //! let ciphertext = encrypt_aes_gcm(b"sensitive data", &key, SecurityMode::Verified(&session))?;
 //!
 //! // The session can be reused for multiple operations until it expires
@@ -92,9 +98,12 @@
 //!
 //! ```rust,no_run
 //! use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode};
+//! use latticearc::primitives::rand::random_bytes;
 //!
 //! # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
-//! let key = [0u8; 32];
+//! // Fresh 256-bit AES-GCM key — never reuse `[0u8; 32]`, the weak-key
+//! // check rejects it.
+//! let key = random_bytes(32);
 //!
 //! // Opt-out: No session verification performed
 //! let ciphertext = encrypt_aes_gcm(b"data", &key, SecurityMode::Unverified)?;

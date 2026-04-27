@@ -108,8 +108,8 @@ mod hybrid {
 
     #[test]
     fn test_derive_key_different_context_produces_different_key_succeeds() {
-        let ctx_a = HybridEncryptionContext { info: b"context-A".to_vec(), aad: vec![] };
-        let ctx_b = HybridEncryptionContext { info: b"context-B".to_vec(), aad: vec![] };
+        let ctx_a = HybridEncryptionContext::with_explicit_info(b"context-A", vec![]);
+        let ctx_b = HybridEncryptionContext::with_explicit_info(b"context-B", vec![]);
         let secret = vec![99u8; 32];
         let key_a = derive_encryption_key(&secret, &ctx_a).unwrap();
         let key_b = derive_encryption_key(&secret, &ctx_b).unwrap();
@@ -118,9 +118,9 @@ mod hybrid {
 
     #[test]
     fn test_derive_key_with_aad_succeeds() {
-        let ctx_no_aad = HybridEncryptionContext { info: b"test".to_vec(), aad: vec![] };
+        let ctx_no_aad = HybridEncryptionContext::with_explicit_info(b"test", vec![]);
         let ctx_with_aad =
-            HybridEncryptionContext { info: b"test".to_vec(), aad: b"extra-data".to_vec() };
+            HybridEncryptionContext::with_explicit_info(b"test", b"extra-data".to_vec());
         let secret = vec![77u8; 32];
         let key_no = derive_encryption_key(&secret, &ctx_no_aad).unwrap();
         let key_with = derive_encryption_key(&secret, &ctx_with_aad).unwrap();
@@ -266,16 +266,60 @@ mod hybrid {
     #[test]
     fn test_default_context_succeeds() {
         let ctx = HybridEncryptionContext::default();
-        assert_eq!(ctx.info, b"LatticeArc-Hybrid-Encryption-v1");
+        assert_eq!(ctx.info(), b"LatticeArc-Hybrid-Encryption-v1");
         assert!(ctx.aad.is_empty());
     }
 
     #[test]
     fn test_custom_context_succeeds() {
         let ctx =
-            HybridEncryptionContext { info: b"custom-info".to_vec(), aad: b"custom-aad".to_vec() };
-        assert_eq!(ctx.info, b"custom-info");
+            HybridEncryptionContext::with_explicit_info(b"custom-info", b"custom-aad".to_vec());
+        assert_eq!(ctx.info(), b"custom-info");
         assert_eq!(ctx.aad, b"custom-aad");
+    }
+
+    #[test]
+    fn test_with_aad_uses_canonical_info_label() {
+        // `with_aad` is the recommended constructor for per-message AAD
+        // without overriding the protocol domain separator. It MUST set
+        // `info` to the canonical `HYBRID_ENCRYPTION_INFO` constant so that
+        // ciphertexts produced through this path are interoperable with
+        // those produced via `default()`.
+        let ctx = HybridEncryptionContext::with_aad(b"per-message-aad".to_vec());
+        assert_eq!(
+            ctx.info(),
+            b"LatticeArc-Hybrid-Encryption-v1",
+            "with_aad must use the canonical HYBRID_ENCRYPTION_INFO label"
+        );
+        assert_eq!(ctx.aad, b"per-message-aad");
+    }
+
+    #[test]
+    fn test_with_aad_aad_value_flows_into_key_derivation() {
+        use latticearc::hybrid::encrypt_hybrid::derive_encryption_key;
+
+        let ctx_aad_a = HybridEncryptionContext::with_aad(b"aad-a".to_vec());
+        let ctx_aad_b = HybridEncryptionContext::with_aad(b"aad-b".to_vec());
+
+        let secret = vec![0x42u8; 32];
+        let key_a = derive_encryption_key(&secret, &ctx_aad_a).unwrap();
+        let key_b = derive_encryption_key(&secret, &ctx_aad_b).unwrap();
+
+        assert_ne!(
+            key_a.as_slice(),
+            key_b.as_slice(),
+            "AAD value must influence the derived encryption key"
+        );
+    }
+
+    #[test]
+    fn test_with_aad_empty_aad_matches_default() {
+        // `with_aad(vec![])` should be observationally identical to
+        // `default()` — same info, same AAD. Documents the equivalence.
+        let ctx_default = HybridEncryptionContext::default();
+        let ctx_empty_aad = HybridEncryptionContext::with_aad(vec![]);
+        assert_eq!(ctx_default.info(), ctx_empty_aad.info());
+        assert_eq!(ctx_default.aad, ctx_empty_aad.aad);
     }
 
     // ============================================================================
@@ -311,10 +355,10 @@ mod hybrid {
         let (pk, sk) = generate_keypair().unwrap();
         let plaintext = b"test with custom context and AAD";
 
-        let ctx = HybridEncryptionContext {
-            info: b"custom-app-v2".to_vec(),
-            aad: b"associated-data-123".to_vec(),
-        };
+        let ctx = HybridEncryptionContext::with_explicit_info(
+            b"custom-app-v2",
+            b"associated-data-123".to_vec(),
+        );
 
         let ct = encrypt_hybrid(&pk, plaintext, Some(&ctx)).unwrap();
         assert!(!ct.symmetric_ciphertext().is_empty());
@@ -381,8 +425,8 @@ mod hybrid {
         let (pk, sk) = generate_keypair().unwrap();
         let plaintext = b"context mismatch test";
 
-        let ctx_enc = HybridEncryptionContext { info: b"encrypt-ctx".to_vec(), aad: vec![] };
-        let ctx_dec = HybridEncryptionContext { info: b"decrypt-ctx".to_vec(), aad: vec![] };
+        let ctx_enc = HybridEncryptionContext::with_explicit_info(b"encrypt-ctx", vec![]);
+        let ctx_dec = HybridEncryptionContext::with_explicit_info(b"decrypt-ctx", vec![]);
 
         let ct = encrypt_hybrid(&pk, plaintext, Some(&ctx_enc)).unwrap();
         let result = decrypt_hybrid(&sk, &ct, Some(&ctx_dec));
@@ -422,7 +466,7 @@ mod hybrid {
     fn test_context_clone_and_debug_succeeds() {
         let ctx = HybridEncryptionContext::default();
         let cloned = ctx.clone();
-        assert_eq!(cloned.info, ctx.info);
+        assert_eq!(cloned.info(), ctx.info());
 
         let debug = format!("{:?}", ctx);
         assert!(debug.contains("HybridEncryptionContext"));
@@ -457,14 +501,14 @@ mod validation {
 
     #[test]
     fn test_hybrid_encryption_context_clone_debug_succeeds() {
-        let ctx = HybridEncryptionContext { info: b"info".to_vec(), aad: b"aad".to_vec() };
+        let ctx = HybridEncryptionContext::with_explicit_info(b"info", b"aad".to_vec());
         let cloned = ctx.clone();
-        assert_eq!(cloned.info, ctx.info);
+        assert_eq!(cloned.info(), ctx.info());
         let debug = format!("{:?}", ctx);
         assert!(debug.contains("HybridEncryptionContext"));
 
         let default = HybridEncryptionContext::default();
-        assert!(!default.info.is_empty());
+        assert!(!default.info().is_empty());
     }
 
     #[test]
@@ -538,10 +582,10 @@ mod true_hybrid {
         let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair().unwrap();
 
         let plaintext = b"True hybrid with custom context";
-        let ctx = HybridEncryptionContext {
-            info: b"LatticeArc-Test-v1".to_vec(),
-            aad: b"additional-auth-data".to_vec(),
-        };
+        let ctx = HybridEncryptionContext::with_explicit_info(
+            b"LatticeArc-Test-v1",
+            b"additional-auth-data".to_vec(),
+        );
 
         let ct = encrypt_hybrid(&hybrid_pk, plaintext, Some(&ctx)).unwrap();
         let decrypted = decrypt_hybrid(&hybrid_sk, &ct, Some(&ctx)).unwrap();
@@ -562,14 +606,14 @@ mod true_hybrid {
     fn test_true_hybrid_decrypt_wrong_aad_fails() {
         let (hybrid_pk, hybrid_sk) = kem_hybrid::generate_keypair().unwrap();
 
-        let ctx1 = HybridEncryptionContext {
-            info: b"LatticeArc-Test-v1".to_vec(),
-            aad: b"correct-aad".to_vec(),
-        };
-        let ctx2 = HybridEncryptionContext {
-            info: b"LatticeArc-Test-v1".to_vec(),
-            aad: b"wrong-aad".to_vec(),
-        };
+        let ctx1 = HybridEncryptionContext::with_explicit_info(
+            b"LatticeArc-Test-v1",
+            b"correct-aad".to_vec(),
+        );
+        let ctx2 = HybridEncryptionContext::with_explicit_info(
+            b"LatticeArc-Test-v1",
+            b"wrong-aad".to_vec(),
+        );
 
         let plaintext = b"AAD mismatch test";
         let ct = encrypt_hybrid(&hybrid_pk, plaintext, Some(&ctx1)).unwrap();

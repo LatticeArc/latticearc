@@ -144,7 +144,7 @@ impl RandomizedHasher {
     fn generate_salt(&self) -> Result<Vec<u8>> {
         let mut salt = vec![0u8; self.config.salt_length];
         if !salt.is_empty() {
-            rand::thread_rng().fill_bytes(&mut salt);
+            rand::rng().fill_bytes(&mut salt);
 
             // Ensure salt is not all zeros (basic sanity check)
             if salt.iter().all(|&x| x == 0)

@@ -2846,7 +2846,7 @@ mod pipeline {
                 FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
                 vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -2883,7 +2883,7 @@ mod pipeline {
                 KeyPairGeneratorStandard, SigningKey, SigningKeyStandard, sign_key_size,
                 signature_size, vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -2925,7 +2925,7 @@ mod pipeline {
                 FN_DSA_LOGN_1024, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
                 vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -2960,7 +2960,7 @@ mod pipeline {
                 KeyPairGeneratorStandard, SigningKey, SigningKeyStandard, sign_key_size,
                 signature_size, vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -2999,7 +2999,7 @@ mod pipeline {
                 FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
                 signature_size, vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -3037,7 +3037,7 @@ mod pipeline {
                 FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
                 vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -3067,7 +3067,7 @@ mod pipeline {
                 FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
                 signature_size, vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());
@@ -3102,7 +3102,7 @@ mod pipeline {
                 FN_DSA_LOGN_512, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
                 vrfy_key_size,
             };
-            use rand_core::OsRng;
+            use rand_core_0_6::OsRng;
 
             let config = PipelineConfig::default();
             let storage: Arc<dyn CavpStorage> = Arc::new(MemoryCavpStorage::new());

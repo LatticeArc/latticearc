@@ -240,21 +240,31 @@ overflow-checks = true  # Enable even in debug for crypto safety
 
   [workspace.dependencies]
 # Core async runtime - latest stable version for security and performance
-tokio = { version = "1.51.1", features = ["full"] }
+tokio = { version = "1.52.1", features = ["full"] }
 # Serialization - latest stable with derive features
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149" }
-# Random number generation - latest stable for crypto security
-rand = { version = "0.8.5", features = ["std_rng", "small_rng", "serde1"] }
-rand_core = { version = "0.6" }
-rand_chacha = { version = "0.3.1" }
+# Random number generation. rand 0.9 (Jan 2025) renames `thread_rng()` →
+# `rng()`, `Rng::gen_*` → `random_*`, but keeps `OsRng.fill_bytes` on
+# RngCore. Bumped to fix RUSTSEC-2026-0097 (rand 0.8 reseed unsoundness)
+# without going to 0.10 which renames `OsRng → SysRng` and `Rng → RngExt`
+# for marginal benefit.
+rand = { version = "0.9.4", features = ["std_rng", "small_rng", "serde"] }
+rand_core = { version = "0.9" }
+rand_chacha = { version = "0.9" }
+# Bridge to crypto crates (`fn-dsa 0.3`, `ed25519-dalek 2.x`, `x25519-dalek 2.x`)
+# whose latest stable releases still depend on `rand_core 0.6`. Aliased as
+# `rand_core_0_6` so it can coexist with `rand_core` 0.9 in the same module
+# without naming conflicts. Drop this once the dalek 3.x stable line lands
+# (currently in `3.0.0-pre.x` with no stable release for 9+ months).
+rand_core_0_6 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
 # Error handling - latest stable for structured errors
 thiserror = { version = "2.0.18" }
 anyhow = { version = "1.0.102" }
 # Time handling - consistent version across repos
 chrono = { version = "0.4.44", features = ["serde"] }
 # UUID generation - latest stable
-uuid = { version = "1.23.0", features = ["v4", "serde"] }
+uuid = { version = "1.23.1", features = ["v4", "serde"] }
 # Base64 encoding - latest stable for crypto operations
 base64 = { version = "0.22.1" }
 # Hex encoding - latest stable
@@ -269,20 +279,23 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 # Tracing for observability - latest stable
 tracing = { version = "0.1.44", features = ["log"] }
 # Getrandom for entropy - latest stable
-getrandom = { version = "0.2" }
+getrandom = { version = "0.3" }
 # Array reference utilities - latest stable
 arrayref = { version = "0.3" }
 # Subtle constant-time operations - latest stable for crypto
 subtle = { version = "2.6.1" }
 # Cryptographic algorithms - latest stable versions
 chacha20poly1305 = { version = "0.10.1", features = ["alloc"] }
-sha2 = { version = "0.10.9" }
-pbkdf2 = { version = "0.12.2" }
-hmac = { version = "0.12" }
+# RustCrypto cipher/hash/MAC/KDF crates — kept in lockstep on the digest 0.11
+# generation so trait bounds resolve against a single set of `HashMarker` /
+# `FixedOutput` types. Bumping any one of these in isolation breaks the rest.
+sha2 = { version = "0.11" }
+pbkdf2 = { version = "0.13" }
+hmac = { version = "0.13" }
 # Low-level primitives
-aes = { version = "0.8.4" }
-sha3 = { version = "0.10.8" }
-ctr = { version = "0.9" }
+aes = { version = "0.9" }
+sha3 = { version = "0.11" }
+ctr = { version = "0.10" }
 hex-literal = { version = "1.1" }
 libfuzzer-sys = { version = "0.4.8" }
 # Elliptic curve cryptography - latest stable

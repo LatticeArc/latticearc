@@ -42,12 +42,18 @@ pub mod validation;
 
 /// Shared test utilities
 pub mod utils {
+    use rand::RngCore;
     use rand::rngs::OsRng;
+    use rand_core::UnwrapErr;
 
-    /// Get a cryptographically secure RNG for tests
+    /// Get a cryptographically secure RNG for tests.
+    ///
+    /// Wraps `OsRng` (which is `TryRngCore` in rand 0.9) in `UnwrapErr` so
+    /// the returned value still implements `RngCore` infallibly — same
+    /// pattern as `latticearc::primitives::rand::secure_rng`.
     #[must_use]
-    pub fn test_rng_succeeds() -> OsRng {
-        OsRng
+    pub fn test_rng_succeeds() -> impl RngCore {
+        UnwrapErr(OsRng)
     }
 
     /// Assert two byte slices are equal with descriptive message

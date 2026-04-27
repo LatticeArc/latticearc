@@ -6,27 +6,76 @@
 //! Cryptographically Secure Random Number Generator
 //!
 //! This module provides CSPRNG using OsRng.
+//!
+//! # `rand` 0.9 migration note
+//!
+//! `rand` 0.9 made the OS RNG fallible at the type level — `rand_core::OsRng`
+//! now implements `TryRngCore` (returning `Result`) rather than `RngCore`
+//! (infallible). This file is the single, audited place where that fallibility
+//! is collapsed back to a panic: an OS RNG failure on a modern OS indicates
+//! the entropy source is broken, in which case continuing without secure
+//! randomness would be more dangerous than aborting. The `expect`/`unwrap`
+//! escape lives here only and is explicitly documented; everywhere else uses
+//! these wrappers or [`secure_rng()`] to stay clippy-clean.
 
-use rand::{RngCore, rngs::OsRng};
+use rand::{CryptoRng, TryRngCore, rngs::OsRng};
 
-/// Generate random bytes
+/// Returns an infallible CSPRNG suitable as a `RngCore + CryptoRng` argument.
+///
+/// Internally, this wraps `rand::rngs::OsRng` (which is `TryRngCore` in
+/// `rand` 0.9) in `rand_core::UnwrapErr`, panicking on OS-RNG failure. See
+/// the module-level docs for why panicking is the right semantic for
+/// `getrandom`/`/dev/urandom` failure on modern systems.
+///
+/// # Panics
+///
+/// Panics if the OS entropy source returns an error during a subsequent
+/// `fill_bytes` / `next_u32` / `next_u64` call on the returned RNG. See
+/// module-level docs.
+// `pub` rather than `pub(crate)` because integration tests in
+// `latticearc/tests/*.rs` (which live outside the crate root) need a
+// `CryptoRng`-shaped RNG for property/proptest fixtures. External
+// callers should prefer [`random_bytes`] / [`random_u32`] / [`random_u64`].
+#[doc(hidden)]
+#[must_use]
+pub fn secure_rng() -> impl CryptoRng {
+    rand_core::UnwrapErr(OsRng)
+}
+
+/// Generate random bytes.
+///
+/// # Panics
+///
+/// Panics if the OS entropy source returns an error. See module-level docs
+/// for why this is the right semantic for `getrandom` failure on modern systems.
 #[must_use]
 pub fn random_bytes(count: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; count];
-    OsRng.fill_bytes(&mut bytes);
+    #[allow(clippy::expect_used)] // see module-level rand 0.9 migration note
+    OsRng.try_fill_bytes(&mut bytes).expect("OS RNG failure");
     bytes
 }
 
-/// Generate random u32
+/// Generate random u32.
+///
+/// # Panics
+///
+/// Panics if the OS entropy source returns an error. See module-level docs.
 #[must_use]
 pub fn random_u32() -> u32 {
-    OsRng.next_u32()
+    #[allow(clippy::expect_used)] // see module-level rand 0.9 migration note
+    OsRng.try_next_u32().expect("OS RNG failure")
 }
 
-/// Generate random u64
+/// Generate random u64.
+///
+/// # Panics
+///
+/// Panics if the OS entropy source returns an error. See module-level docs.
 #[must_use]
 pub fn random_u64() -> u64 {
-    OsRng.next_u64()
+    #[allow(clippy::expect_used)] // see module-level rand 0.9 migration note
+    OsRng.try_next_u64().expect("OS RNG failure")
 }
 
 #[cfg(test)]

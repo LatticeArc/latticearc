@@ -216,8 +216,8 @@ mod fips_140_3 {
         use rand::RngCore;
         let mut sample1 = [0u8; 32];
         let mut sample2 = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut sample1);
-        rand::thread_rng().fill_bytes(&mut sample2);
+        rand::rng().fill_bytes(&mut sample1);
+        rand::rng().fill_bytes(&mut sample2);
         assert_ne!(sample1, sample2, "RNG must produce distinct 32-byte samples");
     }
 
@@ -227,8 +227,8 @@ mod fips_140_3 {
         for _ in 0..20 {
             let mut sample1 = [0u8; 32];
             let mut sample2 = [0u8; 32];
-            rand::thread_rng().fill_bytes(&mut sample1);
-            rand::thread_rng().fill_bytes(&mut sample2);
+            rand::rng().fill_bytes(&mut sample1);
+            rand::rng().fill_bytes(&mut sample2);
 
             let mut bits_set: u32 = 0;
             for byte in sample1.iter().chain(sample2.iter()) {
@@ -1554,7 +1554,7 @@ mod nist_comprehensive {
 
             // Correct usage: generate random nonces
             use rand::RngCore;
-            let mut rng = rand::rngs::OsRng;
+            let mut rng = rand_core::UnwrapErr(rand::rngs::OsRng); // rand 0.9 OsRng is TryRngCore
             let mut random_nonce1 = [0u8; 12];
             let mut random_nonce2 = [0u8; 12];
             rng.fill_bytes(&mut random_nonce1);

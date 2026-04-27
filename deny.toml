@@ -23,11 +23,14 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 
 # Ignore specific advisories (only if necessary)
 ignore = [
-    # rand 0.8 unsoundness with custom loggers calling rand::rng() during reseed.
-    # We use rand 0.8.5 (no patch in 0.8 series; fix is 0.9.3+). Our code does
-    # not use custom loggers that call rand::rng(), so the trigger conditions are
-    # not met. rand 0.9 upgrade is a separate breaking-API task.
-    "RUSTSEC-2026-0097",
+    # NOTE: RUSTSEC-2026-0097 (rand 0.8 reseed unsoundness) was previously
+    # ignored here. Removed in v0.8.0 dep-upgrade pass — workspace is now on
+    # rand 0.9.4 / rand_core 0.9 which fixes the underlying unsoundness.
+    # The `rand_core 0.6` bridge alias (`rand_core_0_6`, for fn-dsa / dalek
+    # 2.x / k256 compat) does NOT trigger the advisory: rand_core 0.6 is
+    # used only as type-level glue (OsRng + RngCore traits) when calling
+    # those crates, never as a runtime RNG that could exhibit the reseed
+    # behaviour.
     # paste 1.0.15 flagged as unmaintained (not a CVE). Pulled in transitively
     # by pqcrypto-mldsa dev-dep used in cross-impl validation tests only; does
     # not affect the published latticearc runtime. Revisit when pqcrypto-mldsa

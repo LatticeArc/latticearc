@@ -695,7 +695,7 @@ fn test_kdf_hkdf_derivation_succeeds() {
         "--input",
         "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "42",
         "--info",
@@ -718,7 +718,7 @@ fn test_kdf_pbkdf2_derivation_succeeds() {
         "--input",
         "mypassword",
         "--salt",
-        "73616c7473616c74", // "saltsalt" in hex
+        "73616c7473616c7473616c7473616c74", // "saltsalt" in hex
         "--length",
         "32",
         "--iterations",
@@ -1239,7 +1239,7 @@ fn test_kdf_deterministic_output_is_deterministic() {
         "--input",
         "password123",
         "--salt",
-        "aabbccdd",
+        "aabbccddaabbccddaabbccddaabbccdd",
         "--length",
         "32",
         "--iterations",
@@ -1908,7 +1908,7 @@ fn test_hkdf_output_length_conformance_has_correct_size() {
         "--input",
         "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "1",
         "--info",
@@ -1924,7 +1924,7 @@ fn test_hkdf_output_length_conformance_has_correct_size() {
         "--input",
         "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "32",
         "--info",
@@ -1940,7 +1940,7 @@ fn test_hkdf_output_length_conformance_has_correct_size() {
         "--input",
         "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "8160",
         "--info",
@@ -1956,7 +1956,7 @@ fn test_hkdf_output_length_conformance_has_correct_size() {
         "--input",
         "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "8161",
         "--info",
@@ -2688,7 +2688,7 @@ fn test_kdf_invalid_hex_input_fails() {
         "--input",
         "zzz-not-hex",
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "32",
         "--info",
@@ -2713,7 +2713,7 @@ fn test_kdf_zero_length_rejected_fails() {
         "--input",
         "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "0",
         "--info",
@@ -3217,7 +3217,7 @@ fn test_key_isolation_matrix_succeeds() {
 #[test]
 fn test_hkdf_domain_separation_succeeds() {
     let ikm = "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b";
-    let salt = "000102030405060708090a0b0c";
+    let salt = "000102030405060708090a0b0c0d0e0f";
 
     // Derive with info="encryption"
     let key_enc = run_ok(&[
@@ -3304,7 +3304,7 @@ fn test_pbkdf2_salt_influence_succeeds() {
         "--input",
         password,
         "--salt",
-        "000102030405060708090a0b0c",
+        "000102030405060708090a0b0c0d0e0f",
         "--length",
         "32",
     ]);
@@ -3316,7 +3316,7 @@ fn test_pbkdf2_salt_influence_succeeds() {
         "--input",
         password,
         "--salt",
-        "ff0102030405060708090a0b0c",
+        "ff0102030405060708090a0b0c0d0e0f",
         "--length",
         "32",
     ]);
@@ -3344,7 +3344,7 @@ fn test_pbkdf2_salt_influence_succeeds() {
 
 #[test]
 fn test_pbkdf2_password_sensitivity_succeeds() {
-    let salt = "000102030405060708090a0b0c";
+    let salt = "000102030405060708090a0b0c0d0e0f";
 
     let key_a = run_ok(&[
         "kdf",
@@ -3947,7 +3947,7 @@ fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
         "--input",
         "user-passphrase-2026",
         "--salt",
-        "e3b0c44298fc1c14",
+        "e3b0c44298fc1c14e3b0c44298fc1c14",
         "--length",
         "32",
         "--iterations",
@@ -4007,7 +4007,7 @@ fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
         "--input",
         "user-passphrase-2026",
         "--salt",
-        "e3b0c44298fc1c14",
+        "e3b0c44298fc1c14e3b0c44298fc1c14",
         "--length",
         "32",
         "--iterations",

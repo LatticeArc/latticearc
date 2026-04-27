@@ -142,27 +142,32 @@ impl Default for MemoryPool {
 // Secure RNG implementation
 
 use rand::rngs::OsRng;
+use rand_core::UnwrapErr;
 
-/// Cryptographically secure random number generator
+/// Cryptographically secure random number generator.
 ///
-/// This ensures that only cryptographically secure RNGs are used
-/// for security-critical operations, preventing accidental use of insecure RNGs.
-pub type SecureRng = OsRng;
+/// Wraps `rand::rngs::OsRng` (which is `TryRngCore` in rand 0.9, fallible at
+/// the type level) in `rand_core::UnwrapErr` so it presents the infallible
+/// `RngCore` surface that the rest of the API expects. OS RNG failure is
+/// fatal — see `crate::primitives::rand::csprng` module docs for the
+/// rationale.
+pub type SecureRng = UnwrapErr<OsRng>;
 
-use rand::{RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng}; // SeedableRng provides ChaCha20Rng::from_os_rng()
 use rand_chacha::ChaCha20Rng;
 use std::sync::{Mutex, OnceLock};
 
-// Thread-local fallback RNG for poisoned lock recovery
+// Thread-local fallback RNG for poisoned lock recovery.
+// `from_os_rng()` replaced `from_entropy()` in rand 0.9.
 thread_local! {
-    static FALLBACK_RNG: Mutex<ChaCha20Rng> = Mutex::new(ChaCha20Rng::from_entropy());
+    static FALLBACK_RNG: Mutex<ChaCha20Rng> = Mutex::new(ChaCha20Rng::from_os_rng());
 }
 
 /// RNG handle with fallback capability
 #[non_exhaustive]
 pub enum RngHandle<'a> {
     /// Global RNG protected by a mutex
-    Global(&'a Mutex<OsRng>),
+    Global(&'a Mutex<SecureRng>),
     /// Thread-local RNG (ChaCha20Rng from entropy)
     ThreadLocal,
 }
@@ -196,97 +201,112 @@ impl<'a> RngHandle<'a> {
     /// Fill bytes with cryptographically secure random data
     ///
     /// # Errors
-    /// Returns an error if RNG operations fail
+    /// Returns an error if RNG operations fail. Under `feature = "fips"`,
+    /// also returns an error rather than fall back to the thread-local
+    /// ChaCha20Rng (FIPS 140-3 forbids unapproved DRBGs).
     pub fn fill_bytes(&self, dest: &mut [u8]) -> Result<()> {
         match self {
-            RngHandle::Global(mutex) => {
-                match mutex.lock() {
-                    Ok(mut rng) => {
-                        rng.fill_bytes(dest);
-                        Ok(())
-                    }
-                    Err(_) => {
-                        // Fallback to thread-local if global is poisoned
-                        FALLBACK_RNG.with(|rng| match rng.lock() {
-                            Ok(mut rng) => {
-                                rng.fill_bytes(dest);
-                                Ok(())
-                            }
-                            Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
-                        })
-                    }
-                }
-            }
-            RngHandle::ThreadLocal => FALLBACK_RNG.with(|rng| match rng.lock() {
+            RngHandle::Global(mutex) => match mutex.lock() {
                 Ok(mut rng) => {
                     rng.fill_bytes(dest);
                     Ok(())
                 }
-                Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
-            }),
+                Err(_) => fallback_fill_bytes(dest),
+            },
+            RngHandle::ThreadLocal => fallback_fill_bytes(dest),
         }
     }
 
     /// Generate a random u64
     ///
     /// # Errors
-    /// Returns an error if RNG operations fail
+    /// Returns an error if RNG operations fail. Under `feature = "fips"`,
+    /// also returns an error rather than fall back to the thread-local
+    /// ChaCha20Rng (FIPS 140-3 forbids unapproved DRBGs).
     pub fn next_u64(&self) -> Result<u64> {
         match self {
-            RngHandle::Global(mutex) => {
-                match mutex.lock() {
-                    Ok(mut rng) => Ok(rng.next_u64()),
-                    Err(_) => {
-                        // Fallback to thread-local if global is poisoned
-                        FALLBACK_RNG.with(|rng| match rng.lock() {
-                            Ok(mut rng) => Ok(rng.next_u64()),
-                            Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
-                        })
-                    }
-                }
-            }
-            RngHandle::ThreadLocal => FALLBACK_RNG.with(|rng| match rng.lock() {
+            RngHandle::Global(mutex) => match mutex.lock() {
                 Ok(mut rng) => Ok(rng.next_u64()),
-                Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
-            }),
+                Err(_) => fallback_next_u64(),
+            },
+            RngHandle::ThreadLocal => fallback_next_u64(),
         }
     }
 
     /// Generate a random u32
     ///
     /// # Errors
-    /// Returns an error if RNG operations fail
+    /// Returns an error if RNG operations fail. Under `feature = "fips"`,
+    /// also returns an error rather than fall back to the thread-local
+    /// ChaCha20Rng (FIPS 140-3 forbids unapproved DRBGs).
     pub fn next_u32(&self) -> Result<u32> {
         match self {
-            RngHandle::Global(mutex) => {
-                match mutex.lock() {
-                    Ok(mut rng) => Ok(rng.next_u32()),
-                    Err(_) => {
-                        // Fallback to thread-local if global is poisoned
-                        FALLBACK_RNG.with(|rng| match rng.lock() {
-                            Ok(mut rng) => Ok(rng.next_u32()),
-                            Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
-                        })
-                    }
-                }
-            }
-            RngHandle::ThreadLocal => FALLBACK_RNG.with(|rng| match rng.lock() {
+            RngHandle::Global(mutex) => match mutex.lock() {
                 Ok(mut rng) => Ok(rng.next_u32()),
-                Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
-            }),
+                Err(_) => fallback_next_u32(),
+            },
+            RngHandle::ThreadLocal => fallback_next_u32(),
         }
     }
 }
 
+/// Fall back to the thread-local ChaCha20Rng when the global RNG is
+/// unavailable (typically because a panic in another thread poisoned its
+/// `Mutex`). Under `feature = "fips"` this path is rejected: ChaCha20Rng
+/// is not on the FIPS 140-3 approved-function list, so a panic-driven
+/// silent downgrade would constitute a module-policy violation.
+#[inline]
+fn fallback_fill_bytes(dest: &mut [u8]) -> Result<()> {
+    #[cfg(feature = "fips")]
+    {
+        let _ = dest;
+        Err(crate::prelude::error::LatticeArcError::RandomError)
+    }
+    #[cfg(not(feature = "fips"))]
+    FALLBACK_RNG.with(|rng| match rng.lock() {
+        Ok(mut rng) => {
+            rng.fill_bytes(dest);
+            Ok(())
+        }
+        Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
+    })
+}
+
+#[inline]
+fn fallback_next_u64() -> Result<u64> {
+    #[cfg(feature = "fips")]
+    {
+        Err(crate::prelude::error::LatticeArcError::RandomError)
+    }
+    #[cfg(not(feature = "fips"))]
+    FALLBACK_RNG.with(|rng| match rng.lock() {
+        Ok(mut rng) => Ok(rng.next_u64()),
+        Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
+    })
+}
+
+#[inline]
+fn fallback_next_u32() -> Result<u32> {
+    #[cfg(feature = "fips")]
+    {
+        Err(crate::prelude::error::LatticeArcError::RandomError)
+    }
+    #[cfg(not(feature = "fips"))]
+    FALLBACK_RNG.with(|rng| match rng.lock() {
+        Ok(mut rng) => Ok(rng.next_u32()),
+        Err(_) => Err(crate::prelude::error::LatticeArcError::RandomError),
+    })
+}
+
 /// Global secure RNG instance (lazily initialized)
-static GLOBAL_SECURE_RNG: OnceLock<Mutex<OsRng>> = OnceLock::new();
+static GLOBAL_SECURE_RNG: OnceLock<Mutex<SecureRng>> = OnceLock::new();
 
 /// Get or create the global secure RNG instance
 ///
 /// # Errors
 /// Returns an error if RNG initialization fails
-pub fn get_global_secure_rng() -> Result<&'static Mutex<OsRng>> {
-    Ok(GLOBAL_SECURE_RNG.get_or_init(|| Mutex::new(OsRng)))
+pub fn get_global_secure_rng() -> Result<&'static Mutex<SecureRng>> {
+    Ok(GLOBAL_SECURE_RNG.get_or_init(|| Mutex::new(UnwrapErr(OsRng))))
 }
 
 /// Initialize the global secure RNG
@@ -476,6 +496,14 @@ mod tests {
         let _ = v;
     }
 
+    // The ThreadLocal RngHandle is backed by ChaCha20Rng — a non-FIPS DRBG.
+    // Under `feature = "fips"` the fallback path is rejected (see
+    // `fallback_fill_bytes` / `fallback_next_*` in the parent module), so
+    // these tests assert "succeeds" without fips and "errors with RandomError"
+    // with fips. Splitting per-feature is necessary because the tests pin
+    // opposite outcomes from the same input.
+
+    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_rng_handle_thread_local_fill_succeeds() {
         let handle = RngHandle::ThreadLocal;
@@ -484,6 +512,19 @@ mod tests {
         assert!(buf.iter().any(|&b| b != 0));
     }
 
+    #[cfg(feature = "fips")]
+    #[test]
+    fn test_rng_handle_thread_local_fill_rejected_under_fips() {
+        let handle = RngHandle::ThreadLocal;
+        let mut buf = [0u8; 32];
+        let result = handle.fill_bytes(&mut buf);
+        assert!(
+            matches!(result, Err(crate::prelude::error::LatticeArcError::RandomError)),
+            "FIPS mode must reject the non-approved ChaCha20Rng fallback; got {result:?}"
+        );
+    }
+
+    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_rng_handle_thread_local_next_u64_succeeds() {
         let handle = RngHandle::ThreadLocal;
@@ -491,11 +532,28 @@ mod tests {
         let _ = v;
     }
 
+    #[cfg(feature = "fips")]
+    #[test]
+    fn test_rng_handle_thread_local_next_u64_rejected_under_fips() {
+        let handle = RngHandle::ThreadLocal;
+        let result = handle.next_u64();
+        assert!(matches!(result, Err(crate::prelude::error::LatticeArcError::RandomError)));
+    }
+
+    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_rng_handle_thread_local_next_u32_succeeds() {
         let handle = RngHandle::ThreadLocal;
         let v = handle.next_u32().unwrap();
         let _ = v;
+    }
+
+    #[cfg(feature = "fips")]
+    #[test]
+    fn test_rng_handle_thread_local_next_u32_rejected_under_fips() {
+        let handle = RngHandle::ThreadLocal;
+        let result = handle.next_u32();
+        assert!(matches!(result, Err(crate::prelude::error::LatticeArcError::RandomError)));
     }
 
     // === Global RNG convenience functions ===

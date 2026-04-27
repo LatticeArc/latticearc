@@ -18,12 +18,12 @@
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession};
+//! use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 //! # let data = b"example data";
-//! # let key = [0u8; 32];
-//! # let pk = [0u8; 32];
-//! # let sk = [0u8; 32];
-//! # let session = VerifiedSession::establish(&pk, &sk)?;
+//! // Fresh AEAD key — `[0u8; 32]` would fail the weak-key check.
+//! let key = latticearc::primitives::rand::random_bytes(32);
+//! let (pk, sk) = generate_keypair()?;
+//! let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 //!
 //! // With Zero Trust verification (recommended)
 //! let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
@@ -239,12 +239,12 @@ pub(crate) fn decrypt_aes_gcm_internal(
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession};
+/// use latticearc::unified_api::{encrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 /// # let data = b"example data";
-/// # let key = [0u8; 32];
-/// # let pk = [0u8; 32];
-/// # let sk = [0u8; 32];
-/// # let session = VerifiedSession::establish(&pk, &sk)?;
+/// // Fresh AEAD key — `[0u8; 32]` would fail the weak-key check.
+/// let key = latticearc::primitives::rand::random_bytes(32);
+/// let (pk, sk) = generate_keypair()?;
+/// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 ///
 /// // With Zero Trust verification (recommended)
 /// let encrypted = encrypt_aes_gcm(data, &key, SecurityMode::Verified(&session))?;
@@ -283,12 +283,12 @@ pub fn encrypt_aes_gcm(data: &[u8], key: &[u8], mode: SecurityMode) -> Result<Ve
 ///
 /// ```no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use latticearc::unified_api::{decrypt_aes_gcm, SecurityMode, VerifiedSession};
+/// use latticearc::unified_api::{decrypt_aes_gcm, SecurityMode, VerifiedSession, generate_keypair};
 /// # let encrypted = vec![0u8; 44]; // nonce (12) + ciphertext (16) + tag (16)
-/// # let key = [0u8; 32];
-/// # let pk = [0u8; 32];
-/// # let sk = [0u8; 32];
-/// # let session = VerifiedSession::establish(&pk, &sk)?;
+/// // Fresh AEAD key — `[0u8; 32]` would fail the weak-key check.
+/// let key = latticearc::primitives::rand::random_bytes(32);
+/// let (pk, sk) = generate_keypair()?;
+/// let session = VerifiedSession::establish(pk.as_slice(), sk.expose_secret())?;
 ///
 /// // With Zero Trust verification (recommended)
 /// let decrypted = decrypt_aes_gcm(&encrypted, &key, SecurityMode::Verified(&session))?;

@@ -198,8 +198,11 @@ mod tests {
 
     #[test]
     fn test_from_getrandom_error_produces_random_error_variant_fails() {
-        let code = core::num::NonZeroU32::new(1).unwrap();
-        let rand_err = getrandom::Error::from(code);
+        // `getrandom 0.3` removed the `From<NonZeroU32> for Error` impl and
+        // moved error construction onto associated constants (`UNSUPPORTED`,
+        // `UNEXPECTED`, …) plus `Error::new_custom(u16)`. Use one of those
+        // for the test fixture.
+        let rand_err = getrandom::Error::UNSUPPORTED;
         let err: LatticeArcError = rand_err.into();
         match err {
             LatticeArcError::RandomError => {} // expected

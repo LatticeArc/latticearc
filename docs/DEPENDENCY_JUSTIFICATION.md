@@ -65,7 +65,8 @@ flowchart TB
 - **Purpose**: Core crypto backend — ML-KEM (FIPS 203), AES-GCM, HKDF, X25519
 - **Justification**:
   - AWS's cryptographic library with FIPS 140-3 validation (with `--features fips`)
-  - Production-ready ML-KEM for key encapsulation
+  - FIPS 203 ML-KEM for key encapsulation (Implementation: aws-lc-rs `kem`
+    module, validated against CAVP test vectors in `tests/tests/fips_kat_*.rs`)
   - Provides AES-GCM, HKDF, and X25519 for symmetric/key-exchange operations
   - Industry-standard choice for regulated environments
   - Memory-safe Rust API over aws-lc (BoringSSL fork)

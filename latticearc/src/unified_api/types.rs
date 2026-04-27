@@ -85,8 +85,9 @@ fn default_compliance_for_use_case(use_case: UseCase) -> ComplianceMode {
 ///     .session(&session)
 ///     .use_case(UseCase::FileStorage))?;
 ///
-/// // Symmetric encryption (AES-256-GCM)
-/// let key = [0u8; 32];
+/// // Symmetric encryption (AES-256-GCM). Generate a fresh key from the OS
+/// // CSPRNG — `[0u8; 32]` is rejected as a weak key.
+/// let key = latticearc::primitives::rand::random_bytes(32);
 /// encrypt(data, EncryptKey::Symmetric(&key), CryptoConfig::new()
 ///     .force_scheme(latticearc::CryptoScheme::Symmetric))?;
 ///
@@ -204,7 +205,8 @@ impl<'a> CryptoConfig<'a> {
     /// # use latticearc::unified_api::{CryptoConfig, encrypt, EncryptKey};
     /// # use latticearc::types::types::CryptoScheme;
     /// # fn main() -> Result<(), latticearc::unified_api::error::CoreError> {
-    /// let key = [0u8; 32];
+    /// // Generate a fresh 256-bit key — `[0u8; 32]` fails the weak-key check.
+    /// let key = latticearc::primitives::rand::random_bytes(32);
     /// // Force symmetric encryption
     /// encrypt(b"data", EncryptKey::Symmetric(&key), CryptoConfig::new()
     ///     .force_scheme(CryptoScheme::Symmetric))?;
