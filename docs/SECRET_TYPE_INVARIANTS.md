@@ -135,6 +135,10 @@ Rationale:
 
 **Exception**: `expose_secret_mut()` exists `pub(crate)` for in-place initialization of zeroed buffers (e.g., to receive HKDF output). It is not public API.
 
+**Typed-array dual**: when a secret has a fixed length AND a downstream consumer needs a `&[u8; N]` instead of `&[u8]`, the type may add a second accessor named `expose_secret_as_array()` returning `&[u8; N]`. Both accessors return references into the same backing storage — they are intentional duals (slice-shaped + array-shaped), not separate exposure surfaces. Naming the array variant with the `expose_secret_` prefix preserves the `rg expose_secret` audit-grep property.
+
+Currently the only type using the dual is `MlKemSharedSecret` (`primitives::kem::ml_kem`); the array variant exists because downstream KDF callers consume `&[u8; 32]` and the conversion would otherwise live at every callsite.
+
 ### I-9. `to_bytes()` returns a secret wrapper, never bare bytes
 
 When a secret type offers an owned-bytes export, it must return one of:

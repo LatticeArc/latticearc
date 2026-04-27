@@ -55,11 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`secret-mlock` feature): on Windows `region::LockGuard::drop` panics
   when `VirtualUnlock` returns `ERROR_NOT_LOCKED`, which the OS issues
   whenever the working set was trimmed (documented "best-effort"
-  behaviour for `VirtualLock`). The wrapper `mem::forget`s the guard on
-  Windows so we never call `VirtualUnlock`; on Unix it drops normally
-  (`munlock` is reliable). See the type-level docs at
-  `latticearc/src/types/secrets.rs` for the full functional-impact
-  analysis.
+  behaviour for `VirtualLock`). The wrapper now runs the inner drop
+  inside `std::panic::catch_unwind` (with `AssertUnwindSafe`) so the
+  `ERROR_NOT_LOCKED` panic is contained at the wrapper boundary while
+  the success path still calls `VirtualUnlock` / `munlock`. This
+  replaces the earlier `mem::forget`-on-Windows approach, which left
+  the OS lock-accounting state pinned to the page until allocator
+  decommit. See the type-level docs at `latticearc/src/types/secrets.rs`
+  for the rationale and the `panic = "abort"` caveat.
 
 ### Fixed
 - **Windows CI test failures** in `e2e_integration` and `unified_api`
@@ -80,6 +83,169 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Stale "zero-key warning" doc comments** in
   `unified_api/convenience/aes_gcm.rs` and `unified_api/mod.rs` updated
   to reflect the new "AeadError::WeakKey rejection" semantics.
+
+### Security (hardening pass on top of `43dd87193`)
+
+- **BLOCKING fix — FIPS DRBG fallback bypass on mutex poison**:
+  `RngHandle::{fill_bytes,next_u64,next_u32}` previously routed to
+  `FALLBACK_RNG` (a `ChaCha20Rng` thread-local) whenever the global RNG
+  mutex was poisoned by a panic in another thread. ChaCha20 is **not** on
+  the FIPS 140-3 approved-function list, so the fallback was a silent
+  module-policy violation under `feature = "fips"`. Three new
+  `fallback_*` helpers now return `LatticeArcError::RandomError` instead
+  of falling through to the unapproved DRBG when `feature = "fips"` is
+  active. Tests for `RngHandle::ThreadLocal` were split into per-feature
+  variants (`_succeeds` for non-FIPS, `_rejected_under_fips` for FIPS).
+- **Pattern 6 (Error Opacity on Adversary-Reachable Paths)**:
+  * `hybrid::kem_hybrid::decapsulate` collapses every distinguishable
+    failure path (length, KEM, ECDH, KDF) into a single opaque
+    `HybridKemError::DecapsulationFailed` variant. Tests updated to
+    pin the collapsed-variant contract.
+  * `unified_api::convenience::api::verify_hybrid_ml_dsa_ed25519` (new
+    extracted helper) evaluates both the PQ and Ed25519 verifies
+    unconditionally and combines bitwise `&` (not `&&`) so a malformed
+    PQ component cannot timing-leak that Ed25519 was skipped.
+    Sig-shape errors collapsed to a single `"Invalid hybrid signature"`
+    string; the three duplicated 50-line ML-DSA-44/65/87 verify arms in
+    `verify` now dispatch through the helper.
+- **Pattern 7 (Hybrid Combiner Safety)** — incremental tightening:
+  * `HybridEncryptionContext::info` field privatized; new
+    `with_aad(aad)` and `with_explicit_info(&'static [u8], aad)`
+    constructors plus `info()` read accessor. The `'static` bound on
+    `with_explicit_info` strongly encourages callers to declare custom
+    domain separators as `pub const &[u8]` (typically in
+    `types::domains`), making each non-default `info` value a
+    grep-able audit checkpoint. The `aad` field stays `pub` by design
+    (per-message application data, not a domain separator) — see the
+    field-level doc for the asymmetry rationale.
+  * `HYBRID_KEM_SS_INFO` bumped to `b"LatticeArc-Hybrid-KEM-SS-v1"` to
+    match the `-v1` suffix on every other label in
+    `types::domains`. Forward-compat: a future v2 hybrid combiner MUST
+    bump this to `-v2`. Acceptable break since 0.8.0 is unreleased.
+- **Sealed traits** (Pattern 4): `ZeroTrustAuthenticable`,
+  `ProofOfPossession`, and `SigmaProtocol` are now sealed via shared
+  `mod sealed` so downstream code cannot supply implementations that
+  trivially break security semantics (e.g., a `verify_proof` returning
+  `Ok(true)` for any input). `AeadCipher` was already sealed.
+- **PBKDF2 NIST SP 800-132 §5.1 enforcement**:
+  * New `Pbkdf2Params::MIN_SALT_LEN = 16` (128-bit) constant.
+  * New `Pbkdf2Params::try_with_salt(&[u8]) -> Result<Self>` validating
+    constructor — preferred over `with_salt`. The legacy `with_salt`
+    builder is retained (and documented as such) for wire-format
+    parsers that must round-trip pre-existing short salts; the
+    runtime `pbkdf2()` derivation still rejects under-spec salts at
+    the actual derivation step.
+  * `unified_api::key_format::PBKDF2_MIN_SALT_LEN` now re-exports
+    `Pbkdf2Params::MIN_SALT_LEN` so load-side and construction-side
+    checks cannot drift.
+  * `pbkdf2()` salt zero-check switched from `iter().all(|&b| b == 0)`
+    (early-exit, leaks salt-prefix structure via timing) to the new
+    constant-time helper `primitives::ct::is_all_zero_bytes`.
+- **`primitives::ct` module** (new) — shared constant-time predicates
+  used across primitives. Replaces the per-module re-implementations
+  that used `vec![0u8; key.len()]` (heap alloc on every AEAD
+  constructor) with a stack-only chunk-by-chunk
+  `subtle::ConstantTimeEq` accumulator that handles arbitrary input
+  lengths (PBKDF2 salts can exceed the AEAD-key 32-byte cap).
+  `aead::is_all_zero_key` is now a thin re-export of
+  `ct::is_all_zero_bytes`.
+- **`SecretVec::from_bytes` realloc-leak fix** (`types::secrets`):
+  switched from `bytes.shrink_to_fit()` (which can `realloc` the
+  secret into a smaller heap allocation and free the original
+  unzeroized — a real "secret in freed memory" hazard for callers
+  passing oversized buffers like `BASE64_ENGINE.decode` output) to an
+  explicit `Vec::with_capacity(len) + extend_from_slice +
+  bytes.zeroize()` pattern. The new `SecretVec` always has
+  `capacity == length`, so `ZeroizeOnDrop` covers every backing byte.
+
+### Added (hardening pass)
+
+- **`primitives::rand::secure_rng()`** — `#[doc(hidden)]` thin wrapper
+  around `rand_core::UnwrapErr(OsRng)` for integration-test fixtures
+  that need a `CryptoRng`-shaped RNG. External callers should use
+  `random_bytes()` / `random_u32()` / `random_u64()`.
+- **14 `#[must_use]` annotations** on keygen entry points
+  (`generate_keypair`, `generate_ml_kem_keypair`, etc.) — discarding a
+  freshly-generated keypair is almost always a bug (lost key material).
+- **13 new tests** covering the hardening additions:
+  * ChaCha20-Poly1305 `WeakKey` rejection + `new_allow_weak_key` bypass
+  * PBKDF2 boundary tests at `MIN_SALT_LEN - 1` and `MIN_SALT_LEN`
+    (both for `Pbkdf2Params::new` and `try_with_salt`)
+  * Two **hybrid forge tests** that pin the bitwise-`&` semantics: a
+    forged PQ component or a forged Ed25519 component each yield
+    `false` (a regression to bitwise `|` would now be caught)
+  * `HybridEncryptionContext::with_aad` coverage (canonical info label,
+    AAD flow into HKDF, equivalence to `default()` for empty AAD)
+  * `primitives::ct` unit tests (all-zero, oversize-chunked,
+    partial-last-chunk, empty, any-non-zero)
+  * `MlockGuard::drop` panic-tolerance regression (32 lock/unlock
+    cycles must complete without escaping a panic)
+  * `SecretVec::from_bytes` oversize-capacity regression
+    (capacity == length on the resulting `SecretVec`)
+  * `Vec::zeroize` end-to-end pin
+  * `RngHandle::ThreadLocal` per-feature variants (succeeds without
+    `fips`, rejected under `fips`)
+
+### Changed (hardening pass)
+
+- **rand 0.8 → 0.9** (workspace-wide). `OsRng` no longer implements
+  `RngCore` directly; the workspace stays infallible by routing through
+  `rand_core::UnwrapErr(OsRng)` in `primitives::rand::csprng`. A new
+  `rand_core_0_6` workspace alias bridges to fn-dsa / dalek 2.x / k256
+  which still pin `rand_core 0.6`. Dropped the
+  `RUSTSEC-2026-0097` ignore in `deny.toml` / `.cargo/audit.toml`
+  (rand 0.8 reseed unsoundness — no longer applies on 0.9.4).
+- **digest 0.10 → 0.11 family** (lockstep): `hkdf 0.12 → 0.13`,
+  `hmac 0.12 → 0.13`, `sha2 0.10 → 0.11`, `sha3 0.10 → 0.11`,
+  `pbkdf2 0.12 → 0.13`, `aes 0.8 → 0.9`, `ctr 0.9 → 0.10`. Bumped
+  the HMAC bench allocation budget from 4 KiB to 12 KiB to absorb
+  the digest 0.11 internal allocation profile.
+- **getrandom 0.2 → 0.3**, **uuid 1.x bump**, **tokio 1.52.1**.
+- **`X25519SecretKey::expose_secret`** — renamed from `as_bytes`
+  (Secret Type Invariant I-8: single grep-able accessor).
+- **`MlKemSharedSecret::expose_secret_as_array`** — renamed from
+  `as_array`. The dual `expose_secret`/`expose_secret_as_array`
+  pattern is now documented as the typed-array exception in
+  `docs/SECRET_TYPE_INVARIANTS.md` §I-8.
+- **`#[must_use]` keygen messages shortened** from "discarding a
+  generated keypair wastes entropy and leaks key material" to
+  "generated keypair must be stored or used" (idiomatic noun-phrase
+  form, 14 sites).
+- **`AeadCipher::new` no longer has a default body**: implementors
+  must define `new` directly. The `new_internal` trait method was
+  removed; per-cipher inherent `new_raw` (length-checked, no weak-key
+  guard) and `new_allow_weak_key` (KAT escape hatch) take its place.
+- **`MlKemSharedSecret::expose_secret`** doc tightened to acknowledge
+  the typed-array dual without claiming "the only public read accessor"
+  (a phrasing the `expose_secret_as_array` rename would have falsified).
+- **5 banned-adjective doc edits** (`docs/DESIGN.md`,
+  `latticearc/src/lib.rs`, `types/types.rs`,
+  `unified_api/mod.rs`, `docs/DEPENDENCY_JUSTIFICATION.md`):
+  removed "intelligent", "real-time", "production-ready",
+  "hardware-aware" without an `/// Implementation:` tag (per
+  `docs/DESIGN_PATTERNS.md` §3 Banned Adjectives policy).
+
+### Fixed (hardening pass)
+
+- **9 broken doc examples** that used `[0u8; 32]` placeholder AEAD
+  keys (now rejected by `AeadError::WeakKey`) updated to
+  `random_bytes(32)`.
+- **5 fndsa doctests** — `rand::rngs::OsRng` (rand 0.9, no longer
+  `rand_core 0.6 RngCore`) replaced with `rand_core_0_6::OsRng` which
+  matches the `sign_with_rng` trait bound.
+- **Stale `Self::as_bytes` doc reference** on
+  `MlKemSecretKey::to_bytes` corrected to `Self::expose_secret`
+  (the type only ever had `expose_secret`; the doc was a stale
+  rename ghost).
+- **3 `kem_hybrid::decapsulate` regression tests** updated to assert
+  `HybridKemError::DecapsulationFailed` (Pattern 6 collapse) instead
+  of the previously-distinguishable `InvalidKeyMaterial` /
+  `MlKemError` variants.
+- **`pbkdf2 verify_password` test salt** bumped from 15 bytes
+  (`b"wrongsalt123456"`) to 16 bytes (`b"wrongsalt1234567"`) to
+  satisfy the new `MIN_SALT_LEN` floor.
+- **CLI tests touching salts** (`latticearc-cli/tests/cli_integration.rs`)
+  bumped from 8 / 13 hex-char salts to 32 hex-char (16-byte) salts.
 
 ## [0.8.0] — 2026-04-24
 
