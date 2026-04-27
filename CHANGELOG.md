@@ -70,8 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RngHandle::ThreadLocal` cfg-gated `not(fips)` so it cannot appear in
   a FIPS build.
 - proptest cases bumped 32→256 (ml_kem_768) and 16→256 (ml_dsa_44).
-- `aes_gcm.rs` `#[instrument]` macro replaced with a manual tracing
-  guard to avoid implicit string capture of secret arguments.
 - `kem_hybrid::decapsulate` instrumented with `log_crypto_operation_error!`
   — error string preserved in tracing, outer error stays opaque.
 

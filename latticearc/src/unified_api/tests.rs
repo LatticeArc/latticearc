@@ -1349,7 +1349,10 @@ fn test_verify_hybrid_44_short_signature_returns_expected_succeeds() {
     };
 
     let result = verify(&signed, CryptoConfig::new());
-    assert!(result.is_err(), "Should fail with too-short hybrid-44 signature");
+    assert!(
+        !result.unwrap(),
+        "Pattern 6 strict (TOFU follow-up): too-short hybrid-44 signature must collapse to Ok(false)"
+    );
 }
 
 #[test]
@@ -1367,7 +1370,10 @@ fn test_verify_hybrid_44_wrong_pk_length_returns_expected_fails() {
     };
 
     let result = verify(&signed, CryptoConfig::new());
-    assert!(result.is_err(), "Should fail with wrong PK length for hybrid-44");
+    assert!(
+        !result.unwrap(),
+        "Pattern 6 strict (TOFU follow-up): wrong PK length for hybrid-44 must collapse to Ok(false)"
+    );
 }
 
 #[test]
@@ -1385,7 +1391,10 @@ fn test_verify_hybrid_87_short_signature_returns_expected_succeeds() {
     };
 
     let result = verify(&signed, CryptoConfig::new());
-    assert!(result.is_err(), "Should fail with too-short hybrid-87 signature");
+    assert!(
+        !result.unwrap(),
+        "Pattern 6 strict (TOFU follow-up): too-short hybrid-87 signature must collapse to Ok(false)"
+    );
 }
 
 #[test]
@@ -1403,7 +1412,10 @@ fn test_verify_hybrid_87_wrong_pk_length_returns_expected_fails() {
     };
 
     let result = verify(&signed, CryptoConfig::new());
-    assert!(result.is_err(), "Should fail with wrong PK length for hybrid-87");
+    assert!(
+        !result.unwrap(),
+        "Pattern 6 strict (TOFU follow-up): wrong PK length for hybrid-87 must collapse to Ok(false)"
+    );
 }
 
 #[test]
@@ -1464,7 +1476,10 @@ fn test_verify_hybrid_65_short_signature_returns_expected_succeeds() {
     };
 
     let result = verify(&signed, CryptoConfig::new());
-    assert!(result.is_err(), "Should fail with too-short hybrid-65 signature");
+    assert!(
+        !result.unwrap(),
+        "Pattern 6 strict (TOFU follow-up): too-short hybrid-65 signature must collapse to Ok(false)"
+    );
 }
 
 #[test]
@@ -1482,7 +1497,10 @@ fn test_verify_hybrid_65_wrong_pk_length_returns_expected_fails() {
     };
 
     let result = verify(&signed, CryptoConfig::new());
-    assert!(result.is_err(), "Should fail with wrong PK length for hybrid-65");
+    assert!(
+        !result.unwrap(),
+        "Pattern 6 strict (TOFU follow-up): wrong PK length for hybrid-65 must collapse to Ok(false)"
+    );
 }
 
 // ============================================================================

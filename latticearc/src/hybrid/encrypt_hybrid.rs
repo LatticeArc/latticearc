@@ -355,13 +355,22 @@ pub fn derive_encryption_key(
     // Build a length-prefixed HKDF info payload to prevent canonicalization
     // collisions between the variable-length fields. Naive concatenation
     // `f1 || "||" || f2` is ambiguous when source data can contain the
-    // separator bytes; length-prefixing is the standard fix (HPKE §5.1,
-    // RFC 9180 "LabeledExtract").
+    // separator bytes; length-prefixing is the standard fix.
+    //
+    // Construction is HPKE-inspired (RFC 9180 §5.1) but **NOT bit-compatible
+    // with HPKE LabeledExtract**: HPKE uses `I2OSP(len, 2)` (2-byte big-
+    // endian) length prefixes capped at 65 535 bytes. We use 4-byte big-
+    // endian (`u32`) prefixes because `HybridEncryptionContext::aad` has a
+    // `MAX_AAD_LEN = 64 KiB` ceiling that already touches HPKE's `u16` cap,
+    // and `info` has no documented ceiling at all. A third party building
+    // an interop derivation MUST mirror this 4-byte prefix layout — they
+    // cannot copy HPKE LabeledExtract directly and expect the same `info`
+    // blob.
     //
     // Wire layout (each `len: u32 BE` is followed by `len` bytes):
     //   [info_len][info]
     //   [aad_len][aad]
-    //   [recipient_pk_len][recipient_pk]   ── Pattern 7 / HPKE PK binding
+    //   [recipient_pk_len][recipient_pk]   ── Pattern 7 / channel binding
     //   [ephemeral_pk_len][ephemeral_pk]   ── ditto
     //   [kem_ct_len][kem_ct]               ── ditto
     //

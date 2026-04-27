@@ -180,12 +180,10 @@ fn test_encapsulate_rejects_wrong_ecdh_pk_length_fails() {
     );
     let result = encapsulate(&pk);
     assert!(result.is_err());
-    match result.unwrap_err() {
-        HybridKemError::InvalidKeyMaterial(msg) => {
-            assert!(msg.contains("32") || msg.contains("ECDH"));
-        }
-        other => panic!("Expected InvalidKeyMaterial, got {:?}", other),
-    }
+    // Pattern 6 (TOFU follow-up): the ECDH PK length pre-check now
+    // collapses into the same opaque variant as every other
+    // encapsulate failure to remove the wire-controlled length oracle.
+    assert!(matches!(result.unwrap_err(), HybridKemError::EncapsulationFailed));
 }
 
 #[test]

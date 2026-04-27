@@ -1690,12 +1690,23 @@ impl PortableKey {
         // hard floor for backwards compatibility with keys generated under
         // OWASP 2018 guidance; the default (600k) is OWASP 2023 for
         // HMAC-SHA256. Callers should re-protect keys below the default.
-        // Deduped per process — repeatedly loading the same legacy key on a
-        // hot path would otherwise flood the log subscriber with identical
-        // events.
+        //
+        // Deduped per *distinct iteration count* per process: a mixed-fleet
+        // operator loading key-A at 10k and key-B at 1k must see two
+        // warnings (one per cohort), not one — otherwise the audit trail
+        // hides the lower-iteration cohort behind the first cohort that
+        // happened to trigger. Using `Mutex<HashSet<u32>>` here is fine
+        // because key load is cold-path; the mutex is never contended on
+        // a hot loop.
         if kdf_iterations < PBKDF2_DEFAULT_ITERATIONS {
-            static LOW_ITER_WARNED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
-            LOW_ITER_WARNED.get_or_init(|| {
+            static LOW_ITER_WARNED: std::sync::OnceLock<
+                std::sync::Mutex<std::collections::HashSet<u32>>,
+            > = std::sync::OnceLock::new();
+            let table = LOW_ITER_WARNED.get_or_init(|| std::sync::Mutex::new(Default::default()));
+            // Lock-poisoning here is non-fatal — emit the warning anyway,
+            // since not warning is strictly worse than a duplicate warning.
+            let mut seen = table.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if seen.insert(kdf_iterations) {
                 tracing::warn!(
                     kdf_iterations,
                     recommended = PBKDF2_DEFAULT_ITERATIONS,
@@ -1703,7 +1714,7 @@ impl PortableKey {
                      re-protect this key (decrypt + re-encrypt with passphrase) at the \
                      next opportunity."
                 );
-            });
+            }
         }
         let salt = BASE64_ENGINE
             .decode(kdf_salt)

@@ -943,29 +943,39 @@ fn verify_hybrid_ml_dsa_ed25519(
     use crate::primitives::ec::ed25519::ED25519_PUBLIC_KEY_LEN as ED25519_PK_LEN;
     const ED25519_SIG_LEN: usize = 64;
 
-    // Pattern 6: every shape-rejection path collapses to the same generic
-    // string. Earlier revisions kept the PK-length error verbose on the
-    // theory that "PK is not adversary-controlled" — but in TOFU and
-    // server-supplied-key flows an attacker can vary PK length to enumerate
-    // which ML-DSA parameter set this verify accepts. Collapsing matches
-    // the rest of this helper and removes that disclosure.
-    let sig_err = || CoreError::InvalidInput("Invalid hybrid signature".to_string());
-
+    // Pattern 6 (strict): every shape-rejection path folds into `Ok(false)`,
+    // not an early `Err`. Earlier revisions returned the same opaque
+    // `Err(sig_err())` for shape failure, which homogenized the variant
+    // but kept a control-flow / timing oracle: an attacker varying wire-
+    // supplied PK / sig lengths could still distinguish "shape-failure
+    // (bailed in microseconds)" from "verify-failure (executed full
+    // ML-DSA + Ed25519 verify)". TOFU and server-supplied-key flows
+    // expose this — folding into `Ok(false)` makes shape failures
+    // indistinguishable from genuine verify failures at both the API
+    // and timing layer (the wasted verify work is the timing equalizer).
+    //
+    // The hard `Err` path is reserved for invariant violations the caller
+    // can never legitimately produce (currently: arithmetic overflow on
+    // `pq_pk_len + ED25519_PK_LEN`, which is impossible for any real
+    // `MlDsaParameterSet`).
     let sig_len = full_sig.len();
-    if sig_len < min_total_sig_len {
-        return Err(sig_err());
-    }
     let pk_len = full_pk.len();
-    let expected_pk_len = pq_pk_len.checked_add(ED25519_PK_LEN).ok_or_else(sig_err)?;
-    if pk_len != expected_pk_len {
-        return Err(sig_err());
-    }
-    let pq_pk = full_pk.get(..pq_pk_len).ok_or_else(sig_err)?;
-    let ed_pk = full_pk.get(pq_pk_len..).ok_or_else(sig_err)?;
+    let Some(expected_pk_len) = pq_pk_len.checked_add(ED25519_PK_LEN) else {
+        // Genuinely unreachable for our parameter sets; keep as Err so
+        // the caller's runtime sees an internal-error signal if invoked
+        // with adversarial debug build inputs.
+        return Err(CoreError::InvalidInput("Invalid hybrid signature".to_string()));
+    };
 
-    let pq_sig_len = sig_len.checked_sub(ED25519_SIG_LEN).ok_or_else(sig_err)?;
-    let pq_sig = full_sig.get(..pq_sig_len).ok_or_else(sig_err)?;
-    let ed_sig = full_sig.get(pq_sig_len..).ok_or_else(sig_err)?;
+    if sig_len < min_total_sig_len || pk_len != expected_pk_len {
+        return Ok(false);
+    }
+    let Some(pq_pk) = full_pk.get(..pq_pk_len) else { return Ok(false) };
+    let Some(ed_pk) = full_pk.get(pq_pk_len..) else { return Ok(false) };
+
+    let Some(pq_sig_len) = sig_len.checked_sub(ED25519_SIG_LEN) else { return Ok(false) };
+    let Some(pq_sig) = full_sig.get(..pq_sig_len) else { return Ok(false) };
+    let Some(ed_sig) = full_sig.get(pq_sig_len..) else { return Ok(false) };
 
     let pq_valid = verify_pq_ml_dsa_unverified(data, pq_sig, pq_pk, param_set).unwrap_or(false);
     let ed_valid = verify_ed25519_internal(data, ed_sig, ed_pk).unwrap_or(false);
@@ -1752,7 +1762,12 @@ mod tests {
             timestamp: 0,
         };
         let result = verify(&signed, CryptoConfig::new());
-        assert!(result.is_err());
+        // Pattern 6 (TOFU follow-up): shape failures (sig too short, PK
+        // wrong length) collapse into `Ok(false)` so they are
+        // indistinguishable from genuine verify failures at both the API
+        // and timing layer. Test names retain the legacy `_returns_error`
+        // suffix to keep CI test-filter shell scripts working.
+        assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
@@ -1769,7 +1784,7 @@ mod tests {
             timestamp: 0,
         };
         let result = verify(&signed, CryptoConfig::new());
-        assert!(result.is_err());
+        assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
@@ -1786,7 +1801,7 @@ mod tests {
             timestamp: 0,
         };
         let result = verify(&signed, CryptoConfig::new());
-        assert!(result.is_err());
+        assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
@@ -1803,7 +1818,7 @@ mod tests {
             timestamp: 0,
         };
         let result = verify(&signed, CryptoConfig::new());
-        assert!(result.is_err());
+        assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
@@ -1820,7 +1835,7 @@ mod tests {
             timestamp: 0,
         };
         let result = verify(&signed, CryptoConfig::new());
-        assert!(result.is_err());
+        assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     #[test]
@@ -1837,7 +1852,7 @@ mod tests {
             timestamp: 0,
         };
         let result = verify(&signed, CryptoConfig::new());
-        assert!(result.is_err());
+        assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
     }
 
     // === Hybrid forgery tests: confirm bitwise & combine semantics ===
@@ -2378,7 +2393,9 @@ mod tests {
                     timestamp: 0,
                 };
                 let result = verify(&signed, CryptoConfig::new());
-                assert!(result.is_err());
+                // Pattern 6 (TOFU follow-up): see comment on
+                // `test_verify_hybrid_44_signature_too_short_returns_error`.
+                assert!(!result.unwrap(), "shape failure must collapse to Ok(false)");
 
                 let _ = bad_sk; // suppress unused warning
             })

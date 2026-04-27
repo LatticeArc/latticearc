@@ -590,18 +590,18 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
     // Pattern 6 "encrypt-side defense in depth": symmetric to
     // `decapsulate`. All upstream-Display leaks (`e.to_string()`) collapse
     // to one opaque variant for the caller; per-stage detail goes to the
-    // internal trace under `op::HYBRID_KEM_ENCAPSULATE`. The recipient PK
-    // length error stays distinct (`InvalidKeyMaterial`) — the caller
-    // owns the recipient PK at this point and a wrong-length error there
-    // is a programmer mistake, not adversary input.
+    // internal trace under `op::HYBRID_KEM_ENCAPSULATE`.
+    //
+    // The recipient PK is *not* assumed adversary-free: TOFU and server-
+    // supplied-key flows let an attacker vary the wire-supplied PK length
+    // to enumerate which security levels this `encapsulate` accepts. The
+    // length pre-check therefore folds into the same opaque variant as
+    // every other failure mode — matching `decapsulate`'s symmetry.
     let opaque = || HybridKemError::EncapsulationFailed;
 
     if pk.ecdh_pk.len() != X25519_KEY_SIZE {
-        return Err(HybridKemError::InvalidKeyMaterial(format!(
-            "ECDH public key must be {} bytes, got {}",
-            X25519_KEY_SIZE,
-            pk.ecdh_pk.len()
-        )));
+        log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "ECDH PK wrong length");
+        return Err(opaque());
     }
 
     // ML-KEM encapsulation at the public key's security level
@@ -1083,9 +1083,10 @@ mod tests {
 
         let result = encapsulate(&pk);
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, HybridKemError::InvalidKeyMaterial(_)));
-        assert!(err.to_string().contains("32"));
+        // Pattern 6 (TOFU follow-up): the ECDH PK length pre-check now
+        // collapses into the same opaque variant as every other
+        // encapsulate failure; trace tag goes to the private log.
+        assert!(matches!(result.unwrap_err(), HybridKemError::EncapsulationFailed));
     }
 
     #[test]
@@ -1579,7 +1580,9 @@ mod tests {
 
         let result = encapsulate(&pk);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), HybridKemError::InvalidKeyMaterial(_)));
+        // Pattern 6 (TOFU follow-up): see
+        // `test_encapsulate_invalid_ecdh_pk_length_returns_error` note.
+        assert!(matches!(result.unwrap_err(), HybridKemError::EncapsulationFailed));
     }
 
     #[test]

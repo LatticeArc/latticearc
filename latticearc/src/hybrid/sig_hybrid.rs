@@ -259,7 +259,15 @@ pub struct HybridSigSecretKey {
 
 impl std::fmt::Debug for HybridSigSecretKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HybridSigSecretKey").field("data", &"[REDACTED]").finish()
+        // `parameter_set` is non-secret (algorithm identifier, identical to
+        // what `HybridSigPublicKey`'s derived Debug surfaces). Surfacing it
+        // is what makes parameter-set-mismatch debugging tractable — exactly
+        // the bug class the v0.8.0 generic-over-MlDsaParameterSet break
+        // was meant to make visible.
+        f.debug_struct("HybridSigSecretKey")
+            .field("parameter_set", &self.parameter_set)
+            .field("data", &"[REDACTED]")
+            .finish()
     }
 }
 
@@ -538,14 +546,30 @@ pub fn verify(
     // Runs unconditionally; no `?` early-returns. `from_bytes` internally does
     // a `to_vec()` (identical allocation cost to the prior `.clone()` form);
     // choice is stylistic — accepts `&[u8]` at the call site.
-    let ml_dsa_valid: u8 = match (
-        MlDsaPublicKey::from_bytes(&pk.ml_dsa_pk, pk.parameter_set),
-        MlDsaSignature::from_bytes(&sig.ml_dsa_sig, pk.parameter_set),
-    ) {
+    //
+    // Per-stage trace under `op::HYBRID_VERIFY` so operators can distinguish
+    // ML-DSA-parse / ML-DSA-verify / Ed25519-parse / Ed25519-verify failures
+    // in private logs without weakening the opaque outer error.
+    let ml_dsa_pk_parsed = MlDsaPublicKey::from_bytes(&pk.ml_dsa_pk, pk.parameter_set);
+    if ml_dsa_pk_parsed.is_err() {
+        log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA PK parse failed");
+    }
+    let ml_dsa_sig_parsed = MlDsaSignature::from_bytes(&sig.ml_dsa_sig, pk.parameter_set);
+    if ml_dsa_sig_parsed.is_err() {
+        log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA signature parse failed");
+    }
+    let ml_dsa_valid: u8 = match (ml_dsa_pk_parsed, ml_dsa_sig_parsed) {
         (Ok(ml_dsa_pk_struct), Ok(ml_dsa_sig_struct)) => {
             match ml_dsa_pk_struct.verify(message, &ml_dsa_sig_struct, &[]) {
                 Ok(true) => 1u8,
-                _ => 0u8,
+                Ok(false) => {
+                    log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA verify returned false");
+                    0u8
+                }
+                Err(_e) => {
+                    log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA verify errored");
+                    0u8
+                }
             }
         }
         _ => 0u8,
@@ -563,10 +587,16 @@ pub fn verify(
                     &ed25519_signature,
                 ) {
                     Ok(()) => 1u8,
-                    _ => 0u8,
+                    Err(_e) => {
+                        log_crypto_operation_error!(op::HYBRID_VERIFY, "Ed25519 verify errored");
+                        0u8
+                    }
                 }
             }
-            _ => 0u8,
+            Err(_e) => {
+                log_crypto_operation_error!(op::HYBRID_VERIFY, "Ed25519 signature parse failed");
+                0u8
+            }
         };
 
     // Bitwise AND (NOT short-circuit `&&`) combines the two bits without branching.

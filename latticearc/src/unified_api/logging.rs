@@ -87,6 +87,8 @@ pub mod op {
     // Signatures
     /// Tag for `hybrid::sig_hybrid::sign` observability events.
     pub const HYBRID_SIGN: &str = "hybrid_sign";
+    /// Tag for `hybrid::sig_hybrid::verify` observability events.
+    pub const HYBRID_VERIFY: &str = "hybrid_verify";
     /// Tag for `primitives::sig::ml_dsa::sign` observability events.
     pub const ML_DSA_SIGN: &str = "ml_dsa_sign";
     /// Tag for `primitives::sig::ml_dsa::verify` observability events.
