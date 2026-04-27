@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["HybridEncryptionError"],"fn":["decrypt_hybrid","derive_encryption_key","encrypt_hybrid"],"struct":["HybridCiphertext","HybridEncryptionContext"]};
+window.SIDEBAR_ITEMS = {"enum":["HybridEncryptionError"],"fn":["decrypt_hybrid","derive_encryption_key","encrypt_hybrid"],"struct":["DerivationBinding","HybridCiphertext","HybridEncryptionContext"]};

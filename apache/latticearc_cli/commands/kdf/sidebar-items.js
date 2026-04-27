@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["KdfAlgorithm"],"fn":["derive_hkdf","derive_pbkdf2","run"],"struct":["KdfArgs"]};
+window.SIDEBAR_ITEMS = {"constant":["OWASP_PBKDF2_MIN_ITERATIONS"],"enum":["KdfAlgorithm"],"fn":["derive_hkdf","derive_pbkdf2","run"],"struct":["KdfArgs"]};
