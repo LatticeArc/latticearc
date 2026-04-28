@@ -149,6 +149,27 @@ fn run_ok(args: &[&str]) -> String {
     stdout
 }
 
+/// Run a CLI command, assert success, return stdout + stderr concatenated.
+///
+/// Use this for tests that check status messages — round-7 audit fix #6
+/// moved keygen / encrypt / decrypt / sign "Written to: ..." style
+/// messages from stdout to stderr (UNIX convention: data on stdout,
+/// status on stderr). Tests that pre-date that move and assert on
+/// "Generated ... keypair" should switch to this helper.
+fn run_ok_combined(args: &[&str]) -> String {
+    let output = Command::new(cli_bin())
+        .args(args)
+        .output()
+        .unwrap_or_else(|e| panic!("Failed to execute CLI: {e}"));
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert!(
+        output.status.success(),
+        "CLI failed with args {args:?}:\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    format!("{stdout}{stderr}")
+}
+
 /// Run a CLI command, assert failure, return stderr.
 fn run_fail(args: &[&str]) -> String {
     let output = Command::new(cli_bin())
@@ -228,8 +249,9 @@ fn test_ed25519_keygen_sign_verify_roundtrip() {
     let dir = temp_dir();
     let d = dir.path().to_str().unwrap();
 
-    // Keygen
-    let out = run_ok(&["keygen", "--algorithm", "ed25519", "--output", d]);
+    // Keygen — round-7 audit fix #6 moved status messages to stderr,
+    // so capture both streams when checking "Generated ... keypair".
+    let out = run_ok_combined(&["keygen", "--algorithm", "ed25519", "--output", d]);
     assert!(out.contains("Generated Ed25519 signing keypair"));
 
     // Write message
@@ -1208,7 +1230,8 @@ fn test_ml_kem_keygen_all_levels_succeeds() {
         let dir = temp_dir();
         let d = dir.path().to_str().unwrap();
 
-        let out = run_ok(&["keygen", "--algorithm", alg, "--output", d]);
+        // Round-7 audit fix #6: status messages on stderr now.
+        let out = run_ok_combined(&["keygen", "--algorithm", alg, "--output", d]);
         assert!(out.contains(name));
 
         let pk_path = dir.path().join(format!("{name}.pub.json"));

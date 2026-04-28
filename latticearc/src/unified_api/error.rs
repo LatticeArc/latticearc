@@ -216,6 +216,25 @@ pub enum CoreError {
     /// `RandomError`, generic `IoError(String)`).
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// A ciphertext was rejected because its stamped `EncryptedOutput.timestamp`
+    /// is older than the receiver's configured `CryptoConfig::max_age` window.
+    ///
+    /// Returned exclusively by the convenience-API replay-protection guard
+    /// (round-6 audit fix). Distinct from `ResourceExceeded` (which signals
+    /// "the data itself is too big") so callers can pattern-match
+    /// `CoreError::Replay { .. }` and react appropriately — e.g., prompt
+    /// the sender to re-encrypt with a fresh timestamp, or alert on a
+    /// suspected replay attack.
+    #[error(
+        "ciphertext too old: stamped age {age_seconds} s > configured max_age {max_age_seconds} s. Re-encrypt with a fresh timestamp, or relax CryptoConfig::max_age."
+    )]
+    Replay {
+        /// Observed age (seconds) — `now - encrypted.timestamp()`.
+        age_seconds: u64,
+        /// Configured replay window (seconds).
+        max_age_seconds: u64,
+    },
 }
 
 /// Conversion from `LatticeArcError` (the lower-level prelude error type) into `CoreError`.
@@ -448,6 +467,18 @@ mod tests {
         let err: CoreError = inner.into();
         assert!(matches!(err, CoreError::Internal(_)));
         assert_eq!(format!("{err}"), "Internal error: RNG failure");
+    }
+
+    #[test]
+    fn test_core_error_replay_display_includes_both_ages_succeeds() {
+        let err = CoreError::Replay { age_seconds: 600, max_age_seconds: 300 };
+        let msg = format!("{err}");
+        assert!(msg.contains("600"), "Replay Display must surface the observed age");
+        assert!(msg.contains("300"), "Replay Display must surface the configured max_age");
+        assert!(
+            msg.contains("max_age"),
+            "Replay Display must mention max_age so the operator knows where to look"
+        );
     }
 
     #[test]

@@ -48,6 +48,10 @@ pub(crate) struct HashArgs {
     /// Output format: hex (default) or base64.
     #[arg(short, long, default_value = "hex")]
     pub format: OutputFormat,
+    /// Print only the encoded digest (no `ALG: ` prefix). Use this when
+    /// piping to `sha256sum -c` style tools or comparing byte-for-byte.
+    #[arg(long)]
+    pub raw: bool,
 }
 
 /// Output encoding format.
@@ -92,7 +96,13 @@ pub(crate) fn run(args: HashArgs) -> Result<()> {
         }
     };
 
-    println!("{alg_label}: {encoded}");
+    if args.raw {
+        // No prefix, no trailing newline — byte-exact for `sha256sum -c`
+        // and similar pipelines (round-7 audit fix #13).
+        print!("{encoded}");
+    } else {
+        println!("{alg_label}: {encoded}");
+    }
     Ok(())
 }
 

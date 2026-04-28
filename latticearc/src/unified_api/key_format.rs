@@ -2159,24 +2159,51 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if file writing or permission setting fails.
     pub fn write_to_file(&self, path: &std::path::Path) -> Result<()> {
+        self.write_to_file_with_overwrite(path, false)
+    }
+
+    /// Like [`write_to_file`] but with explicit overwrite control.
+    ///
+    /// `overwrite = false` (the recommended default) refuses to clobber
+    /// an existing file at `path` and returns
+    /// `CoreError::ConfigurationError` — caller should map this to a
+    /// `--force`-equivalent prompt or abort.
+    ///
+    /// `overwrite = true` replaces any existing file via atomic rename
+    /// (no truncate-then-write window where a crash leaves zero bytes
+    /// on disk + the prior key destroyed).
+    ///
+    /// On Unix, secret/symmetric files are written with mode `0o600`
+    /// applied BEFORE the rename. On Windows the tempfile inherits the
+    /// parent dir's ACL via `tempfile`'s NTFS path; further hardening
+    /// requires `windows-sys` and is left to the consumer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::ConfigurationError` on overwrite-refused or
+    /// tempfile creation failure, or `CoreError::Internal` on I/O.
+    pub fn write_to_file_with_overwrite(
+        &self,
+        path: &std::path::Path,
+        overwrite: bool,
+    ) -> Result<()> {
         let json = self.to_json_pretty()?;
-
-        #[cfg(unix)]
-        if self.key_type == KeyType::Secret || self.key_type == KeyType::Symmetric {
-            use std::io::Write;
-            use std::os::unix::fs::OpenOptionsExt;
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .mode(0o600)
-                .open(path)?;
-            file.write_all(json.as_bytes())?;
-            return Ok(());
-        }
-
-        std::fs::write(path, json)?;
-        Ok(())
+        let writer = crate::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
+            .overwrite_existing(overwrite);
+        // Mode policy:
+        //   Secret / Symmetric → 0o600 (owner read+write only)
+        //   Public             → 0o644 (owner rw, others r) — public
+        //                        keys are MEANT to be readable; without
+        //                        this an explicit 0o644, tempfile's
+        //                        default 0o600 would lock pub keys to
+        //                        the creator and break key-distribution
+        //                        flows.
+        let writer = if self.key_type == KeyType::Secret || self.key_type == KeyType::Symmetric {
+            writer.secret_mode()
+        } else {
+            writer.unix_mode(0o644)
+        };
+        writer.write(path)
     }
 
     /// Write to a file as CBOR. Creates the file with 0600 permissions atomically on Unix

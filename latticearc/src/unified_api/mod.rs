@@ -195,6 +195,8 @@
 //! ```
 
 /// Persistent audit storage with rotation and integrity verification.
+/// Atomic + permission-restricted file writes for keys and CLI output.
+pub mod atomic_write;
 pub mod audit;
 /// Convenience APIs for high-level cryptographic operations.
 pub mod convenience;

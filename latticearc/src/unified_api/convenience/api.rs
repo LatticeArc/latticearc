@@ -549,10 +549,11 @@ pub fn decrypt(
         // are skew, not adversarial.
         let age = now.saturating_sub(stamped);
         if age > max_age {
-            return Err(CoreError::ResourceExceeded(format!(
-                "ciphertext too old: stamped age {age} s > configured max_age {max_age} s. \
-                 Re-encrypt with a fresh timestamp, or relax CryptoConfig::max_age."
-            )));
+            // Dedicated `CoreError::Replay { .. }` variant — distinct from
+            // `ResourceExceeded` so callers can pattern-match the replay
+            // case and react appropriately (suspected replay alert vs.
+            // genuine size-quota issue).
+            return Err(CoreError::Replay { age_seconds: age, max_age_seconds: max_age });
         }
     }
 

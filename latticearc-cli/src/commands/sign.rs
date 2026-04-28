@@ -50,9 +50,13 @@ pub(crate) struct SignArgs {
     #[arg(long, value_parser = super::common::parse_compliance,
           value_name = "MODE")]
     pub compliance: Option<latticearc::types::types::ComplianceMode>,
-    /// Input file to sign.
+    /// Input file to sign (reads from stdin if omitted).
+    ///
+    /// When omitted, input is read from stdin. The default `--output`
+    /// derivation (`<input>.sig.json`) is unavailable in stdin mode —
+    /// pass `--output` explicitly.
     #[arg(short, long)]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
     /// Output file for the signature (defaults to <input>.sig.json).
     #[arg(short, long)]
     pub output: Option<PathBuf>,
@@ -66,13 +70,22 @@ pub(crate) struct SignArgs {
 
 /// Execute the sign command.
 pub(crate) fn run(args: SignArgs) -> Result<()> {
-    super::common::enforce_input_size_limit(
-        &args.input,
-        super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
-        "sign",
-    )?;
-    let data = std::fs::read(&args.input)
-        .with_context(|| format!("Failed to read {}", args.input.display()))?;
+    let data = if let Some(path) = &args.input {
+        super::common::enforce_input_size_limit(
+            path,
+            super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
+            "sign",
+        )?;
+        std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?
+    } else {
+        // Stdin mode (round-7 audit fix #10) — `--output` becomes
+        // mandatory because we can't derive it from a non-existent
+        // `<input>.sig.json`.
+        if args.output.is_none() {
+            bail!("--output is required when --input is omitted (stdin mode)");
+        }
+        super::common::read_stdin_with_limit(super::common::CLI_MAX_SIGNATURE_INPUT_BYTES, "sign")?
+    };
 
     let key_file = KeyFile::read_from(&args.key)?;
     if key_file.key_type != KeyType::Secret {
@@ -220,19 +233,32 @@ fn algorithm_name(alg: &SignAlgorithm) -> &'static str {
 }
 
 fn write_signature(args: &SignArgs, json: &str) -> Result<()> {
-    let output_path = args.output.clone().unwrap_or_else(|| {
-        let mut p = args.input.clone();
+    let output_path = if let Some(p) = args.output.clone() {
+        p
+    } else {
+        // run() guarantees --output is set when --input is None
+        // (stdin mode), so the only way to reach this branch is
+        // with input=Some — derive `<input>.sig.json`.
+        let mut p = args.input.clone().ok_or_else(|| {
+            anyhow::anyhow!(
+                "internal error: write_signature called with both --input and --output unset"
+            )
+        })?;
         let new_ext = match p.extension().and_then(|e| e.to_str()) {
             Some(ext) => format!("{ext}.sig.json"),
             None => "sig.json".to_string(),
         };
         p.set_extension(new_ext);
         p
-    });
+    };
 
-    std::fs::write(&output_path, json)
+    // Atomic write — sig files aren't secret but partial-file-at-rest
+    // is still a script-corruption hazard (round-7 audit fix #18).
+    latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
+        .overwrite_existing(true)
+        .write(&output_path)
         .with_context(|| format!("Failed to write {}", output_path.display()))?;
 
-    println!("Signature written to: {}", output_path.display());
+    eprintln!("Signature written to: {}", output_path.display());
     Ok(())
 }

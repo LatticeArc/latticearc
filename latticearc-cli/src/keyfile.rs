@@ -259,8 +259,26 @@ fn encrypt_if_secret(
 /// Used by `keygen` to prompt for a new passphrase (asks twice and verifies
 /// they match) and by load paths to prompt for an existing passphrase.
 pub(crate) fn read_passphrase(prompt: &str) -> Result<zeroize::Zeroizing<String>> {
-    let pp = rpassword::prompt_password(prompt)
-        .map_err(|e| anyhow::anyhow!("Failed to read passphrase: {e}"))?;
+    let pp = rpassword::prompt_password(prompt).map_err(|e| {
+        // Round-7 audit fix #7: rpassword opens /dev/tty (or the
+        // Windows console handle) directly; in CI / Docker / non-tty
+        // pipelines the open fails with a generic I/O error and the
+        // user has no obvious next step. Detect that case and point
+        // them at LATTICEARC_PASSPHRASE.
+        let no_tty = !std::io::IsTerminal::is_terminal(&std::io::stdin());
+        if no_tty {
+            anyhow::anyhow!(
+                "Failed to read passphrase from terminal: {e}. \
+                 No interactive TTY is attached (CI, Docker, piped stdin?). \
+                 For non-interactive use, set LATTICEARC_PASSPHRASE in the \
+                 environment before invoking this command, then unset it \
+                 immediately afterwards. See SECURITY.md for the env-var \
+                 leak caveats."
+            )
+        } else {
+            anyhow::anyhow!("Failed to read passphrase: {e}")
+        }
+    })?;
     Ok(zeroize::Zeroizing::new(pp))
 }
 
@@ -304,18 +322,37 @@ fn resolve_passphrase(
         if pp.is_empty() {
             bail!("LATTICEARC_PASSPHRASE is set but empty");
         }
-        // SECURITY: when an interactive TTY is attached, the user almost
-        // certainly intended the prompt path; using the env var on top of an
-        // interactive session leaks the passphrase to anyone who can read
-        // `/proc/<pid>/environ` (same-user processes, root, etc.). Warn but
-        // honour the explicit env-var request — automated callers may
-        // legitimately invoke us with a TTY for log capture.
+        // SECURITY: env-var passphrases have two known leak vectors and
+        // we cannot mitigate either fully without `unsafe` code (which
+        // the workspace `unsafe_code = "forbid"` policy bans).
+        //
+        // 1. Other processes running as the same UID can read
+        //    `/proc/self/environ` of this process (or
+        //    `/proc/<pid>/environ` for child processes). This applies
+        //    for the lifetime of the process; we cannot
+        //    `std::env::remove_var()` it because that's an unsafe API
+        //    in the 2024 edition (data races with concurrent env reads
+        //    in multi-threaded programs).
+        // 2. Any subprocess we spawn after this call inherits the
+        //    variable. We do not currently spawn subprocesses, but
+        //    callers wrapping us must be aware.
+        //
+        // Mitigation contract: callers who use `LATTICEARC_PASSPHRASE`
+        // in scripts should `unset LATTICEARC_PASSPHRASE` immediately
+        // after the latticearc-cli invocation completes.
+        //
+        // We additionally warn loudly if a TTY is attached — that's the
+        // strongest signal that the env-var path was unintentional
+        // (a stale shell-export from a prior session).
         if std::io::IsTerminal::is_terminal(&std::io::stdin()) {
             eprintln!(
                 "warning: LATTICEARC_PASSPHRASE is set on an interactive TTY session. \
-                 Env-var passphrases are visible to other processes via \
-                 /proc/<pid>/environ. Unset the variable and use the prompt \
-                 unless you are running in non-interactive automation."
+                 Env-var passphrases are visible to same-UID processes via \
+                 /proc/<pid>/environ for the lifetime of this process and to \
+                 any subprocess we spawn. Unset the variable and use the \
+                 prompt unless you are running in non-interactive automation. \
+                 Scripts that intentionally use this path should `unset \
+                 LATTICEARC_PASSPHRASE` immediately after this command exits."
             );
         }
         return Ok(zeroize::Zeroizing::new(pp));

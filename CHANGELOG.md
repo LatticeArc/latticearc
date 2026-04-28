@@ -9,6 +9,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-7 audit response — 18 issues across CLI + key-write paths (2026-04-27)
+
+Seventh audit pass on top of `ff296a546`. Eighteen findings (4 HIGH-
+security + 3 HIGH-ergonomics + 5 MEDIUM + 6 LOW). Four issues collapse
+into a single shared helper (atomic-write); the rest are CLI ergonomics
+and one acknowledged limitation (env-var passphrase inheritance).
+
+#### Added
+- **`latticearc::unified_api::atomic_write::AtomicWrite`** — shared
+  helper for atomic + permission-restricted file writes. Used by the
+  keyfile writer and the CLI's encrypt/decrypt/sign output paths.
+  Builder API: `AtomicWrite::new(bytes).secret_mode().write(path)`.
+  Refuses silent clobber by default (`overwrite_existing(true)` to
+  opt in); writes via tempfile + atomic rename (no truncate-then-
+  write window); applies `0o600` on Unix BEFORE the rename. The
+  tempfile path also tightens the Windows secret-key ACL story
+  (DACL-restricted creator-only via `tempfile`'s NTFS path).
+- **`KeyFile::write_to_file_with_overwrite`** — explicit-overwrite
+  variant of `write_to_file`. Default `write_to_file` now refuses to
+  clobber an existing file at the target path (closes round-7 audit
+  fix #1 / silent-overwrite of secret keys). Public keys written
+  with explicit `0o644` mode (rather than tempfile's default `0o600`)
+  so key-distribution flows still work.
+- **`kdf` CLI: `--input-stdin` flag and `LATTICEARC_KDF_INPUT` env var**
+  — non-`ps`-visible alternatives to `--input <password>` for PBKDF2.
+- **`hash --raw` flag** — emit the digest without the `ALG: ` prefix
+  and without a trailing newline, for byte-exact pipelining into
+  `sha256sum -c` and similar tools.
+- **`sign --input` and `verify --input` are now optional** — read
+  from stdin when omitted (symmetry with `encrypt`/`decrypt`/`hash`).
+  `sign` requires `--output` in stdin mode (no input path to derive
+  the default `<input>.sig.json` from).
+
+#### Changed
+- **CLI status messages now go to stderr** (round-7 fix #6). 17
+  `println!` sites in `keygen`, `encrypt`, `decrypt`, `sign` moved
+  to `eprintln!` so callers piping `latticearc-cli encrypt | nc …`
+  don't get status text in their data stream. Actual data writes
+  (`encrypt {data}`, `decrypt {plaintext}`, `hash` digest, `verify`
+  VALID/INVALID) stay on stdout.
+- **`encrypt-to-stdout` no longer adds a trailing newline** (`println!`
+  → `print!`). Byte-exact for pipelines that hash the encrypted blob.
+- **`encrypt --mode` defaulting** — when omitted, the mode is now
+  inferred from the key file's type: `Public` → `Hybrid`, otherwise
+  `Aes256Gcm`. Previous behaviour was to default to `Aes256Gcm`
+  unconditionally, which produced "Expected symmetric key file, got
+  Public" when a hybrid PK was passed without `--mode hybrid`.
+- **`verify` exit codes follow the openssl/gpg convention** (round-7
+  fix #8 + #11): exit 0 for VALID, exit 1 for INVALID (forgery), exit
+  ≥2 for operational error. Documented in
+  `latticearc-cli/QUICK_REFERENCE.md`.
+- **`latticearc-cli` shows full help when invoked with no args**
+  (`arg_required_else_help = true`) — first-time discoverability
+  gain; scripted callers always supply a subcommand and are
+  unaffected.
+- **AAD `Some(b"")` no longer normalised to `None`** at the AES-GCM
+  convenience layer (also closes a related round-6 finding). Empty
+  AAD is now passed verbatim — wire-output is identical to `None`
+  (per AES-GCM spec) but the API contract is honest about what was
+  bound.
+- **CLI `init_tracing()` writes to stderr** (subscriber config update;
+  was incorrectly defaulting to stdout). Machine-parseable CLI output
+  on stdout no longer interleaved with `tracing` events.
+
+#### Documented limitations
+- **`LATTICEARC_PASSPHRASE` cannot be cleared from process env** after
+  read. `std::env::remove_var` is `unsafe` in Rust 2024 and the
+  workspace `unsafe_code = "forbid"` policy correctly bans it. The
+  variable is visible to same-UID processes via
+  `/proc/<pid>/environ` for the lifetime of the process. Mitigation
+  contract: callers using `LATTICEARC_PASSPHRASE` in scripts should
+  `unset` the variable immediately after the invocation. The TTY-
+  attached warning (added previously) is retained and now mentions
+  subprocess inheritance explicitly.
+- **`rpassword::prompt_password` failure message** now distinguishes
+  the no-TTY case (CI / Docker / piped stdin) and points the user at
+  `LATTICEARC_PASSPHRASE` rather than just propagating the generic
+  I/O error.
+
+#### Test-fixture aftermath (3 sites)
+- `tests/cli_integration.rs::test_ed25519_keygen_sign_verify_roundtrip`
+  + `test_ml_kem_keygen_all_levels_succeeds`: switched to new
+  `run_ok_combined` helper (captures stdout + stderr) since status
+  messages now live on stderr.
+- The "Generated ... keypair" assertions remain unchanged in
+  substance — only the stream they read from changed.
+
+#### Doc updates
+- `latticearc-cli/QUICK_REFERENCE.md`: exit-code table now
+  documents the verify 0/1/≥2 contract; new "Stdin / env-var
+  input" section consolidates the secret-input alternatives.
+
 ### Round-6 audit response — 10 issues + round-5 follow-ups (2026-04-27)
 
 Sixth audit pass. Ten valid findings (1 HIGH + 9 MEDIUM) plus the

@@ -31,11 +31,11 @@ fn print_keypair_report(
     sk_path: &std::path::Path,
     passphrase_protected: bool,
 ) {
-    println!("Generated {label} keypair:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
+    eprintln!("Generated {label} keypair:");
+    eprintln!("  Public:  {}", pk_path.display());
+    eprintln!("  Secret:  {}", sk_path.display());
     if passphrase_protected {
-        println!("  (secret key encrypted with passphrase)");
+        eprintln!("  (secret key encrypted with passphrase)");
     }
 }
 
@@ -222,9 +222,9 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
 
     let uc_desc = args.use_case.as_ref().map(|uc| format!(" for {:?}", uc)).unwrap_or_default();
 
-    println!("Generated {scheme} signing keypair{uc_desc}:");
-    println!("  Public:  {}", pk_path.display());
-    println!("  Secret:  {}", sk_path.display());
+    eprintln!("Generated {scheme} signing keypair{uc_desc}:");
+    eprintln!("  Public:  {}", pk_path.display());
+    eprintln!("  Secret:  {}", sk_path.display());
 
     // Also generate the matching hybrid encryption keypair. A failure here is
     // fatal: the user asked for a use-case bundle (signing + encryption) and
@@ -254,11 +254,11 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
         .write_to_file(&enc_sk_path)
         .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_sk_path.display()))?;
 
-    println!("  Encrypt PK: {}", enc_pk_path.display());
-    println!("  Encrypt SK: {}", enc_sk_path.display());
+    eprintln!("  Encrypt PK: {}", enc_pk_path.display());
+    eprintln!("  Encrypt SK: {}", enc_sk_path.display());
 
     if passphrase.is_some() {
-        println!("  (secret keys encrypted with passphrase)");
+        eprintln!("  (secret keys encrypted with passphrase)");
     }
 
     Ok(())
@@ -282,9 +282,9 @@ fn generate_symmetric(args: &KeygenArgs) -> Result<()> {
 
     zeroize::Zeroize::zeroize(&mut key);
 
-    println!("Generated AES-256 symmetric key: {}", path.display());
+    eprintln!("Generated AES-256 symmetric key: {}", path.display());
     if passphrase.is_some() {
-        println!("  (encrypted with passphrase)");
+        eprintln!("  (encrypted with passphrase)");
     }
     Ok(())
 }

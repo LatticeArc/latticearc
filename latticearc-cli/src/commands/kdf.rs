@@ -40,8 +40,23 @@ pub(crate) struct KdfArgs {
     #[arg(short, long, value_enum)]
     pub algorithm: KdfAlgorithm,
     /// Input key material (hex-encoded) or password (for PBKDF2).
-    #[arg(short, long)]
-    pub input: String,
+    ///
+    /// **SECURITY:** Passing a password as a CLI argument is visible in
+    /// `ps`, `/proc/<pid>/cmdline`, shell history, and kernel audit
+    /// logs. For PBKDF2 use cases, prefer one of:
+    /// - Read from `LATTICEARC_KDF_INPUT` env var (set then `unset`).
+    /// - Pipe the password on stdin and pass `--input-stdin`.
+    ///
+    /// `--input` is supported for HKDF (where the input is hex-encoded
+    /// non-secret material) and for backwards-compat with KAT replay
+    /// scripts.
+    #[arg(short, long, conflicts_with = "input_stdin")]
+    pub input: Option<String>,
+    /// Read the input from stdin (one line, no trailing newline). Use
+    /// instead of `--input` when the input is a secret (PBKDF2
+    /// password) and you don't want it in `ps` / shell history.
+    #[arg(long, conflicts_with = "input")]
+    pub input_stdin: bool,
     /// Salt (hex-encoded).
     #[arg(short, long)]
     pub salt: String,
@@ -70,9 +85,11 @@ pub(crate) struct KdfArgs {
 pub(crate) fn run(args: KdfArgs) -> Result<()> {
     let salt = hex::decode(&args.salt).context("Invalid hex in --salt")?;
 
+    let resolved_input = resolve_input(&args)?;
+
     let derived = match args.algorithm {
-        KdfAlgorithm::Hkdf => derive_hkdf(&args, &salt)?,
-        KdfAlgorithm::Pbkdf2 => derive_pbkdf2(&args, &salt)?,
+        KdfAlgorithm::Hkdf => derive_hkdf_with_input(&args, &salt, &resolved_input)?,
+        KdfAlgorithm::Pbkdf2 => derive_pbkdf2_with_input(&args, &salt, &resolved_input)?,
     };
 
     let encoded = match args.format {
@@ -87,10 +104,55 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
     Ok(())
 }
 
-fn derive_hkdf(args: &KdfArgs, salt: &[u8]) -> Result<Vec<u8>> {
-    let ikm = zeroize::Zeroizing::new(
-        hex::decode(&args.input).context("Invalid hex in --input for HKDF")?,
-    );
+/// Resolve the input string from one of:
+/// - `--input <value>` (CLI argument; visible in `ps`/history — flagged
+///   in the arg's docstring and acceptable for HKDF / KAT replay).
+/// - `--input-stdin` (read one line from stdin, no trailing newline;
+///   the recommended path for PBKDF2 passwords).
+/// - `LATTICEARC_KDF_INPUT` env var (recommended for scripted PBKDF2;
+///   caller must `unset` immediately afterwards — see SECURITY.md).
+///
+/// Exactly one source must be provided. The result is `Zeroizing` so
+/// password material is wiped at function exit.
+fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
+    if let Some(s) = args.input.as_deref() {
+        return Ok(zeroize::Zeroizing::new(s.to_string()));
+    }
+    if args.input_stdin {
+        use std::io::BufRead;
+        let stdin = std::io::stdin();
+        let mut buf = String::new();
+        stdin.lock().read_line(&mut buf).context("Failed to read --input-stdin")?;
+        // Strip a single trailing newline (LF or CRLF) — common when
+        // the user does `echo password | latticearc-cli kdf …`.
+        if buf.ends_with('\n') {
+            buf.pop();
+            if buf.ends_with('\r') {
+                buf.pop();
+            }
+        }
+        if buf.is_empty() {
+            bail!("--input-stdin received an empty line");
+        }
+        return Ok(zeroize::Zeroizing::new(buf));
+    }
+    if let Ok(env_val) = std::env::var("LATTICEARC_KDF_INPUT") {
+        if env_val.is_empty() {
+            bail!("LATTICEARC_KDF_INPUT is set but empty");
+        }
+        return Ok(zeroize::Zeroizing::new(env_val));
+    }
+    bail!(
+        "kdf requires one of: --input <value>, --input-stdin, or \
+         LATTICEARC_KDF_INPUT in the environment. For PBKDF2 passwords, \
+         prefer --input-stdin (`echo $PASS | latticearc-cli kdf --input-stdin …`) \
+         so the password isn't visible in `ps` / shell history."
+    )
+}
+
+fn derive_hkdf_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<Vec<u8>> {
+    let ikm =
+        zeroize::Zeroizing::new(hex::decode(input).context("Invalid hex in --input for HKDF")?);
     let info = args.info.as_deref().unwrap_or("");
 
     if args.length == 0 || args.length > 8160 {
@@ -114,8 +176,8 @@ fn derive_hkdf(args: &KdfArgs, salt: &[u8]) -> Result<Vec<u8>> {
 /// password-hashing use case the CLI targets.
 const OWASP_PBKDF2_MIN_ITERATIONS: u32 = 600_000;
 
-fn derive_pbkdf2(args: &KdfArgs, salt: &[u8]) -> Result<Vec<u8>> {
-    let password = zeroize::Zeroizing::new(args.input.as_bytes().to_vec());
+fn derive_pbkdf2_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<Vec<u8>> {
+    let password = zeroize::Zeroizing::new(input.as_bytes().to_vec());
 
     if args.length == 0 {
         bail!("Output length must be > 0");

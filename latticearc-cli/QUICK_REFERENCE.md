@@ -56,7 +56,9 @@ latticearc-cli encrypt -m aes256-gcm -i <file> -o <enc.json> -k <key.json>
 latticearc-cli decrypt -i <enc.json> -o <file> -k <key.json>
 ```
 
-Modes: `aes256-gcm`, `chacha20-poly1305`, `hybrid`
+Modes: `aes256-gcm`, `chacha20-poly1305`, `hybrid`, `pq-only`
+
+`pq-only` is the only CNSA 2.0-compliant mode — pure ML-KEM-768 + AES-256-GCM with no classical sidecar. Use it when CNSA 2.0 (NSA Commercial National Security Algorithm Suite 2.0) compliance is required; `hybrid` retains an X25519 component as transitional defence-in-depth per NIST SP 800-227.
 
 ## Hash
 
@@ -88,9 +90,11 @@ latticearc-cli <cmd> -h   # Show help for a specific command
 
 ```bash
 # 1. Sign a legal document (use-case-driven)
+# `legal-documents` use case selects ML-DSA-87 (NIST Level 5 / Maximum)
+# per the policy table — the keygen output is ml-dsa-87, not 65.
 latticearc-cli keygen --use-case legal-documents -o keys
-latticearc-cli sign -i contract.pdf -k keys/hybrid-ml-dsa-65-ed25519.sec.json \
-  --public-key keys/hybrid-ml-dsa-65-ed25519.pub.json
+latticearc-cli sign -i contract.pdf -k keys/hybrid-ml-dsa-87-ed25519.sec.json \
+  --public-key keys/hybrid-ml-dsa-87-ed25519.pub.json
 latticearc-cli verify -i contract.pdf -s contract.pdf.sig.json
 
 # 2. Encrypt healthcare records
@@ -116,10 +120,39 @@ latticearc-cli sign -i firmware.bin -k ci-keys/hybrid-ml-dsa-65-ed25519.sec.json
 
 ## Exit Codes
 
+`latticearc-cli verify` follows the openssl/gpg/ssh convention so scripts
+can distinguish forgery from operational error:
+
+| Code | Meaning (verify)                                              |
+|------|---------------------------------------------------------------|
+| `0`  | Signature is **VALID**                                        |
+| `1`  | Signature is **INVALID** (forgery / tampering)                |
+| `≥2` | Operational error (missing file, wrong key file, bad arg, …)  |
+
+All other commands use:
+
 | Code | Meaning |
 |------|---------|
 | `0` | Success |
-| `1` | Error (invalid input, wrong key, verification failed) |
+| `1` | Error (invalid input, wrong key, runtime failure) |
+| `2` | Bad command-line arguments (clap default) |
+
+## Stdin / env-var input (round-7)
+
+Several commands accept input from stdin or environment to avoid
+exposing secrets in `ps` / shell history:
+
+| Command | Stdin path | Env var |
+|---------|-----------|---------|
+| `kdf` (PBKDF2 password) | `--input-stdin` | `LATTICEARC_KDF_INPUT` |
+| `sign` / `verify` (data) | omit `--input` | (not applicable) |
+| `encrypt` / `decrypt` / `hash` (data) | omit `--input` | (not applicable) |
+| `keygen` (passphrase) | (interactive prompt) | `LATTICEARC_PASSPHRASE` |
+
+For env-var passphrases / inputs: `unset` the variable immediately
+after the invocation. The variable is visible to same-UID processes
+via `/proc/<pid>/environ` for the lifetime of this process — see
+SECURITY.md "Defense in Depth" §7 for the trade-off.
 
 ## Key Sizes at a Glance
 

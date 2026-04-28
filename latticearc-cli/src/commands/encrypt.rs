@@ -83,8 +83,19 @@ pub(crate) fn run(args: EncryptArgs) -> Result<()> {
         return write_output(&args.output, &json_output);
     }
 
-    // Expert path (or default)
-    let mode = args.mode.unwrap_or(EncryptMode::Aes256Gcm);
+    // Expert path (or default). When `--mode` is omitted, infer it from
+    // the key file's type — a hybrid PK should default to hybrid, a
+    // symmetric key to AES-256-GCM. Without this inference (round-7
+    // audit fix #12), passing a hybrid PK without `--mode hybrid`
+    // produced "Expected symmetric key file, got Public" — accurate
+    // but surprising for the common case.
+    let mode = match args.mode {
+        Some(m) => m,
+        None => match key_file.key_type {
+            KeyType::Public => EncryptMode::Hybrid,
+            _ => EncryptMode::Aes256Gcm,
+        },
+    };
     let json_output = match mode {
         EncryptMode::Aes256Gcm => encrypt_symmetric(&plaintext, &key_file)?,
         EncryptMode::Chacha20Poly1305 => encrypt_chacha20(&plaintext, &key_file)?,
@@ -256,11 +267,21 @@ fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
 fn write_output(path: &Option<PathBuf>, data: &str) -> Result<()> {
     match path {
         Some(p) => {
-            std::fs::write(p, data).with_context(|| format!("Failed to write {}", p.display()))?;
-            println!("Encrypted data written to: {}", p.display());
+            // Atomic write — closes the partial-file confidentiality
+            // window for decrypted material at rest. Same helper the
+            // keyfile writer uses (round-7 audit fix #18).
+            latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
+                .overwrite_existing(true)
+                .write(p)
+                .with_context(|| format!("Failed to write {}", p.display()))?;
+            eprintln!("Encrypted data written to: {}", p.display());
         }
         None => {
-            println!("{data}");
+            // `print!` (not `println!`) — byte-exact stdout for
+            // pipelines that hash or chain into other tools (round-7
+            // audit fix #14). Callers that want a trailing newline can
+            // redirect through `cat` or append themselves.
+            print!("{data}");
         }
     }
     Ok(())

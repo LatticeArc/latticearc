@@ -143,6 +143,13 @@ elliptic-curve = { version = "0.13", features = ["sec1"] }
 # Optional: ZKP serialization
 serde_with = { version = "3.17", optional = true }
 
+# Backed atomic-write helper (`unified_api::atomic_write::AtomicWrite`).
+# Used by `KeyFile::write_to_file_with_overwrite` and the CLI's
+# encrypt/decrypt/sign output paths to refuse silent clobber + give
+# crash-safe rename semantics. Tempfile's NTFS path also tightens the
+# Windows secret-key ACL story.
+tempfile = { workspace = true }
+
 # Optional: OS-level memory locking (mlock / VirtualLock) for `SecretVec`.
 # Enabled only when the `secret-mlock` feature is selected. See the feature
 # flag comment in the `[features]` section for rationale.

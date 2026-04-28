@@ -622,9 +622,13 @@ fn test_security_mode_from_session_is_verified_succeeds() {
 }
 
 #[test]
-fn test_security_mode_default_is_unverified_succeeds() {
+fn test_security_mode_explicit_unverified_succeeds() {
+    // Body-mirror of `latticearc/src/unified_api/zero_trust.rs::
+    // test_security_mode_explicit_unverified_succeeds` — pinning the
+    // explicit-construction shape after `impl Default for SecurityMode`
+    // was removed (round-6 audit fix #5). Asserts the variant directly.
     let mode = SecurityMode::Unverified;
-    assert!(mode.is_unverified(), "Default SecurityMode should be Unverified");
+    assert!(mode.is_unverified(), "Explicit SecurityMode::Unverified must report is_unverified()");
 }
 
 // ============================================================================

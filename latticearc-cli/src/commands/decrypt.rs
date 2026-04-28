@@ -136,8 +136,14 @@ fn read_input_string(path: &Option<PathBuf>) -> Result<String> {
 fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {
     match path {
         Some(p) => {
-            std::fs::write(p, data).with_context(|| format!("Failed to write {}", p.display()))?;
-            println!("Decrypted data written to: {}", p.display());
+            // Atomic write — decrypted secret material at rest must
+            // never be visible as a partial file (round-7 audit fix
+            // #18). Same helper as keyfile.
+            latticearc::unified_api::atomic_write::AtomicWrite::new(data)
+                .overwrite_existing(true)
+                .write(p)
+                .with_context(|| format!("Failed to write {}", p.display()))?;
+            eprintln!("Decrypted data written to: {}", p.display());
         }
         None => {
             // Try to print as UTF-8, fall back to hex

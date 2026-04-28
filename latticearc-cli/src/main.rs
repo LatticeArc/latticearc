@@ -60,6 +60,12 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "latticearc-cli", version, about, long_about = None)]
 #[command(propagate_version = true)]
+// Round-7 audit fix #15: showing the full help when invoked with no args
+// is more discoverable than the default 2-line "USAGE:" stub for
+// first-time users. Costs nothing for scripted callers (they always
+// supply a subcommand) and pays back the discoverability for
+// `latticearc-cli` typed at a fresh shell.
+#[command(arg_required_else_help = true)]
 struct Cli {
     /// Subcommand to execute.
     #[command(subcommand)]
