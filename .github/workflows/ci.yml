@@ -258,19 +258,15 @@ jobs:
 
     - name: Run cargo-audit (enhanced vulnerability scanning)
       run: |
-        cargo audit --deny warnings \
-          --ignore RUSTSEC-2023-0052 \
-          --ignore RUSTSEC-2021-0139 \
-          --ignore RUSTSEC-2024-0375 \
-          --ignore RUSTSEC-2021-0145 \
-          --ignore RUSTSEC-2026-0097 \
-          --ignore RUSTSEC-2024-0436 || \
-        (echo "Security vulnerabilities found!" && exit 1)
-        # RUSTSEC-2024-0436: paste crate unmaintained. Transitive dev-dep
-        # of pqcrypto-mldsa (Phase 2a cross-validation); no runtime
-        # impact on latticearc/latticearc-cli. Also ignored in
-        # .github/workflows/security.yml and deny.toml. Revisit when
-        # pqcrypto-mldsa drops the paste dep upstream.
+        # Round-12 audit fix (H-4): the per-advisory `--ignore` flags
+        # were the source of suppression drift across rounds (only one
+        # had a justification comment, two were stale). The single
+        # source of truth is now `.cargo/audit.toml [advisories].ignore`
+        # (mirrored by `deny.toml [advisories].ignore`), each with a
+        # justification + revisit trigger. cargo-audit auto-discovers
+        # `.cargo/audit.toml` so no CLI flags are needed.
+        cargo audit --deny warnings || \
+          (echo "Security vulnerabilities found!" && exit 1)
 
     - name: Run cargo-deny (license & dependency checks)
       run: cargo deny check all
@@ -1039,15 +1035,19 @@ jobs:
         [[ "${{ needs.api-stability-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs api-stability-tests"
         [[ "${{ needs.cli-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs cli-tests"
 
-        # Check fuzz jobs (warn but don't fail pipeline)
+        # Round-12 audit fix (H-5): fuzz-smoke is the ~30s every-PR job
+        # and MUST block merge — a live crash in encrypt_fuzz / kem_fuzz
+        # was previously silently warned-and-merged. fuzz-nightly /
+        # fuzz-weekly remain non-blocking because they run multi-hour
+        # campaigns and their flakes shouldn't gate cryptographic-bugfix
+        # PRs that haven't yet had time to fix every old finding.
+        [[ "${{ needs.fuzz-smoke.result }}" == "failure" ]] && failed_jobs="$failed_jobs fuzz-smoke"
+
         if [[ "${{ needs.fuzz-nightly.result }}" == "failure" ]]; then
-          echo "⚠️ Warning: fuzz-nightly failed (non-blocking)"
+          echo "⚠️ Warning: fuzz-nightly failed (non-blocking — see audit fix H-5 rationale)"
         fi
         if [[ "${{ needs.fuzz-weekly.result }}" == "failure" ]]; then
-          echo "⚠️ Warning: fuzz-weekly failed (non-blocking)"
-        fi
-        if [[ "${{ needs.fuzz-smoke.result }}" == "failure" ]]; then
-          echo "⚠️ Warning: fuzz-smoke failed (non-blocking)"
+          echo "⚠️ Warning: fuzz-weekly failed (non-blocking — see audit fix H-5 rationale)"
         fi
 
         if [ -n "$failed_jobs" ]; then

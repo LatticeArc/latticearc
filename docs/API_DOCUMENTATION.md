@@ -156,7 +156,7 @@ let (public_key, private_key) = generate_keypair()?;
 use latticearc::{VerifiedSession, generate_keypair, CryptoConfig};
 
 let (pk, sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+let session = VerifiedSession::establish(&pk, sk.expose_secret())?;
 
 // Use session for crypto operations
 let config = CryptoConfig::new().session(&session);
@@ -164,28 +164,21 @@ let config = CryptoConfig::new().session(&session);
 
 ### Auto-Selection Engine
 
-```rust
-use latticearc::unified_api::selector::CryptoPolicyEngine;
-use latticearc::types::config::CoreConfig;
-use latticearc::UseCase;
-
-// Recommend scheme for use case
-let config = CoreConfig::default();
-let scheme = CryptoPolicyEngine::recommend_scheme(&UseCase::SecureMessaging, &config)?;
-
-// Select encryption scheme
-let selected = CryptoPolicyEngine::select_encryption_scheme(data, &config, &[])?;
-```
+> **Round-12 audit fix (M-8):** the `CryptoPolicyEngine` direct usage
+> example was dropped here. `latticearc::unified_api::selector` is not
+> a stable public path; calling its methods directly couples downstream
+> code to internals that may move between minor releases. The
+> supported way to drive scheme selection is to set `use_case()` or
+> `security_level()` on `CryptoConfig` and let the unified API resolve
+> the scheme — see the `encrypt` / `sign_with_key` examples above.
 
 #### Reverse Level Mapping
 
-```rust
-use latticearc::unified_api::selector::ml_kem_level_to_security_level;
-use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
-
-let level = ml_kem_level_to_security_level(MlKemSecurityLevel::MlKem768);
-// → SecurityLevel::High
-```
+> **Round-12 audit fix (M-8):** the `ml_kem_level_to_security_level`
+> example was also dropped (same private-path concern). If you need to
+> map an `MlKemSecurityLevel` back to a `SecurityLevel`, do it with a
+> two-line `match` in your own code; the library does not commit to a
+> public conversion helper.
 
 ### Configuration
 

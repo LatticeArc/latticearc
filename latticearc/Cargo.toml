@@ -147,7 +147,7 @@ parking_lot = { workspace = true }
 # =============================================================================
 # ZKP
 # =============================================================================
-elliptic-curve = { version = "0.13", features = ["sec1"] }
+elliptic-curve = { workspace = true, features = ["sec1"] }
 # Optional: ZKP serialization
 serde_with = { version = "3.17", optional = true }
 
@@ -169,7 +169,7 @@ proptest = { workspace = true }
 criterion = { workspace = true }
 hex-literal = { workspace = true }
 tempfile = { workspace = true }
-hkdf = "0.13"
+hkdf = { workspace = true }
 # Compile-time assertions — enforce that secret-holding types do not gain
 # `PartialEq` or similar derives that would defeat our CT-comparison discipline.
 static_assertions = "1.1"

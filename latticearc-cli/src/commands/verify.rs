@@ -314,11 +314,23 @@ fn verify_hybrid(data: &[u8], sig_json: &str, pk_bytes: &[u8]) -> Result<bool> {
     let pk = crate::keyfile::parse_hybrid_sign_pk_from_bytes(pk_bytes)?;
     let hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
 
-    latticearc::verify_hybrid_signature(
+    // Round-12 audit fix (L-1): preserve the CLI 0/1/≥2 exit-code
+    // contract. The unified-API wrapper maps the underlying
+    // `HybridSignatureError::VerificationFailed` → `CoreError::
+    // VerificationFailed`; if we surface that as `anyhow::Error` the
+    // caller sees exit ≥2 (operational failure) instead of exit 1
+    // (forged signature). Translate `CoreError::VerificationFailed` to
+    // `Ok(false)` so the outer dispatch returns exit 1 — same shape as
+    // the ML-DSA / SLH-DSA / FN-DSA paths.
+    use latticearc::CoreError;
+    match latticearc::verify_hybrid_signature(
         data,
         &hybrid_sig,
         &pk,
         latticearc::SecurityMode::Unverified,
-    )
-    .map_err(|e| anyhow::anyhow!("Hybrid verification failed: {e}"))
+    ) {
+        Ok(valid) => Ok(valid),
+        Err(CoreError::VerificationFailed) => Ok(false),
+        Err(e) => Err(anyhow::anyhow!("Hybrid verification failed: {e}")),
+    }
 }

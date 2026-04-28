@@ -275,7 +275,11 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
 
 fn generate_symmetric(args: &KeygenArgs) -> Result<()> {
     let passphrase = resolve_keygen_passphrase(args)?;
-    let rand_bytes = latticearc::primitives::rand::csprng::random_bytes(32);
+    // Round-12 audit fix (M-3): wrap the intermediate Vec in
+    // `Zeroizing` so the 32-byte CSPRNG draw doesn't leak via heap
+    // copies after we've split it into the stack-allocated `key` array.
+    let rand_bytes =
+        zeroize::Zeroizing::new(latticearc::primitives::rand::csprng::random_bytes(32));
     let mut key = [0u8; 32];
     key.copy_from_slice(&rand_bytes);
 

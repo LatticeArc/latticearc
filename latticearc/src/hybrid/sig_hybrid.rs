@@ -477,7 +477,15 @@ pub fn sign(
     // Sign-side opacity (defense-in-depth per Pattern 6). SK is caller-side
     // state; failures here indicate a programmer / storage bug, but keep the
     // public error uniform to avoid exposing upstream detail.
-    let ml_dsa_sk_struct = MlDsaSecretKey::new(sk.parameter_set, (*ml_dsa_sk_bytes).clone())
+    //
+    // Round-12 audit fix (M-4): the `(*ml_dsa_sk_bytes).clone()` allocation
+    // carries secret-key material; on the `MlDsaSecretKey::new` error
+    // path the bare `Vec<u8>` would drop without zeroization. Wrap the
+    // clone so the heap copy is wiped on every path. `Zeroizing<Vec<u8>>`
+    // derefs to `Vec<u8>` so `MlDsaSecretKey::new` accepts it via the
+    // existing API (it just consumes a `Vec<u8>`).
+    let ml_dsa_sk_clone = Zeroizing::new((*ml_dsa_sk_bytes).clone());
+    let ml_dsa_sk_struct = MlDsaSecretKey::new(sk.parameter_set, (*ml_dsa_sk_clone).clone())
         .map_err(|_e| {
             log_crypto_operation_error!(op::HYBRID_SIGN, "ML-DSA SK init failed");
             HybridSignatureError::MlDsaError("signing failed".to_string())

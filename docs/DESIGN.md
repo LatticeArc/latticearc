@@ -508,19 +508,12 @@ Primitive dispatch (hybrid::encrypt, primitives::aead::encrypt, etc.)
 
 ### TLS Config Pipeline
 
-```
-TlsConfig (user-facing, 18 fields)
-  │
-  ├── From<&TlsConfig> for Tls13Config  →  maps: mode, alpn, fragment_size, early_data, protocol_version
-  │                                         drops: tracing, retry, fallback, resumption, session_lifetime,
-  │                                                key_logging, cipher_suites, client_auth, client_verification,
-  │                                                client_ca_certs, session_persistence
-  │
-  └── TlsConnectionBuilder              →  consumes remaining fields for connection setup
-        │
-        ▼
-rustls ServerConfig / ClientConfig
-```
+> **Round-12 audit fix (H-3):** the `TlsConfig` user-facing builder
+> referenced in earlier drafts was never shipped — `latticearc` does
+> not own a TLS layer. Production TLS use should configure `rustls`
+> directly (the README points to it explicitly). The internal
+> `Tls13Config` type used by the experimental `latticearc::tls`
+> module is configured through `rustls`'s own builder.
 
 ### Policy Engine Config
 

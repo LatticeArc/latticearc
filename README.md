@@ -18,8 +18,13 @@ Post-quantum cryptography for Rust. You describe what you're protecting — Latt
 
 ```rust
 use latticearc::{encrypt, decrypt, CryptoConfig, UseCase, EncryptKey, DecryptKey};
+use latticearc::generate_hybrid_keypair_with_level;
+use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 
-let (pk, sk) = latticearc::generate_hybrid_keypair()?;
+// HealthcareRecords resolves to ML-KEM-1024 (NIST Level 5), so the keypair
+// must be generated at the matching level — `generate_hybrid_keypair()`
+// defaults to ML-KEM-768 and would be rejected by `validate_key_matches_scheme`.
+let (pk, sk) = generate_hybrid_keypair_with_level(MlKemSecurityLevel::MlKem1024)?;
 let encrypted = encrypt(b"patient records",
     EncryptKey::Hybrid(&pk),
     CryptoConfig::new().use_case(UseCase::HealthcareRecords))?;

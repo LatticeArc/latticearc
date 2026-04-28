@@ -159,9 +159,14 @@
 //! ```rust,no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use latticearc::{encrypt, CryptoConfig, UseCase, EncryptKey};
+//! use latticearc::generate_hybrid_keypair_with_level;
+//! use latticearc::primitives::kem::ml_kem::MlKemSecurityLevel;
 //!
-//! // Library selects optimal hybrid algorithm for the use case
-//! let (pk, _sk) = latticearc::generate_hybrid_keypair()?;
+//! // FileStorage resolves to ML-KEM-1024 (Level 5), so the keypair MUST
+//! // be generated at the matching level. `generate_hybrid_keypair()`
+//! // defaults to ML-KEM-768 and would be rejected by
+//! // `validate_key_matches_scheme`.
+//! let (pk, _sk) = generate_hybrid_keypair_with_level(MlKemSecurityLevel::MlKem1024)?;
 //! let encrypted = encrypt(b"data", EncryptKey::Hybrid(&pk),
 //!     CryptoConfig::new().use_case(UseCase::FileStorage))?;
 //! # Ok(())

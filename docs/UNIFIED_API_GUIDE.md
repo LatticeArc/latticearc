@@ -31,7 +31,6 @@ flowchart LR
 | **Algorithm Selection** | Manually research NIST standards, parameter sizes, security levels | `CryptoConfig::new()` picks optimal defaults |
 | **Quantum Migration** | Rewrite entire codebase for PQ algorithms | Change `use_case()` or `security_level()` |
 | **Hybrid Crypto** | Implement complex multi-algorithm schemes | Built-in hybrid mode (PQ + classical) |
-| **TLS Configuration** | Different APIs for rustls, certificate handling | `TlsConfig::new()` with same builder pattern |
 | **Key Management** | Track multiple key types, parameter sets | Unified `generate_keypair()` functions |
 | **Memory Safety** | Manual zeroization of sensitive data | Automatic `Zeroize` on drop |
 
@@ -76,7 +75,6 @@ graph TB
 
     subgraph "Unified API"
         CC[CryptoConfig]
-        TC[TlsConfig]
         VS[VerifiedSession]
     end
 
@@ -225,7 +223,7 @@ use latticearc::{generate_signing_keypair, sign_with_key, verify, generate_keypa
                  CryptoConfig, VerifiedSession};
 
 let (public_key, private_key) = generate_keypair()?;
-let session = VerifiedSession::establish(&public_key, private_key.as_ref())?;
+let session = VerifiedSession::establish(&public_key, private_key.expose_secret())?;
 
 let config = CryptoConfig::new().session(&session);
 let (pk, sk, _scheme) = generate_signing_keypair(config.clone())?;
@@ -397,7 +395,7 @@ sequenceDiagram
     App->>LA: generate_keypair()
     LA-->>App: (public_key, private_key)
 
-    App->>LA: VerifiedSession::establish(&pk, sk.as_ref())
+    App->>LA: VerifiedSession::establish(&pk, sk.expose_secret())
     LA->>ZT: Create challenge
     ZT-->>LA: Challenge data
     LA->>ZT: Sign challenge
@@ -420,7 +418,7 @@ use latticearc::{VerifiedSession, generate_keypair};
 
 // Establish session
 let (pk, sk) = generate_keypair()?;
-let session = VerifiedSession::establish(&pk, sk.as_ref())?;
+let session = VerifiedSession::establish(&pk, sk.expose_secret())?;
 
 // Check session state
 assert!(session.is_valid());

@@ -38,12 +38,10 @@ jobs:
         # equivalent regular CI builds pass — the lists must stay in
         # sync.
         run: |
+          # Round-12 audit fix (H-4): single source of truth is
+          # `.cargo/audit.toml`; CLI flags removed.
           cargo install cargo-audit
-          cargo audit --deny warnings \
-            --ignore RUSTSEC-2024-0436 \
-            --ignore RUSTSEC-2021-0139 \
-            --ignore RUSTSEC-2024-0375 \
-            --ignore RUSTSEC-2021-0145
+          cargo audit --deny warnings
 
   # Publish to crates.io
   publish:

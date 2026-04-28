@@ -9,7 +9,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Round-11 audit response — 6 HIGH + 5 MEDIUM + 2 LOW + proactive sweeps (2026-04-28)
+### Round-12 audit response — 5 HIGH + 8 MEDIUM + 4 LOW (2026-04-28)
+
+Twelfth audit pass on top of `5180c3f08`. Cleanup batch before locking
+apache repo for proprietary focus. Findings spanned secret-zeroization
+gaps, doc-example breakage, supply-chain hygiene, and ZT replay-window
+tightening.
+
+#### HIGH
+- **README + lib.rs hero examples now compile** (H-1). The hero block
+  paired `generate_hybrid_keypair()` (defaults to ML-KEM-768) with
+  `UseCase::HealthcareRecords` (resolves to ML-KEM-1024).
+  `validate_key_matches_scheme` would reject with `ConfigurationError`,
+  contradicting the trailing "ML-KEM-1024 ... selected automatically"
+  comment. Both sites now use
+  `generate_hybrid_keypair_with_level(MlKemSecurityLevel::MlKem1024)`.
+- **Doc `as_ref()` → `expose_secret()`** (H-2). 4 sites
+  (`UNIFIED_API_GUIDE.md:228,400,423`, `API_DOCUMENTATION.md:159`)
+  called `private_key.as_ref()` / `sk.as_ref()`. The 0.8.0 Secret Type
+  Invariants release deliberately removed `AsRef<[u8]>` from secret
+  types — examples wouldn't compile.
+- **Phantom `TlsConfig` references stripped** (H-3). 5 doc sites
+  referenced a `TlsConfig` that was never shipped in
+  `latticearc/src/`. The README itself directs TLS users at
+  `rustls`. Docs corrected; the Pattern 11 destructuring example in
+  `DESIGN_PATTERNS.md` rewritten to use `CryptoConfig`.
+- **RUSTSEC ignores consolidated** (H-4). `ci.yml` had 6 `--ignore`
+  flags on `cargo audit`, only 1 with a justification comment, 2
+  stale (the workspace migrated past the underlying crate). Single
+  source of truth is now `.cargo/audit.toml [advisories].ignore`
+  (mirrored by `deny.toml`); `cargo-audit` auto-discovers it. Same
+  cleanup applied to `release.yml` and `security.yml`.
+- **`fuzz-smoke` is now PR-blocking** (H-5). The ~30s every-PR fuzz job
+  was previously "warn but don't fail pipeline" — a live crash in
+  `encrypt_fuzz` / `kem_fuzz` would merge. Promoted to the
+  `failed_jobs` list. `fuzz-nightly` / `fuzz-weekly` remain
+  non-blocking (multi-hour campaigns; their flakes shouldn't gate
+  cryptographic-bugfix PRs).
+
+#### MEDIUM
+- **`secure_compare` heap copies zeroized** (M-2). `padded_a` /
+  `padded_b` were bare `Vec<u8>` — wrapped in `Zeroizing<>` so the
+  copies of secret-tainted bytes are wiped on drop.
+- **CLI symmetric keygen Vec zeroized** (M-3).
+  `random_bytes(32)` returns a bare `Vec<u8>`; the 32-byte CSPRNG draw
+  is now `Zeroizing<Vec<u8>>` so it doesn't leak via heap copies after
+  being split into the stack `key` array.
+- **Hybrid sign SK clone zeroized** (M-4). `(*ml_dsa_sk_bytes).clone()`
+  in `sig_hybrid::sign` allocated a bare `Vec<u8>` of secret-key
+  material; on the `MlDsaSecretKey::new` error path the Vec dropped
+  without zeroize. Hot path — every hybrid sign. Now `Zeroizing<>`.
+- **PQ-only HKDF info binds KEM ciphertext** (L-2 / scope creep into
+  MEDIUM). The hybrid path uses `DerivationBinding{recipient_pk,
+  ephemeral_pk, kem_ciphertext}` per RFC 9180 §5.1 (HPKE channel
+  binding, round-7 fix #54). The PQ-only path was using only the
+  static `PQ_ONLY_ENCRYPTION_INFO` label. New
+  `pq_only_encryption_info(kem_ciphertext)` helper binds the
+  ciphertext into the info string, mirroring HPKE's anti-substitution
+  property. **Wire-format BREAKING** for in-flight PQ-only ciphertexts.
+- **RustCrypto crates exact-pinned** (M-5). `sha2`, `pbkdf2`, `hmac`,
+  `aes`, `sha3`, `ctr`, `x25519-dalek`, `blake2`, `hkdf`, and
+  `elliptic-curve` migrated from caret to `=` exact pins, matching the
+  fips204/205/fn-dsa pinning policy. A silent `cargo update` can no
+  longer splinter the digest 0.11 trait boundary.
+- **`hkdf` and `elliptic-curve` hoisted to workspace** (M-6, M-7).
+  Both were direct deps in `latticearc/Cargo.toml`; promoted to
+  `[workspace.dependencies]` so `tests/` and `latticearc/` agree.
+- **`tests/Cargo.toml` `aes-gcm` justified** (M-1 partial). The audit
+  observed `aes-gcm 0.10` pulling in `aes 0.8` while the lib uses
+  `aes 0.9`. Re-investigation showed the dep IS used (CAVP
+  cross-validation in `cavp/tests.rs:316` calls `aes_gcm::Aes128Gcm`
+  directly). Kept the dep, exact-pinned, and added a justification
+  comment + revisit trigger. The dual `aes` major is contained —
+  tests don't reach into library cipher internals.
+- **`CryptoPolicyEngine` private path removed from public docs**
+  (M-8). `API_DOCUMENTATION.md:168-177` imported
+  `latticearc::unified_api::selector::CryptoPolicyEngine` (a private
+  module path; not re-exported from `lib.rs`). Replaced with a note
+  pointing readers at `CryptoConfig::use_case()` /
+  `security_level()` — the supported way to drive scheme selection.
+  Same for `ml_kem_level_to_security_level`.
+
+#### LOW
+- **Hybrid CLI verify exit-code contract** (L-1). The CLI mapped
+  `Err(CoreError::VerificationFailed)` to `anyhow::Error`, producing
+  exit ≥2 for a forged signature instead of exit 1. Now matches on
+  the variant and returns `Ok(false)` so the outer dispatch surfaces
+  exit 1 — same shape as ML-DSA / SLH-DSA / FN-DSA paths.
+- **Future-skew cap on all 3 ProofComplexity verify paths** (L-3).
+  `now_ms.abs_diff(proof_ts_ms) > 300_000` accepted proofs up to 5 min
+  in the future, doubling the effective replay window for an attacker
+  with a forward-skewed clock. Now rejects anything more than 30 s
+  ahead of "now" before the abs_diff check (mirrors `verify_pop`).
+  Applied to Low + Medium + High.
+- **CHANGELOG round-11 LOW count** (L-8). Header said "2 LOW" but
+  body listed 4. Fixed.
+
+### Round-11 audit response — 6 HIGH + 5 MEDIUM + 4 LOW + proactive sweeps (2026-04-28)
 
 Eleventh audit pass on top of `fb1785bb0`. Goal: clean slate before
 locking apache for proprietary focus. The audit found 6 HIGH that

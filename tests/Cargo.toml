@@ -68,9 +68,18 @@ parking_lot = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
-# Validation-specific dependencies
-aes-gcm = "0.10.3"
-hkdf = "0.13"
+# Validation-specific dependencies.
+#
+# Round-12 audit (M-1) re-evaluation: `aes-gcm` IS used directly by
+# `tests/src/validation/cavp/tests.rs` (CAVP vector cross-validation
+# against the bare RustCrypto AES-GCM impl). Keeping `aes-gcm 0.10`
+# here splits the workspace into two `aes` major versions (0.8 transitively
+# from `aes-gcm 0.10`, vs 0.9 used directly by `latticearc`). The split
+# is contained — tests don't touch library cipher internals — and
+# `aes-gcm 0.11` is not yet on crates.io. Revisit when `aes-gcm` cuts a
+# 0.11 release that aligns with `aes 0.9+`. Exact-pin per round-12 #M-5.
+aes-gcm = "=0.10.3"
+hkdf = { workspace = true }
 libm = "0.2.8"
 fips203 = { version = "=0.4.3", registry = "crates-io" }
 fips204 = { workspace = true }

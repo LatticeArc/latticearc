@@ -1027,10 +1027,15 @@ Discarding a crypto key, boolean security gate, or builder result is always a bu
 so adding a new field produces a compile error.
 
 ### Why This Is The Right Pattern
-Without destructuring, adding a field to `TlsConfig` silently compiles — the new field
-is just ignored. With destructuring, the compiler forces every consumer to acknowledge
-every field. The `_` binding with a comment (`retry_policy: _, // Not yet wired`) is
-the correct way to acknowledge a field you intentionally skip.
+Without destructuring, adding a field to a config struct silently compiles — the new
+field is just ignored. With destructuring, the compiler forces every consumer to
+acknowledge every field. The `_` binding with a comment (`retry_policy: _, // Not yet
+wired`) is the correct way to acknowledge a field you intentionally skip.
+
+For example, `From<&CryptoConfig> for InternalSchemeArgs` must destructure all of
+`security_level`, `performance_preference`, `crypto_mode`, etc. — not just take
+`config.security_level` field-access — so that adding `compliance_mode` next year
+fails to compile until every conversion site is updated.
 
 ---
 

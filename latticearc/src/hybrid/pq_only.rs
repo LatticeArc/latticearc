@@ -193,6 +193,26 @@ impl PqOnlySecretKey {
 // Key Generation
 // ============================================================================
 
+/// Build the HKDF `info` string for PQ-only encryption.
+///
+/// Binds the KEM ciphertext into the per-message AEAD key derivation per
+/// RFC 9180 §5.1 (HPKE channel binding). Round-12 audit fix (L-2). Both
+/// `encrypt_pq_only` and `decrypt_pq_only` MUST construct this with
+/// identical inputs — a single canonical helper avoids the encrypt /
+/// decrypt drift that would silently break decryption if the two paths
+/// computed `info` differently.
+fn pq_only_encryption_info(kem_ciphertext: &[u8]) -> Vec<u8> {
+    let label = crate::types::domains::PQ_ONLY_ENCRYPTION_INFO;
+    // saturating_add avoids the workspace `clippy::arithmetic_side_effects`
+    // lint; in practice neither term ever approaches `usize::MAX`.
+    let cap = label.len().saturating_add(1).saturating_add(kem_ciphertext.len());
+    let mut info = Vec::with_capacity(cap);
+    info.extend_from_slice(label);
+    info.push(0x00); // domain separator between label and binding payload
+    info.extend_from_slice(kem_ciphertext);
+    info
+}
+
 /// Generate a PQ-only keypair at ML-KEM-768 (default security level).
 ///
 /// Returns `(public_key, secret_key)` for PQ-only encryption.
@@ -308,15 +328,18 @@ pub fn encrypt_pq_only(
         PqOnlyError::KemError("encapsulation failed".to_string())
     })?;
 
-    // HKDF info uses PQ-only domain separation to prevent cross-mode confusion
-    // with hybrid encryption.
-    let hkdf_result = hkdf(
-        shared_secret.expose_secret(),
-        None,
-        Some(crate::types::domains::PQ_ONLY_ENCRYPTION_INFO),
-        32,
-    )
-    .map_err(|_e| {
+    // Round-12 audit fix (L-2): bind the KEM ciphertext into the HKDF
+    // info string per RFC 9180 §5.1 (HPKE channel binding). The hybrid
+    // path uses `DerivationBinding{recipient_pk, ephemeral_pk,
+    // kem_ciphertext}` (round-7 fix #54); for PQ-only we bind just the
+    // ciphertext because `PqOnlySecretKey` does not carry the recipient
+    // PK (would require an API break). Ciphertext-binding alone gives
+    // the desired property: an adversary substituting `kem_ct` produces
+    // a different AEAD key, so the AEAD tag fails. Without it, if
+    // ML-KEM IND-CCA2 ever degraded the adversary could swap ciphertext
+    // halves freely.
+    let info = pq_only_encryption_info(kem_ct.as_bytes());
+    let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "HKDF failed");
         PqOnlyError::KdfError("KDF failed".to_string())
     })?;
@@ -380,14 +403,11 @@ pub fn decrypt_pq_only(
         opaque()
     })?;
 
-    // HKDF params must match encrypt_pq_only (salt=None, same info label).
-    let hkdf_result = hkdf(
-        shared_secret.expose_secret(),
-        None,
-        Some(crate::types::domains::PQ_ONLY_ENCRYPTION_INFO),
-        32,
-    )
-    .map_err(|_e| {
+    // HKDF params must match encrypt_pq_only (salt=None, identical info).
+    // Round-12 audit fix (L-2): info string binds the KEM ciphertext
+    // (mirroring the encrypt path).
+    let info = pq_only_encryption_info(kem_ciphertext);
+    let hkdf_result = hkdf(shared_secret.expose_secret(), None, Some(&info), 32).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "HKDF failed");
         opaque()
     })?;

@@ -22,10 +22,15 @@ use crate::types::SecretVec;
 #[must_use]
 pub fn secure_compare(a: &[u8], b: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
+    use zeroize::Zeroizing;
 
+    // Round-12 audit fix (M-2): the padded copies of `a` / `b` carry
+    // secret bytes, so they must be zeroized on drop. Plain `Vec<u8>`
+    // would leave heap copies of secret material visible via core
+    // dumps or freelist scraping.
     let max_len = a.len().max(b.len());
-    let mut padded_a = vec![0u8; max_len];
-    let mut padded_b = vec![0u8; max_len];
+    let mut padded_a = Zeroizing::new(vec![0u8; max_len]);
+    let mut padded_b = Zeroizing::new(vec![0u8; max_len]);
 
     // Safe: padded_a/b were created with max_len = max(a.len(), b.len())
     if let Some(dest) = padded_a.get_mut(..a.len()) {

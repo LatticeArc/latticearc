@@ -1098,6 +1098,21 @@ impl ZeroTrustAuth {
 
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
                 let now_ms = Utc::now().timestamp_millis();
+                // Round-12 audit fix (L-3): tighten the future-skew cap
+                // to match the sibling `verify_pop` path. `abs_diff(...)
+                // > 300_000` accepted proofs up to 5 min in the future,
+                // which gives an attacker with a forward-skewed clock a
+                // 10-min replay window. Reject anything more than 30 s
+                // ahead of "now"; the 5-min window only applies to the
+                // past direction.
+                if proof_ts_ms > now_ms.saturating_add(30_000) {
+                    tracing::warn!(
+                        proof_ts_ms,
+                        now_ms,
+                        "proof timestamp more than 30 s in the future"
+                    );
+                    return Ok(false);
+                }
                 let drift_ms = now_ms.abs_diff(proof_ts_ms);
                 if drift_ms > 300_000 {
                     tracing::warn!(drift_ms, "proof timestamp outside 5-min freshness window");
@@ -1131,6 +1146,21 @@ impl ZeroTrustAuth {
                 // Timestamp is encoded as chrono milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
                 let now_ms = Utc::now().timestamp_millis();
+                // Round-12 audit fix (L-3): tighten the future-skew cap
+                // to match the sibling `verify_pop` path. `abs_diff(...)
+                // > 300_000` accepted proofs up to 5 min in the future,
+                // which gives an attacker with a forward-skewed clock a
+                // 10-min replay window. Reject anything more than 30 s
+                // ahead of "now"; the 5-min window only applies to the
+                // past direction.
+                if proof_ts_ms > now_ms.saturating_add(30_000) {
+                    tracing::warn!(
+                        proof_ts_ms,
+                        now_ms,
+                        "proof timestamp more than 30 s in the future"
+                    );
+                    return Ok(false);
+                }
                 let drift_ms = now_ms.abs_diff(proof_ts_ms);
                 if drift_ms > 300_000 {
                     tracing::warn!(drift_ms, "proof timestamp outside 5-min freshness window");
@@ -1166,6 +1196,21 @@ impl ZeroTrustAuth {
                 // Timestamp is encoded as chrono milliseconds in little-endian.
                 let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
                 let now_ms = Utc::now().timestamp_millis();
+                // Round-12 audit fix (L-3): tighten the future-skew cap
+                // to match the sibling `verify_pop` path. `abs_diff(...)
+                // > 300_000` accepted proofs up to 5 min in the future,
+                // which gives an attacker with a forward-skewed clock a
+                // 10-min replay window. Reject anything more than 30 s
+                // ahead of "now"; the 5-min window only applies to the
+                // past direction.
+                if proof_ts_ms > now_ms.saturating_add(30_000) {
+                    tracing::warn!(
+                        proof_ts_ms,
+                        now_ms,
+                        "proof timestamp more than 30 s in the future"
+                    );
+                    return Ok(false);
+                }
                 let drift_ms = now_ms.abs_diff(proof_ts_ms);
                 if drift_ms > 300_000 {
                     tracing::warn!(drift_ms, "proof timestamp outside 5-min freshness window");
