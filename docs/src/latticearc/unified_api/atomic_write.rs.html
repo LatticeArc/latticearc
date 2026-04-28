@@ -71,89 +71,125 @@
 <a href=#71 id=71 data-nosnippet>71</a>        <span class="self">Self </span>{ bytes, unix_mode: <span class="prelude-val">None</span>, overwrite_existing: <span class="bool-val">false </span>}
 <a href=#72 id=72 data-nosnippet>72</a>    }
 <a href=#73 id=73 data-nosnippet>73</a>
-<a href=#74 id=74 data-nosnippet>74</a>    <span class="doccomment">/// Set the Unix file mode to `0o600` (owner read+write only). Ignored
-<a href=#75 id=75 data-nosnippet>75</a>    /// on Windows — use OS ACL hardening separately if needed.
-<a href=#76 id=76 data-nosnippet>76</a>    </span><span class="attr">#[must_use]
-<a href=#77 id=77 data-nosnippet>77</a>    </span><span class="kw">pub fn </span>secret_mode(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-<a href=#78 id=78 data-nosnippet>78</a>        <span class="self">self</span>.unix_mode = <span class="prelude-val">Some</span>(<span class="number">0o600</span>);
-<a href=#79 id=79 data-nosnippet>79</a>        <span class="self">self
-<a href=#80 id=80 data-nosnippet>80</a>    </span>}
-<a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="doccomment">/// Set an arbitrary Unix file mode. Convenience for non-secret
-<a href=#83 id=83 data-nosnippet>83</a>    /// outputs that still want a tighter-than-umask mode.
-<a href=#84 id=84 data-nosnippet>84</a>    </span><span class="attr">#[must_use]
-<a href=#85 id=85 data-nosnippet>85</a>    </span><span class="kw">pub fn </span>unix_mode(<span class="kw-2">mut </span><span class="self">self</span>, mode: u32) -&gt; <span class="self">Self </span>{
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="self">self</span>.unix_mode = <span class="prelude-val">Some</span>(mode);
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="self">self
-<a href=#88 id=88 data-nosnippet>88</a>    </span>}
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// Allow the write to overwrite a pre-existing file at the target
-<a href=#91 id=91 data-nosnippet>91</a>    /// path. The default refuses to clobber; opt in here only when the
-<a href=#92 id=92 data-nosnippet>92</a>    /// caller explicitly intends to replace prior content (e.g., a
-<a href=#93 id=93 data-nosnippet>93</a>    /// `--force` flag was given).
-<a href=#94 id=94 data-nosnippet>94</a>    </span><span class="attr">#[must_use]
-<a href=#95 id=95 data-nosnippet>95</a>    </span><span class="kw">pub fn </span>overwrite_existing(<span class="kw-2">mut </span><span class="self">self</span>, allow: bool) -&gt; <span class="self">Self </span>{
-<a href=#96 id=96 data-nosnippet>96</a>        <span class="self">self</span>.overwrite_existing = allow;
-<a href=#97 id=97 data-nosnippet>97</a>        <span class="self">self
-<a href=#98 id=98 data-nosnippet>98</a>    </span>}
-<a href=#99 id=99 data-nosnippet>99</a>
-<a href=#100 id=100 data-nosnippet>100</a>    <span class="doccomment">/// Perform the write to `path`.
-<a href=#101 id=101 data-nosnippet>101</a>    ///
-<a href=#102 id=102 data-nosnippet>102</a>    /// # Errors
-<a href=#103 id=103 data-nosnippet>103</a>    ///
-<a href=#104 id=104 data-nosnippet>104</a>    /// - `CoreError::ConfigurationError` if the parent directory doesn't
-<a href=#105 id=105 data-nosnippet>105</a>    ///   exist, the target file exists and `overwrite_existing(true)`
-<a href=#106 id=106 data-nosnippet>106</a>    ///   wasn't called, or the tempfile cannot be created in the parent
-<a href=#107 id=107 data-nosnippet>107</a>    ///   directory.
-<a href=#108 id=108 data-nosnippet>108</a>    /// - `CoreError::Internal` for I/O errors during write or rename.
-<a href=#109 id=109 data-nosnippet>109</a>    </span><span class="kw">pub fn </span>write(<span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">let </span>parent =
-<a href=#111 id=111 data-nosnippet>111</a>            path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new(<span class="string">"."</span>));
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="doccomment">/// Convenience for the most common case: write secret bytes to
+<a href=#75 id=75 data-nosnippet>75</a>    /// `path` with mode `0o600`, refusing to clobber. Equivalent to
+<a href=#76 id=76 data-nosnippet>76</a>    /// `AtomicWrite::new(bytes).secret_mode().write(path)`.
+<a href=#77 id=77 data-nosnippet>77</a>    ///
+<a href=#78 id=78 data-nosnippet>78</a>    /// # Errors
+<a href=#79 id=79 data-nosnippet>79</a>    ///
+<a href=#80 id=80 data-nosnippet>80</a>    /// Same as [`write`](Self::write).
+<a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">pub fn </span>write_secret(bytes: <span class="kw-2">&amp;</span>[u8], path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#82 id=82 data-nosnippet>82</a>        AtomicWrite::new(bytes).secret_mode().write(path)
+<a href=#83 id=83 data-nosnippet>83</a>    }
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a>    <span class="doccomment">/// Convenience for "overwrite an existing file atomically" — used
+<a href=#86 id=86 data-nosnippet>86</a>    /// for non-secret CLI output (encrypted blobs, signatures) where
+<a href=#87 id=87 data-nosnippet>87</a>    /// the user reasonably expects re-running the command to replace
+<a href=#88 id=88 data-nosnippet>88</a>    /// prior output. Mode left at process umask.
+<a href=#89 id=89 data-nosnippet>89</a>    ///
+<a href=#90 id=90 data-nosnippet>90</a>    /// # Errors
+<a href=#91 id=91 data-nosnippet>91</a>    ///
+<a href=#92 id=92 data-nosnippet>92</a>    /// Same as [`write`](Self::write).
+<a href=#93 id=93 data-nosnippet>93</a>    </span><span class="kw">pub fn </span>write_overwrite(bytes: <span class="kw-2">&amp;</span>[u8], path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#94 id=94 data-nosnippet>94</a>        AtomicWrite::new(bytes).overwrite_existing(<span class="bool-val">true</span>).write(path)
+<a href=#95 id=95 data-nosnippet>95</a>    }
+<a href=#96 id=96 data-nosnippet>96</a>
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="doccomment">/// Set the Unix file mode to `0o600` (owner read+write only). Ignored
+<a href=#98 id=98 data-nosnippet>98</a>    /// on Windows — use OS ACL hardening separately if needed.
+<a href=#99 id=99 data-nosnippet>99</a>    </span><span class="attr">#[must_use]
+<a href=#100 id=100 data-nosnippet>100</a>    </span><span class="kw">pub fn </span>secret_mode(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="self">self</span>.unix_mode = <span class="prelude-val">Some</span>(<span class="number">0o600</span>);
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="self">self
+<a href=#103 id=103 data-nosnippet>103</a>    </span>}
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>    <span class="doccomment">/// Set an arbitrary Unix file mode. Convenience for non-secret
+<a href=#106 id=106 data-nosnippet>106</a>    /// outputs that still want a tighter-than-umask mode.
+<a href=#107 id=107 data-nosnippet>107</a>    </span><span class="attr">#[must_use]
+<a href=#108 id=108 data-nosnippet>108</a>    </span><span class="kw">pub fn </span>unix_mode(<span class="kw-2">mut </span><span class="self">self</span>, mode: u32) -&gt; <span class="self">Self </span>{
+<a href=#109 id=109 data-nosnippet>109</a>        <span class="self">self</span>.unix_mode = <span class="prelude-val">Some</span>(mode);
+<a href=#110 id=110 data-nosnippet>110</a>        <span class="self">self
+<a href=#111 id=111 data-nosnippet>111</a>    </span>}
 <a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">if </span>!<span class="self">self</span>.overwrite_existing &amp;&amp; path.exists() {
-<a href=#114 id=114 data-nosnippet>114</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::ConfigurationError(<span class="macro">format!</span>(
-<a href=#115 id=115 data-nosnippet>115</a>                <span class="string">"Refusing to overwrite existing file: {}. \
-<a href=#116 id=116 data-nosnippet>116</a>                 Pass --force (or pre-delete the file) if this is intentional."</span>,
-<a href=#117 id=117 data-nosnippet>117</a>                path.display()
-<a href=#118 id=118 data-nosnippet>118</a>            )));
-<a href=#119 id=119 data-nosnippet>119</a>        }
-<a href=#120 id=120 data-nosnippet>120</a>
-<a href=#121 id=121 data-nosnippet>121</a>        <span class="comment">// tempfile::NamedTempFile in the parent dir → same-filesystem
-<a href=#122 id=122 data-nosnippet>122</a>        // rename. Cross-fs rename would degrade to a non-atomic copy.
-<a href=#123 id=123 data-nosnippet>123</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
-<a href=#124 id=124 data-nosnippet>124</a>            CoreError::ConfigurationError(<span class="macro">format!</span>(
-<a href=#125 id=125 data-nosnippet>125</a>                <span class="string">"failed to create tempfile in {}: {e}"</span>,
-<a href=#126 id=126 data-nosnippet>126</a>                parent.display()
-<a href=#127 id=127 data-nosnippet>127</a>            ))
-<a href=#128 id=128 data-nosnippet>128</a>        })<span class="question-mark">?</span>;
-<a href=#129 id=129 data-nosnippet>129</a>
-<a href=#130 id=130 data-nosnippet>130</a>        <span class="attr">#[cfg(unix)]
-<a href=#131 id=131 data-nosnippet>131</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(mode) = <span class="self">self</span>.unix_mode {
-<a href=#132 id=132 data-nosnippet>132</a>            <span class="comment">// Set the mode BEFORE writing so there's no window where the
-<a href=#133 id=133 data-nosnippet>133</a>            // file is world-readable. `as_file()` returns the underlying
-<a href=#134 id=134 data-nosnippet>134</a>            // `File`; `set_permissions` is a syscall, not a buffered op.
-<a href=#135 id=135 data-nosnippet>135</a>            </span><span class="kw">use </span>std::os::unix::fs::PermissionsExt;
-<a href=#136 id=136 data-nosnippet>136</a>            <span class="kw">let </span>perms = std::fs::Permissions::from_mode(mode);
-<a href=#137 id=137 data-nosnippet>137</a>            tmp.as_file()
-<a href=#138 id=138 data-nosnippet>138</a>                .set_permissions(perms)
-<a href=#139 id=139 data-nosnippet>139</a>                .map_err(|e| CoreError::Internal(<span class="macro">format!</span>(<span class="string">"chmod tempfile: {e}"</span>)))<span class="question-mark">?</span>;
-<a href=#140 id=140 data-nosnippet>140</a>        }
-<a href=#141 id=141 data-nosnippet>141</a>
-<a href=#142 id=142 data-nosnippet>142</a>        tmp.write_all(<span class="self">self</span>.bytes)
-<a href=#143 id=143 data-nosnippet>143</a>            .map_err(|e| CoreError::Internal(<span class="macro">format!</span>(<span class="string">"write tempfile: {e}"</span>)))<span class="question-mark">?</span>;
-<a href=#144 id=144 data-nosnippet>144</a>        tmp.as_file()
-<a href=#145 id=145 data-nosnippet>145</a>            .sync_all()
-<a href=#146 id=146 data-nosnippet>146</a>            .map_err(|e| CoreError::Internal(<span class="macro">format!</span>(<span class="string">"fsync tempfile: {e}"</span>)))<span class="question-mark">?</span>;
-<a href=#147 id=147 data-nosnippet>147</a>
-<a href=#148 id=148 data-nosnippet>148</a>        <span class="comment">// Atomic rename. `persist` succeeds only if the rename is atomic;
-<a href=#149 id=149 data-nosnippet>149</a>        // `persist_noclobber` returns an error if the target exists. We
-<a href=#150 id=150 data-nosnippet>150</a>        // already pre-checked via `path.exists()` above when
-<a href=#151 id=151 data-nosnippet>151</a>        // `overwrite_existing` is false; this final call uses `persist`
-<a href=#152 id=152 data-nosnippet>152</a>        // unconditionally so the rename itself is atomic in both modes.
-<a href=#153 id=153 data-nosnippet>153</a>        </span>tmp.persist(path).map_err(|e| {
-<a href=#154 id=154 data-nosnippet>154</a>            CoreError::Internal(<span class="macro">format!</span>(<span class="string">"atomic rename to {}: {e}"</span>, path.display()))
-<a href=#155 id=155 data-nosnippet>155</a>        })<span class="question-mark">?</span>;
-<a href=#156 id=156 data-nosnippet>156</a>        <span class="prelude-val">Ok</span>(())
-<a href=#157 id=157 data-nosnippet>157</a>    }
-<a href=#158 id=158 data-nosnippet>158</a>}
+<a href=#113 id=113 data-nosnippet>113</a>    <span class="doccomment">/// Allow the write to overwrite a pre-existing file at the target
+<a href=#114 id=114 data-nosnippet>114</a>    /// path. The default refuses to clobber; opt in here only when the
+<a href=#115 id=115 data-nosnippet>115</a>    /// caller explicitly intends to replace prior content (e.g., a
+<a href=#116 id=116 data-nosnippet>116</a>    /// `--force` flag was given).
+<a href=#117 id=117 data-nosnippet>117</a>    </span><span class="attr">#[must_use]
+<a href=#118 id=118 data-nosnippet>118</a>    </span><span class="kw">pub fn </span>overwrite_existing(<span class="kw-2">mut </span><span class="self">self</span>, allow: bool) -&gt; <span class="self">Self </span>{
+<a href=#119 id=119 data-nosnippet>119</a>        <span class="self">self</span>.overwrite_existing = allow;
+<a href=#120 id=120 data-nosnippet>120</a>        <span class="self">self
+<a href=#121 id=121 data-nosnippet>121</a>    </span>}
+<a href=#122 id=122 data-nosnippet>122</a>
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="doccomment">/// Perform the write to `path`.
+<a href=#124 id=124 data-nosnippet>124</a>    ///
+<a href=#125 id=125 data-nosnippet>125</a>    /// # Errors
+<a href=#126 id=126 data-nosnippet>126</a>    ///
+<a href=#127 id=127 data-nosnippet>127</a>    /// - `CoreError::ConfigurationError` if the parent directory doesn't
+<a href=#128 id=128 data-nosnippet>128</a>    ///   exist, the target file exists and `overwrite_existing(true)`
+<a href=#129 id=129 data-nosnippet>129</a>    ///   wasn't called, or the tempfile cannot be created in the parent
+<a href=#130 id=130 data-nosnippet>130</a>    ///   directory.
+<a href=#131 id=131 data-nosnippet>131</a>    /// - `CoreError::Internal` for I/O errors during write or rename.
+<a href=#132 id=132 data-nosnippet>132</a>    </span><span class="kw">pub fn </span>write(<span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">let </span>parent =
+<a href=#134 id=134 data-nosnippet>134</a>            path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new(<span class="string">"."</span>));
+<a href=#135 id=135 data-nosnippet>135</a>
+<a href=#136 id=136 data-nosnippet>136</a>        <span class="comment">// tempfile::NamedTempFile in the parent dir → same-filesystem
+<a href=#137 id=137 data-nosnippet>137</a>        // rename. Cross-fs rename would degrade to a non-atomic copy.
+<a href=#138 id=138 data-nosnippet>138</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
+<a href=#139 id=139 data-nosnippet>139</a>            CoreError::ConfigurationError(<span class="macro">format!</span>(
+<a href=#140 id=140 data-nosnippet>140</a>                <span class="string">"failed to create tempfile in {}: {e}"</span>,
+<a href=#141 id=141 data-nosnippet>141</a>                parent.display()
+<a href=#142 id=142 data-nosnippet>142</a>            ))
+<a href=#143 id=143 data-nosnippet>143</a>        })<span class="question-mark">?</span>;
+<a href=#144 id=144 data-nosnippet>144</a>
+<a href=#145 id=145 data-nosnippet>145</a>        <span class="attr">#[cfg(unix)]
+<a href=#146 id=146 data-nosnippet>146</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(mode) = <span class="self">self</span>.unix_mode {
+<a href=#147 id=147 data-nosnippet>147</a>            <span class="comment">// Set the mode BEFORE writing so there's no window where the
+<a href=#148 id=148 data-nosnippet>148</a>            // file is world-readable. `as_file()` returns the underlying
+<a href=#149 id=149 data-nosnippet>149</a>            // `File`; `set_permissions` is a syscall, not a buffered op.
+<a href=#150 id=150 data-nosnippet>150</a>            </span><span class="kw">use </span>std::os::unix::fs::PermissionsExt;
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="kw">let </span>perms = std::fs::Permissions::from_mode(mode);
+<a href=#152 id=152 data-nosnippet>152</a>            tmp.as_file()
+<a href=#153 id=153 data-nosnippet>153</a>                .set_permissions(perms)
+<a href=#154 id=154 data-nosnippet>154</a>                .map_err(|e| CoreError::Internal(<span class="macro">format!</span>(<span class="string">"chmod tempfile: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#155 id=155 data-nosnippet>155</a>        }
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a>        tmp.write_all(<span class="self">self</span>.bytes)
+<a href=#158 id=158 data-nosnippet>158</a>            .map_err(|e| CoreError::Internal(<span class="macro">format!</span>(<span class="string">"write tempfile: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#159 id=159 data-nosnippet>159</a>        tmp.as_file()
+<a href=#160 id=160 data-nosnippet>160</a>            .sync_all()
+<a href=#161 id=161 data-nosnippet>161</a>            .map_err(|e| CoreError::Internal(<span class="macro">format!</span>(<span class="string">"fsync tempfile: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#162 id=162 data-nosnippet>162</a>
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="comment">// Atomic rename — the choice between `persist` and `persist_noclobber`
+<a href=#164 id=164 data-nosnippet>164</a>        // is the difference between "atomic but clobber-OK" and "atomic AND
+<a href=#165 id=165 data-nosnippet>165</a>        // refuse to clobber via link(2)+unlink(2)". The earlier shape used
+<a href=#166 id=166 data-nosnippet>166</a>        // `path.exists()` + `persist`, which had a TOCTOU window: another
+<a href=#167 id=167 data-nosnippet>167</a>        // process could create `path` between the check and the rename and
+<a href=#168 id=168 data-nosnippet>168</a>        // get silently overwritten. `persist_noclobber` collapses both
+<a href=#169 id=169 data-nosnippet>169</a>        // into a single syscall, so the exclusive-create guarantee is real,
+<a href=#170 id=170 data-nosnippet>170</a>        // not best-effort.
+<a href=#171 id=171 data-nosnippet>171</a>        </span><span class="kw">if </span><span class="self">self</span>.overwrite_existing {
+<a href=#172 id=172 data-nosnippet>172</a>            tmp.persist(path).map_err(|e| {
+<a href=#173 id=173 data-nosnippet>173</a>                CoreError::Internal(<span class="macro">format!</span>(<span class="string">"atomic rename to {}: {e}"</span>, path.display()))
+<a href=#174 id=174 data-nosnippet>174</a>            })<span class="question-mark">?</span>;
+<a href=#175 id=175 data-nosnippet>175</a>        } <span class="kw">else </span>{
+<a href=#176 id=176 data-nosnippet>176</a>            tmp.persist_noclobber(path).map_err(|e| {
+<a href=#177 id=177 data-nosnippet>177</a>                <span class="comment">// tempfile's `PersistError` carries the source io::Error;
+<a href=#178 id=178 data-nosnippet>178</a>                // surface AlreadyExists as the user-facing
+<a href=#179 id=179 data-nosnippet>179</a>                // ConfigurationError ("refusing to overwrite") and wrap any
+<a href=#180 id=180 data-nosnippet>180</a>                // other I/O failure as Internal.
+<a href=#181 id=181 data-nosnippet>181</a>                </span><span class="kw">if </span>e.error.kind() == std::io::ErrorKind::AlreadyExists {
+<a href=#182 id=182 data-nosnippet>182</a>                    CoreError::ConfigurationError(<span class="macro">format!</span>(
+<a href=#183 id=183 data-nosnippet>183</a>                        <span class="string">"Refusing to overwrite existing file: {}. \
+<a href=#184 id=184 data-nosnippet>184</a>                         Pass --force (or pre-delete the file) if this is intentional."</span>,
+<a href=#185 id=185 data-nosnippet>185</a>                        path.display()
+<a href=#186 id=186 data-nosnippet>186</a>                    ))
+<a href=#187 id=187 data-nosnippet>187</a>                } <span class="kw">else </span>{
+<a href=#188 id=188 data-nosnippet>188</a>                    CoreError::Internal(<span class="macro">format!</span>(<span class="string">"atomic rename to {}: {e}"</span>, path.display()))
+<a href=#189 id=189 data-nosnippet>189</a>                }
+<a href=#190 id=190 data-nosnippet>190</a>            })<span class="question-mark">?</span>;
+<a href=#191 id=191 data-nosnippet>191</a>        }
+<a href=#192 id=192 data-nosnippet>192</a>        <span class="prelude-val">Ok</span>(())
+<a href=#193 id=193 data-nosnippet>193</a>    }
+<a href=#194 id=194 data-nosnippet>194</a>}
 </code></pre></div></section></main></body></html>
