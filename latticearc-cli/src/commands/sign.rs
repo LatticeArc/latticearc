@@ -70,22 +70,17 @@ pub(crate) struct SignArgs {
 
 /// Execute the sign command.
 pub(crate) fn run(args: SignArgs) -> Result<()> {
-    let data = if let Some(path) = &args.input {
-        super::common::enforce_input_size_limit(
-            path,
-            super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
-            "sign",
-        )?;
-        std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?
-    } else {
-        // Stdin mode (round-7 audit fix #10) — `--output` becomes
-        // mandatory because we can't derive it from a non-existent
-        // `<input>.sig.json`.
-        if args.output.is_none() {
-            bail!("--output is required when --input is omitted (stdin mode)");
-        }
-        super::common::read_stdin_with_limit(super::common::CLI_MAX_SIGNATURE_INPUT_BYTES, "sign")?
-    };
+    // Stdin mode (round-7 audit fix #10) — `--output` becomes
+    // mandatory because we can't derive it from a non-existent
+    // `<input>.sig.json`. Round-8 audit fix #13: shared helper.
+    if args.input.is_none() && args.output.is_none() {
+        bail!("--output is required when --input is omitted (stdin mode)");
+    }
+    let data = super::common::read_file_or_stdin(
+        args.input.as_deref(),
+        super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
+        "sign",
+    )?;
 
     let key_file = KeyFile::read_from(&args.key)?;
     if key_file.key_type != KeyType::Secret {

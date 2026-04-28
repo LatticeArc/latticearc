@@ -71,6 +71,29 @@ impl<'a> AtomicWrite<'a> {
         Self { bytes, unix_mode: None, overwrite_existing: false }
     }
 
+    /// Convenience for the most common case: write secret bytes to
+    /// `path` with mode `0o600`, refusing to clobber. Equivalent to
+    /// `AtomicWrite::new(bytes).secret_mode().write(path)`.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`write`](Self::write).
+    pub fn write_secret(bytes: &[u8], path: &Path) -> Result<()> {
+        AtomicWrite::new(bytes).secret_mode().write(path)
+    }
+
+    /// Convenience for "overwrite an existing file atomically" — used
+    /// for non-secret CLI output (encrypted blobs, signatures) where
+    /// the user reasonably expects re-running the command to replace
+    /// prior output. Mode left at process umask.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`write`](Self::write).
+    pub fn write_overwrite(bytes: &[u8], path: &Path) -> Result<()> {
+        AtomicWrite::new(bytes).overwrite_existing(true).write(path)
+    }
+
     /// Set the Unix file mode to `0o600` (owner read+write only). Ignored
     /// on Windows — use OS ACL hardening separately if needed.
     #[must_use]
@@ -110,14 +133,6 @@ impl<'a> AtomicWrite<'a> {
         let parent =
             path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
 
-        if !self.overwrite_existing && path.exists() {
-            return Err(CoreError::ConfigurationError(format!(
-                "Refusing to overwrite existing file: {}. \
-                 Pass --force (or pre-delete the file) if this is intentional.",
-                path.display()
-            )));
-        }
-
         // tempfile::NamedTempFile in the parent dir → same-filesystem
         // rename. Cross-fs rename would degrade to a non-atomic copy.
         let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
@@ -145,14 +160,35 @@ impl<'a> AtomicWrite<'a> {
             .sync_all()
             .map_err(|e| CoreError::Internal(format!("fsync tempfile: {e}")))?;
 
-        // Atomic rename. `persist` succeeds only if the rename is atomic;
-        // `persist_noclobber` returns an error if the target exists. We
-        // already pre-checked via `path.exists()` above when
-        // `overwrite_existing` is false; this final call uses `persist`
-        // unconditionally so the rename itself is atomic in both modes.
-        tmp.persist(path).map_err(|e| {
-            CoreError::Internal(format!("atomic rename to {}: {e}", path.display()))
-        })?;
+        // Atomic rename — the choice between `persist` and `persist_noclobber`
+        // is the difference between "atomic but clobber-OK" and "atomic AND
+        // refuse to clobber via link(2)+unlink(2)". The earlier shape used
+        // `path.exists()` + `persist`, which had a TOCTOU window: another
+        // process could create `path` between the check and the rename and
+        // get silently overwritten. `persist_noclobber` collapses both
+        // into a single syscall, so the exclusive-create guarantee is real,
+        // not best-effort.
+        if self.overwrite_existing {
+            tmp.persist(path).map_err(|e| {
+                CoreError::Internal(format!("atomic rename to {}: {e}", path.display()))
+            })?;
+        } else {
+            tmp.persist_noclobber(path).map_err(|e| {
+                // tempfile's `PersistError` carries the source io::Error;
+                // surface AlreadyExists as the user-facing
+                // ConfigurationError ("refusing to overwrite") and wrap any
+                // other I/O failure as Internal.
+                if e.error.kind() == std::io::ErrorKind::AlreadyExists {
+                    CoreError::ConfigurationError(format!(
+                        "Refusing to overwrite existing file: {}. \
+                         Pass --force (or pre-delete the file) if this is intentional.",
+                        path.display()
+                    ))
+                } else {
+                    CoreError::Internal(format!("atomic rename to {}: {e}", path.display()))
+                }
+            })?;
+        }
         Ok(())
     }
 }

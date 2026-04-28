@@ -199,12 +199,19 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
                 .encrypt_with_passphrase(pp.as_bytes())
                 .map_err(|e| anyhow::anyhow!("Failed to encrypt secret key: {e}"))?;
         }
-        portable_pk
-            .write_to_file(&pk_path)
-            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", pk_path.display()))?;
+        // Round-8 audit fix #4: write SK first. If we wrote PK first and
+        // the SK write failed (disk full, permission), the PK would be
+        // orphaned on disk; subsequent retry would hit the new
+        // "refusing to overwrite" guard against the orphan and surface
+        // a confusing "file exists" error for a keypair half the user
+        // didn't know was created. SK-first ensures the PK only lands
+        // when there's a matching usable SK.
         portable_sk
             .write_to_file(&sk_path)
             .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", sk_path.display()))?;
+        portable_pk
+            .write_to_file(&pk_path)
+            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", pk_path.display()))?;
     } else {
         // PQ-only or classical signing scheme — concatenated bytes are the
         // entire key and should be written as a Single KeyData.
@@ -247,12 +254,13 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
 
     let enc_pk_path = args.output.join("encryption.pub.json");
     let enc_sk_path = args.output.join("encryption.sec.json");
-    portable_pk
-        .write_to_file(&enc_pk_path)
-        .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_pk_path.display()))?;
+    // SK first — see fix #4 explanation in the signing-keypair branch.
     portable_sk
         .write_to_file(&enc_sk_path)
         .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_sk_path.display()))?;
+    portable_pk
+        .write_to_file(&enc_pk_path)
+        .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", enc_pk_path.display()))?;
 
     eprintln!("  Encrypt PK: {}", enc_pk_path.display());
     eprintln!("  Encrypt SK: {}", enc_sk_path.display());
@@ -472,8 +480,9 @@ fn generate_hybrid_kem(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("hybrid-kem.pub.json");
     let sk_path = args.output.join("hybrid-kem.sec.json");
 
-    portable_pk.write_to_file(&pk_path).map_err(|e| anyhow::anyhow!("Write PK: {e}"))?;
+    // SK first — see fix #4 explanation in `generate_signing` above.
     portable_sk.write_to_file(&sk_path).map_err(|e| anyhow::anyhow!("Write SK: {e}"))?;
+    portable_pk.write_to_file(&pk_path).map_err(|e| anyhow::anyhow!("Write PK: {e}"))?;
 
     print_keypair_report("Hybrid ML-KEM-768 + X25519", &pk_path, &sk_path, passphrase.is_some());
     Ok(())

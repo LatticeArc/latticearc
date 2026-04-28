@@ -121,7 +121,22 @@ fn main() -> Result<()> {
         Commands::Encrypt(args) => commands::encrypt::run(args),
         Commands::Decrypt(args) => commands::decrypt::run(args),
         Commands::Sign(args) => commands::sign::run(args),
-        Commands::Verify(args) => commands::verify::run(args),
+        // Round-8 audit fix #5: verify returns Ok(true)=VALID,
+        // Ok(false)=INVALID. Translate INVALID into exit 1 here so
+        // destructors on the per-command state inside `verify::run`
+        // (KeyFile, Vec<u8>, etc.) all get to run before the process
+        // dies. The earlier in-function `process::exit(1)` skipped
+        // them — currently benign because verify's per-command state
+        // only holds public material, but a regression copying the
+        // pattern to sign/decrypt would skip secret zeroization.
+        Commands::Verify(args) => {
+            let valid = commands::verify::run(args)?;
+            if !valid {
+                #[allow(clippy::exit)]
+                std::process::exit(1);
+            }
+            Ok(())
+        }
         Commands::Hash(args) => commands::hash::run(args),
         Commands::Kdf(args) => commands::kdf::run(args),
         Commands::Info(args) => commands::info::run(args),

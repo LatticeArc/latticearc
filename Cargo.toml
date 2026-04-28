@@ -329,7 +329,13 @@ proptest = { version = "1.11" }
 criterion = { version = "0.8.2", features = ["html_reports"] }
 rayon = { version = "1.12" }
 test-case = { version = "3.0" }
-tempfile = { version = "3.27" }
+# `tempfile` is security-adjacent: it sets the perms (0o600 on Unix) on
+# the file holding key material during atomic-write operations
+# (`unified_api::atomic_write::AtomicWrite`). Pin with `=` per round-6
+# audit policy for security-adjacent crates so a `cargo update` can't
+# silently land a behaviour change in the temp-file ACL path. Bump
+# intentionally and re-check the Windows DACL story when updating.
+tempfile = { version = "=3.27.0" }
 # Tracing and observability
 tracing-subscriber = { version = "0.3.23" }
 tracing-appender = { version = "0.2" }

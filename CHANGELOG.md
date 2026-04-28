@@ -9,6 +9,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-8 audit response — 15 issues + CI doctest fix (2026-04-28)
+
+Eighth audit pass on top of `81ac68890`. Fifteen findings (3 HIGH +
+4 MEDIUM + 8 LOW) plus the round-7 CI failure (logging doctest gated
+incorrectly).
+
+#### HIGH
+- **`AtomicWrite::write` uses `persist_noclobber` for true exclusive
+  semantics** (round-8 fix #1). Previous shape was
+  `path.exists()` + `tmp.persist()` which had a TOCTOU window where
+  another process could create `path` between the check and the
+  rename and get silently overwritten. `persist_noclobber` collapses
+  the two into a single `link(2)+unlink(2)` syscall, so the
+  exclusive-create guarantee is real, not best-effort. The
+  `AlreadyExists` error path surfaces as the existing
+  `CoreError::ConfigurationError("Refusing to overwrite ...")` so
+  the user-facing contract is unchanged.
+- **`verify_legacy` no longer drains stdin twice** (round-8 fix #2).
+  `verify::run` already reads `input_data` at the top. When
+  SignedData deserialization fails, we now thread the bytes through
+  to `verify_legacy(args, sig_json, key_path, data)` instead of
+  calling `read_verify_input` a second time. Stdin can only be read
+  once; the prior shape produced a silent INVALID for every
+  `cat data | latticearc-cli verify --signature legacy.sig.json`
+  invocation against a legacy-format signature.
+- **`KeyFile::write_cbor_to_file` migrated to `AtomicWrite`** (round-8
+  fix #3). The round-7 commit migrated the JSON path but missed the
+  CBOR sibling; it still had the truncate-then-write pattern that
+  destroys prior key material on crash mid-write. New
+  `write_cbor_to_file_with_overwrite(path, overwrite)` mirrors the
+  JSON variant.
+
+#### MEDIUM
+- **keygen writes SK before PK** (round-8 fix #4). Previous shape
+  wrote PK first and SK second; SK-write failure (disk full,
+  permission) left an orphan PK on disk. With the round-7
+  refusing-to-overwrite default, the user's retry would hit "file
+  exists" on the orphan and need manual cleanup. Three sites swapped
+  (signing keypair, encryption keypair, hybrid-KEM keypair) for
+  consistency.
+- **`verify::run` returns `Result<bool>`; `main` does the
+  `process::exit(1)`** (round-8 fix #5). The earlier
+  in-function `process::exit(1)` skipped destructors on per-command
+  state. Currently benign (verify only holds public material), but
+  the pattern would silently regress if copied to `sign` or `decrypt`
+  where Drop runs `Zeroize` on secret bytes. Translation now happens
+  at the `match cli.command` boundary in `main`.
+- **`CoreError::Replay` carries an inline Pattern 6 exception
+  comment** (round-8 fix #6). The variant exposes
+  `age_seconds`/`max_age_seconds` on an adversary-reachable code
+  path, which normally violates Pattern 6. The carve-out was approved
+  in round 6 but lacked the inline justification per
+  `docs/DESIGN_PATTERNS.md` Pattern 12 ("inline `#[allow]`
+  justification" convention). Now documented at the variant.
+- **Env-var precedence asymmetry documented inline** (round-8 fix #7).
+  `kdf::resolve_input` checks `--input` → `--input-stdin` → env
+  (CLI flags first). `keyfile::resolve_passphrase` checks env →
+  prompt (env first). The asymmetry is intentional and now justified
+  in `resolve_input`'s rustdoc.
+
+#### LOW
+- `tempfile = "=3.27.0"` (round-8 fix #8). Security-adjacent crate
+  pinned per round-6 policy; sets perms on key-material temp files.
+- `verify_legacy` clippy-allow self-contained (round-8 fix #9). No
+  longer cross-references `run`'s justification — Pattern 12
+  requires standalone justifications at each `#[allow]` site.
+- `AtomicWrite::write_secret(bytes, path)` and
+  `AtomicWrite::write_overwrite(bytes, path)` static helpers added
+  (round-8 fix #10). Collapses the common 4-line builder chains.
+- `mod.rs:197-199` doc-comment ordering fixed (round-8 fix #11).
+  Each `pub mod` now gets the right `///` line.
+- `CoreError::Replay` Display message: "Replay rejected:
+  stamped age 600s exceeds configured max_age 300s. …" (round-8 fix
+  #12). Title case + colon, matches every other variant's
+  convention.
+- `common::read_file_or_stdin` helper (round-8 fix #13). Centralises
+  the duplicated "if let Some(path) = ... else stdin" pattern that
+  lived in encrypt / decrypt / sign / verify / hash. sign + verify
+  routed through it.
+- `CoreError::Replay` doc inline-justifies why Pattern 6 carve-out
+  is acceptable: neither field derives from secrets; an attacker
+  binary-searching `max_age` already has all the signal they get
+  from Replay; operators need both fields to diagnose clock skew
+  vs. config tightening.
+- Round-7 CI fix: `logging.rs` module-level doctest changed to
+  `rust,ignore`. The doctest invokes `init_tracing()` which is
+  feature-gated behind `tracing-init`; under `--no-default-features`
+  the doctest didn't compile and the CI feature-isolation matrix
+  failed.
+
 ### Round-7 audit response — 18 issues across CLI + key-write paths (2026-04-27)
 
 Seventh audit pass on top of `ff296a546`. Eighteen findings (4 HIGH-

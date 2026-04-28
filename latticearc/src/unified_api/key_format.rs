@@ -2212,24 +2212,35 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if CBOR serialization or file writing fails.
     pub fn write_cbor_to_file(&self, path: &std::path::Path) -> Result<()> {
+        self.write_cbor_to_file_with_overwrite(path, false)
+    }
+
+    /// Like [`write_cbor_to_file`] but with explicit overwrite control.
+    ///
+    /// Same contract as [`write_to_file_with_overwrite`] (round-8 audit
+    /// fix #3 — the JSON path was migrated to `AtomicWrite` in round
+    /// 7 but this CBOR sibling was missed and still had the original
+    /// truncate-then-write pattern that destroys prior key material on
+    /// crash mid-write).
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::ConfigurationError` on overwrite-refused or
+    /// tempfile creation failure, or `CoreError::Internal` on I/O.
+    pub fn write_cbor_to_file_with_overwrite(
+        &self,
+        path: &std::path::Path,
+        overwrite: bool,
+    ) -> Result<()> {
         let cbor = self.to_cbor()?;
-
-        #[cfg(unix)]
-        if self.key_type == KeyType::Secret || self.key_type == KeyType::Symmetric {
-            use std::io::Write;
-            use std::os::unix::fs::OpenOptionsExt;
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .mode(0o600)
-                .open(path)?;
-            file.write_all(&cbor)?;
-            return Ok(());
-        }
-
-        std::fs::write(path, cbor)?;
-        Ok(())
+        let writer =
+            crate::unified_api::atomic_write::AtomicWrite::new(&cbor).overwrite_existing(overwrite);
+        let writer = if self.key_type == KeyType::Secret || self.key_type == KeyType::Symmetric {
+            writer.secret_mode()
+        } else {
+            writer.unix_mode(0o644)
+        };
+        writer.write(path)
     }
 
     /// Read from a JSON file.

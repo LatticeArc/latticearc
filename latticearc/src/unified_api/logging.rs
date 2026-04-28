@@ -13,7 +13,13 @@
 //!
 //! ## Usage
 //!
-//! ```rust,no_run
+//! `init_tracing` is gated behind the `tracing-init` Cargo feature
+//! (off by default — subscriber wiring is the binary's responsibility,
+//! not the library's). The doctest below is `ignore`d so it doesn't
+//! force the feature on every test config.
+//!
+//! ```rust,ignore
+//! // Requires `latticearc = { ..., features = ["tracing-init"] }`
 //! use latticearc::unified_api::logging::{init_tracing, sanitize_data};
 //!
 //! // Initialize logging (sets global tracing subscriber — call once per process)

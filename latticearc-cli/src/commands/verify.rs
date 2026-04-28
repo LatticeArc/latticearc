@@ -68,19 +68,17 @@ pub(crate) struct VerifyArgs {
 }
 
 /// Execute the verify command.
-//
-// `clippy::exit` is denied workspace-wide on the principle that
-// surfaces returning `Result` should propagate errors through `?`
-// rather than aborting the process unilaterally. The `verify`
-// command needs the inverse: we maintain a documented exit-code
-// contract (0 valid / 1 invalid / ≥2 operational) that scripts rely
-// on to distinguish forgery from a missing key file. anyhow's
-// `bail!` collapses both paths to exit 1, conflating them. The two
-// `process::exit(1)` sites below are the only mechanism that gives
-// us deterministic exit code 1 for the INVALID-signature case
-// while preserving the ≥2 path for everything `?` propagates.
-#[allow(clippy::exit)]
-pub(crate) fn run(args: VerifyArgs) -> Result<()> {
+///
+/// Returns `Ok(true)` for VALID, `Ok(false)` for INVALID (forgery /
+/// tampering), or `Err(_)` for operational errors (missing file, bad
+/// key, etc.). `main` translates the boolean into the documented
+/// 0/1/≥2 exit-code contract via `std::process::exit(1)` AFTER all
+/// destructors run — round-8 audit fix #5 noted that exiting from
+/// inside `verify::run` skipped Drop on local `KeyFile`/`Vec<u8>`
+/// state, which is currently benign (PK is non-secret) but would
+/// silently regress if the same pattern were copied to sign or
+/// decrypt.
+pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
     let input_data = read_verify_input(&args)?;
     let sig_json = std::fs::read_to_string(&args.signature)
         .with_context(|| format!("Failed to read {}", args.signature.display()))?;
@@ -102,20 +100,16 @@ pub(crate) fn run(args: VerifyArgs) -> Result<()> {
         let valid = latticearc::verify(&signed, config)
             .map_err(|e| anyhow::anyhow!("Verification failed: {e}"))?;
 
-        // Round-7 audit fix #8 + #11: explicit exit-code contract.
-        //   0  → signature VALID
-        //   1  → signature INVALID (forgery / tampering)
-        //   ≥2 → operational error (missing file, bad key, etc.)
-        // Convention matches openssl/gpg/ssh-keygen and lets scripts
-        // distinguish "verify failed" from "couldn't verify due to
-        // setup error" — anyhow's default `bail!` collapses both to
-        // exit 1 which conflates the two.
+        // Round-8 audit fix #5: return the result; `main` does the
+        // exit-code translation after destructors. The 0/1/≥2 contract
+        // (round-7 fix #8 + #11) is preserved at the boundary, not
+        // here.
         if valid {
             println!("Signature is VALID. (scheme: {})", signed.scheme);
-            return Ok(());
+        } else {
+            eprintln!("Signature is INVALID.");
         }
-        eprintln!("Signature is INVALID.");
-        std::process::exit(1);
+        return Ok(valid);
     }
 
     // Fall back to legacy format (requires --key)
@@ -127,21 +121,17 @@ pub(crate) fn run(args: VerifyArgs) -> Result<()> {
         )
     })?;
 
-    verify_legacy(&args, &sig_json, key_path)
+    verify_legacy(&args, &sig_json, key_path, input_data)
 }
 
-/// Read the verify input from `--input <path>` or stdin (round-7 fix #10).
+/// Read the verify input from `--input <path>` or stdin (round-7 fix
+/// #10). Round-8 fix #13: routes through the shared helper.
 fn read_verify_input(args: &VerifyArgs) -> Result<Vec<u8>> {
-    if let Some(path) = &args.input {
-        super::common::enforce_input_size_limit(
-            path,
-            super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
-            "verify",
-        )?;
-        std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))
-    } else {
-        super::common::read_stdin_with_limit(super::common::CLI_MAX_SIGNATURE_INPUT_BYTES, "verify")
-    }
+    super::common::read_file_or_stdin(
+        args.input.as_deref(),
+        super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
+        "verify",
+    )
 }
 
 /// Human-readable label for the input source — used in error messages.
@@ -153,12 +143,16 @@ fn input_label(args: &VerifyArgs) -> String {
 }
 
 /// Legacy verification path — custom JSON format + primitive-level API.
-//
-// `clippy::exit` allowed here for the same reason as `run` — see the
-// commentary above the `run` function.
-#[allow(clippy::exit)]
-fn verify_legacy(args: &VerifyArgs, sig_json: &str, key_path: &std::path::Path) -> Result<()> {
-    let data = read_verify_input(args)?;
+fn verify_legacy(
+    args: &VerifyArgs,
+    sig_json: &str,
+    key_path: &std::path::Path,
+    data: Vec<u8>,
+) -> Result<bool> {
+    // `data` is threaded in from `run` — round-8 audit fix #2. Reading
+    // input again here would drain stdin a second time in pipe mode,
+    // returning empty bytes and silently producing INVALID for any
+    // legacy-format signature piped on stdin.
 
     let key_file = KeyFile::read_from(key_path)?;
     if key_file.key_type != KeyType::Public {
@@ -183,15 +177,14 @@ fn verify_legacy(args: &VerifyArgs, sig_json: &str, key_path: &std::path::Path) 
         _ => verify_standard(&data, sig_json, &pk_bytes, &algorithm)?,
     };
 
+    // Round-8 audit fix #5: return the verdict; `main` translates
+    // `Ok(false)` into exit 1 after destructors.
     if valid {
         println!("Signature is VALID.");
-        Ok(())
     } else {
-        // Round-7 audit fix #8 + #11: see explanation in the SignedData
-        // path above. Exit 1 reserved for "signature INVALID".
         eprintln!("Signature is INVALID.");
-        std::process::exit(1);
     }
+    Ok(valid)
 }
 
 /// Detect algorithm from the "algorithm" field in a legacy .sig.json file.

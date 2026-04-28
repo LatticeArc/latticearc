@@ -196,6 +196,31 @@ pub(crate) fn read_stdin_with_limit(limit_bytes: u64, operation: &str) -> anyhow
     Ok(buf)
 }
 
+/// Read input bytes from a file path or stdin (when `path` is `None`),
+/// applying the same `limit_bytes` cap to both sources.
+///
+/// Centralises the duplicated `if let Some(path) = … else stdin`
+/// pattern that previously lived in encrypt / decrypt / sign / verify /
+/// hash. Round-8 audit fix #13.
+///
+/// # Errors
+///
+/// Returns the underlying I/O error or the size-cap rejection from
+/// [`enforce_input_size_limit`] / [`read_stdin_with_limit`].
+pub(crate) fn read_file_or_stdin(
+    path: Option<&std::path::Path>,
+    limit_bytes: u64,
+    operation: &str,
+) -> anyhow::Result<Vec<u8>> {
+    use anyhow::Context;
+    if let Some(p) = path {
+        enforce_input_size_limit(p, limit_bytes, operation)?;
+        std::fs::read(p).with_context(|| format!("Failed to read {}", p.display()))
+    } else {
+        read_stdin_with_limit(limit_bytes, operation)
+    }
+}
+
 /// Read a UTF-8 string from stdin, capped at `limit_bytes`.
 ///
 /// Used by commands that operate on JSON envelopes (decrypt, verify) where

@@ -226,8 +226,35 @@ pub enum CoreError {
     /// `CoreError::Replay { .. }` and react appropriately — e.g., prompt
     /// the sender to re-encrypt with a fresh timestamp, or alert on a
     /// suspected replay attack.
+    ///
+    /// # Pattern 6 exception
+    ///
+    /// This variant carries non-opaque fields (`age_seconds`,
+    /// `max_age_seconds`) on what IS an adversary-reachable code path
+    /// (`decrypt`). Pattern 6 normally requires opaque returned errors
+    /// on such paths. The carve-out is acceptable here because:
+    ///
+    /// 1. Neither field is derived from secret material. `age_seconds`
+    ///    is `now - encrypted.timestamp()` where the timestamp is a
+    ///    public field stamped at encrypt; `max_age_seconds` is the
+    ///    receiver's own configuration value, supplied through
+    ///    `CryptoConfig::max_age` and not derivable from any secret.
+    /// 2. The information leaked is identical to what an attacker
+    ///    already infers from observing the API: a Replay rejection
+    ///    means "your stamped age was too old"; an attacker tuning a
+    ///    replay attack already knows the stamp they sent and can
+    ///    binary-search the receiver's `max_age` purely from
+    ///    request-acceptance vs request-rejection on the wire.
+    /// 3. Operators need both fields to diagnose clock-skew false
+    ///    rejections vs. configuration tightening events; collapsing
+    ///    to the opaque `DecryptionError` would force them through
+    ///    private logs for a routine operational signal.
+    ///
+    /// Round-6 audit approved this carve-out; round-8 audit fix #6
+    /// requires the inline justification per `docs/DESIGN_PATTERNS.md`
+    /// Pattern 12 ("inline `#[allow]` justification" convention).
     #[error(
-        "ciphertext too old: stamped age {age_seconds} s > configured max_age {max_age_seconds} s. Re-encrypt with a fresh timestamp, or relax CryptoConfig::max_age."
+        "Replay rejected: stamped age {age_seconds}s exceeds configured max_age {max_age_seconds}s. Re-encrypt with a fresh timestamp, or relax CryptoConfig::max_age."
     )]
     Replay {
         /// Observed age (seconds) — `now - encrypted.timestamp()`.

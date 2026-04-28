@@ -114,6 +114,24 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
 ///
 /// Exactly one source must be provided. The result is `Zeroizing` so
 /// password material is wiped at function exit.
+///
+/// # Precedence intentionally differs from `keyfile::resolve_passphrase`
+///
+/// `keyfile::resolve_passphrase` checks `LATTICEARC_PASSPHRASE` FIRST
+/// (env > prompt). Here we check `--input` first, then `--input-stdin`,
+/// then the env var. The asymmetry is intentional, not a bug:
+///
+/// - Passphrase: there is only ONE possible explicit source (the prompt
+///   — there's no `--passphrase <value>` flag, deliberately, because
+///   that would put the secret on the command line). The env var is
+///   THE escape hatch for non-interactive use, so env-first is right.
+/// - KDF input: there are THREE possible explicit sources, and CLI
+///   ergonomics demand that an explicit `--input` or `--input-stdin`
+///   take precedence over a stale env var that may have leaked in from
+///   a parent shell. Otherwise `LATTICEARC_KDF_INPUT=foo
+///   latticearc-cli kdf --input bar …` would silently use `foo`.
+///
+/// Round-8 audit fix #7 requires this justification be inline.
 fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
     if let Some(s) = args.input.as_deref() {
         return Ok(zeroize::Zeroizing::new(s.to_string()));
