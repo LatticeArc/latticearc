@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-9 audit response — 5 round-8 follow-ups (2026-04-28)
+
+Five mechanical follow-ups to the round-8 fixes. No new defect classes;
+each is an extension of a round-8 pattern to a site that was missed
+or could be tightened.
+
+#### MEDIUM
+- **`generate_hybrid_sign` writes SK before PK** (round-9 fix #1).
+  4th site of the round-8 #4 SK-first pattern. SK-write failure no
+  longer leaves an orphaned hybrid signing PK on disk.
+
+#### LOW
+- **6 more keygen functions write SK before PK** (round-9 fix #2):
+  signing-PQ-only, ml-kem (×2 inferred branches), slh-dsa, fn-dsa,
+  ed25519. Lower-stakes (KEM keys aren't sensitive on their own) but
+  the consistency reduces maintenance smell.
+- **encrypt + hash + decrypt routed through `read_file_or_stdin*`
+  helpers** (round-9 fix #3). Round-8 added the helper but only
+  migrated sign + verify. Added a `read_file_or_stdin_string`
+  sibling for decrypt's UTF-8 path.
+- **`KeyFile::make_atomic_writer` private helper** (round-9 fix #4)
+  consolidates the JSON and CBOR write paths' identical mode-
+  selection logic. Prevents future drift when the secret-key threat
+  model expands.
+- **`#[allow(clippy::exit)]` justification co-located** with the
+  attribute in `main.rs` (round-9 fix #5). Pattern 12 prefers the
+  rationale adjacent to the `#[allow]`; the round-8 fix had it 11
+  lines above. Block comment retained for context.
+
 ### Round-8 audit response — 15 issues + CI doctest fix (2026-04-28)
 
 Eighth audit pass on top of `81ac68890`. Fifteen findings (3 HIGH +

@@ -132,6 +132,11 @@ fn main() -> Result<()> {
         Commands::Verify(args) => {
             let valid = commands::verify::run(args)?;
             if !valid {
+                // `clippy::exit` allowed: deterministic exit 1 is the
+                // documented INVALID-signature signal in our exit-code
+                // contract (0/1/≥2 — see QUICK_REFERENCE.md). Pattern
+                // 12 wants the rationale adjacent to the `#[allow]`;
+                // round-9 audit fix #5 moved it from 11 lines above.
                 #[allow(clippy::exit)]
                 std::process::exit(1);
             }

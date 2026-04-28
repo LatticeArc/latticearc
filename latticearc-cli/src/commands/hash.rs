@@ -15,7 +15,7 @@
 //!
 //! **Output formats:** `hex` (default, lowercase) or `base64`.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Args;
 use std::path::PathBuf;
 
@@ -107,14 +107,10 @@ pub(crate) fn run(args: HashArgs) -> Result<()> {
 }
 
 fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
-    if let Some(p) = path {
-        super::common::enforce_input_size_limit(
-            p,
-            super::common::CLI_MAX_HASH_INPUT_BYTES,
-            "hash",
-        )?;
-        std::fs::read(p).with_context(|| format!("Failed to read {}", p.display()))
-    } else {
-        super::common::read_stdin_with_limit(super::common::CLI_MAX_HASH_INPUT_BYTES, "hash")
-    }
+    // Round-9 audit fix #3: route through the shared helper.
+    super::common::read_file_or_stdin(
+        path.as_deref(),
+        super::common::CLI_MAX_HASH_INPUT_BYTES,
+        "hash",
+    )
 }

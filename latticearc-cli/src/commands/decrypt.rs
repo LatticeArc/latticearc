@@ -118,19 +118,12 @@ fn decrypt_pq_only(
 }
 
 fn read_input_string(path: &Option<PathBuf>) -> Result<String> {
-    if let Some(p) = path {
-        super::common::enforce_input_size_limit(
-            p,
-            super::common::CLI_MAX_DECRYPTION_INPUT_BYTES,
-            "decrypt",
-        )?;
-        std::fs::read_to_string(p).with_context(|| format!("Failed to read {}", p.display()))
-    } else {
-        super::common::read_stdin_string_with_limit(
-            super::common::CLI_MAX_DECRYPTION_INPUT_BYTES,
-            "decrypt",
-        )
-    }
+    // Round-9 audit fix #3: route through the shared helper.
+    super::common::read_file_or_stdin_string(
+        path.as_deref(),
+        super::common::CLI_MAX_DECRYPTION_INPUT_BYTES,
+        "decrypt",
+    )
 }
 
 fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {

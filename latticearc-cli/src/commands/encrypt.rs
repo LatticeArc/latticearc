@@ -249,19 +249,12 @@ fn encrypt_pq_only_mode(
 }
 
 fn read_input(path: &Option<PathBuf>) -> Result<Vec<u8>> {
-    if let Some(p) = path {
-        super::common::enforce_input_size_limit(
-            p,
-            super::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
-            "encrypt",
-        )?;
-        std::fs::read(p).with_context(|| format!("Failed to read {}", p.display()))
-    } else {
-        super::common::read_stdin_with_limit(
-            super::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
-            "encrypt",
-        )
-    }
+    // Round-9 audit fix #3: route through the shared helper.
+    super::common::read_file_or_stdin(
+        path.as_deref(),
+        super::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
+        "encrypt",
+    )
 }
 
 fn write_output(path: &Option<PathBuf>, data: &str) -> Result<()> {

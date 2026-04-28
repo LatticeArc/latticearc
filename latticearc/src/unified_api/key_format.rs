@@ -2188,22 +2188,37 @@ impl PortableKey {
         overwrite: bool,
     ) -> Result<()> {
         let json = self.to_json_pretty()?;
-        let writer = crate::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
-            .overwrite_existing(overwrite);
-        // Mode policy:
-        //   Secret / Symmetric → 0o600 (owner read+write only)
-        //   Public             → 0o644 (owner rw, others r) — public
-        //                        keys are MEANT to be readable; without
-        //                        this an explicit 0o644, tempfile's
-        //                        default 0o600 would lock pub keys to
-        //                        the creator and break key-distribution
-        //                        flows.
-        let writer = if self.key_type == KeyType::Secret || self.key_type == KeyType::Symmetric {
+        self.make_atomic_writer(json.as_bytes(), overwrite).write(path)
+    }
+
+    /// Build an `AtomicWrite` with the project's mode policy for this
+    /// key type pre-applied.
+    ///
+    /// Mode policy:
+    ///   Secret / Symmetric → 0o600 (owner read+write only)
+    ///   Public             → 0o644 (owner rw, others r) — public
+    ///                        keys are MEANT to be readable; without
+    ///                        this an explicit 0o644, tempfile's
+    ///                        default 0o600 would lock pub keys to
+    ///                        the creator and break key-distribution
+    ///                        flows.
+    ///
+    /// Round-9 audit fix #4: lifted out of `write_to_file_with_overwrite`
+    /// so the JSON and CBOR write paths share one source of truth for
+    /// mode selection. Drift between the two would silently regress the
+    /// secret-key threat model.
+    fn make_atomic_writer<'a>(
+        &self,
+        bytes: &'a [u8],
+        overwrite: bool,
+    ) -> crate::unified_api::atomic_write::AtomicWrite<'a> {
+        let writer =
+            crate::unified_api::atomic_write::AtomicWrite::new(bytes).overwrite_existing(overwrite);
+        if self.key_type == KeyType::Secret || self.key_type == KeyType::Symmetric {
             writer.secret_mode()
         } else {
             writer.unix_mode(0o644)
-        };
-        writer.write(path)
+        }
     }
 
     /// Write to a file as CBOR. Creates the file with 0600 permissions atomically on Unix
@@ -2233,14 +2248,7 @@ impl PortableKey {
         overwrite: bool,
     ) -> Result<()> {
         let cbor = self.to_cbor()?;
-        let writer =
-            crate::unified_api::atomic_write::AtomicWrite::new(&cbor).overwrite_existing(overwrite);
-        let writer = if self.key_type == KeyType::Secret || self.key_type == KeyType::Symmetric {
-            writer.secret_mode()
-        } else {
-            writer.unix_mode(0o644)
-        };
-        writer.write(path)
+        self.make_atomic_writer(&cbor, overwrite).write(path)
     }
 
     /// Read from a JSON file.

@@ -216,7 +216,7 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
         // PQ-only or classical signing scheme — concatenated bytes are the
         // entire key and should be written as a Single KeyData.
         let alg = parse_scheme_to_algorithm(&scheme)?;
-        keyfile::write_key(&pk_path, alg, KeyType::Public, &pk, args.label.clone())?;
+        // SK first — see fix #1/#4 explanation above.
         keyfile::write_key_protected(
             &sk_path,
             alg,
@@ -225,6 +225,7 @@ fn generate_from_config(args: &KeygenArgs) -> Result<()> {
             args.label.clone(),
             passphrase.as_ref().map(|p| p.as_bytes()),
         )?;
+        keyfile::write_key(&pk_path, alg, KeyType::Public, &pk, args.label.clone())?;
     }
 
     let uc_desc = args.use_case.as_ref().map(|uc| format!(" for {:?}", uc)).unwrap_or_default();
@@ -321,7 +322,7 @@ fn generate_ml_kem(
     let pk_path = args.output.join(format!("{alg_name}.pub.json"));
     let sk_path = args.output.join(format!("{alg_name}.sec.json"));
 
-    keyfile::write_key(&pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())?;
+    // SK first — see fix #1/#4 explanation above.
     keyfile::write_key_protected(
         &sk_path,
         alg,
@@ -330,6 +331,7 @@ fn generate_ml_kem(
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
+    keyfile::write_key(&pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())?;
 
     print_keypair_report(alg_name, &pk_path, &sk_path, passphrase.is_some());
     Ok(())
@@ -359,7 +361,7 @@ fn generate_ml_dsa(
     let pk_path = args.output.join(format!("{alg_name}.pub.json"));
     let sk_path = args.output.join(format!("{alg_name}.sec.json"));
 
-    keyfile::write_key(&pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())?;
+    // SK first — see fix #1/#4 explanation above.
     keyfile::write_key_protected(
         &sk_path,
         alg,
@@ -368,6 +370,7 @@ fn generate_ml_dsa(
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
     )?;
+    keyfile::write_key(&pk_path, alg, KeyType::Public, pk.as_ref(), args.label.clone())?;
 
     print_keypair_report(&format!("{alg_name} signing"), &pk_path, &sk_path, passphrase.is_some());
     Ok(())
@@ -382,13 +385,7 @@ fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("slh-dsa-shake-128s.pub.json");
     let sk_path = args.output.join("slh-dsa-shake-128s.sec.json");
 
-    keyfile::write_key(
-        &pk_path,
-        KeyAlgorithm::SlhDsaShake128s,
-        KeyType::Public,
-        pk.as_ref(),
-        args.label.clone(),
-    )?;
+    // SK first — see fix #1/#4 explanation above.
     keyfile::write_key_protected(
         &sk_path,
         KeyAlgorithm::SlhDsaShake128s,
@@ -396,6 +393,13 @@ fn generate_slh_dsa(args: &KeygenArgs) -> Result<()> {
         sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+    )?;
+    keyfile::write_key(
+        &pk_path,
+        KeyAlgorithm::SlhDsaShake128s,
+        KeyType::Public,
+        pk.as_ref(),
+        args.label.clone(),
     )?;
 
     print_keypair_report("SLH-DSA-SHAKE-128s signing", &pk_path, &sk_path, passphrase.is_some());
@@ -410,13 +414,7 @@ fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("fn-dsa-512.pub.json");
     let sk_path = args.output.join("fn-dsa-512.sec.json");
 
-    keyfile::write_key(
-        &pk_path,
-        KeyAlgorithm::FnDsa512,
-        KeyType::Public,
-        pk.as_ref(),
-        args.label.clone(),
-    )?;
+    // SK first — see fix #1/#4 explanation above.
     keyfile::write_key_protected(
         &sk_path,
         KeyAlgorithm::FnDsa512,
@@ -424,6 +422,13 @@ fn generate_fn_dsa(args: &KeygenArgs) -> Result<()> {
         sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+    )?;
+    keyfile::write_key(
+        &pk_path,
+        KeyAlgorithm::FnDsa512,
+        KeyType::Public,
+        pk.as_ref(),
+        args.label.clone(),
     )?;
 
     print_keypair_report("FN-DSA-512 signing", &pk_path, &sk_path, passphrase.is_some());
@@ -438,13 +443,7 @@ fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("ed25519.pub.json");
     let sk_path = args.output.join("ed25519.sec.json");
 
-    keyfile::write_key(
-        &pk_path,
-        KeyAlgorithm::Ed25519,
-        KeyType::Public,
-        pk.as_ref(),
-        args.label.clone(),
-    )?;
+    // SK first — see fix #1/#4 explanation above.
     keyfile::write_key_protected(
         &sk_path,
         KeyAlgorithm::Ed25519,
@@ -452,6 +451,13 @@ fn generate_ed25519(args: &KeygenArgs) -> Result<()> {
         sk.expose_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+    )?;
+    keyfile::write_key(
+        &pk_path,
+        KeyAlgorithm::Ed25519,
+        KeyType::Public,
+        pk.as_ref(),
+        args.label.clone(),
     )?;
 
     print_keypair_report("Ed25519 signing", &pk_path, &sk_path, passphrase.is_some());
@@ -498,14 +504,9 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
     let pk_path = args.output.join("hybrid-sign.pub.json");
     let sk_path = args.output.join("hybrid-sign.sec.json");
 
-    keyfile::write_composite_key(
-        &pk_path,
-        KeyAlgorithm::HybridMlDsa65Ed25519,
-        KeyType::Public,
-        pk.ml_dsa_pk(),
-        pk.ed25519_pk(),
-        args.label.clone(),
-    )?;
+    // SK first — round-9 audit fix #1 (extending round-8 fix #4 to the
+    // 4th keygen site that was missed). SK-write failure no longer
+    // orphans a PK on disk that retry would refuse-to-overwrite.
     keyfile::write_composite_key_protected(
         &sk_path,
         KeyAlgorithm::HybridMlDsa65Ed25519,
@@ -514,6 +515,14 @@ fn generate_hybrid_sign(args: &KeygenArgs) -> Result<()> {
         sk.expose_ed25519_secret(),
         args.label.clone(),
         passphrase.as_ref().map(|p| p.as_bytes()),
+    )?;
+    keyfile::write_composite_key(
+        &pk_path,
+        KeyAlgorithm::HybridMlDsa65Ed25519,
+        KeyType::Public,
+        pk.ml_dsa_pk(),
+        pk.ed25519_pk(),
+        args.label.clone(),
     )?;
 
     print_keypair_report(

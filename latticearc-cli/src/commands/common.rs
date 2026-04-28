@@ -221,6 +221,29 @@ pub(crate) fn read_file_or_stdin(
     }
 }
 
+/// Like [`read_file_or_stdin`] but returns a UTF-8 `String`. Used by
+/// commands that operate on JSON envelopes (e.g. `decrypt` parses an
+/// `EncryptedOutput` JSON envelope before any cryptographic work).
+/// Round-9 audit fix #3.
+///
+/// # Errors
+///
+/// Returns the underlying I/O error, the size-cap rejection, or a
+/// UTF-8 validation error if the input is not valid UTF-8 text.
+pub(crate) fn read_file_or_stdin_string(
+    path: Option<&std::path::Path>,
+    limit_bytes: u64,
+    operation: &str,
+) -> anyhow::Result<String> {
+    use anyhow::Context;
+    if let Some(p) = path {
+        enforce_input_size_limit(p, limit_bytes, operation)?;
+        std::fs::read_to_string(p).with_context(|| format!("Failed to read {}", p.display()))
+    } else {
+        read_stdin_string_with_limit(limit_bytes, operation)
+    }
+}
+
 /// Read a UTF-8 string from stdin, capped at `limit_bytes`.
 ///
 /// Used by commands that operate on JSON envelopes (decrypt, verify) where
