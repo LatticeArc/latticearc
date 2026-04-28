@@ -321,7 +321,7 @@
 <a href=#321 id=321 data-nosnippet>321</a>        PqOnlyError::KdfError(<span class="string">"KDF failed"</span>.to_string())
 <a href=#322 id=322 data-nosnippet>322</a>    })<span class="question-mark">?</span>;
 <a href=#323 id=323 data-nosnippet>323</a>
-<a href=#324 id=324 data-nosnippet>324</a>    <span class="kw">let </span>cipher = AesGcm256::new(hkdf_result.key()).map_err(|_e| {
+<a href=#324 id=324 data-nosnippet>324</a>    <span class="kw">let </span>cipher = AesGcm256::new(hkdf_result.expose_secret()).map_err(|_e| {
 <a href=#325 id=325 data-nosnippet>325</a>        <span class="macro">log_crypto_operation_error!</span>(op::PQ_ONLY_ENCRYPT, <span class="string">"AES-256 init failed"</span>);
 <a href=#326 id=326 data-nosnippet>326</a>        PqOnlyError::EncryptionError(<span class="string">"encryption failed"</span>.to_string())
 <a href=#327 id=327 data-nosnippet>327</a>    })<span class="question-mark">?</span>;
@@ -392,7 +392,7 @@
 <a href=#392 id=392 data-nosnippet>392</a>        opaque()
 <a href=#393 id=393 data-nosnippet>393</a>    })<span class="question-mark">?</span>;
 <a href=#394 id=394 data-nosnippet>394</a>
-<a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">let </span>cipher = AesGcm256::new(hkdf_result.key()).map_err(|_e| {
+<a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">let </span>cipher = AesGcm256::new(hkdf_result.expose_secret()).map_err(|_e| {
 <a href=#396 id=396 data-nosnippet>396</a>        <span class="macro">log_crypto_operation_error!</span>(op::PQ_ONLY_DECRYPT, <span class="string">"AES-256 init failed"</span>);
 <a href=#397 id=397 data-nosnippet>397</a>        opaque()
 <a href=#398 id=398 data-nosnippet>398</a>    })<span class="question-mark">?</span>;

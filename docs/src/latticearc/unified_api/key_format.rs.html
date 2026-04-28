@@ -149,11 +149,11 @@
 <a href=#149 id=149 data-nosnippet>149</a>    </span><span class="attr">#[serde(rename = <span class="string">"slh-dsa-shake-256f"</span>)]
 <a href=#150 id=150 data-nosnippet>150</a>    </span>SlhDsaShake256f,
 <a href=#151 id=151 data-nosnippet>151</a>
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="comment">// --- Lattice signatures (FIPS 206) ---
-<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="doccomment">/// FN-DSA-512 (FIPS 206)
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="comment">// --- Lattice signatures (draft FIPS 206) ---
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="doccomment">/// FN-DSA-512 (draft FIPS 206)
 <a href=#154 id=154 data-nosnippet>154</a>    </span><span class="attr">#[serde(rename = <span class="string">"fn-dsa-512"</span>)]
 <a href=#155 id=155 data-nosnippet>155</a>    </span>FnDsa512,
-<a href=#156 id=156 data-nosnippet>156</a>    <span class="doccomment">/// FN-DSA-1024 (FIPS 206)
+<a href=#156 id=156 data-nosnippet>156</a>    <span class="doccomment">/// FN-DSA-1024 (draft FIPS 206)
 <a href=#157 id=157 data-nosnippet>157</a>    </span><span class="attr">#[serde(rename = <span class="string">"fn-dsa-1024"</span>)]
 <a href=#158 id=158 data-nosnippet>158</a>    </span>FnDsa1024,
 <a href=#159 id=159 data-nosnippet>159</a>
@@ -1826,7 +1826,7 @@
 <a href=#1826 id=1826 data-nosnippet>1826</a>        //    attacker who modifies any of these fields on disk breaks the
 <a href=#1827 id=1827 data-nosnippet>1827</a>        //    AEAD tag.
 <a href=#1828 id=1828 data-nosnippet>1828</a>        </span><span class="kw">use </span><span class="kw">crate</span>::primitives::aead::AeadCipher;
-<a href=#1829 id=1829 data-nosnippet>1829</a>        <span class="kw">let </span>cipher = <span class="kw">crate</span>::primitives::aead::aes_gcm::AesGcm256::new(derived.key())
+<a href=#1829 id=1829 data-nosnippet>1829</a>        <span class="kw">let </span>cipher = <span class="kw">crate</span>::primitives::aead::aes_gcm::AesGcm256::new(derived.expose_secret())
 <a href=#1830 id=1830 data-nosnippet>1830</a>            .map_err(|e| CoreError::InvalidKey(<span class="macro">format!</span>(<span class="string">"Failed to initialize AES-256-GCM: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#1831 id=1831 data-nosnippet>1831</a>        <span class="kw">let </span>aad = <span class="self">Self</span>::encryption_aad(
 <a href=#1832 id=1832 data-nosnippet>1832</a>            ENCRYPTED_ENVELOPE_VERSION,
@@ -1950,7 +1950,7 @@
 <a href=#1950 id=1950 data-nosnippet>1950</a>        // The AAD binds the full envelope so any tampered metadata field
 <a href=#1951 id=1951 data-nosnippet>1951</a>        // also breaks the tag.
 <a href=#1952 id=1952 data-nosnippet>1952</a>        </span><span class="kw">use </span><span class="kw">crate</span>::primitives::aead::AeadCipher;
-<a href=#1953 id=1953 data-nosnippet>1953</a>        <span class="kw">let </span>cipher = <span class="kw">crate</span>::primitives::aead::aes_gcm::AesGcm256::new(derived.key())
+<a href=#1953 id=1953 data-nosnippet>1953</a>        <span class="kw">let </span>cipher = <span class="kw">crate</span>::primitives::aead::aes_gcm::AesGcm256::new(derived.expose_secret())
 <a href=#1954 id=1954 data-nosnippet>1954</a>            .map_err(|e| CoreError::InvalidKey(<span class="macro">format!</span>(<span class="string">"Failed to initialize AES-256-GCM: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#1955 id=1955 data-nosnippet>1955</a>        <span class="comment">// `kdf` and `aead` are the constants: `validate_encrypted_envelope_fields`
 <a href=#1956 id=1956 data-nosnippet>1956</a>        // rejected any other value, so we can pass the literals directly
