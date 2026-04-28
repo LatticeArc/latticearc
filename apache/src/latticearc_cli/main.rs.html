@@ -60,48 +60,86 @@
 <a href=#60 id=60 data-nosnippet>60</a></span><span class="attr">#[derive(Parser)]
 <a href=#61 id=61 data-nosnippet>61</a>#[command(name = <span class="string">"latticearc-cli"</span>, version, about, long_about = <span class="prelude-val">None</span>)]
 <a href=#62 id=62 data-nosnippet>62</a>#[command(propagate_version = <span class="bool-val">true</span>)]
-<a href=#63 id=63 data-nosnippet>63</a></span><span class="kw">struct </span>Cli {
-<a href=#64 id=64 data-nosnippet>64</a>    <span class="doccomment">/// Subcommand to execute.
-<a href=#65 id=65 data-nosnippet>65</a>    </span><span class="attr">#[command(subcommand)]
-<a href=#66 id=66 data-nosnippet>66</a>    </span>command: Commands,
-<a href=#67 id=67 data-nosnippet>67</a>}
-<a href=#68 id=68 data-nosnippet>68</a>
-<a href=#69 id=69 data-nosnippet>69</a><span class="doccomment">/// Available subcommands.
-<a href=#70 id=70 data-nosnippet>70</a></span><span class="attr">#[derive(Subcommand)]
-<a href=#71 id=71 data-nosnippet>71</a></span><span class="kw">enum </span>Commands {
-<a href=#72 id=72 data-nosnippet>72</a>    <span class="doccomment">/// Generate a cryptographic keypair or symmetric key.
-<a href=#73 id=73 data-nosnippet>73</a>    </span>Keygen(commands::keygen::KeygenArgs),
-<a href=#74 id=74 data-nosnippet>74</a>    <span class="doccomment">/// Encrypt data using symmetric or hybrid post-quantum encryption.
-<a href=#75 id=75 data-nosnippet>75</a>    </span>Encrypt(commands::encrypt::EncryptArgs),
-<a href=#76 id=76 data-nosnippet>76</a>    <span class="doccomment">/// Decrypt data.
-<a href=#77 id=77 data-nosnippet>77</a>    </span>Decrypt(commands::decrypt::DecryptArgs),
-<a href=#78 id=78 data-nosnippet>78</a>    <span class="doccomment">/// Sign data with a signing key.
-<a href=#79 id=79 data-nosnippet>79</a>    </span>Sign(commands::sign::SignArgs),
-<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// Verify a signature.
-<a href=#81 id=81 data-nosnippet>81</a>    </span>Verify(commands::verify::VerifyArgs),
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="doccomment">/// Hash data (SHA3-256, SHA-256, SHA-512, BLAKE2b).
-<a href=#83 id=83 data-nosnippet>83</a>    </span>Hash(commands::hash::HashArgs),
-<a href=#84 id=84 data-nosnippet>84</a>    <span class="doccomment">/// Derive a key from a password using HKDF or PBKDF2.
-<a href=#85 id=85 data-nosnippet>85</a>    </span>Kdf(commands::kdf::KdfArgs),
-<a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Show version, supported algorithms, build info, and FIPS status.
-<a href=#87 id=87 data-nosnippet>87</a>    </span>Info(commands::info::InfoArgs),
-<a href=#88 id=88 data-nosnippet>88</a>}
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a><span class="kw">fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">let </span>cli = Cli::parse();
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="comment">// Initialize LatticeArc (runs FIPS power-up self-tests)
-<a href=#94 id=94 data-nosnippet>94</a>    </span>latticearc::init().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Library initialization failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#63 id=63 data-nosnippet>63</a></span><span class="comment">// Round-7 audit fix #15: showing the full help when invoked with no args
+<a href=#64 id=64 data-nosnippet>64</a>// is more discoverable than the default 2-line "USAGE:" stub for
+<a href=#65 id=65 data-nosnippet>65</a>// first-time users. Costs nothing for scripted callers (they always
+<a href=#66 id=66 data-nosnippet>66</a>// supply a subcommand) and pays back the discoverability for
+<a href=#67 id=67 data-nosnippet>67</a>// `latticearc-cli` typed at a fresh shell.
+<a href=#68 id=68 data-nosnippet>68</a></span><span class="attr">#[command(arg_required_else_help = <span class="bool-val">true</span>)]
+<a href=#69 id=69 data-nosnippet>69</a></span><span class="kw">struct </span>Cli {
+<a href=#70 id=70 data-nosnippet>70</a>    <span class="doccomment">/// Subcommand to execute.
+<a href=#71 id=71 data-nosnippet>71</a>    </span><span class="attr">#[command(subcommand)]
+<a href=#72 id=72 data-nosnippet>72</a>    </span>command: Commands,
+<a href=#73 id=73 data-nosnippet>73</a>}
+<a href=#74 id=74 data-nosnippet>74</a>
+<a href=#75 id=75 data-nosnippet>75</a><span class="doccomment">/// Available subcommands.
+<a href=#76 id=76 data-nosnippet>76</a></span><span class="attr">#[derive(Subcommand)]
+<a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">enum </span>Commands {
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="doccomment">/// Generate a cryptographic keypair or symmetric key.
+<a href=#79 id=79 data-nosnippet>79</a>    </span>Keygen(commands::keygen::KeygenArgs),
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// Encrypt data using symmetric or hybrid post-quantum encryption.
+<a href=#81 id=81 data-nosnippet>81</a>    </span>Encrypt(commands::encrypt::EncryptArgs),
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="doccomment">/// Decrypt data.
+<a href=#83 id=83 data-nosnippet>83</a>    </span>Decrypt(commands::decrypt::DecryptArgs),
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="doccomment">/// Sign data with a signing key.
+<a href=#85 id=85 data-nosnippet>85</a>    </span>Sign(commands::sign::SignArgs),
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Verify a signature.
+<a href=#87 id=87 data-nosnippet>87</a>    </span>Verify(commands::verify::VerifyArgs),
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="doccomment">/// Hash data (SHA3-256, SHA-256, SHA-512, BLAKE2b).
+<a href=#89 id=89 data-nosnippet>89</a>    </span>Hash(commands::hash::HashArgs),
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// Derive a key from a password using HKDF or PBKDF2.
+<a href=#91 id=91 data-nosnippet>91</a>    </span>Kdf(commands::kdf::KdfArgs),
+<a href=#92 id=92 data-nosnippet>92</a>    <span class="doccomment">/// Show version, supported algorithms, build info, and FIPS status.
+<a href=#93 id=93 data-nosnippet>93</a>    </span>Info(commands::info::InfoArgs),
+<a href=#94 id=94 data-nosnippet>94</a>}
 <a href=#95 id=95 data-nosnippet>95</a>
-<a href=#96 id=96 data-nosnippet>96</a>    <span class="kw">match </span>cli.command {
-<a href=#97 id=97 data-nosnippet>97</a>        Commands::Keygen(args) =&gt; commands::keygen::run(args),
-<a href=#98 id=98 data-nosnippet>98</a>        Commands::Encrypt(args) =&gt; commands::encrypt::run(args),
-<a href=#99 id=99 data-nosnippet>99</a>        Commands::Decrypt(args) =&gt; commands::decrypt::run(args),
-<a href=#100 id=100 data-nosnippet>100</a>        Commands::Sign(args) =&gt; commands::sign::run(args),
-<a href=#101 id=101 data-nosnippet>101</a>        Commands::Verify(args) =&gt; commands::verify::run(args),
-<a href=#102 id=102 data-nosnippet>102</a>        Commands::Hash(args) =&gt; commands::hash::run(args),
-<a href=#103 id=103 data-nosnippet>103</a>        Commands::Kdf(args) =&gt; commands::kdf::run(args),
-<a href=#104 id=104 data-nosnippet>104</a>        Commands::Info(args) =&gt; commands::info::run(args),
-<a href=#105 id=105 data-nosnippet>105</a>    }
-<a href=#106 id=106 data-nosnippet>106</a>}
+<a href=#96 id=96 data-nosnippet>96</a><span class="kw">fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">let </span>cli = Cli::parse();
+<a href=#98 id=98 data-nosnippet>98</a>
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="comment">// Wire up the `tracing` subscriber so `tracing::{debug,info,warn,error}!`
+<a href=#100 id=100 data-nosnippet>100</a>    // events from the library reach stderr. The `tracing-init` Cargo
+<a href=#101 id=101 data-nosnippet>101</a>    // feature on our `latticearc` dep pulls in the `tracing-subscriber`
+<a href=#102 id=102 data-nosnippet>102</a>    // and `tracing-appender` crates that back this helper. Subscriber
+<a href=#103 id=103 data-nosnippet>103</a>    // wiring is the binary's job (see DESIGN_PATTERNS Pattern 6 +
+<a href=#104 id=104 data-nosnippet>104</a>    // SECURITY.md observability section); a library that calls this
+<a href=#105 id=105 data-nosnippet>105</a>    // would `panic!` the next downstream consumer.
+<a href=#106 id=106 data-nosnippet>106</a>    //
+<a href=#107 id=107 data-nosnippet>107</a>    // Filter defaults to `latticearc=info`; override at runtime with
+<a href=#108 id=108 data-nosnippet>108</a>    // `RUST_LOG=latticearc=debug` (or `=trace` to see per-stage
+<a href=#109 id=109 data-nosnippet>109</a>    // crypto-error tags).
+<a href=#110 id=110 data-nosnippet>110</a>    //
+<a href=#111 id=111 data-nosnippet>111</a>    // Best-effort: if a subscriber is somehow already installed (e.g., the
+<a href=#112 id=112 data-nosnippet>112</a>    // CLI is being driven from a test harness that wired its own), we
+<a href=#113 id=113 data-nosnippet>113</a>    // swallow the error rather than aborting the user's command.
+<a href=#114 id=114 data-nosnippet>114</a>    </span><span class="kw">let _ </span>= latticearc::unified_api::logging::init_tracing();
+<a href=#115 id=115 data-nosnippet>115</a>
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="comment">// Initialize LatticeArc (runs FIPS power-up self-tests)
+<a href=#117 id=117 data-nosnippet>117</a>    </span>latticearc::init().map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Library initialization failed: {e}"</span>))<span class="question-mark">?</span>;
+<a href=#118 id=118 data-nosnippet>118</a>
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">match </span>cli.command {
+<a href=#120 id=120 data-nosnippet>120</a>        Commands::Keygen(args) =&gt; commands::keygen::run(args),
+<a href=#121 id=121 data-nosnippet>121</a>        Commands::Encrypt(args) =&gt; commands::encrypt::run(args),
+<a href=#122 id=122 data-nosnippet>122</a>        Commands::Decrypt(args) =&gt; commands::decrypt::run(args),
+<a href=#123 id=123 data-nosnippet>123</a>        Commands::Sign(args) =&gt; commands::sign::run(args),
+<a href=#124 id=124 data-nosnippet>124</a>        <span class="comment">// Round-8 audit fix #5: verify returns Ok(true)=VALID,
+<a href=#125 id=125 data-nosnippet>125</a>        // Ok(false)=INVALID. Translate INVALID into exit 1 here so
+<a href=#126 id=126 data-nosnippet>126</a>        // destructors on the per-command state inside `verify::run`
+<a href=#127 id=127 data-nosnippet>127</a>        // (KeyFile, Vec&lt;u8&gt;, etc.) all get to run before the process
+<a href=#128 id=128 data-nosnippet>128</a>        // dies. The earlier in-function `process::exit(1)` skipped
+<a href=#129 id=129 data-nosnippet>129</a>        // them — currently benign because verify's per-command state
+<a href=#130 id=130 data-nosnippet>130</a>        // only holds public material, but a regression copying the
+<a href=#131 id=131 data-nosnippet>131</a>        // pattern to sign/decrypt would skip secret zeroization.
+<a href=#132 id=132 data-nosnippet>132</a>        </span>Commands::Verify(args) =&gt; {
+<a href=#133 id=133 data-nosnippet>133</a>            <span class="kw">let </span>valid = commands::verify::run(args)<span class="question-mark">?</span>;
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">if </span>!valid {
+<a href=#135 id=135 data-nosnippet>135</a>                <span class="attr">#[allow(clippy::exit)]
+<a href=#136 id=136 data-nosnippet>136</a>                </span>std::process::exit(<span class="number">1</span>);
+<a href=#137 id=137 data-nosnippet>137</a>            }
+<a href=#138 id=138 data-nosnippet>138</a>            <span class="prelude-val">Ok</span>(())
+<a href=#139 id=139 data-nosnippet>139</a>        }
+<a href=#140 id=140 data-nosnippet>140</a>        Commands::Hash(args) =&gt; commands::hash::run(args),
+<a href=#141 id=141 data-nosnippet>141</a>        Commands::Kdf(args) =&gt; commands::kdf::run(args),
+<a href=#142 id=142 data-nosnippet>142</a>        Commands::Info(args) =&gt; commands::info::run(args),
+<a href=#143 id=143 data-nosnippet>143</a>    }
+<a href=#144 id=144 data-nosnippet>144</a>}
 </code></pre></div></section></main></body></html>

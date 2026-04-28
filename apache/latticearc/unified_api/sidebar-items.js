@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["VERSION"],"fn":["init","init_with_config","self_tests_passed"],"mod":["audit","convenience","crypto_types","error","key_format","logging","selector","serialization","types","zero_trust"]};
+window.SIDEBAR_ITEMS = {"constant":["VERSION"],"fn":["init","init_with_config","self_tests_passed"],"mod":["atomic_write","audit","convenience","crypto_types","error","key_format","logging","selector","serialization","types","zero_trust"]};

@@ -136,17 +136,23 @@
 <a href=#136 id=136 data-nosnippet>136</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#137 id=137 data-nosnippet>137</a>    <span class="kw">match </span>path {
 <a href=#138 id=138 data-nosnippet>138</a>        <span class="prelude-val">Some</span>(p) =&gt; {
-<a href=#139 id=139 data-nosnippet>139</a>            std::fs::write(p, data).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
-<a href=#140 id=140 data-nosnippet>140</a>            <span class="macro">println!</span>(<span class="string">"Decrypted data written to: {}"</span>, p.display());
-<a href=#141 id=141 data-nosnippet>141</a>        }
-<a href=#142 id=142 data-nosnippet>142</a>        <span class="prelude-val">None </span>=&gt; {
-<a href=#143 id=143 data-nosnippet>143</a>            <span class="comment">// Try to print as UTF-8, fall back to hex
-<a href=#144 id=144 data-nosnippet>144</a>            </span><span class="kw">match </span>std::str::from_utf8(data) {
-<a href=#145 id=145 data-nosnippet>145</a>                <span class="prelude-val">Ok</span>(s) =&gt; <span class="macro">print!</span>(<span class="string">"{s}"</span>),
-<a href=#146 id=146 data-nosnippet>146</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">print!</span>(<span class="string">"{}"</span>, hex::encode(data)),
-<a href=#147 id=147 data-nosnippet>147</a>            }
-<a href=#148 id=148 data-nosnippet>148</a>        }
-<a href=#149 id=149 data-nosnippet>149</a>    }
-<a href=#150 id=150 data-nosnippet>150</a>    <span class="prelude-val">Ok</span>(())
-<a href=#151 id=151 data-nosnippet>151</a>}
+<a href=#139 id=139 data-nosnippet>139</a>            <span class="comment">// Atomic write — decrypted secret material at rest must
+<a href=#140 id=140 data-nosnippet>140</a>            // never be visible as a partial file (round-7 audit fix
+<a href=#141 id=141 data-nosnippet>141</a>            // #18). Same helper as keyfile.
+<a href=#142 id=142 data-nosnippet>142</a>            </span>latticearc::unified_api::atomic_write::AtomicWrite::new(data)
+<a href=#143 id=143 data-nosnippet>143</a>                .overwrite_existing(<span class="bool-val">true</span>)
+<a href=#144 id=144 data-nosnippet>144</a>                .write(p)
+<a href=#145 id=145 data-nosnippet>145</a>                .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
+<a href=#146 id=146 data-nosnippet>146</a>            <span class="macro">eprintln!</span>(<span class="string">"Decrypted data written to: {}"</span>, p.display());
+<a href=#147 id=147 data-nosnippet>147</a>        }
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="prelude-val">None </span>=&gt; {
+<a href=#149 id=149 data-nosnippet>149</a>            <span class="comment">// Try to print as UTF-8, fall back to hex
+<a href=#150 id=150 data-nosnippet>150</a>            </span><span class="kw">match </span>std::str::from_utf8(data) {
+<a href=#151 id=151 data-nosnippet>151</a>                <span class="prelude-val">Ok</span>(s) =&gt; <span class="macro">print!</span>(<span class="string">"{s}"</span>),
+<a href=#152 id=152 data-nosnippet>152</a>                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">print!</span>(<span class="string">"{}"</span>, hex::encode(data)),
+<a href=#153 id=153 data-nosnippet>153</a>            }
+<a href=#154 id=154 data-nosnippet>154</a>        }
+<a href=#155 id=155 data-nosnippet>155</a>    }
+<a href=#156 id=156 data-nosnippet>156</a>    <span class="prelude-val">Ok</span>(())
+<a href=#157 id=157 data-nosnippet>157</a>}
 </code></pre></div></section></main></body></html>
