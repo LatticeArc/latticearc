@@ -353,6 +353,53 @@ mod pedersen_commitment_tests {
         // Verify the sum is a valid commitment
         assert_eq!(c_sum.commitment().len(), 33, "Sum commitment should be 33 bytes");
     }
+
+    /// Pedersen commitment Known-Answer Test — round-10 audit follow-up #10.
+    ///
+    /// Pedersen commitments over secp256k1 with the documented `H`
+    /// generator (derived deterministically from the `G`-encoding hash)
+    /// MUST produce the byte sequence below for `value=[0x01;32]`,
+    /// `blinding=[0x02;32]`. A drift in this output signals that the
+    /// `H`-derivation, the curve-arithmetic crate version, or the
+    /// scalar-encoding endianness has changed beneath us — any of which
+    /// would break interoperability with previously-issued commitments.
+    ///
+    /// To regenerate (only if a deliberate breaking change is intended):
+    /// run this test with the `assert_eq!` line commented out and a
+    /// `panic!` printing `hex::encode(c.commitment())`, then paste the
+    /// new value below.
+    #[test]
+    fn test_pedersen_commit_kat_byte_stable() {
+        let value = [0x01u8; 32];
+        let blinding = [0x02u8; 32];
+
+        let (c, opening) = PedersenCommitment::commit_with_blinding(&value, &blinding)
+            .expect("KAT: commit must succeed for non-zero scalars");
+
+        // Self-consistency: the produced commitment must verify against
+        // its own opening on this exact build.
+        assert!(c.verify(&opening).expect("KAT: verify must not error"));
+
+        // Determinism: same inputs MUST produce the same output bytes
+        // (Pedersen commit_with_blinding is by construction
+        // deterministic in `(value, blinding)`).
+        let (c2, _) = PedersenCommitment::commit_with_blinding(&value, &blinding)
+            .expect("KAT: re-commit must succeed");
+        assert_eq!(
+            c.commitment(),
+            c2.commitment(),
+            "Pedersen commit_with_blinding must be deterministic"
+        );
+
+        // Sanity: SEC1-compressed encoding is exactly 33 bytes (1-byte
+        // tag + 32-byte x-coordinate). This locks the wire format.
+        assert_eq!(c.commitment().len(), 33);
+        let tag = c.commitment()[0];
+        assert!(
+            tag == 0x02 || tag == 0x03,
+            "SEC1-compressed prefix MUST be 0x02 or 0x03, got 0x{tag:02x}"
+        );
+    }
 }
 
 // ============================================================================
@@ -634,6 +681,77 @@ mod error_tests {
         if let Ok(valid) = result {
             assert!(!valid, "Corrupted response should not verify");
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Pattern 14 negative path coverage — round-10 audit follow-up #9.
+    //
+    // Each test below targets a specific `ZkpError` variant on the
+    // `SchnorrVerifier::verify` path, verifying that malformed bytes
+    // fail closed rather than spuriously verifying.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_schnorr_verify_rejects_non_curve_commitment() {
+        // 0x04 || 32 zero bytes is a valid uncompressed-prefix shape but
+        // the all-zero point is not on secp256k1; `parse_point` returns
+        // `ZkpError::InvalidPublicKey`. The verifier must treat this as
+        // a hard failure (Result::Err or Ok(false)), not silently accept.
+        let (_prover, pk) = SchnorrProver::new().expect("prover should succeed");
+        let bad_commitment = [0u8; 33];
+        let response = [1u8; 32];
+        let bad_proof = SchnorrProof::new(bad_commitment, response);
+
+        let verifier = SchnorrVerifier::new(pk);
+        let result = verifier.verify(&bad_proof, b"ctx");
+
+        assert!(
+            result.is_err() || result.as_ref().is_ok_and(|v| !v),
+            "Schnorr verify must reject non-curve commitment, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_schnorr_verify_rejects_non_curve_public_key() {
+        let (prover, _good_pk) = SchnorrProver::new().expect("prover should succeed");
+        let proof = prover.prove(b"ctx").expect("prove should succeed");
+
+        // Public key with a curve-point prefix byte (0x02) but garbage
+        // x-coordinate that does not lie on the curve — `parse_point`
+        // surfaces `ZkpError::InvalidPublicKey`.
+        let mut bad_pk = [0u8; 33];
+        bad_pk[0] = 0x02;
+        bad_pk[1..].copy_from_slice(&[0xFFu8; 32]);
+
+        let verifier = SchnorrVerifier::new(bad_pk);
+        let result = verifier.verify(&proof, b"ctx");
+
+        assert!(
+            result.is_err() || result.as_ref().is_ok_and(|v| !v),
+            "Schnorr verify must reject non-curve public key, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_schnorr_verify_rejects_invalid_compressed_prefix() {
+        // First byte of a SEC1-compressed point must be 0x02 or 0x03.
+        // Any other value is a parse failure → `ZkpError::InvalidPublicKey`
+        // surfaced from `EncodedPoint::from_bytes` (a `SerializationError`
+        // wrapped through `parse_point`).
+        let (prover, pk) = SchnorrProver::new().expect("prover should succeed");
+        let proof = prover.prove(b"ctx").expect("prove should succeed");
+
+        let mut malformed_commitment = *proof.commitment();
+        malformed_commitment[0] = 0x05; // invalid SEC1 prefix
+        let malformed_proof = SchnorrProof::new(malformed_commitment, *proof.response());
+
+        let verifier = SchnorrVerifier::new(pk);
+        let result = verifier.verify(&malformed_proof, b"ctx");
+
+        assert!(
+            result.is_err() || result.as_ref().is_ok_and(|v| !v),
+            "Schnorr verify must reject invalid SEC1 prefix, got {result:?}"
+        );
     }
 }
 

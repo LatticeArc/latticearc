@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-10b audit response — 4 deferred MEDIUMs (2026-04-28)
+
+Follow-up to round-10. The four MEDIUM items deferred at commit `e9b28e64d`
+(net-new test coverage + doc framing) are addressed here.
+
+#### MEDIUM
+- **Schnorr negative path coverage** (round-10b fix #9). Three new
+  targeted tests in `latticearc/tests/zkp.rs::error_tests`:
+  - `test_schnorr_verify_rejects_non_curve_commitment` — all-zero point
+    triggers `ZkpError::InvalidPublicKey` from `parse_point`.
+  - `test_schnorr_verify_rejects_non_curve_public_key` — verifier built
+    with a curve-prefix byte but garbage x-coordinate.
+  - `test_schnorr_verify_rejects_invalid_compressed_prefix` — SEC1
+    prefix outside `{0x02, 0x03}` triggers a `SerializationError`
+    surfaced through `parse_point`.
+  Each test asserts `result.is_err() || matches!(result, Ok(false))`,
+  closing the Pattern 14 negative-path gap on `SchnorrVerifier::verify`.
+- **Pedersen commitment KAT** (round-10b fix #10). New
+  `test_pedersen_commit_kat_byte_stable` in
+  `pedersen_commitment_tests`. Locks (a) determinism (same
+  `(value, blinding)` → same commitment), (b) self-consistency (commit
+  verifies its own opening), and (c) wire-format stability (33-byte
+  SEC1-compressed encoding with valid `0x02`/`0x03` prefix). A genuine
+  byte-level KAT against an external reference vector is held back
+  until the `H`-generator derivation is documented in
+  `docs/SECRET_TYPE_INVARIANTS.md`.
+- **Public-API hybrid_kem roundtrip** (round-10b fix #12). The roundtrip
+  test in `latticearc/src/hybrid/kem_hybrid.rs::tests` exercises the
+  *internal* `pub(crate)` path. Added two integration-test-crate
+  counterparts in `latticearc/tests/hybrid_kem.rs` that exercise the
+  *public* path (`pub use` re-exports only):
+  - `test_public_api_encapsulate_decapsulate_roundtrip`
+  - `test_public_api_two_encapsulations_diverge`
+  Catches regressions where a `pub(crate)` accidentally hides a symbol
+  used by the internal test but not by downstream consumers.
+- **api_stability module-doc honesty** (round-10b fix #13). The header
+  of `tests/tests/api_stability.rs` claimed "ensures backward
+  compatibility is maintained across versions" — but the suite has no
+  cross-version mechanism (no vendored prior-release crate, no
+  `cargo-semver-checks` integration *in this file*). Doc-comment
+  rewritten to accurately describe the suite as a same-tree public-API
+  surface snapshot, with a "What this file IS NOT" section pointing
+  callers to `cargo-semver-checks` for genuine semver-diff coverage.
+
 ### Round-10 audit response — 2 HIGH + 13 MEDIUM + 16 LOW (2026-04-28)
 
 Tenth audit pass on top of `1f2debc0d`. The audit asked

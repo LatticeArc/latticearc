@@ -322,3 +322,45 @@ fn test_encapsulated_key_shared_secret_length_has_correct_size() {
     assert_eq!(enc.ml_kem_ct().len(), 1088, "ML-KEM ciphertext should be 1088 bytes");
     assert_eq!(enc.ecdh_pk().len(), 32, "Ephemeral ECDH PK should be 32 bytes");
 }
+
+// ============================================================================
+// Public-API roundtrip — round-10 audit follow-up #12.
+//
+// kem_hybrid had a roundtrip test at `latticearc/src/hybrid/kem_hybrid.rs`
+// inside `#[cfg(test)] mod tests` — that exercises the *internal* call
+// path. The integration-test crate boundary here exercises the *public*
+// path (only `pub` items are reachable), catching regressions where a
+// re-export breaks or a `pub(crate)` accidentally hides a symbol used
+// by the internal test but not by downstream consumers.
+// ============================================================================
+
+#[test]
+fn test_public_api_encapsulate_decapsulate_roundtrip() {
+    let (pk, sk) = generate_keypair().unwrap();
+
+    let enc = encapsulate(&pk).unwrap();
+    let dec = decapsulate(&sk, &enc).unwrap();
+
+    assert!(
+        bool::from(dec.expose_secret().ct_eq(enc.expose_secret())),
+        "Hybrid KEM roundtrip must agree on the shared secret"
+    );
+}
+
+#[test]
+fn test_public_api_two_encapsulations_diverge() {
+    let (pk, sk) = generate_keypair().unwrap();
+
+    let enc1 = encapsulate(&pk).unwrap();
+    let enc2 = encapsulate(&pk).unwrap();
+
+    let dec1 = decapsulate(&sk, &enc1).unwrap();
+    let dec2 = decapsulate(&sk, &enc2).unwrap();
+
+    // Shared secrets MUST differ between independent encapsulations
+    // (each pulls fresh ML-KEM randomness + a fresh ephemeral ECDH key).
+    assert!(
+        !bool::from(dec1.expose_secret().ct_eq(dec2.expose_secret())),
+        "Independent encapsulations must yield distinct shared secrets"
+    );
+}

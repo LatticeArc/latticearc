@@ -1,25 +1,35 @@
-//! Comprehensive API Stability and Backward Compatibility Tests
+//! Public-API surface snapshot — round-10 audit follow-up #13.
 //!
-//! This test suite validates the stability of the public API surface, ensuring
-//! backward compatibility is maintained across versions.
+//! ## What this file IS
 //!
-//! # Test Coverage
+//! A compile-time snapshot of the public API surface of the `latticearc`
+//! crate **as of the current tree**. Each test below imports a `pub`
+//! item, exercises it in a representative way, and asserts a property
+//! (trait impl, return type, accessor visibility, etc.). Failure to
+//! compile or a failed runtime assertion signals that the public
+//! surface drifted within the same version branch.
 //!
-//! 1. Public API Surface Tests (15+ tests):
-//!    - Test all public exports from latticearc crate
-//!    - Verify re-exports match expected paths
-//!    - Test module visibility (pub vs pub(crate))
+//! ## What this file IS NOT
 //!
-//! 2. Type Stability Tests (15+ tests):
-//!    - Verify struct field accessibility
-//!    - Test enum variant stability
-//!    - Check trait implementations (Send, Sync, Clone, Debug)
-//!    - Verify Error types implement std::error::Error
+//! Despite the historical "API Stability and Backward Compatibility"
+//! framing, this suite does **not** compare against any previously-
+//! released version's surface. There is no semver-diff machinery here.
+//! A genuine cross-version compatibility check would require either
+//! `cargo-semver-checks` in CI (which we run separately) or a vendored
+//! `latticearc-X.Y` crate to compile this file against — neither is
+//! present today. The earlier doc-comment overstated scope and was
+//! corrected as part of the round-10 audit response.
 //!
-//! 3. Function Signature Tests (15+ tests):
-//!    - Test function parameter types haven't changed
-//!    - Verify return types are stable
-//!    - Check for breaking generic constraints
+//! ## Coverage categories
+//!
+//! 1. **Public exports** (15+ tests): every documented re-export
+//!    resolves and the module visibility is `pub` (not `pub(crate)`).
+//! 2. **Type-level invariants** (15+ tests): structs are constructible,
+//!    enums are matchable, error types implement `std::error::Error`,
+//!    and `Send + Sync + Debug` hold where promised.
+//! 3. **Function signatures** (15+ tests): parameter and return types
+//!    of the documented public functions compile against representative
+//!    inputs.
 
 #![deny(unsafe_code)]
 #![allow(
