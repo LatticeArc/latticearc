@@ -547,29 +547,23 @@ pub fn verify(
     // a `to_vec()` (identical allocation cost to the prior `.clone()` form);
     // choice is stylistic — accepts `&[u8]` at the call site.
     //
-    // Per-stage trace under `op::HYBRID_VERIFY` so operators can distinguish
-    // ML-DSA-parse / ML-DSA-verify / Ed25519-parse / Ed25519-verify failures
-    // in private logs without weakening the opaque outer error.
+    // Per-stage tracing previously distinguished ML-DSA-parse /
+    // ML-DSA-verify / Ed25519-parse / Ed25519-verify failures by
+    // emitting four distinct error strings under `op::HYBRID_VERIFY`.
+    // That made the Pattern 6 returned-error opacity reconstructable
+    // from the debug log: anyone with read access to the
+    // `crypto::operation` channel learned exactly which sub-stage
+    // failed. Operators still get a "verify failure occurred" signal
+    // for alerting; the granular sub-stage detail is intentionally
+    // dropped (see `docs/DESIGN_PATTERNS.md` Pattern 6 + the
+    // observability section in SECURITY.md).
     let ml_dsa_pk_parsed = MlDsaPublicKey::from_bytes(&pk.ml_dsa_pk, pk.parameter_set);
-    if ml_dsa_pk_parsed.is_err() {
-        log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA PK parse failed");
-    }
     let ml_dsa_sig_parsed = MlDsaSignature::from_bytes(&sig.ml_dsa_sig, pk.parameter_set);
-    if ml_dsa_sig_parsed.is_err() {
-        log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA signature parse failed");
-    }
     let ml_dsa_valid: u8 = match (ml_dsa_pk_parsed, ml_dsa_sig_parsed) {
         (Ok(ml_dsa_pk_struct), Ok(ml_dsa_sig_struct)) => {
             match ml_dsa_pk_struct.verify(message, &ml_dsa_sig_struct, &[]) {
                 Ok(true) => 1u8,
-                Ok(false) => {
-                    log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA verify returned false");
-                    0u8
-                }
-                Err(_e) => {
-                    log_crypto_operation_error!(op::HYBRID_VERIFY, "ML-DSA verify errored");
-                    0u8
-                }
+                _ => 0u8,
             }
         }
         _ => 0u8,
@@ -587,17 +581,18 @@ pub fn verify(
                     &ed25519_signature,
                 ) {
                     Ok(()) => 1u8,
-                    Err(_e) => {
-                        log_crypto_operation_error!(op::HYBRID_VERIFY, "Ed25519 verify errored");
-                        0u8
-                    }
+                    _ => 0u8,
                 }
             }
-            Err(_e) => {
-                log_crypto_operation_error!(op::HYBRID_VERIFY, "Ed25519 signature parse failed");
-                0u8
-            }
+            _ => 0u8,
         };
+
+    // One generic event on aggregate failure — preserves the "something
+    // went wrong with hybrid verify" alerting signal without leaking
+    // which component(s) failed.
+    if (ml_dsa_valid & ed25519_valid) != 1 {
+        log_crypto_operation_error!(op::HYBRID_VERIFY, "hybrid signature verification failed");
+    }
 
     // Bitwise AND (NOT short-circuit `&&`) combines the two bits without branching.
     let both_valid: u8 = ml_dsa_valid & ed25519_valid;

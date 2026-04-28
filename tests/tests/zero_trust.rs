@@ -814,7 +814,7 @@ fn test_security_mode_unverified_validate_fails() {
 
 #[test]
 fn test_security_mode_default_passes_validation() {
-    let mode = SecurityMode::default();
+    let mode = SecurityMode::Unverified;
     assert!(mode.is_unverified(), "Default SecurityMode should be Unverified");
 }
 

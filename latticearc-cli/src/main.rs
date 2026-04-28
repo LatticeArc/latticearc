@@ -90,6 +90,23 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Wire up the `tracing` subscriber so `tracing::{debug,info,warn,error}!`
+    // events from the library reach stderr. The `tracing-init` Cargo
+    // feature on our `latticearc` dep pulls in the `tracing-subscriber`
+    // and `tracing-appender` crates that back this helper. Subscriber
+    // wiring is the binary's job (see DESIGN_PATTERNS Pattern 6 +
+    // SECURITY.md observability section); a library that calls this
+    // would `panic!` the next downstream consumer.
+    //
+    // Filter defaults to `latticearc=info`; override at runtime with
+    // `RUST_LOG=latticearc=debug` (or `=trace` to see per-stage
+    // crypto-error tags).
+    //
+    // Best-effort: if a subscriber is somehow already installed (e.g., the
+    // CLI is being driven from a test harness that wired its own), we
+    // swallow the error rather than aborting the user's command.
+    let _ = latticearc::unified_api::logging::init_tracing();
+
     // Initialize LatticeArc (runs FIPS power-up self-tests)
     latticearc::init().map_err(|e| anyhow::anyhow!("Library initialization failed: {e}"))?;
 

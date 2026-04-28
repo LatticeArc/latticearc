@@ -1276,6 +1276,6 @@ fn test_security_mode_from_verified_session_succeeds() {
 /// Test 5.13: SecurityMode default is Unverified
 #[test]
 fn test_security_mode_default_is_correct() {
-    let mode = SecurityMode::default();
+    let mode = SecurityMode::Unverified;
     assert!(mode.is_unverified());
 }

@@ -126,10 +126,43 @@ impl AuditEvent {
         self
     }
 
+    /// Maximum number of metadata entries per event.
+    ///
+    /// Bounds memory + hashing cost when caller-supplied input is routed
+    /// through audit. Beyond the cap, `with_metadata` silently drops the
+    /// entry rather than rejecting the build (audit emission must never
+    /// fail-open by aborting the operation that produced the event).
+    pub const MAX_METADATA_ENTRIES: usize = 32;
+    /// Maximum byte length per metadata key.
+    pub const MAX_METADATA_KEY_LEN: usize = 256;
+    /// Maximum byte length per metadata value.
+    pub const MAX_METADATA_VALUE_LEN: usize = 4096;
+
     /// Add metadata to this event.
+    ///
+    /// Caps:
+    /// - Keys longer than [`MAX_METADATA_KEY_LEN`](Self::MAX_METADATA_KEY_LEN)
+    ///   are truncated.
+    /// - Values longer than [`MAX_METADATA_VALUE_LEN`](Self::MAX_METADATA_VALUE_LEN)
+    ///   are truncated.
+    /// - Beyond [`MAX_METADATA_ENTRIES`](Self::MAX_METADATA_ENTRIES) entries
+    ///   the call is a no-op (audit emission must not abort the operation
+    ///   that triggered it).
+    ///
+    /// These caps prevent a DoS amplification path where attacker-controlled
+    /// strings (e.g. SignedData.scheme, a request header) are routed through
+    /// audit-event metadata: without them, every audit event could carry
+    /// unbounded heap + hashing cost.
     #[must_use]
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.metadata.insert(key.into(), value.into());
+        if self.metadata.len() >= Self::MAX_METADATA_ENTRIES {
+            return self;
+        }
+        let mut k = key.into();
+        let mut v = value.into();
+        truncate_utf8_safe(&mut k, Self::MAX_METADATA_KEY_LEN);
+        truncate_utf8_safe(&mut v, Self::MAX_METADATA_VALUE_LEN);
+        self.metadata.insert(k, v);
         self
     }
 
@@ -186,6 +219,21 @@ impl AuditEvent {
     pub fn integrity_hash(&self) -> &str {
         &self.integrity_hash
     }
+}
+
+/// Truncate a UTF-8 String to at most `max_bytes` bytes without splitting
+/// a multi-byte code point. `String::truncate` panics on a non-boundary
+/// index — for caller-controlled text we round DOWN to the nearest valid
+/// boundary so attacker-supplied UTF-8 can't crash the audit pipeline.
+fn truncate_utf8_safe(s: &mut String, max_bytes: usize) {
+    if s.len() <= max_bytes {
+        return;
+    }
+    let mut cut = max_bytes;
+    while cut > 0 && !s.is_char_boundary(cut) {
+        cut = cut.saturating_sub(1);
+    }
+    s.truncate(cut);
 }
 
 /// Builder for constructing audit events with a fluent API.

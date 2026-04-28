@@ -9,6 +9,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-6 audit response — 10 issues + round-5 follow-ups (2026-04-27)
+
+Sixth audit pass. Ten valid findings (1 HIGH + 9 MEDIUM) plus the
+round-5 follow-ups (CHANGELOG `Migration:` lines + CLI `init_tracing()`
+wire-up) ship in one commit.
+
+#### HIGH
+- **Replay protection: opt-in `CryptoConfig::max_age(seconds)`.**
+  `EncryptedOutput.timestamp` was set on encrypt but never validated on
+  decrypt — zero replay defence at the convenience API. New
+  `.max_age(seconds)` builder makes `decrypt()` reject ciphertexts whose
+  stamped timestamp is older than the configured window. Default is
+  `None` (preserves prior behaviour for callers that use the timestamp
+  for audit / display only). Limitations documented at the type:
+  wall-clock-based, NOT a substitute for nonce-cache replay defence at
+  the protocol layer.
+  Migration: defaults are unchanged. Opt in with
+  `CryptoConfig::new().max_age(300)` for a 5-minute freshness window.
+
+#### MEDIUM
+- **`AeadCipher::encrypt` rustdoc rewritten with a `# ⚠ DANGER` block**
+  pointing readers at `seal()` for the canonical safe path. Added
+  `#[must_use]` so dropping the (ciphertext, tag) tuple is now a
+  warning. The trait method stays `pub` (still needed for KAT replay
+  and protocol-mandated nonces) but the danger is now loud at the
+  rustdoc surface.
+- **Empty AAD is no longer normalised to `None`** at the convenience
+  layer. `aes_gcm.rs` previously did `if aad.is_empty() { None } else {
+  Some(aad) }`, which combined with AES-GCM's own wire-equivalence of
+  empty-vs-None AAD let an attacker silently strip a present-but-empty
+  AAD. Both encrypt and decrypt paths now pass `Some(aad)` verbatim;
+  the wire-equivalence is now a property callers must know about
+  (documented at the call site).
+- **Pre-parse size guard on `deserialize_*` functions.** New
+  `MAX_DESERIALIZE_INPUT_SIZE = 16 MiB` cap fires BEFORE
+  `serde_json::from_str` allocates the parse tree. The existing 10 MiB
+  per-field caps in the `TryFrom` impls fire too late (the entire
+  base64 String has already been allocated by then). Affects
+  `deserialize_signed_data`, `deserialize_keypair`,
+  `deserialize_encrypted_output`.
+- **`impl Default for SecurityMode` REMOVED.** Returned `Unverified`,
+  letting `..Default::default()` silently disable Zero Trust validation
+  — exactly the failure mode the type was designed to make impossible.
+  Migration: replace `SecurityMode::default()` with explicit
+  `SecurityMode::Verified(&session)` (recommended) or
+  `SecurityMode::Unverified` (opt-out). The 4 in-tree call sites have
+  been updated.
+- **`sig_hybrid::verify` per-stage debug events collapsed** into one
+  generic "hybrid signature verification failed" message. The previous
+  4 distinct strings ("ML-DSA PK parse failed", "Ed25519 signature
+  parse failed", etc.) let any debug-log reader reconstruct the
+  Pattern 6 returned-error opacity. Operators retain the alerting
+  signal; granular sub-stage detail is intentionally dropped.
+- **Log injection neutralised** for attacker-controlled
+  `SignedData.scheme`. Six tracing call sites switched from
+  `scheme = %signed.scheme` (Display: raw text) to
+  `scheme = ?signed.scheme` (Debug: quoted with control chars
+  escaped). Newline-injection / log-forgery via wire-supplied scheme
+  string no longer works against text-formatting subscribers.
+- **`AuditEvent.metadata` capped.** New const limits:
+  `MAX_METADATA_ENTRIES = 32`, `MAX_METADATA_KEY_LEN = 256`,
+  `MAX_METADATA_VALUE_LEN = 4096`. Beyond the per-entry limits values
+  are UTF-8-safely truncated; beyond the entry-count limit the call is
+  a no-op (audit emission must not abort the operation that produced
+  the event). Closes the DoS amplification path where caller-supplied
+  strings routed through audit-event metadata could grow unbounded.
+- **`SecurityLevel` floor enforced in `validate_scheme_compliance`.**
+  When the caller pinned a `SecurityLevel` explicitly via
+  `.security_level(...)`, schemes below that level are now rejected.
+  Closes the silent-downgrade vector where a `SecurityLevel::Maximum`
+  server accepted a wire-supplied `hybrid-ml-kem-512-…` scheme. Only
+  fires on explicit pin (not the constructor default
+  `SecurityLevel::High`), so existing ml-dsa-44 / ml-kem-512 callers
+  using `CryptoConfig::new()` continue to work.
+
+#### Round-5 follow-ups (3)
+- **CHANGELOG `Migration:` lines** added to the round-4 BREAKING
+  entries (`tracing-init`, `fips → fips-self-test`) and the
+  0.7→0.8 Removed entries (`SecurityLevel::Quantum`,
+  `MlKem::generate_keypair_with_seed`, `HardwareConfig`). Substance
+  was already there; format convention now matches the 277 other
+  Migration: lines in this CHANGELOG.
+- **CLI `init_tracing()` wire-up.** `latticearc-cli` enabled the
+  `tracing-init` feature in round 4 but never actually called
+  `init_tracing()` from `main()`, so all `tracing::*` events from
+  the library went to a no-op global default subscriber. Added the
+  call (best-effort, swallows errors so a pre-set subscriber from
+  a test harness doesn't abort the user's command). Filter
+  defaults to `latticearc=info`; override with `RUST_LOG=…`.
+  Subscriber writes to **stderr** (not stdout) so machine-parseable
+  CLI output isn't contaminated.
+
 ### Round-4 audit response — 9 fixes + 2 CI repairs (2026-04-27)
 
 Fourth external audit pass on top of `f351df612`. Two BLOCK_RELEASE
@@ -23,12 +115,25 @@ timing-test ratio over its ceiling).
   wiring is the binary's job. The prior hard dependency would `panic!`
   the first downstream consumer that called their own
   `tracing_subscriber::fmt::init()` because both inits raced for the
-  global default. `latticearc-cli` enables `tracing-init`.
+  global default. `latticearc-cli` enables `tracing-init` and calls
+  `init_tracing()` from `main()`.
+  Migration: if your binary called `latticearc::unified_api::logging::init_tracing()`
+  via a transitive dep, add `latticearc = { ..., features = ["tracing-init"] }`
+  to your `Cargo.toml`. Library crates calling it must either enable the
+  feature explicitly or stop calling it (the standard library convention is
+  that subscriber wiring is the binary's responsibility, not the library's).
 - **`fips` now transitively enables `fips-self-test`.** Independent
   features previously meant `--features fips` skipped the FIPS 140-3
   §10.3.1 power-on self-test — a false compliance claim. Set
   `default-features = false` and enable `aws-lc-rs/fips` directly if
   you want the validated backend without the self-test wiring.
+  Migration: no action needed for the common case — `--features fips`
+  builds get the self-tests automatically. If you previously enabled
+  both features explicitly (`--features fips,fips-self-test`), the
+  second is now redundant but harmless. If you intentionally want the
+  validated backend WITHOUT self-tests (third-party module that runs
+  its own POST), use `default-features = false` plus
+  `aws-lc-rs = { version = "...", features = ["fips"] }` directly.
 
 #### HIGH
 - **`HybridKemPublicKey::to_bytes` wire format gets a `format_version: u8`
@@ -1085,6 +1190,9 @@ see the migration section below.
   `select_signature_scheme` now honors `CryptoMode::PqOnly`, so
   `Maximum + PqOnly` routes signing to `pq-ml-dsa-87` (previously only
   `SecurityLevel::Quantum` reached that branch).
+  Migration: `CryptoConfig::new().security_level(SecurityLevel::Quantum)` →
+  `CryptoConfig::new().security_level(SecurityLevel::Maximum).crypto_mode(CryptoMode::PqOnly)`.
+  CLI: `--security-level quantum` → `--security-level maximum --crypto-mode pq-only`.
 
 ### Removed (breaking, finishing the v0.7.0 deprecation cleanup, second pass)
 
@@ -1127,12 +1235,19 @@ see the migration section below.
   callers should use `MlKem::generate_keypair(level)`. The companion
   `encapsulate_with_seed` retains the same shape and is unchanged in this
   release pending a separate decision.
+  Migration: `MlKem::generate_keypair_with_seed(level, &seed)` →
+  `MlKem::generate_keypair(level)`. Drop the seed argument; the prior
+  call ignored it anyway, so behavior is unchanged.
 - **Removed `latticearc::types::config::HardwareConfig`** — struct deprecated
   since 0.5.0 with no active consumer. The `hardware: HardwareConfig` field
   on `UseCaseConfig` is also removed; `UseCaseConfig::validate()` no longer
   recurses into a hardware sub-config. Use `CoreConfig::with_hardware_acceleration(bool)`
   for software/hardware AEAD selection. Re-exports from
   `latticearc::types::*` and `latticearc::unified_api::*` removed.
+  Migration: replace any `UseCaseConfig { hardware: HardwareConfig { ... }, .. }`
+  field with a `CoreConfig::with_hardware_acceleration(bool)` call at the
+  CoreConfig boundary; the boolean covers the only field that actually had
+  any consumer.
 - **Removed two legacy fuzz targets** (`fuzz_hybrid_encrypt`, `fuzz_hybrid_decrypt`)
   that exclusively fuzzed the deleted `encrypt`/`decrypt` paths;
   `hybrid_encrypt_fuzz.rs` already fuzzes the modern unified API. Also

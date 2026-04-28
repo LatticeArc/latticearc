@@ -127,14 +127,28 @@ pub trait AeadCipher: sealed::Sealed {
     /// - Protocol-specified nonce derivation (e.g., TLS 1.3 per-record nonce)
     /// - Deterministic encryption constructions
     ///
+    /// # ⚠ DANGER — Caller-supplied nonces are a footgun.
+    ///
     /// Reusing a `(key, nonce)` pair with AES-GCM *catastrophically* breaks both
     /// confidentiality (XOR of plaintexts recoverable) and integrity (forgery via
     /// authentication key recovery). See NIST SP 800-38D §8.2 and
     /// Joux, "Authentication Failures in NIST version of GCM" (2006).
     ///
+    /// **Use [`seal`](Self::seal) instead.** It draws a fresh 96-bit nonce
+    /// from the OS CSPRNG per call, making caller-controlled reuse
+    /// structurally impossible. This `encrypt` method exists for the
+    /// narrow band of cases where the protocol or test vector mandates a
+    /// specific caller-controlled nonce — KAT replay, deterministic
+    /// nonce derivation per RFC 8452 (AES-GCM-SIV — not implemented here
+    /// but the API shape is reserved), TLS-style sequence-number nonces
+    /// where the protocol guarantees uniqueness by construction. If you
+    /// can't articulate a written argument for why the nonce you supply
+    /// is unique, you should be calling `seal`.
+    ///
     /// # Arguments
     ///
     /// * `nonce` - 12-byte nonce; MUST be unique for every call with this key.
+    ///   Caller is responsible for the uniqueness guarantee.
     /// * `plaintext` - Data to encrypt.
     /// * `aad` - Optional associated data (authenticated, not encrypted).
     ///
@@ -145,6 +159,7 @@ pub trait AeadCipher: sealed::Sealed {
     /// # Errors
     ///
     /// Returns `AeadError` if encryption fails.
+    #[must_use = "AEAD ciphertext + tag must be transmitted to the receiver"]
     fn encrypt(
         &self,
         nonce: &Nonce,

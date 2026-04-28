@@ -101,7 +101,14 @@ pub(crate) fn encrypt_aes_gcm_with_aad_internal(
     })?;
 
     let nonce = AesGcm256::generate_nonce();
-    let aad_opt = if aad.is_empty() { None } else { Some(aad) };
+    // Pass the AAD through verbatim. We deliberately do NOT collapse
+    // `&[]` to `None` — AES-GCM treats both as "0 bits of AAD bound into
+    // GHASH" so the on-wire output is identical, but normalising at this
+    // layer would silently honour an attacker stripping a present-but-
+    // empty AAD without the receiver noticing the change. Callers that
+    // need an "AAD must be present" semantic should bind a length-
+    // prefixed domain separator into the AAD themselves.
+    let aad_opt = Some(aad);
 
     let (ciphertext, tag) = cipher.encrypt(&nonce, data, aad_opt).map_err(|e| {
         let err = CoreError::EncryptionFailed(e.to_string());
@@ -215,7 +222,9 @@ pub(crate) fn decrypt_aes_gcm_with_aad_internal(
         opaque()
     })?;
 
-    let aad_opt = if aad.is_empty() { None } else { Some(aad) };
+    // See encrypt-side note: pass AAD verbatim. Normalising `&[]` to
+    // `None` here would silently honour an attacker stripping the AAD.
+    let aad_opt = Some(aad);
 
     let result = cipher.decrypt(&nonce, ciphertext, &tag, aad_opt).map_err(|_aead_err| {
         log_crypto_operation_error!(op::AES_GCM_DECRYPT_AAD, "AEAD authentication failed");

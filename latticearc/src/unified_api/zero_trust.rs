@@ -246,15 +246,14 @@ impl<'a> From<&'a VerifiedSession> for SecurityMode<'a> {
     }
 }
 
-impl Default for SecurityMode<'_> {
-    /// Default to `Unverified` mode.
-    ///
-    /// Note: This default is provided for API flexibility, but `Verified` mode
-    /// is recommended for production use.
-    fn default() -> Self {
-        Self::Unverified
-    }
-}
+// `impl Default for SecurityMode` was REMOVED. The previous default
+// returned `Unverified`, which let production code using
+// `..Default::default()` silently disable Zero Trust validation —
+// exactly the failure mode the type was designed to make impossible.
+// Callers must now choose explicitly: `SecurityMode::Verified(&session)`
+// for Zero Trust enforcement (recommended) or `SecurityMode::Unverified`
+// for opt-out paths where ZT is not applicable. The choice now
+// appears in source diffs and code review can catch accidents.
 
 /// A verified session that proves Zero Trust authentication has been completed.
 ///
@@ -1679,8 +1678,12 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_security_mode_default_is_unverified_succeeds() {
-        let mode = SecurityMode::default();
+    fn test_security_mode_explicit_unverified_succeeds() {
+        // Pinning the explicit-construction shape after `impl Default for
+        // SecurityMode` was removed (round-6 audit fix #5). Callers must
+        // now opt into `Unverified` by name; this test guards the variant's
+        // behaviour, not the (deliberately-absent) `Default` impl.
+        let mode = SecurityMode::Unverified;
         assert!(mode.is_unverified());
         assert!(!mode.is_verified());
         assert!(mode.session().is_none());

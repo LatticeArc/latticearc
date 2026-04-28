@@ -109,8 +109,21 @@ pub struct CryptoConfig<'a> {
     compliance: ComplianceMode,
     /// Whether the user explicitly set compliance (vs. auto-set by use_case).
     compliance_explicit: bool,
+    /// Whether the user explicitly pinned a `SecurityLevel` (vs. left it
+    /// at the constructor default). Only when this is true does
+    /// `validate_scheme_compliance` enforce a minimum-strength gate
+    /// against the configured level — otherwise the existing scheme-
+    /// dispatch path (which routes by string name) decides what's
+    /// acceptable. Without this discrimination a defaulted-to-High
+    /// config would reject every ml-dsa-44 / ml-kem-512 caller.
+    security_level_explicit: bool,
     /// Cryptographic mode: hybrid (default) or PQ-only.
     crypto_mode: CryptoMode,
+    /// Optional maximum age (seconds) for `EncryptedOutput.timestamp` on
+    /// decrypt. `None` (default) skips the check; `Some(n)` rejects any
+    /// ciphertext whose stamped timestamp is more than `n` seconds older
+    /// than the current wall-clock. See [`max_age`](Self::max_age).
+    max_age_seconds: Option<u64>,
 }
 
 impl<'a> Default for CryptoConfig<'a> {
@@ -128,8 +141,48 @@ impl<'a> CryptoConfig<'a> {
             selection: AlgorithmSelection::default(),
             compliance: ComplianceMode::Default,
             compliance_explicit: false,
+            security_level_explicit: false,
             crypto_mode: CryptoMode::Hybrid,
+            max_age_seconds: None,
         }
+    }
+
+    /// Reject ciphertexts whose stamped `timestamp` is older than `seconds`.
+    ///
+    /// Defence-in-depth replay protection at the convenience-API layer.
+    /// `EncryptedOutput.timestamp` is set on encrypt to the current
+    /// `Utc::now().timestamp()` (seconds since epoch); when this option
+    /// is set, [`decrypt`](crate::unified_api::convenience::api::decrypt)
+    /// rejects ciphertexts whose timestamp is more than `seconds` behind
+    /// the receiver's wall-clock as
+    /// `CoreError::ResourceExceeded("ciphertext too old: …")`.
+    ///
+    /// # Caveats
+    ///
+    /// - **Wall-clock based.** Receivers with skewed clocks will reject
+    ///   freshly-encrypted ciphertexts; senders racing the receiver's
+    ///   clock will see false rejections. Pair with NTP discipline on
+    ///   both ends, and pick `seconds` large enough to swallow expected
+    ///   skew (typically 60s — 5min).
+    /// - **NOT a substitute for monotonic counter / nonce-cache replay
+    ///   protection** at the protocol layer. An attacker replaying a
+    ///   ciphertext WITHIN the `max_age` window still succeeds. This
+    ///   guard bounds the replay window; it does not eliminate it.
+    ///   Applications that need exactly-once delivery must layer their
+    ///   own replay-cache on top.
+    /// - **No-op when unset.** Default is `None` to preserve backward
+    ///   compatibility with callers who use the timestamp purely for
+    ///   audit / display.
+    #[must_use]
+    pub fn max_age(mut self, seconds: u64) -> Self {
+        self.max_age_seconds = Some(seconds);
+        self
+    }
+
+    /// Returns the configured replay-protection window, in seconds.
+    #[must_use]
+    pub fn max_age_seconds(&self) -> Option<u64> {
+        self.max_age_seconds
     }
 
     /// Sets the Zero Trust verified session.
@@ -167,6 +220,7 @@ impl<'a> CryptoConfig<'a> {
     #[must_use]
     pub fn security_level(mut self, level: SecurityLevel) -> Self {
         self.selection = AlgorithmSelection::SecurityLevel(level);
+        self.security_level_explicit = true;
         self
     }
 
@@ -306,7 +360,7 @@ impl<'a> CryptoConfig<'a> {
         const CNSA_BANNED_CLASSICAL: &[&str] = &["ed25519", "aes-256-gcm"];
 
         match self.compliance {
-            ComplianceMode::Default => Ok(()),
+            ComplianceMode::Default => {}
             ComplianceMode::Fips140_3 => {
                 if FIPS_BANNED.contains(&scheme) {
                     return Err(CoreError::ComplianceViolation(format!(
@@ -314,7 +368,6 @@ impl<'a> CryptoConfig<'a> {
                          Use AES-256-GCM or a FIPS-validated algorithm.",
                     )));
                 }
-                Ok(())
             }
             ComplianceMode::Cnsa2_0 => {
                 // Only reject exact matches — hybrid schemes that embed a
@@ -326,11 +379,78 @@ impl<'a> CryptoConfig<'a> {
                          Use ML-KEM, ML-DSA, SLH-DSA, FN-DSA, or a hybrid scheme.",
                     )));
                 }
-                Ok(())
             }
         }
-    }
 
+        // SECURITY: also gate on the configured `SecurityLevel`. Without
+        // this check, a server with `SecurityLevel::Maximum` would
+        // silently accept a wire-supplied `hybrid-ml-kem-512-…` scheme
+        // (NIST Level 1) if an attacker also supplied a valid 512-bit
+        // ciphertext. The compliance allowlist alone is not sufficient
+        // — `hybrid-ml-kem-512-aes-256-gcm` passes both FIPS and CNSA
+        // bans yet is below `Maximum`.
+        //
+        // Only enforced when the caller EXPLICITLY pinned a level via
+        // `.security_level(...)` — not when the constructor default
+        // `SecurityLevel::High` is in play. Without this distinction every
+        // ml-dsa-44 / ml-kem-512 caller using `CryptoConfig::new()` would
+        // be rejected, which contradicts the Standard-tier APIs being a
+        // first-class entry point. UseCase-driven and forced-scheme
+        // selections already constrain the scheme via dispatch.
+        //
+        // `None` from `scheme_min_security_level` means we don't recognise
+        // the scheme — let the caller's dispatch path return the canonical
+        // "unknown scheme" error.
+        if self.security_level_explicit
+            && let AlgorithmSelection::SecurityLevel(configured_level) = self.selection
+            && let Some(scheme_level) = scheme_min_security_level(scheme)
+            && (scheme_level as u8) < (configured_level as u8)
+        {
+            return Err(CoreError::ComplianceViolation(format!(
+                "Scheme '{scheme}' provides {scheme_level:?} security but \
+                 CryptoConfig requires at least {configured_level:?}. \
+                 Either downgrade the SecurityLevel via .security_level() \
+                 or provide a stronger scheme."
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// Map a scheme tag string to the minimum `SecurityLevel` it provides.
+///
+/// Returns `None` for schemes this build doesn't recognise; callers
+/// should treat that as "let the dispatch layer reject as unknown"
+/// rather than as "any level is fine."
+fn scheme_min_security_level(scheme: &str) -> Option<SecurityLevel> {
+    // NIST PQC categories map to SecurityLevel as:
+    //   Category 1 (128-bit) → Standard (ML-KEM-512, ML-DSA-44, SLH-DSA-128*)
+    //   Category 3 (192-bit) → High     (ML-KEM-768, ML-DSA-65, SLH-DSA-192*)
+    //   Category 5 (256-bit) → Maximum  (ML-KEM-1024, ML-DSA-87, SLH-DSA-256*)
+    // Hybrid schemes inherit the level of their PQ component (the
+    // classical sidecar contributes zero PQ security).
+    let s = scheme.to_ascii_lowercase();
+    if s.contains("ml-kem-512") || s.contains("ml-dsa-44") || s.contains("128") {
+        Some(SecurityLevel::Standard)
+    } else if s.contains("ml-kem-768") || s.contains("ml-dsa-65") || s.contains("192") {
+        Some(SecurityLevel::High)
+    } else if s.contains("ml-kem-1024") || s.contains("ml-dsa-87") || s.contains("256") {
+        Some(SecurityLevel::Maximum)
+    } else if s == "ed25519" {
+        // Ed25519: 128-bit classical security; map to Standard so a
+        // Maximum-configured server doesn't accept it.
+        Some(SecurityLevel::Standard)
+    } else if s == "aes-256-gcm" || s == "chacha20-poly1305" {
+        // Symmetric-only schemes don't have an asymmetric strength
+        // floor; treat them as Maximum so the level check doesn't
+        // gate a configuration that's already legitimately symmetric.
+        Some(SecurityLevel::Maximum)
+    } else {
+        None
+    }
+}
+
+impl<'a> CryptoConfig<'a> {
     /// Validates the configuration.
     ///
     /// Checks:

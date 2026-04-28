@@ -991,6 +991,10 @@ pub fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
 
     let subscriber = tracing_subscriber::registry().with(filter).with(
         tracing_subscriber::fmt::layer()
+            // Route to stderr (not stdout — the default) so CLI tools that
+            // emit machine-parseable output on stdout don't get tracing
+            // events interleaved with their data.
+            .with_writer(std::io::stderr)
             .with_target(false)
             .with_thread_ids(false)
             .with_thread_names(false)

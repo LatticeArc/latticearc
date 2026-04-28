@@ -534,6 +534,28 @@ pub fn decrypt(
     config.validate()?;
     config.validate_scheme_compliance(encrypted.scheme().as_str())?;
 
+    // Opt-in replay protection. `max_age` is `None` by default to
+    // preserve backward compatibility with callers that use the
+    // timestamp purely for audit / display; when a value is set, we
+    // reject ciphertexts older than the configured window. See the
+    // `CryptoConfig::max_age` docstring for caveats (wall-clock
+    // dependence; not a substitute for nonce-cache replay defence).
+    if let Some(max_age) = config.max_age_seconds() {
+        let now = current_timestamp();
+        let stamped = encrypted.timestamp();
+        // saturating_sub handles future-stamped ciphertexts (clock skew
+        // on the sender side) by clamping at 0 — which always passes
+        // the freshness check, on the assumption that "future" stamps
+        // are skew, not adversarial.
+        let age = now.saturating_sub(stamped);
+        if age > max_age {
+            return Err(CoreError::ResourceExceeded(format!(
+                "ciphertext too old: stamped age {age} s > configured max_age {max_age} s. \
+                 Re-encrypt with a fresh timestamp, or relax CryptoConfig::max_age."
+            )));
+        }
+    }
+
     // Type-safe key-scheme validation
     CryptoPolicyEngine::validate_decrypt_key_matches_scheme(&key, encrypted.scheme())
         .map_err(|e| CoreError::ConfigurationError(e.to_string()))?;
@@ -885,7 +907,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
     config.validate()?;
     config.validate_scheme_compliance(&signed.scheme)?;
 
-    log_crypto_operation_start!(op::VERIFY, scheme = %signed.scheme, message_size = signed.data.len());
+    log_crypto_operation_start!(op::VERIFY, scheme = ?signed.scheme, message_size = signed.data.len());
 
     validate_signature_size(signed.data.len())
         .map_err(|e| CoreError::ResourceExceeded(e.to_string()))?;
@@ -972,10 +994,10 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
 
     match &result {
         Ok(valid) => {
-            log_crypto_operation_complete!(op::VERIFY, valid = *valid, scheme = %signed.scheme);
+            log_crypto_operation_complete!(op::VERIFY, valid = *valid, scheme = ?signed.scheme);
         }
         Err(e) => {
-            log_crypto_operation_error!(op::VERIFY, e, scheme = %signed.scheme);
+            log_crypto_operation_error!(op::VERIFY, e, scheme = ?signed.scheme);
         }
     }
     result
@@ -2890,10 +2912,14 @@ mod tests {
         let signed = sign_message(message, config)?;
 
         // Hybrid schemes are allowed under CNSA 2.0 (transitional per NIST SP 800-227)
-        // Note: CNSA 2.0 config requires CryptoMode::PqOnly.
+        // Note: CNSA 2.0 config requires CryptoMode::PqOnly. The verifier
+        // SecurityLevel must match (or be below) the signature's PQ
+        // component — ml-dsa-65 is High, so we pin High here. Pinning
+        // Maximum would be rejected by the round-6 audit fix #10
+        // SecurityLevel-floor check (silent-downgrade prevention).
         if signed.scheme.contains("hybrid") {
             let cnsa_config = CryptoConfig::new()
-                .security_level(SecurityLevel::Maximum)
+                .security_level(SecurityLevel::High)
                 .crypto_mode(crate::types::types::CryptoMode::PqOnly)
                 .compliance(crate::types::types::ComplianceMode::Cnsa2_0);
             let is_valid = verify(&signed, cnsa_config)?;

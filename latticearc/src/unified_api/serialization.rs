@@ -195,6 +195,7 @@ pub fn serialize_signed_data(signed: &SignedData) -> Result<String> {
 /// - JSON parsing fails
 /// - Base64 decoding of the data, signature, or public key fails
 pub fn deserialize_signed_data(data: &str) -> Result<SignedData> {
+    enforce_max_input_size(data, "SignedData")?;
     let serializable: SerializableSignedData =
         serde_json::from_str(data).map_err(|e| CoreError::SerializationError(e.to_string()))?;
     serializable.try_into()
@@ -218,6 +219,7 @@ pub fn serialize_keypair(keypair: &KeyPair) -> Result<String> {
 /// - JSON parsing fails
 /// - Base64 decoding of the public key or private key fails
 pub fn deserialize_keypair(data: &str) -> Result<KeyPair> {
+    enforce_max_input_size(data, "KeyPair")?;
     let serializable: SerializableKeyPair =
         serde_json::from_str(data).map_err(|e| CoreError::SerializationError(e.to_string()))?;
     serializable.try_into()
@@ -366,9 +368,33 @@ pub fn serialize_encrypted_output(output: &EncryptedOutput) -> Result<String> {
 /// - Base64 decoding of any binary field fails
 /// - The scheme string is unrecognized
 pub fn deserialize_encrypted_output(data: &str) -> Result<EncryptedOutput> {
+    enforce_max_input_size(data, "EncryptedOutput")?;
     let serializable: SerializableEncryptedOutput =
         serde_json::from_str(data).map_err(|e| CoreError::SerializationError(e.to_string()))?;
     serializable.try_into()
+}
+
+/// Maximum accepted JSON-input size for any deserializer in this module.
+///
+/// Bounds heap allocation by `serde_json::from_str` BEFORE the parse —
+/// the per-field caps in the various `TryFrom` impls fire too late
+/// (`serde_json` has already allocated the full base64 String into the
+/// `Serializable*` shape by the time those checks run). 16 MiB is well
+/// above any legitimate envelope (the largest single ciphertext field
+/// allows 10 MiB + base64 expansion + envelope overhead) and well below
+/// the bands that would let a single inbound JSON payload exhaust a
+/// process's working set on a typical 8 GiB server.
+pub(crate) const MAX_DESERIALIZE_INPUT_SIZE: usize = 16 * 1024 * 1024;
+
+fn enforce_max_input_size(data: &str, kind: &'static str) -> Result<()> {
+    if data.len() > MAX_DESERIALIZE_INPUT_SIZE {
+        return Err(CoreError::SerializationError(format!(
+            "{kind} JSON input size {} exceeds maximum of {} bytes",
+            data.len(),
+            MAX_DESERIALIZE_INPUT_SIZE
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
