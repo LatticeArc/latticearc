@@ -435,7 +435,7 @@ pub fn kat_hkdf_sha256() -> Result<()> {
     let result = hkdf(&IKM, Some(&SALT), Some(&INFO), 42)?;
 
     // Constant-time comparison
-    if bool::from(result.key().ct_eq(&EXPECTED_OKM)) {
+    if bool::from(result.expose_secret().ct_eq(&EXPECTED_OKM)) {
         Ok(())
     } else {
         Err(LatticeArcError::ValidationError {

@@ -1,7 +1,7 @@
 //! Post-quantum signature operations (ML-DSA, SLH-DSA, FN-DSA)
 //!
 //! This module provides post-quantum digital signature operations using
-//! ML-DSA (FIPS 204), SLH-DSA (FIPS 205), and FN-DSA (FIPS 206).
+//! ML-DSA (FIPS 204), SLH-DSA (FIPS 205), and FN-DSA (draft FIPS 206).
 //!
 //! ## Unified API with SecurityMode
 //!

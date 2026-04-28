@@ -179,9 +179,12 @@ impl ConstantTimeEq for Pbkdf2Result {
 }
 
 impl Pbkdf2Result {
-    /// Get the derived key
+    /// Borrow the derived key bytes.
+    ///
+    /// Named `expose_secret()` to align with Secret Type Invariant I-6
+    /// (universal accessor; see `docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn key(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.key
     }
 
@@ -562,7 +565,7 @@ mod tests {
         assert_eq!(result_sha512.key.len(), 64);
 
         // Different PRFs should produce different outputs
-        assert_ne!(result_sha256.key(), &result_sha512.key()[..32]);
+        assert_ne!(result_sha256.expose_secret(), &result_sha512.expose_secret()[..32]);
     }
 
     #[test]
@@ -676,8 +679,8 @@ mod tests {
         let params = Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32);
 
         let result = pbkdf2(password, &params).unwrap();
-        assert_eq!(result.key(), &result.key[..]);
-        assert_eq!(result.key().len(), 32);
+        assert_eq!(result.expose_secret(), &result.key[..]);
+        assert_eq!(result.expose_secret().len(), 32);
     }
 
     #[test]

@@ -17,7 +17,7 @@ mod h1_hkdf_result_field_protection {
     fn h1_key_accessor_returns_correct_data() {
         let result = hkdf(b"ikm", Some(b"salt"), Some(b"info"), 32).unwrap();
         // key() returns &[u8], not the raw Vec
-        let key: &[u8] = result.key();
+        let key: &[u8] = result.expose_secret();
         assert_eq!(key.len(), 32);
         assert!(key.iter().any(|&b| b != 0), "Derived key should be non-zero");
     }
@@ -26,15 +26,15 @@ mod h1_hkdf_result_field_protection {
     fn h1_key_accessor_deterministic() {
         let r1 = hkdf(b"ikm", Some(b"salt"), Some(b"info"), 32).unwrap();
         let r2 = hkdf(b"ikm", Some(b"salt"), Some(b"info"), 32).unwrap();
-        assert_eq!(r1.key(), r2.key());
+        assert_eq!(r1.expose_secret(), r2.expose_secret());
     }
 
     #[test]
     fn h1_key_length_matches_key_length_field() {
         for len in [16, 32, 48, 64, 128] {
             let result = hkdf(b"ikm", Some(b"salt"), None, len).unwrap();
-            assert_eq!(result.key().len(), result.key_length());
-            assert_eq!(result.key().len(), len);
+            assert_eq!(result.expose_secret().len(), result.key_length());
+            assert_eq!(result.expose_secret().len(), len);
         }
     }
 
@@ -43,7 +43,7 @@ mod h1_hkdf_result_field_protection {
         // Verify the key is non-zero while live, then dropped
         // (We can't observe memory after drop, but we verify the Zeroizing wrapper works)
         let result = hkdf(b"secret", Some(b"salt"), None, 32).unwrap();
-        let key_copy = result.key().to_vec();
+        let key_copy = result.expose_secret().to_vec();
         assert!(key_copy.iter().any(|&b| b != 0));
         drop(result);
         // The original key bytes are zeroized by Zeroizing<Vec<u8>> on drop.
@@ -55,7 +55,7 @@ mod h1_hkdf_result_field_protection {
     fn h1_extract_expand_roundtrip_via_accessor() {
         let prk = hkdf_extract(Some(b"salt"), b"ikm").unwrap();
         let result = hkdf_expand(&prk, Some(b"info"), 64).unwrap();
-        assert_eq!(result.key().len(), 64);
+        assert_eq!(result.expose_secret().len(), 64);
     }
 
     #[test]
@@ -63,7 +63,7 @@ mod h1_hkdf_result_field_protection {
         let r1 = hkdf_simple(b"ikm", 32).unwrap();
         let r2 = hkdf_simple(b"ikm", 32).unwrap();
         // Random salts should produce different keys
-        assert_ne!(r1.key(), r2.key());
+        assert_ne!(r1.expose_secret(), r2.expose_secret());
     }
 }
 

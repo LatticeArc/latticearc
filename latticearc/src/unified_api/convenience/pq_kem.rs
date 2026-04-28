@@ -101,7 +101,7 @@ fn encrypt_pq_ml_kem_internal(
         log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "HKDF failed");
         CoreError::EncryptionFailed(format!("Key derivation failed: {e}"))
     })?;
-    let encrypted_data = encrypt_aes_gcm_internal(data, hkdf_result.key())?;
+    let encrypted_data = encrypt_aes_gcm_internal(data, hkdf_result.expose_secret())?;
 
     // Combine ciphertext and encrypted data
     let mut result = ciphertext.into_bytes();
@@ -182,7 +182,7 @@ fn decrypt_pq_ml_kem_internal(
         log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "HKDF failed");
         opaque()
     })?;
-    let plaintext = decrypt_aes_gcm_internal(aes_encrypted, hkdf_result.key())?;
+    let plaintext = decrypt_aes_gcm_internal(aes_encrypted, hkdf_result.expose_secret())?;
 
     crate::log_crypto_operation_complete!(
         "decrypt_pq_ml_kem",

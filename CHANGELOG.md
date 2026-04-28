@@ -9,6 +9,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-10 audit response — 2 HIGH + 13 MEDIUM + 16 LOW (2026-04-28)
+
+Tenth audit pass on top of `1f2debc0d`. The audit asked
+"why is external audit still finding issues?" — honest answer: each round
+adds new surface, prior reviews don't enforce every pattern the audit
+checks, and cross-document drift accumulates between rounds. This pass
+focuses on (a) closing the FIPS 203 implicit-rejection contract on the
+ML-KEM pre-checks, (b) extending the Secret Type Invariant I-6 universal
+accessor (`expose_secret()`) to all KDF result types, (c) extending the
+sealed-trait pattern (Pattern 4) to `SchemeSelector` and
+`ContinuousVerifiable`, (d) extending the no-`PartialEq` compile-time
+barrier (I-6 enforcement) to all four AEAD cipher types, and (e) syncing
+the FN-DSA "draft FIPS 206" qualifier and Kani proof-count breakdown
+across all top-level docs.
+
+#### HIGH
+- **SECURITY.md constant-time tooling section names the right Valgrind
+  tool** (round-10 fix #1). `valgrind --tool=memcheck` is the CT-checking
+  tool used by `ctgrind`; `--tool=massif` is the heap profiler and is
+  unrelated. Cadence and threshold text now bridges to README.md (weekly
+  Tuesday for `ctgrind`, current `|max t| < 10` planned to tighten to
+  `|t| > 4.5`).
+- **FN-DSA "draft FIPS 206" qualifier sweep** (round-10 fix #2).
+  SECURITY.md, README.md mermaid block, DESIGN_PATTERNS.md (typo "Draft
+  draft FIPS 206"), `unified_api/key_format.rs` `KeyAlgorithm` variants,
+  and `unified_api/convenience/pq_sig.rs` module doc all now consistently
+  say "draft FIPS 206". The standard remains in NIST's draft pipeline.
+
+#### MEDIUM
+- **ML-KEM decap pre-checks collapse into the FIPS 203 §6.3
+  implicit-rejection envelope** (round-10 fix #3). The size-validation
+  and security-level-mismatch branches previously returned distinguishable
+  error strings before the constant-time decap pipeline. Both now return
+  the same opaque `"decapsulation failed"` message — adversarial chosen-
+  ciphertext attackers can no longer distinguish (a) DoS-size rejection,
+  (b) parameter-set mismatch, (c) key-reconstruction failure, or (d) the
+  constant-time decap rejection itself. Upstream cause logged at
+  `tracing::debug!`.
+- **`SlhDsaSecurityLevel` doc clarifies the FIPS 205 gap** (round-10 fix
+  #4). The enum exposes 3 of FIPS 205's 12 parameter sets (SHAKE-`s`
+  only); the doc now names the missing 9 (SHA2 hash + `f` fast-signing
+  variants) and notes that `#[non_exhaustive]` makes adding them later a
+  non-breaking change.
+- **`HkdfResult`, `Pbkdf2Result`, `CounterKdfResult` accessors renamed
+  `key()` → `expose_secret()`** (round-10 fix #5). Aligns all KDF result
+  types with Secret Type Invariant I-6 (universal sealed accessor).
+  Breaking change for downstream callers; updated all in-tree callsites
+  (≈80 in tests + lib + examples + CLI).
+- **AEAD cipher types added to no-`PartialEq` barrier** (round-10 fix
+  #6). `AesGcm128`, `AesGcm256`, `ChaCha20Poly1305Cipher`, and
+  `XChaCha20Poly1305Cipher` all hold the symmetric key in `key_bytes`
+  and were missing from `tests/no_partial_eq_on_secret_types.rs`. Now
+  enforced; ChaCha types are cfg-gated under `not(feature = "fips")` to
+  match their module gate.
+- **`SchemeSelector` and `ContinuousVerifiable` traits sealed (Pattern
+  4)** (round-10 fix #7). A downstream
+  `SchemeSelector::select_signature_scheme` could otherwise downgrade a
+  CNSA-2.0 caller to a classical algorithm; a downstream
+  `ContinuousVerifiable::verify_continuously` could always report
+  `Verified`. `mod sealed::Sealed` now lists `CryptoPolicyEngine`
+  alongside `ZeroTrustAuth`.
+- **`MockSigmaProtocol::verify` actually verifies** (round-10 fix #8).
+  Previously returned `Ok(true)` for any 32-byte response, giving
+  `FiatShamir` callers no signal in tests. Now reconstructs the expected
+  response from public data (`sha256("mock-response" || commitment ||
+  challenge)`) and compares via `subtle::ConstantTimeEq`.
+- **`SigmaProof::challenge_mut` gated behind `test-utils` feature**
+  (round-10 fix #11). The mutator on a constructed proof bypasses the
+  Fiat-Shamir soundness binding between commitment, challenge, and
+  response — a downstream caller exploiting it could replace a challenge
+  without re-deriving the response. New `test-utils` Cargo feature gates
+  the mutator off for production builds.
+- **Bit-flip proptest match arm now explicit** (round-10 fix #14).
+  `proptest_invariants.rs::ml_dsa_44_signature_bit_flip_rejects` was
+  using `if let Ok(v) = ...` which silently accepted the Err branch;
+  swapped to a `match` so both branches are explicitly intentional.
+
+#### LOW
+- **CHANGELOG 0.8.0 SecretVec entry corrected** (round-10 fix #15). The
+  0.8.0 release note said `SecretVec` constructors call `shrink_to_fit()`,
+  but the 0.8.x hardening pass deliberately removed it (realloc-leak risk).
+  Entry now accurately describes the no-`shrink_to_fit` path with a
+  full-capacity Drop walk.
+- **Kani proof-count breakdown synced to actual** (cross-doc #16).
+  README.md says 30 proofs; SECURITY.md previously said 29 with a
+  breakdown that summed to 29. Reality: 30 proofs across 6 type modules
+  +`primitives/resource_limits.rs` (3 proofs, missing from prior list)
+  + `unified_api/selector.rs`. SECURITY.md breakdown updated.
+- **DESIGN_PATTERNS.md "self-healing" / "runtime-adaptive" annotations**
+  (round-10 LOW #1). Banned-adjective Pattern 12 violation in the
+  three-layer table; now annotated with `[Implementation: ...]` cross-
+  references to the proprietary crates that back each label.
+- **DESIGN.md "hardware-aware" annotation** (round-10 LOW #2). Banned-
+  adjective doc gap in the Hardware Acceleration section; now defines
+  what "hardware-aware" means in terms of the `HardwareAware` trait
+  contract.
+
 ### Round-9 audit response — 5 round-8 follow-ups (2026-04-28)
 
 Five mechanical follow-ups to the round-8 fixes. No new defect classes;
@@ -883,9 +980,11 @@ see the migration section below.
   the length is statically known (invariant I-2): no heap allocator size
   fingerprint, no realloc path that could free an unzeroized buffer.
 - **`latticearc::SecretVec`** — new primitive. Heap-allocated variable-length
-  equivalent. Same invariants as `SecretBytes<N>`. Constructors call
-  `shrink_to_fit()` so `zeroize()` covers the full allocation, not just
-  `..len`.
+  equivalent. Same invariants as `SecretBytes<N>`. Constructors do **not**
+  call `shrink_to_fit()` (a 0.8.x hardening pass removed it after
+  discovering a realloc-leak: `shrink_to_fit` may move the buffer, leaving
+  the original allocation un-zeroized). The `Drop` impl walks the full
+  capacity instead.
 - **`latticearc::hybrid::kem_hybrid::HYBRID_SHARED_SECRET_LEN: usize = 64`**
   — new public constant, the size of the combined hybrid shared secret
   (HKDF-SHA256 output; see `derive_hybrid_shared_secret`).

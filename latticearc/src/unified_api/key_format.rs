@@ -149,11 +149,11 @@ pub enum KeyAlgorithm {
     #[serde(rename = "slh-dsa-shake-256f")]
     SlhDsaShake256f,
 
-    // --- Lattice signatures (FIPS 206) ---
-    /// FN-DSA-512 (FIPS 206)
+    // --- Lattice signatures (draft FIPS 206) ---
+    /// FN-DSA-512 (draft FIPS 206)
     #[serde(rename = "fn-dsa-512")]
     FnDsa512,
-    /// FN-DSA-1024 (FIPS 206)
+    /// FN-DSA-1024 (draft FIPS 206)
     #[serde(rename = "fn-dsa-1024")]
     FnDsa1024,
 
@@ -1826,7 +1826,7 @@ impl PortableKey {
         //    attacker who modifies any of these fields on disk breaks the
         //    AEAD tag.
         use crate::primitives::aead::AeadCipher;
-        let cipher = crate::primitives::aead::aes_gcm::AesGcm256::new(derived.key())
+        let cipher = crate::primitives::aead::aes_gcm::AesGcm256::new(derived.expose_secret())
             .map_err(|e| CoreError::InvalidKey(format!("Failed to initialize AES-256-GCM: {e}")))?;
         let aad = Self::encryption_aad(
             ENCRYPTED_ENVELOPE_VERSION,
@@ -1950,7 +1950,7 @@ impl PortableKey {
         // The AAD binds the full envelope so any tampered metadata field
         // also breaks the tag.
         use crate::primitives::aead::AeadCipher;
-        let cipher = crate::primitives::aead::aes_gcm::AesGcm256::new(derived.key())
+        let cipher = crate::primitives::aead::aes_gcm::AesGcm256::new(derived.expose_secret())
             .map_err(|e| CoreError::InvalidKey(format!("Failed to initialize AES-256-GCM: {e}")))?;
         // `kdf` and `aead` are the constants: `validate_encrypted_envelope_fields`
         // rejected any other value, so we can pass the literals directly

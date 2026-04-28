@@ -64,11 +64,19 @@ fn test_hkdf_expand_succeeds(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]
             match hkdf_expand(&prk, info, output_len) {
                 Ok(okm) => {
                     // Verify output length
-                    assert_eq!(okm.key().len(), output_len, "Output length must match requested");
+                    assert_eq!(
+                        okm.expose_secret().len(),
+                        output_len,
+                        "Output length must match requested"
+                    );
 
                     // Verify determinism
                     if let Ok(okm2) = hkdf_expand(&prk, info, output_len) {
-                        assert_eq!(okm.key(), okm2.key(), "HKDF-Expand must be deterministic");
+                        assert_eq!(
+                            okm.expose_secret(),
+                            okm2.expose_secret(),
+                            "HKDF-Expand must be deterministic"
+                        );
                     }
                 }
                 Err(_) => {}
@@ -91,11 +99,15 @@ fn test_hkdf_full_succeeds(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>)
     for output_len in [32, 64] {
         match hkdf(ikm, salt, info, output_len) {
             Ok(okm) => {
-                assert_eq!(okm.key().len(), output_len);
+                assert_eq!(okm.expose_secret().len(), output_len);
 
                 // Verify determinism
                 if let Ok(okm2) = hkdf(ikm, salt, info, output_len) {
-                    assert_eq!(okm.key(), okm2.key(), "HKDF must be deterministic");
+                    assert_eq!(
+                        okm.expose_secret(),
+                        okm2.expose_secret(),
+                        "HKDF must be deterministic"
+                    );
                 }
 
                 // Different info should produce different output
@@ -103,8 +115,8 @@ fn test_hkdf_full_succeeds(ikm: &[u8], salt: Option<&[u8]>, info: Option<&[u8]>)
                 if info != different_info {
                     if let Ok(okm_diff) = hkdf(ikm, salt, different_info, output_len) {
                         assert_ne!(
-                            okm.key(),
-                            okm_diff.key(),
+                            okm.expose_secret(),
+                            okm_diff.expose_secret(),
                             "Different info should produce different output"
                         );
                     }
@@ -120,11 +132,11 @@ fn test_hkdf_simple_succeeds(ikm: &[u8]) {
     let default_length = 32;
     if let Ok(result) = hkdf_simple(ikm, default_length) {
         // Should produce 32-byte output by default
-        assert_eq!(result.key().len(), default_length);
+        assert_eq!(result.expose_secret().len(), default_length);
 
         // Verify determinism
         if let Ok(result2) = hkdf_simple(ikm, default_length) {
-            assert_eq!(result.key(), result2.key());
+            assert_eq!(result.expose_secret(), result2.expose_secret());
         }
     }
 }

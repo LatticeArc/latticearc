@@ -216,7 +216,11 @@ fn regression_hkdf_empty_salt() {
 
     // Both should produce the same output
     if let (Ok(r1), Ok(r2)) = (result_empty, result_none) {
-        assert_eq!(r1.key(), r2.key(), "Empty salt and None salt should produce same output");
+        assert_eq!(
+            r1.expose_secret(),
+            r2.expose_secret(),
+            "Empty salt and None salt should produce same output"
+        );
     }
 }
 
@@ -243,8 +247,12 @@ fn regression_hkdf_output_boundary() {
 
     // Verify first 32 bytes match between 32 and 33 byte outputs
     if let (Ok(r32), Ok(r33)) = (result_32, result_33) {
-        let first_32_of_33: Vec<u8> = r33.key().iter().take(32).copied().collect();
-        assert_eq!(r32.key(), first_32_of_33.as_slice(), "HKDF prefix should be consistent");
+        let first_32_of_33: Vec<u8> = r33.expose_secret().iter().take(32).copied().collect();
+        assert_eq!(
+            r32.expose_secret(),
+            first_32_of_33.as_slice(),
+            "HKDF prefix should be consistent"
+        );
     }
 }
 
@@ -570,8 +578,16 @@ fn regression_hkdf_info_affects_output() {
 
     match (result1, result2, result_none) {
         (Ok(r1), Ok(r2), Ok(rn)) => {
-            assert_ne!(r1.key(), r2.key(), "Different info should produce different keys");
-            assert_ne!(r1.key(), rn.key(), "Info vs no info should produce different keys");
+            assert_ne!(
+                r1.expose_secret(),
+                r2.expose_secret(),
+                "Different info should produce different keys"
+            );
+            assert_ne!(
+                r1.expose_secret(),
+                rn.expose_secret(),
+                "Info vs no info should produce different keys"
+            );
         }
         _ => {}
     }
@@ -684,7 +700,7 @@ fn kat_hkdf_rfc5869_test1() {
         Ok(r) => r,
         Err(_) => return,
     };
-    assert_eq!(result.key(), &expected[..], "HKDF should match RFC 5869 test vector");
+    assert_eq!(result.expose_secret(), &expected[..], "HKDF should match RFC 5869 test vector");
 }
 
 /// Determinism: Hash produces same output for same input
@@ -728,7 +744,7 @@ fn determinism_hkdf_consistent() {
     let result2 = hkdf(ikm, Some(salt), Some(info), 64);
 
     if let (Ok(r1), Ok(r2)) = (result1, result2) {
-        assert_eq!(r1.key(), r2.key(), "HKDF should be deterministic");
+        assert_eq!(r1.expose_secret(), r2.expose_secret(), "HKDF should be deterministic");
     }
 }
 
@@ -1318,7 +1334,7 @@ fn zeroization_hkdf_result() {
     };
 
     // Verify non-zero — HkdfResult uses Zeroizing<Vec<u8>> for automatic zeroization on drop.
-    assert!(result.key().iter().any(|&b| b != 0), "HKDF result should be non-zero");
+    assert!(result.expose_secret().iter().any(|&b| b != 0), "HKDF result should be non-zero");
 }
 
 /// Constant-time: ML-KEM shared secret comparison is constant-time

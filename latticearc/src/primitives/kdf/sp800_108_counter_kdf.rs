@@ -48,13 +48,18 @@ impl ConstantTimeEq for CounterKdfResult {
 }
 
 impl CounterKdfResult {
-    /// Get the derived key
+    /// Borrow the derived key bytes.
+    ///
+    /// Named `expose_secret()` to align with Secret Type Invariant I-6
+    /// (universal accessor; see `docs/SECRET_TYPE_INVARIANTS.md`). The
+    /// returned slice is invalidated when this `CounterKdfResult` is
+    /// dropped — its backing `Zeroizing<Vec<u8>>` is wiped.
     #[must_use]
-    pub fn key(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.key
     }
 
-    /// Get the length of the derived key
+    /// Get the length of the derived key.
     #[must_use]
     pub fn key_length(&self) -> usize {
         self.key.len()
@@ -487,7 +492,7 @@ mod tests {
 
         let key = derive_encryption_key(ki, context).unwrap();
 
-        assert_eq!(key.key().len(), 32);
+        assert_eq!(key.expose_secret().len(), 32);
         assert_eq!(key.key_length(), 32);
     }
 
@@ -498,7 +503,7 @@ mod tests {
 
         let key = derive_mac_key(ki, context).unwrap();
 
-        assert_eq!(key.key().len(), 32);
+        assert_eq!(key.expose_secret().len(), 32);
         assert_eq!(key.key_length(), 32);
     }
 
@@ -509,7 +514,7 @@ mod tests {
 
         let iv = derive_iv(ki, context).unwrap();
 
-        assert_eq!(iv.key().len(), 16);
+        assert_eq!(iv.expose_secret().len(), 16);
         assert_eq!(iv.key_length(), 16);
     }
 
@@ -523,7 +528,7 @@ mod tests {
         let iv = derive_iv(ki, context).unwrap();
 
         assert_ne!(enc_key.key, mac_key.key);
-        assert_ne!(mac_key.key(), &iv.key()[..16]);
+        assert_ne!(mac_key.expose_secret(), &iv.expose_secret()[..16]);
     }
 
     #[test]
@@ -608,8 +613,8 @@ mod tests {
         let ki = b"test keying material";
         let params = CounterKdfParams::new(b"Label");
         let result = counter_kdf(ki, &params, 32).unwrap();
-        assert_eq!(result.key(), &result.key[..]);
-        assert_eq!(result.key().len(), 32);
+        assert_eq!(result.expose_secret(), &result.key[..]);
+        assert_eq!(result.expose_secret().len(), 32);
     }
 
     #[test]
@@ -646,8 +651,8 @@ mod tests {
         // CounterKdfResult intentionally does not implement Clone to prevent
         // accidental duplication of secret key material. Take a byte copy
         // instead for comparison.
-        let key_copy = result.key().to_vec();
-        assert_eq!(key_copy, result.key());
+        let key_copy = result.expose_secret().to_vec();
+        assert_eq!(key_copy, result.expose_secret());
         assert_eq!(result.key_length(), 32);
         // Drop triggers zeroize via Zeroizing<Vec<u8>>
         drop(result);

@@ -44,13 +44,16 @@ impl ConstantTimeEq for HkdfResult {
 }
 
 impl HkdfResult {
-    /// Get the derived key
+    /// Borrow the derived key bytes.
+    ///
+    /// Named `expose_secret()` to align with Secret Type Invariant I-6
+    /// (universal accessor; see `docs/SECRET_TYPE_INVARIANTS.md`).
     #[must_use]
-    pub fn key(&self) -> &[u8] {
+    pub fn expose_secret(&self) -> &[u8] {
         &self.key
     }
 
-    /// Get the length of the derived key
+    /// Get the length of the derived key.
     #[must_use]
     pub fn key_length(&self) -> usize {
         self.key.len()
@@ -360,7 +363,7 @@ mod tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key(), expected_okm);
+        assert_eq!(okm.expose_secret(), expected_okm);
     }
 
     #[test]
@@ -371,7 +374,7 @@ mod tests {
         let okm1 = hkdf(b"ikm1", Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(b"ikm2", Some(salt), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key(), okm2.key());
+        assert_ne!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -382,7 +385,7 @@ mod tests {
         let okm1 = hkdf(ikm, Some(b"salt1"), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(b"salt2"), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key(), okm2.key());
+        assert_ne!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -393,7 +396,7 @@ mod tests {
         let okm1 = hkdf(ikm, Some(salt), Some(b"info1"), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(b"info2"), 32).unwrap();
 
-        assert_ne!(okm1.key(), okm2.key());
+        assert_ne!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -406,12 +409,12 @@ mod tests {
         let okm2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let okm3 = hkdf(ikm, Some(salt), Some(info), 64).unwrap();
 
-        assert_eq!(okm1.key().len(), 16);
-        assert_eq!(okm2.key().len(), 32);
-        assert_eq!(okm3.key().len(), 64);
+        assert_eq!(okm1.expose_secret().len(), 16);
+        assert_eq!(okm2.expose_secret().len(), 32);
+        assert_eq!(okm3.expose_secret().len(), 64);
 
         // Different lengths should have same prefix (first 16 bytes identical)
-        assert_eq!(okm1.key(), &okm2.key()[..16]);
+        assert_eq!(okm1.expose_secret(), &okm2.expose_secret()[..16]);
         // But the full outputs should be different lengths
         assert_ne!(okm1.key_length(), okm2.key_length());
     }
@@ -425,7 +428,7 @@ mod tests {
         let okm1 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
 
-        assert_eq!(okm1.key(), okm2.key());
+        assert_eq!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -451,9 +454,9 @@ mod tests {
         let result2 = hkdf_simple(ikm, 32).unwrap();
 
         // Different random salts should produce different keys
-        assert_ne!(result1.key(), result2.key());
-        assert_eq!(result1.key().len(), 32);
-        assert_eq!(result2.key().len(), 32);
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
+        assert_eq!(result1.expose_secret().len(), 32);
+        assert_eq!(result2.expose_secret().len(), 32);
     }
 
     #[test]
@@ -463,7 +466,7 @@ mod tests {
 
         let key_bytes = {
             let result = hkdf(ikm, Some(salt), None, 32).unwrap();
-            let key_copy = result.key().to_vec();
+            let key_copy = result.expose_secret().to_vec();
             drop(result);
             key_copy
         };
@@ -478,7 +481,10 @@ mod tests {
 
         let result = hkdf(ikm, Some(salt), None, 32).unwrap();
 
-        assert!(!result.key().iter().all(|&b| b == 0), "HKDF result should contain non-zero data");
+        assert!(
+            !result.expose_secret().iter().all(|&b| b == 0),
+            "HKDF result should contain non-zero data"
+        );
 
         // Zeroizing<Vec<u8>> handles zeroization on drop automatically
         drop(result);
@@ -519,14 +525,14 @@ mod tests {
 
         // Test at hash length boundary (32 bytes)
         let okm1 = hkdf(ikm, Some(salt), None, 32).unwrap();
-        assert_eq!(okm1.key().len(), 32);
+        assert_eq!(okm1.expose_secret().len(), 32);
 
         // Test just over hash length boundary (33 bytes)
         let okm2 = hkdf(ikm, Some(salt), None, 33).unwrap();
-        assert_eq!(okm2.key().len(), 33);
+        assert_eq!(okm2.expose_secret().len(), 33);
 
         // First 32 bytes should match
-        assert_eq!(okm1.key(), &okm2.key()[..32]);
+        assert_eq!(okm1.expose_secret(), &okm2.expose_secret()[..32]);
     }
 
     // RFC 5869 Test Case 2: Longer inputs/outputs
@@ -570,8 +576,8 @@ mod tests {
             0x3e, 0x87, 0xc1, 0x4c, 0x01, 0xd5, 0xc1, 0xf3, 0x43, 0x4f, 0x1d, 0x87,
         ];
 
-        assert_eq!(okm.key(), expected_okm);
-        assert_eq!(okm.key().len(), 82);
+        assert_eq!(okm.expose_secret(), expected_okm);
+        assert_eq!(okm.expose_secret().len(), 82);
     }
 
     // RFC 5869 Test Case 3: Zero-length salt/info
@@ -592,7 +598,7 @@ mod tests {
             0x3c, 0x73, 0x8d, 0x2d, 0x9d, 0x20, 0x13, 0x95, 0xfa, 0xa4, 0xb6, 0x1a, 0x96, 0xc8,
         ];
 
-        assert_eq!(okm.key(), expected_okm);
+        assert_eq!(okm.expose_secret(), expected_okm);
     }
 
     // Test that the implementation uses aws-lc-rs correctly
@@ -619,6 +625,10 @@ mod tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key(), expected_okm, "HKDF must use aws-lc-rs implementation correctly");
+        assert_eq!(
+            okm.expose_secret(),
+            expected_okm,
+            "HKDF must use aws-lc-rs implementation correctly"
+        );
     }
 }

@@ -306,7 +306,13 @@ fn test_decapsulation_roundtrip_all_levels_roundtrip() {
     }
 }
 
-/// Test decapsulation with security level mismatch
+/// Test decapsulation with security level mismatch.
+///
+/// FIPS 203 §6.3 implicit-rejection contract: the failure path on
+/// adversary-reachable input must surface the same opaque error string as
+/// the constant-time decap rejection itself. Round-10 audit collapsed the
+/// pre-check, so this test asserts only that the operation rejects — it
+/// does NOT inspect the error string.
 #[test]
 fn test_decapsulation_security_level_mismatch_fails() {
     // Generate keypair for MlKem512
@@ -323,15 +329,6 @@ fn test_decapsulation_security_level_mismatch_fails() {
     // Attempt to decapsulate with MlKem768 secret key
     let result = MlKem::decapsulate(&sk_768, &ct_512);
     assert!(result.is_err(), "Decapsulation with mismatched security levels should fail");
-
-    // Verify error mentions security level mismatch
-    let err = result.unwrap_err();
-    let err_msg = err.to_string();
-    assert!(
-        err_msg.contains("mismatch") || err_msg.contains("security level"),
-        "Error should mention security level mismatch: {}",
-        err_msg
-    );
 }
 
 // ============================================================================

@@ -31,7 +31,7 @@ LatticeArc is a three-layer post-quantum cryptography platform:
 | Layer | Repository | Contents |
 |-------|-----------|----------|
 | **Layer 1 — Primitives** | `apache_repo` (Apache 2.0) | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, AES-GCM, ChaCha20, X25519, Ed25519, HKDF, hybrid encryption, unified API |
-| **Layer 2 — Enterprise Capabilities** | `proprietary_repo` | Self-healing security, zero-trust crypto ops, runtime-adaptive selection, Conditional Cryptography Engine (CCE) |
+| **Layer 2 — Enterprise Capabilities** | `proprietary_repo` | Self-healing security ^[Implementation: K-Means anomaly detection over op telemetry; CVE-driven algorithm rotation. See `proprietary_repo/arc-enterprise-security/`.]^, zero-trust crypto ops, runtime-adaptive selection ^[Implementation: data-characteristic + hardware-capability scoring; see `proprietary_repo/arc-enterprise-perf/adaptive_selector.rs`.]^, Conditional Cryptography Engine (CCE) |
 | **Layer 3 — Products** | `proprietary_repo` | Migration Accelerator, CryptoSOC, Code Signing, Governed Database, Timelock, 45+ more |
 
 The apache core is published to crates.io as a single `latticearc` crate. The proprietary
@@ -57,7 +57,7 @@ requirements govern their code.
 | ML-KEM (512/768/1024) | FIPS 203 | Module-Lattice Key Encapsulation Mechanism | `primitives::kem::ml_kem` via aws-lc-rs (FIPS 140-3 Cert #4631, #4759, #4816) |
 | ML-DSA (44/65/87) | FIPS 204 | Module-Lattice Digital Signature Algorithm | `primitives::sig::ml_dsa` via `fips204` crate |
 | SLH-DSA | FIPS 205 | Stateless Hash-Based Digital Signature Algorithm | `primitives::sig::slh_dsa` via `fips205` crate |
-| FN-DSA (512/1024) | Draft draft FIPS 206 | FFT-over-NTRU-Lattice Digital Signature Algorithm | `primitives::sig::fndsa` via `fn-dsa` crate |
+| FN-DSA (512/1024) | draft FIPS 206 | FFT-over-NTRU-Lattice Digital Signature Algorithm | `primitives::sig::fndsa` via `fn-dsa` crate |
 | AES-GCM (128/256) | SP 800-38D | Galois/Counter Mode for Authenticated Encryption | `primitives::aead::aes_gcm` via aws-lc-rs |
 | HKDF-SHA256 | SP 800-56C Rev.2 / RFC 5869 | Key Derivation using HMAC-based Extract-and-Expand | `primitives::kdf::hkdf` via aws-lc-rs HMAC |
 | HMAC-SHA256 | FIPS 198-1 / SP 800-107 | Keyed-Hash Message Authentication Code | `primitives::mac::hmac` via aws-lc-rs |

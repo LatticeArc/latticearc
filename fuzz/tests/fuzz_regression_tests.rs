@@ -415,7 +415,7 @@ mod kdf_regression {
         let result1 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let result2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
 
-        assert_eq!(result1.key(), result2.key(), "HKDF must be deterministic");
+        assert_eq!(result1.expose_secret(), result2.expose_secret(), "HKDF must be deterministic");
     }
 
     /// Test HKDF domain separation
@@ -429,7 +429,11 @@ mod kdf_regression {
         let result1 = hkdf(ikm, Some(salt), Some(info1), 32).unwrap();
         let result2 = hkdf(ikm, Some(salt), Some(info2), 32).unwrap();
 
-        assert_ne!(result1.key(), result2.key(), "Different info must produce different keys");
+        assert_ne!(
+            result1.expose_secret(),
+            result2.expose_secret(),
+            "Different info must produce different keys"
+        );
     }
 
     /// Regression: HKDF output length validation

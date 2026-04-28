@@ -253,7 +253,7 @@ fn hkdf_sha256_via_wrapper_matches_wycheproof() {
                     continue;
                 }
             };
-            let okm_bytes = okm.key();
+            let okm_bytes = okm.expose_secret();
             let matches = okm_bytes == &tc.okm[..];
 
             match tc.result {

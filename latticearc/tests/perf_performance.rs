@@ -1029,7 +1029,7 @@ fn test_hkdf_scaling_with_output_length_has_correct_size() {
         let result = hkdf(&ikm, Some(&salt), Some(info), length).unwrap();
         let duration = start.elapsed();
 
-        assert_eq!(result.key().len(), length, "HKDF output should be {} bytes", length);
+        assert_eq!(result.expose_secret().len(), length, "HKDF output should be {} bytes", length);
         assert!(
             duration.as_secs() < 1,
             "HKDF with {} byte output took too long: {:?}",

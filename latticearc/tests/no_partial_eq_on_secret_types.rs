@@ -37,6 +37,14 @@ use latticearc::primitives::kem::ml_kem::{
     MlKemDecapsulationKeyPair, MlKemSecretKey, MlKemSharedSecret,
 };
 
+// AEAD ciphers (hold the symmetric key in `key_bytes`).
+use latticearc::primitives::aead::aes_gcm::{AesGcm128, AesGcm256};
+// ChaCha20-Poly1305 is not FIPS-approved; gated off under `--features fips`.
+#[cfg(not(feature = "fips"))]
+use latticearc::primitives::aead::chacha20poly1305::{
+    ChaCha20Poly1305Cipher, XChaCha20Poly1305Cipher,
+};
+
 // Signature primitives
 use latticearc::primitives::ec::ed25519::Ed25519KeyPair;
 // Secp256k1 is gated off under `--features fips` (not a NIST-approved curve).
@@ -86,6 +94,17 @@ assert_not_impl_any!(EcdhP521KeyPair: PartialEq, Eq);
 assert_not_impl_any!(MlKemSecretKey: PartialEq, Eq);
 assert_not_impl_any!(MlKemSharedSecret: PartialEq, Eq);
 assert_not_impl_any!(MlKemDecapsulationKeyPair: PartialEq, Eq);
+
+// ============================================================================
+// AEAD ciphers
+// ============================================================================
+
+assert_not_impl_any!(AesGcm128: PartialEq, Eq);
+assert_not_impl_any!(AesGcm256: PartialEq, Eq);
+#[cfg(not(feature = "fips"))]
+assert_not_impl_any!(ChaCha20Poly1305Cipher: PartialEq, Eq);
+#[cfg(not(feature = "fips"))]
+assert_not_impl_any!(XChaCha20Poly1305Cipher: PartialEq, Eq);
 
 // ============================================================================
 // Signatures

@@ -72,7 +72,7 @@ We recommend always using the latest version.
 | ML-KEM | FIPS 203 | aws-lc-rs |
 | ML-DSA | FIPS 204 | fips204 crate |
 | SLH-DSA | FIPS 205 | fips205 crate |
-| FN-DSA | FIPS 206 | fn-dsa crate |
+| FN-DSA | draft FIPS 206 | fn-dsa crate |
 | AES-GCM | FIPS 197, SP 800-38D | aws-lc-rs |
 | SHA-3 | FIPS 202 | sha3 crate |
 | HKDF | RFC 5869 | aws-lc-rs (HMAC-based) |
@@ -259,19 +259,19 @@ Property-based tests verify our Rust wrappers correctly compose the verified pri
 - FIPS 203 key/ciphertext size compliance across all ML-KEM parameter sets
 - 256 random cases per property, release mode
 
-#### Layer 3: Kani — Type Invariants (29 proofs)
+#### Layer 3: Kani — Type Invariants (30 proofs)
 
-Kani model checking verifies the pure-Rust policy and state management layer in `latticearc::types`. These proofs do **not** cover cryptographic operations (which require FFI). They verify:
+Kani model checking verifies the pure-Rust policy and state management layer plus a small set of input-bound checks. These proofs do **not** cover cryptographic operations (which require FFI). They verify:
 - Key lifecycle state machine enforces SP 800-57 transitions (5 proofs)
-- Configuration validation bi-conditional over all 96 CoreConfig combinations (6 proofs)
+- Configuration validation bi-conditional over CoreConfig combinations (4 proofs)
 - Policy engine maps every enum variant to a valid algorithm, including hybrid schemes (5 proofs)
-- Compliance mode `requires_fips()` and `allows_hybrid()` exhaustive (3 proofs)
+- Compliance mode and default-security-level invariants (CNSA 2.0, NIST Level 3 default, 7 proofs in `types.rs`)
 - Trust level ordering is total and consistent, `is_fully_trusted()` correctness (4 proofs)
 - Domain separation constants are pairwise distinct (1 proof)
 - Verification status `is_verified()` iff Verified variant (1 proof)
-- Default security level is NIST Level 3, CNSA 2.0 compliance constraints (4 proofs)
+- Resource-limit bounds are honored on adversary-reachable inputs (3 proofs)
 
-Proofs in source code: `latticearc/src/types/{key_lifecycle,zero_trust,types,selector,config,domains,traits}.rs`
+Proofs in source code: `latticearc/src/types/{key_lifecycle,zero_trust,types,config,domains,traits}.rs`, `latticearc/src/primitives/resource_limits.rs`, `latticearc/src/unified_api/selector.rs`. Total: 30. Run `cargo kani --workspace` to reproduce.
 
 ## Security Audits
 
@@ -323,17 +323,25 @@ Audit reports will be published in the `docs/audits/` directory when available.
 **Hardware-instruction-level verification (gap, planned for 1.0):**
 
 The instruction-level constant-time tools that the Rust crypto ecosystem
-uses (`dudect`, `ctgrind`, `valgrind --tool=massif`) are referenced in
+uses (`dudect`, `ctgrind`, `valgrind --tool=memcheck`) are referenced in
 this codebase but are **not currently part of the PR-blocking CI matrix**.
-A `valgrind` job exists in the workflows but runs only on the nightly
-schedule. Before tagging 1.0 we plan to:
+The `ctgrind` job (a Valgrind memcheck wrapper that flags branches and
+indices on secret-tainted bytes) runs on a weekly schedule (Tuesday)
+rather than on every PR; the `dudect` Welch's-t-statistic gate runs on
+a separate weekly schedule (Monday) with the current threshold
+`|max t| < 10`. Before tagging 1.0 we plan to:
 
-- Promote the `valgrind --tool=massif` constant-time check from nightly
-  to PR-blocking on `unified_api/convenience/api.rs` and the `subtle`
-  call sites in `primitives/aead/`.
-- Add a `dudect`-style statistical test harness that computes Welch's
-  t-statistic on per-operation cycle counts and fails the build at
-  |t| > 4.5 (the standard publish threshold).
+- Promote the `ctgrind` (Valgrind `memcheck`) constant-time check from
+  weekly to PR-blocking on `unified_api/convenience/api.rs` and the
+  `subtle` call sites in `primitives/aead/`. (Note: `--tool=memcheck`
+  is the correct CT-checking tool — `--tool=massif` is the heap
+  profiler and is unrelated.)
+- Tighten the `dudect` Welch's-t threshold from the current
+  `|max t| < 10` (lenient, accommodates CI-runner jitter) to
+  `|t| > 4.5` (the standard publish threshold). The current `< 10`
+  bound catches order-of-magnitude regressions; `> 4.5` is the
+  research-grade gate we plan to enforce once we have a stable
+  CI-runner cycle-count baseline.
 - Wire `cargo +nightly miri` runs against the secret-comparison code
   paths to flag UB-class compiler optimizations that could break
   constant-time properties under newer rustc versions.

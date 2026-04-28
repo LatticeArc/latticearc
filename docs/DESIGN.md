@@ -276,7 +276,7 @@ flowchart LR
 
 ## Hardware Acceleration
 
-LatticeArc provides trait definitions for hardware-aware operations (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`). These define the interface contract for hardware integration.
+LatticeArc provides trait definitions for hardware-aware operations (`HardwareAccelerator`, `HardwareAware`, `HardwareCapabilities`, `HardwareInfo`, `HardwareType`). *Implementation:* "hardware-aware" means an implementor of `HardwareAware::available_accelerators()` returns the set of present accelerators (CPU SIMD / GPU / TPM / SGX) and `best_accelerator()` selects from that set, allowing scheme dispatch to vary per-host. The trait contracts are defined in `latticearc::types::traits`; concrete enterprise implementations live in `proprietary_repo/arc-enterprise-perf/`.
 
 The underlying cryptography library (`aws-lc-rs`) handles AES-NI, SHA extensions, and SIMD acceleration automatically at the C level — no application-level hardware detection is needed for optimal performance.
 

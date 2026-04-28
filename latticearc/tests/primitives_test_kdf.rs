@@ -49,7 +49,7 @@ mod pbkdf2_tests {
         let result1 = pbkdf2(password, &params).unwrap();
         let result2 = pbkdf2(password, &params).unwrap();
 
-        assert_eq!(result1.key(), result2.key());
+        assert_eq!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -60,7 +60,7 @@ mod pbkdf2_tests {
         let result1 = pbkdf2(b"password1", &params).unwrap();
         let result2 = pbkdf2(b"password2", &params).unwrap();
 
-        assert_ne!(result1.key(), result2.key());
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -72,7 +72,7 @@ mod pbkdf2_tests {
         let result1 = pbkdf2(password, &params1).unwrap();
         let result2 = pbkdf2(password, &params2).unwrap();
 
-        assert_ne!(result1.key(), result2.key());
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -85,7 +85,7 @@ mod pbkdf2_tests {
         let result1 = pbkdf2(password, &params1).unwrap();
         let result2 = pbkdf2(password, &params2).unwrap();
 
-        assert_ne!(result1.key(), result2.key());
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -102,8 +102,8 @@ mod pbkdf2_tests {
         let result_sha256 = pbkdf2(password, &params_sha256).unwrap();
         let result_sha512 = pbkdf2(password, &params_sha512).unwrap();
 
-        assert_eq!(result_sha256.key().len(), 32);
-        assert_eq!(result_sha512.key().len(), 64);
+        assert_eq!(result_sha256.expose_secret().len(), 32);
+        assert_eq!(result_sha512.expose_secret().len(), 64);
     }
 
     #[test]
@@ -154,11 +154,11 @@ mod pbkdf2_tests {
         let result = pbkdf2(password, &params).unwrap();
 
         // The key should be accessible and have correct length before drop
-        assert_eq!(result.key().len(), 32);
+        assert_eq!(result.expose_secret().len(), 32);
 
         // Pbkdf2Result uses Zeroizing<Vec<u8>> internally which auto-zeroizes on drop.
         // Verify the key is non-zero before drop (i.e., derivation produced real output).
-        assert!(result.key().iter().any(|&b| b != 0));
+        assert!(result.expose_secret().iter().any(|&b| b != 0));
         // drop(result) triggers automatic zeroization via Zeroizing<Vec<u8>>
     }
 }
@@ -182,7 +182,7 @@ mod hkdf_tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key(), expected);
+        assert_eq!(okm.expose_secret(), expected);
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod hkdf_tests {
             0xec, 0xc4, 0xc5, 0xbf, 0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18, 0x58, 0x65,
         ];
 
-        assert_eq!(okm.key(), expected);
+        assert_eq!(okm.expose_secret(), expected);
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod hkdf_tests {
         let okm1 = hkdf(b"ikm1", Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(b"ikm2", Some(salt), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key(), okm2.key());
+        assert_ne!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -241,7 +241,7 @@ mod hkdf_tests {
         let okm1 = hkdf(ikm, Some(b"salt1"), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(b"salt2"), Some(info), 32).unwrap();
 
-        assert_ne!(okm1.key(), okm2.key());
+        assert_ne!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -252,7 +252,7 @@ mod hkdf_tests {
         let okm1 = hkdf(ikm, Some(salt), Some(b"info1"), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(b"info2"), 32).unwrap();
 
-        assert_ne!(okm1.key(), okm2.key());
+        assert_ne!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -264,7 +264,7 @@ mod hkdf_tests {
         let okm1 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
         let okm2 = hkdf(ikm, Some(salt), Some(info), 32).unwrap();
 
-        assert_eq!(okm1.key(), okm2.key());
+        assert_eq!(okm1.expose_secret(), okm2.expose_secret());
     }
 
     #[test]
@@ -289,9 +289,9 @@ mod hkdf_tests {
         let result2 = hkdf_simple(ikm, 32).unwrap();
 
         // Different random salts should produce different keys
-        assert_ne!(result1.key(), result2.key());
-        assert_eq!(result1.key().len(), 32);
-        assert_eq!(result2.key().len(), 32);
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
+        assert_eq!(result1.expose_secret().len(), 32);
+        assert_eq!(result2.expose_secret().len(), 32);
     }
 
     #[test]
@@ -302,11 +302,11 @@ mod hkdf_tests {
         let result = hkdf(ikm, Some(salt), None, 32).unwrap();
 
         // The key should be accessible before drop
-        assert_eq!(result.key().len(), 32);
+        assert_eq!(result.expose_secret().len(), 32);
 
         // HkdfResult uses Zeroizing<Vec<u8>> for automatic zeroization on drop.
         // The key is non-zero before drop.
-        assert!(result.key().iter().any(|&b| b != 0));
+        assert!(result.expose_secret().iter().any(|&b| b != 0));
     }
 }
 
@@ -320,7 +320,7 @@ mod counter_kdf_tests {
 
         let result = counter_kdf(ki.as_ref(), &params, 32).unwrap();
 
-        assert_eq!(result.key().len(), 32);
+        assert_eq!(result.expose_secret().len(), 32);
     }
 
     #[test]
@@ -331,7 +331,7 @@ mod counter_kdf_tests {
         let result1 = counter_kdf(ki, &params, 32).unwrap();
         let result2 = counter_kdf(ki, &params, 32).unwrap();
 
-        assert_eq!(result1.key(), result2.key());
+        assert_eq!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod counter_kdf_tests {
         let result1 = counter_kdf(ki, &params1, 32).unwrap();
         let result2 = counter_kdf(ki, &params2, 32).unwrap();
 
-        assert_ne!(result1.key(), result2.key());
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -355,7 +355,7 @@ mod counter_kdf_tests {
         let result1 = counter_kdf(ki, &params1, 32).unwrap();
         let result2 = counter_kdf(ki, &params2, 32).unwrap();
 
-        assert_ne!(result1.key(), result2.key());
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -365,7 +365,7 @@ mod counter_kdf_tests {
         let result1 = counter_kdf(b"ki1", &params, 32).unwrap();
         let result2 = counter_kdf(b"ki2", &params, 32).unwrap();
 
-        assert_ne!(result1.key(), result2.key());
+        assert_ne!(result1.expose_secret(), result2.expose_secret());
     }
 
     #[test]
@@ -377,14 +377,14 @@ mod counter_kdf_tests {
         let result32 = counter_kdf(ki, &params, 32).unwrap();
         let result64 = counter_kdf(ki, &params, 64).unwrap();
 
-        assert_eq!(result16.key().len(), 16);
-        assert_eq!(result32.key().len(), 32);
-        assert_eq!(result64.key().len(), 64);
+        assert_eq!(result16.expose_secret().len(), 16);
+        assert_eq!(result32.expose_secret().len(), 32);
+        assert_eq!(result64.expose_secret().len(), 64);
 
         // Longer outputs should have shorter outputs as prefix
         // SP 800-108 includes L in the input, so different L results in completely different keys
-        assert_ne!(result16.key(), &result32.key()[..16]);
-        assert_ne!(result32.key(), &result64.key()[..32]);
+        assert_ne!(result16.expose_secret(), &result32.expose_secret()[..16]);
+        assert_ne!(result32.expose_secret(), &result64.expose_secret()[..32]);
     }
 
     #[test]
@@ -411,14 +411,14 @@ mod counter_kdf_tests {
         let keys = derive_multiple_keys(ki, context, &key_specs).unwrap();
 
         assert_eq!(keys.len(), 3);
-        assert_eq!(keys[0].key().len(), 32);
-        assert_eq!(keys[1].key().len(), 32);
-        assert_eq!(keys[2].key().len(), 16);
+        assert_eq!(keys[0].expose_secret().len(), 32);
+        assert_eq!(keys[1].expose_secret().len(), 32);
+        assert_eq!(keys[2].expose_secret().len(), 16);
 
         // All keys should be different
-        assert_ne!(keys[0].key(), keys[1].key());
-        assert_ne!(keys[1].key(), keys[2].key());
-        assert_ne!(keys[0].key(), keys[2].key());
+        assert_ne!(keys[0].expose_secret(), keys[1].expose_secret());
+        assert_ne!(keys[1].expose_secret(), keys[2].expose_secret());
+        assert_ne!(keys[0].expose_secret(), keys[2].expose_secret());
     }
 
     #[test]
@@ -430,13 +430,13 @@ mod counter_kdf_tests {
         let mac_key = derive_mac_key(ki, context).unwrap();
         let iv = derive_iv(ki, context).unwrap();
 
-        assert_eq!(enc_key.key().len(), 32);
-        assert_eq!(mac_key.key().len(), 32);
-        assert_eq!(iv.key().len(), 16);
+        assert_eq!(enc_key.expose_secret().len(), 32);
+        assert_eq!(mac_key.expose_secret().len(), 32);
+        assert_eq!(iv.expose_secret().len(), 16);
 
         // All keys should be different
-        assert_ne!(enc_key.key(), mac_key.key());
-        assert_ne!(mac_key.key(), &iv.key()[..16]);
+        assert_ne!(enc_key.expose_secret(), mac_key.expose_secret());
+        assert_ne!(mac_key.expose_secret(), &iv.expose_secret()[..16]);
     }
 
     #[test]
@@ -447,11 +447,11 @@ mod counter_kdf_tests {
         let result = counter_kdf(ki, &params, 32).unwrap();
 
         // The key should be accessible and have the correct length before drop
-        assert_eq!(result.key().len(), 32);
+        assert_eq!(result.expose_secret().len(), 32);
 
         // CounterKdfResult does not derive Clone to prevent accidental duplication
         // of secret key material. Take a byte copy for comparison instead.
-        let key_copy = result.key().to_vec();
+        let key_copy = result.expose_secret().to_vec();
 
         // Verify the key is non-zero before drop (derivation produced real output)
         assert!(key_copy.iter().any(|&b| b != 0));
@@ -477,15 +477,15 @@ mod integration_tests {
         let pbkdf2_result2 =
             pbkdf2(password, &Pbkdf2Params::with_salt(salt).iterations(1000).key_length(32))
                 .unwrap();
-        assert_eq!(pbkdf2_result1.key(), pbkdf2_result2.key());
+        assert_eq!(pbkdf2_result1.expose_secret(), pbkdf2_result2.expose_secret());
 
         let hkdf_result1 = hkdf(ikm, Some(salt), None, 32).unwrap();
         let hkdf_result2 = hkdf(ikm, Some(salt), None, 32).unwrap();
-        assert_eq!(hkdf_result1.key(), hkdf_result2.key());
+        assert_eq!(hkdf_result1.expose_secret(), hkdf_result2.expose_secret());
 
         let counter_result1 = counter_kdf(ikm, &CounterKdfParams::new(b"Label"), 32).unwrap();
         let counter_result2 = counter_kdf(ikm, &CounterKdfParams::new(b"Label"), 32).unwrap();
-        assert_eq!(counter_result1.key(), counter_result2.key());
+        assert_eq!(counter_result1.expose_secret(), counter_result2.expose_secret());
     }
 
     #[test]
@@ -499,9 +499,9 @@ mod integration_tests {
         let hkdf_result = hkdf(ikm, Some(salt), None, 32).unwrap();
         let counter_result = counter_kdf(ikm, &CounterKdfParams::new(b"Label"), 32).unwrap();
 
-        assert_ne!(pbkdf2_result.key(), hkdf_result.key());
-        assert_ne!(hkdf_result.key(), counter_result.key());
-        assert_ne!(pbkdf2_result.key(), counter_result.key());
+        assert_ne!(pbkdf2_result.expose_secret(), hkdf_result.expose_secret());
+        assert_ne!(hkdf_result.expose_secret(), counter_result.expose_secret());
+        assert_ne!(pbkdf2_result.expose_secret(), counter_result.expose_secret());
     }
 
     #[test]
@@ -513,13 +513,13 @@ mod integration_tests {
         let key_256 = hkdf(ikm, None, None, 32).unwrap();
         let key_512 = hkdf(ikm, None, None, 64).unwrap();
 
-        assert_eq!(key_128.key().len(), 16);
-        assert_eq!(key_256.key().len(), 32);
-        assert_eq!(key_512.key().len(), 64);
+        assert_eq!(key_128.expose_secret().len(), 16);
+        assert_eq!(key_256.expose_secret().len(), 32);
+        assert_eq!(key_512.expose_secret().len(), 64);
 
         // Outputs should be different
         // HKDF does NOT include L in the input, so longer outputs extend shorter ones
-        assert_eq!(key_128.key(), &key_256.key()[..16]);
-        assert_eq!(key_256.key(), &key_512.key()[..32]);
+        assert_eq!(key_128.expose_secret(), &key_256.expose_secret()[..16]);
+        assert_eq!(key_256.expose_secret(), &key_512.expose_secret()[..32]);
     }
 }

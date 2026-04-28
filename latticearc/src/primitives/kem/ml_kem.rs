@@ -1011,28 +1011,27 @@ impl MlKem {
         secret_key: &MlKemSecretKey,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
-        // Validate ciphertext size to prevent DoS via large ciphertexts
-        validate_decryption_size(ciphertext.as_bytes().len())
-            .map_err(|e| MlKemError::DecapsulationError(e.to_string()))?;
-
-        // Check security level mismatch
-        if secret_key.security_level() != ciphertext.security_level() {
-            return Err(MlKemError::DecapsulationError(format!(
-                "Security level mismatch: secret key is {}, ciphertext is {}",
-                secret_key.security_level().name(),
-                ciphertext.security_level().name()
-            )));
+        // FIPS 203 §6.3 implicit-rejection contract: every failure path on
+        // adversary-reachable input must surface the same opaque string so
+        // a chosen-ciphertext attacker cannot distinguish (a) DoS-size
+        // rejection, (b) parameter-set mismatch, (c) key-reconstruction
+        // failure, or (d) the constant-time decap rejection itself. The
+        // upstream cause is logged at `tracing::debug!` so operators with a
+        // debug subscriber retain the detail. Round-10 audit fix: the
+        // pre-checks below were previously distinguishable error strings.
+        if validate_decryption_size(ciphertext.as_bytes().len()).is_err()
+            || secret_key.security_level() != ciphertext.security_level()
+        {
+            tracing::debug!(
+                ct_len = ciphertext.as_bytes().len(),
+                sk_level = ?secret_key.security_level(),
+                ct_level = ?ciphertext.security_level(),
+                "ML-KEM decap rejected before key-reconstruction"
+            );
+            return Err(MlKemError::DecapsulationError("decapsulation failed".to_string()));
         }
 
         // Reconstruct DecapsulationKey from serialized bytes (available since aws-lc-rs v1.16.0).
-        // Both the key-reconstruction error and the decap error use the same
-        // opaque string so an adversary supplying `ciphertext` cannot tell
-        // which stage rejected. Key-reconstruction failure is only triggered
-        // by a malformed *caller-side* secret key (not adversary-reachable),
-        // but we still unify the error for consistency and defense in depth.
-        // The upstream cause is logged at `tracing::debug!` so developers
-        // running a debug subscriber get the detail without it leaking
-        // through the `Result` to attackers in production logs.
         let algorithm = secret_key.security_level().as_aws_algorithm();
         let decaps_key =
             DecapsulationKey::new(algorithm, secret_key.expose_secret()).map_err(|e| {
@@ -1384,17 +1383,12 @@ mod tests {
         // Encapsulate with MlKem512
         let (_ss, ct512) = MlKem::encapsulate(&pk512)?;
 
-        // Try to decapsulate with MlKem768 secret key (should fail)
+        // Try to decapsulate with MlKem768 secret key (should fail).
+        // FIPS 203 §6.3 implicit-rejection contract: the failure path must
+        // surface the same opaque error as constant-time decap rejection,
+        // so this test asserts only `is_err()` (round-10 audit fix #3).
         let result = MlKem::decapsulate(&sk768, &ct512);
         assert!(result.is_err(), "Decapsulation with mismatched security levels should fail");
-
-        // Verify error message mentions security level mismatch
-        let err_msg = result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("security level") || err_msg.contains("mismatch"),
-            "Error should mention security level mismatch: {}",
-            err_msg
-        );
 
         Ok(())
     }

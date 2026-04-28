@@ -24,14 +24,17 @@ use crate::types::types::CryptoContext;
 
 /// Sealed-trait pattern (Pattern 4) for the security-critical traits below.
 ///
-/// `ZeroTrustAuthenticable` and `ProofOfPossession` define
-/// challenge-response and key-ownership semantics that downstream impls
-/// could trivially break (e.g. `verify_proof` returning `Ok(true)` for any
-/// input). Sealing prevents external implementation while still allowing
-/// the traits to be used as bounds in generic code.
+/// `ZeroTrustAuthenticable`, `ProofOfPossession`, `ContinuousVerifiable`,
+/// and `SchemeSelector` all define semantics that downstream impls could
+/// trivially break — e.g. a `verify_proof` that always returns `Ok(true)`,
+/// a `verify_continuously` that always reports `Verified`, or a
+/// `select_signature_scheme` that downgrades CNSA 2.0 callers to a
+/// classical algorithm. Sealing prevents external implementation while
+/// still allowing the traits to be used as bounds in generic code.
 mod sealed {
     pub trait Sealed {}
     impl Sealed for crate::unified_api::zero_trust::ZeroTrustAuth {}
+    impl Sealed for crate::unified_api::selector::CryptoPolicyEngine {}
 }
 
 /// Trait for zero-trust authentication with challenge-response proofs.
@@ -85,7 +88,11 @@ pub trait ProofOfPossession: sealed::Sealed {
 }
 
 /// Trait for continuous session verification.
-pub trait ContinuousVerifiable {
+///
+/// Sealed (Pattern 4): only types in this crate can implement it. A
+/// downstream impl that always reports `VerificationStatus::Verified`
+/// would silently bypass the zero-trust loop.
+pub trait ContinuousVerifiable: sealed::Sealed {
     /// The error type for verification failures.
     type Error;
 
@@ -199,7 +206,11 @@ impl HardwareInfo {
 }
 
 /// Trait for cryptographic scheme selection.
-pub trait SchemeSelector {
+///
+/// Sealed (Pattern 4): only types in this crate can implement it. A
+/// downstream impl could otherwise return a classical algorithm name to a
+/// CNSA-2.0 caller and silently downgrade the policy floor.
+pub trait SchemeSelector: sealed::Sealed {
     /// The error type for selection failures.
     type Error;
 

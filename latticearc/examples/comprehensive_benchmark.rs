@@ -145,7 +145,7 @@ fn main() {
         combined_ikm.extend_from_slice(ml_kem_ss.expose_secret());
         combined_ikm.extend_from_slice(&*ecdh_ss);
         let hkdf_result = hkdf(&combined_ikm, None, Some(b"hybrid"), 32).unwrap();
-        let hybrid_key: [u8; 32] = hkdf_result.key().try_into().unwrap();
+        let hybrid_key: [u8; 32] = hkdf_result.expose_secret().try_into().unwrap();
 
         // Step 4: AES-256-GCM encryption
         let hybrid_cipher = AesGcm256::new(&hybrid_key).unwrap();
@@ -166,7 +166,7 @@ fn main() {
 
         // Step 2: Derive key (simulate with ECDH only for benchmark simplicity)
         let hkdf_result = hkdf(&*ecdh_ss, None, Some(b"hybrid"), 32).unwrap();
-        let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
+        let key: [u8; 32] = hkdf_result.expose_secret().try_into().unwrap();
 
         // Step 3: AES-256-GCM decryption
         let hybrid_cipher = AesGcm256::new(&key).unwrap();
@@ -198,7 +198,7 @@ fn main() {
 
         // Step 2: Derive encryption key with HKDF
         let hkdf_result = hkdf(&*ecdh_ss, None, Some(b"classical"), 32).unwrap();
-        let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
+        let key: [u8; 32] = hkdf_result.expose_secret().try_into().unwrap();
 
         // Step 3: AES-256-GCM encryption
         let classical_cipher = AesGcm256::new(&key).unwrap();
@@ -215,7 +215,7 @@ fn main() {
 
         // Step 2: Derive decryption key
         let hkdf_result = hkdf(&*ecdh_ss, None, Some(b"classical"), 32).unwrap();
-        let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
+        let key: [u8; 32] = hkdf_result.expose_secret().try_into().unwrap();
 
         // Step 3: AES-256-GCM decryption
         let classical_cipher = AesGcm256::new(&key).unwrap();
@@ -245,7 +245,7 @@ fn main() {
 
         // Step 2: Derive encryption key with HKDF
         let hkdf_result = hkdf(ml_kem_ss.expose_secret(), None, Some(b"pq-only"), 32).unwrap();
-        let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
+        let key: [u8; 32] = hkdf_result.expose_secret().try_into().unwrap();
 
         // Step 3: AES-256-GCM encryption
         let pq_cipher = AesGcm256::new(&key).unwrap();
@@ -259,7 +259,7 @@ fn main() {
         // *Decrypt shows HKDF + AES-GCM only (ML-KEM decaps excluded for simplicity)
         // Simulating with pre-known key derivation
         let hkdf_result = hkdf(&[0u8; 32], None, Some(b"pq-only"), 32).unwrap();
-        let key: [u8; 32] = hkdf_result.key().try_into().unwrap();
+        let key: [u8; 32] = hkdf_result.expose_secret().try_into().unwrap();
         let pq_cipher = AesGcm256::new(&key).unwrap();
         let _ = pq_cipher.decrypt(&nonce, &ct, &tag, None);
     });

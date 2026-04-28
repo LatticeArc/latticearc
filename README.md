@@ -251,7 +251,7 @@ block-beta
 
     block:PRIM["Primitives"]:3
         columns 5
-        kem["ML-KEM\nFIPS 203"] dsa["ML-DSA\nFIPS 204"] slh["SLH-DSA\nFIPS 205"] fn["FN-DSA\nFIPS 206"] sym["AES-GCM\nX25519 · Ed25519"]
+        kem["ML-KEM\nFIPS 203"] dsa["ML-DSA\nFIPS 204"] slh["SLH-DSA\nFIPS 205"] fn["FN-DSA\ndraft FIPS 206"] sym["AES-GCM\nX25519 · Ed25519"]
     end
 
     block:BACK["Backends"]:3

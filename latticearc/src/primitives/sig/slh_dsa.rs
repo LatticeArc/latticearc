@@ -91,21 +91,29 @@ pub enum SlhDsaError {
 // Security Levels
 // ============================================================================
 
-/// SLH-DSA security levels as specified in FIPS 205
+/// SLH-DSA security levels exposed by this crate.
+///
+/// FIPS 205 defines twelve parameter sets (`{SHAKE,SHA2} × {128,192,256} ×
+/// {s,f}`). LatticeArc currently exposes only the three SHAKE-`s` variants
+/// (small signatures, slower signing); the remaining nine — SHA2 hash
+/// instantiation and the `f` (fast-signing, larger-signature) variants —
+/// are not yet wired through the unified API. The enum is
+/// `#[non_exhaustive]` so adding them later is a non-breaking change for
+/// downstream `match` statements.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum SlhDsaSecurityLevel {
     /// SLH-DSA-SHAKE-128s: NIST Level 1 (quantum security ~128 bits)
-    /// Smaller keys and signatures, faster performance
+    /// Smaller keys and signatures, slower signing
     Shake128s = 1,
 
     /// SLH-DSA-SHAKE-192s: NIST Level 3 (quantum security ~192 bits)
-    /// Balanced security and performance
+    /// Balanced security and signing speed
     Shake192s = 2,
 
     /// SLH-DSA-SHAKE-256s: NIST Level 5 (quantum security ~256 bits)
-    /// Highest security, larger keys and signatures
+    /// Highest security, larger keys and signatures, slower signing
     Shake256s = 3,
 }
 

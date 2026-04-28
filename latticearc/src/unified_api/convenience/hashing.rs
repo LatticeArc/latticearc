@@ -42,7 +42,7 @@ fn derive_key_hkdf(password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8
         length,
     )
     .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
-    Ok(result.key().to_vec())
+    Ok(result.expose_secret().to_vec())
 }
 
 /// Internal implementation of HKDF key derivation with caller-supplied info string.
@@ -57,7 +57,7 @@ fn derive_key_hkdf_with_info(
 ) -> Result<Vec<u8>> {
     let result = crate::primitives::kdf::hkdf::hkdf(password, Some(salt), Some(info), length)
         .map_err(|e| CoreError::KeyDerivationFailed(format!("HKDF failed: {e}")))?;
-    Ok(result.key().to_vec())
+    Ok(result.expose_secret().to_vec())
 }
 
 /// Internal implementation of key derivation with caller-supplied info string.

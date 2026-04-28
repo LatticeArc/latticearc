@@ -481,7 +481,11 @@ fn test_hkdf_output_format_rfc5869_has_correct_size() {
     // RFC 5869: HKDF can produce any length up to 255*HashLen
     for length in [16, 32, 48, 64, 128, 256] {
         let result = hkdf(ikm, Some(salt), Some(info), length).expect("hkdf should succeed");
-        assert_eq!(result.key().len(), length, "HKDF should produce exact requested length");
+        assert_eq!(
+            result.expose_secret().len(),
+            length,
+            "HKDF should produce exact requested length"
+        );
         assert_eq!(result.key_length(), length, "key_length should match");
     }
 }
@@ -684,7 +688,7 @@ fn test_arc_primitives_hkdf_interface_compatibility_succeeds() {
 
     // Full HKDF
     let result = hkdf(ikm, Some(salt), Some(info), 32).expect("hkdf should succeed");
-    assert_eq!(result.key().len(), 32);
+    assert_eq!(result.expose_secret().len(), 32);
 
     // Extract
     let prk = hkdf_extract(Some(salt), ikm).expect("extract should succeed");
@@ -692,7 +696,7 @@ fn test_arc_primitives_hkdf_interface_compatibility_succeeds() {
 
     // Expand
     let expanded = hkdf_expand(&prk, Some(info), 64).expect("expand should succeed");
-    assert_eq!(expanded.key().len(), 64);
+    assert_eq!(expanded.expose_secret().len(), 64);
 }
 
 /// Test re-exports from arc-primitives work correctly
@@ -874,7 +878,7 @@ fn test_rfc5869_hkdf_test_case_1_succeeds() {
 
     // Test full HKDF
     let okm = hkdf(&ikm, Some(&salt), Some(&info), 42).expect("hkdf should succeed");
-    assert_eq!(okm.key(), &expected_okm[..], "RFC 5869: OKM should match test vector");
+    assert_eq!(okm.expose_secret(), &expected_okm[..], "RFC 5869: OKM should match test vector");
 }
 
 /// Test RFC 5869 HKDF test case 3 (zero-length salt/info)
@@ -895,7 +899,7 @@ fn test_rfc5869_hkdf_test_case_3_succeeds() {
     ];
 
     let okm = hkdf(&ikm, Some(salt), Some(info), 42).expect("hkdf should succeed");
-    assert_eq!(okm.key(), &expected_okm[..], "RFC 5869: Test case 3 OKM should match");
+    assert_eq!(okm.expose_secret(), &expected_okm[..], "RFC 5869: Test case 3 OKM should match");
 }
 
 /// Test RFC 8439 ChaCha20-Poly1305 basic compliance
@@ -977,7 +981,7 @@ fn test_hkdf_max_output_length_has_correct_size() {
     // RFC 5869: Maximum output is 255 * hash_length (255 * 32 = 8160 for SHA-256)
     let max_result = hkdf(ikm, None, None, 8160);
     assert!(max_result.is_ok(), "HKDF should accept max length (8160)");
-    assert_eq!(max_result.unwrap().key().len(), 8160);
+    assert_eq!(max_result.unwrap().expose_secret().len(), 8160);
 
     // Exceeding max should fail
     let over_max_result = hkdf(ikm, None, None, 8161);
@@ -994,22 +998,22 @@ fn test_cross_algorithm_key_derivation_succeeds() {
     // Derive 32-byte key for ChaCha20-Poly1305
     let chacha_key =
         hkdf(ikm, Some(salt), Some(b"chacha20-poly1305"), 32).expect("derivation should succeed");
-    assert_eq!(chacha_key.key().len(), 32);
+    assert_eq!(chacha_key.expose_secret().len(), 32);
 
     // Derive 32-byte key for AES-256
     let aes_key =
         hkdf(ikm, Some(salt), Some(b"aes-256-gcm"), 32).expect("derivation should succeed");
-    assert_eq!(aes_key.key().len(), 32);
+    assert_eq!(aes_key.expose_secret().len(), 32);
 
     // Derive 32-byte key for HMAC
     let hmac_key =
         hkdf(ikm, Some(salt), Some(b"hmac-sha256"), 32).expect("derivation should succeed");
-    assert_eq!(hmac_key.key().len(), 32);
+    assert_eq!(hmac_key.expose_secret().len(), 32);
 
     // Keys should all be different due to different info
-    assert_ne!(chacha_key.key(), aes_key.key());
-    assert_ne!(aes_key.key(), hmac_key.key());
-    assert_ne!(chacha_key.key(), hmac_key.key());
+    assert_ne!(chacha_key.expose_secret(), aes_key.expose_secret());
+    assert_ne!(aes_key.expose_secret(), hmac_key.expose_secret());
+    assert_ne!(chacha_key.expose_secret(), hmac_key.expose_secret());
 }
 
 // ============================================================================
@@ -1140,5 +1144,5 @@ fn test_all_key_types_can_be_zeroized_succeeds() {
 
     // HKDF result uses Zeroizing<Vec<u8>> for automatic zeroization on drop.
     let result = hkdf(b"ikm", None, None, 32).expect("hkdf should succeed");
-    assert!(result.key().iter().any(|&b| b != 0));
+    assert!(result.expose_secret().iter().any(|&b| b != 0));
 }

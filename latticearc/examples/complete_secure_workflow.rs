@@ -58,12 +58,16 @@ fn main() {
     let salt = random_bytes(16);
     let params = Pbkdf2Params::with_salt(&salt).iterations(600_000).key_length(32);
     let derived = pbkdf2(password, &params).expect("PBKDF2 derivation failed");
-    let enc_key: Vec<u8> = derived.key().to_vec();
+    let enc_key: Vec<u8> = derived.expose_secret().to_vec();
     println!("  Derived {}-byte encryption key (PBKDF2, 600k iters)", enc_key.len());
 
     // Verify determinism: same password + same salt → same key.
     let derived2 = pbkdf2(password, &params).expect("PBKDF2 re-derivation failed");
-    assert_eq!(enc_key, derived2.key(), "PBKDF2 must be deterministic for fixed salt + iters");
+    assert_eq!(
+        enc_key,
+        derived2.expose_secret(),
+        "PBKDF2 must be deterministic for fixed salt + iters"
+    );
     println!("  Determinism verified: same password + salt produce same key");
 
     // -----------------------------------------------------------------------

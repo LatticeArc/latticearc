@@ -310,7 +310,7 @@ mod tests {
                     let key2 = hkdf(&ikm, Some(salt), Some(info), 32).expect("hkdf2");
 
                     // Same inputs should always produce same key
-                    if key1.key() == key2.key() {
+                    if key1.expose_secret() == key2.expose_secret() {
                         success.fetch_add(1, Ordering::SeqCst);
                     }
                 })

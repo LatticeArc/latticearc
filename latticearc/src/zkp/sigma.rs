@@ -77,8 +77,13 @@ impl SigmaProof {
 
     /// Return a mutable reference to the challenge bytes.
     ///
-    /// Intended for test tampering scenarios only.
+    /// Intended for test tampering scenarios only — exposing this
+    /// mutator on the production API surface lets a downstream caller
+    /// replace the Fiat-Shamir challenge in a constructed proof without
+    /// re-deriving the response, defeating soundness. Round-10 audit fix
+    /// #11 gates it behind `#[cfg(any(test, feature = "test-utils"))]`.
     #[must_use]
+    #[cfg(any(test, feature = "test-utils"))]
     pub fn challenge_mut(&mut self) -> &mut [u8; 32] {
         &mut self.challenge
     }
@@ -781,15 +786,20 @@ mod tests {
             _statement: &Self::Statement,
             witness: &Self::Witness,
         ) -> Result<(Self::Commitment, Vec<u8>)> {
-            // Deterministic commitment: hash of witness
+            // Deterministic commitment: hash of witness.
             let mut buf = Vec::new();
             buf.extend_from_slice(b"mock-commit");
             buf.extend_from_slice(witness);
             let commitment = sha256(&buf)
                 .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?
                 .to_vec();
-            // State = copy of witness for respond()
-            Ok((commitment, witness.clone()))
+            // Carry the commitment forward so `respond` and `verify` derive
+            // the response from the same publicly-checkable input. (We
+            // deliberately do NOT carry the witness into state — that
+            // would make the mock's response unverifiable from public
+            // data, which led the previous `verify` to a length-only
+            // check that returned `Ok(true)` for any 32-byte input.)
+            Ok((commitment.clone(), commitment))
         }
 
         fn respond(
@@ -798,7 +808,8 @@ mod tests {
             commitment_state: Vec<u8>,
             challenge: &[u8; 32],
         ) -> Result<Self::Response> {
-            // Response: hash(commitment_state || challenge)
+            // Response: hash("mock-response" || commitment || challenge).
+            // `commitment_state == commitment` per `commit()` above.
             let mut buf = Vec::new();
             buf.extend_from_slice(b"mock-response");
             buf.extend_from_slice(&commitment_state);
@@ -815,9 +826,20 @@ mod tests {
             challenge: &[u8; 32],
             response: &Self::Response,
         ) -> Result<bool> {
-            // For mock: verify that response matches expected hash
-            // We can't reconstruct witness, so just check lengths are valid
-            Ok(commitment.len() == 32 && challenge.len() == 32 && response.len() == 32)
+            // Reconstruct the expected response from public data and
+            // compare in constant time. A mock that returns `Ok(true)`
+            // for any 32-byte input gives `FiatShamir` callers no
+            // signal — round-10 audit fix #8 closes that gap.
+            if commitment.len() != 32 || response.len() != 32 {
+                return Ok(false);
+            }
+            let mut buf = Vec::new();
+            buf.extend_from_slice(b"mock-response");
+            buf.extend_from_slice(commitment);
+            buf.extend_from_slice(challenge);
+            let expected = sha256(&buf)
+                .map_err(|e| ZkpError::SerializationError(format!("SHA-256 failed: {e}")))?;
+            Ok(bool::from(response.ct_eq(expected.as_ref())))
         }
 
         fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {

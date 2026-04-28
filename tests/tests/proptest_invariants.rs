@@ -176,8 +176,14 @@ mod ml_dsa {
                 MlDsaSignature::new(MlDsaParameterSet::MlDsa44, sig_bytes).unwrap();
             // Bit-flipped signature must not verify; function either returns
             // Ok(false) or Err — both acceptable per FIPS 204 unforgeability.
+            // Round-10 audit fix #14: previous form was `if let Ok(v) = ...`
+            // which silently let the Err branch pass without comment, hiding
+            // any future accidental Ok(true). Explicit else-arm makes the
+            // intent of "Err is acceptable" visible to readers.
             if let Ok(v) = pk.verify(&message, &corrupted_sig, b"") {
                 prop_assert!(!v, "bit-flipped signature verified as valid");
+            } else {
+                // Err is acceptable per FIPS 204 unforgeability — no assertion needed.
             }
         }
 

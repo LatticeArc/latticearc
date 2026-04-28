@@ -321,7 +321,7 @@ pub fn encrypt_pq_only(
         PqOnlyError::KdfError("KDF failed".to_string())
     })?;
 
-    let cipher = AesGcm256::new(hkdf_result.key()).map_err(|_e| {
+    let cipher = AesGcm256::new(hkdf_result.expose_secret()).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "AES-256 init failed");
         PqOnlyError::EncryptionError("encryption failed".to_string())
     })?;
@@ -392,7 +392,7 @@ pub fn decrypt_pq_only(
         opaque()
     })?;
 
-    let cipher = AesGcm256::new(hkdf_result.key()).map_err(|_e| {
+    let cipher = AesGcm256::new(hkdf_result.expose_secret()).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AES-256 init failed");
         opaque()
     })?;

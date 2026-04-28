@@ -413,7 +413,7 @@ pub fn derive_encryption_key(
     })?;
 
     let mut key = Zeroizing::new([0u8; 32]);
-    key.copy_from_slice(hkdf_result.key());
+    key.copy_from_slice(hkdf_result.expose_secret());
     Ok(key)
 }
 

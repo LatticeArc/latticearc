@@ -41,11 +41,15 @@ fn test_pbkdf2_with_params_succeeds(password: &[u8], salt: &[u8], iterations: u3
     match pbkdf2(password, &params) {
         Ok(result) => {
             // Verify output length
-            assert_eq!(result.key().len(), key_len, "Output length must match requested");
+            assert_eq!(result.expose_secret().len(), key_len, "Output length must match requested");
 
             // Verify determinism
             if let Ok(result2) = pbkdf2(password, &params) {
-                assert_eq!(result.key(), result2.key(), "PBKDF2 must be deterministic");
+                assert_eq!(
+                    result.expose_secret(),
+                    result2.expose_secret(),
+                    "PBKDF2 must be deterministic"
+                );
             }
 
             // Different password should produce different output
@@ -59,8 +63,8 @@ fn test_pbkdf2_with_params_succeeds(password: &[u8], salt: &[u8], iterations: u3
             if let Ok(result_diff) = pbkdf2(different_password, &params2) {
                 if password != different_password {
                     assert_ne!(
-                        result.key(),
-                        result_diff.key(),
+                        result.expose_secret(),
+                        result_diff.expose_secret(),
                         "Different password should produce different output"
                     );
                 }
@@ -77,8 +81,8 @@ fn test_pbkdf2_with_params_succeeds(password: &[u8], salt: &[u8], iterations: u3
             if let Ok(result_diff) = pbkdf2(password, &params3) {
                 if salt != different_salt {
                     assert_ne!(
-                        result.key(),
-                        result_diff.key(),
+                        result.expose_secret(),
+                        result_diff.expose_secret(),
                         "Different salt should produce different output"
                     );
                 }
@@ -98,7 +102,7 @@ fn test_pbkdf2_with_params_succeeds(password: &[u8], salt: &[u8], iterations: u3
             prf: PrfType::HmacSha256,
         };
         if let Ok(result) = pbkdf2(password, &params) {
-            assert_eq!(result.key().len(), test_len);
+            assert_eq!(result.expose_secret().len(), test_len);
         }
     }
 
@@ -125,11 +129,11 @@ fn test_pbkdf2_simple_succeeds(password: &[u8]) {
     // Test simple PBKDF2 (default parameters)
     if let Ok(result) = pbkdf2_simple(password) {
         // Should produce output with default length
-        assert!(!result.key().is_empty());
+        assert!(!result.expose_secret().is_empty());
 
         // Verify determinism
         if let Ok(result2) = pbkdf2_simple(password) {
-            assert_eq!(result.key(), result2.key());
+            assert_eq!(result.expose_secret(), result2.expose_secret());
         }
     }
 }

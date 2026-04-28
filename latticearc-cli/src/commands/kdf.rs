@@ -225,5 +225,5 @@ fn derive_pbkdf2_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<
     let result = latticearc::primitives::kdf::pbkdf2(&password, &params)
         .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?;
 
-    Ok(result.key().to_vec())
+    Ok(result.expose_secret().to_vec())
 }

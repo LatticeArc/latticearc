@@ -940,10 +940,11 @@ pub fn derive_hybrid_shared_secret(
     // (HYBRID_SHARED_SECRET_LEN, passed above). The `try_into` can only fail
     // if the underlying `hkdf` contract is violated; we surface that as a KDF
     // error rather than panic, keeping this function total.
-    let key_array: [u8; HYBRID_SHARED_SECRET_LEN] = hkdf_result.key().try_into().map_err(|_e| {
-        log_crypto_operation_error!(op::HYBRID_KEM_DERIVE, "HKDF output length mismatch");
-        HybridKemError::KdfError("KDF output length mismatch".to_string())
-    })?;
+    let key_array: [u8; HYBRID_SHARED_SECRET_LEN] =
+        hkdf_result.expose_secret().try_into().map_err(|_e| {
+            log_crypto_operation_error!(op::HYBRID_KEM_DERIVE, "HKDF output length mismatch");
+            HybridKemError::KdfError("KDF output length mismatch".to_string())
+        })?;
     Ok(crate::types::SecretBytes::new(key_array))
 }
 
