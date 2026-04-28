@@ -1,10 +1,13 @@
 #![deny(unsafe_code)]
 #![no_main]
 
-//! Fuzz testing for hashing operations
+//! Fuzz testing for `latticearc::unified_api::hash_data` (SHA-256 wrapper).
 //!
-//! Tests that hash_data produces consistent results with arbitrary input.
-//! (Cross-border compliance features are available in LatticeArc Enterprise)
+//! Renamed from `cross_border_fuzz.rs` in round-11 — the prior name claimed
+//! coverage of compliance / jurisdictional code paths that this harness has
+//! never exercised. The actual surface tested here is the deterministic
+//! SHA-256 wrapper. Compliance / cross-border features are in
+//! `proprietary_repo` and have their own enterprise harnesses.
 
 use latticearc::unified_api::hash_data;
 use libfuzzer_sys::fuzz_target;

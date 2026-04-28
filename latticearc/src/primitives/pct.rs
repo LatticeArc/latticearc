@@ -15,7 +15,7 @@
 //!
 //! - **ML-DSA** (FIPS 204): Module-Lattice-Based Digital Signature Algorithm
 //! - **SLH-DSA** (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
-//! - **FN-DSA** (FIPS 206): Few-Time Digital Signature Algorithm
+//! - **FN-DSA** (draft FIPS 206): FFT-over-NTRU-Lattice Digital Signature Algorithm
 //! - **Ed25519** (RFC 8032): Edwards-Curve Digital Signature Algorithm (non-FIPS)
 //! - **secp256k1** (SEC 2): ECDSA on secp256k1 curve (non-FIPS)
 //!

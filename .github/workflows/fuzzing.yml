@@ -64,7 +64,7 @@ jobs:
           - fuzz_ecdh_p256
           # Hybrid
           - hybrid_encrypt_fuzz
-          - cross_border_fuzz
+          - hash_data_fuzz
           # Serialization / Deserialization
           - fuzz_portable_key_json
           - fuzz_encrypted_data_deser
@@ -135,7 +135,7 @@ jobs:
           - fuzz_aes_gcm
           - fuzz_chacha20
           - encrypt_fuzz
-          - cross_border_fuzz
+          - hash_data_fuzz
           - hybrid_kem_fuzz
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

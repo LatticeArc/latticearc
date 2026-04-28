@@ -19,7 +19,7 @@
 //! - ML-KEM-768: Key encapsulation mechanism (FIPS 203)
 //! - ML-DSA-44: Digital signatures (FIPS 204)
 //! - SLH-DSA-SHAKE-128s: Hash-based signatures (FIPS 205)
-//! - FN-DSA-512: Lattice-based signatures (FIPS 206)
+//! - FN-DSA-512: Lattice-based signatures (draft FIPS 206)
 //!
 //! ## Usage
 //!
@@ -876,7 +876,7 @@ pub fn kat_slh_dsa() -> Result<()> {
     Ok(())
 }
 
-/// FN-DSA Known Answer Test (FIPS 206)
+/// FN-DSA Known Answer Test (draft FIPS 206)
 ///
 /// This test verifies the FN-DSA implementation by performing a complete
 /// sign/verify round-trip using FN-DSA-512 (Level I security).
@@ -887,7 +887,7 @@ pub fn kat_slh_dsa() -> Result<()> {
 /// 3. Verifies the signature succeeds
 /// 4. Verifies that verification fails with a modified message
 ///
-/// FN-DSA (FIPS 206) requires a larger stack size for key generation.
+/// FN-DSA (draft FIPS 206) requires a larger stack size for key generation.
 /// This test should be run as a conditional self-test rather than at power-up.
 ///
 /// # Errors
@@ -1322,8 +1322,20 @@ pub fn is_module_operational() -> bool {
 ///
 /// Reset FIPS module error state (**testing only**).
 ///
-/// FIPS 140-3 requires full module restart to recover from error state.
-/// This function exists solely for test isolation; **never call in production**.
+/// FIPS 140-3 §9.6 requires full module re-initialization (re-running POST)
+/// to recover from error state. This function bypasses that contract and
+/// is intended solely for test isolation in negative-path tests that
+/// deliberately trip `set_module_error`.
+///
+/// Round-11 audit fix (HIGH #3): the previous `pub` + `#[doc(hidden)]`
+/// shape was reachable from any downstream crate and let an external
+/// caller silently restore "operational" without re-validating. Now
+/// gated behind `#[cfg(any(test, feature = "test-utils"))]` so:
+///   * `cargo test` builds inside this crate see it (in-tree tests)
+///   * downstream crates that opt into `test-utils` see it (the
+///     `latticearc-tests` integration crate enables this feature)
+///   * production builds (no `test-utils`) get no exposed symbol at all
+#[cfg(any(test, feature = "test-utils"))]
 #[doc(hidden)]
 pub fn clear_error_state() {
     MODULE_ERROR_CODE.store(ModuleErrorCode::NoError as u32, Ordering::SeqCst);
@@ -1337,6 +1349,11 @@ pub fn clear_error_state() {
 /// `set_module_error` but need to avoid poisoning the global state for other
 /// tests running in the same process. Unlike `clear_error_state`, this restores
 /// `SELF_TEST_PASSED` to `true` so the module remains operational.
+///
+/// Round-11 audit fix (HIGH #3): same gating as `clear_error_state` above —
+/// FIPS 140-3 §9.6 forbids external recovery from error state without re-
+/// running POST.
+#[cfg(any(test, feature = "test-utils"))]
 #[doc(hidden)]
 pub fn restore_operational_state() {
     MODULE_ERROR_CODE.store(ModuleErrorCode::NoError as u32, Ordering::SeqCst);

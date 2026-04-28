@@ -570,7 +570,7 @@ jobs:
     if: needs.changes.outputs.is_nightly == 'true' || github.event.inputs.tier == 'nightly' || github.event.inputs.tier == 'weekly'
     strategy:
       matrix:
-        fuzz-target: ["encrypt_fuzz", "cross_border_fuzz"]
+        fuzz-target: ["encrypt_fuzz", "hash_data_fuzz"]
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -625,7 +625,7 @@ jobs:
           - kdf_fuzz
           - hash_fuzz
           - serialization_fuzz
-          - cross_border_fuzz
+          - hash_data_fuzz
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

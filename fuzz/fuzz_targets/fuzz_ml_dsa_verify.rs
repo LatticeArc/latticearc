@@ -45,13 +45,23 @@ fuzz_target!(|data: &[u8]| {
     // Test 2: Verify with corrupted signature
     if let Ok(sig) = sk.sign(message, &[]) {
         // Clone the signature data for corruption
-        let mut corrupted_data = sig.as_bytes().to_vec();
+        let original_sig_bytes = sig.as_bytes().to_vec();
+        let mut corrupted_data = original_sig_bytes.clone();
         let len = corrupted_data.len();
 
         // Corrupt signature bytes using fuzz data
         for (i, b) in data.iter().enumerate() {
             let idx = i % len;
             corrupted_data[idx] ^= b;
+        }
+
+        // Round-11 audit fix (MEDIUM #19 prior): the XOR can collapse to
+        // a no-op when `data` is empty or all-zero — both are common
+        // libfuzzer corpus seeds. Skip the assertion in that case rather
+        // than panic on a still-valid signature. Without this guard, the
+        // harness produces false-positive crashes that mask real findings.
+        if corrupted_data == original_sig_bytes {
+            return;
         }
 
         // Create corrupted signature

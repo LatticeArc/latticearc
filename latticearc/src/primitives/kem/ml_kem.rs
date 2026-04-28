@@ -737,17 +737,23 @@ impl MlKemDecapsulationKeyPair {
         &self,
         ciphertext: &MlKemCiphertext,
     ) -> Result<MlKemSharedSecret, MlKemError> {
+        // Round-11 audit fix (MEDIUM #7): the sister `static`
+        // `MlKem::decapsulate_with_config` was hardened in round-10 fix
+        // #3, but this instance method on `MlKemDecapsulationKeyPair`
+        // was missed and continued to leak `"Security level mismatch:
+        // keypair is {:?}, ciphertext is {:?}"`. Both paths now collapse
+        // to the same opaque envelope so a chosen-ciphertext attacker
+        // cannot distinguish parameter-set rejection from constant-time
+        // decap rejection (FIPS 203 §6.3 implicit-rejection contract).
         if ciphertext.security_level() != self.security_level {
-            return Err(MlKemError::DecapsulationError(format!(
-                "Security level mismatch: keypair is {:?}, ciphertext is {:?}",
-                self.security_level,
-                ciphertext.security_level()
-            )));
+            tracing::debug!(
+                sk_level = ?self.security_level,
+                ct_level = ?ciphertext.security_level(),
+                "ML-KEM keypair decap rejected: parameter-set mismatch"
+            );
+            return Err(MlKemError::DecapsulationError("decapsulation failed".to_string()));
         }
 
-        // Opaque error: adversary controls ciphertext, so "decap rejected" and
-        // upstream detail must not be distinguishable. aws-lc-rs Unspecified is
-        // opaque today; don't rely on that invariant across upstream versions.
         let shared_secret = self
             .decaps_key
             .decapsulate(ciphertext.as_bytes().into())

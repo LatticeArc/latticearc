@@ -107,8 +107,8 @@ doc = false
 bench = false
 
 [[bin]]
-name = "cross_border_fuzz"
-path = "fuzz_targets/cross_border_fuzz.rs"
+name = "hash_data_fuzz"
+path = "fuzz_targets/hash_data_fuzz.rs"
 test = false
 doc = false
 bench = false

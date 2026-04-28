@@ -752,6 +752,23 @@ pub fn generate_signing_keypair(
         "hybrid-ml-dsa-87-ed25519" => {
             generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa87)?
         }
+        // Round-11 audit fix (MEDIUM #9 / prior list): the dispatch
+        // tables for sign_with_key and verify both have an `"ed25519"`
+        // arm (sign cfg-gated to non-FIPS, verify ungated), but
+        // `generate_signing_keypair` had none. A caller that resolves
+        // to scheme="ed25519" via select_signature_scheme could not
+        // produce keys for an algorithm the library will sign with.
+        // The arm is cfg-gated to match sign_with_key.
+        #[cfg(not(feature = "fips"))]
+        "ed25519" => {
+            use crate::primitives::ec::ed25519::Ed25519KeyPair;
+            use crate::primitives::ec::traits::EcKeyPair;
+            let kp = Ed25519KeyPair::generate()
+                .map_err(|e| CoreError::InvalidInput(format!("Ed25519 keygen failed: {e}")))?;
+            let pk_bytes = kp.public_key_bytes();
+            let sk_bytes = kp.secret_key_bytes();
+            return Ok((pk_bytes, sk_bytes, scheme));
+        }
         _ => {
             return Err(CoreError::InvalidInput(format!("Unsupported signing scheme: {}", scheme)));
         }
@@ -956,30 +973,43 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             &signed.metadata.public_key,
             FnDsaSecurityLevel::Level512,
         ),
+        // Round-11 audit fix (HIGH #8 prior): replace magic literals
+        // with `MlDsaParameterSet::public_key_size()` / `signature_size()`
+        // so a future drift in the FIPS 204 parameter table propagates
+        // automatically. The sister `sign_*` path at line ~1118 already
+        // derives sizes via the same methods.
         "hybrid-ml-dsa-44-ed25519" => verify_hybrid_ml_dsa_ed25519(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
-            1312,
-            2420,
+            MlDsaParameterSet::MlDsa44.public_key_size(),
+            MlDsaParameterSet::MlDsa44.signature_size(),
             MlDsaParameterSet::MlDsa44,
         ),
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => verify_hybrid_ml_dsa_ed25519(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
-            1952,
-            3309,
+            MlDsaParameterSet::MlDsa65.public_key_size(),
+            MlDsaParameterSet::MlDsa65.signature_size(),
             MlDsaParameterSet::MlDsa65,
         ),
         "hybrid-ml-dsa-87-ed25519" => verify_hybrid_ml_dsa_ed25519(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
-            2592,
-            4627,
+            MlDsaParameterSet::MlDsa87.public_key_size(),
+            MlDsaParameterSet::MlDsa87.signature_size(),
             MlDsaParameterSet::MlDsa87,
         ),
+        // Round-11 audit fix (MEDIUM #9 / prior list): cfg-gate the
+        // `"ed25519"` arm under `not(feature = "fips")` for symmetry
+        // with the sign_with_key dispatch and the keygen arm. FIPS
+        // builds now reject Ed25519 verification at the dispatch
+        // layer rather than producing an Ed25519-only path that
+        // can't be reached via FIPS sign + can be reached via FIPS
+        // verify (the prior asymmetry).
+        #[cfg(not(feature = "fips"))]
         "ed25519" => verify_ed25519_internal(
             &signed.data,
             &signed.metadata.signature,

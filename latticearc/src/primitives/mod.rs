@@ -19,7 +19,7 @@
 //! - **kem::ml_kem**: ML-KEM (FIPS 203) Key Encapsulation via `aws-lc-rs`
 //! - **sig::ml_dsa**: ML-DSA (FIPS 204) Digital Signatures via `fips204` crate
 //! - **sig::slh_dsa**: SLH-DSA (FIPS 205) Hash-based Signatures via `fips205` crate
-//! - **sig::fndsa**: FN-DSA (FIPS 206) Lattice Signatures via `fn-dsa` crate
+//! - **sig::fndsa**: FN-DSA (draft FIPS 206) Lattice Signatures via `fn-dsa` crate
 //!
 //! ### Symmetric Encryption (AEAD)
 //!

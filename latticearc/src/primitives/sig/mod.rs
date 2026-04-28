@@ -144,7 +144,7 @@
 //!
 //! - **ML-DSA**: [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final/)
 //! - **SLH-DSA**: [FIPS 205](https://csrc.nist.gov/pubs/fips/205/final/)
-//! - **FN-DSA**: [FIPS 206 (pending, Falcon selected for standardization)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
+//! - **FN-DSA**: [draft FIPS 206 (Falcon selected for standardization, final standard pending)](https://csrc.nist.gov/Projects/post-quantum-cryptography)
 //!
 //! All implementations use audited FIPS-standard crates (fips204, fips205, fn-dsa).
 //!
@@ -177,7 +177,7 @@
 //!
 //! - [`ml_dsa`]: ML-DSA (FIPS 204) lattice-based signatures
 //! - [`slh_dsa`]: SLH-DSA (FIPS 205) hash-based signatures
-//! - [`fndsa`]: FN-DSA (FIPS 206) compact lattice signatures
+//! - [`fndsa`]: FN-DSA (draft FIPS 206) compact lattice signatures
 
 pub mod fndsa;
 pub mod ml_dsa;

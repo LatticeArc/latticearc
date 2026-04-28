@@ -697,8 +697,16 @@ mod direct {
 
     // ============================================================
     // verify() with Ed25519 fallback scheme
+    //
+    // Round-11 audit fix #9: the `"ed25519"` verify dispatch arm is
+    // cfg-gated under `not(feature = "fips")` for symmetry with
+    // sign_with_key (which has always been cfg-gated). Under
+    // `--features fips`, all three Ed25519 dispatch points (keygen,
+    // sign, verify) reject uniformly. This test is therefore only
+    // meaningful in non-FIPS builds.
     // ============================================================
 
+    #[cfg(not(feature = "fips"))]
     #[test]
     fn test_verify_ed25519_scheme_is_supported() {
         let (pk, sk) = generate_keypair().unwrap();

@@ -9,6 +9,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-11 audit response — 6 HIGH + 5 MEDIUM + 2 LOW + proactive sweeps (2026-04-28)
+
+Eleventh audit pass on top of `fb1785bb0`. Goal: clean slate before
+locking apache for proprietary focus. The audit found 6 HIGH that
+genuinely persisted across rounds (FIPS submission-readiness +
+zero-trust + adaptive selector) plus 4 MEDIUMs the prior round overstated
+as resolved.
+
+#### HIGH
+
+- **`adaptive_selection` security-level downgrade closed** (round-11 #5).
+  The sister of `select_encryption_scheme` was downgrading
+  `SecurityLevel::Maximum` callers to ml-kem-768 (Memory) or ml-kem-512
+  (Speed) under runtime pressure. Now gated on `SecurityLevel::High`
+  match, mirroring the round-6 #10 fix on the static path.
+  `selector.rs:270-282`.
+- **`reauthenticate` actually verifies the proof** (round-11 #6). The
+  previous `let _proof = ...` discarded the proof and bumped
+  `last_verification` regardless of validity. Now calls `verify_proof`
+  and returns `AuthenticationFailed` on rejection.
+  `zero_trust.rs:764-770`.
+- **`clear_error_state` / `restore_operational_state` no longer leak
+  through public API** (round-11 #3). Was `pub` + `#[doc(hidden)]`,
+  reachable from any downstream crate. Now
+  `#[cfg(any(test, feature = "test-utils"))]` so production builds
+  (no test, no test-utils feature) get no exposed symbol at all,
+  satisfying FIPS 140-3 §9.6 (re-init required to recover from error
+  state).
+- **`MlKemDecapsulationKeyPair::decapsulate` opaque envelope** (round-11
+  #7 — sister of round-10 #3, missed previously). The instance method
+  was still leaking `"Security level mismatch: keypair is {:?},
+  ciphertext is {:?}"` even though the static path was hardened in
+  round-10. Both paths now collapse to the same `"decapsulation failed"`
+  string; FIPS 203 §6.3 implicit-rejection contract is now uniform.
+- **`fuzz_random.rs` no longer asserts on independent CSPRNG output**
+  (round-11 #9). The `assert_ne!(rand1, rand2)` and 16-byte all-zero
+  assertion were probabilistically valid but inappropriate inside a
+  coverage-guided fuzzer that runs millions of iterations. Now exercises
+  the call path without content assertions; RNG quality is covered by
+  the dudect / Welch's-t side-channel suite on a separate cadence.
+
+#### MEDIUM
+
+- **PBKDF2 iteration ceiling** (round-11 #11 prior list). The
+  `key_format.rs` decrypt path enforced a `PBKDF2_MIN_ITERATIONS`
+  floor but no ceiling, leaving an attacker-supplied envelope with
+  `kdf_iterations = u32::MAX` as a CPU-exhaustion DoS vector. New
+  `PBKDF2_MAX_ITERATIONS = 10_000_000` constant (2 orders above the
+  OWASP-2023 default) rejects pathological values before any HMAC-SHA256
+  rounds run.
+- **`from_legacy_json` 1 MiB size guard** (round-11 #12 prior list).
+  Parallel `from_json` enforces `MAX_KEY_JSON_SIZE` before parsing;
+  the legacy path was missing this check, leaving a memory-exhaustion
+  vector when migrating older keyfiles. Now mirrors the primary path.
+- **`ProofComplexity::Low` carries timestamp** (round-11 #16 prior).
+  The previous Low variant signed only `challenge`, making
+  `(challenge, signature)` pairs replayable indefinitely until session
+  expiry. All three complexity levels now bind the timestamp into the
+  signed message and emit a 72-byte signature+ts proof. Replay
+  protection (5-min freshness window) is no longer opt-in.
+- **`ed25519` keygen + dispatch symmetry** (round-11 #9 prior list). The
+  `"ed25519"` arm was missing entirely from `generate_signing_keypair`,
+  cfg-gated on `sign_with_key`, and ungated on `verify`. Adding the
+  keygen arm and gating verify under `cfg(not(feature = "fips"))`
+  makes the triplet symmetric: FIPS builds reject Ed25519 at all three
+  dispatch points; non-FIPS builds accept it at all three.
+- **`hybrid-ml-dsa-{44,65,87}-ed25519` magic literals removed**
+  (round-11 #8 prior). The verify dispatch passed hardcoded
+  `1312/1952/2592` (PK sizes) and `2420/3309/4627` (sig sizes) instead
+  of `MlDsaParameterSet::public_key_size()` /
+  `signature_size()`. Future drift in the FIPS 204 parameter table
+  would silently desync the verify bounds.
+
+#### LOW
+
+- **Pedersen test rename** (round-11 #8 / round-10b carryover).
+  `test_pedersen_commit_kat_byte_stable` →
+  `test_pedersen_commit_determinism_and_format` with a docstring noting
+  it is **not** a Known-Answer Test (no external reference vector
+  pinned). A real KAT is held back until the H-generator derivation is
+  documented.
+- **`cross_border_fuzz.rs` renamed to `hash_data_fuzz.rs`** (round-11
+  #10). The prior name claimed compliance / cross-border coverage that
+  the harness has never exercised — the actual surface tested is
+  deterministic SHA-256. Cargo bin entry, file rename, and 4 CI
+  workflow refs updated.
+- **Feature-flag table completed** (round-11 #11 LOW). The `lib.rs`
+  feature-flag table listed 6 features; the package actually exposes
+  10. Added `tracing-init`, `secret-mlock`, `kat-test-vectors`, and
+  `test-utils` with explicit notes (especially for `test-utils`, which
+  exposes `SigmaProof::challenge_mut` — a soundness-bypassing mutator
+  that MUST NOT be on in production).
+- **Bare "FIPS 206" → "draft FIPS 206" sweep continued** (round-11 #12
+  LOW). Round-10's sweep covered SECURITY.md, README mermaid,
+  DESIGN_PATTERNS.md, KeyAlgorithm variants, and pq_sig module doc
+  but missed `primitives/sig/mod.rs:147,180`, `primitives/mod.rs:22`,
+  three lines in `primitives/self_test.rs`, and `primitives/pct.rs:18`.
+  All synced.
+- **`fuzz_ml_dsa_verify` XOR-collapse guard** (round-11 #19 prior).
+  Test 2 XORs fuzzer-supplied `data` into a signature copy and
+  `assert!(!is_valid)` on the result. When `data` is empty or all-zero
+  (both common libfuzzer corpus seeds), the XOR collapses and the
+  signature stays valid → false-positive crash. New `if corrupted ==
+  original { return; }` guard before the assertion.
+
+#### Why this took 11 rounds
+
+Each prior round caught new defect classes the earlier reviews didn't
+look for. The recurring patterns we now actively scan for before each
+commit:
+
+1. **Sister-function asymmetry**: when fixing a path, find every
+   sibling that does the same thing.
+2. **Doc drift**: top-level doc fixes need to propagate to every
+   per-module doc that references the same fact.
+3. **Public-API leakage**: `pub` items that should be `pub(crate)` or
+   feature-gated.
+4. **Dispatch-table holes**: keygen / sign / verify triplets must be
+   symmetric across cfg gates.
+5. **Replay protection holes**: every signed-message path needs a
+   timestamp binding (no opt-in).
+6. **Magic literals**: parameter-set sizes must come from methods, not
+   hardcoded numbers.
+
 ### Round-10b audit response — 4 deferred MEDIUMs (2026-04-28)
 
 Follow-up to round-10. The four MEDIUM items deferred at commit `e9b28e64d`

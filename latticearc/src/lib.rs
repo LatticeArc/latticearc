@@ -123,9 +123,13 @@
 //!
 //! | Feature | Description |
 //! |---------|-------------|
-//! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). |
-//! | `fips-self-test` | Power-up KAT self-tests (ML-KEM via aws-lc-rs, AES-GCM, SHA-3). ML-DSA and SLH-DSA use non-validated crate implementations — not FIPS-boundary. |
+//! | `fips` | FIPS 140-3 validated backend via aws-lc-rs. Requires CMake + Go build tools. Without this feature, aws-lc-rs uses its default non-FIPS backend (C compiler only). Transitively enables `fips-self-test`. |
+//! | `fips-self-test` | Power-up KAT self-tests (ML-KEM via aws-lc-rs, AES-GCM, SHA-3, ML-DSA, SLH-DSA, FN-DSA). Pulled in transitively by `fips`; can be enabled standalone for non-FIPS builds that still want POST coverage. |
+//! | `tracing-init` | Subscriber/init helpers (`init_tracing`, `init_tracing_with_file`) for the `tracing` facade. Off by default so downstream binaries that wire their own subscriber don't fight ours. The `latticearc-cli` binary enables this. |
 //! | `zkp-serde` | Serialization support for ZKP types (enables `serde_with` for Schnorr/Sigma protocol structs). |
+//! | `secret-mlock` | OS-level memory locking for `SecretVec` (Secret Type Invariant I-10). Uses `mlock(2)` on Linux/macOS, `VirtualLock` on Windows via `region`. Default-off because `RLIMIT_MEMLOCK` can fail at constructor time on some deployments. |
+//! | `kat-test-vectors` | Exposes `AeadCipher::new_allow_weak_key` (AES-GCM Test Cases 1/2 reproducer). Default-off so production builds cannot construct weak-key ciphers. |
+//! | `test-utils` | Exposes adversarial-test mutators on otherwise-immutable proof types (`SigmaProof::challenge_mut`). **Soundness-bypassing** — must NOT be enabled in production builds. Default-off. |
 //! | `formal-verification` | Compilation marker: enables formal verification harness code (Kani proofs). Does not run proofs — use `cargo kani` separately. |
 //! | `kani` | Compilation marker: enables Kani bounded model checking proof harnesses. Requires `cargo kani` to execute proofs. |
 //! | `saw` | Compilation marker: enables SAW formal verification markers (inherited from aws-lc-rs). Does not run SAW proofs at build time. |

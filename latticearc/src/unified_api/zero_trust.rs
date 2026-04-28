@@ -762,8 +762,23 @@ impl ContinuousVerifiable for ZeroTrustAuth {
     /// Returns `CoreError::InvalidKeyLength` or `CoreError::InvalidInput` if the private
     /// key format is invalid for Ed25519 signing.
     fn reauthenticate(&self) -> Result<()> {
+        // Round-11 audit fix (HIGH #6): the previous implementation
+        // generated a proof, discarded it via `let _proof = ...`, and
+        // bumped `last_verification` regardless. That made `last_verification`
+        // a "now" stamp on every call — an attacker who tampered with the
+        // private-key bytes (use-after-free, fuzz target, etc.) kept the
+        // session perpetually `Verified`. We now actually verify the proof
+        // against the challenge before bumping `last_verification`, and
+        // surface a hard error on mismatch.
         let challenge = self.generate_challenge()?;
-        let _proof = self.generate_proof(challenge.data())?;
+        let proof = self.generate_proof(challenge.data())?;
+
+        let proof_valid = self.verify_proof(&proof, challenge.data())?;
+        if !proof_valid {
+            return Err(CoreError::AuthenticationFailed(
+                "Reauthentication proof verification failed".to_string(),
+            ));
+        }
 
         *self.last_verification.borrow_mut() = Utc::now();
         Ok(())
@@ -1010,14 +1025,21 @@ impl ZeroTrustAuth {
     fn compute_proof_data(&self, challenge: &[u8]) -> Result<Vec<u8>> {
         let timestamp = Utc::now().timestamp_millis().to_le_bytes();
 
-        // Build message to sign based on complexity
+        // Round-11 audit fix (MEDIUM #16): all complexity levels now
+        // bind the timestamp into the signed message so the verifier
+        // can enforce a freshness window. The previous Low variant
+        // signed only `challenge`, making `(challenge, signature)`
+        // pairs replayable indefinitely until session expiry. Replay
+        // protection is no longer opt-in.
         let message_to_sign = match self.config.proof_complexity {
             ProofComplexity::Low => {
-                // Simple: just sign the challenge
-                challenge.to_vec()
+                // Low: challenge + timestamp (replay protection mandatory)
+                let mut msg = challenge.to_vec();
+                msg.extend_from_slice(&timestamp);
+                msg
             }
             ProofComplexity::Medium => {
-                // Medium: include timestamp for replay protection
+                // Medium: same as Low (kept for API compatibility)
                 let mut msg = challenge.to_vec();
                 msg.extend_from_slice(&timestamp);
                 msg
@@ -1038,15 +1060,13 @@ impl ZeroTrustAuth {
             self.private_key.expose_secret(),
         )?;
 
-        // Return signature with timestamp for Medium/High complexity
-        match self.config.proof_complexity {
-            ProofComplexity::Low => Ok(signature),
-            ProofComplexity::Medium | ProofComplexity::High => {
-                let mut proof = signature;
-                proof.extend_from_slice(&timestamp);
-                Ok(proof)
-            }
-        }
+        // Append the timestamp to the proof bytes so the verifier can
+        // recover it. All three complexity levels now carry a timestamp
+        // suffix (round-11 audit fix #16); older proofs without the
+        // suffix will fail length check at verify time.
+        let mut proof = signature;
+        proof.extend_from_slice(&timestamp);
+        Ok(proof)
     }
 
     /// Verify proof using PUBLIC KEY only.
@@ -1061,10 +1081,34 @@ impl ZeroTrustAuth {
 
         match self.config.proof_complexity {
             ProofComplexity::Low => {
-                // Simple verification: signature over challenge
+                // Round-11 audit fix (MEDIUM #16): Low now requires the
+                // 8-byte timestamp suffix (mandatory replay protection).
+                if proof.len() < 72 {
+                    return Ok(false);
+                }
+                let signature = proof.get(..64).ok_or_else(|| {
+                    CoreError::AuthenticationFailed("Invalid proof format".to_string())
+                })?;
+                let timestamp_slice = proof.get(64..72).ok_or_else(|| {
+                    CoreError::AuthenticationFailed("Invalid proof format".to_string())
+                })?;
+                let timestamp_bytes: [u8; 8] = timestamp_slice.try_into().map_err(|_e| {
+                    CoreError::AuthenticationFailed("Invalid proof format".to_string())
+                })?;
+
+                let proof_ts_ms = i64::from_le_bytes(timestamp_bytes);
+                let now_ms = Utc::now().timestamp_millis();
+                let drift_ms = now_ms.abs_diff(proof_ts_ms);
+                if drift_ms > 300_000 {
+                    tracing::warn!(drift_ms, "proof timestamp outside 5-min freshness window");
+                    return Ok(false);
+                }
+
+                let mut message = challenge.to_vec();
+                message.extend_from_slice(&timestamp_bytes);
                 crate::unified_api::convenience::ed25519::verify_ed25519_internal(
-                    challenge,
-                    proof,
+                    &message,
+                    signature,
                     self.public_key.as_slice(),
                 )
             }
@@ -2177,6 +2221,14 @@ mod tests {
 
     #[test]
     fn test_proof_complexity_influences_proof_data_size_has_correct_size() -> Result<()> {
+        // Round-11 audit fix (MEDIUM #16): Low now also carries the
+        // 8-byte timestamp suffix (mandatory replay protection), so Low
+        // and Medium are byte-identical (72 bytes = signature + ts).
+        // The remaining functional difference is that High additionally
+        // binds the public key into the signed message — but that does
+        // NOT change the proof-data length (the timestamp suffix is the
+        // same shape). This test now asserts the floor invariant: every
+        // complexity level produces at least 72 bytes (sig + ts).
         let (public_key_a, private_key_a) = generate_keypair()?;
         let config_a = ZeroTrustConfig::new().with_complexity(ProofComplexity::Low);
         let auth_a = ZeroTrustAuth::with_config(public_key_a, private_key_a, config_a)?;
@@ -2184,16 +2236,20 @@ mod tests {
         let proof_a = auth_a.generate_proof(challenge_a.data())?;
 
         let (public_key_b, private_key_b) = generate_keypair()?;
-        let config_b = ZeroTrustConfig::new().with_complexity(ProofComplexity::Medium);
+        let config_b = ZeroTrustConfig::new().with_complexity(ProofComplexity::High);
         let auth_b = ZeroTrustAuth::with_config(public_key_b, private_key_b, config_b)?;
         let challenge_b = auth_b.generate_challenge()?;
         let proof_b = auth_b.generate_proof(challenge_b.data())?;
 
-        // Low: only signature (64 bytes), Medium: signature + 8-byte timestamp (72 bytes)
-        assert_ne!(
-            proof_a.proof_data().len(),
-            proof_b.proof_data().len(),
-            "proof_complexity must influence the size of generated proof data"
+        assert!(
+            proof_a.proof_data().len() >= 72,
+            "Low proof must be at least 72 bytes (signature + 8-byte timestamp), got {}",
+            proof_a.proof_data().len()
+        );
+        assert!(
+            proof_b.proof_data().len() >= 72,
+            "High proof must be at least 72 bytes, got {}",
+            proof_b.proof_data().len()
         );
         Ok(())
     }

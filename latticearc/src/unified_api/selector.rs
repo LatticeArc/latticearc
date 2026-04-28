@@ -267,15 +267,26 @@ impl CryptoPolicyEngine {
         let characteristics = Self::analyze_data_characteristics(data);
         let base_scheme = Self::select_encryption_scheme(data, config, None)?;
 
+        // Round-11 audit fix: only allow runtime-pressure downgrades when
+        // the caller's pinned security level is `High` (the default). A
+        // caller who explicitly opted into `SecurityLevel::Maximum` MUST
+        // get Level-5 parameters even under memory or CPU pressure —
+        // mirroring the `select_encryption_scheme` guard at lines 207–223.
+        // Same defect class as round-6 fix #10 (CNSA-2.0 downgrade
+        // prevention).
         match (&config.performance_preference, performance_metrics) {
-            (PerformancePreference::Memory, metrics) if metrics.memory_usage_mb > 500.0 => {
-                Ok("hybrid-ml-kem-768-aes-256-gcm".to_string())
+            (PerformancePreference::Memory, metrics)
+                if metrics.memory_usage_mb > 500.0
+                    && matches!(config.security_level, SecurityLevel::High) =>
+            {
+                Ok(HYBRID_ENCRYPTION_768.to_string())
             }
             (PerformancePreference::Speed, metrics)
                 if metrics.encryption_speed_ms > 1000.0
-                    && matches!(characteristics.pattern_type, PatternType::Repetitive) =>
+                    && matches!(characteristics.pattern_type, PatternType::Repetitive)
+                    && matches!(config.security_level, SecurityLevel::High) =>
             {
-                Ok("hybrid-ml-kem-512-aes-256-gcm".to_string())
+                Ok(HYBRID_ENCRYPTION_512.to_string())
             }
             _ => Ok(base_scheme),
         }

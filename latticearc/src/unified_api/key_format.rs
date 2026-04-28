@@ -77,6 +77,15 @@ const AES_GCM_AEAD_ID: &str = "AES-256-GCM";
 const PBKDF2_DEFAULT_ITERATIONS: u32 = 600_000;
 /// PBKDF2 minimum iteration count accepted when loading an encrypted key.
 const PBKDF2_MIN_ITERATIONS: u32 = 100_000;
+/// PBKDF2 maximum iteration count accepted when loading an encrypted key.
+///
+/// Round-11 audit fix: an attacker-supplied envelope with `kdf_iterations =
+/// u32::MAX` (4.3 billion) would force tens of minutes of HMAC-SHA256 work
+/// per decrypt attempt, denying service to the legitimate keyholder. This
+/// upper bound is two orders of magnitude above the OWASP-2023
+/// recommendation (600 k) and well above any reasonable interactive-login
+/// budget, so it does not constrain legitimate callers.
+const PBKDF2_MAX_ITERATIONS: u32 = 10_000_000;
 /// PBKDF2 salt length in bytes (SP 800-132 recommends ≥ 16).
 const PBKDF2_SALT_LEN: usize = 16;
 /// PBKDF2 minimum salt length accepted when loading an encrypted key.
@@ -1685,6 +1694,13 @@ impl PortableKey {
                 "PBKDF2 iteration count {kdf_iterations} below minimum {PBKDF2_MIN_ITERATIONS}",
             )));
         }
+        if kdf_iterations > PBKDF2_MAX_ITERATIONS {
+            // Round-11 audit fix: reject adversary-supplied envelopes with
+            // pathological `kdf_iterations` before any HMAC-SHA256 rounds run.
+            return Err(CoreError::InvalidKey(format!(
+                "PBKDF2 iteration count {kdf_iterations} exceeds maximum {PBKDF2_MAX_ITERATIONS}",
+            )));
+        }
         // Warn when a loaded key uses fewer iterations than the current
         // OWASP-recommended default. The minimum (100k) is retained as a
         // hard floor for backwards compatibility with keys generated under
@@ -2286,6 +2302,18 @@ impl PortableKey {
     /// # Errors
     /// Returns an error if the JSON is invalid or the algorithm is unrecognized.
     pub fn from_legacy_json(json: &str) -> Result<Self> {
+        // Round-11 audit fix: parallel `from_json` enforces a 1 MiB size
+        // guard before parsing to prevent memory exhaustion from
+        // maliciously crafted payloads. The legacy path was missing this
+        // check, leaving a DoS vector when migrating older keyfiles.
+        if json.len() > Self::MAX_KEY_JSON_SIZE {
+            return Err(CoreError::ResourceExceeded(format!(
+                "Legacy key JSON size {} exceeds limit {}",
+                json.len(),
+                Self::MAX_KEY_JSON_SIZE
+            )));
+        }
+
         #[derive(Deserialize)]
         struct LegacyKeyFile {
             algorithm: String,

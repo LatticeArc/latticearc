@@ -1,8 +1,12 @@
 //! Coverage tests for conditional self-test KAT functions (kat_ml_dsa, kat_slh_dsa, kat_fn_dsa)
 //! and run_power_up_tests_with_report error paths.
 
-// self_test module is gated behind fips-self-test feature
-#![cfg(feature = "fips-self-test")]
+// self_test module is gated behind fips-self-test feature.
+// Round-11 audit fix (HIGH #3): the test-only `clear_error_state` /
+// `restore_operational_state` accessors are now `cfg(any(test, feature =
+// "test-utils"))` — this file imports them and therefore also requires
+// `test-utils` to compile.
+#![cfg(all(feature = "fips-self-test", feature = "test-utils"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
 use latticearc::primitives::self_test::{

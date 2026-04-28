@@ -26,7 +26,7 @@ fips = ["latticearc/fips"]
 # and 2 (McGrew & Viega) which use the all-zero key. Production builds of
 # `latticearc` do NOT enable this feature, so they cannot accidentally
 # construct a weak-key AEAD cipher.
-latticearc = { version = "0.8.0", path = "../latticearc", features = ["kat-test-vectors"] }
+latticearc = { version = "0.8.0", path = "../latticearc", features = ["kat-test-vectors", "test-utils"] }
 
 # Property-based testing
 proptest = { workspace = true }

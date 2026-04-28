@@ -354,22 +354,19 @@ mod pedersen_commitment_tests {
         assert_eq!(c_sum.commitment().len(), 33, "Sum commitment should be 33 bytes");
     }
 
-    /// Pedersen commitment Known-Answer Test — round-10 audit follow-up #10.
+    /// Pedersen commit determinism + wire-format check (round-11 audit
+    /// rename of the round-10b `*_kat_byte_stable` test).
     ///
-    /// Pedersen commitments over secp256k1 with the documented `H`
-    /// generator (derived deterministically from the `G`-encoding hash)
-    /// MUST produce the byte sequence below for `value=[0x01;32]`,
-    /// `blinding=[0x02;32]`. A drift in this output signals that the
-    /// `H`-derivation, the curve-arithmetic crate version, or the
-    /// scalar-encoding endianness has changed beneath us — any of which
-    /// would break interoperability with previously-issued commitments.
-    ///
-    /// To regenerate (only if a deliberate breaking change is intended):
-    /// run this test with the `assert_eq!` line commented out and a
-    /// `panic!` printing `hex::encode(c.commitment())`, then paste the
-    /// new value below.
+    /// This is **not** a Known-Answer Test — a true KAT would pin the
+    /// 33-byte SEC1 commitment against an external reference vector
+    /// (e.g. an RFC 9381 / VRF KAT or a hand-computed value over the
+    /// documented `H` generator). The previous name overpromised; the
+    /// implementation only verifies (a) determinism, (b) self-
+    /// consistency of the open path, and (c) wire-format stability.
+    /// A real KAT is held back until the `H`-generator derivation is
+    /// documented in `docs/SECRET_TYPE_INVARIANTS.md`.
     #[test]
-    fn test_pedersen_commit_kat_byte_stable() {
+    fn test_pedersen_commit_determinism_and_format() {
         let value = [0x01u8; 32];
         let blinding = [0x02u8; 32];
 
