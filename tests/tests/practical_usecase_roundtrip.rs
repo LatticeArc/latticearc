@@ -1137,6 +1137,11 @@ fn compliance_mode_default_roundtrip() {
     process_isolated_roundtrip(msg, &key, CryptoConfig::new().compliance(ComplianceMode::Default));
 }
 
+// Round-13 audit fix (M-B): `ComplianceMode::Cnsa2_0` paths require the
+// `fips` cargo feature; the default `cargo test --workspace` (no features)
+// previously panicked with `FeatureNotAvailable`. Cfg-gate so the default
+// test command works on a clean checkout.
+#[cfg(feature = "fips")]
 #[test]
 fn compliance_mode_cnsa2_0_roundtrip() {
     // CNSA 2.0 (since 0.6.0) requires CryptoMode::PqOnly.
@@ -1165,6 +1170,7 @@ fn compliance_mode_cnsa2_0_roundtrip() {
     let _ = std::fs::remove_file(&path);
 }
 
+#[cfg(feature = "fips")]
 #[test]
 fn compliance_mode_cnsa2_0_rejects_standalone_aes() {
     // CNSA 2.0 rejects standalone classical schemes like AES-256-GCM.

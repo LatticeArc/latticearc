@@ -535,8 +535,12 @@ pub use unified_api::{
 // ============================================================================
 // Serialization Utilities
 // ============================================================================
-
-#[doc(hidden)]
+//
+// Round-13 audit fix (L-D): the `#[doc(hidden)]` on these six fns was
+// internally inconsistent — `docs/API_DOCUMENTATION.md` directs users
+// at them as part of the public surface. Removed the hidden marker;
+// these are now first-class public API. If we ever need to walk this
+// back, drop the public reference in the docs first.
 pub use unified_api::serialization::{
     deserialize_encrypted_output, deserialize_keypair, deserialize_signed_data,
     serialize_encrypted_output, serialize_keypair, serialize_signed_data,

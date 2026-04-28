@@ -313,6 +313,15 @@ ed25519-dalek = { version = "2.2.0", features = ["rand_core", "zeroize"] }
 # X25519 needed for CAVP test vector validation (deterministic key generation).
 # Round-12 audit fix (M-5): exact-pin per the same rationale as the rest of
 # the RustCrypto stack above.
+#
+# Round-13 audit (M-A) re-evaluation: `x25519-dalek 2.0.1` and
+# `ed25519-dalek 2.2.0` transitively pull `digest 0.10` / `sha2 0.10`,
+# splitting the workspace into two RustCrypto majors (the rest of our
+# direct deps are on 0.11). The dalek crates have not yet released
+# versions on the 0.11 generation. The split is contained — `subtle` /
+# `ConstantTimeEq` glue between the two majors is type-compatible — and
+# the unification is blocked on upstream. Revisit when ed25519-dalek
+# / x25519-dalek cut a release on RustCrypto 0.11.
 x25519-dalek = { version = "=2.0.1", features = ["static_secrets"] }
 # Post-quantum cryptography - FIPS 140-3 validated via aws-lc-rs
 # aws-lc-rs provides ML-KEM with FIPS 140-3 certification (Certificate #4631, #4759, #4816)

@@ -177,6 +177,66 @@ jobs:
     - name: Resource-limits coverage gate
       run: bash scripts/ci/resource_limits_coverage.sh
 
+  # === MSRV (Minimum Supported Rust Version) ===
+  # Round-13 audit fix (L-A): pin to the exact version declared in
+  # `[workspace.package].rust-version` (1.93). Without this, every
+  # other job uses `dtolnay/rust-toolchain@stable`, so a future stable
+  # accepting code that 1.93 rejects would silently raise our effective
+  # MSRV without any signal to downstream users on 1.93.
+  msrv:
+    name: MSRV (1.93)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: recursive
+
+    - name: Install Rust 1.93 (declared MSRV)
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7
+      with:
+        toolchain: "1.93"
+
+    - name: Cache Cargo registry
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: cargo check (workspace, all features)
+      run: cargo +1.93 check --workspace --all-features
+
+  # === SemVer surface check ===
+  # Round-13 audit fix (L-B): the `tests/tests/api_stability.rs` doc
+  # comment claimed cargo-semver-checks "runs separately" — but no job
+  # actually ran it. This job runs `cargo semver-checks` against the
+  # last released `latticearc` on crates.io and surfaces breaking
+  # public-API changes BEFORE merge so the [Unreleased] CHANGELOG
+  # section can label them correctly.
+  semver-checks:
+    name: SemVer surface
+    runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    # Soft-fail until we publish a real 0.8.0 baseline that
+    # cargo-semver-checks can resolve from crates.io. Promote to
+    # blocking once a baseline release lands. Tracked separately.
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: recursive
+
+    - name: Install Rust (Edition 2024)
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+    - name: Run cargo-semver-checks
+      uses: obi1kenobi/cargo-semver-checks-action@v2
+
   # === Multi-Platform Builds ===
   build:
     name: Build (${{ matrix.os }})
@@ -693,11 +753,14 @@ jobs:
         key: ${{ runner.os }}-fuzz-smoke-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run quick fuzz smoke test (30s each)
-      # See note on the weekly fuzz step above: `continue-on-error`
-      # preserves the exit code so a crash trips `if: failure()`-gated
-      # uploads, while keeping the workflow green for the typical clean
-      # smoke-test outcome.
-      continue-on-error: true
+      # Round-13 audit fix (H-A): the previous `continue-on-error: true`
+      # kept the run step's outcome green even on a fuzzer crash, which
+      # defeated round-12's H-5 promotion of `fuzz-smoke` to PR-blocking
+      # (the `failed_jobs` gate watched `needs.fuzz-smoke.result` but
+      # that result was always 'success'). The flag was originally there
+      # to keep `if: failure()`-gated upload steps reachable; we now
+      # gate uploads on `if: ${{ failure() || cancelled() }}` instead so
+      # crashes both fail the job AND surface artifacts.
       run: |
         cd fuzz
         cargo +nightly fuzz run encrypt_fuzz -- -max_total_time=30
@@ -1012,7 +1075,7 @@ jobs:
   status-check:
     name: Pipeline Status
     runs-on: ubuntu-latest
-    needs: [quality, build, test, security, regression-tests, concurrency-tests, api-stability-tests, cli-tests, fuzz-nightly, fuzz-weekly, fuzz-smoke, performance, docs, integration, security-tests, feature-powerset, kat-integrity]
+    needs: [quality, msrv, build, test, security, regression-tests, concurrency-tests, api-stability-tests, cli-tests, fuzz-nightly, fuzz-weekly, fuzz-smoke, performance, docs, integration, security-tests, feature-powerset, kat-integrity]
     if: always()
     steps:
     - name: Check all job statuses
@@ -1022,6 +1085,7 @@ jobs:
 
         # Check core jobs (always required)
         [[ "${{ needs.quality.result }}" == "failure" ]] && failed_jobs="$failed_jobs quality"
+        [[ "${{ needs.msrv.result }}" == "failure" ]] && failed_jobs="$failed_jobs msrv"
         [[ "${{ needs.build.result }}" == "failure" ]] && failed_jobs="$failed_jobs build"
         [[ "${{ needs.test.result }}" == "failure" ]] && failed_jobs="$failed_jobs test"
         [[ "${{ needs.security.result }}" == "failure" ]] && failed_jobs="$failed_jobs security"

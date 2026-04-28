@@ -9,7 +9,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Round-12 audit response — 5 HIGH + 8 MEDIUM + 4 LOW (2026-04-28)
+### Round-13 audit response — M-4 followup + 2 HIGH + 3 MEDIUM + 5 LOW (2026-04-28)
+
+Thirteenth audit pass on top of `2188ed48e`. The M-4 fix from round-12
+was discovered to have made the situation worse (added a redundant
+zeroizing wrapper but kept the bare-Vec moved into `MlDsaSecretKey::new`
+on the error path). Round-13 fixes the underlying structural issue.
+
+#### M-4 follow-up (HIGH-equivalent)
+- **`MlDsaSecretKey.data` now `Zeroizing<Vec<u8>>`**. Round-12 added a
+  `Zeroizing` wrapper around the *outer* clone in `sig_hybrid::sign`
+  but then re-cloned (bare) into `MlDsaSecretKey::new(... Vec<u8>)`,
+  creating two heap copies — one zeroized, one not. Round-13 changes
+  the field type so `MlDsaSecretKey::new()` wraps its argument on
+  entry; both success and error paths zeroize the moved-in `Vec`. The
+  hybrid sign hot path is back to a single bare clone, fully zeroized.
+  Three direct struct construction sites in `generate_keypair` also
+  wrapped. **No public API change** (`expose_secret()` still returns
+  `&[u8]` via deref).
+
+#### HIGH
+- **`fuzz-smoke` `continue-on-error` removed** (H-A). Round-12's H-5
+  promoted `fuzz-smoke` to PR-blocking via the `failed_jobs` gate —
+  but the run step still had `continue-on-error: true`, which kept
+  the job's `result` as `'success'` even on a fuzzer crash. The H-5
+  gate was effectively dead.
+- **PQ-only docstrings updated for round-12 wire-format change** (H-B).
+  Both `encrypt_pq_only` and `decrypt_pq_only` `# Algorithm` blocks
+  still claimed `info=PQ_ONLY_ENCRYPTION_INFO`. Actual encoding
+  post-round-12 (L-2) is `LABEL || 0x00 || kem_ciphertext`.
+
+#### MEDIUM
+- **`cargo test --workspace` now passes on a clean checkout** (M-B).
+  Three `ComplianceMode::Cnsa2_0` tests now `#[cfg(feature = "fips")]`-
+  gated; CI ran clean only because `--all-features` masked the gap.
+- **Verify-proof regression tests for the L-3 future-skew cap** (M-C).
+  Three new tests that forge a 31 s-ahead-of-now timestamp and assert
+  `verify_proof` returns `Ok(false)` on each `ProofComplexity` path.
+- **Workspace duplicate-major dep state documented** (M-A). The
+  `digest 0.10/0.11`, `sha2 0.10/0.11`, `aes 0.8/0.9` splits are
+  upstream — pulled in transitively by `ed25519-dalek`, `x25519-dalek`,
+  and `aes-gcm 0.10`. Cargo.toml comments now name the blockers and
+  the revisit triggers.
+
+#### LOW
+- **MSRV CI job pinning to 1.93** (L-A).
+- **`cargo-semver-checks` CI job** (L-B; soft-fail until baseline ships).
+- **SECURITY.md constant-time guarantee links to Known Limitations** (L-C).
+- **Serialization re-exports no longer `#[doc(hidden)]`** (L-D).
+- **`release.yml` stale audit-flag comment removed** (L-E).
+
+### Round-12 audit response — 5 HIGH + 8 MEDIUM + 3 LOW (2026-04-28)
 
 Twelfth audit pass on top of `5180c3f08`. Cleanup batch before locking
 apache repo for proprietary focus. Findings spanned secret-zeroization

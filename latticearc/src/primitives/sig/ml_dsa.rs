@@ -320,13 +320,20 @@ impl MlDsaPublicKey {
 /// - Implements `ZeroizeOnDrop` for automatic memory cleanup
 /// - Implements `ConstantTimeEq` for timing-safe comparisons
 /// - Does not implement `Clone` to prevent unzeroized copies
+///
+/// Round-13 audit follow-up (M-4-followup): `data` is wrapped in
+/// `Zeroizing<Vec<u8>>` so the moved-in `Vec` is zeroized even on the
+/// `MlDsaSecretKey::new()` length-validation error path. Previously
+/// `data: Vec<u8>` plus struct-level `#[derive(ZeroizeOnDrop)]` only
+/// covered the success path — a length-mismatched `Vec` was dropped
+/// bare. Hot path on every hybrid sign + every key-load.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct MlDsaSecretKey {
     /// The parameter set for this key
     #[zeroize(skip)]
     parameter_set: MlDsaParameterSet,
-    /// Serialized secret key bytes (zeroized on drop)
-    data: Vec<u8>,
+    /// Serialized secret key bytes (zeroized on drop via `Zeroizing<>`).
+    data: Zeroizing<Vec<u8>>,
 }
 
 impl std::fmt::Debug for MlDsaSecretKey {
@@ -429,6 +436,12 @@ impl MlDsaSecretKey {
     /// # Errors
     /// Returns an error if the key length does not match the expected size for the parameter set.
     pub fn new(parameter_set: MlDsaParameterSet, data: Vec<u8>) -> Result<Self, MlDsaError> {
+        // Round-13 audit fix (M-4-followup): wrap on entry so the moved-in
+        // `Vec` is zeroized on the length-validation error path too. The
+        // previous shape kept `data: Vec<u8>` and relied on struct-level
+        // `ZeroizeOnDrop` — which only fires on the success path because
+        // the struct is never constructed on the error branch.
+        let data = Zeroizing::new(data);
         let expected_size = parameter_set.secret_key_size();
         if data.len() != expected_size {
             return Err(MlDsaError::InvalidKeyLength {
@@ -492,7 +505,9 @@ impl MlDsaSecretKey {
     /// need an owned, zeroize-on-drop copy (e.g. for serialization).
     #[must_use]
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
-        Zeroizing::new(self.data.clone())
+        // `self.data` is `Zeroizing<Vec<u8>>` post round-13; deref to
+        // the slice and re-allocate into a fresh zeroizing copy.
+        Zeroizing::new(self.data.to_vec())
     }
 }
 
@@ -617,7 +632,7 @@ pub fn generate_keypair(
             })?;
             (
                 MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
-                MlDsaSecretKey { parameter_set, data: sk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: Zeroizing::new(sk.into_bytes().to_vec()) },
             )
         }
         MlDsaParameterSet::MlDsa65 => {
@@ -626,7 +641,7 @@ pub fn generate_keypair(
             })?;
             (
                 MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
-                MlDsaSecretKey { parameter_set, data: sk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: Zeroizing::new(sk.into_bytes().to_vec()) },
             )
         }
         MlDsaParameterSet::MlDsa87 => {
@@ -635,7 +650,7 @@ pub fn generate_keypair(
             })?;
             (
                 MlDsaPublicKey { parameter_set, data: pk.into_bytes().to_vec() },
-                MlDsaSecretKey { parameter_set, data: sk.into_bytes().to_vec() },
+                MlDsaSecretKey { parameter_set, data: Zeroizing::new(sk.into_bytes().to_vec()) },
             )
         }
     };

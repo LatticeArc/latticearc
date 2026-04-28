@@ -51,6 +51,11 @@ We recommend always using the latest version.
 
 - **No unsafe code** in cryptographic code paths
 - **Constant-time operations** for all secret-dependent computations
+  ([Known Limitations](#constant-time-checking-known-limitations) — `ctgrind` /
+  `dudect` run on a weekly cadence, not PR-blocking; the constant-time
+  property is upheld by `subtle` and `aws-lc-rs` rather than
+  end-to-end machine-checked on every commit). Round-13 audit fix
+  (L-C).
 - **Zeroization** of sensitive data when no longer needed
 - **FIPS 203-206 compliance** for post-quantum algorithms
 - **Input validation** on all public APIs

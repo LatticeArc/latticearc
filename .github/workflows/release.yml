@@ -29,17 +29,11 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Security audit
-        # Mirror the ignore list maintained in `ci.yml`,
-        # `.github/workflows/security.yml`, `deny.toml`, and
-        # `.cargo/audit.toml`. All four advisories below are
-        # transitively-dev-dep-only and documented in deny.toml.
-        # Without these flags the release tag would fail to ship the
-        # moment one of these advisories is published, even though the
-        # equivalent regular CI builds pass — the lists must stay in
-        # sync.
+        # Round-13 audit fix (L-E): stale comment about a four-advisory
+        # list and per-workflow sync rules removed. After round-12 #H-4
+        # the single source of truth is `.cargo/audit.toml` (mirrored
+        # by `deny.toml`); cargo-audit auto-discovers it. No CLI flags.
         run: |
-          # Round-12 audit fix (H-4): single source of truth is
-          # `.cargo/audit.toml`; CLI flags removed.
           cargo install cargo-audit
           cargo audit --deny warnings
 

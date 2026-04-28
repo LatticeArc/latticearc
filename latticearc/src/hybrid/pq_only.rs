@@ -305,14 +305,24 @@ impl PqOnlyCiphertext {
 /// # Algorithm
 ///
 /// 1. ML-KEM encapsulate with the public key → (shared_secret, kem_ciphertext)
-/// 2. HKDF-SHA256(shared_secret, info=`PQ_ONLY_ENCRYPTION_INFO`) → 32-byte AES key
+/// 2. HKDF-SHA256(shared_secret, info=`PQ_ONLY_ENCRYPTION_INFO || 0x00 || kem_ciphertext`) → 32-byte AES key
 /// 3. AES-256-GCM encrypt(plaintext) → (ciphertext, nonce, tag)
+///
+/// The `info` string binds the KEM ciphertext into the AEAD-key
+/// derivation per RFC 9180 §5.1 (HPKE channel binding) — round-12
+/// audit fix (L-2). The exact byte layout is `LABEL || 0x00 ||
+/// kem_ciphertext`, where `LABEL = "LatticeArc-PqOnly-Encryption-v1"`
+/// (see `crate::types::domains::PQ_ONLY_ENCRYPTION_INFO`). Encrypt and
+/// decrypt MUST construct `info` identically; both go through
+/// `pq_only_encryption_info()` (private to this module) to keep the
+/// two paths in lockstep.
 ///
 /// # Security
 ///
 /// - IND-CCA2 security from ML-KEM (FIPS 203)
 /// - AES-256-GCM nonce generated internally from OS CSPRNG (SP 800-38D §8.2)
-/// - HKDF key derivation uses `PQ_ONLY_ENCRYPTION_INFO` domain separation (SP 800-56C)
+/// - HKDF info binds `PQ_ONLY_ENCRYPTION_INFO` domain separator + KEM
+///   ciphertext (HPKE-style channel binding; SP 800-56C label usage)
 /// - ML-KEM shared secret is not exposed to callers
 ///
 /// # Errors
@@ -367,14 +377,20 @@ pub fn encrypt_pq_only(
 /// # Algorithm
 ///
 /// 1. ML-KEM decapsulate(kem_ciphertext, secret_key) → shared_secret
-/// 2. HKDF-SHA256(shared_secret, info=`PQ_ONLY_ENCRYPTION_INFO`) → 32-byte AES key
+/// 2. HKDF-SHA256(shared_secret, info=`PQ_ONLY_ENCRYPTION_INFO || 0x00 || kem_ciphertext`) → 32-byte AES key
 /// 3. AES-256-GCM decrypt(ciphertext, nonce, tag) → plaintext
+///
+/// `info` matches `encrypt_pq_only` byte-for-byte — both paths build
+/// it via `pq_only_encryption_info(kem_ciphertext)`. Substituting a
+/// different `kem_ciphertext` produces a different AEAD key, so the
+/// AEAD tag fails (HPKE-style channel binding, RFC 9180 §5.1).
 ///
 /// # Security
 ///
 /// - Decrypt errors are opaque ("decryption failed") per SP 800-38D §5.2.2
 /// - ML-KEM shared secret is wrapped and not exposed to callers
-/// - HKDF key derivation uses `PQ_ONLY_ENCRYPTION_INFO` domain separation (SP 800-56C)
+/// - HKDF info binds `PQ_ONLY_ENCRYPTION_INFO` domain separator + KEM
+///   ciphertext (HPKE-style channel binding; round-12 audit fix L-2)
 /// - Plaintext is returned in `Zeroizing<Vec<u8>>` for automatic cleanup
 ///
 /// # Errors

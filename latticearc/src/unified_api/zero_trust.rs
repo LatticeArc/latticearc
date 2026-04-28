@@ -2191,6 +2191,67 @@ mod tests {
         Ok(())
     }
 
+    // Round-13 audit fix (M-C): regression coverage for the
+    // round-12 L-3 fix that capped forward clock-skew tolerance at
+    // 30 s on `verify_proof`. Previously `now_ms.abs_diff(proof_ts_ms)
+    // > 300_000` allowed proofs up to 5 min in the future; an
+    // attacker with a forward-skewed clock got a 10-min replay
+    // window. The fix added `if proof_ts_ms > now_ms + 30_000 {
+    // return Ok(false); }` to all three ProofComplexity paths.
+    // These tests assert that a 31 s-ahead timestamp is rejected on
+    // each path, locking in the contract against future refactors
+    // that might reorder the gates.
+    //
+    // Helper: forge a proof whose embedded timestamp is `skew_ms`
+    // ahead of "now". The forged signature is invalid against the
+    // forged message; the future-skew check should reject BEFORE
+    // signature verification, so the test asserts `Ok(false)`
+    // regardless of signature validity.
+    fn forge_future_skewed_proof(skew_ms: i64, complexity: ProofComplexity) -> ZeroKnowledgeProof {
+        let now_ms = Utc::now().timestamp_millis();
+        let future_ts = now_ms.saturating_add(skew_ms);
+        let timestamp_bytes = future_ts.to_le_bytes();
+        let mut proof_data = vec![0u8; 64]; // dummy 64-byte signature
+        proof_data.extend_from_slice(&timestamp_bytes);
+        ZeroKnowledgeProof::new(vec![1u8; 32], proof_data, Utc::now(), complexity)
+    }
+
+    #[test]
+    fn test_verify_proof_low_rejects_31s_future_timestamp() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::Low);
+        let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+        let challenge = vec![1u8; 32];
+        let proof = forge_future_skewed_proof(31_000, ProofComplexity::Low);
+        let result = auth.verify_proof(&proof, &challenge)?;
+        assert!(!result, "Low: 31 s future-skew must reject before signature check");
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_proof_medium_rejects_31s_future_timestamp() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::Medium);
+        let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+        let challenge = vec![1u8; 32];
+        let proof = forge_future_skewed_proof(31_000, ProofComplexity::Medium);
+        let result = auth.verify_proof(&proof, &challenge)?;
+        assert!(!result, "Medium: 31 s future-skew must reject before signature check");
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_proof_high_rejects_31s_future_timestamp() -> Result<()> {
+        let (public_key, private_key) = generate_keypair()?;
+        let config = ZeroTrustConfig::new().with_complexity(ProofComplexity::High);
+        let auth = ZeroTrustAuth::with_config(public_key, private_key, config)?;
+        let challenge = vec![1u8; 32];
+        let proof = forge_future_skewed_proof(31_000, ProofComplexity::High);
+        let result = auth.verify_proof(&proof, &challenge)?;
+        assert!(!result, "High: 31 s future-skew must reject before signature check");
+        Ok(())
+    }
+
     #[test]
     fn test_zero_knowledge_proof_debug_and_clone_succeeds() {
         let proof =
