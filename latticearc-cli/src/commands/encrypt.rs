@@ -144,7 +144,7 @@ fn encrypt_with_config(plaintext: &[u8], key_file: &KeyFile, args: &EncryptArgs)
             }
 
             let pk_bytes = key_file.key_bytes()?;
-            let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes)?;
+            let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes, alg)?;
             let encrypted =
                 latticearc::encrypt(plaintext, latticearc::EncryptKey::Hybrid(&pk), config)
                     .map_err(|e| anyhow::anyhow!("Encryption failed: {e}"))?;
@@ -202,7 +202,22 @@ fn encrypt_hybrid(plaintext: &[u8], key_file: &KeyFile) -> Result<String> {
     }
 
     let pk_bytes = key_file.key_bytes()?;
-    let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes)?;
+    // The legacy `--algorithm hybrid` path historically wrote ML-KEM-768
+    // public keys, so the algorithm is fixed here. If the key file's
+    // algorithm tag is one of the typed hybrid variants, prefer that;
+    // otherwise fall back to the historic 768.
+    let alg = key_file.portable_key().algorithm();
+    let resolved_alg = if matches!(
+        alg,
+        latticearc::unified_api::key_format::KeyAlgorithm::HybridMlKem512X25519
+            | latticearc::unified_api::key_format::KeyAlgorithm::HybridMlKem768X25519
+            | latticearc::unified_api::key_format::KeyAlgorithm::HybridMlKem1024X25519
+    ) {
+        alg
+    } else {
+        latticearc::unified_api::key_format::KeyAlgorithm::HybridMlKem768X25519
+    };
+    let pk = crate::keyfile::parse_hybrid_kem_pk_from_bytes(&pk_bytes, resolved_alg)?;
 
     let encrypted = latticearc::encrypt(
         plaintext,

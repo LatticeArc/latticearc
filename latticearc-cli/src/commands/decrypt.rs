@@ -139,10 +139,16 @@ fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {
             eprintln!("Decrypted data written to: {}", p.display());
         }
         None => {
-            // Try to print as UTF-8, fall back to hex
-            match std::str::from_utf8(data) {
-                Ok(s) => print!("{s}"),
-                Err(_) => print!("{}", hex::encode(data)),
+            // Try to print as UTF-8, fall back to hex. The hex encoding
+            // is wrapped in `Zeroizing<String>` so a derived plaintext
+            // copy doesn't outlive the source `Zeroizing<Vec<u8>>` —
+            // otherwise the encoded string would linger on the heap until
+            // allocator reclaim.
+            if let Ok(s) = std::str::from_utf8(data) {
+                print!("{s}");
+            } else {
+                let encoded = zeroize::Zeroizing::new(hex::encode(data));
+                print!("{}", encoded.as_str());
             }
         }
     }

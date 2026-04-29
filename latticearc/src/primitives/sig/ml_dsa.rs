@@ -155,6 +155,19 @@ pub enum MlDsaError {
     #[error("Invalid parameter set: {0}")]
     InvalidParameterSet(String),
 
+    /// Verification key and signature carry different ML-DSA parameter
+    /// sets. This is a configuration error, not a signature forgery —
+    /// callers that branch on `Ok(false)` for "invalid signature" must
+    /// surface this case as `Err` so misconfigurations don't masquerade
+    /// as forgeries.
+    #[error("ML-DSA parameter-set mismatch: key uses {key:?}, signature uses {signature:?}")]
+    ParameterSetMismatch {
+        /// Parameter set the verifying key was generated at.
+        key: MlDsaParameterSet,
+        /// Parameter set the signature was produced at.
+        signature: MlDsaParameterSet,
+    },
+
     /// Message length exceeds the configured resource limit.
     ///
     /// Shape matches `SlhDsaError::MessageTooLong` and the FN-DSA sibling;
@@ -196,7 +209,14 @@ impl MlDsaPublicKey {
         context: &[u8],
     ) -> Result<bool, MlDsaError> {
         if self.parameter_set() != signature.parameter_set() {
-            return Ok(false);
+            // Parameter-set mismatch is a configuration bug, not a
+            // forgery. Callers that branch on `Ok(false)` for "invalid
+            // signature" would silently treat a misconfigured key/signature
+            // pair as a valid forgery report; surface as `Err` instead.
+            return Err(MlDsaError::ParameterSetMismatch {
+                key: self.parameter_set(),
+                signature: signature.parameter_set(),
+            });
         }
 
         let is_valid = match self.parameter_set() {
@@ -1186,7 +1206,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ml_dsa_verify_mismatched_parameter_sets_returns_false_fails() {
+    fn test_ml_dsa_verify_mismatched_parameter_sets_returns_err() {
         let (pk44, sk44) =
             generate_keypair(MlDsaParameterSet::MlDsa44).expect("Key generation should succeed");
         let sig44 = sk44.sign(b"test", &[]).expect("Signing should succeed");
@@ -1195,10 +1215,18 @@ mod tests {
         let mismatched_sig =
             MlDsaSignature { parameter_set: MlDsaParameterSet::MlDsa65, data: sig44.data };
 
-        // verify() should return Ok(false) for mismatched parameter sets
+        // verify() returns Err(ParameterSetMismatch) for parameter-set
+        // mismatch — this is a configuration error, not a forgery, so
+        // callers cannot conflate it with `Ok(false)` for a real invalid
+        // signature.
         let result = pk44.verify(b"test", &mismatched_sig, &[]);
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
+        match result {
+            Err(MlDsaError::ParameterSetMismatch { key, signature }) => {
+                assert_eq!(key, MlDsaParameterSet::MlDsa44);
+                assert_eq!(signature, MlDsaParameterSet::MlDsa65);
+            }
+            other => panic!("expected ParameterSetMismatch, got {other:?}"),
+        }
     }
 
     // ---- Coverage: parameter set sizes and empty message ----

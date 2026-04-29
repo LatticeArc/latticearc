@@ -274,33 +274,57 @@ pub fn generate_fn_dsa_keypair() -> Result<(PublicKey, PrivateKey)> {
 /// - The RNG is unavailable or fails to provide sufficient randomness
 ///
 /// # Stack Usage
-/// FN-DSA Level1024 requires ~32MB stack in debug builds. Use `--release`
-/// or spawn a thread with `stack_size(32 * 1024 * 1024)` if needed.
+/// FN-DSA keygen needs ~32 MB of stack (Level1024 in debug builds is the
+/// worst case). Default thread stacks are typically 2–8 MB, so this
+/// function spawns a dedicated 32 MB-stack worker thread internally and
+/// joins it before returning. Callers do not need to manage stack size
+/// themselves — the API is safe to call from any thread.
 #[must_use = "generated keypair must be stored or used"]
 pub fn generate_fn_dsa_keypair_with_level(
     level: FnDsaSecurityLevel,
 ) -> Result<(PublicKey, PrivateKey)> {
-    debug!("Generating FN-DSA keypair ({:?})", level);
-
-    let keypair = crate::primitives::sig::fndsa::KeyPair::generate(level).map_err(|e| {
-        CoreError::KeyGenerationFailed {
-            reason: format!("FN-DSA key generation failed: {}", e),
-            recovery: "Check RNG availability".to_string(),
-        }
-    })?;
+    // Stack size for the inner FN-DSA keygen worker. Sized for Level1024
+    // debug builds; smaller levels fit comfortably.
+    const FN_DSA_KEYGEN_STACK: usize = 32 * 1024 * 1024;
 
     let level_name = match level {
         FnDsaSecurityLevel::Level512 => "FN-DSA-512",
         FnDsaSecurityLevel::Level1024 => "FN-DSA-1024",
     };
+
+    debug!("Generating FN-DSA keypair ({:?})", level);
+
+    let handle = std::thread::Builder::new()
+        .name(format!("latticearc-fn-dsa-keygen-{level_name}"))
+        .stack_size(FN_DSA_KEYGEN_STACK)
+        .spawn(move || -> Result<(Vec<u8>, Vec<u8>)> {
+            let keypair = crate::primitives::sig::fndsa::KeyPair::generate(level).map_err(|e| {
+                CoreError::KeyGenerationFailed {
+                    reason: format!("FN-DSA key generation failed: {}", e),
+                    recovery: "Check RNG availability".to_string(),
+                }
+            })?;
+            let pk_bytes = keypair.verifying_key().to_bytes();
+            let mut sk_zeroizing = keypair.signing_key().to_bytes();
+            // mem::take the signing-key bytes out of the Zeroizing wrapper so
+            // the final PrivateKey owns them without a transient unzeroized
+            // clone on the heap (matches the Ed25519 path above).
+            let sk_bytes = std::mem::take(&mut *sk_zeroizing);
+            Ok((pk_bytes, sk_bytes))
+        })
+        .map_err(|e| CoreError::KeyGenerationFailed {
+            reason: format!("Failed to spawn FN-DSA keygen worker thread: {e}"),
+            recovery: "Investigate OS thread limits".to_string(),
+        })?;
+
+    let (pk_bytes, sk_bytes) =
+        handle.join().map_err(|_panic| CoreError::KeyGenerationFailed {
+            reason: "FN-DSA keygen worker thread panicked".to_string(),
+            recovery: "File an issue with the panic context".to_string(),
+        })??;
+
     crate::log_key_generated!("fn-dsa-keypair", level_name, KeyType::KeyPair, KeyPurpose::Signing);
 
-    // mem::take the signing-key bytes out of the Zeroizing wrapper so the
-    // final PrivateKey owns them without a transient unzeroized clone on
-    // the heap (matches the Ed25519 path above).
-    let pk_bytes = keypair.verifying_key().to_bytes(); // public, already Vec<u8>
-    let mut sk_zeroizing = keypair.signing_key().to_bytes();
-    let sk_bytes = std::mem::take(&mut *sk_zeroizing);
     Ok((PublicKey::new(pk_bytes), PrivateKey::new(sk_bytes)))
 }
 

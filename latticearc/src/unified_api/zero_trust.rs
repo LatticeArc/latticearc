@@ -337,8 +337,16 @@ impl VerifiedSession {
         let auth = ZeroTrustAuth::new(pk, sk)?;
         let mut session = ZeroTrustSession::new(auth);
 
-        // Self-authentication: prove we possess the private key
+        // Self-authentication: prove we possess the private key.
         let challenge = session.initiate_authentication()?;
+        // Reject a captured challenge-response replay on age grounds before
+        // the proof is verified. Without this gate a captured pair could be
+        // replayed indefinitely against the same `establish` call site.
+        if !session.auth.verify_challenge_age(&challenge)? {
+            return Err(CoreError::AuthenticationRequired(
+                "Challenge expired during establish (replay protection)".to_string(),
+            ));
+        }
         let proof = session.auth.generate_proof(challenge.data())?;
         session.verify_response(&proof)?;
 

@@ -200,7 +200,18 @@ impl CryptoPolicyEngine {
             return Ok(CHACHA20_POLY1305.to_string());
         }
 
-        // Data-aware adjustments when data is non-empty
+        // Data-aware adjustments when data is non-empty.
+        //
+        // The data-aware branch may downgrade `SecurityLevel::High`
+        // (NIST L3 / ML-KEM-768) to ML-KEM-512 (NIST L1) under
+        // `(Speed, Random)` or `(Memory, small)`. This downgrade was
+        // previously silent — the caller declared L3 and got L1 with no
+        // signal (round-19 audit M8). Per the audit's recommendation we
+        // now emit a `tracing::warn!` whenever the policy engine
+        // overrides the caller's declared level, so audit/observability
+        // pipelines can see when the data-aware optimization fired.
+        // `Maximum` is never downgraded (see table in
+        // `ML_KEM_DOWNGRADE_SIZE_THRESHOLD` doc).
         if !data.is_empty() {
             let characteristics = Self::analyze_data_characteristics(data);
 
@@ -208,6 +219,15 @@ impl CryptoPolicyEngine {
                 // High-entropy data with speed preference: smaller KEM is sufficient
                 (PerformancePreference::Speed, PatternType::Random) => {
                     if matches!(config.security_level, SecurityLevel::High) {
+                        tracing::warn!(
+                            target: "latticearc::selector",
+                            from = "ML-KEM-768",
+                            to = "ML-KEM-512",
+                            reason = "data-aware-downgrade",
+                            preference = "Speed",
+                            pattern = "Random",
+                            "policy engine overrode caller-declared SecurityLevel::High"
+                        );
                         return Ok(HYBRID_ENCRYPTION_512.to_string());
                     }
                 }
@@ -216,6 +236,15 @@ impl CryptoPolicyEngine {
                     if data.len() < ML_KEM_DOWNGRADE_SIZE_THRESHOLD =>
                 {
                     if matches!(config.security_level, SecurityLevel::High) {
+                        tracing::warn!(
+                            target: "latticearc::selector",
+                            from = "ML-KEM-768",
+                            to = "ML-KEM-512",
+                            reason = "data-aware-downgrade",
+                            preference = "Memory",
+                            data_len = data.len(),
+                            "policy engine overrode caller-declared SecurityLevel::High"
+                        );
                         return Ok(HYBRID_ENCRYPTION_512.to_string());
                     }
                 }

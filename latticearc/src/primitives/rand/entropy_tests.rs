@@ -114,6 +114,14 @@ pub fn repetition_test(bytes: &[u8]) -> Result<()> {
         message: "Failed to access first byte".to_string(),
     })?;
 
+    // `byte == prev_byte` uses Rust's variable-time `PartialEq` rather than
+    // `subtle::ConstantTimeEq`. This is intentional: this is a health
+    // check on entropy SAMPLES, not on secret material. A timing-side-
+    // channel adversary observing how long `repetition_test` takes
+    // learns at most an aggregate count of consecutive identical bytes
+    // in already-public test data — there is no key, key-derivative,
+    // or session secret being compared. Project-wide CT discipline
+    // (see `ct.rs`) does not apply here.
     for byte in bytes.iter().skip(1) {
         if byte == prev_byte {
             consecutive_count = consecutive_count.saturating_add(1);

@@ -172,6 +172,19 @@ pub(crate) fn run(args: KeygenArgs) -> Result<()> {
 /// Use-case-driven key generation via the library's unified API.
 fn generate_from_config(args: &KeygenArgs) -> Result<()> {
     let passphrase = resolve_keygen_passphrase(args)?;
+    if passphrase.is_some() {
+        // `--use-case` produces both a signing keypair and an encryption
+        // keypair. The same passphrase encrypts both secret keys, which is
+        // a documented anti-pattern (PKCS#11 / PKIX) but the simplest
+        // ergonomic for a single-shot CLI invocation. Disclose explicitly
+        // so the user can decide whether to re-key one of the two halves
+        // with a separate `--algorithm` keygen pass.
+        eprintln!(
+            "note: the same passphrase will encrypt the signing AND encryption \
+             secret keys. If you require distinct passphrases per role, generate \
+             each role separately with `keygen --algorithm <…>`."
+        );
+    }
     let config = super::common::build_config(args.use_case, args.security_level, &args.compliance);
 
     // Generate signing keypair — library selects the scheme.

@@ -58,13 +58,18 @@ fn independent_hkdf(
     ecdh_ss: &[u8],
     static_pk: &[u8],
     ephemeral_pk: &[u8],
+    kem_ct: &[u8],
 ) -> Vec<u8> {
     // IKM = ml_kem_ss || ecdh_ss
     let mut ikm = Vec::with_capacity(64);
     ikm.extend_from_slice(ml_kem_ss);
     ikm.extend_from_slice(ecdh_ss);
 
-    // Info = domain_label || len(static_pk) || static_pk || len(eph_pk) || eph_pk
+    // Info = domain_label || len(static_pk) || static_pk
+    //                    || len(eph_pk) || eph_pk
+    //                    || len(kem_ct) || kem_ct
+    // Round-19 M2: kem_ct binding aligns the transcript with X-Wing /
+    // KitchenSink guidance (substituted ct must not yield same shared secret).
     let mut info = Vec::new();
     info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS-v1");
     let static_pk_len = u32::try_from(static_pk.len()).expect("public key within u32 range");
@@ -73,6 +78,9 @@ fn independent_hkdf(
     let ephemeral_pk_len = u32::try_from(ephemeral_pk.len()).expect("public key within u32 range");
     info.extend_from_slice(&ephemeral_pk_len.to_be_bytes());
     info.extend_from_slice(ephemeral_pk);
+    let kem_ct_len = u32::try_from(kem_ct.len()).expect("KEM ciphertext within u32 range");
+    info.extend_from_slice(&kem_ct_len.to_be_bytes());
+    info.extend_from_slice(kem_ct);
 
     // HKDF-SHA256 with no salt (defaults to 32 zero bytes per RFC 5869)
     let hk = Hkdf::<Sha256>::new(None, &ikm);
@@ -89,10 +97,11 @@ fn test_hybrid_kdf_matches_independent_hkdf_succeeds() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
-    let expected = independent_hkdf(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK);
+    let expected = independent_hkdf(&ML_KEM_SS, &ECDH_SS, &STATIC_PK, &EPHEMERAL_PK, &[]);
 
     assert_eq!(
         actual.expose_secret(),
@@ -109,6 +118,7 @@ fn test_hybrid_kdf_output_length_has_correct_size() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -124,6 +134,7 @@ fn test_domain_separator_affects_output_produces_different_secret_succeeds() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -153,6 +164,7 @@ fn test_ikm_ordering_ml_kem_first_produces_different_output_when_swapped_succeed
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -162,6 +174,7 @@ fn test_ikm_ordering_ml_kem_first_produces_different_output_when_swapped_succeed
         ecdh_ss: &ML_KEM_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -180,6 +193,7 @@ fn test_ikm_ordering_matches_spec_succeeds() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -189,6 +203,8 @@ fn test_ikm_ordering_matches_spec_succeeds() {
     ikm_correct.extend_from_slice(&ECDH_SS);
 
     // Info uses HPKE §5.1 / RFC 9180 length-prefix encoding (matches A1 fix).
+    // Round-19 M2: kem_ct (empty here, matching the test caller) is bound after
+    // the ephemeral PK to align with X-Wing / KitchenSink transcript guidance.
     let mut info = Vec::new();
     info.extend_from_slice(b"LatticeArc-Hybrid-KEM-SS-v1");
     let static_pk_len = u32::try_from(STATIC_PK.len()).expect("public key within u32 range");
@@ -197,6 +213,10 @@ fn test_ikm_ordering_matches_spec_succeeds() {
     let eph_pk_len = u32::try_from(EPHEMERAL_PK.len()).expect("public key within u32 range");
     info.extend_from_slice(&eph_pk_len.to_be_bytes());
     info.extend_from_slice(&EPHEMERAL_PK);
+    let kem_ct_empty: &[u8] = &[];
+    let kem_ct_len = u32::try_from(kem_ct_empty.len()).expect("KEM ct within u32 range");
+    info.extend_from_slice(&kem_ct_len.to_be_bytes());
+    info.extend_from_slice(kem_ct_empty);
 
     let hk = Hkdf::<Sha256>::new(None, &ikm_correct);
     let mut expected = vec![0u8; 64];
@@ -232,6 +252,7 @@ fn test_static_pk_binding_produces_different_output_for_different_keys_succeeds(
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -243,6 +264,7 @@ fn test_static_pk_binding_produces_different_output_for_different_keys_succeeds(
         ecdh_ss: &ECDH_SS,
         static_pk: &different_pk,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -260,6 +282,7 @@ fn test_ephemeral_pk_binding_produces_different_output_for_different_keys_succee
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -271,6 +294,7 @@ fn test_ephemeral_pk_binding_produces_different_output_for_different_keys_succee
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &different_epk,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -288,6 +312,7 @@ fn test_roundtrip_determinism_roundtrip() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
 
@@ -297,6 +322,7 @@ fn test_roundtrip_determinism_roundtrip() {
             ecdh_ss: &ECDH_SS,
             static_pk: &STATIC_PK,
             ephemeral_pk: &EPHEMERAL_PK,
+            kem_ct: &[],
         })
         .unwrap();
         assert!(
@@ -316,6 +342,7 @@ fn test_invalid_ml_kem_ss_length_fails() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     });
     assert!(result.is_err(), "16-byte ML-KEM SS should be rejected");
 
@@ -325,6 +352,7 @@ fn test_invalid_ml_kem_ss_length_fails() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     });
     assert!(result.is_err(), "64-byte ML-KEM SS should be rejected");
 }
@@ -338,6 +366,7 @@ fn test_invalid_ecdh_ss_length_fails() {
         ecdh_ss: &short_ss,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     });
     assert!(result.is_err(), "16-byte ECDH SS should be rejected");
 
@@ -347,6 +376,7 @@ fn test_invalid_ecdh_ss_length_fails() {
         ecdh_ss: &long_ss,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     });
     assert!(result.is_err(), "64-byte ECDH SS should be rejected");
 }
@@ -359,6 +389,7 @@ fn test_output_is_nontrivial_succeeds() {
         ecdh_ss: &ECDH_SS,
         static_pk: &STATIC_PK,
         ephemeral_pk: &EPHEMERAL_PK,
+        kem_ct: &[],
     })
     .unwrap();
     assert!(!result.expose_secret().iter().all(|&b| b == 0), "Shared secret must not be all zeros");

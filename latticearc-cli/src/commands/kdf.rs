@@ -76,6 +76,12 @@ pub(crate) struct KdfArgs {
     /// Production use is unsupported.
     #[arg(long)]
     pub allow_weak_iterations: bool,
+    /// Allow `--input <secret>` with `--algorithm pbkdf2`. Reserved for
+    /// KAT replay and reproducibility — production use is unsupported
+    /// because argv-passed secrets are visible to `ps`, kernel audit
+    /// logs, and shell history.
+    #[arg(long)]
+    pub allow_argv_secret: bool,
     /// Output format: hex (default) or base64.
     #[arg(short, long, default_value = "hex")]
     pub format: super::hash::OutputFormat,
@@ -83,7 +89,30 @@ pub(crate) struct KdfArgs {
 
 /// Execute the kdf command.
 pub(crate) fn run(args: KdfArgs) -> Result<()> {
+    if args.salt.is_empty() {
+        bail!(
+            "--salt must not be empty. PBKDF2 requires ≥16 bytes (NIST SP 800-132 §5.1); \
+             HKDF accepts an empty salt but a fixed application-specific salt is preferred."
+        );
+    }
     let salt = hex::decode(&args.salt).context("Invalid hex in --salt")?;
+
+    // PBKDF2 with `--input` puts the password on argv (visible in `ps`,
+    // `/proc/<pid>/cmdline`, shell history). The `--input` flag's docstring
+    // calls this out, but argv routing is not algorithm-aware in clap, so
+    // a user can still combine `--algorithm pbkdf2 --input <password>`
+    // without the warning binding. Reject unless explicitly opted in via
+    // `--allow-argv-secret` (KAT replay only).
+    if matches!(args.algorithm, KdfAlgorithm::Pbkdf2)
+        && args.input.is_some()
+        && !args.allow_argv_secret
+    {
+        bail!(
+            "Refusing to read a PBKDF2 password from --input because the value is visible in \
+             `ps`, `/proc/<pid>/cmdline`, and shell history. Use --input-stdin (recommended) \
+             or LATTICEARC_KDF_INPUT. Pass --allow-argv-secret to bypass for KAT replay only."
+        );
+    }
 
     let resolved_input = resolve_input(&args)?;
 
@@ -92,15 +121,19 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
         KdfAlgorithm::Pbkdf2 => derive_pbkdf2_with_input(&args, &salt, &resolved_input)?,
     };
 
-    let encoded = match args.format {
-        super::hash::OutputFormat::Hex => hex::encode(&derived),
+    // Encoded output stays in `Zeroizing<String>` so password-derived key
+    // material can't linger on the heap until allocator reclaim.
+    let encoded: zeroize::Zeroizing<String> = match args.format {
+        super::hash::OutputFormat::Hex => zeroize::Zeroizing::new(hex::encode(derived.as_slice())),
         super::hash::OutputFormat::Base64 => {
             use base64::Engine;
-            base64::engine::general_purpose::STANDARD.encode(&derived)
+            zeroize::Zeroizing::new(
+                base64::engine::general_purpose::STANDARD.encode(derived.as_slice()),
+            )
         }
     };
 
-    println!("{encoded}");
+    println!("{}", encoded.as_str());
     Ok(())
 }
 
@@ -163,12 +196,30 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
     bail!(
         "kdf requires one of: --input <value>, --input-stdin, or \
          LATTICEARC_KDF_INPUT in the environment. For PBKDF2 passwords, \
-         prefer --input-stdin (`echo $PASS | latticearc-cli kdf --input-stdin …`) \
-         so the password isn't visible in `ps` / shell history."
+         prefer --input-stdin so the password is not visible in `ps` / \
+         `/proc/<pid>/cmdline` / shell history. Recommended pattern:\n\
+         \n\
+            read -rs PASS && printf '%s' \"$PASS\" | latticearc-cli kdf --input-stdin …\n\
+         \n\
+         `read -rs` reads silently into a shell variable, and `printf '%s'` \
+         pipes the value without writing it to the shell history."
     )
 }
 
-fn derive_hkdf_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<Vec<u8>> {
+/// Upper bound on KDF output length applied by the CLI to both HKDF and
+/// PBKDF2. HKDF-SHA256 has a hard limit of 8160 bytes (255 × 32). PBKDF2
+/// has no algorithmic ceiling but allowing arbitrary `--length` is a
+/// trivial self-DoS (e.g. `--length 1073741824` allocates 1 GiB and
+/// then runs 600k iterations per block). Aligning both algorithms to
+/// the same CLI ceiling is consistent and well above any legitimate
+/// use case.
+const CLI_MAX_KDF_OUTPUT_LEN: usize = 8192;
+
+fn derive_hkdf_with_input(
+    args: &KdfArgs,
+    salt: &[u8],
+    input: &str,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     let ikm =
         zeroize::Zeroizing::new(hex::decode(input).context("Invalid hex in --input for HKDF")?);
     let info = args.info.as_deref().unwrap_or("");
@@ -177,14 +228,15 @@ fn derive_hkdf_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<Ve
         bail!("Output length must be 1..=8160 bytes");
     }
 
-    latticearc::derive_key_with_info(
+    let derived = latticearc::derive_key_with_info(
         &ikm,
         salt,
         args.length,
         info.as_bytes(),
         latticearc::SecurityMode::Unverified,
     )
-    .map_err(|e| anyhow::anyhow!("HKDF derivation failed: {e}"))
+    .map_err(|e| anyhow::anyhow!("HKDF derivation failed: {e}"))?;
+    Ok(zeroize::Zeroizing::new(derived))
 }
 
 /// OWASP 2023 minimum iteration count for PBKDF2-HMAC-SHA256.
@@ -194,11 +246,18 @@ fn derive_hkdf_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<Ve
 /// password-hashing use case the CLI targets.
 const OWASP_PBKDF2_MIN_ITERATIONS: u32 = 600_000;
 
-fn derive_pbkdf2_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<Vec<u8>> {
+fn derive_pbkdf2_with_input(
+    args: &KdfArgs,
+    salt: &[u8],
+    input: &str,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
     let password = zeroize::Zeroizing::new(input.as_bytes().to_vec());
 
-    if args.length == 0 {
-        bail!("Output length must be > 0");
+    if args.length == 0 || args.length > CLI_MAX_KDF_OUTPUT_LEN {
+        bail!(
+            "Output length must be 1..={CLI_MAX_KDF_OUTPUT_LEN} bytes (PBKDF2 has no \
+             algorithmic ceiling but the CLI caps to prevent self-DoS)."
+        );
     }
 
     if args.iterations < OWASP_PBKDF2_MIN_ITERATIONS && !args.allow_weak_iterations {
@@ -225,5 +284,5 @@ fn derive_pbkdf2_with_input(args: &KdfArgs, salt: &[u8], input: &str) -> Result<
     let result = latticearc::primitives::kdf::pbkdf2(&password, &params)
         .map_err(|e| anyhow::anyhow!("PBKDF2 derivation failed: {e}"))?;
 
-    Ok(result.expose_secret().to_vec())
+    Ok(zeroize::Zeroizing::new(result.expose_secret().to_vec()))
 }

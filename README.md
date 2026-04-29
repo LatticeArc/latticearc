@@ -173,7 +173,7 @@ Algorithm conformance ≠ module validation. `--features fips` switches aws-lc-r
 | **Classical Key Exchange** | X25519 | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
 | **Symmetric Encryption** | AES-256-GCM | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
 | **Symmetric Encryption** | ChaCha20-Poly1305 | chacha20poly1305 — non-FIPS |
-| **Hash** | SHA-2 (256/384/512) | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
+| **Hash** | SHA-2 (256/384/512) | RustCrypto `sha2` crate — widely reviewed, NOT CMVP-validated. The `--features fips` flag does NOT swap SHA-2 to aws-lc-rs (only AES-GCM, ML-KEM, X25519, and HKDF route through aws-lc-rs under FIPS). |
 | **Hash** | SHA-3, BLAKE2 | sha3 / blake2 crates — non-FIPS |
 | **KDF** | HKDF-SHA256 | aws-lc-rs — FIPS 140-3 validated with `--features fips` |
 

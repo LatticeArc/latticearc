@@ -330,8 +330,12 @@ fn generate_block(
     block_index: u32,
     prf: PrfType,
 ) -> Zeroizing<Vec<u8>> {
-    // Convert block index to bytes (big-endian)
-    let mut block_input = salt.to_vec();
+    // Convert block index to bytes (big-endian). `block_input` only
+    // carries public bytes today (salt + counter), so this is hygiene —
+    // but the surrounding code is `Zeroizing<Vec<u8>>` and a future
+    // refactor that adds a secret label here would silently leak. Keep
+    // the type discipline consistent.
+    let mut block_input = Zeroizing::new(salt.to_vec());
     block_input.extend_from_slice(&block_index.to_be_bytes());
 
     // U_1 = PRF(password, salt || INT(block_index))

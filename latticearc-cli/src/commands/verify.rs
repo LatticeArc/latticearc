@@ -80,6 +80,13 @@ pub(crate) struct VerifyArgs {
 /// decrypt.
 pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
     let input_data = read_verify_input(&args)?;
+    // Same 100 MiB cap as the input-data path. Without this gate a multi-gig
+    // signature file OOMs the process before any library guard fires.
+    super::common::enforce_input_size_limit(
+        &args.signature,
+        super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
+        "verify",
+    )?;
     let sig_json = std::fs::read_to_string(&args.signature)
         .with_context(|| format!("Failed to read {}", args.signature.display()))?;
 

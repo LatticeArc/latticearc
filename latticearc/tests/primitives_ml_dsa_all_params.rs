@@ -50,13 +50,24 @@ fn test_ml_dsa_wrong_message_fails_all_params_fails() {
 
 #[test]
 fn test_ml_dsa_parameter_set_mismatch_fails() {
+    use latticearc::primitives::sig::ml_dsa::MlDsaError;
+
     let (pk44, _sk44) = generate_keypair(MlDsaParameterSet::MlDsa44).unwrap();
     let (_pk65, sk65) = generate_keypair(MlDsaParameterSet::MlDsa65).unwrap();
     let sig65 = sk65.sign(TEST_MESSAGE, TEST_CONTEXT).unwrap();
 
-    // Verify with mismatched parameter sets should return Ok(false)
-    let result = pk44.verify(TEST_MESSAGE, &sig65, TEST_CONTEXT).unwrap();
-    assert!(!result, "Mismatched parameter sets should return false");
+    // Round-19 L10: verify() returns Err(ParameterSetMismatch) on
+    // mismatch instead of Ok(false). Configuration errors no longer
+    // masquerade as forgeries — callers branching on Ok(false) for
+    // "invalid signature" cannot conflate the two.
+    let result = pk44.verify(TEST_MESSAGE, &sig65, TEST_CONTEXT);
+    match result {
+        Err(MlDsaError::ParameterSetMismatch { key, signature }) => {
+            assert_eq!(key, MlDsaParameterSet::MlDsa44);
+            assert_eq!(signature, MlDsaParameterSet::MlDsa65);
+        }
+        other => panic!("expected ParameterSetMismatch, got {other:?}"),
+    }
 }
 
 #[test]

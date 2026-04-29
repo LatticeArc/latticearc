@@ -424,7 +424,17 @@ pub(crate) fn parse_hybrid_sign_pk_from_bytes(
 /// Parse a hybrid KEM PK from concatenated raw bytes (pq ++ classical).
 pub(crate) fn parse_hybrid_kem_pk_from_bytes(
     bytes: &[u8],
+    algorithm: KeyAlgorithm,
 ) -> Result<latticearc::hybrid::kem_hybrid::HybridKemPublicKey> {
+    use latticearc::primitives::kem::MlKemSecurityLevel;
+    let level = match algorithm {
+        KeyAlgorithm::HybridMlKem512X25519 => MlKemSecurityLevel::MlKem512,
+        KeyAlgorithm::HybridMlKem768X25519 => MlKemSecurityLevel::MlKem768,
+        KeyAlgorithm::HybridMlKem1024X25519 => MlKemSecurityLevel::MlKem1024,
+        other => {
+            bail!("parse_hybrid_kem_pk_from_bytes called with non-hybrid-KEM algorithm {other:?}")
+        }
+    };
     let split = bytes
         .len()
         .checked_sub(32)
@@ -435,7 +445,7 @@ pub(crate) fn parse_hybrid_kem_pk_from_bytes(
     Ok(latticearc::hybrid::kem_hybrid::HybridKemPublicKey::new(
         bytes.get(..split).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
         bytes.get(split..).ok_or_else(|| anyhow::anyhow!("slice"))?.to_vec(),
-        latticearc::primitives::kem::MlKemSecurityLevel::MlKem768,
+        level,
     ))
 }
 

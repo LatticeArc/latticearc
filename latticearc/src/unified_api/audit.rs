@@ -263,9 +263,16 @@ impl AuditEventBuilder {
     }
 
     /// Add metadata to this event.
+    ///
+    /// Routes through [`AuditEvent::with_metadata`] so the same caps apply
+    /// to builder callers as to direct callers — i.e. keys are truncated
+    /// at `MAX_METADATA_KEY_LEN`, values at `MAX_METADATA_VALUE_LEN`, and
+    /// inserts beyond `MAX_METADATA_ENTRIES` become a no-op. Bypassing
+    /// these via the builder previously let attacker-controlled strings
+    /// blow the audit-log size budget.
     #[must_use]
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.event.metadata.insert(key.into(), value.into());
+        self.event = self.event.with_metadata(key, value);
         self
     }
 
@@ -507,32 +514,48 @@ impl FileAuditStorage {
     /// # Errors
     /// Returns an error if the SHA-256 primitive fails (input exceeds 1 GiB guard).
     fn compute_integrity_hash(event: &AuditEvent, previous_hash: &str) -> Result<String> {
-        // Accumulate into a single buffer, then hash once via the primitives
-        // wrapper. SHA-256 is length-extension-safe here because each field
-        // is length-bounded and we hash the combined bytes as one message.
+        // Length-prefix every field so prefix-collision attacks are
+        // impossible (`"ab" + "c"` and `"a" + "bc"` no longer hash to the
+        // same digest). The metadata caps already bound each field, but a
+        // 4-byte LE length per element is the cheap and definitive fix.
         let mut buf = Vec::new();
-        buf.extend_from_slice(previous_hash.as_bytes());
-        buf.extend_from_slice(event.id.as_bytes());
-        buf.extend_from_slice(event.timestamp.to_rfc3339().as_bytes());
-        buf.extend_from_slice(event.event_type.to_string().as_bytes());
+        Self::append_lenp_field(&mut buf, previous_hash.as_bytes());
+        Self::append_lenp_field(&mut buf, event.id.as_bytes());
+        Self::append_lenp_field(&mut buf, event.timestamp.to_rfc3339().as_bytes());
+        Self::append_lenp_field(&mut buf, event.event_type.to_string().as_bytes());
 
-        if let Some(ref actor) = event.actor {
-            buf.extend_from_slice(actor.as_bytes());
+        // Optional fields are encoded as a discriminator byte followed by
+        // the length-prefixed bytes; absence vs empty is now distinguishable.
+        match event.actor.as_ref() {
+            Some(a) => {
+                buf.push(1);
+                Self::append_lenp_field(&mut buf, a.as_bytes());
+            }
+            None => buf.push(0),
         }
-        if let Some(ref resource) = event.resource {
-            buf.extend_from_slice(resource.as_bytes());
+        match event.resource.as_ref() {
+            Some(r) => {
+                buf.push(1);
+                Self::append_lenp_field(&mut buf, r.as_bytes());
+            }
+            None => buf.push(0),
         }
 
-        buf.extend_from_slice(event.action.as_bytes());
-        buf.extend_from_slice(event.outcome.to_string().as_bytes());
+        Self::append_lenp_field(&mut buf, event.action.as_bytes());
+        Self::append_lenp_field(&mut buf, event.outcome.to_string().as_bytes());
 
-        // Include metadata in sorted order for deterministic hashing
+        // Metadata: include count, then sorted (key, value) pairs each
+        // with their own length prefix.
         let mut metadata_keys: Vec<&String> = event.metadata.keys().collect();
         metadata_keys.sort();
+        let count = u32::try_from(metadata_keys.len()).unwrap_or(u32::MAX);
+        buf.extend_from_slice(&count.to_le_bytes());
         for key in metadata_keys {
-            buf.extend_from_slice(key.as_bytes());
+            Self::append_lenp_field(&mut buf, key.as_bytes());
             if let Some(value) = event.metadata.get(key) {
-                buf.extend_from_slice(value.as_bytes());
+                Self::append_lenp_field(&mut buf, value.as_bytes());
+            } else {
+                Self::append_lenp_field(&mut buf, &[]);
             }
         }
 
@@ -541,6 +564,15 @@ impl FileAuditStorage {
         let digest = crate::primitives::hash::sha2::sha256(&buf)
             .map_err(|e| CoreError::AuditError(format!("integrity hash failed: {}", e)))?;
         Ok(hex::encode(digest))
+    }
+
+    /// Append `field.len() as u32 LE` followed by `field` to `buf`. Length
+    /// is saturated at `u32::MAX` (4 GiB), which is far above the cap
+    /// any individual audit field can carry.
+    fn append_lenp_field(buf: &mut Vec<u8>, field: &[u8]) {
+        let len = u32::try_from(field.len()).unwrap_or(u32::MAX);
+        buf.extend_from_slice(&len.to_le_bytes());
+        buf.extend_from_slice(field);
     }
 
     /// Check if the current file needs rotation.
@@ -589,13 +621,36 @@ impl FileAuditStorage {
         let filename = format!("audit-{}.jsonl", now.format("%Y-%m-%dT%H-%M-%S"));
         let path = self.config.storage_path.join(&filename);
 
-        let file = OpenOptions::new().create(true).append(true).open(&path).map_err(|e| {
-            CoreError::AuditError(format!(
-                "Failed to create audit file '{}': {}",
-                path.display(),
-                e
-            ))
-        })?;
+        let file = {
+            // On Unix, set 0o600 atomically via OpenOptions::mode() so the
+            // file is never world-readable, even briefly. Audit logs may
+            // contain operation context (key IDs, paths, actors) and must
+            // not inherit the default umask the way the previous bare
+            // `OpenOptions::new().create(...).open(...)` did.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                OpenOptions::new().create(true).append(true).mode(0o600).open(&path).map_err(
+                    |e| {
+                        CoreError::AuditError(format!(
+                            "Failed to create audit file '{}': {}",
+                            path.display(),
+                            e
+                        ))
+                    },
+                )?
+            }
+            #[cfg(not(unix))]
+            {
+                OpenOptions::new().create(true).append(true).open(&path).map_err(|e| {
+                    CoreError::AuditError(format!(
+                        "Failed to create audit file '{}': {}",
+                        path.display(),
+                        e
+                    ))
+                })?
+            }
+        };
 
         tracing::debug!("Created new audit file: {}", path.display());
 

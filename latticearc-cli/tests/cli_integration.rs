@@ -747,6 +747,7 @@ fn test_kdf_pbkdf2_derivation_succeeds() {
         "1000", // low for test speed
         // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
         "--allow-weak-iterations",
+        "--allow-argv-secret",
     ]);
     let hex_key = out.trim();
     assert_eq!(hex_key.len(), 64); // 32 bytes = 64 hex chars
@@ -1271,6 +1272,8 @@ fn test_kdf_deterministic_output_is_deterministic() {
         "1000",
         // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
         "--allow-weak-iterations",
+        // M4 (round-19): KAT bypass for argv-passed PBKDF2 password.
+        "--allow-argv-secret",
     ];
 
     let out1 = run_ok(args);
@@ -3334,6 +3337,7 @@ fn test_pbkdf2_salt_influence_succeeds() {
         "000102030405060708090a0b0c0d0e0f",
         "--length",
         "32",
+        "--allow-argv-secret",
     ]);
 
     let key_salt2 = run_ok(&[
@@ -3346,6 +3350,7 @@ fn test_pbkdf2_salt_influence_succeeds() {
         "ff0102030405060708090a0b0c0d0e0f",
         "--length",
         "32",
+        "--allow-argv-secret",
     ]);
 
     assert_ne!(
@@ -3387,6 +3392,7 @@ fn test_pbkdf2_password_sensitivity_succeeds() {
         "100000",
         // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
         "--allow-weak-iterations",
+        "--allow-argv-secret",
     ]);
 
     let key_b = run_ok(&[
@@ -3402,6 +3408,7 @@ fn test_pbkdf2_password_sensitivity_succeeds() {
         "--iterations",
         "100000",
         "--allow-weak-iterations",
+        "--allow-argv-secret",
     ]);
 
     assert_ne!(
@@ -3984,6 +3991,7 @@ fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
         "100000",
         // CLI enforces OWASP 600k floor (#62); test fixture uses small count.
         "--allow-weak-iterations",
+        "--allow-argv-secret",
     ]);
     let derived_key = derived_hex.trim();
     assert_eq!(derived_key.len(), 64, "Derived key must be 32 bytes (64 hex chars)");
@@ -4045,6 +4053,7 @@ fn test_e2e_derived_key_encrypt_decrypt_roundtrip() {
         "--iterations",
         "100000",
         "--allow-weak-iterations",
+        "--allow-argv-secret",
     ]);
     assert_eq!(
         derived_key,

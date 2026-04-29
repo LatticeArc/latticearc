@@ -7,16 +7,34 @@
 //!
 //! This module provides CSPRNG using OsRng.
 //!
+//! # Failure semantics — process abort vs `Result`
+//!
+//! There are TWO public entry points to OS entropy in this crate, and they
+//! handle OS-RNG failure differently. Callers must understand the split:
+//!
+//! - **`csprng::random_bytes` / `random_u32` / `random_u64`** (this module):
+//!   collapse `TryRngCore` errors via `expect("OS RNG failure")` and
+//!   **panic, aborting the process** if the OS RNG returns an error. Use
+//!   when an OS RNG failure should be treated as fatal.
+//! - **`security::RngHandle::fill_bytes`** (sibling module): returns
+//!   `Result<()>`. Use when the calling code must surface entropy failure
+//!   gracefully (e.g. FIPS deployments, restricted-entropy CI sandboxes).
+//!
+//! This split is intentional. An OS RNG failure on a modern system
+//! (Linux `getrandom`, macOS `getentropy`, Windows `BCryptGenRandom`)
+//! means the entropy source is broken; continuing without secure
+//! randomness would be more dangerous than aborting. But for
+//! environments where graceful degradation matters more than
+//! fail-fast, the `RngHandle` path provides the alternative.
+//!
 //! # `rand` 0.9 migration note
 //!
 //! `rand` 0.9 made the OS RNG fallible at the type level — `rand_core::OsRng`
 //! now implements `TryRngCore` (returning `Result`) rather than `RngCore`
 //! (infallible). This file is the single, audited place where that fallibility
-//! is collapsed back to a panic: an OS RNG failure on a modern OS indicates
-//! the entropy source is broken, in which case continuing without secure
-//! randomness would be more dangerous than aborting. The `expect`/`unwrap`
-//! escape lives here only and is explicitly documented; everywhere else uses
-//! these wrappers or [`secure_rng()`] to stay clippy-clean.
+//! is collapsed back to a panic. The `expect`/`unwrap` escape lives here only
+//! and is explicitly documented; everywhere else uses these wrappers or
+//! [`secure_rng()`] to stay clippy-clean.
 
 use rand::{CryptoRng, TryRngCore, rngs::OsRng};
 

@@ -739,6 +739,7 @@ pub fn encapsulate(pk: &HybridKemPublicKey) -> Result<EncapsulatedKey, HybridKem
         ecdh_ss: &*ecdh_shared_secret,
         static_pk: pk.ecdh_pk.as_slice(),
         ephemeral_pk: &ecdh_ephemeral_public,
+        kem_ct: &ml_kem_ct,
     })
     .map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_KEM_ENCAPSULATE, "HKDF combiner failed");
@@ -810,6 +811,7 @@ pub fn decapsulate(
         ecdh_ss: &*ecdh_shared_secret,
         static_pk: &static_public,
         ephemeral_pk: ct.ecdh_pk.as_slice(),
+        kem_ct: ct.ml_kem_ct.as_slice(),
     })
     .map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "HKDF combiner failed");
@@ -837,6 +839,13 @@ pub struct HybridSharedSecretInputs<'a> {
     /// Ephemeral sender public key. Binds the derivation to this specific
     /// session. Included in the HKDF `info` field with a length prefix.
     pub ephemeral_pk: &'a [u8],
+    /// ML-KEM ciphertext that produced `ml_kem_ss`. Bound into the HKDF
+    /// `info` so a substituted ciphertext cannot yield the same shared
+    /// secret. Aligns the construction with X-Wing / KitchenSink
+    /// guidance; the AEAD-AAD layer above already binds `kem_ct` for
+    /// defense in depth, but binding it in the combiner is the
+    /// transcript-conformant location.
+    pub kem_ct: &'a [u8],
 }
 
 // Manual Debug: never derive Debug on types holding secret byte slices.
@@ -849,6 +858,7 @@ impl std::fmt::Debug for HybridSharedSecretInputs<'_> {
             .field("ecdh_ss", &"[REDACTED; 32]")
             .field("static_pk_len", &self.static_pk.len())
             .field("ephemeral_pk_len", &self.ephemeral_pk.len())
+            .field("kem_ct_len", &self.kem_ct.len())
             .finish()
     }
 }
@@ -870,7 +880,7 @@ impl std::fmt::Debug for HybridSharedSecretInputs<'_> {
 pub fn derive_hybrid_shared_secret(
     inputs: HybridSharedSecretInputs<'_>,
 ) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
-    let HybridSharedSecretInputs { ml_kem_ss, ecdh_ss, static_pk, ephemeral_pk } = inputs;
+    let HybridSharedSecretInputs { ml_kem_ss, ecdh_ss, static_pk, ephemeral_pk, kem_ct } = inputs;
     if ml_kem_ss.len() != 32 {
         return Err(HybridKemError::InvalidKeyMaterial(
             "ML-KEM shared secret must be 32 bytes".to_string(),
@@ -902,7 +912,10 @@ pub fn derive_hybrid_shared_secret(
     // currently exploitable, but length-prefixing keeps the construction
     // consistent with `encrypt_hybrid::derive_encryption_key` (P5.1) and
     // protects against any future variable-length component.
-    if static_pk.len() > u32::MAX as usize || ephemeral_pk.len() > u32::MAX as usize {
+    if static_pk.len() > u32::MAX as usize
+        || ephemeral_pk.len() > u32::MAX as usize
+        || kem_ct.len() > u32::MAX as usize
+    {
         return Err(HybridKemError::KdfError("HKDF info component exceeds 2^32 bytes".to_string()));
     }
     let static_pk_len = u32::try_from(static_pk.len()).map_err(|_e| {
@@ -911,19 +924,30 @@ pub fn derive_hybrid_shared_secret(
     let ephemeral_pk_len = u32::try_from(ephemeral_pk.len()).map_err(|_e| {
         HybridKemError::KdfError("ephemeral public key exceeds 2^32 bytes".to_string())
     })?;
+    let kem_ct_len = u32::try_from(kem_ct.len())
+        .map_err(|_e| HybridKemError::KdfError("KEM ciphertext exceeds 2^32 bytes".to_string()))?;
     let domain = crate::types::domains::HYBRID_KEM_SS_INFO;
     let total = domain
         .len()
         .saturating_add(4)
         .saturating_add(static_pk.len())
         .saturating_add(4)
-        .saturating_add(ephemeral_pk.len());
+        .saturating_add(ephemeral_pk.len())
+        .saturating_add(4)
+        .saturating_add(kem_ct.len());
     let mut info = Vec::with_capacity(total);
     info.extend_from_slice(domain);
     info.extend_from_slice(&static_pk_len.to_be_bytes());
     info.extend_from_slice(static_pk);
     info.extend_from_slice(&ephemeral_pk_len.to_be_bytes());
     info.extend_from_slice(ephemeral_pk);
+    // X-Wing / HPKE-style binding: include the KEM ciphertext so a
+    // substituted ct cannot yield the same shared secret. **BREAKING WIRE
+    // FORMAT**: existing hybrid-KEM ciphertexts will not decrypt after
+    // this change (round-19 audit M2). The AEAD AAD already binds kem_ct
+    // for defense-in-depth; this puts the binding in the transcript itself.
+    info.extend_from_slice(&kem_ct_len.to_be_bytes());
+    info.extend_from_slice(kem_ct);
 
     // HKDF-SHA256 with zero-length salt (`None`), matching HPKE (RFC 9180 §5.1).
     // RFC 5869 §2.2 permits zero salt when IKM is already uniformly random;
@@ -1039,6 +1063,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         });
         assert!(result.is_ok(), "HKDF derivation should succeed");
 
@@ -1051,6 +1076,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         });
         assert!(result2.is_ok());
         assert!(bool::from(secret.ct_eq(&result2.unwrap())), "HKDF should be deterministic");
@@ -1062,6 +1088,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         });
         assert!(result3.is_ok());
         assert!(
@@ -1076,6 +1103,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         });
         assert!(result4.is_err(), "Invalid ML-KEM secret length should fail");
     }
@@ -1219,6 +1247,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         });
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -1238,6 +1267,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         });
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -1408,6 +1438,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk1,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         })
         .unwrap();
         let secret2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -1415,6 +1446,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk2,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         })
         .unwrap();
 
@@ -1437,6 +1469,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &eph1,
+            kem_ct: &[],
         })
         .unwrap();
         let secret2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -1444,6 +1477,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &eph2,
+            kem_ct: &[],
         })
         .unwrap();
 
@@ -1596,6 +1630,7 @@ mod tests {
             ecdh_ss: &[0u8; 32],
             static_pk: &[0u8; 32],
             ephemeral_pk: &[0u8; 32],
+            kem_ct: &[],
         });
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ML-KEM"));
@@ -1608,6 +1643,7 @@ mod tests {
             ecdh_ss: &[0u8; 16],
             static_pk: &[0u8; 32],
             ephemeral_pk: &[0u8; 32],
+            kem_ct: &[],
         });
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ECDH"));
@@ -1625,6 +1661,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         })
         .unwrap();
         let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -1632,6 +1669,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &ephemeral_pk,
+            kem_ct: &[],
         })
         .unwrap();
         assert!(bool::from(s1.ct_eq(&s2)), "Same inputs must produce same output");
@@ -1651,6 +1689,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &eph1,
+            kem_ct: &[],
         })
         .unwrap();
         let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -1658,6 +1697,7 @@ mod tests {
             ecdh_ss: &ecdh_ss,
             static_pk: &static_pk,
             ephemeral_pk: &eph2,
+            kem_ct: &[],
         })
         .unwrap();
         assert!(

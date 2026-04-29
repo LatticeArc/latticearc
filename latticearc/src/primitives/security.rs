@@ -99,19 +99,25 @@ impl MemoryPool {
         Self::allocate_secure(size)
     }
 
-    /// Deallocate secure memory by returning to pool
-    pub fn deallocate(&self, memory: SecretVec) {
-        let size = memory.len();
-        if let Ok(mut pool) = self.pool.lock() {
-            // Limit pool size to prevent unbounded growth (NIST SP 800-90A compliance)
-            const MAX_POOL_SIZE: usize = 100;
-            let allocations = pool.entry(size).or_default();
-            if allocations.len() < MAX_POOL_SIZE {
-                allocations.push(memory);
-            }
-            // If pool is full, memory is dropped (zeroized automatically)
-        }
-        // If lock is poisoned, drop memory directly (it will be zeroized)
+    /// Deallocate secure memory.
+    ///
+    /// This used to push the buffer back to a per-size pool for reuse by
+    /// `allocate()`. That was unsound: `SecretVec` is `ZeroizeOnDrop` so
+    /// secrets are wiped when a buffer is *dropped*, but a pooled buffer
+    /// is held in the pool and reissued whole. A caller that wrote
+    /// secrets, deallocated, then received the same buffer via a later
+    /// `allocate()` would observe the previous holder's plaintext.
+    ///
+    /// `Vec<u8>::zeroize()` clears the buffer's length to 0, so we can't
+    /// zeroize-and-keep-pooled — the pool keys by size and would no
+    /// longer match. The optimization (avoiding allocator churn) does
+    /// not justify the cross-holder leak, so this function now simply
+    /// drops the buffer, letting `ZeroizeOnDrop` wipe it. The pool
+    /// remains for the `allocate()` path's hit/miss accounting but is
+    /// effectively never populated.
+    pub fn deallocate(&self, _memory: SecretVec) {
+        // Buffer is dropped here; `ZeroizeOnDrop` wipes the contents.
+        // No pool insertion — see method docs for rationale.
     }
 
     /// Allocate secure memory

@@ -868,8 +868,23 @@ impl MlKem {
         let secret_key =
             MlKemSecretKey::new(config.security_level, sk_bytes_obj.as_ref().to_vec())?;
 
-        // FIPS 140-3 §9.2: Pairwise Consistency Test after every key generation.
-        // Verifies encapsulation + decapsulation consistency with a fresh keypair.
+        // FIPS 140-3 §9.2: Pairwise Consistency Test after every key
+        // generation. Verifies encapsulation + decapsulation consistency
+        // with a fresh keypair.
+        //
+        // **Asymmetry note**: ML-DSA (`primitives/sig/ml_dsa.rs`) and
+        // SLH-DSA (`primitives/sig/slh_dsa.rs`) call PCT unconditionally
+        // on every keygen. ML-KEM here is gated behind `fips-self-test`.
+        // This is deliberate: ML-KEM PCT incurs a full
+        // encapsulate+decapsulate roundtrip (~50µs at the smallest
+        // parameter set) on every keygen, and most real workloads
+        // (TLS, message sealing, CCE) generate KEM keys at session
+        // rates much higher than DSA keys. Gating behind
+        // `fips-self-test` lets non-FIPS deployments pay the cost only
+        // when they need the FIPS 140-3 §9.2 attestation. FIPS-validated
+        // builds (`--features fips`) transitively enable
+        // `fips-self-test`, so the PCT runs in the configurations where
+        // it is actually required by the FIPS module.
         #[cfg(feature = "fips-self-test")]
         crate::primitives::pct::pct_ml_kem(config.security_level).map_err(|e| {
             MlKemError::KeyGenerationError(format!(

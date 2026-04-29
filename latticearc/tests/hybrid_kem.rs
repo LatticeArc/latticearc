@@ -27,6 +27,7 @@ fn test_derive_rejects_wrong_mlkem_ss_length_fails() {
         ecdh_ss: &ecdh_ss,
         static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
+        kem_ct: &[],
     });
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -47,6 +48,7 @@ fn test_derive_rejects_wrong_ecdh_ss_length_fails() {
         ecdh_ss: &ecdh_ss,
         static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
+        kem_ct: &[],
     });
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -65,6 +67,7 @@ fn test_derive_rejects_empty_mlkem_ss_fails() {
         ecdh_ss: &[0u8; 32],
         static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
+        kem_ct: &[],
     });
     assert!(result.is_err());
 }
@@ -76,6 +79,7 @@ fn test_derive_rejects_empty_ecdh_ss_fails() {
         ecdh_ss: &[],
         static_pk: &[0u8; 32],
         ephemeral_pk: &[0u8; 32],
+        kem_ct: &[],
     });
     assert!(result.is_err());
 }
@@ -91,6 +95,7 @@ fn test_derive_accepts_valid_inputs_succeeds() {
         ecdh_ss: &ecdh_ss,
         static_pk: &static_pk,
         ephemeral_pk: &ephemeral_pk,
+        kem_ct: &[],
     });
     assert!(result.is_ok());
     let secret = result.unwrap();
@@ -108,6 +113,7 @@ fn test_derive_deterministic_is_deterministic() {
         ecdh_ss: &ecdh_ss,
         static_pk: &static_pk,
         ephemeral_pk: &ephemeral_pk,
+        kem_ct: &[],
     })
     .unwrap();
     let s2 = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -115,6 +121,7 @@ fn test_derive_deterministic_is_deterministic() {
         ecdh_ss: &ecdh_ss,
         static_pk: &static_pk,
         ephemeral_pk: &ephemeral_pk,
+        kem_ct: &[],
     })
     .unwrap();
     assert!(bool::from(s1.ct_eq(&s2)));
@@ -131,6 +138,7 @@ fn test_derive_different_inputs_different_outputs_succeeds() {
         ecdh_ss: &ecdh_ss,
         static_pk: &pk,
         ephemeral_pk: &pk,
+        kem_ct: &[],
     })
     .unwrap();
     let s_b = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -138,6 +146,7 @@ fn test_derive_different_inputs_different_outputs_succeeds() {
         ecdh_ss: &ecdh_ss,
         static_pk: &pk,
         ephemeral_pk: &pk,
+        kem_ct: &[],
     })
     .unwrap();
     assert!(!bool::from(s_a.ct_eq(&s_b)));
@@ -155,6 +164,7 @@ fn test_derive_context_binding_succeeds() {
         ecdh_ss: &ecdh_ss,
         static_pk: &pk_a,
         ephemeral_pk: &pk_a,
+        kem_ct: &[],
     })
     .unwrap();
     let s_b = derive_hybrid_shared_secret(HybridSharedSecretInputs {
@@ -162,6 +172,7 @@ fn test_derive_context_binding_succeeds() {
         ecdh_ss: &ecdh_ss,
         static_pk: &pk_b,
         ephemeral_pk: &pk_b,
+        kem_ct: &[],
     })
     .unwrap();
     assert!(!bool::from(s_a.ct_eq(&s_b)));

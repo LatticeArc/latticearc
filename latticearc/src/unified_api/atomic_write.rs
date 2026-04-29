@@ -189,6 +189,19 @@ impl<'a> AtomicWrite<'a> {
                 }
             })?;
         }
+
+        // fsync the parent directory so the rename is durable across a
+        // power-loss event. Without this step, on ext4/XFS with the
+        // default `data=ordered` the directory entry can be flushed after
+        // the file inode but before the rename, leaving the file
+        // unrecoverable. Best-effort on non-Unix platforms (Windows
+        // doesn't expose a parent-fsync primitive in the same way).
+        #[cfg(unix)]
+        {
+            if let Ok(dir) = std::fs::File::open(parent) {
+                let _ = dir.sync_all();
+            }
+        }
         Ok(())
     }
 }

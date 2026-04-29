@@ -196,8 +196,13 @@ pub struct VerifyingKey {
     security_level: SlhDsaSecurityLevel,
 
     /// The underlying public key bytes. Sized to fit the largest variant
-    /// (Shake256s = 64 bytes); the trailing `PK_LEN - len` bytes are always
-    /// zero. See type-level "Memory layout" docs for rationale.
+    /// (Shake256s = 64 bytes); the trailing `PK_LEN - len` bytes are
+    /// guaranteed zero. The `[u8; PK_LEN]` is initialized via `[0u8;
+    /// PK_LEN]` in [`Self::new`] before the variant-specific prefix is
+    /// `copy_from_slice`-d into it, so trailing bytes are never
+    /// uninitialized. `Clone` (derived) preserves all bytes verbatim,
+    /// keeping the invariant under copy. See type-level "Memory layout"
+    /// docs for rationale.
     bytes: [u8; shake_256s::PK_LEN],
 
     /// The actual length of the public key (per `security_level`).
