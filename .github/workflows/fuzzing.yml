@@ -65,8 +65,12 @@ jobs:
           # Key exchange
           - fuzz_x25519
           - fuzz_ecdh_p256
-          # Hybrid
-          - hybrid_encrypt_fuzz
+          # Hybrid (round-15 audit fix moved `hybrid_encrypt_fuzz` up
+          # to the KEM section as the canonical replacement for the
+          # fictional `fuzz_hybrid_encrypt` / `fuzz_hybrid_decrypt`;
+          # round-16 removes this duplicate). `hybrid_kem_fuzz` and
+          # `hybrid_sign_fuzz` are listed separately below in their
+          # respective sections.
           - hash_data_fuzz
           # Serialization / Deserialization
           - fuzz_portable_key_json

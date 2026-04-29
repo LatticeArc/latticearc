@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-16 audit response — 2 MEDIUM (2026-04-29)
+
+#### MEDIUM
+- **`hybrid_encrypt_fuzz` matrix duplicate** (audit MEDIUM #1).
+  Round-15 added the target to `fuzzing.yml`'s nightly matrix under
+  the KEM section but didn't remove the original entry under the
+  Hybrid section. Same target listed twice → fuzzer would run twice
+  per nightly, and the second `Upload crash artifacts` step would
+  fail on a duplicate artifact name (GH Actions disallows duplicates
+  in a single workflow run), swallowing the second crash report.
+  Removed the duplicate; left a comment marker for readers.
+- **Throughput-floor tests `#[ignore]`d** (audit MEDIUM #2). 9 tests
+  in `latticearc/tests/perf_performance.rs` asserted hard floors
+  (`throughput_mbps > 10.0`, `rate > 10/s`, `rate > 50/s`,
+  `rate > 1000/s`). These flake on debug builds and on loaded
+  release builds. Round-13's "passes on a clean checkout" claim was
+  inaccurate — the `cargo test --workspace` (no `--release`) run
+  fails on these. Now individually `#[ignore]`-marked with rationale;
+  CI's `--release --all-features` path runs them via `--include-ignored`
+  (or skips them by default if not specified). A file-level
+  `cfg(not(debug_assertions))` was attempted first but doesn't work
+  here: `[profile.release].debug-assertions = true` is pinned in
+  `Cargo.toml` ("Keep for crypto validation"), so the cfg evaluates
+  to `false` in release too — which would have skipped these tests
+  in CI as well. The `#[ignore]` approach is the audit's
+  recommended fallback.
+
 ### Round-15 audit response — 2 HIGH + 1 LOW (2026-04-29)
 
 CI workflow fictional-target cleanup. The audit caught a pattern where
