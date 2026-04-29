@@ -43,8 +43,11 @@ jobs:
           - fuzz_ml_kem_encaps
           - fuzz_ml_kem_decaps
           - hybrid_kem_fuzz
-          - fuzz_hybrid_encrypt
-          - fuzz_hybrid_decrypt
+          # Round-15 audit fix: `fuzz_hybrid_encrypt` /
+          # `fuzz_hybrid_decrypt` were fictional names; the real
+          # target is `hybrid_encrypt_fuzz` (one binary, exercises
+          # both directions via roundtrip) — see fuzz/Cargo.toml.
+          - hybrid_encrypt_fuzz
           # Signatures
           - fuzz_ml_dsa_sign
           - fuzz_ml_dsa_verify
@@ -123,8 +126,11 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          # Priority targets for extended fuzzing (attacker-controlled inputs)
-          - fuzz_hybrid_decrypt
+          # Priority targets for extended fuzzing (attacker-controlled inputs).
+          # Round-15 audit fix: `fuzz_hybrid_decrypt` was fictional; the
+          # real target `hybrid_encrypt_fuzz` exercises both directions
+          # via roundtrip.
+          - hybrid_encrypt_fuzz
           - fuzz_ml_kem_decaps
           - fuzz_ml_dsa_verify
           - fuzz_fn_dsa_verify

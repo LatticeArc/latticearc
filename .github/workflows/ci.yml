@@ -677,16 +677,51 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Round-15 audit fix: 7 of 9 prior matrix entries were fictional
+        # target names (decrypt_fuzz, kem_fuzz, signature_fuzz,
+        # hybrid_fuzz, kdf_fuzz, hash_fuzz, serialization_fuzz) — none
+        # declared in fuzz/Cargo.toml. They `cargo fuzz run`-failed
+        # silently every weekly run, so 90% of the advertised "weekly
+        # fuzz coverage" was theatre. Replaced with the actual target
+        # names from `fuzz/Cargo.toml`, grouped by surface for
+        # operator readability. Verify with `cargo fuzz list` before
+        # adding entries.
         fuzz-target:
+          # AEAD / symmetric
           - encrypt_fuzz
-          - decrypt_fuzz
-          - kem_fuzz
-          - signature_fuzz
-          - hybrid_fuzz
-          - kdf_fuzz
-          - hash_fuzz
-          - serialization_fuzz
+          - fuzz_aes_gcm
+          - fuzz_chacha20
+          - chacha_poly_fuzz
+          # KEM
+          - hybrid_kem_fuzz
+          - fuzz_ml_kem_keygen
+          - fuzz_ml_kem_encaps
+          - fuzz_ml_kem_decaps
+          # Signatures
+          - hybrid_sign_fuzz
+          - ml_dsa_fuzz
+          - fuzz_ml_dsa_sign
+          - fuzz_ml_dsa_verify
+          - fuzz_slh_dsa_sign
+          - fuzz_fn_dsa_sign
+          - fuzz_fn_dsa_verify
+          - fuzz_ed25519
+          # Hash / MAC / KDF
+          - fuzz_sha256
           - hash_data_fuzz
+          - fuzz_hkdf
+          - fuzz_pbkdf2
+          - fuzz_hmac_sha512
+          - hmac_fuzz
+          # Serialization / wire-format
+          - fuzz_portable_key_json
+          - fuzz_encrypted_data_deser
+          # ECDH / key agreement
+          - fuzz_x25519
+          - fuzz_ecdh_p256
+          # DoS / resource bounds
+          - fuzz_dos_alloc_bounded
+          - fuzz_random
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -767,9 +802,16 @@ jobs:
       # gate uploads on `if: ${{ failure() || cancelled() }}` instead so
       # crashes both fail the job AND surface artifacts.
       run: |
+        # Round-15 audit fix: `kem_fuzz` was a fictional target name —
+        # never declared in fuzz/Cargo.toml. The real KEM target is
+        # `hybrid_kem_fuzz` (encap + decap roundtrip via the hybrid
+        # path). Until round-12 this typo was masked by `continue-on-error:
+        # true`; round-13 H-A removed that flag so the typo would have
+        # blocked every PR on a fictional-target build error rather
+        # than a real fuzz crash.
         cd fuzz
         cargo +nightly fuzz run encrypt_fuzz -- -max_total_time=30
-        cargo +nightly fuzz run kem_fuzz -- -max_total_time=30
+        cargo +nightly fuzz run hybrid_kem_fuzz -- -max_total_time=30
 
     - name: Upload crash artifacts (smoke)
       # Round-14 audit fix: gate matches the round-13 H-A rationale on
@@ -1118,12 +1160,15 @@ jobs:
         [[ "${{ needs.api-stability-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs api-stability-tests"
         [[ "${{ needs.cli-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs cli-tests"
 
-        # Round-12 audit fix (H-5): fuzz-smoke is the ~30s every-PR job
-        # and MUST block merge — a live crash in encrypt_fuzz / kem_fuzz
-        # was previously silently warned-and-merged. fuzz-nightly /
-        # fuzz-weekly remain non-blocking because they run multi-hour
-        # campaigns and their flakes shouldn't gate cryptographic-bugfix
-        # PRs that haven't yet had time to fix every old finding.
+        # Round-12 audit fix (H-5), corrected by round-15: fuzz-smoke
+        # is the ~30s every-PR job and MUST block merge — a live crash
+        # in encrypt_fuzz / hybrid_kem_fuzz was previously silently
+        # warned-and-merged. fuzz-nightly / fuzz-weekly remain non-
+        # blocking because they run multi-hour campaigns and their
+        # flakes shouldn't gate cryptographic-bugfix PRs that haven't
+        # yet had time to fix every old finding. (Round-15 fixed
+        # `kem_fuzz` typo here — the round-12 H-5 comment named a
+        # target that didn't exist.)
         [[ "${{ needs.fuzz-smoke.result }}" == "failure" ]] && failed_jobs="$failed_jobs fuzz-smoke"
 
         if [[ "${{ needs.fuzz-nightly.result }}" == "failure" ]]; then

@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-15 audit response — 2 HIGH + 1 LOW (2026-04-29)
+
+CI workflow fictional-target cleanup. The audit caught a pattern where
+fuzz workflow matrices and run commands referenced target names that
+were never declared in `fuzz/Cargo.toml`. Until round-12 these silent
+build errors were masked by `continue-on-error: true`; round-13's H-A
+fix removed that flag, so the typos would have started blocking PRs
+on `error: fuzz target 'X' not found` rather than real fuzz crashes.
+
+#### HIGH
+- **`fuzz-smoke` `kem_fuzz` typo** (audit HIGH #1). The PR-blocking
+  smoke job ran `cargo fuzz run kem_fuzz` — but no `kem_fuzz` target
+  exists. Real KEM target is `hybrid_kem_fuzz` (encap + decap
+  roundtrip via the hybrid path). Fixed in the run command and in
+  the `Pipeline Status` gate comment that perpetuated the same
+  typo.
+- **`fuzz-weekly` matrix was 7/9 fictional names** (audit HIGH #2).
+  Prior matrix listed `decrypt_fuzz`, `kem_fuzz`, `signature_fuzz`,
+  `hybrid_fuzz`, `kdf_fuzz`, `hash_fuzz`, `serialization_fuzz` — none
+  of which existed. Replaced with the actual 28 target names from
+  `fuzz/Cargo.toml`, grouped by surface (AEAD / KEM / Signatures /
+  Hash+MAC+KDF / Serialization / ECDH / DoS+RNG). 90% of the
+  advertised "weekly fuzz coverage" was previously theatre.
+- **`fuzzing.yml` had the same problem** (audit-adjacent). Both
+  `fuzz_hybrid_encrypt` and `fuzz_hybrid_decrypt` are fictional;
+  the real target is `hybrid_encrypt_fuzz` (one binary, exercises
+  both directions via roundtrip). Fixed in 2 sites.
+
+#### LOW
+- **Pipeline Status gate-comment** (audit LOW). The H-5 rationale
+  comment named `kem_fuzz` as a fuzz-smoke target. Updated in
+  lockstep with the run command fix above.
+
+Verified by cross-referencing every workflow `fuzz-target` /
+`cargo fuzz run` invocation against `cargo fuzz list` output and
+confirming every referenced name has a matching `fuzz/fuzz_targets/X.rs`
+source file. All 29 distinct targets across both workflow files now
+resolve.
+
 ### Round-14 audit response — 3 MEDIUM + 1 LOW (2026-04-28)
 
 Fourteenth audit pass on top of `67b796306`. Three audit findings on
