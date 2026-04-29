@@ -1092,8 +1092,42 @@ require optimization to produce meaningful results. CI thresholds accommodate 3-
 slower CI runners.
 
 ## Pattern 18: No Ignored Tests Without Justification
+
 `#[ignore]` is never the first solution. When a test fails: ask why → fix the root
 cause → only ignore if truly environment-dependent (with a comment explaining why).
+
+### Permitted exception: perf-floor / quiescent-only tests
+
+Tests that assert hard throughput or rate floors (e.g.
+`throughput_mbps > 10.0`, `rate > 50/s`) are **expected to flake** on
+debug builds and on loaded release builds — they don't measure
+functional correctness, they measure that the host is fast enough for
+the floor to hold. The canonical pattern in this project is:
+
+```rust
+#[test]
+#[ignore = "perf-floor: throughput_mbps > 10.0; opt in via --include-ignored on a quiescent release build"]
+fn test_aes_gcm_256_bulk_encryption_throughput_succeeds() { ... }
+```
+
+**Why `#[ignore]` and not `#[cfg(not(debug_assertions))]`:** the
+workspace pins `[profile.release].debug-assertions = true` ("Keep for
+crypto validation" — see root `Cargo.toml`). That makes the cfg
+evaluate to `false` in release mode too, which would skip these tests
+in CI as well. `#[ignore]` correctly skips by default and runs under
+`cargo test --include-ignored`.
+
+**The rationale string MUST name the floor.** "perf-floor" alone is
+not enough; readers should be able to grep the file for the specific
+threshold to understand what changed if the test starts failing under
+`--include-ignored`. Round-13's "passes on a clean checkout" claim
+turned out to be false because reviewers couldn't tell from the test
+file which assertions were the flaky ones.
+
+**Where to put the assertion instead:** if you need ongoing perf
+tracking, add a Criterion benchmark in `benches/` (handles
+statistical variance properly) and treat the in-tree `#[ignore]`d
+test as an opt-in canary, not a regression gate.
 
 ## Pattern 19: Test File Layering Policy
 

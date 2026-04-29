@@ -44,12 +44,12 @@
 //! - Scalability Tests (10+ tests)
 //!
 //! Note: Tests validate operations complete within reasonable bounds,
-//! not exact timing (timing varies by hardware). Assertions use bounds
-//! like "completes in under N seconds" rather than exact benchmarks.
-//!
-//! **Release-only:** the file is gated behind `not(debug_assertions)`
-//! so debug-mode `cargo test` skips it; the throughput floors assume
-//! a release build.
+//! not exact timing (timing varies by hardware). Most assertions use
+//! soft bounds like "completes in under N seconds" — those run by
+//! default on every `cargo test --release`. The 9 hard-floor tests
+//! (`throughput_mbps > X` / `rate > X/s`) are individually
+//! `#[ignore]`-marked per the file-level note above and only run with
+//! `--include-ignored` on a quiescent release build.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
