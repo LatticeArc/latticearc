@@ -236,7 +236,7 @@ pub struct SecretVec {
     // `#[zeroize(skip)]` is required because the lock holder does not
     // implement `Zeroize` and there's nothing secret inside it — it only
     // holds a handle to an OS lock.
-    #[cfg(feature = "secret-mlock")]
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[zeroize(skip)]
     _lock: Option<MlockGuard>,
     bytes: Vec<u8>,
@@ -309,10 +309,10 @@ pub struct SecretVec {
 /// If `region` ever changes its `Drop` to tolerate `ERROR_NOT_LOCKED` on
 /// Windows, this wrapper can be deleted and the field reverted to
 /// `Option<region::LockGuard>`.
-#[cfg(feature = "secret-mlock")]
+#[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
 struct MlockGuard(Option<region::LockGuard>);
 
-#[cfg(feature = "secret-mlock")]
+#[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
 impl Drop for MlockGuard {
     fn drop(&mut self) {
         let Some(guard) = self.0.take() else { return };
@@ -383,10 +383,10 @@ impl SecretVec {
         bytes.zeroize();
         drop(bytes);
 
-        #[cfg(feature = "secret-mlock")]
+        #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
         let _lock = Self::try_lock(&owned);
         Self {
-            #[cfg(feature = "secret-mlock")]
+            #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
             _lock,
             bytes: owned,
         }
@@ -401,7 +401,7 @@ impl SecretVec {
     /// The successful lock is returned wrapped in [`MlockGuard`] so its Drop
     /// is panic-tolerant — see the type-level docs there for the Windows
     /// `VirtualUnlock` rationale.
-    #[cfg(feature = "secret-mlock")]
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[inline]
     fn try_lock(bytes: &[u8]) -> Option<MlockGuard> {
         if bytes.is_empty() {
@@ -637,7 +637,7 @@ mod tests {
     // access); the lock itself is an OS-level property that we cannot inspect
     // from safe Rust.
 
-    #[cfg(feature = "secret-mlock")]
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn secret_vec_mlock_new_succeeds() {
         // Size chosen well under any reasonable RLIMIT_MEMLOCK (typically 64 KiB
@@ -647,7 +647,7 @@ mod tests {
         assert_eq!(sv.expose_secret().first().copied(), Some(0x42));
     }
 
-    #[cfg(feature = "secret-mlock")]
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn secret_vec_mlock_zero_succeeds() {
         let sv = SecretVec::zero(256);
@@ -655,7 +655,7 @@ mod tests {
         assert!(sv.expose_secret().iter().all(|&b| b == 0));
     }
 
-    #[cfg(feature = "secret-mlock")]
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn secret_vec_mlock_empty_does_not_lock() {
         // Empty buffers have no valid base pointer to lock; `try_lock` must
@@ -665,7 +665,7 @@ mod tests {
         assert!(sv.is_empty());
     }
 
-    #[cfg(feature = "secret-mlock")]
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn secret_vec_mlock_clone_is_independent() {
         // Cloning must lock the new buffer independently — the original's
@@ -679,7 +679,7 @@ mod tests {
         assert_eq!(original.expose_secret().first().copied(), Some(0x77));
     }
 
-    #[cfg(feature = "secret-mlock")]
+    #[cfg(all(feature = "secret-mlock", not(target_os = "windows")))]
     #[test]
     fn mlock_guard_drop_does_not_panic_under_repeated_lock_unlock() {
         // Regression test for the Drop-time double-panic hazard described

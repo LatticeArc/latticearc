@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-17 audit response — Windows mlock CI failure (2026-04-29)
+
+Round-16b's CI run failed on `Release Validation (windows-latest)`. Two
+CLI integration tests (`test_cli_keygen_use_case_file_storage_roundtrip_succeeds`,
+`test_cli_keygen_use_case_secure_messaging_roundtrip_succeeds`) aborted
+during process exit with:
+
+```
+panicked at region-3.0.2/src/lock.rs:90:5:
+unlocking region: Err(SystemCall(Os { code: 158, kind: Uncategorized,
+                  message: "The segment is already unlocked." }))
+```
+
+Windows error 158 = `ERROR_NOT_LOCKED`. `VirtualLock` is documented as
+*best-effort*: pages can be implicitly unlocked when the working set is
+trimmed under memory pressure, and the subsequent `VirtualUnlock`
+returning `ERROR_NOT_LOCKED` is documented Windows behaviour, not a
+logic error. The `region` crate panics on it.
+
+The `MlockGuard` wrapper in `secrets.rs:312-331` was specifically
+written to catch this panic via `std::panic::catch_unwind`, **and the
+existing doc-comment caveat warned that `catch_unwind` is a no-op
+under `panic = "abort"`** — which is exactly what
+`[profile.release].panic` is set to in this workspace. So in release
+builds the wrapper does nothing and the panic aborts the process.
+
+#### HIGH
+- **`secret-mlock` cfg-gated off on Windows targets** (round-17 fix).
+  Replaced 11 occurrences of `cfg(feature = "secret-mlock")` with
+  `cfg(all(feature = "secret-mlock", not(target_os = "windows")))`.
+  The Cargo feature can still be enabled on Windows builds without
+  ill effect — the cfg evaluates `false` so `MlockGuard`,
+  `try_lock`, the `region::lock` import, and the `_lock` field on
+  `SecretVec` all compile out. Linux / macOS behaviour is unchanged
+  (`mlock(2)` still works; the Windows panic-on-unlock issue does
+  not apply there). Updated the feature flag table in `lib.rs` to
+  document the Windows-as-no-op carve-out.
+
+The crypto guarantee is unaffected: `SecretVec` always zeroizes its
+backing buffer on drop via `ZeroizeOnDrop`, regardless of whether
+mlock was active. Windows users lose the (best-effort)
+swap-protection — but `VirtualLock` was already documented as
+unreliable for that purpose.
+
 ### Round-16 audit response — 2 MEDIUM (2026-04-29)
 
 #### MEDIUM
