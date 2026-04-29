@@ -132,14 +132,19 @@
 <a href=#132 id=132 data-nosnippet>132</a>        </span>Commands::Verify(args) =&gt; {
 <a href=#133 id=133 data-nosnippet>133</a>            <span class="kw">let </span>valid = commands::verify::run(args)<span class="question-mark">?</span>;
 <a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">if </span>!valid {
-<a href=#135 id=135 data-nosnippet>135</a>                <span class="attr">#[allow(clippy::exit)]
-<a href=#136 id=136 data-nosnippet>136</a>                </span>std::process::exit(<span class="number">1</span>);
-<a href=#137 id=137 data-nosnippet>137</a>            }
-<a href=#138 id=138 data-nosnippet>138</a>            <span class="prelude-val">Ok</span>(())
-<a href=#139 id=139 data-nosnippet>139</a>        }
-<a href=#140 id=140 data-nosnippet>140</a>        Commands::Hash(args) =&gt; commands::hash::run(args),
-<a href=#141 id=141 data-nosnippet>141</a>        Commands::Kdf(args) =&gt; commands::kdf::run(args),
-<a href=#142 id=142 data-nosnippet>142</a>        Commands::Info(args) =&gt; commands::info::run(args),
-<a href=#143 id=143 data-nosnippet>143</a>    }
-<a href=#144 id=144 data-nosnippet>144</a>}
+<a href=#135 id=135 data-nosnippet>135</a>                <span class="comment">// `clippy::exit` allowed: deterministic exit 1 is the
+<a href=#136 id=136 data-nosnippet>136</a>                // documented INVALID-signature signal in our exit-code
+<a href=#137 id=137 data-nosnippet>137</a>                // contract (0/1/≥2 — see QUICK_REFERENCE.md). Pattern
+<a href=#138 id=138 data-nosnippet>138</a>                // 12 wants the rationale adjacent to the `#[allow]`;
+<a href=#139 id=139 data-nosnippet>139</a>                // round-9 audit fix #5 moved it from 11 lines above.
+<a href=#140 id=140 data-nosnippet>140</a>                </span><span class="attr">#[allow(clippy::exit)]
+<a href=#141 id=141 data-nosnippet>141</a>                </span>std::process::exit(<span class="number">1</span>);
+<a href=#142 id=142 data-nosnippet>142</a>            }
+<a href=#143 id=143 data-nosnippet>143</a>            <span class="prelude-val">Ok</span>(())
+<a href=#144 id=144 data-nosnippet>144</a>        }
+<a href=#145 id=145 data-nosnippet>145</a>        Commands::Hash(args) =&gt; commands::hash::run(args),
+<a href=#146 id=146 data-nosnippet>146</a>        Commands::Kdf(args) =&gt; commands::kdf::run(args),
+<a href=#147 id=147 data-nosnippet>147</a>        Commands::Info(args) =&gt; commands::info::run(args),
+<a href=#148 id=148 data-nosnippet>148</a>    }
+<a href=#149 id=149 data-nosnippet>149</a>}
 </code></pre></div></section></main></body></html>

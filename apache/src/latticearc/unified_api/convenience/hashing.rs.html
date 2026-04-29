@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>        length,
 <a href=#43 id=43 data-nosnippet>43</a>    )
 <a href=#44 id=44 data-nosnippet>44</a>    .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF failed: {e}"</span>)))<span class="question-mark">?</span>;
-<a href=#45 id=45 data-nosnippet>45</a>    <span class="prelude-val">Ok</span>(result.key().to_vec())
+<a href=#45 id=45 data-nosnippet>45</a>    <span class="prelude-val">Ok</span>(result.expose_secret().to_vec())
 <a href=#46 id=46 data-nosnippet>46</a>}
 <a href=#47 id=47 data-nosnippet>47</a>
 <a href=#48 id=48 data-nosnippet>48</a><span class="doccomment">/// Internal implementation of HKDF key derivation with caller-supplied info string.
@@ -57,7 +57,7 @@
 <a href=#57 id=57 data-nosnippet>57</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">let </span>result = <span class="kw">crate</span>::primitives::kdf::hkdf::hkdf(password, <span class="prelude-val">Some</span>(salt), <span class="prelude-val">Some</span>(info), length)
 <a href=#59 id=59 data-nosnippet>59</a>        .map_err(|e| CoreError::KeyDerivationFailed(<span class="macro">format!</span>(<span class="string">"HKDF failed: {e}"</span>)))<span class="question-mark">?</span>;
-<a href=#60 id=60 data-nosnippet>60</a>    <span class="prelude-val">Ok</span>(result.key().to_vec())
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="prelude-val">Ok</span>(result.expose_secret().to_vec())
 <a href=#61 id=61 data-nosnippet>61</a>}
 <a href=#62 id=62 data-nosnippet>62</a>
 <a href=#63 id=63 data-nosnippet>63</a><span class="doccomment">/// Internal implementation of key derivation with caller-supplied info string.

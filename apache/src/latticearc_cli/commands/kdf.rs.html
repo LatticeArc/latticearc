@@ -225,6 +225,6 @@
 <a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">let </span>result = latticearc::primitives::kdf::pbkdf2(<span class="kw-2">&amp;</span>password, <span class="kw-2">&amp;</span>params)
 <a href=#226 id=226 data-nosnippet>226</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"PBKDF2 derivation failed: {e}"</span>))<span class="question-mark">?</span>;
 <a href=#227 id=227 data-nosnippet>227</a>
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="prelude-val">Ok</span>(result.key().to_vec())
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="prelude-val">Ok</span>(result.expose_secret().to_vec())
 <a href=#229 id=229 data-nosnippet>229</a>}
 </code></pre></div></section></main></body></html>

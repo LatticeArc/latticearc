@@ -249,41 +249,34 @@
 <a href=#249 id=249 data-nosnippet>249</a>}
 <a href=#250 id=250 data-nosnippet>250</a>
 <a href=#251 id=251 data-nosnippet>251</a><span class="kw">fn </span>read_input(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt; {
-<a href=#252 id=252 data-nosnippet>252</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = path {
-<a href=#253 id=253 data-nosnippet>253</a>        <span class="kw">super</span>::common::enforce_input_size_limit(
-<a href=#254 id=254 data-nosnippet>254</a>            p,
-<a href=#255 id=255 data-nosnippet>255</a>            <span class="kw">super</span>::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
-<a href=#256 id=256 data-nosnippet>256</a>            <span class="string">"encrypt"</span>,
-<a href=#257 id=257 data-nosnippet>257</a>        )<span class="question-mark">?</span>;
-<a href=#258 id=258 data-nosnippet>258</a>        std::fs::read(p).with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to read {}"</span>, p.display()))
-<a href=#259 id=259 data-nosnippet>259</a>    } <span class="kw">else </span>{
-<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">super</span>::common::read_stdin_with_limit(
-<a href=#261 id=261 data-nosnippet>261</a>            <span class="kw">super</span>::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
-<a href=#262 id=262 data-nosnippet>262</a>            <span class="string">"encrypt"</span>,
-<a href=#263 id=263 data-nosnippet>263</a>        )
-<a href=#264 id=264 data-nosnippet>264</a>    }
-<a href=#265 id=265 data-nosnippet>265</a>}
-<a href=#266 id=266 data-nosnippet>266</a>
-<a href=#267 id=267 data-nosnippet>267</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">match </span>path {
-<a href=#269 id=269 data-nosnippet>269</a>        <span class="prelude-val">Some</span>(p) =&gt; {
-<a href=#270 id=270 data-nosnippet>270</a>            <span class="comment">// Atomic write — closes the partial-file confidentiality
-<a href=#271 id=271 data-nosnippet>271</a>            // window for decrypted material at rest. Same helper the
-<a href=#272 id=272 data-nosnippet>272</a>            // keyfile writer uses (round-7 audit fix #18).
-<a href=#273 id=273 data-nosnippet>273</a>            </span>latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
-<a href=#274 id=274 data-nosnippet>274</a>                .overwrite_existing(<span class="bool-val">true</span>)
-<a href=#275 id=275 data-nosnippet>275</a>                .write(p)
-<a href=#276 id=276 data-nosnippet>276</a>                .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
-<a href=#277 id=277 data-nosnippet>277</a>            <span class="macro">eprintln!</span>(<span class="string">"Encrypted data written to: {}"</span>, p.display());
+<a href=#252 id=252 data-nosnippet>252</a>    <span class="comment">// Round-9 audit fix #3: route through the shared helper.
+<a href=#253 id=253 data-nosnippet>253</a>    </span><span class="kw">super</span>::common::read_file_or_stdin(
+<a href=#254 id=254 data-nosnippet>254</a>        path.as_deref(),
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">super</span>::common::CLI_MAX_ENCRYPTION_INPUT_BYTES,
+<a href=#256 id=256 data-nosnippet>256</a>        <span class="string">"encrypt"</span>,
+<a href=#257 id=257 data-nosnippet>257</a>    )
+<a href=#258 id=258 data-nosnippet>258</a>}
+<a href=#259 id=259 data-nosnippet>259</a>
+<a href=#260 id=260 data-nosnippet>260</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">match </span>path {
+<a href=#262 id=262 data-nosnippet>262</a>        <span class="prelude-val">Some</span>(p) =&gt; {
+<a href=#263 id=263 data-nosnippet>263</a>            <span class="comment">// Atomic write — closes the partial-file confidentiality
+<a href=#264 id=264 data-nosnippet>264</a>            // window for decrypted material at rest. Same helper the
+<a href=#265 id=265 data-nosnippet>265</a>            // keyfile writer uses (round-7 audit fix #18).
+<a href=#266 id=266 data-nosnippet>266</a>            </span>latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
+<a href=#267 id=267 data-nosnippet>267</a>                .overwrite_existing(<span class="bool-val">true</span>)
+<a href=#268 id=268 data-nosnippet>268</a>                .write(p)
+<a href=#269 id=269 data-nosnippet>269</a>                .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
+<a href=#270 id=270 data-nosnippet>270</a>            <span class="macro">eprintln!</span>(<span class="string">"Encrypted data written to: {}"</span>, p.display());
+<a href=#271 id=271 data-nosnippet>271</a>        }
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="prelude-val">None </span>=&gt; {
+<a href=#273 id=273 data-nosnippet>273</a>            <span class="comment">// `print!` (not `println!`) — byte-exact stdout for
+<a href=#274 id=274 data-nosnippet>274</a>            // pipelines that hash or chain into other tools (round-7
+<a href=#275 id=275 data-nosnippet>275</a>            // audit fix #14). Callers that want a trailing newline can
+<a href=#276 id=276 data-nosnippet>276</a>            // redirect through `cat` or append themselves.
+<a href=#277 id=277 data-nosnippet>277</a>            </span><span class="macro">print!</span>(<span class="string">"{data}"</span>);
 <a href=#278 id=278 data-nosnippet>278</a>        }
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="prelude-val">None </span>=&gt; {
-<a href=#280 id=280 data-nosnippet>280</a>            <span class="comment">// `print!` (not `println!`) — byte-exact stdout for
-<a href=#281 id=281 data-nosnippet>281</a>            // pipelines that hash or chain into other tools (round-7
-<a href=#282 id=282 data-nosnippet>282</a>            // audit fix #14). Callers that want a trailing newline can
-<a href=#283 id=283 data-nosnippet>283</a>            // redirect through `cat` or append themselves.
-<a href=#284 id=284 data-nosnippet>284</a>            </span><span class="macro">print!</span>(<span class="string">"{data}"</span>);
-<a href=#285 id=285 data-nosnippet>285</a>        }
-<a href=#286 id=286 data-nosnippet>286</a>    }
-<a href=#287 id=287 data-nosnippet>287</a>    <span class="prelude-val">Ok</span>(())
-<a href=#288 id=288 data-nosnippet>288</a>}
+<a href=#279 id=279 data-nosnippet>279</a>    }
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="prelude-val">Ok</span>(())
+<a href=#281 id=281 data-nosnippet>281</a>}
 </code></pre></div></section></main></body></html>

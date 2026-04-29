@@ -314,12 +314,24 @@
 <a href=#314 id=314 data-nosnippet>314</a>    <span class="kw">let </span>pk = <span class="kw">crate</span>::keyfile::parse_hybrid_sign_pk_from_bytes(pk_bytes)<span class="question-mark">?</span>;
 <a href=#315 id=315 data-nosnippet>315</a>    <span class="kw">let </span>hybrid_sig = latticearc::hybrid::sig_hybrid::HybridSignature::new(ml_dsa_sig, ed25519_sig);
 <a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a>    latticearc::verify_hybrid_signature(
-<a href=#318 id=318 data-nosnippet>318</a>        data,
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw-2">&amp;</span>hybrid_sig,
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw-2">&amp;</span>pk,
-<a href=#321 id=321 data-nosnippet>321</a>        latticearc::SecurityMode::Unverified,
-<a href=#322 id=322 data-nosnippet>322</a>    )
-<a href=#323 id=323 data-nosnippet>323</a>    .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid verification failed: {e}"</span>))
-<a href=#324 id=324 data-nosnippet>324</a>}
+<a href=#317 id=317 data-nosnippet>317</a>    <span class="comment">// Round-12 audit fix (L-1): preserve the CLI 0/1/≥2 exit-code
+<a href=#318 id=318 data-nosnippet>318</a>    // contract. The unified-API wrapper maps the underlying
+<a href=#319 id=319 data-nosnippet>319</a>    // `HybridSignatureError::VerificationFailed` → `CoreError::
+<a href=#320 id=320 data-nosnippet>320</a>    // VerificationFailed`; if we surface that as `anyhow::Error` the
+<a href=#321 id=321 data-nosnippet>321</a>    // caller sees exit ≥2 (operational failure) instead of exit 1
+<a href=#322 id=322 data-nosnippet>322</a>    // (forged signature). Translate `CoreError::VerificationFailed` to
+<a href=#323 id=323 data-nosnippet>323</a>    // `Ok(false)` so the outer dispatch returns exit 1 — same shape as
+<a href=#324 id=324 data-nosnippet>324</a>    // the ML-DSA / SLH-DSA / FN-DSA paths.
+<a href=#325 id=325 data-nosnippet>325</a>    </span><span class="kw">use </span>latticearc::CoreError;
+<a href=#326 id=326 data-nosnippet>326</a>    <span class="kw">match </span>latticearc::verify_hybrid_signature(
+<a href=#327 id=327 data-nosnippet>327</a>        data,
+<a href=#328 id=328 data-nosnippet>328</a>        <span class="kw-2">&amp;</span>hybrid_sig,
+<a href=#329 id=329 data-nosnippet>329</a>        <span class="kw-2">&amp;</span>pk,
+<a href=#330 id=330 data-nosnippet>330</a>        latticearc::SecurityMode::Unverified,
+<a href=#331 id=331 data-nosnippet>331</a>    ) {
+<a href=#332 id=332 data-nosnippet>332</a>        <span class="prelude-val">Ok</span>(valid) =&gt; <span class="prelude-val">Ok</span>(valid),
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="prelude-val">Err</span>(CoreError::VerificationFailed) =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>),
+<a href=#334 id=334 data-nosnippet>334</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(<span class="string">"Hybrid verification failed: {e}"</span>)),
+<a href=#335 id=335 data-nosnippet>335</a>    }
+<a href=#336 id=336 data-nosnippet>336</a>}
 </code></pre></div></section></main></body></html>

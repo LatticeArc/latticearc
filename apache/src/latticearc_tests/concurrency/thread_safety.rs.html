@@ -310,7 +310,7 @@
 <a href=#310 id=310 data-nosnippet>310</a>                    <span class="kw">let </span>key2 = hkdf(<span class="kw-2">&amp;</span>ikm, <span class="prelude-val">Some</span>(salt), <span class="prelude-val">Some</span>(info), <span class="number">32</span>).expect(<span class="string">"hkdf2"</span>);
 <a href=#311 id=311 data-nosnippet>311</a>
 <a href=#312 id=312 data-nosnippet>312</a>                    <span class="comment">// Same inputs should always produce same key
-<a href=#313 id=313 data-nosnippet>313</a>                    </span><span class="kw">if </span>key1.key() == key2.key() {
+<a href=#313 id=313 data-nosnippet>313</a>                    </span><span class="kw">if </span>key1.expose_secret() == key2.expose_secret() {
 <a href=#314 id=314 data-nosnippet>314</a>                        success.fetch_add(<span class="number">1</span>, Ordering::SeqCst);
 <a href=#315 id=315 data-nosnippet>315</a>                    }
 <a href=#316 id=316 data-nosnippet>316</a>                })
