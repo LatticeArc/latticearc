@@ -56,8 +56,14 @@ ignore = [
 # Allow or deny multiple versions of the same crate
 multiple-versions = "warn"
 
-# Wildcard dependencies (allow but warn)
-wildcards = "allow"
+# Wildcard dependencies. The workspace policy is exact-pin
+# (= "X.Y.Z") for all RustCrypto deps; a `*` dep silently bypasses
+# that protection because Cargo treats it as "any version" and
+# resolves whatever crates.io currently advertises. `warn` surfaces
+# them in CI without breaking transitive deps that genuinely use `*`
+# (e.g. some build-only proc-macro deps). Promote to `deny` once the
+# dep tree has been audited for incidental `*` requirements.
+wildcards = "warn"
 
 # Highlight all issues
 highlight = "all"
@@ -131,8 +137,8 @@ unknown-registry = "deny"
 # Unknown git sources (deny - security risk)
 unknown-git = "deny"
 
-# Allowed git sources (only official repos)
-allow-git = [
-    "https://github.com/rust-bitcoin/rust-secp256k1",
-    "https://github.com/rust-lang/crates.io-index",
-]
+# Allowed git sources. Empty by policy: every direct git dep must be
+# added explicitly with a justification comment in this list. The
+# registry URL (e.g. `rust-lang/crates.io-index`) is NOT a git source
+# and must not appear here.
+allow-git = []

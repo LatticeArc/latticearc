@@ -281,7 +281,7 @@ let verified = verify(&pk, b"Important message", &signature, b"")?;
 ```rust
 use latticearc::primitives::sig::slh_dsa::*;
 
-let (signing_key, verifying_key) = SigningKey::generate(SecurityLevel::Sha2128s)?;
+let (signing_key, verifying_key) = SigningKey::generate(SlhDsaSecurityLevel::Shake128s)?;
 let signature = signing_key.sign(message, &[])?;
 let verified = verifying_key.verify(message, &signature, &[])?;
 ```
@@ -499,18 +499,22 @@ Wire-format `"fn-dsa"` still parses to `FnDsa512` for backward compatibility.
 
 ### EncryptionScheme Variants
 
+Names below match `latticearc::unified_api::types::EncryptionScheme` verbatim.
+
 ```rust
 #[non_exhaustive]
 pub enum EncryptionScheme {
-    Symmetric,                // AES-256-GCM with a symmetric key
-    Hybrid,                   // ML-KEM-768 + X25519 + HKDF + AES-256-GCM
-    HybridClassical,          // X25519 + HKDF + AES-256-GCM (no PQ)
-    HybridMlKem512,           // ML-KEM-512 + X25519 + HKDF + AES-256-GCM
-    HybridMlKem1024,          // ML-KEM-1024 + X25519 + HKDF + AES-256-GCM
-    // New in 0.6.0 — PQ-only (no classical component)
-    PqMlKem512Aes256Gcm,      // ML-KEM-512 + AES-256-GCM, no classical KEM
-    PqMlKem768Aes256Gcm,      // ML-KEM-768 + AES-256-GCM, no classical KEM
-    PqMlKem1024Aes256Gcm,     // ML-KEM-1024 + AES-256-GCM, no classical KEM
+    // Symmetric (AEAD with a caller-supplied key)
+    Aes256Gcm,                  // AES-256-GCM
+    ChaCha20Poly1305,           // ChaCha20-Poly1305 (RFC 8439)
+    // Hybrid (PQ + classical KEM, AES-256-GCM AEAD)
+    HybridMlKem512Aes256Gcm,    // ML-KEM-512 + X25519 + HKDF + AES-256-GCM
+    HybridMlKem768Aes256Gcm,    // ML-KEM-768 + X25519 + HKDF + AES-256-GCM
+    HybridMlKem1024Aes256Gcm,   // ML-KEM-1024 + X25519 + HKDF + AES-256-GCM
+    // PQ-only (0.6.0+) — no classical component
+    PqMlKem512Aes256Gcm,        // ML-KEM-512 + AES-256-GCM
+    PqMlKem768Aes256Gcm,        // ML-KEM-768 + AES-256-GCM
+    PqMlKem1024Aes256Gcm,       // ML-KEM-1024 + AES-256-GCM
 }
 ```
 
@@ -527,12 +531,14 @@ let pq = hybrid.to_pq_equivalent();
 
 ### EncryptKey / DecryptKey Variants
 
+Real signatures match `crypto_types.rs:39-48` — slices and typed wrapper structs, not sized arrays.
+
 ```rust
 #[non_exhaustive]
 pub enum EncryptKey<'a> {
-    Symmetric(&'a [u8; 32]),          // AES-256-GCM symmetric key
-    Hybrid(&'a HybridPublicKey),      // PQ + classical hybrid public key
-    PqOnly(&'a MlKemPublicKey),       // Pure PQ public key (new in 0.6.0)
+    Symmetric(&'a [u8]),                // AEAD symmetric key (length validated at use site)
+    Hybrid(&'a HybridKemPublicKey),     // PQ + classical hybrid public key
+    PqOnly(&'a PqOnlyPublicKey),        // Pure PQ public key (0.6.0+)
 }
 
 #[non_exhaustive]

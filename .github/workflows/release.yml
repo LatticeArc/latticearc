@@ -34,7 +34,7 @@ jobs:
         # the single source of truth is `.cargo/audit.toml` (mirrored
         # by `deny.toml`); cargo-audit auto-discovers it. No CLI flags.
         run: |
-          cargo install cargo-audit
+          cargo install cargo-audit --locked
           cargo audit --deny warnings
 
   # Publish to crates.io
@@ -105,8 +105,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
       - name: Install SBOM tools
         run: |
-          cargo install cargo-sbom || true
-          cargo install cargo-cyclonedx || true
+          cargo install cargo-sbom --locked || true
+          cargo install cargo-cyclonedx --locked || true
       - name: Generate SBOM (SPDX)
         run: cargo sbom > sbom.spdx.json || echo '{}' > sbom.spdx.json
         continue-on-error: true

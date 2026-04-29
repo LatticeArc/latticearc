@@ -312,12 +312,22 @@ impl HybridSigSecretKey {
     }
 
     /// Returns the ML-DSA secret key bytes wrapped in `Zeroizing`.
+    ///
+    /// Prefer [`expose_ml_dsa_secret`](Self::expose_ml_dsa_secret) (a borrowed
+    /// `&[u8]`) for read-only access — it avoids an allocation. This owned
+    /// accessor exists for sign/serialize paths and for tests that need to
+    /// call `.zeroize()` on a fresh buffer.
     #[must_use]
     pub fn ml_dsa_sk_bytes(&self) -> Zeroizing<Vec<u8>> {
         Zeroizing::new((*self.ml_dsa_sk).clone())
     }
 
     /// Returns the Ed25519 secret key bytes wrapped in `Zeroizing`.
+    ///
+    /// Prefer [`expose_ed25519_secret`](Self::expose_ed25519_secret) (a
+    /// borrowed `&[u8]`) for read-only access — it avoids an allocation.
+    /// This owned accessor exists for sign/serialize paths and for tests
+    /// that need to call `.zeroize()` on a fresh buffer.
     #[must_use]
     pub fn ed25519_sk_bytes(&self) -> Zeroizing<Vec<u8>> {
         Zeroizing::new((*self.ed25519_sk).clone())
@@ -465,8 +475,10 @@ pub fn sign(
     sk: &HybridSigSecretKey,
     message: &[u8],
 ) -> Result<HybridSignature, HybridSignatureError> {
-    // Validate secret key lengths
-    if sk.ed25519_sk_bytes().len() != 32 {
+    // Borrow for the length check instead of `ed25519_sk_bytes()` — the
+    // latter allocates and zeroizes a fresh `Zeroizing<Vec<u8>>` on every
+    // call just to read `.len()`, and this is the hot sign() path.
+    if sk.expose_ed25519_secret().len() != 32 {
         return Err(HybridSignatureError::InvalidKeyMaterial(
             "Ed25519 secret key must be 32 bytes".to_string(),
         ));
@@ -603,7 +615,11 @@ pub fn verify(
         log_crypto_operation_error!(op::HYBRID_VERIFY, "hybrid signature verification failed");
     }
 
-    // Bitwise AND (NOT short-circuit `&&`) combines the two bits without branching.
+    // The two component bits are combined via bitwise AND (not short-circuit
+    // `&&`) so verification work is identical regardless of which component
+    // failed first. The branch below on `both_valid` does not leak anything
+    // the return value doesn't already carry — pass/fail is observable from
+    // the caller either way.
     let both_valid: u8 = ml_dsa_valid & ed25519_valid;
     if both_valid != 1 {
         return Err(HybridSignatureError::VerificationFailed(

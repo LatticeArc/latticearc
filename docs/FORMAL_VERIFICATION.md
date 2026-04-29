@@ -7,7 +7,7 @@ LatticeArc verifies correctness at three layers, each with the right tool for th
 ```mermaid
 flowchart TB
     subgraph "Layer 3 — Type Invariants"
-        KANI["Kani (29 proofs)\nAll possible inputs"]
+        KANI["Kani (30 proofs)\nAll possible inputs"]
         TYPES["latticearc::types\nPure Rust · Zero FFI"]
     end
 
@@ -37,7 +37,7 @@ flowchart TB
 |-------|------|-------|----------------|
 | **Primitives** | [SAW](https://github.com/awslabs/aws-lc-verification) (via aws-lc-rs) | AES-GCM, ML-KEM, X25519, SHA-2 | Mathematical correctness of C implementations |
 | **API crypto** | [Proptest](https://proptest-rs.github.io/proptest/) (40+ tests) | Hybrid KEM/encrypt/sign, unified API, ML-KEM | Roundtrip, non-malleability, key independence, wrong-key rejection |
-| **Type invariants** | [Kani](https://github.com/model-checking/kani) (29 proofs) | `latticearc::types` (pure Rust) | State machine rules, config validation, domain separation, enum exhaustiveness, ordering, defaults |
+| **Type invariants** | [Kani](https://github.com/model-checking/kani) (30 proofs) | `latticearc::types` + `primitives::resource_limits` (pure Rust) | State machine rules, config validation, domain separation, enum exhaustiveness, ordering, defaults, resource bounds |
 
 ### Why three layers?
 
@@ -70,7 +70,7 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 
 ## Layer 3: Kani — Type Invariants
 
-29 bounded model checking proofs across 7 files in `latticearc::types` (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
+30 bounded model checking proofs across 8 files (7 in `latticearc::types` + 3 proofs in `latticearc::primitives::resource_limits`) (pure Rust, zero FFI). These verify the policy and state management layer, **not** cryptographic operations.
 
 ### What Kani does NOT verify
 
@@ -105,7 +105,7 @@ These are the tests that verify **actual cryptographic correctness** — encrypt
 
 The bi-conditional proof (`core_config_validation_biconditional`) is the strongest — it proves validation has no false positives AND no false negatives across all 96 possible CoreConfig combinations (4 security levels × 3 performance preferences × 2³ booleans).
 
-#### Policy Engine — `types/selector.rs` (5 proofs)
+#### Policy Engine — `unified_api/selector.rs` (5 proofs)
 
 | Proof | What It Guarantees |
 |-------|-------------------|
@@ -163,12 +163,12 @@ This is a critical security property — if any two domain constants collide, di
 |------|--------|-------------|
 | `types/key_lifecycle.rs` | 5 | SP 800-57 state machine correctness |
 | `types/config.rs` | 6 | CoreConfig bi-conditional validation (96 combos) |
-| `types/selector.rs` | 5 | Encryption + signature selection completeness |
+| `unified_api/selector.rs` | 5 | Encryption + signature selection completeness |
 | `types/types.rs` | 7 | ComplianceMode, SecurityLevel defaults and exhaustive checks |
 | `types/zero_trust.rs` | 4 | Trust level ordering + `is_fully_trusted()` |
 | `types/domains.rs` | 1 | Domain separation pairwise distinctness |
 | `types/traits.rs` | 1 | VerificationStatus correctness |
-| **Total** | **29** | |
+| **Total** | **30** | |
 
 ## Running Proofs
 
@@ -183,7 +183,7 @@ This is a critical security property — if any two domain constants collide, di
 cargo install --locked kani-verifier
 cargo kani setup
 
-# Run all 29 proofs
+# Run all 30 proofs
 cargo kani -p latticearc
 
 # Run a specific proof
@@ -204,9 +204,9 @@ cargo test --package latticearc-tests --release -- proptest
 |------|------------------|----------|------|
 | **SAW** | Primitive correctness (via aws-lc-rs) | AES-GCM, ML-KEM, SHA-2 | Inherited |
 | **Proptest** | API crypto correctness (256 random cases/property) | 40+ properties, 6 files | ~60s (release) |
-| **Kani** | Type invariants (all possible inputs) | 29 proofs across 7 files in latticearc::types | ~15 min |
+| **Kani** | Type invariants (all possible inputs) | 30 proofs across 8 files (latticearc::types + primitives::resource_limits) | ~15 min |
 | **Unit tests** | Specific test cases | 8,500+ tests | ~120s (release) |
-| **Fuzzing** | Edge cases via randomness | 28 fuzz targets | 5 min/day |
+| **Fuzzing** | Edge cases via randomness | 31 fuzz targets | 5 min/day |
 
 ## Additional Resources
 

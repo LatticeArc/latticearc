@@ -1009,7 +1009,10 @@ fn generate_challenge_data(complexity: &ProofComplexity) -> Result<Vec<u8>> {
             action: "Check system entropy source".to_string(),
         }
     })?;
-    Ok(data)
+    // Challenge data is sent over the wire and is not secret material; the
+    // ephemeral `Zeroizing` wrapper is dropped (and the source bytes wiped)
+    // when this function returns.
+    Ok(data.to_vec())
 }
 
 impl ZeroTrustAuth {

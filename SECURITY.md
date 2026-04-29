@@ -57,7 +57,7 @@ We recommend always using the latest version.
   end-to-end machine-checked on every commit). Round-13 audit fix
   (L-C).
 - **Zeroization** of sensitive data when no longer needed
-- **FIPS 203-206 compliance** for post-quantum algorithms
+- **FIPS 203-205 + draft FIPS 206 compliance** for post-quantum algorithms (FN-DSA / FIPS 206 is still in NIST's draft pipeline; see the FN-DSA caveat in the Algorithm Inventory below)
 - **Input validation** on all public APIs
 
 ### What We Do Not Guarantee
@@ -238,7 +238,7 @@ patched, what almost-shipped instead).
 
 ### Continuous Security Measures
 
-- **Fuzzing** - Daily fuzzing with cargo-fuzz
+- **Fuzzing** - Nightly + weekly scheduled cargo-fuzz matrices (`fuzz-nightly` runs ~5 min/target, `fuzz-weekly` runs ~30 min/target across 31 targets — see `.github/workflows/ci.yml` and `fuzzing.yml`)
 - **Static analysis** - Clippy with security lints
 - **Dependency audit** - cargo-audit in CI
 - **License compliance** - cargo-deny checks

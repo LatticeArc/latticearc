@@ -37,7 +37,7 @@ jobs:
           key: ${{ runner.os }}-sbom-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
 
       - name: Generate SBOM (JSON)
         run: |

@@ -112,7 +112,11 @@ jobs:
     - name: Run fuzz tests (short duration)
       run: |
         cd fuzz
-        timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300 || true
+        # No `|| true` wrapper: masking the exit code prevents the
+        # `if: failure()` artifact-upload step below from firing on a
+        # real crash. libFuzzer's own `-max_total_time` ensures clean
+        # exit before the outer `timeout` fires under normal operation.
+        timeout 300s cargo fuzz run ${{ matrix.target }} -- -max_total_time=300
 
     - name: Upload fuzz artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -172,7 +176,8 @@ jobs:
     - name: Run extended fuzz tests
       run: |
         cd fuzz
-        timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600 || true
+        # No `|| true` wrapper — see the short-duration job above.
+        timeout 3600s cargo fuzz run ${{ matrix.target }} -- -max_total_time=3600
 
     - name: Upload extended fuzz artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -216,8 +221,11 @@ jobs:
     - name: Run fuzz with coverage
       run: |
         cd fuzz
-        # First, run fuzzer briefly to generate corpus inputs
-        timeout 60s cargo fuzz run encrypt_fuzz -- -max_total_time=60 || true
+        # First, run fuzzer briefly to generate corpus inputs. No
+        # `|| true` wrapper: a crash in the seed-generation phase
+        # should fail the job rather than silently producing empty
+        # coverage data.
+        timeout 60s cargo fuzz run encrypt_fuzz -- -max_total_time=60
         # Then generate coverage from the corpus (may fail if corpus is empty)
         cargo fuzz coverage encrypt_fuzz -- -max_total_time=60 || echo "Fuzz coverage skipped (no corpus)"
 

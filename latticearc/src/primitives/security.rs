@@ -337,12 +337,18 @@ pub fn initialize_global_secure_rng() -> Result<()> {
     Ok(())
 }
 
-/// Convenience function for generating secure random bytes
+/// Convenience function for generating secure random bytes.
+///
+/// Returns the bytes wrapped in `Zeroizing<Vec<u8>>` so the caller is
+/// forced to handle them as secret material. The AEAD `WeakKey` error
+/// help-text steers users here for symmetric-key generation; a bare
+/// `Vec<u8>` would silently drop without wiping when callers split or
+/// copied the bytes.
 ///
 /// # Errors
 /// Returns an error if random generation fails
-pub fn generate_secure_random_bytes(len: usize) -> Result<Vec<u8>> {
-    let mut bytes = vec![0u8; len];
+pub fn generate_secure_random_bytes(len: usize) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    let mut bytes = zeroize::Zeroizing::new(vec![0u8; len]);
     RngHandle::secure()?.fill_bytes(&mut bytes)?;
     Ok(bytes)
 }

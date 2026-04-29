@@ -472,9 +472,10 @@ mod zeroization {
     fn test_hybrid_sig_secret_key_bytes_not_zero_before_use_succeeds() {
         let (_pk, sk): (_, sig::HybridSigSecretKey) = sig::generate_keypair().unwrap();
 
-        // Verify that secret key bytes are NOT all zeros initially (they should be non-zero)
-        let ml_dsa_bytes = sk.ml_dsa_sk_bytes();
-        let ed25519_bytes = sk.ed25519_sk_bytes();
+        // Verify that secret key bytes are NOT all zeros initially (they should be non-zero).
+        // Use borrow accessors here — no need for an allocation just to check non-zeroness.
+        let ml_dsa_bytes = sk.expose_ml_dsa_secret();
+        let ed25519_bytes = sk.expose_ed25519_secret();
 
         // At least one of the bytes should be non-zero for a proper key
         let ml_dsa_has_non_zero = ml_dsa_bytes.iter().any(|&x| x != 0);
