@@ -396,8 +396,16 @@ impl MlKemPublicKey {
 pub struct MlKemSecretKey {
     /// Security level of this key (private)
     security_level: MlKemSecurityLevel,
-    /// Serialized secret key bytes (zeroized on drop, private)
-    data: Vec<u8>,
+    /// Serialized secret key bytes (zeroized on drop, private).
+    ///
+    /// Round-14 audit fix (M-4 sibling site): wrapped in
+    /// `Zeroizing<Vec<u8>>` so the moved-in `Vec` is wiped on
+    /// `MlKemSecretKey::new()`'s length-validation error path too. The
+    /// custom `impl Zeroize for MlKemSecretKey` + `impl ZeroizeOnDrop`
+    /// below only fire on the success path (the struct is never
+    /// constructed when `new()` returns `Err`). Same defect class as
+    /// the round-13 fix on `MlDsaSecretKey`.
+    data: Zeroizing<Vec<u8>>,
 }
 
 impl std::fmt::Debug for MlKemSecretKey {
@@ -419,6 +427,10 @@ impl MlKemSecretKey {
     /// # Errors
     /// Returns error if the key length doesn't match the security level
     pub fn new(security_level: MlKemSecurityLevel, data: Vec<u8>) -> Result<Self, MlKemError> {
+        // Round-14 audit fix (M-4 sibling): wrap on entry so the
+        // moved-in `Vec` is zeroized on the length-validation error
+        // path too.
+        let data = Zeroizing::new(data);
         let expected_size = security_level.secret_key_size();
         if data.len() != expected_size {
             return Err(MlKemError::InvalidKeyLength {
@@ -454,7 +466,9 @@ impl MlKemSecretKey {
     /// an owned copy without giving up the original key.
     #[must_use]
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
-        Zeroizing::new(self.data.clone())
+        // `self.data` is `Zeroizing<Vec<u8>>` post round-14; deref to
+        // slice and re-allocate into a fresh zeroizing copy.
+        Zeroizing::new(self.data.to_vec())
     }
 
     /// Consumes the key and returns the raw bytes wrapped in `Zeroizing`.
@@ -463,7 +477,8 @@ impl MlKemSecretKey {
     /// automatically zeroized when dropped.
     #[must_use]
     pub fn into_bytes(self) -> Zeroizing<Vec<u8>> {
-        Zeroizing::new(self.data)
+        // `self.data` is already `Zeroizing<Vec<u8>>`; just return it.
+        self.data
     }
 }
 

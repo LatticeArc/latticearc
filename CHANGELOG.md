@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-14 audit response — 3 MEDIUM + 1 LOW (2026-04-28)
+
+Fourteenth audit pass on top of `67b796306`. Three audit findings on
+the round-13 work + one orphan-job cleanup. (CI failure on Windows
+`Post Cache Cargo registry` was infrastructure flake — not code-driven —
+so unrelated to these fixes.)
+
+#### MEDIUM
+- **`MlKemSecretKey.data` now `Zeroizing<Vec<u8>>`** (M-4 sibling).
+  Same defect class as the round-13 fix on `MlDsaSecretKey`: `new()`
+  accepted `data: Vec<u8>` by value, validated length, and dropped
+  the `Vec` bare on the length-mismatch error path. Wrapped on
+  entry; both success and error paths now zeroize. (Audit also
+  flagged `MlKemDecapsulationKey::new` at line :512 — that line
+  actually contains `MlKemCiphertext::new`, which holds public wire
+  data, not secret material; no fix needed there.)
+- **`cargo-semver-checks-action` SHA-pinned** (audit MEDIUM). Round-13
+  added the action with a floating `@v2` tag, the only unpinned action
+  in the workflow. Now pinned to `5b298c9520f7096a4683c0bd981a7ac5a7e249ae`
+  (v2.8) with a comment.
+- **H-A upload-step gate matches the round-13 comment** (audit MEDIUM).
+  The round-13 fix comment promised `if: ${{ failure() || cancelled() }}`
+  on the `Upload crash artifacts (smoke)` step, but the actual code
+  was unchanged at `if: failure()`. A job cancellation (timeout,
+  manual cancel during a long fuzz run) wouldn't surface partial
+  artifacts. Gate now matches the comment.
+
+#### LOW
+- **`semver-checks` wired into the Pipeline Status `needs` list and
+  status-check loop** (audit LOW). Previously an orphan job — today
+  benign because the job is `continue-on-error: true`, but the
+  eventual promotion to blocking (drop the soft-fail comment, drop
+  `continue-on-error`) was a 3-edit coordinated change. Now a
+  single-line edit.
+
 ### Round-13 audit response — M-4 followup + 2 HIGH + 3 MEDIUM + 5 LOW (2026-04-28)
 
 Thirteenth audit pass on top of `2188ed48e`. The M-4 fix from round-12
