@@ -249,12 +249,13 @@
 <a href=#249 id=249 data-nosnippet>249</a>
 <a href=#250 id=250 data-nosnippet>250</a>    <span class="comment">// Atomic write — sig files aren't secret but partial-file-at-rest
 <a href=#251 id=251 data-nosnippet>251</a>    // is still a script-corruption hazard (round-7 audit fix #18).
-<a href=#252 id=252 data-nosnippet>252</a>    </span>latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
-<a href=#253 id=253 data-nosnippet>253</a>        .overwrite_existing(<span class="bool-val">true</span>)
-<a href=#254 id=254 data-nosnippet>254</a>        .write(<span class="kw-2">&amp;</span>output_path)
-<a href=#255 id=255 data-nosnippet>255</a>        .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, output_path.display()))<span class="question-mark">?</span>;
-<a href=#256 id=256 data-nosnippet>256</a>
-<a href=#257 id=257 data-nosnippet>257</a>    <span class="macro">eprintln!</span>(<span class="string">"Signature written to: {}"</span>, output_path.display());
-<a href=#258 id=258 data-nosnippet>258</a>    <span class="prelude-val">Ok</span>(())
-<a href=#259 id=259 data-nosnippet>259</a>}
+<a href=#252 id=252 data-nosnippet>252</a>    // LINT-OK: public-write-signature (signatures are not secret)
+<a href=#253 id=253 data-nosnippet>253</a>    </span>latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
+<a href=#254 id=254 data-nosnippet>254</a>        .overwrite_existing(<span class="bool-val">true</span>)
+<a href=#255 id=255 data-nosnippet>255</a>        .write(<span class="kw-2">&amp;</span>output_path)
+<a href=#256 id=256 data-nosnippet>256</a>        .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, output_path.display()))<span class="question-mark">?</span>;
+<a href=#257 id=257 data-nosnippet>257</a>
+<a href=#258 id=258 data-nosnippet>258</a>    <span class="macro">eprintln!</span>(<span class="string">"Signature written to: {}"</span>, output_path.display());
+<a href=#259 id=259 data-nosnippet>259</a>    <span class="prelude-val">Ok</span>(())
+<a href=#260 id=260 data-nosnippet>260</a>}
 </code></pre></div></section></main></body></html>

@@ -278,20 +278,21 @@
 <a href=#278 id=278 data-nosnippet>278</a>            <span class="comment">// Atomic write — closes the partial-file confidentiality
 <a href=#279 id=279 data-nosnippet>279</a>            // window for decrypted material at rest. Same helper the
 <a href=#280 id=280 data-nosnippet>280</a>            // keyfile writer uses (round-7 audit fix #18).
-<a href=#281 id=281 data-nosnippet>281</a>            </span>latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
-<a href=#282 id=282 data-nosnippet>282</a>                .overwrite_existing(<span class="bool-val">true</span>)
-<a href=#283 id=283 data-nosnippet>283</a>                .write(p)
-<a href=#284 id=284 data-nosnippet>284</a>                .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
-<a href=#285 id=285 data-nosnippet>285</a>            <span class="macro">eprintln!</span>(<span class="string">"Encrypted data written to: {}"</span>, p.display());
-<a href=#286 id=286 data-nosnippet>286</a>        }
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="prelude-val">None </span>=&gt; {
-<a href=#288 id=288 data-nosnippet>288</a>            <span class="comment">// `print!` (not `println!`) — byte-exact stdout for
-<a href=#289 id=289 data-nosnippet>289</a>            // pipelines that hash or chain into other tools (round-7
-<a href=#290 id=290 data-nosnippet>290</a>            // audit fix #14). Callers that want a trailing newline can
-<a href=#291 id=291 data-nosnippet>291</a>            // redirect through `cat` or append themselves.
-<a href=#292 id=292 data-nosnippet>292</a>            </span><span class="macro">print!</span>(<span class="string">"{data}"</span>);
-<a href=#293 id=293 data-nosnippet>293</a>        }
-<a href=#294 id=294 data-nosnippet>294</a>    }
-<a href=#295 id=295 data-nosnippet>295</a>    <span class="prelude-val">Ok</span>(())
-<a href=#296 id=296 data-nosnippet>296</a>}
+<a href=#281 id=281 data-nosnippet>281</a>            // LINT-OK: public-write-ciphertext (encrypted data is not secret)
+<a href=#282 id=282 data-nosnippet>282</a>            </span>latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
+<a href=#283 id=283 data-nosnippet>283</a>                .overwrite_existing(<span class="bool-val">true</span>)
+<a href=#284 id=284 data-nosnippet>284</a>                .write(p)
+<a href=#285 id=285 data-nosnippet>285</a>                .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
+<a href=#286 id=286 data-nosnippet>286</a>            <span class="macro">eprintln!</span>(<span class="string">"Encrypted data written to: {}"</span>, p.display());
+<a href=#287 id=287 data-nosnippet>287</a>        }
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="prelude-val">None </span>=&gt; {
+<a href=#289 id=289 data-nosnippet>289</a>            <span class="comment">// `print!` (not `println!`) — byte-exact stdout for
+<a href=#290 id=290 data-nosnippet>290</a>            // pipelines that hash or chain into other tools (round-7
+<a href=#291 id=291 data-nosnippet>291</a>            // audit fix #14). Callers that want a trailing newline can
+<a href=#292 id=292 data-nosnippet>292</a>            // redirect through `cat` or append themselves.
+<a href=#293 id=293 data-nosnippet>293</a>            </span><span class="macro">print!</span>(<span class="string">"{data}"</span>);
+<a href=#294 id=294 data-nosnippet>294</a>        }
+<a href=#295 id=295 data-nosnippet>295</a>    }
+<a href=#296 id=296 data-nosnippet>296</a>    <span class="prelude-val">Ok</span>(())
+<a href=#297 id=297 data-nosnippet>297</a>}
 </code></pre></div></section></main></body></html>
