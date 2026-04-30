@@ -138,7 +138,15 @@ pub enum CustodianRole {
     KeyAuditor,
 }
 
-/// Key lifecycle record with audit trail
+/// Key lifecycle record with audit trail.
+///
+/// State-machine fields are private so the only way to mutate
+/// `current_state`, `state_history`, the per-state timestamps, or
+/// custodianship is through [`Self::transition`] /
+/// [`Self::add_approver`]. Construction-time fields (`key_id`,
+/// `key_type`, `security_level`, `generated_at`,
+/// `rotation_interval_days`, `overlap_period_days`) stay public — they
+/// are set in [`Self::new`] and never reassigned.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyLifecycleRecord {
     /// Unique key identifier
@@ -148,31 +156,25 @@ pub struct KeyLifecycleRecord {
     /// Security level (1-5)
     pub security_level: u32,
 
-    // State management
-    /// Current lifecycle state
-    pub current_state: KeyLifecycleState,
-    /// History of state transitions
-    pub state_history: Vec<StateTransition>,
+    // State management — private so transitions only happen via `transition()`
+    current_state: KeyLifecycleState,
+    state_history: Vec<StateTransition>,
 
-    // Custodianship
-    /// ID of the key generator
-    pub generator: Option<String>,
-    /// IDs of approvers
-    pub approvers: Vec<String>,
-    /// ID of the destroyer
-    pub destroyer: Option<String>,
+    // Custodianship — private so updates only happen via `transition()` /
+    // `add_approver()`
+    generator: Option<String>,
+    approvers: Vec<String>,
+    destroyer: Option<String>,
 
-    // Timing
     /// When the key was generated
     pub generated_at: chrono::DateTime<chrono::Utc>,
-    /// When the key was activated
-    pub activated_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// When key rotation was initiated
-    pub rotated_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// When the key was retired
-    pub retired_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// When the key was destroyed
-    pub destroyed_at: Option<chrono::DateTime<chrono::Utc>>,
+
+    // Per-state timestamps — private so they can only be set by
+    // `transition()`
+    activated_at: Option<chrono::DateTime<chrono::Utc>>,
+    rotated_at: Option<chrono::DateTime<chrono::Utc>>,
+    retired_at: Option<chrono::DateTime<chrono::Utc>>,
+    destroyed_at: Option<chrono::DateTime<chrono::Utc>>,
 
     // SP 800-57 requirements
     /// How often the key should be rotated (days)
@@ -344,6 +346,66 @@ impl KeyLifecycleRecord {
         if !self.approvers.contains(&approver_id) {
             self.approvers.push(approver_id);
         }
+    }
+
+    // ----------------------------------------------------------------
+    // Read-only accessors for the privatized state-machine fields.
+    // External callers go through these so the lifecycle invariants
+    // stay enforced by `transition()`.
+    // ----------------------------------------------------------------
+
+    /// Current lifecycle state.
+    #[must_use]
+    pub fn current_state(&self) -> KeyLifecycleState {
+        self.current_state
+    }
+
+    /// History of state transitions (read-only).
+    #[must_use]
+    pub fn state_history(&self) -> &[StateTransition] {
+        &self.state_history
+    }
+
+    /// ID of the key generator (the custodian who completed key generation).
+    #[must_use]
+    pub fn generator(&self) -> Option<&str> {
+        self.generator.as_deref()
+    }
+
+    /// IDs of approvers (read-only).
+    #[must_use]
+    pub fn approvers(&self) -> &[String] {
+        &self.approvers
+    }
+
+    /// ID of the destroyer (the custodian who performed destruction).
+    #[must_use]
+    pub fn destroyer(&self) -> Option<&str> {
+        self.destroyer.as_deref()
+    }
+
+    /// When the key was activated.
+    #[must_use]
+    pub fn activated_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        self.activated_at
+    }
+
+    /// When key rotation was initiated.
+    #[must_use]
+    pub fn rotated_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        self.rotated_at
+    }
+
+    /// When the key was retired.
+    #[must_use]
+    pub fn retired_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        self.retired_at
+    }
+
+    /// When the key was destroyed.
+    #[must_use]
+    pub fn destroyed_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        self.destroyed_at
     }
 }
 

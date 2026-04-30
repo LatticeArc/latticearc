@@ -96,6 +96,18 @@ pub(crate) fn run(args: KdfArgs) -> Result<()> {
         );
     }
     let salt = hex::decode(&args.salt).context("Invalid hex in --salt")?;
+    // Round-21 audit fix #15: the previous version's error message
+    // claimed "PBKDF2 requires ≥16 bytes" but only `is_empty()` was
+    // checked. A 1-byte salt (`--salt aa`) silently passed. Enforce
+    // the SP 800-132 §5.1 minimum here for PBKDF2 — HKDF tolerates
+    // shorter salts but the CLI surface is shared, so apply the
+    // tighter rule.
+    if matches!(args.algorithm, KdfAlgorithm::Pbkdf2) && salt.len() < 16 {
+        bail!(
+            "--salt is {} byte(s); PBKDF2 requires ≥16 bytes (NIST SP 800-132 §5.1).",
+            salt.len()
+        );
+    }
 
     // PBKDF2 with `--input` puts the password on argv (visible in `ps`,
     // `/proc/<pid>/cmdline`, shell history). The `--input` flag's docstring

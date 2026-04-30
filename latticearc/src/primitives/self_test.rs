@@ -170,26 +170,53 @@ pub fn run_power_up_tests() -> SelfTestResult {
         return SelfTestResult::Fail(format!("HMAC-SHA256 KAT failed: {}", e));
     }
 
-    // 6. ML-KEM-768 KAT (full encap/decap roundtrip)
+    // 6-9. PQ algorithm self-consistency tests.
+    //
+    // Round-21 audit fix #1: these were previously named `kat_*` but
+    // are NOT Known Answer Tests in the FIPS 140-3 §10.3.1 / CAVP
+    // sense — they generate a fresh keypair (random seed) and verify
+    // a roundtrip rather than comparing against precomputed test
+    // vectors. A bug producing self-consistent-but-wrong output would
+    // pass indefinitely.
+    //
+    // Real KAT validation against NIST test vectors runs in the
+    // `latticearc-tests` crate at `tests/tests/nist_kat/{ml_kem,
+    // ml_dsa, slh_dsa}_vectors.rs` and `tests/tests/fips_cavp.rs`.
+    // Those tests are required for CAVP submission; the self-tests
+    // below provide power-on smoke coverage that the algorithm chains
+    // are wired correctly. The naming here reflects that distinction.
+    //
+    // Promoting the power-on path to true KATs requires a
+    // deterministic-keygen API that the wrapper layers don't yet
+    // expose; tracked as TRK-007 in docs/TRACKING.md.
+
+    // 6. ML-KEM-768 self-consistency (encap/decap roundtrip).
     if let Err(e) = kat_ml_kem_768() {
-        return SelfTestResult::Fail(format!("ML-KEM-768 KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("ML-KEM-768 roundtrip failed: {}", e));
     }
 
-    // 7. ML-DSA-44 KAT (sign/verify roundtrip)
+    // 7. ML-DSA-44 self-consistency (sign/verify roundtrip).
     if let Err(e) = kat_ml_dsa() {
-        return SelfTestResult::Fail(format!("ML-DSA KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("ML-DSA roundtrip failed: {}", e));
     }
 
-    // 8. SLH-DSA KAT (sign/verify roundtrip)
+    // 8. SLH-DSA self-consistency (sign/verify roundtrip).
     if let Err(e) = kat_slh_dsa() {
-        return SelfTestResult::Fail(format!("SLH-DSA KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("SLH-DSA roundtrip failed: {}", e));
     }
 
-    // 9. FN-DSA KAT (runs in separate thread with 32MB stack)
+    // 9. FN-DSA self-consistency (runs in separate thread with 32 MB stack).
     if let Err(e) = kat_fn_dsa() {
-        return SelfTestResult::Fail(format!("FN-DSA KAT failed: {}", e));
+        return SelfTestResult::Fail(format!("FN-DSA roundtrip failed: {}", e));
     }
 
+    // The doc example advertises this function as a standalone entry
+    // point, so it must set `SELF_TEST_PASSED` itself — otherwise
+    // `is_module_operational()` returns `false` after a clean Pass for
+    // callers that don't go through `initialize_and_test`. `Release`
+    // matches the other stores in this file and pairs with the
+    // `Acquire` loads on the reader side.
+    SELF_TEST_PASSED.store(true, Ordering::Release);
     SelfTestResult::Pass
 }
 

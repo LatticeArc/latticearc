@@ -144,7 +144,10 @@ fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {
                 .overwrite_existing(true)
                 .write(p)
                 .with_context(|| format!("Failed to write {}", p.display()))?;
-            eprintln!("Decrypted data written to: {}", p.display());
+            // Round-21 audit fix #14: path on stderr leaked through
+            // process accounting and log aggregation. Demote to
+            // tracing::debug!.
+            tracing::debug!(path = %p.display(), "decrypted data written");
         }
         None => {
             // Try to print as UTF-8, fall back to hex. The hex encoding

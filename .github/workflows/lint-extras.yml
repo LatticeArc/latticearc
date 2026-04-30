@@ -212,14 +212,31 @@ jobs:
           # include it in `status-check.needs:`, so its failure didn't
           # block merge. Generalize: every job defined under `jobs:` in
           # ci.yml must appear in `status-check.needs:`.
+          #
+          # Round-21 audit fix #4: the previous version of this rule had
+          # a false positive on `changes`, `docs-deploy`, and
+          # `release-validation` — three jobs intentionally NOT gated by
+          # status-check (changes is a path filter, docs-deploy publishes
+          # only on release, release-validation runs only on tag). We
+          # honor `# LINT-OK: not-in-status-check` comments above the
+          # `jobs:` entry to whitelist intentional-skip jobs.
           CI_YML=".github/workflows/ci.yml"
-          # Extract job names: lines matching `^  [a-z][a-z0-9-]*:` at
-          # exactly two-space indent are top-level jobs (excluding
-          # `concurrency:`, `permissions:`, `defaults:`, etc. inside
-          # workflow scope — but those don't match the `jobs:` indent
-          # pattern below, so the heuristic is fine).
-          ALL_JOBS=$(awk '/^jobs:/{in_jobs=1; next} in_jobs && /^  [a-z][a-z0-9_-]*:$/ {print $1}' "$CI_YML" | tr -d ':' | sort -u)
-          # status-check itself is the gate, exclude it.
+          # Extract every two-space-indented job name UNDER the `jobs:`
+          # block (not the `on:` block — `pull_request`, `push`, etc.
+          # also match `^  X:$` and would false-positive). To find
+          # LINT-OK exemptions we look at the line BEFORE each job
+          # definition.
+          ALL_JOBS=$(awk '
+            /^jobs:/ { in_jobs = 1; next }
+            /^[a-zA-Z]/ { in_jobs = 0 }
+            in_jobs && /^  [a-z][a-z0-9_-]*:$/ {
+                if (prev !~ /# LINT-OK: not-in-status-check/) {
+                    j = $1; sub(/:$/, "", j); print j
+                }
+            }
+            { prev = $0 }
+          ' "$CI_YML" | sort -u)
+          # status-check itself is the gate, always exclude.
           ALL_JOBS=$(echo "$ALL_JOBS" | grep -v '^status-check$' || true)
           # Pull the `needs:` list from the status-check job.
           NEEDS=$(awk '
@@ -241,7 +258,182 @@ jobs:
           done <<< "$ALL_JOBS"
           if [ -n "$MISSING" ]; then
             echo "::error::CI jobs not in status-check.needs: $MISSING"
-            echo "Every job in .github/workflows/ci.yml must appear in the status-check needs list, otherwise its failure does not block merge. See docs/MODULE_PATTERNS.md (Workflow conventions)."
+            echo "Every job in .github/workflows/ci.yml must appear in the status-check needs list (so its failure blocks merge), OR be explicitly opted out with '# LINT-OK: not-in-status-check' on the line directly above the job definition. See docs/MODULE_PATTERNS.md (Workflow conventions)."
+            exit 1
+          fi
+
+      - name: status-check-result-coverage — every needs[] entry must have inner result-check
+        run: |
+          set -e
+          # Round-21 audit fix #18: round-20 added `default-debug-parity`
+          # to `needs:` AND to the inner result-check loop, but
+          # `kat-integrity` had been in `needs:` since earlier rounds
+          # without a corresponding inner check. The old lint rule only
+          # validated needs:; the inner result-check block was a
+          # separate, unenforced layer. New rule below cross-checks.
+          #
+          # The status-check job uses two layers:
+          #   1. `needs: [a, b, c, ...]`              — defines the wait list
+          #   2. `[[ "${{ needs.X.result }}" == "failure" ]]` — translates
+          #      a failed dependency into a failed gate
+          # Both are required for a job's failure to actually block merge.
+          # `fuzz-nightly` and `fuzz-weekly` are intentionally
+          # warning-only (round-12 H-5 rationale) and use `if [[ ...
+          # failure ]]; then echo Warning` instead — exempted by
+          # presence of "Warning" in the same line.
+          CI_YML=".github/workflows/ci.yml"
+          NEEDS=$(awk '
+            /^  status-check:/ { in_sc = 1; next }
+            in_sc && /needs:/ {
+                gsub(/.*needs:[ ]*\[/, "")
+                gsub(/\].*/, "")
+                gsub(/[ ,]+/, "\n")
+                print
+                exit
+            }
+          ' "$CI_YML" | sort -u)
+          # Extract every job name referenced inside any
+          # `needs.<name>.result` expression in the status-check body.
+          RESULT_CHECKED=$(awk '
+            /^  status-check:/ { in_sc = 1 }
+            in_sc {
+                while (match($0, /needs\.[a-zA-Z0-9_-]+\.result/)) {
+                    s = substr($0, RSTART+6, RLENGTH-13)
+                    print s
+                    $0 = substr($0, RSTART+RLENGTH)
+                }
+            }
+          ' "$CI_YML" | sort -u)
+          MISSING=""
+          while IFS= read -r job; do
+            [ -z "$job" ] && continue
+            if ! echo "$RESULT_CHECKED" | grep -qx "$job"; then
+                MISSING="$MISSING $job"
+            fi
+          done <<< "$NEEDS"
+          if [ -n "$MISSING" ]; then
+            echo "::error::needs[] entries with no inner result-check (failure does not block merge): $MISSING"
+            echo "Each entry in status-check.needs[] must have a matching '[[ \"\${{ needs.X.result }}\" == \"failure\" ]]' line in the same job body, OR the corresponding 'echo Warning' / 'non-blocking' branch (fuzz-nightly / fuzz-weekly pattern). Round-19 H4 + round-21 #18."
+            exit 1
+          fi
+
+      - name: fuzz-matrix-coverage — every fuzz_targets/*.rs binary must appear in fuzz-weekly matrix
+        run: |
+          set -e
+          # Round-21 audit fix #2: 3 of 31 fuzz targets declared in
+          # fuzz/Cargo.toml were absent from the fuzz-weekly matrix.
+          # Round-15 fixed the inverse (matrix entries with no binary).
+          # This rule closes the gap in both directions: every binary
+          # in `[[bin]]` blocks of fuzz/Cargo.toml must appear in the
+          # fuzz-weekly target list, and every matrix entry must
+          # correspond to a real binary.
+          BINS=$(awk '
+            /^\[\[bin\]\]/ { in_bin = 1; next }
+            in_bin && /^name = "/ {
+                gsub(/.*name = "/, ""); gsub(/".*/, "")
+                print
+                in_bin = 0
+            }
+          ' fuzz/Cargo.toml | sort -u)
+          MATRIX=$(awk '
+            /^  fuzz-weekly:/ { in_w = 1; next }
+            in_w && /^[a-zA-Z]/ { in_w = 0 }
+            in_w && /fuzz-target:/ { in_t = 1; next }
+            in_t && /^[ ]+- / {
+                gsub(/^[ ]+- /, "")
+                gsub(/[ \t]/, "")
+                print
+            }
+            in_t && /^[ ]+steps:/ { in_t = 0 }
+          ' .github/workflows/ci.yml | sort -u)
+          MISSING_FROM_MATRIX=""
+          while IFS= read -r bin; do
+            [ -z "$bin" ] && continue
+            if ! echo "$MATRIX" | grep -qx "$bin"; then
+                MISSING_FROM_MATRIX="$MISSING_FROM_MATRIX $bin"
+            fi
+          done <<< "$BINS"
+          MISSING_BINS=""
+          while IFS= read -r m; do
+            [ -z "$m" ] && continue
+            if ! echo "$BINS" | grep -qx "$m"; then
+                MISSING_BINS="$MISSING_BINS $m"
+            fi
+          done <<< "$MATRIX"
+          if [ -n "$MISSING_FROM_MATRIX" ]; then
+            echo "::error::fuzz binaries declared in fuzz/Cargo.toml but missing from ci.yml fuzz-weekly matrix:$MISSING_FROM_MATRIX"
+            echo "Add the missing entries to .github/workflows/ci.yml fuzz-weekly.matrix.fuzz-target. Round-21 audit fix #2."
+            exit 1
+          fi
+          if [ -n "$MISSING_BINS" ]; then
+            echo "::error::fuzz-weekly matrix entries with no matching [[bin]] in fuzz/Cargo.toml:$MISSING_BINS"
+            echo "These targets will fail at runtime. Round-15 reversal."
+            exit 1
+          fi
+
+      - name: fips-policy-version — FIPS_SECURITY_POLICY.md Module Version must match workspace
+        run: |
+          set -e
+          # Round-21 audit fix #13: FIPS policy doc lagged the workspace
+          # version by two majors (0.6.0 vs 0.8.0). The same drift class
+          # as round-19 D1 (README claim vs implementation). The
+          # security policy doc is shown to FIPS submission reviewers;
+          # a stale version is a credibility failure.
+          WORKSPACE_VER=$(awk '/^\[workspace\.package\]/{in_w=1; next} in_w && /^version[ ]*=/{ split($0, a, /"/); print a[2]; exit}' Cargo.toml)
+          POLICY_VER=$(grep -E '^\*\*Module Version\*\*:' docs/FIPS_SECURITY_POLICY.md | head -1 | sed -E 's/.*: //')
+          POLICY_TABLE_VER=$(grep -E '^\| Module Version \|' docs/FIPS_SECURITY_POLICY.md | head -1 | awk -F'|' '{gsub(/[ \t]/, "", $3); print $3}')
+          if [ "$WORKSPACE_VER" != "$POLICY_VER" ] || [ "$WORKSPACE_VER" != "$POLICY_TABLE_VER" ]; then
+            echo "::error::FIPS_SECURITY_POLICY.md Module Version is stale."
+            echo "  Cargo.toml workspace.package.version: $WORKSPACE_VER"
+            echo "  docs/FIPS_SECURITY_POLICY.md header:    $POLICY_VER"
+            echo "  docs/FIPS_SECURITY_POLICY.md table row: $POLICY_TABLE_VER"
+            echo "Update both sites in docs/FIPS_SECURITY_POLICY.md to match the workspace version. Round-21 audit fix #13."
+            exit 1
+          fi
+
+      - name: TRACKING-staleness — Open rows must reference state that's still true
+        run: |
+          set -e
+          # Round-21 audit fix #17: TRK-005 said wildcards="warn" → "deny"
+          # was open work, but round-20 already promoted it. The Open
+          # table accumulates stale rows because nothing checks whether
+          # the stated condition still holds.
+          #
+          # This rule is a structural cross-check: for each row in the
+          # Open table that mentions a specific configuration claim
+          # (e.g. `wildcards = "warn"`), verify that claim is still true
+          # in the cited file. Specifically:
+          #   - if the row mentions `wildcards = "warn"` and deny.toml
+          #     actually has `wildcards = "deny"`, the row is stale.
+          #   - if the row mentions `continue-on-error: true` and the
+          #     cited workflow has `continue-on-error: false`, stale.
+          #
+          # Both are heuristics — false positives possible if the row's
+          # text quotes a condition without claiming it currently holds.
+          # In practice the rows are short and the simple substring
+          # check is reliable enough.
+          STALE=""
+          if grep -qE '^\| TRK-' docs/TRACKING.md; then
+              # Rule 1: any open TRK row mentioning wildcards = "warn"
+              # while deny.toml has "deny".
+              if grep -A0 '^| TRK-' docs/TRACKING.md | grep -q 'wildcards = "warn"'; then
+                  if grep -q '^wildcards = "deny"' deny.toml; then
+                      STALE="$STALE TRK-row-mentions-wildcards-warn-but-deny.toml-has-deny"
+                  fi
+              fi
+              # Rule 2: any open TRK row mentioning continue-on-error: true
+              # for a workflow that no longer has it.
+              # (Add cases here as new park-notes appear; for now MSan was
+              # the only one and round-20 dropped it.)
+              if grep -A0 '^| TRK-' docs/TRACKING.md | grep -q 'continue-on-error: true'; then
+                  if ! grep -q 'continue-on-error: true' .github/workflows/sanitizers.yml; then
+                      STALE="$STALE TRK-row-mentions-continue-on-error-true-but-sanitizers.yml-clean"
+                  fi
+              fi
+          fi
+          if [ -n "$STALE" ]; then
+            echo "::error::docs/TRACKING.md has Open rows referring to state that's no longer true: $STALE"
+            echo "Move the affected rows to the Closed section with a 'Closed by' note. See round-21 audit fix #17."
             exit 1
           fi
 

@@ -4,6 +4,12 @@
 name: CodeQL
 
 on:
+  push:
+    # Round-21 audit fix #22: previously CodeQL only ran on PRs and the
+    # weekly schedule. Direct pushes to main (squash-merged Dependabot
+    # PRs, hotfixes that bypass review, admin-bypass merges of audit
+    # rounds) went unanalysed for up to a week.
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
   schedule:

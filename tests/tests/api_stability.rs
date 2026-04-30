@@ -1257,7 +1257,8 @@ fn test_key_lifecycle_record_is_stable() {
     assert_eq!(record.key_id, "key-123");
     assert_eq!(record.key_type, "ML-KEM-768");
     assert_eq!(record.security_level, 3);
-    assert_eq!(record.current_state, KeyLifecycleState::Generation);
+    // Lifecycle state-machine fields are private; read via accessors.
+    assert_eq!(record.current_state(), KeyLifecycleState::Generation);
 }
 
 /// Test 5.11: AuditEvent construction is stable

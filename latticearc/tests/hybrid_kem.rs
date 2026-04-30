@@ -263,13 +263,14 @@ fn test_error_display_crypto_fails() {
 }
 
 #[test]
-fn test_error_clone_eq_fails() {
+fn test_error_clone_round_trips() {
     let err1 = HybridKemError::MlKemError("a".to_string());
     let err2 = err1.clone();
-    assert_eq!(err1, err2);
+    assert_eq!(err1.to_string(), err2.to_string());
+    assert!(matches!(err2, HybridKemError::MlKemError(_)));
 
     let err3 = HybridKemError::EcdhError("a".to_string());
-    assert_ne!(err1, err3);
+    assert!(matches!(err3, HybridKemError::EcdhError(_)));
 }
 
 #[test]

@@ -19,8 +19,14 @@ and should be treated as a finding.
 | TRK-002 | Remove `RUSTSEC-2024-0375` (atty unmaintained) ignore | 2026-Q3 | maintainers | Same provenance as TRK-001 — landed by the same migration. |
 | TRK-003 | Remove `RUSTSEC-2021-0145` (atty Windows unsoundness) ignore | 2026-Q3 | maintainers | Same provenance as TRK-001. The Windows-only soundness bug is gated by `dudect.yml` running on `ubuntu-latest`, but removing the dep removes the question entirely. |
 | TRK-004 | Remove `RUSTSEC-2024-0436` (paste unmaintained) ignore | 2026-Q4 | maintainers | Pulled in transitively by `pqcrypto-mldsa` dev-dep (cross-impl validation tests). Wait for pqcrypto-mldsa upstream to drop the dep, OR vendor a minimal alternative for the validation tests. |
-| TRK-005 | Promote `wildcards = "warn"` to `"deny"` in `deny.toml` | 2026-Q3 | maintainers | Round-20 audit fix #20: comment in deny.toml says "Promote to deny once the dep tree has been audited." Currently one wildcard reported (workspace path-dep `latticearc-cli → latticearc`); the audit + skip-list update is straightforward. |
 | TRK-006 | Migrate `dudect-bencher` to v0.8+ (clap 4) | 2026-Q3 | maintainers | Unblocks TRK-001/002/003 in one step. |
+| TRK-007 | Promote `self_test::kat_ml_kem_768` / `kat_ml_dsa` / `kat_slh_dsa` to true KATs | 2026-Q4 | security-team | Round-21 audit fix #1: these are currently random-seed roundtrip tests, not FIPS 140-3 §10.3.1 / CAVP KATs. Real KATs already run in `latticearc-tests::nist_kat` and `latticearc-tests::fips_cavp`. Promoting the power-on path requires a deterministic-keygen API on `MlKem` / `ml_dsa` / `slh_dsa` that the wrapper crates don't yet expose; once the upstream `aws-lc-rs` ML-KEM seed-keygen API stabilises (work in progress upstream), wire it through and replace the roundtrip with a digest-vs-precomputed comparison. |
+
+## Closed (kept here briefly for traceability — remove after one round)
+
+| ID | What | Closed by |
+|----|------|-----------|
+| TRK-005 | Promote `wildcards = "warn"` to `"deny"` in `deny.toml` | Round-20 fix #20 (commit `f279351b1`) — promoted to `deny` with `allow-wildcard-paths = true`. Round-21 audit fix #17 surfaced this row was stale. |
 
 ## Conventions
 

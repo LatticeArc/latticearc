@@ -20,9 +20,17 @@
 //! - Support for various moduli used in cryptographic schemes
 //!
 //! # SIMD Acceleration
-//! SIMD-accelerated polynomial operations are not currently available.
-//! The `portable_simd` feature requires nightly Rust, but this library
-//! targets stable Rust only. Scalar implementations are used instead.
+//! Scalar-only at this layer. `aws-lc-rs` (the FIPS-validated backend
+//! used by the KEM layer) handles SIMD selection internally — its
+//! NEON/AVX2/AVX-512 paths run automatically when available. This
+//! pure-Rust polynomial crate exists for non-AWS-LC paths and for
+//! independent verification, where SIMD acceleration would require
+//! nightly Rust (`portable_simd`) and is not currently in scope.
+//!
+//! Round-21 audit #23: a `simd/` subtree (avx2.rs, neon.rs, ntt.rs, …)
+//! was previously present but never declared via `pub mod simd;`. It
+//! compiled only as standalone test scaffolding and contained latent
+//! bugs — deleted to remove the maintenance trap.
 //!
 
 /// Polynomial arithmetic operations.

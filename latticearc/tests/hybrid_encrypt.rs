@@ -432,16 +432,17 @@ mod hybrid {
     // ============================================================================
 
     #[test]
-    fn test_error_clone_and_eq_fails() {
+    fn test_error_clone_round_trips() {
         let err1 = HybridEncryptionError::KemError("a".to_string());
         let err2 = err1.clone();
-        assert_eq!(err1, err2);
+        assert_eq!(err1.to_string(), err2.to_string());
+        assert!(matches!(err2, HybridEncryptionError::KemError(_)));
 
         let err3 = HybridEncryptionError::KemError("b".to_string());
-        assert_ne!(err1, err3);
+        assert_ne!(err1.to_string(), err3.to_string());
 
         let err4 = HybridEncryptionError::EncryptionError("a".to_string());
-        assert_ne!(err1, err4);
+        assert!(matches!(err4, HybridEncryptionError::EncryptionError(_)));
     }
 
     #[test]
@@ -521,9 +522,10 @@ mod validation {
         assert!(e6.to_string().contains("32"));
         assert!(e6.to_string().contains("16"));
 
-        // Clone and PartialEq
-        assert_eq!(e1.clone(), e1);
-        assert_ne!(e1, e2);
+        let e1_clone = e1.clone();
+        assert_eq!(e1.to_string(), e1_clone.to_string());
+        assert!(matches!(e1, HybridEncryptionError::KemError(_)));
+        assert!(matches!(e2, HybridEncryptionError::EncryptionError(_)));
     }
 }
 

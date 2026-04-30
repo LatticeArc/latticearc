@@ -87,8 +87,9 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
         super::common::CLI_MAX_SIGNATURE_INPUT_BYTES,
         "verify",
     )?;
-    let sig_json = std::fs::read_to_string(&args.signature)
-        .with_context(|| format!("Failed to read {}", args.signature.display()))?;
+    let sig_json =
+        std::fs::read_to_string(&args.signature) // LINT-OK: size-gated-by-CLI_MAX_SIGNATURE_INPUT_BYTES (line 85 above)
+            .with_context(|| format!("Failed to read {}", args.signature.display()))?;
 
     // Try SignedData format first (produced by sign --public-key)
     if let Ok(signed) = latticearc::unified_api::serialization::deserialize_signed_data(&sig_json) {
@@ -179,7 +180,9 @@ fn verify_legacy(
         alg.clone()
     } else {
         let detected = detect_algorithm(sig_json)?;
-        eprintln!("Auto-detected algorithm: {}", algorithm_name(&detected));
+        // Round-21 audit fix #20: algorithm name isn't secret but is
+        // enumerable across log aggregation targets. Demote to debug.
+        tracing::debug!(algorithm = %algorithm_name(&detected), "auto-detected legacy verify algorithm");
         detected
     };
 

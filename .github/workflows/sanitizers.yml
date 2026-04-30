@@ -238,12 +238,12 @@ jobs:
           echo "|-----------|---------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| AddressSanitizer | Memory errors | ${{ needs.asan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ThreadSanitizer | Data races | ${{ needs.tsan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| MemorySanitizer | Uninitialized reads | ${{ needs.msan.result }} (non-blocking) |" >> $GITHUB_STEP_SUMMARY
+          echo "| MemorySanitizer | Uninitialized reads | ${{ needs.msan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| LeakSanitizer | Memory leaks | ${{ needs.lsan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Notes" >> $GITHUB_STEP_SUMMARY
           echo "- All sanitizers use \`-C opt-level=1\` to keep hash-based crypto fast while preserving instrumentation" >> $GITHUB_STEP_SUMMARY
           echo "- **MSan**: aws-lc-rs 1.16.3 compiles its C sources under MSan via \`AWS_LC_SYS_SANITIZER=msan\` (upstream issue #1077, resolved 2026-04-15). Full workspace coverage, no FFI skip list." >> $GITHUB_STEP_SUMMARY
-          echo "- **MSan non-blocking (staged)**: one clean run on main required before flipping \`continue-on-error: false\`. ASan/TSan/LSan are already blocking." >> $GITHUB_STEP_SUMMARY
+          echo "- **MSan blocking (round-20)**: \`continue-on-error\` removed from the MSan job; failures block merge alongside ASan/TSan/LSan." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "All tests run. No tests skipped." >> $GITHUB_STEP_SUMMARY

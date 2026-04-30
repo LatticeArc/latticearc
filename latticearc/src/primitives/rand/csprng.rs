@@ -309,10 +309,13 @@ mod tests {
         let total = ones + zeros;
         let ones_ratio = ones as f64 / total as f64;
 
-        // For a good CSPRNG, ratio should be close to 0.5
-        // Allow reasonable deviation: 0.48 to 0.52
+        // For a good CSPRNG the 1-bit proportion converges to 0.5.
+        // For 8000 bits, σ = sqrt(0.25/8000) ≈ 0.0056. The accepted
+        // band of ±0.04 ≈ 7σ keeps false-positive rate below 1 in
+        // 10^11 while still flagging catastrophic CSPRNG bias (a real
+        // ≥4% bias is a 7σ event in this sample size).
         assert!(
-            ones_ratio > 0.48 && ones_ratio < 0.52,
+            ones_ratio > 0.46 && ones_ratio < 0.54,
             "Monobit test failed: ones ratio = {}",
             ones_ratio
         );

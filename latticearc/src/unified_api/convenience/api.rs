@@ -641,7 +641,15 @@ pub fn decrypt(
 
     match result {
         Ok(plaintext) => {
-            log_crypto_operation_complete!(op::DECRYPT, result_size = plaintext.len(), scheme = %encrypted.scheme());
+            // Round-21 audit fix #3: do NOT log `plaintext.len()` on
+            // successful decrypt. Per-call plaintext length is a
+            // partial-size oracle for variable-length content (e.g. a
+            // request handler that decrypts a per-user blob then
+            // routes — the trace target sees the size profile). The
+            // encrypt-side `result_size` is the ciphertext length,
+            // already public over the wire, so logging it there is
+            // fine; symmetry on decrypt would leak.
+            log_crypto_operation_complete!(op::DECRYPT, scheme = %encrypted.scheme());
             Ok(plaintext)
         }
         Err(e) => {

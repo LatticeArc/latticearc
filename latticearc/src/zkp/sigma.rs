@@ -264,9 +264,23 @@ impl<P: SigmaProtocol> FiatShamir<P> {
         // Accumulate into a buffer and route through the primitives wrapper
         // so hash backends remain swappable in one place.
         let statement_bytes = self.protocol.serialize_statement(statement);
-        let statement_len = u32::try_from(statement_bytes.len()).unwrap_or(u32::MAX);
-        let commitment_len = u32::try_from(commitment.len()).unwrap_or(u32::MAX);
-        let context_len = u32::try_from(context.len()).unwrap_or(u32::MAX);
+        // Round-21 audit fix #7: previously these used
+        // `unwrap_or(u32::MAX)` which silently saturated on a 4 GiB+
+        // input, producing the same length-prefix bytes for any input
+        // at or above 4 GiB and breaking transcript collision-
+        // resistance. Practically unreachable today (SHA-256 has its
+        // own 1 GiB DoS cap below) but a silent failure mode is worse
+        // than an explicit error. Map to a Fiat-Shamir-specific Err
+        // so reviewers can see the bound is enforced.
+        let statement_len = u32::try_from(statement_bytes.len()).map_err(|_| {
+            ZkpError::InvalidInput("Fiat-Shamir: statement exceeds 2^32 bytes".into())
+        })?;
+        let commitment_len = u32::try_from(commitment.len()).map_err(|_| {
+            ZkpError::InvalidInput("Fiat-Shamir: commitment exceeds 2^32 bytes".into())
+        })?;
+        let context_len = u32::try_from(context.len()).map_err(|_| {
+            ZkpError::InvalidInput("Fiat-Shamir: context exceeds 2^32 bytes".into())
+        })?;
 
         let mut buf = Vec::with_capacity(
             self.domain_separator

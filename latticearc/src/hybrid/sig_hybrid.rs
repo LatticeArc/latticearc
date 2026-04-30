@@ -134,8 +134,12 @@ use crate::unified_api::logging::op;
 ///
 /// This enum captures all possible error conditions that can occur during
 /// hybrid signature generation and verification.
+// PartialEq is intentionally not derived: crypto error types should be
+// inspected by variant (`matches!`) rather than value-compared. The
+// `String`-carrying variants would otherwise compare upstream error
+// messages, which is too brittle.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum HybridSignatureError {
     /// Error during ML-DSA signature operations.
     #[error("ML-DSA error: {0}")]
@@ -1038,11 +1042,12 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_signature_error_eq_clone_succeeds() {
+    fn test_hybrid_signature_error_clone_round_trips() {
         let err1 = HybridSignatureError::MlDsaError("test".to_string());
         let err2 = err1.clone();
-        assert_eq!(err1, err2);
-        assert_ne!(err1, HybridSignatureError::Ed25519Error("test".to_string()));
+        assert_eq!(err1.to_string(), err2.to_string());
+        assert!(matches!(err2, HybridSignatureError::MlDsaError(_)));
+        assert!(!matches!(err1, HybridSignatureError::Ed25519Error(_)));
     }
 
     #[test]

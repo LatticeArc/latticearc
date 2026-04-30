@@ -255,6 +255,11 @@ fn write_signature(args: &SignArgs, json: &str) -> Result<()> {
         .write(&output_path)
         .with_context(|| format!("Failed to write {}", output_path.display()))?;
 
-    eprintln!("Signature written to: {}", output_path.display());
+    // Round-21 audit fix #14: path on stderr leaked to process accounting
+    // (auditd, strace) and log aggregators reading the FD. Path names
+    // can be sensitive (project codenames, classified directories).
+    // Demote to tracing::debug! — operators who want operational
+    // confirmation can re-enable it via RUST_LOG.
+    tracing::debug!(path = %output_path.display(), "signature written");
     Ok(())
 }

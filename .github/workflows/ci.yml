@@ -62,6 +62,7 @@ jobs:
   # =============================================================================
   # Path Filter - Detect what changed for optimized test execution
   # =============================================================================
+  # LINT-OK: not-in-status-check — path-filter job, no result worth gating on.
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
@@ -772,6 +773,16 @@ jobs:
           # DoS / resource bounds
           - fuzz_dos_alloc_bounded
           - fuzz_random
+          # Round-21 audit fix #2: three targets declared in
+          # `fuzz/Cargo.toml` were absent from this matrix —
+          # `constant_time_fuzz` (CT discipline for a crypto library),
+          # `hybrid_encrypt_fuzz` (e2e hybrid path), and
+          # `fuzz_target_1` (libfuzzer scaffolding). Added below;
+          # the lint v3 fuzz-matrix-coverage rule now blocks future
+          # divergence between Cargo.toml and the matrix.
+          - constant_time_fuzz
+          - hybrid_encrypt_fuzz
+          - fuzz_target_1
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -975,6 +986,7 @@ jobs:
         retention-days: 1
 
   # === Documentation Deploy (push-to-main only; carries contents: write) ===
+  # LINT-OK: not-in-status-check — runs only on release tags, not on PRs.
   docs-deploy:
     name: Deploy Documentation
     runs-on: ubuntu-latest
@@ -1080,6 +1092,7 @@ jobs:
   # === Release Validation ===
   # Uses native compilation without --target flags to avoid cross-compilation issues
   # with aws-lc-rs. See: https://github.com/aws/aws-lc-rs/issues/409
+  # LINT-OK: not-in-status-check — runs only on release tags, not on PRs.
   release-validation:
     name: Release Validation (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -1214,6 +1227,16 @@ jobs:
         [[ "${{ needs.concurrency-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs concurrency-tests"
         [[ "${{ needs.api-stability-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs api-stability-tests"
         [[ "${{ needs.cli-tests.result }}" == "failure" ]] && failed_jobs="$failed_jobs cli-tests"
+        # Round-21 audit fix #18: kat-integrity is in `needs:` (line 1180)
+        # but the inner result-check loop was missing the corresponding
+        # `[[ … failure ]]` line. Same shape as round-19 H4
+        # default-debug-parity. The new lint v3 rule
+        # (status-check-result-coverage in lint-extras.yml) detects this
+        # mismatch — adding it here closes the actual bug; the lint rule
+        # prevents recurrence.
+        [[ "${{ needs.kat-integrity.result }}" == "failure" ]] && failed_jobs="$failed_jobs kat-integrity"
+        [[ "${{ needs.feature-powerset.result }}" == "failure" ]] && failed_jobs="$failed_jobs feature-powerset"
+        [[ "${{ needs.performance.result }}" == "failure" ]] && failed_jobs="$failed_jobs performance"
 
         # Round-12 audit fix (H-5), corrected by round-15: fuzz-smoke
         # is the ~30s every-PR job and MUST block merge — a live crash

@@ -276,7 +276,7 @@ fn test_ed25519_keygen_sign_verify_roundtrip() {
     ]);
 
     // Verify
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg,
@@ -332,7 +332,7 @@ fn test_ml_dsa_65_keygen_sign_verify_roundtrip() {
         sk_path.to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -391,7 +391,7 @@ fn test_ml_dsa_44_keygen_sign_verify_roundtrip() {
         dir.path().join("ml-dsa-44.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--algorithm",
         "ml-dsa44",
@@ -432,7 +432,7 @@ fn test_ml_dsa_87_keygen_sign_verify_roundtrip() {
         dir.path().join("ml-dsa-87.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -475,7 +475,7 @@ fn test_slh_dsa_keygen_sign_verify_roundtrip() {
         dir.path().join("slh-dsa-shake-128s.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -514,7 +514,7 @@ fn test_fn_dsa_keygen_sign_verify_roundtrip() {
         dir.path().join("fn-dsa-512.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -562,7 +562,7 @@ fn test_hybrid_sign_keygen_sign_verify_roundtrip() {
     assert!(sig_json.contains("ml_dsa_sig"), "Should have ML-DSA component");
     assert!(sig_json.contains("ed25519_sig"), "Should have Ed25519 component");
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--algorithm",
         "hybrid",
@@ -798,7 +798,9 @@ fn test_tampered_message_fails_verification_fails() {
         dir.path().join("ed25519.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "Tampered message should fail verification: {stderr}"
     );
 
@@ -850,7 +852,9 @@ fn test_wrong_key_fails_verification_fails() {
         dir2.path().join("ed25519.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "Wrong key should fail verification: {stderr}"
     );
 
@@ -970,7 +974,7 @@ fn test_verify_auto_detects_algorithm_succeeds() {
     ]);
 
     // Verify WITHOUT --algorithm flag — should auto-detect
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -1083,7 +1087,7 @@ fn test_e2e_code_signing_workflow_succeeds() {
     ]);
 
     // Verifier downloads artifact + sig + public key, verifies
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         artifact_path.to_str().unwrap(),
@@ -1137,7 +1141,7 @@ fn test_e2e_document_notarization_hybrid_is_documented() {
     ]);
 
     // Verify the notarization
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--algorithm",
         "hybrid",
@@ -2032,7 +2036,7 @@ fn test_sign_verify_empty_message_roundtrip() {
         dir.path().join("ed25519.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -2192,7 +2196,7 @@ fn test_sign_verify_binary_data_roundtrip() {
         dir.path().join("ml-dsa-65.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -2396,7 +2400,9 @@ fn test_corrupted_signature_detected_ed25519_fails() {
         dir.path().join("ed25519.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "Corrupted Ed25519 signature must fail: {stderr}"
     );
 
@@ -2460,7 +2466,9 @@ fn test_corrupted_signature_detected_ml_dsa_fails() {
         dir.path().join("ml-dsa-65.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "Corrupted ML-DSA-65 signature must fail: {stderr}"
     );
 
@@ -2851,7 +2859,7 @@ fn test_large_message_sign_verify_roundtrip() {
         dir.path().join("ed25519.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -3155,7 +3163,9 @@ fn test_mitm_message_substitution_succeeds() {
         dir.path().join("ml-dsa-65.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "MITM message substitution must be detected: {stderr}"
     );
 
@@ -3572,7 +3582,7 @@ fn test_pqc_large_message_sign_verify_ml_dsa87_roundtrip() {
         dir.path().join("ml-dsa-87.sec.json").to_str().unwrap(),
     ]);
 
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -3653,7 +3663,9 @@ fn test_corrupted_signature_detected_slh_dsa_fails() {
         dir.path().join("slh-dsa-shake-128s.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "Corrupted SLH-DSA signature must fail: {stderr}"
     );
 
@@ -3693,7 +3705,7 @@ fn test_hybrid_sign_tamper_detection_fails() {
     ]);
 
     // Verify original
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         msg_path.to_str().unwrap(),
@@ -3717,7 +3729,9 @@ fn test_hybrid_sign_tamper_detection_fails() {
         dir.path().join("hybrid-sign.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "Tampered message must fail hybrid verification: {stderr}"
     );
 
@@ -3849,7 +3863,7 @@ fn test_e2e_multi_step_crypto_pipeline_succeeds() {
     assert_eq!(original, decrypted, "Decrypted document must match original");
 
     // Step 8: Verify signature against decrypted document (proves integrity end-to-end)
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         dec_path.to_str().unwrap(),
@@ -3944,7 +3958,7 @@ fn test_e2e_pqc_document_custody_chain_is_documented() {
     ]);
 
     // Recipient verifies author's signature on decrypted document
-    let out = run_ok(&[
+    let out = run_ok_combined(&[
         "verify",
         "--input",
         dec_path.to_str().unwrap(),
@@ -4126,7 +4140,9 @@ fn test_corrupted_signature_detected_fn_dsa_fails() {
         dir.path().join("fn-dsa-512.pub.json").to_str().unwrap(),
     ]);
     assert!(
-        stderr.contains("INVALID") || stderr.contains("failed") || stderr.contains("error"),
+        stderr.contains("INVALID")
+            || stderr.contains("Verification failed")
+            || stderr.contains("Signature is INVALID"),
         "Corrupted FN-DSA-512 signature must fail: {stderr}"
     );
 

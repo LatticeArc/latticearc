@@ -58,8 +58,9 @@ use zeroize::Zeroizing;
 ///
 /// This enum captures all possible error conditions that can occur during
 /// hybrid encryption and decryption operations.
+// PartialEq intentionally not derived (see `HybridSignatureError`).
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum HybridEncryptionError {
     /// Error during key encapsulation mechanism operations.
     #[error("KEM error: {0}")]
@@ -762,13 +763,14 @@ mod tests {
     }
 
     #[test]
-    fn test_error_eq_and_clone_work_correctly_fails() {
+    fn test_error_clone_round_trips() {
         let err1 = HybridEncryptionError::KemError("test".to_string());
         let err2 = err1.clone();
-        assert_eq!(err1, err2);
+        assert_eq!(err1.to_string(), err2.to_string());
+        assert!(matches!(err2, HybridEncryptionError::KemError(_)));
 
         let err3 = HybridEncryptionError::KemError("different".to_string());
-        assert_ne!(err1, err3);
+        assert_ne!(err1.to_string(), err3.to_string());
     }
 
     #[test]

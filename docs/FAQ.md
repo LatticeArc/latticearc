@@ -54,7 +54,7 @@ flowchart TD
 |----------|-------------|
 | Key exchange | ML-KEM-768 |
 | Digital signatures | ML-DSA-65 |
-| Hash-based signatures | SLH-DSA-SHAKE-128f |
+| Hash-based signatures | SLH-DSA-SHAKE-128s (the CLI ships only the `s` "small" variant; `f` "fast" is FIPS-defined but not exposed) |
 | Maximum security | ML-KEM-1024 + ML-DSA-87 |
 | Constrained devices | ML-KEM-512 |
 

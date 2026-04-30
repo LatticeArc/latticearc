@@ -128,7 +128,8 @@ use crate::unified_api::logging::op;
 ///
 /// This enum captures all possible error conditions that can occur during
 /// hybrid key encapsulation and decapsulation operations.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+// PartialEq intentionally not derived (see `HybridSignatureError`).
+#[derive(Debug, Clone, Error)]
 #[non_exhaustive]
 pub enum HybridKemError {
     /// Error during ML-KEM operations (encapsulation, decapsulation, key generation).
@@ -1418,11 +1419,12 @@ mod tests {
     }
 
     #[test]
-    fn test_hybrid_kem_error_eq_clone_succeeds() {
+    fn test_hybrid_kem_error_clone_round_trips() {
         let err1 = HybridKemError::MlKemError("test".to_string());
         let err2 = err1.clone();
-        assert_eq!(err1, err2);
-        assert_ne!(err1, HybridKemError::EcdhError("test".to_string()));
+        assert_eq!(err1.to_string(), err2.to_string());
+        assert!(matches!(err2, HybridKemError::MlKemError(_)));
+        assert!(!matches!(err1, HybridKemError::EcdhError(_)));
     }
 
     #[test]

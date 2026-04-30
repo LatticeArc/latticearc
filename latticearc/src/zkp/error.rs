@@ -24,4 +24,9 @@ pub enum ZkpError {
     /// Serialization error
     #[error("Serialization error: {0}")]
     SerializationError(String),
+
+    /// Invalid or oversized input — used for transcript-construction guards
+    /// (e.g. Fiat-Shamir length prefixes that don't fit in u32).
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }

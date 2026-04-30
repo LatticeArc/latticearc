@@ -155,13 +155,14 @@ fn test_error_display_crypto_fails() {
 }
 
 #[test]
-fn test_error_clone_eq_fails() {
+fn test_error_clone_round_trips() {
     let err1 = HybridSignatureError::MlDsaError("a".to_string());
     let err2 = err1.clone();
-    assert_eq!(err1, err2);
+    assert_eq!(err1.to_string(), err2.to_string());
+    assert!(matches!(err2, HybridSignatureError::MlDsaError(_)));
 
     let err3 = HybridSignatureError::Ed25519Error("a".to_string());
-    assert_ne!(err1, err3);
+    assert!(matches!(err3, HybridSignatureError::Ed25519Error(_)));
 }
 
 #[test]

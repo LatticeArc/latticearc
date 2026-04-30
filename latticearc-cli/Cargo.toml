@@ -28,6 +28,10 @@ anyhow = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
 rpassword = { workspace = true }
+# Round-21 audit fix #14/#20: CLI commands route diagnostic info
+# (paths, algorithm names) through `tracing::debug!` instead of
+# `eprintln!` to avoid leaking onto stderr by default.
+tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -122,9 +122,10 @@ impl KeyFile {
                 MAX_KEYFILE_BYTES
             );
         }
-        // LINT-OK: size-gated-by-MAX_KEYFILE_BYTES (1 MiB cap above)
-        let bytes =
-            std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
+        // The LINT-OK tag must sit on the same line as `std::fs::read`
+        // because `.github/workflows/lint-extras.yml` greps line-by-line.
+        let bytes = std::fs::read(path) // LINT-OK: size-gated-by-MAX_KEYFILE_BYTES (1 MiB cap above)
+            .with_context(|| format!("Failed to read {}", path.display()))?;
 
         let mut inner = parse_key_bytes(&bytes)
             .with_context(|| format!("Failed to parse {}", path.display()))?;

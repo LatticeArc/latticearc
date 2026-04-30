@@ -317,6 +317,47 @@ impl KeyAlgorithm {
         )
     }
 
+    /// NIST security level for this algorithm.
+    ///
+    /// Used by [`PortableKey::new`] to satisfy the documented invariant
+    /// that every wire-format key carries either a `use_case` or a
+    /// `security_level`.
+    ///
+    /// PQC parameter sets follow FIPS 203/204/205/206 directly. Classical
+    /// algorithms (Ed25519, X25519) map to `Standard` by their classical
+    /// 128-bit-equivalent strength. Symmetric primitives (AES-256,
+    /// ChaCha20) map to `Maximum` by post-Grover security margin —
+    /// ChaCha20 is not NIST-categorised and is approximated here for
+    /// internal bookkeeping only.
+    #[must_use]
+    pub fn nist_security_level(self) -> crate::types::types::SecurityLevel {
+        use crate::types::types::SecurityLevel;
+        match self {
+            Self::MlKem512
+            | Self::MlDsa44
+            | Self::SlhDsaShake128s
+            | Self::FnDsa512
+            | Self::Ed25519
+            | Self::X25519
+            | Self::HybridMlKem512X25519
+            | Self::HybridMlDsa44Ed25519 => SecurityLevel::Standard,
+
+            Self::MlKem768
+            | Self::MlDsa65
+            | Self::HybridMlKem768X25519
+            | Self::HybridMlDsa65Ed25519 => SecurityLevel::High,
+
+            Self::MlKem1024
+            | Self::MlDsa87
+            | Self::SlhDsaShake256f
+            | Self::FnDsa1024
+            | Self::Aes256
+            | Self::ChaCha20
+            | Self::HybridMlKem1024X25519
+            | Self::HybridMlDsa87Ed25519 => SecurityLevel::Maximum,
+        }
+    }
+
     /// Canonical wire name for this algorithm.
     ///
     /// This is the same value that the serde `rename` attributes emit for
@@ -932,10 +973,16 @@ impl PortableKey {
     /// from external systems that don't use LatticeArc's UseCase/SecurityLevel.
     #[must_use]
     pub fn new(algorithm: KeyAlgorithm, key_type: KeyType, key_data: KeyData) -> Self {
+        // Default `security_level` from the algorithm so the documented
+        // struct invariant ("at least one of `use_case` or
+        // `security_level` must be present") holds even for this low-
+        // level constructor used by external-system imports. Callers
+        // that have use-case semantics should prefer `for_use_case` /
+        // `for_use_case_with_level`.
         Self {
             version: Self::CURRENT_VERSION,
             use_case: None,
-            security_level: None,
+            security_level: Some(algorithm.nist_security_level()),
             algorithm,
             key_type,
             key_data,
@@ -952,10 +999,12 @@ impl PortableKey {
         key_data: KeyData,
         created: DateTime<Utc>,
     ) -> Self {
+        // Same default-security_level treatment as `Self::new` so this
+        // constructor satisfies the same struct invariant.
         Self {
             version: Self::CURRENT_VERSION,
             use_case: None,
-            security_level: None,
+            security_level: Some(algorithm.nist_security_level()),
             algorithm,
             key_type,
             key_data,
@@ -2128,6 +2177,7 @@ impl PortableKey {
         let key: Self = serde_json::from_str(json)
             .map_err(|e| CoreError::SerializationError(format!("JSON parse failed: {e}")))?;
         key.validate()?;
+        key.check_use_case_or_security_level_invariant()?;
         Ok(key)
     }
 
@@ -2164,7 +2214,22 @@ impl PortableKey {
         let key: Self = ciborium::from_reader(data)
             .map_err(|e| CoreError::SerializationError(format!("CBOR parse failed: {e}")))?;
         key.validate()?;
+        key.check_use_case_or_security_level_invariant()?;
         Ok(key)
+    }
+
+    /// Enforce the documented invariant that at least one of `use_case`
+    /// or `security_level` is present. Applied only at the
+    /// deserialization boundary; locally-constructed keys always have
+    /// `security_level` set by the constructors, so the invariant cannot
+    /// be violated internally — only by hand-crafted wire payloads.
+    fn check_use_case_or_security_level_invariant(&self) -> Result<()> {
+        if self.use_case.is_none() && self.security_level.is_none() {
+            return Err(CoreError::InvalidKey(
+                "PortableKey requires at least one of `use_case` or `security_level`".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     // --- File I/O ---

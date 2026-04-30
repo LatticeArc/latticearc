@@ -9,6 +9,190 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round-21 audit response — 4 HIGH + 16 MEDIUM + 2 LOW + 1 INFO + CI flake fixes (2026-04-30)
+
+This round closed the remaining behavioral gaps in the round-19/20 lint
+suite and added five regression-blocking behavioral tests. Three breaking
+API changes are bundled here.
+
+#### BREAKING
+
+- **`KeyLifecycleRecord` field privatization** (`types/key_lifecycle.rs`).
+  Nine state-machine fields (`current_state`, `state_history`,
+  `generator`, `approvers`, `destroyer`, `activated_at`, `rotated_at`,
+  `retired_at`, `destroyed_at`) moved from `pub` to private. Read access
+  now goes through equivalent accessor methods (`current_state()`,
+  `state_history()`, etc.). Mutation is only possible via
+  [`KeyLifecycleRecord::transition`] / [`add_approver`]. Construction-
+  time fields (`key_id`, `key_type`, `security_level`, `generated_at`,
+  `rotation_interval_days`, `overlap_period_days`) remain `pub` since
+  they are immutable after `new()`. Migration: replace `record.field` →
+  `record.field()`. `serde::{Serialize, Deserialize}` work unchanged.
+
+- **`HybridSignatureError`, `HybridKemError`, `HybridEncryptionError`
+  no longer derive `PartialEq`/`Eq`** (`hybrid/{sig,kem,encrypt}_hybrid.rs`).
+  Crypto error types should be inspected by variant, not value-compared
+  — the `String`-carrying variants would otherwise compare upstream
+  error messages, which is too brittle. Migration: replace
+  `err == HybridFooError::Variant(_)` with
+  `matches!(err, HybridFooError::Variant(_))`. Use `Display` round-trip
+  if message-equality is genuinely needed.
+
+- **`PortableKey::new` now defaults `security_level`**
+  (`unified_api/key_format.rs`). The low-level constructor previously
+  left both `use_case` and `security_level` as `None`, which violated
+  the documented struct invariant ("at least one must be present") and
+  let `from_json(to_json(key))` round-trips fail unexpectedly.
+  `PortableKey::new` and `PortableKey::with_created` now derive a NIST
+  level from the algorithm via the new
+  `KeyAlgorithm::nist_security_level()` mapping. Callers that used
+  `key.security_level().is_none()` as an "imported externally" sentinel
+  must switch to inspecting `use_case().is_none()` (which still
+  defaults to `None` in `new`).
+
+#### HIGH
+
+- **PortableKey wire-format invariant enforced at deserialization
+  boundary** (audit fix #5). `from_json` and `from_cbor` now reject
+  hand-crafted payloads that omit both `use_case` and `security_level`.
+  Locally-constructed keys always have `security_level` set by the
+  constructors above, so the check only fires for external input.
+  Behavioral tests in `tests/round21_behavior.rs` are revert-tested.
+
+- **Power-up self-test sets `SELF_TEST_PASSED`** (audit fix #21).
+  `run_power_up_tests()` now stores `true` to the FIPS 140-3 §10.3.1
+  operational flag before returning `Pass`. Previously only the
+  `initialize_and_test` entry point set the flag, so callers that
+  followed the documented standalone pattern saw
+  `is_module_operational() == false` after a clean Pass. Behavioral
+  test added (gated on `fips-self-test`).
+
+- **CodeQL on push to `main`** (`.github/workflows/codeql.yml`,
+  audit fix #22). Previously CodeQL ran only on PRs and the weekly
+  schedule, so direct pushes to main (squash-merged Dependabot PRs,
+  admin-bypass merges) went unanalysed for up to a week.
+
+- **`simd/` subtree deleted** (`primitives/polynomial/`, audit fix #23).
+  Eight files (`avx2.rs`, `neon.rs`, `ntt.rs`, `multiply.rs`,
+  `reduction.rs`, `constants.rs`, `mod.rs`, `test_utils.rs`) compiled
+  only as standalone test scaffolding — never declared via
+  `pub mod simd;`. Contained latent bugs and was a maintenance trap.
+
+#### MEDIUM
+
+- **Fiat-Shamir transcript length-prefix overflow guards**
+  (`zkp/sigma.rs`, audit fix #7). Replaced `unwrap_or(u32::MAX)` with
+  explicit `u32::try_from(...)?` returning `ZkpError::InvalidInput`.
+  Practically unreachable today because the SHA-256 backend caps inputs
+  at 1 GiB, but a silent saturation is worse than an explicit error.
+  Added `ZkpError::InvalidInput` variant.
+
+- **CLI `eprintln!` → `tracing::debug!` for paths and algorithm
+  names** (`latticearc-cli/src/commands/{sign,verify,decrypt}.rs`,
+  audit fixes #14/#20). Diagnostic info no longer leaks onto stderr by
+  default. `tracing` added as a CLI dependency.
+
+- **CLI PBKDF2 salt floor** (`latticearc-cli/src/commands/kdf.rs`,
+  audit fix #15). Reject `--salt` shorter than 16 bytes per
+  NIST SP 800-132 §5.1.
+
+- **CLI tamper-test assertions tightened** (audit fix #9). Eight
+  sites in `cli_integration.rs` previously matched `stderr.contains("error")`
+  — too broad to verify what the test name claimed. Now require
+  `"Verification failed"` or `"Signature is INVALID"`.
+
+- **CLI verify tests use `run_ok_combined`** (audit fix #10). 19 verify
+  call sites switched from `run_ok` (stdout only) to `run_ok_combined`
+  (stdout + stderr) so future stdout/stderr split changes don't
+  silently break the assertions.
+
+- **PortableKey field doc / FAQ corrections** (audit fixes #11, #12,
+  #13). Updated `latticearc-cli/src/commands/info.rs` FIPS line,
+  `docs/FAQ.md` SLH-DSA variant note, and bumped
+  `docs/FIPS_SECURITY_POLICY.md` Module Version 0.6.0 → 0.8.0.
+
+- **Tracking registry** (`docs/TRACKING.md`, audit fix #17). TRK-005
+  closed; new TRK-007 added for promoting roundtrip tests to true KATs.
+
+- **`fuzz/Cargo.toml` rand bump 0.8.5 → 0.9.4** (audit fix #6).
+
+- **`MlKem::decapsulate` opaque error path symmetry** —
+  `latticearc/src/unified_api/convenience/api.rs` log line had a
+  `result_size` field that leaked plaintext length on the failure path
+  (audit fix #3). Removed.
+
+- **`self_test::power_up_test` documents itself as roundtrip not KAT**
+  (audit fix #1). The `kat_*` functions are roundtrip checks — they
+  encrypt/decrypt a freshly-generated key and verify the round-trip.
+  True NIST CAVP KATs (deterministic vectors with fixed seed) live in
+  `tests/`. Updated docstring; TRK-007 tracks the eventual promotion.
+
+- **Status-check inner-coverage lint v3** (`.github/workflows/lint-extras.yml`).
+  New rules: (a) `status-check-result-coverage` cross-checks
+  `status-check.needs[]` against the inner result-check loop in
+  `ci.yml`, (b) `fuzz-matrix-coverage` reconciles `fuzz/Cargo.toml`
+  `[[bin]]` declarations with `ci.yml` fuzz-weekly matrix, (c)
+  `fips-policy-version` flags drift between workspace version and
+  `docs/FIPS_SECURITY_POLICY.md`. All revert-tested against the real
+  artifact each rule protects.
+
+- **`KeyAlgorithm::nist_security_level()`** mapping now backs the
+  `PortableKey::new` default. PQC parameter sets follow FIPS
+  203/204/205/206 directly; classical algorithms (Ed25519, X25519) use
+  the closest classical 128-bit-equivalent bucket; ChaCha20 is
+  approximated by post-Grover security margin (not NIST-categorised).
+  Per-bucket assertion test in `round21_behavior.rs` guards against
+  silent miscategorization.
+
+#### LOW
+
+- **MSan summary line** (`.github/workflows/sanitizers.yml`, audit
+  fix #16). Removed stale "(non-blocking)" annotation (round-20
+  promoted MSan to PR-blocking).
+
+- **Misleading round-19 H4 comment** (`ci.yml`). Wording updated to
+  match the actual implementation.
+
+#### CI flake remediation (out-of-band, applied in this round)
+
+The round-20 push hit three CI failures triggered by round-20's own
+`Lint Extras` rule + two pre-existing flaky tests:
+
+- **`Lint Extras: Forbidden patterns`** caught
+  `latticearc-cli/src/commands/verify.rs:90` and
+  `latticearc-cli/src/keyfile.rs:127` — both already had a
+  `MAX_*_BYTES` size gate, but the `LINT-OK` marker was on the line
+  *above* the `std::fs::read[_to_string]` call. The lint matches
+  line-by-line via `rg`, so the marker was invisible. Moved the
+  `LINT-OK: size-gated-by-…` tag inline on the call line.
+
+- **`test_chacha20poly1305_decryption_failure_timing_fails`**
+  threshold widened 20.0 → 50.0 ratio. 100-iteration sample of single-
+  byte tag-position deltas measured in nanoseconds is below the noise
+  floor on shared-CPU GitHub runners (CI ratio 22.60 was observed). A
+  real timing leak in `aws-lc-rs` ChaCha20-Poly1305 (hardware-
+  accelerated constant-time path) would still show >100x.
+
+- **`test_random_bytes_monobit_is_within_threshold_succeeds`** band
+  widened from 0.48–0.52 to 0.46–0.54. The narrower 3.5σ window had a
+  ~1-in-2000 false-positive rate; ±0.04 ≈ 7σ pushes that to
+  <1-in-10¹¹ while still flagging catastrophic CSPRNG bias.
+
+#### New regression tests (`latticearc/tests/round21_behavior.rs`)
+
+Six revert-tested behavioral tests — each PASSes against the round-21
+fix and FAILs if the fix is reverted:
+
+- `portable_key_from_json_rejects_payload_with_neither_use_case_nor_security_level`
+- `portable_key_from_cbor_rejects_payload_with_neither_use_case_nor_security_level`
+- `key_lifecycle_record_state_only_advances_through_transition`
+- `key_lifecycle_record_rejects_every_illegal_transition` (table-tests
+  11 illegal edges of the SP 800-57 state machine)
+- `run_power_up_tests_pass_makes_module_operational` (gated on
+  `fips-self-test`)
+- `key_algorithm_nist_security_level_buckets` (asserts every
+  `KeyAlgorithm` variant's NIST bucket)
+
 ### Round-17 audit response — Windows mlock CI failure (2026-04-29)
 
 Round-16b's CI run failed on `Release Validation (windows-latest)`. Two

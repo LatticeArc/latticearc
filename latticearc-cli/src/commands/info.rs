@@ -27,7 +27,18 @@ pub(crate) fn run(_args: InfoArgs) -> Result<()> {
     println!();
     println!(
         "FIPS 140-3 backend: {}",
-        if latticearc::fips_available() { "available (aws-lc-rs)" } else { "not available" }
+        if latticearc::fips_available() {
+            // Round-21 audit fix #11: distinguish "validated backend"
+            // (aws-lc-rs is FIPS 140-3 validated as a stand-alone
+            // module) from "validated module" (this binary linking
+            // aws-lc-rs is NOT itself certified). The previous
+            // "available (aws-lc-rs)" wording read like a FIPS-
+            // certified-product claim to operators glancing at
+            // `--info`.
+            "validated backend (aws-lc-rs); this binary links the validated backend but is NOT itself a FIPS 140-3 certified module — see docs/NIST_COMPLIANCE.md and docs/FIPS_SECURITY_POLICY.md"
+        } else {
+            "not available"
+        }
     );
     println!("Self-tests passed:  {}", latticearc::unified_api::self_tests_passed());
     println!();
