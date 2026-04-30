@@ -258,7 +258,17 @@ fi
 # command produces a helpful message and exit, not a silent script abort.
 # Each command's output is captured so that a non-zero exit surfaces the
 # CLI's own error (invalid key length, missing file, etc.) in the hook log.
-CLI_TMP=$(mktemp -d)
+# Resolve the smoke-test temp dir. Default `mktemp -d` uses `$TMPDIR`,
+# which on macOS is `/var/folders/...` — outside Claude Code's sandbox
+# allowlist. Honoring an explicit `LATTICEARC_HOOK_TMPDIR` override lets
+# the sandboxed environment pass `/tmp/claude` without breaking the
+# normal developer flow (which falls back to `mktemp -d` as before).
+if [ -n "${LATTICEARC_HOOK_TMPDIR:-}" ]; then
+    mkdir -p "$LATTICEARC_HOOK_TMPDIR"
+    CLI_TMP=$(mktemp -d "$LATTICEARC_HOOK_TMPDIR/latticearc-smoke.XXXXXX")
+else
+    CLI_TMP=$(mktemp -d)
+fi
 CLI_OK=true
 set +e
 

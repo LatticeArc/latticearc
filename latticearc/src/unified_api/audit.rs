@@ -162,7 +162,7 @@ impl AuditEvent {
         let mut v = value.into();
         truncate_utf8_safe(&mut k, Self::MAX_METADATA_KEY_LEN);
         truncate_utf8_safe(&mut v, Self::MAX_METADATA_VALUE_LEN);
-        self.metadata.insert(k, v);
+        self.metadata.insert(k, v); // LINT-OK: canonical-with-metadata-impl
         self
     }
 
@@ -642,6 +642,8 @@ impl FileAuditStorage {
             }
             #[cfg(not(unix))]
             {
+                // LINT-OK: cfg-not-unix — Windows / non-Unix has no
+                // mode bits; ACL hardening is the caller's job.
                 OpenOptions::new().create(true).append(true).open(&path).map_err(|e| {
                     CoreError::AuditError(format!(
                         "Failed to create audit file '{}': {}",

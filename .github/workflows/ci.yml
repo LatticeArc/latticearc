@@ -346,6 +346,54 @@ jobs:
         directory: target/release
 
   # === Testing (Apache-focused) ===
+  # Default-debug parity — round-19 audit takeaway: H4 (FN-DSA convenience
+  # test stack overflow) hid for 18 audit rounds because the main `test:`
+  # matrix below runs only release. Debug builds use ~32 MB of stack for
+  # FN-DSA Level1024 keygen vs ~5 MB in release, so a release-only suite
+  # silently masks public-API foot-guns where the convenience-layer
+  # function doesn't spawn an inner thread. This job runs the lib
+  # unit-test suite in debug + default features so any new public API
+  # that breaks under "downstream user calls it from a default thread"
+  # is caught at PR time.
+  #
+  # Scope is intentionally narrow:
+  #   - `--lib` only — debug release of integration tests would 10x the
+  #     SLH-DSA cost without adding signal beyond what `test:` already
+  #     covers.
+  #   - `--no-default-features` — closer to a downstream consumer that
+  #     hasn't enabled `tracing-init` / `secret-mlock` / etc.
+  default-debug-parity:
+    name: Default-debug parity (lib unit tests)
+    runs-on: ubuntu-latest
+    needs: [changes, quality]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      with:
+        toolchain: stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-debug-parity-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run lib unit tests in debug + default features
+      run: |
+        # No `--release`, no `--all-features`. Mirrors what a downstream
+        # consumer running `cargo test` against a default `cargo add`
+        # would execute. Catches default-stack / default-feature foot-guns
+        # like round-19 H4.
+        cargo test --lib -p latticearc
+
   test:
     name: Tests (${{ matrix.profile }}, ${{ matrix.features.label }})
     runs-on: ubuntu-latest
@@ -355,7 +403,9 @@ jobs:
       fail-fast: false
       matrix:
         # Only run release - dev mode is 10x slower for crypto ops (SLH-DSA)
-        # Debug-specific issues are caught by clippy and other static analysis
+        # Debug-specific issues are caught by clippy and other static analysis.
+        # Exception: see `default-debug-parity` job above for a narrowly-scoped
+        # debug run that catches public-API foot-guns the release matrix masks.
         profile: [release]
         # Exercise every supported feature configuration on every push so that
         # behaviour drift between configs is visible at PR time, not at release

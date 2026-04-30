@@ -1,0 +1,53 @@
+# Workspace-level clippy configuration.
+#
+# `disallowed-methods` and `disallowed-types` are matched globally, so this
+# file lists only patterns that are *always* wrong in this codebase. For
+# context-specific bans (e.g. "raw `OpenOptions::open` is forbidden in
+# `audit.rs`") see `.github/workflows/lint-extras.yml`. For per-module
+# canonical entry points see the `CLAUDE.md` files placed alongside each
+# module.
+#
+# Round-19 audit takeaway: prose patterns in `docs/DESIGN_PATTERNS.md` are
+# unenforced — the compiler doesn't check them. Every entry here was added
+# in response to a specific audit finding that mechanical lints could have
+# caught at PR time.
+
+# ----------------------------------------------------------------------------
+# Disallowed methods
+# ----------------------------------------------------------------------------
+disallowed-methods = [
+    # Vec::leak / Box::leak escape `Drop`. SecretVec / Zeroizing rely on
+    # Drop to wipe; leaking is never appropriate in this codebase.
+    { path = "alloc::vec::Vec::leak", reason = "leaking escapes Drop and breaks ZeroizeOnDrop guarantees" },
+    { path = "alloc::boxed::Box::leak", reason = "leaking escapes Drop and breaks ZeroizeOnDrop guarantees" },
+
+    # `std::mem::forget` is the same as `Box::leak` in spirit and is
+    # almost never the right tool for this codebase. The standard
+    # alternatives (`drop`, `mem::replace`, explicit teardown) cover
+    # every legitimate use case.
+    { path = "core::mem::forget", reason = "use std::mem::drop or restructure; forget skips Drop and breaks zeroize" },
+
+    # `unsafe { std::ptr::write }` is already gated by `unsafe_code = deny`
+    # at the workspace level. `core::mem::transmute` likewise.
+
+    # `expect` and `unwrap` on Mutex/RwLock are caught by `clippy::unwrap_used`
+    # workspace-wide.
+]
+
+# ----------------------------------------------------------------------------
+# Disallowed types
+# ----------------------------------------------------------------------------
+disallowed-types = [
+    # `std::collections::HashMap` with the default `RandomState` is fine
+    # in most modules but is *not* deterministic across runs. We use it
+    # widely; nothing to ban here today.
+
+    # `rand::thread_rng()` was the source of the round-9 unsoundness
+    # (RUSTSEC-2026-0097). Replaced workspace-wide with `OsRng` (via
+    # `csprng::secure_rng()`); the type ban is noted but `rand` may not
+    # expose `ThreadRng` as a stable path — keep this as a CI grep.
+]
+
+# ----------------------------------------------------------------------------
+# Cognitive-complexity / arithmetic side-effect overrides go in workspace
+# `[lints.clippy]` in root `Cargo.toml`, not here.

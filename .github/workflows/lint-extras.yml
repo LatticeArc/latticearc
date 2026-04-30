@@ -1,0 +1,176 @@
+# Lint extras — CI grep rules that catch context-specific anti-patterns
+# clippy can't express.
+#
+# Round-19 audit takeaway: 18 of 24 findings were patterns that mechanical
+# rules at PR-time would catch. clippy.toml covers what it can; this file
+# covers the rest. Each rule below corresponds to a concrete audit finding
+# (cited inline) and to a `MUST USE / NEVER USE` entry in
+# `docs/MODULE_PATTERNS.md`.
+#
+# Rule of thumb when adding a check: keep it cheap (ripgrep, single-pass)
+# and produce a clear error pointing at the canonical alternative.
+
+name: Lint Extras
+
+on:
+  pull_request:
+    paths:
+      - '**.rs'
+      - '**.md'
+      - '**.yml'
+      - '**.toml'
+      - '.github/workflows/lint-extras.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-extras-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  forbidden-patterns:
+    name: Forbidden patterns
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install ripgrep
+        run: sudo apt-get update -qq && sudo apt-get install -y ripgrep
+
+      - name: M5 — no `echo $PASS` in docs/code (use `read -rs` instead)
+        run: |
+          set -e
+          # `echo $PASS` writes the password to .bash_history. The canonical
+          # pattern is `read -rs PASS && printf '%s' "$PASS" | …`.
+          # Excluded: this CI file (it documents the rule).
+          if rg --type-add 'docs:*.{md,rst,txt}' --type rust --type yaml --type docs \
+              -n 'echo \$PASS' \
+              --glob '!.github/workflows/lint-extras.yml'; then
+            echo "::error::Found 'echo \$PASS' — use 'read -rs PASS && printf' instead. See docs/MODULE_PATTERNS.md (latticearc-cli::commands)."
+            exit 1
+          fi
+
+      - name: M6 — no `expose_secret().to_vec()` (escapes Zeroizing)
+        run: |
+          set -e
+          # Round-19 M6: `.expose_secret().to_vec()` clones secret bytes into
+          # a Vec<u8> that is not zeroized on drop. Either borrow via
+          # `as_slice()` or wrap the clone in `Zeroizing::new(...)` immediately.
+          if rg --type rust -n '\.expose_secret\(\)\.to_vec\(\)' \
+              --glob '!latticearc/tests/**'; then
+            echo "::error::expose_secret().to_vec() escapes Zeroizing. Borrow with as_slice() or wrap with Zeroizing::new(). See docs/MODULE_PATTERNS.md (primitives::security)."
+            exit 1
+          fi
+
+      - name: M3 — audit.rs OpenOptions::open must set .mode(0o600) on Unix
+        run: |
+          set -e
+          # Round-19 M3: audit log files must be 0o600 on Unix. The bare
+          # `OpenOptions::new()...open()` path inherits umask, often
+          # world-readable.
+          #
+          # Algorithm: stream audit.rs line-by-line, maintain a 3-line
+          # backward window, and for every line containing `.open(`:
+          #   - PASS if the line itself contains `.mode(0o600)`.
+          #   - PASS if any of the previous 3 lines contains
+          #     `// LINT-OK:` (covers `cfg-not-unix` and similar).
+          #   - PASS if the line is a comment (`^\s*//`) — comments
+          #     showing example call shapes are not real call sites.
+          #   - FAIL otherwise.
+          if ! awk -v file=latticearc/src/unified_api/audit.rs '
+            BEGIN { fail = 0 }
+            { lines[NR] = $0 }
+            /^[ \t]*\/\// { next }
+            /\.open\(/ {
+                if ($0 ~ /\.mode\(0o600\)/) next
+                ok = 0
+                for (i = 1; i <= 3; i++) {
+                    if (lines[NR-i] ~ /\/\/ LINT-OK:/) { ok = 1; break }
+                }
+                if (ok == 0) {
+                    print file ":" NR ": " $0 > "/dev/stderr"
+                    fail = 1
+                }
+            }
+            END { exit fail }
+          ' latticearc/src/unified_api/audit.rs; then
+            echo "::error::audit.rs OpenOptions::open without .mode(0o600). Add .mode(0o600) on Unix or tag with '// LINT-OK: cfg-not-unix' on (or above) the cfg(not(unix)) branch. See docs/MODULE_PATTERNS.md (unified_api::audit)."
+            exit 1
+          fi
+
+      - name: H3 — audit.rs raw metadata.insert outside with_metadata is forbidden
+        run: |
+          set -e
+          # Round-19 H3: AuditEventBuilder::metadata bypassed the caps that
+          # AuditEvent::with_metadata enforces. All metadata writes must go
+          # through `with_metadata` or `compute_integrity_hash` reads.
+          #
+          # The canonical `self.metadata.insert(...)` inside
+          # `pub fn with_metadata(...)` itself is the implementation of the
+          # helper — exempt by `// LINT-OK: canonical-with-metadata-impl`
+          # tagged on the same line.
+          set +e
+          OFFENDERS=$(rg -n 'event\.metadata\.insert\(|self\.event\.metadata\.insert\(|self\.metadata\.insert\(' \
+              latticearc/src/unified_api/audit.rs \
+              | rg -v '// LINT-OK: canonical-with-metadata-impl' || true)
+          set -e
+          if [ -n "$OFFENDERS" ]; then
+            echo "::error::Raw metadata.insert outside the canonical with_metadata impl. Use AuditEvent::with_metadata or builder.metadata. See docs/MODULE_PATTERNS.md (unified_api::audit)."
+            echo "$OFFENDERS"
+            exit 1
+          fi
+
+      - name: H1/H2 — CLI commands must size-gate file reads
+        run: |
+          set -e
+          # Round-19 H1: signature path skipped enforce_input_size_limit
+          # while the input-data path used it. Every std::fs::read* call
+          # in latticearc-cli/src/commands/ must be paired with a prior
+          # enforce_input_size_limit OR routed through read_file_or_stdin.
+          # Heuristic: find direct fs::read calls in commands/ that are
+          # not in test modules; reviewer must confirm the gate.
+          OFFENDERS=$(rg -n 'std::fs::read(_to_string)?\(' \
+              latticearc-cli/src/commands/ \
+              --glob '!**/tests/**' || true)
+          if [ -n "$OFFENDERS" ]; then
+            # Allowlist: read_file_or_stdin / read_string_or_stdin in
+            # commands/common.rs ARE the canonical helpers and call
+            # std::fs::read internally — exclude that file.
+            FILTERED=$(echo "$OFFENDERS" | rg -v 'commands/common\.rs' || true)
+            if [ -n "$FILTERED" ]; then
+              echo "::warning::CLI command code uses std::fs::read directly. Confirm enforce_input_size_limit was called first; otherwise route through common::read_file_or_stdin. See docs/MODULE_PATTERNS.md (latticearc-cli::commands)."
+              echo "$FILTERED"
+              # Emit warning, not error — too many legitimate cases for a hard fail.
+            fi
+          fi
+
+      - name: M9 — establish path must call verify_challenge_age
+        run: |
+          set -e
+          # Round-19 M9: VerifiedSession::establish skipped verify_challenge_age.
+          # Whenever generate_proof or verify_response is called from establish,
+          # the immediately preceding lines must call verify_challenge_age.
+          # Heuristic: search for `establish` blocks lacking the helper.
+          if rg -n -B 5 'verify_response' latticearc/src/unified_api/zero_trust.rs \
+              | rg -B 5 'fn establish' >/dev/null 2>&1; then
+            # Establish exists; ensure verify_challenge_age is called within it.
+            if ! rg -n -A 30 'fn establish\(' latticearc/src/unified_api/zero_trust.rs \
+                | rg 'verify_challenge_age' >/dev/null; then
+              echo "::error::VerifiedSession::establish must call verify_challenge_age before verify_response. See docs/MODULE_PATTERNS.md (unified_api::zero_trust)."
+              exit 1
+            fi
+          fi
+
+      - name: D1 — README SHA-2 row must not claim aws-lc-rs
+        run: |
+          set -e
+          # Round-19 D1: README claimed SHA-2 routes through aws-lc-rs under
+          # --features fips, but primitives/hash/sha2.rs uses the RustCrypto
+          # `sha2` crate. The grep below catches future regressions.
+          if rg -n '\| \*\*Hash\*\* \| SHA-2.*aws-lc-rs.*FIPS 140-3' README.md; then
+            echo "::error::README SHA-2 row falsely claims aws-lc-rs FIPS validation. SHA-2 routes through RustCrypto sha2 crate; --features fips does NOT swap it."
+            exit 1
+          fi
