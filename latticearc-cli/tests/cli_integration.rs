@@ -4689,3 +4689,135 @@ fn test_cli_reads_cbor_encoded_symmetric_key() {
     let decrypted = std::fs::read(&dec_path).unwrap();
     assert_eq!(decrypted, b"cbor cli smoke test");
 }
+
+// ============================================================================
+// Round-20 audit behavioral regression tests.
+//
+// Each test asserts a user-visible property the corresponding round-20 fix
+// is supposed to provide. To be a genuine regression blocker, each test
+// must (a) PASS against round-20-fixed code, and (b) FAIL when the fix is
+// reverted. The second property is what makes these tests useful — coverage
+// that still passes after the fix is gone is theatre.
+// ============================================================================
+
+/// Round-20 audit fix #14: `KeyFile::read_from` must reject files larger
+/// than `MAX_KEYFILE_BYTES` (1 MiB). Pre-round-20, an oversized key file
+/// (e.g., a symlink to /dev/zero, a sparse file, or a malicious 2 GiB
+/// file at a path the user thought was a key) was read into memory in
+/// full, causing OOM.
+///
+/// This test:
+///   1. Writes a 2 MiB file at `<tmp>/oversized.json`.
+///   2. Invokes any CLI command that reads a key — `verify --key`.
+///   3. Asserts the CLI fails with a "maximum supported size" error,
+///      not an OOM and not a JSON-parse error.
+#[test]
+fn round20_fix14_keyfile_size_cap_rejects_oversized_input() {
+    let dir = temp_dir();
+    let big_path = dir.path().join("oversized.json");
+    // 2 MiB > MAX_KEYFILE_BYTES (1 MiB)
+    let big_data = vec![b'A'; 2 * 1024 * 1024];
+    std::fs::write(&big_path, &big_data).unwrap();
+
+    // We need a CLI invocation that reads the key file. `verify --key`
+    // is the cleanest because it doesn't depend on prior keygen state.
+    // Use a dummy signature input; the CLI should reject the key file
+    // BEFORE attempting to parse the signature.
+    let dummy_sig = dir.path().join("sig.json");
+    std::fs::write(&dummy_sig, b"{}").unwrap();
+    let dummy_input = dir.path().join("data.txt");
+    std::fs::write(&dummy_input, b"data").unwrap();
+
+    let stderr = run_fail(&[
+        "verify",
+        "--algorithm",
+        "ed25519",
+        "--input",
+        dummy_input.to_str().unwrap(),
+        "--signature",
+        dummy_sig.to_str().unwrap(),
+        "--key",
+        big_path.to_str().unwrap(),
+    ]);
+
+    // Either the CLI's own `MAX_KEYFILE_BYTES` (1 MiB) gate fires,
+    // OR (without the fix) the library's downstream JSON-parser size
+    // limit fires. Both reject the oversized input — but only the
+    // CLI gate is round-20 fix #14. We assert on the CLI's specific
+    // error string so reverting the fix actually fails this test
+    // (the library message is "exceeds limit", the CLI's is
+    // "maximum supported size").
+    assert!(
+        stderr.contains("maximum supported size"),
+        "Round-20 fix #14: oversized key file must be rejected by the CLI's \
+         MAX_KEYFILE_BYTES gate (which produces 'maximum supported size') BEFORE \
+         std::fs::read attempts to load it. Got stderr:\n{stderr}"
+    );
+}
+
+/// Round-20 audit fix #5 (reframed): `decrypt --output <path>` must
+/// write the decrypted plaintext with mode 0o600 — owner read+write
+/// only, never world-readable.
+///
+/// Note on the audit: round-20 #5 stated the file would inherit umask
+/// (typically 0o644). In practice `tempfile::NamedTempFile::new_in`
+/// already creates files with mode 0o600 and `persist()` preserves
+/// that, so the audit's stated risk doesn't materialize. Our fix
+/// added an explicit `.secret_mode()` call as defense-in-depth in
+/// case tempfile's default ever changes; this test pins the
+/// **resulting file mode** as a regression blocker for either path
+/// of the contract (explicit chmod OR tempfile default).
+///
+/// If tempfile changes its default to 0o644 AND someone removes
+/// `.secret_mode()` from decrypt, this test fails. That's the
+/// intended trap.
+#[cfg(unix)]
+#[test]
+fn round20_fix5_decrypt_output_is_chmod_0o600() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = temp_dir();
+    let d = dir.path().to_str().unwrap();
+
+    // Generate an AES-256 key.
+    run_ok(&["keygen", "--algorithm", "aes256", "--output", d]);
+    let key_path = dir.path().join("aes256.key.json");
+
+    // Plaintext + roundtrip.
+    let pt_path = dir.path().join("plaintext.txt");
+    std::fs::write(&pt_path, b"round20 fix #5 plaintext").unwrap();
+    let ct_path = dir.path().join("ciphertext.json");
+    run_ok(&[
+        "encrypt",
+        "--mode",
+        "aes256-gcm",
+        "--input",
+        pt_path.to_str().unwrap(),
+        "--output",
+        ct_path.to_str().unwrap(),
+        "--key",
+        key_path.to_str().unwrap(),
+    ]);
+
+    // Decrypt → output file. THIS is the path the round-20 fix gates.
+    let dec_path = dir.path().join("decrypted.txt");
+    run_ok(&[
+        "decrypt",
+        "--input",
+        ct_path.to_str().unwrap(),
+        "--output",
+        dec_path.to_str().unwrap(),
+        "--key",
+        key_path.to_str().unwrap(),
+    ]);
+
+    // The decrypted file must be 0o600 — owner read+write only.
+    let meta = std::fs::metadata(&dec_path).expect("stat decrypted file");
+    let mode = meta.permissions().mode() & 0o777;
+    assert_eq!(
+        mode, 0o600,
+        "Round-20 fix #5: decrypted plaintext file must be chmod 0o600 (got 0o{mode:o}). \
+         The decrypt path must call AtomicWrite::secret_mode() so plaintext at rest is \
+         not world-readable."
+    );
+}

@@ -181,7 +181,16 @@ pub fn counter_kdf(
     #[allow(clippy::arithmetic_side_effects)]
     let max_len = (1u64 << 32) * HASH_LEN as u64;
 
-    if key_length > usize::try_from(max_len).unwrap_or(usize::MAX) {
+    // Round-20 audit fix #16: compare in u64 instead of routing through
+    // `usize::try_from(max_len).unwrap_or(usize::MAX)`. On a 32-bit
+    // target, max_len = 2^37 saturates to usize::MAX = 2^32-1, so the
+    // guard becomes `key_length > usize::MAX` which is never true and
+    // the size check is effectively dead. Comparing in u64 makes the
+    // bound correct on every target.
+    let key_length_u64 = u64::try_from(key_length).map_err(|_e| {
+        LatticeArcError::InvalidParameter(format!("Key length {} exceeds u64", key_length))
+    })?;
+    if key_length_u64 > max_len {
         return Err(LatticeArcError::InvalidParameter(format!(
             "Key length {} exceeds maximum of {}",
             key_length, max_len

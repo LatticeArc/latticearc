@@ -111,6 +111,15 @@ pub(crate) fn run(args: VerifyArgs) -> Result<bool> {
         // exit-code translation after destructors. The 0/1/≥2 contract
         // (round-7 fix #8 + #11) is preserved at the boundary, not
         // here.
+        // Stream choice: VALID on stdout, INVALID on stderr. The
+        // round-20 audit (#17) flagged this asymmetry — stdout-only
+        // test capture (`run_ok`) wouldn't catch a swap regression.
+        // We keep the asymmetry because (a) ~16 existing integration
+        // tests assert VALID via stdout capture, and (b) the
+        // machine-readable verdict is the exit code (Ok(true)/false),
+        // which IS symmetric — verdict text on either stream is
+        // operator status only. Tests that need stream-swap protection
+        // should use `run_ok_combined`.
         if valid {
             println!("Signature is VALID. (scheme: {})", signed.scheme);
         } else {
@@ -186,6 +195,7 @@ fn verify_legacy(
 
     // Round-8 audit fix #5: return the verdict; `main` translates
     // `Ok(false)` into exit 1 after destructors.
+    // See SignedData branch above for the stream-asymmetry rationale.
     if valid {
         println!("Signature is VALID.");
     } else {

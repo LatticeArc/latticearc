@@ -479,13 +479,23 @@ pub fn verify_cmac_128(key: &[u8], data: &[u8], tag: &[u8]) -> bool {
     // Compute CMAC regardless of tag length validation (timing-safe)
     let expected_tag_result = cmac_128(key, data);
 
-    // Constant-time comparison: valid only if tag length valid AND CMAC computation succeeded AND tags match
-    match expected_tag_result {
-        Ok(cmac) => {
-            let tags_match: bool = cmac.tag.ct_eq(tag).into();
-            tag_valid & tags_match
-        }
-        Err(_) => false,
+    // Round-20 audit fix #23: maintain constant-time-comparison work
+    // even on the Err path so the function signature is uniform across
+    // all inputs. The discriminator (key length) is public/structural,
+    // so this is hardening rather than a confidentiality fix — but it
+    // matches what the function's CT claim implies.
+    if let Ok(cmac) = expected_tag_result {
+        let tags_match: bool = cmac.tag.ct_eq(tag).into();
+        tag_valid & tags_match
+    } else {
+        // Err arm: do equivalent constant-time work against a zeroed
+        // dummy tag so the function's runtime profile doesn't depend
+        // on whether the key length passed cmac_128's check. The mask
+        // to `false` is unconditional.
+        let dummy = [0u8; 16];
+        let _: bool = dummy.ct_eq(&dummy).into();
+        let _: bool = dummy[..].ct_eq(tag).into();
+        false
     }
 }
 

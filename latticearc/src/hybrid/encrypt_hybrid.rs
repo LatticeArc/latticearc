@@ -97,7 +97,11 @@ pub enum HybridEncryptionError {
 pub struct HybridCiphertext {
     /// ML-KEM ciphertext for key decapsulation (1088 bytes for ML-KEM-768).
     kem_ciphertext: Vec<u8>,
-    /// X25519 ephemeral public key for ECDH (32 bytes). Empty for legacy ML-KEM-only ciphertexts.
+    /// X25519 ephemeral public key for ECDH (exactly 32 bytes). Round-20
+    /// audit fix #13: previously documented as "Empty for legacy ML-KEM-
+    /// only ciphertexts." That contract was always dead — `decrypt_hybrid`
+    /// rejects any `len() != 32` (see `decrypt_hybrid` validation block).
+    /// All current callers must pass a 32-byte ephemeral X25519 PK.
     ecdh_ephemeral_pk: Vec<u8>,
     /// AES-256-GCM encrypted message data.
     symmetric_ciphertext: Vec<u8>,
@@ -113,8 +117,11 @@ impl HybridCiphertext {
     /// # Parameters
     ///
     /// - `kem_ciphertext`: ML-KEM ciphertext for key decapsulation (1088 bytes for ML-KEM-768).
-    /// - `ecdh_ephemeral_pk`: X25519 ephemeral public key (32 bytes). Pass `vec![]` for legacy
-    ///   ML-KEM-only ciphertexts that do not include an ECDH component.
+    /// - `ecdh_ephemeral_pk`: X25519 ephemeral public key (exactly 32 bytes).
+    ///   Round-20 audit fix #13: a previous version of this doc said
+    ///   `vec![]` was valid for "legacy ML-KEM-only" ciphertexts; in practice
+    ///   `decrypt_hybrid` always rejected anything other than 32 bytes, so
+    ///   the documented legacy path was unreachable.
     /// - `symmetric_ciphertext`: AES-256-GCM encrypted message data.
     /// - `nonce`: 12-byte nonce used for AES-GCM encryption.
     /// - `tag`: 16-byte AES-GCM authentication tag.
@@ -444,21 +451,22 @@ pub fn encrypt_hybrid(
     let default_ctx = HybridEncryptionContext::default();
     let ctx = context.unwrap_or(&default_ctx);
 
-    // DoS bound on AAD: rejected up-front before any KEM / KDF / AEAD
-    // work runs, so an oversized AAD cannot consume cryptographic budget.
-    // See `HybridEncryptionContext::MAX_AAD_LEN`.
-    if ctx.aad.len() > HybridEncryptionContext::MAX_AAD_LEN {
-        return Err(HybridEncryptionError::InvalidInput(format!(
-            "AAD length {} exceeds MAX_AAD_LEN={}",
-            ctx.aad.len(),
-            HybridEncryptionContext::MAX_AAD_LEN
-        )));
-    }
-
     // Encrypt-side opacity (defense-in-depth per Pattern 6). Opaque returned
     // error; tracing::debug! keeps the specific reason for operator debugging.
     let opaque_kem = || HybridEncryptionError::KemError("encapsulation failed".to_string());
     let opaque_enc = || HybridEncryptionError::EncryptionError("encryption failed".to_string());
+
+    // DoS bound on AAD: rejected up-front before any KEM / KDF / AEAD
+    // work runs, so an oversized AAD cannot consume cryptographic budget.
+    // See `HybridEncryptionContext::MAX_AAD_LEN`. Round-20 audit fix #4:
+    // collapse to opaque InvalidInput (matching decrypt-side opacity at
+    // `decrypt_hybrid:538`) so the encrypt path doesn't disclose the
+    // observed AAD length and the cap as a probable-bound oracle. Source-
+    // side cause goes to `tracing::debug!` for operator debugging.
+    if ctx.aad.len() > HybridEncryptionContext::MAX_AAD_LEN {
+        log_crypto_operation_error!(op::HYBRID_ENCRYPT, "AAD exceeds MAX_AAD_LEN");
+        return Err(HybridEncryptionError::InvalidInput("invalid input".to_string()));
+    }
 
     // Hybrid KEM encapsulation (ML-KEM-768 + X25519 ECDH + HKDF)
     let encapsulated = kem_hybrid::encapsulate(hybrid_pk).map_err(|_e| {

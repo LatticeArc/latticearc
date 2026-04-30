@@ -278,6 +278,7 @@ fn write_output(path: &Option<PathBuf>, data: &str) -> Result<()> {
             // Atomic write — closes the partial-file confidentiality
             // window for decrypted material at rest. Same helper the
             // keyfile writer uses (round-7 audit fix #18).
+            // LINT-OK: public-write-ciphertext (encrypted data is not secret)
             latticearc::unified_api::atomic_write::AtomicWrite::new(data.as_bytes())
                 .overwrite_existing(true)
                 .write(p)

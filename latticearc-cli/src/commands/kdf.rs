@@ -191,6 +191,19 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
         if env_val.is_empty() {
             bail!("LATTICEARC_KDF_INPUT is set but empty");
         }
+        // Round-20 audit fix #8: emit a TTY warning when the env-var
+        // path is used. Env vars are visible via `/proc/<pid>/environ`
+        // for any process the user can read (typically the same UID).
+        // `keyfile.rs::resolve_passphrase` already warns for the
+        // analogous LATTICEARC_PASSPHRASE; the kdf path was missing
+        // the parallel warning.
+        eprintln!(
+            "warning: reading KDF input from LATTICEARC_KDF_INPUT. \
+             Env vars are readable via /proc/<pid>/environ by processes \
+             owned by the same user. Prefer --input-stdin for genuinely \
+             secret input, and `unset LATTICEARC_KDF_INPUT` immediately \
+             after this invocation."
+        );
         return Ok(zeroize::Zeroizing::new(env_val));
     }
     bail!(
@@ -207,13 +220,17 @@ fn resolve_input(args: &KdfArgs) -> Result<zeroize::Zeroizing<String>> {
 }
 
 /// Upper bound on KDF output length applied by the CLI to both HKDF and
-/// PBKDF2. HKDF-SHA256 has a hard limit of 8160 bytes (255 × 32). PBKDF2
+/// PBKDF2. Set to HKDF-SHA256's algorithmic maximum (255 × 32 = 8160
+/// bytes) so the same constant is correct for both algorithms — PBKDF2
 /// has no algorithmic ceiling but allowing arbitrary `--length` is a
 /// trivial self-DoS (e.g. `--length 1073741824` allocates 1 GiB and
-/// then runs 600k iterations per block). Aligning both algorithms to
-/// the same CLI ceiling is consistent and well above any legitimate
-/// use case.
-const CLI_MAX_KDF_OUTPUT_LEN: usize = 8192;
+/// then runs 600k iterations per block).
+///
+/// Round-20 audit fix #7: previously this constant was 8192 and used
+/// only by the PBKDF2 path; HKDF independently hardcoded 8160 in its
+/// `bail!` check. The constants silently desynced. Both paths now
+/// reference this single source of truth.
+const CLI_MAX_KDF_OUTPUT_LEN: usize = 8160;
 
 fn derive_hkdf_with_input(
     args: &KdfArgs,
@@ -224,8 +241,8 @@ fn derive_hkdf_with_input(
         zeroize::Zeroizing::new(hex::decode(input).context("Invalid hex in --input for HKDF")?);
     let info = args.info.as_deref().unwrap_or("");
 
-    if args.length == 0 || args.length > 8160 {
-        bail!("Output length must be 1..=8160 bytes");
+    if args.length == 0 || args.length > CLI_MAX_KDF_OUTPUT_LEN {
+        bail!("Output length must be 1..={CLI_MAX_KDF_OUTPUT_LEN} bytes");
     }
 
     let derived = latticearc::derive_key_with_info(

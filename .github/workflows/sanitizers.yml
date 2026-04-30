@@ -130,14 +130,16 @@ jobs:
   #
   # Staged migration: this change (a) picks up aws-lc-rs 1.16.3, (b) sets
   # the env var, (c) drops the skip list, and (d) expands coverage from
-  # `-p latticearc --lib` to the full workspace. It intentionally keeps
-  # `continue-on-error: true` for one scheduled run so we can confirm a
-  # clean pass on CI hardware before flipping the gate blocking.
-  # Follow-up: flip `continue-on-error: false` after the first clean run.
+  # `-p latticearc --lib` to the full workspace. Round-20 audit fix #21:
+  # `continue-on-error: true` was retained "until the first clean run"
+  # but never flipped — the dependency that blocked it (aws-lc-rs 1.16.3
+  # MSan support) shipped 2026-04-15. Promoting to blocking now; if
+  # a regression appears on a scheduled run, flip back temporarily and
+  # file a tracking issue. Soft-fail with no tracking is the failure
+  # mode this audit caught.
   msan:
     name: MemorySanitizer
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

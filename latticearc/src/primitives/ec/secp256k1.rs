@@ -94,7 +94,15 @@ impl EcKeyPair for Secp256k1KeyPair {
         let mut secret_bytes = Zeroizing::new([0u8; 32]);
         secret_bytes.copy_from_slice(secret_key_bytes);
 
-        Ok(Self { public_key, secret_bytes })
+        let keypair = Self { public_key, secret_bytes };
+
+        // Round-20 audit fix #3: FIPS 140-3 IG 10.3.A — every keypair
+        // entering the module (fresh generation or import) must run PCT
+        // before exposure. Symmetric with `generate()` above.
+        crate::primitives::pct::pct_secp256k1(&keypair)
+            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))?;
+
+        Ok(keypair)
     }
 
     fn public_key_bytes(&self) -> Vec<u8> {

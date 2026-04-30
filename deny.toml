@@ -34,21 +34,23 @@ ignore = [
     # paste 1.0.15 flagged as unmaintained (not a CVE). Pulled in transitively
     # by pqcrypto-mldsa dev-dep used in cross-impl validation tests only; does
     # not affect the published latticearc runtime. Revisit when pqcrypto-mldsa
-    # drops the dep upstream.
+    # drops the dep upstream. Tracked in TRACKING.md (round-20 audit fix #19).
     "RUSTSEC-2024-0436",
     # ansi_term 0.12.1 unmaintained. Pulled in transitively by clap 2.x via
     # dudect-bencher 0.7 (dev-dep powering examples/dudect_ct.rs). No runtime
-    # impact on published crates. Revisit when dudect-bencher migrates to
-    # clap 4 or we switch to a different CT-bencher harness.
+    # impact on published crates. Round-20 audit fix #19: dudect-bencher 0.8+
+    # supports clap 4; the migration is genuinely overdue. Tracked in
+    # TRACKING.md with target removal date 2026-Q3.
     "RUSTSEC-2021-0139",
     # atty 0.2.14 unmaintained. Same provenance as ansi_term above
-    # (clap 2 → dudect-bencher, dev-only).
+    # (clap 2 → dudect-bencher, dev-only). Same tracking as RUSTSEC-2021-0139.
     "RUSTSEC-2024-0375",
     # atty 0.2.14 Windows unaligned-pointer unsoundness. Triggers only
     # under custom global allocators on Windows. Our dudect-bencher
     # example is invoked only via `dudect.yml` on ubuntu-latest, never
     # on Windows, and uses the default System allocator regardless.
-    # Same provenance (clap 2 → dudect-bencher, dev-only).
+    # Same provenance (clap 2 → dudect-bencher, dev-only). Same tracking as
+    # RUSTSEC-2021-0139.
     "RUSTSEC-2021-0145",
 ]
 
@@ -56,14 +58,18 @@ ignore = [
 # Allow or deny multiple versions of the same crate
 multiple-versions = "warn"
 
-# Wildcard dependencies. The workspace policy is exact-pin
-# (= "X.Y.Z") for all RustCrypto deps; a `*` dep silently bypasses
-# that protection because Cargo treats it as "any version" and
-# resolves whatever crates.io currently advertises. `warn` surfaces
-# them in CI without breaking transitive deps that genuinely use `*`
-# (e.g. some build-only proc-macro deps). Promote to `deny` once the
-# dep tree has been audited for incidental `*` requirements.
-wildcards = "warn"
+# Wildcard dependencies. Round-20 audit fix #20: promoted from
+# "warn" to "deny" — the workspace policy is exact-pin (= "X.Y.Z")
+# for all RustCrypto deps; a `*` dep silently bypasses that
+# protection because Cargo treats it as "any version" and resolves
+# whatever crates.io currently advertises. The only legitimate
+# wildcards in this workspace are intra-workspace path deps
+# (e.g. `latticearc-cli → latticearc` via `path = "..."`), which
+# Cargo represents with version `*` because path deps don't carry
+# semver. `allow-wildcard-paths = true` whitelists exactly that
+# class without re-allowing crates.io wildcards.
+wildcards = "deny"
+allow-wildcard-paths = true
 
 # Highlight all issues
 highlight = "all"

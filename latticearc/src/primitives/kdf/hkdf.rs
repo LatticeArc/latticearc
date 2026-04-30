@@ -298,7 +298,11 @@ pub fn hkdf(
 /// Returns an error if key derivation fails.
 #[instrument(level = "debug", skip(ikm), fields(ikm_len = ikm.len(), output_length = length))]
 pub fn hkdf_simple(ikm: &[u8], length: usize) -> Result<HkdfResult> {
-    let mut salt = vec![0u8; 16];
+    // Round-20 audit fix #15: NIST SP 800-56C Rev2 §4.1 recommends salt
+    // length ≥ hash output length (32 bytes for SHA-256). The previous
+    // 16-byte salt was below recommendation; the doc above claimed
+    // "recommended default parameters" and overstated.
+    let mut salt = vec![0u8; 32];
     get_random_bytes(&mut salt);
 
     hkdf(ikm, Some(&salt), None, length)

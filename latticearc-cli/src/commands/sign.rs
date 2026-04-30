@@ -249,6 +249,7 @@ fn write_signature(args: &SignArgs, json: &str) -> Result<()> {
 
     // Atomic write — sig files aren't secret but partial-file-at-rest
     // is still a script-corruption hazard (round-7 audit fix #18).
+    // LINT-OK: public-write-signature (signatures are not secret)
     latticearc::unified_api::atomic_write::AtomicWrite::new(json.as_bytes())
         .overwrite_existing(true)
         .write(&output_path)

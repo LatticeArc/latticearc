@@ -748,8 +748,13 @@ impl FileAuditStorage {
             .write_all(line_bytes)
             .map_err(|e| CoreError::AuditError(format!("Failed to write audit event: {}", e)))?;
 
-        // Update size tracking
-        state.current_size = state.current_size.saturating_add(line_bytes.len() as u64);
+        // Update size tracking. `usize → u64` is widening on 64-bit and
+        // equal on 32-bit, so the conversion is always lossless — but
+        // route via `try_from` for consistency with the rest of this file
+        // and to silence `clippy::cast_possible_truncation` (round-20
+        // audit fix #24).
+        let line_len_u64 = u64::try_from(line_bytes.len()).unwrap_or(u64::MAX);
+        state.current_size = state.current_size.saturating_add(line_len_u64);
 
         Ok(())
     }

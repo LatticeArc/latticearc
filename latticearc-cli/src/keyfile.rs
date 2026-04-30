@@ -102,6 +102,27 @@ impl KeyFile {
     /// passphrase via [`resolve_existing_passphrase`] and unwraps it before
     /// returning. Plaintext key files are returned as-is.
     pub fn read_from(path: &std::path::Path) -> Result<Self> {
+        // Round-20 audit fix #14: gate the file read behind a size
+        // ceiling. Key files are well under 100 KiB in every supported
+        // format (LPK JSON, LPK CBOR, legacy CLI v1 JSON); a 1 MiB cap
+        // is generous and bounds OOM if a symlink to /dev/zero or a
+        // sparse file ends up at this path. Verified by
+        // tests/cli_integration.rs::round20_fix14_keyfile_size_cap_rejects_oversized_input
+        // — that test fails with the unfixed code by hitting the
+        // library's downstream parser limit instead of this CLI guard.
+        const MAX_KEYFILE_BYTES: u64 = 1024 * 1024;
+        if let Ok(meta) = std::fs::metadata(path)
+            && meta.len() > MAX_KEYFILE_BYTES
+        {
+            anyhow::bail!(
+                "Key file {} is {} bytes; maximum supported size is {} bytes. \
+                 This is far above any legitimate LatticeArc key encoding.",
+                path.display(),
+                meta.len(),
+                MAX_KEYFILE_BYTES
+            );
+        }
+        // LINT-OK: size-gated-by-MAX_KEYFILE_BYTES (1 MiB cap above)
         let bytes =
             std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
 

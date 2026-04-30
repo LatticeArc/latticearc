@@ -58,6 +58,15 @@ pub enum SlhDsaError {
     #[error("Random number generation failed")]
     RngError,
 
+    /// Pairwise Consistency Test (FIPS 140-3 §9.2 / IG 10.3.A) failed.
+    /// Distinct from `RngError` because PCT failure indicates a
+    /// corrupted keypair, not transient entropy depletion. Round-20
+    /// audit fix #12: a FIPS error-state monitor must be able to
+    /// distinguish "retry with fresh entropy" from "discard this
+    /// keypair, generate a new one, and investigate."
+    #[error("Pairwise Consistency Test failed (FIPS 140-3 §9.2)")]
+    PctFailed,
+
     /// Invalid public key (malformed or corrupted)
     #[error("Invalid public key")]
     InvalidPublicKey,
@@ -490,9 +499,14 @@ impl SigningKey {
         };
 
         // FIPS 140-3 Pairwise Consistency Test (PCT)
-        // Sign and verify a test message to ensure the keypair is consistent
+        // Sign and verify a test message to ensure the keypair is consistent.
+        // Round-20 audit fix #12: PCT failure now maps to the dedicated
+        // `PctFailed` variant. The previous `RngError` mapping let a
+        // FIPS error-state monitor mis-categorize a corrupted-keypair
+        // event as transient entropy failure and likely retry — wrong
+        // semantics for both FIPS and operational triage.
         crate::primitives::pct::pct_slh_dsa(&verifying_key, &signing_key)
-            .map_err(|_e| SlhDsaError::RngError)?;
+            .map_err(|_e| SlhDsaError::PctFailed)?;
 
         Ok((signing_key, verifying_key))
     }

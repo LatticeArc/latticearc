@@ -86,7 +86,18 @@ impl EcKeyPair for Ed25519KeyPair {
 
         let public_key = VerifyingKey::from(&secret_key);
 
-        Ok(Self { public_key, secret_key })
+        let keypair = Self { public_key, secret_key };
+
+        // Round-20 audit fix #3: FIPS 140-3 IG 10.3.A doesn't distinguish
+        // key-introduction paths — every keypair entering the module
+        // (whether via fresh generation or import from external bytes)
+        // must run a Pairwise Consistency Test before exposure. Importing
+        // a corrupted secret key was previously possible without
+        // detection.
+        crate::primitives::pct::pct_ed25519(&keypair)
+            .map_err(|e| LatticeArcError::KeyGenerationError(e.to_string()))?;
+
+        Ok(keypair)
     }
 
     fn public_key_bytes(&self) -> Vec<u8> {

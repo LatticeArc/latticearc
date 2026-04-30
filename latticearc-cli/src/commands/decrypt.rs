@@ -131,8 +131,16 @@ fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {
         Some(p) => {
             // Atomic write — decrypted secret material at rest must
             // never be visible as a partial file (round-7 audit fix
-            // #18). Same helper as keyfile.
+            // #18). `secret_mode()` sets 0o600 atomically before the
+            // rename. Round-20 audit #5 noted this call site lacked
+            // `secret_mode()`; in practice `tempfile::NamedTempFile`
+            // already creates files with mode 0o600 and `persist()`
+            // preserves that, so the audit's stated risk (umask
+            // 0o644) doesn't materialize at runtime — but the
+            // explicit `.secret_mode()` is retained as defense-in-
+            // depth in case tempfile's default ever changes.
             latticearc::unified_api::atomic_write::AtomicWrite::new(data)
+                .secret_mode()
                 .overwrite_existing(true)
                 .write(p)
                 .with_context(|| format!("Failed to write {}", p.display()))?;

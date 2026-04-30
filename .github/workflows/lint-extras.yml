@@ -123,28 +123,126 @@ jobs:
             exit 1
           fi
 
-      - name: H1/H2 — CLI commands must size-gate file reads
+      - name: H1/H2 — CLI must size-gate file reads
         run: |
           set -e
-          # Round-19 H1: signature path skipped enforce_input_size_limit
-          # while the input-data path used it. Every std::fs::read* call
-          # in latticearc-cli/src/commands/ must be paired with a prior
-          # enforce_input_size_limit OR routed through read_file_or_stdin.
-          # Heuristic: find direct fs::read calls in commands/ that are
-          # not in test modules; reviewer must confirm the gate.
+          # Round-19 H1: signature path skipped enforce_input_size_limit.
+          # Round-20 audit fix #10/#14:
+          #   (a) promoted from `::warning::` to `exit 1` — the regression
+          #       class this rule prevents is HIGH-severity, downgrading
+          #       to a warning meant the rule couldn't actually enforce.
+          #   (b) expanded scope from `latticearc-cli/src/commands/` to
+          #       all of `latticearc-cli/src/` — round-20 #14 caught
+          #       `keyfile.rs` (which lives at the crate root, not
+          #       under commands/) doing an ungated `std::fs::read`.
+          # Allowlist sites are tagged with `// LINT-OK: size-gated-by-…`
+          # so a reviewer can see exactly which gate is in effect.
           OFFENDERS=$(rg -n 'std::fs::read(_to_string)?\(' \
-              latticearc-cli/src/commands/ \
+              latticearc-cli/src/ \
               --glob '!**/tests/**' || true)
           if [ -n "$OFFENDERS" ]; then
-            # Allowlist: read_file_or_stdin / read_string_or_stdin in
-            # commands/common.rs ARE the canonical helpers and call
-            # std::fs::read internally — exclude that file.
-            FILTERED=$(echo "$OFFENDERS" | rg -v 'commands/common\.rs' || true)
+            # Allowlist:
+            #   - commands/common.rs hosts `read_file_or_stdin` /
+            #     `read_string_or_stdin` — they call `std::fs::read`
+            #     internally AFTER calling `enforce_input_size_limit`.
+            #   - Lines tagged `// LINT-OK: size-gated-…` opt out
+            #     individually (use sparingly; the tag must explain
+            #     which gate replaces enforce_input_size_limit).
+            FILTERED=$(echo "$OFFENDERS" \
+                | rg -v 'commands/common\.rs' \
+                | rg -v '// LINT-OK: size-gated-' || true)
+            # The keyfile.rs path adds its own MAX_KEYFILE_BYTES gate
+            # before std::fs::read; allow it via the inline LINT-OK tag.
             if [ -n "$FILTERED" ]; then
-              echo "::warning::CLI command code uses std::fs::read directly. Confirm enforce_input_size_limit was called first; otherwise route through common::read_file_or_stdin. See docs/MODULE_PATTERNS.md (latticearc-cli::commands)."
+              echo "::error::CLI code uses std::fs::read without enforce_input_size_limit. Either route through common::read_file_or_stdin OR add a local size guard and tag the line with '// LINT-OK: size-gated-by-<MAX_CONST>'. See docs/MODULE_PATTERNS.md (latticearc-cli::commands)."
               echo "$FILTERED"
-              # Emit warning, not error — too many legitimate cases for a hard fail.
+              exit 1
             fi
+          fi
+
+      - name: M3-secret-mode — AtomicWrite of secret material must use .secret_mode()
+        run: |
+          set -e
+          # Round-20 audit fix #5: decrypt.rs writes plaintext via
+          # AtomicWrite without .secret_mode(), inheriting umask 0o644.
+          # MODULE_PATTERNS.md mandates secret_mode() for files holding
+          # secret material. The lint suite (round-19 Step-2) shipped
+          # the doc but no CI rule.
+          #
+          # Heuristic: every AtomicWrite::new(...).write(...) call in CLI
+          # code that handles decrypted plaintext or key material must be
+          # paired with .secret_mode() somewhere in the chain. Allowlist
+          # via `// LINT-OK: public-write-…` for files that are
+          # legitimately public (e.g. PK files written without secret
+          # mode).
+          set +e
+          # Find AtomicWrite chains that DON'T contain `.secret_mode(`.
+          # Use awk for multi-line awareness: collect each chain from
+          # `AtomicWrite::new` to the next `.write(` and check. Also
+          # look at the immediately-preceding line for a LINT-OK
+          # public-write tag (common pattern: tag the call site with a
+          # comment on the line above for human readability).
+          OFFENDERS=$(awk '
+            BEGIN { in_chain = 0; chain = ""; line_no = 0; prev_line = "" }
+            /AtomicWrite::new\(/ { in_chain = 1; chain = prev_line " " $0; line_no = NR; prev_line = $0; next }
+            in_chain {
+                chain = chain " " $0
+                if (/\.write\(/) {
+                    if (chain !~ /\.secret_mode\(/ && chain !~ /\/\/ LINT-OK: public-write-/) {
+                        print FILENAME ":" line_no ": " chain
+                    }
+                    in_chain = 0
+                    chain = ""
+                }
+            }
+            { prev_line = $0 }
+          ' $(find latticearc-cli/src -name '*.rs' -not -path '*/tests/*'))
+          set -e
+          if [ -n "$OFFENDERS" ]; then
+            echo "::error::AtomicWrite of secret material must use .secret_mode(). Add .secret_mode() to the chain, or — if the file is legitimately public (e.g. .pub.json key files) — tag with '// LINT-OK: public-write-<reason>' on the AtomicWrite::new line. See docs/MODULE_PATTERNS.md (atomic_write)."
+            echo "$OFFENDERS"
+            exit 1
+          fi
+
+      - name: status-check-coverage — every CI job must appear in status-check.needs
+        run: |
+          set -e
+          # Round-20 audit fix #9: round-19 added `default-debug-parity`
+          # job specifically to catch H4-class regressions, but forgot to
+          # include it in `status-check.needs:`, so its failure didn't
+          # block merge. Generalize: every job defined under `jobs:` in
+          # ci.yml must appear in `status-check.needs:`.
+          CI_YML=".github/workflows/ci.yml"
+          # Extract job names: lines matching `^  [a-z][a-z0-9-]*:` at
+          # exactly two-space indent are top-level jobs (excluding
+          # `concurrency:`, `permissions:`, `defaults:`, etc. inside
+          # workflow scope — but those don't match the `jobs:` indent
+          # pattern below, so the heuristic is fine).
+          ALL_JOBS=$(awk '/^jobs:/{in_jobs=1; next} in_jobs && /^  [a-z][a-z0-9_-]*:$/ {print $1}' "$CI_YML" | tr -d ':' | sort -u)
+          # status-check itself is the gate, exclude it.
+          ALL_JOBS=$(echo "$ALL_JOBS" | grep -v '^status-check$' || true)
+          # Pull the `needs:` list from the status-check job.
+          NEEDS=$(awk '
+            /^  status-check:/ { in_sc = 1; next }
+            in_sc && /needs:/ {
+                gsub(/.*needs:[ ]*\[/, "")
+                gsub(/\].*/, "")
+                gsub(/[ ,]+/, "\n")
+                print
+                exit
+            }
+          ' "$CI_YML" | sort -u)
+          MISSING=""
+          while IFS= read -r job; do
+            [ -z "$job" ] && continue
+            if ! echo "$NEEDS" | grep -qx "$job"; then
+                MISSING="$MISSING $job"
+            fi
+          done <<< "$ALL_JOBS"
+          if [ -n "$MISSING" ]; then
+            echo "::error::CI jobs not in status-check.needs: $MISSING"
+            echo "Every job in .github/workflows/ci.yml must appear in the status-check needs list, otherwise its failure does not block merge. See docs/MODULE_PATTERNS.md (Workflow conventions)."
+            exit 1
           fi
 
       - name: M9 — establish path must call verify_challenge_age

@@ -1,17 +1,43 @@
 # CODEOWNERS - Define code ownership for review requirements
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Round-20 audit fix #1: paths previously listed
+# (/arc-primitives/, /arc-core/, /arc-hybrid/) were stale. The first
+# and third don't exist; the second is an empty stub. All current
+# crypto code lives under /latticearc/ and /latticearc-cli/, which
+# previously fell through to the catch-all `*` rule and got no
+# security-team review.
 
 # Default owners for everything in the repo
 * @LatticeArc/maintainers
 
-# Cryptographic code requires security review
-/arc-primitives/ @LatticeArc/security-team
-/arc-core/ @LatticeArc/security-team
-/arc-hybrid/ @LatticeArc/security-team
+# === Cryptographic code (requires security review) ===
+# Published crate — every commit touches crypto surface.
+/latticearc/ @LatticeArc/security-team
+# CLI binds the public crypto API and handles secret material at rest
+# (passphrases, decrypted plaintext, key files).
+/latticearc-cli/ @LatticeArc/security-team
+# Workspace test crate: KAT validation, FIPS compliance, side-channel,
+# regression. Treat any change here as security-relevant.
+/tests/ @LatticeArc/security-team
 
-# Security-sensitive files
+# === Security-sensitive supporting files ===
 SECURITY.md @LatticeArc/security-team
 /fuzz/ @LatticeArc/security-team
+/clippy.toml @LatticeArc/security-team
+/deny.toml @LatticeArc/security-team
+/docs/MODULE_PATTERNS.md @LatticeArc/security-team
+/docs/SECRET_TYPE_INVARIANTS.md @LatticeArc/security-team
+/docs/DESIGN_PATTERNS.md @LatticeArc/security-team
+/docs/FORMAL_VERIFICATION.md @LatticeArc/security-team
 
-# CI/CD workflows
+# === CI/CD workflows ===
+# Lint suite + audit-time guardrails are security-sensitive: a malicious
+# or careless change to lint-extras.yml could disable the regression
+# blockers without that being obvious in a code review.
 /.github/workflows/ @LatticeArc/maintainers
+/.github/workflows/lint-extras.yml @LatticeArc/security-team
+/.github/workflows/sanitizers.yml @LatticeArc/security-team
+/.github/workflows/kani.yml @LatticeArc/security-team
+/.github/workflows/release.yml @LatticeArc/security-team
+/hooks/ @LatticeArc/security-team

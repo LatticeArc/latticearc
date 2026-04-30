@@ -1177,7 +1177,7 @@ jobs:
   status-check:
     name: Pipeline Status
     runs-on: ubuntu-latest
-    needs: [quality, msrv, semver-checks, build, test, security, regression-tests, concurrency-tests, api-stability-tests, cli-tests, fuzz-nightly, fuzz-weekly, fuzz-smoke, performance, docs, integration, security-tests, feature-powerset, kat-integrity]
+    needs: [quality, msrv, semver-checks, build, test, default-debug-parity, security, regression-tests, concurrency-tests, api-stability-tests, cli-tests, fuzz-nightly, fuzz-weekly, fuzz-smoke, performance, docs, integration, security-tests, feature-powerset, kat-integrity]
     if: always()
     steps:
     - name: Check all job statuses
@@ -1199,6 +1199,11 @@ jobs:
         [[ "${{ needs.semver-checks.result }}" == "failure" ]] && failed_jobs="$failed_jobs semver-checks"
         [[ "${{ needs.build.result }}" == "failure" ]] && failed_jobs="$failed_jobs build"
         [[ "${{ needs.test.result }}" == "failure" ]] && failed_jobs="$failed_jobs test"
+        # Round-20 audit fix #9: default-debug-parity is the round-19 H4
+        # regression blocker. Adding it to `needs:` alone wasn't
+        # enough — `result` had to be checked here too, otherwise its
+        # failure was invisible to the gate.
+        [[ "${{ needs.default-debug-parity.result }}" == "failure" ]] && failed_jobs="$failed_jobs default-debug-parity"
         [[ "${{ needs.security.result }}" == "failure" ]] && failed_jobs="$failed_jobs security"
         [[ "${{ needs.docs.result }}" == "failure" ]] && failed_jobs="$failed_jobs docs"
         [[ "${{ needs.integration.result }}" == "failure" ]] && failed_jobs="$failed_jobs integration"

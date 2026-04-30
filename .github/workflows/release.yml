@@ -267,6 +267,15 @@ jobs:
           echo "Signing artifacts with Sigstore Cosign..."
 
           # Sign library artifacts
+          # Round-20 audit fix #2: sign-or-fail. Previously this step
+          # had three layers of failure-swallowing — `2>/dev/null`,
+          # `|| echo "Warning..."`, and `continue-on-error: true` —
+          # which let releases ship unsigned. cosign exit codes now
+          # propagate; `set -e` aborts on the first failure; the
+          # outer `continue-on-error` is dropped; the upload step
+          # demands `if-no-files-found: error`.
+          set -e
+          shopt -s nullglob
           for dir in artifacts/latticearc-*/; do
             for file in "$dir"liblatticearc*; do
               if [ -f "$file" ] && [[ ! "$file" =~ \.(sig|crt)$ ]]; then
@@ -275,21 +284,20 @@ jobs:
                   --oidc-issuer https://token.actions.githubusercontent.com \
                   --output-signature "${file}.sig" \
                   --output-certificate "${file}.crt" \
-                  "$file" 2>/dev/null || echo "Warning: Could not sign $file"
+                  "$file"
               fi
             done
           done
 
-          # Sign SBOM
+          # Sign SBOM (required, not best-effort).
           if [ -f "artifacts/sbom/sbom.cdx.json" ]; then
             echo "Signing SBOM..."
             cosign sign-blob --yes \
               --oidc-issuer https://token.actions.githubusercontent.com \
               --output-signature "artifacts/sbom/sbom.cdx.json.sig" \
               --output-certificate "artifacts/sbom/sbom.cdx.json.crt" \
-              "artifacts/sbom/sbom.cdx.json" 2>/dev/null || true
+              "artifacts/sbom/sbom.cdx.json"
           fi
-        continue-on-error: true
 
       - name: Upload signatures
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -298,7 +306,9 @@ jobs:
           path: |
             artifacts/**/*.sig
             artifacts/**/*.crt
-          if-no-files-found: warn
+          # Round-20 audit fix #2: error if signatures are missing.
+          # `warn` previously masked the unsigned-release failure mode.
+          if-no-files-found: error
 
   # Attach artifacts to release
   attach-release-artifacts:

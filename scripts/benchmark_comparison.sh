@@ -58,7 +58,10 @@ echo ""
 
 echo "=== Running LatticeArc Benchmarks ==="
 cd "$(dirname "$0")/.."
-cargo run --package arc-primitives --example crypto_timing --release 2>/dev/null | tee "$RESULTS_DIR/latticearc.txt"
+# Round-20 audit fix #18: package was `arc-primitives` historically;
+# renamed to `latticearc` during the workspace consolidation. The script
+# silently failed for every run between the rename and now.
+cargo run --package latticearc --example crypto_timing --release 2>/dev/null | tee "$RESULTS_DIR/latticearc.txt"
 echo ""
 
 echo "=== Results Summary ==="

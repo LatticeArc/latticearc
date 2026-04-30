@@ -1050,14 +1050,28 @@ impl ZeroTrustAuth {
                 msg
             }
             ProofComplexity::Medium => {
-                // Medium: same as Low (kept for API compatibility)
-                let mut msg = challenge.to_vec();
+                // Medium: domain-separated from Low. Round-20 audit fix
+                // #6: previously Medium produced byte-identical signed
+                // messages to Low ("kept for API compatibility"), so a
+                // Low proof verified as Medium and apps gating
+                // privilege on level couldn't tell them apart. We add a
+                // 1-byte domain tag (0x02) at the front so the signed
+                // message differs at the first byte for any non-Low
+                // level. Tag-byte placement mirrors HPKE-style label
+                // prefixing. Verified by
+                // tests/round20_behavior.rs::round20_fix6_low_proof_does_not_verify_as_medium —
+                // that test fails on un-tagged Medium with `Ok(true)`.
+                let mut msg = vec![0x02];
+                msg.extend_from_slice(challenge);
                 msg.extend_from_slice(&timestamp);
                 msg
             }
             ProofComplexity::High => {
-                // High: include timestamp + public key binding
-                let mut msg = challenge.to_vec();
+                // High: domain-separated tag (0x03) + timestamp +
+                // public key binding. Round-20 audit fix #6 also
+                // applies here for symmetry.
+                let mut msg = vec![0x03];
+                msg.extend_from_slice(challenge);
                 msg.extend_from_slice(&timestamp);
                 msg.extend_from_slice(self.public_key.as_slice());
                 msg
@@ -1178,8 +1192,12 @@ impl ZeroTrustAuth {
                     return Ok(false);
                 }
 
-                // Reconstruct signed message
-                let mut message = challenge.to_vec();
+                // Reconstruct signed message. Round-20 audit fix #6:
+                // Medium prepends a 0x02 domain tag so it is byte-
+                // distinguishable from Low (a Low proof now fails to
+                // verify against a Medium config and vice versa).
+                let mut message = vec![0x02];
+                message.extend_from_slice(challenge);
                 message.extend_from_slice(&timestamp_bytes);
 
                 crate::unified_api::convenience::ed25519::verify_ed25519_internal(
@@ -1228,8 +1246,12 @@ impl ZeroTrustAuth {
                     return Ok(false);
                 }
 
-                // Reconstruct signed message with public key binding
-                let mut message = challenge.to_vec();
+                // Reconstruct signed message with public key binding.
+                // Round-20 audit fix #6: High prepends a 0x03 domain
+                // tag so it is byte-distinguishable from both Low and
+                // Medium.
+                let mut message = vec![0x03];
+                message.extend_from_slice(challenge);
                 message.extend_from_slice(&timestamp_bytes);
                 message.extend_from_slice(self.public_key.as_slice());
 

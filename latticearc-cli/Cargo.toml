@@ -17,7 +17,7 @@ path = "src/main.rs"
 [dependencies]
 # `tracing-init` enables the library's `init_tracing` helpers (subscriber
 # wiring is the binary's job; pulling them in here is correct).
-latticearc = { path = "../latticearc", features = ["tracing-init"] }
+latticearc = { path = "../latticearc", version = "0.8", features = ["tracing-init"] }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
