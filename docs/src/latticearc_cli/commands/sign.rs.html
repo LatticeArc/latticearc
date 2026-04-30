@@ -255,7 +255,12 @@
 <a href=#255 id=255 data-nosnippet>255</a>        .write(<span class="kw-2">&amp;</span>output_path)
 <a href=#256 id=256 data-nosnippet>256</a>        .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, output_path.display()))<span class="question-mark">?</span>;
 <a href=#257 id=257 data-nosnippet>257</a>
-<a href=#258 id=258 data-nosnippet>258</a>    <span class="macro">eprintln!</span>(<span class="string">"Signature written to: {}"</span>, output_path.display());
-<a href=#259 id=259 data-nosnippet>259</a>    <span class="prelude-val">Ok</span>(())
-<a href=#260 id=260 data-nosnippet>260</a>}
+<a href=#258 id=258 data-nosnippet>258</a>    <span class="comment">// Round-21 audit fix #14: path on stderr leaked to process accounting
+<a href=#259 id=259 data-nosnippet>259</a>    // (auditd, strace) and log aggregators reading the FD. Path names
+<a href=#260 id=260 data-nosnippet>260</a>    // can be sensitive (project codenames, classified directories).
+<a href=#261 id=261 data-nosnippet>261</a>    // Demote to tracing::debug! — operators who want operational
+<a href=#262 id=262 data-nosnippet>262</a>    // confirmation can re-enable it via RUST_LOG.
+<a href=#263 id=263 data-nosnippet>263</a>    </span><span class="macro">tracing::debug!</span>(path = %output_path.display(), <span class="string">"signature written"</span>);
+<a href=#264 id=264 data-nosnippet>264</a>    <span class="prelude-val">Ok</span>(())
+<a href=#265 id=265 data-nosnippet>265</a>}
 </code></pre></div></section></main></body></html>

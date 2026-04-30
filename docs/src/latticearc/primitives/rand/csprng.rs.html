@@ -309,13 +309,16 @@
 <a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">let </span>total = ones + zeros;
 <a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>ones_ratio = ones <span class="kw">as </span>f64 / total <span class="kw">as </span>f64;
 <a href=#311 id=311 data-nosnippet>311</a>
-<a href=#312 id=312 data-nosnippet>312</a>        <span class="comment">// For a good CSPRNG, ratio should be close to 0.5
-<a href=#313 id=313 data-nosnippet>313</a>        // Allow reasonable deviation: 0.48 to 0.52
-<a href=#314 id=314 data-nosnippet>314</a>        </span><span class="macro">assert!</span>(
-<a href=#315 id=315 data-nosnippet>315</a>            ones_ratio &gt; <span class="number">0.48 </span>&amp;&amp; ones_ratio &lt; <span class="number">0.52</span>,
-<a href=#316 id=316 data-nosnippet>316</a>            <span class="string">"Monobit test failed: ones ratio = {}"</span>,
-<a href=#317 id=317 data-nosnippet>317</a>            ones_ratio
-<a href=#318 id=318 data-nosnippet>318</a>        );
-<a href=#319 id=319 data-nosnippet>319</a>    }
-<a href=#320 id=320 data-nosnippet>320</a>}
+<a href=#312 id=312 data-nosnippet>312</a>        <span class="comment">// For a good CSPRNG the 1-bit proportion converges to 0.5.
+<a href=#313 id=313 data-nosnippet>313</a>        // For 8000 bits, σ = sqrt(0.25/8000) ≈ 0.0056. The accepted
+<a href=#314 id=314 data-nosnippet>314</a>        // band of ±0.04 ≈ 7σ keeps false-positive rate below 1 in
+<a href=#315 id=315 data-nosnippet>315</a>        // 10^11 while still flagging catastrophic CSPRNG bias (a real
+<a href=#316 id=316 data-nosnippet>316</a>        // ≥4% bias is a 7σ event in this sample size).
+<a href=#317 id=317 data-nosnippet>317</a>        </span><span class="macro">assert!</span>(
+<a href=#318 id=318 data-nosnippet>318</a>            ones_ratio &gt; <span class="number">0.46 </span>&amp;&amp; ones_ratio &lt; <span class="number">0.54</span>,
+<a href=#319 id=319 data-nosnippet>319</a>            <span class="string">"Monobit test failed: ones ratio = {}"</span>,
+<a href=#320 id=320 data-nosnippet>320</a>            ones_ratio
+<a href=#321 id=321 data-nosnippet>321</a>        );
+<a href=#322 id=322 data-nosnippet>322</a>    }
+<a href=#323 id=323 data-nosnippet>323</a>}
 </code></pre></div></section></main></body></html>
