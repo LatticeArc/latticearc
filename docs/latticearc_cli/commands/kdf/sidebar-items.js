@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["OWASP_PBKDF2_MIN_ITERATIONS"],"enum":["KdfAlgorithm"],"fn":["derive_hkdf_with_input","derive_pbkdf2_with_input","resolve_input","run"],"struct":["KdfArgs"]};
+window.SIDEBAR_ITEMS = {"constant":["CLI_MAX_KDF_OUTPUT_LEN","OWASP_PBKDF2_MIN_ITERATIONS"],"enum":["KdfAlgorithm"],"fn":["derive_hkdf_with_input","derive_pbkdf2_with_input","resolve_input","run"],"struct":["KdfArgs"]};
