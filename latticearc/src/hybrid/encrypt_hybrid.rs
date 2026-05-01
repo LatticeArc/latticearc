@@ -45,7 +45,7 @@
 //! # }
 //! ```
 
-use crate::hybrid::kem_hybrid::{self, EncapsulatedKey, HybridKemPublicKey, HybridKemSecretKey};
+use crate::hybrid::kem_hybrid::{self, HybridKemPublicKey, HybridKemSecretKey};
 use crate::log_crypto_operation_error;
 use crate::primitives::aead::aes_gcm::AesGcm256;
 use crate::primitives::aead::{AeadCipher, NONCE_LEN, TAG_LEN};
@@ -143,8 +143,13 @@ impl HybridCiphertext {
         &self.kem_ciphertext
     }
 
-    /// Returns the X25519 ephemeral public key bytes.
-    /// Empty for legacy ML-KEM-only ciphertexts.
+    /// Returns the X25519 ephemeral public key bytes (always 32 bytes).
+    ///
+    /// The legacy "empty for ML-KEM-only ciphertexts" contract was
+    /// always dead — `decrypt_hybrid` rejected anything other than 32
+    /// bytes. See the field doc on
+    /// [`HybridCiphertext::ecdh_ephemeral_pk`] above for the round-20
+    /// audit trail.
     #[must_use]
     pub fn ecdh_ephemeral_pk(&self) -> &[u8] {
         &self.ecdh_ephemeral_pk
@@ -466,7 +471,12 @@ pub fn encrypt_hybrid(
     // side cause goes to `tracing::debug!` for operator debugging.
     if ctx.aad.len() > HybridEncryptionContext::MAX_AAD_LEN {
         log_crypto_operation_error!(op::HYBRID_ENCRYPT, "AAD exceeds MAX_AAD_LEN");
-        return Err(HybridEncryptionError::InvalidInput("invalid input".to_string()));
+        // Use the same opaque envelope as KEM / AEAD failures so the
+        // returned error variant cannot be used by an adversary varying
+        // wire-supplied AAD to distinguish "AAD-overflow" from
+        // "encapsulation failed" / "encryption failed". Source-side
+        // cause is preserved in the `tracing::debug!` line above.
+        return Err(opaque_enc());
     }
 
     // Hybrid KEM encapsulation (ML-KEM-768 + X25519 ECDH + HKDF)
@@ -569,18 +579,16 @@ pub fn decrypt_hybrid(
         return Err(opaque());
     }
 
-    // Reconstruct EncapsulatedKey for kem_hybrid::decapsulate. The
-    // shared_secret field is a placeholder here — `decapsulate` recovers
-    // the real shared secret from `sk` and the `ml_kem_ct`/`ecdh_pk`
-    // components. Use a zeroed SecretBytes<64> of the correct shape.
-    let encapsulated = EncapsulatedKey::new(
-        ciphertext.kem_ciphertext().to_vec(),
-        ciphertext.ecdh_ephemeral_pk().to_vec(),
-        crate::types::SecretBytes::zero(),
-    );
-
-    // Hybrid KEM decapsulation (ML-KEM + X25519 ECDH + HKDF)
-    let shared_secret = kem_hybrid::decapsulate(hybrid_sk, &encapsulated).map_err(|_e| {
+    // Hybrid KEM decapsulation (ML-KEM + X25519 ECDH + HKDF). The
+    // `_from_parts` entry point takes the two ciphertext halves
+    // directly — building a full `EncapsulatedKey` here would require
+    // a placeholder shared-secret value that `decapsulate` never reads.
+    let shared_secret = kem_hybrid::decapsulate_from_parts(
+        hybrid_sk,
+        ciphertext.kem_ciphertext(),
+        ciphertext.ecdh_ephemeral_pk(),
+    )
+    .map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_DECRYPT, "KEM decapsulation failed");
         opaque()
     })?;

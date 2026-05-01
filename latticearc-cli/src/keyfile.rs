@@ -471,28 +471,10 @@ pub(crate) fn parse_hybrid_kem_pk_from_bytes(
     ))
 }
 
-/// Parse an algorithm name string to `KeyAlgorithm`.
+/// Parse an algorithm name string to `KeyAlgorithm`. Delegates to the
+/// library's [`KeyAlgorithm::from_canonical_name`] so the CLI and the
+/// `from_legacy_json` parser share one source of truth — no risk of
+/// drift when a new wire name is added.
 fn parse_algorithm_name(name: &str) -> Option<KeyAlgorithm> {
-    match name {
-        "ml-kem-512" => Some(KeyAlgorithm::MlKem512),
-        "ml-kem-768" => Some(KeyAlgorithm::MlKem768),
-        "ml-kem-1024" => Some(KeyAlgorithm::MlKem1024),
-        "ml-dsa-44" => Some(KeyAlgorithm::MlDsa44),
-        "ml-dsa-65" => Some(KeyAlgorithm::MlDsa65),
-        "ml-dsa-87" => Some(KeyAlgorithm::MlDsa87),
-        "slh-dsa-shake-128s" => Some(KeyAlgorithm::SlhDsaShake128s),
-        "fn-dsa-512" => Some(KeyAlgorithm::FnDsa512),
-        "fn-dsa-1024" => Some(KeyAlgorithm::FnDsa1024),
-        "ed25519" => Some(KeyAlgorithm::Ed25519),
-        "x25519" => Some(KeyAlgorithm::X25519),
-        "aes-256" => Some(KeyAlgorithm::Aes256),
-        "chacha20" => Some(KeyAlgorithm::ChaCha20),
-        "hybrid-ml-kem-768-x25519" => Some(KeyAlgorithm::HybridMlKem768X25519),
-        "hybrid-ml-kem-512-x25519" => Some(KeyAlgorithm::HybridMlKem512X25519),
-        "hybrid-ml-kem-1024-x25519" => Some(KeyAlgorithm::HybridMlKem1024X25519),
-        "hybrid-ml-dsa-65-ed25519" => Some(KeyAlgorithm::HybridMlDsa65Ed25519),
-        "hybrid-ml-dsa-44-ed25519" => Some(KeyAlgorithm::HybridMlDsa44Ed25519),
-        "hybrid-ml-dsa-87-ed25519" => Some(KeyAlgorithm::HybridMlDsa87Ed25519),
-        _ => None,
-    }
+    KeyAlgorithm::from_canonical_name(name)
 }

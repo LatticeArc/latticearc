@@ -292,12 +292,18 @@ impl<P: SigmaProtocol> FiatShamir<P> {
                 .saturating_add(4)
                 .saturating_add(context.len()),
         );
+        // Length prefixes are big-endian to match the hybrid-layer
+        // transcript constructors (`hybrid::kem_hybrid`,
+        // `hybrid::encrypt_hybrid`). Note that `zkp::commitment` uses
+        // its own domain-separated transcripts that retain a different
+        // byte order for historical compatibility — they don't intermix
+        // with the Fiat-Shamir transcript here.
         buf.extend_from_slice(&self.domain_separator);
-        buf.extend_from_slice(&statement_len.to_le_bytes());
+        buf.extend_from_slice(&statement_len.to_be_bytes());
         buf.extend_from_slice(&statement_bytes);
-        buf.extend_from_slice(&commitment_len.to_le_bytes());
+        buf.extend_from_slice(&commitment_len.to_be_bytes());
         buf.extend_from_slice(commitment);
-        buf.extend_from_slice(&context_len.to_le_bytes());
+        buf.extend_from_slice(&context_len.to_be_bytes());
         buf.extend_from_slice(context);
 
         // ZKP payloads are always well below the 1 GiB SHA-256 DoS cap.

@@ -180,18 +180,24 @@ impl SchnorrProver {
     /// # Errors
     /// Returns an error if key serialization fails.
     pub fn new() -> Result<(Self, [u8; 33])> {
-        let secret_bytes = crate::primitives::rand::csprng::random_bytes(32);
-        let secret_key = SecretKey::from_slice(&secret_bytes)
+        // The k256 source `SecretKey` zeroizes its internal scalar on
+        // drop, but `secret_key.to_bytes().into()` materialises a plain
+        // `[u8; 32]` whose stack slot does not zero on shadowing/move.
+        // Wrap that intermediate copy in `Zeroizing<[u8; 32]>` so when
+        // the inner bytes are copied into `Self` the outer slot is wiped.
+        let initial_bytes = crate::primitives::rand::csprng::random_bytes(32);
+        let secret_key = SecretKey::from_slice(&initial_bytes)
             .map_err(|e| ZkpError::SerializationError(format!("Invalid secret key: {e}")))?;
         let public_key = secret_key.public_key();
 
-        let secret_bytes: [u8; 32] = secret_key.to_bytes().into();
+        let secret_bytes_zeroizing: zeroize::Zeroizing<[u8; 32]> =
+            zeroize::Zeroizing::new(secret_key.to_bytes().into());
         let public_bytes: [u8; 33] = <[u8; 33]>::try_from(public_key.to_sec1_bytes().as_ref())
             .map_err(|e| {
                 ZkpError::SerializationError(format!("Failed to serialize public key: {}", e))
             })?;
 
-        let prover = Self { secret: secret_bytes, public_key: public_bytes };
+        let prover = Self { secret: *secret_bytes_zeroizing, public_key: public_bytes };
 
         Ok((prover, public_bytes))
     }

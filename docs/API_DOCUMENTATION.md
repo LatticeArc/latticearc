@@ -64,7 +64,7 @@ int encrypted_len = RSA_public_encrypt(data_len, data, encrypted,
 
 ```rust
 // After (LatticeArc — 2 lines, quantum-safe)
-let key = [0x42u8; 32];
+let key = latticearc::primitives::rand::random_bytes(32);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
 ```
@@ -97,7 +97,7 @@ byte[] encrypted = cipher.doFinal(plaintext);
 
 ```rust
 // After (LatticeArc)
-let key = [0x42u8; 32];
+let key = latticearc::primitives::rand::random_bytes(32);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key),
     CryptoConfig::new().force_scheme(CryptoScheme::Symmetric))?;
 ```
@@ -113,7 +113,7 @@ use latticearc::{encrypt, decrypt, CryptoConfig, CryptoScheme, UseCase, Security
                  EncryptKey, DecryptKey};
 
 // Simple symmetric encryption
-let key = [0x42u8; 32];
+let key = latticearc::primitives::rand::random_bytes(32);
 let config = CryptoConfig::new().force_scheme(CryptoScheme::Symmetric);
 let encrypted = encrypt(data, EncryptKey::Symmetric(&key), config)?;
 

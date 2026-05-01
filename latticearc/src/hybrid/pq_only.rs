@@ -332,6 +332,23 @@ pub fn encrypt_pq_only(
     pk: &PqOnlyPublicKey,
     plaintext: &[u8],
 ) -> Result<PqOnlyCiphertext, PqOnlyError> {
+    encrypt_pq_only_with_aad(pk, plaintext, &[])
+}
+
+/// PQ-only encrypt with associated data bound into the AEAD tag.
+///
+/// `aad` is authenticated but not encrypted — it must be supplied
+/// byte-identical at decrypt time. Pass `&[]` if the caller has no
+/// associated data (equivalent to [`encrypt_pq_only`]).
+///
+/// # Errors
+///
+/// Returns an error if encapsulation, key derivation, or encryption fails.
+pub fn encrypt_pq_only_with_aad(
+    pk: &PqOnlyPublicKey,
+    plaintext: &[u8],
+    aad: &[u8],
+) -> Result<PqOnlyCiphertext, PqOnlyError> {
     // Encrypt-side opacity (defense-in-depth per Pattern 6).
     let (shared_secret, kem_ct) = MlKem::encapsulate(pk.ml_kem_pk()).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "ML-KEM encapsulation failed");
@@ -359,7 +376,10 @@ pub fn encrypt_pq_only(
         PqOnlyError::EncryptionError("encryption failed".to_string())
     })?;
     let nonce = AesGcm256::generate_nonce();
-    let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, None).map_err(|_e| {
+    // `Some(&[])` and `None` produce byte-identical AES-GCM output —
+    // empty AAD just means a zero-byte GHASH input. Pass through
+    // unconditionally rather than branching on `aad.is_empty()`.
+    let (ciphertext, tag) = cipher.encrypt(&nonce, plaintext, Some(aad)).map_err(|_e| {
         log_crypto_operation_error!(op::PQ_ONLY_ENCRYPT, "AES-GCM seal failed");
         PqOnlyError::EncryptionError("encryption failed".to_string())
     })?;
@@ -403,11 +423,31 @@ pub fn decrypt_pq_only(
     nonce: &[u8; 12],
     tag: &[u8; TAG_LEN],
 ) -> Result<Zeroizing<Vec<u8>>, PqOnlyError> {
+    decrypt_pq_only_with_aad(sk, kem_ciphertext, symmetric_ciphertext, nonce, tag, &[])
+}
+
+/// PQ-only decrypt with associated data — must match the value supplied
+/// at encrypt time.
+///
+/// # Errors
+///
+/// Returns an opaque `DecryptionError` for all adversary-reachable
+/// failure paths (KEM parse / decapsulation / KDF / AEAD tag mismatch),
+/// matching the opacity of [`decrypt_pq_only`].
+pub fn decrypt_pq_only_with_aad(
+    sk: &PqOnlySecretKey,
+    kem_ciphertext: &[u8],
+    symmetric_ciphertext: &[u8],
+    nonce: &[u8; 12],
+    tag: &[u8; TAG_LEN],
+    aad: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, PqOnlyError> {
     // All adversary-reachable failure paths collapse to one opaque RETURNED
     // error. Adversary controls `kem_ciphertext`, `symmetric_ciphertext`,
-    // `nonce`, and `tag`; distinguishing "parse fail" vs "crypto fail" vs
-    // "AEAD tag fail" would be a per-stage oracle. Internal tracing logs
-    // keep the specific reason so operators can debug via correlation IDs.
+    // `nonce`, `tag`, and `aad`; distinguishing "parse fail" vs "crypto
+    // fail" vs "AEAD tag fail" would be a per-stage oracle. Internal
+    // tracing logs keep the specific reason so operators can debug via
+    // correlation IDs.
     let opaque = || PqOnlyError::DecryptionError("decryption failed".to_string());
 
     let ct = MlKemCiphertext::new(sk.security_level(), kem_ciphertext.to_vec()).map_err(|_e| {
@@ -432,7 +472,7 @@ pub fn decrypt_pq_only(
         log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AES-256 init failed");
         opaque()
     })?;
-    cipher.decrypt(nonce, symmetric_ciphertext, tag, None).map_err(|_aead_err| {
+    cipher.decrypt(nonce, symmetric_ciphertext, tag, Some(aad)).map_err(|_aead_err| {
         log_crypto_operation_error!(op::PQ_ONLY_DECRYPT, "AEAD authentication failed");
         opaque()
     })

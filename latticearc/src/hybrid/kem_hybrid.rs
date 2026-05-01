@@ -769,22 +769,47 @@ pub fn decapsulate(
     sk: &HybridKemSecretKey,
     ct: &EncapsulatedKey,
 ) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
+    // The `shared_secret` field of `EncapsulatedKey` is irrelevant on
+    // the decapsulate side — the secret is recovered from `sk` and the
+    // KEM/ECDH ciphertexts. Forward to `decapsulate_from_parts` which
+    // takes only the parts that are actually used. Callers that
+    // already have a full `EncapsulatedKey` keep this entry point;
+    // callers that have separate ciphertext slices should prefer
+    // `decapsulate_from_parts` to avoid building a placeholder
+    // shared-secret value.
+    decapsulate_from_parts(sk, ct.ml_kem_ct.as_slice(), ct.ecdh_pk.as_slice())
+}
+
+/// Hybrid KEM decapsulation from raw ciphertext parts.
+///
+/// Equivalent to [`decapsulate`] but takes the ML-KEM ciphertext and
+/// X25519 ephemeral public key directly, avoiding the need to build an
+/// [`EncapsulatedKey`] whose `shared_secret` field is unused on this
+/// path.
+///
+/// # Errors
+///
+/// Same as [`decapsulate`] — every failure path collapses to opaque
+/// `DecapsulationFailed`.
+pub fn decapsulate_from_parts(
+    sk: &HybridKemSecretKey,
+    ml_kem_ct: &[u8],
+    ecdh_pk: &[u8],
+) -> Result<crate::types::SecretBytes<HYBRID_SHARED_SECRET_LEN>, HybridKemError> {
     // Pattern 6 (opaque return + internal trace): every failure path
     // collapses to `DecapsulationFailed` for the caller (oracle prevention
     // — see [`HybridKemError::DecapsulationFailed`]) but emits a per-stage
     // `log_crypto_operation_error!` with a stable stage tag so operators
     // can debug via correlation_id without the API surface leaking.
-    // `|_e|` (rather than `|_|`) names the dropped error so clippy's
-    // `map_err_ignore` lint accepts the intentional loss.
     let opaque = || HybridKemError::DecapsulationFailed;
 
-    if ct.ecdh_pk.len() != X25519_KEY_SIZE {
+    if ecdh_pk.len() != X25519_KEY_SIZE {
         log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "ECDH PK length invalid");
         return Err(opaque());
     }
 
-    let ml_kem_ct_struct = MlKemCiphertext::new(sk.security_level(), ct.ml_kem_ct.clone())
-        .map_err(|_e| {
+    let ml_kem_ct_struct =
+        MlKemCiphertext::new(sk.security_level(), ml_kem_ct.to_vec()).map_err(|_e| {
             log_crypto_operation_error!(
                 op::HYBRID_KEM_DECAPSULATE,
                 "ML-KEM CT construction failed"
@@ -801,7 +826,7 @@ pub fn decapsulate(
         return Err(opaque());
     }
 
-    let ecdh_shared_secret = sk.ecdh_agree(&ct.ecdh_pk).map_err(|_e| {
+    let ecdh_shared_secret = sk.ecdh_agree(ecdh_pk).map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "ECDH agree failed");
         opaque()
     })?;
@@ -811,8 +836,8 @@ pub fn decapsulate(
         ml_kem_ss: ml_kem_ss.expose_secret(),
         ecdh_ss: &*ecdh_shared_secret,
         static_pk: &static_public,
-        ephemeral_pk: ct.ecdh_pk.as_slice(),
-        kem_ct: ct.ml_kem_ct.as_slice(),
+        ephemeral_pk: ecdh_pk,
+        kem_ct: ml_kem_ct,
     })
     .map_err(|_e| {
         log_crypto_operation_error!(op::HYBRID_KEM_DECAPSULATE, "HKDF combiner failed");

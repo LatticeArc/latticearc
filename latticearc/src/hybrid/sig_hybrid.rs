@@ -567,36 +567,46 @@ pub fn verify(
     // bit = 0, which is indistinguishable from a verify failure — exactly
     // what Pattern 6 §"adversary-reachable paths" requires.
 
-    // Verify ML-DSA — parse + verify fold into one bit (0 = fail, 1 = ok).
-    // Runs unconditionally; no `?` early-returns. `from_bytes` internally does
-    // a `to_vec()` (identical allocation cost to the prior `.clone()` form);
-    // choice is stylistic — accepts `&[u8]` at the call site.
+    // Timing equalizer — see `crate::hybrid::verify_equalizer` for the
+    // full rationale. Briefly: select shape-correct bytes (real or
+    // zero-byte dummy) and run `from_bytes` + `verify` once on the
+    // selection so the wall-clock cost is identical for shape-fail
+    // and verify-fail.
     //
-    // Per-stage tracing previously distinguished ML-DSA-parse /
-    // ML-DSA-verify / Ed25519-parse / Ed25519-verify failures by
-    // emitting four distinct error strings under `op::HYBRID_VERIFY`.
-    // That made the Pattern 6 returned-error opacity reconstructable
-    // from the debug log: anyone with read access to the
-    // `crypto::operation` channel learned exactly which sub-stage
-    // failed. Operators still get a "verify failure occurred" signal
-    // for alerting; the granular sub-stage detail is intentionally
-    // dropped (see `docs/DESIGN_PATTERNS.md` Pattern 6 + the
-    // observability section in SECURITY.md).
-    let ml_dsa_pk_parsed = MlDsaPublicKey::from_bytes(&pk.ml_dsa_pk, pk.parameter_set);
-    let ml_dsa_sig_parsed = MlDsaSignature::from_bytes(&sig.ml_dsa_sig, pk.parameter_set);
-    let ml_dsa_valid: u8 = match (ml_dsa_pk_parsed, ml_dsa_sig_parsed) {
-        (Ok(ml_dsa_pk_struct), Ok(ml_dsa_sig_struct)) => {
-            match ml_dsa_pk_struct.verify(message, &ml_dsa_sig_struct, &[]) {
-                Ok(true) => 1u8,
-                _ => 0u8,
-            }
-        }
-        _ => 0u8,
-    };
+    // Per-stage `tracing` was previously emitted under four distinct
+    // sub-stage tags; that made the Pattern 6 returned-error opacity
+    // reconstructable from the debug log. Operators still get a
+    // single "verify failure occurred" event for alerting; the
+    // granular sub-stage detail is intentionally dropped (see
+    // `docs/DESIGN_PATTERNS.md` Pattern 6).
+    let dummy = crate::hybrid::verify_equalizer::hybrid_verify_dummy_material(pk.parameter_set);
 
-    // Verify Ed25519 — always execute regardless of ML-DSA outcome.
-    // If the signature bytes can't even parse into a valid structure, treat it as
-    // verification failure (bit = 0) rather than returning a distinguishable error.
+    let pq_pk_len = pk.parameter_set.public_key_size();
+    let pq_sig_len = pk.parameter_set.signature_size();
+    let pq_shape_ok = pk.ml_dsa_pk.len() == pq_pk_len && sig.ml_dsa_sig.len() == pq_sig_len;
+    let (pq_pk_bytes, pq_sig_bytes): (&[u8], &[u8]) = if pq_shape_ok {
+        (&pk.ml_dsa_pk, &sig.ml_dsa_sig)
+    } else {
+        (dummy.pq_pk.as_slice(), dummy.pq_sig.as_slice())
+    };
+    let parsed_pk = MlDsaPublicKey::from_bytes(pq_pk_bytes, pk.parameter_set).map_err(|_e| {
+        HybridSignatureError::VerificationFailed("hybrid signature verification failed".to_string())
+    })?;
+    let parsed_sig = MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set).map_err(|_e| {
+        HybridSignatureError::VerificationFailed("hybrid signature verification failed".to_string())
+    })?;
+    let ml_dsa_verify_result = parsed_pk.verify(message, &parsed_sig, &[]);
+    // Bit is 1 only when the real input passed shape-check AND the
+    // verify returned Ok(true). When shape failed the verify still
+    // ran (against the dummy) for timing equalization; its result is
+    // discarded by the AND with `pq_shape_ok`.
+    let ml_dsa_valid: u8 =
+        if pq_shape_ok && matches!(ml_dsa_verify_result, Ok(true)) { 1u8 } else { 0u8 };
+
+    // Verify Ed25519. The Ed25519 parse is a simple length check — its
+    // wall-clock cost is in the same order of magnitude as the verify
+    // itself, so a parse-vs-verify timing oracle on this leg is
+    // negligible. Keep the original short-circuit shape for clarity.
     let ed25519_valid: u8 =
         match Ed25519SignatureOps::signature_from_bytes(sig.ed25519_sig.as_slice()) {
             Ok(ed25519_signature) => {

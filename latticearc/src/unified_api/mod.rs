@@ -474,36 +474,70 @@ fn run_power_up_self_tests() -> Result<()> {
         });
     }
 
-    // Test 2: AES-GCM encryption/decryption via the primitives wrapper.
-    // Going through AesGcm256 ensures the self-test exercises the same path
-    // that production crypto code uses (ZeroizeOnDrop, AeadError::WeakKey
-    // rejection, etc.), not a bare aws-lc-rs call that could diverge over time.
+    // Test 2: AES-256-GCM Known Answer Test against a fixed NIST CAVP
+    // vector. Source: NIST Cryptographic Algorithm Validation Program
+    // GCM Test Vectors, file `gcmEncryptExtIV256.rsp`, Count = 0:
+    //   Key   = b52c505a37d78eda5dd34f20c22540ea1b58963cf8e5bf8ffa85f9f2492505b4
+    //   IV    = 516c33929df5a3284ff463d7
+    //   PT    = (empty)
+    //   AAD   = (empty)
+    //   CT    = (empty)
+    //   Tag   = bdc1ac884d332457a1d2664f168c76f0
+    // Verifying both encrypt-side ciphertext+tag and decrypt-side plaintext
+    // catches backend miscompilation, table corruption, S-box errors, and
+    // any drift in AesGcm256's wrapper logic — failure modes the previous
+    // randomized roundtrip could not detect.
     use crate::primitives::aead::AeadCipher;
     use crate::primitives::aead::aes_gcm::AesGcm256;
 
-    let key = AesGcm256::generate_key();
-    let cipher = AesGcm256::new(&*key).map_err(|e| CoreError::SelfTestFailed {
+    const KAT_KEY: [u8; 32] = [
+        0xb5, 0x2c, 0x50, 0x5a, 0x37, 0xd7, 0x8e, 0xda, 0x5d, 0xd3, 0x4f, 0x20, 0xc2, 0x25, 0x40,
+        0xea, 0x1b, 0x58, 0x96, 0x3c, 0xf8, 0xe5, 0xbf, 0x8f, 0xfa, 0x85, 0xf9, 0xf2, 0x49, 0x25,
+        0x05, 0xb4,
+    ];
+    const KAT_NONCE: [u8; 12] =
+        [0x51, 0x6c, 0x33, 0x92, 0x9d, 0xf5, 0xa3, 0x28, 0x4f, 0xf4, 0x63, 0xd7];
+    const KAT_EXPECTED_TAG: [u8; 16] = [
+        0xbd, 0xc1, 0xac, 0x88, 0x4d, 0x33, 0x24, 0x57, 0xa1, 0xd2, 0x66, 0x4f, 0x16, 0x8c, 0x76,
+        0xf0,
+    ];
+
+    let cipher = AesGcm256::new(&KAT_KEY).map_err(|e| CoreError::SelfTestFailed {
         component: "AES-GCM".to_string(),
         status: format!("key creation failed: {e}"),
     })?;
-    let nonce = AesGcm256::generate_nonce();
 
-    let plaintext = b"test message for AES-GCM";
+    // Encrypt-side KAT: empty plaintext, empty AAD, fixed key+IV → fixed tag.
     let (ct, tag) =
-        cipher.encrypt(&nonce, plaintext, None).map_err(|e| CoreError::SelfTestFailed {
+        cipher.encrypt(&KAT_NONCE, &[], None).map_err(|e| CoreError::SelfTestFailed {
             component: "AES-GCM".to_string(),
             status: format!("encryption failed: {e}"),
         })?;
-    let decrypted =
-        cipher.decrypt(&nonce, &ct, &tag, None).map_err(|e| CoreError::SelfTestFailed {
-            component: "AES-GCM".to_string(),
-            status: format!("decryption failed: {e}"),
-        })?;
-
-    if !bool::from(subtle::ConstantTimeEq::ct_eq(decrypted.as_slice(), &plaintext[..])) {
+    if !ct.is_empty() {
         return Err(CoreError::SelfTestFailed {
             component: "AES-GCM".to_string(),
-            status: "decryption mismatch".to_string(),
+            status: "KAT ciphertext should be empty".to_string(),
+        });
+    }
+    if !bool::from(subtle::ConstantTimeEq::ct_eq(&tag[..], &KAT_EXPECTED_TAG[..])) {
+        return Err(CoreError::SelfTestFailed {
+            component: "AES-GCM".to_string(),
+            status: "KAT tag mismatch".to_string(),
+        });
+    }
+
+    // Decrypt-side KAT: round-trip the fixed (CT, tag) back to the empty
+    // plaintext. Verifies decrypt path against the same fixed vector.
+    let decrypted = cipher.decrypt(&KAT_NONCE, &[], &KAT_EXPECTED_TAG, None).map_err(|e| {
+        CoreError::SelfTestFailed {
+            component: "AES-GCM".to_string(),
+            status: format!("KAT decryption failed: {e}"),
+        }
+    })?;
+    if !decrypted.is_empty() {
+        return Err(CoreError::SelfTestFailed {
+            component: "AES-GCM".to_string(),
+            status: "KAT decrypted plaintext should be empty".to_string(),
         });
     }
 

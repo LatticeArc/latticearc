@@ -75,10 +75,11 @@ use crate::unified_api::{
     types::{AlgorithmSelection, CryptoConfig, SignedData, SignedMetadata},
 };
 
-use super::aes_gcm::{decrypt_aes_gcm_internal, encrypt_aes_gcm_internal};
+use super::aes_gcm::{decrypt_aes_gcm_with_aad_internal, encrypt_aes_gcm_with_aad_internal};
 use super::ed25519::{sign_ed25519_internal, verify_ed25519_internal};
 use super::keygen::{
-    generate_fn_dsa_keypair, generate_keypair, generate_ml_dsa_keypair, generate_slh_dsa_keypair,
+    generate_fn_dsa_keypair_with_level, generate_keypair, generate_ml_dsa_keypair,
+    generate_slh_dsa_keypair,
 };
 use super::pq_sig::{
     sign_pq_fn_dsa_unverified, sign_pq_ml_dsa_unverified, sign_pq_slh_dsa_unverified,
@@ -263,9 +264,12 @@ fn select_signature_scheme(options: &CryptoConfig) -> Result<String> {
     }
 }
 
-/// ChaCha20-Poly1305 encrypt (format: nonce || ciphertext || tag)
+/// ChaCha20-Poly1305 encrypt (format: nonce || ciphertext || tag).
+///
+/// `aad` is bound into the AEAD tag — the same value must be supplied
+/// at decrypt time. Pass `&[]` if the caller has no associated data.
 #[cfg(not(feature = "fips"))]
-fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+fn encrypt_chacha20_internal(data: &[u8], key: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
     use crate::primitives::aead::AeadError;
     let cipher = ChaCha20Poly1305Cipher::new(key).map_err(|e| match e {
         // Distinguish all-zero (and other future weak-key) rejection from
@@ -280,8 +284,12 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         _ => CoreError::InvalidKeyLength { expected: 32, actual: key.len() },
     })?;
     let nonce = ChaCha20Poly1305Cipher::generate_nonce();
+    // Empty AAD is the no-AAD case; pass through directly. The
+    // underlying `AeadCipher::encrypt` accepts `Option<&[u8]>` for
+    // historical reasons, but `Some(&[])` and `None` produce
+    // byte-identical output.
     let (ciphertext, tag) = cipher
-        .encrypt(&nonce, data, None)
+        .encrypt(&nonce, data, Some(aad))
         .map_err(|e| CoreError::EncryptionFailed(e.to_string()))?;
     // Format: nonce (12) || ciphertext || tag (16)
     let mut result =
@@ -292,9 +300,16 @@ fn encrypt_chacha20_internal(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     Ok(result)
 }
 
-/// ChaCha20-Poly1305 decrypt (expects: nonce || ciphertext || tag)
+/// ChaCha20-Poly1305 decrypt (expects: nonce || ciphertext || tag).
+///
+/// `aad` must match the value supplied at encrypt time (or be empty if
+/// the encrypt path used no AAD).
 #[cfg(not(feature = "fips"))]
-fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
+fn decrypt_chacha20_internal(
+    encrypted: &[u8],
+    key: &[u8],
+    aad: &[u8],
+) -> Result<Zeroizing<Vec<u8>>> {
     // All adversary-reachable parse/auth failures collapse to one opaque
     // returned error (HPKE RFC 9180 §5.2 / SP 800-38D §5.2.2). Internal
     // `tracing` logs keep the specific reason so operators can debug via
@@ -338,7 +353,10 @@ fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<V
         ),
         _ => CoreError::InvalidKeyLength { expected: 32, actual: key.len() },
     })?;
-    cipher.decrypt(&nonce, ciphertext, &tag, None).map_err(|_aead_err| {
+    // `Some(&[])` produces a zero-byte GHASH input, byte-identical to
+    // `None` per RFC 8439 §2.8. Pass through unconditionally to match
+    // the encrypt-side path.
+    cipher.decrypt(&nonce, ciphertext, &tag, Some(aad)).map_err(|_aead_err| {
         log_crypto_operation_error!(op::CHACHA20_DECRYPT, "AEAD authentication failed");
         opaque()
     })
@@ -386,6 +404,26 @@ fn decrypt_chacha20_internal(encrypted: &[u8], key: &[u8]) -> Result<Zeroizing<V
 /// - Encryption operation fails
 #[must_use = "encryption result must be used or errors will be silently dropped"]
 pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result<EncryptedOutput> {
+    encrypt_with_aad(data, key, config, &[])
+}
+
+/// Encrypt with associated data (AAD) bound into the AEAD tag.
+///
+/// `aad` is authenticated but not encrypted — any modification to the
+/// ciphertext or to the AAD on the wire is detected at decrypt time.
+/// Must be supplied byte-identical to [`decrypt_with_aad`]; pass `&[]`
+/// if no AAD is needed (equivalent to [`encrypt`]).
+///
+/// # Errors
+///
+/// Same as [`encrypt`].
+#[must_use = "encryption result must be used or errors will be silently dropped"]
+pub fn encrypt_with_aad(
+    data: &[u8],
+    key: EncryptKey<'_>,
+    config: CryptoConfig,
+    aad: &[u8],
+) -> Result<EncryptedOutput> {
     fips_verify_operational()?;
     config.validate()?;
 
@@ -401,17 +439,18 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
     log_crypto_operation_start!(op::ENCRYPT, scheme = %scheme, data_size = data.len());
 
     let output = match (&key, &scheme) {
-        // Symmetric AES-256-GCM
+        // Symmetric AES-256-GCM. `_with_aad_internal` accepts empty
+        // AAD (treats it as the no-AAD case) — no need to dispatch.
         (EncryptKey::Symmetric(k), EncryptionScheme::Aes256Gcm) => {
             validate_aes256_key_length(k)?;
-            let encrypted = encrypt_aes_gcm_internal(data, k)?;
+            let encrypted = encrypt_aes_gcm_with_aad_internal(data, k, aad)?;
             symmetric_bytes_to_output(scheme, &encrypted)?
         }
         // Symmetric ChaCha20-Poly1305 (non-FIPS only)
         #[cfg(not(feature = "fips"))]
         (EncryptKey::Symmetric(k), EncryptionScheme::ChaCha20Poly1305) => {
             validate_aes256_key_length(k)?;
-            let encrypted = encrypt_chacha20_internal(data, k)?;
+            let encrypted = encrypt_chacha20_internal(data, k, aad)?;
             symmetric_bytes_to_output(scheme, &encrypted)?
         }
         #[cfg(feature = "fips")]
@@ -422,7 +461,12 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
         }
         // Hybrid ML-KEM + X25519 + HKDF + AES-256-GCM
         (EncryptKey::Hybrid(pk), _) if scheme.requires_hybrid_key() => {
-            let ct = encrypt_hybrid(pk, data, None).map_err(|e| {
+            let ctx = if aad.is_empty() {
+                None
+            } else {
+                Some(crate::hybrid::encrypt_hybrid::HybridEncryptionContext::with_aad(aad.to_vec()))
+            };
+            let ct = encrypt_hybrid(pk, data, ctx.as_ref()).map_err(|e| {
                 CoreError::EncryptionFailed(format!("Hybrid encryption failed: {}", e))
             })?;
             let timestamp = current_timestamp();
@@ -441,7 +485,7 @@ pub fn encrypt(data: &[u8], key: EncryptKey<'_>, config: CryptoConfig) -> Result
         }
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
         (EncryptKey::PqOnly(pk), _) if scheme.requires_pq_key() => {
-            let ct = pq_only::encrypt_pq_only(pk, data).map_err(|e| {
+            let ct = pq_only::encrypt_pq_only_with_aad(pk, data, aad).map_err(|e| {
                 CoreError::EncryptionFailed(format!("PQ-only encryption failed: {}", e))
             })?;
             let timestamp = current_timestamp();
@@ -530,6 +574,26 @@ pub fn decrypt(
     key: DecryptKey<'_>,
     config: CryptoConfig,
 ) -> Result<Zeroizing<Vec<u8>>> {
+    decrypt_with_aad(encrypted, key, config, &[])
+}
+
+/// Decrypt with associated data — must match the value supplied to
+/// [`encrypt_with_aad`].
+///
+/// Pass `&[]` if the encrypt path used no AAD (equivalent to
+/// [`decrypt`]).
+///
+/// # Errors
+///
+/// Same as [`decrypt`]. AEAD authentication failure (including AAD
+/// mismatch) collapses to an opaque `DecryptionFailed`.
+#[must_use = "decryption result must be used or errors will be silently dropped"]
+pub fn decrypt_with_aad(
+    encrypted: &EncryptedOutput,
+    key: DecryptKey<'_>,
+    config: CryptoConfig,
+    aad: &[u8],
+) -> Result<Zeroizing<Vec<u8>>> {
     fips_verify_operational()?;
     config.validate()?;
     config.validate_scheme_compliance(encrypted.scheme().as_str())?;
@@ -571,16 +635,17 @@ pub fn decrypt(
     })?;
 
     let result: Result<Zeroizing<Vec<u8>>> = match (&key, encrypted.scheme()) {
-        // Symmetric AES-256-GCM
+        // Symmetric AES-256-GCM. `_with_aad_internal` accepts empty
+        // AAD (treats it as the no-AAD case) — no need to dispatch.
         (DecryptKey::Symmetric(k), EncryptionScheme::Aes256Gcm) => {
             validate_aes256_key_length(k)?;
-            decrypt_aes_gcm_internal(encrypted.ciphertext(), k)
+            decrypt_aes_gcm_with_aad_internal(encrypted.ciphertext(), k, aad)
         }
         // Symmetric ChaCha20-Poly1305 (non-FIPS only)
         #[cfg(not(feature = "fips"))]
         (DecryptKey::Symmetric(k), EncryptionScheme::ChaCha20Poly1305) => {
             validate_aes256_key_length(k)?;
-            decrypt_chacha20_internal(encrypted.ciphertext(), k)
+            decrypt_chacha20_internal(encrypted.ciphertext(), k, aad)
         }
         #[cfg(feature = "fips")]
         (DecryptKey::Symmetric(_), EncryptionScheme::ChaCha20Poly1305) => {
@@ -608,7 +673,12 @@ pub fn decrypt(
             // do NOT `.to_vec()` which would strip the zeroizing wrapper.
             // Error collapsed to opaque: underlying HybridEncryptionError is
             // already opaque per encrypt_hybrid.rs; don't re-wrap with detail.
-            decrypt_hybrid(sk, &ct, None)
+            let ctx = if aad.is_empty() {
+                None
+            } else {
+                Some(crate::hybrid::encrypt_hybrid::HybridEncryptionContext::with_aad(aad.to_vec()))
+            };
+            decrypt_hybrid(sk, &ct, ctx.as_ref())
                 .map_err(|_e| CoreError::DecryptionFailed("decryption failed".to_string()))
         }
         // PQ-only ML-KEM + HKDF + AES-256-GCM (no X25519)
@@ -621,12 +691,13 @@ pub fn decrypt(
 
             let (nonce, tag) = extract_nonce_tag(encrypted)?;
 
-            pq_only::decrypt_pq_only(
+            pq_only::decrypt_pq_only_with_aad(
                 sk,
                 hybrid_data.ml_kem_ciphertext(),
                 encrypted.ciphertext(),
                 &nonce,
                 &tag,
+                aad,
             )
             .map_err(|_e| CoreError::DecryptionFailed("decryption failed".to_string()))
         }
@@ -747,17 +818,30 @@ pub fn generate_signing_keypair(
             let (pk, sk) = generate_slh_dsa_keypair(SlhDsaSecurityLevel::Shake256s)?;
             (pk, sk)
         }
-        "fn-dsa" => {
-            let (pk, sk) = generate_fn_dsa_keypair()?;
+        // Accept both the canonical "fn-dsa-512" / "fn-dsa-1024" tags and
+        // the legacy bare "fn-dsa" alias (treated as Level512 for backward
+        // compatibility with keys produced before round-21 added the
+        // explicit suffix).
+        "fn-dsa-512" | "fn-dsa" => {
+            let (pk, sk) = generate_fn_dsa_keypair_with_level(FnDsaSecurityLevel::Level512)?;
             (pk, sk)
         }
-        "hybrid-ml-dsa-44-ed25519" => {
+        "fn-dsa-1024" => {
+            let (pk, sk) = generate_fn_dsa_keypair_with_level(FnDsaSecurityLevel::Level1024)?;
+            (pk, sk)
+        }
+        // Both `hybrid-ml-dsa-{44,65,87}-ed25519` (canonical) and the
+        // legacy `ml-dsa-{44,65,87}-hybrid-ed25519` aliases are accepted
+        // for symmetric tag handling. No code emits the alias form
+        // today, but accepting it keeps wire-format parsing identical
+        // across all three parameter sets.
+        "hybrid-ml-dsa-44-ed25519" | "ml-dsa-44-hybrid-ed25519" => {
             generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa44)?
         }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
             generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa65)?
         }
-        "hybrid-ml-dsa-87-ed25519" => {
+        "hybrid-ml-dsa-87-ed25519" | "ml-dsa-87-hybrid-ed25519" => {
             generate_hybrid_signing_keypair_for(MlDsaParameterSet::MlDsa87)?
         }
         // Round-11 audit fix (MEDIUM #9 / prior list): the dispatch
@@ -846,8 +930,13 @@ pub fn sign_with_key(
                 sign_pq_slh_dsa_unverified(message, secret_key, SlhDsaSecurityLevel::Shake256s)?;
             (public_key.to_vec(), sig)
         }
-        "fn-dsa" => {
+        "fn-dsa-512" | "fn-dsa" => {
             let sig = sign_pq_fn_dsa_unverified(message, secret_key, FnDsaSecurityLevel::Level512)?;
+            (public_key.to_vec(), sig)
+        }
+        "fn-dsa-1024" => {
+            let sig =
+                sign_pq_fn_dsa_unverified(message, secret_key, FnDsaSecurityLevel::Level1024)?;
             (public_key.to_vec(), sig)
         }
         #[cfg(not(feature = "fips"))]
@@ -855,13 +944,13 @@ pub fn sign_with_key(
             let sig = sign_ed25519_internal(message, secret_key)?;
             (public_key.to_vec(), sig)
         }
-        "hybrid-ml-dsa-44-ed25519" => {
+        "hybrid-ml-dsa-44-ed25519" | "ml-dsa-44-hybrid-ed25519" => {
             sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MlDsa44)?
         }
         "hybrid-ml-dsa-65-ed25519" | "ml-dsa-65-hybrid-ed25519" => {
             sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MlDsa65)?
         }
-        "hybrid-ml-dsa-87-ed25519" => {
+        "hybrid-ml-dsa-87-ed25519" | "ml-dsa-87-hybrid-ed25519" => {
             sign_hybrid_ml_dsa_ed25519(message, secret_key, public_key, MlDsaParameterSet::MlDsa87)?
         }
         _ => {
@@ -975,18 +1064,24 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             &signed.metadata.public_key,
             SlhDsaSecurityLevel::Shake256s,
         ),
-        "fn-dsa" => verify_pq_fn_dsa_unverified(
+        "fn-dsa-512" | "fn-dsa" => verify_pq_fn_dsa_unverified(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
             FnDsaSecurityLevel::Level512,
+        ),
+        "fn-dsa-1024" => verify_pq_fn_dsa_unverified(
+            &signed.data,
+            &signed.metadata.signature,
+            &signed.metadata.public_key,
+            FnDsaSecurityLevel::Level1024,
         ),
         // Round-11 audit fix (HIGH #8 prior): replace magic literals
         // with `MlDsaParameterSet::public_key_size()` / `signature_size()`
         // so a future drift in the FIPS 204 parameter table propagates
         // automatically. The sister `sign_*` path at line ~1118 already
         // derives sizes via the same methods.
-        "hybrid-ml-dsa-44-ed25519" => verify_hybrid_ml_dsa_ed25519(
+        "hybrid-ml-dsa-44-ed25519" | "ml-dsa-44-hybrid-ed25519" => verify_hybrid_ml_dsa_ed25519(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
@@ -1002,7 +1097,7 @@ pub fn verify(signed: &SignedData, config: CryptoConfig) -> Result<bool> {
             MlDsaParameterSet::MlDsa65.signature_size(),
             MlDsaParameterSet::MlDsa65,
         ),
-        "hybrid-ml-dsa-87-ed25519" => verify_hybrid_ml_dsa_ed25519(
+        "hybrid-ml-dsa-87-ed25519" | "ml-dsa-87-hybrid-ed25519" => verify_hybrid_ml_dsa_ed25519(
             &signed.data,
             &signed.metadata.signature,
             &signed.metadata.public_key,
@@ -1106,7 +1201,7 @@ fn verify_hybrid_ml_dsa_ed25519(
         // Substitute shape-correct dummies from the cached keypair so the
         // verify pipeline sees real-shape input regardless of caller
         // adversarial wire bytes.
-        let dummy = hybrid_verify_dummy_material(param_set);
+        let dummy = crate::hybrid::verify_equalizer::hybrid_verify_dummy_material(param_set);
         (
             dummy.pq_pk.as_slice(),
             dummy.ed_pk.as_slice(),
@@ -1125,44 +1220,6 @@ fn verify_hybrid_ml_dsa_ed25519(
     // timing-equalization side-effect.
     let combined = pq_valid & ed_valid;
     Ok(if real_inputs { combined } else { false })
-}
-
-/// Cached shape-correct dummy material per `MlDsaParameterSet` for the
-/// shape-fail timing-equalizer path of [`verify_hybrid_ml_dsa_ed25519`].
-///
-/// Buffers are all-zero of the correct length for the parameter set; the
-/// inner verify operations run end-to-end against them. We deliberately
-/// do NOT use a real ML-DSA / Ed25519 keypair here — that would require
-/// running keygen at process startup (or first verify call) and the
-/// timing-equalizer correctness only depends on the verify pipeline
-/// executing, not on whether the verify ultimately accepts. The cached
-/// buffers are immortal, hold no secret material, and add ~10 KB to
-/// process working set per parameter set used.
-struct HybridVerifyDummy {
-    pq_pk: Vec<u8>,
-    ed_pk: Vec<u8>,
-    pq_sig: Vec<u8>,
-    ed_sig: Vec<u8>,
-}
-
-fn hybrid_verify_dummy_material(param_set: MlDsaParameterSet) -> &'static HybridVerifyDummy {
-    use std::sync::OnceLock;
-
-    static M44: OnceLock<HybridVerifyDummy> = OnceLock::new();
-    static M65: OnceLock<HybridVerifyDummy> = OnceLock::new();
-    static M87: OnceLock<HybridVerifyDummy> = OnceLock::new();
-
-    let (cell, pq_pk_len, pq_sig_len) = match param_set {
-        MlDsaParameterSet::MlDsa44 => (&M44, 1312usize, 2420usize),
-        MlDsaParameterSet::MlDsa65 => (&M65, 1952usize, 3309usize),
-        MlDsaParameterSet::MlDsa87 => (&M87, 2592usize, 4627usize),
-    };
-    cell.get_or_init(|| HybridVerifyDummy {
-        pq_pk: vec![0u8; pq_pk_len],
-        ed_pk: vec![0u8; 32],
-        pq_sig: vec![0u8; pq_sig_len],
-        ed_sig: vec![0u8; 64],
-    })
 }
 
 #[cfg(test)]
@@ -2685,8 +2742,8 @@ mod tests {
         let data = b"ChaCha20-Poly1305 roundtrip test";
 
         // Force ChaCha20-Poly1305 via the internal scheme selection
-        let encrypted = encrypt_chacha20_internal(data, &key).unwrap();
-        let decrypted = decrypt_chacha20_internal(&encrypted, &key).unwrap();
+        let encrypted = encrypt_chacha20_internal(data, &key, &[]).unwrap();
+        let decrypted = decrypt_chacha20_internal(&encrypted, &key, &[]).unwrap();
         assert_eq!(decrypted.as_slice(), data.as_slice());
     }
 
@@ -2697,7 +2754,7 @@ mod tests {
         let data = b"ChaCha20 unified dispatch test";
 
         // Use internal function to build EncryptedOutput with ChaCha20 scheme
-        let encrypted_bytes = encrypt_chacha20_internal(data, &key).unwrap();
+        let encrypted_bytes = encrypt_chacha20_internal(data, &key, &[]).unwrap();
         let output =
             symmetric_bytes_to_output(EncryptionScheme::ChaCha20Poly1305, &encrypted_bytes)
                 .unwrap();

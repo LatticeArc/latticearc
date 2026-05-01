@@ -151,12 +151,19 @@ pub enum KeyAlgorithm {
     MlDsa87,
 
     // --- Hash-based signatures (FIPS 205) ---
-    /// SLH-DSA-SHAKE-128s (FIPS 205)
+    //
+    // Only the "small" (`s`) parameter sets are exposed; the `f` (fast)
+    // variants are FIPS-defined but not currently implemented by the
+    // `fips205` backend.
+    /// SLH-DSA-SHAKE-128s (FIPS 205, Category 1).
     #[serde(rename = "slh-dsa-shake-128s")]
     SlhDsaShake128s,
-    /// SLH-DSA-SHAKE-256f (FIPS 205)
-    #[serde(rename = "slh-dsa-shake-256f")]
-    SlhDsaShake256f,
+    /// SLH-DSA-SHAKE-192s (FIPS 205, Category 3).
+    #[serde(rename = "slh-dsa-shake-192s")]
+    SlhDsaShake192s,
+    /// SLH-DSA-SHAKE-256s (FIPS 205, Category 5).
+    #[serde(rename = "slh-dsa-shake-256s")]
+    SlhDsaShake256s,
 
     // --- Lattice signatures (draft FIPS 206) ---
     /// FN-DSA-512 (draft FIPS 206)
@@ -308,7 +315,8 @@ impl KeyAlgorithm {
                 | Self::MlDsa65
                 | Self::MlDsa87
                 | Self::SlhDsaShake128s
-                | Self::SlhDsaShake256f
+                | Self::SlhDsaShake192s
+                | Self::SlhDsaShake256s
                 | Self::FnDsa512
                 | Self::FnDsa1024
                 | Self::HybridMlDsa44Ed25519
@@ -344,12 +352,13 @@ impl KeyAlgorithm {
 
             Self::MlKem768
             | Self::MlDsa65
+            | Self::SlhDsaShake192s
             | Self::HybridMlKem768X25519
             | Self::HybridMlDsa65Ed25519 => SecurityLevel::High,
 
             Self::MlKem1024
             | Self::MlDsa87
-            | Self::SlhDsaShake256f
+            | Self::SlhDsaShake256s
             | Self::FnDsa1024
             | Self::Aes256
             | Self::ChaCha20
@@ -377,7 +386,8 @@ impl KeyAlgorithm {
             Self::MlDsa65 => "ml-dsa-65",
             Self::MlDsa87 => "ml-dsa-87",
             Self::SlhDsaShake128s => "slh-dsa-shake-128s",
-            Self::SlhDsaShake256f => "slh-dsa-shake-256f",
+            Self::SlhDsaShake192s => "slh-dsa-shake-192s",
+            Self::SlhDsaShake256s => "slh-dsa-shake-256s",
             Self::FnDsa512 => "fn-dsa-512",
             Self::FnDsa1024 => "fn-dsa-1024",
             Self::Ed25519 => "ed25519",
@@ -390,6 +400,48 @@ impl KeyAlgorithm {
             Self::HybridMlDsa65Ed25519 => "hybrid-ml-dsa-65-ed25519",
             Self::HybridMlDsa44Ed25519 => "hybrid-ml-dsa-44-ed25519",
             Self::HybridMlDsa87Ed25519 => "hybrid-ml-dsa-87-ed25519",
+        }
+    }
+
+    /// Inverse of [`canonical_name`](Self::canonical_name): parse a wire
+    /// name back into its variant. Case-insensitive; underscores are
+    /// folded to hyphens; common aliases (e.g. `aes256`, `chacha20-poly1305`)
+    /// are accepted.
+    ///
+    /// Returns `None` for unrecognized inputs. Used by the CLI keyfile
+    /// parser and by `from_legacy_json` so both sites share one source
+    /// of truth — when a new variant is added, this match is the only
+    /// place that needs an arm.
+    #[must_use]
+    pub fn from_canonical_name(name: &str) -> Option<Self> {
+        match name.to_lowercase().replace('_', "-").as_str() {
+            "ml-kem-512" => Some(Self::MlKem512),
+            "ml-kem-768" => Some(Self::MlKem768),
+            "ml-kem-1024" => Some(Self::MlKem1024),
+            "ml-dsa-44" => Some(Self::MlDsa44),
+            "ml-dsa-65" => Some(Self::MlDsa65),
+            "ml-dsa-87" => Some(Self::MlDsa87),
+            "slh-dsa-shake-128s" => Some(Self::SlhDsaShake128s),
+            "slh-dsa-shake-192s" => Some(Self::SlhDsaShake192s),
+            "slh-dsa-shake-256s" => Some(Self::SlhDsaShake256s),
+            // Bare "fn-dsa" is a pre-round-21 legacy alias that the
+            // unified-API dispatch already accepts as Level512. Accept
+            // it here too so round-tripping legacy keys through the
+            // shared `from_canonical_name` path works at the keyfile
+            // boundary as well.
+            "fn-dsa" | "fn-dsa-512" => Some(Self::FnDsa512),
+            "fn-dsa-1024" => Some(Self::FnDsa1024),
+            "ed25519" => Some(Self::Ed25519),
+            "x25519" => Some(Self::X25519),
+            "aes-256" | "aes256" => Some(Self::Aes256),
+            "chacha20" | "chacha20-poly1305" => Some(Self::ChaCha20),
+            "hybrid-ml-kem-512-x25519" => Some(Self::HybridMlKem512X25519),
+            "hybrid-ml-kem-768-x25519" => Some(Self::HybridMlKem768X25519),
+            "hybrid-ml-kem-1024-x25519" => Some(Self::HybridMlKem1024X25519),
+            "hybrid-ml-dsa-44-ed25519" => Some(Self::HybridMlDsa44Ed25519),
+            "hybrid-ml-dsa-65-ed25519" => Some(Self::HybridMlDsa65Ed25519),
+            "hybrid-ml-dsa-87-ed25519" => Some(Self::HybridMlDsa87Ed25519),
+            _ => None,
         }
     }
 }
@@ -2414,24 +2466,14 @@ impl PortableKey {
     }
 }
 
-/// Parse legacy algorithm strings (case-insensitive) to [`KeyAlgorithm`].
+/// Parse legacy algorithm strings to [`KeyAlgorithm`].
+///
+/// Thin wrapper over [`KeyAlgorithm::from_canonical_name`] that maps
+/// `None` to a [`CoreError::InvalidKey`] for the `from_legacy_json`
+/// path.
 fn parse_legacy_algorithm(s: &str) -> Result<KeyAlgorithm> {
-    match s.to_lowercase().replace('_', "-").as_str() {
-        "ml-kem-512" => Ok(KeyAlgorithm::MlKem512),
-        "ml-kem-768" => Ok(KeyAlgorithm::MlKem768),
-        "ml-kem-1024" => Ok(KeyAlgorithm::MlKem1024),
-        "ml-dsa-44" => Ok(KeyAlgorithm::MlDsa44),
-        "ml-dsa-65" => Ok(KeyAlgorithm::MlDsa65),
-        "ml-dsa-87" => Ok(KeyAlgorithm::MlDsa87),
-        "ed25519" => Ok(KeyAlgorithm::Ed25519),
-        "x25519" => Ok(KeyAlgorithm::X25519),
-        "aes-256" | "aes256" => Ok(KeyAlgorithm::Aes256),
-        "fn-dsa-512" => Ok(KeyAlgorithm::FnDsa512),
-        "fn-dsa-1024" => Ok(KeyAlgorithm::FnDsa1024),
-        "hybrid-ml-kem-768-x25519" => Ok(KeyAlgorithm::HybridMlKem768X25519),
-        "hybrid-ml-dsa-65-ed25519" => Ok(KeyAlgorithm::HybridMlDsa65Ed25519),
-        other => Err(CoreError::InvalidKey(format!("Unrecognized algorithm: '{other}'"))),
-    }
+    KeyAlgorithm::from_canonical_name(s)
+        .ok_or_else(|| CoreError::InvalidKey(format!("Unrecognized algorithm: '{s}'")))
 }
 
 // ============================================================================
@@ -2818,7 +2860,8 @@ mod tests {
             KeyAlgorithm::MlDsa65,
             KeyAlgorithm::MlDsa87,
             KeyAlgorithm::SlhDsaShake128s,
-            KeyAlgorithm::SlhDsaShake256f,
+            KeyAlgorithm::SlhDsaShake192s,
+            KeyAlgorithm::SlhDsaShake256s,
             KeyAlgorithm::FnDsa512,
             KeyAlgorithm::FnDsa1024,
             KeyAlgorithm::Ed25519,
@@ -2852,7 +2895,8 @@ mod tests {
             (KeyAlgorithm::MlDsa65, "\"ml-dsa-65\""),
             (KeyAlgorithm::MlDsa87, "\"ml-dsa-87\""),
             (KeyAlgorithm::SlhDsaShake128s, "\"slh-dsa-shake-128s\""),
-            (KeyAlgorithm::SlhDsaShake256f, "\"slh-dsa-shake-256f\""),
+            (KeyAlgorithm::SlhDsaShake192s, "\"slh-dsa-shake-192s\""),
+            (KeyAlgorithm::SlhDsaShake256s, "\"slh-dsa-shake-256s\""),
             (KeyAlgorithm::FnDsa512, "\"fn-dsa-512\""),
             (KeyAlgorithm::FnDsa1024, "\"fn-dsa-1024\""),
             (KeyAlgorithm::Ed25519, "\"ed25519\""),
@@ -3284,7 +3328,8 @@ mod tests {
             (KeyAlgorithm::MlDsa65, KeyType::Secret),
             (KeyAlgorithm::MlDsa87, KeyType::Public),
             (KeyAlgorithm::SlhDsaShake128s, KeyType::Public),
-            (KeyAlgorithm::SlhDsaShake256f, KeyType::Secret),
+            (KeyAlgorithm::SlhDsaShake192s, KeyType::Public),
+            (KeyAlgorithm::SlhDsaShake256s, KeyType::Secret),
             (KeyAlgorithm::FnDsa512, KeyType::Public),
             (KeyAlgorithm::FnDsa1024, KeyType::Secret),
             (KeyAlgorithm::Ed25519, KeyType::Public),

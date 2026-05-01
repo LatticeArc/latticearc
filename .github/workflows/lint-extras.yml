@@ -394,46 +394,40 @@ jobs:
       - name: TRACKING-staleness — Open rows must reference state that's still true
         run: |
           set -e
-          # Round-21 audit fix #17: TRK-005 said wildcards="warn" → "deny"
-          # was open work, but round-20 already promoted it. The Open
-          # table accumulates stale rows because nothing checks whether
-          # the stated condition still holds.
+          # Cross-check: for each row in the **Open** table that mentions
+          # a specific configuration claim (e.g. `wildcards = "warn"`),
+          # verify that claim is still true in the cited file. Earlier
+          # iterations of this rule grep'd every `| TRK-` row including
+          # the Closed section, which is wrong — Closed rows describe
+          # past state and *should* mention the old values.
           #
-          # This rule is a structural cross-check: for each row in the
-          # Open table that mentions a specific configuration claim
-          # (e.g. `wildcards = "warn"`), verify that claim is still true
-          # in the cited file. Specifically:
-          #   - if the row mentions `wildcards = "warn"` and deny.toml
-          #     actually has `wildcards = "deny"`, the row is stale.
-          #   - if the row mentions `continue-on-error: true` and the
-          #     cited workflow has `continue-on-error: false`, stale.
-          #
-          # Both are heuristics — false positives possible if the row's
-          # text quotes a condition without claiming it currently holds.
-          # In practice the rows are short and the simple substring
-          # check is reliable enough.
+          # Slice rows from `## Open` until the next `## ` header; only
+          # those rows are subject to the staleness check.
+          OPEN_ROWS=$(awk '
+              /^## Open/ { in_open = 1; next }
+              /^## / && in_open { in_open = 0 }
+              in_open && /^\| TRK-/ { print }
+          ' docs/TRACKING.md)
           STALE=""
-          if grep -qE '^\| TRK-' docs/TRACKING.md; then
+          if [ -n "$OPEN_ROWS" ]; then
               # Rule 1: any open TRK row mentioning wildcards = "warn"
               # while deny.toml has "deny".
-              if grep -A0 '^| TRK-' docs/TRACKING.md | grep -q 'wildcards = "warn"'; then
+              if echo "$OPEN_ROWS" | grep -q 'wildcards = "warn"'; then
                   if grep -q '^wildcards = "deny"' deny.toml; then
                       STALE="$STALE TRK-row-mentions-wildcards-warn-but-deny.toml-has-deny"
                   fi
               fi
               # Rule 2: any open TRK row mentioning continue-on-error: true
               # for a workflow that no longer has it.
-              # (Add cases here as new park-notes appear; for now MSan was
-              # the only one and round-20 dropped it.)
-              if grep -A0 '^| TRK-' docs/TRACKING.md | grep -q 'continue-on-error: true'; then
+              if echo "$OPEN_ROWS" | grep -q 'continue-on-error: true'; then
                   if ! grep -q 'continue-on-error: true' .github/workflows/sanitizers.yml; then
                       STALE="$STALE TRK-row-mentions-continue-on-error-true-but-sanitizers.yml-clean"
                   fi
               fi
           fi
           if [ -n "$STALE" ]; then
-            echo "::error::docs/TRACKING.md has Open rows referring to state that's no longer true: $STALE"
-            echo "Move the affected rows to the Closed section with a 'Closed by' note. See round-21 audit fix #17."
+            echo "::error::docs/TRACKING.md has Open rows referring to state that is no longer true: $STALE"
+            echo "Move the affected rows to the Closed section with a Closed-by note."
             exit 1
           fi
 

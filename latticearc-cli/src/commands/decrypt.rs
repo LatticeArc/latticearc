@@ -127,40 +127,44 @@ fn read_input_string(path: &Option<PathBuf>) -> Result<String> {
 }
 
 fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {
-    match path {
-        Some(p) => {
-            // Atomic write — decrypted secret material at rest must
-            // never be visible as a partial file (round-7 audit fix
-            // #18). `secret_mode()` sets 0o600 atomically before the
-            // rename. Round-20 audit #5 noted this call site lacked
-            // `secret_mode()`; in practice `tempfile::NamedTempFile`
-            // already creates files with mode 0o600 and `persist()`
-            // preserves that, so the audit's stated risk (umask
-            // 0o644) doesn't materialize at runtime — but the
-            // explicit `.secret_mode()` is retained as defense-in-
-            // depth in case tempfile's default ever changes.
-            latticearc::unified_api::atomic_write::AtomicWrite::new(data)
-                .secret_mode()
-                .overwrite_existing(true)
-                .write(p)
-                .with_context(|| format!("Failed to write {}", p.display()))?;
-            // Round-21 audit fix #14: path on stderr leaked through
-            // process accounting and log aggregation. Demote to
-            // tracing::debug!.
-            tracing::debug!(path = %p.display(), "decrypted data written");
+    if let Some(p) = path {
+        // Atomic write with 0o600. `tempfile::NamedTempFile` already
+        // creates files with mode 0o600 and `persist()` preserves that;
+        // `.secret_mode()` is retained as defense-in-depth in case
+        // tempfile's default ever changes.
+        latticearc::unified_api::atomic_write::AtomicWrite::new(data)
+            .secret_mode()
+            .overwrite_existing(true)
+            .write(p)
+            .with_context(|| format!("Failed to write {}", p.display()))?;
+        // Path on stderr would leak through process accounting and log
+        // aggregation; route to tracing::debug! instead.
+        tracing::debug!(path = %p.display(), "decrypted data written");
+    } else {
+        // Stdout-as-default-target hazard: writing decrypted plaintext
+        // to a TTY exposes it to recorded shell sessions, screen
+        // sharing, scrollback, and any logging proxy. When the user is
+        // interactive, surface a one-line warning to stderr. Pipelines
+        // (`| tee`, file redirection) where stdout is not a TTY get no
+        // warning.
+        use std::io::IsTerminal;
+        if std::io::stdout().is_terminal() {
+            eprintln!(
+                "warning: decrypted plaintext is being written to a TTY. \
+                 Pass --output <file> to write to disk with 0600 permissions, \
+                 or pipe stdout to avoid leaving secrets in scrollback."
+            );
         }
-        None => {
-            // Try to print as UTF-8, fall back to hex. The hex encoding
-            // is wrapped in `Zeroizing<String>` so a derived plaintext
-            // copy doesn't outlive the source `Zeroizing<Vec<u8>>` —
-            // otherwise the encoded string would linger on the heap until
-            // allocator reclaim.
-            if let Ok(s) = std::str::from_utf8(data) {
-                print!("{s}");
-            } else {
-                let encoded = zeroize::Zeroizing::new(hex::encode(data));
-                print!("{}", encoded.as_str());
-            }
+        // Try to print as UTF-8, fall back to hex. The hex encoding is
+        // wrapped in `Zeroizing<String>` so a derived plaintext copy
+        // doesn't outlive the source `Zeroizing<Vec<u8>>` — otherwise
+        // the encoded string would linger on the heap until allocator
+        // reclaim.
+        if let Ok(s) = std::str::from_utf8(data) {
+            print!("{s}");
+        } else {
+            let encoded = zeroize::Zeroizing::new(hex::encode(data));
+            print!("{}", encoded.as_str());
         }
     }
     Ok(())

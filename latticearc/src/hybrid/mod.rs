@@ -70,6 +70,11 @@ pub mod encrypt_hybrid;
 pub mod kem_hybrid;
 pub mod pq_only;
 pub mod sig_hybrid;
+// Internal-only: shared timing-equalizer dummy material. Exposing the
+// dummy buffers publicly would let downstream callers craft inputs that
+// collide with the equalizer branch logic, weakening the timing-oracle
+// guarantee as a documented surface.
+pub(crate) mod verify_equalizer;
 
 // Re-exports for convenience - use explicit exports to avoid ambiguity.
 // All hybrid types are reachable directly via `crate::hybrid::*`; the previous
@@ -86,7 +91,8 @@ pub use kem_hybrid::{
 };
 pub use pq_only::{
     PqOnlyCiphertext, PqOnlyError, PqOnlyPublicKey, PqOnlySecretKey, decrypt_pq_only,
-    encrypt_pq_only, generate_pq_keypair, generate_pq_keypair_with_level,
+    decrypt_pq_only_with_aad, encrypt_pq_only, encrypt_pq_only_with_aad, generate_pq_keypair,
+    generate_pq_keypair_with_level,
 };
 pub use sig_hybrid::{
     HybridSigPublicKey, HybridSigSecretKey, HybridSignature, HybridSignatureError,
