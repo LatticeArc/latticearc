@@ -29,6 +29,22 @@ use crate::unified_api::CoreConfig;
 use crate::unified_api::error::{CoreError, Result};
 use crate::unified_api::zero_trust::SecurityMode;
 
+/// Build the HKDF `info` string for `encrypt_pq_ml_kem` /
+/// `decrypt_pq_ml_kem`.
+///
+/// Thin wrapper over [`crate::types::domains::hkdf_kem_info`] that
+/// pins the domain-separation label to [`PQ_KEM_AEAD_KEY_INFO`]. The
+/// shared helper is also used by
+/// [`crate::hybrid::pq_only::encrypt_pq_only`] (round-12 audit fix
+/// L-2) so encrypt/decrypt drift across the two parallel APIs is
+/// structurally impossible.
+fn pq_kem_aead_key_info(kem_ciphertext: &[u8]) -> Vec<u8> {
+    crate::types::domains::hkdf_kem_info(
+        crate::types::domains::PQ_KEM_AEAD_KEY_INFO,
+        kem_ciphertext,
+    )
+}
+
 use crate::primitives::resource_limits::validate_encryption_size;
 
 /// Maps `CoreConfig.security_level` to the expected `MlKemSecurityLevel`.
@@ -88,23 +104,23 @@ fn encrypt_pq_ml_kem_internal(
         CoreError::EncryptionFailed(format!("ML-KEM encapsulation failed: {}", e))
     })?;
 
-    // Derive AES-256 key from ML-KEM shared secret via HKDF for domain separation.
-    // Using the raw shared secret directly would be safe for a single AES-GCM
-    // encryption, but HKDF binding prevents cross-protocol key reuse.
-    let hkdf_result = crate::primitives::kdf::hkdf::hkdf(
-        shared_secret.expose_secret(),
-        None,
-        Some(crate::types::domains::PQ_KEM_AEAD_KEY_INFO),
-        32,
-    )
-    .map_err(|e| {
-        log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "HKDF failed");
-        CoreError::EncryptionFailed(format!("Key derivation failed: {e}"))
-    })?;
+    // Derive AES-256 key from ML-KEM shared secret via HKDF, binding the
+    // KEM ciphertext into the info string per RFC 9180 §5.1 (HPKE
+    // channel binding). The label-only variant of this call could not
+    // detect an adversary swapping ciphertext halves if ML-KEM IND-CCA2
+    // ever degraded.
+    let kem_ct_bytes = ciphertext.into_bytes();
+    let info = pq_kem_aead_key_info(&kem_ct_bytes);
+    let hkdf_result =
+        crate::primitives::kdf::hkdf::hkdf(shared_secret.expose_secret(), None, Some(&info), 32)
+            .map_err(|e| {
+                log_crypto_operation_error!(op::ENCRYPT_PQ_ML_KEM, "HKDF failed");
+                CoreError::EncryptionFailed(format!("Key derivation failed: {e}"))
+            })?;
     let encrypted_data = encrypt_aes_gcm_internal(data, hkdf_result.expose_secret())?;
 
     // Combine ciphertext and encrypted data
-    let mut result = ciphertext.into_bytes();
+    let mut result = kem_ct_bytes;
     result.extend_from_slice(&encrypted_data);
 
     crate::log_crypto_operation_complete!(
@@ -171,17 +187,17 @@ fn decrypt_pq_ml_kem_internal(
         opaque()
     })?;
 
-    // Derive AES-256 key from ML-KEM shared secret via HKDF (must match encrypt path).
-    let hkdf_result = crate::primitives::kdf::hkdf::hkdf(
-        shared_secret.expose_secret(),
-        None,
-        Some(crate::types::domains::PQ_KEM_AEAD_KEY_INFO),
-        32,
-    )
-    .map_err(|_e| {
-        log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "HKDF failed");
-        opaque()
-    })?;
+    // Derive AES-256 key from ML-KEM shared secret via HKDF, binding
+    // the KEM ciphertext into the info string. Must match the encrypt
+    // path byte-for-byte; `pq_kem_aead_key_info(ct_bytes)` is the
+    // single canonical helper to prevent encrypt / decrypt drift.
+    let info = pq_kem_aead_key_info(ct_bytes);
+    let hkdf_result =
+        crate::primitives::kdf::hkdf::hkdf(shared_secret.expose_secret(), None, Some(&info), 32)
+            .map_err(|_e| {
+                log_crypto_operation_error!(op::DECRYPT_PQ_ML_KEM, "HKDF failed");
+                opaque()
+            })?;
     let plaintext = decrypt_aes_gcm_internal(aes_encrypted, hkdf_result.expose_secret())?;
 
     crate::log_crypto_operation_complete!(

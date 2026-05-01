@@ -376,3 +376,32 @@ fn test_public_api_two_encapsulations_diverge() {
         "Independent encapsulations must yield distinct shared secrets"
     );
 }
+
+// Wire-format roundtrip for `HybridKemPublicKey` —
+// post-audit-fix follow-up MED #3.
+//
+// `HybridKemPublicKey::to_bytes` now returns `Result<Vec<u8>,
+// HybridKemError>` instead of `Vec<u8>`. The error path is statically
+// unreachable for any real ML-KEM/X25519 PK (4 GiB+ length needed),
+// but the happy path needs a public-API roundtrip test so the new
+// signature is exercised + locked against future drift.
+#[test]
+fn test_public_api_pk_to_bytes_from_bytes_roundtrip() {
+    let (pk, _sk) = generate_keypair().unwrap();
+
+    // to_bytes returns Result<Vec<u8>, HybridKemError> — exercise the
+    // Ok arm. The Err arm requires a 4 GiB+ component PK and is not
+    // runtime-reachable.
+    let bytes = pk.to_bytes().expect("to_bytes must succeed for a real keypair");
+
+    // from_bytes is the round-trip inverse.
+    let parsed = HybridKemPublicKey::from_bytes(&bytes)
+        .expect("round-trip from_bytes must succeed on serialized output");
+
+    // Component-level equality (HybridKemPublicKey does not derive
+    // PartialEq because the ml_kem_pk + ecdh_pk byte buffers are
+    // public, not secret — but we can compare the reserialized bytes
+    // for round-trip stability).
+    let bytes2 = parsed.to_bytes().expect("re-serialize must succeed");
+    assert_eq!(bytes, bytes2, "to_bytes/from_bytes must be bijective");
+}

@@ -9,6 +9,149 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Post-audit-fix follow-up — 1 HIGH + 2 MED + 4 LOW (2026-05-01)
+
+External audit returned 5 findings on the just-pushed audit-fix tree
+(H1, M1, L1–L3) plus 3 simplify-pass findings on the same tree
+(MED #3, LOW #1, LOW #2). All 7 are addressed below — no
+deferrals. Two more BREAKING wire-format changes (L3, MED #3) join
+the audit-fix round above.
+
+#### BREAKING (require migration)
+
+- **`audit::compute_integrity_hash` length prefixes are now big-
+  endian.** Persisted audit-log integrity hashes computed before this
+  fix will not match the recomputed hash on read. There is no on-disk
+  layout change — the hash is the hash, and the hash function changed.
+  Operators verifying old audit logs against new code MUST keep a
+  copy of the prior `latticearc` build for verification, or accept a
+  hash-mismatch flag per record and re-verify out-of-band.
+- **`zkp::commitment::HashCommitment::new` transcript length prefix is
+  now big-endian.** Two `HashCommitment` instances built with the same
+  `(value, randomness)` before vs. after this fix will produce
+  different commitment bytes. Persisted commitments do not verify
+  cross-version. Same migration story as the audit hash above.
+- **`zkp::commitment::PedersenCommitment::generator_h()` cached
+  generator H now derived with big-endian counter, and the
+  domain-separation label is bumped `arc-zkp/pedersen-generator-H-v2`
+  → `arc-zkp/pedersen-generator-H-v3`.** The static H point itself is
+  different; ALL Pedersen commitments produced before this fix bind
+  to a different generator and will not verify. The label bump is
+  mandatory — the `-v2` label was bound to the LE-counter derivation,
+  and reusing it for the BE-counter derivation would let two
+  derivations carry the same label (exactly the cross-implementation
+  footgun L3 exists to prevent).
+- **`HybridKemPublicKey::to_bytes` returns `Result<Vec<u8>,
+  HybridKemError>`** (was `Vec<u8>`). The `#[must_use]` attribute is
+  removed (the `Result` already enforces use). No in-tree call sites
+  exist; downstream consumers must `?`-propagate or `.unwrap()`.
+
+#### HIGH
+
+- **`encrypt_pq_ml_kem` / `decrypt_pq_ml_kem` now bind the KEM
+  ciphertext into HKDF info** (audit fix H1, BREAKING for previously-
+  encrypted ciphertexts at this entry point). Round-12 audit fix L-2
+  added kem_ct binding to `hybrid::pq_only::encrypt_pq_only` per RFC
+  9180 §5.1 (HPKE channel binding); the parallel low-level
+  `convenience::pq_kem` API was missed and shipped with label-only
+  HKDF info. Without binding, an adversary who finds two ML-KEM
+  ciphertexts that decapsulate to the same shared secret could swap
+  them on the wire and the AEAD tag would still pass. Both
+  `encrypt_pq_ml_kem` and `decrypt_pq_ml_kem` now use a shared
+  `pq_kem_aead_key_info(kem_ct)` helper to prevent encrypt/decrypt
+  drift. Old ciphertexts produced before this fix will not decrypt
+  with the new code (the AEAD key derivation diverges).
+
+#### MEDIUM
+
+- **`sig_hybrid::verify` timing equalizer no longer `?`-propagates on
+  parse failure** (audit fix M1). The `?` on `MlDsaPublicKey::from_bytes`
+  / `MlDsaSignature::from_bytes` returned Err before `verify` ran,
+  defeating the equalizer for any future `fips204` release that adds
+  content validation to `from_bytes` (today the parser is length-only,
+  so the branch was statically unreachable — but that's a contract on
+  a third-party crate, not an invariant we control). Replaced with
+  match-on-parse: `Err` becomes `Ok(false)` and the verify pipeline
+  runs unconditionally, mirroring the pattern in
+  `unified_api::convenience::api::verify_hybrid_ml_dsa_ed25519` which
+  uses `verify_pq_ml_dsa_unverified(...).unwrap_or(false)`.
+
+- **`HybridKemPublicKey::to_bytes` length-prefix overflow now
+  propagates as `HybridKemError::InvalidKeyMaterial`** (simplify-pass
+  MED #3, BREAKING). Previously used `unwrap_or(u32::MAX)` which
+  would silently collapse a 4 GiB+ component PK to the same length
+  prefix as another 4 GiB+ component PK — asymmetric posture vs the
+  L2 fix above. Now `?`-propagates structurally; the error path is
+  unreachable for any real ML-KEM/X25519 PK but the defensive
+  symmetry matters across the crate.
+
+#### LOW
+
+- **AES-GCM init() KAT now covers non-empty plaintext** (audit fix L1).
+  The empty-PT KAT (NIST CAVP `gcmEncryptExtIV256.rsp` Count=0) catches
+  GHASH miscompilation but not AES round-function or counter-mode bugs
+  (no plaintext blocks to encrypt). Added Count=12 vector with PTlen=128:
+  Key `31bdadd9...8f22`, IV `0d18e06c7c725ac9e362e1ce`,
+  PT `2db5168e932556f8089a0622981d017d`,
+  expected CT `fa4362189661d163fcd6a56d8bf0405a`,
+  expected Tag `d636ac1bbedd5cc3ee727dc2ab4a9489`. Both vectors are
+  now folded into a single `AesGcm256Kat` table iterated by a shared
+  encrypt+tag+roundtrip block (simplify-pass LOW #2 — collapses ~110
+  lines of duplicate KAT scaffolding to a single loop body).
+
+- **`audit::compute_integrity_hash` length-prefix overflow now
+  propagates as `CoreError::AuditError`** (audit fix L2). Previously
+  used `unwrap_or(u32::MAX)` which would silently collapse a 4 GiB+
+  field to the same length prefix as another 4 GiB+ field — a weak
+  asymmetric defensive posture vs the parallel pattern in
+  `zkp::sigma::compute_challenge` which round-21 fix #7 had tightened
+  to `Err`-propagation. `append_lenp_field` returns `Result<()>`; both
+  it and the metadata count cast now propagate via `?`. SHA-256's
+  1 GiB cap below makes the overflow path unreachable today, but the
+  defensive symmetry matters more than the runtime reachability.
+
+- **L3 — All transcripts now use big-endian length prefixes**
+  (BREAKING). `zkp::sigma::compute_challenge` was already BE
+  (round-21 fix #7); `audit::compute_integrity_hash` and
+  `zkp::commitment::HashCommitment::compute_hash` /
+  `PedersenCommitment::generator_h` were the holdouts on LE. The
+  endianness mix had no security impact (each transcript is internally
+  consistent and domain-separated) but auditors flagged it as a
+  cross-implementation footgun — a Rust impl reading BE and a Go impl
+  reading LE on the same wire format would silently mismatch with no
+  failure signal. Migrating to BE everywhere brings the crate into
+  line with the standard transcript convention used by NIST/RFC
+  protocols. The Pedersen H label is bumped `-v2` → `-v3` as part of
+  this change so the derivation-version-encoded-in-label discipline
+  is preserved (see BREAKING). Audit and commitment hashes have no
+  domain-separation label they can bump because their hash output IS
+  the version — operators must keep an old-version verifier around
+  for legacy artifacts. See BREAKING section for migration impact.
+
+- **Shared `domains::hkdf_kem_info(label, kem_ct)` helper** extracted
+  from the previously-duplicate `pq_kem_aead_key_info` and
+  `pq_only_encryption_info` (simplify-pass LOW #1). Both APIs now
+  delegate to the same canonical implementation in
+  `crate::types::domains`, structurally guaranteeing they agree
+  byte-for-byte on the channel-binding transcript and removing the
+  drift risk that would silently break cross-API verification if
+  somebody changed one helper without changing the other.
+
+- **`docs/RESOURCE_LIMITS_COVERAGE.md`** updated to list the three new
+  `&[u8]`-taking public functions added in the previous round
+  (`decapsulate_from_parts`, `encrypt_pq_only_with_aad`,
+  `decrypt_pq_only_with_aad`) so the
+  `scripts/ci/resource_limits_coverage.sh` lint stops failing CI on
+  this commit's parent. All three are protected by upstream length
+  validation (ML-KEM ciphertext length is parameter-set-fixed; AAD
+  shares the AEAD primitive's existing cap).
+
+- **`HybridKemPublicKey::to_bytes` ↔ `from_bytes` roundtrip test added**
+  (`latticearc/tests/hybrid_kem.rs::
+  test_public_api_pk_to_bytes_from_bytes_roundtrip`). The new
+  `Result`-returning signature was previously not exercised by any
+  in-tree caller — happy-path test pins the bijection.
+
 ### Audit-fix round — 5 HIGH + 6 MEDIUM + 4 LOW + 3 simplify passes + code review (2026-05-01)
 
 External audit of the round-21 tree returned 13 findings across the

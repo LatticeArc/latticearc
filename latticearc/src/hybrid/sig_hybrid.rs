@@ -589,19 +589,34 @@ pub fn verify(
     } else {
         (dummy.pq_pk.as_slice(), dummy.pq_sig.as_slice())
     };
-    let parsed_pk = MlDsaPublicKey::from_bytes(pq_pk_bytes, pk.parameter_set).map_err(|_e| {
-        HybridSignatureError::VerificationFailed("hybrid signature verification failed".to_string())
-    })?;
-    let parsed_sig = MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set).map_err(|_e| {
-        HybridSignatureError::VerificationFailed("hybrid signature verification failed".to_string())
-    })?;
-    let ml_dsa_verify_result = parsed_pk.verify(message, &parsed_sig, &[]);
-    // Bit is 1 only when the real input passed shape-check AND the
-    // verify returned Ok(true). When shape failed the verify still
-    // ran (against the dummy) for timing equalization; its result is
-    // discarded by the AND with `pq_shape_ok`.
+    // Match-on-parse, never `?`-propagate: if `from_bytes` ever fails
+    // (today unreachable for our zero-byte dummies of correct length,
+    // but a future fips204 release adding content validation could
+    // change that), we still want the verify pipeline to run so the
+    // wall-clock cost stays equal between shape-fail and verify-fail.
+    // Mirrors the unified-API pattern in
+    // `unified_api::convenience::api::verify_hybrid_ml_dsa_ed25519`,
+    // which uses `verify_pq_ml_dsa_unverified(...).unwrap_or(false)`.
+    let parse_ok =
+        MlDsaPublicKey::from_bytes(pq_pk_bytes, pk.parameter_set).and_then(|parsed_pk| {
+            MlDsaSignature::from_bytes(pq_sig_bytes, pk.parameter_set)
+                .map(|parsed_sig| (parsed_pk, parsed_sig))
+        });
+    let ml_dsa_verify_result = match &parse_ok {
+        Ok((parsed_pk, parsed_sig)) => parsed_pk.verify(message, parsed_sig, &[]),
+        Err(_) => Ok(false),
+    };
+    // Bit is 1 only when the real input passed shape-check, both
+    // `from_bytes` calls succeeded, AND the verify returned Ok(true).
+    // When shape failed, the verify still ran (against the dummy) for
+    // timing equalization; its result is discarded by the AND with
+    // `pq_shape_ok`.
     let ml_dsa_valid: u8 =
-        if pq_shape_ok && matches!(ml_dsa_verify_result, Ok(true)) { 1u8 } else { 0u8 };
+        if pq_shape_ok && parse_ok.is_ok() && matches!(ml_dsa_verify_result, Ok(true)) {
+            1u8
+        } else {
+            0u8
+        };
 
     // Verify Ed25519. The Ed25519 parse is a simple length check — its
     // wall-clock cost is in the same order of magnitude as the verify

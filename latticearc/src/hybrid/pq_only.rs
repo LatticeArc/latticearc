@@ -195,22 +195,17 @@ impl PqOnlySecretKey {
 
 /// Build the HKDF `info` string for PQ-only encryption.
 ///
-/// Binds the KEM ciphertext into the per-message AEAD key derivation per
-/// RFC 9180 §5.1 (HPKE channel binding). Round-12 audit fix (L-2). Both
-/// `encrypt_pq_only` and `decrypt_pq_only` MUST construct this with
-/// identical inputs — a single canonical helper avoids the encrypt /
-/// decrypt drift that would silently break decryption if the two paths
-/// computed `info` differently.
+/// Thin wrapper over [`crate::types::domains::hkdf_kem_info`] that
+/// pins the domain-separation label to [`PQ_ONLY_ENCRYPTION_INFO`].
+/// The shared helper is also used by
+/// [`crate::unified_api::convenience::pq_kem`] so encrypt/decrypt
+/// drift across the two parallel APIs is structurally impossible
+/// (round-12 audit fix L-2 generalized to a single canonical helper).
 fn pq_only_encryption_info(kem_ciphertext: &[u8]) -> Vec<u8> {
-    let label = crate::types::domains::PQ_ONLY_ENCRYPTION_INFO;
-    // saturating_add avoids the workspace `clippy::arithmetic_side_effects`
-    // lint; in practice neither term ever approaches `usize::MAX`.
-    let cap = label.len().saturating_add(1).saturating_add(kem_ciphertext.len());
-    let mut info = Vec::with_capacity(cap);
-    info.extend_from_slice(label);
-    info.push(0x00); // domain separator between label and binding payload
-    info.extend_from_slice(kem_ciphertext);
-    info
+    crate::types::domains::hkdf_kem_info(
+        crate::types::domains::PQ_ONLY_ENCRYPTION_INFO,
+        kem_ciphertext,
+    )
 }
 
 /// Generate a PQ-only keypair at ML-KEM-768 (default security level).

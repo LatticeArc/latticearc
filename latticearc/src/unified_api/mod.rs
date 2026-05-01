@@ -474,71 +474,133 @@ fn run_power_up_self_tests() -> Result<()> {
         });
     }
 
-    // Test 2: AES-256-GCM Known Answer Test against a fixed NIST CAVP
-    // vector. Source: NIST Cryptographic Algorithm Validation Program
-    // GCM Test Vectors, file `gcmEncryptExtIV256.rsp`, Count = 0:
-    //   Key   = b52c505a37d78eda5dd34f20c22540ea1b58963cf8e5bf8ffa85f9f2492505b4
-    //   IV    = 516c33929df5a3284ff463d7
-    //   PT    = (empty)
-    //   AAD   = (empty)
-    //   CT    = (empty)
-    //   Tag   = bdc1ac884d332457a1d2664f168c76f0
-    // Verifying both encrypt-side ciphertext+tag and decrypt-side plaintext
-    // catches backend miscompilation, table corruption, S-box errors, and
-    // any drift in AesGcm256's wrapper logic — failure modes the previous
-    // randomized roundtrip could not detect.
+    // Test 2: AES-256-GCM Known Answer Tests against fixed NIST CAVP
+    // vectors. Source: NIST Cryptographic Algorithm Validation Program
+    // GCM Test Vectors, file `gcmEncryptExtIV256.rsp`. Two vectors are
+    // verified — Count=0 covers the empty-PT path (GHASH-only) and
+    // Count=12 covers the non-empty-PT path (exercises the AES round
+    // function and counter-mode increment that the empty-PT KAT can't
+    // reach). Each vector goes through encrypt + tag-check + decrypt
+    // round-trip, catching backend miscompilation, table corruption,
+    // S-box errors, and any drift in AesGcm256's wrapper logic —
+    // failure modes a randomized roundtrip could not detect.
     use crate::primitives::aead::AeadCipher;
     use crate::primitives::aead::aes_gcm::AesGcm256;
 
-    const KAT_KEY: [u8; 32] = [
-        0xb5, 0x2c, 0x50, 0x5a, 0x37, 0xd7, 0x8e, 0xda, 0x5d, 0xd3, 0x4f, 0x20, 0xc2, 0x25, 0x40,
-        0xea, 0x1b, 0x58, 0x96, 0x3c, 0xf8, 0xe5, 0xbf, 0x8f, 0xfa, 0x85, 0xf9, 0xf2, 0x49, 0x25,
-        0x05, 0xb4,
-    ];
-    const KAT_NONCE: [u8; 12] =
-        [0x51, 0x6c, 0x33, 0x92, 0x9d, 0xf5, 0xa3, 0x28, 0x4f, 0xf4, 0x63, 0xd7];
-    const KAT_EXPECTED_TAG: [u8; 16] = [
-        0xbd, 0xc1, 0xac, 0x88, 0x4d, 0x33, 0x24, 0x57, 0xa1, 0xd2, 0x66, 0x4f, 0x16, 0x8c, 0x76,
-        0xf0,
+    /// One AES-256-GCM CAVP vector for the boot-time KAT.
+    struct AesGcm256Kat {
+        /// Source label for error messages, e.g. `"Count=0"`.
+        name: &'static str,
+        /// 256-bit AES key.
+        key: &'static [u8; 32],
+        /// 96-bit IV.
+        nonce: &'static [u8; 12],
+        /// Plaintext (may be empty).
+        plaintext: &'static [u8],
+        /// Expected ciphertext; same length as plaintext.
+        expected_ct: &'static [u8],
+        /// Expected 128-bit GMAC authentication tag.
+        expected_tag: &'static [u8; 16],
+    }
+
+    const AES_GCM_KAT_VECTORS: &[AesGcm256Kat] = &[
+        // Count = 0: empty PT, empty AAD. Catches GHASH miscompilation
+        // but not AES round-function or counter-mode bugs.
+        //   Key   = b52c505a37d78eda5dd34f20c22540ea1b58963cf8e5bf8ffa85f9f2492505b4
+        //   IV    = 516c33929df5a3284ff463d7
+        //   PT    = (empty)
+        //   AAD   = (empty)
+        //   CT    = (empty)
+        //   Tag   = bdc1ac884d332457a1d2664f168c76f0
+        AesGcm256Kat {
+            name: "Count=0",
+            key: &[
+                0xb5, 0x2c, 0x50, 0x5a, 0x37, 0xd7, 0x8e, 0xda, 0x5d, 0xd3, 0x4f, 0x20, 0xc2, 0x25,
+                0x40, 0xea, 0x1b, 0x58, 0x96, 0x3c, 0xf8, 0xe5, 0xbf, 0x8f, 0xfa, 0x85, 0xf9, 0xf2,
+                0x49, 0x25, 0x05, 0xb4,
+            ],
+            nonce: &[0x51, 0x6c, 0x33, 0x92, 0x9d, 0xf5, 0xa3, 0x28, 0x4f, 0xf4, 0x63, 0xd7],
+            plaintext: &[],
+            expected_ct: &[],
+            expected_tag: &[
+                0xbd, 0xc1, 0xac, 0x88, 0x4d, 0x33, 0x24, 0x57, 0xa1, 0xd2, 0x66, 0x4f, 0x16, 0x8c,
+                0x76, 0xf0,
+            ],
+        },
+        // Count = 12: 128-bit PT, empty AAD. Exercises the AES round
+        // function and counter-mode increment paths.
+        //   Key   = 31bdadd96698c204aa9ce1448ea94ae1fb4a9a0b3c9d773b51bb1822666b8f22
+        //   IV    = 0d18e06c7c725ac9e362e1ce
+        //   PT    = 2db5168e932556f8089a0622981d017d
+        //   AAD   = (empty)
+        //   CT    = fa4362189661d163fcd6a56d8bf0405a
+        //   Tag   = d636ac1bbedd5cc3ee727dc2ab4a9489
+        AesGcm256Kat {
+            name: "Count=12",
+            key: &[
+                0x31, 0xbd, 0xad, 0xd9, 0x66, 0x98, 0xc2, 0x04, 0xaa, 0x9c, 0xe1, 0x44, 0x8e, 0xa9,
+                0x4a, 0xe1, 0xfb, 0x4a, 0x9a, 0x0b, 0x3c, 0x9d, 0x77, 0x3b, 0x51, 0xbb, 0x18, 0x22,
+                0x66, 0x6b, 0x8f, 0x22,
+            ],
+            nonce: &[0x0d, 0x18, 0xe0, 0x6c, 0x7c, 0x72, 0x5a, 0xc9, 0xe3, 0x62, 0xe1, 0xce],
+            plaintext: &[
+                0x2d, 0xb5, 0x16, 0x8e, 0x93, 0x25, 0x56, 0xf8, 0x08, 0x9a, 0x06, 0x22, 0x98, 0x1d,
+                0x01, 0x7d,
+            ],
+            expected_ct: &[
+                0xfa, 0x43, 0x62, 0x18, 0x96, 0x61, 0xd1, 0x63, 0xfc, 0xd6, 0xa5, 0x6d, 0x8b, 0xf0,
+                0x40, 0x5a,
+            ],
+            expected_tag: &[
+                0xd6, 0x36, 0xac, 0x1b, 0xbe, 0xdd, 0x5c, 0xc3, 0xee, 0x72, 0x7d, 0xc2, 0xab, 0x4a,
+                0x94, 0x89,
+            ],
+        },
     ];
 
-    let cipher = AesGcm256::new(&KAT_KEY).map_err(|e| CoreError::SelfTestFailed {
-        component: "AES-GCM".to_string(),
-        status: format!("key creation failed: {e}"),
-    })?;
-
-    // Encrypt-side KAT: empty plaintext, empty AAD, fixed key+IV → fixed tag.
-    let (ct, tag) =
-        cipher.encrypt(&KAT_NONCE, &[], None).map_err(|e| CoreError::SelfTestFailed {
+    for kat in AES_GCM_KAT_VECTORS {
+        let cipher = AesGcm256::new(kat.key).map_err(|e| CoreError::SelfTestFailed {
             component: "AES-GCM".to_string(),
-            status: format!("encryption failed: {e}"),
+            status: format!("{} key creation failed: {e}", kat.name),
         })?;
-    if !ct.is_empty() {
-        return Err(CoreError::SelfTestFailed {
-            component: "AES-GCM".to_string(),
-            status: "KAT ciphertext should be empty".to_string(),
-        });
-    }
-    if !bool::from(subtle::ConstantTimeEq::ct_eq(&tag[..], &KAT_EXPECTED_TAG[..])) {
-        return Err(CoreError::SelfTestFailed {
-            component: "AES-GCM".to_string(),
-            status: "KAT tag mismatch".to_string(),
-        });
-    }
 
-    // Decrypt-side KAT: round-trip the fixed (CT, tag) back to the empty
-    // plaintext. Verifies decrypt path against the same fixed vector.
-    let decrypted = cipher.decrypt(&KAT_NONCE, &[], &KAT_EXPECTED_TAG, None).map_err(|e| {
-        CoreError::SelfTestFailed {
-            component: "AES-GCM".to_string(),
-            status: format!("KAT decryption failed: {e}"),
+        // Encrypt-side: ciphertext + tag must match expected exactly.
+        let (ct, tag) = cipher.encrypt(kat.nonce, kat.plaintext, None).map_err(|e| {
+            CoreError::SelfTestFailed {
+                component: "AES-GCM".to_string(),
+                status: format!("{} encryption failed: {e}", kat.name),
+            }
+        })?;
+        if !bool::from(subtle::ConstantTimeEq::ct_eq(&ct[..], kat.expected_ct)) {
+            return Err(CoreError::SelfTestFailed {
+                component: "AES-GCM".to_string(),
+                status: format!(
+                    "{} ciphertext mismatch (AES round-function or CTR-mode bug)",
+                    kat.name
+                ),
+            });
         }
-    })?;
-    if !decrypted.is_empty() {
-        return Err(CoreError::SelfTestFailed {
-            component: "AES-GCM".to_string(),
-            status: "KAT decrypted plaintext should be empty".to_string(),
-        });
+        if !bool::from(subtle::ConstantTimeEq::ct_eq(&tag[..], &kat.expected_tag[..])) {
+            return Err(CoreError::SelfTestFailed {
+                component: "AES-GCM".to_string(),
+                status: format!("{} tag mismatch", kat.name),
+            });
+        }
+
+        // Decrypt-side: round-trip the expected (CT, tag) back to the
+        // expected plaintext.
+        let decrypted = cipher
+            .decrypt(kat.nonce, kat.expected_ct, kat.expected_tag, None)
+            .map_err(|e| CoreError::SelfTestFailed {
+                component: "AES-GCM".to_string(),
+                status: format!("{} decryption failed: {e}", kat.name),
+            })?;
+        if !bool::from(subtle::ConstantTimeEq::ct_eq(decrypted.as_slice(), kat.plaintext)) {
+            return Err(CoreError::SelfTestFailed {
+                component: "AES-GCM".to_string(),
+                status: format!("{} decrypted plaintext mismatch", kat.name),
+            });
+        }
     }
 
     // Test 3: Basic keypair generation

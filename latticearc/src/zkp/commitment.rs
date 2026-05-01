@@ -117,6 +117,12 @@ impl HashCommitment {
     }
 
     /// Compute H(value || randomness)
+    ///
+    /// Length prefix is `value.len() as u64` big-endian to match the
+    /// transcript convention used by `zkp::sigma::compute_challenge`
+    /// and `unified_api::audit::compute_integrity_hash` (round-12
+    /// audit fix L3 — the previous LE encoding was an isolated outlier
+    /// within the crate's transcript-style hashing).
     fn compute_hash(value: &[u8], randomness: &[u8; 32]) -> [u8; 32] {
         // Accumulate all inputs into a single buffer and route through the
         // primitives wrapper so hash backends stay swappable in one place.
@@ -128,7 +134,7 @@ impl HashCommitment {
                 .saturating_add(randomness.len()),
         );
         buf.extend_from_slice(b"arc-zkp/hash-commitment-v1");
-        buf.extend_from_slice(&(value.len() as u64).to_le_bytes());
+        buf.extend_from_slice(&(value.len() as u64).to_be_bytes());
         buf.extend_from_slice(value);
         buf.extend_from_slice(randomness);
         sha3_256(&buf)
@@ -322,7 +328,7 @@ impl PedersenCommitment {
 
     /// Generate second generator H via try-and-increment on SHA-256.
     ///
-    /// Hashes `"arc-zkp/pedersen-generator-H-v2" || counter` for counter = 0, 1, ...
+    /// Hashes `"arc-zkp/pedersen-generator-H-v3" || counter_BE` for counter = 0, 1, ...
     /// until the 32-byte output is a valid compressed x-coordinate on secp256k1.
     /// The resulting point has no known discrete-log relationship to G, which is
     /// required for the binding property of Pedersen commitments.
@@ -347,12 +353,19 @@ impl PedersenCommitment {
         // or second iteration with overwhelming probability.
         for counter in 0u32..256 {
             // Accumulate into a buffer and route through the primitives wrapper
-            // so hash backends remain swappable in one place.
+            // so hash backends remain swappable in one place. Label is `-v3`
+            // because the L3 endianness migration changed the derivation —
+            // the `-v2` label was bound to the LE-counter derivation and a
+            // same-label/different-derivation collision would defeat the
+            // whole point of the version suffix (round-12 audit fix L3 +
+            // label-bump-on-derivation-change discipline).
             let mut buf =
-                Vec::with_capacity(b"arc-zkp/pedersen-generator-H-v2".len().saturating_add(4));
-            buf.extend_from_slice(b"arc-zkp/pedersen-generator-H-v2");
-            #[allow(clippy::arithmetic_side_effects)] // counter.to_le_bytes() is infallible
-            buf.extend_from_slice(&counter.to_le_bytes());
+                Vec::with_capacity(b"arc-zkp/pedersen-generator-H-v3".len().saturating_add(4));
+            buf.extend_from_slice(b"arc-zkp/pedersen-generator-H-v3");
+            #[allow(clippy::arithmetic_side_effects)] // counter.to_be_bytes() is infallible
+            // Big-endian to match the transcript convention used elsewhere in
+            // the crate (round-12 audit fix L3).
+            buf.extend_from_slice(&counter.to_be_bytes());
             // Input is 34 bytes (30-byte label + 4-byte counter), well below the
             // 1 GiB SHA-256 DoS cap.
             let hash = sha256(&buf)

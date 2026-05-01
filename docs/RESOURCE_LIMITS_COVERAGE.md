@@ -68,9 +68,9 @@ Status: **covered**.
 | Module | Entry points | Validator coverage |
 |---|---|---|
 | `hybrid::encrypt_hybrid` | `encrypt_hybrid`, `decrypt_hybrid` | **Gap**: no `validate_encryption_size` / `validate_decryption_size` calls. The underlying AEAD primitive enforces it, but adding the check at the hybrid-layer entry point would be consistent. |
-| `hybrid::pq_only` | `encrypt_pq_only`, `decrypt_pq_only` | **Gap**: same as `encrypt_hybrid`. |
+| `hybrid::pq_only` | `encrypt_pq_only`, `decrypt_pq_only`, `encrypt_pq_only_with_aad`, `decrypt_pq_only_with_aad` | **Gap**: same as `encrypt_hybrid`. The `_with_aad` siblings (added in the post-round-21 audit-fix wave) share internals with the base versions; the underlying AEAD primitive enforces the cap. |
 | `hybrid::sig_hybrid` | `sign`, `verify` | **Gap**: no `validate_signature_size` at the hybrid layer; the inner ML-DSA / Ed25519 primitives do not enforce it either. |
-| `hybrid::kem_hybrid` | `generate_keypair*`, `encapsulate`, `decapsulate` | N/A — ML-KEM fixed-size inputs. |
+| `hybrid::kem_hybrid` | `generate_keypair*`, `encapsulate`, `decapsulate`, `decapsulate_from_parts` | N/A — ML-KEM fixed-size inputs. The `decapsulate_from_parts` entry point (added in the post-round-21 audit-fix wave to remove the placeholder `EncapsulatedKey` hack) takes raw `&[u8]` slices but `MlKemCiphertext::new` validates the length against the parameter set's fixed ciphertext size before any work runs. |
 
 ## Remediation plan (v0.7.x)
 

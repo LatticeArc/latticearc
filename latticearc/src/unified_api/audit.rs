@@ -519,43 +519,51 @@ impl FileAuditStorage {
         // same digest). The metadata caps already bound each field, but a
         // 4-byte LE length per element is the cheap and definitive fix.
         let mut buf = Vec::new();
-        Self::append_lenp_field(&mut buf, previous_hash.as_bytes());
-        Self::append_lenp_field(&mut buf, event.id.as_bytes());
-        Self::append_lenp_field(&mut buf, event.timestamp.to_rfc3339().as_bytes());
-        Self::append_lenp_field(&mut buf, event.event_type.to_string().as_bytes());
+        Self::append_lenp_field(&mut buf, previous_hash.as_bytes())?;
+        Self::append_lenp_field(&mut buf, event.id.as_bytes())?;
+        Self::append_lenp_field(&mut buf, event.timestamp.to_rfc3339().as_bytes())?;
+        Self::append_lenp_field(&mut buf, event.event_type.to_string().as_bytes())?;
 
         // Optional fields are encoded as a discriminator byte followed by
         // the length-prefixed bytes; absence vs empty is now distinguishable.
         match event.actor.as_ref() {
             Some(a) => {
                 buf.push(1);
-                Self::append_lenp_field(&mut buf, a.as_bytes());
+                Self::append_lenp_field(&mut buf, a.as_bytes())?;
             }
             None => buf.push(0),
         }
         match event.resource.as_ref() {
             Some(r) => {
                 buf.push(1);
-                Self::append_lenp_field(&mut buf, r.as_bytes());
+                Self::append_lenp_field(&mut buf, r.as_bytes())?;
             }
             None => buf.push(0),
         }
 
-        Self::append_lenp_field(&mut buf, event.action.as_bytes());
-        Self::append_lenp_field(&mut buf, event.outcome.to_string().as_bytes());
+        Self::append_lenp_field(&mut buf, event.action.as_bytes())?;
+        Self::append_lenp_field(&mut buf, event.outcome.to_string().as_bytes())?;
 
         // Metadata: include count, then sorted (key, value) pairs each
-        // with their own length prefix.
+        // with their own length prefix. Overflow at `u32::MAX` (4 G
+        // entries) propagates as `AuditError`, symmetric with the
+        // length-prefix overflow path above. Length prefixes are
+        // big-endian to match the transcript convention used by
+        // `zkp::sigma::compute_challenge` (round-12 audit fix L3 —
+        // unifies endianness across all transcript-style hashing in
+        // the crate).
         let mut metadata_keys: Vec<&String> = event.metadata.keys().collect();
         metadata_keys.sort();
-        let count = u32::try_from(metadata_keys.len()).unwrap_or(u32::MAX);
-        buf.extend_from_slice(&count.to_le_bytes());
+        let count = u32::try_from(metadata_keys.len()).map_err(|_e| {
+            CoreError::AuditError("integrity hash metadata count exceeds 2^32".to_string())
+        })?;
+        buf.extend_from_slice(&count.to_be_bytes());
         for key in metadata_keys {
-            Self::append_lenp_field(&mut buf, key.as_bytes());
+            Self::append_lenp_field(&mut buf, key.as_bytes())?;
             if let Some(value) = event.metadata.get(key) {
-                Self::append_lenp_field(&mut buf, value.as_bytes());
+                Self::append_lenp_field(&mut buf, value.as_bytes())?;
             } else {
-                Self::append_lenp_field(&mut buf, &[]);
+                Self::append_lenp_field(&mut buf, &[])?;
             }
         }
 
@@ -566,13 +574,27 @@ impl FileAuditStorage {
         Ok(hex::encode(digest))
     }
 
-    /// Append `field.len() as u32 LE` followed by `field` to `buf`. Length
-    /// is saturated at `u32::MAX` (4 GiB), which is far above the cap
-    /// any individual audit field can carry.
-    fn append_lenp_field(buf: &mut Vec<u8>, field: &[u8]) {
-        let len = u32::try_from(field.len()).unwrap_or(u32::MAX);
-        buf.extend_from_slice(&len.to_le_bytes());
+    /// Append `field.len() as u32 BE` followed by `field` to `buf`.
+    ///
+    /// Returns `Err(CoreError::AuditError)` if `field.len()` exceeds
+    /// `u32::MAX` bytes (4 GiB) — symmetric with the overflow handling
+    /// in `zkp::sigma::compute_challenge` (round-21 audit fix #7). The
+    /// length is encoded big-endian to match the transcript convention
+    /// used by `zkp::sigma::compute_challenge` (round-12 audit fix L3 —
+    /// the previous LE encoding was an isolated outlier within the
+    /// crate's transcript-style hashing).
+    /// The previous saturating-to-`u32::MAX` form was a silent collapse
+    /// that would let two distinct field values share the same length
+    /// prefix; while the SHA-256 backend's 1 GiB cap makes this
+    /// unreachable today, an explicit error preserves the asymmetric
+    /// defensive posture the rest of the crate now uses.
+    fn append_lenp_field(buf: &mut Vec<u8>, field: &[u8]) -> Result<()> {
+        let len = u32::try_from(field.len()).map_err(|_e| {
+            CoreError::AuditError("integrity hash field exceeds 2^32 bytes".to_string())
+        })?;
+        buf.extend_from_slice(&len.to_be_bytes());
         buf.extend_from_slice(field);
+        Ok(())
     }
 
     /// Check if the current file needs rotation.

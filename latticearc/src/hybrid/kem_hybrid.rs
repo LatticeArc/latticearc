@@ -228,8 +228,16 @@ impl HybridKemPublicKey {
     /// (v1 is exhausted at 3 and the format-version prefix exists so a
     /// future ML-KEM-2048 / composite scheme can ship as v2 without
     /// breaking v1 parsers). [`from_bytes`] is the round-trip inverse.
-    #[must_use]
-    pub fn to_bytes(&self) -> Vec<u8> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `HybridKemError::InvalidKeyMaterial` if either component
+    /// public key exceeds `u32::MAX` bytes (4 GiB). Real ML-KEM and
+    /// X25519 public keys are bounded well below this limit, so the
+    /// error path is unreachable in practice — but `?`-propagation
+    /// matches the symmetric posture of `append_lenp_field` in
+    /// `unified_api::audit` (post-round-21 audit fix L2).
+    pub fn to_bytes(&self) -> Result<Vec<u8>, HybridKemError> {
         let level_tag: u8 = match self.security_level {
             MlKemSecurityLevel::MlKem512 => 1,
             MlKemSecurityLevel::MlKem768 => 2,
@@ -245,15 +253,23 @@ impl HybridKemPublicKey {
         );
         out.push(Self::WIRE_FORMAT_VERSION);
         out.push(level_tag);
-        // Lengths are bounded by `MlKemPublicKey::MAX_PK_BYTES` (well under
-        // u32::MAX) so `try_from` always succeeds for any real PK.
-        let ml_len = u32::try_from(self.ml_kem_pk.len()).unwrap_or(u32::MAX);
-        let ed_len = u32::try_from(self.ecdh_pk.len()).unwrap_or(u32::MAX);
+        // Lengths are bounded by `MlKemPublicKey::MAX_PK_BYTES` (well
+        // under u32::MAX) so `try_from` always succeeds for any real
+        // PK. The previous `unwrap_or(u32::MAX)` was an asymmetric
+        // saturation that would let a 5 GiB component PK silently
+        // collide with a 4 GiB component PK on the wire — propagate
+        // structurally instead, matching `audit::append_lenp_field`.
+        let ml_len = u32::try_from(self.ml_kem_pk.len()).map_err(|_e| {
+            HybridKemError::InvalidKeyMaterial("ml_kem_pk length exceeds 2^32 bytes".to_string())
+        })?;
+        let ed_len = u32::try_from(self.ecdh_pk.len()).map_err(|_e| {
+            HybridKemError::InvalidKeyMaterial("ecdh_pk length exceeds 2^32 bytes".to_string())
+        })?;
         out.extend_from_slice(&ml_len.to_be_bytes());
         out.extend_from_slice(&self.ml_kem_pk);
         out.extend_from_slice(&ed_len.to_be_bytes());
         out.extend_from_slice(&self.ecdh_pk);
-        out
+        Ok(out)
     }
 
     /// Parse a `HybridKemPublicKey` previously produced by [`to_bytes`].
