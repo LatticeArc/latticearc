@@ -127,42 +127,46 @@
 <a href=#127 id=127 data-nosnippet>127</a>}
 <a href=#128 id=128 data-nosnippet>128</a>
 <a href=#129 id=129 data-nosnippet>129</a><span class="kw">fn </span>write_output(path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathBuf&gt;, data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">match </span>path {
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="prelude-val">Some</span>(p) =&gt; {
-<a href=#132 id=132 data-nosnippet>132</a>            <span class="comment">// Atomic write — decrypted secret material at rest must
-<a href=#133 id=133 data-nosnippet>133</a>            // never be visible as a partial file (round-7 audit fix
-<a href=#134 id=134 data-nosnippet>134</a>            // #18). `secret_mode()` sets 0o600 atomically before the
-<a href=#135 id=135 data-nosnippet>135</a>            // rename. Round-20 audit #5 noted this call site lacked
-<a href=#136 id=136 data-nosnippet>136</a>            // `secret_mode()`; in practice `tempfile::NamedTempFile`
-<a href=#137 id=137 data-nosnippet>137</a>            // already creates files with mode 0o600 and `persist()`
-<a href=#138 id=138 data-nosnippet>138</a>            // preserves that, so the audit's stated risk (umask
-<a href=#139 id=139 data-nosnippet>139</a>            // 0o644) doesn't materialize at runtime — but the
-<a href=#140 id=140 data-nosnippet>140</a>            // explicit `.secret_mode()` is retained as defense-in-
-<a href=#141 id=141 data-nosnippet>141</a>            // depth in case tempfile's default ever changes.
-<a href=#142 id=142 data-nosnippet>142</a>            </span>latticearc::unified_api::atomic_write::AtomicWrite::new(data)
-<a href=#143 id=143 data-nosnippet>143</a>                .secret_mode()
-<a href=#144 id=144 data-nosnippet>144</a>                .overwrite_existing(<span class="bool-val">true</span>)
-<a href=#145 id=145 data-nosnippet>145</a>                .write(p)
-<a href=#146 id=146 data-nosnippet>146</a>                .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
-<a href=#147 id=147 data-nosnippet>147</a>            <span class="comment">// Round-21 audit fix #14: path on stderr leaked through
-<a href=#148 id=148 data-nosnippet>148</a>            // process accounting and log aggregation. Demote to
-<a href=#149 id=149 data-nosnippet>149</a>            // tracing::debug!.
-<a href=#150 id=150 data-nosnippet>150</a>            </span><span class="macro">tracing::debug!</span>(path = %p.display(), <span class="string">"decrypted data written"</span>);
-<a href=#151 id=151 data-nosnippet>151</a>        }
-<a href=#152 id=152 data-nosnippet>152</a>        <span class="prelude-val">None </span>=&gt; {
-<a href=#153 id=153 data-nosnippet>153</a>            <span class="comment">// Try to print as UTF-8, fall back to hex. The hex encoding
-<a href=#154 id=154 data-nosnippet>154</a>            // is wrapped in `Zeroizing&lt;String&gt;` so a derived plaintext
-<a href=#155 id=155 data-nosnippet>155</a>            // copy doesn't outlive the source `Zeroizing&lt;Vec&lt;u8&gt;&gt;` —
-<a href=#156 id=156 data-nosnippet>156</a>            // otherwise the encoded string would linger on the heap until
-<a href=#157 id=157 data-nosnippet>157</a>            // allocator reclaim.
-<a href=#158 id=158 data-nosnippet>158</a>            </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(s) = std::str::from_utf8(data) {
-<a href=#159 id=159 data-nosnippet>159</a>                <span class="macro">print!</span>(<span class="string">"{s}"</span>);
-<a href=#160 id=160 data-nosnippet>160</a>            } <span class="kw">else </span>{
-<a href=#161 id=161 data-nosnippet>161</a>                <span class="kw">let </span>encoded = zeroize::Zeroizing::new(hex::encode(data));
-<a href=#162 id=162 data-nosnippet>162</a>                <span class="macro">print!</span>(<span class="string">"{}"</span>, encoded.as_str());
-<a href=#163 id=163 data-nosnippet>163</a>            }
-<a href=#164 id=164 data-nosnippet>164</a>        }
-<a href=#165 id=165 data-nosnippet>165</a>    }
-<a href=#166 id=166 data-nosnippet>166</a>    <span class="prelude-val">Ok</span>(())
-<a href=#167 id=167 data-nosnippet>167</a>}
+<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = path {
+<a href=#131 id=131 data-nosnippet>131</a>        <span class="comment">// Atomic write with 0o600. `tempfile::NamedTempFile` already
+<a href=#132 id=132 data-nosnippet>132</a>        // creates files with mode 0o600 and `persist()` preserves that;
+<a href=#133 id=133 data-nosnippet>133</a>        // `.secret_mode()` is retained as defense-in-depth in case
+<a href=#134 id=134 data-nosnippet>134</a>        // tempfile's default ever changes.
+<a href=#135 id=135 data-nosnippet>135</a>        </span>latticearc::unified_api::atomic_write::AtomicWrite::new(data)
+<a href=#136 id=136 data-nosnippet>136</a>            .secret_mode()
+<a href=#137 id=137 data-nosnippet>137</a>            .overwrite_existing(<span class="bool-val">true</span>)
+<a href=#138 id=138 data-nosnippet>138</a>            .write(p)
+<a href=#139 id=139 data-nosnippet>139</a>            .with_context(|| <span class="macro">format!</span>(<span class="string">"Failed to write {}"</span>, p.display()))<span class="question-mark">?</span>;
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="comment">// Path on stderr would leak through process accounting and log
+<a href=#141 id=141 data-nosnippet>141</a>        // aggregation; route to tracing::debug! instead.
+<a href=#142 id=142 data-nosnippet>142</a>        </span><span class="macro">tracing::debug!</span>(path = %p.display(), <span class="string">"decrypted data written"</span>);
+<a href=#143 id=143 data-nosnippet>143</a>    } <span class="kw">else </span>{
+<a href=#144 id=144 data-nosnippet>144</a>        <span class="comment">// Stdout-as-default-target hazard: writing decrypted plaintext
+<a href=#145 id=145 data-nosnippet>145</a>        // to a TTY exposes it to recorded shell sessions, screen
+<a href=#146 id=146 data-nosnippet>146</a>        // sharing, scrollback, and any logging proxy. When the user is
+<a href=#147 id=147 data-nosnippet>147</a>        // interactive, surface a one-line warning to stderr. Pipelines
+<a href=#148 id=148 data-nosnippet>148</a>        // (`| tee`, file redirection) where stdout is not a TTY get no
+<a href=#149 id=149 data-nosnippet>149</a>        // warning.
+<a href=#150 id=150 data-nosnippet>150</a>        </span><span class="kw">use </span>std::io::IsTerminal;
+<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">if </span>std::io::stdout().is_terminal() {
+<a href=#152 id=152 data-nosnippet>152</a>            <span class="macro">eprintln!</span>(
+<a href=#153 id=153 data-nosnippet>153</a>                <span class="string">"warning: decrypted plaintext is being written to a TTY. \
+<a href=#154 id=154 data-nosnippet>154</a>                 Pass --output &lt;file&gt; to write to disk with 0600 permissions, \
+<a href=#155 id=155 data-nosnippet>155</a>                 or pipe stdout to avoid leaving secrets in scrollback."
+<a href=#156 id=156 data-nosnippet>156</a>            </span>);
+<a href=#157 id=157 data-nosnippet>157</a>        }
+<a href=#158 id=158 data-nosnippet>158</a>        <span class="comment">// Try to print as UTF-8, fall back to hex. The hex encoding is
+<a href=#159 id=159 data-nosnippet>159</a>        // wrapped in `Zeroizing&lt;String&gt;` so a derived plaintext copy
+<a href=#160 id=160 data-nosnippet>160</a>        // doesn't outlive the source `Zeroizing&lt;Vec&lt;u8&gt;&gt;` — otherwise
+<a href=#161 id=161 data-nosnippet>161</a>        // the encoded string would linger on the heap until allocator
+<a href=#162 id=162 data-nosnippet>162</a>        // reclaim.
+<a href=#163 id=163 data-nosnippet>163</a>        </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(s) = std::str::from_utf8(data) {
+<a href=#164 id=164 data-nosnippet>164</a>            <span class="macro">print!</span>(<span class="string">"{s}"</span>);
+<a href=#165 id=165 data-nosnippet>165</a>        } <span class="kw">else </span>{
+<a href=#166 id=166 data-nosnippet>166</a>            <span class="kw">let </span>encoded = zeroize::Zeroizing::new(hex::encode(data));
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="macro">print!</span>(<span class="string">"{}"</span>, encoded.as_str());
+<a href=#168 id=168 data-nosnippet>168</a>        }
+<a href=#169 id=169 data-nosnippet>169</a>    }
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="prelude-val">Ok</span>(())
+<a href=#171 id=171 data-nosnippet>171</a>}
 </code></pre></div></section></main></body></html>

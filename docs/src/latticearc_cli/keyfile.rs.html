@@ -471,29 +471,11 @@
 <a href=#471 id=471 data-nosnippet>471</a>    ))
 <a href=#472 id=472 data-nosnippet>472</a>}
 <a href=#473 id=473 data-nosnippet>473</a>
-<a href=#474 id=474 data-nosnippet>474</a><span class="doccomment">/// Parse an algorithm name string to `KeyAlgorithm`.
-<a href=#475 id=475 data-nosnippet>475</a></span><span class="kw">fn </span>parse_algorithm_name(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;KeyAlgorithm&gt; {
-<a href=#476 id=476 data-nosnippet>476</a>    <span class="kw">match </span>name {
-<a href=#477 id=477 data-nosnippet>477</a>        <span class="string">"ml-kem-512" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::MlKem512),
-<a href=#478 id=478 data-nosnippet>478</a>        <span class="string">"ml-kem-768" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::MlKem768),
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="string">"ml-kem-1024" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::MlKem1024),
-<a href=#480 id=480 data-nosnippet>480</a>        <span class="string">"ml-dsa-44" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::MlDsa44),
-<a href=#481 id=481 data-nosnippet>481</a>        <span class="string">"ml-dsa-65" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::MlDsa65),
-<a href=#482 id=482 data-nosnippet>482</a>        <span class="string">"ml-dsa-87" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::MlDsa87),
-<a href=#483 id=483 data-nosnippet>483</a>        <span class="string">"slh-dsa-shake-128s" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::SlhDsaShake128s),
-<a href=#484 id=484 data-nosnippet>484</a>        <span class="string">"fn-dsa-512" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::FnDsa512),
-<a href=#485 id=485 data-nosnippet>485</a>        <span class="string">"fn-dsa-1024" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::FnDsa1024),
-<a href=#486 id=486 data-nosnippet>486</a>        <span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::Ed25519),
-<a href=#487 id=487 data-nosnippet>487</a>        <span class="string">"x25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::X25519),
-<a href=#488 id=488 data-nosnippet>488</a>        <span class="string">"aes-256" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::Aes256),
-<a href=#489 id=489 data-nosnippet>489</a>        <span class="string">"chacha20" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::ChaCha20),
-<a href=#490 id=490 data-nosnippet>490</a>        <span class="string">"hybrid-ml-kem-768-x25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::HybridMlKem768X25519),
-<a href=#491 id=491 data-nosnippet>491</a>        <span class="string">"hybrid-ml-kem-512-x25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::HybridMlKem512X25519),
-<a href=#492 id=492 data-nosnippet>492</a>        <span class="string">"hybrid-ml-kem-1024-x25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::HybridMlKem1024X25519),
-<a href=#493 id=493 data-nosnippet>493</a>        <span class="string">"hybrid-ml-dsa-65-ed25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::HybridMlDsa65Ed25519),
-<a href=#494 id=494 data-nosnippet>494</a>        <span class="string">"hybrid-ml-dsa-44-ed25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::HybridMlDsa44Ed25519),
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="string">"hybrid-ml-dsa-87-ed25519" </span>=&gt; <span class="prelude-val">Some</span>(KeyAlgorithm::HybridMlDsa87Ed25519),
-<a href=#496 id=496 data-nosnippet>496</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#497 id=497 data-nosnippet>497</a>    }
-<a href=#498 id=498 data-nosnippet>498</a>}
+<a href=#474 id=474 data-nosnippet>474</a><span class="doccomment">/// Parse an algorithm name string to `KeyAlgorithm`. Delegates to the
+<a href=#475 id=475 data-nosnippet>475</a>/// library's [`KeyAlgorithm::from_canonical_name`] so the CLI and the
+<a href=#476 id=476 data-nosnippet>476</a>/// `from_legacy_json` parser share one source of truth — no risk of
+<a href=#477 id=477 data-nosnippet>477</a>/// drift when a new wire name is added.
+<a href=#478 id=478 data-nosnippet>478</a></span><span class="kw">fn </span>parse_algorithm_name(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;KeyAlgorithm&gt; {
+<a href=#479 id=479 data-nosnippet>479</a>    KeyAlgorithm::from_canonical_name(name)
+<a href=#480 id=480 data-nosnippet>480</a>}
 </code></pre></div></section></main></body></html>
