@@ -313,7 +313,7 @@ jobs:
           done <<< "$NEEDS"
           if [ -n "$MISSING" ]; then
             echo "::error::needs[] entries with no inner result-check (failure does not block merge): $MISSING"
-            echo "Each entry in status-check.needs[] must have a matching '[[ \"\${{ needs.X.result }}\" == \"failure\" ]]' line in the same job body, OR the corresponding 'echo Warning' / 'non-blocking' branch (fuzz-nightly / fuzz-weekly pattern). Round-19 H4 + round-21 #18."
+            echo "Each entry in status-check.needs[] must have a matching needs.X.result==failure line in the same job body, OR the corresponding echo-Warning / non-blocking branch (fuzz-nightly / fuzz-weekly pattern). Round-19 H4 + round-21 #18."
             exit 1
           fi
 
