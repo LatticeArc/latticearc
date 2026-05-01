@@ -474,111 +474,173 @@
 <a href=#474 id=474 data-nosnippet>474</a>        });
 <a href=#475 id=475 data-nosnippet>475</a>    }
 <a href=#476 id=476 data-nosnippet>476</a>
-<a href=#477 id=477 data-nosnippet>477</a>    <span class="comment">// Test 2: AES-256-GCM Known Answer Test against a fixed NIST CAVP
-<a href=#478 id=478 data-nosnippet>478</a>    // vector. Source: NIST Cryptographic Algorithm Validation Program
-<a href=#479 id=479 data-nosnippet>479</a>    // GCM Test Vectors, file `gcmEncryptExtIV256.rsp`, Count = 0:
-<a href=#480 id=480 data-nosnippet>480</a>    //   Key   = b52c505a37d78eda5dd34f20c22540ea1b58963cf8e5bf8ffa85f9f2492505b4
-<a href=#481 id=481 data-nosnippet>481</a>    //   IV    = 516c33929df5a3284ff463d7
-<a href=#482 id=482 data-nosnippet>482</a>    //   PT    = (empty)
-<a href=#483 id=483 data-nosnippet>483</a>    //   AAD   = (empty)
-<a href=#484 id=484 data-nosnippet>484</a>    //   CT    = (empty)
-<a href=#485 id=485 data-nosnippet>485</a>    //   Tag   = bdc1ac884d332457a1d2664f168c76f0
-<a href=#486 id=486 data-nosnippet>486</a>    // Verifying both encrypt-side ciphertext+tag and decrypt-side plaintext
-<a href=#487 id=487 data-nosnippet>487</a>    // catches backend miscompilation, table corruption, S-box errors, and
-<a href=#488 id=488 data-nosnippet>488</a>    // any drift in AesGcm256's wrapper logic — failure modes the previous
-<a href=#489 id=489 data-nosnippet>489</a>    // randomized roundtrip could not detect.
-<a href=#490 id=490 data-nosnippet>490</a>    </span><span class="kw">use </span><span class="kw">crate</span>::primitives::aead::AeadCipher;
-<a href=#491 id=491 data-nosnippet>491</a>    <span class="kw">use </span><span class="kw">crate</span>::primitives::aead::aes_gcm::AesGcm256;
-<a href=#492 id=492 data-nosnippet>492</a>
-<a href=#493 id=493 data-nosnippet>493</a>    <span class="kw">const </span>KAT_KEY: [u8; <span class="number">32</span>] = [
-<a href=#494 id=494 data-nosnippet>494</a>        <span class="number">0xb5</span>, <span class="number">0x2c</span>, <span class="number">0x50</span>, <span class="number">0x5a</span>, <span class="number">0x37</span>, <span class="number">0xd7</span>, <span class="number">0x8e</span>, <span class="number">0xda</span>, <span class="number">0x5d</span>, <span class="number">0xd3</span>, <span class="number">0x4f</span>, <span class="number">0x20</span>, <span class="number">0xc2</span>, <span class="number">0x25</span>, <span class="number">0x40</span>,
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="number">0xea</span>, <span class="number">0x1b</span>, <span class="number">0x58</span>, <span class="number">0x96</span>, <span class="number">0x3c</span>, <span class="number">0xf8</span>, <span class="number">0xe5</span>, <span class="number">0xbf</span>, <span class="number">0x8f</span>, <span class="number">0xfa</span>, <span class="number">0x85</span>, <span class="number">0xf9</span>, <span class="number">0xf2</span>, <span class="number">0x49</span>, <span class="number">0x25</span>,
-<a href=#496 id=496 data-nosnippet>496</a>        <span class="number">0x05</span>, <span class="number">0xb4</span>,
-<a href=#497 id=497 data-nosnippet>497</a>    ];
-<a href=#498 id=498 data-nosnippet>498</a>    <span class="kw">const </span>KAT_NONCE: [u8; <span class="number">12</span>] =
-<a href=#499 id=499 data-nosnippet>499</a>        [<span class="number">0x51</span>, <span class="number">0x6c</span>, <span class="number">0x33</span>, <span class="number">0x92</span>, <span class="number">0x9d</span>, <span class="number">0xf5</span>, <span class="number">0xa3</span>, <span class="number">0x28</span>, <span class="number">0x4f</span>, <span class="number">0xf4</span>, <span class="number">0x63</span>, <span class="number">0xd7</span>];
-<a href=#500 id=500 data-nosnippet>500</a>    <span class="kw">const </span>KAT_EXPECTED_TAG: [u8; <span class="number">16</span>] = [
-<a href=#501 id=501 data-nosnippet>501</a>        <span class="number">0xbd</span>, <span class="number">0xc1</span>, <span class="number">0xac</span>, <span class="number">0x88</span>, <span class="number">0x4d</span>, <span class="number">0x33</span>, <span class="number">0x24</span>, <span class="number">0x57</span>, <span class="number">0xa1</span>, <span class="number">0xd2</span>, <span class="number">0x66</span>, <span class="number">0x4f</span>, <span class="number">0x16</span>, <span class="number">0x8c</span>, <span class="number">0x76</span>,
-<a href=#502 id=502 data-nosnippet>502</a>        <span class="number">0xf0</span>,
-<a href=#503 id=503 data-nosnippet>503</a>    ];
-<a href=#504 id=504 data-nosnippet>504</a>
-<a href=#505 id=505 data-nosnippet>505</a>    <span class="kw">let </span>cipher = AesGcm256::new(<span class="kw-2">&amp;</span>KAT_KEY).map_err(|e| CoreError::SelfTestFailed {
-<a href=#506 id=506 data-nosnippet>506</a>        component: <span class="string">"AES-GCM"</span>.to_string(),
-<a href=#507 id=507 data-nosnippet>507</a>        status: <span class="macro">format!</span>(<span class="string">"key creation failed: {e}"</span>),
-<a href=#508 id=508 data-nosnippet>508</a>    })<span class="question-mark">?</span>;
-<a href=#509 id=509 data-nosnippet>509</a>
-<a href=#510 id=510 data-nosnippet>510</a>    <span class="comment">// Encrypt-side KAT: empty plaintext, empty AAD, fixed key+IV → fixed tag.
-<a href=#511 id=511 data-nosnippet>511</a>    </span><span class="kw">let </span>(ct, tag) =
-<a href=#512 id=512 data-nosnippet>512</a>        cipher.encrypt(<span class="kw-2">&amp;</span>KAT_NONCE, <span class="kw-2">&amp;</span>[], <span class="prelude-val">None</span>).map_err(|e| CoreError::SelfTestFailed {
-<a href=#513 id=513 data-nosnippet>513</a>            component: <span class="string">"AES-GCM"</span>.to_string(),
-<a href=#514 id=514 data-nosnippet>514</a>            status: <span class="macro">format!</span>(<span class="string">"encryption failed: {e}"</span>),
-<a href=#515 id=515 data-nosnippet>515</a>        })<span class="question-mark">?</span>;
-<a href=#516 id=516 data-nosnippet>516</a>    <span class="kw">if </span>!ct.is_empty() {
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
-<a href=#518 id=518 data-nosnippet>518</a>            component: <span class="string">"AES-GCM"</span>.to_string(),
-<a href=#519 id=519 data-nosnippet>519</a>            status: <span class="string">"KAT ciphertext should be empty"</span>.to_string(),
-<a href=#520 id=520 data-nosnippet>520</a>        });
-<a href=#521 id=521 data-nosnippet>521</a>    }
-<a href=#522 id=522 data-nosnippet>522</a>    <span class="kw">if </span>!bool::from(subtle::ConstantTimeEq::ct_eq(<span class="kw-2">&amp;</span>tag[..], <span class="kw-2">&amp;</span>KAT_EXPECTED_TAG[..])) {
-<a href=#523 id=523 data-nosnippet>523</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
-<a href=#524 id=524 data-nosnippet>524</a>            component: <span class="string">"AES-GCM"</span>.to_string(),
-<a href=#525 id=525 data-nosnippet>525</a>            status: <span class="string">"KAT tag mismatch"</span>.to_string(),
-<a href=#526 id=526 data-nosnippet>526</a>        });
-<a href=#527 id=527 data-nosnippet>527</a>    }
-<a href=#528 id=528 data-nosnippet>528</a>
-<a href=#529 id=529 data-nosnippet>529</a>    <span class="comment">// Decrypt-side KAT: round-trip the fixed (CT, tag) back to the empty
-<a href=#530 id=530 data-nosnippet>530</a>    // plaintext. Verifies decrypt path against the same fixed vector.
-<a href=#531 id=531 data-nosnippet>531</a>    </span><span class="kw">let </span>decrypted = cipher.decrypt(<span class="kw-2">&amp;</span>KAT_NONCE, <span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span>KAT_EXPECTED_TAG, <span class="prelude-val">None</span>).map_err(|e| {
-<a href=#532 id=532 data-nosnippet>532</a>        CoreError::SelfTestFailed {
-<a href=#533 id=533 data-nosnippet>533</a>            component: <span class="string">"AES-GCM"</span>.to_string(),
-<a href=#534 id=534 data-nosnippet>534</a>            status: <span class="macro">format!</span>(<span class="string">"KAT decryption failed: {e}"</span>),
-<a href=#535 id=535 data-nosnippet>535</a>        }
-<a href=#536 id=536 data-nosnippet>536</a>    })<span class="question-mark">?</span>;
-<a href=#537 id=537 data-nosnippet>537</a>    <span class="kw">if </span>!decrypted.is_empty() {
-<a href=#538 id=538 data-nosnippet>538</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
-<a href=#539 id=539 data-nosnippet>539</a>            component: <span class="string">"AES-GCM"</span>.to_string(),
-<a href=#540 id=540 data-nosnippet>540</a>            status: <span class="string">"KAT decrypted plaintext should be empty"</span>.to_string(),
-<a href=#541 id=541 data-nosnippet>541</a>        });
-<a href=#542 id=542 data-nosnippet>542</a>    }
-<a href=#543 id=543 data-nosnippet>543</a>
-<a href=#544 id=544 data-nosnippet>544</a>    <span class="comment">// Test 3: Basic keypair generation
-<a href=#545 id=545 data-nosnippet>545</a>    </span>generate_keypair()<span class="question-mark">?</span>;
-<a href=#546 id=546 data-nosnippet>546</a>
-<a href=#547 id=547 data-nosnippet>547</a>    <span class="comment">// All tests passed - set self-test status
-<a href=#548 id=548 data-nosnippet>548</a>    </span>SELF_TESTS_PASSED.store(<span class="bool-val">true</span>, Ordering::SeqCst);
-<a href=#549 id=549 data-nosnippet>549</a>    <span class="prelude-val">Ok</span>(())
-<a href=#550 id=550 data-nosnippet>550</a>}
-<a href=#551 id=551 data-nosnippet>551</a>
-<a href=#552 id=552 data-nosnippet>552</a><span class="attr">#[cfg(test)]
-<a href=#553 id=553 data-nosnippet>553</a>#[allow(
-<a href=#554 id=554 data-nosnippet>554</a>    clippy::panic,
-<a href=#555 id=555 data-nosnippet>555</a>    clippy::unwrap_used,
-<a href=#556 id=556 data-nosnippet>556</a>    clippy::expect_used,
-<a href=#557 id=557 data-nosnippet>557</a>    clippy::indexing_slicing,
-<a href=#558 id=558 data-nosnippet>558</a>    clippy::arithmetic_side_effects,
-<a href=#559 id=559 data-nosnippet>559</a>    clippy::panic_in_result_fn,
-<a href=#560 id=560 data-nosnippet>560</a>    clippy::unnecessary_wraps,
-<a href=#561 id=561 data-nosnippet>561</a>    clippy::redundant_clone,
-<a href=#562 id=562 data-nosnippet>562</a>    clippy::useless_vec,
-<a href=#563 id=563 data-nosnippet>563</a>    clippy::cast_possible_truncation,
-<a href=#564 id=564 data-nosnippet>564</a>    clippy::cast_sign_loss,
-<a href=#565 id=565 data-nosnippet>565</a>    clippy::clone_on_copy,
-<a href=#566 id=566 data-nosnippet>566</a>    clippy::len_zero,
-<a href=#567 id=567 data-nosnippet>567</a>    clippy::single_match,
-<a href=#568 id=568 data-nosnippet>568</a>    clippy::unnested_or_patterns,
-<a href=#569 id=569 data-nosnippet>569</a>    clippy::default_constructed_unit_structs,
-<a href=#570 id=570 data-nosnippet>570</a>    clippy::redundant_closure_for_method_calls,
-<a href=#571 id=571 data-nosnippet>571</a>    clippy::semicolon_if_nothing_returned,
-<a href=#572 id=572 data-nosnippet>572</a>    clippy::unnecessary_unwrap,
-<a href=#573 id=573 data-nosnippet>573</a>    clippy::redundant_pattern_matching,
-<a href=#574 id=574 data-nosnippet>574</a>    clippy::missing_const_for_thread_local,
-<a href=#575 id=575 data-nosnippet>575</a>    clippy::get_first,
-<a href=#576 id=576 data-nosnippet>576</a>    clippy::float_cmp,
-<a href=#577 id=577 data-nosnippet>577</a>    clippy::needless_borrows_for_generic_args,
-<a href=#578 id=578 data-nosnippet>578</a>    unused_qualifications
-<a href=#579 id=579 data-nosnippet>579</a>)]
-<a href=#580 id=580 data-nosnippet>580</a></span><span class="kw">mod </span>tests;
-<a href=#581 id=581 data-nosnippet>581</a>
-<a href=#582 id=582 data-nosnippet>582</a><span class="attr">#[cfg(test)]
-<a href=#583 id=583 data-nosnippet>583</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_helpers;
+<a href=#477 id=477 data-nosnippet>477</a>    <span class="comment">// Test 2: AES-256-GCM Known Answer Tests against fixed NIST CAVP
+<a href=#478 id=478 data-nosnippet>478</a>    // vectors. Source: NIST Cryptographic Algorithm Validation Program
+<a href=#479 id=479 data-nosnippet>479</a>    // GCM Test Vectors, file `gcmEncryptExtIV256.rsp`. Two vectors are
+<a href=#480 id=480 data-nosnippet>480</a>    // verified — Count=0 covers the empty-PT path (GHASH-only) and
+<a href=#481 id=481 data-nosnippet>481</a>    // Count=12 covers the non-empty-PT path (exercises the AES round
+<a href=#482 id=482 data-nosnippet>482</a>    // function and counter-mode increment that the empty-PT KAT can't
+<a href=#483 id=483 data-nosnippet>483</a>    // reach). Each vector goes through encrypt + tag-check + decrypt
+<a href=#484 id=484 data-nosnippet>484</a>    // round-trip, catching backend miscompilation, table corruption,
+<a href=#485 id=485 data-nosnippet>485</a>    // S-box errors, and any drift in AesGcm256's wrapper logic —
+<a href=#486 id=486 data-nosnippet>486</a>    // failure modes a randomized roundtrip could not detect.
+<a href=#487 id=487 data-nosnippet>487</a>    </span><span class="kw">use </span><span class="kw">crate</span>::primitives::aead::AeadCipher;
+<a href=#488 id=488 data-nosnippet>488</a>    <span class="kw">use </span><span class="kw">crate</span>::primitives::aead::aes_gcm::AesGcm256;
+<a href=#489 id=489 data-nosnippet>489</a>
+<a href=#490 id=490 data-nosnippet>490</a>    <span class="doccomment">/// One AES-256-GCM CAVP vector for the boot-time KAT.
+<a href=#491 id=491 data-nosnippet>491</a>    </span><span class="kw">struct </span>AesGcm256Kat {
+<a href=#492 id=492 data-nosnippet>492</a>        <span class="doccomment">/// Source label for error messages, e.g. `"Count=0"`.
+<a href=#493 id=493 data-nosnippet>493</a>        </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#494 id=494 data-nosnippet>494</a>        <span class="doccomment">/// 256-bit AES key.
+<a href=#495 id=495 data-nosnippet>495</a>        </span>key: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8; <span class="number">32</span>],
+<a href=#496 id=496 data-nosnippet>496</a>        <span class="doccomment">/// 96-bit IV.
+<a href=#497 id=497 data-nosnippet>497</a>        </span>nonce: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8; <span class="number">12</span>],
+<a href=#498 id=498 data-nosnippet>498</a>        <span class="doccomment">/// Plaintext (may be empty).
+<a href=#499 id=499 data-nosnippet>499</a>        </span>plaintext: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8],
+<a href=#500 id=500 data-nosnippet>500</a>        <span class="doccomment">/// Expected ciphertext; same length as plaintext.
+<a href=#501 id=501 data-nosnippet>501</a>        </span>expected_ct: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8],
+<a href=#502 id=502 data-nosnippet>502</a>        <span class="doccomment">/// Expected 128-bit GMAC authentication tag.
+<a href=#503 id=503 data-nosnippet>503</a>        </span>expected_tag: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[u8; <span class="number">16</span>],
+<a href=#504 id=504 data-nosnippet>504</a>    }
+<a href=#505 id=505 data-nosnippet>505</a>
+<a href=#506 id=506 data-nosnippet>506</a>    <span class="kw">const </span>AES_GCM_KAT_VECTORS: <span class="kw-2">&amp;</span>[AesGcm256Kat] = <span class="kw-2">&amp;</span>[
+<a href=#507 id=507 data-nosnippet>507</a>        <span class="comment">// Count = 0: empty PT, empty AAD. Catches GHASH miscompilation
+<a href=#508 id=508 data-nosnippet>508</a>        // but not AES round-function or counter-mode bugs.
+<a href=#509 id=509 data-nosnippet>509</a>        //   Key   = b52c505a37d78eda5dd34f20c22540ea1b58963cf8e5bf8ffa85f9f2492505b4
+<a href=#510 id=510 data-nosnippet>510</a>        //   IV    = 516c33929df5a3284ff463d7
+<a href=#511 id=511 data-nosnippet>511</a>        //   PT    = (empty)
+<a href=#512 id=512 data-nosnippet>512</a>        //   AAD   = (empty)
+<a href=#513 id=513 data-nosnippet>513</a>        //   CT    = (empty)
+<a href=#514 id=514 data-nosnippet>514</a>        //   Tag   = bdc1ac884d332457a1d2664f168c76f0
+<a href=#515 id=515 data-nosnippet>515</a>        </span>AesGcm256Kat {
+<a href=#516 id=516 data-nosnippet>516</a>            name: <span class="string">"Count=0"</span>,
+<a href=#517 id=517 data-nosnippet>517</a>            key: <span class="kw-2">&amp;</span>[
+<a href=#518 id=518 data-nosnippet>518</a>                <span class="number">0xb5</span>, <span class="number">0x2c</span>, <span class="number">0x50</span>, <span class="number">0x5a</span>, <span class="number">0x37</span>, <span class="number">0xd7</span>, <span class="number">0x8e</span>, <span class="number">0xda</span>, <span class="number">0x5d</span>, <span class="number">0xd3</span>, <span class="number">0x4f</span>, <span class="number">0x20</span>, <span class="number">0xc2</span>, <span class="number">0x25</span>,
+<a href=#519 id=519 data-nosnippet>519</a>                <span class="number">0x40</span>, <span class="number">0xea</span>, <span class="number">0x1b</span>, <span class="number">0x58</span>, <span class="number">0x96</span>, <span class="number">0x3c</span>, <span class="number">0xf8</span>, <span class="number">0xe5</span>, <span class="number">0xbf</span>, <span class="number">0x8f</span>, <span class="number">0xfa</span>, <span class="number">0x85</span>, <span class="number">0xf9</span>, <span class="number">0xf2</span>,
+<a href=#520 id=520 data-nosnippet>520</a>                <span class="number">0x49</span>, <span class="number">0x25</span>, <span class="number">0x05</span>, <span class="number">0xb4</span>,
+<a href=#521 id=521 data-nosnippet>521</a>            ],
+<a href=#522 id=522 data-nosnippet>522</a>            nonce: <span class="kw-2">&amp;</span>[<span class="number">0x51</span>, <span class="number">0x6c</span>, <span class="number">0x33</span>, <span class="number">0x92</span>, <span class="number">0x9d</span>, <span class="number">0xf5</span>, <span class="number">0xa3</span>, <span class="number">0x28</span>, <span class="number">0x4f</span>, <span class="number">0xf4</span>, <span class="number">0x63</span>, <span class="number">0xd7</span>],
+<a href=#523 id=523 data-nosnippet>523</a>            plaintext: <span class="kw-2">&amp;</span>[],
+<a href=#524 id=524 data-nosnippet>524</a>            expected_ct: <span class="kw-2">&amp;</span>[],
+<a href=#525 id=525 data-nosnippet>525</a>            expected_tag: <span class="kw-2">&amp;</span>[
+<a href=#526 id=526 data-nosnippet>526</a>                <span class="number">0xbd</span>, <span class="number">0xc1</span>, <span class="number">0xac</span>, <span class="number">0x88</span>, <span class="number">0x4d</span>, <span class="number">0x33</span>, <span class="number">0x24</span>, <span class="number">0x57</span>, <span class="number">0xa1</span>, <span class="number">0xd2</span>, <span class="number">0x66</span>, <span class="number">0x4f</span>, <span class="number">0x16</span>, <span class="number">0x8c</span>,
+<a href=#527 id=527 data-nosnippet>527</a>                <span class="number">0x76</span>, <span class="number">0xf0</span>,
+<a href=#528 id=528 data-nosnippet>528</a>            ],
+<a href=#529 id=529 data-nosnippet>529</a>        },
+<a href=#530 id=530 data-nosnippet>530</a>        <span class="comment">// Count = 12: 128-bit PT, empty AAD. Exercises the AES round
+<a href=#531 id=531 data-nosnippet>531</a>        // function and counter-mode increment paths.
+<a href=#532 id=532 data-nosnippet>532</a>        //   Key   = 31bdadd96698c204aa9ce1448ea94ae1fb4a9a0b3c9d773b51bb1822666b8f22
+<a href=#533 id=533 data-nosnippet>533</a>        //   IV    = 0d18e06c7c725ac9e362e1ce
+<a href=#534 id=534 data-nosnippet>534</a>        //   PT    = 2db5168e932556f8089a0622981d017d
+<a href=#535 id=535 data-nosnippet>535</a>        //   AAD   = (empty)
+<a href=#536 id=536 data-nosnippet>536</a>        //   CT    = fa4362189661d163fcd6a56d8bf0405a
+<a href=#537 id=537 data-nosnippet>537</a>        //   Tag   = d636ac1bbedd5cc3ee727dc2ab4a9489
+<a href=#538 id=538 data-nosnippet>538</a>        </span>AesGcm256Kat {
+<a href=#539 id=539 data-nosnippet>539</a>            name: <span class="string">"Count=12"</span>,
+<a href=#540 id=540 data-nosnippet>540</a>            key: <span class="kw-2">&amp;</span>[
+<a href=#541 id=541 data-nosnippet>541</a>                <span class="number">0x31</span>, <span class="number">0xbd</span>, <span class="number">0xad</span>, <span class="number">0xd9</span>, <span class="number">0x66</span>, <span class="number">0x98</span>, <span class="number">0xc2</span>, <span class="number">0x04</span>, <span class="number">0xaa</span>, <span class="number">0x9c</span>, <span class="number">0xe1</span>, <span class="number">0x44</span>, <span class="number">0x8e</span>, <span class="number">0xa9</span>,
+<a href=#542 id=542 data-nosnippet>542</a>                <span class="number">0x4a</span>, <span class="number">0xe1</span>, <span class="number">0xfb</span>, <span class="number">0x4a</span>, <span class="number">0x9a</span>, <span class="number">0x0b</span>, <span class="number">0x3c</span>, <span class="number">0x9d</span>, <span class="number">0x77</span>, <span class="number">0x3b</span>, <span class="number">0x51</span>, <span class="number">0xbb</span>, <span class="number">0x18</span>, <span class="number">0x22</span>,
+<a href=#543 id=543 data-nosnippet>543</a>                <span class="number">0x66</span>, <span class="number">0x6b</span>, <span class="number">0x8f</span>, <span class="number">0x22</span>,
+<a href=#544 id=544 data-nosnippet>544</a>            ],
+<a href=#545 id=545 data-nosnippet>545</a>            nonce: <span class="kw-2">&amp;</span>[<span class="number">0x0d</span>, <span class="number">0x18</span>, <span class="number">0xe0</span>, <span class="number">0x6c</span>, <span class="number">0x7c</span>, <span class="number">0x72</span>, <span class="number">0x5a</span>, <span class="number">0xc9</span>, <span class="number">0xe3</span>, <span class="number">0x62</span>, <span class="number">0xe1</span>, <span class="number">0xce</span>],
+<a href=#546 id=546 data-nosnippet>546</a>            plaintext: <span class="kw-2">&amp;</span>[
+<a href=#547 id=547 data-nosnippet>547</a>                <span class="number">0x2d</span>, <span class="number">0xb5</span>, <span class="number">0x16</span>, <span class="number">0x8e</span>, <span class="number">0x93</span>, <span class="number">0x25</span>, <span class="number">0x56</span>, <span class="number">0xf8</span>, <span class="number">0x08</span>, <span class="number">0x9a</span>, <span class="number">0x06</span>, <span class="number">0x22</span>, <span class="number">0x98</span>, <span class="number">0x1d</span>,
+<a href=#548 id=548 data-nosnippet>548</a>                <span class="number">0x01</span>, <span class="number">0x7d</span>,
+<a href=#549 id=549 data-nosnippet>549</a>            ],
+<a href=#550 id=550 data-nosnippet>550</a>            expected_ct: <span class="kw-2">&amp;</span>[
+<a href=#551 id=551 data-nosnippet>551</a>                <span class="number">0xfa</span>, <span class="number">0x43</span>, <span class="number">0x62</span>, <span class="number">0x18</span>, <span class="number">0x96</span>, <span class="number">0x61</span>, <span class="number">0xd1</span>, <span class="number">0x63</span>, <span class="number">0xfc</span>, <span class="number">0xd6</span>, <span class="number">0xa5</span>, <span class="number">0x6d</span>, <span class="number">0x8b</span>, <span class="number">0xf0</span>,
+<a href=#552 id=552 data-nosnippet>552</a>                <span class="number">0x40</span>, <span class="number">0x5a</span>,
+<a href=#553 id=553 data-nosnippet>553</a>            ],
+<a href=#554 id=554 data-nosnippet>554</a>            expected_tag: <span class="kw-2">&amp;</span>[
+<a href=#555 id=555 data-nosnippet>555</a>                <span class="number">0xd6</span>, <span class="number">0x36</span>, <span class="number">0xac</span>, <span class="number">0x1b</span>, <span class="number">0xbe</span>, <span class="number">0xdd</span>, <span class="number">0x5c</span>, <span class="number">0xc3</span>, <span class="number">0xee</span>, <span class="number">0x72</span>, <span class="number">0x7d</span>, <span class="number">0xc2</span>, <span class="number">0xab</span>, <span class="number">0x4a</span>,
+<a href=#556 id=556 data-nosnippet>556</a>                <span class="number">0x94</span>, <span class="number">0x89</span>,
+<a href=#557 id=557 data-nosnippet>557</a>            ],
+<a href=#558 id=558 data-nosnippet>558</a>        },
+<a href=#559 id=559 data-nosnippet>559</a>    ];
+<a href=#560 id=560 data-nosnippet>560</a>
+<a href=#561 id=561 data-nosnippet>561</a>    <span class="kw">for </span>kat <span class="kw">in </span>AES_GCM_KAT_VECTORS {
+<a href=#562 id=562 data-nosnippet>562</a>        <span class="kw">let </span>cipher = AesGcm256::new(kat.key).map_err(|e| CoreError::SelfTestFailed {
+<a href=#563 id=563 data-nosnippet>563</a>            component: <span class="string">"AES-GCM"</span>.to_string(),
+<a href=#564 id=564 data-nosnippet>564</a>            status: <span class="macro">format!</span>(<span class="string">"{} key creation failed: {e}"</span>, kat.name),
+<a href=#565 id=565 data-nosnippet>565</a>        })<span class="question-mark">?</span>;
+<a href=#566 id=566 data-nosnippet>566</a>
+<a href=#567 id=567 data-nosnippet>567</a>        <span class="comment">// Encrypt-side: ciphertext + tag must match expected exactly.
+<a href=#568 id=568 data-nosnippet>568</a>        </span><span class="kw">let </span>(ct, tag) = cipher.encrypt(kat.nonce, kat.plaintext, <span class="prelude-val">None</span>).map_err(|e| {
+<a href=#569 id=569 data-nosnippet>569</a>            CoreError::SelfTestFailed {
+<a href=#570 id=570 data-nosnippet>570</a>                component: <span class="string">"AES-GCM"</span>.to_string(),
+<a href=#571 id=571 data-nosnippet>571</a>                status: <span class="macro">format!</span>(<span class="string">"{} encryption failed: {e}"</span>, kat.name),
+<a href=#572 id=572 data-nosnippet>572</a>            }
+<a href=#573 id=573 data-nosnippet>573</a>        })<span class="question-mark">?</span>;
+<a href=#574 id=574 data-nosnippet>574</a>        <span class="kw">if </span>!bool::from(subtle::ConstantTimeEq::ct_eq(<span class="kw-2">&amp;</span>ct[..], kat.expected_ct)) {
+<a href=#575 id=575 data-nosnippet>575</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
+<a href=#576 id=576 data-nosnippet>576</a>                component: <span class="string">"AES-GCM"</span>.to_string(),
+<a href=#577 id=577 data-nosnippet>577</a>                status: <span class="macro">format!</span>(
+<a href=#578 id=578 data-nosnippet>578</a>                    <span class="string">"{} ciphertext mismatch (AES round-function or CTR-mode bug)"</span>,
+<a href=#579 id=579 data-nosnippet>579</a>                    kat.name
+<a href=#580 id=580 data-nosnippet>580</a>                ),
+<a href=#581 id=581 data-nosnippet>581</a>            });
+<a href=#582 id=582 data-nosnippet>582</a>        }
+<a href=#583 id=583 data-nosnippet>583</a>        <span class="kw">if </span>!bool::from(subtle::ConstantTimeEq::ct_eq(<span class="kw-2">&amp;</span>tag[..], <span class="kw-2">&amp;</span>kat.expected_tag[..])) {
+<a href=#584 id=584 data-nosnippet>584</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
+<a href=#585 id=585 data-nosnippet>585</a>                component: <span class="string">"AES-GCM"</span>.to_string(),
+<a href=#586 id=586 data-nosnippet>586</a>                status: <span class="macro">format!</span>(<span class="string">"{} tag mismatch"</span>, kat.name),
+<a href=#587 id=587 data-nosnippet>587</a>            });
+<a href=#588 id=588 data-nosnippet>588</a>        }
+<a href=#589 id=589 data-nosnippet>589</a>
+<a href=#590 id=590 data-nosnippet>590</a>        <span class="comment">// Decrypt-side: round-trip the expected (CT, tag) back to the
+<a href=#591 id=591 data-nosnippet>591</a>        // expected plaintext.
+<a href=#592 id=592 data-nosnippet>592</a>        </span><span class="kw">let </span>decrypted = cipher
+<a href=#593 id=593 data-nosnippet>593</a>            .decrypt(kat.nonce, kat.expected_ct, kat.expected_tag, <span class="prelude-val">None</span>)
+<a href=#594 id=594 data-nosnippet>594</a>            .map_err(|e| CoreError::SelfTestFailed {
+<a href=#595 id=595 data-nosnippet>595</a>                component: <span class="string">"AES-GCM"</span>.to_string(),
+<a href=#596 id=596 data-nosnippet>596</a>                status: <span class="macro">format!</span>(<span class="string">"{} decryption failed: {e}"</span>, kat.name),
+<a href=#597 id=597 data-nosnippet>597</a>            })<span class="question-mark">?</span>;
+<a href=#598 id=598 data-nosnippet>598</a>        <span class="kw">if </span>!bool::from(subtle::ConstantTimeEq::ct_eq(decrypted.as_slice(), kat.plaintext)) {
+<a href=#599 id=599 data-nosnippet>599</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CoreError::SelfTestFailed {
+<a href=#600 id=600 data-nosnippet>600</a>                component: <span class="string">"AES-GCM"</span>.to_string(),
+<a href=#601 id=601 data-nosnippet>601</a>                status: <span class="macro">format!</span>(<span class="string">"{} decrypted plaintext mismatch"</span>, kat.name),
+<a href=#602 id=602 data-nosnippet>602</a>            });
+<a href=#603 id=603 data-nosnippet>603</a>        }
+<a href=#604 id=604 data-nosnippet>604</a>    }
+<a href=#605 id=605 data-nosnippet>605</a>
+<a href=#606 id=606 data-nosnippet>606</a>    <span class="comment">// Test 3: Basic keypair generation
+<a href=#607 id=607 data-nosnippet>607</a>    </span>generate_keypair()<span class="question-mark">?</span>;
+<a href=#608 id=608 data-nosnippet>608</a>
+<a href=#609 id=609 data-nosnippet>609</a>    <span class="comment">// All tests passed - set self-test status
+<a href=#610 id=610 data-nosnippet>610</a>    </span>SELF_TESTS_PASSED.store(<span class="bool-val">true</span>, Ordering::SeqCst);
+<a href=#611 id=611 data-nosnippet>611</a>    <span class="prelude-val">Ok</span>(())
+<a href=#612 id=612 data-nosnippet>612</a>}
+<a href=#613 id=613 data-nosnippet>613</a>
+<a href=#614 id=614 data-nosnippet>614</a><span class="attr">#[cfg(test)]
+<a href=#615 id=615 data-nosnippet>615</a>#[allow(
+<a href=#616 id=616 data-nosnippet>616</a>    clippy::panic,
+<a href=#617 id=617 data-nosnippet>617</a>    clippy::unwrap_used,
+<a href=#618 id=618 data-nosnippet>618</a>    clippy::expect_used,
+<a href=#619 id=619 data-nosnippet>619</a>    clippy::indexing_slicing,
+<a href=#620 id=620 data-nosnippet>620</a>    clippy::arithmetic_side_effects,
+<a href=#621 id=621 data-nosnippet>621</a>    clippy::panic_in_result_fn,
+<a href=#622 id=622 data-nosnippet>622</a>    clippy::unnecessary_wraps,
+<a href=#623 id=623 data-nosnippet>623</a>    clippy::redundant_clone,
+<a href=#624 id=624 data-nosnippet>624</a>    clippy::useless_vec,
+<a href=#625 id=625 data-nosnippet>625</a>    clippy::cast_possible_truncation,
+<a href=#626 id=626 data-nosnippet>626</a>    clippy::cast_sign_loss,
+<a href=#627 id=627 data-nosnippet>627</a>    clippy::clone_on_copy,
+<a href=#628 id=628 data-nosnippet>628</a>    clippy::len_zero,
+<a href=#629 id=629 data-nosnippet>629</a>    clippy::single_match,
+<a href=#630 id=630 data-nosnippet>630</a>    clippy::unnested_or_patterns,
+<a href=#631 id=631 data-nosnippet>631</a>    clippy::default_constructed_unit_structs,
+<a href=#632 id=632 data-nosnippet>632</a>    clippy::redundant_closure_for_method_calls,
+<a href=#633 id=633 data-nosnippet>633</a>    clippy::semicolon_if_nothing_returned,
+<a href=#634 id=634 data-nosnippet>634</a>    clippy::unnecessary_unwrap,
+<a href=#635 id=635 data-nosnippet>635</a>    clippy::redundant_pattern_matching,
+<a href=#636 id=636 data-nosnippet>636</a>    clippy::missing_const_for_thread_local,
+<a href=#637 id=637 data-nosnippet>637</a>    clippy::get_first,
+<a href=#638 id=638 data-nosnippet>638</a>    clippy::float_cmp,
+<a href=#639 id=639 data-nosnippet>639</a>    clippy::needless_borrows_for_generic_args,
+<a href=#640 id=640 data-nosnippet>640</a>    unused_qualifications
+<a href=#641 id=641 data-nosnippet>641</a>)]
+<a href=#642 id=642 data-nosnippet>642</a></span><span class="kw">mod </span>tests;
+<a href=#643 id=643 data-nosnippet>643</a>
+<a href=#644 id=644 data-nosnippet>644</a><span class="attr">#[cfg(test)]
+<a href=#645 id=645 data-nosnippet>645</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_helpers;
 </code></pre></div></section></main></body></html>
