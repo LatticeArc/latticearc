@@ -54,22 +54,22 @@
 <a href=#54 id=54 data-nosnippet>54</a>    }
 <a href=#55 id=55 data-nosnippet>55</a>}
 <a href=#56 id=56 data-nosnippet>56</a>
-<a href=#57 id=57 data-nosnippet>57</a><span class="comment">// Property: Error serialization/deserialization round-trip
-<a href=#58 id=58 data-nosnippet>58</a></span><span class="attr">#[cfg(test)]
-<a href=#59 id=59 data-nosnippet>59</a></span><span class="macro">proptest!</span> {
-<a href=#60 id=60 data-nosnippet>60</a>    <span class="attr">#[test]
-<a href=#61 id=61 data-nosnippet>61</a>    </span><span class="kw">fn </span>prop_error_serialization_roundtrip(error <span class="kw">in </span>arb_quantum_shield_error()) {
-<a href=#62 id=62 data-nosnippet>62</a>        <span class="comment">// Serialize to JSON
-<a href=#63 id=63 data-nosnippet>63</a>        </span><span class="kw">let </span>json: String = serde_json::to_string(<span class="kw-2">&amp;</span>error)<span class="question-mark">?</span>;
+<a href=#57 id=57 data-nosnippet>57</a><span class="comment">// Property: Error serialization is well-formed for outbound logging.
+<a href=#58 id=58 data-nosnippet>58</a>// Errors are deliberately not deserializable (see LatticeArcError doc).
+<a href=#59 id=59 data-nosnippet>59</a></span><span class="attr">#[cfg(test)]
+<a href=#60 id=60 data-nosnippet>60</a></span><span class="macro">proptest!</span> {
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="attr">#[test]
+<a href=#62 id=62 data-nosnippet>62</a>    </span><span class="kw">fn </span>prop_error_serialization_well_formed(error <span class="kw">in </span>arb_quantum_shield_error()) {
+<a href=#63 id=63 data-nosnippet>63</a>        <span class="kw">let </span>json: String = serde_json::to_string(<span class="kw-2">&amp;</span>error)<span class="question-mark">?</span>;
 <a href=#64 id=64 data-nosnippet>64</a>        <span class="macro">prop_assert!</span>(!json.is_empty());
 <a href=#65 id=65 data-nosnippet>65</a>
-<a href=#66 id=66 data-nosnippet>66</a>        <span class="comment">// Deserialize back
-<a href=#67 id=67 data-nosnippet>67</a>        </span><span class="kw">let </span>deserialized: LatticeArcError = serde_json::from_str(<span class="kw-2">&amp;</span>json)<span class="question-mark">?</span>;
-<a href=#68 id=68 data-nosnippet>68</a>
-<a href=#69 id=69 data-nosnippet>69</a>        <span class="comment">// Should be equal
-<a href=#70 id=70 data-nosnippet>70</a>        </span><span class="macro">prop_assert_eq!</span>(error.clone(), deserialized.clone());
-<a href=#71 id=71 data-nosnippet>71</a>
-<a href=#72 id=72 data-nosnippet>72</a>        <span class="macro">prop_assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, error), <span class="macro">format!</span>(<span class="string">"{}"</span>, deserialized));
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="comment">// Sanity: re-parsing the JSON as untyped Value must succeed,
+<a href=#67 id=67 data-nosnippet>67</a>        // confirming the emitted bytes are well-formed JSON.
+<a href=#68 id=68 data-nosnippet>68</a>        </span><span class="kw">let </span>_value: serde_json::Value = serde_json::from_str(<span class="kw-2">&amp;</span>json)<span class="question-mark">?</span>;
+<a href=#69 id=69 data-nosnippet>69</a>
+<a href=#70 id=70 data-nosnippet>70</a>        <span class="comment">// Display impl is independent of serde and must always succeed.
+<a href=#71 id=71 data-nosnippet>71</a>        </span><span class="kw">let </span>display = <span class="macro">format!</span>(<span class="string">"{}"</span>, error);
+<a href=#72 id=72 data-nosnippet>72</a>        <span class="macro">prop_assert!</span>(!display.is_empty());
 <a href=#73 id=73 data-nosnippet>73</a>    }
 <a href=#74 id=74 data-nosnippet>74</a>}
 <a href=#75 id=75 data-nosnippet>75</a>
@@ -267,30 +267,35 @@
 <a href=#267 id=267 data-nosnippet>267</a>    }
 <a href=#268 id=268 data-nosnippet>268</a>
 <a href=#269 id=269 data-nosnippet>269</a>    <span class="attr">#[test]
-<a href=#270 id=270 data-nosnippet>270</a>    </span><span class="kw">fn </span>test_error_serialization_fails() {
+<a href=#270 id=270 data-nosnippet>270</a>    </span><span class="kw">fn </span>test_error_serializes_to_well_formed_json() {
 <a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">let </span>error = LatticeArcError::InvalidInput(<span class="string">"test"</span>.to_string());
 <a href=#272 id=272 data-nosnippet>272</a>        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>error).unwrap();
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw">let </span>deserialized: LatticeArcError = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="macro">assert_eq!</span>(error, deserialized);
-<a href=#275 id=275 data-nosnippet>275</a>    }
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a>    <span class="attr">#[test]
-<a href=#278 id=278 data-nosnippet>278</a>    </span><span class="kw">fn </span>test_uuid_generation_produces_v4_uuid_succeeds() {
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="kw">let </span>uuid = uuid::Uuid::new_v4();
-<a href=#280 id=280 data-nosnippet>280</a>        <span class="macro">assert!</span>(!uuid.is_nil());
-<a href=#281 id=281 data-nosnippet>281</a>        <span class="macro">assert_eq!</span>(uuid.get_version_num(), <span class="number">4</span>);
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">let </span>uuid_str = uuid.to_string();
-<a href=#283 id=283 data-nosnippet>283</a>        <span class="macro">assert_eq!</span>(uuid_str.len(), <span class="number">36</span>);
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="macro">assert_eq!</span>(uuid_str.chars().nth(<span class="number">8</span>), <span class="prelude-val">Some</span>(<span class="string">'-'</span>));
-<a href=#285 id=285 data-nosnippet>285</a>    }
-<a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a>    <span class="attr">#[test]
-<a href=#288 id=288 data-nosnippet>288</a>    </span><span class="kw">fn </span>test_hex_roundtrip() {
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">let </span>data = <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">255</span>, <span class="number">0</span>];
-<a href=#290 id=290 data-nosnippet>290</a>        <span class="kw">let </span>hex_string = hex::encode(<span class="kw-2">&amp;</span>data);
-<a href=#291 id=291 data-nosnippet>291</a>        <span class="kw">let </span>decoded = hex::decode(<span class="kw-2">&amp;</span>hex_string).unwrap();
-<a href=#292 id=292 data-nosnippet>292</a>        <span class="macro">assert_eq!</span>(data, decoded);
-<a href=#293 id=293 data-nosnippet>293</a>        <span class="macro">assert_eq!</span>(hex_string.len(), data.len() * <span class="number">2</span>);
-<a href=#294 id=294 data-nosnippet>294</a>    }
-<a href=#295 id=295 data-nosnippet>295</a>}
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw">let </span>value: serde_json::Value = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
+<a href=#274 id=274 data-nosnippet>274</a>        <span class="comment">// Must mention the variant name and the payload string.
+<a href=#275 id=275 data-nosnippet>275</a>        </span><span class="macro">assert!</span>(json.contains(<span class="string">"InvalidInput"</span>));
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="macro">assert!</span>(json.contains(<span class="string">"test"</span>));
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="comment">// JSON parses back to a structured value (untyped) — no Deserialize
+<a href=#278 id=278 data-nosnippet>278</a>        // derive on LatticeArcError itself.
+<a href=#279 id=279 data-nosnippet>279</a>        </span><span class="macro">assert!</span>(!value.is_null());
+<a href=#280 id=280 data-nosnippet>280</a>    }
+<a href=#281 id=281 data-nosnippet>281</a>
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="attr">#[test]
+<a href=#283 id=283 data-nosnippet>283</a>    </span><span class="kw">fn </span>test_uuid_generation_produces_v4_uuid_succeeds() {
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>uuid = uuid::Uuid::new_v4();
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="macro">assert!</span>(!uuid.is_nil());
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="macro">assert_eq!</span>(uuid.get_version_num(), <span class="number">4</span>);
+<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>uuid_str = uuid.to_string();
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">assert_eq!</span>(uuid_str.len(), <span class="number">36</span>);
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="macro">assert_eq!</span>(uuid_str.chars().nth(<span class="number">8</span>), <span class="prelude-val">Some</span>(<span class="string">'-'</span>));
+<a href=#290 id=290 data-nosnippet>290</a>    }
+<a href=#291 id=291 data-nosnippet>291</a>
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="attr">#[test]
+<a href=#293 id=293 data-nosnippet>293</a>    </span><span class="kw">fn </span>test_hex_roundtrip() {
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span>data = <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">255</span>, <span class="number">0</span>];
+<a href=#295 id=295 data-nosnippet>295</a>        <span class="kw">let </span>hex_string = hex::encode(<span class="kw-2">&amp;</span>data);
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span>decoded = hex::decode(<span class="kw-2">&amp;</span>hex_string).unwrap();
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="macro">assert_eq!</span>(data, decoded);
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="macro">assert_eq!</span>(hex_string.len(), data.len() * <span class="number">2</span>);
+<a href=#299 id=299 data-nosnippet>299</a>    }
+<a href=#300 id=300 data-nosnippet>300</a>}
 </code></pre></div></section></main></body></html>
