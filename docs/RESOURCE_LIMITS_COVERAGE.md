@@ -117,6 +117,15 @@ Primitives — KDF (input `info`/`context` is attacker-influenced but output is 
 
 - `primitives::kdf::hkdf::hkdf_extract`, `hkdf_expand`, `hkdf_simple`
 - `primitives::kdf::pbkdf2::pbkdf2_simple`
+- `primitives::kdf::pbkdf2::pbkdf2_kat` — test-only KAT-replay entry
+  point (gated behind `cfg(any(test, feature = "test-utils"))`).
+  Delegates to the private `pbkdf2_with_floor` which performs all the
+  same salt-length, all-zero-salt, key-length, and DoS iteration-cap
+  checks as the public `pbkdf2`; the *only* validation it bypasses is
+  the per-PRF OWASP iteration *floor* (so RFC 6070 / NIST CAVP
+  vectors with low iteration counts can be replayed). Input is not
+  attacker-controllable in production builds because the function is
+  not exposed unless `test-utils` is enabled.
 - `primitives::kdf::sp800_108_counter_kdf::counter_kdf`, `derive_encryption_key`, `derive_iv`, `derive_mac_key`, `derive_multiple_keys`
 
 Hybrid layer — internal shared-secret derivation (fed from fixed-size inputs):

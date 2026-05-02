@@ -616,9 +616,10 @@ impl FileAuditStorage {
                     use std::io::Write as _;
                     use std::os::unix::fs::OpenOptionsExt;
                     let mut f = OpenOptions::new()
-                        .create_new(true) // refuse to overwrite — race-safe
+                        .create_new(true)
                         .write(true)
                         .mode(0o600)
+                        // LINT-OK: mode-on-prev-line — chained above.
                         .open(&genesis_path)
                         .map_err(|err| {
                             CoreError::AuditError(format!(
